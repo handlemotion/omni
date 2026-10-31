@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.tsbuild
+**/.turbo
+**/.wrangler
+.git
+.claude
+.context
+.env
+.env.*
+**/*.tsbuildinfo
