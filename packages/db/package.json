@@ -4,9 +4,20 @@
   "description": "Drizzle schema, migrations, and scoped queries (db.forMember)",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts"
   },
   "scripts": {
-    "test": "vitest run --passWithNoTests"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "doppler run -p omni -c dev -- drizzle-kit migrate",
+    "test:e2e": "doppler run -p omni -c dev -- vitest run --config vitest.e2e.mts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.4",
+    "postgres": "^3.4.9",
+    "uuidv7": "^1.2.1"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.11"
   }
 }

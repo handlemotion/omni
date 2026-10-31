@@ -2,7 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": ".tsbuild",
-    "types": ["node"]
+    "rootDir": "../..",
+    "types": ["node"],
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "e2e", "*.mts"]
+  "include": ["src", "e2e", "*.mts", "*.ts", "../../vitest.shared.mts"]
 }
