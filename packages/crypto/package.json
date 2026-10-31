@@ -7,6 +7,6 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   }
 }
