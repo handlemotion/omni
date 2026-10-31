@@ -4,15 +4,12 @@ import { fileURLToPath } from "node:url";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { createDb } from "../src/client.ts";
+import { readDatabaseUrl } from "../src/env.ts";
 import { mailboxAccess, mailboxes, members, organizations, users } from "../src/schema/index.ts";
 
 export const migrationsFolder = fileURLToPath(new URL("../migrations", import.meta.url));
 
-function adminUrl() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL is not set; run under `doppler run -p omni -c dev`");
-  return url;
-}
+const adminUrl = () => readDatabaseUrl(fileURLToPath(new URL("..", import.meta.url)));
 
 /** Creates an empty database and returns its URL plus a function that drops it. */
 export async function createEmptyDatabase() {

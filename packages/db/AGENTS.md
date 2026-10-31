@@ -6,7 +6,7 @@ Extends the root `AGENTS.md`.
   (`pnpm --filter @omni/auth auth:generate`) from `createAuth` in `packages/auth`. Never edit
   `auth.ts` by hand: change the auth options and regenerate.
 - After any schema change run `pnpm --filter @omni/db db:generate` and commit the migration.
-  Never hand-write or edit files in `migrations/`. `db:migrate` applies them to Doppler `dev`.
+  Never hand-write or edit files in `migrations/`. `db:migrate` applies them to `DATABASE_URL`.
 - Keep the schema driver-agnostic (`drizzle-orm/pg-core` only). Functions take `Db`, not a
   postgres-js instance, so the Worker can pass a Hyperdrive-backed database.
 - Every table has `org_id`. Mail rows reference their mailbox through `(mailbox_id, org_id)` so a
@@ -19,5 +19,8 @@ Extends the root `AGENTS.md`.
 - IDs are UUIDv7 text generated in the app. Timestamps are `timestamptz`.
 - postgres-js cannot bind a raw `Date` inside a `sql` template: pass `date.toISOString()` with a
   `::timestamptz` cast. Query-builder values (`.values`, `.set`, `eq`) handle `Date` fine.
+- Config comes only from the environment (`DATABASE_URL`, read by `src/env.ts`; a package `.env`
+  fills gaps). Scripts never call Doppler: we wrap them, e.g.
+  `doppler run -p omni -c dev -- pnpm --filter @omni/db test:e2e`.
 - Tests are e2e only (`e2e/*.e2e.test.ts`), each file in its own throwaway database from
-  `e2e/support.ts`. Run `pnpm stack:up` first, then `pnpm --filter @omni/db test:e2e`.
+  `e2e/support.ts`. Run `pnpm stack:up` first.

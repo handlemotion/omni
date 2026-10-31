@@ -6,19 +6,60 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { organization } from "better-auth/plugins/organization";
 import { uuidv7 } from "uuidv7";
+import { z } from "zod";
 
 export type MagicLinkSender = (message: { email: string; url: string }) => Promise<void>;
 
-export interface AuthEnv {
+const commaList = z
+  .string()
+  .optional()
+  .transform((value) =>
+    value
+      ? value
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [],
+  );
+
+// Blank lines in a .env file arrive as "", which means unset.
+const optionalText = z
+  .string()
+  .optional()
+  .transform((value) => value || undefined);
+
+/** Auth variables, documented in `packages/auth/.env.example`. */
+export const authEnvSchema = z
+  .object({
+    BETTER_AUTH_SECRET: z.string().min(32),
+    BETTER_AUTH_URL: z.url(),
+    AUTH_TRUSTED_ORIGINS: commaList,
+    AUTH_PASSKEY_RP_ID: optionalText,
+    APP_NAME: optionalText,
+  })
+  .transform((env) => ({
+    secret: env.BETTER_AUTH_SECRET,
+    baseURL: env.BETTER_AUTH_URL,
+    trustedOrigins: env.AUTH_TRUSTED_ORIGINS,
+    passkeyRpId: env.AUTH_PASSKEY_RP_ID,
+    appName: env.APP_NAME ?? "Omni",
+  }));
+
+export type AuthConfig = z.output<typeof authEnvSchema>;
+
+/** Validates auth config from the environment at startup; throws listing every bad variable. */
+export function parseAuthEnv(env: Record<string, unknown>): AuthConfig {
+  return authEnvSchema.parse(env);
+}
+
+export interface AuthEnv extends Partial<
+  Pick<AuthConfig, "trustedOrigins" | "passkeyRpId" | "appName">
+> {
   db: Db;
   /** BETTER_AUTH_SECRET */
   secret: string;
   /** BETTER_AUTH_URL, the API's public origin. */
   baseURL: string;
-  /** Web and app origins allowed to call the auth endpoints. */
-  trustedOrigins?: string[];
-  /** WebAuthn relying party, e.g. `omnidirectional.app`. Defaults to the baseURL host. */
-  passkeyRpId?: string;
   /** Delivers the magic link. The Worker injects the real sender. */
   sendMagicLink: MagicLinkSender;
 }
@@ -30,7 +71,7 @@ export interface AuthEnv {
  */
 export function createAuth(env: AuthEnv) {
   return betterAuth({
-    appName: "Omnidirectional",
+    appName: env.appName ?? "Omni",
     secret: env.secret,
     baseURL: env.baseURL,
     trustedOrigins: env.trustedOrigins ?? [],
@@ -43,7 +84,7 @@ export function createAuth(env: AuthEnv) {
     plugins: [
       magicLink({ sendMagicLink: ({ email, url }) => env.sendMagicLink({ email, url }) }),
       passkey({
-        rpName: "Omnidirectional",
+        rpName: env.appName ?? "Omni",
         ...(env.passkeyRpId ? { rpID: env.passkeyRpId } : {}),
         schema: { passkey: { modelName: "passkeys" } },
       }),
