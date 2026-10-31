@@ -73,6 +73,22 @@ Tests are a cost. Each one must catch a bug we would plausibly ship. Zero low-si
   by name or presence only (`doppler secrets --only-names`).
 - Creating, rotating, or deleting production secrets needs explicit approval.
 
+## Self-hostable by design
+
+Omni is built to be open-sourced and self-hosted (hosted Omni is the product; the code is free).
+Every change keeps that path working:
+
+- Config comes only from environment variables, validated with zod at startup, each documented
+  in the unit's `.env.example` (Worker: `.dev.vars.example`). Doppler is how _we_ inject them;
+  code never calls Doppler, and a plain `.env` must work for anyone else.
+- No Handlemotion-specific values in code: account IDs, domains, bucket names, and hostnames are
+  config or `wrangler.jsonc` vars with neutral defaults.
+- Mail access is provider-agnostic IMAP/SMTP. Purelymail-only features (its admin API) sit behind
+  the mailbox `provider` and are optional.
+- The local stack (`compose.yml`) plus a user's own Cloudflare account must be enough to run Omni.
+  Self-hosting steps live in `docs/self-hosting.md`; update it when you add a required service,
+  binding, or variable.
+
 ## Database
 
 - Drizzle only. Schema changes go through `packages/db/src/schema` and `db:generate`; never
