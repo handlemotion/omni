@@ -4,6 +4,7 @@
     { "path": "./packages/db" },
     { "path": "./packages/mail-core" },
     { "path": "./packages/ai" },
+    { "path": "./packages/crypto" },
     { "path": "./packages/auth" },
     { "path": "./apps/mail" },
     { "path": "./apps/worker" }

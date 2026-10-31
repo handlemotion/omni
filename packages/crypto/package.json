@@ -1,0 +1,12 @@
+{
+  "name": "@omni/crypto",
+  "private": true,
+  "description": "HMAC request signing and AES-256-GCM credential encryption on Web Crypto (Workers and Node)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  }
+}

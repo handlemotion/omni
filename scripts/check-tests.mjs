@@ -7,7 +7,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-const UNIT_TEST_ROOTS = ["packages/mail-core/", "packages/ai/", "scripts/"];
+const UNIT_TEST_ROOTS = ["packages/mail-core/", "packages/ai/", "packages/crypto/", "scripts/"];
 
 const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
   encoding: "utf8",

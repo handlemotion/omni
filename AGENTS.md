@@ -19,6 +19,7 @@ extends this file and wins where they differ. Explicit user instructions overrid
 | `packages/db`        | `@omni/db`        | Drizzle schema, migrations, and the only data access path: `db.forMember()`.     |
 | `packages/mail-core` | `@omni/mail-core` | Pure functions: threading, reply stripping, sanitizing. No I/O.                  |
 | `packages/ai`        | `@omni/ai`        | `triage()` and `summarize()`. Takes a model client; no other I/O.                |
+| `packages/crypto`    | `@omni/crypto`    | HMAC request signing and AES-256-GCM credential encryption (Web Crypto).         |
 | `packages/auth`      | `@omni/auth`      | Better Auth config (passkeys, magic links, organizations) shared by all clients. |
 
 - `apps/web` (Vite SPA) and `apps/ios` (Expo) are owned by Rodrigo. Agents do not create or edit
@@ -50,7 +51,7 @@ Tests are a cost. Each one must catch a bug we would plausibly ship. Zero low-si
   with Vitest e2e suites (`*.e2e.test.ts`) against the real local stack: real Postgres, real
   GreenMail, real `wrangler`/workerd. No mocks, stubs, or fakes in e2e (enforced).
 - **Unit tests only for valuable pure logic**, and only in `packages/mail-core`, `packages/ai`,
-  and `scripts/` (enforced by `scripts/check-tests.mjs`). Good: threading against real `.eml`
+  `packages/crypto`, and `scripts/` (enforced by `scripts/check-tests.mjs`). Good: threading against real `.eml`
   fixtures, reply stripping, HMAC/crypto round-trips, triage short-circuits. Bad: testing that a
   constant equals itself, that Drizzle builds a query, that a mock was called, getters, snapshots
   of whole objects nobody reads.
