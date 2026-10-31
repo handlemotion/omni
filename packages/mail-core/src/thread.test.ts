@@ -13,13 +13,13 @@ const parse = async (name: string) =>
   (await parseMessage(readFileSync(new URL(`../../../fixtures/eml/${name}`, import.meta.url))))
     .message;
 
-const SELF = ["rodrigo@handlemotion.example", "hello@handlemotion.example"];
+const SELF = ["sam@example.com", "hello@example.com"];
 const DAY = 24 * 60 * 60 * 1000;
 
 const deployThread = (overrides: Partial<ThreadCandidate>): ThreadCandidate => ({
   threadId: "t-deploy",
   subjectKey: "deploy window",
-  participants: ["hello@handlemotion.example", "ops@fundacionsol.example"],
+  participants: ["hello@example.com", "ops@fundacionsol.example.org"],
   lastMessageAt: new Date("2026-10-15T07:00:00Z"),
   ...overrides,
 });
@@ -49,7 +49,7 @@ describe("normalizeSubject", () => {
 describe("decideThread", () => {
   test("joins by In-Reply-To", async () => {
     const message = await parse("gmail-reply.eml");
-    const knownMessageIds = new Map([["<CAF3kq1x8Yd0Zr2@mail.handlemotion.example>", "t-brand"]]);
+    const knownMessageIds = new Map([["<CAF3kq1x8Yd0Zr2@mail.example.com>", "t-brand"]]);
     expect(decideThread(message, { knownMessageIds, candidates: [], selfAddresses: SELF })).toEqual(
       {
         kind: "headers",
@@ -61,7 +61,9 @@ describe("decideThread", () => {
   test("falls back to References when the direct parent was never synced", async () => {
     // In-Reply-To names a message sent from another device that we have not stored.
     const message = await parse("apple-mail-reply.eml");
-    const knownMessageIds = new Map([["<CAGm7xR2pQw9LkV4n+YtE5uB1aD@mail.gmail.com>", "t-brand"]]);
+    const knownMessageIds = new Map([
+      ["<CAGm7xR2pQw9LkV4n+YtE5uB1aD@mail.gmail.example.com>", "t-brand"],
+    ]);
     expect(decideThread(message, { knownMessageIds, candidates: [], selfAddresses: SELF })).toEqual(
       {
         kind: "headers",
@@ -75,7 +77,7 @@ describe("decideThread", () => {
     const candidate: ThreadCandidate = {
       threadId: "t-other-contract",
       subjectKey: "contract draft v3",
-      participants: ["luis.romero@acmelegal.example"],
+      participants: ["luis.romero@acmelegal.example.net"],
       lastMessageAt: new Date("2026-10-28T17:00:00Z"),
     };
     expect(
@@ -105,7 +107,7 @@ describe("decideThread", () => {
 
     test("our own address on both sides is not an overlap", async () => {
       const strangers = deployThread({
-        participants: ["hello@handlemotion.example", "ci@elsewhere.example"],
+        participants: ["hello@example.com", "ci@elsewhere.example.net"],
       });
       expect(await decide([strangers])).toEqual({ kind: "new", subjectKey: "deploy window" });
     });
@@ -123,7 +125,7 @@ describe("decideThread", () => {
     const candidate: ThreadCandidate = {
       threadId: "t-blank",
       subjectKey: "",
-      participants: ["ops@fundacionsol.example"],
+      participants: ["ops@fundacionsol.example.org"],
       lastMessageAt: new Date("2026-10-20T07:00:00Z"),
     };
     expect(
@@ -140,7 +142,7 @@ test("addedRecipients names who joined mid-thread, ignoring address case", async
   const earlier = participants(await parse("gmail-reply.eml"));
   const reply = await parse("cc-added-mid-thread.eml");
   expect(addedRecipients(reply, earlier)).toEqual([
-    { name: "Bea Soto", address: "bea.soto@studionorte.example" },
+    { name: "Bea Soto", address: "bea.soto@studionorte.example.org" },
   ]);
-  expect(addedRecipients(reply, [...earlier, "BEA.SOTO@studionorte.example"])).toEqual([]);
+  expect(addedRecipients(reply, [...earlier, "BEA.SOTO@studionorte.example.org"])).toEqual([]);
 });

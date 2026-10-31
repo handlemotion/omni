@@ -34,11 +34,11 @@ describe("clean_text", () => {
   test.each([
     [
       "gmail-reply.eml",
-      "Hi Rodrigo,\n\nThursday at 11 works for us. I'll bring the updated logo files and the\ntype specimen.",
+      "Hi Sam,\n\nThursday at 11 works for us. I'll bring the updated logo files and the\ntype specimen.",
     ],
     [
       "outlook-desktop-reply.eml",
-      "Hi Rodrigo,\n\nClause 7 is fine as written. Please send the signed copy by Friday.\n\nThanks,\nLuis",
+      "Hi Sam,\n\nClause 7 is fine as written. Please send the signed copy by Friday.\n\nThanks,\nLuis",
     ],
     [
       "outlook-web-reply-html-only.eml",
@@ -48,7 +48,7 @@ describe("clean_text", () => {
     ["cc-added-mid-thread.eml", "Adding Bea, who will run the type review on Thursday."],
     [
       "non-utf8-windows-1252.eml",
-      "Hola Rodrigo,\n\nConfirmo la reunión de mañana a las 10:00. El presupuesto es de 1.200 € más IVA.\n\nUn saludo,\nIñigo",
+      "Hola Sam,\n\nConfirmo la reunión de mañana a las 10:00. El presupuesto es de 1.200 € más IVA.\n\nUn saludo,\nIñigo",
     ],
     ["no-message-id.eml", "The window moves to Saturday 06:00 UTC. Nothing else changes."],
   ])("%s keeps only the new content", async (name, expected) => {
@@ -72,10 +72,10 @@ describe("clean_text", () => {
     const expected = {
       cleanText: "Can you pay this one before Monday?",
       forwarded: {
-        from: "Northwind Hosting <billing@northwind.example>",
+        from: "Northwind Hosting <billing@northwind.example.net>",
         date: "Thu, Oct 30, 2026 at 4:02 PM",
         subject: "Invoice INV-2026-0412 from Northwind Hosting",
-        to: "<rodrigo@handlemotion.example>",
+        to: "<sam@example.com>",
         text: "Hello,\n\nYour invoice INV-2026-0412 for 49.00 EUR is due on November 3, 2026.\n\nNorthwind Hosting",
       },
     };
@@ -91,10 +91,10 @@ describe("clean_text", () => {
     expect(cleanMessage(await parse("outlook-forward.eml"))).toEqual({
       cleanText: "For your records.\n\nLuis",
       forwarded: {
-        from: "Registry Office <noreply@registry.example>",
+        from: "Registry Office <noreply@registry.example.org>",
         date: "Friday, October 31, 2026 11:12 AM",
         subject: "Filing confirmation",
-        to: "Luis Romero <luis.romero@acmelegal.example>",
+        to: "Luis Romero <luis.romero@acmelegal.example.net>",
         text: "Filing 2026/88412 was received and is under review.",
       },
     });
@@ -105,16 +105,19 @@ describe("parseMessage", () => {
   test("decodes windows-1252 bodies and ISO-8859-1 encoded-word headers", async () => {
     const message = await parse("non-utf8-windows-1252.eml");
     expect(message.subject).toBe("Reunión de mañana");
-    expect(message.from).toEqual({ name: "Iñigo Ibáñez", address: "inigo@talleresbilbao.example" });
+    expect(message.from).toEqual({
+      name: "Iñigo Ibáñez",
+      address: "inigo@talleresbilbao.example.net",
+    });
   });
 
   test("reads reply headers in order", async () => {
     const message = await parse("apple-mail-reply.eml");
-    expect(message.inReplyTo).toBe("<CAF3kq1y2Zx9Pk@mail.handlemotion.example>");
+    expect(message.inReplyTo).toBe("<CAF3kq1y2Zx9Pk@mail.example.com>");
     expect(message.references).toEqual([
-      "<CAF3kq1x8Yd0Zr2@mail.handlemotion.example>",
-      "<CAGm7xR2pQw9LkV4n+YtE5uB1aD@mail.gmail.com>",
-      "<CAF3kq1y2Zx9Pk@mail.handlemotion.example>",
+      "<CAF3kq1x8Yd0Zr2@mail.example.com>",
+      "<CAGm7xR2pQw9LkV4n+YtE5uB1aD@mail.gmail.example.com>",
+      "<CAF3kq1y2Zx9Pk@mail.example.com>",
     ]);
   });
 
@@ -137,7 +140,7 @@ describe("parseMessage", () => {
         filename: "logo-mark.png",
         mimeType: "image/png",
         size: 70,
-        contentId: "logo-mark@studionorte.example",
+        contentId: "logo-mark@studionorte.example.org",
         inline: true,
       },
       {
@@ -153,15 +156,17 @@ describe("parseMessage", () => {
 
     // keepCidLinks: mailparser would otherwise inline the image as a data: URI.
     const { html } = sanitizeHtml(message.html ?? "", sanitizeOptions);
-    expect(html).toContain('src="https://omni.test/attachments/logo-mark%40studionorte.example"');
+    expect(html).toContain(
+      'src="https://omni.test/attachments/logo-mark%40studionorte.example.org"',
+    );
   });
 
   test("exposes list headers as triage signals", async () => {
     expect((await parse("newsletter-html-only.eml")).signals).toEqual({
-      listId: "Pixel Weekly <weekly.pixelweekly.example>",
+      listId: "Pixel Weekly <weekly.pixelweekly.example.com>",
       listUnsubscribe: [
-        "https://pixelweekly.example/u/7731?t=a9f2",
-        "mailto:unsubscribe-7731@pixelweekly.example",
+        "https://pixelweekly.example.com/u/7731?t=a9f2",
+        "mailto:unsubscribe-7731@pixelweekly.example.com",
       ],
       listUnsubscribeOneClick: true,
       precedence: "bulk",
@@ -191,10 +196,10 @@ describe("sanitizeHtml", () => {
     expect(remoteImageCount).toBe(3);
     expect(html).not.toMatch(/<img[^>]*\ssrc=/);
     expect(html).toContain(
-      `${BLOCKED_SRC_ATTR}="${PROXY}${encodeURIComponent("https://t.pixelweekly.example/open.gif?id=7731")}"`,
+      `${BLOCKED_SRC_ATTR}="${PROXY}${encodeURIComponent("https://t.pixelweekly.example.com/open.gif?id=7731")}"`,
     );
     // Protocol-relative URLs are remote too.
-    expect(html).toContain(encodeURIComponent("https://t.pixelweekly.example/open2.gif"));
+    expect(html).toContain(encodeURIComponent("https://t.pixelweekly.example.com/open2.gif"));
     // A sender cannot pre-fill the attribute the client swaps into src.
     expect(html).not.toContain("sneaky.gif");
     // CSS backgrounds cannot be swapped in later, so blocked means removed.
@@ -210,21 +215,21 @@ describe("sanitizeHtml", () => {
       remoteImages: "proxy",
     });
     expect(html).toContain(
-      `src="${PROXY}${encodeURIComponent("https://cdn.pixelweekly.example/banner.png")}"`,
+      `src="${PROXY}${encodeURIComponent("https://cdn.pixelweekly.example.com/banner.png")}"`,
     );
     expect(html).toContain(
-      `url("${PROXY}${encodeURIComponent("https://cdn.pixelweekly.example/hero.jpg")}")`,
+      `url("${PROXY}${encodeURIComponent("https://cdn.pixelweekly.example.com/hero.jpg")}")`,
     );
   });
 
   test("CSS tricks cannot smuggle in a remote load", () => {
     const html = [
-      `<p style="background:url('data:image/png,x\\'); background:url(https://t.example/a.gif)')">a</p>`,
-      `<p style="background:\\75 rl(https://t.example/b.gif)">b</p>`,
-      `<p style="background-image:image-set('https://t.example/c.gif' 1x)">c</p>`,
-      `<p style="background:url('data:image/png,&quot;);background:url(https://t.example/d.gif')">d</p>`,
+      `<p style="background:url('data:image/png,x\\'); background:url(https://t.example.com/a.gif)')">a</p>`,
+      `<p style="background:\\75 rl(https://t.example.com/b.gif)">b</p>`,
+      `<p style="background-image:image-set('https://t.example.com/c.gif' 1x)">c</p>`,
+      `<p style="background:url('data:image/png,&quot;);background:url(https://t.example.com/d.gif')">d</p>`,
     ].join("");
-    expect(sanitizeHtml(html, sanitizeOptions).html).not.toContain("t.example");
+    expect(sanitizeHtml(html, sanitizeOptions).html).not.toContain("t.example.com");
   });
 
   test("keeps newsletter styles and links, opening links outside the frame", async () => {
@@ -234,7 +239,7 @@ describe("sanitizeHtml", () => {
     );
     expect(html).toContain("font-family: Georgia, serif;");
     expect(html).toContain(
-      '<a href="https://pixelweekly.example/r/7731/variable-fonts" target="_blank" rel="noopener noreferrer nofollow">',
+      '<a href="https://pixelweekly.example.com/r/7731/variable-fonts" target="_blank" rel="noopener noreferrer nofollow">',
     );
   });
 });

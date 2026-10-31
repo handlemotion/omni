@@ -1,12 +1,12 @@
-Return-Path: <bounce-7731@mail.pixelweekly.example>
-From: Pixel Weekly <news@pixelweekly.example>
-To: rodrigo@handlemotion.example
+Return-Path: <bounce-7731@mail.pixelweekly.example.com>
+From: Pixel Weekly <news@pixelweekly.example.com>
+To: sam@example.com
 Subject: Issue 112: Variable fonts in production
 Date: Fri, 31 Oct 2026 06:00:00 +0000
-Message-ID: <issue-112.7731@mail.pixelweekly.example>
-List-Id: Pixel Weekly <weekly.pixelweekly.example>
-List-Unsubscribe: <https://pixelweekly.example/u/7731?t=a9f2>,
- <mailto:unsubscribe-7731@pixelweekly.example>
+Message-ID: <issue-112.7731@mail.pixelweekly.example.com>
+List-Id: Pixel Weekly <weekly.pixelweekly.example.com>
+List-Unsubscribe: <https://pixelweekly.example.com/u/7731?t=a9f2>,
+ <mailto:unsubscribe-7731@pixelweekly.example.com>
 List-Unsubscribe-Post: List-Unsubscribe=One-Click
 Precedence: bulk
 MIME-Version: 1.0
@@ -15,30 +15,30 @@ Content-Type: text/html; charset=utf-8
 <!doctype html>
 <html><head><meta charset="utf-8"><title>Pixel Weekly</title>
 <style>
-@import url(https://cdn.pixelweekly.example/fonts.css);
+@import url(https://cdn.pixelweekly.example.com/fonts.css);
 body { margin: 0; font-family: Georgia, serif; }
-.hero { background: #111 url("https://cdn.pixelweekly.example/hero.jpg") no-repeat; color: #fff; }
-.mark { background-image: url(cid:mark@pixelweekly.example); }
+.hero { background: #111 url("https://cdn.pixelweekly.example.com/hero.jpg") no-repeat; color: #fff; }
+.mark { background-image: url(cid:mark@pixelweekly.example.com); }
 </style>
-<script>fetch("https://t.pixelweekly.example/open?id=7731")</script>
+<script>fetch("https://t.pixelweekly.example.com/open?id=7731")</script>
 </head>
 <body>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-<tr><td class="hero" background="https://cdn.pixelweekly.example/bg.jpg">
+<tr><td class="hero" background="https://cdn.pixelweekly.example.com/bg.jpg">
 <h1>Variable fonts in production</h1>
-<img src="https://cdn.pixelweekly.example/banner.png" alt="Banner" width="600" onerror="alert(1)">
+<img src="https://cdn.pixelweekly.example.com/banner.png" alt="Banner" width="600" onerror="alert(1)">
 </td></tr>
 <tr><td>
 <p>This week we look at shipping variable fonts without hurting load times. Subsetting, preloading the right axis ranges and picking sensible fallbacks matter more than the format itself.</p>
-<p><a href="https://pixelweekly.example/r/7731/variable-fonts">Read the full article</a> &middot; <a href="javascript:alert(document.cookie)">Share</a></p>
-<p style="background-image: url('https://t.pixelweekly.example/bg-track.gif')">Sponsored by Glyphworks.</p>
-<form action="https://pixelweekly.example/poll"><input name="vote" value="yes"><button>Vote</button></form>
-<iframe src="https://pixelweekly.example/embed"></iframe>
-<svg><image href="https://t.pixelweekly.example/svg.gif"></image></svg>
-<div data-omni-src="https://t.pixelweekly.example/sneaky.gif" onclick="steal()">Footer</div>
+<p><a href="https://pixelweekly.example.com/r/7731/variable-fonts">Read the full article</a> &middot; <a href="javascript:alert(document.cookie)">Share</a></p>
+<p style="background-image: url('https://t.pixelweekly.example.com/bg-track.gif')">Sponsored by Glyphworks.</p>
+<form action="https://pixelweekly.example.com/poll"><input name="vote" value="yes"><button>Vote</button></form>
+<iframe src="https://pixelweekly.example.com/embed"></iframe>
+<svg><image href="https://t.pixelweekly.example.com/svg.gif"></image></svg>
+<div data-omni-src="https://t.pixelweekly.example.com/sneaky.gif" onclick="steal()">Footer</div>
 </td></tr>
 <tr><td><table><tr><th>Font</th><th>Size</th></tr><tr><td>Inter Var</td><td>310 KB</td></tr></table></td></tr>
 </table>
-<img src="https://t.pixelweekly.example/open.gif?id=7731" width="1" height="1" alt="" style="display:none">
-<img src="//t.pixelweekly.example/open2.gif" width="1" height="1" alt="">
+<img src="https://t.pixelweekly.example.com/open.gif?id=7731" width="1" height="1" alt="" style="display:none">
+<img src="//t.pixelweekly.example.com/open2.gif" width="1" height="1" alt="">
 </body></html>

@@ -1,8 +1,8 @@
-From: Ana =?UTF-8?Q?P=C3=A9rez?= <ana.perez@studionorte.example>
-To: Rodrigo Jimenez <rodrigo@handlemotion.example>
+From: Ana =?UTF-8?Q?P=C3=A9rez?= <ana.perez@studionorte.example.org>
+To: Sam Rivera <sam@example.com>
 Subject: Final logo files
 Date: Thu, 30 Oct 2026 12:00:00 +0100
-Message-ID: <0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0@studionorte.example>
+Message-ID: <0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0@studionorte.example.org>
 MIME-Version: 1.0
 Content-Type: multipart/mixed; boundary="mixed-7f3a"
 
@@ -20,14 +20,14 @@ Here are the final files. The mark is below and the guidelines are attached.
 --alt-7f3a
 Content-Type: text/html; charset=utf-8
 
-<p>Here are the final files. The mark is below and the guidelines are attached.</p><p><img src="cid:logo-mark@studionorte.example" alt="Logo mark" width="64" height="64"></p>
+<p>Here are the final files. The mark is below and the guidelines are attached.</p><p><img src="cid:logo-mark@studionorte.example.org" alt="Logo mark" width="64" height="64"></p>
 
 --alt-7f3a--
 
 --related-7f3a
 Content-Type: image/png; name="logo-mark.png"
 Content-Disposition: inline; filename="logo-mark.png"
-Content-ID: <logo-mark@studionorte.example>
+Content-ID: <logo-mark@studionorte.example.org>
 Content-Transfer-Encoding: base64
 
 iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9
