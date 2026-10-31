@@ -1,0 +1,12 @@
+{
+  "name": "@omni/mail-core",
+  "private": true,
+  "description": "Pure mail logic: threading, reply stripping, sanitizing. No I/O.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  }
+}

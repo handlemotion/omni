@@ -1,0 +1,17 @@
+node_modules
+dist
+coverage
+.turbo
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.tsbuild/
+.local/
+.DS_Store
+*.pem
+.context/
+.firecrawl/

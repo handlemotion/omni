@@ -1,0 +1,42 @@
+{
+  "name": "@omni/monorepo",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/handlemotion/omni"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --ui=tui",
+    "check": "oxfmt --check . && oxlint . && pnpm check:policies",
+    "check:policies": "node scripts/check-tests.mjs",
+    "check-types": "tsc -b --pretty false",
+    "fix": "oxfmt . && oxlint --fix .",
+    "format": "oxfmt .",
+    "lint": "oxlint .",
+    "test": "turbo run test --affected",
+    "test:all": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "db:local:up": "docker compose up -d --wait postgres",
+    "db:local:down": "docker compose down",
+    "mail:local:up": "docker compose up -d --wait greenmail",
+    "stack:up": "docker compose up -d --wait",
+    "stack:down": "docker compose down",
+    "prepare": "node scripts/install-git-hooks.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "lefthook": "^2.2.2",
+    "lint-staged": "^17.6.0",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
+    "turbo": "^2.11.10",
+    "typescript": "7.0.2",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.16.1"
+}

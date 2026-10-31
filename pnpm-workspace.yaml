@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Supply-chain guard: never install a version published less than a day ago.
+minimumReleaseAge: 1440
+
+allowBuilds:
+  esbuild: true
+  lefthook: true
+  workerd: true
+  sharp: false

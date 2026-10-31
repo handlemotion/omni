@@ -1,0 +1,12 @@
+{
+  "name": "@omni/worker",
+  "private": true,
+  "description": "Cloudflare Worker: Hono API, AI queue consumer, realtime Durable Object",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  }
+}

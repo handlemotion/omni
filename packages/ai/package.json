@@ -1,0 +1,12 @@
+{
+  "name": "@omni/ai",
+  "private": true,
+  "description": "triage() and summarize() on the Anthropic SDK. No I/O besides the model call.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  }
+}

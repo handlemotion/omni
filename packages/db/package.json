@@ -1,0 +1,12 @@
+{
+  "name": "@omni/db",
+  "private": true,
+  "description": "Drizzle schema, migrations, and scoped queries (db.forMember)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  }
+}
