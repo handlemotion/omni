@@ -1,4 +1,4 @@
-# Mail service image for Railway. Build from the repo root:
+# Mail service image; runs on any Docker host (we use Railway). Build from the repo root:
 #   docker build -f apps/mail/Dockerfile .
 FROM node:24-bookworm-slim AS build
 ENV CI=true

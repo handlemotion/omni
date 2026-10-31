@@ -1,8 +1,12 @@
+import { existsSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { loadConfig } from "./config.ts";
 import { createApp, rejectAll } from "./http.ts";
 import { createLogger } from "./log.ts";
 import type { Supervisor } from "./supervisor.ts";
+
+// A plain `.env` works for self-hosters; variables already set (Doppler, Docker) win over it.
+if (existsSync(".env")) process.loadEnvFile(".env");
 
 const config = loadConfig();
 const log = createLogger(config.LOG_LEVEL);
@@ -29,7 +33,7 @@ async function shutdown(signal: string) {
   if (stopping) return;
   stopping = true;
   log.info("shutdown.start", { signal });
-  // Railway sends SIGKILL ~30s after SIGTERM; finish well inside that.
+  // Container hosts usually SIGKILL 10-30s after SIGTERM; give in-flight work up to 20s.
   const force = setTimeout(() => {
     log.error("shutdown.timeout");
     process.exit(1);

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "doppler run -p omni -c dev_mail -- node --watch src/main.ts",
+    "start": "node src/main.ts",
     "build": "node build.mjs",
     "test": "vitest run --passWithNoTests",
     "test:e2e": "vitest run --config vitest.e2e.mts"

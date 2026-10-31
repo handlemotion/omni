@@ -163,7 +163,10 @@ export class OutboxExecutor {
 
 /** `<sha256(key)@domain>`: the same idempotency key always yields the same Message-ID. */
 export function deterministicMessageId(idempotencyKey: string, address: string): string {
-  const domain = address.split("@")[1] ?? "omnidirectional.app";
+  const domain = address.slice(address.lastIndexOf("@") + 1);
+  if (!address.includes("@") || !domain) {
+    throw new PermanentActionError(`mailbox address has no domain: ${address}`);
+  }
   const hash = createHash("sha256").update(`omni-send:${idempotencyKey}`).digest("hex");
   return `<${hash.slice(0, 32)}@${domain}>`;
 }

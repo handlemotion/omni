@@ -1,4 +1,4 @@
-// One JSON line per event on stdout; Railway collects it. Never log credentials or message bodies.
+// One JSON line per event on stdout, for whatever log collector the host runs. Never log credentials or message bodies.
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 

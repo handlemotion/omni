@@ -29,7 +29,7 @@ export interface Capabilities {
   condstore: boolean;
   uidplus: boolean;
   move: boolean;
-  /** Every capability the server advertised, for the M0 report on Purelymail. */
+  /** Every capability the server advertised, logged on connect to show what a host supports. */
   all: string[];
 }
 

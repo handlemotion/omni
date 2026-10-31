@@ -2,7 +2,7 @@
 // `@omni/db` + R2 implementation can replace the e2e in-memory one without touching the engine.
 //
 // Every method must be idempotent: the engine may repeat any call after a crash or a reconnect,
-// and Purelymail stays the source of truth (a full re-sync must converge).
+// and the IMAP server stays the source of truth (a full re-sync must converge).
 
 export type FolderRole = "inbox" | "sent" | "archive" | "trash" | "drafts" | "junk" | "other";
 
