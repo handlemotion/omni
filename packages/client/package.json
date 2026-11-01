@@ -1,0 +1,23 @@
+{
+  "name": "@omni/client",
+  "private": true,
+  "description": "Typed, framework-agnostic client for web and iOS: Hono RPC, Better Auth, realtime",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test:e2e": "vitest run --config vitest.e2e.mts"
+  },
+  "dependencies": {
+    "@better-auth/passkey": "^1.7.14",
+    "better-auth": "^1.7.14",
+    "hono": "^4.13.14"
+  },
+  "devDependencies": {
+    "@omni/db": "workspace:*",
+    "@omni/worker": "workspace:*",
+    "drizzle-orm": "^0.45.4"
+  }
+}

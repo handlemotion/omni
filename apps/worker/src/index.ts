@@ -3,6 +3,7 @@ import { app } from "./app.ts";
 import { consumeAiQueue, type AiJob } from "./queue.ts";
 
 export type { AppType } from "./app.ts";
+export type { RealtimeEvent } from "./realtime.ts";
 export { Realtime } from "./realtime.ts";
 export { ReplayGuard } from "./replay-guard.ts";
 

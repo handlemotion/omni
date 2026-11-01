@@ -8,6 +8,7 @@
     { "path": "./packages/contracts" },
     { "path": "./packages/auth" },
     { "path": "./apps/mail" },
-    { "path": "./apps/worker" }
+    { "path": "./apps/worker" },
+    { "path": "./packages/client" }
   ]
 }

@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": ".tsbuild/src",
+    "lib": ["es2024", "dom"],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src"],
+  // The Worker's route types reach the client through its emitted declarations.
+  "references": [{ "path": "../../apps/worker/tsconfig.worker.json" }]
+}
