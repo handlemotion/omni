@@ -13,7 +13,9 @@
     "test:e2e": "vitest run --config vitest.e2e.mts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "@hono/zod-validator": "^0.9.1",
+    "@omni/ai": "workspace:*",
     "@omni/auth": "workspace:*",
     "@omni/contracts": "workspace:*",
     "@omni/crypto": "workspace:*",

@@ -140,10 +140,12 @@ every name and id there is a neutral default to replace with your own.
 
 Bindings:
 
-| Binding       | Kind       | Setup                                                                                                                                                                |
-| ------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HYPERDRIVE`  | Hyperdrive | `wrangler hyperdrive create omni --connection-string=postgres://...`, then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres. |
-| `MAIL_BUCKET` | R2         | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker only reads attachments from it.                      |
+| Binding        | Kind                    | Setup                                                                                                                                                                |
+| -------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HYPERDRIVE`   | Hyperdrive              | `wrangler hyperdrive create omni --connection-string=postgres://...`, then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres. |
+| `MAIL_BUCKET`  | R2                      | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker only reads attachments from it.                      |
+| `AI_QUEUE`     | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes, failed jobs land in the DLQ after `max_retries`.        |
+| `REPLAY_GUARD` | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                    |
 
 Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashboard values on
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
@@ -160,10 +162,15 @@ to `.dev.vars`.
 | `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                         |
 | `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links. Empty disables them. |
 | `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off.                                                   |
+| `ANTHROPIC_API_KEY`        | secret | no       | Without it only the ours-last rule triages; no summaries.                 |
+| `AI_DAILY_TOKEN_CAP`       | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause. |
 
 Magic links are sent through the outbox: the Worker writes a `send` action for the
 `SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be
 connected like any other.
+
+The mail service reports new and changed mail with a signed `POST /internal/mail-events`
+(timestamp and nonce required; replays are rejected). Expose `/internal/*` only to it.
 
 ```bash
 pnpm --filter @omni/worker dev      # wrangler dev on :8787 (we wrap it in Doppler)
