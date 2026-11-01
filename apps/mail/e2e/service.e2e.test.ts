@@ -27,7 +27,7 @@ import {
   stored,
   type TestDb,
 } from "./support/db.ts";
-import { deliver, logger, mailbox, otherClient, purge, waitFor } from "./support/greenmail.ts";
+import { deliver, logger, mailbox, otherClient, waitFor } from "./support/greenmail.ts";
 import { createTestBucket } from "./support/objects.ts";
 
 const secret = randomBytes(32).toString("hex");
@@ -79,8 +79,7 @@ afterAll(async () => {
   await database.teardown();
 });
 
-beforeEach(async () => {
-  await purge();
+beforeEach(() => {
   received = [];
   workerRejected = 0;
 });
