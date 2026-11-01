@@ -107,6 +107,9 @@ pnpm --filter @omni/mail mailbox:add -- --org <org id> --address you@example.com
   --owner you@example.com --create-app-password      # needs PURELYMAIL_API_TOKEN
 ```
 
+In the Docker image the same CLI is `node dist/mailbox-add.js` (for example
+`docker run -i --rm --env-file apps/mail/.env omni-mail node dist/mailbox-add.js --org ...`).
+
 It checks the IMAP login (`--no-verify` skips that), encrypts the credentials bound to the
 mailbox id, stores the mailbox with an owner grant, and prints the mailbox id. Running it again
 for the same address replaces the credentials. With `MAIL_SERVICE_URL` set it pings the running
