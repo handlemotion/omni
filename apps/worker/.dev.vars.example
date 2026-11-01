@@ -38,6 +38,10 @@ JEV_MODEL=
 AI_DAILY_TOKEN_CAP=1000000
 
 # --- Optional ---
+# "true" sends Expo push notifications to members with no app open.
+EXPO_PUSH_ENABLED=false
+# Secret. Only if your Expo project enforces push security.
+EXPO_ACCESS_TOKEN=
 # Sentry DSN. Empty keeps error reporting off.
 SENTRY_DSN=
 

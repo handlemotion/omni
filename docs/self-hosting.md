@@ -146,6 +146,7 @@ Bindings:
 | `MAIL_BUCKET`  | R2                      | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker only reads attachments from it.                      |
 | `AI_QUEUE`     | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes, failed jobs land in the DLQ after `max_retries`.        |
 | `REPLAY_GUARD` | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                    |
+| `REALTIME`     | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                     |
 
 Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashboard values on
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
@@ -167,6 +168,8 @@ to `.dev.vars`.
 | `TRIAGE_PROVIDER`          | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                   |
 | `JEV_MODEL`                | var    | no       | Jev model override.                                                                  |
 | `AI_DAILY_TOKEN_CAP`       | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause.            |
+| `EXPO_PUSH_ENABLED`        | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                 |
+| `EXPO_ACCESS_TOKEN`        | secret | no       | Only if your Expo project enforces push security.                                    |
 
 Magic links are sent through the outbox: the Worker writes a `send` action for the
 `SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be

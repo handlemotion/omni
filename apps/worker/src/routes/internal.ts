@@ -7,11 +7,13 @@ import {
   mailEventSchema,
   type MailEvent,
 } from "@omni/contracts";
+import { createDb } from "@omni/db";
 import { z } from "zod";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 import { loadConfig } from "../env.ts";
 import type { AiJob } from "../queue.ts";
+import { fanOut } from "../realtime.ts";
 
 export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   const config = loadConfig(c.env);
@@ -52,6 +54,19 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
 
   const jobs = aiJobsFor(events);
   if (jobs.length) await c.env.AI_QUEUE.sendBatch(jobs.map((body) => ({ body })));
+
+  const { db, close } = createDb(c.env.HYPERDRIVE.connectionString, {
+    max: 2,
+    fetch_types: false,
+    onnotice: () => {},
+  });
+  try {
+    await fanOut(c.env, db, config, changedThreads(events), {
+      push: events.some((e) => e.type === "message.created"),
+    });
+  } finally {
+    c.executionCtx.waitUntil(close());
+  }
   return c.json({ ok: true, jobs: jobs.length }, 202);
 });
 
@@ -63,12 +78,26 @@ const envelope = z.object({
 });
 const knownTypes = new Set<string>(mailEventSchema.options.map((o) => o.shape.type.value));
 
+function changedThreads(events: MailEvent[]) {
+  const byMailbox = new Map<string, Set<string>>();
+  for (const event of events) {
+    const threads = byMailbox.get(event.mailboxId) ?? new Set();
+    threads.add(event.threadId);
+    byMailbox.set(event.mailboxId, threads);
+  }
+  return byMailbox;
+}
+
 /** One AI job per thread that got a new message; flag changes need no AI. */
 function aiJobsFor(events: MailEvent[]): AiJob[] {
   const threads = new Map<string, AiJob>();
   for (const event of events) {
     if (event.type !== "message.created") continue;
-    threads.set(event.threadId, { kind: "thread", threadId: event.threadId });
+    threads.set(event.threadId, {
+      kind: "thread",
+      threadId: event.threadId,
+      mailboxId: event.mailboxId,
+    });
   }
   return [...threads.values()];
 }
