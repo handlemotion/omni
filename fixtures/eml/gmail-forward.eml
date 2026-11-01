@@ -1,0 +1,32 @@
+MIME-Version: 1.0
+Date: Fri, 31 Oct 2026 08:55:10 +0100
+Message-ID: <CAF3kq1zFw7Hn2@mail.example.com>
+Subject: Fwd: Invoice INV-2026-0412 from Northwind Hosting
+From: Sam Rivera <sam@example.com>
+To: Accounts <accounts@example.com>
+Content-Type: multipart/alternative; boundary="00000000000077d1e60642f1b2c3"
+
+--00000000000077d1e60642f1b2c3
+Content-Type: text/plain; charset="UTF-8"
+
+Can you pay this one before Monday?
+
+---------- Forwarded message ---------
+From: Northwind Hosting <billing@northwind.example.net>
+Date: Thu, Oct 30, 2026 at 4:02 PM
+Subject: Invoice INV-2026-0412 from Northwind Hosting
+To: <sam@example.com>
+
+
+Hello,
+
+Your invoice INV-2026-0412 for 49.00 EUR is due on November 3, 2026.
+
+Northwind Hosting
+
+--00000000000077d1e60642f1b2c3
+Content-Type: text/html; charset="UTF-8"
+
+<div dir="ltr">Can you pay this one before Monday?<br><br><div class="gmail_quote gmail_quote_container"><div dir="ltr" class="gmail_attr">---------- Forwarded message ---------<br>From: <strong class="gmail_sendername" dir="auto">Northwind Hosting</strong> <span dir="auto">&lt;<a href="mailto:billing@northwind.example.net">billing@northwind.example.net</a>&gt;</span><br>Date: Thu, Oct 30, 2026 at 4:02 PM<br>Subject: Invoice INV-2026-0412 from Northwind Hosting<br>To: &lt;<a href="mailto:sam@example.com">sam@example.com</a>&gt;<br></div><br><br><p>Hello,</p><p>Your invoice INV-2026-0412 for 49.00 EUR is due on November 3, 2026.</p><p>Northwind Hosting</p></div></div>
+
+--00000000000077d1e60642f1b2c3--
