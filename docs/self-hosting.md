@@ -14,7 +14,7 @@ Status: draft. Each unit adds its required services, bindings, and variables her
 
 ```bash
 pnpm install
-pnpm stack:up                         # Postgres + GreenMail
+pnpm stack:up                         # Postgres, GreenMail, S3-compatible object store
 cp packages/db/.env.example packages/db/.env
 pnpm --filter @omni/db db:migrate     # create the schema
 cp apps/mail/.env.example apps/mail/.env
@@ -54,16 +54,23 @@ host. CONDSTORE and IDLE are used when the server offers them; without them it f
 UID-list diffs and polling. On every connect it logs the server's capabilities
 (`imap.capabilities`).
 
-| Variable                   | Required | Default  | Purpose                                                       |
-| -------------------------- | -------- | -------- | ------------------------------------------------------------- |
-| `MAIL_SERVICE_HMAC_SECRET` | yes      |          | Signs Worker → mail service pings; same value in the Worker.  |
-| `DATABASE_URL`             | yes      |          | Postgres the service writes the mail index to.                |
-| `MAIL_CREDENTIALS_KEY`     | yes      |          | Keyring `k1:<base64 32 bytes>[,k0:...]`, current key first.   |
-| `PORT`                     | no       | `8788`   | HTTP port for `/health` and `/ping`.                          |
-| `LOG_LEVEL`                | no       | `info`   | `debug`, `info`, `warn`, or `error`. Logs are JSON on stdout. |
-| `SYNC_INTERVAL_MS`         | no       | `300000` | Sync interval for non-inbox folders (INBOX is live via IDLE). |
-| `OUTBOX_INTERVAL_MS`       | no       | `30000`  | Outbox poll interval when no ping arrives.                    |
-| `MAILBOX_CONCURRENCY`      | no       | `4`      | Mailboxes connecting or syncing at once.                      |
+| Variable                   | Required | Default            | Purpose                                                       |
+| -------------------------- | -------- | ------------------ | ------------------------------------------------------------- |
+| `MAIL_SERVICE_HMAC_SECRET` | yes      |                    | Signs Worker → mail service pings; same value in the Worker.  |
+| `DATABASE_URL`             | yes      |                    | Postgres the service writes the mail index to.                |
+| `MAIL_CREDENTIALS_KEY`     | yes      |                    | Keyring `k1:<base64 32 bytes>[,k0:...]`, current key first.   |
+| `S3_ENDPOINT`              | yes      |                    | S3 API endpoint: R2, MinIO, AWS, or the local gateway.        |
+| `S3_BUCKET`                | yes      |                    | Bucket for raw mail, sanitized HTML and attachments.          |
+| `S3_ACCESS_KEY_ID`         | yes      |                    | S3 key pair (for R2: an R2 API token with object read/write). |
+| `S3_SECRET_ACCESS_KEY`     | yes      |                    |                                                               |
+| `S3_REGION`                | no       | `auto`             | Signing region; R2 uses `auto`.                               |
+| `IMAGE_PROXY_URL`          | no       | `/api/image-proxy` | Worker image proxy that remote images in HTML go through.     |
+| `ATTACHMENT_URL`           | no       | `/api/attachments` | Worker route for inline `cid:` images.                        |
+| `PORT`                     | no       | `8788`             | HTTP port for `/health` and `/ping`.                          |
+| `LOG_LEVEL`                | no       | `info`             | `debug`, `info`, `warn`, or `error`. Logs are JSON on stdout. |
+| `SYNC_INTERVAL_MS`         | no       | `300000`           | Sync interval for non-inbox folders (INBOX is live via IDLE). |
+| `OUTBOX_INTERVAL_MS`       | no       | `30000`            | Outbox poll interval when no ping arrives.                    |
+| `MAILBOX_CONCURRENCY`      | no       | `4`                | Mailboxes connecting or syncing at once.                      |
 
 Generate the secrets with `openssl rand -hex 32` and `echo "k1:$(openssl rand -base64 32)"`.
 Keep `MAIL_CREDENTIALS_KEY` only on the mail service. To rotate it, put the new key first
@@ -72,6 +79,11 @@ Keep `MAIL_CREDENTIALS_KEY` only on the mail service. To rotate it, put the new 
 On start the service connects every mailbox whose status is not `disabled` and resumes each
 folder from its saved sync position. A signed ping, or the next sync interval, picks up
 mailboxes added later.
+
+Objects are keyed by content hash under `<org id>/<mailbox id>/` (`raw/<sha256>.eml`,
+`html/<sha256>.html`, `att/<sha256>`), so a re-sync rewrites the same keys. The local stack runs
+[Versity S3 Gateway](https://github.com/versity/versitygw) on `localhost:7070` with the bucket
+`omni-mail-dev` already created.
 
 Run from source: `pnpm --filter @omni/mail start` reads `apps/mail/.env`. Variables already set
 in the environment win over the file.

@@ -6,5 +6,6 @@ export * from "./http.ts";
 export * from "./config.ts";
 export * from "./log.ts";
 export * from "./pg-store.ts";
+export * from "./objects.ts";
 export * from "./service.ts";
 export * from "./credentials.ts";

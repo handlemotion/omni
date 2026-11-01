@@ -43,5 +43,27 @@ services:
       timeout: 5s
       retries: 30
 
+  # S3-compatible object store standing in for R2 (raw mail, sanitized HTML, attachments).
+  # Each top-level directory is a bucket; `omni-mail-dev` exists from the start.
+  objects:
+    image: versity/versitygw:v1.9.0
+    container_name: omni-objects
+    environment:
+      ROOT_ACCESS_KEY_ID: omni-local
+      ROOT_SECRET_ACCESS_KEY: omni-local-secret
+      # R2 signs with region `auto`; accept the same here.
+      VGW_REGION: auto
+    entrypoint: ["sh", "-c", "mkdir -p /data/omni-mail-dev && exec versitygw posix /data"]
+    ports:
+      - "7070:7070"
+    volumes:
+      - omni-objects-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 7070"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
 volumes:
   omni-postgres-data:
+  omni-objects-data:
