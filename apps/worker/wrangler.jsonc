@@ -1,0 +1,30 @@
+// The one Omni Worker. Every value here is a neutral default; self-hosters change names and ids
+// in this file and set secrets with `wrangler secret put` (see docs/self-hosting.md).
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "omni",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Production vars and secrets set in the dashboard or by CI survive deploys.
+  "keep_vars": true,
+  "observability": { "enabled": true },
+  "vars": {
+    "BETTER_AUTH_URL": "http://localhost:8787",
+    "AUTH_TRUSTED_ORIGINS": "http://localhost:5173",
+    "AUTH_PASSKEY_RP_ID": "",
+    "APP_NAME": "Omni",
+    "MAIL_SERVICE_URL": "http://localhost:8788",
+    "SYSTEM_MAIL_FROM": "",
+    "SENTRY_DSN": "",
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      // Replace with the id from `wrangler hyperdrive create omni --connection-string=...`.
+      "id": "00000000000000000000000000000000",
+      // `wrangler dev` and the e2e suites connect straight to the local stack's Postgres.
+      "localConnectionString": "postgres://postgres:postgres@localhost:54329/omni",
+    },
+  ],
+}
