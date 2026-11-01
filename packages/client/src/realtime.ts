@@ -1,6 +1,7 @@
-import type { RealtimeEvent } from "@omni/worker";
+import type { Realtime as RealtimeObject } from "@omni/worker";
 
-export type { RealtimeEvent };
+/** What the Worker's realtime Durable Object broadcasts, typed from its `broadcast`. */
+export type RealtimeEvent = Parameters<RealtimeObject["broadcast"]>[1];
 export type RealtimeStatus = "connecting" | "open" | "closed";
 
 export interface RealtimeOptions {
