@@ -1,0 +1,45 @@
+From: Ana =?UTF-8?Q?P=C3=A9rez?= <ana.perez@studionorte.example.org>
+To: Sam Rivera <sam@example.com>
+Subject: Final logo files
+Date: Thu, 30 Oct 2026 12:00:00 +0100
+Message-ID: <0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0@studionorte.example.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="mixed-7f3a"
+
+--mixed-7f3a
+Content-Type: multipart/related; boundary="related-7f3a"
+
+--related-7f3a
+Content-Type: multipart/alternative; boundary="alt-7f3a"
+
+--alt-7f3a
+Content-Type: text/plain; charset=utf-8
+
+Here are the final files. The mark is below and the guidelines are attached.
+
+--alt-7f3a
+Content-Type: text/html; charset=utf-8
+
+<p>Here are the final files. The mark is below and the guidelines are attached.</p><p><img src="cid:logo-mark@studionorte.example.org" alt="Logo mark" width="64" height="64"></p>
+
+--alt-7f3a--
+
+--related-7f3a
+Content-Type: image/png; name="logo-mark.png"
+Content-Disposition: inline; filename="logo-mark.png"
+Content-ID: <logo-mark@studionorte.example.org>
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9
+awAAAABJRU5ErkJggg==
+--related-7f3a--
+
+--mixed-7f3a
+Content-Type: application/pdf; name="brand-guidelines.pdf"
+Content-Disposition: attachment; filename="brand-guidelines.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBv
+Ymo8PC9UeXBlL1BhZ2VzL0tpZHNbXS9Db3VudCAwPj5lbmRvYmoKdHJhaWxlcjw8L1Jvb3QgMSAw
+IFI+PgolJUVPRgo=
+--mixed-7f3a--
