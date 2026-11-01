@@ -1,4 +1,4 @@
-import { schema } from "@omni/db";
+import { addLocation, schema, upsertFolder } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
@@ -131,16 +131,35 @@ describe("member isolation", () => {
 });
 
 describe("outbox", () => {
-  test("a repeated archive enqueues once and the ping carries a valid signature", async () => {
+  test("a repeated archive enqueues once per folder copy and the ping carries a valid signature", async () => {
     const { db } = database;
     const org = await createOrg(db, "initech");
     const member = await createMember(db, org.id, "ana@initech.test");
     const box = await createMailbox(db, org.id, "ana@initech.test", "personal");
     await grant(db, org.id, box.id, member.id);
-    const { threadId } = await seedMessage(db, box, {
+    const { threadId, messageId } = await seedMessage(db, box, {
       subject: "Invoice",
       fromAddress: "billing@vendor.test",
       uid: 42,
+    });
+    // The same message also sits in another folder (copied there in Apple Mail).
+    const projects = await upsertFolder(db, {
+      orgId: org.id,
+      mailboxId: box.id,
+      path: "Projects",
+      role: "other",
+      uidvalidity: 1_700_000_500,
+      uidnext: 10,
+      highestModseq: null,
+    });
+    await addLocation(db, {
+      orgId: org.id,
+      mailboxId: box.id,
+      folderId: projects.id,
+      uid: 7,
+      messageId,
+      flags: [],
+      modseq: null,
     });
     const cookie = await signIn(worker, db, "ana@initech.test");
     const pingsBefore = mailService.requests.length;
@@ -154,19 +173,26 @@ describe("outbox", () => {
     };
     const first = await archive();
     const second = await archive();
-    expect(first.actionIds).toHaveLength(1);
+    expect(first.actionIds).toHaveLength(2);
     expect(second.actionIds).toEqual(first.actionIds);
 
     const rows = await db
       .select()
       .from(schema.mailActions)
-      .where(eq(schema.mailActions.memberId, member.id));
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      kind: "archive",
-      mailboxId: box.id,
-      payload: { folder: "INBOX", uidValidity: "1700000000", uids: [42] },
-    });
+      .where(eq(schema.mailActions.memberId, member.id))
+      .orderBy(schema.mailActions.createdAt);
+    expect(rows.map(({ kind, mailboxId, payload }) => ({ kind, mailboxId, payload }))).toEqual([
+      {
+        kind: "archive",
+        mailboxId: box.id,
+        payload: { folder: "INBOX", uidValidity: "1700000000", uids: [42] },
+      },
+      {
+        kind: "archive",
+        mailboxId: box.id,
+        payload: { folder: "Projects", uidValidity: "1700000500", uids: [7] },
+      },
+    ]);
     const [thread] = await db
       .select({ archived: schema.threads.archived })
       .from(schema.threads)

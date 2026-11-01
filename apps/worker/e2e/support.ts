@@ -5,7 +5,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 import { verifyRequest, type VerifyResult } from "@omni/crypto";
-import { createDb, createThread, schema, upsertFolder, upsertMessage } from "@omni/db";
+import { addLocation, createDb, createThread, schema, upsertFolder, upsertMessage } from "@omni/db";
 import { desc, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
@@ -246,6 +246,16 @@ export async function seedMessage(
     to: (message.to ?? []).map((address) => ({ name: null, address })),
     sentAt,
     cleanText: message.text ?? message.subject,
+  });
+  // Where the copy lives on the server, as the mail service records it.
+  await addLocation(db, {
+    orgId: mailbox.orgId,
+    mailboxId: mailbox.id,
+    folderId: folder.id,
+    uid: message.uid,
+    messageId: stored.id,
+    flags: [],
+    modseq: null,
   });
   return { threadId, messageId: stored.id, folder };
 }

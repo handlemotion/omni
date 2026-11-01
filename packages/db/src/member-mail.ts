@@ -7,6 +7,7 @@ import {
   mailboxAccess,
   mailboxFolders,
   mailboxes,
+  messageLocations,
   members,
   messages,
   threads,
@@ -51,8 +52,9 @@ export async function listMemberMailboxes(db: Db, memberId: string) {
 }
 
 /**
- * The thread's mailbox and its messages' IMAP locations grouped by folder, ready to become
- * outbox payloads. Messages not yet in a folder (a send before its Sent append) are left out.
+ * The thread's mailbox and every IMAP copy of its messages (`message_locations`) grouped by
+ * folder, ready to become outbox payloads. A message in two folders is targeted in both; one not
+ * yet in any folder (a send before its Sent append) is left out.
  * Null when the member cannot see the thread.
  */
 export async function threadActionTargets(db: Db, memberId: string, threadId: string) {
@@ -79,18 +81,13 @@ export async function threadActionTargets(db: Db, memberId: string, threadId: st
       folder: mailboxFolders.path,
       role: mailboxFolders.role,
       uidValidity: mailboxFolders.uidvalidity,
-      uid: messages.imapUid,
+      uid: messageLocations.imapUid,
     })
-    .from(messages)
-    .innerJoin(mailboxFolders, eq(mailboxFolders.id, messages.folderId))
-    .where(
-      and(
-        eq(messages.threadId, thread.id),
-        isNotNull(messages.imapUid),
-        isNotNull(mailboxFolders.uidvalidity),
-      ),
-    )
-    .orderBy(asc(mailboxFolders.path), asc(messages.imapUid));
+    .from(messageLocations)
+    .innerJoin(messages, eq(messages.id, messageLocations.messageId))
+    .innerJoin(mailboxFolders, eq(mailboxFolders.id, messageLocations.folderId))
+    .where(and(eq(messages.threadId, thread.id), isNotNull(mailboxFolders.uidvalidity)))
+    .orderBy(asc(mailboxFolders.path), asc(messageLocations.imapUid));
 
   // Same shape as `messageTargetSchema` in @omni/contracts, plus the folder role.
   const byFolder = new Map<
@@ -104,7 +101,7 @@ export async function threadActionTargets(db: Db, memberId: string, threadId: st
       uidValidity: String(row.uidValidity),
       uids: [],
     };
-    target.uids.push(row.uid!);
+    target.uids.push(row.uid);
     byFolder.set(row.folder, target);
   }
   return { ...thread, targets: [...byFolder.values()] };
