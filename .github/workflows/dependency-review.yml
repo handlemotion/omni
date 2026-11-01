@@ -1,0 +1,28 @@
+name: Dependency review
+
+on:
+  pull_request:
+
+concurrency:
+  group: dependency-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  review:
+    name: Dependency review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # Fails on new high/critical advisories and on licenses that cannot be combined with
+      # AGPL-3.0 (GPL-2.0-only and other copyleft or source-available terms AGPL cannot absorb).
+      # Permissive, LGPL, MPL, GPL-2.0-or-later, GPL-3.0, and AGPL-3.0 are all compatible.
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          deny-licenses: >-
+            GPL-1.0-only, GPL-2.0-only, LGPL-2.0-only, CDDL-1.0, CDDL-1.1, EPL-1.0, EUPL-1.1,
+            SSPL-1.0, BUSL-1.1, Elastic-2.0, CC-BY-NC-4.0, CC-BY-NC-SA-4.0
