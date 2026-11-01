@@ -2,6 +2,7 @@
   "name": "@omni/worker",
   "private": true,
   "description": "Cloudflare Worker: Hono API, AI queue consumer, realtime Durable Object",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

@@ -2,6 +2,7 @@
   "name": "@omni/crypto",
   "private": true,
   "description": "HMAC request signing and AES-256-GCM credential encryption on Web Crypto (Workers and Node)",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

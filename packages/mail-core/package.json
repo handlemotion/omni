@@ -2,6 +2,7 @@
   "name": "@omni/mail-core",
   "private": true,
   "description": "Pure mail logic: threading, reply stripping, sanitizing. No I/O.",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

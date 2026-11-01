@@ -2,6 +2,7 @@
   "name": "@omni/db",
   "private": true,
   "description": "Drizzle schema, migrations, and scoped queries (db.forMember)",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
