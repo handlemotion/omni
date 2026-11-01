@@ -2,6 +2,7 @@
   "name": "@omni/auth",
   "private": true,
   "description": "Better Auth config shared by worker, web and iOS",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
