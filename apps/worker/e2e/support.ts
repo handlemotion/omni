@@ -5,16 +5,8 @@ import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 import { signRequest, verifyRequest, type VerifyResult } from "@omni/crypto";
-import {
-  addLocation,
-  createDb,
-  createThread,
-  MAIL_EVENTS_PATH,
-  schema,
-  upsertFolder,
-  upsertMessage,
-  type MailEventsBody,
-} from "@omni/db";
+import { addLocation, createDb, createThread, schema, upsertFolder, upsertMessage } from "@omni/db";
+import { MAIL_EVENTS_PATH, type MailEventsBody } from "@omni/contracts";
 import { desc, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
@@ -126,6 +118,8 @@ export async function startWorker(options: {
           ...options.vars,
         },
         secrets: {
+          // No external AI provider in e2e: only the rule path runs.
+          TYPESAFE_API_KEY: "",
           BETTER_AUTH_SECRET: "e2e-auth-secret-e2e-auth-secret-e2e-auth",
           MAIL_SERVICE_HMAC_SECRET: HMAC_SECRET,
           // Never call the model from e2e: only the rule path runs.

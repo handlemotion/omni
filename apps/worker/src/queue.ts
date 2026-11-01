@@ -2,7 +2,14 @@
 // thread; the consumer reads its current state, so a redelivered or duplicate job converges on
 // the same result and a job finished once is skipped without a model call.
 import Anthropic from "@anthropic-ai/sdk";
-import { shouldSummarize, summarize, triage, type ModelClient } from "@omni/ai";
+import {
+  chooseTriageClient,
+  shouldSummarize,
+  summarize,
+  triage,
+  type ModelClient,
+  type TriageClient,
+} from "@omni/ai";
 import {
   addAiUsage,
   createDb,
@@ -21,7 +28,16 @@ export type AiJobOutcome = "missing" | "done_already" | "no_model" | "triaged" |
 export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
   const config = loadConfig(env);
   // With no key the client is never called: only the ours-last rule runs (see runAiJob).
-  const model = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY ?? null });
+  const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY ?? null });
+  const models = {
+    triage: chooseTriageClient({
+      provider: config.TRIAGE_PROVIDER,
+      typesafeApiKey: config.TYPESAFE_API_KEY,
+      jevModel: config.JEV_MODEL,
+      anthropic,
+    }),
+    summary: anthropic,
+  };
   const { db, close } = createDb(env.HYPERDRIVE.connectionString, {
     max: 2,
     fetch_types: false,
@@ -30,7 +46,7 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
   try {
     for (const message of batch.messages) {
       try {
-        const outcome = await runAiJob(db, model, config, message.body);
+        const outcome = await runAiJob(db, models, config, message.body);
         // oxlint-disable-next-line no-console -- one structured line per job
         console.log(JSON.stringify({ event: "ai.job", threadId: message.body.threadId, outcome }));
         message.ack();
@@ -54,7 +70,7 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
 
 export async function runAiJob(
   db: Db,
-  model: ModelClient,
+  models: { triage: TriageClient; summary: ModelClient },
   config: Config,
   job: AiJob,
 ): Promise<AiJobOutcome> {
@@ -64,7 +80,9 @@ export async function runAiJob(
   // The summary marker moves only after the whole job ran for this message.
   if (thread.summaryMessageId === latest.id) return "done_already";
 
-  const aiEnabled = Boolean(config.ANTHROPIC_API_KEY);
+  // Triage runs on Jev or Claude; summaries only on Claude.
+  const triageEnabled = Boolean(config.TYPESAFE_API_KEY || config.ANTHROPIC_API_KEY);
+  const summaryEnabled = Boolean(config.ANTHROPIC_API_KEY);
   const isUs = (address: string) => thread.selfAddresses.has(address.toLowerCase());
   const latestFromUs = isUs(latest.fromAddress);
   const day = new Date().toISOString().slice(0, 10);
@@ -72,14 +90,19 @@ export async function runAiJob(
   let bucket = thread.triage;
   // A person's re-sort is final. Without a model only the ours-last rule can file a thread, and
   // `triage` short-circuits it without a call.
-  if (thread.triageSource !== "person" && (aiEnabled || latestFromUs)) {
-    const result = await triage(model, {
+  if (thread.triageSource !== "person" && (triageEnabled || latestFromUs)) {
+    const result = await triage(models.triage, {
       from: { name: latest.fromName, address: latest.fromAddress },
       subject: latest.subject,
       latestText: latest.cleanText,
       latestFromUs,
       messageCount: thread.messages.length,
       repliedBefore: thread.messages.slice(0, -1).some((m) => isUs(m.fromAddress)),
+      earlierMessages: thread.messages.slice(0, -1).map((m) => ({
+        from: m.fromAddress,
+        fromUs: isUs(m.fromAddress),
+        text: m.cleanText,
+      })),
     });
     await addAiUsage(db, thread.orgId, day, result.usage);
     // Lanes are derived on read: below the auto-file confidence a thread shows in Unsure.
@@ -93,7 +116,7 @@ export async function runAiJob(
     await saveSummary(db, thread.id, { summary: null, messageId: latest.id });
     return "triaged";
   }
-  if (!aiEnabled) return "triaged";
+  if (!summaryEnabled) return "triaged";
 
   const decision = shouldSummarize({
     bucket,
@@ -102,7 +125,7 @@ export async function runAiJob(
   });
   if (!decision.run) return "triaged";
 
-  const summary = await summarize(model, {
+  const summary = await summarize(models.summary, {
     subject: latest.subject,
     messages: thread.messages.map((m) => ({
       from: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress,

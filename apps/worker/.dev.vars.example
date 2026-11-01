@@ -28,6 +28,12 @@ SYSTEM_MAIL_FROM=
 # --- AI ---
 # Secret. Empty runs only the rule path (ours-last threads file as waiting_on_them, no summaries).
 ANTHROPIC_API_KEY=
+# Secret. TypeSafe key: triage runs on Jev when set (summaries stay on Claude).
+TYPESAFE_API_KEY=
+# Optional. "jev" or "claude"; defaults to Jev when TYPESAFE_API_KEY is set.
+TRIAGE_PROVIDER=
+# Optional. Jev model override.
+JEV_MODEL=
 # Tokens per org per UTC day. Over the cap, summaries pause and triage keeps running.
 AI_DAILY_TOKEN_CAP=1000000
 

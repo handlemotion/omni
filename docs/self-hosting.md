@@ -151,19 +151,22 @@ Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashb
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
 to `.dev.vars`.
 
-| Variable                   | Kind   | Required | Notes                                                                     |
-| -------------------------- | ------ | -------- | ------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`       | secret | yes      | At least 32 random characters.                                            |
-| `BETTER_AUTH_URL`          | var    | yes      | Public origin of the Worker.                                              |
-| `AUTH_TRUSTED_ORIGINS`     | var    | no       | Comma-separated web/app origins.                                          |
-| `AUTH_PASSKEY_RP_ID`       | var    | no       | WebAuthn relying party ID.                                                |
-| `APP_NAME`                 | var    | no       | Defaults to `Omni`.                                                       |
-| `MAIL_SERVICE_URL`         | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.        |
-| `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                         |
-| `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links. Empty disables them. |
-| `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off.                                                   |
-| `ANTHROPIC_API_KEY`        | secret | no       | Without it only the ours-last rule triages; no summaries.                 |
-| `AI_DAILY_TOKEN_CAP`       | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause. |
+| Variable                   | Kind   | Required | Notes                                                                                |
+| -------------------------- | ------ | -------- | ------------------------------------------------------------------------------------ |
+| `BETTER_AUTH_SECRET`       | secret | yes      | At least 32 random characters.                                                       |
+| `BETTER_AUTH_URL`          | var    | yes      | Public origin of the Worker.                                                         |
+| `AUTH_TRUSTED_ORIGINS`     | var    | no       | Comma-separated web/app origins.                                                     |
+| `AUTH_PASSKEY_RP_ID`       | var    | no       | WebAuthn relying party ID.                                                           |
+| `APP_NAME`                 | var    | no       | Defaults to `Omni`.                                                                  |
+| `MAIL_SERVICE_URL`         | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                   |
+| `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                                    |
+| `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links. Empty disables them.            |
+| `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off.                                                              |
+| `ANTHROPIC_API_KEY`        | secret | no       | Summaries, and triage when Jev is off. Without any key only the ours-last rule runs. |
+| `TYPESAFE_API_KEY`         | secret | no       | Triage on TypeSafe's Jev; summaries stay on Claude.                                  |
+| `TRIAGE_PROVIDER`          | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                   |
+| `JEV_MODEL`                | var    | no       | Jev model override.                                                                  |
+| `AI_DAILY_TOKEN_CAP`       | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause.            |
 
 Magic links are sent through the outbox: the Worker writes a `send` action for the
 `SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be

@@ -1,4 +1,5 @@
-import { schema, type MailEventsBody } from "@omni/db";
+import type { MailEventsBody } from "@omni/contracts";
+import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
@@ -29,7 +30,16 @@ afterAll(async () => {
 });
 
 const someEvents: MailEventsBody = {
-  events: [{ kind: "message.updated", orgId: "o", mailboxId: "m", threadId: "t", messageId: "x" }],
+  events: [
+    {
+      type: "message.created",
+      orgId: "o",
+      mailboxId: "m",
+      threadId: "t",
+      messageId: "x",
+      folderRole: "inbox",
+    },
+  ],
 };
 
 test("forged, expired, unsigned-nonce and replayed mail events are rejected", async () => {
@@ -56,6 +66,15 @@ test("forged, expired, unsigned-nonce and replayed mail events are rejected", as
   expect(await replayed.json()).toEqual({ error: "replayed" });
 });
 
+test("event types this Worker does not know are accepted and ignored, so deploy skew never wedges retries", async () => {
+  const response = await postMailEvents(
+    worker,
+    JSON.stringify({ events: [{ type: "folder.renamed", mailboxId: "m" }] }),
+  );
+  expect(response.status).toBe(202);
+  expect(await response.json()).toEqual({ ok: true, jobs: 0 });
+});
+
 test("AI jobs converge on redelivery: ours-last files as waiting_on_them with no model call", async () => {
   const { db } = database;
   const org = await createOrg(db, "acme");
@@ -77,7 +96,8 @@ test("AI jobs converge on redelivery: ours-last files as waiting_on_them with no
   const body: MailEventsBody = {
     events: [
       {
-        kind: "message.created",
+        type: "message.created",
+        folderRole: "sent",
         orgId: org.id,
         mailboxId: box.id,
         threadId: first.threadId,

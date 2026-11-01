@@ -18,6 +18,8 @@
     "SYSTEM_MAIL_FROM": "",
     "SENTRY_DSN": "",
     "AI_DAILY_TOKEN_CAP": "1000000",
+    "TRIAGE_PROVIDER": "",
+    "JEV_MODEL": "",
   },
   "hyperdrive": [
     {
