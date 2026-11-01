@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 import { createTransport } from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import type { Logger } from "./log.ts";
-import type { ImapSession, MailboxConfig, MailboxConnection } from "./mailbox-connection.ts";
+import {
+  type ImapSession,
+  type MailboxConfig,
+  type MailboxConnection,
+  MailboxUnavailableError,
+} from "./mailbox-connection.ts";
 import type { ActionSource, MailAction, MessageTarget, SendPayload } from "./ports.ts";
 import { backoffDelay, createLimiter } from "./timing.ts";
 
@@ -20,6 +25,8 @@ export interface OutboxOptions {
   retryMaxMs?: number;
   concurrency?: number;
   batchSize?: number;
+  /** An action whose mailbox is offline or still importing waits this long, attempt not counted. */
+  deferMs?: number;
 }
 
 /**
@@ -32,6 +39,13 @@ export class OutboxExecutor {
   private readonly limit: ReturnType<typeof createLimiter>;
   private draining: Promise<number> | null = null;
   private drainAgain = false;
+  private stopped = false;
+  /**
+   * Sends SMTP accepted in this process whose `smtp_accepted_at` write has not landed yet. A retry
+   * in this process skips SMTP for them, which leaves only a crash during a Postgres outage able
+   * to send twice.
+   */
+  private readonly accepted = new Set<string>();
 
   constructor(options: OutboxOptions) {
     this.options = {
@@ -40,6 +54,7 @@ export class OutboxExecutor {
       retryMaxMs: 30 * 60_000,
       concurrency: 4,
       batchSize: 20,
+      deferMs: 30_000,
       ...options,
     };
     this.limit = createLimiter(this.options.concurrency);
@@ -47,6 +62,7 @@ export class OutboxExecutor {
 
   /** Claims and runs due actions until none are left. Concurrent calls share one drain. */
   drain(): Promise<number> {
+    if (this.stopped) return Promise.resolve(0);
     if (this.draining) {
       this.drainAgain = true;
       return this.draining;
@@ -55,18 +71,24 @@ export class OutboxExecutor {
       let total = 0;
       do {
         this.drainAgain = false;
-        for (;;) {
+        while (!this.stopped) {
           const batch = await this.options.actions.claim(this.options.batchSize);
           if (batch.length === 0) break;
           total += batch.length;
           await Promise.all(batch.map((action) => this.limit(() => this.execute(action))));
         }
-      } while (this.drainAgain);
+      } while (this.drainAgain && !this.stopped);
       return total;
     })().finally(() => {
       this.draining = null;
     });
     return this.draining;
+  }
+
+  /** Claims nothing more; actions already claimed run to completion. Resolves once they have. */
+  async stop(): Promise<void> {
+    this.stopped = true;
+    await this.draining?.catch(() => {});
   }
 
   /** Runs one claimed action and records the outcome. Never throws. */
@@ -83,6 +105,26 @@ export class OutboxExecutor {
       log.info("outbox.done", { attempts: action.attempts });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof MailboxUnavailableError) {
+        // Not the action's fault: wait for the mailbox without spending one of its attempts.
+        // A send that SMTP accepted already has `smtp_accepted_at`, so the retry only files it.
+        const retryAt = new Date(Date.now() + this.options.deferMs);
+        log.info("outbox.deferred", { retryAt });
+        await actions.defer(action.id, retryAt).catch((deferError: unknown) => {
+          log.error("outbox.defer_not_recorded", { error: deferError });
+        });
+        return;
+      }
+      const sent =
+        action.kind === "send" && (action.smtpAcceptedAt || this.accepted.has(action.id));
+      if (sent && action.attempts >= this.options.maxAttempts) {
+        // The mail went out; only the Sent copy is missing. "failed" would invite a resend.
+        log.error("outbox.sent_not_filed", { error: message, attempts: action.attempts });
+        await actions.complete(action.id).catch((completeError: unknown) => {
+          log.error("outbox.complete_not_recorded", { error: completeError });
+        });
+        return;
+      }
       const permanent =
         error instanceof PermanentActionError || action.attempts >= this.options.maxAttempts;
       const retryAt = permanent
@@ -145,8 +187,12 @@ export class OutboxExecutor {
     // A retry after SMTP accepted never resends. The window left is a crash between SMTP's OK and
     // this write; appending to Sent first would trade it for "filed but never sent", which is worse.
     if (!action.smtpAcceptedAt) {
-      await smtpSend(mailbox, action.payload, raw);
-      await this.options.actions.markSmtpAccepted(action.id);
+      if (!this.accepted.has(action.id)) {
+        await smtpSend(mailbox, action.payload, raw);
+        this.accepted.add(action.id);
+      }
+      await persistAccepted(() => this.options.actions.markSmtpAccepted(action.id));
+      this.accepted.delete(action.id);
     }
 
     await connection.run(async (session) => {
@@ -158,6 +204,21 @@ export class OutboxExecutor {
       // Save the Sent copy now so it shows in the thread without waiting for the 5-minute sync.
       await session.syncFolder(sent.path);
     });
+  }
+}
+
+/**
+ * After SMTP's OK, losing the `smtp_accepted_at` write means the retry sends again. A Postgres
+ * blip is the likely cause, so try a few times before giving up.
+ */
+async function persistAccepted(write: () => Promise<void>): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await write();
+    } catch (error) {
+      if (attempt >= 5) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** attempt));
+    }
   }
 }
 
@@ -194,6 +255,11 @@ async function smtpSend(mailbox: MailboxConfig, payload: SendPayload, raw: Buffe
     port: mailbox.smtp.port,
     secure: mailbox.smtp.secure,
     auth: { user: mailbox.user, pass: mailbox.pass },
+    // Well inside the claim lease (5 min): a send still hanging when the lease ran out could be
+    // claimed and sent again by another process.
+    connectionTimeout: 30_000,
+    greetingTimeout: 30_000,
+    socketTimeout: 120_000,
   });
   try {
     await transport.sendMail({

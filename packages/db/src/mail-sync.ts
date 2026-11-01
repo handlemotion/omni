@@ -376,6 +376,25 @@ export async function rescheduleAction(db: Db, id: string, error: string, retryA
     .returning({ id: mailActions.id });
   return rows.length > 0;
 }
+/**
+ * Hands a claimed action back without counting its attempt: the mailbox was not ready, which says
+ * nothing about the action. No-op unless it is still `running` (the lease may have moved on).
+ */
+export async function deferAction(db: Db, id: string, runAfter: Date) {
+  const rows = await db
+    .update(mailActions)
+    .set({
+      status: "pending",
+      runAfter,
+      attempts: sql`greatest(${mailActions.attempts} - 1, 0)`,
+      lockedAt: null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(mailActions.id, id), eq(mailActions.status, "running")))
+    .returning({ id: mailActions.id });
+  return rows.length > 0;
+}
+
 /** The member of `orgId` whose user has this email, for granting mailbox access. */
 export async function findMemberByEmail(db: Db, orgId: string, email: string) {
   const [row] = await db

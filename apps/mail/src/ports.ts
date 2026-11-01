@@ -91,4 +91,6 @@ export interface ActionSource {
   complete(actionId: string): Promise<void>;
   /** `retryAt` null means give up: the action is shown to the user as failed. */
   fail(actionId: string, error: string, retryAt: Date | null): Promise<void>;
+  /** Hand a claimed action back to run at `retryAt`, without counting the attempt it claimed. */
+  defer(actionId: string, retryAt: Date): Promise<void>;
 }

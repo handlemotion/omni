@@ -29,7 +29,9 @@ async function shutdown(signal: string) {
     process.exit(1);
   }, 20_000);
   force.unref();
+  // Stop accepting, and drop idle keep-alive sockets so `close` does not wait on them.
   server.close();
+  if ("closeIdleConnections" in server) server.closeIdleConnections();
   await service.stop();
   log.info("shutdown.done");
   process.exit(0);

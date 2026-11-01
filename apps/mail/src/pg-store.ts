@@ -9,6 +9,7 @@ import {
   claimActions,
   completeAction,
   createThread,
+  deferAction,
   type Db,
   findFolder,
   findMailbox,
@@ -336,6 +337,10 @@ export class PgActionSource implements ActionSource {
 
   async fail(actionId: string, error: string, retryAt: Date | null): Promise<void> {
     await rescheduleAction(this.db, actionId, error, retryAt);
+  }
+
+  async defer(actionId: string, retryAt: Date): Promise<void> {
+    await deferAction(this.db, actionId, retryAt);
   }
 }
 

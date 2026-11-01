@@ -43,6 +43,8 @@ export interface NewMessageEvent {
 export interface FolderSyncResult {
   folder: string;
   added: number;
+  /** New messages that could not be stored this time; the next sync retries them. */
+  failed: number;
   removed: number;
   flagsChanged: number;
   reset: boolean;
@@ -64,17 +66,45 @@ export interface ConnectionOptions {
   logger: Logger;
   /** Messages fetched per round trip during import and catch-up. */
   batchSize?: number;
+  /** A fetch batch also stops at this many bytes, so big messages come one at a time. */
+  batchBytes?: number;
   reconnectBaseMs?: number;
   reconnectMaxMs?: number;
+  /**
+   * A connection that stayed ready this long resets the backoff. One that drops sooner keeps
+   * backing off, so a server that accepts the login and then hangs up is not hammered.
+   */
+  stableAfterMs?: number;
+  /**
+   * Socket silence before ImapFlow probes with NOOP; a second silence closes the connection. This
+   * bounds how long a dead peer (NAT dropped the flow, no FIN) goes unnoticed to about twice this.
+   */
+  socketTimeoutMs?: number;
   /** Bounds work shared across mailboxes; each connect attempt (with its initial sync) runs inside it. */
   gate?: <T>(task: () => Promise<T>) => Promise<T>;
 }
 
 type Events = {
   message: [NewMessageEvent];
+  /** Logged in and the first full sync finished: outbox actions run from here on. */
   connected: [Capabilities];
   disconnected: [];
+  /** The server rejected the credentials. Retrying continues, at the backoff ceiling. */
+  auth_failed: [];
 };
+
+/** The mailbox is offline or still on its first sync. Retry later; the action is not at fault. */
+export class MailboxUnavailableError extends Error {
+  override name = "MailboxUnavailableError";
+}
+
+/** `stop()` was called while a sync was running. Nothing past the last stored message is lost. */
+class StoppedError extends Error {
+  override name = "StoppedError";
+}
+
+/** Consecutive messages that fail to store before a folder sync gives up (storage is likely down). */
+const MAX_CONSECUTIVE_STORE_FAILURES = 5;
 
 const ROLE_BY_SPECIAL_USE: Record<string, FolderRole> = {
   "\\Inbox": "inbox",
@@ -95,8 +125,11 @@ export class MailboxConnection extends EventEmitter<Events> {
   private readonly store: MailStore;
   private readonly log: Logger;
   private readonly batchSize: number;
+  private readonly batchBytes: number;
   private readonly reconnectBaseMs: number;
   private readonly reconnectMaxMs: number;
+  private readonly stableAfterMs: number;
+  private readonly socketTimeoutMs: number;
   private readonly gate: <T>(task: () => Promise<T>) => Promise<T>;
 
   private client: ImapFlow | null = null;
@@ -104,7 +137,12 @@ export class MailboxConnection extends EventEmitter<Events> {
   private folders: FolderInfo[] = [];
   private queue: Promise<unknown> = Promise.resolve();
   private stopped = true;
+  private ready = false;
+  private readySince = 0;
+  /** Failed connects since the last stable connection; drives the backoff. */
+  private failures = 0;
   private connecting: Promise<void> | null = null;
+  private syncingAll: Promise<FolderSyncResult[]> | null = null;
   private wakeSleeper: (() => void) | null = null;
   private inboxSyncQueued = false;
 
@@ -114,13 +152,21 @@ export class MailboxConnection extends EventEmitter<Events> {
     this.store = options.store;
     this.log = options.logger.child({ mailboxId: mailbox.id });
     this.batchSize = options.batchSize ?? 50;
+    this.batchBytes = options.batchBytes ?? 16 * 1024 * 1024;
     this.reconnectBaseMs = options.reconnectBaseMs ?? 1_000;
     this.reconnectMaxMs = options.reconnectMaxMs ?? 5 * 60_000;
+    this.stableAfterMs = options.stableAfterMs ?? 60_000;
+    this.socketTimeoutMs = options.socketTimeoutMs ?? 90_000;
     this.gate = options.gate ?? ((task) => task());
   }
 
   get connected(): boolean {
     return this.client?.usable === true;
+  }
+
+  /** Connected and past the first full sync. */
+  get isReady(): boolean {
+    return this.ready && this.connected;
   }
 
   /** Connects (retrying with backoff until it works or `stop()` is called) and syncs every folder. */
@@ -129,37 +175,75 @@ export class MailboxConnection extends EventEmitter<Events> {
     await this.reconnect();
   }
 
+  /**
+   * Lets the message being stored finish, abandons the rest of any sync (the next start resumes
+   * it), waits for a running outbox action, then logs out.
+   */
   async stop(): Promise<void> {
     this.stopped = true;
+    this.ready = false;
     this.wakeSleeper?.();
     await this.connecting?.catch(() => {});
     await this.queue.catch(() => {});
     const client = this.client;
     this.client = null;
-    if (client?.usable) await client.logout().catch(() => client.close());
-    else client?.close();
+    if (!client) return;
+    if (!client.usable) {
+      client.close();
+      return;
+    }
+    // A server that never answers LOGOUT must not hold up shutdown.
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([
+      client.logout().catch(() => {}),
+      new Promise((resolve) => (timer = setTimeout(resolve, 5_000))),
+    ]);
+    clearTimeout(timer);
+    client.close();
   }
 
-  /** Re-discovers folders and syncs all of them, INBOX last so IDLE resumes there. */
+  /**
+   * Re-discovers folders and syncs all of them, INBOX last so IDLE resumes there. A folder that
+   * fails is logged and skipped, so one bad folder never blocks the rest. A call while one is
+   * queued or running joins it rather than queueing another full pass.
+   */
   syncAll(): Promise<FolderSyncResult[]> {
-    return this.enqueue(async () => {
-      await this.discoverFolders();
-      const results: FolderSyncResult[] = [];
-      const inbox = this.inbox();
-      for (const folder of this.folders) {
-        if (folder !== inbox) results.push(await this.syncFolderNow(folder.path));
+    this.syncingAll ??= this.enqueue(async () => {
+      try {
+        await this.discoverFolders();
+        const results: FolderSyncResult[] = [];
+        const inbox = this.inbox();
+        const ordered = [...this.folders.filter((f) => f !== inbox), ...(inbox ? [inbox] : [])];
+        for (const folder of ordered) {
+          try {
+            results.push(await this.syncFolderNow(folder.path));
+          } catch (error) {
+            // The connection itself is gone: the reconnect resyncs everything.
+            if (error instanceof StoppedError || !this.connected) throw error;
+            this.log.warn("sync.folder_failed", { folder: folder.path, error });
+          }
+        }
+        return results;
+      } finally {
+        this.syncingAll = null;
       }
-      if (inbox) results.push(await this.syncFolderNow(inbox.path));
-      return results;
     });
+    return this.syncingAll;
   }
 
   syncFolder(path: string): Promise<FolderSyncResult> {
     return this.enqueue(() => this.syncFolderNow(path));
   }
 
-  /** Runs `task` with exclusive use of the connection. Fails fast while disconnected. */
+  /**
+   * Runs `task` with exclusive use of the connection. Fails fast with `MailboxUnavailableError`
+   * while disconnected or still on the first sync, so an outbox action never waits behind a
+   * long import (holding an outbox slot other mailboxes need).
+   */
   run<T>(task: (session: ImapSession) => Promise<T>): Promise<T> {
+    if (!this.isReady) {
+      return Promise.reject(new MailboxUnavailableError(`mailbox ${this.mailbox.id} is not ready`));
+    }
     return this.enqueue(() => {
       const client = this.requireClient();
       return task({
@@ -180,18 +264,35 @@ export class MailboxConnection extends EventEmitter<Events> {
   }
 
   private async connectWithRetry(): Promise<void> {
-    for (let attempt = 0; !this.stopped; attempt++) {
+    // A drop right after a connect counts as a failed attempt (see `stableAfterMs`).
+    if (this.failures > 0) await this.sleep(this.retryDelay());
+    while (!this.stopped) {
       try {
         await this.gate(() => this.connect());
         return;
       } catch (error) {
-        const retryInMs = Math.round(
-          backoffDelay(attempt, this.reconnectBaseMs, this.reconnectMaxMs),
-        );
-        this.log.warn("imap.connect_failed", { error, attempt, retryInMs });
+        if (this.stopped) return;
+        this.failures++;
+        const authFailed =
+          (error as { authenticationFailed?: unknown }).authenticationFailed === true;
+        if (authFailed) this.emit("auth_failed");
+        // Wrong credentials will not fix themselves in a second: wait the longest.
+        const retryInMs = authFailed ? this.reconnectMaxMs : this.retryDelay();
+        this.log.warn("imap.connect_failed", {
+          error,
+          attempt: this.failures,
+          authFailed,
+          retryInMs,
+        });
         await this.sleep(retryInMs);
       }
     }
+  }
+
+  private retryDelay(): number {
+    // Never zero: a burst of reconnects from many mailboxes after a network blip still spreads out.
+    const base = this.reconnectBaseMs;
+    return Math.round(base / 2 + backoffDelay(this.failures - 1, base, this.reconnectMaxMs));
   }
 
   private async connect(): Promise<void> {
@@ -206,6 +307,9 @@ export class MailboxConnection extends EventEmitter<Events> {
       // Start IDLE soon after our own commands finish, and restart it before NATs drop it.
       autoIdleDelay: 1_000,
       maxIdleTime: 4 * 60_000,
+      socketTimeout: this.socketTimeoutMs,
+      greetingTimeout: 30_000,
+      connectionTimeout: 60_000,
     });
     client.on("error", (error: Error) => this.log.warn("imap.error", { error }));
     client.on("close", () => this.onClose(client));
@@ -213,17 +317,22 @@ export class MailboxConnection extends EventEmitter<Events> {
       if (event.path === this.inbox()?.path) this.requestInboxSync();
     });
 
-    await client.connect();
-    this.client = client;
     try {
+      await client.connect();
+      this.client = client;
       this.capabilities = detectCapabilities(client);
       this.log.info("imap.capabilities", { ...this.capabilities });
       await this.syncAll();
+      if (!client.usable) throw new Error("connection closed during the first sync");
     } catch (error) {
-      this.client = null;
+      if (this.client === client) this.client = null;
+      // Also after a failed LOGIN: never leave a socket behind against the server's connection cap.
       client.close();
       throw error;
     }
+    if (this.stopped) return;
+    this.ready = true;
+    this.readySince = Date.now();
     this.emit("connected", this.capabilities);
     this.log.info("imap.connected");
   }
@@ -231,13 +340,18 @@ export class MailboxConnection extends EventEmitter<Events> {
   private onClose(client: ImapFlow): void {
     if (client !== this.client) return; // a client we already replaced or shut down
     this.client = null;
+    const wasReady = this.ready;
+    this.ready = false;
+    if (wasReady && Date.now() - this.readySince >= this.stableAfterMs) this.failures = 0;
+    else this.failures++;
     this.emit("disconnected");
     if (this.stopped) return;
-    this.log.warn("imap.disconnected");
+    this.log.warn("imap.disconnected", { wasReady, failures: this.failures });
     void this.reconnect();
   }
 
   private sleep(ms: number): Promise<void> {
+    if (this.stopped) return Promise.resolve();
     return new Promise((resolve) => {
       const timer = setTimeout(done, ms);
       function done() {
@@ -277,7 +391,9 @@ export class MailboxConnection extends EventEmitter<Events> {
     this.enqueue(() => {
       this.inboxSyncQueued = false;
       return this.syncFolderNow(inbox.path);
-    }).catch((error: unknown) => this.log.warn("sync.inbox_failed", { error }));
+    }).catch((error: unknown) => {
+      if (!this.stopped) this.log.warn("sync.inbox_failed", { error });
+    });
   }
 
   private requireClient(): ImapFlow {
@@ -321,6 +437,7 @@ export class MailboxConnection extends EventEmitter<Events> {
     const client = this.requireClient();
     const mailboxId = this.mailbox.id;
     const role = this.folders.find((f) => f.path === path)?.role ?? "other";
+    this.throwIfStopped();
     const lock = await client.getMailboxLock(path);
     try {
       if (client.mailbox === false) throw new Error(`could not select ${path}`);
@@ -328,6 +445,7 @@ export class MailboxConnection extends EventEmitter<Events> {
       const result: FolderSyncResult = {
         folder: path,
         added: 0,
+        failed: 0,
         removed: 0,
         flagsChanged: 0,
         reset: false,
@@ -395,27 +513,42 @@ export class MailboxConnection extends EventEmitter<Events> {
       result.removed = removed.length;
       result.flagsChanged = flagChanges.length;
 
-      for (let i = 0; i < added.length; i += this.batchSize) {
-        const batch = added.slice(i, i + this.batchSize);
+      let consecutiveFailures = 0;
+      for await (const batch of this.sizedBatches(client, added)) {
+        this.throwIfStopped();
         for await (const msg of client.fetch(
           batch.join(","),
           { uid: true, flags: true, source: true, internalDate: true },
           { uid: true },
         )) {
+          // Finish the message in hand, then stop; the rest of the batch is fetched next start.
+          if (this.stopped) continue;
           if (!msg.source) continue;
-          const { created } = await this.store.storeMessage(mailboxId, {
-            folder: path,
-            uid: msg.uid,
-            raw: msg.source,
-            flags: sortedFlags(msg.flags),
-            modseq: msg.modseq ?? null,
-            internalDate: msg.internalDate ? new Date(msg.internalDate) : null,
-          });
-          if (created) {
-            result.added++;
-            this.emit("message", { mailboxId, folder: path, role, uid: msg.uid });
+          try {
+            const { created } = await this.store.storeMessage(mailboxId, {
+              folder: path,
+              uid: msg.uid,
+              raw: msg.source,
+              flags: sortedFlags(msg.flags),
+              modseq: msg.modseq ?? null,
+              internalDate: msg.internalDate ? new Date(msg.internalDate) : null,
+            });
+            consecutiveFailures = 0;
+            if (created) {
+              result.added++;
+              this.emit("message", { mailboxId, folder: path, role, uid: msg.uid });
+            }
+          } catch (error) {
+            // One unparseable or unstorable message must not block the folder. It stays out of the
+            // index, so the next sync's UID diff retries it. A run of failures means storage is
+            // down: give up on the folder rather than walking the whole mailbox.
+            result.failed++;
+            consecutiveFailures++;
+            this.log.warn("sync.message_failed", { folder: path, uid: msg.uid, error });
+            if (consecutiveFailures >= MAX_CONSECUTIVE_STORE_FAILURES) throw error;
           }
         }
+        this.throwIfStopped();
       }
 
       const next: SyncPosition = {
@@ -424,13 +557,55 @@ export class MailboxConnection extends EventEmitter<Events> {
         uidNext: box.uidNext,
       };
       await this.store.saveSyncPosition(mailboxId, path, next);
-      if (result.added || result.removed || result.flagsChanged || result.reset) {
+      if (result.added || result.removed || result.flagsChanged || result.reset || result.failed) {
         this.log.info("sync.folder", { ...result });
       }
       return result;
     } finally {
       lock.release();
     }
+  }
+
+  private throwIfStopped(): void {
+    if (this.stopped) throw new StoppedError(`mailbox ${this.mailbox.id} is stopping`);
+  }
+
+  /**
+   * Splits `uids` (newest first) into fetch batches of at most `batchSize` messages and
+   * `batchBytes` bytes, so memory stays bounded however big the mail is: a message larger than
+   * the byte budget is fetched on its own. Sizes come from one cheap RFC822.SIZE fetch per chunk.
+   */
+  private async *sizedBatches(client: ImapFlow, uids: number[]): AsyncGenerator<number[]> {
+    const SIZE_CHUNK = 500;
+    let batch: number[] = [];
+    let bytes = 0;
+    for (let i = 0; i < uids.length; i += SIZE_CHUNK) {
+      const chunk = uids.slice(i, i + SIZE_CHUNK);
+      const sizes = new Map<number, number>();
+      for await (const msg of client.fetch(
+        chunk.join(","),
+        { uid: true, size: true },
+        { uid: true },
+      )) {
+        sizes.set(msg.uid, msg.size ?? 0);
+      }
+      for (const uid of chunk) {
+        // Expunged since the UID search: nothing to fetch.
+        if (!sizes.has(uid)) continue;
+        const size = sizes.get(uid) ?? 0;
+        if (
+          batch.length > 0 &&
+          (batch.length >= this.batchSize || bytes + size > this.batchBytes)
+        ) {
+          yield batch;
+          batch = [];
+          bytes = 0;
+        }
+        batch.push(uid);
+        bytes += size;
+      }
+    }
+    if (batch.length > 0) yield batch;
   }
 }
 
