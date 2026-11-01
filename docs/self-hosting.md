@@ -131,3 +131,40 @@ curl localhost:8788/health
 The container runs as a non-root user. Point your host's health check at `GET /health`. It
 handles `SIGTERM` gracefully: in-flight syncs and actions finish and mailboxes log out.
 Expose `/ping` only to your Worker.
+
+### Worker (`apps/worker`)
+
+One Cloudflare Worker serves the API (`/api/*`), Better Auth (`/api/auth/*`) and, as later
+sections add, the AI queue consumer and realtime. Its config is `apps/worker/wrangler.jsonc`;
+every name and id there is a neutral default to replace with your own.
+
+Bindings:
+
+| Binding      | Kind       | Setup                                                                                                                                                                |
+| ------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HYPERDRIVE` | Hyperdrive | `wrangler hyperdrive create omni --connection-string=postgres://...`, then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres. |
+
+Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashboard values on
+deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
+to `.dev.vars`.
+
+| Variable                   | Kind   | Required | Notes                                                                     |
+| -------------------------- | ------ | -------- | ------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`       | secret | yes      | At least 32 random characters.                                            |
+| `BETTER_AUTH_URL`          | var    | yes      | Public origin of the Worker.                                              |
+| `AUTH_TRUSTED_ORIGINS`     | var    | no       | Comma-separated web/app origins.                                          |
+| `AUTH_PASSKEY_RP_ID`       | var    | no       | WebAuthn relying party ID.                                                |
+| `APP_NAME`                 | var    | no       | Defaults to `Omni`.                                                       |
+| `MAIL_SERVICE_URL`         | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.        |
+| `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                         |
+| `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links. Empty disables them. |
+| `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off.                                                   |
+
+Magic links are sent through the outbox: the Worker writes a `send` action for the
+`SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be
+connected like any other.
+
+```bash
+pnpm --filter @omni/worker dev      # wrangler dev on :8787 (we wrap it in Doppler)
+pnpm --filter @omni/worker exec wrangler deploy
+```

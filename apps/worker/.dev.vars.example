@@ -1,0 +1,34 @@
+# apps/worker local config. Copy to `.dev.vars` (read by `wrangler dev`); in production set vars
+# in wrangler.jsonc or the dashboard and secrets with `wrangler secret put <NAME>`.
+# Hyperdrive needs no variable locally: wrangler.jsonc's `localConnectionString` points at the
+# local stack's Postgres. Override it with CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE.
+
+# --- Auth (Better Auth; see packages/auth/.env.example) ---
+# Secret. At least 32 random characters: openssl rand -base64 32
+BETTER_AUTH_SECRET=
+# Public origin of this Worker (serves /api/auth).
+BETTER_AUTH_URL=http://localhost:8787
+# Comma-separated web/app origins allowed to call auth endpoints.
+AUTH_TRUSTED_ORIGINS=http://localhost:5173
+# Optional. WebAuthn relying party ID; defaults to the BETTER_AUTH_URL host.
+AUTH_PASSKEY_RP_ID=
+# Optional. Name shown in passkey prompts and magic-link mail. Defaults to "Omni".
+APP_NAME=Omni
+
+# --- Mail service ---
+# Base URL of apps/mail. The Worker pings it after writing to the outbox.
+MAIL_SERVICE_URL=http://localhost:8788
+# Secret. Signs Worker <-> mail service calls; same value as the mail service's.
+# Generate: openssl rand -hex 32
+MAIL_SERVICE_HMAC_SECRET=
+# Address of an existing mailbox that sends magic links (e.g. no-reply@your-domain).
+# Leave empty to disable email sign-in.
+SYSTEM_MAIL_FROM=
+
+# --- Optional ---
+# Sentry DSN. Empty keeps error reporting off.
+SENTRY_DSN=
+
+# --- E2E tests only (`pnpm --filter @omni/worker test:e2e`) ---
+# Admin URL of the local Postgres; each test file creates and drops its own database.
+# DATABASE_URL=postgres://postgres:postgres@localhost:54329/omni

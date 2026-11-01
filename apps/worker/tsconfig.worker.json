@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": ".tsbuild/worker",
+    "types": ["@cloudflare/workers-types"],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "worker-configuration.d.ts"]
+}
