@@ -12,6 +12,9 @@ RUN pnpm --filter @omni/mail build \
 
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production
+# The runtime only runs node; drop the bundled npm/corepack (and their advisories).
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+  /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 WORKDIR /app
 COPY --from=build --chown=node:node /out/package.json ./
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
