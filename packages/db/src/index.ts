@@ -10,3 +10,4 @@ export * from "./mail-sync.ts";
 export * as schema from "./schema/index.ts";
 export * from "./system.ts";
 export * from "./member-mail.ts";
+export * from "./ai-jobs.ts";

@@ -4,8 +4,9 @@ import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
-import { verifyRequest, type VerifyResult } from "@omni/crypto";
+import { signRequest, verifyRequest, type VerifyResult } from "@omni/crypto";
 import { addLocation, createDb, createThread, schema, upsertFolder, upsertMessage } from "@omni/db";
+import { MAIL_EVENTS_PATH, type MailEventsBody } from "@omni/contracts";
 import { desc, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
@@ -117,8 +118,12 @@ export async function startWorker(options: {
           ...options.vars,
         },
         secrets: {
+          // No external AI provider in e2e: only the rule path runs.
+          TYPESAFE_API_KEY: "",
           BETTER_AUTH_SECRET: "e2e-auth-secret-e2e-auth-secret-e2e-auth",
           MAIL_SERVICE_HMAC_SECRET: HMAC_SECRET,
+          // Never call the model from e2e: only the rule path runs.
+          ANTHROPIC_API_KEY: "",
         },
       },
     ],
@@ -258,4 +263,55 @@ export async function seedMessage(
     modseq: null,
   });
   return { threadId, messageId: stored.id, folder };
+}
+
+/** Calls `/internal/mail-events` the way the mail service does: signed, with a fresh nonce. */
+export async function postMailEvents(
+  worker: Worker,
+  body: MailEventsBody | string,
+  sign: { secret?: string; timestamp?: number; nonce?: string | null } = {},
+) {
+  const text = typeof body === "string" ? body : JSON.stringify(body);
+  const headers = await signRequest({
+    secret: sign.secret ?? HMAC_SECRET,
+    method: "POST",
+    path: MAIL_EVENTS_PATH,
+    body: text,
+    timestamp: sign.timestamp,
+    nonce: sign.nonce === null ? undefined : (sign.nonce ?? randomUUID().replaceAll("-", "")),
+  });
+  return fetch(new URL(MAIL_EVENTS_PATH, worker.url), {
+    method: "POST",
+    headers: { ...headers, "content-type": "application/json" },
+    body: text,
+  });
+}
+
+/** Parsed JSON log lines (`console.log(JSON.stringify(...))`) the Worker wrote so far. */
+export function workerEvents(worker: Worker) {
+  return worker.server.getLogs().flatMap((log) => {
+    try {
+      return [JSON.parse(log.message) as Record<string, unknown>];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/** Waits until the Worker has logged `count` events matching `match`. */
+export async function waitForEvents(
+  worker: Worker,
+  match: (event: Record<string, unknown>) => boolean,
+  count = 1,
+  timeoutMs = 15_000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const found = workerEvents(worker).filter(match);
+    if (found.length >= count) return found;
+    if (Date.now() > deadline) {
+      throw new Error(`expected ${count} matching Worker events, saw ${found.length}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }

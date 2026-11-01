@@ -17,6 +17,9 @@
     "MAIL_SERVICE_URL": "http://localhost:8788",
     "SYSTEM_MAIL_FROM": "",
     "SENTRY_DSN": "",
+    "AI_DAILY_TOKEN_CAP": "1000000",
+    "TRIAGE_PROVIDER": "",
+    "JEV_MODEL": "",
   },
   "hyperdrive": [
     {
@@ -35,4 +38,21 @@
       "preview_bucket_name": "omni-mail-dev",
     },
   ],
+  // AI jobs: the Worker produces them on new mail and consumes them itself.
+  "queues": {
+    "producers": [{ "binding": "AI_QUEUE", "queue": "omni-ai" }],
+    "consumers": [
+      {
+        "queue": "omni-ai",
+        "max_batch_size": 10,
+        "max_batch_timeout": 2,
+        "max_retries": 5,
+        "dead_letter_queue": "omni-ai-dlq",
+      },
+    ],
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "REPLAY_GUARD", "class_name": "ReplayGuard" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReplayGuard"] }],
 }

@@ -8,6 +8,8 @@ declare global {
     interface Env {
       BETTER_AUTH_SECRET: string;
       MAIL_SERVICE_HMAC_SECRET: string;
+      ANTHROPIC_API_KEY?: string;
+      TYPESAFE_API_KEY?: string;
     }
   }
 }
@@ -24,6 +26,15 @@ const configSchema = z
     /** Address of the mailbox that sends magic links. Required to sign in by email. */
     SYSTEM_MAIL_FROM: optionalText.pipe(z.email().optional()),
     SENTRY_DSN: optionalText.pipe(z.url().optional()),
+    /** Empty runs only the rule path: ours-last threads file as waiting_on_them, no summaries. */
+    ANTHROPIC_API_KEY: optionalText,
+    /** Triage on TypeSafe's Jev when set (summaries stay on Claude). */
+    TYPESAFE_API_KEY: optionalText,
+    /** `jev` or `claude`; defaults to Jev when TYPESAFE_API_KEY is set. */
+    TRIAGE_PROVIDER: optionalText.pipe(z.enum(["jev", "claude"]).optional()),
+    JEV_MODEL: optionalText,
+    /** Per org per UTC day, input + output. Over it, summaries pause; triage keeps running. */
+    AI_DAILY_TOKEN_CAP: z.coerce.number().int().positive().default(1_000_000),
   })
   .and(z.object({ auth: authEnvSchema }));
 
