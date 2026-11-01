@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "skills": {
+    "gh-stack": {
+      "source": "github/gh-stack",
+      "sourceType": "github",
+      "note": "Upstream guidance with an Omni 'Repo overrides' section."
+    },
+    "typesafe-ai": {
+      "source": "typesafe-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/typesafe-ai/SKILL.md",
+      "license": "MIT"
+    }
+  }
+}

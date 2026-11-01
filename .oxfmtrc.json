@@ -8,6 +8,8 @@
     "**/migrations/**",
     "fixtures/eml/**",
     "docs/spec/**",
-    "pnpm-lock.yaml"
+    "pnpm-lock.yaml",
+    ".claude/skills/typesafe-ai/**",
+    ".claude/skills/gh-stack/references/**"
   ]
 }
