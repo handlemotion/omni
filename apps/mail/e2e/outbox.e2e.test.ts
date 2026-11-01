@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
 import { deterministicMessageId, OutboxExecutor } from "../src/outbox.ts";
 import { PgActionSource, PgMailStore } from "../src/pg-store.ts";
@@ -12,7 +12,7 @@ import {
   stored,
   type TestDb,
 } from "./support/db.ts";
-import { deliver, logger, mailbox, otherClient, purge, waitFor } from "./support/greenmail.ts";
+import { deliver, logger, mailbox, otherClient, waitFor } from "./support/greenmail.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
@@ -40,10 +40,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await database.teardown();
-});
-
-beforeEach(async () => {
-  await purge();
 });
 
 afterEach(async () => {
