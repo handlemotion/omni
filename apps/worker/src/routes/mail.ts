@@ -15,6 +15,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
+import { attachmentResponse } from "./assets.ts";
 
 const lanes = ["needs_reply", "waiting_on_them", "fyi", "noise", "unsure"] as const;
 
@@ -135,16 +136,7 @@ export const mail = new Hono<AppEnv>()
     if (!file) notFound();
     const object = await c.env.MAIL_BUCKET.get(file.r2Key);
     if (!object) notFound();
-    return new Response(object.body, {
-      headers: {
-        "content-type": file.mimeType,
-        "content-length": String(object.size),
-        // Never render attachments inline on our origin.
-        "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
-        "x-content-type-options": "nosniff",
-        "cache-control": "private, max-age=3600",
-      },
-    });
+    return attachmentResponse(object, file);
   })
 
   /**

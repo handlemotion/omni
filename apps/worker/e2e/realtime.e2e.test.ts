@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+import { request } from "node:http";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
   createMailbox,
@@ -11,6 +13,7 @@ import {
   startMailServiceEndpoint,
   startWorker,
   SYSTEM_MAIL_FROM,
+  WEB_ORIGIN,
 } from "./support.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -30,11 +33,41 @@ afterAll(async () => {
 });
 
 /** Opens the realtime socket the way the apps do and collects what arrives. */
+/** A raw websocket handshake, so the test can read the status a browser would hide. */
+function handshake(cookie: string, origin?: string) {
+  const url = new URL("/api/realtime", worker.url);
+  return new Promise<number>((resolve, reject) => {
+    const req = request(url, {
+      headers: {
+        cookie,
+        connection: "Upgrade",
+        upgrade: "websocket",
+        "sec-websocket-version": "13",
+        "sec-websocket-key": randomBytes(16).toString("base64"),
+        ...(origin ? { origin } : {}),
+      },
+    });
+    req.on("upgrade", (res, socket) => {
+      socket.destroy();
+      resolve(res.statusCode ?? 0);
+    });
+    req.on("response", (res) => {
+      res.resume();
+      resolve(res.statusCode ?? 0);
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 async function connect(cookie: string) {
   const url = new URL("/api/realtime", worker.url);
   url.protocol = "ws:";
-  // Node's WebSocket (undici) accepts headers, which carry the session cookie here.
-  const socket = new WebSocket(url, { headers: { cookie } } as unknown as string[]);
+  // Node's WebSocket (undici) accepts headers: the session cookie, and the Origin a browser on
+  // the web app would send.
+  const socket = new WebSocket(url, {
+    headers: { cookie, origin: WEB_ORIGIN },
+  } as unknown as string[]);
   const received: { type: string; mailboxId: string; threadIds: string[] }[] = [];
   socket.addEventListener("message", (e) => received.push(JSON.parse(String(e.data))));
   await new Promise<void>((resolve, reject) => {
@@ -115,4 +148,18 @@ test("mail events reach only members who can see the mailbox, also after hiberna
 
   anaSocket.socket.close();
   beaSocket.socket.close();
+});
+
+test("a page on a foreign origin cannot open the member's socket with their cookie", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "origins");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  await createMember(db, org.id, "ana@origins.test");
+  const cookie = await signIn(worker, db, "ana@origins.test");
+
+  expect(await handshake(cookie, "https://evil.example")).toBe(403);
+  expect(await handshake(cookie, "null")).toBe(403);
+  expect(await handshake(cookie, WEB_ORIGIN)).toBe(101);
+  // Native clients send no Origin and hold the session themselves.
+  expect(await handshake(cookie)).toBe(101);
 });

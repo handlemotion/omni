@@ -4,6 +4,7 @@
 import { and, asc, eq, exists, isNotNull, sql, type AnyColumn } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import {
+  attachments,
   mailboxAccess,
   mailboxFolders,
   mailboxes,
@@ -128,4 +129,27 @@ export async function setThreadArchived(
     )
     .returning({ id: threads.id });
   return rows.length > 0;
+}
+
+/**
+ * An attachment by the content hash the mail service names it with (the last segment of
+ * `attachments.r2_key`, as linked from sanitized HTML), if the member can see its message.
+ */
+export async function findMemberAttachmentByHash(db: Db, memberId: string, sha256: string) {
+  const [row] = await db
+    .select({
+      r2Key: attachments.r2Key,
+      filename: attachments.filename,
+      mimeType: attachments.mimeType,
+    })
+    .from(attachments)
+    .innerJoin(messages, eq(messages.id, attachments.messageId))
+    .where(
+      and(
+        sql`${attachments.r2Key} like ${`%/att/${sha256}`}`,
+        exists(grantFor(db, memberId, messages.mailboxId, messages.orgId)),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
 }

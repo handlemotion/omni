@@ -10,7 +10,7 @@ import { MAIL_EVENTS_PATH, type MailEventsBody } from "@omni/contracts";
 import { desc, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
-import { createTestHarness } from "wrangler";
+import { createTestHarness, unstable_startWorker } from "wrangler";
 
 export const HMAC_SECRET = "e2e-hmac-secret-e2e-hmac-secret-e2e-hmac";
 export const SYSTEM_MAIL_FROM = "no-reply@omni.test";
@@ -98,38 +98,78 @@ export async function startMailServiceEndpoint() {
 }
 
 /** The real Worker, bound to `databaseUrl` through Hyperdrive's local connection string. */
-export async function startWorker(options: {
+interface WorkerOptions {
   databaseUrl: string;
   mailServiceUrl: string;
   vars?: Record<string, string>;
-}) {
+}
+
+function workerVars(options: WorkerOptions) {
+  return {
+    BETTER_AUTH_URL: "http://localhost:8787",
+    AUTH_TRUSTED_ORIGINS: WEB_ORIGIN,
+    MAIL_SERVICE_URL: options.mailServiceUrl,
+    SYSTEM_MAIL_FROM,
+    SENTRY_DSN: "",
+    ENVIRONMENT: "test",
+    ...options.vars,
+  };
+}
+
+const workerSecrets = {
+  BETTER_AUTH_SECRET: "e2e-auth-secret-e2e-auth-secret-e2e-auth",
+  MAIL_SERVICE_HMAC_SECRET: HMAC_SECRET,
+  // No external AI provider in e2e: only the rule path runs.
+  ANTHROPIC_API_KEY: "",
+  TYPESAFE_API_KEY: "",
+};
+
+/** The real Worker, bound to `databaseUrl` through Hyperdrive's local connection string. */
+export async function startWorker(options: WorkerOptions) {
   process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = options.databaseUrl;
   const server = createTestHarness({
     root,
     workers: [
       {
         configPath: "./wrangler.jsonc",
-        vars: {
-          BETTER_AUTH_URL: "http://localhost:8787",
-          AUTH_TRUSTED_ORIGINS: WEB_ORIGIN,
-          MAIL_SERVICE_URL: options.mailServiceUrl,
-          SYSTEM_MAIL_FROM,
-          SENTRY_DSN: "",
-          ...options.vars,
-        },
-        secrets: {
-          // No external AI provider in e2e: only the rule path runs.
-          TYPESAFE_API_KEY: "",
-          BETTER_AUTH_SECRET: "e2e-auth-secret-e2e-auth-secret-e2e-auth",
-          MAIL_SERVICE_HMAC_SECRET: HMAC_SECRET,
-          // Never call the model from e2e: only the rule path runs.
-          ANTHROPIC_API_KEY: "",
-        },
+        vars: workerVars(options),
+        secrets: workerSecrets,
       },
     ],
   });
   const { url } = await server.listen();
   return { server, url };
+}
+
+/**
+ * The Worker under `wrangler dev`'s own runtime, whose outbound fetch is workerd's network
+ * stack. The test harness routes outbound fetch through Node's `fetch`, which follows redirects
+ * even under `redirect: "manual"`; suites that check redirect handling need the real behavior.
+ */
+export async function startWorkerWithNetwork(options: WorkerOptions) {
+  process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = options.databaseUrl;
+  const worker = await unstable_startWorker({
+    config: fileURLToPath(new URL("../wrangler.jsonc", import.meta.url)),
+    bindings: Object.fromEntries([
+      ...Object.entries(workerVars(options)).map(([k, value]) => [
+        k,
+        { type: "plain_text" as const, value },
+      ]),
+      ...Object.entries(workerSecrets).map(([k, value]) => [
+        k,
+        { type: "secret_text" as const, value },
+      ]),
+    ]),
+    dev: {
+      server: { hostname: "127.0.0.1", port: 0 },
+      inspector: false,
+      persist: false,
+      watch: false,
+      logLevel: "none",
+    },
+  });
+  await worker.ready;
+  return { url: await worker.url, close: () => worker.dispose() };
 }
 
 export async function createOrg(db: TestDb, slug: string) {
@@ -174,7 +214,8 @@ export async function grant(db: TestDb, orgId: string, mailboxId: string, member
   await db.insert(schema.mailboxAccess).values({ orgId, mailboxId, memberId });
 }
 
-type Worker = Awaited<ReturnType<typeof startWorker>>;
+type Worker = { url: string | URL };
+type Harnessed = Awaited<ReturnType<typeof startWorker>>;
 
 /** The real magic-link flow: request a link, read it from the outbox, open it. Returns the cookie. */
 export async function signIn(worker: Worker, db: TestDb, email: string) {
@@ -288,7 +329,7 @@ export async function postMailEvents(
 }
 
 /** Parsed JSON log lines (`console.log(JSON.stringify(...))`) the Worker wrote so far. */
-export function workerEvents(worker: Worker) {
+export function workerEvents(worker: Harnessed) {
   return worker.server.getLogs().flatMap((log) => {
     try {
       return [JSON.parse(log.message) as Record<string, unknown>];
@@ -300,7 +341,7 @@ export function workerEvents(worker: Worker) {
 
 /** Waits until the Worker has logged `count` events matching `match`. */
 export async function waitForEvents(
-  worker: Worker,
+  worker: Harnessed,
   match: (event: Record<string, unknown>) => boolean,
   count = 1,
   timeoutMs = 15_000,
