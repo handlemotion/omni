@@ -54,7 +54,8 @@ export interface Address {
 }
 
 export const mailboxKind = pgEnum("mailbox_kind", ["personal", "shared"]);
-export const mailProvider = pgEnum("mail_provider", ["purelymail", "gmail", "microsoft"]);
+// `imap` is any standards-based host with no provider API; `purelymail` adds its optional admin API.
+export const mailProvider = pgEnum("mail_provider", ["purelymail", "gmail", "microsoft", "imap"]);
 export const mailboxStatus = pgEnum("mailbox_status", ["pending", "active", "error", "disabled"]);
 export const folderRole = pgEnum("folder_role", ["inbox", "sent", "archive", "trash", "other"]);
 export const mailboxAccessRole = pgEnum("mailbox_access_role", ["owner", "member"]);
@@ -198,6 +199,8 @@ export const messages = pgTable(
     cc: jsonb("cc").$type<Address[]>().notNull().default([]),
     sentAt: timestamptz("sent_at").notNull(),
     r2Key: text("r2_key"),
+    /** Sanitized HTML body in R2; the only HTML ever sent to an app. Null for text-only mail. */
+    htmlR2Key: text("html_r2_key"),
     cleanText: text("clean_text").notNull().default(""),
     searchVector: tsvector("search_vector")
       .notNull()
@@ -219,6 +222,43 @@ export const messages = pgTable(
     unique("messages_mailbox_id_message_id_header_unique").on(t.mailboxId, t.messageIdHeader),
     index("messages_thread_id_sent_at_idx").on(t.threadId, t.sentAt),
     index("messages_search_vector_idx").using("gin", t.searchVector),
+  ],
+);
+
+/**
+ * Every IMAP copy of a message: one row per (folder, UID). A message filed in two folders (a
+ * note to self in INBOX and Sent) is one `messages` row with two locations, so neither folder's
+ * sync sees the other's copy as missing. Flags are per copy, as on the server.
+ */
+export const messageLocations = pgTable(
+  "message_locations",
+  {
+    orgId: text("org_id").notNull(),
+    mailboxId: text("mailbox_id").notNull(),
+    folderId: text("folder_id")
+      .notNull()
+      .references(() => mailboxFolders.id, { onDelete: "cascade" }),
+    imapUid: bigint("imap_uid", { mode: "number" }).notNull(),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    /** The copy's full IMAP flag set, sorted. */
+    flags: text("flags")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    modseq: bigint("modseq", { mode: "bigint" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.folderId, t.imapUid] }),
+    index("message_locations_message_id_idx").on(t.messageId),
+    foreignKey({
+      name: "message_locations_mailbox_org_fk",
+      columns: [t.mailboxId, t.orgId],
+      foreignColumns: [mailboxes.id, mailboxes.orgId],
+    }).onDelete("cascade"),
   ],
 );
 
@@ -282,6 +322,8 @@ export const mailActions = pgTable(
     runAfter: timestamptz("run_after").notNull().defaultNow(),
     /** When the current claim started. A stale lease means the worker died; reclaim it. */
     lockedAt: timestamptz("locked_at"),
+    /** SMTP accepted the send; a retry only finishes the Sent append and never resends. */
+    smtpAcceptedAt: timestamptz("smtp_accepted_at"),
     completedAt: timestamptz("completed_at"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

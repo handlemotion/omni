@@ -1,0 +1,10 @@
+# Gitleaks config for .github/workflows/gitleaks.yml. Default rules plus narrow allowlists for
+# known false positives; never allowlist a path wholesale.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Idempotency-Key request headers are random request ids, not credentials"
+targetRules = ["generic-api-key"]
+regexTarget = "match"
+regexes = ['''(?i)idempotency[-_]key''']

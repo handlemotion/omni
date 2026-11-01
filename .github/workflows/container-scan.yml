@@ -1,0 +1,77 @@
+name: Container scan
+
+# Builds the mail service image and scans it with Grype. Runs when anything that lands in the
+# image changes, on main, and weekly so new advisories against old images still surface.
+on:
+  pull_request:
+    paths:
+      - apps/mail/**
+      - packages/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .github/workflows/container-scan.yml
+  push:
+    branches: [main]
+  schedule:
+    - cron: "41 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: container-scan-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  mail:
+    name: Container scan (mail)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Find Dockerfile
+        id: dockerfile
+        run: |
+          if [ -f apps/mail/Dockerfile ]; then echo "exists=true" >> "$GITHUB_OUTPUT"
+          else echo "::notice::apps/mail/Dockerfile not found; skipping the image scan."; fi
+
+      - if: steps.dockerfile.outputs.exists
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - if: steps.dockerfile.outputs.exists
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/mail/Dockerfile
+          load: true
+          push: false
+          tags: omni-mail:scan
+          cache-from: type=gha,scope=mail
+          cache-to: type=gha,scope=mail,mode=max
+
+      # Fails on high/critical vulnerabilities that have a fix available.
+      - if: steps.dockerfile.outputs.exists
+        id: grype
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: omni-mail:scan
+          severity-cutoff: high
+          only-fixed: true
+          output-format: sarif
+
+      # Fork PRs get a read-only token, so only same-repo runs upload to code scanning.
+      - if: >-
+          always() && steps.grype.outputs.sarif &&
+          (github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: ${{ steps.grype.outputs.sarif }}
+          category: container-mail

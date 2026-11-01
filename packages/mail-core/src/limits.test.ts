@@ -9,9 +9,9 @@ import {
   MAX_HTML_LENGTH,
   sanitizeHtml,
   stripQuotedHtml,
-} from "./html";
-import { displayNameSpoof, parseMessage } from "./parse";
-import { stripReply } from "./reply";
+} from "./html.ts";
+import { displayNameSpoof, parseMessage } from "./parse.ts";
+import { stripReply } from "./reply.ts";
 
 const options = {
   proxyUrl: (src: string) => `https://img.omni.test/p?u=${encodeURIComponent(src)}`,

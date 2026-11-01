@@ -1,4 +1,6 @@
 // Helpers for the local GreenMail from `pnpm stack:up`. Auth is disabled there: any user logs in.
+// Other sessions and suites share this server, so tests never purge it: each one uses fresh
+// addresses instead.
 import { randomUUID } from "node:crypto";
 import { ImapFlow } from "imapflow";
 import { createTransport } from "nodemailer";
@@ -8,15 +10,8 @@ import type { MailboxConfig } from "../../src/mailbox-connection.ts";
 const host = process.env.GREENMAIL_HOST ?? "localhost";
 const imapPort = Number(process.env.GREENMAIL_IMAP_PORT ?? 3143);
 const smtpPort = Number(process.env.GREENMAIL_SMTP_PORT ?? 3025);
-const apiPort = Number(process.env.GREENMAIL_API_PORT ?? 8080);
 
 export const logger = createLogger(process.env.E2E_LOG_LEVEL === "debug" ? "debug" : "error");
-
-/** Deletes every message on the server. */
-export async function purge(): Promise<void> {
-  const response = await fetch(`http://${host}:${apiPort}/api/mail/purge`, { method: "POST" });
-  if (!response.ok) throw new Error(`GreenMail purge failed: ${response.status}`);
-}
 
 /** A fresh address per test, so folders and UIDs never leak between tests. */
 export function mailbox(kind: MailboxConfig["kind"] = "personal"): MailboxConfig {
@@ -34,7 +29,11 @@ export function mailbox(kind: MailboxConfig["kind"] = "personal"): MailboxConfig
 }
 
 /** Delivers a message over SMTP, as an outside sender would. */
-export async function deliver(to: string, subject: string): Promise<void> {
+export async function deliver(
+  to: string,
+  subject: string,
+  reply: { inReplyTo?: string } = {},
+): Promise<void> {
   const transport = createTransport({ host, port: smtpPort, secure: false });
   try {
     await transport.sendMail({
@@ -42,6 +41,7 @@ export async function deliver(to: string, subject: string): Promise<void> {
       to,
       subject,
       text: `body of ${subject}`,
+      ...(reply.inReplyTo ? { inReplyTo: reply.inReplyTo, references: [reply.inReplyTo] } : {}),
     });
   } finally {
     transport.close();

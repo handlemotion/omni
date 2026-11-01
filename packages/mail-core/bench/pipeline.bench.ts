@@ -1,9 +1,9 @@
 // `pnpm --filter @omni/mail-core bench`: parse → strip → sanitize on large realistic mail.
 // Not part of `pnpm test`. Numbers for the record live in the PR that changed them.
 import { bench, describe } from "vitest";
-import { cleanMessage, isLongForm, sanitizeHtml } from "../src/html";
-import { parseMessage } from "../src/parse";
-import { gmailChain, manyAttachments, newsletter, outlookChain } from "./corpus";
+import { cleanMessage, isLongForm, sanitizeHtml } from "../src/html.ts";
+import { parseMessage } from "../src/parse.ts";
+import { gmailChain, manyAttachments, newsletter, outlookChain } from "./corpus.ts";
 
 const MB = 1024 * 1024;
 const options = {

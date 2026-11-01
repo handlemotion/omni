@@ -1,8 +1,8 @@
 // Every fixture through parse → strip → sanitize, asserting the outputs the product shows.
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { BLOCKED_SRC_ATTR, cleanMessage, isLongForm, sanitizeHtml } from "./html";
-import { parseMessage } from "./parse";
+import { BLOCKED_SRC_ATTR, cleanMessage, isLongForm, sanitizeHtml } from "./html.ts";
+import { parseMessage } from "./parse.ts";
 
 const read = (name: string) =>
   readFileSync(new URL(`../../../fixtures/eml/${name}`, import.meta.url));

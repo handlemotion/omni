@@ -1,8 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "outDir": ".tsbuild",
-    "types": ["node"]
-  },
-  "include": ["src", "e2e", "*.mts"]
+  // Two projects: Worker code type-checks against the Workers runtime, e2e suites against Node.
+  "files": [],
+  "references": [{ "path": "./tsconfig.worker.json" }, { "path": "./tsconfig.e2e.json" }]
 }

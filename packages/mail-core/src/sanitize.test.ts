@@ -3,8 +3,8 @@
 // an oracle that re-parses the output the way the client's iframe will and fails on anything
 // that executes or fetches from somewhere other than our proxy or attachment store.
 import { describe, expect, test } from "vitest";
-import { sanitizeHtml } from "./html";
-import { attribute, elements, parseBodyFragment, textContent } from "./tree";
+import { sanitizeHtml } from "./html.ts";
+import { attribute, elements, parseBodyFragment, textContent } from "./tree.ts";
 
 const PROXY = "https://img.omni.test/p?u=";
 const ATTACHMENTS = "https://omni.test/attachments/";

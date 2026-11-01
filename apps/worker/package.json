@@ -8,6 +8,26 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "vitest run --passWithNoTests"
+    "dev": "doppler run -p omni -c dev_worker -- wrangler dev",
+    "cf-typegen": "wrangler types --include-runtime=false --strict-vars=false && oxfmt worker-configuration.d.ts",
+    "test:e2e": "vitest run --config vitest.e2e.mts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "@hono/zod-validator": "^0.9.1",
+    "@omni/ai": "workspace:*",
+    "@omni/auth": "workspace:*",
+    "@omni/contracts": "workspace:*",
+    "@omni/crypto": "workspace:*",
+    "@omni/db": "workspace:*",
+    "@sentry/cloudflare": "^11.10.0",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.14",
+    "postgres": "^3.4.9",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261030.1",
+    "wrangler": "^4.156.0"
   }
 }

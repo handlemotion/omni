@@ -8,6 +8,20 @@
       "when": 1793488479022,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793491792906,
+      "tag": "0001_mail_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793492794799,
+      "tag": "0002_mail_provider_imap",
+      "breakpoints": true
     }
   ]
 }

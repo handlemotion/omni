@@ -7,8 +7,8 @@
 import createDOMPurify from "dompurify";
 import { convert } from "html-to-text";
 import { JSDOM } from "jsdom";
-import type { ParsedMessage } from "./parse";
-import { stripReply, type StrippedText } from "./reply";
+import type { ParsedMessage } from "./parse.ts";
+import { stripReply, type StrippedText } from "./reply.ts";
 import {
   attribute,
   capDepth,
@@ -21,9 +21,9 @@ import {
   parseBody,
   parseBodyFragment,
   remove,
-} from "./tree";
+} from "./tree.ts";
 
-export { MAX_HTML_DEPTH } from "./tree";
+export { MAX_HTML_DEPTH } from "./tree.ts";
 
 /**
  * HTML past this many characters is not processed: sanitizing keeps only this much (the
