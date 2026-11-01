@@ -57,26 +57,9 @@ export interface MailStore {
 // that targets existing messages carries it; a mismatch fails the action instead of touching the
 // wrong message.
 
-export interface MessageTarget {
-  folder: string;
-  /** Decimal string: JSON has no bigint. */
-  uidValidity: string;
-  uids: number[];
-}
-
-export interface SendPayload {
-  from: string;
-  to: string[];
-  cc?: string[];
-  bcc?: string[];
-  subject: string;
-  text?: string;
-  html?: string;
-  /** Message-ID of the message being replied to. */
-  inReplyTo?: string;
-  /** Full References chain of the reply, oldest first. */
-  references?: string[];
-}
+// Payload shapes live in `@omni/contracts`, shared with the Worker that writes them.
+export type { MessageTarget, SendPayload } from "@omni/contracts";
+import type { MessageTarget, SendPayload } from "@omni/contracts";
 
 export type MailAction =
   | ActionBase<"send", SendPayload>

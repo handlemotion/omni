@@ -3,6 +3,7 @@
 // parse, thread, clean, upsert. A message is one row per Message-ID in
 // its mailbox; each IMAP copy of it is a location, so re-syncs, moves, UIDVALIDITY resets and
 // restarts converge on the same rows.
+import { actionPayloadSchemas } from "@omni/contracts";
 import {
   addLocation,
   claimActions,
@@ -304,18 +305,25 @@ export class PgActionSource implements ActionSource {
 
   async claim(limit: number): Promise<MailAction[]> {
     const rows = await claimActions(this.db, { limit, leaseMs: this.leaseMs });
-    return rows.map(
-      (row) =>
-        ({
-          id: row.id,
-          mailboxId: row.mailboxId,
-          kind: row.kind,
-          payload: row.payload,
-          idempotencyKey: row.idempotencyKey,
-          attempts: row.attempts,
-          smtpAcceptedAt: row.smtpAcceptedAt,
-        }) as unknown as MailAction,
-    );
+    const claimed: MailAction[] = [];
+    for (const row of rows) {
+      const payload = actionPayloadSchemas[row.kind].safeParse(row.payload);
+      if (!payload.success) {
+        // Retrying cannot fix a malformed payload: show it as failed now.
+        await rescheduleAction(this.db, row.id, `invalid payload: ${payload.error.message}`, null);
+        continue;
+      }
+      claimed.push({
+        id: row.id,
+        mailboxId: row.mailboxId,
+        kind: row.kind,
+        payload: payload.data,
+        idempotencyKey: row.idempotencyKey,
+        attempts: row.attempts,
+        smtpAcceptedAt: row.smtpAcceptedAt,
+      } as MailAction);
+    }
+    return claimed;
   }
 
   async markSmtpAccepted(actionId: string): Promise<void> {

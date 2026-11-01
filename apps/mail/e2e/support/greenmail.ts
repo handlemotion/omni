@@ -29,7 +29,11 @@ export function mailbox(kind: MailboxConfig["kind"] = "personal"): MailboxConfig
 }
 
 /** Delivers a message over SMTP, as an outside sender would. */
-export async function deliver(to: string, subject: string): Promise<void> {
+export async function deliver(
+  to: string,
+  subject: string,
+  reply: { inReplyTo?: string } = {},
+): Promise<void> {
   const transport = createTransport({ host, port: smtpPort, secure: false });
   try {
     await transport.sendMail({
@@ -37,6 +41,7 @@ export async function deliver(to: string, subject: string): Promise<void> {
       to,
       subject,
       text: `body of ${subject}`,
+      ...(reply.inReplyTo ? { inReplyTo: reply.inReplyTo, references: [reply.inReplyTo] } : {}),
     });
   } finally {
     transport.close();
