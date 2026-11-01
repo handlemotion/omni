@@ -1,9 +1,11 @@
 // The whole mail service in-process against the real local stack: Postgres, GreenMail, the S3
 // gateway, and real HTTP in both directions. The Worker side is a plain HTTP server that checks
 // signatures and bodies with the same `@omni/crypto` and `@omni/contracts` code the Worker uses.
+import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import {
   MAIL_EVENTS_PATH,
@@ -19,10 +21,13 @@ import { type MailService, type ServiceConfig, startService } from "../src/servi
 import {
   actionRow,
   createTestDatabase,
+  accessRows,
   enqueue,
+  mailboxesOf,
   mailboxStatus,
   messageRows,
   seedMailbox,
+  seedOwner,
   setCredentials,
   stored,
   type TestDb,
@@ -31,7 +36,11 @@ import { deliver, logger, mailbox, otherClient, waitFor } from "./support/greenm
 import { createTestBucket } from "./support/objects.ts";
 
 const secret = randomBytes(32).toString("hex");
-const keyring = parseKeyring(`k1:${randomBytes(32).toString("base64")}`);
+const keyringSecret = `k1:${randomBytes(32).toString("base64")}`;
+const keyring = parseKeyring(keyringSecret);
+const greenmailHost = process.env.GREENMAIL_HOST ?? "localhost";
+const greenmailImapPort = process.env.GREENMAIL_IMAP_PORT ?? "3143";
+const greenmailSmtpPort = process.env.GREENMAIL_SMTP_PORT ?? "3025";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
@@ -271,14 +280,72 @@ describe("mail service end to end", () => {
     expect(inRecipient).toBe(1);
   });
 
-  it("picks up a mailbox added after start on the next ping", async () => {
+  it("onboards a mailbox with mailbox:add; the running service connects it and indexes mail", async () => {
+    const owner = await seedOwner(db);
     await startMailService();
-    const { box } = await seedConnectable();
-    expect(service?.supervisor.has(box.id)).toBe(false);
+    const address = `onboard-${randomUUID().slice(0, 8)}@omni.test`;
+    const args = [
+      "--org",
+      owner.orgId,
+      "--address",
+      address,
+      "--owner",
+      owner.email.toUpperCase(),
+      "--provider",
+      "imap",
+      "--imap",
+      `${greenmailHost}:${greenmailImapPort}:plain`,
+      "--smtp",
+      `${greenmailHost}:${greenmailSmtpPort}:plain`,
+    ];
 
-    const valid = await signRequest({ secret, method: "POST", path: MAIL_PING_PATH });
-    expect((await ping({ headers: valid })).status).toBe(202);
-    await connected(box.id);
-    await waitFor(async () => (await mailboxStatus(db, box.id)) === "active");
+    const first = await mailboxAdd(args, "app-password-1");
+    expect(first).toMatchObject({ code: 0, stderr: expect.not.stringContaining("mailbox:add:") });
+    const { mailboxId } = JSON.parse(first.stdout) as { mailboxId: string };
+    // The CLI pinged the service, which decrypted the credentials and connected.
+    expect(first.stderr).toContain("mail service pinged");
+    await connected(mailboxId);
+    await deliver(address, "first onboarded mail");
+    await waitFor(async () => (await stored(db, mailboxId, "INBOX")).length === 1);
+
+    // Running it again replaces the credentials in place: same mailbox, one owner grant.
+    const second = await mailboxAdd(args, "app-password-2");
+    expect(second).toMatchObject({ code: 0, stderr: expect.not.stringContaining("mailbox:add:") });
+    expect(JSON.parse(second.stdout)).toMatchObject({ mailboxId });
+    expect(await mailboxesOf(db, owner.orgId)).toHaveLength(1);
+    expect(await accessRows(db, mailboxId)).toEqual([
+      expect.objectContaining({ memberId: owner.memberId, role: "owner" }),
+    ]);
+
+    // An owner outside the org is refused and writes nothing.
+    const stranger = await mailboxAdd(
+      [...args.slice(0, 3), `other-${address}`, "--owner", "nobody@example.test", ...args.slice(6)],
+      "pw",
+    );
+    expect(stranger.code).toBe(1);
+    expect(stranger.stderr).toContain("no member with email");
+    expect(await mailboxesOf(db, owner.orgId)).toHaveLength(1);
   });
 });
+
+/** Runs the real `mailbox:add` script with the password on stdin. */
+function mailboxAdd(args: string[], password: string) {
+  return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
+    const child = spawn(process.execPath, ["src/cli/mailbox-add.ts", ...args], {
+      cwd: fileURLToPath(new URL("..", import.meta.url)),
+      env: {
+        PATH: process.env.PATH,
+        DATABASE_URL: database.url,
+        MAIL_CREDENTIALS_KEY: keyringSecret,
+        MAIL_SERVICE_URL: serviceUrl,
+        MAIL_SERVICE_HMAC_SECRET: secret,
+      },
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => (stdout += chunk));
+    child.stderr.on("data", (chunk) => (stderr += chunk));
+    child.on("close", (code) => resolve({ code, stdout, stderr }));
+    child.stdin.end(password);
+  });
+}

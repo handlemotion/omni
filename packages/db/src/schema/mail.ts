@@ -54,7 +54,8 @@ export interface Address {
 }
 
 export const mailboxKind = pgEnum("mailbox_kind", ["personal", "shared"]);
-export const mailProvider = pgEnum("mail_provider", ["purelymail", "gmail", "microsoft"]);
+// `imap` is any standards-based host with no provider API; `purelymail` adds its optional admin API.
+export const mailProvider = pgEnum("mail_provider", ["purelymail", "gmail", "microsoft", "imap"]);
 export const mailboxStatus = pgEnum("mailbox_status", ["pending", "active", "error", "disabled"]);
 export const folderRole = pgEnum("folder_role", ["inbox", "sent", "archive", "trash", "other"]);
 export const mailboxAccessRole = pgEnum("mailbox_access_role", ["owner", "member"]);

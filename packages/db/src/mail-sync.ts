@@ -5,11 +5,14 @@ import { and, desc, eq, gte, inArray, ne, notInArray, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import {
   mailActions,
+  mailboxAccess,
   mailboxes,
   mailboxFolders,
+  members,
   messageLocations,
   messages,
   threads,
+  users,
 } from "./schema/index.ts";
 
 type FolderRole = (typeof mailboxFolders.$inferSelect)["role"];
@@ -366,4 +369,77 @@ export async function rescheduleAction(db: Db, id: string, error: string, retryA
     .where(and(eq(mailActions.id, id), eq(mailActions.status, "running")))
     .returning({ id: mailActions.id });
   return rows.length > 0;
+}
+/** The member of `orgId` whose user has this email, for granting mailbox access. */
+export async function findMemberByEmail(db: Db, orgId: string, email: string) {
+  const [row] = await db
+    .select({ id: members.id })
+    .from(members)
+    .innerJoin(users, eq(users.id, members.userId))
+    .where(
+      and(eq(members.organizationId, orgId), eq(sql`lower(${users.email})`, email.toLowerCase())),
+    );
+  return row?.id ?? null;
+}
+
+export async function findMailboxByAddress(db: Db, orgId: string, address: string) {
+  const [row] = await db
+    .select({ id: mailboxes.id })
+    .from(mailboxes)
+    .where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.address, address)));
+  return row?.id ?? null;
+}
+
+/**
+ * Creates a mailbox, or replaces its credentials when it exists, and grants the owner access.
+ * The caller picks `id` first because the credential ciphertext is bound to it.
+ */
+export async function saveMailbox(
+  db: Db,
+  input: {
+    id: string;
+    orgId: string;
+    address: string;
+    kind: (typeof mailboxes.$inferSelect)["kind"];
+    provider: (typeof mailboxes.$inferSelect)["provider"];
+    credentialsEnc: string;
+    ownerMemberId: string;
+  },
+) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(mailboxes)
+      .values({
+        id: input.id,
+        orgId: input.orgId,
+        address: input.address,
+        kind: input.kind,
+        provider: input.provider,
+        credentialsEnc: input.credentialsEnc,
+      })
+      .onConflictDoUpdate({
+        target: mailboxes.id,
+        set: {
+          kind: input.kind,
+          provider: input.provider,
+          credentialsEnc: input.credentialsEnc,
+          status: "pending",
+          updatedAt: new Date(),
+        },
+      })
+      .returning({ id: mailboxes.id });
+    await tx
+      .insert(mailboxAccess)
+      .values({
+        orgId: input.orgId,
+        mailboxId: row!.id,
+        memberId: input.ownerMemberId,
+        role: "owner",
+      })
+      .onConflictDoUpdate({
+        target: [mailboxAccess.mailboxId, mailboxAccess.memberId],
+        set: { role: "owner" },
+      });
+    return row!.id;
+  });
 }
