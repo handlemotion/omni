@@ -121,7 +121,15 @@ Several agents may work in this repository at once.
 
 ## Branching and shipping
 
-- PRs target `main`. Squash merge. CI (`Checks`) must be green.
+- PRs target `main` (or the layer below, in a stack). Squash merge. CI (`Checks`) must be green;
+  the `main` ruleset enforces both.
+- **Stacks (`gh stack`, see the `gh-stack` skill).** Work that depends on unmerged work is a
+  layer stacked on that branch, never a parallel branch off `main` that copies or re-implements
+  it. Each layer is one reviewable PR with one owner. Stacks merge bottom-first.
+- **Parallel agents.** Independent work gets its own stack rooted on `main`. Before starting, an
+  agent names the packages it owns; two stacks never edit the same package. Shared touch points
+  (`pnpm-lock.yaml`, root config, `docs/self-hosting.md`) are resolved by the later layer: merge
+  `main`, reinstall to regenerate the lockfile (`pnpm install`), never hand-merge it.
 - Before each push run `pnpm check`, `pnpm check-types`, and the affected tests (unit and e2e).
   Batch fixes into one push; CI minutes cost money.
 - Deploys happen from `main` through CI only. Never `wrangler deploy` or `railway up` from a
@@ -134,3 +142,8 @@ Several agents may work in this repository at once.
   `wrangler` for local dev and type generation.
 - Mail service runs on Railway (ADR 0001). PlanetScale Postgres is the database.
 - Research libraries from primary sources first (Context7, Firecrawl developer index, docs).
+
+## Skills
+
+Repo skills live in `.claude/skills/` as real folders, each symlinked from `.agents/skills/` so
+other agents find them too. Add a new skill in both places.
