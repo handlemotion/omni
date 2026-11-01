@@ -1,4 +1,4 @@
-# 0004: Keep tenant isolation in `forMember`; no Postgres row-level security yet
+# 0005: Keep tenant isolation in `forMember`; no Postgres row-level security yet
 
 Date: 2026-10-31 · Status: accepted
 
