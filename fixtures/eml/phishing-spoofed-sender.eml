@@ -1,0 +1,17 @@
+Return-Path: <bounce@mailer.attacker.example>
+MIME-Version: 1.0
+Date: Fri, 31 Oct 2026 08:41:07 +0000
+Message-ID: <7f3a9c@mailer.attacker.example>
+Subject: Action required: confirm your account
+From: "security@bank.example.com" <alerts@mailer.attacker.example>
+To: sam@example.com
+Content-Type: text/html; charset=utf-8
+
+<html><head><style>
+.cta { background: #0a5 url(https://t.attacker.example/open.gif?u=sam
+</style></head><body>
+<p>We noticed a sign-in from a new device. Confirm it within 24 hours or your account will be locked.</p>
+<p><a href="https://bank.example.com.verify-session.attacker.example/login" class="cta">https://bank.example.com/security</a></p>
+<p style="background:url(https://t.attacker.example/p.gif">Bank Example Security Team</p>
+<p><a href="https://bank.example.com/help">bank.example.com/help</a></p>
+</body></html>

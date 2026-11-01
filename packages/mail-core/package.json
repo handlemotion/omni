@@ -9,14 +9,15 @@
     "./clean": "./src/clean.ts"
   },
   "scripts": {
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "bench": "vitest bench --run"
   },
   "dependencies": {
     "dompurify": "^3.4.17",
-    "email-reply-parser": "^2.3.9",
     "html-to-text": "^10.0.1",
     "jsdom": "^30.1.3",
-    "mailparser": "^3.14.1"
+    "mailparser": "^3.14.1",
+    "parse5": "^8.0.1"
   },
   "devDependencies": {
     "@types/html-to-text": "^9.0.4",

@@ -4,5 +4,5 @@
     "outDir": ".tsbuild",
     "types": ["node"]
   },
-  "include": ["src", "e2e", "*.mts"]
+  "include": ["src", "e2e", "bench", "*.mts"]
 }
