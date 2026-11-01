@@ -44,6 +44,24 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # `Checks` is a required status, so the job always runs and reports; docs-only pull requests
+      # just skip the slow steps below (types, tests, e2e). Format, lint and policies still run.
+      # Pushes to main always run everything, because deploys follow a green CI there.
+      - name: Detect docs-only change
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          full=true
+          if [ "$EVENT" = "pull_request" ]; then
+            other=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" | grep -cvE '^docs/|\.md$' || true)
+            if [ "$other" = "0" ]; then full=false; fi
+          fi
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "Run types, tests and e2e: $full"
+
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       # Caches the pnpm store, keyed on the lockfile.
@@ -66,14 +84,18 @@ jobs:
         run: pnpm check
 
       - name: Types
+        if: steps.scope.outputs.full == 'true'
         run: pnpm check-types
 
       - name: Unit tests
+        if: steps.scope.outputs.full == 'true'
         run: pnpm test:all
 
       # Service containers cannot pass the gateway its backend arguments; compose.yml does.
       - name: S3-compatible object store
+        if: steps.scope.outputs.full == 'true'
         run: docker compose up -d --wait objects
 
       - name: E2E tests
+        if: steps.scope.outputs.full == 'true'
         run: pnpm test:e2e
