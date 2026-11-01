@@ -82,9 +82,17 @@ Own the follow-through. Green tests are the floor, not the proof.
   `dev_mail`, `prd_worker`, `prd_mail`, `prd_github`. Details: `docs/operations/doppler.md`.
 - Local commands run under Doppler: `doppler run -p omni -c dev_<unit> -- <command>`. Package
   `dev` scripts already do. `DOPPLER_TOKEN` authenticates headlessly (cloud, CI).
-- Never commit, print, export, or persist secret values, tokens, or raw DB URLs. Check a secret
-  by name or presence only (`doppler secrets --only-names`).
-- Creating, rotating, or deleting production secrets needs explicit approval.
+- Credentials are keys, tokens, passwords, signing secrets, and connection strings with
+  embedded passwords (`*_SECRET*`, `*_KEY`, `*_TOKEN`, `DATABASE_URL`). Never commit, print,
+  export, or persist those. Check them by name, presence, or length only.
+- Plain config is not a credential: bucket names, endpoints, regions, public URLs, ports, feature
+  flags. Read it with `doppler secrets get <NAME> --plain` and verify it instead of guessing or
+  asking the user. When unsure which kind a value is, treat it as a credential.
+- Writes to `dev*` configs are fine when the user asks. Creating, rotating, or deleting
+  production secrets needs explicit approval.
+- Do not assign the user a setup or verification step you can do or check yourself with the CLIs
+  here (`doppler`, `cf`, `flyctl`, `gh`, `docker`). Hand off only what needs a human: a
+  dashboard-only action, a credential you must not see, or approval for production changes.
 
 ## Self-hostable by design
 
