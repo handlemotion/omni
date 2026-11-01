@@ -1,0 +1,5 @@
+{
+  // Two projects: the client against the DOM (what web and iOS run), e2e suites against Node.
+  "files": [],
+  "references": [{ "path": "./tsconfig.src.json" }, { "path": "./tsconfig.e2e.json" }]
+}
