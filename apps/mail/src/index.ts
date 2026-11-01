@@ -1,2 +1,7 @@
-// Placeholder until this unit lands; see AGENTS.md.
-export const unit = "apps/mail";
+export * from "./ports.ts";
+export * from "./mailbox-connection.ts";
+export * from "./outbox.ts";
+export * from "./supervisor.ts";
+export * from "./http.ts";
+export * from "./config.ts";
+export * from "./log.ts";
