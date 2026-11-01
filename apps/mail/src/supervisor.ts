@@ -50,6 +50,14 @@ export class Supervisor {
     return [...this.connections.values()].filter((c) => c.connected).length;
   }
 
+  has(mailboxId: string): boolean {
+    return this.connections.has(mailboxId);
+  }
+
+  mailboxIds(): string[] {
+    return [...this.connections.keys()];
+  }
+
   start(): void {
     if (this.running) return;
     this.running = true;

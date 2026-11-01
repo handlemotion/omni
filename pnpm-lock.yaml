@@ -196,6 +196,18 @@ importers:
       '@hono/node-server':
         specifier: ^2.1.5
         version: 2.1.5(hono@4.13.14)
+      '@omni/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
+      '@omni/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@omni/mail-core':
+        specifier: workspace:*
+        version: link:../../packages/mail-core
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@opentelemetry/api@1.10.0)(kysely@0.29.7)(postgres@3.4.9)
       hono:
         specifier: ^4.13.14
         version: 4.13.14

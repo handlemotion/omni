@@ -16,6 +16,10 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.5",
+    "@omni/crypto": "workspace:*",
+    "@omni/db": "workspace:*",
+    "@omni/mail-core": "workspace:*",
+    "drizzle-orm": "^0.45.4",
     "hono": "^4.13.14",
     "imapflow": "^2.10.0",
     "nodemailer": "^10.3.1",

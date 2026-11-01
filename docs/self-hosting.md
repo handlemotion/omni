@@ -57,15 +57,21 @@ UID-list diffs and polling. On every connect it logs the server's capabilities
 | Variable                   | Required | Default  | Purpose                                                       |
 | -------------------------- | -------- | -------- | ------------------------------------------------------------- |
 | `MAIL_SERVICE_HMAC_SECRET` | yes      |          | Signs Worker → mail service pings; same value in the Worker.  |
-| `MAIL_CREDENTIALS_KEY`     | yes      |          | 32-byte base64 AES-256-GCM key for stored mailbox passwords.  |
-| `PORT`                     | no       | `8787`   | HTTP port for `/health` and `/ping`.                          |
+| `DATABASE_URL`             | yes      |          | Postgres the service writes the mail index to.                |
+| `MAIL_CREDENTIALS_KEY`     | yes      |          | Keyring `k1:<base64 32 bytes>[,k0:...]`, current key first.   |
+| `PORT`                     | no       | `8788`   | HTTP port for `/health` and `/ping`.                          |
 | `LOG_LEVEL`                | no       | `info`   | `debug`, `info`, `warn`, or `error`. Logs are JSON on stdout. |
 | `SYNC_INTERVAL_MS`         | no       | `300000` | Sync interval for non-inbox folders (INBOX is live via IDLE). |
 | `OUTBOX_INTERVAL_MS`       | no       | `30000`  | Outbox poll interval when no ping arrives.                    |
 | `MAILBOX_CONCURRENCY`      | no       | `4`      | Mailboxes connecting or syncing at once.                      |
 
-Generate the secrets with `openssl rand -hex 32` and `openssl rand -base64 32`. Keep
-`MAIL_CREDENTIALS_KEY` only on the mail service.
+Generate the secrets with `openssl rand -hex 32` and `echo "k1:$(openssl rand -base64 32)"`.
+Keep `MAIL_CREDENTIALS_KEY` only on the mail service. To rotate it, put the new key first
+(`k2:<new>,k1:<old>`); stored credentials still decrypt by their key id.
+
+On start the service connects every mailbox whose status is not `disabled` and resumes each
+folder from its saved sync position. A signed ping, or the next sync interval, picks up
+mailboxes added later.
 
 Run from source: `pnpm --filter @omni/mail start` reads `apps/mail/.env`. Variables already set
 in the environment win over the file.
@@ -74,8 +80,8 @@ Run in Docker (any host that keeps one container always on):
 
 ```bash
 docker build -f apps/mail/Dockerfile -t omni-mail .
-docker run -d --restart unless-stopped --env-file apps/mail/.env -p 8787:8787 omni-mail
-curl localhost:8787/health
+docker run -d --restart unless-stopped --env-file apps/mail/.env -p 8788:8788 omni-mail
+curl localhost:8788/health
 ```
 
 The container runs as a non-root user. Point your host's health check at `GET /health`. It
