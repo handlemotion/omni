@@ -63,6 +63,19 @@ Tests are a cost. Each one must catch a bug we would plausibly ship. Zero low-si
 - Evidence is real or reported as unverified. A green suite that mocks the thing under test is
   not evidence.
 
+## Verify it running
+
+Own the follow-through. Green tests are the floor, not the proof.
+
+- Before you call work done, run it: start the real local stack (`pnpm stack:up`, `wrangler dev`,
+  the mail service) and exercise the change end to end with real HTTP calls, real IMAP/SMTP, and
+  the rows it writes. Report what you ran and what you saw.
+- After a merge to `main`, check production yourself: the deploy or build finished, the active
+  version is the new one, `/health` (and any route you changed) answers, and logs show no new
+  errors (`cf` for Workers, the Railway CLI for the mail service, Sentry once wired). Report the
+  result, or say exactly what you could not check.
+- If a check would touch production data, send mail, or cost money beyond normal use, ask first.
+
 ## Secrets (Doppler)
 
 - Doppler project `omni` holds every secret. Configs: `dev` (shared local), `dev_worker`,
