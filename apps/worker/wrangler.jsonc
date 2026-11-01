@@ -20,6 +20,7 @@
     "AI_DAILY_TOKEN_CAP": "1000000",
     "TRIAGE_PROVIDER": "",
     "JEV_MODEL": "",
+    "EXPO_PUSH_ENABLED": "false",
   },
   "hyperdrive": [
     {
@@ -52,7 +53,10 @@
     ],
   },
   "durable_objects": {
-    "bindings": [{ "name": "REPLAY_GUARD", "class_name": "ReplayGuard" }],
+    "bindings": [
+      { "name": "REPLAY_GUARD", "class_name": "ReplayGuard" },
+      { "name": "REALTIME", "class_name": "Realtime" },
+    ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReplayGuard"] }],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReplayGuard", "Realtime"] }],
 }

@@ -10,6 +10,7 @@ declare global {
       MAIL_SERVICE_HMAC_SECRET: string;
       ANTHROPIC_API_KEY?: string;
       TYPESAFE_API_KEY?: string;
+      EXPO_ACCESS_TOKEN?: string;
     }
   }
 }
@@ -35,6 +36,13 @@ const configSchema = z
     JEV_MODEL: optionalText,
     /** Per org per UTC day, input + output. Over it, summaries pause; triage keeps running. */
     AI_DAILY_TOKEN_CAP: z.coerce.number().int().positive().default(1_000_000),
+    /** Send Expo push notifications to members with no app open. Off by default. */
+    EXPO_PUSH_ENABLED: z
+      .enum(["true", "false", ""])
+      .optional()
+      .transform((v) => v === "true"),
+    /** Optional: required only if the Expo project enforces push security. */
+    EXPO_ACCESS_TOKEN: optionalText,
   })
   .and(z.object({ auth: authEnvSchema }));
 

@@ -20,8 +20,9 @@ import {
   type Db,
 } from "@omni/db";
 import { loadConfig, type Config } from "./env.ts";
+import { fanOut } from "./realtime.ts";
 
-export type AiJob = { kind: "thread"; threadId: string };
+export type AiJob = { kind: "thread"; threadId: string; mailboxId: string };
 
 export type AiJobOutcome = "missing" | "done_already" | "no_model" | "triaged" | "summarized";
 
@@ -47,6 +48,10 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
     for (const message of batch.messages) {
       try {
         const outcome = await runAiJob(db, models, config, message.body);
+        if (outcome === "triaged" || outcome === "summarized") {
+          const { mailboxId, threadId } = message.body;
+          await fanOut(env, db, config, new Map([[mailboxId, new Set([threadId])]]));
+        }
         // oxlint-disable-next-line no-console -- one structured line per job
         console.log(JSON.stringify({ event: "ai.job", threadId: message.body.threadId, outcome }));
         message.ack();
