@@ -170,6 +170,34 @@ export const threads = pgTable(
     }).onDelete("cascade"),
     index("threads_mailbox_list_idx").on(t.mailboxId, t.archived, t.lastMessageAt.desc()),
     index("threads_mailbox_triage_idx").on(t.mailboxId, t.triage, t.lastMessageAt.desc()),
+    // Thread lists read the top of one mailbox at a time in exact keyset order (ties broken by
+    // id), so each mailbox costs `limit` index entries however big it is. `nulls first` matches
+    // what `order by ... desc` means; the two indexes above (Drizzle's default `desc nulls last`)
+    // cannot serve that order, and can be dropped once these ship.
+    index("threads_mailbox_page_idx").on(
+      t.mailboxId,
+      t.archived,
+      t.lastMessageAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
+    index("threads_mailbox_lane_page_idx").on(
+      t.mailboxId,
+      t.archived,
+      t.triage,
+      t.lastMessageAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
+    // Subject threading looks up recent threads by normalized subject for every new message.
+    index("threads_mailbox_subject_key_idx").on(
+      t.mailboxId,
+      t.subjectKey,
+      t.lastMessageAt.desc().nullsFirst(),
+    ),
+    // Deleting a message sets this to null; without an index every deleted message scans
+    // `threads`, which makes removing a mailbox quadratic.
+    index("threads_summary_message_id_idx")
+      .on(t.summaryMessageId)
+      .where(sql`${t.summaryMessageId} is not null`),
   ],
 );
 
@@ -222,6 +250,12 @@ export const messages = pgTable(
     unique("messages_mailbox_id_message_id_header_unique").on(t.mailboxId, t.messageIdHeader),
     index("messages_thread_id_sent_at_idx").on(t.threadId, t.sentAt),
     index("messages_search_vector_idx").using("gin", t.searchVector),
+    // Search walks each mailbox newest first when a term is common, instead of ranking every hit.
+    index("messages_mailbox_id_sent_at_idx").on(
+      t.mailboxId,
+      t.sentAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
   ],
 );
 
@@ -276,7 +310,11 @@ export const attachments = pgTable(
     r2Key: text("r2_key").notNull(),
     createdAt: createdAt(),
   },
-  (t) => [index("attachments_message_id_idx").on(t.messageId)],
+  (t) => [
+    index("attachments_message_id_idx").on(t.messageId),
+    // The content hash in `<org>/<mailbox>/att/<sha256>`, which the image proxy looks up by.
+    index("attachments_content_hash_idx").on(sql`split_part(${t.r2Key}, '/att/', 2)`),
+  ],
 );
 
 export const threadState = pgTable(

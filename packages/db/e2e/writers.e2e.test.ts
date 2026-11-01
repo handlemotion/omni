@@ -1,7 +1,14 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
 import { createDb } from "../src/client.ts";
-import { attachments, mailActions, messages, threads } from "../src/schema/index.ts";
+import { setLocationFlags } from "../src/mail-sync.ts";
+import {
+  attachments,
+  mailActions,
+  messageLocations,
+  messages,
+  threads,
+} from "../src/schema/index.ts";
 import {
   MAX_ACTION_ATTEMPTS,
   claimActions,
@@ -150,4 +157,81 @@ describe("mail_actions outbox", () => {
     expect(await completeAction(db, ok.id)).toBe(false);
     expect(await claimActions(db)).toEqual([]);
   });
+});
+
+test("setLocationFlags rewrites the named folder's copies and leaves the same UIDs elsewhere alone", async () => {
+  // UIDs are per folder, so UID 1 exists in every folder of every mailbox. A batch update that
+  // matched on UID alone would rewrite the flags of unrelated copies.
+  const other = await createMailbox(db, org.id, "other@writers.test");
+  const folders = await Promise.all(
+    [
+      [mailbox.id, "Flags/A"],
+      [mailbox.id, "Flags/B"],
+      [other.id, "Flags/A"],
+    ].map(([mailboxId, path]) =>
+      upsertFolder(db, {
+        orgId: org.id,
+        mailboxId: mailboxId!,
+        path: path!,
+        role: "other",
+        uidvalidity: 1,
+        uidnext: 3,
+        highestModseq: 1n,
+      }),
+    ),
+  );
+  for (const folder of folders) {
+    const threadId = await createThread(db, {
+      orgId: org.id,
+      mailboxId: folder.mailboxId,
+      subjectKey: "flags",
+      lastMessageAt: new Date(),
+    });
+    for (const uid of [1, 2]) {
+      const { id } = await upsertMessage(db, {
+        orgId: org.id,
+        mailboxId: folder.mailboxId,
+        threadId,
+        messageIdHeader: `<flags-${folder.id}-${uid}@writers.test>`,
+        fromAddress: "a@example.test",
+        sentAt: new Date(),
+      });
+      await db.insert(messageLocations).values({
+        orgId: org.id,
+        mailboxId: folder.mailboxId,
+        folderId: folder.id,
+        imapUid: uid,
+        messageId: id,
+      });
+    }
+  }
+
+  await setLocationFlags(db, {
+    mailboxId: mailbox.id,
+    path: "Flags/A",
+    changes: [
+      { uid: 1, flags: ["\\Flagged", "\\Seen"], modseq: 9_007_199_254_740_993n },
+      { uid: 2, flags: [], modseq: null },
+    ],
+  });
+
+  const rows = await db
+    .select({
+      folderId: messageLocations.folderId,
+      uid: messageLocations.imapUid,
+      flags: messageLocations.flags,
+      modseq: messageLocations.modseq,
+    })
+    .from(messageLocations)
+    .where(sql`${messageLocations.folderId} in ${folders.map((f) => f.id)}`);
+  const at = (folderIndex: number, uid: number) =>
+    rows.find((r) => r.folderId === folders[folderIndex]!.id && r.uid === uid);
+  expect(at(0, 1)).toMatchObject({
+    flags: ["\\Flagged", "\\Seen"],
+    modseq: 9_007_199_254_740_993n,
+  });
+  expect(at(0, 2)).toMatchObject({ flags: [], modseq: null });
+  for (const untouched of [at(1, 1), at(1, 2), at(2, 1), at(2, 2)]) {
+    expect(untouched).toMatchObject({ flags: [], modseq: null });
+  }
 });

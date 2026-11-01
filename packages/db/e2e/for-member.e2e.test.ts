@@ -146,3 +146,61 @@ test("lanes split AI triage at the auto-file confidence; person triage always fi
   expect(await ids("needs_reply")).toEqual([sure.threadId, person.threadId].toSorted());
   expect(await ids("unsure")).toEqual([unsure.threadId]);
 });
+
+test("thread pages and search merge granted mailboxes newest first, each row once, ties included", async () => {
+  // Lists and search take the newest rows of each granted mailbox and merge them, so a page
+  // boundary that falls on a timestamp shared across mailboxes is where rows get lost or repeated.
+  const org = await createOrg(db, "page-org");
+  const member = (await createMember(db, org.id, "frank")).id;
+  const sales = await createMailbox(db, org.id, "sales@page.test");
+  const support = await createMailbox(db, org.id, "support@page.test");
+  const hidden = await createMailbox(db, org.id, "hidden@page.test");
+  await grant(db, org.id, sales.id, member);
+  await grant(db, org.id, support.id, member);
+
+  const at = (day: number) => new Date(Date.UTC(2026, 9, day));
+  const days = [5, 4, 4, 4, 3, 2, 1];
+  const seeded: { threadId: string; messageId: string; mailboxId: string; sentAt: Date }[] = [];
+  for (const [i, day] of days.entries()) {
+    const mailboxId = [sales.id, support.id, hidden.id][i % 3]!;
+    const threadId = await createThread(db, {
+      orgId: org.id,
+      mailboxId,
+      subjectKey: `walrus ${i}`,
+      lastMessageAt: at(day),
+    });
+    const { id } = await upsertMessage(db, {
+      orgId: org.id,
+      mailboxId,
+      threadId,
+      messageIdHeader: `<walrus-${i}@page.test>`,
+      subject: `Walrus ${i}`,
+      fromAddress: "sender@example.test",
+      sentAt: at(day),
+      cleanText: "walrus migration notes",
+    });
+    seeded.push({ threadId, messageId: id, mailboxId, sentAt: at(day) });
+  }
+  const visible = seeded
+    .filter((s) => s.mailboxId !== hidden.id)
+    .toSorted(
+      (a, b) => b.sentAt.getTime() - a.sentAt.getTime() || (a.threadId < b.threadId ? 1 : -1),
+    );
+
+  const scoped = forMember(db, member);
+  const paged: string[] = [];
+  let before: { lastMessageAt: Date; id: string } | undefined;
+  for (;;) {
+    const page = await scoped.listThreads({ limit: 2, before });
+    if (page.length === 0) break;
+    expect(page.length).toBeLessThanOrEqual(2);
+    paged.push(...page.map((t) => t.id));
+    const last = page.at(-1)!;
+    before = { lastMessageAt: last.lastMessageAt, id: last.id };
+  }
+  expect(paged).toEqual(visible.map((s) => s.threadId));
+
+  // Thread ids are UUIDv7 in creation order, and so are message ids here: same tie order.
+  const hits = await scoped.search("walrus", { limit: 3 });
+  expect(hits.map((h) => h.messageId)).toEqual(visible.slice(0, 3).map((s) => s.messageId));
+});

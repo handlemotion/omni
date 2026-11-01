@@ -146,7 +146,8 @@ export async function findMemberAttachmentByHash(db: Db, memberId: string, sha25
     .innerJoin(messages, eq(messages.id, attachments.messageId))
     .where(
       and(
-        sql`${attachments.r2Key} like ${`%/att/${sha256}`}`,
+        // Same expression as `attachments_content_hash_idx`.
+        sql`split_part(${attachments.r2Key}, '/att/', 2) = ${sha256}`,
         exists(grantFor(db, memberId, messages.mailboxId, messages.orgId)),
       ),
     )
