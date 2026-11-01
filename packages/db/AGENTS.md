@@ -19,6 +19,11 @@ Extends the root `AGENTS.md`.
 - IDs are UUIDv7 text generated in the app. Timestamps are `timestamptz`.
 - postgres-js cannot bind a raw `Date` inside a `sql` template: pass `date.toISOString()` with a
   `::timestamptz` cast. Query-builder values (`.values`, `.set`, `eq`) handle `Date` fine.
+- An index that serves `orderBy(desc(col))` needs `col.desc().nullsFirst()`: Drizzle's bare
+  `.desc()` emits `DESC NULLS LAST`, which Postgres cannot use for that order.
+- Scale work: `pnpm perf:seed` builds a 200k-message `omni_perf` database and `pnpm perf:explain`
+  prints `EXPLAIN (ANALYZE, BUFFERS)` numbers for every member read and hot writer. Run both
+  before and after changing a query or index.
 - Config comes only from the environment (`DATABASE_URL`, read by `src/env.ts`; a package `.env`
   fills gaps). Scripts never call Doppler: we wrap them, e.g.
   `doppler run -p omni -c dev -- pnpm --filter @omni/db test:e2e`.

@@ -275,18 +275,24 @@ export async function setLocationFlags(
     changes: { uid: number; flags: string[]; modseq: bigint | null }[];
   },
 ) {
-  const folder = await findFolder(db, input.mailboxId, input.path);
-  if (!folder) return;
-  await db.transaction(async (tx) => {
-    for (const change of input.changes) {
-      await tx
-        .update(messageLocations)
-        .set({ flags: change.flags, modseq: change.modseq, updatedAt: new Date() })
-        .where(
-          and(eq(messageLocations.folderId, folder.id), eq(messageLocations.imapUid, change.uid)),
-        );
-    }
-  });
+  if (input.changes.length === 0) return;
+  // One statement for the whole batch: a CONDSTORE resync can report thousands of changes.
+  const changes = JSON.stringify(
+    input.changes.map((c) => ({
+      uid: c.uid,
+      flags: c.flags,
+      modseq: c.modseq?.toString() ?? null,
+    })),
+  );
+  await db.execute(sql`
+    update ${messageLocations} l set
+      flags = c.flags,
+      modseq = c.modseq,
+      updated_at = now()
+    from ${mailboxFolders} f,
+      jsonb_to_recordset(${changes}::text::jsonb) as c(uid bigint, flags text[], modseq bigint)
+    where f.mailbox_id = ${input.mailboxId} and f.path = ${input.path}
+      and l.folder_id = f.id and l.imap_uid = c.uid`);
 }
 
 /**

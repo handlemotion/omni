@@ -1,13 +1,4 @@
-import {
-  and,
-  desc,
-  eq,
-  getTableColumns,
-  inArray,
-  sql,
-  type AnyColumn,
-  type SQL,
-} from "drizzle-orm";
+import { and, desc, eq, getTableColumns, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import {
   attachments,
@@ -68,8 +59,11 @@ export function forMember(db: Db, memberId: string) {
       } = {},
     ) {
       const { mailboxId, lane, archived = false, before, limit = 50 } = options;
-      const filters: (SQL | undefined)[] = [eq(threads.archived, archived)];
-      if (mailboxId) filters.push(eq(threads.mailboxId, mailboxId));
+      const filters: (SQL | undefined)[] = [
+        eq(threads.mailboxId, mailboxAccess.mailboxId),
+        eq(threads.orgId, members.organizationId),
+        eq(threads.archived, archived),
+      ];
       if (lane === "unsure") {
         filters.push(
           eq(threads.triageSource, "ai"),
@@ -86,45 +80,58 @@ export function forMember(db: Db, memberId: string) {
           sql`(${threads.lastMessageAt}, ${threads.id}) < (${before.lastMessageAt.toISOString()}::timestamptz, ${before.id})`,
         );
       }
+      // The newest `limit` threads of each granted mailbox (an index range per mailbox), then
+      // the newest `limit` of those. Cost follows grants × limit, not the size of the mail. The
+      // lateral page is aliased `threads`, so the outer query reads it through the same columns.
+      const page = db
+        .select()
+        .from(threads)
+        .where(and(...filters))
+        .orderBy(desc(threads.lastMessageAt), desc(threads.id))
+        .limit(limit)
+        .as("threads");
       return db
         .select(threadFields)
-        .from(threads)
-        .innerJoin(...threadGrant)
-        .innerJoin(...threadOrg)
+        .from(mailboxAccess)
+        .innerJoin(members, eq(members.id, mailboxAccess.memberId))
+        .crossJoinLateral(page)
         .leftJoin(threadState, myState)
-        .where(and(...filters))
+        .where(
+          and(
+            eq(mailboxAccess.memberId, memberId),
+            mailboxId ? eq(mailboxAccess.mailboxId, mailboxId) : undefined,
+          ),
+        )
         .orderBy(desc(threads.lastMessageAt), desc(threads.id))
         .limit(limit);
     },
 
     async getThread(threadId: string) {
-      const [thread] = await db
-        .select(threadFields)
-        .from(threads)
-        .innerJoin(...threadGrant)
-        .innerJoin(...threadOrg)
-        .leftJoin(threadState, myState)
-        .where(eq(threads.id, threadId));
+      // One round trip: the three reads are independent and each carries the access check.
+      const [[thread], rows, files] = await Promise.all([
+        db
+          .select(threadFields)
+          .from(threads)
+          .innerJoin(...threadGrant)
+          .innerJoin(...threadOrg)
+          .leftJoin(threadState, myState)
+          .where(eq(threads.id, threadId)),
+        db
+          .select(messageColumns)
+          .from(messages)
+          .innerJoin(...messageGrant)
+          .innerJoin(...messageOrg)
+          .where(eq(messages.threadId, threadId))
+          .orderBy(messages.sentAt, messages.id),
+        db
+          .select(getTableColumns(attachments))
+          .from(attachments)
+          .innerJoin(messages, eq(messages.id, attachments.messageId))
+          .innerJoin(...messageGrant)
+          .innerJoin(...messageOrg)
+          .where(eq(messages.threadId, threadId)),
+      ]);
       if (!thread) return null;
-
-      const rows = await db
-        .select(messageColumns)
-        .from(messages)
-        .innerJoin(...messageGrant)
-        .innerJoin(...messageOrg)
-        .where(eq(messages.threadId, threadId))
-        .orderBy(messages.sentAt, messages.id);
-      const files = rows.length
-        ? await db
-            .select()
-            .from(attachments)
-            .where(
-              inArray(
-                attachments.messageId,
-                rows.map((m) => m.id),
-              ),
-            )
-        : [];
       return {
         ...thread,
         messages: rows.map((m) => ({
@@ -134,11 +141,29 @@ export function forMember(db: Db, memberId: string) {
       };
     },
 
-    /** Full-text search over subject, sender and clean text. `query` uses web search syntax. */
+    /**
+     * Full-text search over subject, sender and clean text, newest first. `query` uses web search
+     * syntax; `rank` is the match's relevance, for display. Each granted mailbox is searched on
+     * its own and the newest hits merged: a common term walks the mailbox's newest messages and
+     * stops after `limit` hits, a rare one uses the GIN index. Ranking every hit instead costs a
+     * read of every matching message.
+     */
     async search(query: string, options: { mailboxId?: string; limit?: number } = {}) {
       const { mailboxId, limit = 20 } = options;
       const tsquery = sql`websearch_to_tsquery('english', ${query})`;
-      const rank = sql<number>`ts_rank(${messages.searchVector}, ${tsquery})`;
+      const hits = db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.mailboxId, mailboxAccess.mailboxId),
+            eq(messages.orgId, members.organizationId),
+            sql`${messages.searchVector} @@ ${tsquery}`,
+          ),
+        )
+        .orderBy(desc(messages.sentAt), desc(messages.id))
+        .limit(limit)
+        .as("messages");
       return db
         .select({
           messageId: messages.id,
@@ -148,18 +173,18 @@ export function forMember(db: Db, memberId: string) {
           fromName: messages.fromName,
           fromAddress: messages.fromAddress,
           sentAt: messages.sentAt,
-          rank,
+          rank: sql<number>`ts_rank(${messages.searchVector}, ${tsquery})`,
         })
-        .from(messages)
-        .innerJoin(...messageGrant)
-        .innerJoin(...messageOrg)
+        .from(mailboxAccess)
+        .innerJoin(members, eq(members.id, mailboxAccess.memberId))
+        .crossJoinLateral(hits)
         .where(
           and(
-            sql`${messages.searchVector} @@ ${tsquery}`,
-            mailboxId ? eq(messages.mailboxId, mailboxId) : undefined,
+            eq(mailboxAccess.memberId, memberId),
+            mailboxId ? eq(mailboxAccess.mailboxId, mailboxId) : undefined,
           ),
         )
-        .orderBy(desc(rank), desc(messages.sentAt))
+        .orderBy(desc(messages.sentAt), desc(messages.id))
         .limit(limit);
     },
 

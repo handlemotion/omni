@@ -6,5 +6,5 @@
     "types": ["node"],
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "e2e", "*.mts", "*.ts", "../../vitest.shared.mts"]
+  "include": ["src", "e2e", "scripts", "*.mts", "*.ts", "../../vitest.shared.mts"]
 }

@@ -12,7 +12,9 @@
   "scripts": {
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "test:e2e": "vitest run --config vitest.e2e.mts"
+    "test:e2e": "vitest run --config vitest.e2e.mts",
+    "perf:seed": "node scripts/seed-perf.ts",
+    "perf:explain": "node scripts/explain-perf.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",
