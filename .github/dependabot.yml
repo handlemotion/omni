@@ -4,6 +4,28 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
+    # Actions run with repository tokens; let a release age before we pin it.
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    # Matches minimumReleaseAge (1 day) in pnpm-workspace.yaml, so pnpm can install what we propose.
+    cooldown:
+      default-days: 1
+    open-pull-requests-limit: 5
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      npm-production:
+        dependency-type: production
+        update-types: [minor, patch]
+      npm-development:
+        dependency-type: development
+        update-types: [minor, patch]
