@@ -1,11 +1,15 @@
+import { schema } from "@omni/db";
+import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailboxConnection, type NewMessageEvent } from "../src/mailbox-connection.ts";
 import { PgMailStore } from "../src/pg-store.ts";
 import { createTestDatabase, messageRows, seedMailbox, stored, type TestDb } from "./support/db.ts";
+import { createTestBucket, links } from "./support/objects.ts";
 import { deliver, logger, otherClient } from "./support/greenmail.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
+let objects: Awaited<ReturnType<typeof createTestBucket>>["objects"];
 let store: PgMailStore;
 let connections: MailboxConnection[] = [];
 
@@ -18,7 +22,8 @@ function connect(box: Awaited<ReturnType<typeof seedMailbox>>["box"]) {
 beforeAll(async () => {
   database = await createTestDatabase();
   db = database.db;
-  store = new PgMailStore({ db });
+  ({ objects } = await createTestBucket());
+  store = new PgMailStore({ db, objects, links });
 });
 
 afterAll(async () => {
@@ -48,6 +53,37 @@ describe("sync into Postgres against GreenMail", () => {
       cleanText: "body of hello over idle",
     });
     expect(message?.threadId).toBeTruthy();
+    // The object store holds the exact bytes from the server.
+    const rawObject = await objects.get(message?.r2Key ?? "missing");
+    expect(Buffer.from(rawObject ?? []).toString()).toContain("Subject: hello over idle");
+  });
+
+  it("stores sanitized HTML and attachments, mapping cid images to attachment URLs", async () => {
+    const { box } = await seedMailbox(db);
+    await otherClient(box, (client) => client.append("INBOX", htmlWithAttachments(), []));
+
+    await connect(box).start();
+
+    const [message] = await stored(db, box.id, "INBOX");
+    const html = Buffer.from((await objects.get(message?.htmlR2Key ?? "missing")) ?? []).toString();
+    expect(html).toContain("Quarterly numbers");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("onerror");
+    // Remote images are blocked behind the proxy; the cid image points at its attachment.
+    expect(html).toContain(
+      `data-omni-src="/api/image-proxy?url=${encodeURIComponent("https://tracker.test/p.gif")}"`,
+    );
+    const files = await db
+      .select()
+      .from(schema.attachments)
+      .where(eq(schema.attachments.messageId, message?.messageId ?? ""));
+    expect(files.map((f) => f.filename).toSorted()).toEqual(["logo.png", "report.csv"]);
+    const logo = files.find((f) => f.filename === "logo.png");
+    expect(html).toContain(`src="/api/attachments/${logo?.r2Key.split("/").at(-1)}"`);
+    const csv = files.find((f) => f.filename === "report.csv");
+    expect(Buffer.from((await objects.get(csv?.r2Key ?? "missing")) ?? []).toString()).toBe(
+      "q,revenue\n1,100\n",
+    );
   });
 
   it("joins a reply to its thread by In-Reply-To, and a new subject starts a new thread", async () => {
@@ -94,7 +130,7 @@ describe("sync into Postgres against GreenMail", () => {
     for (const n of [4, 5]) await deliver(box.address, `while down ${n}`);
 
     // A new process: a fresh store with nothing cached.
-    store = new PgMailStore({ db });
+    store = new PgMailStore({ db, objects, links });
     const second = connect(box);
     let fetchedAgain = 0;
     second.on("message", () => fetchedAgain++);
@@ -202,6 +238,43 @@ describe("sync into Postgres against GreenMail", () => {
     expect(position?.uidValidity).not.toBe(oldValidity);
   });
 });
+
+function htmlWithAttachments(): string {
+  const b64 = (text: string) => Buffer.from(text).toString("base64");
+  return [
+    "From: finance@outside.test",
+    "To: me@omni.test",
+    "Subject: Q3 report",
+    "Message-ID: <q3-report@outside.test>",
+    "MIME-Version: 1.0",
+    'Content-Type: multipart/mixed; boundary="mixed"',
+    "",
+    "--mixed",
+    'Content-Type: multipart/related; boundary="related"',
+    "",
+    "--related",
+    "Content-Type: text/html; charset=utf-8",
+    "",
+    '<p>Quarterly numbers</p><img src="cid:logo@q3"><img src="https://tracker.test/p.gif">',
+    '<script>alert(1)</script><img src="x" onerror="alert(2)">',
+    "--related",
+    "Content-Type: image/png",
+    "Content-ID: <logo@q3>",
+    "Content-Disposition: inline; filename=logo.png",
+    "Content-Transfer-Encoding: base64",
+    "",
+    b64("not really a png"),
+    "--related--",
+    "--mixed",
+    "Content-Type: text/csv",
+    "Content-Disposition: attachment; filename=report.csv",
+    "Content-Transfer-Encoding: base64",
+    "",
+    b64("q,revenue\n1,100\n"),
+    "--mixed--",
+    "",
+  ].join("\r\n");
+}
 
 let counter = 0;
 

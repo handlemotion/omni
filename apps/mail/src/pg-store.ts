@@ -1,5 +1,6 @@
 // `MailStore` and `ActionSource` on Postgres through `@omni/db`. The store turns each fetched
-// message into the index: parse, thread, clean, upsert. A message is one row per Message-ID in
+// message into the index: raw bytes, sanitized HTML and attachments to the object store, then
+// parse, thread, clean, upsert. A message is one row per Message-ID in
 // its mailbox; each IMAP copy of it is a location, so re-syncs, moves, UIDVALIDITY resets and
 // restarts converge on the same rows.
 import {
@@ -27,7 +28,9 @@ import {
   upsertMessage,
 } from "@omni/db";
 import { decideThread, normalizeSubject, type ParsedMessage, parseMessage } from "@omni/mail-core";
-import { cleanMessage } from "@omni/mail-core/clean";
+import { cleanMessage, sanitizeHtml } from "@omni/mail-core/clean";
+import { createHash } from "node:crypto";
+import type { ObjectStore } from "./objects.ts";
 import type {
   ActionSource,
   FetchedMessage,
@@ -63,19 +66,33 @@ export interface IngestedMessage {
   folderRole: StoredRole;
 }
 
+/** Where apps fetch what sanitized HTML points at. Both are Worker routes. */
+export interface ContentLinks {
+  /** Remote images become `<imageProxyUrl>?url=<encoded original>`. */
+  imageProxyUrl: string;
+  /** Inline `cid:` images become `<attachmentUrl>/<sha256 of the attachment>`. */
+  attachmentUrl: string;
+}
+
 export interface PgMailStoreOptions {
   db: Db;
+  objects: ObjectStore;
+  links: ContentLinks;
   /** Called once per new message row, after it is committed. Must not throw. */
   onIngested?: (message: IngestedMessage) => void;
 }
 
 export class PgMailStore implements MailStore {
   private readonly db: Db;
+  private readonly objects: ObjectStore;
+  private readonly links: ContentLinks;
   private readonly onIngested: (message: IngestedMessage) => void;
   private readonly mailboxes = new Map<string, MailboxRow>();
 
   constructor(options: PgMailStoreOptions) {
     this.db = options.db;
+    this.objects = options.objects;
+    this.links = options.links;
     this.onIngested = options.onIngested ?? (() => {});
   }
 
@@ -118,13 +135,14 @@ export class PgMailStore implements MailStore {
     const folder = await findFolder(this.db, mailboxId, fetched.folder);
     if (!folder) throw new Error(`folder ${fetched.folder} is not stored`);
 
-    const { message } = await parseMessage(fetched.raw);
+    const parsed = await parseMessage(fetched.raw);
+    const { message } = parsed;
     // A copy of a message we already indexed (moved, or filed in two folders): record where it
     // is and stop. Parsing again is cheap; re-threading and re-notifying would not be.
     let stored = await findMessageByHeader(this.db, mailboxId, message.messageId);
     let inserted = false;
     if (!stored) {
-      const result = await this.insert(mailboxId, mailbox, folder.id, fetched, message);
+      const result = await this.insert(mailboxId, mailbox, folder.id, fetched, parsed);
       stored = { id: result.id, threadId: result.threadId };
       inserted = result.inserted;
     }
@@ -168,8 +186,40 @@ export class PgMailStore implements MailStore {
     mailbox: MailboxRow,
     folderId: string,
     fetched: FetchedMessage,
-    message: ParsedMessage,
+    parsed: Awaited<ReturnType<typeof parseMessage>>,
   ) {
+    const { message, attachmentContents } = parsed;
+    // Objects first: a row never points at an object that is not there.
+    const prefix = `${mailbox.orgId}/${mailboxId}`;
+    const r2Key = `${prefix}/raw/${sha256(fetched.raw)}.eml`;
+    await this.objects.put(r2Key, fetched.raw, "message/rfc822");
+
+    const files = await Promise.all(
+      message.attachments.map(async (meta, i) => {
+        const content = attachmentContents[i] ?? new Uint8Array();
+        const hash = sha256(content);
+        const key = `${prefix}/att/${hash}`;
+        await this.objects.put(key, content, meta.mimeType);
+        return { meta, hash, key };
+      }),
+    );
+
+    let htmlR2Key: string | null = null;
+    if (message.html !== null) {
+      const byCid = new Map(
+        files.filter((f) => f.meta.contentId).map((f) => [f.meta.contentId as string, f.hash]),
+      );
+      const { html } = sanitizeHtml(message.html, {
+        proxyUrl: (src) => `${this.links.imageProxyUrl}?url=${encodeURIComponent(src)}`,
+        cidUrl: (cid) => {
+          const hash = byCid.get(cid);
+          return hash ? `${this.links.attachmentUrl}/${hash}` : null;
+        },
+      });
+      htmlR2Key = `${prefix}/html/${sha256(fetched.raw)}.html`;
+      await this.objects.put(htmlR2Key, html, "text/html; charset=utf-8");
+    }
+
     const sentAt = message.sentAt ?? fetched.internalDate ?? new Date();
     const threadId = await this.assignThread(mailboxId, mailbox, message, sentAt);
     const { cleanText } = cleanMessage(message);
@@ -188,7 +238,15 @@ export class PgMailStore implements MailStore {
       to: message.to.map(toAddress),
       cc: message.cc.map(toAddress),
       sentAt,
+      r2Key,
+      htmlR2Key,
       cleanText,
+      attachments: files.map((f) => ({
+        filename: f.meta.filename ?? "attachment",
+        mimeType: f.meta.mimeType,
+        size: f.meta.size,
+        r2Key: f.key,
+      })),
     });
   }
 
@@ -271,6 +329,10 @@ export class PgActionSource implements ActionSource {
   async fail(actionId: string, error: string, retryAt: Date | null): Promise<void> {
     await rescheduleAction(this.db, actionId, error, retryAt);
   }
+}
+
+function sha256(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 function toAddress(address: { name: string; address: string }) {

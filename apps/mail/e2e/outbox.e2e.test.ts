@@ -12,16 +12,18 @@ import {
   stored,
   type TestDb,
 } from "./support/db.ts";
+import { createTestBucket, links } from "./support/objects.ts";
 import { deliver, logger, mailbox, otherClient, waitFor } from "./support/greenmail.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
+let objects: Awaited<ReturnType<typeof createTestBucket>>["objects"];
 let connections: MailboxConnection[] = [];
 
 async function setup(kind: "personal" | "shared" = "personal") {
   const seeded = await seedMailbox(db, { kind });
   const { box } = seeded;
-  const store = new PgMailStore({ db });
+  const store = new PgMailStore({ db, objects, links });
   const actions = new PgActionSource({ db });
   const connection = new MailboxConnection(box, { store, logger });
   connections.push(connection);
@@ -36,6 +38,7 @@ async function setup(kind: "personal" | "shared" = "personal") {
 beforeAll(async () => {
   database = await createTestDatabase();
   db = database.db;
+  ({ objects } = await createTestBucket());
 });
 
 afterAll(async () => {

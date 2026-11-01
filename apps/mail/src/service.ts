@@ -6,6 +6,7 @@ import type { Config } from "./config.ts";
 import { openCredentials } from "./credentials.ts";
 import { createApp, type RequestVerifier, rejectAll } from "./http.ts";
 import type { Logger } from "./log.ts";
+import { createS3Store } from "./objects.ts";
 import { PgActionSource, PgMailStore } from "./pg-store.ts";
 import { Supervisor } from "./supervisor.ts";
 
@@ -16,6 +17,13 @@ export type ServiceConfig = Pick<
   | "SYNC_INTERVAL_MS"
   | "OUTBOX_INTERVAL_MS"
   | "MAILBOX_CONCURRENCY"
+  | "S3_ENDPOINT"
+  | "S3_BUCKET"
+  | "S3_ACCESS_KEY_ID"
+  | "S3_SECRET_ACCESS_KEY"
+  | "S3_REGION"
+  | "IMAGE_PROXY_URL"
+  | "ATTACHMENT_URL"
 >;
 
 export interface MailService {
@@ -32,7 +40,17 @@ export async function startService(
   verify: RequestVerifier = rejectAll,
 ): Promise<MailService> {
   const { db, close } = createDb(config.DATABASE_URL);
-  const store = new PgMailStore({ db });
+  const store = new PgMailStore({
+    db,
+    objects: createS3Store({
+      endpoint: config.S3_ENDPOINT,
+      bucket: config.S3_BUCKET,
+      accessKeyId: config.S3_ACCESS_KEY_ID,
+      secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+      region: config.S3_REGION,
+    }),
+    links: { imageProxyUrl: config.IMAGE_PROXY_URL, attachmentUrl: config.ATTACHMENT_URL },
+  });
   const supervisor = new Supervisor({
     store,
     actions: new PgActionSource({ db }),
