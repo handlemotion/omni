@@ -41,6 +41,10 @@ const configSchema = z
       .enum(["true", "false", ""])
       .optional()
       .transform((v) => v === "true"),
+    /** DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse private addresses. */
+    IMAGE_PROXY_DOH_URL: z.url().default("https://cloudflare-dns.com/dns-query"),
+    /** Test-only: one origin exempt from the proxy's address checks. Never set in production. */
+    IMAGE_PROXY_TEST_ALLOW_ORIGIN: optionalText.pipe(z.url().optional()),
     /** Optional: required only if the Expo project enforces push security. */
     EXPO_ACCESS_TOKEN: optionalText,
   })

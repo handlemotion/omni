@@ -152,24 +152,25 @@ Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashb
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
 to `.dev.vars`.
 
-| Variable                   | Kind   | Required | Notes                                                                                |
-| -------------------------- | ------ | -------- | ------------------------------------------------------------------------------------ |
-| `BETTER_AUTH_SECRET`       | secret | yes      | At least 32 random characters.                                                       |
-| `BETTER_AUTH_URL`          | var    | yes      | Public origin of the Worker.                                                         |
-| `AUTH_TRUSTED_ORIGINS`     | var    | no       | Comma-separated web/app origins.                                                     |
-| `AUTH_PASSKEY_RP_ID`       | var    | no       | WebAuthn relying party ID.                                                           |
-| `APP_NAME`                 | var    | no       | Defaults to `Omni`.                                                                  |
-| `MAIL_SERVICE_URL`         | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                   |
-| `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                                    |
-| `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links. Empty disables them.            |
-| `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off.                                                              |
-| `ANTHROPIC_API_KEY`        | secret | no       | Summaries, and triage when Jev is off. Without any key only the ours-last rule runs. |
-| `TYPESAFE_API_KEY`         | secret | no       | Triage on TypeSafe's Jev; summaries stay on Claude.                                  |
-| `TRIAGE_PROVIDER`          | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                   |
-| `JEV_MODEL`                | var    | no       | Jev model override.                                                                  |
-| `AI_DAILY_TOKEN_CAP`       | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause.            |
-| `EXPO_PUSH_ENABLED`        | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                 |
-| `EXPO_ACCESS_TOKEN`        | secret | no       | Only if your Expo project enforces push security.                                    |
+| Variable                   | Kind   | Required | Notes                                                                                                                      |
+| -------------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`       | secret | yes      | At least 32 random characters.                                                                                             |
+| `BETTER_AUTH_URL`          | var    | yes      | Public origin of the Worker.                                                                                               |
+| `AUTH_TRUSTED_ORIGINS`     | var    | no       | Comma-separated web/app origins.                                                                                           |
+| `AUTH_PASSKEY_RP_ID`       | var    | no       | WebAuthn relying party ID.                                                                                                 |
+| `APP_NAME`                 | var    | no       | Defaults to `Omni`.                                                                                                        |
+| `MAIL_SERVICE_URL`         | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                         |
+| `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                                                                          |
+| `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links. Empty disables them.                                                  |
+| `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off.                                                                                                    |
+| `ANTHROPIC_API_KEY`        | secret | no       | Summaries, and triage when Jev is off. Without any key only the ours-last rule runs.                                       |
+| `TYPESAFE_API_KEY`         | secret | no       | Triage on TypeSafe's Jev; summaries stay on Claude.                                                                        |
+| `TRIAGE_PROVIDER`          | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                         |
+| `JEV_MODEL`                | var    | no       | Jev model override.                                                                                                        |
+| `AI_DAILY_TOKEN_CAP`       | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause.                                                  |
+| `EXPO_PUSH_ENABLED`        | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                                                       |
+| `EXPO_ACCESS_TOKEN`        | secret | no       | Only if your Expo project enforces push security.                                                                          |
+| `IMAGE_PROXY_DOH_URL`      | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's. |
 
 Magic links are sent through the outbox: the Worker writes a `send` action for the
 `SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be
@@ -177,6 +178,12 @@ connected like any other.
 
 The mail service reports new and changed mail with a signed `POST /internal/mail-events`
 (timestamp and nonce required; replays are rejected). Expose `/internal/*` only to it.
+
+Sanitized mail HTML loads remote images through `GET /api/image-proxy?url=...` and inline
+images and attachments through `GET /api/attachments/<sha256>`; the mail service writes those
+paths (`IMAGE_PROXY_URL`, `ATTACHMENT_URL`). The proxy needs a signed-in member, fetches only
+http(s) on standard ports, refuses private, loopback, link-local and metadata addresses on every
+redirect hop (up to 3), and returns only raster images up to 5 MB within 8 s, cached for a day.
 
 ```bash
 pnpm --filter @omni/worker dev      # wrangler dev on :8787 (we wrap it in Doppler)

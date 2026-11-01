@@ -45,6 +45,11 @@ EXPO_ACCESS_TOKEN=
 # Sentry DSN. Empty keeps error reporting off.
 SENTRY_DSN=
 
+# DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse private addresses.
+IMAGE_PROXY_DOH_URL=https://cloudflare-dns.com/dns-query
+# Test-only. One origin exempt from the image proxy's address checks. Never set it in production.
+IMAGE_PROXY_TEST_ALLOW_ORIGIN=
+
 # --- E2E tests only (`pnpm --filter @omni/worker test:e2e`) ---
 # Admin URL of the local Postgres; each test file creates and drops its own database.
 # DATABASE_URL=postgres://postgres:postgres@localhost:54329/omni

@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { requestScope, requireMember, type AppEnv } from "./context.ts";
 import { MEMBER_HEADER } from "./realtime.ts";
 import { internal } from "./routes/internal.ts";
+import { assets } from "./routes/assets.ts";
 import { mail } from "./routes/mail.ts";
 
 const api = new Hono<AppEnv>()
@@ -19,7 +20,8 @@ const api = new Hono<AppEnv>()
     const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
     return stub.fetch(new Request(c.req.raw, { headers }));
   })
-  .route("/", mail);
+  .route("/", mail)
+  .route("/", assets);
 
 export const app = new Hono<AppEnv>()
   .get("/health", (c) => c.json({ ok: true }))

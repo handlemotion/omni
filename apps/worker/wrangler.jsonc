@@ -21,6 +21,7 @@
     "TRIAGE_PROVIDER": "",
     "JEV_MODEL": "",
     "EXPO_PUSH_ENABLED": "false",
+    "IMAGE_PROXY_DOH_URL": "https://cloudflare-dns.com/dns-query",
   },
   "hyperdrive": [
     {
