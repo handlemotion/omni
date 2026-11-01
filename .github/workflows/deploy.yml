@@ -85,7 +85,9 @@ jobs:
           # Stage every prd_mail secret; the deploy below applies them with the new image.
           mail env \
             | flyctl secrets import --stage --config apps/mail/fly.toml
-          flyctl deploy . --config apps/mail/fly.toml --remote-only --wait-timeout 5m
+          # --ha=false: a fresh app would otherwise get two machines, opening duplicate IDLE
+          # connections and racing on the outbox.
+          flyctl deploy . --config apps/mail/fly.toml --remote-only --ha=false --wait-timeout 5m
 
       - name: Health
         run: curl -fsS --retry 5 --retry-all-errors --retry-delay 5 https://omni-mail.fly.dev/health
