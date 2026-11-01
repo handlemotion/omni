@@ -1,6 +1,6 @@
 # 0001: Run the mail service on Railway, not Fly.io
 
-Date: 2026-10-31 · Status: accepted
+Date: 2026-10-31 · Status: superseded by [0004](0004-fly-for-mail-service.md)
 
 ## Context
 

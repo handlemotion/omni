@@ -33,7 +33,7 @@ In scope is the code in this repository, especially:
 - Authentication and authorization (Better Auth sessions, passkeys, magic links), and any way to
   read mail across members or organizations (`db.forMember`).
 
-Out of scope: vulnerabilities in Purelymail, Cloudflare, Railway, or PlanetScale themselves
+Out of scope: vulnerabilities in Purelymail, Cloudflare, Fly.io, or PlanetScale themselves
 (report those to the vendor), findings that need a compromised device or host, missing hardening
 headers without a demonstrated impact, and denial of service by volume.
 
