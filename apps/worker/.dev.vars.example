@@ -47,7 +47,10 @@ SENTRY_DSN=
 
 # DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse private addresses.
 IMAGE_PROXY_DOH_URL=https://cloudflare-dns.com/dns-query
-# Test-only. One origin exempt from the image proxy's address checks. Never set it in production.
+# production (default), development or test. Only "test" allows test-only switches.
+ENVIRONMENT=development
+# Test-only. One origin exempt from the image proxy's address checks. The Worker refuses to
+# start with it unless ENVIRONMENT=test.
 IMAGE_PROXY_TEST_ALLOW_ORIGIN=
 
 # --- E2E tests only (`pnpm --filter @omni/worker test:e2e`) ---

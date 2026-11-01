@@ -191,3 +191,24 @@ describe("image proxy", () => {
     expect(originHits.filter((h) => h.path === "/ok.png?fresh=1")).toHaveLength(1);
   });
 });
+
+test("the test-only origin exemption cannot be switched on outside ENVIRONMENT=test", async () => {
+  const deployed = await startWorkerWithNetwork({
+    databaseUrl: database.url,
+    mailServiceUrl: mailService.url,
+    vars: { ENVIRONMENT: "production", IMAGE_PROXY_TEST_ALLOW_ORIGIN: origin },
+  });
+  try {
+    // Config validation fails, so no request is served at all, let alone proxied.
+    const response = await fetch(
+      new URL(
+        `/api/image-proxy?url=${encodeURIComponent(`${origin}/ok.png?deployed=1`)}`,
+        deployed.url,
+      ),
+    );
+    expect(response.status).toBe(500);
+    expect(originHits.some((h) => h.path === "/ok.png?deployed=1")).toBe(false);
+  } finally {
+    await deployed.close();
+  }
+});

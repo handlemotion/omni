@@ -111,6 +111,7 @@ function workerVars(options: WorkerOptions) {
     MAIL_SERVICE_URL: options.mailServiceUrl,
     SYSTEM_MAIL_FROM,
     SENTRY_DSN: "",
+    ENVIRONMENT: "test",
     ...options.vars,
   };
 }
