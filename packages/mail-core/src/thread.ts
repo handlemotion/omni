@@ -1,4 +1,4 @@
-import type { Address, ParsedMessage } from "./parse";
+import type { Address, ParsedMessage } from "./parse.ts";
 
 // Reply and forward prefixes across common clients and locales: Re, Fwd, Fw, AW (de),
 // WG (de), SV (sv/da/no), VS (fi), TR (fr), RV/RE (es), Enc (pt), Antw (nl), Odp (pl),
