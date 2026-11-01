@@ -13,6 +13,25 @@ export type TestDb = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 const { mailActions, mailboxAccess, mailboxFolders, mailboxes, messageLocations, messages } =
   schema;
 
+/** An org and a member with a known email, before any mailbox exists. */
+export async function seedOwner(db: TestDb) {
+  const org = await createOrg(db, `org-${Math.random().toString(36).slice(2, 10)}`);
+  const member = await createMember(db, org.id, "owner");
+  const [user] = await db
+    .select({ email: schema.users.email })
+    .from(schema.users)
+    .where(eq(schema.users.id, member.userId));
+  return { orgId: org.id, memberId: member.id, email: user?.email ?? "" };
+}
+
+export async function accessRows(db: TestDb, mailboxId: string) {
+  return db.select().from(mailboxAccess).where(eq(mailboxAccess.mailboxId, mailboxId));
+}
+
+export async function mailboxesOf(db: TestDb, orgId: string) {
+  return db.select().from(mailboxes).where(eq(mailboxes.orgId, orgId));
+}
+
 /** A GreenMail mailbox with its `mailboxes` row and an owner. */
 export async function seedMailbox(
   db: TestDb,

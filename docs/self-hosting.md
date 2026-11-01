@@ -90,6 +90,30 @@ Objects are keyed by content hash under `<org id>/<mailbox id>/` (`raw/<sha256>.
 [Versity S3 Gateway](https://github.com/versity/versitygw) on `localhost:7070` with the bucket
 `omni-mail-dev` already created.
 
+### Adding a mailbox
+
+Mailboxes are added from the command line with the same `DATABASE_URL` and
+`MAIL_CREDENTIALS_KEY` as the service. The owner must already be a member of the organization
+(sign in once). The app password is read from stdin so it never lands in shell history:
+
+```bash
+# Any IMAP/SMTP host
+printf '%s' "$APP_PASSWORD" | pnpm --filter @omni/mail mailbox:add -- \
+  --org <org id> --address you@example.com --owner you@example.com \
+  --provider imap --imap imap.example.com:993 --smtp smtp.example.com:465
+
+# Purelymail: servers are known; optionally let its API create the app password
+pnpm --filter @omni/mail mailbox:add -- --org <org id> --address you@example.com \
+  --owner you@example.com --create-app-password      # needs PURELYMAIL_API_TOKEN
+```
+
+It checks the IMAP login (`--no-verify` skips that), encrypts the credentials bound to the
+mailbox id, stores the mailbox with an owner grant, and prints the mailbox id. Running it again
+for the same address replaces the credentials. With `MAIL_SERVICE_URL` set it pings the running
+service, which connects the mailbox immediately; otherwise it is picked up on the next sync
+interval. `--kind shared` adds a shared inbox (read state stays per person; `\Seen` is never
+changed on the server).
+
 Run from source: `pnpm --filter @omni/mail start` reads `apps/mail/.env`. Variables already set
 in the environment win over the file.
 
