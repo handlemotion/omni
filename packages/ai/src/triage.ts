@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createJevClient, triageWithJev, type JevClient } from "./jev.ts";
 import { callStructured } from "./model.ts";
 import { triageByRule } from "./policy.ts";
 import { TRIAGE_SYSTEM, triagePrompt } from "./prompt.ts";
@@ -18,19 +19,47 @@ const TriageOutput = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+/** Jev (judgments plus the truth table) or Claude (one structured call). */
+export type TriageClient = JevClient | ModelClient;
+
 /**
- * Sorts a thread into a bucket. Ours-last threads short-circuit to `waiting_on_them`. A refusal,
+ * Sorts a thread into a bucket. Ours-last threads short-circuit to `waiting_on_them` on either
+ * provider. API errors throw on either provider, so the queue retries. On Claude, a refusal,
  * truncated answer, or invalid output falls back to `fyi` at confidence 0, which `laneFor` sends
- * to Unsure. API errors throw.
+ * to Unsure; on Jev, judgments the truth table can't settle land below the auto-file threshold.
  */
 export async function triage(
-  client: ModelClient,
+  client: TriageClient,
   input: TriageInput,
   options: CallOptions = {},
 ): Promise<TriageResult> {
   const byRule = triageByRule(input);
   if (byRule) return byRule;
+  if ("provider" in client && client.provider === "jev") return triageWithJev(client, input);
+  return triageWithClaude(client as ModelClient, input, options);
+}
 
+/**
+ * Picks the triage provider from config: `TRIAGE_PROVIDER` when set, otherwise Jev whenever a
+ * TypeSafe key is present, otherwise Claude.
+ */
+export function chooseTriageClient(config: {
+  provider?: "jev" | "claude";
+  typesafeApiKey?: string;
+  jevModel?: string;
+  anthropic: ModelClient;
+}): TriageClient {
+  const provider = config.provider ?? (config.typesafeApiKey ? "jev" : "claude");
+  if (provider === "claude") return config.anthropic;
+  if (!config.typesafeApiKey) throw new Error("TRIAGE_PROVIDER=jev needs TYPESAFE_API_KEY");
+  return createJevClient({ apiKey: config.typesafeApiKey, model: config.jevModel });
+}
+
+async function triageWithClaude(
+  client: ModelClient,
+  input: TriageInput,
+  options: CallOptions,
+): Promise<TriageResult> {
   const result = await callStructured(client, {
     model: options.model ?? AI_MODEL,
     system: TRIAGE_SYSTEM,

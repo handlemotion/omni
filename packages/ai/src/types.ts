@@ -36,6 +36,11 @@ export interface TriageInput {
   /** We have replied in this thread before. */
   repliedBefore: boolean;
   list?: ListSignals;
+  /**
+   * `clean_text` of earlier messages, oldest first, for context. Jev reads the newest few;
+   * the Claude prompt ignores them.
+   */
+  earlierMessages?: ReadonlyArray<{ from: string; fromUs: boolean; text: string }>;
 }
 
 export type TriageSource = "rule" | "ai" | "fallback";
@@ -51,6 +56,8 @@ export interface TriageResult {
    */
   source: TriageSource;
   usage: Usage;
+  /** The versioned model that answered, when a model was called. Log it beside the result. */
+  model?: string;
 }
 
 export interface SummarizeInput {

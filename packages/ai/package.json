@@ -1,7 +1,7 @@
 {
   "name": "@omni/ai",
   "private": true,
-  "description": "triage() and summarize() on the Anthropic SDK. No I/O besides the model call.",
+  "description": "triage() on Jev or Claude and summarize() on Claude. No I/O besides the model calls.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
