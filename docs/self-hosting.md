@@ -140,9 +140,10 @@ every name and id there is a neutral default to replace with your own.
 
 Bindings:
 
-| Binding      | Kind       | Setup                                                                                                                                                                |
-| ------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HYPERDRIVE` | Hyperdrive | `wrangler hyperdrive create omni --connection-string=postgres://...`, then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres. |
+| Binding       | Kind       | Setup                                                                                                                                                                |
+| ------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HYPERDRIVE`  | Hyperdrive | `wrangler hyperdrive create omni --connection-string=postgres://...`, then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres. |
+| `MAIL_BUCKET` | R2         | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker only reads attachments from it.                      |
 
 Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashboard values on
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`

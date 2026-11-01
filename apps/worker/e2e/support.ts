@@ -5,7 +5,8 @@ import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 import { verifyRequest, type VerifyResult } from "@omni/crypto";
-import { createDb, schema } from "@omni/db";
+import { createDb, createThread, schema, upsertFolder, upsertMessage } from "@omni/db";
+import { desc, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { createTestHarness } from "wrangler";
@@ -166,4 +167,85 @@ export async function createMailbox(
 
 export async function grant(db: TestDb, orgId: string, mailboxId: string, memberId: string) {
   await db.insert(schema.mailboxAccess).values({ orgId, mailboxId, memberId });
+}
+
+type Worker = Awaited<ReturnType<typeof startWorker>>;
+
+/** The real magic-link flow: request a link, read it from the outbox, open it. Returns the cookie. */
+export async function signIn(worker: Worker, db: TestDb, email: string) {
+  const requested = await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: WEB_ORIGIN },
+    body: JSON.stringify({ email, callbackURL: "/" }),
+  });
+  if (requested.status !== 200) throw new Error(`magic link request failed: ${requested.status}`);
+  const rows = await db
+    .select({ payload: schema.mailActions.payload })
+    .from(schema.mailActions)
+    .where(eq(schema.mailActions.kind, "send"))
+    .orderBy(desc(schema.mailActions.createdAt));
+  const link = rows
+    .map((row) => row.payload as { to?: string[]; text?: string })
+    .find((p) => p.to?.[0] === email)
+    ?.text?.match(/https?:\/\/\S+/)?.[0];
+  if (!link) throw new Error(`no magic link for ${email} in the outbox`);
+  const url = new URL(link);
+  const verified = await fetch(new URL(url.pathname + url.search, worker.url), {
+    redirect: "manual",
+  });
+  return verified.headers
+    .getSetCookie()
+    .map((c) => c.split(";")[0])
+    .join("; ");
+}
+
+/** One message in an IMAP folder, threaded on its own, the way the mail service stores it. */
+export async function seedMessage(
+  db: TestDb,
+  mailbox: { id: string; orgId: string },
+  message: {
+    subject: string;
+    fromAddress: string;
+    to?: string[];
+    folder?: string;
+    uid: number;
+    messageId?: string;
+    threadId?: string;
+    sentAt?: Date;
+    text?: string;
+  },
+) {
+  const folderPath = message.folder ?? "INBOX";
+  const folder = await upsertFolder(db, {
+    orgId: mailbox.orgId,
+    mailboxId: mailbox.id,
+    path: folderPath,
+    role: folderPath === "INBOX" ? "inbox" : folderPath === "Sent" ? "sent" : "other",
+    uidvalidity: 1_700_000_000,
+    uidnext: 1000,
+    highestModseq: null,
+  });
+  const sentAt = message.sentAt ?? new Date();
+  const threadId =
+    message.threadId ??
+    (await createThread(db, {
+      orgId: mailbox.orgId,
+      mailboxId: mailbox.id,
+      subjectKey: message.subject.toLowerCase(),
+      lastMessageAt: sentAt,
+    }));
+  const stored = await upsertMessage(db, {
+    orgId: mailbox.orgId,
+    mailboxId: mailbox.id,
+    threadId,
+    folderId: folder.id,
+    imapUid: message.uid,
+    messageIdHeader: message.messageId ?? `<${randomUUID()}@omni.test>`,
+    subject: message.subject,
+    fromAddress: message.fromAddress,
+    to: (message.to ?? []).map((address) => ({ name: null, address })),
+    sentAt,
+    cleanText: message.text ?? message.subject,
+  });
+  return { threadId, messageId: stored.id, folder };
 }

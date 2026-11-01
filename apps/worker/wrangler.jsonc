@@ -27,4 +27,12 @@
       "localConnectionString": "postgres://postgres:postgres@localhost:54329/omni",
     },
   ],
+  // Raw messages and attachments, written by the mail service; the Worker only reads.
+  "r2_buckets": [
+    {
+      "binding": "MAIL_BUCKET",
+      "bucket_name": "omni-mail",
+      "preview_bucket_name": "omni-mail-dev",
+    },
+  ],
 }
