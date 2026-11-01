@@ -1,8 +1,12 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { requestScope, requireMember, type AppEnv } from "./context.ts";
+import { mail } from "./routes/mail.ts";
 
-const api = new Hono<AppEnv>().use(requireMember).get("/me", (c) => c.json(c.var.member));
+const api = new Hono<AppEnv>()
+  .use(requireMember)
+  .get("/me", (c) => c.json(c.var.member))
+  .route("/", mail);
 
 export const app = new Hono<AppEnv>()
   .get("/health", (c) => c.json({ ok: true }))
