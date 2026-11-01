@@ -5,8 +5,8 @@
 import createDOMPurify from "dompurify";
 import { convert } from "html-to-text";
 import { JSDOM } from "jsdom";
-import type { ParsedMessage } from "./parse";
-import { stripReply, type StrippedText } from "./reply";
+import type { ParsedMessage } from "./parse.ts";
+import { stripReply, type StrippedText } from "./reply.ts";
 
 const { window } = new JSDOM("");
 

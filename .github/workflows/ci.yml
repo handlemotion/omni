@@ -71,5 +71,9 @@ jobs:
       - name: Unit tests
         run: pnpm test:all
 
+      # Service containers cannot pass the gateway its backend arguments; compose.yml does.
+      - name: S3-compatible object store
+        run: docker compose up -d --wait objects
+
       - name: E2E tests
         run: pnpm test:e2e

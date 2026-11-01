@@ -14,7 +14,7 @@ Status: draft. Each unit adds its required services, bindings, and variables her
 
 ```bash
 pnpm install
-pnpm stack:up                         # Postgres + GreenMail
+pnpm stack:up                         # Postgres, GreenMail, S3-compatible object store
 cp packages/db/.env.example packages/db/.env
 pnpm --filter @omni/db db:migrate     # create the schema
 cp apps/mail/.env.example apps/mail/.env
@@ -54,18 +54,68 @@ host. CONDSTORE and IDLE are used when the server offers them; without them it f
 UID-list diffs and polling. On every connect it logs the server's capabilities
 (`imap.capabilities`).
 
-| Variable                   | Required | Default  | Purpose                                                       |
-| -------------------------- | -------- | -------- | ------------------------------------------------------------- |
-| `MAIL_SERVICE_HMAC_SECRET` | yes      |          | Signs Worker → mail service pings; same value in the Worker.  |
-| `MAIL_CREDENTIALS_KEY`     | yes      |          | 32-byte base64 AES-256-GCM key for stored mailbox passwords.  |
-| `PORT`                     | no       | `8787`   | HTTP port for `/health` and `/ping`.                          |
-| `LOG_LEVEL`                | no       | `info`   | `debug`, `info`, `warn`, or `error`. Logs are JSON on stdout. |
-| `SYNC_INTERVAL_MS`         | no       | `300000` | Sync interval for non-inbox folders (INBOX is live via IDLE). |
-| `OUTBOX_INTERVAL_MS`       | no       | `30000`  | Outbox poll interval when no ping arrives.                    |
-| `MAILBOX_CONCURRENCY`      | no       | `4`      | Mailboxes connecting or syncing at once.                      |
+| Variable                   | Required | Default            | Purpose                                                       |
+| -------------------------- | -------- | ------------------ | ------------------------------------------------------------- |
+| `MAIL_SERVICE_HMAC_SECRET` | yes      |                    | Signs Worker → mail service pings; same value in the Worker.  |
+| `DATABASE_URL`             | yes      |                    | Postgres the service writes the mail index to.                |
+| `MAIL_CREDENTIALS_KEY`     | yes      |                    | Keyring `k1:<base64 32 bytes>[,k0:...]`, current key first.   |
+| `S3_ENDPOINT`              | yes      |                    | S3 API endpoint: R2, MinIO, AWS, or the local gateway.        |
+| `S3_BUCKET`                | yes      |                    | Bucket for raw mail, sanitized HTML and attachments.          |
+| `S3_ACCESS_KEY_ID`         | yes      |                    | S3 key pair (for R2: an R2 API token with object read/write). |
+| `S3_SECRET_ACCESS_KEY`     | yes      |                    |                                                               |
+| `S3_REGION`                | no       | `auto`             | Signing region; R2 uses `auto`.                               |
+| `IMAGE_PROXY_URL`          | no       | `/api/image-proxy` | Worker image proxy that remote images in HTML go through.     |
+| `ATTACHMENT_URL`           | no       | `/api/attachments` | Worker route for inline `cid:` images.                        |
+| `PORT`                     | no       | `8788`             | HTTP port for `/health` and `/ping`.                          |
+| `LOG_LEVEL`                | no       | `info`             | `debug`, `info`, `warn`, or `error`. Logs are JSON on stdout. |
+| `SYNC_INTERVAL_MS`         | no       | `300000`           | Sync interval for non-inbox folders (INBOX is live via IDLE). |
+| `OUTBOX_INTERVAL_MS`       | no       | `30000`            | Outbox poll interval when no ping arrives.                    |
+| `MAILBOX_CONCURRENCY`      | no       | `4`                | Mailboxes connecting or syncing at once.                      |
 
-Generate the secrets with `openssl rand -hex 32` and `openssl rand -base64 32`. Keep
-`MAIL_CREDENTIALS_KEY` only on the mail service.
+Generate the secrets with `openssl rand -hex 32` and `echo "k1:$(openssl rand -base64 32)"`.
+Keep `MAIL_CREDENTIALS_KEY` only on the mail service. To rotate it, put the new key first
+(`k2:<new>,k1:<old>`); stored credentials still decrypt by their key id.
+
+On start the service connects every mailbox whose status is not `disabled` and resumes each
+folder from its saved sync position. A signed ping, or the next sync interval, picks up
+mailboxes added later.
+
+The Worker and the mail service call each other over HMAC-signed HTTP (`@omni/crypto`, 60 s
+window). The Worker pings `POST /ping` after writing to the outbox or adding a mailbox; the mail
+service posts batches of `message.created` events to the Worker after indexing new mail. Paths
+and bodies are defined once in `packages/contracts`.
+
+Objects are keyed by content hash under `<org id>/<mailbox id>/` (`raw/<sha256>.eml`,
+`html/<sha256>.html`, `att/<sha256>`), so a re-sync rewrites the same keys. The local stack runs
+[Versity S3 Gateway](https://github.com/versity/versitygw) on `localhost:7070` with the bucket
+`omni-mail-dev` already created.
+
+### Adding a mailbox
+
+Mailboxes are added from the command line with the same `DATABASE_URL` and
+`MAIL_CREDENTIALS_KEY` as the service. The owner must already be a member of the organization
+(sign in once). The app password is read from stdin so it never lands in shell history:
+
+```bash
+# Any IMAP/SMTP host
+printf '%s' "$APP_PASSWORD" | pnpm --filter @omni/mail mailbox:add -- \
+  --org <org id> --address you@example.com --owner you@example.com \
+  --provider imap --imap imap.example.com:993 --smtp smtp.example.com:465
+
+# Purelymail: servers are known; optionally let its API create the app password
+pnpm --filter @omni/mail mailbox:add -- --org <org id> --address you@example.com \
+  --owner you@example.com --create-app-password      # needs PURELYMAIL_API_TOKEN
+```
+
+In the Docker image the same CLI is `node dist/mailbox-add.js` (for example
+`docker run -i --rm --env-file apps/mail/.env omni-mail node dist/mailbox-add.js --org ...`).
+
+It checks the IMAP login (`--no-verify` skips that), encrypts the credentials bound to the
+mailbox id, stores the mailbox with an owner grant, and prints the mailbox id. Running it again
+for the same address replaces the credentials. With `MAIL_SERVICE_URL` set it pings the running
+service, which connects the mailbox immediately; otherwise it is picked up on the next sync
+interval. `--kind shared` adds a shared inbox (read state stays per person; `\Seen` is never
+changed on the server).
 
 Run from source: `pnpm --filter @omni/mail start` reads `apps/mail/.env`. Variables already set
 in the environment win over the file.
@@ -74,8 +124,8 @@ Run in Docker (any host that keeps one container always on):
 
 ```bash
 docker build -f apps/mail/Dockerfile -t omni-mail .
-docker run -d --restart unless-stopped --env-file apps/mail/.env -p 8787:8787 omni-mail
-curl localhost:8787/health
+docker run -d --restart unless-stopped --env-file apps/mail/.env -p 8788:8788 omni-mail
+curl localhost:8788/health
 ```
 
 The container runs as a non-root user. Point your host's health check at `GET /health`. It

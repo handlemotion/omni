@@ -1,9 +1,8 @@
 import { existsSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { loadConfig } from "./config.ts";
-import { createApp, rejectAll } from "./http.ts";
 import { createLogger } from "./log.ts";
-import type { Supervisor } from "./supervisor.ts";
+import { startService } from "./service.ts";
 
 // A plain `.env` works for self-hosters; variables already set (Doppler, Docker) win over it.
 if (existsSync(".env")) process.loadEnvFile(".env");
@@ -11,20 +10,11 @@ if (existsSync(".env")) process.loadEnvFile(".env");
 const config = loadConfig();
 const log = createLogger(config.LOG_LEVEL);
 
-// Storage (`@omni/db` + R2) and the mailbox list arrive in the next wave. Then this becomes
-// `new Supervisor({ store, actions, logger: log, ... })`, `start()`, and one `add()` per mailbox.
-const supervisor = null as Supervisor | null;
+// Loads every mailbox that is not disabled, decrypts its credentials, and resumes each folder
+// from its saved sync position.
+const service = await startService(config, log);
 
-const app = createApp({
-  verify: rejectAll,
-  onPing: () => void supervisor?.ping(),
-  health: () => ({
-    mailboxes: supervisor?.mailboxCount ?? 0,
-    connected: supervisor?.connectedCount ?? 0,
-  }),
-});
-
-const server = serve({ fetch: app.fetch, port: config.PORT }, (info) =>
+const server = serve({ fetch: service.app.fetch, port: config.PORT }, (info) =>
   log.info("http.listening", { port: info.port }),
 );
 
@@ -40,7 +30,7 @@ async function shutdown(signal: string) {
   }, 20_000);
   force.unref();
   server.close();
-  await supervisor?.stop();
+  await service.stop();
   log.info("shutdown.done");
   process.exit(0);
 }

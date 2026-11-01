@@ -15,6 +15,8 @@ with a copy in Sent. Source for every value below: https://purelymail.com/docs/d
 | CNAME | `purelymail2._domainkey` | `key2.dkimroot.purelymail.com`            | DNS only.                      |
 | CNAME | `purelymail3._domainkey` | `key3.dkimroot.purelymail.com`            | DNS only.                      |
 | CNAME | `_dmarc`                 | `dmarcroot.purelymail.com`                | Replaces any `_dmarc` TXT.     |
+| CNAME | `autoconfig`             | `autoconfig.purelymail.com`               | Optional, for mail apps.       |
+| SRV   | `_autodiscover._tcp`     | `0 0 443 autodiscover.purelymail.com`     | Optional, for mail apps.       |
 
 For a subdomain, the DKIM names become `purelymailN._domainkey.<subdomain>`.
 
@@ -43,13 +45,13 @@ Copy the history first, switch DNS second:
 
 ## Status
 
-| Domain              | Today            | State                                                                          |
-| ------------------- | ---------------- | ------------------------------------------------------------------------------ |
-| omnidirectional.app | no mail          | MX, SPF, DKIM, DMARC added 2026-10-31; ownership TXT and verification pending. |
-| handlemotion.com    | Google Workspace | not started                                                                    |
-| chowmein.tv         | Google Workspace | not started                                                                    |
-| ortizortega.com     | iCloud           | not started                                                                    |
-| ladmetraje.com      | iCloud           | not started                                                                    |
+| Domain              | Today            | State                                                                                                  |
+| ------------------- | ---------------- | ------------------------------------------------------------------------------------------------------ |
+| omnidirectional.app | no mail          | Added and verified in Purelymail 2026-10-31 (all records, plus autoconfig/autodiscover). No users yet. |
+| handlemotion.com    | Google Workspace | not started                                                                                            |
+| chowmein.tv         | Google Workspace | not started                                                                                            |
+| ortizortega.com     | iCloud           | not started                                                                                            |
+| ladmetraje.com      | iCloud           | not started                                                                                            |
 
 ## Limits to remember
 
