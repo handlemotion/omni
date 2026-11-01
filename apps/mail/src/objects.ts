@@ -37,7 +37,9 @@ export function createS3Store(options: S3Options): ObjectStore {
         headers: { "content-type": contentType },
       });
       if (!response.ok) {
-        throw new Error(`object put ${key} failed: ${response.status} ${await response.text()}`);
+        // The S3 error document can echo the canonical request: keep only its start.
+        const detail = (await response.text()).slice(0, 200);
+        throw new Error(`object put ${key} failed: ${response.status} ${detail}`);
       }
     },
     async get(key) {

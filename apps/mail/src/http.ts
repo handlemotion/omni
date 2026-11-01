@@ -50,13 +50,17 @@ export interface HttpDeps {
   verify: RequestVerifier;
   /** The Worker wrote to `mail_actions`: run the outbox now instead of at the next poll. */
   onPing(): void;
-  health(): { mailboxes: number; connected: number };
+  /** `ok: false` answers 503, so a host stops routing to (or fails the deploy of) this machine. */
+  health(): Promise<{ ok: boolean } & Record<string, unknown>>;
 }
 
 export function createApp(deps: HttpDeps): Hono {
   const app = new Hono();
 
-  app.get("/health", (c) => c.json({ ok: true, ...deps.health() }));
+  app.get("/health", async (c) => {
+    const health = await deps.health();
+    return c.json(health, health.ok ? 200 : 503);
+  });
 
   app.post(MAIL_PING_PATH, async (c) => {
     if (!(await deps.verify(c.req.raw))) return c.json({ error: "unauthorized" }, 401);

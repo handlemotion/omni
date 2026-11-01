@@ -30,6 +30,7 @@ export class Supervisor {
   private readonly options: SupervisorOptions;
   private timers: NodeJS.Timeout[] = [];
   private running = false;
+  private stopping = false;
   private readonly inFlight = new Set<Promise<void>>();
 
   constructor(options: SupervisorOptions) {
@@ -49,6 +50,11 @@ export class Supervisor {
 
   get connectedCount(): number {
     return [...this.connections.values()].filter((c) => c.connected).length;
+  }
+
+  /** Connected and past the first sync: their outbox actions run. */
+  get readyCount(): number {
+    return [...this.connections.values()].filter((c) => c.isReady).length;
   }
 
   connection(mailboxId: string): MailboxConnection | undefined {
@@ -74,6 +80,7 @@ export class Supervisor {
 
   /** Adds a mailbox and connects it in the background. Connect attempts share the `concurrency` gate. */
   add(mailbox: MailboxConfig): MailboxConnection {
+    if (this.stopping) throw new Error("supervisor is stopping");
     const existing = this.connections.get(mailbox.id);
     if (existing) return existing;
     const connection = new MailboxConnection(mailbox, {
@@ -126,12 +133,17 @@ export class Supervisor {
     );
   }
 
-  /** Stops timers, lets in-flight work finish, and logs out of every mailbox. */
+  /**
+   * Stops timers and claims, lets claimed actions finish and record their outcome while storage
+   * is still open, then stops every mailbox: each finishes the message it is storing, abandons the
+   * rest of its sync (the next start resumes it) and logs out.
+   */
   async stop(): Promise<void> {
     this.running = false;
+    this.stopping = true;
     for (const timer of this.timers) clearInterval(timer);
     this.timers = [];
-    // Let a running drain record its outcomes while storage is still open.
+    await this.outbox.stop();
     await Promise.all(this.inFlight);
     await Promise.all([...this.connections.values()].map((c) => c.stop()));
     this.connections.clear();

@@ -1,6 +1,7 @@
 // Assembles the mail service: Postgres storage, one supervised connection per mailbox, HTTP.
 // `main.ts` runs it as a process; e2e suites run it in-process against the real local stack.
 import { createDb, listServiceMailboxes, setMailboxStatus } from "@omni/db";
+import { sql } from "drizzle-orm";
 import type { Hono } from "hono";
 import type { Config } from "./config.ts";
 import { openCredentials } from "./credentials.ts";
@@ -69,13 +70,16 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
   // One reconcile at a time; a request during one runs once more after it.
   let reconciling: Promise<void> | null = null;
   let again = false;
+  let stopping = false;
   async function reconcileOnce() {
+    if (stopping) return;
     const rows = await listServiceMailboxes(db);
     const wanted = new Set(rows.map((row) => row.id));
     for (const id of supervisor.mailboxIds()) {
       if (!wanted.has(id)) await supervisor.remove(id);
     }
     for (const row of rows) {
+      if (stopping) return;
       if (supervisor.has(row.id)) continue;
       let credentials;
       try {
@@ -96,11 +100,13 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
         kind: row.kind,
         ...credentials,
       });
-      connection.on("connected", () => {
-        setMailboxStatus(db, row.id, "active").catch((error: unknown) =>
+      const setStatus = (status: "active" | "error") =>
+        setMailboxStatus(db, row.id, status).catch((error: unknown) =>
           log.warn("mailbox.status_failed", { mailboxId: row.id, error }),
         );
-      });
+      connection.on("connected", () => void setStatus("active"));
+      // Shows the app a mailbox whose app password was revoked; retrying continues.
+      connection.on("auth_failed", () => void setStatus("error"));
     }
   }
   function reconcileMailboxes(): Promise<void> {
@@ -139,17 +145,42 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
         .catch((error: unknown) => log.error("mailbox.reconcile_failed", { error }))
         .then(() => supervisor.ping());
     },
-    health: () => ({
-      mailboxes: supervisor.mailboxCount,
-      connected: supervisor.connectedCount,
-    }),
+    // Ready means this process can do its job: not shutting down, and Postgres answers. IMAP is
+    // reported but does not fail the check: a mail host outage must not fail deploys or make the
+    // host cycle a machine that would only reconnect to the same outage.
+    health: async () => {
+      const database = stopping ? false : await databaseAnswers();
+      return {
+        ok: !stopping && database,
+        stopping,
+        database,
+        mailboxes: supervisor.mailboxCount,
+        connected: supervisor.connectedCount,
+        ready: supervisor.readyCount,
+      };
+    },
   });
+
+  async function databaseAnswers(): Promise<boolean> {
+    let deadline: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        db.execute(sql`select 1`).then(() => true),
+        new Promise<boolean>((resolve) => (deadline = setTimeout(() => resolve(false), 2_000))),
+      ]);
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(deadline);
+    }
+  }
 
   return {
     app,
     supervisor,
     reconcileMailboxes,
     stop: async () => {
+      stopping = true;
       clearInterval(timer);
       await reconciling?.catch(() => {});
       await supervisor.stop();

@@ -29,6 +29,15 @@ export function createLogger(level: LogLevel = "info", base: Record<string, unkn
 
 function replacer(_key: string, value: unknown): unknown {
   if (typeof value === "bigint") return value.toString();
-  if (value instanceof Error) return { name: value.name, message: value.message };
+  if (value instanceof Error) {
+    // `code` (ECONNRESET, ETIMEOUT, ...) tells a network fault from a server refusal at a glance.
+    // Nothing else: ImapFlow and Nodemailer errors can carry the server's full response.
+    const { code } = value as { code?: unknown };
+    return {
+      name: value.name,
+      message: value.message,
+      ...(typeof code === "string" ? { code } : {}),
+    };
+  }
   return value;
 }
