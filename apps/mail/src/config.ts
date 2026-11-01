@@ -15,8 +15,10 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(8788),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
-  /** Shared with the Worker; verifies its pings once `@omni/crypto` is wired in. */
+  /** Shared with the Worker: signs our mail events and verifies its pings. */
   MAIL_SERVICE_HMAC_SECRET: z.string().min(32),
+  /** Base URL of the Worker; new mail is reported to its `/internal/mail-events`. */
+  WORKER_URL: z.url(),
   /**
    * Keyring for `mailboxes.credentials_enc`: `k1:<base64 32 bytes>`, comma-separated, current key
    * first. Only this service holds it.

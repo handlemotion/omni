@@ -1,0 +1,12 @@
+{
+  "name": "@omni/contracts",
+  "private": true,
+  "description": "Wire contracts between the Worker and the mail service (zod schemas, no I/O)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  }
+}

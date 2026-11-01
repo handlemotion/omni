@@ -35,6 +35,18 @@ export async function seedMailbox(
   return { box: config, orgId: org.id, ownerId: owner.id };
 }
 
+export async function setCredentials(db: TestDb, mailboxId: string, credentialsEnc: string) {
+  await db.update(mailboxes).set({ credentialsEnc }).where(eq(mailboxes.id, mailboxId));
+}
+
+export async function mailboxStatus(db: TestDb, mailboxId: string) {
+  const [row] = await db
+    .select({ status: mailboxes.status })
+    .from(mailboxes)
+    .where(eq(mailboxes.id, mailboxId));
+  return row?.status;
+}
+
 /** Every stored copy in a folder with its message, oldest UID first. */
 export async function stored(db: TestDb, mailboxId: string, folder: string) {
   return db

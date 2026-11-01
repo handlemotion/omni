@@ -4,8 +4,9 @@ import { createDb, listServiceMailboxes, setMailboxStatus } from "@omni/db";
 import type { Hono } from "hono";
 import type { Config } from "./config.ts";
 import { openCredentials } from "./credentials.ts";
-import { createApp, type RequestVerifier, rejectAll } from "./http.ts";
+import { createApp, hmacVerifier } from "./http.ts";
 import type { Logger } from "./log.ts";
+import { WorkerNotifier } from "./notify.ts";
 import { createS3Store } from "./objects.ts";
 import { PgActionSource, PgMailStore } from "./pg-store.ts";
 import { Supervisor } from "./supervisor.ts";
@@ -17,6 +18,8 @@ export type ServiceConfig = Pick<
   | "SYNC_INTERVAL_MS"
   | "OUTBOX_INTERVAL_MS"
   | "MAILBOX_CONCURRENCY"
+  | "MAIL_SERVICE_HMAC_SECRET"
+  | "WORKER_URL"
   | "S3_ENDPOINT"
   | "S3_BUCKET"
   | "S3_ACCESS_KEY_ID"
@@ -34,14 +37,17 @@ export interface MailService {
   stop(): Promise<void>;
 }
 
-export async function startService(
-  config: ServiceConfig,
-  log: Logger,
-  verify: RequestVerifier = rejectAll,
-): Promise<MailService> {
+export async function startService(config: ServiceConfig, log: Logger): Promise<MailService> {
   const { db, close } = createDb(config.DATABASE_URL);
+  const notifier = new WorkerNotifier({
+    workerUrl: config.WORKER_URL,
+    secret: config.MAIL_SERVICE_HMAC_SECRET,
+    logger: log,
+  });
   const store = new PgMailStore({
     db,
+    onIngested: ({ folder: _folder, ...message }) =>
+      notifier.push({ type: "message.created", ...message }),
     objects: createS3Store({
       endpoint: config.S3_ENDPOINT,
       bucket: config.S3_BUCKET,
@@ -124,7 +130,9 @@ export async function startService(
   );
 
   const app = createApp({
-    verify,
+    verify: hmacVerifier(config.MAIL_SERVICE_HMAC_SECRET, {
+      onReject: (reason) => log.warn("http.ping_rejected", { reason }),
+    }),
     onPing: () => {
       // A ping means the Worker changed something: new actions, or a mailbox added.
       void reconcileMailboxes()
@@ -145,6 +153,7 @@ export async function startService(
       clearInterval(timer);
       await reconciling?.catch(() => {});
       await supervisor.stop();
+      await notifier.stop();
       await close();
     },
   };

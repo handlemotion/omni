@@ -80,6 +80,11 @@ On start the service connects every mailbox whose status is not `disabled` and r
 folder from its saved sync position. A signed ping, or the next sync interval, picks up
 mailboxes added later.
 
+The Worker and the mail service call each other over HMAC-signed HTTP (`@omni/crypto`, 60 s
+window). The Worker pings `POST /ping` after writing to the outbox or adding a mailbox; the mail
+service posts batches of `message.created` events to the Worker after indexing new mail. Paths
+and bodies are defined once in `packages/contracts`.
+
 Objects are keyed by content hash under `<org id>/<mailbox id>/` (`raw/<sha256>.eml`,
 `html/<sha256>.html`, `att/<sha256>`), so a re-sync rewrites the same keys. The local stack runs
 [Versity S3 Gateway](https://github.com/versity/versitygw) on `localhost:7070` with the bucket

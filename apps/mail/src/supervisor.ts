@@ -30,6 +30,7 @@ export class Supervisor {
   private readonly options: SupervisorOptions;
   private timers: NodeJS.Timeout[] = [];
   private running = false;
+  private readonly inFlight = new Set<Promise<void>>();
 
   constructor(options: SupervisorOptions) {
     this.options = options;
@@ -48,6 +49,10 @@ export class Supervisor {
 
   get connectedCount(): number {
     return [...this.connections.values()].filter((c) => c.connected).length;
+  }
+
+  connection(mailboxId: string): MailboxConnection | undefined {
+    return this.connections.get(mailboxId);
   }
 
   has(mailboxId: string): boolean {
@@ -97,10 +102,15 @@ export class Supervisor {
   /** Runs the outbox now. The HTTP ping lands here. */
   async ping(): Promise<void> {
     if (!this.running) return;
+    const drain = this.outbox.drain().then(
+      () => {},
+      (error: unknown) => this.log.error("outbox.drain_failed", { error }),
+    );
+    this.inFlight.add(drain);
     try {
-      await this.outbox.drain();
-    } catch (error) {
-      this.log.error("outbox.drain_failed", { error });
+      await drain;
+    } finally {
+      this.inFlight.delete(drain);
     }
   }
 
@@ -121,6 +131,8 @@ export class Supervisor {
     this.running = false;
     for (const timer of this.timers) clearInterval(timer);
     this.timers = [];
+    // Let a running drain record its outcomes while storage is still open.
+    await Promise.all(this.inFlight);
     await Promise.all([...this.connections.values()].map((c) => c.stop()));
     this.connections.clear();
   }
