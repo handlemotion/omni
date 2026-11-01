@@ -1,5 +1,5 @@
 import { createAuth, type Auth } from "@omni/auth";
-import { createDb, enqueueAction, findMailboxByAddress, schema, type Db } from "@omni/db";
+import { createDb, enqueueAction, findSystemMailbox, schema, type Db } from "@omni/db";
 import type { SendPayload } from "@omni/contracts";
 import { and, asc, eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
@@ -83,7 +83,7 @@ function magicLinkSender(
     if (!config.SYSTEM_MAIL_FROM) {
       throw new Error("SYSTEM_MAIL_FROM is not set: magic links have no mailbox to send from");
     }
-    const mailbox = await findMailboxByAddress(db, config.SYSTEM_MAIL_FROM);
+    const mailbox = await findSystemMailbox(db, config.SYSTEM_MAIL_FROM);
     if (!mailbox) {
       throw new Error("SYSTEM_MAIL_FROM does not match any mailbox in the database");
     }

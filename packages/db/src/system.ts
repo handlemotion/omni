@@ -5,7 +5,7 @@ import type { Db } from "./client.ts";
 import { mailboxes } from "./schema/index.ts";
 
 /** The mailbox that sends system mail (magic links), by address. Oldest wins if several orgs share it. */
-export async function findMailboxByAddress(db: Db, address: string) {
+export async function findSystemMailbox(db: Db, address: string) {
   const [row] = await db
     .select({ id: mailboxes.id, orgId: mailboxes.orgId, address: mailboxes.address })
     .from(mailboxes)
