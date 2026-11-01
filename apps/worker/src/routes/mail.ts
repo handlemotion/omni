@@ -8,9 +8,8 @@ import {
   listMemberMailboxes,
   setThreadArchived,
   threadActionTargets,
-  type MovePayload,
-  type SendPayload,
 } from "@omni/db";
+import type { ActionPayload, SendPayload } from "@omni/contracts";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -236,7 +235,7 @@ export const mail = new Hono<AppEnv>()
           mailboxId: found.mailboxId,
           memberId: c.var.member.id,
           kind: "move",
-          payload: { ...target, destination } satisfies MovePayload,
+          payload: { ...target, destination } satisfies ActionPayload<"move">,
           idempotencyKey: outboxKey(c, key, "move", target.folder),
         });
         actionIds.push(action.id);

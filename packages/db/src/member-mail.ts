@@ -3,7 +3,6 @@
 // missing grant or a grant that crosses orgs finds nothing.
 import { and, asc, eq, exists, isNotNull, sql, type AnyColumn } from "drizzle-orm";
 import type { Db } from "./client.ts";
-import type { MessageTarget } from "./contract.ts";
 import {
   mailboxAccess,
   mailboxFolders,
@@ -93,7 +92,11 @@ export async function threadActionTargets(db: Db, memberId: string, threadId: st
     )
     .orderBy(asc(mailboxFolders.path), asc(messages.imapUid));
 
-  const byFolder = new Map<string, MessageTarget & { role: string }>();
+  // Same shape as `messageTargetSchema` in @omni/contracts, plus the folder role.
+  const byFolder = new Map<
+    string,
+    { folder: string; uidValidity: string; uids: number[]; role: string }
+  >();
   for (const row of rows) {
     const target = byFolder.get(row.folder) ?? {
       folder: row.folder,
