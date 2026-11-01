@@ -5,7 +5,7 @@ Purelymail hosts the mail; Omni is the window on top. The product spec is `docs/
 it before you design anything, and record any departure from it as an ADR in `docs/adr/`.
 
 TypeScript monorepo: pnpm workspaces + Turborepo, Cloudflare Workers (Hono), a Node mail service
-on Railway, Drizzle over PlanetScale Postgres, Better Auth, Anthropic SDK.
+on Fly.io, Drizzle over PlanetScale Postgres, Better Auth, Anthropic SDK.
 
 Repo-wide rules only. Before editing an app or package, read its `AGENTS.md` if it has one: it
 extends this file and wins where they differ. Explicit user instructions override every file here.
@@ -15,7 +15,7 @@ extends this file and wins where they differ. Explicit user instructions overrid
 | Unit                 | Package           | Role                                                                             |
 | -------------------- | ----------------- | -------------------------------------------------------------------------------- |
 | `apps/worker`        | `@omni/worker`    | The one Cloudflare Worker: Hono API, AI queue consumer, realtime Durable Object. |
-| `apps/mail`          | `@omni/mail`      | Always-on Node service on Railway. The only code that speaks IMAP/SMTP.          |
+| `apps/mail`          | `@omni/mail`      | Always-on Node service on Fly.io. The only code that speaks IMAP/SMTP.           |
 | `packages/db`        | `@omni/db`        | Drizzle schema, migrations, and the only data access path: `db.forMember()`.     |
 | `packages/mail-core` | `@omni/mail-core` | Pure functions: threading, reply stripping, sanitizing. No I/O.                  |
 | `packages/ai`        | `@omni/ai`        | `triage()` and `summarize()`. Takes a model client; no other I/O.                |
@@ -72,7 +72,7 @@ Own the follow-through. Green tests are the floor, not the proof.
   the rows it writes. Report what you ran and what you saw.
 - After a merge to `main`, check production yourself: the deploy or build finished, the active
   version is the new one, `/health` (and any route you changed) answers, and logs show no new
-  errors (`cf` for Workers, the Railway CLI for the mail service, Sentry once wired). Report the
+  errors (`cf` for Workers, `flyctl` for the mail service, Sentry once wired). Report the
   result, or say exactly what you could not check.
 - If a check would touch production data, send mail, or cost money beyond normal use, ask first.
 
@@ -145,7 +145,7 @@ Several agents may work in this repository at once.
   `main`, reinstall to regenerate the lockfile (`pnpm install`), never hand-merge it.
 - Before each push run `pnpm check`, `pnpm check-types`, and the affected tests (unit and e2e).
   Batch fixes into one push; CI minutes cost money.
-- Deploys happen from `main` through CI only. Never `wrangler deploy` or `railway up` from a
+- Deploys happen from `main` through CI only. Never `wrangler deploy` or `flyctl deploy` from a
   laptop for production.
 
 ## Infrastructure
@@ -153,7 +153,7 @@ Several agents may work in this repository at once.
 - Cloudflare account **Handle** (`473fbe436e39d8f3d33b6bb09afd3dd7`) owns `omnidirectional.app`
   and every Worker, R2 bucket, Queue, and Hyperdrive config. Use the `cf` CLI for inspection;
   `wrangler` for local dev and type generation.
-- Mail service runs on Railway (ADR 0001). PlanetScale Postgres is the database.
+- Mail service runs on Fly.io, org `handlemotion` (ADR 0004). PlanetScale Postgres is the database.
 - Research libraries from primary sources first (Context7, Firecrawl developer index, docs).
 
 ## Skills

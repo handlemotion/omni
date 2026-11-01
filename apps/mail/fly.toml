@@ -1,0 +1,43 @@
+# Fly.io config for the mail service (ADR 0004). Neutral defaults: self-hosters pass their own
+# app name with `--app` and pick their region. Deploy from the repo root so the build sees the
+# workspace:
+#   flyctl deploy . --config apps/mail/fly.toml --app <your-app>
+# Secrets (DATABASE_URL, MAIL_CREDENTIALS_KEY, ...) are set with `flyctl secrets`, never here.
+app = "omni-mail"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+# main.ts gives in-flight syncs and sends up to 20 s after SIGTERM.
+kill_timeout = "30s"
+
+[build]
+dockerfile = "Dockerfile"
+
+# Rolling replaces the one machine in place; bluegreen or canary would run two machines at once,
+# opening duplicate IDLE connections and racing on the outbox.
+[deploy]
+strategy = "rolling"
+
+[env]
+PORT = "8788"
+LOG_LEVEL = "info"
+
+# The only public surface: HTTPS for /health and the Worker's signed /ping. IMAP and SMTP are
+# outbound only; no mail port is exposed.
+[http_service]
+internal_port = 8788
+force_https = true
+# IDLE connections need a process that never sleeps: exactly one machine, always on.
+auto_stop_machines = "off"
+auto_start_machines = true
+min_machines_running = 1
+
+[[http_service.checks]]
+method = "GET"
+path = "/health"
+interval = "15s"
+timeout = "5s"
+grace_period = "20s"
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "256mb"

@@ -6,7 +6,7 @@ Status: draft. Each unit adds its required services, bindings, and variables her
 
 - A Cloudflare account (Workers Paid for Queues and Durable Objects, R2).
 - A Postgres database reachable from Cloudflare Hyperdrive and from the mail service.
-- One always-on container host for `apps/mail` (we use Railway; any Docker host works).
+- One always-on container host for `apps/mail` (we use Fly.io; any Docker host works).
 - Any IMAP/SMTP mail host. Purelymail's admin API is optional.
 - An Anthropic API key for triage and summaries.
 
@@ -127,6 +127,19 @@ docker build -f apps/mail/Dockerfile -t omni-mail .
 docker run -d --restart unless-stopped --env-file apps/mail/.env -p 8788:8788 omni-mail
 curl localhost:8788/health
 ```
+
+Run on Fly.io (what we use): `apps/mail/fly.toml` keeps one machine always on, with no auto-stop
+and a health check on `/health`. Never scale past one machine: two would open duplicate IDLE
+connections and race on the outbox.
+
+```bash
+flyctl apps create <your-app>
+flyctl secrets import --app <your-app> < apps/mail/.env    # or set them one by one
+flyctl deploy . --config apps/mail/fly.toml --app <your-app>
+curl https://<your-app>.fly.dev/health
+```
+
+Set the Worker's `MAIL_SERVICE_URL` to `https://<your-app>.fly.dev`.
 
 The container runs as a non-root user. Point your host's health check at `GET /health`. It
 handles `SIGTERM` gracefully: in-flight syncs and actions finish and mailboxes log out.
