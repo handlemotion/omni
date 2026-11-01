@@ -1,4 +1,18 @@
-export { triage, DEFAULT_TRIAGE_INPUT_TOKENS } from "./triage.ts";
+export {
+  chooseTriageClient,
+  triage,
+  DEFAULT_TRIAGE_INPUT_TOKENS,
+  type TriageClient,
+} from "./triage.ts";
+export {
+  createJevClient,
+  jevTriageRequest,
+  JevError,
+  TYPESAFE_API_URL,
+  type JevClient,
+} from "./jev.ts";
+export { decide, TRIAGE_TABLE, type Decision, type Judgments } from "./decide.ts";
+export { JEV_MODEL } from "./questions.ts";
 export { summarize, DEFAULT_SUMMARY_INPUT_TOKENS } from "./summarize.ts";
 export {
   DEFAULT_AUTO_FILE_THRESHOLD,

@@ -82,4 +82,65 @@ export const threads: Array<{ name: string; expected: Bucket; input: TriageInput
       list: { listUnsubscribe: true, precedence: "bulk" },
     },
   },
+  {
+    name: "short reply that needs context",
+    expected: "needs_reply",
+    input: {
+      from: { name: "Lena Ortiz", address: "lena@studio.example" },
+      subject: "Re: Kickoff",
+      latestText: "Sounds good. Tuesday or Wednesday?",
+      latestFromUs: false,
+      messageCount: 3,
+      repliedBefore: true,
+      earlierMessages: [
+        { from: "lena@studio.example", fromUs: false, text: "Can we set up a kickoff call?" },
+        {
+          from: "rodrigo@handlemotion.example",
+          fromUs: true,
+          text: "Happy to. Next week works for me, any afternoon.",
+        },
+      ],
+    },
+  },
+  {
+    name: "colleague heads-up",
+    expected: "fyi",
+    input: {
+      from: { name: "Sam Lee", address: "sam@handlemotion.example" },
+      subject: "Office closed Monday",
+      latestText:
+        "Heads up: the office is closed Monday for the holiday. Nothing needed from you, just plan around it.",
+      latestFromUs: false,
+      messageCount: 1,
+      repliedBefore: false,
+    },
+  },
+  {
+    name: "security alert on our account",
+    expected: "fyi",
+    input: {
+      from: { name: "Cloud Console", address: "no-reply@cloud.example" },
+      subject: "New sign-in to your account",
+      latestText:
+        "We noticed a new sign-in to your account from Chrome on macOS in Mexico City at 09:14. If this was you, you can ignore this email.",
+      latestFromUs: false,
+      messageCount: 1,
+      repliedBefore: false,
+      list: { autoSubmitted: "auto-generated" },
+    },
+  },
+  {
+    name: "social notification digest",
+    expected: "noise",
+    input: {
+      from: { name: "Social", address: "notify@social.example" },
+      subject: "5 people you may know",
+      latestText:
+        "See who's new on Social this week: Pat, Jordan, Casey and 2 others. Connect to grow your network. Unsubscribe from these emails.",
+      latestFromUs: false,
+      messageCount: 1,
+      repliedBefore: false,
+      list: { listUnsubscribe: true },
+    },
+  },
 ];
