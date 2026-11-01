@@ -1,10 +1,15 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { requestScope, requireMember, type AppEnv } from "./context.ts";
+import type { Config } from "./env.ts";
 import { MEMBER_HEADER } from "./realtime.ts";
 import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
 import { mail } from "./routes/mail.ts";
+
+function allowedOrigins(config: Config) {
+  return new Set([new URL(config.auth.baseURL).origin, ...config.auth.trustedOrigins]);
+}
 
 const api = new Hono<AppEnv>()
   .use(requireMember)
@@ -13,6 +18,14 @@ const api = new Hono<AppEnv>()
   .get("/realtime", async (c) => {
     if (c.req.header("upgrade") !== "websocket") {
       return c.json({ error: "expected a websocket upgrade" }, 426);
+    }
+    // The socket authenticates by cookie, and browsers send cookies on cross-site websocket
+    // handshakes, so a foreign page could open one as the member (cross-site WebSocket
+    // hijacking). Browsers always send Origin on a handshake: accept only our own origins. A
+    // handshake with no Origin comes from a native client, which has to hold the session itself.
+    const origin = c.req.header("origin");
+    if (origin !== undefined && !allowedOrigins(c.var.config).has(origin)) {
+      return c.json({ error: "origin not allowed" }, 403);
     }
     const { id, orgId } = c.var.member;
     const headers = new Headers(c.req.raw.headers);
