@@ -1,18 +1,28 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailboxConnection, type NewMessageEvent } from "../src/mailbox-connection.ts";
-import { deliver, logger, mailbox, otherClient, purge } from "./support/greenmail.ts";
-import { MemoryStore } from "./support/memory-store.ts";
+import { PgMailStore } from "../src/pg-store.ts";
+import { createTestDatabase, messageRows, seedMailbox, stored, type TestDb } from "./support/db.ts";
+import { deliver, logger, otherClient } from "./support/greenmail.ts";
 
+let database: Awaited<ReturnType<typeof createTestDatabase>>;
+let db: TestDb;
+let store: PgMailStore;
 let connections: MailboxConnection[] = [];
 
-function connect(box: ReturnType<typeof mailbox>, store: MemoryStore) {
+function connect(box: Awaited<ReturnType<typeof seedMailbox>>["box"]) {
   const connection = new MailboxConnection(box, { store, logger, batchSize: 2 });
   connections.push(connection);
   return connection;
 }
 
-beforeEach(async () => {
-  await purge();
+beforeAll(async () => {
+  database = await createTestDatabase();
+  db = database.db;
+  store = new PgMailStore({ db });
+});
+
+afterAll(async () => {
+  await database.teardown();
 });
 
 afterEach(async () => {
@@ -20,72 +30,127 @@ afterEach(async () => {
   connections = [];
 });
 
-describe("MailboxConnection against GreenMail", () => {
-  it("delivers new mail through IDLE in under 5 seconds", async () => {
-    const box = mailbox();
-    const store = new MemoryStore();
-    const connection = connect(box, store);
+describe("sync into Postgres against GreenMail", () => {
+  it("indexes new mail from IDLE with a thread and clean text in under 5 seconds", async () => {
+    const { box } = await seedMailbox(db);
+    const connection = connect(box);
     await connection.start();
 
     const seen = new Promise<NewMessageEvent>((resolve) => connection.once("message", resolve));
     const sentAt = Date.now();
     await deliver(box.address, "hello over idle");
-    const event = await seen;
+    await seen;
 
     expect(Date.now() - sentAt).toBeLessThan(5_000);
-    expect(event).toMatchObject({ folder: "INBOX", role: "inbox" });
-    const [stored] = store.list(box.id, "INBOX");
-    expect(Buffer.from(stored?.raw ?? []).toString()).toContain("Subject: hello over idle");
+    const [message] = await stored(db, box.id, "INBOX");
+    expect(message).toMatchObject({
+      subject: "hello over idle",
+      cleanText: "body of hello over idle",
+    });
+    expect(message?.threadId).toBeTruthy();
   });
 
-  it("resumes from the saved sync position after a restart without re-importing", async () => {
-    const box = mailbox();
-    const store = new MemoryStore();
+  it("joins a reply to its thread by In-Reply-To, and a new subject starts a new thread", async () => {
+    const { box } = await seedMailbox(db);
+    await otherClient(box, async (client) => {
+      await client.append("INBOX", raw({ subject: "Lunch?", id: "<lunch-1@outside.test>" }), []);
+      await client.append(
+        "INBOX",
+        raw({
+          subject: "Re: Lunch?",
+          id: "<lunch-2@outside.test>",
+          inReplyTo: "<lunch-1@outside.test>",
+          body: "Sure, noon.\r\n\r\nOn Mon, someone wrote:\r\n> Lunch?",
+        }),
+        [],
+      );
+      await client.append("INBOX", raw({ subject: "Invoice", id: "<inv@outside.test>" }), []);
+    });
+
+    await connect(box).start();
+
+    const rows = await stored(db, box.id, "INBOX");
+    const byId = new Map(rows.map((r) => [r.messageIdHeader, r]));
+    expect(byId.get("<lunch-2@outside.test>")?.threadId).toBe(
+      byId.get("<lunch-1@outside.test>")?.threadId,
+    );
+    expect(byId.get("<inv@outside.test>")?.threadId).not.toBe(
+      byId.get("<lunch-1@outside.test>")?.threadId,
+    );
+    // Quoted history is cut from clean_text; the raw message keeps it.
+    expect(byId.get("<lunch-2@outside.test>")?.cleanText).toBe("Sure, noon.");
+  });
+
+  it("resumes after a restart without re-importing or duplicating rows", async () => {
+    const { box } = await seedMailbox(db);
     for (const n of [1, 2, 3]) await deliver(box.address, `before ${n}`);
 
-    const first = connect(box, store);
+    const first = connect(box);
     await first.start();
-    expect(store.list(box.id, "INBOX")).toHaveLength(3);
+    expect(await stored(db, box.id, "INBOX")).toHaveLength(3);
     await first.stop();
 
     // Mail that arrives while the service is down.
     for (const n of [4, 5]) await deliver(box.address, `while down ${n}`);
 
-    const second = connect(box, store);
+    // A new process: a fresh store with nothing cached.
+    store = new PgMailStore({ db });
+    const second = connect(box);
+    let fetchedAgain = 0;
+    second.on("message", () => fetchedAgain++);
     await second.start();
 
-    const uids = store.list(box.id, "INBOX").map((m) => m.uid);
-    expect(uids).toHaveLength(5);
-    expect(new Set(uids).size).toBe(5);
-    // Each message was fetched and stored exactly once across both runs.
-    expect(store.created.filter((c) => c.folder === "INBOX")).toHaveLength(5);
+    expect(fetchedAgain).toBe(2);
+    expect(await stored(db, box.id, "INBOX")).toHaveLength(5);
+    expect(await messageRows(db, box.id)).toHaveLength(5);
   });
 
   it("imports history newest first in batches", async () => {
-    const box = mailbox();
-    const store = new MemoryStore();
+    const { box } = await seedMailbox(db);
     for (const n of [1, 2, 3, 4, 5]) await deliver(box.address, `history ${n}`);
 
-    await connect(box, store).start();
+    await connect(box).start();
 
-    const order = store.created.map((c) => c.uid);
+    // Rows in insertion order; subjects say which message each one is.
+    const order = (await messageRows(db, box.id)).map((m) => Number(m.subject.split(" ")[1]));
     expect(order).toHaveLength(5);
     // batchSize 2: batches {5,4}, {3,2}, {1}; within a batch the server picks the order.
     expect(Math.min(...order.slice(0, 2))).toBeGreaterThan(Math.max(...order.slice(2)));
-    expect(order.at(-1)).toBe(Math.min(...order));
+    expect(order.at(-1)).toBe(1);
+  });
+
+  it("stores a message filed in two folders once, and later syncs fetch neither copy", async () => {
+    const { box } = await seedMailbox(db);
+    const note = raw({ subject: "note to self", id: "<self-note@omni.test>" });
+    await otherClient(box, async (client) => {
+      await client.mailboxCreate("Notes");
+      await client.append("INBOX", note, []);
+      await client.append("Notes", note, []);
+    });
+
+    const connection = connect(box);
+    await connection.start();
+    let refetched = 0;
+    connection.on("message", () => refetched++);
+    await connection.syncAll();
+
+    expect(refetched).toBe(0);
+    expect(await messageRows(db, box.id)).toHaveLength(1);
+    const [inInbox] = await stored(db, box.id, "INBOX");
+    const [inNotes] = await stored(db, box.id, "Notes");
+    expect(inInbox?.messageId).toBe(inNotes?.messageId);
   });
 
   it("picks up a flag change made by another IMAP client on folder sync", async () => {
-    const box = mailbox();
-    const store = new MemoryStore();
+    const { box } = await seedMailbox(db);
     await otherClient(box, async (client) => {
       await client.mailboxCreate("Projects");
-      await client.append("Projects", rawMessage("needs a flag"), []);
+      await client.append("Projects", raw({ subject: "needs a flag" }), []);
     });
 
-    const connection = connect(box, store);
+    const connection = connect(box);
     await connection.start();
-    const [before] = store.list(box.id, "Projects");
+    const [before] = await stored(db, box.id, "Projects");
     expect(before?.flags).toEqual([]);
 
     await otherClient(box, async (client) => {
@@ -99,21 +164,21 @@ describe("MailboxConnection against GreenMail", () => {
 
     const result = await connection.syncFolder("Projects");
     expect(result.flagsChanged).toBe(1);
-    expect(store.list(box.id, "Projects")[0]?.flags).toEqual(["\\Flagged", "\\Seen"]);
+    expect((await stored(db, box.id, "Projects"))[0]?.flags).toEqual(["\\Flagged", "\\Seen"]);
   });
 
-  it("re-syncs a folder from scratch when its UIDVALIDITY changes", async () => {
-    const box = mailbox();
-    const store = new MemoryStore();
+  it("re-syncs a folder from scratch when its UIDVALIDITY changes, without duplicate rows", async () => {
+    const { box } = await seedMailbox(db);
+    const kept = raw({ subject: "kept receipt", id: "<kept-receipt@outside.test>" });
     await otherClient(box, async (client) => {
       await client.mailboxCreate("Receipts");
-      await client.append("Receipts", rawMessage("old receipt 1"), []);
-      await client.append("Receipts", rawMessage("old receipt 2"), []);
+      await client.append("Receipts", kept, []);
+      await client.append("Receipts", raw({ subject: "old receipt" }), []);
     });
 
-    const connection = connect(box, store);
+    const connection = connect(box);
     await connection.start();
-    expect(store.list(box.id, "Receipts")).toHaveLength(2);
+    expect(await stored(db, box.id, "Receipts")).toHaveLength(2);
     const oldValidity = (await store.getSyncPosition(box.id, "Receipts"))?.uidValidity;
 
     // GreenMail derives UIDVALIDITY from the clock in seconds; let it tick so the new one differs.
@@ -122,27 +187,34 @@ describe("MailboxConnection against GreenMail", () => {
     await otherClient(box, async (client) => {
       await client.mailboxDelete("Receipts");
       await client.mailboxCreate("Receipts");
-      await client.append("Receipts", rawMessage("new receipt"), []);
+      await client.append("Receipts", raw({ subject: "new receipt" }), []);
+      await client.append("Receipts", kept, []);
     });
 
     const result = await connection.syncFolder("Receipts");
     expect(result.reset).toBe(true);
-    const stored = store.list(box.id, "Receipts");
-    expect(stored).toHaveLength(1);
-    expect(Buffer.from(stored[0]?.raw ?? []).toString()).toContain("Subject: new receipt");
+    const subjects = (await stored(db, box.id, "Receipts")).map((r) => r.subject).toSorted();
+    expect(subjects).toEqual(["kept receipt", "new receipt"]);
+    // The kept message is the same row; the reset re-linked it instead of re-inserting.
+    const rows = await messageRows(db, box.id);
+    expect(rows.filter((r) => r.subject === "kept receipt")).toHaveLength(1);
     const position = await store.getSyncPosition(box.id, "Receipts");
     expect(position?.uidValidity).not.toBe(oldValidity);
   });
 });
 
-function rawMessage(subject: string): string {
+let counter = 0;
+
+function raw(input: { subject: string; id?: string; inReplyTo?: string; body?: string }): string {
   return [
     "From: someone@outside.test",
     "To: me@omni.test",
-    `Subject: ${subject}`,
-    `Message-ID: <${subject.replaceAll(" ", "-")}-${Date.now()}@outside.test>`,
+    `Subject: ${input.subject}`,
+    `Message-ID: ${input.id ?? `<m-${Date.now()}-${counter++}@outside.test>`}`,
+    ...(input.inReplyTo ? [`In-Reply-To: ${input.inReplyTo}`] : []),
+    `Date: ${new Date().toUTCString()}`,
     "",
-    `body of ${subject}`,
+    input.body ?? `body of ${input.subject}`,
     "",
   ].join("\r\n");
 }

@@ -1,0 +1,278 @@
+// `MailStore` and `ActionSource` on Postgres through `@omni/db`. The store turns each fetched
+// message into the index: parse, thread, clean, upsert. A message is one row per Message-ID in
+// its mailbox; each IMAP copy of it is a location, so re-syncs, moves, UIDVALIDITY resets and
+// restarts converge on the same rows.
+import {
+  addLocation,
+  claimActions,
+  completeAction,
+  createThread,
+  type Db,
+  findFolder,
+  findMailbox,
+  findMessageByHeader,
+  folderLocations,
+  getFolderPosition,
+  hasLocation,
+  markActionSmtpAccepted,
+  removeLocations,
+  replaceFolders,
+  rescheduleAction,
+  resetFolder,
+  saveFolderPosition,
+  schema,
+  setLocationFlags,
+  subjectThreadCandidates,
+  threadsByMessageIds,
+  upsertMessage,
+} from "@omni/db";
+import { decideThread, normalizeSubject, type ParsedMessage, parseMessage } from "@omni/mail-core";
+import { cleanMessage } from "@omni/mail-core/clean";
+import type {
+  ActionSource,
+  FetchedMessage,
+  FlagChange,
+  FolderInfo,
+  FolderRole,
+  MailAction,
+  MailStore,
+  SyncPosition,
+} from "./ports.ts";
+
+/** The schema's folder roles; drafts and junk are just folders to the index. */
+type StoredRole = (typeof schema.mailboxFolders.$inferSelect)["role"];
+const STORED_ROLES = new Set<FolderRole>(["inbox", "sent", "archive", "trash"]);
+const storedRole = (role: FolderRole): StoredRole =>
+  STORED_ROLES.has(role) ? (role as StoredRole) : "other";
+
+/** Subject threading only looks this far back; `decideThread` applies the exact window. */
+const SUBJECT_LOOKBACK_MS = 31 * 24 * 60 * 60 * 1000;
+
+interface MailboxRow {
+  orgId: string;
+  address: string;
+}
+
+/** A message that became a new row (not a new copy of a known one). */
+export interface IngestedMessage {
+  orgId: string;
+  mailboxId: string;
+  messageId: string;
+  threadId: string;
+  folder: string;
+  folderRole: StoredRole;
+}
+
+export interface PgMailStoreOptions {
+  db: Db;
+  /** Called once per new message row, after it is committed. Must not throw. */
+  onIngested?: (message: IngestedMessage) => void;
+}
+
+export class PgMailStore implements MailStore {
+  private readonly db: Db;
+  private readonly onIngested: (message: IngestedMessage) => void;
+  private readonly mailboxes = new Map<string, MailboxRow>();
+
+  constructor(options: PgMailStoreOptions) {
+    this.db = options.db;
+    this.onIngested = options.onIngested ?? (() => {});
+  }
+
+  async saveFolders(mailboxId: string, folders: FolderInfo[]): Promise<void> {
+    const { orgId } = await this.mailbox(mailboxId);
+    await replaceFolders(this.db, {
+      orgId,
+      mailboxId,
+      folders: folders.map((f) => ({ path: f.path, role: storedRole(f.role) })),
+    });
+  }
+
+  async getSyncPosition(mailboxId: string, folder: string): Promise<SyncPosition | null> {
+    const position = await getFolderPosition(this.db, mailboxId, folder);
+    if (!position) return null;
+    return {
+      uidValidity: BigInt(position.uidvalidity),
+      highestModseq: position.highestModseq,
+      uidNext: position.uidnext,
+    };
+  }
+
+  async saveSyncPosition(mailboxId: string, folder: string, position: SyncPosition) {
+    await saveFolderPosition(this.db, mailboxId, folder, {
+      uidvalidity: Number(position.uidValidity),
+      uidnext: position.uidNext,
+      highestModseq: position.highestModseq,
+    });
+  }
+
+  folderIndex(mailboxId: string, folder: string): Promise<Map<number, string[]>> {
+    return folderLocations(this.db, mailboxId, folder);
+  }
+
+  async storeMessage(mailboxId: string, fetched: FetchedMessage): Promise<{ created: boolean }> {
+    if (await hasLocation(this.db, mailboxId, fetched.folder, fetched.uid)) {
+      return { created: false };
+    }
+    const mailbox = await this.mailbox(mailboxId);
+    const folder = await findFolder(this.db, mailboxId, fetched.folder);
+    if (!folder) throw new Error(`folder ${fetched.folder} is not stored`);
+
+    const { message } = await parseMessage(fetched.raw);
+    // A copy of a message we already indexed (moved, or filed in two folders): record where it
+    // is and stop. Parsing again is cheap; re-threading and re-notifying would not be.
+    let stored = await findMessageByHeader(this.db, mailboxId, message.messageId);
+    let inserted = false;
+    if (!stored) {
+      const result = await this.insert(mailboxId, mailbox, folder.id, fetched, message);
+      stored = { id: result.id, threadId: result.threadId };
+      inserted = result.inserted;
+    }
+
+    const created = await addLocation(this.db, {
+      orgId: mailbox.orgId,
+      mailboxId,
+      folderId: folder.id,
+      uid: fetched.uid,
+      messageId: stored.id,
+      flags: fetched.flags,
+      modseq: fetched.modseq,
+    });
+    if (inserted) {
+      this.onIngested({
+        orgId: mailbox.orgId,
+        mailboxId,
+        messageId: stored.id,
+        threadId: stored.threadId,
+        folder: fetched.folder,
+        folderRole: folder.role,
+      });
+    }
+    return { created };
+  }
+
+  async applyFlags(mailboxId: string, folder: string, changes: FlagChange[]): Promise<void> {
+    await setLocationFlags(this.db, { mailboxId, path: folder, changes });
+  }
+
+  async removeMessages(mailboxId: string, folder: string, uids: number[]): Promise<void> {
+    await removeLocations(this.db, { mailboxId, path: folder, uids });
+  }
+
+  async resetFolder(mailboxId: string, folder: string): Promise<void> {
+    await resetFolder(this.db, mailboxId, folder);
+  }
+
+  private async insert(
+    mailboxId: string,
+    mailbox: MailboxRow,
+    folderId: string,
+    fetched: FetchedMessage,
+    message: ParsedMessage,
+  ) {
+    const sentAt = message.sentAt ?? fetched.internalDate ?? new Date();
+    const threadId = await this.assignThread(mailboxId, mailbox, message, sentAt);
+    const { cleanText } = cleanMessage(message);
+    return upsertMessage(this.db, {
+      orgId: mailbox.orgId,
+      mailboxId,
+      threadId,
+      folderId,
+      imapUid: fetched.uid,
+      messageIdHeader: message.messageId,
+      inReplyTo: message.inReplyTo,
+      references: message.references,
+      subject: message.subject,
+      fromName: message.from?.name || null,
+      fromAddress: message.from?.address ?? "",
+      to: message.to.map(toAddress),
+      cc: message.cc.map(toAddress),
+      sentAt,
+      cleanText,
+    });
+  }
+
+  private async assignThread(
+    mailboxId: string,
+    mailbox: MailboxRow,
+    message: ParsedMessage,
+    sentAt: Date,
+  ): Promise<string> {
+    const replyIds = [message.inReplyTo, ...message.references].filter(
+      (id): id is string => id !== null,
+    );
+    const knownMessageIds = await threadsByMessageIds(this.db, mailboxId, replyIds);
+    const subjectKey = normalizeSubject(message.subject);
+    const candidates =
+      replyIds.length === 0 && subjectKey !== ""
+        ? await subjectThreadCandidates(this.db, {
+            mailboxId,
+            subjectKey,
+            since: new Date(sentAt.getTime() - SUBJECT_LOOKBACK_MS),
+          })
+        : [];
+    const decision = decideThread(
+      { ...message, sentAt },
+      { knownMessageIds, candidates, selfAddresses: [mailbox.address] },
+    );
+    if (decision.kind !== "new") return decision.threadId;
+    return createThread(this.db, {
+      orgId: mailbox.orgId,
+      mailboxId,
+      subjectKey: decision.subjectKey,
+      lastMessageAt: sentAt,
+    });
+  }
+
+  private async mailbox(mailboxId: string): Promise<MailboxRow> {
+    const cached = this.mailboxes.get(mailboxId);
+    if (cached) return cached;
+    const row = await findMailbox(this.db, mailboxId);
+    if (!row) throw new Error(`mailbox ${mailboxId} is not stored`);
+    this.mailboxes.set(mailboxId, row);
+    return row;
+  }
+}
+
+/** `mail_actions` as the outbox. The executor owns retry timing; the claim is a lease. */
+export class PgActionSource implements ActionSource {
+  private readonly db: Db;
+  private readonly leaseMs: number;
+
+  constructor(options: { db: Db; leaseMs?: number }) {
+    this.db = options.db;
+    this.leaseMs = options.leaseMs ?? 5 * 60_000;
+  }
+
+  async claim(limit: number): Promise<MailAction[]> {
+    const rows = await claimActions(this.db, { limit, leaseMs: this.leaseMs });
+    return rows.map(
+      (row) =>
+        ({
+          id: row.id,
+          mailboxId: row.mailboxId,
+          kind: row.kind,
+          payload: row.payload,
+          idempotencyKey: row.idempotencyKey,
+          attempts: row.attempts,
+          smtpAcceptedAt: row.smtpAcceptedAt,
+        }) as unknown as MailAction,
+    );
+  }
+
+  async markSmtpAccepted(actionId: string): Promise<void> {
+    await markActionSmtpAccepted(this.db, actionId);
+  }
+
+  async complete(actionId: string): Promise<void> {
+    await completeAction(this.db, actionId);
+  }
+
+  async fail(actionId: string, error: string, retryAt: Date | null): Promise<void> {
+    await rescheduleAction(this.db, actionId, error, retryAt);
+  }
+}
+
+function toAddress(address: { name: string; address: string }) {
+  return { name: address.name || null, address: address.address };
+}
