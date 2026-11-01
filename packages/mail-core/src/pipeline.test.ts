@@ -1,8 +1,8 @@
 // Every fixture through parse → strip → sanitize, asserting the outputs the product shows.
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { BLOCKED_SRC_ATTR, cleanMessage, isLongForm, sanitizeHtml } from "./html";
-import { parseMessage } from "./parse";
+import { BLOCKED_SRC_ATTR, cleanMessage, isLongForm, sanitizeHtml } from "./html.ts";
+import { parseMessage } from "./parse.ts";
 
 const read = (name: string) =>
   readFileSync(new URL(`../../../fixtures/eml/${name}`, import.meta.url));
@@ -28,6 +28,7 @@ const FIXTURES = [
   "outlook-desktop-reply.eml",
   "outlook-forward.eml",
   "outlook-web-reply-html-only.eml",
+  "phishing-spoofed-sender.eml",
 ];
 
 describe("clean_text", () => {
@@ -171,6 +172,7 @@ describe("parseMessage", () => {
       listUnsubscribeOneClick: true,
       precedence: "bulk",
       autoSubmitted: null,
+      displayNameSpoof: null,
     });
   });
 });
@@ -241,6 +243,28 @@ describe("sanitizeHtml", () => {
     expect(html).toContain(
       '<a href="https://pixelweekly.example.com/r/7731/variable-fonts" target="_blank" rel="noopener noreferrer nofollow">',
     );
+  });
+});
+
+describe("phishing hints", () => {
+  test("a spoofed sender and a disguised link come out as data", async () => {
+    const message = await parse("phishing-spoofed-sender.eml");
+    expect(message.signals.displayNameSpoof).toEqual({
+      kind: "address",
+      claimed: "security@bank.example.com",
+    });
+    const { html, linkMismatches } = sanitizeHtml(message.html ?? "", sanitizeOptions);
+    expect(linkMismatches).toEqual([
+      {
+        text: "https://bank.example.com/security",
+        href: "https://bank.example.com.verify-session.attacker.example/login",
+        textHost: "bank.example.com",
+        hrefHost: "bank.example.com.verify-session.attacker.example",
+      },
+    ]);
+    // Both tracking URLs are left unterminated; browsers would still load them.
+    expect(html).not.toContain("attacker.example/open.gif");
+    expect(html).not.toContain("attacker.example/p.gif");
   });
 });
 

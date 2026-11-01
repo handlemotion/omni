@@ -352,9 +352,6 @@ importers:
       dompurify:
         specifier: ^3.4.17
         version: 3.4.17
-      email-reply-parser:
-        specifier: ^2.3.9
-        version: 2.3.9
       html-to-text:
         specifier: ^10.0.1
         version: 10.0.1
@@ -364,6 +361,9 @@ importers:
       mailparser:
         specifier: ^3.14.1
         version: 3.14.1
+      parse5:
+        specifier: ^8.0.1
+        version: 8.0.1
     devDependencies:
       '@types/html-to-text':
         specifier: ^9.0.4
@@ -2435,15 +2435,6 @@ packages:
 
   electron-to-chromium@1.5.470:
     resolution: {integrity: sha512-omO9daK1eC5K0AFhIYtCcKsxm1erRC/SNr9I1RtPZrgdcR5KdAkPT8jtaoPgNhMsUf/zcslmDev4T7KqiDEa9w==}
-
-  email-reply-parser@2.3.9:
-    resolution: {integrity: sha512-k5w4cjqLSZABTyxkFHQLnMKJgrK2l6mPptmOnQHlwIosw86S05Xnupy4PPdw8XdXv/kXzn2PAnLfFMNFVUH4YQ==}
-    engines: {node: '>= 22.0.0'}
-    peerDependencies:
-      re2: 1.x
-    peerDependenciesMeta:
-      re2:
-        optional: true
 
   encoding-japanese@2.4.0:
     resolution: {integrity: sha512-PE0KjlsDy9JSsoU4C2Q8NXb1kC4c+bZRac9ZvHXUE4q1Ht63gScKMdEy9jst9+Fi3M4eDkqzkEhBZvix4blP2A==}
@@ -4851,8 +4842,6 @@ snapshots:
       postgres: 3.4.9
 
   electron-to-chromium@1.5.470: {}
-
-  email-reply-parser@2.3.9: {}
 
   encoding-japanese@2.4.0: {}
 

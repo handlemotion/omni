@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import type { AddressObject, EmailAddress, HeaderLines } from "mailparser";
+import type { AddressObject, EmailAddress, HeaderLines, ParsedMail } from "mailparser";
 import { simpleParser } from "mailparser";
 
 export interface Address {
@@ -27,6 +27,19 @@ export interface TriageSignals {
   listUnsubscribeOneClick: boolean;
   precedence: string | null;
   autoSubmitted: string | null;
+  /** The From display name claims another sender or hides characters. A hint, not proof. */
+  displayNameSpoof: DisplayNameSpoof | null;
+}
+
+export interface DisplayNameSpoof {
+  /**
+   * `address`: the name shows an email address other than the sender's.
+   * `domain`: the name shows a domain unrelated to the sender's.
+   * `invisible`: the name holds invisible or bidi-control characters.
+   */
+  kind: "address" | "domain" | "invisible";
+  /** The address or domain the name shows, or the hidden code points as `U+XXXX`. */
+  claimed: string;
 }
 
 export interface ParsedMessage {
@@ -46,6 +59,11 @@ export interface ParsedMessage {
   html: string | null;
   attachments: AttachmentMeta[];
   signals: TriageSignals;
+  /**
+   * Set when the MIME structure broke the parser's limits (over 1 MB of headers in one part,
+   * or over 1,000 parts). Only the top-level headers were read; there is no body or attachment.
+   */
+  bodySkipped?: true;
 }
 
 export interface ParseResult {
@@ -54,26 +72,42 @@ export interface ParseResult {
   attachmentContents: Uint8Array[];
 }
 
-/** Parses raw RFC 5322 bytes into plain data. Message bodies are decoded to UTF-8. */
+const PARSER_OPTIONS = {
+  // Keep `cid:` links so the sanitizer can map them to attachment ids, and leave `text`
+  // empty for HTML-only mail so reply stripping knows to work on the HTML.
+  keepCidLinks: true,
+  skipHtmlToText: true,
+  skipTextToHtml: true,
+  skipImageLinks: true,
+} as const;
+
+/**
+ * Parses raw RFC 5322 bytes into plain data. Message bodies are decoded to UTF-8, and NUL
+ * characters are removed from every string (Postgres text cannot store them).
+ */
 export async function parseMessage(raw: Uint8Array | string): Promise<ParseResult> {
   const source =
     typeof raw === "string" ? raw : Buffer.from(raw.buffer, raw.byteOffset, raw.length);
-  const mail = await simpleParser(source, {
-    // Keep `cid:` links so the sanitizer can map them to attachment ids, and leave `text`
-    // empty for HTML-only mail so reply stripping knows to work on the HTML.
-    keepCidLinks: true,
-    skipHtmlToText: true,
-    skipTextToHtml: true,
-    skipImageLinks: true,
-  });
+  let mail: ParsedMail;
+  let bodySkipped = false;
+  try {
+    mail = await simpleParser(source, PARSER_OPTIONS);
+  } catch (error) {
+    // mailparser's guards against header and MIME-tree bombs. Keep the message listable
+    // from its main headers rather than failing it on every sync.
+    if ((error as { code?: unknown }).code !== "EMAXLEN") throw error;
+    mail = await simpleParser(topHeaders(source), PARSER_OPTIONS);
+    bodySkipped = true;
+  }
 
   const headerId = firstMessageId(mail.messageId);
+  const from = addresses(mail.from)[0] ?? null;
   const message: ParsedMessage = {
     messageId: headerId ?? (await synthesizeMessageId(mail.headerLines, mail.text, mail.html)),
     messageIdSynthesized: headerId === null,
     inReplyTo: firstMessageId(mail.inReplyTo),
-    references: messageIds(mail.references),
-    from: addresses(mail.from)[0] ?? null,
+    references: capReferences(messageIds(mail.references)),
+    from,
     to: addresses(mail.to),
     cc: addresses(mail.cc),
     replyTo: addresses(mail.replyTo),
@@ -88,13 +122,115 @@ export async function parseMessage(raw: Uint8Array | string): Promise<ParseResul
       contentId: a.cid ?? null,
       inline: a.contentDisposition === "inline" || (a.related === true && a.cid !== undefined),
     })),
-    signals: signals(mail.headerLines),
+    signals: { ...signals(mail.headerLines), displayNameSpoof: displayNameSpoof(from) },
   };
+  if (bodySkipped) message.bodySkipped = true;
 
   return {
-    message,
+    message: withoutNul(message),
     attachmentContents: mail.attachments.map((a) => new Uint8Array(a.content)),
   };
+}
+
+/** Postgres text rejects U+0000, and mail carries it in subjects, bodies and filenames. */
+function withoutNul<T>(value: T): T {
+  if (typeof value === "string") {
+    return (value.includes("\0") ? value.replaceAll("\0", "") : value) as T;
+  }
+  if (Array.isArray(value)) return value.map(withoutNul) as T;
+  if (value !== null && typeof value === "object" && !(value instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, withoutNul(entry)]),
+    ) as T;
+  }
+  return value;
+}
+
+// Header fields the rest of the pipeline reads; the fallback parse keeps only these.
+const TOP_HEADERS = new Set([
+  "from",
+  "to",
+  "cc",
+  "reply-to",
+  "subject",
+  "date",
+  "message-id",
+  "in-reply-to",
+  "references",
+  "list-id",
+  "list-unsubscribe",
+  "list-unsubscribe-post",
+  "precedence",
+  "auto-submitted",
+]);
+const MAX_TOP_HEADER = 16 * 1024;
+
+/** The top-level header block cut down to `TOP_HEADERS`, each field capped, with no body. */
+function topHeaders(source: string | Buffer): Buffer {
+  const bytes = typeof source === "string" ? Buffer.from(source) : source;
+  const ends = [bytes.indexOf("\r\n\r\n"), bytes.indexOf("\n\n")].filter((i) => i !== -1);
+  // latin1 maps bytes to code units one to one, so 8-bit header bytes survive the round trip.
+  const head = bytes.subarray(0, Math.min(bytes.length, ...ends)).toString("latin1");
+  const fields = head
+    .split(/\r?\n(?![ \t])/)
+    .filter((field) => TOP_HEADERS.has(field.slice(0, field.indexOf(":")).trim().toLowerCase()))
+    .map((field) => field.slice(0, MAX_TOP_HEADER));
+  return Buffer.from(`${fields.join("\r\n")}\r\n\r\n`, "latin1");
+}
+
+// RFC 5322 3.6.4 lets senders trim References to the first and the most recent ids;
+// threading only needs those, and a hostile header can carry tens of thousands.
+const MAX_REFERENCES = 100;
+
+function capReferences(ids: string[]): string[] {
+  if (ids.length <= MAX_REFERENCES) return ids;
+  return [...ids.slice(0, 1), ...ids.slice(-(MAX_REFERENCES - 1))];
+}
+
+// Zero-width, bidi-control and filler characters that render as nothing.
+const INVISIBLE =
+  /[\u{AD}\u{61C}\u{115F}\u{1160}\u{17B4}\u{17B5}\u{180E}\u{200B}-\u{200F}\u{202A}-\u{202E}\u{2060}-\u{2064}\u{2066}-\u{206F}\u{3164}\u{FEFF}\u{FFA0}]|\u{34F}/gu;
+const ADDRESS_IN_NAME = /[^\s@<>"'(),;:]+@[^\s@<>"'(),;:]+\.[^\s@<>"'(),;:]+/;
+const DOMAIN_TOKEN = /^(?:[\p{L}\p{N}-]+\.)+\p{L}[\p{L}\p{N}-]{1,62}$/u;
+const MAX_CHECKED_NAME = 256;
+
+/** Spoofing hint for a From address: see `DisplayNameSpoof`. */
+export function displayNameSpoof(from: Address | null): DisplayNameSpoof | null {
+  if (from === null || from.name === "" || from.name.length > MAX_CHECKED_NAME) return null;
+  const hidden = from.name.match(INVISIBLE);
+  if (hidden) {
+    const codes = [...new Set(hidden)].map(
+      (char) => `U+${(char.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`,
+    );
+    return { kind: "invisible", claimed: codes.join(" ") };
+  }
+  const claimedAddress = ADDRESS_IN_NAME.exec(from.name)?.[0].toLowerCase();
+  if (claimedAddress !== undefined) {
+    return claimedAddress === from.address ? null : { kind: "address", claimed: claimedAddress };
+  }
+  const senderDomain = domainOf(from.address);
+  for (const token of from.name.split(/\s+/)) {
+    const domain = token.replace(/^[("'[]+|[)"'\],.:;!?]+$/g, "");
+    if (!DOMAIN_TOKEN.test(domain)) continue;
+    const claimed = domainOf(`x@${domain}`);
+    if (claimed === null || senderDomain === null) continue;
+    const related =
+      claimed === senderDomain ||
+      senderDomain.endsWith(`.${claimed}`) ||
+      claimed.endsWith(`.${senderDomain}`);
+    if (!related) return { kind: "domain", claimed };
+  }
+  return null;
+}
+
+/** Lowercased, punycoded domain of an address, or null when it is not a valid host. */
+function domainOf(address: string): string | null {
+  const domain = address.slice(address.lastIndexOf("@") + 1);
+  try {
+    return new URL(`http://${domain}`).hostname;
+  } catch {
+    return null;
+  }
 }
 
 const MESSAGE_ID = /<[^<>\s]+>/g;
@@ -130,7 +266,7 @@ function header(lines: HeaderLines, key: string): string | null {
     .trim();
 }
 
-function signals(lines: HeaderLines): TriageSignals {
+function signals(lines: HeaderLines): Omit<TriageSignals, "displayNameSpoof"> {
   const unsubscribe = header(lines, "list-unsubscribe");
   return {
     listId: header(lines, "list-id"),
