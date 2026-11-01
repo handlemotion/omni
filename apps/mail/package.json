@@ -2,6 +2,7 @@
   "name": "@omni/mail",
   "private": true,
   "description": "Always-on mail service: ImapFlow IDLE, CONDSTORE sync, outbox, SMTP",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
