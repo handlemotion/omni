@@ -89,7 +89,7 @@ message, the pending entry is dropped. If the outbox gives up, a realtime `actio
 `mutate()` call, and TanStack's automatic retries (network errors only) reuse it, so a retry
 never sends twice.
 
-**Identity changes.** Sign out, organization switch and invitation accept cancel in-flight
+**Identity changes.** Sign out, account switch, organization switch and invitation accept cancel in-flight
 queries, clear the whole cache, and rerun the route guards (`resetSession`); the shell then
 reconnects realtime for the new member. Any 401 does the same, which sends the user to `/login`.
 
@@ -122,7 +122,4 @@ Message HTML goes in a sandboxed iframe: `messageHtmlUrl(threadId, messageId)`; 
 
 ## Not yet
 
-- Several signed-in accounts at once (Better Auth `multiSession`): the auth layer adds the client
-  plugin to `@omni/client`; then `useDeviceSessions` and `useSwitchAccount` go in
-  `hooks/use-session.ts`, built on `resetSession` like the organization switch.
 - Drafts, labels, manual triage re-sort, shared-inbox assignment (ADR 0006, "v1 scope").

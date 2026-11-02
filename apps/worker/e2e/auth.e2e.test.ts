@@ -1,15 +1,19 @@
-import { schema } from "@omni/db";
-import { eq } from "drizzle-orm";
+import { createOrgWithOwner, schema } from "@omni/db";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
+  authPost,
+  CookieJar,
   createMailbox,
   createMember,
   createOrg,
   createTestDatabase,
   startMailServiceEndpoint,
+  signIn,
   startWorker,
   SYSTEM_MAIL_FROM,
   WEB_ORIGIN,
+  workerEvents,
 } from "./support.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -19,7 +23,11 @@ let worker: Awaited<ReturnType<typeof startWorker>>;
 beforeAll(async () => {
   database = await createTestDatabase();
   mailService = await startMailServiceEndpoint();
-  worker = await startWorker({ databaseUrl: database.url, mailServiceUrl: mailService.url });
+  worker = await startWorker({
+    databaseUrl: database.url,
+    mailServiceUrl: mailService.url,
+    vars: { WEB_APP_URL: WEB_ORIGIN },
+  });
 });
 
 afterAll(async () => {
@@ -83,4 +91,181 @@ test("a magic link from the outbox signs the member in, and the outbox ping veri
     redirect: "manual",
   });
   expect(reused.headers.getSetCookie().filter((c) => /session_token=[^;]/.test(c))).toEqual([]);
+});
+
+async function me(jar: CookieJar) {
+  const response = await fetch(new URL("/api/me", worker.url), { headers: { cookie: jar.header } });
+  return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+}
+
+/** Outbox sends addressed to `email`, oldest first. */
+async function mailTo(email: string) {
+  const rows = await database.db
+    .select({ payload: schema.mailActions.payload })
+    .from(schema.mailActions)
+    .where(
+      and(
+        eq(schema.mailActions.kind, "send"),
+        sql`${schema.mailActions.payload}->'to' = ${JSON.stringify([email])}::jsonb`,
+      ),
+    )
+    .orderBy(schema.mailActions.createdAt);
+  return rows.map((r) => r.payload as { from: string; subject: string; text: string });
+}
+
+/** An org made the way an operator makes one (`org:create`), its owner signed in. */
+async function signedInOwner(slug: string) {
+  const { db } = database;
+  if (!(await db.select().from(schema.mailboxes)).some((m) => m.address === SYSTEM_MAIL_FROM)) {
+    await createMailbox(db, (await createOrg(db, "system")).id, SYSTEM_MAIL_FROM);
+  }
+  const owner = await createOrgWithOwner(db, {
+    name: slug,
+    slug,
+    ownerEmail: `owner@${slug}.test`,
+  });
+  const jar = new CookieJar();
+  await signIn(worker, db, `owner@${slug}.test`, jar);
+  return { ...owner, jar };
+}
+
+/** Invites into the owner's active org, with no `organizationId`, as the web app does. */
+async function invite(owner: { jar: CookieJar }, email: string) {
+  const response = await authPost(worker, owner.jar, "/organization/invite-member", {
+    email,
+    role: "member",
+  });
+  expect(response.status).toBe(200);
+  return ((await response.json()) as { id: string }).id;
+}
+
+test("an email with no account and no invitation is answered alike but mailed nothing", async () => {
+  await signedInOwner("gate");
+  const requested = await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: WEB_ORIGIN },
+    body: JSON.stringify({ email: "stranger@elsewhere.test", callbackURL: "/" }),
+  });
+  expect(requested.status).toBe(200);
+  expect(await requested.json()).toEqual({ status: true });
+  expect(await mailTo("stranger@elsewhere.test")).toEqual([]);
+});
+
+test("invite, then a brand-new user signs in by magic link, accepts, and is a member", async () => {
+  const owner = await signedInOwner("invite");
+  const invitationId = await invite(owner, "New@Invite.test");
+
+  // The invitation goes out through the outbox, linking to the web app's accept page.
+  const [mail] = await mailTo("new@invite.test");
+  expect(mail!.from).toBe(SYSTEM_MAIL_FROM);
+  expect(mail!.text).toContain(`${WEB_ORIGIN}/invite/${invitationId}`);
+
+  const jar = new CookieJar();
+  await signIn(worker, database.db, "new@invite.test", jar);
+  expect((await me(jar)).status).toBe(403);
+
+  const accepted = await authPost(worker, jar, "/organization/accept-invitation", { invitationId });
+  expect(accepted.status).toBe(200);
+  expect(await me(jar)).toMatchObject({
+    status: 200,
+    body: { orgId: owner.orgId, role: "member" },
+  });
+
+  // Sign-in links are bearer credentials: only ENVIRONMENT=development prints them.
+  expect(workerEvents(worker).filter((e) => e.event === "auth.dev_link")).toEqual([]);
+});
+
+test("a link sent while invited cannot sign up once the invitation is canceled", async () => {
+  const owner = await signedInOwner("cancel");
+  const invitationId = await invite(owner, "late@cancel.test");
+  await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: WEB_ORIGIN },
+    body: JSON.stringify({ email: "late@cancel.test", callbackURL: "/" }),
+  });
+  const link = (await mailTo("late@cancel.test"))
+    .map((m) => m.text.match(/https?:\/\/\S+magic-link\S+/)?.[0])
+    .find(Boolean);
+  expect(link).toBeDefined();
+
+  const canceled = await authPost(worker, owner.jar, "/organization/cancel-invitation", {
+    invitationId,
+  });
+  expect(canceled.status).toBe(200);
+
+  const url = new URL(link!);
+  const opened = await fetch(new URL(url.pathname + url.search, worker.url), {
+    redirect: "manual",
+  });
+  expect(opened.headers.get("location")).toContain("error=SIGN_UP_REQUIRES_INVITATION");
+  expect(opened.headers.getSetCookie().filter((c) => /session_token=[^;]/.test(c))).toEqual([]);
+  const users = await database.db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.email, "late@cancel.test"));
+  expect(users).toEqual([]);
+});
+
+test("a member of two orgs switches the active org, and /api/me follows it", async () => {
+  const { db } = database;
+  const first = await signedInOwner("first");
+  const second = await createOrgWithOwner(db, {
+    name: "second",
+    slug: "second",
+    ownerEmail: "owner@first.test",
+  });
+
+  expect((await me(first.jar)).body.orgId).toBe(first.orgId);
+  const switched = await authPost(worker, first.jar, "/organization/set-active", {
+    organizationId: second.orgId,
+  });
+  expect(switched.status).toBe(200);
+  expect((await me(first.jar)).body).toMatchObject({ orgId: second.orgId, id: second.memberId });
+
+  await authPost(worker, first.jar, "/organization/set-active", { organizationId: first.orgId });
+  expect((await me(first.jar)).body.orgId).toBe(first.orgId);
+});
+
+test("two accounts in one browser: both listed, switchable, and one revocable", async () => {
+  const one = await signedInOwner("one");
+  const two = await createOrgWithOwner(database.db, {
+    name: "two",
+    slug: "two",
+    ownerEmail: "owner@two.test",
+  });
+  // Same browser: the second sign-in keeps the first session alongside it.
+  const jar = one.jar;
+  await signIn(worker, database.db, "owner@two.test", jar);
+  expect((await me(jar)).body.id).toBe(two.memberId);
+
+  const listed = await fetch(new URL("/api/auth/multi-session/list-device-sessions", worker.url), {
+    headers: { cookie: jar.header },
+  });
+  const sessions = (await listed.json()) as {
+    session: { token: string };
+    user: { email: string };
+  }[];
+  const tokenOf = (email: string) => sessions.find((s) => s.user.email === email)!.session.token;
+  expect(sessions.map((s) => s.user.email).toSorted()).toEqual([
+    "owner@one.test",
+    "owner@two.test",
+  ]);
+
+  const switched = await authPost(worker, jar, "/multi-session/set-active", {
+    sessionToken: tokenOf("owner@one.test"),
+  });
+  expect(switched.status).toBe(200);
+  expect((await me(jar)).body.id).toBe(one.memberId);
+
+  const revoked = await authPost(worker, jar, "/multi-session/revoke", {
+    sessionToken: tokenOf("owner@two.test"),
+  });
+  expect(revoked.status).toBe(200);
+  const after = await fetch(new URL("/api/auth/multi-session/list-device-sessions", worker.url), {
+    headers: { cookie: jar.header },
+  });
+  expect(((await after.json()) as { user: { email: string } }[]).map((s) => s.user.email)).toEqual([
+    "owner@one.test",
+  ]);
+  expect((await me(jar)).body.id).toBe(one.memberId);
 });

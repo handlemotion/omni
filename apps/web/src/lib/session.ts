@@ -105,6 +105,32 @@ export function rejectInvitation(invitationId: string) {
   return authCall(auth.organization.rejectInvitation({ invitationId }));
 }
 
+/** Every account signed in on this browser (Better Auth multi-session). */
+export const deviceSessionsQuery = () =>
+  queryOptions({
+    queryKey: keys.deviceSessions(),
+    queryFn: ({ signal }) =>
+      authCall(auth.multiSession.listDeviceSessions({ fetchOptions: { signal } })),
+  });
+
+/** Makes another signed-in account the active one; its data replaces everything cached. */
+export async function switchAccount(client: QueryClient, router: Reloadable, sessionToken: string) {
+  await authCall(auth.multiSession.setActive({ sessionToken }));
+  await resetSession(client, router);
+}
+
+/** Signs one account out of this browser. Revoking the active one resets like a sign-out. */
+export async function revokeDeviceSession(
+  client: QueryClient,
+  router: Reloadable,
+  sessionToken: string,
+) {
+  const active = client.getQueryData<Session | null>(keys.session())?.session.token;
+  await authCall(auth.multiSession.revoke({ sessionToken }));
+  if (sessionToken === active) await resetSession(client, router);
+  else await client.invalidateQueries({ queryKey: keys.deviceSessions() });
+}
+
 export async function setActiveOrganization(
   client: QueryClient,
   router: Reloadable,

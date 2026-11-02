@@ -4,6 +4,9 @@ import { useRouter } from "@tanstack/react-router";
 import { invitationQuery, organizationsQuery } from "../lib/org-queries.ts";
 import {
   acceptInvitation,
+  deviceSessionsQuery,
+  revokeDeviceSession,
+  switchAccount,
   rejectInvitation,
   sessionQuery,
   setActiveOrganization,
@@ -82,4 +85,27 @@ export function useAcceptInvitation() {
 /** `mutate(invitationId)`. */
 export function useRejectInvitation() {
   return useMutation({ mutationFn: (invitationId: string) => rejectInvitation(invitationId) });
+}
+
+/** Accounts signed in on this browser; add one by signing in again from `/login`. */
+export function useDeviceSessions() {
+  return useQuery(deviceSessionsQuery());
+}
+
+/** `mutate(sessionToken)` switches account: cache cleared, guards rerun, realtime reconnects. */
+export function useSwitchAccount() {
+  const client = useQueryClient();
+  const router = useRouter();
+  return useMutation({
+    mutationFn: (sessionToken: string) => switchAccount(client, router, sessionToken),
+  });
+}
+
+/** `mutate(sessionToken)` signs that account out of this browser. */
+export function useRevokeDeviceSession() {
+  const client = useQueryClient();
+  const router = useRouter();
+  return useMutation({
+    mutationFn: (sessionToken: string) => revokeDeviceSession(client, router, sessionToken),
+  });
 }

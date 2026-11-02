@@ -14,6 +14,9 @@ AUTH_TRUSTED_ORIGINS=http://localhost:5173
 AUTH_PASSKEY_RP_ID=
 # Optional. Name shown in passkey prompts and magic-link mail. Defaults to "Omni".
 APP_NAME=Omni
+# Optional. Web app origin; invitation emails link to <WEB_APP_URL>/invite/<id>. Defaults to
+# BETTER_AUTH_URL (the Worker serves the web app on the same origin). Locally, Vite's origin.
+WEB_APP_URL=http://localhost:5173
 
 # --- Mail service ---
 # Base URL of apps/mail. The Worker pings it after writing to the outbox.
@@ -48,6 +51,9 @@ SENTRY_DSN=
 # DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse private addresses.
 IMAGE_PROXY_DOH_URL=https://cloudflare-dns.com/dns-query
 # production (default), development or test. Only "test" allows test-only switches.
+# "development" also prints magic-link and invitation URLs to the wrangler dev console
+# ({"event":"auth.dev_link",...}), so local sign-in needs no trip to GreenMail. Never set it in
+# production: those URLs sign you in.
 ENVIRONMENT=development
 # Test-only. One origin exempt from the image proxy's address checks. The Worker refuses to
 # start with it unless ENVIRONMENT=test.
