@@ -31,18 +31,18 @@ for (const [name, raw] of Object.entries(CORPUS)) {
   // A benchmark measures; it has nothing to assert.
   // oxlint-disable-next-line vitest/expect-expect
   test(`${name}`, async ({ bench }) => {
+    const { html } = message;
     const cases = [
       bench("parseMessage", async () => void (await parseMessage(raw))),
       bench("cleanMessage", () => void cleanMessage(message)),
       bench("cleanMessage (HTML only)", () => void cleanMessage({ ...message, text: null })),
+      ...(html === null
+        ? []
+        : [
+            bench("sanitizeHtml", () => void sanitizeHtml(html, options)),
+            bench("isLongForm", () => void isLongForm({ cleanText, html })),
+          ]),
     ];
-    if (message.html !== null) {
-      const html = message.html;
-      cases.push(
-        bench("sanitizeHtml", () => void sanitizeHtml(html, options)),
-        bench("isLongForm", () => void isLongForm({ cleanText, html })),
-      );
-    }
     await bench.compare(...cases, runs);
   });
 }
