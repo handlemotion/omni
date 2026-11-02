@@ -217,8 +217,44 @@ export async function grant(db: TestDb, orgId: string, mailboxId: string, member
 type Worker = { url: string | URL };
 type Harnessed = Awaited<ReturnType<typeof startWorker>>;
 
-/** The real magic-link flow: request a link, read it from the outbox, open it. Returns the cookie. */
-export async function signIn(worker: Worker, db: TestDb, email: string) {
+/** One browser's cookies: what it sends, updated from every `Set-Cookie` it gets back. */
+export class CookieJar {
+  readonly cookies = new Map<string, string>();
+
+  store(response: Response) {
+    for (const line of response.headers.getSetCookie()) {
+      const [pair, ...attributes] = line.split(";");
+      const at = pair!.indexOf("=");
+      const name = pair!.slice(0, at).trim();
+      const value = pair!.slice(at + 1).trim();
+      const expired = attributes.some((a) => /^\s*max-age=0\s*$/i.test(a));
+      if (expired || value === "") this.cookies.delete(name);
+      else this.cookies.set(name, value);
+    }
+    return response;
+  }
+
+  get header() {
+    return [...this.cookies].map(([name, value]) => `${name}=${value}`).join("; ");
+  }
+}
+
+/** A same-origin auth call from the web app, carrying and updating the jar. */
+export async function authPost(worker: Worker, jar: CookieJar, path: string, body: unknown) {
+  return jar.store(
+    await fetch(new URL(`/api/auth${path}`, worker.url), {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: WEB_ORIGIN, cookie: jar.header },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+/**
+ * The real magic-link flow: request a link, read it from the outbox, open it. Returns the cookie.
+ * With `jar`, the link is opened in that browser (so its other sessions stay signed in).
+ */
+export async function signIn(worker: Worker, db: TestDb, email: string, jar?: CookieJar) {
   const requested = await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
     method: "POST",
     headers: { "content-type": "application/json", origin: WEB_ORIGIN },
@@ -238,7 +274,9 @@ export async function signIn(worker: Worker, db: TestDb, email: string) {
   const url = new URL(link);
   const verified = await fetch(new URL(url.pathname + url.search, worker.url), {
     redirect: "manual",
+    headers: jar ? { cookie: jar.header } : {},
   });
+  jar?.store(verified);
   return verified.headers
     .getSetCookie()
     .map((c) => c.split(";")[0])

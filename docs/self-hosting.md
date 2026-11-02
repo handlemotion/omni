@@ -90,20 +90,44 @@ Objects are keyed by content hash under `<org id>/<mailbox id>/` (`raw/<sha256>.
 [Versity S3 Gateway](https://github.com/versity/versitygw) on `localhost:7070` with the bucket
 `omni-mail-dev` already created.
 
+### First organization
+
+Sign-up is by invitation only, so an install starts from the command line. In this order:
+
+1. **Create the organization and its owner** with the same `DATABASE_URL` as the service:
+
+   ```bash
+   pnpm --filter @omni/db org:create --name "Acme" --owner you@example.com
+   ```
+
+   It creates the organization (keyed by slug, derived from `--name` unless you pass `--slug`),
+   your user if missing, and your owner membership, then prints `{"orgId", ...}` as JSON.
+   Running it again changes nothing and prints the same ids.
+
+2. **Add mailboxes** (next section), using that `orgId` and `--owner you@example.com`. Add the
+   `SYSTEM_MAIL_FROM` mailbox (for example `no-reply@example.com`) too: sign-in links and
+   invitations are sent from it.
+
+3. **Sign in** with a magic link to the owner address. Owners and admins then invite everyone
+   else from the app (Better Auth invitations); an invited person signs in by magic link with
+   the invited address and accepts. A magic-link request for an address with no account and no
+   pending invitation gets the same answer as any other, but no email.
+
 ### Adding a mailbox
 
 Mailboxes are added from the command line with the same `DATABASE_URL` and
 `MAIL_CREDENTIALS_KEY` as the service. The owner must already be a member of the organization
-(sign in once). The app password is read from stdin so it never lands in shell history:
+(`org:create` above, or an accepted invitation). The app password is read from stdin so it never
+lands in shell history:
 
 ```bash
 # Any IMAP/SMTP host
-printf '%s' "$APP_PASSWORD" | pnpm --filter @omni/mail mailbox:add -- \
+printf '%s' "$APP_PASSWORD" | pnpm --filter @omni/mail mailbox:add \
   --org <org id> --address you@example.com --owner you@example.com \
   --provider imap --imap imap.example.com:993 --smtp smtp.example.com:465
 
 # Purelymail: servers are known; optionally let its API create the app password
-pnpm --filter @omni/mail mailbox:add -- --org <org id> --address you@example.com \
+pnpm --filter @omni/mail mailbox:add --org <org id> --address you@example.com \
   --owner you@example.com --create-app-password      # needs PURELYMAIL_API_TOKEN
 ```
 
@@ -165,30 +189,34 @@ Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashb
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
 to `.dev.vars`.
 
-| Variable                   | Kind   | Required | Notes                                                                                                                                                                     |
-| -------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`       | secret | yes      | At least 32 random characters.                                                                                                                                            |
-| `BETTER_AUTH_URL`          | var    | yes      | Public origin of the Worker.                                                                                                                                              |
-| `AUTH_TRUSTED_ORIGINS`     | var    | no       | Comma-separated web/app origins.                                                                                                                                          |
-| `AUTH_PASSKEY_RP_ID`       | var    | no       | WebAuthn relying party ID.                                                                                                                                                |
-| `APP_NAME`                 | var    | no       | Defaults to `Omni`.                                                                                                                                                       |
-| `MAIL_SERVICE_URL`         | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                        |
-| `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                                                                                                                         |
-| `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links. Empty disables them.                                                                                                 |
-| `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off.                                                                                                                                                   |
-| `ANTHROPIC_API_KEY`        | secret | no       | Summaries, and triage when Jev is off. Without any key only the ours-last rule runs.                                                                                      |
-| `TYPESAFE_API_KEY`         | secret | no       | Triage on TypeSafe's Jev; summaries stay on Claude.                                                                                                                       |
-| `TRIAGE_PROVIDER`          | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                                                                        |
-| `JEV_MODEL`                | var    | no       | Jev model override.                                                                                                                                                       |
-| `AI_DAILY_TOKEN_CAP`       | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause.                                                                                                 |
-| `EXPO_PUSH_ENABLED`        | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                                                                                                      |
-| `EXPO_ACCESS_TOKEN`        | secret | no       | Only if your Expo project enforces push security.                                                                                                                         |
-| `IMAGE_PROXY_DOH_URL`      | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                |
-| `ENVIRONMENT`              | var    | no       | `production` (default). Only the e2e suites set `test`, which is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`; any other value with that set fails startup. |
+| Variable                   | Kind   | Required | Notes                                                                                                                                                                           |
+| -------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`       | secret | yes      | At least 32 random characters.                                                                                                                                                  |
+| `BETTER_AUTH_URL`          | var    | yes      | Public origin of the Worker.                                                                                                                                                    |
+| `AUTH_TRUSTED_ORIGINS`     | var    | no       | Comma-separated web/app origins.                                                                                                                                                |
+| `AUTH_PASSKEY_RP_ID`       | var    | no       | WebAuthn relying party ID.                                                                                                                                                      |
+| `APP_NAME`                 | var    | no       | Defaults to `Omni`.                                                                                                                                                             |
+| `WEB_APP_URL`              | var    | no       | Web app origin; invitation emails link to `<WEB_APP_URL>/invite/<id>`. Defaults to `BETTER_AUTH_URL`.                                                                           |
+| `MAIL_SERVICE_URL`         | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                              |
+| `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                                                                                                                               |
+| `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links and invitations. Empty disables them.                                                                                       |
+| `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off.                                                                                                                                                         |
+| `ANTHROPIC_API_KEY`        | secret | no       | Summaries, and triage when Jev is off. Without any key only the ours-last rule runs.                                                                                            |
+| `TYPESAFE_API_KEY`         | secret | no       | Triage on TypeSafe's Jev; summaries stay on Claude.                                                                                                                             |
+| `TRIAGE_PROVIDER`          | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                                                                              |
+| `JEV_MODEL`                | var    | no       | Jev model override.                                                                                                                                                             |
+| `AI_DAILY_TOKEN_CAP`       | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause.                                                                                                       |
+| `EXPO_PUSH_ENABLED`        | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                                                                                                            |
+| `EXPO_ACCESS_TOKEN`        | secret | no       | Only if your Expo project enforces push security.                                                                                                                               |
+| `IMAGE_PROXY_DOH_URL`      | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                      |
+| `ENVIRONMENT`              | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`. |
 
-Magic links are sent through the outbox: the Worker writes a `send` action for the
-`SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be
-connected like any other.
+Magic links and invitations are sent through the outbox: the Worker writes a `send` action for
+the `SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be
+connected like any other. Locally, `ENVIRONMENT=development` (the `.dev.vars.example` default)
+also prints each link to the `wrangler dev` console as `{"event":"auth.dev_link",...}`, so you
+can sign in without opening GreenMail. Those URLs sign you in: never set `development` in
+production.
 
 The mail service reports new and changed mail with a signed `POST /internal/mail-events`
 (timestamp and nonce required; replays are rejected). Expose `/internal/*` only to it.
