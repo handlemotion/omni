@@ -67,7 +67,7 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
 
-      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # v1.5
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
         with:
           version: 0.5.1
 
@@ -111,7 +111,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile --filter @omni/worker...
+      # Deploying the Worker builds and uploads apps/web (wrangler.jsonc `build`), so install both.
+      - run: pnpm install --frozen-lockfile --filter @omni/worker... --filter @omni/web...
 
       # wrangler.jsonc keeps neutral defaults (self-hosting); production ids, domain and vars come
       # from Doppler prd_github, secrets from prd_worker.
@@ -128,7 +129,10 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID="$(github get CLOUDFLARE_ACCOUNT_ID)"
           export CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID
           hyperdrive_id="$(github get HYPERDRIVE_ID)"
-          domain="$(github get WORKER_DOMAIN)"
+          # WORKER_DOMAIN may list several custom domains, comma-separated; the first is checked.
+          IFS=',' read -ra domains <<< "$(github get WORKER_DOMAIN)"
+          domain_args=()
+          for d in "${domains[@]}"; do domain_args+=(--domain "$d"); done
           sed -i "s/\"id\": \"00000000000000000000000000000000\"/\"id\": \"$hyperdrive_id\"/" \
             apps/worker/wrangler.jsonc
           grep -q "$hyperdrive_id" apps/worker/wrangler.jsonc
@@ -141,6 +145,6 @@ jobs:
           for v in "${vars[@]}"; do var_args+=(--var "$v"); done
 
           cd apps/worker
-          pnpm exec wrangler deploy --secrets-file "$secrets_file" --domain "$domain" "${var_args[@]}"
+          pnpm exec wrangler deploy --secrets-file "$secrets_file" "${domain_args[@]}" "${var_args[@]}"
           rm -f "$secrets_file"
-          curl -fsS --retry 5 --retry-all-errors --retry-delay 5 "https://$domain/health"
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 5 "https://${domains[0]}/health"

@@ -1,0 +1,5 @@
+{
+  // Two projects: the app against the DOM, and the Vite config against Node.
+  "files": [],
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+}
