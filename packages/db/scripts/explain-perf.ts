@@ -7,7 +7,6 @@
 //   pnpm --filter @omni/db perf:explain -- --plans out/  # also writes each text plan to out/
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { createDb, type Db } from "../src/client.ts";
 import { readDatabaseUrl } from "../src/env.ts";
@@ -47,7 +46,7 @@ const dbName = process.env.PERF_DATABASE ?? "omni_perf";
 const plansDir = process.argv.includes("--plans")
   ? process.argv[process.argv.indexOf("--plans") + 1]!
   : null;
-const url = new URL(readDatabaseUrl(fileURLToPath(new URL("..", import.meta.url))));
+const url = new URL(readDatabaseUrl(join(import.meta.dirname, "..")));
 url.pathname = `/${dbName}`;
 
 let captured: { query: string; params: unknown[] }[] = [];

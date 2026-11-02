@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { setTimeout as sleep } from "node:timers/promises";
 import { createTransport } from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import type { Logger } from "./log.ts";
@@ -219,7 +220,7 @@ async function persistAccepted(write: () => Promise<void>): Promise<void> {
       return await write();
     } catch (error) {
       if (attempt >= 5) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** attempt));
+      await sleep(200 * 2 ** attempt);
     }
   }
 }

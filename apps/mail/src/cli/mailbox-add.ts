@@ -3,13 +3,13 @@
 // through the Purelymail API with --create-app-password. It is encrypted with the keyring, bound
 // to the mailbox id, and stored with an owner grant. A running service connects it on the next
 // signed ping (sent here when MAIL_SERVICE_URL is set) or sync interval.
+import { randomUUIDv7 } from "node:crypto";
 import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { MAIL_PING_PATH } from "@omni/contracts";
 import { parseKeyring, signRequest } from "@omni/crypto";
 import { createDb, findMailboxByAddress, findMemberByEmail, saveMailbox } from "@omni/db";
 import { ImapFlow } from "imapflow";
-import { uuidv7 } from "uuidv7";
 import { z } from "zod";
 import { type MailboxCredentials, sealCredentials } from "../credentials.ts";
 import type { ServerEndpoint } from "../mailbox-connection.ts";
@@ -145,7 +145,7 @@ const { db, close } = createDb(config.data.DATABASE_URL, { onnotice: () => {} })
 try {
   const ownerMemberId = await findMemberByEmail(db, values.org, values.owner);
   if (!ownerMemberId) fail(`no member with email ${values.owner} in org ${values.org}`);
-  const mailboxId = (await findMailboxByAddress(db, values.org, address)) ?? uuidv7();
+  const mailboxId = (await findMailboxByAddress(db, values.org, address)) ?? randomUUIDv7();
   await saveMailbox(db, {
     id: mailboxId,
     orgId: values.org,
