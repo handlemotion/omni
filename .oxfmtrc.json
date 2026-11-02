@@ -9,6 +9,7 @@
     "fixtures/eml/**",
     "docs/spec/**",
     "pnpm-lock.yaml",
+    "**/routeTree.gen.ts",
     ".claude/skills/typesafe-ai/**",
     ".claude/skills/gh-stack/references/**"
   ]

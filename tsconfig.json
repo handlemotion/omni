@@ -9,6 +9,7 @@
     { "path": "./packages/auth" },
     { "path": "./apps/mail" },
     { "path": "./apps/worker" },
-    { "path": "./packages/client" }
+    { "path": "./packages/client" },
+    { "path": "./apps/web" }
   ]
 }
