@@ -239,6 +239,6 @@ To work on the web app with hot reload, run the Worker with `BETTER_AUTH_URL` se
 origin (so magic links land on Vite), then Vite, which forwards `/api` to the Worker:
 
 ```bash
-pnpm --filter @omni/worker exec wrangler dev --var BETTER_AUTH_URL:http://localhost:5173
+pnpm --filter @omni/worker dev --var BETTER_AUTH_URL:http://localhost:5173
 pnpm --filter @omni/web dev         # http://localhost:5173
 ```
