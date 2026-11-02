@@ -79,16 +79,4 @@ export function participants(message: ParsedMessage): string[] {
   return [...new Set(all.filter((a): a is Address => a !== null).map((a) => a.address))];
 }
 
-/**
- * People on To/Cc that no earlier message in the thread included, for the "Ana added Luis"
- * system line. `earlier` is every address already seen in the thread.
- */
-export function addedRecipients(message: ParsedMessage, earlier: Iterable<string>): Address[] {
-  const seen = new Set([...earlier].map((a) => a.toLowerCase()));
-  if (message.from) seen.add(message.from.address);
-  return [...message.to, ...message.cc].filter((a) => {
-    if (seen.has(a.address)) return false;
-    seen.add(a.address);
-    return true;
-  });
-}
+export { addedRecipients } from "./display.ts";

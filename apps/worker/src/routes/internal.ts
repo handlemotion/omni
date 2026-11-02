@@ -52,9 +52,7 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     events.push(event.data);
   }
 
-  const created = events.filter((e) => e.type === "message.created");
-  const failed = events.filter((e) => e.type === "action.failed");
-  const jobs = aiJobsFor(created);
+  const jobs = aiJobsFor(events);
   if (jobs.length) await c.env.AI_QUEUE.sendBatch(jobs.map((body) => ({ body })));
 
   const { db, close } = createDb(c.env.HYPERDRIVE.connectionString, {
@@ -63,16 +61,12 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     onnotice: () => {},
   });
   try {
-    if (created.length) {
-      await fanOut(c.env, db, config, changedThreads(created), { push: true });
-    }
-    if (failed.length) {
-      await notifyFailedActions(
-        c.env,
-        db,
-        failed.map((e) => e.actionId),
-      );
-    }
+    const created = events.filter((e) => e.type === "message.created");
+    if (created.length) await fanOut(c.env, db, config, changedThreads(created), { push: true });
+    await notifyFailedActions(
+      c.env,
+      events.filter((e) => e.type === "action.failed"),
+    );
   } finally {
     c.executionCtx.waitUntil(close());
   }
@@ -87,9 +81,7 @@ const envelope = z.object({
 });
 const knownTypes = new Set<string>(mailEventSchema.options.map((o) => o.shape.type.value));
 
-type MessageCreated = Extract<MailEvent, { type: "message.created" }>;
-
-function changedThreads(events: MessageCreated[]) {
+function changedThreads(events: Extract<MailEvent, { type: "message.created" }>[]) {
   const byMailbox = new Map<string, Set<string>>();
   for (const event of events) {
     const threads = byMailbox.get(event.mailboxId) ?? new Set();
@@ -100,9 +92,10 @@ function changedThreads(events: MessageCreated[]) {
 }
 
 /** One AI job per thread that got a new message; flag changes need no AI. */
-function aiJobsFor(events: MessageCreated[]): AiJob[] {
+function aiJobsFor(events: MailEvent[]): AiJob[] {
   const threads = new Map<string, AiJob>();
   for (const event of events) {
+    if (event.type !== "message.created") continue;
     threads.set(event.threadId, {
       kind: "thread",
       threadId: event.threadId,

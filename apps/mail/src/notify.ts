@@ -1,8 +1,7 @@
-// Tells the Worker about newly indexed mail and permanently failed outbox actions (`POST
-// /internal/mail-events`, HMAC-signed) so it can queue AI jobs and notify open apps. Events are
-// batched and retried with backoff; delivery is at least once, and the Worker dedupes by message
-// or action id. Events still queued when the process dies are lost: the Worker's triage sweep is
-// the backstop for new mail, and `GET /api/actions/:id` for failures.
+// Tells the Worker about newly indexed mail (`POST /internal/mail-events`, HMAC-signed) so it can
+// queue AI jobs and notify open apps. Events are batched and retried with backoff; delivery is
+// at least once, and the Worker dedupes by message id. Events still queued when the process
+// dies are lost: the Worker's triage sweep is the backstop for those.
 import { randomUUID } from "node:crypto";
 import { MAIL_EVENTS_PATH, type MailEvent, MAX_EVENTS_PER_REQUEST } from "@omni/contracts";
 import { signRequest } from "@omni/crypto";

@@ -20,8 +20,14 @@ by the Worker; Better Auth invitations, organization switching and multi-session
 - **Vite + React SPA (single-page app), TanStack Router + TanStack Query**, as the spec says.
   TanStack Start stays rejected: everything is behind a login, so server rendering buys nothing.
 - **Same origin.** The one Worker serves the built SPA (Workers Static Assets) and `/api` on
-  `dash.<domain>`. The session cookie stays first-party; no CORS. In dev, Vite proxies `/api`
+  `inbox.omnidirectional.app`. The session cookie stays first-party; no CORS. In dev, Vite proxies `/api`
   (websocket included) to `wrangler dev`, so dev is same-origin too.
+- **Domains.** The app is `inbox.omnidirectional.app`. The bare domain `omnidirectional.app`
+  keeps the mail (MX at Purelymail) and is free for a marketing site with its own tooling and
+  deploys; sharing `/` between marketing and the app would tangle routes, caching and releases.
+  Passkeys use the bare domain as relying party ID (`AUTH_PASSKEY_RP_ID=omnidirectional.app`), so
+  they work on every subdomain and survive moving the app. For iOS passkeys (M5) the bare domain
+  serves `/.well-known/apple-app-site-association`. In code it is all config.
 - **Typed calls from `@omni/client`** (Hono RPC over the Worker's `AppType`). No codegen, no
   hand-written client.
 - **Realtime: the existing per-org Durable Object websocket** via `connectRealtime`. S2 stays
@@ -122,12 +128,14 @@ One stack, bottom-first:
 3. **`apps/web`.** The foundation above. Built against the agreed shapes while 1 and 2 are in
    review; rebased on them before it merges.
 
+Layer 1 landed as #48 and layer 2 as #50. In #50 the Worker picks the Message-ID and passes it in
+the send payload, and the realtime `action` event carries no `kind`; the web app follows #50.
+
 Layers 1 and 2 both touch `apps/worker` (1: `context.ts`, `packages/auth`, new org routes if any;
 2: `routes/mail.ts`, `packages/db/src/for-member.ts`, `mail-core`, `contracts`, `apps/mail`).
 Keeping them in one stack follows the "two stacks never edit the same package" rule.
 
 ## Open questions
 
-- Which domain hosts `dash.`: `omnidirectional.app` or a shorter one? Config only either way.
 - Do new members join by invitation only, or may an owner allow open sign-up for the org's email
   domain? Default: invitation only.

@@ -1,4 +1,4 @@
-import { deterministicMessageId } from "@omni/crypto";
+import { createHash } from "node:crypto";
 import { createTransport } from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import type { Logger } from "./log.ts";
@@ -181,7 +181,9 @@ export class OutboxExecutor {
     action: Extract<MailAction, { kind: "send" }>,
   ): Promise<void> {
     const mailbox = connection.mailbox;
-    const messageId = await sentMessageId(action.idempotencyKey, mailbox.address);
+    // The Worker picks it when it can, so the app knows it before the mail goes out.
+    const messageId =
+      action.payload.messageId ?? deterministicMessageId(action.idempotencyKey, mailbox.address);
     const raw = await composeMessage(action.payload, messageId);
 
     // A retry after SMTP accepted never resends. The window left is a crash between SMTP's OK and
@@ -222,13 +224,14 @@ async function persistAccepted(write: () => Promise<void>): Promise<void> {
   }
 }
 
-/** The send's Message-ID (`@omni/crypto`, shared with the Worker). No domain cannot be retried. */
-async function sentMessageId(idempotencyKey: string, address: string): Promise<string> {
-  try {
-    return await deterministicMessageId(idempotencyKey, address);
-  } catch (error) {
-    throw new PermanentActionError(error instanceof Error ? error.message : String(error));
+/** `<sha256(key)@domain>`: the same idempotency key always yields the same Message-ID. */
+export function deterministicMessageId(idempotencyKey: string, address: string): string {
+  const domain = address.slice(address.lastIndexOf("@") + 1);
+  if (!address.includes("@") || !domain) {
+    throw new PermanentActionError(`mailbox address has no domain: ${address}`);
   }
+  const hash = createHash("sha256").update(`omni-send:${idempotencyKey}`).digest("hex");
+  return `<${hash.slice(0, 32)}@${domain}>`;
 }
 
 function composeMessage(payload: SendPayload, messageId: string): Promise<Buffer> {

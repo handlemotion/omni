@@ -232,18 +232,26 @@ describe("outbox", () => {
       .where(eq(schema.messages.messageIdHeader, "<second@client.test>"));
     const cookie = await signIn(worker, db, "ana@hooli.test");
 
-    const reply = await api(`/threads/${first.threadId}/reply`, cookie, {
-      method: "POST",
-      headers: { "idempotency-key": "reply-partnership-1" },
-      body: JSON.stringify({ text: "Sounds good.", replyAll: true }),
-    });
-    expect(reply.status).toBe(202);
-    const { actionId } = (await reply.json()) as { actionId: string };
+    const sendReply = async () => {
+      const reply = await api(`/threads/${first.threadId}/reply`, cookie, {
+        method: "POST",
+        headers: { "idempotency-key": "reply-partnership-1" },
+        body: JSON.stringify({ text: "Sounds good.", replyAll: true }),
+      });
+      expect(reply.status).toBe(202);
+      return (await reply.json()) as { actionId: string; messageIdHeader: string };
+    };
+    const { actionId, messageIdHeader } = await sendReply();
+    // The app shows the pending message under this id; a retry must not hand out another.
+    expect(messageIdHeader).toMatch(/^<[0-9a-f-]{36}@hooli\.test>$/);
+    expect(await sendReply()).toEqual({ actionId, messageIdHeader });
+
     const [action] = await db
       .select()
       .from(schema.mailActions)
       .where(eq(schema.mailActions.id, actionId));
     expect(action?.payload).toEqual({
+      messageId: messageIdHeader,
       from: "hello@hooli.test",
       to: ["luis@client.test"],
       cc: ["marta@client.test"],
@@ -252,229 +260,61 @@ describe("outbox", () => {
       inReplyTo: "<second@client.test>",
       references: ["<first@client.test>", "<second@client.test>"],
     });
+
+    // After a reconnect the app asks how its send went; nobody else can.
+    expect(await get(`/actions/${actionId}`, cookie)).toMatchObject({
+      id: actionId,
+      kind: "send",
+      status: "pending",
+      error: null,
+    });
+    await createMember(db, org.id, "bo@hooli.test").then((bo) => grant(db, org.id, box.id, bo.id));
+    const other = await signIn(worker, db, "bo@hooli.test");
+    expect((await api(`/actions/${actionId}`, other)).status).toBe(404);
   });
 });
 
-describe("reads for the apps", () => {
-  const day = (n: number) => new Date(Date.UTC(2026, 9, n, 10));
-  type Row = {
-    id: string;
-    subject: string;
-    snippet: string;
-    latestFrom: { name: string | null; address: string };
-    participants: { name: string | null; address: string }[];
-    messageCount: number;
-    hasAttachments: boolean;
-    read: boolean;
-    snoozedUntil: string | null;
-  };
-  const ids = async (path: string, cookie: string) =>
-    (await get<{ threads: Row[] }>(path, cookie)).threads.map((t) => t.id);
-  let patches = 0;
-  const setState = (threadId: string, cookie: string, body: object) =>
-    api(`/threads/${threadId}/state`, cookie, {
-      method: "PATCH",
-      headers: { "idempotency-key": `state-${threadId}-${patches++}` },
-      body: JSON.stringify(body),
-    });
-
-  test("list rows carry what a row shows, and snoozes move threads between views for their member only", async () => {
-    const { db } = database;
-    const org = await createOrg(db, "umbrella");
-    await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
-    const ana = await createMember(db, org.id, "ana@umbrella.test");
-    const bea = await createMember(db, org.id, "bea@umbrella.test");
-    const box = await createMailbox(db, org.id, "hello@umbrella.test");
-    await grant(db, org.id, box.id, ana.id);
-    await grant(db, org.id, box.id, bea.id);
-
-    // Three senders, one twice in another case, and our own reply last.
-    const proposal = await seedMessage(db, box, {
-      subject: "Proposal",
-      fromAddress: "luis@client.test",
-      uid: 1,
-      sentAt: day(1),
-    });
-    for (const [uid, fromAddress, sentAt] of [
-      [2, "marta@client.test", day(2)],
-      [3, "LUIS@client.test", day(3)],
-    ] as const) {
-      await seedMessage(db, box, {
-        subject: "Re: Proposal",
-        fromAddress,
-        uid,
-        threadId: proposal.threadId,
-        sentAt,
-      });
-    }
-    const ours = await seedMessage(db, box, {
-      subject: "Re: Proposal (v2)",
-      fromAddress: "hello@umbrella.test",
-      folder: "Sent",
-      uid: 1,
-      threadId: proposal.threadId,
-      sentAt: day(4),
-      text: `  Here is   the\n\nrevised\tproposal. ${"More detail. ".repeat(30)}`,
-    });
-    await db
-      .update(schema.messages)
-      .set({ fromName: "Hello Team" })
-      .where(eq(schema.messages.id, ours.messageId));
-    await db.insert(schema.attachments).values({
-      orgId: org.id,
-      messageId: proposal.messageId,
-      filename: "terms.pdf",
-      mimeType: "application/pdf",
-      size: 10,
-      r2Key: `${org.id}/${box.id}/att/${"a".repeat(64)}`,
-    });
-    const newer = await seedMessage(db, box, {
-      subject: "Lunch?",
-      fromAddress: "pat@client.test",
-      uid: 4,
-      sentAt: day(5),
-    });
-    const archived = await seedMessage(db, box, {
-      subject: "Old news",
-      fromAddress: "pat@client.test",
-      uid: 5,
-      sentAt: day(6),
-    });
-    await db
-      .update(schema.threads)
-      .set({ archived: true })
-      .where(eq(schema.threads.id, archived.threadId));
-    await db
-      .update(schema.threads)
-      .set({ triage: "needs_reply", triageSource: "person" })
-      .where(eq(schema.threads.id, proposal.threadId));
-
-    const anaCookie = await signIn(worker, db, "ana@umbrella.test");
-    const beaCookie = await signIn(worker, db, "bea@umbrella.test");
-
-    const { threads } = await get<{ threads: Row[] }>("/threads", anaCookie);
-    expect(threads.map((t) => t.id)).toEqual([newer.threadId, proposal.threadId]);
-    // Catches rows built from the first message instead of the latest, senders repeated per
-    // message or per address case, and snippets that keep the body's raw whitespace.
-    expect(threads[1]).toMatchObject({
-      subject: "Re: Proposal (v2)",
-      latestFrom: { name: "Hello Team", address: "hello@umbrella.test" },
-      participants: [
-        { name: "Hello Team", address: "hello@umbrella.test" },
-        { name: null, address: "LUIS@client.test" },
-        { name: null, address: "marta@client.test" },
-      ],
-      messageCount: 4,
-      hasAttachments: true,
-      read: false,
-      snoozedUntil: null,
-    });
-    expect(threads[1]!.snippet).toMatch(/^Here is the revised proposal\. More detail\./);
-    expect(threads[1]!.snippet).toHaveLength(160);
-    expect(threads[0]).toMatchObject({ messageCount: 1, hasAttachments: false });
-
-    // Ana snoozes the proposal into the future, and the newer thread into the past.
-    const until = new Date(Date.now() + 86_400_000).toISOString();
-    expect((await setState(proposal.threadId, anaCookie, { snoozedUntil: until })).status).toBe(
-      200,
-    );
-    const past = { snoozedUntil: day(1).toISOString() };
-    expect((await setState(newer.threadId, anaCookie, past)).status).toBe(200);
-
-    expect(await ids("/threads?view=inbox", anaCookie)).toEqual([newer.threadId]);
-    expect(await ids("/threads?view=snoozed", anaCookie)).toEqual([proposal.threadId]);
-    expect(await ids("/threads?view=archive", anaCookie)).toEqual([archived.threadId]);
-    // Lanes filter every view.
-    expect(await ids("/threads?view=snoozed&lane=needs_reply", anaCookie)).toEqual([
-      proposal.threadId,
-    ]);
-    expect(await ids("/threads?view=snoozed&lane=fyi", anaCookie)).toEqual([]);
-    expect(await ids("/threads?lane=needs_reply", anaCookie)).toEqual([]);
-
-    // Ana's snooze is hers: Bea still has the proposal in her inbox and nothing snoozed.
-    expect(await ids("/threads", beaCookie)).toEqual([newer.threadId, proposal.threadId]);
-    expect(await ids("/threads?view=snoozed", beaCookie)).toEqual([]);
-    expect(await ids("/threads?lane=needs_reply", beaCookie)).toEqual([proposal.threadId]);
-
-    // Unsnoozed, it is back in Ana's inbox.
-    await setState(proposal.threadId, anaCookie, { snoozedUntil: null });
-    expect(await ids("/threads", anaCookie)).toEqual([newer.threadId, proposal.threadId]);
+test("a thread reads as chat: who wrote it, bubble or card, who was added, no storage keys", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "pied");
+  const member = await createMember(db, org.id, "ana@pied.test");
+  const box = await createMailbox(db, org.id, "hello@pied.test");
+  await grant(db, org.id, box.id, member.id);
+  const first = await seedMessage(db, box, {
+    subject: "Specs",
+    fromAddress: "luis@client.test",
+    to: ["hello@pied.test"],
+    uid: 1,
+    sentAt: new Date("2026-10-01T10:00:00Z"),
+    text: Array.from({ length: 130 }, () => "word").join(" "),
   });
-
-  test("counts are unread inbox threads per granted mailbox and lane, per member", async () => {
-    const { db } = database;
-    const org = await createOrg(db, "tyrell");
-    await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
-    const ana = await createMember(db, org.id, "ana@tyrell.test");
-    const bea = await createMember(db, org.id, "bea@tyrell.test");
-    const sales = await createMailbox(db, org.id, "sales@tyrell.test");
-    const support = await createMailbox(db, org.id, "support@tyrell.test");
-    const hr = await createMailbox(db, org.id, "hr@tyrell.test");
-    for (const box of [sales, support]) await grant(db, org.id, box.id, ana.id);
-    await grant(db, org.id, sales.id, bea.id);
-    await seedMessage(db, hr, { subject: "Not Ana's", fromAddress: "x@y.test", uid: 1 });
-
-    const seed = async (uid: number, triage?: { bucket: "needs_reply" | "fyi"; c: number }) => {
-      const { threadId } = await seedMessage(db, sales, {
-        subject: `Lead ${uid}`,
-        fromAddress: "lead@client.test",
-        uid,
-      });
-      if (triage) {
-        await db
-          .update(schema.threads)
-          .set({ triage: triage.bucket, triageConfidence: triage.c, triageSource: "ai" })
-          .where(eq(schema.threads.id, threadId));
-      }
-      return threadId;
-    };
-    const sure = await seed(1, { bucket: "needs_reply", c: 0.95 });
-    await seed(2, { bucket: "needs_reply", c: 0.95 });
-    await seed(3, { bucket: "fyi", c: 0.4 });
-    const read = await seed(4, { bucket: "needs_reply", c: 0.95 });
-    const snoozed = await seed(5, { bucket: "fyi", c: 0.99 });
-    const archived = await seed(6, { bucket: "needs_reply", c: 0.95 });
-    await seed(7);
-    await db.update(schema.threads).set({ archived: true }).where(eq(schema.threads.id, archived));
-
-    const anaCookie = await signIn(worker, db, "ana@tyrell.test");
-    const beaCookie = await signIn(worker, db, "bea@tyrell.test");
-    await setState(read, anaCookie, { read: true });
-    await setState(snoozed, anaCookie, {
-      snoozedUntil: new Date(Date.now() + 86_400_000).toISOString(),
-    });
-
-    type Counts = {
-      mailboxes: { mailboxId: string; unread: number; lanes: Record<string, number> }[];
-    };
-    const counts = async (cookie: string) => (await get<Counts>("/counts", cookie)).mailboxes;
-    const lanes = (needs_reply: number, fyi: number, unsure: number) => ({
-      needs_reply,
-      waiting_on_them: 0,
-      fyi,
-      noise: 0,
-      unsure,
-    });
-
-    // Catches counting read, snoozed or archived threads, low-confidence triage in its bucket
-    // instead of Unsure, and mailboxes the member cannot see.
-    expect(await counts(anaCookie)).toEqual(
-      expect.arrayContaining([
-        { mailboxId: sales.id, unread: 4, lanes: lanes(2, 0, 1) },
-        { mailboxId: support.id, unread: 0, lanes: lanes(0, 0, 0) },
-      ]),
-    );
-    expect(await counts(anaCookie)).toHaveLength(2);
-    // Read and snooze are Ana's: Bea counts both, and only the mailbox she was granted.
-    expect(await counts(beaCookie)).toEqual([
-      { mailboxId: sales.id, unread: 6, lanes: lanes(3, 1, 1) },
-    ]);
-
-    await setState(sure, anaCookie, { read: true });
-    expect((await counts(anaCookie)).find((m) => m.mailboxId === sales.id)).toEqual({
-      mailboxId: sales.id,
-      unread: 3,
-      lanes: lanes(1, 0, 1),
-    });
+  await seedMessage(db, box, {
+    subject: "Re: Specs",
+    fromAddress: "HELLO@pied.test",
+    to: ["luis@client.test", "marta@client.test"],
+    uid: 2,
+    threadId: first.threadId,
+    sentAt: new Date("2026-10-02T10:00:00Z"),
+    text: "On it.",
   });
+  await db
+    .update(schema.messages)
+    .set({ htmlR2Key: "org/box/html/abc.html", r2Key: "org/box/raw/abc.eml" })
+    .where(eq(schema.messages.id, first.messageId));
+  const cookie = await signIn(worker, db, "ana@pied.test");
+
+  const thread = await get<{ messages: Record<string, unknown>[] }>(
+    `/threads/${first.threadId}`,
+    cookie,
+  );
+  expect(thread.messages).toMatchObject([
+    { fromMe: false, display: "card", hasHtml: true, addedParticipants: [] },
+    {
+      fromMe: true,
+      display: "bubble",
+      hasHtml: false,
+      addedParticipants: [{ address: "marta@client.test" }],
+    },
+  ]);
+  expect(JSON.stringify(thread)).not.toMatch(/r2Key|abc\.(eml|html)/);
 });

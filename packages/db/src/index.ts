@@ -1,12 +1,12 @@
 export { createDb, type Db } from "./client.ts";
 export {
   forMember,
-  LANES,
   TRIAGE_AUTO_FILE_CONFIDENCE,
-  UNREAD_COUNT_CAP,
+  LANES,
   type Lane,
-  type MemberQueries,
   type ThreadView,
+  type Participant,
+  type MemberQueries,
 } from "./for-member.ts";
 export * from "./writers.ts";
 export * from "./mail-sync.ts";

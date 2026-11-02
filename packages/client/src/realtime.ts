@@ -32,7 +32,7 @@ export interface Realtime {
 
 /**
  * Keeps one realtime socket open, reconnecting with jittered exponential backoff, and hands
- * each `changed` and `action` event to `onEvent`. Messages it does not know are ignored, so the Worker can
+ * each `changed` event to `onEvent`. Messages it does not know are ignored, so the Worker can
  * add event types without breaking older apps.
  */
 export function connectRealtime(options: RealtimeOptions): Realtime {
@@ -121,7 +121,7 @@ function parseEvent(data: string): RealtimeEvent | undefined {
     return undefined;
   }
   if (typeof value !== "object" || value === null) return undefined;
-  const event = value as Record<string, unknown>;
+  const event = value as Partial<RealtimeEvent>;
   if (
     event.type === "changed" &&
     typeof event.mailboxId === "string" &&
@@ -133,27 +133,10 @@ function parseEvent(data: string): RealtimeEvent | undefined {
   if (
     event.type === "action" &&
     typeof event.actionId === "string" &&
-    typeof event.kind === "string" &&
-    actionKinds.has(event.kind) &&
     event.status === "failed" &&
     typeof event.error === "string"
   ) {
-    return {
-      type: "action",
-      actionId: event.actionId,
-      kind: event.kind as ActionEvent["kind"],
-      status: "failed",
-      error: event.error,
-    };
+    return { type: "action", actionId: event.actionId, status: "failed", error: event.error };
   }
   return undefined;
 }
-
-type ActionEvent = Extract<RealtimeEvent, { type: "action" }>;
-const actionKinds = new Set<string>([
-  "send",
-  "archive",
-  "move",
-  "mark_read",
-  "mark_unread",
-] satisfies ActionEvent["kind"][]);

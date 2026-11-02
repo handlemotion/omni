@@ -1,25 +1,10 @@
-// How a stored thread reads in chat mode: bubble or card per message, and who joined mid-thread.
-// No dependencies, so the Worker imports it as `@omni/mail-core/display` without the parser.
+// How a thread renders as chat. Pure and free of mailparser, so the Worker can import it
+// (`@omni/mail-core/display`) to shape the thread for web and iOS alike.
 
-export interface DisplayAddress {
-  name: string | null;
-  address: string;
-}
-
-/** The fields of a stored message (`messages` row) that participants are read from. */
-export interface DisplayMessage {
-  fromAddress: string;
-  to: DisplayAddress[];
-  cc: DisplayAddress[];
-}
-
-/** Over this many words of clean text, a message renders as a card (spec: "about 120 words"). */
+/** Spec "Rendering rules": over about 120 words renders as a card. */
 export const CARD_MIN_WORDS = 121;
 
-/**
- * `"card"` for long messages, `"bubble"` otherwise. The spec's "tables make it a card" rule needs
- * the HTML, so it is not applied here.
- */
+/** `bubble` for a short message, `card` for a long one, judged on the stripped text. */
 export function messageDisplay(cleanText: string): "bubble" | "card" {
   let words = 0;
   for (const _ of cleanText.matchAll(/\S+/g)) {
@@ -29,26 +14,36 @@ export function messageDisplay(cleanText: string): "bubble" | "card" {
 }
 
 /**
- * For each message (oldest first), the To/Cc addresses no earlier message had in From, To or
- * Cc, compared case-insensitively: the "Ana added Luis" line. The first message adds nobody,
- * nor does anyone add the mailbox itself or the message's own sender.
+ * For each message, oldest first, the To/Cc people no earlier message in the thread included
+ * ("Ana added Luis"). The first message adds nobody: everyone on it started the thread.
  */
-export function addedParticipants(
-  messages: readonly DisplayMessage[],
-  selfAddress: string,
-): DisplayAddress[][] {
-  const seen = new Set<string>([selfAddress.toLowerCase()]);
+export function addedParticipants<A extends { address: string }>(
+  messages: readonly { fromAddress: string; to: readonly A[]; cc: readonly A[] }[],
+): A[][] {
+  const seen: string[] = [];
   return messages.map((message, index) => {
-    const sender = message.fromAddress.toLowerCase();
-    const recipients = [...message.to, ...message.cc];
-    const added: DisplayAddress[] = [];
-    for (const recipient of recipients) {
-      const key = recipient.address.toLowerCase();
-      // Marked seen right away, so an address on both To and Cc is added once.
-      if (index > 0 && key !== sender && !seen.has(key)) added.push(recipient);
-      seen.add(key);
-    }
-    seen.add(sender);
+    const from = { address: message.fromAddress };
+    const added = index === 0 ? [] : addedRecipients({ ...message, from }, seen);
+    seen.push(...[from, ...message.to, ...message.cc].map((a) => a.address));
     return added;
+  });
+}
+
+/**
+ * People on To/Cc that no earlier message in the thread included, for the "Ana added Luis"
+ * system line. `earlier` is every address already seen in the thread. Works on parsed mail and
+ * on stored rows alike; addresses compare case-insensitively.
+ */
+export function addedRecipients<A extends { address: string }>(
+  message: { from: { address: string } | null; to: readonly A[]; cc: readonly A[] },
+  earlier: Iterable<string>,
+): A[] {
+  const seen = new Set([...earlier].map((a) => a.toLowerCase()));
+  if (message.from) seen.add(message.from.address.toLowerCase());
+  return [...message.to, ...message.cc].filter((a) => {
+    const key = a.address.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }

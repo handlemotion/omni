@@ -29,7 +29,7 @@ export function ThreadList(props: {
               t.id,
               <>
                 {t.read ? "" : "● "}
-                {t.subject || "(no subject)"} · {t.latestFrom.name ?? t.latestFrom.address} ·{" "}
+                {t.subject || "(no subject)"} · {t.latestFrom?.name ?? t.latestFrom?.address} ·{" "}
                 {t.messageCount} · {t.triage ?? "untriaged"} · {t.snippet}
               </>,
             )}

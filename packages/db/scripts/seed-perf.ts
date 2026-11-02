@@ -211,10 +211,9 @@ await step(
   "thread_state",
   `
   select setseed(0.47);
-  -- Each member has opened about 60% of the threads they can see, and snoozed 1% of those.
-  insert into thread_state (org_id, thread_id, member_id, read, snoozed_until)
-    select t.org_id, t.id, a.member_id, true,
-      case when random() < 0.01 then now() + interval '3 days' end
+  -- Each member has opened about 60% of the threads they can see.
+  insert into thread_state (org_id, thread_id, member_id, read)
+    select t.org_id, t.id, a.member_id, true
     from threads t join mailbox_access a on a.mailbox_id = t.mailbox_id
     where random() < 0.6;
 `,

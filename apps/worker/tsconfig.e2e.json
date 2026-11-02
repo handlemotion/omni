@@ -5,7 +5,5 @@
     "types": ["node"],
     "allowImportingTsExtensions": true
   },
-  "include": ["e2e"],
-  // mail-service.e2e.test.ts runs the real mail service in-process.
-  "references": [{ "path": "../mail" }]
+  "include": ["e2e"]
 }

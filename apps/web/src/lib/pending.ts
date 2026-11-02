@@ -25,7 +25,8 @@ export interface PendingSend {
 /** An outbox action that failed for good, for the UI to surface (toast, banner). */
 export interface ActionFailure {
   actionId: string;
-  kind: string;
+  /** `send`, `archive`, …; unknown when it came from a realtime event. */
+  kind?: string | undefined;
   error: string;
   at: string;
 }

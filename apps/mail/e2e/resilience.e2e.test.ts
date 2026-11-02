@@ -6,11 +6,11 @@ import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
-import { deterministicMessageId, parseKeyring } from "@omni/crypto";
+import { parseKeyring } from "@omni/crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { sealCredentials } from "../src/credentials.ts";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
-import { OutboxExecutor } from "../src/outbox.ts";
+import { deterministicMessageId, OutboxExecutor } from "../src/outbox.ts";
 import { PgActionSource, PgMailStore } from "../src/pg-store.ts";
 import {
   actionRow,
@@ -197,7 +197,7 @@ describe("mail service under faults", () => {
     await executor.drain();
     expect(await actionRow(db, id)).toMatchObject({ status: "done" });
 
-    const messageId = await deterministicMessageId(key, box.address);
+    const messageId = deterministicMessageId(key, box.address);
     const copies = (folder: string, owner: typeof box) =>
       otherClient(owner, async (client) => {
         await client.mailboxOpen(folder);

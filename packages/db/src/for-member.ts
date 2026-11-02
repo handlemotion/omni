@@ -1,15 +1,4 @@
-import {
-  and,
-  desc,
-  eq,
-  getTableColumns,
-  notExists,
-  or,
-  sql,
-  type AnyColumn,
-  type SQL,
-} from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { and, desc, eq, getTableColumns, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import {
   attachments,
@@ -21,24 +10,32 @@ import {
   threadState,
   threads,
   triageBucket,
-  type Address,
 } from "./schema/index.ts";
 
 /** Triage at or above this confidence files itself; below it lands in the Unsure lane. */
 export const TRIAGE_AUTO_FILE_CONFIDENCE = 0.85;
 
-/** Unread counts stop at this many threads (the apps show "999+"), so a count costs at most this. */
-export const UNREAD_COUNT_CAP = 1000;
+export type Lane = (typeof triageBucket.enumValues)[number] | "unsure";
 
-export const LANES = [...triageBucket.enumValues, "unsure"] as const;
-export type Lane = (typeof LANES)[number];
+export const LANES = [...triageBucket.enumValues, "unsure"] as const satisfies readonly Lane[];
 
 /**
- * `inbox`: not archived and not snoozed into the future by this member. `snoozed`: not archived
- * and snoozed into the future by this member. `archive`: archived. Snoozes are per member, so
- * another member's snooze never hides a thread.
+ * `inbox`: not archived, not snoozed into the future. `snoozed`: not archived, snoozed into the
+ * future (it returns to the inbox by itself when the time passes). `archive`: archived.
  */
 export type ThreadView = "inbox" | "snoozed" | "archive";
+
+export interface Participant {
+  name: string | null;
+  address: string;
+}
+
+/** Lane membership, the same rule the list filter and the counts use. */
+function laneFilter(lane: Lane): SQL {
+  return lane === "unsure"
+    ? sql`(${threads.triageSource} = 'ai' and ${threads.triageConfidence} < ${TRIAGE_AUTO_FILE_CONFIDENCE})`
+    : sql`(${threads.triage} = ${lane} and (${threads.triageSource} = 'person' or ${threads.triageConfidence} >= ${TRIAGE_AUTO_FILE_CONFIDENCE}))`;
+}
 
 export interface ThreadCursor {
   lastMessageAt: Date;
@@ -48,33 +45,6 @@ export interface ThreadCursor {
 export type MemberQueries = ReturnType<typeof forMember>;
 
 const { searchVector: _searchVector, ...messageColumns } = getTableColumns(messages);
-
-/** Characters of the latest message's clean text in a list row's snippet. */
-const SNIPPET_LENGTH = 160;
-/** Senders a list row names. */
-const MAX_PARTICIPANTS = 5;
-
-/** Lane membership as a filter on `threads`. */
-function laneFilter(lane: Lane): SQL | undefined {
-  if (lane === "unsure") {
-    return and(
-      eq(threads.triageSource, "ai"),
-      sql`${threads.triageConfidence} < ${TRIAGE_AUTO_FILE_CONFIDENCE}`,
-    );
-  }
-  return and(
-    eq(threads.triage, lane),
-    or(
-      eq(threads.triageSource, "person"),
-      sql`${threads.triageConfidence} >= ${TRIAGE_AUTO_FILE_CONFIDENCE}`,
-    ),
-  );
-}
-
-/** postgres-js parses `json` itself; this also accepts a driver that hands back text. */
-function parseJson<T>(value: unknown): T {
-  return (typeof value === "string" ? JSON.parse(value) : value) as T;
-}
 
 /**
  * The only read path to mail data. Every query inner-joins `mailbox_access` for this member and
@@ -99,30 +69,36 @@ export function forMember(db: Db, memberId: string) {
     snoozedUntil: threadState.snoozedUntil,
   };
   const myState = and(eq(threadState.threadId, threads.id), eq(threadState.memberId, memberId));
+  const snoozedNow = sql`exists (select 1 from ${threadState} where ${threadState.threadId} = ${threads.id} and ${threadState.memberId} = ${memberId} and ${threadState.snoozedUntil} > now())`;
 
-  // This member's state row for the `threads` row in scope, read through its primary key.
-  const hidden = alias(threadState, "hidden");
-  const snoozedNow = sql`${hidden.snoozedUntil} > now()`;
-  const mine = and(eq(hidden.threadId, threads.id), eq(hidden.memberId, memberId));
-  // A scalar subquery rather than `not exists`: the planner would otherwise materialize every
-  // snooze of the member and compare each thread against all of them.
-  const notSnoozed = sql`coalesce((${db
-    .select({ until: hidden.snoozedUntil })
-    .from(hidden)
-    .where(mine)}), '-infinity'::timestamptz) <= now()`;
-  const unreadAndAwake = notExists(
-    db
-      .select({ one: sql`1` })
-      .from(hidden)
-      .where(and(mine, sql`(${hidden.read} or ${snoozedNow})`)),
-  );
+  // Per-thread summary for list rows, read through the thread (already access-checked).
+  const rowFields = {
+    ...threadFields,
+    latest: sql<{
+      subject: string;
+      fromName: string | null;
+      fromAddress: string;
+      snippet: string;
+    } | null>`(select jsonb_build_object('subject', m.subject, 'fromName', m.from_name, 'fromAddress', m.from_address, 'snippet', left(btrim(regexp_replace(left(m.clean_text, 600), '\\s+', ' ', 'g')), 200)) from ${messages} m where m.thread_id = ${threads.id} order by m.sent_at desc, m.id desc limit 1)`.as(
+      "latest",
+    ),
+    messageCount:
+      sql<number>`(select count(*)::int from ${messages} m where m.thread_id = ${threads.id})`.as(
+        "message_count",
+      ),
+    hasAttachments:
+      sql<boolean>`exists (select 1 from ${attachments} a join ${messages} m on m.id = a.message_id where m.thread_id = ${threads.id})`.as(
+        "has_attachments",
+      ),
+    // Distinct senders in the order they first wrote.
+    participants: sql<
+      Participant[]
+    >`(select coalesce(jsonb_agg(jsonb_build_object('name', p.from_name, 'address', p.from_address) order by p.first_at), '[]'::jsonb) from (select distinct on (lower(m.from_address)) m.from_name, m.from_address, m.sent_at as first_at from ${messages} m where m.thread_id = ${threads.id} order by lower(m.from_address), m.sent_at) p)`.as(
+      "participants",
+    ),
+  };
 
   return {
-    /**
-     * One page of a view, newest first, with what a list row shows: the latest message's subject,
-     * snippet and sender, up to five distinct senders (newest first), the message count and
-     * whether any message has attachments.
-     */
     async listThreads(
       options: {
         mailboxId?: string;
@@ -137,8 +113,11 @@ export function forMember(db: Db, memberId: string) {
         eq(threads.mailboxId, mailboxAccess.mailboxId),
         eq(threads.orgId, members.organizationId),
         eq(threads.archived, view === "archive"),
-        lane ? laneFilter(lane) : undefined,
       ];
+      // Inside the page, so a page of snoozed threads never comes back short.
+      if (view === "inbox") filters.push(sql`not ${snoozedNow}`);
+      if (view === "snoozed") filters.push(snoozedNow);
+      if (lane) filters.push(laneFilter(lane));
       if (before) {
         filters.push(
           sql`(${threads.lastMessageAt}, ${threads.id}) < (${before.lastMessageAt.toISOString()}::timestamptz, ${before.id})`,
@@ -147,31 +126,18 @@ export function forMember(db: Db, memberId: string) {
       // The newest `limit` threads of each granted mailbox (an index range per mailbox), then
       // the newest `limit` of those. Cost follows grants × limit, not the size of the mail. The
       // lateral page is aliased `threads`, so the outer query reads it through the same columns.
-      // Inbox skips this member's snoozed threads as it walks; the snoozed view starts from the
-      // member's snoozes (`thread_state_member_snoozed_idx`), so it costs grants × snoozes.
-      const order = [desc(threads.lastMessageAt), desc(threads.id)];
-      const perMailbox =
-        view === "snoozed"
-          ? db
-              .select(getTableColumns(threads))
-              .from(hidden)
-              .innerJoin(threads, eq(threads.id, hidden.threadId))
-              .where(and(eq(hidden.memberId, memberId), snoozedNow, ...filters))
-              .orderBy(...order)
-              .limit(limit)
-              .as("threads")
-          : db
-              .select(getTableColumns(threads))
-              .from(threads)
-              .where(and(...filters, view === "inbox" ? notSnoozed : undefined))
-              .orderBy(...order)
-              .limit(limit)
-              .as("threads");
       const page = db
-        .select(threadFields)
+        .select()
+        .from(threads)
+        .where(and(...filters))
+        .orderBy(desc(threads.lastMessageAt), desc(threads.id))
+        .limit(limit)
+        .as("threads");
+      const rows = await db
+        .select(rowFields)
         .from(mailboxAccess)
         .innerJoin(members, eq(members.id, mailboxAccess.memberId))
-        .crossJoinLateral(perMailbox)
+        .crossJoinLateral(page)
         .leftJoin(threadState, myState)
         .where(
           and(
@@ -179,68 +145,66 @@ export function forMember(db: Db, memberId: string) {
             mailboxId ? eq(mailboxAccess.mailboxId, mailboxId) : undefined,
           ),
         )
-        .orderBy(...order)
-        .limit(limit)
-        .as("page");
-
-      // Row details for the final `limit` rows only, each from `messages_thread_id_sent_at_idx`.
-      const latest = db
-        .select({
-          subject: messages.subject,
-          fromName: messages.fromName,
-          fromAddress: messages.fromAddress,
-          // Collapse whitespace over a prefix only: clean text can be long.
-          snippet:
-            sql<string>`left(btrim(regexp_replace(left(${messages.cleanText}, ${SNIPPET_LENGTH * 3}), '[[:space:]]+', ' ', 'g')), ${SNIPPET_LENGTH})`.as(
-              "snippet",
-            ),
-        })
-        .from(messages)
-        .where(eq(messages.threadId, page.id))
-        .orderBy(desc(messages.sentAt), desc(messages.id))
-        .limit(1)
-        .as("latest");
-      // Drizzle writes columns in a subquery's select list unqualified, which makes `page.id`
-      // there ambiguous with `messages.id`: name it in full.
-      const pageId = sql`"page"."id"`;
-      const stats = db
-        .select({
-          messageCount: sql<number>`count(*)::int`.as("message_count"),
-          hasAttachments: sql<boolean>`exists (
-            select 1 from ${messages} m join ${attachments} a on a.message_id = m.id
-            where m.thread_id = ${pageId})`.as("has_attachments"),
-          participants: sql<Address[]>`(
-            select coalesce(json_agg(json_build_object('name', p.from_name, 'address', p.from_address)
-              order by p.sent_at desc, p.id desc), '[]'::json)
-            from (
-              select * from (
-                select distinct on (lower(m.from_address)) m.from_name, m.from_address, m.sent_at, m.id
-                from ${messages} m where m.thread_id = ${pageId}
-                order by lower(m.from_address), m.sent_at desc, m.id desc
-              ) senders order by sent_at desc, id desc limit ${MAX_PARTICIPANTS}
-            ) p)`
-            .mapWith((value: unknown) => parseJson<Address[]>(value))
-            .as("participants"),
-        })
-        .from(messages)
-        .where(eq(messages.threadId, page.id))
-        .as("stats");
-
-      const rows = await db
-        .select()
-        .from(page)
-        .leftJoinLateral(latest, sql`true`)
-        .crossJoinLateral(stats)
-        .orderBy(desc(page.lastMessageAt), desc(page.id));
-      return rows.map(({ page: thread, latest: message, stats: counts }) => ({
-        ...thread,
-        subject: message?.subject ?? "",
-        snippet: message?.snippet ?? "",
-        latestFrom: { name: message?.fromName ?? null, address: message?.fromAddress ?? "" },
-        participants: counts.participants,
-        messageCount: counts.messageCount,
-        hasAttachments: counts.hasAttachments,
+        .orderBy(desc(threads.lastMessageAt), desc(threads.id))
+        .limit(limit);
+      return rows.map(({ latest, ...row }) => ({
+        ...row,
+        unread: !row.read,
+        subject: latest?.subject ?? "",
+        snippet: latest?.snippet ?? "",
+        latestFrom: latest ? { name: latest.fromName, address: latest.fromAddress } : null,
       }));
+    },
+
+    /**
+     * Thread counts per granted mailbox, for the mailbox list: inbox (unread too), snoozed, and
+     * each lane within the inbox. The same rules as `listThreads`.
+     */
+    async counts() {
+      // This member's state row is joined already; no per-thread lookup.
+      const snoozed = sql`coalesce(${threadState.snoozedUntil} > now(), false)`;
+      const inbox = sql`not ${snoozed}`;
+      const unread = sql`coalesce(${threadState.read}, false) = false`;
+      const count = (filter: SQL) => sql<number>`(count(*) filter (where ${filter}))::int`;
+      const rows = await db
+        .select({
+          mailboxId: threads.mailboxId,
+          inbox: count(inbox),
+          unread: count(and(inbox, unread)!),
+          snoozed: count(snoozed),
+          lanes: sql<Record<Lane, number>>`jsonb_build_object(${sql.join(
+            LANES.map((lane) => sql`${lane}::text, ${count(and(inbox, laneFilter(lane))!)}`),
+            sql`, `,
+          )})`,
+        })
+        .from(threads)
+        .innerJoin(...threadGrant)
+        .innerJoin(...threadOrg)
+        .leftJoin(threadState, myState)
+        .where(eq(threads.archived, false))
+        .groupBy(threads.mailboxId);
+      return rows;
+    },
+
+    /** An outbox action this member asked for, on a mailbox they can still see. */
+    async getAction(actionId: string) {
+      const [actionGrant, actionOrg] = access(mailActions.mailboxId, mailActions.orgId);
+      const [row] = await db
+        .select({
+          id: mailActions.id,
+          mailboxId: mailActions.mailboxId,
+          kind: mailActions.kind,
+          status: mailActions.status,
+          attempts: mailActions.attempts,
+          error: mailActions.lastError,
+          createdAt: mailActions.createdAt,
+          completedAt: mailActions.completedAt,
+        })
+        .from(mailActions)
+        .innerJoin(...actionGrant)
+        .innerJoin(...actionOrg)
+        .where(and(eq(mailActions.id, actionId), eq(mailActions.memberId, memberId)));
+      return row ?? null;
     },
 
     async getThread(threadId: string) {
@@ -277,78 +241,6 @@ export function forMember(db: Db, memberId: string) {
           attachments: files.filter((a) => a.messageId === m.id),
         })),
       };
-    },
-
-    /**
-     * Unread threads in the inbox view (not archived, not snoozed by this member), per granted
-     * mailbox and per lane. Each count stops at `UNREAD_COUNT_CAP`: imported history leaves most
-     * old threads unread, and an exact count would read all of them. Each is an index range on
-     * `threads_mailbox_page_idx` / `threads_mailbox_lane_page_idx` that stops at the cap.
-     */
-    async counts() {
-      const unread = (lane?: Lane) =>
-        sql<number>`(select count(*)::int from (${db
-          .select({ one: sql`1` })
-          .from(threads)
-          .where(
-            and(
-              eq(threads.mailboxId, mailboxAccess.mailboxId),
-              eq(threads.orgId, members.organizationId),
-              eq(threads.archived, false),
-              lane ? laneFilter(lane) : undefined,
-              unreadAndAwake,
-            ),
-          )
-          // The page index's order, so an ordered index scan can stop at the cap.
-          .orderBy(desc(threads.lastMessageAt), desc(threads.id))
-          .limit(UNREAD_COUNT_CAP)}) capped)`;
-      const rows = await db
-        .select({
-          mailboxId: mailboxAccess.mailboxId,
-          unread: unread(),
-          needs_reply: unread("needs_reply"),
-          waiting_on_them: unread("waiting_on_them"),
-          fyi: unread("fyi"),
-          noise: unread("noise"),
-          unsure: unread("unsure"),
-        })
-        .from(mailboxAccess)
-        .innerJoin(
-          members,
-          and(
-            eq(members.id, mailboxAccess.memberId),
-            eq(members.organizationId, mailboxAccess.orgId),
-          ),
-        )
-        .where(eq(mailboxAccess.memberId, memberId))
-        .orderBy(mailboxAccess.mailboxId);
-      return rows.map(({ mailboxId, unread: total, ...lanes }) => ({
-        mailboxId,
-        unread: total,
-        lanes,
-      }));
-    },
-
-    /**
-     * An outbox action this member asked for, or null. `lastError` is the raw error for
-     * operators; apps get a user-safe message from the Worker instead.
-     */
-    async getAction(actionId: string) {
-      const [row] = await db
-        .select({
-          id: mailActions.id,
-          kind: mailActions.kind,
-          status: mailActions.status,
-          attempts: mailActions.attempts,
-          lastError: mailActions.lastError,
-        })
-        .from(mailActions)
-        .innerJoin(
-          members,
-          and(eq(members.id, mailActions.memberId), eq(members.organizationId, mailActions.orgId)),
-        )
-        .where(and(eq(mailActions.id, actionId), eq(mailActions.memberId, memberId)));
-      return row ?? null;
     },
 
     /**

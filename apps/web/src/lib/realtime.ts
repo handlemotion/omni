@@ -60,7 +60,7 @@ export function startRealtime(client: QueryClient): () => void {
       return;
     }
     if (event.type === "action" && event.status === "failed") {
-      onActionFailed(client, event.actionId, event.kind, event.error);
+      onActionFailed(client, event.actionId, undefined, event.error);
     }
   };
 
@@ -85,7 +85,12 @@ export function startRealtime(client: QueryClient): () => void {
   };
 }
 
-function onActionFailed(client: QueryClient, actionId: string, kind: string, error: string) {
+function onActionFailed(
+  client: QueryClient,
+  actionId: string,
+  kind: string | undefined,
+  error: string,
+) {
   // A failed reply shows on its pending bubble; anything else is reported as a failure, and the
   // lists refetch because an optimistic archive or move may not have happened after all.
   if (!failPendingByAction(client, actionId, error)) {

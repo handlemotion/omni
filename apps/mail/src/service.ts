@@ -62,8 +62,7 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     store,
     actions: new PgActionSource({
       db,
-      onFailed: ({ id, ...action }) =>
-        notifier.push({ type: "action.failed", actionId: id, ...action }),
+      onFailed: (action) => notifier.push({ type: "action.failed", ...action }),
     }),
     logger: log,
     syncIntervalMs: config.SYNC_INTERVAL_MS,

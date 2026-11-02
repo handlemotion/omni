@@ -5,10 +5,7 @@ import { z } from "zod";
 /** Worker → mail service: "the outbox or the mailbox list changed". Empty body. 202 or 401. */
 export const MAIL_PING_PATH = "/ping";
 
-/**
- * Mail service → Worker: new mail was indexed, or an outbox action failed for good. JSON
- * `MailEventsBody`. Any 2xx accepts.
- */
+/** Mail service → Worker: new mail was indexed. JSON `MailEventsBody`. Any 2xx accepts. */
 export const MAIL_EVENTS_PATH = "/internal/mail-events";
 
 export const folderRoleSchema = z.enum(["inbox", "sent", "archive", "trash", "other"]);
@@ -28,16 +25,17 @@ export const messageCreatedEventSchema = z.object({
 });
 
 /**
- * An outbox action failed for good: the mail service stopped retrying it (`mail_actions.status`
- * is `failed`). The receiver reads the action's member, kind and error from `mail_actions`.
- * Delivery is at least once, so receivers must be idempotent per `actionId`.
+ * An outbox action failed for good: no more retries. The Worker tells the member who asked for
+ * it, so a send shows as failed. At least once, like every event; receivers key on `actionId`.
  */
 export const actionFailedEventSchema = z.object({
   type: z.literal("action.failed"),
   orgId: z.string().min(1),
   mailboxId: z.string().min(1),
-  /** `mail_actions.id`. */
   actionId: z.string().min(1),
+  /** Null for system mail (magic links, invitations): nobody to tell. */
+  memberId: z.string().min(1).nullable(),
+  error: z.string(),
 });
 
 export const mailEventSchema = z.discriminatedUnion("type", [
@@ -77,6 +75,14 @@ export const sendPayloadSchema = z.object({
   inReplyTo: z.string().optional(),
   /** Full References chain of the reply, oldest first. */
   references: z.array(z.string()).optional(),
+  /**
+   * Message-ID to send with, in `<id@host>` form, chosen by the Worker so the app knows it before
+   * the mail goes out. Absent: the mail service derives one from the idempotency key.
+   */
+  messageId: z
+    .string()
+    .regex(/^<[^<>\s@]+@[^<>\s@]+>$/)
+    .optional(),
 });
 
 export const actionPayloadSchemas = {

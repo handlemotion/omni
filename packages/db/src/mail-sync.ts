@@ -361,10 +361,9 @@ export async function markActionSmtpAccepted(db: Db, id: string) {
 /**
  * Records a failed attempt with the caller's retry time, or marks the action `failed` when
  * `retryAt` is null. Use this when the caller owns the backoff policy; `failAction` applies its own.
- * Returns the updated action, or null when it was no longer running (the lease moved on).
  */
 export async function rescheduleAction(db: Db, id: string, error: string, retryAt: Date | null) {
-  const [row] = await db
+  const rows = await db
     .update(mailActions)
     .set({
       status: retryAt ? "pending" : "failed",
@@ -374,8 +373,14 @@ export async function rescheduleAction(db: Db, id: string, error: string, retryA
       updatedAt: new Date(),
     })
     .where(and(eq(mailActions.id, id), eq(mailActions.status, "running")))
-    .returning({ id: mailActions.id, orgId: mailActions.orgId, mailboxId: mailActions.mailboxId });
-  return row ?? null;
+    .returning({
+      id: mailActions.id,
+      orgId: mailActions.orgId,
+      mailboxId: mailActions.mailboxId,
+      memberId: mailActions.memberId,
+      status: mailActions.status,
+    });
+  return rows[0] ?? null;
 }
 /**
  * Hands a claimed action back without counting its attempt: the mailbox was not ready, which says

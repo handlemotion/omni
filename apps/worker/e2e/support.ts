@@ -366,43 +366,6 @@ export async function postMailEvents(
   });
 }
 
-export interface RealtimeSocket {
-  socket: WebSocket;
-  received: Record<string, unknown>[];
-  /** Resolves once at least `count` events have arrived. */
-  next(count: number, timeoutMs?: number): Promise<Record<string, unknown>[]>;
-}
-
-/** Opens the realtime socket the way the apps do and collects what arrives. */
-export async function openRealtime(worker: Worker, cookie: string): Promise<RealtimeSocket> {
-  const url = new URL("/api/realtime", worker.url);
-  url.protocol = "ws:";
-  // Node's WebSocket (undici) accepts headers: the session cookie, and the Origin a browser on
-  // the web app would send.
-  const socket = new WebSocket(url, {
-    headers: { cookie, origin: WEB_ORIGIN },
-  } as unknown as string[]);
-  const received: Record<string, unknown>[] = [];
-  socket.addEventListener("message", (e) => received.push(JSON.parse(String(e.data))));
-  await new Promise<void>((resolve, reject) => {
-    socket.addEventListener("open", () => resolve());
-    socket.addEventListener("error", () => reject(new Error("websocket failed to open")));
-  });
-  return {
-    socket,
-    received,
-    async next(count, timeoutMs = 10_000) {
-      const deadline = Date.now() + timeoutMs;
-      while (received.length < count) {
-        if (Date.now() > deadline)
-          throw new Error(`expected ${count} events, got ${received.length}`);
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-      return received;
-    },
-  };
-}
-
 /** Parsed JSON log lines (`console.log(JSON.stringify(...))`) the Worker wrote so far. */
 export function workerEvents(worker: Harnessed) {
   return worker.server.getLogs().flatMap((log) => {

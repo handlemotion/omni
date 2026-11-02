@@ -7,7 +7,6 @@ import {
   createOrg,
   createTestDatabase,
   grant,
-  openRealtime,
   postMailEvents,
   seedMessage,
   signIn,
@@ -61,7 +60,34 @@ function handshake(cookie: string, origin?: string) {
   });
 }
 
-const connect = (cookie: string) => openRealtime(worker, cookie);
+async function connect(cookie: string) {
+  const url = new URL("/api/realtime", worker.url);
+  url.protocol = "ws:";
+  // Node's WebSocket (undici) accepts headers: the session cookie, and the Origin a browser on
+  // the web app would send.
+  const socket = new WebSocket(url, {
+    headers: { cookie, origin: WEB_ORIGIN },
+  } as unknown as string[]);
+  const received: { type: string; mailboxId: string; threadIds: string[] }[] = [];
+  socket.addEventListener("message", (e) => received.push(JSON.parse(String(e.data))));
+  await new Promise<void>((resolve, reject) => {
+    socket.addEventListener("open", () => resolve());
+    socket.addEventListener("error", () => reject(new Error("websocket failed to open")));
+  });
+  return {
+    socket,
+    received,
+    async next(count: number) {
+      const deadline = Date.now() + 10_000;
+      while (received.length < count) {
+        if (Date.now() > deadline)
+          throw new Error(`expected ${count} events, got ${received.length}`);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      return received;
+    },
+  };
+}
 
 test("mail events reach only members who can see the mailbox, also after hibernation", async () => {
   const { db } = database;
@@ -119,6 +145,45 @@ test("mail events reach only members who can see the mailbox, also after hiberna
   // Ana's event went out before Bea's, so had it leaked Bea would have seen it first.
   expect(beaSocket.received).toHaveLength(1);
   expect(anaSocket.received).toHaveLength(1);
+
+  anaSocket.socket.close();
+  beaSocket.socket.close();
+});
+
+test("a send that failed for good is told to the member who sent it, and nobody else", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "globex");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@globex.test");
+  const bea = await createMember(db, org.id, "bea@globex.test");
+  const box = await createMailbox(db, org.id, "team@globex.test");
+  await grant(db, org.id, box.id, ana.id);
+  await grant(db, org.id, box.id, bea.id);
+
+  const anaSocket = await connect(await signIn(worker, db, "ana@globex.test"));
+  const beaSocket = await connect(await signIn(worker, db, "bea@globex.test"));
+  const failed = (actionId: string, memberId: string | null) => ({
+    events: [
+      {
+        type: "action.failed" as const,
+        orgId: org.id,
+        mailboxId: box.id,
+        actionId,
+        memberId,
+        error: "550 mailbox unavailable",
+      },
+    ],
+  });
+  // System mail (no member) goes nowhere; the member's own send reaches only them.
+  expect((await postMailEvents(worker, failed("system-action", null))).status).toBe(202);
+  expect((await postMailEvents(worker, failed("ana-send", ana.id))).status).toBe(202);
+
+  expect(await anaSocket.next(1)).toEqual([
+    { type: "action", actionId: "ana-send", status: "failed", error: "550 mailbox unavailable" },
+  ]);
+  // Bea shares the mailbox, so a leak by mailbox audience would have reached her by now.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(beaSocket.received).toEqual([]);
 
   anaSocket.socket.close();
   beaSocket.socket.close();

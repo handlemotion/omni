@@ -3,8 +3,7 @@ import { DurableObject } from "cloudflare:workers";
 /**
  * Remembers the nonces of signed calls the Worker accepted, for as long as their timestamps are
  * valid, so a captured request cannot be replayed inside the window. One instance (strongly
- * consistent) per caller. The `failed-actions` instance remembers reported action ids the same
- * way, so a redelivered failure is pushed to the app once.
+ * consistent) per caller.
  */
 export class ReplayGuard extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {

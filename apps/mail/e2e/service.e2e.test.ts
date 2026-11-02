@@ -13,9 +13,10 @@ import {
   type MailEvent,
   mailEventsBodySchema,
 } from "@omni/contracts";
-import { deterministicMessageId, parseKeyring, signRequest, verifyRequest } from "@omni/crypto";
+import { parseKeyring, signRequest, verifyRequest } from "@omni/crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { sealCredentials } from "../src/credentials.ts";
+import { deterministicMessageId } from "../src/outbox.ts";
 import { type MailService, type ServiceConfig, startService } from "../src/service.ts";
 import {
   actionRow,
@@ -264,7 +265,7 @@ describe("mail service end to end", () => {
     await waitFor(async () => (await actionRow(db, action.id)).status === "done", 10_000);
 
     // The Sent copy is indexed exactly once, and the Worker hears about it once.
-    const messageId = await deterministicMessageId(action.idempotencyKey, box.address);
+    const messageId = deterministicMessageId(action.idempotencyKey, box.address);
     const sent = await stored(db, box.id, "Sent");
     expect(sent.map((r) => r.messageIdHeader)).toEqual([messageId]);
     expect((await messageRows(db, box.id)).map((r) => r.messageIdHeader)).toEqual([messageId]);
@@ -348,3 +349,57 @@ function mailboxAdd(args: string[], password: string) {
     child.stdin.end(password);
   });
 }
+
+describe("what the app learns about its own actions", () => {
+  it("sends under the Worker's Message-ID, and reports an action that failed for good", async () => {
+    const seeded = await seedConnectable();
+    const { box } = seeded;
+    const recipient = mailbox();
+    await startMailService();
+    await connected(box.id);
+
+    const domain = box.address.split("@")[1];
+    const chosen = `<${randomUUID()}@${domain}>`;
+    const send = await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `worker-id-send-${box.id}`,
+      payload: {
+        from: box.address,
+        to: [recipient.address],
+        subject: "pending",
+        text: "hi",
+        messageId: chosen,
+      },
+    });
+    // Its folder was reset since the app saw it: retrying can never succeed.
+    const stale = await enqueue(db, seeded, {
+      kind: "move",
+      idempotencyKey: `stale-move-${box.id}`,
+      payload: { folder: "INBOX", uidValidity: "1", uids: [1], destination: "Archive" },
+    });
+    const headers = await signRequest({
+      secret,
+      method: "POST",
+      path: MAIL_PING_PATH,
+      nonce: randomUUID(),
+    });
+    expect((await ping({ headers })).status).toBe(202);
+
+    await waitFor(async () => (await actionRow(db, send.id)).status === "done", 10_000);
+    // The thread gets the Sent copy under the id the app is already showing.
+    expect((await stored(db, box.id, "Sent")).map((r) => r.messageIdHeader)).toEqual([chosen]);
+
+    await waitFor(() => received.some((e) => e.type === "action.failed"), 10_000);
+    expect((await actionRow(db, stale.id)).status).toBe("failed");
+    expect(received.filter((e) => e.type === "action.failed")).toEqual([
+      {
+        type: "action.failed",
+        orgId: seeded.orgId,
+        mailboxId: box.id,
+        actionId: stale.id,
+        memberId: seeded.ownerId,
+        error: expect.stringContaining("UIDVALIDITY"),
+      },
+    ]);
+  });
+});

@@ -1,7 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
-import { deterministicMessageId } from "@omni/crypto";
-import { OutboxExecutor } from "../src/outbox.ts";
+import { deterministicMessageId, OutboxExecutor } from "../src/outbox.ts";
 import { PgActionSource, PgMailStore } from "../src/pg-store.ts";
 import {
   actionRow,
@@ -77,7 +76,7 @@ describe("OutboxExecutor against GreenMail", () => {
     await executor.execute(await asClaimed(db, row.id));
 
     expect(await actionRow(db, row.id)).toMatchObject({ status: "done", lastError: null });
-    const messageId = await deterministicMessageId(row.idempotencyKey, box.address);
+    const messageId = deterministicMessageId(row.idempotencyKey, box.address);
 
     const sentCopies = await otherClient(box, async (client) => {
       const lock = await client.getMailboxLock("Sent");

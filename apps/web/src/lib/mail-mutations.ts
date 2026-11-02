@@ -139,7 +139,12 @@ export const replyMutation = (client: QueryClient) =>
       });
     },
     onSuccess: ({ actionId, messageIdHeader }, { threadId, key }) => {
-      updatePending(client, threadId, key, { status: "queued", actionId, messageIdHeader });
+      // A null Message-ID (should not happen for a reply) leaves the entry until the user discards it.
+      updatePending(client, threadId, key, {
+        status: "queued",
+        actionId,
+        messageIdHeader: messageIdHeader ?? undefined,
+      });
     },
     onError: (error, { threadId, key }) => {
       updatePending(client, threadId, key, { status: "failed", error: error.message });

@@ -2,4 +2,3 @@
 // and HTML sanitizing need Node (DOMPurify runs on jsdom) and live in `@omni/mail-core/clean`.
 export * from "./parse.ts";
 export * from "./thread.ts";
-export * from "./display.ts";

@@ -1,6 +1,5 @@
 // The client as the apps use it, against the real Worker under workerd and a real Postgres:
 // Better Auth's client signs in, the Hono RPC client reads, the realtime client listens.
-import { randomUUID } from "node:crypto";
 import { schema } from "@omni/db";
 import { desc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -221,70 +220,4 @@ test("realtime hands typed events to the app and reconnects after the server dro
   await new Promise((resolve) => setTimeout(resolve, 300));
   expect(statuses.length).toBe(settled);
   expect(statuses.at(-1)?.[0]).toBe("closed");
-});
-
-test("a failed send reaches the app as a typed action event with a user-safe error", async () => {
-  // The client drops messages it does not recognize; if it did not know `action`, a failed send
-  // would sit as pending in the app forever.
-  const { db } = database;
-  const org = await createOrg(db, "fails");
-  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
-  const ana = await createMember(db, org.id, "ana@fails.test");
-  const box = await createMailbox(db, org.id, "ana@fails.test", "personal");
-  await grant(db, org.id, box.id, ana.id);
-  // As the mail service leaves a send whose SMTP login was refused.
-  const actionId = randomUUID();
-  await db.insert(schema.mailActions).values({
-    id: actionId,
-    orgId: org.id,
-    mailboxId: box.id,
-    memberId: ana.id,
-    kind: "send",
-    payload: {},
-    idempotencyKey: `failed-send-${ana.id}`,
-    status: "failed",
-    attempts: 8,
-    lastError: "Invalid login: 535 5.7.8 Authentication failed (smtp.mail.example.net)",
-  });
-
-  const { jar, api } = await signIn(db, "ana@fails.test");
-  const events: RealtimeEvent[] = [];
-  let open = false;
-  const realtime = connectRealtime({
-    baseUrl: String(worker.url),
-    openSocket: (url) =>
-      new WebSocket(url, {
-        headers: { cookie: jar.header(), origin: WEB_ORIGIN },
-      } as unknown as string[]),
-    onEvent: (event) => events.push(event),
-    onStatus: (status) => (open = status === "open"),
-  });
-  try {
-    await until(() => (open ? true : undefined), "the socket to open");
-    const posted = await postMailEvents(worker, {
-      events: [{ type: "action.failed", orgId: org.id, mailboxId: box.id, actionId }],
-    });
-    expect(posted.status).toBe(202);
-    const event = await until(() => events[0], "the action event");
-    expect(event).toEqual({
-      type: "action",
-      actionId,
-      kind: "send",
-      status: "failed",
-      error: "The mail server rejected this mailbox's sign-in.",
-    });
-  } finally {
-    realtime.close();
-  }
-
-  // The same status over RPC, for an app that was offline when it happened.
-  const status = await api.actions[":id"].$get({ param: { id: actionId } });
-  if (!status.ok) throw new Error(`action read failed: ${status.status}`);
-  expect(await status.json()).toEqual({
-    id: actionId,
-    kind: "send",
-    status: "failed",
-    attempts: 8,
-    error: "The mail server rejected this mailbox's sign-in.",
-  });
 });
