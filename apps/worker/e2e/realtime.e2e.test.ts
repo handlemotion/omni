@@ -150,6 +150,45 @@ test("mail events reach only members who can see the mailbox, also after hiberna
   beaSocket.socket.close();
 });
 
+test("a send that failed for good is told to the member who sent it, and nobody else", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "globex");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@globex.test");
+  const bea = await createMember(db, org.id, "bea@globex.test");
+  const box = await createMailbox(db, org.id, "team@globex.test");
+  await grant(db, org.id, box.id, ana.id);
+  await grant(db, org.id, box.id, bea.id);
+
+  const anaSocket = await connect(await signIn(worker, db, "ana@globex.test"));
+  const beaSocket = await connect(await signIn(worker, db, "bea@globex.test"));
+  const failed = (actionId: string, memberId: string | null) => ({
+    events: [
+      {
+        type: "action.failed" as const,
+        orgId: org.id,
+        mailboxId: box.id,
+        actionId,
+        memberId,
+        error: "550 mailbox unavailable",
+      },
+    ],
+  });
+  // System mail (no member) goes nowhere; the member's own send reaches only them.
+  expect((await postMailEvents(worker, failed("system-action", null))).status).toBe(202);
+  expect((await postMailEvents(worker, failed("ana-send", ana.id))).status).toBe(202);
+
+  expect(await anaSocket.next(1)).toEqual([
+    { type: "action", actionId: "ana-send", status: "failed", error: "550 mailbox unavailable" },
+  ]);
+  // Bea shares the mailbox, so a leak by mailbox audience would have reached her by now.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(beaSocket.received).toEqual([]);
+
+  anaSocket.socket.close();
+  beaSocket.socket.close();
+});
+
 test("a page on a foreign origin cannot open the member's socket with their cookie", async () => {
   const { db } = database;
   const org = await createOrg(db, "origins");

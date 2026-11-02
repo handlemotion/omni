@@ -130,5 +130,13 @@ function parseEvent(data: string): RealtimeEvent | undefined {
   ) {
     return { type: "changed", mailboxId: event.mailboxId, threadIds: event.threadIds };
   }
+  if (
+    event.type === "action" &&
+    typeof event.actionId === "string" &&
+    event.status === "failed" &&
+    typeof event.error === "string"
+  ) {
+    return { type: "action", actionId: event.actionId, status: "failed", error: event.error };
+  }
   return undefined;
 }

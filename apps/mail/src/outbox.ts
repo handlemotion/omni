@@ -181,7 +181,9 @@ export class OutboxExecutor {
     action: Extract<MailAction, { kind: "send" }>,
   ): Promise<void> {
     const mailbox = connection.mailbox;
-    const messageId = deterministicMessageId(action.idempotencyKey, mailbox.address);
+    // The Worker picks it when it can, so the app knows it before the mail goes out.
+    const messageId =
+      action.payload.messageId ?? deterministicMessageId(action.idempotencyKey, mailbox.address);
     const raw = await composeMessage(action.payload, messageId);
 
     // A retry after SMTP accepted never resends. The window left is a crash between SMTP's OK and

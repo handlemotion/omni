@@ -2,7 +2,10 @@ export { createDb, type Db } from "./client.ts";
 export {
   forMember,
   TRIAGE_AUTO_FILE_CONFIDENCE,
+  LANES,
   type Lane,
+  type ThreadView,
+  type Participant,
   type MemberQueries,
 } from "./for-member.ts";
 export * from "./writers.ts";

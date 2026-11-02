@@ -24,7 +24,24 @@ export const messageCreatedEventSchema = z.object({
   folderRole: folderRoleSchema,
 });
 
-export const mailEventSchema = z.discriminatedUnion("type", [messageCreatedEventSchema]);
+/**
+ * An outbox action failed for good: no more retries. The Worker tells the member who asked for
+ * it, so a send shows as failed. At least once, like every event; receivers key on `actionId`.
+ */
+export const actionFailedEventSchema = z.object({
+  type: z.literal("action.failed"),
+  orgId: z.string().min(1),
+  mailboxId: z.string().min(1),
+  actionId: z.string().min(1),
+  /** Null for system mail (magic links, invitations): nobody to tell. */
+  memberId: z.string().min(1).nullable(),
+  error: z.string(),
+});
+
+export const mailEventSchema = z.discriminatedUnion("type", [
+  messageCreatedEventSchema,
+  actionFailedEventSchema,
+]);
 
 export const MAX_EVENTS_PER_REQUEST = 100;
 
@@ -58,6 +75,14 @@ export const sendPayloadSchema = z.object({
   inReplyTo: z.string().optional(),
   /** Full References chain of the reply, oldest first. */
   references: z.array(z.string()).optional(),
+  /**
+   * Message-ID to send with, in `<id@host>` form, chosen by the Worker so the app knows it before
+   * the mail goes out. Absent: the mail service derives one from the idempotency key.
+   */
+  messageId: z
+    .string()
+    .regex(/^<[^<>\s@]+@[^<>\s@]+>$/)
+    .optional(),
 });
 
 export const actionPayloadSchemas = {

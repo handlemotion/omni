@@ -13,7 +13,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 import { loadConfig } from "../env.ts";
 import type { AiJob } from "../queue.ts";
-import { fanOut } from "../realtime.ts";
+import { fanOut, notifyFailedActions } from "../realtime.ts";
 
 export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   const config = loadConfig(c.env);
@@ -61,9 +61,12 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     onnotice: () => {},
   });
   try {
-    await fanOut(c.env, db, config, changedThreads(events), {
-      push: events.some((e) => e.type === "message.created"),
-    });
+    const created = events.filter((e) => e.type === "message.created");
+    if (created.length) await fanOut(c.env, db, config, changedThreads(created), { push: true });
+    await notifyFailedActions(
+      c.env,
+      events.filter((e) => e.type === "action.failed"),
+    );
   } finally {
     c.executionCtx.waitUntil(close());
   }
@@ -78,7 +81,7 @@ const envelope = z.object({
 });
 const knownTypes = new Set<string>(mailEventSchema.options.map((o) => o.shape.type.value));
 
-function changedThreads(events: MailEvent[]) {
+function changedThreads(events: Extract<MailEvent, { type: "message.created" }>[]) {
   const byMailbox = new Map<string, Set<string>>();
   for (const event of events) {
     const threads = byMailbox.get(event.mailboxId) ?? new Set();

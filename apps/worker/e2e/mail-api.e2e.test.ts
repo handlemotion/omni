@@ -232,18 +232,26 @@ describe("outbox", () => {
       .where(eq(schema.messages.messageIdHeader, "<second@client.test>"));
     const cookie = await signIn(worker, db, "ana@hooli.test");
 
-    const reply = await api(`/threads/${first.threadId}/reply`, cookie, {
-      method: "POST",
-      headers: { "idempotency-key": "reply-partnership-1" },
-      body: JSON.stringify({ text: "Sounds good.", replyAll: true }),
-    });
-    expect(reply.status).toBe(202);
-    const { actionId } = (await reply.json()) as { actionId: string };
+    const sendReply = async () => {
+      const reply = await api(`/threads/${first.threadId}/reply`, cookie, {
+        method: "POST",
+        headers: { "idempotency-key": "reply-partnership-1" },
+        body: JSON.stringify({ text: "Sounds good.", replyAll: true }),
+      });
+      expect(reply.status).toBe(202);
+      return (await reply.json()) as { actionId: string; messageIdHeader: string };
+    };
+    const { actionId, messageIdHeader } = await sendReply();
+    // The app shows the pending message under this id; a retry must not hand out another.
+    expect(messageIdHeader).toMatch(/^<[0-9a-f-]{36}@hooli\.test>$/);
+    expect(await sendReply()).toEqual({ actionId, messageIdHeader });
+
     const [action] = await db
       .select()
       .from(schema.mailActions)
       .where(eq(schema.mailActions.id, actionId));
     expect(action?.payload).toEqual({
+      messageId: messageIdHeader,
       from: "hello@hooli.test",
       to: ["luis@client.test"],
       cc: ["marta@client.test"],
@@ -252,5 +260,61 @@ describe("outbox", () => {
       inReplyTo: "<second@client.test>",
       references: ["<first@client.test>", "<second@client.test>"],
     });
+
+    // After a reconnect the app asks how its send went; nobody else can.
+    expect(await get(`/actions/${actionId}`, cookie)).toMatchObject({
+      id: actionId,
+      kind: "send",
+      status: "pending",
+      error: null,
+    });
+    await createMember(db, org.id, "bo@hooli.test").then((bo) => grant(db, org.id, box.id, bo.id));
+    const other = await signIn(worker, db, "bo@hooli.test");
+    expect((await api(`/actions/${actionId}`, other)).status).toBe(404);
   });
+});
+
+test("a thread reads as chat: who wrote it, bubble or card, who was added, no storage keys", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "pied");
+  const member = await createMember(db, org.id, "ana@pied.test");
+  const box = await createMailbox(db, org.id, "hello@pied.test");
+  await grant(db, org.id, box.id, member.id);
+  const first = await seedMessage(db, box, {
+    subject: "Specs",
+    fromAddress: "luis@client.test",
+    to: ["hello@pied.test"],
+    uid: 1,
+    sentAt: new Date("2026-10-01T10:00:00Z"),
+    text: Array.from({ length: 130 }, () => "word").join(" "),
+  });
+  await seedMessage(db, box, {
+    subject: "Re: Specs",
+    fromAddress: "HELLO@pied.test",
+    to: ["luis@client.test", "marta@client.test"],
+    uid: 2,
+    threadId: first.threadId,
+    sentAt: new Date("2026-10-02T10:00:00Z"),
+    text: "On it.",
+  });
+  await db
+    .update(schema.messages)
+    .set({ htmlR2Key: "org/box/html/abc.html", r2Key: "org/box/raw/abc.eml" })
+    .where(eq(schema.messages.id, first.messageId));
+  const cookie = await signIn(worker, db, "ana@pied.test");
+
+  const thread = await get<{ messages: Record<string, unknown>[] }>(
+    `/threads/${first.threadId}`,
+    cookie,
+  );
+  expect(thread.messages).toMatchObject([
+    { fromMe: false, display: "card", hasHtml: true, addedParticipants: [] },
+    {
+      fromMe: true,
+      display: "bubble",
+      hasHtml: false,
+      addedParticipants: [{ address: "marta@client.test" }],
+    },
+  ]);
+  expect(JSON.stringify(thread)).not.toMatch(/r2Key|abc\.(eml|html)/);
 });

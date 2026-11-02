@@ -20,6 +20,7 @@
     "@omni/contracts": "workspace:*",
     "@omni/crypto": "workspace:*",
     "@omni/db": "workspace:*",
+    "@omni/mail-core": "workspace:*",
     "@sentry/cloudflare": "^11.10.0",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.14",

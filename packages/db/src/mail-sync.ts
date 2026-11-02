@@ -373,8 +373,14 @@ export async function rescheduleAction(db: Db, id: string, error: string, retryA
       updatedAt: new Date(),
     })
     .where(and(eq(mailActions.id, id), eq(mailActions.status, "running")))
-    .returning({ id: mailActions.id });
-  return rows.length > 0;
+    .returning({
+      id: mailActions.id,
+      orgId: mailActions.orgId,
+      mailboxId: mailActions.mailboxId,
+      memberId: mailActions.memberId,
+      status: mailActions.status,
+    });
+  return rows[0] ?? null;
 }
 /**
  * Hands a claimed action back without counting its attempt: the mailbox was not ready, which says

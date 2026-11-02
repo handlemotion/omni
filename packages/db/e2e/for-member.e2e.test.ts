@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
 import { threadState, threads } from "../src/schema/index.ts";
-import { createThread, upsertMessage } from "../src/writers.ts";
+import { createThread, enqueueAction, upsertMessage } from "../src/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();
@@ -103,8 +103,107 @@ describe("forMember isolation", () => {
     const asBob = forMember(db, bob);
     await asBob.setThreadState(billing.threadId, { read: true });
     await asBob.setThreadState(billing.threadId, { snoozedUntil: new Date("2027-01-01Z") });
-    const [thread] = await asBob.listThreads();
+    const [thread] = await asBob.listThreads({ view: "snoozed" });
     expect(thread).toMatchObject({ read: true, snoozedUntil: new Date("2027-01-01Z") });
+  });
+
+  test("counts and outbox actions cover only the member's own grants and requests", async () => {
+    expect((await forMember(db, alice).counts()).map((c) => c.mailboxId)).toEqual([
+      (await forMember(db, alice).listThreads())[0]!.mailboxId,
+    ]);
+    // Carol's forged grant on org A's mailbox counts nothing there.
+    const carolCounts = await forMember(db, carol).counts();
+    expect(carolCounts).toHaveLength(1);
+    expect(carolCounts[0]!.inbox).toBe(1);
+
+    const [helloThread] = await forMember(db, alice).listThreads();
+    const action = await enqueueAction(db, {
+      orgId: helloThread!.orgId,
+      mailboxId: helloThread!.mailboxId,
+      memberId: alice,
+      kind: "send",
+      payload: { from: "hello@a.test", to: ["x@example.test"], subject: "hi" },
+      idempotencyKey: `${alice}:counts-test`,
+    });
+    expect(await forMember(db, alice).getAction(action.id)).toMatchObject({
+      id: action.id,
+      status: "pending",
+    });
+    expect(await forMember(db, bob).getAction(action.id)).toBeNull();
+    expect(await forMember(db, carol).getAction(action.id)).toBeNull();
+  });
+});
+
+test("a snooze hides the thread from the snoozer's inbox until its time, and only theirs", async () => {
+  const org = await createOrg(db, "snooze-org");
+  const dana = (await createMember(db, org.id, "dana")).id;
+  const erin = (await createMember(db, org.id, "erin")).id;
+  const shared = await createMailbox(db, org.id, "team@snooze.test");
+  await grant(db, org.id, shared.id, dana);
+  await grant(db, org.id, shared.id, erin);
+  const { threadId } = await seedThread(org.id, shared.id, "heron");
+  const ids = async (member: string, view: "inbox" | "snoozed") =>
+    (await forMember(db, member).listThreads({ view })).map((t) => t.id);
+
+  await forMember(db, dana).setThreadState(threadId, {
+    snoozedUntil: new Date(Date.now() + 3_600_000),
+  });
+  expect(await ids(dana, "inbox")).toEqual([]);
+  expect(await ids(dana, "snoozed")).toEqual([threadId]);
+  expect(await ids(erin, "inbox")).toEqual([threadId]);
+  expect(await forMember(db, dana).counts()).toMatchObject([{ inbox: 0, unread: 0, snoozed: 1 }]);
+  expect(await forMember(db, erin).counts()).toMatchObject([{ inbox: 1, unread: 1, snoozed: 0 }]);
+
+  // The time passes: back in the inbox with nothing left to do.
+  await forMember(db, dana).setThreadState(threadId, {
+    snoozedUntil: new Date(Date.now() - 1_000),
+  });
+  expect(await ids(dana, "inbox")).toEqual([threadId]);
+  expect(await ids(dana, "snoozed")).toEqual([]);
+});
+
+test("a list row summarizes the thread: latest message, senders once each, count, attachments", async () => {
+  const org = await createOrg(db, "row-org");
+  const gil = (await createMember(db, org.id, "gil")).id;
+  const box = await createMailbox(db, org.id, "gil@row.test");
+  await grant(db, org.id, box.id, gil);
+  const threadId = await createThread(db, {
+    orgId: org.id,
+    mailboxId: box.id,
+    subjectKey: "kiln",
+    lastMessageAt: new Date("2026-10-03T00:00:00Z"),
+  });
+  const message = (n: number, from: string, name: string, text: string, files = false) =>
+    upsertMessage(db, {
+      orgId: org.id,
+      mailboxId: box.id,
+      threadId,
+      messageIdHeader: `<kiln-${n}@row.test>`,
+      subject: n === 1 ? "Kiln quote" : "Re: Kiln quote",
+      fromName: name,
+      fromAddress: from,
+      sentAt: new Date(`2026-10-0${n}T00:00:00Z`),
+      cleanText: text,
+      attachments: files
+        ? [{ filename: "q.pdf", mimeType: "application/pdf", size: 3, r2Key: "k" }]
+        : [],
+    });
+  await message(1, "ana@studio.test", "Ana", "Can you quote the kiln?");
+  await message(3, "ANA@studio.test", "Ana S.", "Thanks!\n\n  See   attached.", true);
+  await message(2, "gil@row.test", "Gil", "Sure, 400.");
+
+  const [row] = await forMember(db, gil).listThreads();
+  expect(row).toMatchObject({
+    subject: "Re: Kiln quote",
+    snippet: "Thanks! See attached.",
+    latestFrom: { name: "Ana S.", address: "ANA@studio.test" },
+    participants: [
+      { name: "Ana", address: "ana@studio.test" },
+      { name: "Gil", address: "gil@row.test" },
+    ],
+    messageCount: 3,
+    hasAttachments: true,
+    unread: true,
   });
 });
 
