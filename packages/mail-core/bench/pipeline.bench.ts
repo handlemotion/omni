@@ -1,6 +1,6 @@
 // `pnpm --filter @omni/mail-core bench`: parse → strip → sanitize on large realistic mail.
 // Not part of `pnpm test`. Numbers for the record live in the PR that changed them.
-import { bench, describe } from "vitest";
+import { test } from "vitest";
 import { cleanMessage, isLongForm, sanitizeHtml } from "../src/html.ts";
 import { parseMessage } from "../src/parse.ts";
 import { gmailChain, manyAttachments, newsletter, outlookChain } from "./corpus.ts";
@@ -28,14 +28,21 @@ for (const [name, raw] of Object.entries(CORPUS)) {
   const { message } = await parseMessage(raw);
   const cleanText = cleanMessage(message).cleanText;
 
-  describe(`${name}`, () => {
-    bench("parseMessage", async () => void (await parseMessage(raw)), runs);
-    bench("cleanMessage", () => void cleanMessage(message), runs);
-    bench("cleanMessage (HTML only)", () => void cleanMessage({ ...message, text: null }), runs);
+  // A benchmark measures; it has nothing to assert.
+  // oxlint-disable-next-line vitest/expect-expect
+  test(`${name}`, async ({ bench }) => {
+    const cases = [
+      bench("parseMessage", async () => void (await parseMessage(raw))),
+      bench("cleanMessage", () => void cleanMessage(message)),
+      bench("cleanMessage (HTML only)", () => void cleanMessage({ ...message, text: null })),
+    ];
     if (message.html !== null) {
       const html = message.html;
-      bench("sanitizeHtml", () => void sanitizeHtml(html, options), runs);
-      bench("isLongForm", () => void isLongForm({ cleanText, html }), runs);
+      cases.push(
+        bench("sanitizeHtml", () => void sanitizeHtml(html, options)),
+        bench("isLongForm", () => void isLongForm({ cleanText, html })),
+      );
     }
+    await bench.compare(...cases, runs);
   });
 }
