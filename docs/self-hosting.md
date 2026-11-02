@@ -4,6 +4,9 @@ Status: draft. Each unit adds its required services, bindings, and variables her
 
 ## What you need
 
+- Node.js 26 (the exact version is in `.nvmrc`) and pnpm at the version in `package.json`
+  `packageManager`. Node 25+ no longer ships corepack, so install pnpm directly
+  (`npm install -g pnpm@<version>`).
 - A Cloudflare account (Workers Paid for Queues and Durable Objects, R2).
 - A Postgres database reachable from Cloudflare Hyperdrive and from the mail service.
 - One always-on container host for `apps/mail` (we use Fly.io; any Docker host works).

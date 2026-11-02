@@ -10,6 +10,8 @@
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": false,
     "verbatimModuleSyntax": true,
+    // Node runs .ts by stripping types; reject syntax it cannot strip (enum, parameter properties).
+    "erasableSyntaxOnly": true,
     "isolatedModules": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,

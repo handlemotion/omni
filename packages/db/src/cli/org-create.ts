@@ -2,7 +2,7 @@
 // Self-serve sign-up is off (members join by invitation), so this is how an install starts.
 // Idempotent: the organization is keyed by slug, the user by email, and a second run with the
 // same arguments prints the same ids and changes nothing.
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { createDb } from "../client.ts";
@@ -44,7 +44,7 @@ if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) fail(`bad slug "${slug}": use a-z, 0
 
 const databaseUrl = (() => {
   try {
-    return readDatabaseUrl(fileURLToPath(new URL("../..", import.meta.url)));
+    return readDatabaseUrl(join(import.meta.dirname, "../.."));
   } catch (error) {
     return fail((error as Error).message);
   }

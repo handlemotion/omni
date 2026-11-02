@@ -3,7 +3,7 @@
 # else (Claude Code sets CLAUDE_CODE_REMOTE=true only in cloud sessions).
 #
 # Machine tools come from scripts/cloud/setup.sh (the environment's cached setup script). Each
-# session this hook puts Node 24 on PATH, starts dockerd, installs deps, starts the compose stack,
+# session this hook puts Node (.nvmrc) on PATH, starts dockerd, installs deps, starts the compose stack,
 # writes local env files from Doppler when tokens are set, and migrates the local database.
 # Everything is idempotent, so `resume` and `compact` re-runs are cheap. Secret values are written
 # to gitignored files only, never printed. See docs/operations/cloud-sessions.md.
@@ -16,7 +16,7 @@ log=/tmp/omni-session-start.log
 : >"$log"
 trap 'echo "omni: session start failed; see $log" >&2' ERR
 
-node_bin=/opt/node24/bin
+node_bin=/opt/node/bin
 [ -x "$node_bin/node" ] || {
   echo "omni: $node_bin/node missing; is scripts/cloud/setup.sh the environment's setup script?" >&2
   exit 1

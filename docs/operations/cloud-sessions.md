@@ -4,7 +4,7 @@ Cloud sessions (claude.ai/code) run Omni with the full local stack: Postgres, Gr
 S3 gateway from `compose.yml`, the database migrated, and Doppler `dev` secrets in the usual local
 env files. Two files do the work:
 
-- `scripts/cloud/setup.sh`: the environment's setup script. Machine tools only (Node 24 from
+- `scripts/cloud/setup.sh`: the environment's setup script. Machine tools only (Node from
   `.nvmrc`, pnpm from `packageManager`, `doppler`, `cf`, `flyctl`, `psql`, `devtunnel`) and the
   compose images. Claude Code snapshots the result, so it reads no secrets and leaves nothing
   running.

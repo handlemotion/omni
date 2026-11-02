@@ -1,4 +1,4 @@
-// Byte helpers on globals that exist in both Workers and Node 24 (TextEncoder, btoa, atob).
+// Byte helpers on globals that exist in both Workers and Node (TextEncoder, btoa, atob).
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false });

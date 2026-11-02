@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { signRequest, verifyRequest, type VerifyResult } from "@omni/crypto";
 import { addLocation, createDb, createThread, schema, upsertFolder, upsertMessage } from "@omni/db";
 import { MAIL_EVENTS_PATH, type MailEventsBody } from "@omni/contracts";
@@ -17,8 +17,8 @@ export const SYSTEM_MAIL_FROM = "no-reply@omni.test";
 /** The web app's origin; browsers send it on every auth POST. */
 export const WEB_ORIGIN = "http://localhost:5173";
 
-const root = fileURLToPath(new URL("..", import.meta.url));
-const migrationsFolder = fileURLToPath(new URL("../../../packages/db/migrations", import.meta.url));
+const root = join(import.meta.dirname, "..");
+const migrationsFolder = join(import.meta.dirname, "../../../packages/db/migrations");
 
 function adminUrl() {
   const url = process.env.DATABASE_URL;
@@ -149,7 +149,7 @@ export async function startWorker(options: WorkerOptions) {
 export async function startWorkerWithNetwork(options: WorkerOptions) {
   process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = options.databaseUrl;
   const worker = await unstable_startWorker({
-    config: fileURLToPath(new URL("../wrangler.jsonc", import.meta.url)),
+    config: join(import.meta.dirname, "../wrangler.jsonc"),
     bindings: Object.fromEntries([
       ...Object.entries(workerVars(options)).map(([k, value]) => [
         k,

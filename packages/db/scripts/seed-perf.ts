@@ -8,7 +8,7 @@
 //
 // Sizes are tunable: PERF_THREADS, PERF_MESSAGES. The data is skewed like real mail: a few busy
 // mailboxes, recent mail denser than old, most old threads archived, a long tail of long threads.
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { createDb } from "../src/client.ts";
@@ -20,7 +20,7 @@ const messageCount = Number(process.env.PERF_MESSAGES ?? 200_000);
 if (!/^[a-z_][a-z0-9_]*$/.test(dbName)) throw new Error(`bad PERF_DATABASE: ${dbName}`);
 if (messageCount < threadCount) throw new Error("PERF_MESSAGES must be >= PERF_THREADS");
 
-const adminUrl = readDatabaseUrl(fileURLToPath(new URL("..", import.meta.url)));
+const adminUrl = readDatabaseUrl(join(import.meta.dirname, ".."));
 const url = new URL(adminUrl);
 url.pathname = `/${dbName}`;
 
@@ -31,7 +31,7 @@ await admin.end();
 
 const { db, close } = createDb(url.toString(), { onnotice: () => {} });
 await migrate(db, {
-  migrationsFolder: fileURLToPath(new URL("../migrations", import.meta.url)),
+  migrationsFolder: join(import.meta.dirname, "../migrations"),
 });
 await close();
 

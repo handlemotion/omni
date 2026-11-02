@@ -5,7 +5,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { parseKeyring } from "@omni/crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { sealCredentials } from "../src/credentials.ts";
@@ -241,7 +241,7 @@ describe("the service process, stopped and killed mid-import", () => {
   async function startProcess() {
     const port = await freePort();
     const proc = spawn(process.execPath, ["src/main.ts"], {
-      cwd: fileURLToPath(new URL("..", import.meta.url)),
+      cwd: join(import.meta.dirname, ".."),
       env: {
         PATH: process.env.PATH,
         PORT: String(port),
