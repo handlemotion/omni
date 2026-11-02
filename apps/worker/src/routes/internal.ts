@@ -13,7 +13,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 import { loadConfig } from "../env.ts";
 import type { AiJob } from "../queue.ts";
-import { fanOut } from "../realtime.ts";
+import { fanOut, notifyFailedActions } from "../realtime.ts";
 
 export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   const config = loadConfig(c.env);
@@ -52,7 +52,9 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     events.push(event.data);
   }
 
-  const jobs = aiJobsFor(events);
+  const created = events.filter((e) => e.type === "message.created");
+  const failed = events.filter((e) => e.type === "action.failed");
+  const jobs = aiJobsFor(created);
   if (jobs.length) await c.env.AI_QUEUE.sendBatch(jobs.map((body) => ({ body })));
 
   const { db, close } = createDb(c.env.HYPERDRIVE.connectionString, {
@@ -61,9 +63,16 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     onnotice: () => {},
   });
   try {
-    await fanOut(c.env, db, config, changedThreads(events), {
-      push: events.some((e) => e.type === "message.created"),
-    });
+    if (created.length) {
+      await fanOut(c.env, db, config, changedThreads(created), { push: true });
+    }
+    if (failed.length) {
+      await notifyFailedActions(
+        c.env,
+        db,
+        failed.map((e) => e.actionId),
+      );
+    }
   } finally {
     c.executionCtx.waitUntil(close());
   }
@@ -78,7 +87,9 @@ const envelope = z.object({
 });
 const knownTypes = new Set<string>(mailEventSchema.options.map((o) => o.shape.type.value));
 
-function changedThreads(events: MailEvent[]) {
+type MessageCreated = Extract<MailEvent, { type: "message.created" }>;
+
+function changedThreads(events: MessageCreated[]) {
   const byMailbox = new Map<string, Set<string>>();
   for (const event of events) {
     const threads = byMailbox.get(event.mailboxId) ?? new Set();
@@ -89,10 +100,9 @@ function changedThreads(events: MailEvent[]) {
 }
 
 /** One AI job per thread that got a new message; flag changes need no AI. */
-function aiJobsFor(events: MailEvent[]): AiJob[] {
+function aiJobsFor(events: MessageCreated[]): AiJob[] {
   const threads = new Map<string, AiJob>();
   for (const event of events) {
-    if (event.type !== "message.created") continue;
     threads.set(event.threadId, {
       kind: "thread",
       threadId: event.threadId,

@@ -14,7 +14,7 @@ function allowedOrigins(config: Config) {
 const api = new Hono<AppEnv>()
   .use(requireMember)
   .get("/me", (c) => c.json(c.var.member))
-  /** Websocket of `{ type: "changed", mailboxId, threadIds }` events for this member. */
+  /** Websocket of this member's `RealtimeEvent`s (`changed` threads, failed `action`s). */
   .get("/realtime", async (c) => {
     if (c.req.header("upgrade") !== "websocket") {
       return c.json({ error: "expected a websocket upgrade" }, 426);

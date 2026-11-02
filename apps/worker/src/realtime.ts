@@ -1,11 +1,22 @@
 import { DurableObject } from "cloudflare:workers";
-import { mailboxAudience, pushTokensFor, type Db } from "@omni/db";
+import type { MailActionKind } from "@omni/contracts";
+import { findAction, mailboxAudience, pushTokensFor, type Db } from "@omni/db";
+import { publicActionError } from "./action-errors.ts";
 import type { Config } from "./env.ts";
 
 /** Header the Worker sets (never the client) to tell the DO whose socket this is. */
 export const MEMBER_HEADER = "x-omni-member-id";
 
-export type RealtimeEvent = { type: "changed"; mailboxId: string; threadIds: string[] };
+/**
+ * What an open app hears. `changed`: refetch these threads (and lists and counts). `action`: an
+ * outbox action this member asked for failed for good; `error` is safe to show.
+ */
+export type RealtimeEvent =
+  | { type: "changed"; mailboxId: string; threadIds: string[] }
+  | { type: "action"; actionId: string; kind: MailActionKind; status: "failed"; error: string };
+
+/** How long a reported failure is remembered: well past the mail service's last redelivery. */
+const FAILURE_DEDUPE_MS = 60 * 60_000;
 
 /**
  * One instance per org. Each open app holds a hibernatable websocket tagged with its member id;
@@ -83,6 +94,28 @@ export async function fanOut(
     for (const { address, memberIds } of offlineByMailbox.values()) {
       await sendExpoPush(db, config, memberIds, { title: address, body: "New message" });
     }
+  }
+}
+
+/**
+ * Tells the member who asked for each action that it failed, once per action however often the
+ * event is delivered. Actions that are not `failed` (a stale or unknown id) or have no member
+ * (system mail, a removed member) tell nobody. An app that missed it reads `GET /api/actions/:id`.
+ */
+export async function notifyFailedActions(env: Env, db: Db, actionIds: string[]) {
+  const reported = env.REPLAY_GUARD.get(env.REPLAY_GUARD.idFromName("failed-actions"));
+  for (const actionId of new Set(actionIds)) {
+    const action = await findAction(db, actionId);
+    if (!action || action.status !== "failed" || !action.memberId) continue;
+    if (!(await reported.claim(action.id, Date.now() + FAILURE_DEDUPE_MS))) continue;
+    const stub = env.REALTIME.get(env.REALTIME.idFromName(action.orgId));
+    await stub.broadcast([action.memberId], {
+      type: "action",
+      actionId: action.id,
+      kind: action.kind,
+      status: "failed",
+      error: publicActionError(action.kind, action.lastError ?? ""),
+    });
   }
 }
 

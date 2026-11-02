@@ -37,3 +37,7 @@ export type ThreadSummary = ThreadPage["threads"][number];
 export type Thread = InferResponseType<Api["threads"][":id"]["$get"], 200>;
 export type Message = Thread["messages"][number];
 export type SearchResult = InferResponseType<Api["search"]["$get"], 200>["results"][number];
+export type MailboxCounts = InferResponseType<Api["counts"]["$get"], 200>["mailboxes"][number];
+export type ActionStatus = InferResponseType<Api["actions"][":id"]["$get"], 200>;
+/** `{ actionId, messageIdHeader }`: what send and reply return. */
+export type SendResult = InferResponseType<Api["send"]["$post"], 202>;

@@ -7,6 +7,7 @@ import {
   createOrg,
   createTestDatabase,
   grant,
+  openRealtime,
   postMailEvents,
   seedMessage,
   signIn,
@@ -60,34 +61,7 @@ function handshake(cookie: string, origin?: string) {
   });
 }
 
-async function connect(cookie: string) {
-  const url = new URL("/api/realtime", worker.url);
-  url.protocol = "ws:";
-  // Node's WebSocket (undici) accepts headers: the session cookie, and the Origin a browser on
-  // the web app would send.
-  const socket = new WebSocket(url, {
-    headers: { cookie, origin: WEB_ORIGIN },
-  } as unknown as string[]);
-  const received: { type: string; mailboxId: string; threadIds: string[] }[] = [];
-  socket.addEventListener("message", (e) => received.push(JSON.parse(String(e.data))));
-  await new Promise<void>((resolve, reject) => {
-    socket.addEventListener("open", () => resolve());
-    socket.addEventListener("error", () => reject(new Error("websocket failed to open")));
-  });
-  return {
-    socket,
-    received,
-    async next(count: number) {
-      const deadline = Date.now() + 10_000;
-      while (received.length < count) {
-        if (Date.now() > deadline)
-          throw new Error(`expected ${count} events, got ${received.length}`);
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-      return received;
-    },
-  };
-}
+const connect = (cookie: string) => openRealtime(worker, cookie);
 
 test("mail events reach only members who can see the mailbox, also after hibernation", async () => {
   const { db } = database;

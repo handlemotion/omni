@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
 import { threadState, threads } from "../src/schema/index.ts";
-import { createThread, upsertMessage } from "../src/writers.ts";
+import { createThread, enqueueAction, upsertMessage } from "../src/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();
@@ -102,9 +102,30 @@ describe("forMember isolation", () => {
 
     const asBob = forMember(db, bob);
     await asBob.setThreadState(billing.threadId, { read: true });
-    await asBob.setThreadState(billing.threadId, { snoozedUntil: new Date("2027-01-01Z") });
-    const [thread] = await asBob.listThreads();
-    expect(thread).toMatchObject({ read: true, snoozedUntil: new Date("2027-01-01Z") });
+    const snoozedUntil = new Date(Date.now() + 86_400_000);
+    await asBob.setThreadState(billing.threadId, { snoozedUntil });
+    const [thread] = await asBob.listThreads({ view: "snoozed" });
+    expect(thread).toMatchObject({ id: billing.threadId, read: true, snoozedUntil });
+  });
+
+  test("counts and outbox actions are scoped like threads", async () => {
+    const { orgId, mailboxId: helloBox } = (await forMember(db, alice).getThread(hello.threadId))!;
+    // Alice counts only hello@; Carol's forged cross-org grant on hello@ yields no row at all.
+    expect((await forMember(db, alice).counts()).map((c) => c.mailboxId)).toEqual([helloBox]);
+    expect((await forMember(db, carol).counts()).map((c) => c.mailboxId)).not.toContain(helloBox);
+
+    const action = await enqueueAction(db, {
+      orgId,
+      mailboxId: helloBox,
+      memberId: alice,
+      kind: "send",
+      payload: {},
+      idempotencyKey: `isolation-${alice}`,
+    });
+    expect(await forMember(db, alice).getAction(action.id)).toMatchObject({ id: action.id });
+    // Bob shares Alice's org but did not ask for it; Carol is in another org.
+    expect(await forMember(db, bob).getAction(action.id)).toBeNull();
+    expect(await forMember(db, carol).getAction(action.id)).toBeNull();
   });
 });
 

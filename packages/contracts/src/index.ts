@@ -5,7 +5,10 @@ import { z } from "zod";
 /** Worker → mail service: "the outbox or the mailbox list changed". Empty body. 202 or 401. */
 export const MAIL_PING_PATH = "/ping";
 
-/** Mail service → Worker: new mail was indexed. JSON `MailEventsBody`. Any 2xx accepts. */
+/**
+ * Mail service → Worker: new mail was indexed, or an outbox action failed for good. JSON
+ * `MailEventsBody`. Any 2xx accepts.
+ */
 export const MAIL_EVENTS_PATH = "/internal/mail-events";
 
 export const folderRoleSchema = z.enum(["inbox", "sent", "archive", "trash", "other"]);
@@ -24,7 +27,23 @@ export const messageCreatedEventSchema = z.object({
   folderRole: folderRoleSchema,
 });
 
-export const mailEventSchema = z.discriminatedUnion("type", [messageCreatedEventSchema]);
+/**
+ * An outbox action failed for good: the mail service stopped retrying it (`mail_actions.status`
+ * is `failed`). The receiver reads the action's member, kind and error from `mail_actions`.
+ * Delivery is at least once, so receivers must be idempotent per `actionId`.
+ */
+export const actionFailedEventSchema = z.object({
+  type: z.literal("action.failed"),
+  orgId: z.string().min(1),
+  mailboxId: z.string().min(1),
+  /** `mail_actions.id`. */
+  actionId: z.string().min(1),
+});
+
+export const mailEventSchema = z.discriminatedUnion("type", [
+  messageCreatedEventSchema,
+  actionFailedEventSchema,
+]);
 
 export const MAX_EVENTS_PER_REQUEST = 100;
 

@@ -329,7 +329,13 @@ export const threadState = pgTable(
     snoozedUntil: timestamptz("snoozed_until"),
     updatedAt: updatedAt(),
   },
-  (t) => [primaryKey({ columns: [t.threadId, t.memberId] })],
+  (t) => [
+    primaryKey({ columns: [t.threadId, t.memberId] }),
+    // The snoozed view starts from this member's snoozes instead of walking every inbox thread.
+    index("thread_state_member_snoozed_idx")
+      .on(t.memberId, t.snoozedUntil)
+      .where(sql`${t.snoozedUntil} is not null`),
+  ],
 );
 
 export const assignments = pgTable("assignments", {

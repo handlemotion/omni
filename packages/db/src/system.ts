@@ -2,7 +2,7 @@
 // never call these with input from a member's request to decide what that member may see.
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
-import { mailboxAccess, mailboxes, members, pushTokens } from "./schema/index.ts";
+import { mailActions, mailboxAccess, mailboxes, members, pushTokens } from "./schema/index.ts";
 
 /** The mailbox that sends system mail (magic links), by address. Oldest wins if several orgs share it. */
 export async function findSystemMailbox(db: Db, address: string) {
@@ -32,6 +32,22 @@ export async function mailboxAudience(db: Db, mailboxIds: string[]) {
       and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, mailboxes.orgId)),
     )
     .where(inArray(mailboxAccess.mailboxId, mailboxIds));
+}
+
+/** An outbox action by id, for telling the member who asked for it how it ended. */
+export async function findAction(db: Db, actionId: string) {
+  const [row] = await db
+    .select({
+      id: mailActions.id,
+      orgId: mailActions.orgId,
+      memberId: mailActions.memberId,
+      kind: mailActions.kind,
+      status: mailActions.status,
+      lastError: mailActions.lastError,
+    })
+    .from(mailActions)
+    .where(eq(mailActions.id, actionId));
+  return row ?? null;
 }
 
 /** Expo push tokens registered by these members. */

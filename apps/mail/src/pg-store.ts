@@ -294,14 +294,28 @@ export class PgMailStore implements MailStore {
   }
 }
 
+/** An action that just became `failed`: nothing will retry it. */
+export interface FailedAction {
+  id: string;
+  orgId: string;
+  mailboxId: string;
+}
+
 /** `mail_actions` as the outbox. The executor owns retry timing; the claim is a lease. */
 export class PgActionSource implements ActionSource {
   private readonly db: Db;
   private readonly leaseMs: number;
+  private readonly onFailed: (action: FailedAction) => void;
 
-  constructor(options: { db: Db; leaseMs?: number }) {
+  constructor(options: {
+    db: Db;
+    leaseMs?: number;
+    /** Called once an action is marked `failed`, after the write. Must not throw. */
+    onFailed?: (action: FailedAction) => void;
+  }) {
     this.db = options.db;
     this.leaseMs = options.leaseMs ?? 5 * 60_000;
+    this.onFailed = options.onFailed ?? (() => {});
   }
 
   async claim(limit: number): Promise<MailAction[]> {
@@ -311,7 +325,7 @@ export class PgActionSource implements ActionSource {
       const payload = actionPayloadSchemas[row.kind].safeParse(row.payload);
       if (!payload.success) {
         // Retrying cannot fix a malformed payload: show it as failed now.
-        await rescheduleAction(this.db, row.id, `invalid payload: ${payload.error.message}`, null);
+        await this.fail(row.id, `invalid payload: ${payload.error.message}`, null);
         continue;
       }
       claimed.push({
@@ -336,7 +350,8 @@ export class PgActionSource implements ActionSource {
   }
 
   async fail(actionId: string, error: string, retryAt: Date | null): Promise<void> {
-    await rescheduleAction(this.db, actionId, error, retryAt);
+    const row = await rescheduleAction(this.db, actionId, error, retryAt);
+    if (row && retryAt === null) this.onFailed(row);
   }
 
   async defer(actionId: string, retryAt: Date): Promise<void> {
