@@ -24,6 +24,10 @@ extends this file and wins where they differ. Explicit user instructions overrid
 
 - `apps/web` (Vite SPA) and `apps/ios` (Expo) are owned by Rodrigo. Agents do not create or edit
   UI unless asked; build the API and types those apps will consume.
+- Web UI: every page and component that waits on data renders its loading state with
+  [`skullet`](https://www.npmjs.com/package/skullet) (`import { Skeleton } from "skullet/react"`),
+  never a hand-built spinner or skeleton div. Skullet measures the real content, so nothing shifts
+  when data arrives. Install it in `apps/web` with `pnpm add skullet`.
 - Boundaries are hard:
   - Only `apps/mail` holds mail passwords, the credential key, and the Purelymail API token.
     The Worker never talks to Purelymail.
