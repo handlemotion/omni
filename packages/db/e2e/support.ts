@@ -1,15 +1,15 @@
 // Each e2e file gets its own throwaway database, migrated from the committed migrations.
 import { randomUUID } from "node:crypto";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { createDb } from "../src/client.ts";
 import { readDatabaseUrl } from "../src/env.ts";
 import { mailboxAccess, mailboxes, members, organizations, users } from "../src/schema/index.ts";
 
-export const migrationsFolder = fileURLToPath(new URL("../migrations", import.meta.url));
+export const migrationsFolder = join(import.meta.dirname, "../migrations");
 
-const adminUrl = () => readDatabaseUrl(fileURLToPath(new URL("..", import.meta.url)));
+const adminUrl = () => readDatabaseUrl(join(import.meta.dirname, ".."));
 
 /** Creates an empty database and returns its URL plus a function that drops it. */
 export async function createEmptyDatabase() {

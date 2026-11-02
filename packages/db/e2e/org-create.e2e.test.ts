@@ -1,6 +1,6 @@
 // The `org:create` CLI as an operator runs it: a real process against a real database.
 import { execFile } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
@@ -10,7 +10,7 @@ import { createMember, createOrg, createTestDatabase } from "./support.ts";
 const { db, url, teardown } = await createTestDatabase();
 afterAll(teardown);
 
-const cli = fileURLToPath(new URL("../src/cli/org-create.ts", import.meta.url));
+const cli = join(import.meta.dirname, "../src/cli/org-create.ts");
 
 async function orgCreate(...args: string[]) {
   const { stdout } = await promisify(execFile)(process.execPath, [cli, ...args], {

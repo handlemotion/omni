@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import {
   MAIL_EVENTS_PATH,
@@ -332,7 +332,7 @@ describe("mail service end to end", () => {
 function mailboxAdd(args: string[], password: string) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
     const child = spawn(process.execPath, ["src/cli/mailbox-add.ts", ...args], {
-      cwd: fileURLToPath(new URL("..", import.meta.url)),
+      cwd: join(import.meta.dirname, ".."),
       env: {
         PATH: process.env.PATH,
         DATABASE_URL: database.url,
