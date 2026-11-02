@@ -34,7 +34,8 @@ secrets of the GitHub environment `production`: `DOPPLER_TOKEN_GITHUB` (`prd_git
 - `prd_github` holds deploy-time config. `WORKER_VAR_<NAME>` becomes the Worker var `<NAME>`
   (overriding the neutral default in `wrangler.jsonc`), for example `WORKER_VAR_BETTER_AUTH_URL`
   and `WORKER_VAR_MAIL_SERVICE_URL`. `HYPERDRIVE_ID` replaces the placeholder id and
-  `WORKER_DOMAIN` is the Worker's custom domain.
+  `WORKER_DOMAIN` is the Worker's custom domain, or several comma-separated (the first is
+  health-checked after deploy).
 - Database roles (PlanetScale `omni`, branch `main`): `MIGRATE_DATABASE_URL` is an admin role used
   only by migrations; the mail service and Hyperdrive (`HYPERDRIVE_ORIGIN_URL`, kept to recreate
   the config) each have a read/write role.
