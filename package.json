@@ -27,7 +27,7 @@
     "prepare": "node scripts/install-git-hooks.mjs"
   },
   "devDependencies": {
-    "@types/node": "^24.10.0",
+    "@types/node": "^26.6.6",
     "lefthook": "^2.2.2",
     "lint-staged": "^17.6.0",
     "oxfmt": "^0.75.0",
