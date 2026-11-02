@@ -18,3 +18,4 @@ export {
   parseKeyring,
   type Keyring,
 } from "./credentials.ts";
+export { deterministicMessageId } from "./message-id.ts";

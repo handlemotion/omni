@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./clean": "./src/clean.ts"
+    "./clean": "./src/clean.ts",
+    "./display": "./src/display.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

@@ -13,10 +13,9 @@ import {
   type MailEvent,
   mailEventsBodySchema,
 } from "@omni/contracts";
-import { parseKeyring, signRequest, verifyRequest } from "@omni/crypto";
+import { deterministicMessageId, parseKeyring, signRequest, verifyRequest } from "@omni/crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { sealCredentials } from "../src/credentials.ts";
-import { deterministicMessageId } from "../src/outbox.ts";
 import { type MailService, type ServiceConfig, startService } from "../src/service.ts";
 import {
   actionRow,
@@ -265,7 +264,7 @@ describe("mail service end to end", () => {
     await waitFor(async () => (await actionRow(db, action.id)).status === "done", 10_000);
 
     // The Sent copy is indexed exactly once, and the Worker hears about it once.
-    const messageId = deterministicMessageId(action.idempotencyKey, box.address);
+    const messageId = await deterministicMessageId(action.idempotencyKey, box.address);
     const sent = await stored(db, box.id, "Sent");
     expect(sent.map((r) => r.messageIdHeader)).toEqual([messageId]);
     expect((await messageRows(db, box.id)).map((r) => r.messageIdHeader)).toEqual([messageId]);
