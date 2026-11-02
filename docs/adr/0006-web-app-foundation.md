@@ -1,6 +1,6 @@
 # 0006: Web app foundation (`apps/web`) and the API it needs
 
-Date: 2026-11-02 · Status: proposed
+Date: 2026-11-02 · Status: accepted
 
 ## Context
 
@@ -57,8 +57,9 @@ component → hook (src/hooks) → query/mutation options (src/lib/queries) → 
             realtime (src/lib/realtime) ── invalidates query keys on events
 ```
 
-- **Query keys** are one factory (`src/lib/query-keys.ts`), all scoped by org id, so switching
-  organization or account never shows another org's cache.
+- **Query keys** are one factory (`src/lib/query-keys.ts`). They do not carry the org id: any
+  identity change cancels in-flight queries and clears the whole cache instead (below), which is
+  simpler and equally safe.
 - **Freshness:** lists and threads are `staleTime: 30s`; realtime is what makes them current,
   the stale time only bounds a missed event. Counts refetch with any list invalidation.
 - **Optimistic updates:** archive, read/unread, snooze and move patch every cached list and the
@@ -67,8 +68,9 @@ component → hook (src/hooks) → query/mutation options (src/lib/queries) → 
 - **Send/reply** return `{ actionId, messageIdHeader }`. A pending message is added to the
   thread right away; the refetched thread replaces it when it holds the same Message-ID. A
   realtime `action` event (or `GET /api/actions/:id` after a reconnect) marks it failed.
-- **Org or account switch:** clear the query cache, close and reopen the realtime socket (the
-  Durable Object is per org), refetch the session.
+- **Org or account switch, sign out, any 401:** cancel in-flight queries, clear the query cache,
+  rerun the route guards; the shell reopens the realtime socket for the new member (the Durable
+  Object is per org).
 
 ### Hook and lib surface (`src/lib`, `src/hooks`; components live in `src/components`)
 

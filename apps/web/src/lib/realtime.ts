@@ -1,0 +1,111 @@
+// Live updates: one websocket per signed-in member (per org; the Durable Object is per org),
+// turned into cache invalidations. Events say what changed, not its contents, so this marks
+// those queries stale and TanStack Query refetches only the ones on screen.
+import { connectRealtime, type RealtimeEvent, type RealtimeStatus } from "@omni/client";
+import type { QueryClient } from "@tanstack/react-query";
+import { call, api } from "./api.ts";
+import { addFailure, allPending, failPendingByAction } from "./pending.ts";
+import { filterOf, keys } from "./query-keys.ts";
+
+/** Bursts of new mail (an import, a busy thread) collapse into one refetch per window. */
+const FLUSH_MS = 150;
+
+let status: RealtimeStatus = "closed";
+const listeners = new Set<() => void>();
+
+function setStatus(next: RealtimeStatus) {
+  status = next;
+  for (const listener of listeners) listener();
+}
+
+/** For `useSyncExternalStore`: the socket's state, shared by every component. */
+export const realtimeStatus = {
+  get: () => status,
+  subscribe(listener: () => void) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  },
+};
+
+/** Opens the socket and keeps the cache in step with it. Returns the function that stops it. */
+export function startRealtime(client: QueryClient): () => void {
+  const changedThreads = new Set<string>();
+  const changedMailboxes = new Set<string>();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const flush = () => {
+    timer = undefined;
+    const threads = [...changedThreads];
+    const mailboxes = new Set(changedMailboxes);
+    changedThreads.clear();
+    changedMailboxes.clear();
+    for (const id of threads) void client.invalidateQueries({ queryKey: keys.thread(id) });
+    // A list filtered to another mailbox cannot have changed.
+    void client.invalidateQueries({
+      queryKey: keys.threadLists(),
+      predicate: (query) => {
+        const mailbox = filterOf(query.queryKey)?.mailbox;
+        return !mailbox || mailboxes.has(mailbox);
+      },
+    });
+    void client.invalidateQueries({ queryKey: keys.counts() });
+    void client.invalidateQueries({ queryKey: keys.searches() });
+  };
+
+  const onEvent = (event: RealtimeEvent) => {
+    if (event.type === "changed") {
+      changedMailboxes.add(event.mailboxId);
+      for (const id of event.threadIds) changedThreads.add(id);
+      timer ??= setTimeout(flush, FLUSH_MS);
+      return;
+    }
+    if (event.type === "action" && event.status === "failed") {
+      onActionFailed(client, event.actionId, event.kind, event.error);
+    }
+  };
+
+  const connection = connectRealtime({
+    baseUrl: window.location.origin,
+    onEvent,
+    onStatus: (next, { reconnected }) => {
+      setStatus(next);
+      // Events sent while the socket was down are gone: refetch what is on screen and ask the
+      // outbox about sends still waiting.
+      if (next === "open" && reconnected) {
+        void client.invalidateQueries({ queryKey: keys.mail() });
+        void recheckPendingSends(client);
+      }
+    },
+  });
+
+  return () => {
+    clearTimeout(timer);
+    connection.close();
+    setStatus("closed");
+  };
+}
+
+function onActionFailed(client: QueryClient, actionId: string, kind: string, error: string) {
+  // A failed reply shows on its pending bubble; anything else is reported as a failure, and the
+  // lists refetch because an optimistic archive or move may not have happened after all.
+  if (!failPendingByAction(client, actionId, error)) {
+    addFailure(client, { actionId, kind, error, at: new Date().toISOString() });
+  }
+  void client.invalidateQueries({ queryKey: keys.mail() });
+}
+
+async function recheckPendingSends(client: QueryClient) {
+  const queued = allPending(client).filter((p) => p.status === "queued" && p.actionId);
+  await Promise.all(
+    queued.map(async (p) => {
+      try {
+        const action = await call(api.actions[":id"].$get({ param: { id: p.actionId ?? "" } }));
+        if (action.status === "failed") {
+          onActionFailed(client, action.id, action.kind, action.error ?? "Sending failed");
+        }
+      } catch {
+        // Offline again; the next reconnect checks again.
+      }
+    }),
+  );
+}

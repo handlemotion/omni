@@ -111,7 +111,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile --filter @omni/worker...
+      # Deploying the Worker builds and uploads apps/web (wrangler.jsonc `build`), so install both.
+      - run: pnpm install --frozen-lockfile --filter @omni/worker... --filter @omni/web...
 
       # wrangler.jsonc keeps neutral defaults (self-hosting); production ids, domain and vars come
       # from Doppler prd_github, secrets from prd_worker.

@@ -147,8 +147,11 @@ Expose `/ping` only to your Worker.
 
 ### Worker (`apps/worker`)
 
-One Cloudflare Worker serves the API (`/api/*`), Better Auth (`/api/auth/*`) and, as later
-sections add, the AI queue consumer and realtime. Its config is `apps/worker/wrangler.jsonc`;
+One Cloudflare Worker serves the web app (`apps/web`), the API (`/api/*`), Better Auth
+(`/api/auth/*`), the AI queue consumer and realtime, all on one origin. Wrangler builds the web
+app before `dev` and `deploy` (`build` in `wrangler.jsonc`) and serves it as static assets; the
+Worker code runs first only for `/api/*`, `/health` and `/internal/*`, and any other unknown path
+returns the app's `index.html` so deep links work. Its config is `apps/worker/wrangler.jsonc`;
 every name and id there is a neutral default to replace with your own.
 
 Bindings:
@@ -168,7 +171,7 @@ to `.dev.vars`.
 | Variable                   | Kind   | Required | Notes                                                                                                                                                                     |
 | -------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BETTER_AUTH_SECRET`       | secret | yes      | At least 32 random characters.                                                                                                                                            |
-| `BETTER_AUTH_URL`          | var    | yes      | Public origin of the Worker.                                                                                                                                              |
+| `BETTER_AUTH_URL`          | var    | yes      | Public origin of the Worker (and the web app it serves). Magic links point here.                                                                                          |
 | `AUTH_TRUSTED_ORIGINS`     | var    | no       | Comma-separated web/app origins.                                                                                                                                          |
 | `AUTH_PASSKEY_RP_ID`       | var    | no       | WebAuthn relying party ID.                                                                                                                                                |
 | `APP_NAME`                 | var    | no       | Defaults to `Omni`.                                                                                                                                                       |
@@ -202,4 +205,12 @@ redirect hop (up to 3), and returns only raster images up to 5 MB within 8 s, ca
 ```bash
 pnpm --filter @omni/worker dev      # wrangler dev on :8787 (we wrap it in Doppler)
 pnpm --filter @omni/worker exec wrangler deploy
+```
+
+To work on the web app with hot reload, run the Worker with `BETTER_AUTH_URL` set to Vite's
+origin (so magic links land on Vite), then Vite, which forwards `/api` to the Worker:
+
+```bash
+pnpm --filter @omni/worker exec wrangler dev --var BETTER_AUTH_URL:http://localhost:5173
+pnpm --filter @omni/web dev         # http://localhost:5173
 ```

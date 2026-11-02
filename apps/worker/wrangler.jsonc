@@ -9,6 +9,15 @@
   // Production vars and secrets set in the dashboard or by CI survive deploys.
   "keep_vars": true,
   "observability": { "enabled": true },
+  // The web app (apps/web) is served from here, on the same origin as the API. Wrangler builds it
+  // before `dev` and `deploy`. The Worker runs first only for its own paths; every other path is
+  // a file from the build, or index.html so client-side routes deep-link.
+  "build": { "command": "pnpm --filter @omni/web build", "watch_dir": "../web/src" },
+  "assets": {
+    "directory": "../web/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/health", "/internal/*"],
+  },
   "vars": {
     // `test` only in the e2e suites; it unlocks test-only switches.
     "ENVIRONMENT": "production",
