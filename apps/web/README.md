@@ -12,6 +12,14 @@ pnpm --filter @omni/worker exec wrangler dev --var BETTER_AUTH_URL:http://localh
 pnpm --filter @omni/web dev          # http://localhost:5173, forwards /api to :8787
 ```
 
+With Doppler instead of `.dev.vars`, wrangler only turns environment variables into Worker vars
+with `CLOUDFLARE_INCLUDE_PROCESS_ENV=true`:
+
+```bash
+CLOUDFLARE_INCLUDE_PROCESS_ENV=true doppler run -p omni -c dev_worker -- \
+  pnpm --filter @omni/worker exec wrangler dev --var BETTER_AUTH_URL:http://localhost:5173
+```
+
 `OMNI_API_ORIGIN` (see `.env.example`) points the dev proxy somewhere else. `pnpm build` writes
 `dist/`; `wrangler dev` and `wrangler deploy` build it themselves.
 

@@ -98,12 +98,12 @@ Mailboxes are added from the command line with the same `DATABASE_URL` and
 
 ```bash
 # Any IMAP/SMTP host
-printf '%s' "$APP_PASSWORD" | pnpm --filter @omni/mail mailbox:add -- \
+printf '%s' "$APP_PASSWORD" | pnpm --filter @omni/mail mailbox:add \
   --org <org id> --address you@example.com --owner you@example.com \
   --provider imap --imap imap.example.com:993 --smtp smtp.example.com:465
 
 # Purelymail: servers are known; optionally let its API create the app password
-pnpm --filter @omni/mail mailbox:add -- --org <org id> --address you@example.com \
+pnpm --filter @omni/mail mailbox:add --org <org id> --address you@example.com \
   --owner you@example.com --create-app-password      # needs PURELYMAIL_API_TOKEN
 ```
 
