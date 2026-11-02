@@ -1,4 +1,4 @@
-import { createAuth, type Auth } from "@omni/auth";
+import { createAuth, type Auth, type InvitationMessage } from "@omni/auth";
 import { createDb, enqueueAction, findSystemMailbox, schema, type Db } from "@omni/db";
 import type { SendPayload } from "@omni/contracts";
 import { and, asc, eq } from "drizzle-orm";
@@ -34,7 +34,34 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
   });
   c.set("config", config);
   c.set("db", db);
-  c.set("auth", createAuth({ db, ...config.auth, sendMagicLink: magicLinkSender(c, db, config) }));
+  const mail = systemMailSender(c, db, config);
+  c.set(
+    "auth",
+    createAuth({
+      db,
+      ...config.auth,
+      sendMagicLink: async ({ email, url }) => {
+        devLog(config, { kind: "magic-link", email, url });
+        const appName = config.auth.appName;
+        await mail({
+          to: email,
+          idempotencyKey: `magic-link:${await sha256Hex(url)}`,
+          subject: `Sign in to ${appName}`,
+          text: `Open this link to sign in to ${appName}:\n\n${url}\n\nIf you did not ask for it, ignore this email.`,
+        });
+      },
+      sendInvitation: async (invite) => {
+        devLog(config, { kind: "invitation", email: invite.email, url: invite.url });
+        await mail({
+          to: invite.email,
+          // A resend extends the expiry, so it is a new email; a retried request is not.
+          idempotencyKey: `invitation:${invite.invitationId}:${invite.expiresAt.getTime()}`,
+          subject: `${invite.inviterName} invited you to ${invite.organizationName} on ${config.auth.appName}`,
+          text: invitationText(invite, config.auth.appName),
+        });
+      },
+    }),
+  );
   try {
     await next();
   } finally {
@@ -71,38 +98,58 @@ export const requireMember = createMiddleware<AppEnv>(async (c, next) => {
 });
 
 /**
- * Magic links go out as an ordinary `send` in the outbox, from the mailbox at
- * `SYSTEM_MAIL_FROM`, so they get the mail service's retries and idempotency for free.
+ * Auth mail (magic links, invitations) goes out as an ordinary `send` in the outbox, from the
+ * mailbox at `SYSTEM_MAIL_FROM`, so it gets the mail service's retries and idempotency for free.
  */
-function magicLinkSender(
+function systemMailSender(
   c: { executionCtx: { waitUntil(promise: Promise<unknown>): void } },
   db: Db,
   config: Config,
 ) {
-  return async ({ email, url }: { email: string; url: string }) => {
+  return async (message: { to: string; idempotencyKey: string; subject: string; text: string }) => {
     if (!config.SYSTEM_MAIL_FROM) {
-      throw new Error("SYSTEM_MAIL_FROM is not set: magic links have no mailbox to send from");
+      throw new Error("SYSTEM_MAIL_FROM is not set: auth mail has no mailbox to send from");
     }
     const mailbox = await findSystemMailbox(db, config.SYSTEM_MAIL_FROM);
     if (!mailbox) {
       throw new Error("SYSTEM_MAIL_FROM does not match any mailbox in the database");
     }
-    const appName = config.auth.appName;
     await enqueueAction(db, {
       orgId: mailbox.orgId,
       mailboxId: mailbox.id,
       memberId: null,
       kind: "send",
-      idempotencyKey: `magic-link:${await sha256Hex(url)}`,
+      idempotencyKey: message.idempotencyKey,
       payload: {
         from: mailbox.address,
-        to: [email],
-        subject: `Sign in to ${appName}`,
-        text: `Open this link to sign in to ${appName}:\n\n${url}\n\nIf you did not ask for it, ignore this email.`,
+        to: [message.to],
+        subject: message.subject,
+        text: message.text,
       } satisfies SendPayload,
     });
     c.executionCtx.waitUntil(pingMailService(config));
   };
+}
+
+function invitationText(invite: InvitationMessage, appName: string) {
+  return [
+    `${invite.inviterName} invited you to join ${invite.organizationName} on ${appName}.`,
+    "",
+    `Open this link to accept:`,
+    "",
+    invite.url,
+    "",
+    `It expires on ${invite.expiresAt.toUTCString()}. If you did not expect it, ignore this email.`,
+  ].join("\n");
+}
+
+/**
+ * Local sign-in without digging the link out of GreenMail. Only under ENVIRONMENT=development:
+ * these URLs are bearer credentials, so production and test never log them.
+ */
+function devLog(config: Config, link: { kind: string; email: string; url: string }) {
+  if (config.ENVIRONMENT !== "development") return;
+  console.log(JSON.stringify({ event: "auth.dev_link", ...link }));
 }
 
 async function sha256Hex(text: string) {

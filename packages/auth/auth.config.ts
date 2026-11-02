@@ -11,4 +11,7 @@ export const auth = createAuth({
   sendMagicLink: async () => {
     throw new Error("auth.config.ts is for schema generation only");
   },
+  sendInvitation: async () => {
+    throw new Error("auth.config.ts is for schema generation only");
+  },
 });

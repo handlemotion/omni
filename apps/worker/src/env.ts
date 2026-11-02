@@ -43,7 +43,10 @@ const configSchema = z
       .transform((v) => v === "true"),
     /** DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse private addresses. */
     IMAGE_PROXY_DOH_URL: z.url().default("https://cloudflare-dns.com/dns-query"),
-    /** `production` unless the e2e suites say `test`; gates test-only switches. */
+    /**
+     * `production` by default. `test` (e2e suites) unlocks test-only switches; `development`
+     * also logs magic-link and invitation URLs to the console for local sign-in.
+     */
     ENVIRONMENT: z.enum(["production", "development", "test"]).default("production"),
     /** Test-only: one origin exempt from the proxy's address checks. Refused unless ENVIRONMENT=test. */
     IMAGE_PROXY_TEST_ALLOW_ORIGIN: optionalText.pipe(z.url().optional()),
