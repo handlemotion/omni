@@ -5,19 +5,20 @@ import { zValidator } from "@hono/zod-validator";
 import {
   enqueueAction,
   forMember,
+  LANES,
   listMemberMailboxes,
   setThreadArchived,
   threadActionTargets,
+  type MemberQueries,
 } from "@omni/db";
 import type { ActionPayload, SendPayload } from "@omni/contracts";
+import { addedParticipants, messageDisplay } from "@omni/mail-core/display";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
 import { attachmentResponse } from "./assets.ts";
-
-const lanes = ["needs_reply", "waiting_on_them", "fyi", "noise", "unsure"] as const;
 
 const cursorSchema = z.object({ t: z.iso.datetime(), id: z.string().min(1) });
 
@@ -44,11 +45,9 @@ const cursorParam = z
 
 const listQuery = z.object({
   mailboxId: z.string().min(1).optional(),
-  lane: z.enum(lanes).optional(),
-  archived: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
+  lane: z.enum(LANES).optional(),
+  /** `inbox` hides snoozed threads until their time; `snoozed` lists them. */
+  view: z.enum(["inbox", "snoozed", "archive"]).default("inbox"),
   cursor: cursorParam,
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
@@ -99,6 +98,44 @@ function pingLater(c: Context<AppEnv>) {
   c.executionCtx.waitUntil(pingMailService(c.var.config));
 }
 
+/**
+ * The thread as both views read it: chat mode uses `cleanText`, `fromMe`, `display` and
+ * `addedParticipants`; email mode uses `hasHtml` and the HTML route. Storage keys stay inside.
+ */
+function threadResponse(thread: NonNullable<Awaited<ReturnType<MemberQueries["getThread"]>>>) {
+  const self = thread.mailboxAddress.toLowerCase();
+  const added = addedParticipants(thread.messages);
+  return {
+    ...thread,
+    messages: thread.messages.map(({ r2Key: _raw, htmlR2Key, attachments, ...message }, i) => ({
+      ...message,
+      fromMe: message.fromAddress.toLowerCase() === self,
+      display: messageDisplay(message.cleanText),
+      hasHtml: htmlR2Key !== null,
+      addedParticipants: added[i] ?? [],
+      attachments: attachments.map(({ r2Key: _key, ...file }) => file),
+    })),
+  };
+}
+
+/**
+ * A retried request finds the action it already wrote, so it answers with that send's
+ * Message-ID, not the fresh one it just made. The thread's message carries the same id once
+ * the mail service files the Sent copy.
+ */
+function sendResponse(action: { id: string; payload: Record<string, unknown> }) {
+  return {
+    actionId: action.id,
+    messageIdHeader: (action.payload as SendPayload).messageId ?? null,
+  };
+}
+
+/** Chosen here so send and reply can return it before the mail goes out. */
+function newMessageId(address: string) {
+  const domain = address.slice(address.lastIndexOf("@") + 1);
+  return `<${crypto.randomUUID()}@${domain}>`;
+}
+
 export const mail = new Hono<AppEnv>()
   .get("/mailboxes", async (c) => {
     return c.json({ mailboxes: await listMemberMailboxes(c.var.db, c.var.member.id) });
@@ -120,7 +157,19 @@ export const mail = new Hono<AppEnv>()
   .get("/threads/:id", async (c) => {
     const thread = await forMember(c.var.db, c.var.member.id).getThread(c.req.param("id"));
     if (!thread) notFound();
-    return c.json(thread);
+    return c.json(threadResponse(thread));
+  })
+
+  /** Per mailbox: inbox and unread inbox threads, snoozed threads, and inbox threads per lane. */
+  .get("/counts", async (c) => {
+    return c.json({ counts: await forMember(c.var.db, c.var.member.id).counts() });
+  })
+
+  /** An outbox action's state, e.g. to learn after a reconnect whether a send failed. */
+  .get("/actions/:id", async (c) => {
+    const action = await forMember(c.var.db, c.var.member.id).getAction(c.req.param("id"));
+    if (!action) notFound();
+    return c.json(action);
   })
 
   .get("/search", zValidator("query", searchQuery), async (c) => {
@@ -252,11 +301,15 @@ export const mail = new Hono<AppEnv>()
         mailboxId: mailbox.id,
         memberId: c.var.member.id,
         kind: "send",
-        payload: { from: mailbox.address, ...message } satisfies SendPayload,
+        payload: {
+          from: mailbox.address,
+          ...message,
+          messageId: newMessageId(mailbox.address),
+        } satisfies SendPayload,
         idempotencyKey: outboxKey(c, key, "send"),
       });
       pingLater(c);
-      return c.json({ actionId: action.id }, 202);
+      return c.json(sendResponse(action), 202);
     },
   )
 
@@ -302,10 +355,11 @@ export const mail = new Hono<AppEnv>()
           ...(html ? { html } : {}),
           inReplyTo: latest.messageIdHeader,
           references: [...latest.references, latest.messageIdHeader],
+          messageId: newMessageId(found.mailboxAddress),
         } satisfies SendPayload,
         idempotencyKey: outboxKey(c, key, "send"),
       });
       pingLater(c);
-      return c.json({ actionId: action.id }, 202);
+      return c.json(sendResponse(action), 202);
     },
   );

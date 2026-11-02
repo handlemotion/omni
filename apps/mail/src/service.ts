@@ -60,7 +60,10 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
   });
   const supervisor = new Supervisor({
     store,
-    actions: new PgActionSource({ db }),
+    actions: new PgActionSource({
+      db,
+      onFailed: (action) => notifier.push({ type: "action.failed", ...action }),
+    }),
     logger: log,
     syncIntervalMs: config.SYNC_INTERVAL_MS,
     outboxIntervalMs: config.OUTBOX_INTERVAL_MS,

@@ -5,7 +5,10 @@ import type { Config } from "./env.ts";
 /** Header the Worker sets (never the client) to tell the DO whose socket this is. */
 export const MEMBER_HEADER = "x-omni-member-id";
 
-export type RealtimeEvent = { type: "changed"; mailboxId: string; threadIds: string[] };
+export type RealtimeEvent =
+  | { type: "changed"; mailboxId: string; threadIds: string[] }
+  /** An outbox action this member asked for failed for good (e.g. a send). */
+  | { type: "action"; actionId: string; status: "failed"; error: string };
 
 /**
  * One instance per org. Each open app holds a hibernatable websocket tagged with its member id;
@@ -83,6 +86,18 @@ export async function fanOut(
     for (const { address, memberIds } of offlineByMailbox.values()) {
       await sendExpoPush(db, config, memberIds, { title: address, body: "New message" });
     }
+  }
+}
+
+/** Tells each member whose action failed for good, on their org's realtime object. */
+export async function notifyFailedActions(
+  env: Env,
+  failures: { orgId: string; memberId: string | null; actionId: string; error: string }[],
+) {
+  for (const { orgId, memberId, actionId, error } of failures) {
+    if (!memberId) continue;
+    const stub = env.REALTIME.get(env.REALTIME.idFromName(orgId));
+    await stub.broadcast([memberId], { type: "action", actionId, status: "failed", error });
   }
 }
 

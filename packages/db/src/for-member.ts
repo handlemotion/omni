@@ -2,7 +2,9 @@ import { and, desc, eq, getTableColumns, sql, type AnyColumn, type SQL } from "d
 import type { Db } from "./client.ts";
 import {
   attachments,
+  mailActions,
   mailboxAccess,
+  mailboxes,
   members,
   messages,
   threadState,
@@ -14,6 +16,26 @@ import {
 export const TRIAGE_AUTO_FILE_CONFIDENCE = 0.85;
 
 export type Lane = (typeof triageBucket.enumValues)[number] | "unsure";
+
+export const LANES = [...triageBucket.enumValues, "unsure"] as const satisfies readonly Lane[];
+
+/**
+ * `inbox`: not archived, not snoozed into the future. `snoozed`: not archived, snoozed into the
+ * future (it returns to the inbox by itself when the time passes). `archive`: archived.
+ */
+export type ThreadView = "inbox" | "snoozed" | "archive";
+
+export interface Participant {
+  name: string | null;
+  address: string;
+}
+
+/** Lane membership, the same rule the list filter and the counts use. */
+function laneFilter(lane: Lane): SQL {
+  return lane === "unsure"
+    ? sql`(${threads.triageSource} = 'ai' and ${threads.triageConfidence} < ${TRIAGE_AUTO_FILE_CONFIDENCE})`
+    : sql`(${threads.triage} = ${lane} and (${threads.triageSource} = 'person' or ${threads.triageConfidence} >= ${TRIAGE_AUTO_FILE_CONFIDENCE}))`;
+}
 
 export interface ThreadCursor {
   lastMessageAt: Date;
@@ -47,34 +69,55 @@ export function forMember(db: Db, memberId: string) {
     snoozedUntil: threadState.snoozedUntil,
   };
   const myState = and(eq(threadState.threadId, threads.id), eq(threadState.memberId, memberId));
+  const snoozedNow = sql`exists (select 1 from ${threadState} where ${threadState.threadId} = ${threads.id} and ${threadState.memberId} = ${memberId} and ${threadState.snoozedUntil} > now())`;
+
+  // Per-thread summary for list rows, read through the thread (already access-checked).
+  const rowFields = {
+    ...threadFields,
+    latest: sql<{
+      subject: string;
+      fromName: string | null;
+      fromAddress: string;
+      snippet: string;
+    } | null>`(select jsonb_build_object('subject', m.subject, 'fromName', m.from_name, 'fromAddress', m.from_address, 'snippet', left(btrim(regexp_replace(left(m.clean_text, 600), '\\s+', ' ', 'g')), 200)) from ${messages} m where m.thread_id = ${threads.id} order by m.sent_at desc, m.id desc limit 1)`.as(
+      "latest",
+    ),
+    messageCount:
+      sql<number>`(select count(*)::int from ${messages} m where m.thread_id = ${threads.id})`.as(
+        "message_count",
+      ),
+    hasAttachments:
+      sql<boolean>`exists (select 1 from ${attachments} a join ${messages} m on m.id = a.message_id where m.thread_id = ${threads.id})`.as(
+        "has_attachments",
+      ),
+    // Distinct senders in the order they first wrote.
+    participants: sql<
+      Participant[]
+    >`(select coalesce(jsonb_agg(jsonb_build_object('name', p.from_name, 'address', p.from_address) order by p.first_at), '[]'::jsonb) from (select distinct on (lower(m.from_address)) m.from_name, m.from_address, m.sent_at as first_at from ${messages} m where m.thread_id = ${threads.id} order by lower(m.from_address), m.sent_at) p)`.as(
+      "participants",
+    ),
+  };
 
   return {
     async listThreads(
       options: {
         mailboxId?: string;
         lane?: Lane;
-        archived?: boolean;
+        view?: ThreadView;
         before?: ThreadCursor;
         limit?: number;
       } = {},
     ) {
-      const { mailboxId, lane, archived = false, before, limit = 50 } = options;
+      const { mailboxId, lane, view = "inbox", before, limit = 50 } = options;
       const filters: (SQL | undefined)[] = [
         eq(threads.mailboxId, mailboxAccess.mailboxId),
         eq(threads.orgId, members.organizationId),
-        eq(threads.archived, archived),
+        eq(threads.archived, view === "archive"),
       ];
-      if (lane === "unsure") {
-        filters.push(
-          eq(threads.triageSource, "ai"),
-          sql`${threads.triageConfidence} < ${TRIAGE_AUTO_FILE_CONFIDENCE}`,
-        );
-      } else if (lane) {
-        filters.push(
-          eq(threads.triage, lane),
-          sql`(${threads.triageSource} = 'person' or ${threads.triageConfidence} >= ${TRIAGE_AUTO_FILE_CONFIDENCE})`,
-        );
-      }
+      // Inside the page, so a page of snoozed threads never comes back short.
+      if (view === "inbox") filters.push(sql`not ${snoozedNow}`);
+      if (view === "snoozed") filters.push(snoozedNow);
+      if (lane) filters.push(laneFilter(lane));
       if (before) {
         filters.push(
           sql`(${threads.lastMessageAt}, ${threads.id}) < (${before.lastMessageAt.toISOString()}::timestamptz, ${before.id})`,
@@ -90,8 +133,8 @@ export function forMember(db: Db, memberId: string) {
         .orderBy(desc(threads.lastMessageAt), desc(threads.id))
         .limit(limit)
         .as("threads");
-      return db
-        .select(threadFields)
+      const rows = await db
+        .select(rowFields)
         .from(mailboxAccess)
         .innerJoin(members, eq(members.id, mailboxAccess.memberId))
         .crossJoinLateral(page)
@@ -104,16 +147,75 @@ export function forMember(db: Db, memberId: string) {
         )
         .orderBy(desc(threads.lastMessageAt), desc(threads.id))
         .limit(limit);
+      return rows.map(({ latest, ...row }) => ({
+        ...row,
+        unread: !row.read,
+        subject: latest?.subject ?? "",
+        snippet: latest?.snippet ?? "",
+        latestFrom: latest ? { name: latest.fromName, address: latest.fromAddress } : null,
+      }));
+    },
+
+    /**
+     * Thread counts per granted mailbox, for the mailbox list: inbox (unread too), snoozed, and
+     * each lane within the inbox. The same rules as `listThreads`.
+     */
+    async counts() {
+      // This member's state row is joined already; no per-thread lookup.
+      const snoozed = sql`coalesce(${threadState.snoozedUntil} > now(), false)`;
+      const inbox = sql`not ${snoozed}`;
+      const unread = sql`coalesce(${threadState.read}, false) = false`;
+      const count = (filter: SQL) => sql<number>`(count(*) filter (where ${filter}))::int`;
+      const rows = await db
+        .select({
+          mailboxId: threads.mailboxId,
+          inbox: count(inbox),
+          unread: count(and(inbox, unread)!),
+          snoozed: count(snoozed),
+          lanes: sql<Record<Lane, number>>`jsonb_build_object(${sql.join(
+            LANES.map((lane) => sql`${lane}::text, ${count(and(inbox, laneFilter(lane))!)}`),
+            sql`, `,
+          )})`,
+        })
+        .from(threads)
+        .innerJoin(...threadGrant)
+        .innerJoin(...threadOrg)
+        .leftJoin(threadState, myState)
+        .where(eq(threads.archived, false))
+        .groupBy(threads.mailboxId);
+      return rows;
+    },
+
+    /** An outbox action this member asked for, on a mailbox they can still see. */
+    async getAction(actionId: string) {
+      const [actionGrant, actionOrg] = access(mailActions.mailboxId, mailActions.orgId);
+      const [row] = await db
+        .select({
+          id: mailActions.id,
+          mailboxId: mailActions.mailboxId,
+          kind: mailActions.kind,
+          status: mailActions.status,
+          attempts: mailActions.attempts,
+          error: mailActions.lastError,
+          createdAt: mailActions.createdAt,
+          completedAt: mailActions.completedAt,
+        })
+        .from(mailActions)
+        .innerJoin(...actionGrant)
+        .innerJoin(...actionOrg)
+        .where(and(eq(mailActions.id, actionId), eq(mailActions.memberId, memberId)));
+      return row ?? null;
     },
 
     async getThread(threadId: string) {
       // One round trip: the three reads are independent and each carries the access check.
       const [[thread], rows, files] = await Promise.all([
         db
-          .select(threadFields)
+          .select({ ...threadFields, mailboxAddress: mailboxes.address })
           .from(threads)
           .innerJoin(...threadGrant)
           .innerJoin(...threadOrg)
+          .innerJoin(mailboxes, eq(mailboxes.id, threads.mailboxId))
           .leftJoin(threadState, myState)
           .where(eq(threads.id, threadId)),
         db
