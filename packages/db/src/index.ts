@@ -16,3 +16,4 @@ export * from "./system.ts";
 export * from "./member-mail.ts";
 export * from "./ai-jobs.ts";
 export * from "./orgs.ts";
+export * from "./domains.ts";

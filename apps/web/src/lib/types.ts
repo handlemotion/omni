@@ -4,8 +4,11 @@ import type { Api } from "@omni/client";
 import type { InferRequestType } from "hono/client";
 
 export type {
+  DnsRecord,
   Mailbox,
   Member,
+  Onboarding,
+  OnboardingDomain,
   Message,
   SearchResult,
   Thread,

@@ -1,0 +1,30 @@
+{
+  "result": {
+    "domains": [
+      {
+        "name": "Acme.com",
+        "allowAccountReset": true,
+        "symbolicSubaddressing": true,
+        "isShared": false,
+        "dnsSummary": {
+          "passesMx": true,
+          "passesSpf": true,
+          "passesDkim": false,
+          "passesDmarc": false
+        }
+      },
+      {
+        "name": "mail.example.org",
+        "allowAccountReset": true,
+        "symbolicSubaddressing": false,
+        "isShared": false,
+        "dnsSummary": {
+          "passesMx": true,
+          "passesSpf": true,
+          "passesDkim": true,
+          "passesDmarc": true
+        }
+      }
+    ]
+  }
+}

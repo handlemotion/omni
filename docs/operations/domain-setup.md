@@ -22,6 +22,9 @@ For a subdomain, the DKIM names become `purelymailN._domainkey.<subdomain>`.
 
 ## Steps
 
+The web app's `/onboarding` does steps 1, 3 and 5 through the Purelymail API (ADR 0007) and
+lists the records with their checks; the manual path below is the same work by hand.
+
 1. Purelymail → Domains → add the domain. Copy the ownership TXT value.
 2. Cloudflare (account Handle) → the zone → add the records above (`cf dns records create`).
 3. Purelymail → Domains → verify. Propagation is usually minutes.

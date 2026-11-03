@@ -37,3 +37,8 @@ export type ThreadSummary = ThreadPage["threads"][number];
 export type Thread = InferResponseType<Api["threads"][":id"]["$get"], 200>;
 export type Message = Thread["messages"][number];
 export type SearchResult = InferResponseType<Api["search"]["$get"], 200>["results"][number];
+/** Where workspace setup stands (`GET /api/onboarding`). */
+export type Onboarding = InferResponseType<Api["onboarding"]["$get"], 200>;
+/** A domain being set up, with its DNS records and their last check. */
+export type OnboardingDomain = InferResponseType<Api["onboarding"]["domains"]["$post"], 200>;
+export type DnsRecord = OnboardingDomain["records"][number];

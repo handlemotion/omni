@@ -9,11 +9,11 @@ import { parseArgs } from "node:util";
 import { MAIL_PING_PATH } from "@omni/contracts";
 import { parseKeyring, signRequest } from "@omni/crypto";
 import { createDb, findMailboxByAddress, findMemberByEmail, saveMailbox } from "@omni/db";
-import { ImapFlow } from "imapflow";
 import { z } from "zod";
 import { type MailboxCredentials, sealCredentials } from "../credentials.ts";
 import type { ServerEndpoint } from "../mailbox-connection.ts";
 import { createPurelymailClient, PURELYMAIL_SERVERS } from "../providers/purelymail.ts";
+import { verifyImapLogin } from "../verify-login.ts";
 
 const USAGE = `Usage: mailbox:add --org <org id> --address <email> --owner <member email> [options]
 
@@ -63,20 +63,8 @@ async function readStdin(): Promise<string> {
 }
 
 async function verifyLogin(credentials: MailboxCredentials): Promise<void> {
-  const client = new ImapFlow({
-    host: credentials.imap.host,
-    port: credentials.imap.port,
-    secure: credentials.imap.secure,
-    auth: { user: credentials.user, pass: credentials.pass },
-    logger: false,
-  });
-  try {
-    await client.connect();
-    await client.logout();
-  } catch (error) {
-    client.close();
-    fail(`IMAP login to ${credentials.imap.host} failed: ${(error as Error).message}`);
-  }
+  const refused = await verifyImapLogin(credentials);
+  if (refused) fail(refused);
 }
 
 if (existsSync(".env")) process.loadEnvFile(".env");

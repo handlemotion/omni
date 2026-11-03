@@ -41,16 +41,18 @@ apply. The database is an index of your mail host: if it is lost, re-sync rebuil
 
 Filled in per unit: see each unit's `.env.example`.
 
-| Variable               | Used by                         | Required | Notes                                                                   |
-| ---------------------- | ------------------------------- | -------- | ----------------------------------------------------------------------- |
-| `DATABASE_URL`         | migrations, mail service, tests | yes      | `postgres://` URL. The Worker reaches the same database via Hyperdrive. |
-| `BETTER_AUTH_SECRET`   | Worker (auth)                   | yes      | At least 32 random characters.                                          |
-| `BETTER_AUTH_URL`      | Worker (auth)                   | yes      | Public origin of the API.                                               |
-| `AUTH_TRUSTED_ORIGINS` | Worker (auth)                   | no       | Comma-separated web/app origins allowed to call auth.                   |
-| `AUTH_PASSKEY_RP_ID`   | Worker (auth)                   | no       | WebAuthn relying party ID; defaults to the `BETTER_AUTH_URL` host.      |
-| `APP_NAME`             | Worker (auth)                   | no       | Shown in passkey prompts; defaults to `Omni`.                           |
-| `GOOGLE_CLIENT_ID`     | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on sign-in with Google.              |
-| `GOOGLE_CLIENT_SECRET` | Worker (auth)                   | no       | Secret. Set together with `GOOGLE_CLIENT_ID`, or neither.               |
+| Variable                | Used by                         | Required | Notes                                                                   |
+| ----------------------- | ------------------------------- | -------- | ----------------------------------------------------------------------- |
+| `DATABASE_URL`          | migrations, mail service, tests | yes      | `postgres://` URL. The Worker reaches the same database via Hyperdrive. |
+| `BETTER_AUTH_SECRET`    | Worker (auth)                   | yes      | At least 32 random characters.                                          |
+| `BETTER_AUTH_URL`       | Worker (auth)                   | yes      | Public origin of the API.                                               |
+| `AUTH_TRUSTED_ORIGINS`  | Worker (auth)                   | no       | Comma-separated web/app origins allowed to call auth.                   |
+| `AUTH_PASSKEY_RP_ID`    | Worker (auth)                   | no       | WebAuthn relying party ID; defaults to the `BETTER_AUTH_URL` host.      |
+| `APP_NAME`              | Worker (auth)                   | no       | Shown in passkey prompts; defaults to `Omni`.                           |
+| `GOOGLE_CLIENT_ID`      | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on sign-in with Google.              |
+| `GOOGLE_CLIENT_SECRET`  | Worker (auth)                   | no       | Secret. Set together with `GOOGLE_CLIENT_ID`, or neither.               |
+| `ORGANIZATION_CREATION` | Worker (auth)                   | no       | `owners` (default) or `anyone`: who may create a workspace in the app.  |
+| `PURELYMAIL_API_TOKEN`  | mail service                    | no       | Secret. Lets onboarding create domains, users and app passwords.        |
 
 ### Mail service (`apps/mail`)
 
@@ -59,23 +61,24 @@ host. CONDSTORE and IDLE are used when the server offers them; without them it f
 UID-list diffs and polling. On every connect it logs the server's capabilities
 (`imap.capabilities`).
 
-| Variable                   | Required | Default            | Purpose                                                       |
-| -------------------------- | -------- | ------------------ | ------------------------------------------------------------- |
-| `MAIL_SERVICE_HMAC_SECRET` | yes      |                    | Signs Worker → mail service pings; same value in the Worker.  |
-| `DATABASE_URL`             | yes      |                    | Postgres the service writes the mail index to.                |
-| `MAIL_CREDENTIALS_KEY`     | yes      |                    | Keyring `k1:<base64 32 bytes>[,k0:...]`, current key first.   |
-| `S3_ENDPOINT`              | yes      |                    | S3 API endpoint: R2, MinIO, AWS, or the local gateway.        |
-| `S3_BUCKET`                | yes      |                    | Bucket for raw mail, sanitized HTML and attachments.          |
-| `S3_ACCESS_KEY_ID`         | yes      |                    | S3 key pair (for R2: an R2 API token with object read/write). |
-| `S3_SECRET_ACCESS_KEY`     | yes      |                    |                                                               |
-| `S3_REGION`                | no       | `auto`             | Signing region; R2 uses `auto`.                               |
-| `IMAGE_PROXY_URL`          | no       | `/api/image-proxy` | Worker image proxy that remote images in HTML go through.     |
-| `ATTACHMENT_URL`           | no       | `/api/attachments` | Worker route for inline `cid:` images.                        |
-| `PORT`                     | no       | `8788`             | HTTP port for `/health` and `/ping`.                          |
-| `LOG_LEVEL`                | no       | `info`             | `debug`, `info`, `warn`, or `error`. Logs are JSON on stdout. |
-| `SYNC_INTERVAL_MS`         | no       | `300000`           | Sync interval for non-inbox folders (INBOX is live via IDLE). |
-| `OUTBOX_INTERVAL_MS`       | no       | `30000`            | Outbox poll interval when no ping arrives.                    |
-| `MAILBOX_CONCURRENCY`      | no       | `4`                | Mailboxes connecting or syncing at once.                      |
+| Variable                   | Required | Default            | Purpose                                                         |
+| -------------------------- | -------- | ------------------ | --------------------------------------------------------------- |
+| `MAIL_SERVICE_HMAC_SECRET` | yes      |                    | Signs Worker → mail service pings; same value in the Worker.    |
+| `DATABASE_URL`             | yes      |                    | Postgres the service writes the mail index to.                  |
+| `MAIL_CREDENTIALS_KEY`     | yes      |                    | Keyring `k1:<base64 32 bytes>[,k0:...]`, current key first.     |
+| `S3_ENDPOINT`              | yes      |                    | S3 API endpoint: R2, MinIO, AWS, or the local gateway.          |
+| `S3_BUCKET`                | yes      |                    | Bucket for raw mail, sanitized HTML and attachments.            |
+| `S3_ACCESS_KEY_ID`         | yes      |                    | S3 key pair (for R2: an R2 API token with object read/write).   |
+| `S3_SECRET_ACCESS_KEY`     | yes      |                    |                                                                 |
+| `S3_REGION`                | no       | `auto`             | Signing region; R2 uses `auto`.                                 |
+| `IMAGE_PROXY_URL`          | no       | `/api/image-proxy` | Worker image proxy that remote images in HTML go through.       |
+| `ATTACHMENT_URL`           | no       | `/api/attachments` | Worker route for inline `cid:` images.                          |
+| `PORT`                     | no       | `8788`             | HTTP port for `/health` and `/ping`.                            |
+| `LOG_LEVEL`                | no       | `info`             | `debug`, `info`, `warn`, or `error`. Logs are JSON on stdout.   |
+| `SYNC_INTERVAL_MS`         | no       | `300000`           | Sync interval for non-inbox folders (INBOX is live via IDLE).   |
+| `OUTBOX_INTERVAL_MS`       | no       | `30000`            | Outbox poll interval when no ping arrives.                      |
+| `MAILBOX_CONCURRENCY`      | no       | `4`                | Mailboxes connecting or syncing at once.                        |
+| `PURELYMAIL_API_TOKEN`     | no       |                    | Purelymail admin API token. Unset: onboarding uses IMAP logins. |
 
 Generate the secrets with `openssl rand -hex 32` and `echo "k1:$(openssl rand -base64 32)"`.
 Keep `MAIL_CREDENTIALS_KEY` only on the mail service. To rotate it, put the new key first
@@ -86,7 +89,8 @@ folder from its saved sync position. A signed ping, or the next sync interval, p
 mailboxes added later.
 
 The Worker and the mail service call each other over HMAC-signed HTTP (`@omni/crypto`, 60 s
-window). The Worker pings `POST /ping` after writing to the outbox or adding a mailbox; the mail
+window). The Worker pings `POST /ping` after writing to the outbox or adding a mailbox, and calls
+`POST /provision/domain` and `POST /provision/mailbox` during onboarding (ADR 0007); the mail
 service posts batches of `message.created` events to the Worker after indexing new mail. Paths
 and bodies are defined once in `packages/contracts`.
 
@@ -118,9 +122,32 @@ Sign-up is by invitation only, so an install starts from the command line. In th
    the invited address and accepts. A magic-link request for an address with no account and no
    pending invitation gets the same answer as any other, but no email.
 
-### Adding a mailbox
+### Onboarding in the app
 
-Mailboxes are added from the command line with the same `DATABASE_URL` and
+`/onboarding` in the web app sets up a workspace: its name, its domain, its mailboxes, and
+invitations. An owner or admin whose workspace has no mailboxes is sent there after signing in.
+Owners can also open it to create another workspace; with `ORGANIZATION_CREATION=anyone`, any
+signed-in user without a workspace is sent there too (sign-up itself stays invitation-only).
+
+What the Domain and Mailboxes steps do depends on the mail service:
+
+- **With `PURELYMAIL_API_TOKEN`:** the domain is added to that Purelymail account, and the app
+  lists the DNS records to add (ownership TXT, MX, SPF, three DKIM CNAMEs, DMARC), each marked
+  verified or waiting, with a re-check. Purelymail accepts the domain once the ownership record is
+  in DNS. Each mailbox becomes a Purelymail user with an Omni app password. Omni never keeps the
+  user's real password: it is random and thrown away, and the person sets their own in
+  Purelymail if they want another mail app.
+- **Without it:** the domain stays where it is. The app asks for the IMAP and SMTP servers
+  (`host` or `host:port`; 993 and 465 use TLS from the start, other ports upgrade with STARTTLS
+  when the server offers it) and a password per mailbox. The mail service checks each login over
+  IMAP before storing it.
+
+Either way the credentials are encrypted with `MAIL_CREDENTIALS_KEY` by the mail service, and the
+mailbox starts syncing at once. A domain belongs to the first workspace that claims it.
+
+### Adding a mailbox from the command line
+
+Mailboxes can also be added from the command line with the same `DATABASE_URL` and
 `MAIL_CREDENTIALS_KEY` as the service. The owner must already be a member of the organization
 (`org:create` above, or an accepted invitation). The app password is read from stdin so it never
 lands in shell history:
