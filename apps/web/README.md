@@ -41,8 +41,10 @@ Components use `hooks/` only. `lib/` is how the hooks work.
 | `/invite/$invitationId`      |                               | the invitation (any signed-in user)         |
 | `/onboarding`                |                               | setup status (may create, or finishing one) |
 | `/inbox`, `/inbox/$threadId` | `mailbox?`, `lane?`           | first page of the list; the thread          |
-| `/snoozed`, `/snoozed/$id`   | `mailbox?`                    | same, snoozed view                          |
+| `/queue`, `/queue/$id`       | `mailbox?`                    | same, queue (deferred) view                 |
+| `/done`, `/done/$id`         | `mailbox?`                    | same, done view                             |
 | `/archive`, `/archive/$id`   | `mailbox?`                    | same, archive view                          |
+| `/all`, `/all/$id`           | `mailbox?`                    | same, all mail                              |
 | `/search`, `/search/$id`     | `q`, `mailbox?`               | results for `q`; the thread                 |
 | `/compose`                   | `mailbox?`, `to?`, `subject?` | (mailboxes come from the shell)             |
 | `/settings`                  |                               | organizations, passkeys                     |
@@ -73,8 +75,12 @@ stale (batched over 150 ms), plus counts and search; TanStack Query refetches th
 After a reconnect everything mail-related is refetched, and queued sends are checked against the
 outbox. `useRealtimeStatus()` exposes `connecting | open | closed`.
 
-**Optimistic updates.** Archive, read/unread and snooze change every cached list and the thread
-at once (`lib/cache.ts`), then roll back if the request fails. Move just refetches.
+**Optimistic updates.** Archive, read/unread, defer and done change every cached list and the
+thread at once (`lib/cache.ts`), then roll back if the request fails. Move just refetches.
+
+**Done and defer** are yours alone, even on a shared mailbox (ADR 0007). Pass the thread's
+`lastMessageAt` as `through` when marking done: a newer message brings the thread back to the
+Inbox, and one that arrived after the screen was drawn keeps it there.
 
 **Sending.** `useSendReply().mutate({ threadId, text })` adds a pending reply to
 `useThread(id).pending` right away (`sending` → `queued` → gone, or `failed` with `error`). The
@@ -110,7 +116,7 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 | `useThread(id)`, `useSuspenseThread(id)`                                                                                       | `{ thread, pending, … }`                     |
 | `useSearch(q, mailbox?)`                                                                                                       | results                                      |
 | `usePrefetchThread()`                                                                                                          | `(threadId) => void`                         |
-| `useMarkRead()`, `useSnooze()`, `useArchive()`, `useMove()`                                                                    | `mutate({ threadId, … })`                    |
+| `useMarkRead()`, `useDefer()`, `useMarkDone()`, `useMarkUndone()`, `useArchive()`, `useMove()`                                 | `mutate({ threadId, … })`                    |
 | `useMarkReadOnOpen(thread)`                                                                                                    | marks an opened unread thread read, once     |
 | `useSendReply()`, `useSend()`                                                                                                  | `mutate({ … })`                              |
 | `useDiscardPending()`, `useActionFailures()`                                                                                   | failed sends and actions                     |

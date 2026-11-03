@@ -29,7 +29,7 @@ export function useCounts() {
 }
 
 /**
- * One thread list (inbox, snoozed or archive; optionally one mailbox and lane), newest first.
+ * One thread list (inbox, queue, done, archive or all; optionally one mailbox and lane), newest first.
  * `threads` is every loaded page flattened; call `fetchNextPage` near the end of the list.
  */
 export function useThreads(filter: ThreadFilter) {

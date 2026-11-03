@@ -40,8 +40,15 @@
     {
       "idx": 5,
       "version": "7",
-      "when": 1793738891867,
-      "tag": "0005_mail_domains",
+      "when": 1793738787273,
+      "tag": "0005_done_and_all_views",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793739478995,
+      "tag": "0006_mail_domains",
       "breakpoints": true
     }
   ]

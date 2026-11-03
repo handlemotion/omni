@@ -8,6 +8,7 @@ import {
   LANES,
   listMemberMailboxes,
   setThreadArchived,
+  THREAD_VIEWS,
   threadActionTargets,
   type MemberQueries,
 } from "@omni/db";
@@ -46,8 +47,8 @@ const cursorParam = z
 const listQuery = z.object({
   mailboxId: z.string().min(1).optional(),
   lane: z.enum(LANES).optional(),
-  /** `inbox` hides snoozed threads until their time; `snoozed` lists them. */
-  view: z.enum(["inbox", "snoozed", "archive"]).default("inbox"),
+  /** `inbox`, `queue` (deferred), `done`, `archive` or `all`; see `ThreadView` in `@omni/db`. */
+  view: z.enum(THREAD_VIEWS).default("inbox"),
   cursor: cursorParam,
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
@@ -58,9 +59,12 @@ const searchQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-const stateBody = z
-  .object({ read: z.boolean().optional(), snoozedUntil: z.iso.datetime().nullable().optional() })
-  .refine((b) => b.read !== undefined || b.snoozedUntil !== undefined, "nothing to change");
+const stateBody = z.object({ read: z.boolean() });
+
+/** The thread's `lastMessageAt` as the client showed it: done covers what the member saw. */
+const doneBody = z.object({ through: z.iso.datetime() });
+
+const deferBody = z.object({ until: z.iso.datetime() });
 
 const address = z.email();
 const sendBody = z.object({
@@ -160,7 +164,7 @@ export const mail = new Hono<AppEnv>()
     return c.json(threadResponse(thread));
   })
 
-  /** Per mailbox: inbox and unread inbox threads, snoozed threads, and inbox threads per lane. */
+  /** Per mailbox: inbox and unread inbox threads, queued threads, and inbox threads per lane. */
   .get("/counts", async (c) => {
     return c.json({ counts: await forMember(c.var.db, c.var.member.id).counts() });
   })
@@ -189,50 +193,98 @@ export const mail = new Hono<AppEnv>()
   })
 
   /**
-   * Read and snooze state is per member and lives in Postgres. On a personal mailbox, read also
-   * syncs to the IMAP \Seen flag; a shared mailbox never changes it (spec: "Sync rules").
+   * Read state is per member and lives in Postgres. On a personal mailbox it also syncs to the
+   * IMAP \Seen flag; a shared mailbox never changes it (spec: "Sync rules").
    */
   .patch(
     "/threads/:id/state",
     zValidator("header", idempotencyHeader),
     zValidator("json", stateBody),
     async (c) => {
-      const body = c.req.valid("json");
+      const { read } = c.req.valid("json");
       const key = c.req.valid("header")["idempotency-key"];
       const threadId = c.req.param("id");
-      const state = await forMember(c.var.db, c.var.member.id).setThreadState(threadId, {
-        read: body.read,
-        snoozedUntil:
-          body.snoozedUntil === undefined
-            ? undefined
-            : body.snoozedUntil === null
-              ? null
-              : new Date(body.snoozedUntil),
-      });
+      const state = await forMember(c.var.db, c.var.member.id).setThreadState(threadId, { read });
       if (!state) notFound();
 
       const actionIds: string[] = [];
-      if (body.read !== undefined) {
-        const found = await threadActionTargets(c.var.db, c.var.member.id, threadId);
-        if (found?.mailboxKind === "personal") {
-          const kind = body.read ? "mark_read" : "mark_unread";
-          for (const { role: _role, ...target } of found.targets) {
-            const action = await enqueueAction(c.var.db, {
-              orgId: found.orgId,
-              mailboxId: found.mailboxId,
-              memberId: c.var.member.id,
-              kind,
-              payload: target,
-              idempotencyKey: outboxKey(c, key, kind, target.folder),
-            });
-            actionIds.push(action.id);
-          }
-          if (actionIds.length) pingLater(c);
+      const found = await threadActionTargets(c.var.db, c.var.member.id, threadId);
+      if (found?.mailboxKind === "personal") {
+        const kind = read ? "mark_read" : "mark_unread";
+        for (const { role: _role, ...target } of found.targets) {
+          const action = await enqueueAction(c.var.db, {
+            orgId: found.orgId,
+            mailboxId: found.mailboxId,
+            memberId: c.var.member.id,
+            kind,
+            payload: target,
+            idempotencyKey: outboxKey(c, key, kind, target.folder),
+          });
+          actionIds.push(action.id);
         }
+        if (actionIds.length) pingLater(c);
       }
       return c.json({ state, actionIds });
     },
   )
+
+  // Done and defer are this member's triage state (ADR 0007): Postgres only, nothing for the
+  // outbox, so another member of a shared mailbox is unaffected. Each request sets absolute
+  // values, so a retry under the same idempotency key writes the same row. Done and deferred
+  // exclude each other: marking one clears the other.
+
+  /**
+   * Done through `through` (capped at the newest message). Answers `done: false` when a message
+   * newer than `through` has arrived: the thread stays in the Inbox.
+   */
+  .post(
+    "/threads/:id/done",
+    zValidator("header", idempotencyHeader),
+    zValidator("json", doneBody),
+    async (c) => {
+      const { through } = c.req.valid("json");
+      const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
+        doneThrough: new Date(through),
+        deferredUntil: null,
+      });
+      if (!state) notFound();
+      return c.json({ state });
+    },
+  )
+
+  /** Not done: back in the Inbox. */
+  .delete("/threads/:id/done", zValidator("header", idempotencyHeader), async (c) => {
+    const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
+      doneThrough: null,
+    });
+    if (!state) notFound();
+    return c.json({ state });
+  })
+
+  /** Into the Queue until `until`; back in the Inbox by itself once it passes. */
+  .post(
+    "/threads/:id/defer",
+    zValidator("header", idempotencyHeader),
+    zValidator("json", deferBody),
+    async (c) => {
+      const { until } = c.req.valid("json");
+      const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
+        deferredUntil: new Date(until),
+        doneThrough: null,
+      });
+      if (!state) notFound();
+      return c.json({ state });
+    },
+  )
+
+  /** Out of the Queue now: back in the Inbox. */
+  .delete("/threads/:id/defer", zValidator("header", idempotencyHeader), async (c) => {
+    const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
+      deferredUntil: null,
+    });
+    if (!state) notFound();
+    return c.json({ state });
+  })
 
   .post("/threads/:id/archive", zValidator("header", idempotencyHeader), async (c) => {
     const key = c.req.valid("header")["idempotency-key"];

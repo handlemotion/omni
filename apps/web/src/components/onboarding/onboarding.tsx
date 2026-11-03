@@ -1,9 +1,9 @@
-import { DocumentDuplicateIcon } from "@heroicons/react/24/outline";
 import { useNavigate } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { IconRedirectArrow } from "@/components/icons";
 import { IconChevronRight } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
+import { CopyField } from "@/components/ui/copy-field";
 import { Label } from "@/components/ui/field";
 import { Heading } from "@/components/ui/heading";
 import { Input, InputGroup } from "@/components/ui/input";
@@ -116,7 +116,7 @@ function OnboardingPage(props: {
 function StepProgress(props: { current: number; names: readonly string[] }) {
   const { current, names } = props;
   return (
-    <div className="flex flex-col gap-2 pt-12">
+    <div className="flex flex-col gap-3 pt-12">
       <span className="text-sm text-muted-foreground">
         Step {current + 1} of {names.length}
         <span className="text-subtle-foreground"> · </span>
@@ -279,11 +279,11 @@ function DnsForm(props: { domain: OnboardingDomain; onDone: () => void }) {
             label={group.records[0]!.type}
             title={group.purpose}
           >
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 [--copy-label-width:--spacing(13)]">
               {group.records.map((record) => (
                 <div key={record.name} className="flex flex-col gap-2">
-                  <RecordField label="Name" value={record.name} />
-                  <RecordField
+                  <CopyField label="Host" value={record.name} />
+                  <CopyField
                     label="Value"
                     value={
                       record.priority !== undefined
@@ -336,25 +336,6 @@ function ServerForm(props: { domain: string; onDone: (servers: Servers) => void 
         <Input placeholder={`smtp.${props.domain}:465`} />
       </TextField>
     </PageForm>
-  );
-}
-
-function RecordField({ label, value }: { label: string; value?: string }) {
-  return (
-    <TextField aria-label={label} value={value ?? ""} isReadOnly>
-      <InputGroup className="[--input-gutter-end:--spacing(8)]">
-        <Input placeholder={`${label} appears once the domain is added`} />
-        <Button
-          intent="plain"
-          size="sq-xs"
-          aria-label={`Copy ${label.toLowerCase()}`}
-          isDisabled={!value}
-          onPress={() => value && void navigator.clipboard.writeText(value)}
-        >
-          <DocumentDuplicateIcon />
-        </Button>
-      </InputGroup>
-    </TextField>
   );
 }
 

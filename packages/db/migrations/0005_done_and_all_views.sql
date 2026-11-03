@@ -1,0 +1,2 @@
+ALTER TABLE "thread_state" ADD COLUMN "done_through" timestamp with time zone;--> statement-breakpoint
+CREATE INDEX "threads_mailbox_all_page_idx" ON "threads" USING btree ("mailbox_id","last_message_at" DESC NULLS FIRST,"id" DESC NULLS FIRST);

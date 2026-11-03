@@ -211,11 +211,18 @@ await step(
   "thread_state",
   `
   select setseed(0.47);
-  -- Each member has opened about 60% of the threads they can see.
-  insert into thread_state (org_id, thread_id, member_id, read)
-    select t.org_id, t.id, a.member_id, true
-    from threads t join mailbox_access a on a.mailbox_id = t.mailbox_id
-    where random() < 0.6;
+  -- Each member has opened about 60% of the threads they can see, marked most of those older
+  -- than a few days done (a done-based inbox mostly holds done threads), and deferred a few.
+  insert into thread_state (org_id, thread_id, member_id, read, done_through, snoozed_until)
+    select org_id, id, member_id, true,
+      case when old and r < 0.5 then last_message_at end,
+      case when r > 0.59 then now() + interval '2 days' end
+    from (
+      select t.org_id, t.id, a.member_id, t.last_message_at,
+        t.last_message_at < now() - interval '3 days' as old, random() as r
+      from threads t join mailbox_access a on a.mailbox_id = t.mailbox_id
+    ) s
+    where r < 0.6;
 `,
 );
 

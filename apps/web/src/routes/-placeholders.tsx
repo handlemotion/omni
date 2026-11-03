@@ -5,19 +5,28 @@ import { useState } from "react";
 import { useThread } from "../hooks/use-mail.ts";
 import {
   useArchive,
+  useDefer,
+  useMarkDone,
   useMarkRead,
   useMarkReadOnOpen,
+  useMarkUndone,
   useSendReply,
-  useSnooze,
 } from "../hooks/use-mail-actions.ts";
 import { attachmentUrl, messageHtmlUrl } from "../lib/urls.ts";
+
+/** A deferral whose time has passed is over: the thread is back in the inbox. */
+function isDeferred(until: string | null) {
+  return until !== null && new Date(until).getTime() > Date.now();
+}
 
 export function ThreadView({ threadId }: { threadId: string }) {
   const { thread, pending } = useThread(threadId);
   useMarkReadOnOpen(thread);
   const archive = useArchive();
   const markRead = useMarkRead();
-  const snooze = useSnooze();
+  const defer = useDefer();
+  const markDone = useMarkDone();
+  const markUndone = useMarkUndone();
   const reply = useSendReply();
   const [text, setText] = useState("");
 
@@ -34,10 +43,25 @@ export function ThreadView({ threadId }: { threadId: string }) {
       <button
         type="button"
         onClick={() =>
-          snooze.mutate({ threadId, until: new Date(Date.now() + 24 * 60 * 60 * 1000) })
+          thread.done
+            ? markUndone.mutate({ threadId })
+            : markDone.mutate({ threadId, through: thread.lastMessageAt })
         }
       >
-        Snooze a day
+        {thread.done ? "Not done" : "Done"}
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          defer.mutate({
+            threadId,
+            until: isDeferred(thread.deferredUntil)
+              ? null
+              : new Date(Date.now() + 24 * 60 * 60 * 1000),
+          })
+        }
+      >
+        {isDeferred(thread.deferredUntil) ? "Back to inbox" : "Defer a day"}
       </button>
       <ol>
         {thread.messages.map((m) => (

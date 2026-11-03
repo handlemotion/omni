@@ -5,11 +5,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import {
   archiveMutation,
+  deferMutation,
+  doneMutation,
   markReadMutation,
   moveMutation,
   replyMutation,
   sendMutation,
-  snoozeMutation,
+  undoneMutation,
 } from "../lib/mail-mutations.ts";
 import { dismissFailure, removePending, type ActionFailure } from "../lib/pending.ts";
 import { keys } from "../lib/query-keys.ts";
@@ -20,9 +22,22 @@ export function useMarkRead() {
   return useKeyedMutation(markReadMutation(useQueryClient()));
 }
 
-/** `mutate({ threadId, until })`; `until: null` unsnoozes. */
-export function useSnooze() {
-  return useKeyedMutation(snoozeMutation(useQueryClient()));
+/** `mutate({ threadId, until })` puts it in your Queue; `until: null` brings it back now. */
+export function useDefer() {
+  return useKeyedMutation(deferMutation(useQueryClient()));
+}
+
+/**
+ * `mutate({ threadId, through: thread.lastMessageAt })`. Done for you alone; a newer message
+ * brings it back to the Inbox.
+ */
+export function useMarkDone() {
+  return useKeyedMutation(doneMutation(useQueryClient()));
+}
+
+/** `mutate({ threadId })`: not done, back in the Inbox. */
+export function useMarkUndone() {
+  return useKeyedMutation(undoneMutation(useQueryClient()));
 }
 
 /** `mutate({ threadId })`. */
