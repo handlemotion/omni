@@ -26,8 +26,9 @@ export const buttonStyles = tv({
         "[--btn-bg:var(--color-secondary)] [--btn-foreground:var(--color-secondary-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-secondary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-secondary-foreground)_10%,var(--color-secondary)_90%)] [--btn-ring:var(--color-muted-foreground)]/20",
       warning:
         "[--btn-bg:var(--color-warning)] [--btn-foreground:var(--color-warning-foreground)] [--btn-icon:var(--color-warning-foreground)]/60 [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-warning)_90%)]",
+      // Filled red with a 1px darker edge and a faint top highlight (onboarding reference).
       danger:
-        "[--btn-bg:var(--color-danger)] [--btn-foreground:var(--color-danger-foreground)] [--btn-icon:color-mix(in_oklab,var(--color-danger-foreground)_60%,var(--danger)_40%)] [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-danger)_90%)]",
+        "[--btn-bg:var(--color-danger)] [--btn-border:color-mix(in_oklab,var(--color-danger)_80%,black)] [--btn-foreground:var(--color-danger-foreground)] [--btn-icon:var(--color-danger-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-danger)_90%)] shadow-[inset_0_1px_0_rgb(255_255_255/0.15),0_1px_2px_rgb(0_0_0/0.06)]",
       success:
         "[--btn-bg:var(--color-success)] [--btn-foreground:var(--color-success-foreground)] [--btn-icon:color-mix(in_oklab,var(--color-success-foreground)_60%,var(--success)_40%)] [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-success)_90%)]",
       outline:

@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from "./routes/index";
 import { Route as AuthedRouteImport } from "./routes/_authed";
 import { Route as LoginRouteImport } from "./routes/login";
 import { Route as AuthedMemberRouteImport } from "./routes/_authed/_member";
+import { Route as AuthedOnboardingRouteImport } from "./routes/_authed/onboarding";
 import { Route as AuthedMemberAllRouteImport } from "./routes/_authed/_member/all";
 import { Route as AuthedMemberArchiveRouteImport } from "./routes/_authed/_member/archive";
 import { Route as AuthedMemberComposeRouteImport } from "./routes/_authed/_member/compose";
@@ -46,6 +47,11 @@ const LoginRoute = LoginRouteImport.update({
 } as any);
 const AuthedMemberRoute = AuthedMemberRouteImport.update({
   id: "/_member",
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedOnboardingRoute = AuthedOnboardingRouteImport.update({
+  id: "/onboarding",
+  path: "/onboarding",
   getParentRoute: () => AuthedRoute,
 } as any);
 const AuthedMemberAllRoute = AuthedMemberAllRouteImport.update({
@@ -140,6 +146,7 @@ const AuthedMemberSettingsOrganizationRoute =
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/login": typeof LoginRoute;
+  "/onboarding": typeof AuthedOnboardingRoute;
   "/all": typeof AuthedMemberAllRouteWithChildren;
   "/archive": typeof AuthedMemberArchiveRouteWithChildren;
   "/compose": typeof AuthedMemberComposeRoute;
@@ -160,6 +167,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/login": typeof LoginRoute;
+  "/onboarding": typeof AuthedOnboardingRoute;
   "/all": typeof AuthedMemberAllRouteWithChildren;
   "/archive": typeof AuthedMemberArchiveRouteWithChildren;
   "/compose": typeof AuthedMemberComposeRoute;
@@ -183,6 +191,7 @@ export interface FileRoutesById {
   "/_authed": typeof AuthedRouteWithChildren;
   "/login": typeof LoginRoute;
   "/_authed/_member": typeof AuthedMemberRouteWithChildren;
+  "/_authed/onboarding": typeof AuthedOnboardingRoute;
   "/_authed/_member/all": typeof AuthedMemberAllRouteWithChildren;
   "/_authed/_member/archive": typeof AuthedMemberArchiveRouteWithChildren;
   "/_authed/_member/compose": typeof AuthedMemberComposeRoute;
@@ -205,6 +214,7 @@ export interface FileRouteTypes {
   fullPaths:
     | "/"
     | "/login"
+    | "/onboarding"
     | "/all"
     | "/archive"
     | "/compose"
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
   to:
     | "/"
     | "/login"
+    | "/onboarding"
     | "/all"
     | "/archive"
     | "/compose"
@@ -247,6 +258,7 @@ export interface FileRouteTypes {
     | "/_authed"
     | "/login"
     | "/_authed/_member"
+    | "/_authed/onboarding"
     | "/_authed/_member/all"
     | "/_authed/_member/archive"
     | "/_authed/_member/compose"
@@ -299,6 +311,13 @@ declare module "@tanstack/react-router" {
       path: "";
       fullPath: "/";
       preLoaderRoute: typeof AuthedMemberRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    "/_authed/onboarding": {
+      id: "/_authed/onboarding";
+      path: "/onboarding";
+      fullPath: "/onboarding";
+      preLoaderRoute: typeof AuthedOnboardingRouteImport;
       parentRoute: typeof AuthedRoute;
     };
     "/_authed/_member/all": {
@@ -513,11 +532,13 @@ const AuthedMemberRouteWithChildren = AuthedMemberRoute._addFileChildren(
 
 interface AuthedRouteChildren {
   AuthedMemberRoute: typeof AuthedMemberRouteWithChildren;
+  AuthedOnboardingRoute: typeof AuthedOnboardingRoute;
   AuthedInviteInvitationIdRoute: typeof AuthedInviteInvitationIdRoute;
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMemberRoute: AuthedMemberRouteWithChildren,
+  AuthedOnboardingRoute: AuthedOnboardingRoute,
   AuthedInviteInvitationIdRoute: AuthedInviteInvitationIdRoute,
 };
 
