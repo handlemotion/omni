@@ -10,6 +10,7 @@ import {
   finishSetupMutation,
   onboardingExit,
   onboardingQuery,
+  rotateChallengeMutation,
 } from "../lib/onboarding.ts";
 import { signOut } from "../lib/session.ts";
 import { openWorkspace, workspacesQuery } from "../lib/workspaces.ts";
@@ -66,4 +67,9 @@ export function useOnboardingExit() {
     },
   });
   return { exit, leave: () => leave.mutate(), isPending: leave.isPending };
+}
+
+/** `mutate(domainId)` makes a new challenge value (the old one stops counting). */
+export function useRotateChallenge() {
+  return useMutation(rotateChallengeMutation(useQueryClient()));
 }

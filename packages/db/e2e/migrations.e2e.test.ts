@@ -24,6 +24,8 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "ai_usage",
       "assignments",
       "attachments",
+      "audit_events",
+      "domain_claims",
       "dead_letters",
       "invitations",
       "mail_actions",

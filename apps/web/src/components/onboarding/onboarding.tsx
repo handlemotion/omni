@@ -19,17 +19,25 @@ import {
   useFinishSetup,
   useOnboarding,
   useOnboardingExit,
+  useRotateChallenge,
 } from "@/hooks/use-onboarding";
 import { useInviteMember } from "@/hooks/use-organization";
-import { needsSetup, ONBOARDING_PAGES as PAGES, resumePage } from "@/lib/onboarding";
+import {
+  needsSetup,
+  ONBOARDING_PAGES as PAGES,
+  rememberedChallenge,
+  resumePage,
+} from "@/lib/onboarding";
 import type { DnsRecord, OnboardingDomain } from "@/lib/types";
 
 // Workspace setup, one short form per page (layout from the Figma references 16:1400 and
 // 25:1509, on our tokens). Only DNS uses steps: each record is checked before the next.
 //
 // Each page calls the API (ADR 0007), which saves how far setup got; an unfinished workspace
-// resumes on that step's page with what it saved (name, domain, mailboxes). Without Purelymail the domain stays on its mail host: the DNS page asks for that
-// host's servers instead, and each mailbox is added with its existing password.
+// resumes on that step's page with what it saved (name, domain, mailboxes). The DNS page starts
+// with Omni's ownership record (ADR 0010), which locks the domain to the workspace. Without
+// Purelymail that is the only record: the domain stays on its mail host, the same page then asks
+// for that host's servers, and each mailbox is added with its existing password.
 
 /** `host` or `host:port`; the port defaults to the implicit-TLS one. */
 function server(value: string, defaultPort: number) {
@@ -49,12 +57,14 @@ export function Onboarding() {
   // Only the workspace being set up: a new one has no domain until page 0 adds it.
   const domain = resuming ? status.data?.domains[0] : undefined;
   const ownHost = domain?.provider === "imap";
+  // On its own host the domain still proves ownership first; then the page asks for the servers.
+  const serversNext = ownHost && domain?.status === "verified";
   const next = () => setPage((p) => Math.min(p + 1, PAGES.length - 1));
   // Never back onto page 0: the workspace and domain it saved stay saved. Mailboxes on their own
   // host need the servers, which a resumed setup has not asked for yet.
   const back =
     page > 1 ? () => setPage(page === 3 && ownHost && !servers ? 1 : page - 1) : undefined;
-  const names = ownHost ? PAGES.map((n) => (n === "DNS" ? "Mail server" : n)) : PAGES;
+  const names = serversNext ? PAGES.map((n) => (n === "DNS" ? "Mail server" : n)) : PAGES;
 
   return (
     <OnboardingPage page={page} names={names} onBack={back}>
@@ -67,8 +77,8 @@ export function Onboarding() {
           }}
         />
       )}
-      {page === 1 && domain && !ownHost && <DnsForm domain={domain} onDone={next} />}
-      {page === 1 && domain && ownHost && (
+      {page === 1 && domain && !serversNext && <DnsForm domain={domain} onDone={next} />}
+      {page === 1 && domain && serversNext && (
         <ServerForm
           domain={domain.domain}
           onDone={(s) => {
@@ -266,7 +276,7 @@ function WorkspaceForm(props: { existing?: string; onDone: () => void }) {
   );
 }
 
-/** What each Purelymail check is for. Ownership comes first: Purelymail adds the domain only then. */
+/** What each check is for. Ownership comes first: the domain is locked to you, and Purelymail adds it, only then. */
 const PURPOSES: { check: DnsRecord["check"]; purpose: string }[] = [
   { check: "ownership", purpose: "Prove you own it" },
   { check: "mx", purpose: "Receive mail" },
@@ -275,13 +285,42 @@ const PURPOSES: { check: DnsRecord["check"]; purpose: string }[] = [
   { check: "dmarc", purpose: "Set a policy (DMARC)" },
 ];
 
+/** One record as the page shows it. Omni's challenge has no value once its one showing is gone. */
+interface ShownRecord {
+  check: DnsRecord["check"];
+  type: DnsRecord["type"];
+  name: string;
+  value: string | null;
+  priority?: number;
+  verified: boolean;
+  challenge?: boolean;
+}
+
+function shownRecords(domain: OnboardingDomain): ShownRecord[] {
+  const challenge: ShownRecord[] = domain.challenge
+    ? [
+        {
+          check: "ownership",
+          type: domain.challenge.type,
+          name: domain.challenge.name,
+          value: rememberedChallenge(domain),
+          verified: domain.challenge.verified,
+          challenge: true,
+        },
+      ]
+    : [];
+  return [...challenge, ...domain.records];
+}
+
 function DnsForm(props: { domain: OnboardingDomain; onDone: () => void }) {
   const checkDomain = useCheckDomain();
+  const rotateChallenge = useRotateChallenge();
   const [problem, setProblem] = useState<string | null>(null);
   const { domain } = props;
+  const records = shownRecords(domain);
   const groups = PURPOSES.map((p) => ({
     ...p,
-    records: domain.records.filter((r) => r.check === p.check),
+    records: records.filter((r) => r.check === p.check),
   })).filter((g) => g.records.length > 0);
   const current = groups.findIndex((g) => !g.records.every((r) => r.verified));
   const state = (i: number): StepState =>
@@ -289,6 +328,10 @@ function DnsForm(props: { domain: OnboardingDomain; onDone: () => void }) {
   const check = () => {
     setProblem(null);
     checkDomain.mutate(domain.id, { onError: (error) => setProblem(error.message) });
+  };
+  const rotate = () => {
+    setProblem(null);
+    rotateChallenge.mutate(domain.id, { onError: (error) => setProblem(error.message) });
   };
 
   return (
@@ -312,14 +355,27 @@ function DnsForm(props: { domain: OnboardingDomain; onDone: () => void }) {
               {group.records.map((record) => (
                 <div key={record.name} className="flex flex-col gap-2">
                   <CopyField label="Host" value={record.name} />
-                  <CopyField
-                    label="Value"
-                    value={
-                      record.priority !== undefined
-                        ? `${record.priority} ${record.value}`
-                        : record.value
-                    }
-                  />
+                  {record.value !== null ? (
+                    <CopyField
+                      label="Value"
+                      value={
+                        record.priority !== undefined
+                          ? `${record.priority} ${record.value}`
+                          : record.value
+                      }
+                    />
+                  ) : (
+                    // Only its hash is stored, so a value shown before (another browser, cleared
+                    // storage) cannot be shown again: make a new one instead.
+                    <Button
+                      intent="outline"
+                      className="self-start"
+                      isPending={rotateChallenge.isPending}
+                      onPress={rotate}
+                    >
+                      Show a new value
+                    </Button>
+                  )}
                 </div>
               ))}
               {group.check === "ownership" && domain.addError && <Text>{domain.addError}</Text>}

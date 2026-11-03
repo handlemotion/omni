@@ -85,8 +85,38 @@ export async function createWorkspace(client: QueryClient, router: Reloadable, n
   return organization;
 }
 
+const challengeKey = (domainId: string) => `omni.challenge.${domainId}`;
+
+/**
+ * The challenge value for a domain, if this browser saw it. The API shows it once (only its hash
+ * is stored, ADR 0010), so it is kept here for a reload mid-setup. A convenience: without it the
+ * DNS page offers a new value.
+ */
+export function rememberedChallenge(domain: OnboardingDomain): string | null {
+  if (domain.challenge?.value) return domain.challenge.value;
+  try {
+    return localStorage.getItem(challengeKey(domain.id));
+  } catch {
+    return null;
+  }
+}
+
+function rememberChallenge(domain: OnboardingDomain) {
+  try {
+    if (domain.challenge?.value)
+      localStorage.setItem(challengeKey(domain.id), domain.challenge.value);
+    // Verified: the record is in DNS already and the value no longer needed here.
+    if (domain.status === "verified" && domain.challenge?.verified) {
+      localStorage.removeItem(challengeKey(domain.id));
+    }
+  } catch {
+    // Storage blocked (private window): the page still works, minus surviving a reload.
+  }
+}
+
 /** Writes a domain's latest state into the cached onboarding status. */
 function storeDomain(client: QueryClient, domain: OnboardingDomain) {
+  rememberChallenge(domain);
   client.setQueryData<Onboarding>(keys.onboarding(), (data) =>
     data?.organization
       ? { ...data, domains: [...data.domains.filter((d) => d.id !== domain.id), domain] }
@@ -98,6 +128,14 @@ function storeDomain(client: QueryClient, domain: OnboardingDomain) {
 export const addDomainMutation = (client: QueryClient) =>
   mutationOptions({
     mutationFn: (domain: string) => call(api.onboarding.domains.$post({ json: { domain } })),
+    onSuccess: (domain) => storeDomain(client, domain),
+  });
+
+/** `mutate(domainId)`: a new challenge value, for a member who lost the first one. */
+export const rotateChallengeMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: (id: string) =>
+      call(api.onboarding.domains[":id"].challenge.$post({ param: { id } })),
     onSuccess: (domain) => storeDomain(client, domain),
   });
 

@@ -81,6 +81,9 @@ UID-list diffs and polling. On every connect it logs the server's capabilities
 | `PURELYMAIL_API_TOKEN`     | no       |                    | Purelymail admin API token. Unset: onboarding uses IMAP logins. |
 | `SENTRY_DSN`               | no       |                    | Sentry DSN. Unset keeps error reporting off.                    |
 | `SENTRY_ENVIRONMENT`       | no       | `production`       | Sentry environment tag.                                         |
+| `DNS_RESOLVERS`            | no       | system resolvers   | `ip` or `ip:port` list used to find a domain's nameservers.     |
+| `DNS_NAMESERVER_PORT`      | no       | `53`               | Port nameservers are asked on. Change only for a test server.   |
+| `DNS_TIMEOUT_MS`           | no       | `2000`             | Per-query DNS timeout.                                          |
 
 Generate the secrets with `openssl rand -hex 32` and `echo "k1:$(openssl rand -base64 32)"`.
 Keep `MAIL_CREDENTIALS_KEY` only on the mail service. To rotate it, put the new key first
@@ -92,7 +95,8 @@ mailboxes added later.
 
 The Worker and the mail service call each other over HMAC-signed HTTP (`@omni/crypto`, 60 s
 window). The Worker pings `POST /ping` after writing to the outbox or adding a mailbox, and calls
-`POST /provision/domain` and `POST /provision/mailbox` during onboarding (ADR 0007); the mail
+`POST /provision/domain`, `POST /provision/mailbox` and `POST /dns/lookup` during onboarding
+(ADR 0007, ADR 0010); the mail
 service posts batches of `message.created` events to the Worker after indexing new mail. Paths
 and bodies are defined once in `packages/contracts`.
 
@@ -145,7 +149,27 @@ What the Domain and Mailboxes steps do depends on the mail service:
   IMAP before storing it.
 
 Either way the credentials are encrypted with `MAIL_CREDENTIALS_KEY` by the mail service, and the
-mailbox starts syncing at once. A domain belongs to the first workspace that claims it.
+mailbox starts syncing at once.
+
+#### Domain ownership (ADR 0010)
+
+Adding a domain opens a claim with a one-time TXT record, `_omni-challenge.<domain>`, whose
+value the app shows once (only its hash is stored). The domain is locked to the first workspace
+whose record shows up in the domain's DNS; until then several workspaces may wait on it, and a
+claim expires after 7 days. Each workspace may hold 5 waiting claims. Subdomains of a locked
+domain cannot be claimed by another workspace, and names that mix alphabets (a Cyrillic letter
+in a Latin name) are refused.
+
+The mail service reads records from the domain's own nameservers (it finds them through
+`DNS_RESOLVERS`, then asks them directly on port 53), so a saved record verifies within seconds
+instead of waiting out a public resolver's cache. The host it runs on needs outbound DNS (UDP and
+TCP port 53).
+
+Keep the record after setup. The Worker's cron trigger re-checks every verified domain every six
+hours; if the record is gone, sending from the domain pauses (the domain stays locked) and the
+workspace's owners get an email, and again when it is back. Owners can release a domain or move
+it to another workspace they run, once it has no mailboxes; every step is in the audit log
+(`GET /api/onboarding/domains/:id/events`).
 
 ### Adding a mailbox from the command line
 
@@ -217,13 +241,14 @@ every name and id there is a neutral default to replace with your own.
 
 Bindings:
 
-| Binding        | Kind                    | Setup                                                                                                                                                                                                                                                                                                                |
-| -------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HYPERDRIVE`   | Hyperdrive              | `wrangler hyperdrive create omni --connection-string=postgres://...`, then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres.                                                                                                                                                 |
-| `MAIL_BUCKET`  | R2                      | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker only reads attachments from it.                                                                                                                                                                      |
-| `AI_QUEUE`     | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes both. Failed jobs land in the DLQ after `max_retries`, and the Worker's DLQ consumer records them in `dead_letters` (see [Observability](#observability)). A DLQ is the source queue's name plus `-dlq`. |
-| `REPLAY_GUARD` | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                                                                                                                                                                    |
-| `REALTIME`     | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                                                                                                                                                                     |
+| Binding                                      | Kind                    | Setup                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HYPERDRIVE`                                 | Hyperdrive              | `wrangler hyperdrive create omni --connection-string=postgres://...`, then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres.                                                                                                                                                 |
+| `MAIL_BUCKET`                                | R2                      | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker only reads attachments from it.                                                                                                                                                                      |
+| `AI_QUEUE`                                   | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes both. Failed jobs land in the DLQ after `max_retries`, and the Worker's DLQ consumer records them in `dead_letters` (see [Observability](#observability)). A DLQ is the source queue's name plus `-dlq`. |
+| `REPLAY_GUARD`                               | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                                                                                                                                                                    |
+| `REALTIME`                                   | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                                                                                                                                                                     |
+| `DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER` | Rate limiting           | Nothing to create. Per-workspace limits on adding and checking domains (`ratelimits` in `wrangler.jsonc`); `namespace_id` must be unique in your account.                                                                                                                                                            |
 
 Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashboard values on
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
@@ -254,7 +279,10 @@ to `.dev.vars`.
 | `IMAGE_PROXY_DOH_URL`      | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                      |
 | `ENVIRONMENT`              | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`. |
 
-Magic links and invitations are sent through the outbox: the Worker writes a `send` action for
+The `triggers.crons` entry in `wrangler.jsonc` runs the domain re-check (ADR 0010); it needs no
+setup beyond the deploy.
+
+Magic links, invitations and domain notices are sent through the outbox: the Worker writes a `send` action for
 the `SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be
 connected like any other. Locally, `ENVIRONMENT=development` (the `.dev.vars.example` default)
 also prints each link to the `wrangler dev` console as `{"event":"auth.dev_link",...}`, so you

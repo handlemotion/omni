@@ -12,6 +12,7 @@ export {
   type VerifyRequestInput,
   type VerifyResult,
 } from "./signing.ts";
+export { challengeMatches, hashChallenge, newChallenge } from "./challenge.ts";
 export {
   CredentialError,
   decryptCredential,

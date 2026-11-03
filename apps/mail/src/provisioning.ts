@@ -34,7 +34,8 @@ export class ProvisionError extends Error {
 }
 
 export interface Provisioner {
-  domain(domain: string): Promise<ProvisionDomainResult>;
+  /** With `add: false`, reads the records and their state without touching the provider. */
+  domain(domain: string, options?: { add?: boolean }): Promise<ProvisionDomainResult>;
   mailbox(input: ProvisionMailboxBody): Promise<ProvisionMailboxResult>;
 }
 
@@ -67,10 +68,20 @@ export function createProvisioner(deps: {
     }
   }
 
-  async function domain(name: string): Promise<ProvisionDomainResult> {
+  async function domain(
+    name: string,
+    options: { add?: boolean } = {},
+  ): Promise<ProvisionDomainResult> {
     if (!purelymail) return { provider: "imap" };
     const records = purelymailDnsRecords(name, await provider(() => purelymail.getOwnershipCode()));
     let state = purelymailDomainState(await provider(() => purelymail.listDomains()), name);
+    if (options.add === false) {
+      return {
+        provider: "purelymail",
+        added: state.added,
+        records: withChecks(records, state.checks),
+      };
+    }
     let addError: string | undefined;
     if (!state.added) {
       // Purelymail adds a domain only once its ownership record is in DNS. Until then this fails,
