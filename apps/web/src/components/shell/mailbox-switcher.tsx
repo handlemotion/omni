@@ -4,6 +4,7 @@
 // show as headings when the user belongs to more than one.
 import { CheckIcon, ChevronUpDownIcon } from "@heroicons/react/20/solid";
 import { useSearch } from "@tanstack/react-router";
+import { IconCircleDashed, IconSettings } from "@/components/icons/sidebar";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
@@ -15,7 +16,13 @@ import type { Workspace, WorkspaceMailbox } from "@/lib/types.ts";
 
 /** Taller than a menu row: a name over an address, like the search menu's rows. */
 const ROW = "min-h-12 rounded-lg px-2.5 py-1.5";
-const ROW_CONTENT = "col-span-full flex min-w-0 items-center gap-2.5";
+const ROW_CONTENT = "col-span-full flex min-w-0 items-center gap-3";
+/** A footer row: a 16px icon in the avatar's column, then its label. */
+const ACTION_CONTENT = "col-span-full flex min-w-0 items-center gap-3";
+/** Rounded squares like the mail list's avatars. Multiply: under the row's hover highlight the
+ *  fill darkens with it instead of sitting on top as a flat grey tile. */
+const AVATAR =
+  "bg-accent text-foreground outline-0 mix-blend-multiply [--avatar-radius:var(--radius-sm)]";
 
 /** What a mailbox is called: you, for your personal one; its local part for a shared one. */
 function mailboxName(mailbox: WorkspaceMailbox, you: string) {
@@ -31,8 +38,9 @@ function Initial(props: { name: string; loading?: boolean }) {
         <Loader className="size-4 text-muted-foreground" />
       ) : (
         <Avatar
+          isSquare
           initials={props.name.slice(0, 1).toUpperCase()}
-          className="bg-accent text-foreground outline-0 [--avatar-size:--spacing(7)]"
+          className={`${AVATAR} [--avatar-size:--spacing(7)]`}
         />
       )}
     </span>
@@ -113,15 +121,18 @@ export function MailboxSwitcher() {
       <Button
         intent="plain"
         aria-label={`Switch mailbox, currently ${triggerName}`}
-        className="h-7 min-w-0 flex-1 justify-start gap-1.5 rounded-sm px-2 hover:bg-hover aria-expanded:bg-hover"
+        // Hover, pressed and open share one fill. React Aria keeps the trigger pressed while its
+        // menu is open, so the fill is set through the button's own variables.
+        className="h-7 min-w-0 flex-1 justify-start gap-1.5 rounded-sm px-2 [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]"
       >
         <span className="grid size-4.5 shrink-0 place-items-center">
           {pending ? (
             <Loader className="size-3.5 text-muted-foreground" />
           ) : (
             <Avatar
+              isSquare
               initials={triggerName.slice(0, 1).toUpperCase()}
-              className="bg-accent text-foreground outline-0 [--avatar-size:--spacing(4.5)]"
+              className={`${AVATAR} [--avatar-size:--spacing(4.5)]`}
             />
           )}
         </span>
@@ -142,10 +153,16 @@ export function MailboxSwitcher() {
             ))
           : active && rows(active)}
 
-        <MenuSeparator />
+        {/* Full width: through the menu's padding, edge to edge. */}
+        <MenuSeparator className="-mx-1.5 my-1.5" />
 
         <MenuItem href="/settings" textValue="Manage mailboxes">
-          Manage mailboxes…
+          <span className={ACTION_CONTENT}>
+            <span className="grid size-7 shrink-0 place-items-center">
+              <IconSettings className="size-4 text-muted-foreground" />
+            </span>
+            Manage mailboxes…
+          </span>
         </MenuItem>
         <MenuItem
           textValue="Log out"
@@ -153,7 +170,16 @@ export function MailboxSwitcher() {
           shouldCloseOnSelect={false}
           onAction={() => signOut.mutate()}
         >
-          <span className={signOut.isPending ? "shimmer" : undefined}>Log out</span>
+          <span className={ACTION_CONTENT}>
+            <span className="grid size-7 shrink-0 place-items-center">
+              {signOut.isPending ? (
+                <Loader className="size-4 text-muted-foreground" />
+              ) : (
+                <IconCircleDashed className="size-4 text-muted-foreground" />
+              )}
+            </span>
+            Log out
+          </span>
         </MenuItem>
       </Menu>
     </MenuTrigger>
