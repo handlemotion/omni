@@ -190,8 +190,8 @@ function OrganizationMenu() {
         <Avatar
           isSquare
           src={active?.logo ?? null}
-          initials={active?.name.slice(0, 1)}
-          className="outline-0 [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(4.25)]"
+          initials={active?.name.slice(0, 1).toUpperCase()}
+          className="bg-accent text-foreground outline-0 [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(4.25)]"
         />
         <span className="flex items-center gap-1.25 truncate">
           {active?.name}
