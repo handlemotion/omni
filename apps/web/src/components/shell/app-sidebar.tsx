@@ -51,7 +51,7 @@ interface NavItem {
 
 const mail: NavItem[] = [
   { label: "Inbox", icon: <IconInbox />, href: "/inbox", current: { path: "/inbox" } },
-  { label: "Queue", icon: <IconClock />, href: "/snoozed", current: { path: "/snoozed" } },
+  { label: "Queue", icon: <IconClock />, href: "/queue", current: { path: "/queue" } },
   {
     label: "Needs reply",
     icon: <IconBubble />,
@@ -67,7 +67,7 @@ const mail: NavItem[] = [
 ];
 
 const folders: NavItem[] = [
-  { label: "All mail", icon: <IconEmail /> },
+  { label: "All mail", icon: <IconEmail />, href: "/all", current: { path: "/all" } },
   { label: "Favorite", icon: <IconStar /> },
   { label: "Sent", icon: <IconPaperPlane /> },
   { label: "Trash", icon: <IconTrash /> },

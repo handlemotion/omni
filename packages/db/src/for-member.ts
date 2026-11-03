@@ -20,10 +20,18 @@ export type Lane = (typeof triageBucket.enumValues)[number] | "unsure";
 export const LANES = [...triageBucket.enumValues, "unsure"] as const satisfies readonly Lane[];
 
 /**
- * `inbox`: not archived, not snoozed into the future. `snoozed`: not archived, snoozed into the
- * future (it returns to the inbox by itself when the time passes). `archive`: archived.
+ * Per-member triage views (ADR 0007). A thread is *done* for a member while its
+ * `last_message_at` is at or before their `done_through`, and *deferred* while their
+ * `snoozed_until` is in the future; done wins over deferred.
+ *
+ * - `inbox`: not archived, not done, not deferred. What still needs attention.
+ * - `queue`: not archived, deferred, not done. Back in the inbox by itself when the time passes.
+ * - `done`: done, archived or not.
+ * - `archive`: archived (moved out of INBOX on the server; shared by everyone on the mailbox).
+ * - `all`: every thread the member can see, whatever its state.
  */
-export type ThreadView = "inbox" | "snoozed" | "archive";
+export const THREAD_VIEWS = ["inbox", "queue", "done", "archive", "all"] as const;
+export type ThreadView = (typeof THREAD_VIEWS)[number];
 
 export interface Participant {
   name: string | null;
@@ -66,10 +74,29 @@ export function forMember(db: Db, memberId: string) {
   const threadFields = {
     ...getTableColumns(threads),
     read: sql<boolean>`coalesce(${threadState.read}, false)`.as("read"),
-    snoozedUntil: threadState.snoozedUntil,
+    deferredUntil: threadState.snoozedUntil,
+    done: sql<boolean>`coalesce(${threads.lastMessageAt} <= ${threadState.doneThrough}, false)`.as(
+      "done",
+    ),
   };
   const myState = and(eq(threadState.threadId, threads.id), eq(threadState.memberId, memberId));
-  const snoozedNow = sql`exists (select 1 from ${threadState} where ${threadState.threadId} = ${threads.id} and ${threadState.memberId} = ${memberId} and ${threadState.snoozedUntil} > now())`;
+  // The two rules on this member's state row, applied inside the page scan as one primary-key
+  // lookup per thread, so a page never comes back short. `counts` applies the same rules to
+  // the joined row.
+  const state = (filter: SQL) =>
+    sql`exists (select 1 from ${threadState} s where s.thread_id = ${threads.id} and s.member_id = ${memberId} and (${filter}))`;
+  const doneRule = sql`${threads.lastMessageAt} <= s.done_through`;
+  const deferredRule = sql`s.snoozed_until > now()`;
+  const viewFilters: Record<ThreadView, SQL[]> = {
+    inbox: [eq(threads.archived, false), sql`not ${state(sql`${doneRule} or ${deferredRule}`)}`],
+    queue: [
+      eq(threads.archived, false),
+      state(sql`${deferredRule} and not coalesce(${doneRule}, false)`),
+    ],
+    done: [state(doneRule)],
+    archive: [eq(threads.archived, true)],
+    all: [],
+  };
 
   // Per-thread summary for list rows, read through the thread (already access-checked).
   const rowFields = {
@@ -112,11 +139,8 @@ export function forMember(db: Db, memberId: string) {
       const filters: (SQL | undefined)[] = [
         eq(threads.mailboxId, mailboxAccess.mailboxId),
         eq(threads.orgId, members.organizationId),
-        eq(threads.archived, view === "archive"),
+        ...viewFilters[view],
       ];
-      // Inside the page, so a page of snoozed threads never comes back short.
-      if (view === "inbox") filters.push(sql`not ${snoozedNow}`);
-      if (view === "snoozed") filters.push(snoozedNow);
       if (lane) filters.push(laneFilter(lane));
       if (before) {
         filters.push(
@@ -157,13 +181,15 @@ export function forMember(db: Db, memberId: string) {
     },
 
     /**
-     * Thread counts per granted mailbox, for the mailbox list: inbox (unread too), snoozed, and
-     * each lane within the inbox. The same rules as `listThreads`.
+     * Thread counts per granted mailbox, for the sidebar: inbox (unread too), queue, and each
+     * lane within the inbox. The same rules as `listThreads`.
      */
     async counts() {
       // This member's state row is joined already; no per-thread lookup.
-      const snoozed = sql`coalesce(${threadState.snoozedUntil} > now(), false)`;
-      const inbox = sql`not ${snoozed}`;
+      const done = sql`coalesce(${threads.lastMessageAt} <= ${threadState.doneThrough}, false)`;
+      const deferred = sql`coalesce(${threadState.snoozedUntil} > now(), false)`;
+      const queue = sql`(${deferred} and not ${done})`;
+      const inbox = sql`not (${deferred} or ${done})`;
       const unread = sql`coalesce(${threadState.read}, false) = false`;
       const count = (filter: SQL) => sql<number>`(count(*) filter (where ${filter}))::int`;
       const rows = await db
@@ -171,7 +197,7 @@ export function forMember(db: Db, memberId: string) {
           mailboxId: threads.mailboxId,
           inbox: count(inbox),
           unread: count(and(inbox, unread)!),
-          snoozed: count(snoozed),
+          queue: count(queue),
           lanes: sql<Record<Lane, number>>`jsonb_build_object(${sql.join(
             LANES.map((lane) => sql`${lane}::text, ${count(and(inbox, laneFilter(lane))!)}`),
             sql`, `,
@@ -291,13 +317,22 @@ export function forMember(db: Db, memberId: string) {
     },
 
     /**
-     * Upserts this member's read/snooze state. Omitted fields keep their value; `snoozedUntil:
-     * null` unsnoozes. Returns null when the member cannot see the thread.
+     * Upserts this member's state. Omitted fields keep their value; `null` clears one.
+     * `doneThrough` is capped at the thread's `last_message_at`, so it never covers a message
+     * that has not arrived yet. Returns the row and whether the thread is done now, or null when
+     * the member cannot see the thread.
      */
-    async setThreadState(threadId: string, patch: { read?: boolean; snoozedUntil?: Date | null }) {
-      const set: Partial<typeof threadState.$inferInsert> = { updatedAt: new Date() };
-      if (patch.read !== undefined) set.read = patch.read;
-      if (patch.snoozedUntil !== undefined) set.snoozedUntil = patch.snoozedUntil;
+    async setThreadState(
+      threadId: string,
+      patch: { read?: boolean; deferredUntil?: Date | null; doneThrough?: Date | null },
+    ) {
+      const iso = (date: Date | null | undefined) => date?.toISOString() ?? null;
+      const set: Partial<Record<"read" | "snoozedUntil" | "doneThrough" | "updatedAt", SQL>> = {
+        updatedAt: sql`now()`,
+      };
+      if (patch.read !== undefined) set.read = sql`excluded.read`;
+      if (patch.deferredUntil !== undefined) set.snoozedUntil = sql`excluded.snoozed_until`;
+      if (patch.doneThrough !== undefined) set.doneThrough = sql`excluded.done_through`;
 
       const [row] = await db
         .insert(threadState)
@@ -308,9 +343,12 @@ export function forMember(db: Db, memberId: string) {
               threadId: threads.id,
               memberId: mailboxAccess.memberId,
               read: sql`${patch.read ?? false}::boolean`.as("read"),
-              snoozedUntil: sql`${patch.snoozedUntil?.toISOString() ?? null}::timestamptz`.as(
-                "snoozed_until",
-              ),
+              snoozedUntil: sql`${iso(patch.deferredUntil)}::timestamptz`.as("snoozed_until"),
+              // Not `least(null, x)`: Postgres skips nulls there, which would mark it done.
+              doneThrough: (patch.doneThrough
+                ? sql`least(${iso(patch.doneThrough)}::timestamptz, ${threads.lastMessageAt})`
+                : sql`null::timestamptz`
+              ).as("done_through"),
               updatedAt: sql`now()`.as("updated_at"),
             })
             .from(threads)
@@ -319,7 +357,12 @@ export function forMember(db: Db, memberId: string) {
             .where(eq(threads.id, threadId)),
         )
         .onConflictDoUpdate({ target: [threadState.threadId, threadState.memberId], set })
-        .returning();
+        .returning({
+          read: threadState.read,
+          deferredUntil: threadState.snoozedUntil,
+          doneThrough: threadState.doneThrough,
+          done: sql<boolean>`coalesce((select ${threads.lastMessageAt} from ${threads} where ${threads.id} = ${threadState.threadId}) <= ${threadState.doneThrough}, false)`,
+        });
       return row ?? null;
     },
   };

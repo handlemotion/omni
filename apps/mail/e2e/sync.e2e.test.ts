@@ -1,11 +1,12 @@
-import { schema } from "@omni/db";
+import { forMember, schema } from "@omni/db";
+import { createMember } from "@omni/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailboxConnection, type NewMessageEvent } from "../src/mailbox-connection.ts";
 import { PgMailStore } from "../src/pg-store.ts";
 import { createTestDatabase, messageRows, seedMailbox, stored, type TestDb } from "./support/db.ts";
 import { createTestBucket, links } from "./support/objects.ts";
-import { deliver, logger, otherClient } from "./support/greenmail.ts";
+import { deliver, logger, otherClient, waitFor } from "./support/greenmail.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
@@ -115,6 +116,41 @@ describe("sync into Postgres against GreenMail", () => {
     );
     // Quoted history is cut from clean_text; the raw message keeps it.
     expect(byId.get("<lunch-2@outside.test>")?.cleanText).toBe("Sure, noon.");
+  });
+
+  it("a reply over SMTP brings a done thread back to the inbox of the member who marked it", async () => {
+    const { box, orgId, ownerId } = await seedMailbox(db, { kind: "shared" });
+    const teammate = await createMember(db, orgId, "teammate");
+    await db
+      .insert(schema.mailboxAccess)
+      .values({ orgId, mailboxId: box.id, memberId: teammate.id });
+    const connection = connect(box);
+    await connection.start();
+    const inbox = async (memberId: string) =>
+      (await forMember(db, memberId).listThreads()).map((t) => t.id);
+
+    let arrived = new Promise((resolve) => connection.once("message", resolve));
+    await deliver(box.address, "Contract");
+    await arrived;
+    const [first] = await stored(db, box.id, "INBOX");
+    const [thread] = await forMember(db, ownerId).listThreads();
+    expect(thread?.id).toBe(first?.threadId);
+    await forMember(db, ownerId).setThreadState(thread!.id, {
+      doneThrough: thread!.lastMessageAt,
+    });
+    expect(await inbox(ownerId)).toEqual([]);
+    expect(await inbox(teammate.id)).toEqual([thread!.id]);
+
+    // Date headers have one-second precision; the reply must be visibly newer.
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    arrived = new Promise((resolve) => connection.once("message", resolve));
+    await deliver(box.address, "Re: Contract", { inReplyTo: first!.messageIdHeader });
+    await arrived;
+
+    await waitFor(async () => (await stored(db, box.id, "INBOX")).length === 2);
+    expect(await inbox(ownerId)).toEqual([thread!.id]);
+    const [reopened] = await forMember(db, ownerId).listThreads();
+    expect(reopened).toMatchObject({ done: false, messageCount: 2 });
   });
 
   it("resumes after a restart without re-importing or duplicating rows", async () => {
