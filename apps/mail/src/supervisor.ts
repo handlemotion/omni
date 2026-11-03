@@ -1,4 +1,4 @@
-import { Duration, Effect, Fiber, Schedule, Semaphore } from "effect";
+import { Effect, Fiber, Semaphore } from "effect";
 import type { Logger } from "./log.ts";
 import {
   MailboxConnection,
@@ -7,6 +7,7 @@ import {
 } from "./mailbox-connection.ts";
 import { OutboxExecutor } from "./outbox.ts";
 import type { ActionSource, MailStore } from "./ports.ts";
+import { every } from "./timing.ts";
 
 export interface SupervisorOptions {
   store: MailStore;
@@ -154,18 +155,4 @@ export class Supervisor {
     await Promise.all([...this.connections.values()].map((c) => c.stop()));
     this.connections.clear();
   }
-}
-
-/**
- * Runs `task` every `intervalMs`, first after one interval, on its own fiber. A run that takes
- * longer than the interval delays the next instead of overlapping it, and a failure (these tasks
- * log their own) never ends the loop.
- */
-function every(intervalMs: number, task: () => Promise<unknown>): Fiber.Fiber<unknown, unknown> {
-  return Effect.runFork(
-    Effect.schedule(
-      Effect.tryPromise(task).pipe(Effect.ignore),
-      Schedule.fixed(Duration.millis(intervalMs)),
-    ),
-  );
 }

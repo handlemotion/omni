@@ -1,7 +1,7 @@
 // Retry timing for the whole service. In-process retries run on Effect `Schedule`s built here; the
 // outbox's between-attempt delay is persisted in Postgres (`retryAt`), so it uses the same formula
 // through `backoffDelay` instead of sleeping.
-import { Duration, Effect, Random, Schedule } from "effect";
+import { Duration, Effect, type Fiber, Random, Schedule } from "effect";
 
 /** Exponential backoff with full jitter: a random delay in [0, min(max, base * 2^attempt)). */
 export function backoffDelay(attempt: number, baseMs: number, maxMs: number): number {
@@ -30,6 +30,23 @@ export function backoff({ baseMs, maxMs, floorMs = 0 }: BackoffOptions) {
           Math.round(floorMs + random * Math.min(maxMs, Duration.toMillis(duration))),
         ),
       ),
+    ),
+  );
+}
+
+/**
+ * Runs `task` every `intervalMs`, first after one interval, on its own fiber. A run that takes
+ * longer than the interval delays the next instead of overlapping it, and a failure (these tasks
+ * log their own) never ends the loop.
+ */
+export function every(
+  intervalMs: number,
+  task: () => Promise<unknown>,
+): Fiber.Fiber<unknown, unknown> {
+  return Effect.runFork(
+    Effect.schedule(
+      Effect.tryPromise(task).pipe(Effect.ignore),
+      Schedule.fixed(Duration.millis(intervalMs)),
     ),
   );
 }
