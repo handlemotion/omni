@@ -1,8 +1,8 @@
-import { DocumentDuplicateIcon } from "@heroicons/react/24/outline";
 import { useState, type ReactNode } from "react";
 import { IconRedirectArrow } from "@/components/icons";
 import { IconChevronRight } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
+import { CopyField } from "@/components/ui/copy-field";
 import { Label } from "@/components/ui/field";
 import { Heading } from "@/components/ui/heading";
 import { Input, InputGroup } from "@/components/ui/input";
@@ -177,37 +177,22 @@ function DnsForm(props: { domain: string; onDone: () => void }) {
       <Steps>
         {records.map((record, i) => (
           <Step key={record.purpose} state={state(i)} label={record.type} title={record.purpose}>
-            <div className="flex flex-col gap-2">
-              <RecordField label="Name" value={record.name} />
-              <RecordField label="Value" value={record.value} />
-              {/* Checking needs the API; until then the step can't complete. */}
-              <Button intent="outline" className="mt-1 self-start" isDisabled>
-                Check record
-              </Button>
-            </div>
+            {record.name && record.value ? (
+              <div className="flex flex-col gap-2 [--copy-label-width:--spacing(13)]">
+                <CopyField label="Host" value={record.name} />
+                <CopyField label="Value" value={record.value} />
+                {/* Checking needs the API; until then the step can't complete. */}
+                <Button intent="outline" className="mt-1 self-start" isDisabled>
+                  Check record
+                </Button>
+              </div>
+            ) : (
+              <Text>The record appears once the domain is added.</Text>
+            )}
           </Step>
         ))}
       </Steps>
     </PageForm>
-  );
-}
-
-function RecordField({ label, value }: { label: string; value?: string }) {
-  return (
-    <TextField aria-label={label} value={value ?? ""} isReadOnly>
-      <InputGroup className="[--input-gutter-end:--spacing(8)]">
-        <Input placeholder={`${label} appears once the domain is added`} />
-        <Button
-          intent="plain"
-          size="sq-xs"
-          aria-label={`Copy ${label.toLowerCase()}`}
-          isDisabled={!value}
-          onPress={() => value && void navigator.clipboard.writeText(value)}
-        >
-          <DocumentDuplicateIcon />
-        </Button>
-      </InputGroup>
-    </TextField>
   );
 }
 

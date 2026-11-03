@@ -37,6 +37,9 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
   one. Pick the size the frame shows; don't resize a control with classes.
 - **Destructive actions.** `<Button intent="danger">`: filled red with a darker edge. Use it only
   for actions that delete or can't be undone, and say what happens on the button itself.
+- **Values to copy.** `CopyField` (`components/ui/copy-field.tsx`): the kind on the left, the value
+  on the right, the whole field copies on click with a "Click to copy" / "Copied" tooltip. No
+  separate Copy buttons.
 - **Multi-step flows.** `Steps` / `Step` (`components/ui/steps.tsx`): one step open at a time,
   finished steps collapse to their answer, upcoming steps are dimmed.
 - **Inset actions.** An action inside a field (submit arrow, clear, reveal) is
