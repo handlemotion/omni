@@ -99,31 +99,43 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 
 ## Hooks
 
-| Hook                                                                                                                           | Returns / takes                              |
-| ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
-| `useSession()`                                                                                                                 | `{ user, session, member } \| null`          |
-| `useMember()`                                                                                                                  | `{ user, member }` (member routes only)      |
-| `useSignInMagicLink()`                                                                                                         | `mutate({ email, redirect? })`               |
-| `useSignInPasskey()`                                                                                                           | `mutate()`                                   |
-| `useSignOut()`                                                                                                                 | `mutate()`                                   |
-| `useOrganizations()`, `useSetActiveOrganization()`                                                                             | list; `mutate(organizationId)`               |
-| `useInvitation(id)`, `useAcceptInvitation()`, `useRejectInvitation()`                                                          | invitation; `mutate(id)`                     |
-| `useMembers()`, `useInvitations()`, `useInviteMember()`, `useCancelInvitation()`, `useRemoveMember()`, `useUpdateMemberRole()` | organization admin                           |
-| `usePasskeys()`, `useAddPasskey()`, `useDeletePasskey()`                                                                       | passkeys                                     |
-| `useOnboarding()`, `useCreateWorkspace()`, `useAddDomain()`, `useCheckDomain()`, `useCreateMailboxes()`                        | workspace setup (`hooks/use-onboarding.ts`)  |
-| `useMailboxes()`, `useCounts()`                                                                                                | sidebar data                                 |
-| `useThreads({ view, mailbox?, lane? })`                                                                                        | `{ threads, fetchNextPage, hasNextPage, … }` |
-| `useThread(id)`, `useSuspenseThread(id)`                                                                                       | `{ thread, pending, … }`                     |
-| `useSearch(q, mailbox?)`                                                                                                       | results                                      |
-| `usePrefetchThread()`                                                                                                          | `(threadId) => void`                         |
-| `useMarkRead()`, `useDefer()`, `useMarkDone()`, `useMarkUndone()`, `useArchive()`, `useMove()`                                 | `mutate({ threadId, … })`                    |
-| `useMarkReadOnOpen(thread)`                                                                                                    | marks an opened unread thread read, once     |
-| `useSendReply()`, `useSend()`                                                                                                  | `mutate({ … })`                              |
-| `useDiscardPending()`, `useActionFailures()`                                                                                   | failed sends and actions                     |
-| `useRealtimeConnection(memberId)`, `useRealtimeStatus()`                                                                       | the socket                                   |
+| Hook                                                                                                                           | Returns / takes                               |
+| ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `useSession()`                                                                                                                 | `{ user, session, member } \| null`           |
+| `useMember()`                                                                                                                  | `{ user, member }` (member routes only)       |
+| `useSignInMagicLink()`                                                                                                         | `mutate({ email, redirect? })`                |
+| `useSignInPasskey()`                                                                                                           | `mutate()`                                    |
+| `useSignOut()`                                                                                                                 | `mutate()`                                    |
+| `useOrganizations()`, `useSetActiveOrganization()`                                                                             | list; `mutate(organizationId)`                |
+| `useInvitation(id)`, `useAcceptInvitation()`, `useRejectInvitation()`                                                          | invitation; `mutate(id)`                      |
+| `useMembers()`, `useInvitations()`, `useInviteMember()`, `useCancelInvitation()`, `useRemoveMember()`, `useUpdateMemberRole()` | organization admin                            |
+| `usePasskeys()`, `useAddPasskey()`, `useDeletePasskey()`                                                                       | passkeys                                      |
+| `useOnboarding()`, `useCreateWorkspace()`, `useAddDomain()`, `useCheckDomain()`, `useCreateMailboxes()`                        | workspace setup (`hooks/use-onboarding.ts`)   |
+| `useMailboxes()`, `useCounts()`                                                                                                | sidebar data                                  |
+| `useThreads({ view, mailbox?, lane? })`                                                                                        | `{ threads, fetchNextPage, hasNextPage, … }`  |
+| `useThread(id)`, `useSuspenseThread(id)`                                                                                       | `{ thread, pending, … }`                      |
+| `useSearch(q, mailbox?)`                                                                                                       | results                                       |
+| `usePrefetchThread()`                                                                                                          | `(threadId) => void`                          |
+| `useMarkRead()`, `useDefer()`, `useMarkDone()`, `useMarkUndone()`, `useArchive()`, `useMove()`                                 | `mutate({ threadId, … })`                     |
+| `useMarkReadOnOpen(thread)`                                                                                                    | marks an opened unread thread read, once      |
+| `useSendReply()`, `useSend()`                                                                                                  | `mutate({ … })`                               |
+| `useDiscardPending()`, `useActionFailures()`                                                                                   | failed sends and actions                      |
+| `useRealtimeConnection(memberId)`, `useRealtimeStatus()`                                                                       | the socket                                    |
+| `useShortcut(id, run, enabled?)`, `runShortcut(id)`, `useAvailableShortcuts()`, `announce(text)`                               | keyboard shortcuts (`hooks/use-shortcuts.ts`) |
+| `useThreadListShortcuts({ … })`                                                                                                | the list keys: j/k, o, x, e, h, u, Esc        |
 
 Message HTML goes in a sandboxed iframe: `messageHtmlUrl(threadId, messageId)`; attachments:
 `attachmentUrl(threadId, attachmentId)` (`lib/urls.ts`).
+
+## Keyboard shortcuts
+
+`lib/shortcuts.ts` is the one definition: id, label, keys. The shell mounts one document listener
+(`useShortcutListener`) and the `?` list and ⌘K menu (`components/shell/keyboard-shortcuts.tsx`),
+all read from that table. A screen binds what a key does with `useShortcut(id, run)`; the ⌘K menu
+offers only the commands something on screen handles. Keys never fire in a field, a dialog or a
+menu, or when a focused widget already handled them (React Aria's list moves on the arrows and
+opens on Enter). The list cursor is real focus on a row, so screen readers follow it; actions
+announce what they did in a polite live region.
 
 ## Not yet
 

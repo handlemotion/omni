@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
+import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
 import { SidebarInset, SidebarProvider } from "../../components/ui/sidebar.tsx";
 import { useRealtimeConnection } from "../../hooks/use-realtime.ts";
 import { requireMember } from "../../lib/guards.ts";
@@ -31,6 +32,7 @@ function Shell() {
       <SidebarInset>
         <Outlet />
       </SidebarInset>
+      <KeyboardShortcuts />
     </SidebarProvider>
   );
 }
