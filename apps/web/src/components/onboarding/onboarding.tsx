@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { DocumentDuplicateIcon } from "@heroicons/react/24/outline";
+import { Fragment, useState, type ReactNode } from "react";
 import { IconRedirectArrow } from "@/components/icons";
 import { IconChevronRight } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
@@ -9,157 +10,64 @@ import { Step, Steps, type StepState } from "@/components/ui/steps";
 import { Text } from "@/components/ui/text";
 import { TextField } from "@/components/ui/text-field";
 
-// Set up a workspace: name it, add a domain, create its mailboxes, invite people. Layout adapted
-// from the onboarding reference (Figma node 16:1400): a centered column and a step timeline.
+// Workspace setup, one short form per page (layout from the Figma references 16:1400 and
+// 25:1509, on our tokens). Only DNS uses steps: each record is checked before the next.
 //
-// Not wired yet: each step only advances locally. The API (organization, Purelymail domain and
-// mailboxes, invitations) is a separate task; hook each step's submit to it when it lands.
+// Not wired yet: forms advance on local state and DNS records have no values. The API
+// (organization, Purelymail domain, records and checks, mailboxes, invitations) is a separate task;
+// replace the local state with its hooks.
 
-const STEPS = ["Workspace", "Domain", "Mailboxes", "Invite"] as const;
+const PAGES = ["Workspace", "Domain", "DNS", "Mailboxes", "Invite"] as const;
 
 export function Onboarding() {
-  const [step, setStep] = useState(0);
-  const [workspace, setWorkspace] = useState("");
+  const [page, setPage] = useState(0);
   const [domain, setDomain] = useState("");
-  const [mailboxes, setMailboxes] = useState([""]);
-  const [invites, setInvites] = useState([""]);
+  const next = () => setPage((p) => Math.min(p + 1, PAGES.length - 1));
+  const back = page > 0 ? () => setPage(page - 1) : undefined;
 
-  const state = (i: number): StepState =>
-    i < step ? "complete" : i === step ? "current" : "upcoming";
-  const last = step === STEPS.length - 1;
+  return (
+    <OnboardingPage trail={PAGES.slice(0, page + 1)} onBack={back}>
+      {page === 0 && <WorkspaceForm onDone={next} />}
+      {page === 1 && <DomainForm domain={domain} setDomain={setDomain} onDone={next} />}
+      {page === 2 && <DnsForm domain={domain} onDone={next} />}
+      {page === 3 && <MailboxesForm domain={domain} onDone={next} />}
+      {page === 4 && <InviteForm onDone={() => {}} />}
+    </OnboardingPage>
+  );
+}
 
+/** The frame every page shares: logo, trail, then the page's form. */
+function OnboardingPage(props: {
+  trail: readonly string[];
+  onBack?: () => void;
+  children: ReactNode;
+}) {
   return (
     <main className="flex min-h-dvh justify-center bg-background px-4 py-16">
       <div className="flex w-100 max-w-full flex-col">
         <div className="flex justify-center">
           <IconRedirectArrow />
         </div>
-
-        <nav aria-label="Setup" className="flex items-center gap-2 pt-10 text-sm">
-          <span className="text-foreground">Setup</span>
-          <IconChevronRight className="text-subtle-foreground" />
-          <span className="text-muted-foreground">{STEPS[step]}</span>
+        <nav aria-label="Setup" className="flex items-center gap-2 pt-12 text-sm">
+          {props.trail.map((name, i) => (
+            <Fragment key={name}>
+              {i > 0 && <IconChevronRight className="text-subtle-foreground" />}
+              <span
+                className={
+                  i === props.trail.length - 1 ? "text-foreground" : "text-muted-foreground"
+                }
+              >
+                {name}
+              </span>
+            </Fragment>
+          ))}
         </nav>
-
-        <Heading className="pt-6">Set up your workspace</Heading>
-        <Text className="pt-2">
-          Bring a domain and its mailboxes into Omni. Your mail keeps arriving where it does today
-          until you update the domain's DNS records.
-        </Text>
-
-        <form
-          className="flex flex-col"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!last) setStep(step + 1);
-          }}
-        >
-          <Steps className="pt-8">
-            <Step
-              state={state(0)}
-              label="Step 1 · Workspace"
-              title={step > 0 && workspace ? workspace : "Name your workspace"}
-              description={step === 0 ? "Usually your company or team." : undefined}
-            >
-              {step === 0 && (
-                <TextField value={workspace} onChange={setWorkspace} isRequired autoFocus>
-                  <Label>Workspace name</Label>
-                  <Input placeholder="Acme" />
-                </TextField>
-              )}
-            </Step>
-
-            <Step
-              state={state(1)}
-              label="Step 2 · Domain"
-              title={step > 1 && domain ? domain : "Add your domain"}
-              description={
-                step === 1
-                  ? "Next you'll see the DNS records (MX, SPF, DKIM, DMARC) to add at your registrar."
-                  : undefined
-              }
-            >
-              {step === 1 && (
-                <TextField value={domain} onChange={setDomain} isRequired autoFocus>
-                  <Label>Domain</Label>
-                  <Input placeholder="acme.com" />
-                </TextField>
-              )}
-            </Step>
-
-            <Step
-              state={state(2)}
-              label="Step 3 · Mailboxes"
-              title="Create mailboxes"
-              description={
-                step === 2 ? "One per person, plus shared ones like hello@ or support@." : undefined
-              }
-            >
-              {step === 2 && (
-                <List
-                  values={mailboxes}
-                  onChange={setMailboxes}
-                  addLabel="Add mailbox"
-                  render={(value, set, i) => (
-                    <TextField
-                      aria-label={`Mailbox ${i + 1}`}
-                      value={value}
-                      onChange={set}
-                      isRequired={i === 0}
-                      autoFocus={i === mailboxes.length - 1}
-                    >
-                      <InputGroup className="[--input-gutter-end:--spacing(4)]">
-                        <Input placeholder="name" />
-                        <span data-slot="text" className="text-sm text-muted-foreground">
-                          @{domain || "acme.com"}
-                        </span>
-                      </InputGroup>
-                    </TextField>
-                  )}
-                />
-              )}
-            </Step>
-
-            <Step
-              state={state(3)}
-              label="Step 4 · Invite"
-              title="Invite your team"
-              description={
-                step === 3 ? "They'll get an email to join. You can skip this." : undefined
-              }
-            >
-              {step === 3 && (
-                <List
-                  values={invites}
-                  onChange={setInvites}
-                  addLabel="Add person"
-                  render={(value, set, i) => (
-                    <TextField
-                      aria-label={`Email ${i + 1}`}
-                      type="email"
-                      value={value}
-                      onChange={set}
-                      autoFocus={i === invites.length - 1}
-                    >
-                      <Input placeholder="teammate@acme.com" />
-                    </TextField>
-                  )}
-                />
-              )}
-            </Step>
-          </Steps>
-
-          <Button type="submit" size="lg" className="mt-10 w-full">
-            {last ? "Finish setup" : "Continue"}
-            <IconChevronRight />
-          </Button>
-        </form>
-
-        {step > 0 && (
+        {props.children}
+        {props.onBack && (
           <Button
             intent="plain"
             className="mt-3 self-center text-muted-foreground"
-            onPress={() => setStep(step - 1)}
+            onPress={props.onBack}
           >
             Back
           </Button>
@@ -169,28 +77,217 @@ export function Onboarding() {
   );
 }
 
-/** A growing list of inputs with an "add another" action. */
-function List(props: {
+/** Heading, an optional one-line description, the fields, and the submit button. */
+function PageForm(props: {
+  title: string;
+  description?: string;
+  submit: string;
+  isDisabled?: boolean;
+  onSubmit: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <form
+      className="flex flex-col"
+      onSubmit={(event) => {
+        event.preventDefault();
+        props.onSubmit();
+      }}
+    >
+      <div className="flex flex-col gap-1.5 pt-8">
+        <Heading>{props.title}</Heading>
+        {props.description && <Text>{props.description}</Text>}
+      </div>
+      <div className="flex flex-col gap-6 pt-8">{props.children}</div>
+      <Button type="submit" size="lg" className="mt-10 w-full" isDisabled={props.isDisabled}>
+        {props.submit}
+        <IconChevronRight />
+      </Button>
+    </form>
+  );
+}
+
+function WorkspaceForm({ onDone }: { onDone: () => void }) {
+  const [name, setName] = useState("");
+  return (
+    <PageForm title="Name your workspace" submit="Continue" onSubmit={onDone}>
+      <TextField value={name} onChange={setName} isRequired autoFocus>
+        <Label>Workspace name</Label>
+        <Input placeholder="Acme" />
+      </TextField>
+    </PageForm>
+  );
+}
+
+function DomainForm(props: { domain: string; setDomain: (d: string) => void; onDone: () => void }) {
+  return (
+    <PageForm
+      title="Add your domain"
+      description="Mail keeps flowing as it does today until DNS changes."
+      submit="Continue"
+      onSubmit={props.onDone}
+    >
+      <TextField value={props.domain} onChange={props.setDomain} isRequired autoFocus>
+        <Label>Domain</Label>
+        <Input placeholder="acme.com" />
+      </TextField>
+    </PageForm>
+  );
+}
+
+/** One DNS record to add. Name and value come from the mail host once the domain exists. */
+interface DnsRecord {
+  type: "MX" | "TXT" | "CNAME";
+  purpose: string;
+  name?: string;
+  value?: string;
+  verified: boolean;
+}
+
+const RECORDS: DnsRecord[] = [
+  { type: "MX", purpose: "Receive mail", verified: false },
+  { type: "TXT", purpose: "Allow sending (SPF)", verified: false },
+  { type: "CNAME", purpose: "Sign outgoing mail (DKIM)", verified: false },
+  { type: "TXT", purpose: "Set a policy (DMARC)", verified: false },
+];
+
+function DnsForm(props: { domain: string; onDone: () => void }) {
+  const records = RECORDS;
+  const current = records.findIndex((r) => !r.verified);
+  const state = (i: number): StepState =>
+    current === -1 || i < current ? "complete" : i === current ? "current" : "upcoming";
+
+  return (
+    <PageForm
+      title="Connect your domain"
+      description={`Add each record at the registrar for ${props.domain || "your domain"}.`}
+      submit="Continue"
+      isDisabled={current !== -1}
+      onSubmit={props.onDone}
+    >
+      <Steps>
+        {records.map((record, i) => (
+          <Step key={record.purpose} state={state(i)} label={record.type} title={record.purpose}>
+            <div className="flex flex-col gap-2">
+              <RecordField label="Name" value={record.name} />
+              <RecordField label="Value" value={record.value} />
+              {/* Checking needs the API; until then the step can't complete. */}
+              <Button intent="outline" className="mt-1 self-start" isDisabled>
+                Check record
+              </Button>
+            </div>
+          </Step>
+        ))}
+      </Steps>
+    </PageForm>
+  );
+}
+
+function RecordField({ label, value }: { label: string; value?: string }) {
+  return (
+    <TextField aria-label={label} value={value ?? ""} isReadOnly>
+      <InputGroup className="[--input-gutter-end:--spacing(8)]">
+        <Input placeholder={`${label} appears once the domain is added`} />
+        <Button
+          intent="plain"
+          size="sq-xs"
+          aria-label={`Copy ${label.toLowerCase()}`}
+          isDisabled={!value}
+          onPress={() => value && void navigator.clipboard.writeText(value)}
+        >
+          <DocumentDuplicateIcon />
+        </Button>
+      </InputGroup>
+    </TextField>
+  );
+}
+
+function MailboxesForm(props: { domain: string; onDone: () => void }) {
+  const [names, setNames] = useState([""]);
+  return (
+    <PageForm title="Create mailboxes" submit="Continue" onSubmit={props.onDone}>
+      <InputList
+        label="Addresses"
+        values={names}
+        onChange={setNames}
+        addLabel="Add mailbox"
+        render={(value, set, i) => (
+          <TextField
+            aria-label={`Address ${i + 1}`}
+            value={value}
+            onChange={set}
+            isRequired={i === 0}
+            autoFocus={i === names.length - 1}
+          >
+            <InputGroup className="[--input-gutter-end:--spacing(4)]">
+              <Input placeholder="name" />
+              <span data-slot="text" className="text-sm text-muted-foreground">
+                @{props.domain || "acme.com"}
+              </span>
+            </InputGroup>
+          </TextField>
+        )}
+      />
+    </PageForm>
+  );
+}
+
+function InviteForm(props: { onDone: () => void }) {
+  const [emails, setEmails] = useState([""]);
+  return (
+    <PageForm title="Invite your team" submit="Finish setup" onSubmit={props.onDone}>
+      <InputList
+        label="Emails"
+        optional
+        values={emails}
+        onChange={setEmails}
+        addLabel="Add person"
+        render={(value, set, i) => (
+          <TextField
+            aria-label={`Email ${i + 1}`}
+            type="email"
+            value={value}
+            onChange={set}
+            autoFocus={i === emails.length - 1}
+          >
+            <Input placeholder="teammate@acme.com" />
+          </TextField>
+        )}
+      />
+    </PageForm>
+  );
+}
+
+/** A labeled list of inputs that grows with "Add …". */
+function InputList(props: {
+  label: string;
+  optional?: boolean;
   values: string[];
   onChange: (values: string[]) => void;
   addLabel: string;
-  render: (value: string, set: (value: string) => void, index: number) => React.ReactNode;
+  render: (value: string, set: (value: string) => void, index: number) => ReactNode;
 }) {
   const { values, onChange } = props;
   return (
-    <div className="flex flex-col gap-2">
-      {values.map((value, i) => (
-        <div key={i}>
-          {props.render(value, (next) => onChange(values.map((v, j) => (j === i ? next : v))), i)}
-        </div>
-      ))}
+    <div className="flex flex-col gap-1.5">
+      <span className="text-sm text-muted-foreground">
+        {props.label}
+        {props.optional && <span className="ms-1 text-subtle-foreground">(Optional)</span>}
+      </span>
+      <div className="flex flex-col gap-2">
+        {values.map((value, i) => (
+          <div key={i}>
+            {props.render(value, (v) => onChange(values.map((old, j) => (j === i ? v : old))), i)}
+          </div>
+        ))}
+      </div>
       <Button
         intent="plain"
         size="xs"
         className="self-start px-0 text-muted-foreground"
         onPress={() => onChange([...values, ""])}
       >
-        + {props.addLabel}
+        {props.addLabel}
       </Button>
     </div>
   );

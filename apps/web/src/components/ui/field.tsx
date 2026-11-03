@@ -14,8 +14,8 @@ import { cx } from "@/lib/primitive";
 
 export const labelStyles = tv({
   base: [
-    "select-none text-sm text-foreground in-data-required:not-data-[slot='control-label']:after:ml-1.5",
-    "in-data-required:not-data-[slot='control-label']:after:text-danger-subtle-foreground in-data-required:not-data-[slot='control-label']:after:content-['*']",
+    // Required is the default; optional fields say "(Optional)" instead of required ones getting a *.
+    "select-none text-sm text-muted-foreground",
     "in-disabled:pointer-events-none in-disabled:opacity-50 group-disabled:opacity-50",
   ],
 });
@@ -32,7 +32,7 @@ export const fieldStyles = tv({
   base: [
     "w-full",
     "[&>[data-slot=control]+[data-slot=control]]:mt-2",
-    "[&>[data-slot=label]+[data-slot=control]]:mt-2",
+    "[&>[data-slot=label]+[data-slot=control]]:mt-1.5",
     "[&>[data-slot=label]+[slot='description']]:mt-1",
     "[&>[slot=description]+[data-slot=control]]:mt-2",
     "[&>[data-slot=control]+[slot=description]]:mt-2",

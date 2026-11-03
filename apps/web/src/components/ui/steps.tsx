@@ -1,8 +1,9 @@
 import { cn } from "cn";
 import type { ReactNode } from "react";
 
-// A vertical timeline of steps: a faded line with one ringed dot per step. Adapted from the
-// onboarding reference (Figma node 16:1400) on our tokens.
+// A vertical timeline for steps that depend on each other and are checked one by one (e.g. DNS
+// records): a faded line with one ringed dot per step. Adapted from the onboarding reference
+// (Figma node 16:1400) on our tokens. Unrelated inputs belong in separate forms, not steps.
 
 export function Steps({ className, children }: { className?: string; children: ReactNode }) {
   return (
@@ -21,21 +22,21 @@ export type StepState = "complete" | "current" | "upcoming";
 
 export function Step(props: {
   state: StepState;
-  /** Muted line above the title, e.g. "Step 2 · Domain". */
+  /** Muted line above the title, e.g. "MX". */
   label: string;
   title: string;
-  description?: ReactNode;
+  /** Shown only on the current step. */
   children?: ReactNode;
 }) {
   return (
     <li
       data-slot="step"
       aria-current={props.state === "current" ? "step" : undefined}
-      className="relative flex flex-col"
+      className="relative flex flex-col gap-1"
     >
       <span
         aria-hidden
-        className="absolute top-0 -left-8 flex size-4 items-center justify-center rounded-full bg-background ring-1 ring-border"
+        className="absolute top-0.5 -left-8 flex size-4 items-center justify-center rounded-full bg-background ring-1 ring-border"
       >
         <span
           className={cn(
@@ -46,7 +47,7 @@ export function Step(props: {
           )}
         />
       </span>
-      <span className="text-sm text-muted-foreground">{props.label}</span>
+      <span className="text-xs text-muted-foreground">{props.label}</span>
       <span
         className={cn(
           "text-sm",
@@ -55,10 +56,7 @@ export function Step(props: {
       >
         {props.title}
       </span>
-      {props.description && (
-        <p className="pt-2 text-sm text-muted-foreground">{props.description}</p>
-      )}
-      {props.children && <div className="pt-4">{props.children}</div>}
+      {props.state === "current" && props.children && <div className="pt-3">{props.children}</div>}
     </li>
   );
 }
