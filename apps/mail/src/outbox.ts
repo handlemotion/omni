@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { setTimeout as sleep } from "node:timers/promises";
-import { Effect } from "effect";
+import { Effect, Schedule } from "effect";
 import { createTransport } from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import type { Logger } from "./log.ts";
@@ -217,17 +216,14 @@ export class OutboxExecutor {
 
 /**
  * After SMTP's OK, losing the `smtp_accepted_at` write means the retry sends again. A Postgres
- * blip is the likely cause, so try a few times before giving up.
+ * blip is the likely cause, so try 5 times, 400ms to 3.2s apart, before giving up.
  */
-async function persistAccepted(write: () => Promise<void>): Promise<void> {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await write();
-    } catch (error) {
-      if (attempt >= 5) throw error;
-      await sleep(200 * 2 ** attempt);
-    }
-  }
+function persistAccepted(write: () => Promise<void>): Promise<void> {
+  return Effect.runPromise(
+    Effect.tryPromise({ try: write, catch: (error) => error }).pipe(
+      Effect.retry(Schedule.exponential("400 millis").pipe(Schedule.upTo({ times: 4 }))),
+    ),
+  );
 }
 
 /** `<sha256(key)@domain>`: the same idempotency key always yields the same Message-ID. */
