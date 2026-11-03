@@ -11,6 +11,7 @@ declare global {
       ANTHROPIC_API_KEY?: string;
       TYPESAFE_API_KEY?: string;
       EXPO_ACCESS_TOKEN?: string;
+      GOOGLE_CLIENT_SECRET?: string;
     }
   }
 }

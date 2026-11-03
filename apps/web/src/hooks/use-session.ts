@@ -10,6 +10,8 @@ import {
   rejectInvitation,
   sessionQuery,
   setActiveOrganization,
+  signInMethodsQuery,
+  signInWithGoogle,
   signInWithMagicLink,
   signInWithPasskey,
   signOut,
@@ -35,6 +37,21 @@ export function useSignInMagicLink() {
   return useMutation({
     mutationFn: ({ email, redirect }: { email: string; redirect?: string | undefined }) =>
       signInWithMagicLink(email, redirect),
+  });
+}
+
+/** `{ google }`: which optional sign-in methods this deployment has configured. */
+export function useSignInMethods() {
+  return useQuery(signInMethodsQuery());
+}
+
+/**
+ * `mutate({ redirect? })` leaves for Google; after consent the browser lands on `redirect` (or
+ * the inbox) signed in.
+ */
+export function useSignInGoogle() {
+  return useMutation({
+    mutationFn: ({ redirect }: { redirect?: string | undefined }) => signInWithGoogle(redirect),
   });
 }
 

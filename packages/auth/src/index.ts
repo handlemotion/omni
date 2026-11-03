@@ -52,6 +52,13 @@ export const authEnvSchema = z
     AUTH_PASSKEY_RP_ID: optionalText,
     APP_NAME: optionalText,
     WEB_APP_URL: optionalText.pipe(z.url().optional()),
+    /** Google OAuth client. Both set turns on "Sign in with Google"; neither leaves it off. */
+    GOOGLE_CLIENT_ID: optionalText,
+    GOOGLE_CLIENT_SECRET: optionalText,
+  })
+  .refine((env) => !env.GOOGLE_CLIENT_ID === !env.GOOGLE_CLIENT_SECRET, {
+    path: ["GOOGLE_CLIENT_SECRET"],
+    message: "set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET together, or neither",
   })
   .transform((env) => ({
     secret: env.BETTER_AUTH_SECRET,
@@ -61,6 +68,10 @@ export const authEnvSchema = z
     appName: env.APP_NAME ?? "Omni",
     /** Origin of the web app; invitation links point here. Same origin as the API by default. */
     webAppURL: env.WEB_APP_URL ?? env.BETTER_AUTH_URL,
+    google:
+      env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+        ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
+        : undefined,
   }));
 
 export type AuthConfig = z.output<typeof authEnvSchema>;
@@ -71,7 +82,7 @@ export function parseAuthEnv(env: Record<string, unknown>): AuthConfig {
 }
 
 export interface AuthEnv extends Partial<
-  Pick<AuthConfig, "trustedOrigins" | "passkeyRpId" | "appName" | "webAppURL">
+  Pick<AuthConfig, "trustedOrigins" | "passkeyRpId" | "appName" | "webAppURL" | "google">
 > {
   db: Db;
   /** BETTER_AUTH_SECRET */
@@ -125,6 +136,11 @@ export function createAuth(env: AuthEnv) {
     baseURL: env.baseURL,
     trustedOrigins: env.trustedOrigins ?? [],
     database: drizzleAdapter(env.db, { provider: "pg", schema }),
+    // Sign-up stays invitation-only: a new Google user goes through the same `user.create` hook.
+    // `select_account` lets one browser add a second Google account (multi-session).
+    socialProviders: env.google
+      ? { google: { ...env.google, prompt: "select_account" } }
+      : undefined,
     user: { modelName: "users" },
     session: { modelName: "sessions" },
     account: { modelName: "accounts" },
@@ -133,7 +149,7 @@ export function createAuth(env: AuthEnv) {
     databaseHooks: {
       user: {
         create: {
-          // The one place every sign-up path (today: magic-link verify) creates a user. A link
+          // The one place every sign-up path (magic-link verify, Google callback) creates a user. A link
           // issued while the invitation was pending stops working once it is canceled.
           before: async (user) => {
             if (!(await hasPendingInvitation(env.db, user.email))) {

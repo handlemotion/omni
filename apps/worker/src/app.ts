@@ -40,6 +40,8 @@ export const app = new Hono<AppEnv>()
   .get("/health", (c) => c.json({ ok: true }))
   .route("/", internal)
   .use("/api/*", requestScope)
+  /** Public: which sign-in buttons the login page shows. Google needs its OAuth client set. */
+  .get("/api/sign-in-methods", (c) => c.json({ google: c.var.config.auth.google !== undefined }))
   .on(["GET", "POST"], "/api/auth/*", (c) => c.var.auth.handler(c.req.raw))
   .route("/api", api)
   .onError((error, c) => {

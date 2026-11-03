@@ -9,7 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
 import { TextField } from "@/components/ui/text-field";
-import { useSignInMagicLink, useSignInPasskey } from "@/hooks/use-session.ts";
+import {
+  useSignInGoogle,
+  useSignInMagicLink,
+  useSignInMethods,
+  useSignInPasskey,
+} from "@/hooks/use-session.ts";
 import { safeRedirect } from "@/lib/session.ts";
 
 // Figma: Omni, frame "/" (node 1:13).
@@ -17,6 +22,8 @@ export function SignIn({ redirect }: { redirect?: string }) {
   const router = useRouter();
   const magicLink = useSignInMagicLink();
   const passkey = useSignInPasskey();
+  const methods = useSignInMethods();
+  const google = useSignInGoogle();
   const [email, setEmail] = useState("");
 
   return (
@@ -76,11 +83,19 @@ export function SignIn({ redirect }: { redirect?: string }) {
                 <IconKey />
                 Using a Passkey
               </Button>
-              {/* Not wired: auth has no Google provider yet. */}
-              <Button intent="outline" size="lg" className="justify-start">
-                <Google width={15} height={15} aria-hidden />
-                Using Google
-              </Button>
+              {/* Shown only when the deployment has a Google OAuth client configured. */}
+              {methods.data?.google && (
+                <Button
+                  intent="outline"
+                  size="lg"
+                  className="justify-start"
+                  isPending={google.isPending}
+                  onPress={() => google.mutate({ redirect })}
+                >
+                  <Google width={15} height={15} aria-hidden />
+                  Using Google
+                </Button>
+              )}
             </div>
           </div>
         </Card>
