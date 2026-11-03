@@ -59,7 +59,8 @@ AI_DAILY_TOKEN_CAP=1000000
 EXPO_PUSH_ENABLED=false
 # Secret. Only if your Expo project enforces push security.
 EXPO_ACCESS_TOKEN=
-# Sentry DSN. Empty keeps error reporting off.
+# Sentry DSN. Empty keeps error reporting off. Events are scrubbed of mail content, addresses
+# and credentials; their environment tag is ENVIRONMENT.
 SENTRY_DSN=
 
 # DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse private addresses.

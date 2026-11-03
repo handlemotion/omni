@@ -56,7 +56,9 @@
       "preview_bucket_name": "omni-mail-dev",
     },
   ],
-  // AI jobs: the Worker produces them on new mail and consumes them itself.
+  // AI jobs: the Worker produces them on new mail and consumes them itself. Jobs that use up
+  // their retries go to the DLQ, whose consumer (also this Worker) records them in
+  // `dead_letters`. `max_retries` must match AI_QUEUE_MAX_RETRIES in src/queue.ts.
   "queues": {
     "producers": [{ "binding": "AI_QUEUE", "queue": "omni-ai" }],
     "consumers": [
@@ -67,6 +69,7 @@
         "max_retries": 5,
         "dead_letter_queue": "omni-ai-dlq",
       },
+      { "queue": "omni-ai-dlq", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 10 },
     ],
   },
   "durable_objects": {

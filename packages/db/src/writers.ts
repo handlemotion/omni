@@ -110,7 +110,7 @@ export async function enqueueAction(
   db: Db,
   input: Pick<
     typeof mailActions.$inferInsert,
-    "orgId" | "mailboxId" | "memberId" | "kind" | "payload" | "idempotencyKey"
+    "orgId" | "mailboxId" | "memberId" | "kind" | "payload" | "idempotencyKey" | "requestId"
   >,
 ) {
   const [created] = await db

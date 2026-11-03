@@ -5,6 +5,7 @@
 import { createJevClient, judgeRelevance, rankByRelevance, type SearchCandidate } from "@omni/ai";
 import type { MemberQueries } from "@omni/db";
 import type { Config } from "./env.ts";
+import type { Logger } from "./log.ts";
 
 /** How many of the best full-text candidates Jev judges. The rest keep their text order. */
 export const RERANK_CANDIDATES = 30;
@@ -41,7 +42,7 @@ export async function smartSearch(
   queries: MemberQueries,
   config: Config,
   query: string,
-  options: { mailboxId?: string; limit: number },
+  options: { mailboxId?: string; limit: number; log: Logger },
 ): Promise<{ hits: Hit[]; ranking: "jev" | "text" }> {
   const hits = await queries.search(query, {
     mailboxId: options.mailboxId,
@@ -78,15 +79,12 @@ export async function smartSearch(
       }
     } catch (error) {
       // Not an answer: the text order stands, and the failure is logged.
-      // oxlint-disable-next-line no-console -- one structured line per failed rerank
-      console.log(
-        JSON.stringify({
-          event: "search.rerank_failed",
-          error: error instanceof Error ? error.message : String(error),
-          candidates: unjudged.length,
-          ms: Date.now() - now,
-        }),
-      );
+      options.log.warn("search.rerank_failed", {
+        component: "search",
+        error: error instanceof Error ? error.message : String(error),
+        candidates: unjudged.length,
+        durationMs: Date.now() - now,
+      });
       return text;
     }
   }

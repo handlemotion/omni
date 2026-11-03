@@ -12,13 +12,16 @@ import {
   type ProvisionMailboxBody,
 } from "@omni/contracts";
 import {
+  advanceOrgSetup,
   DOMAIN_ADMIN_ROLES,
   findMemberDomain,
   listMemberDomains,
   listMemberMailboxes,
   mailDomainOwner,
+  orgSetupStep,
   saveMailDomain,
   schema,
+  SETUP_STEPS,
   type MailDomain,
 } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -64,13 +67,13 @@ function fromMailService(error: unknown): never {
 
 /** Adds the domain at the provider if needed, re-checks its DNS, and records the claim. */
 async function refreshDomain(c: Context<AppEnv>, domain: string) {
-  const { db, config, member } = c.var;
+  const { db, member } = c.var;
   const owner = await mailDomainOwner(db, domain);
   if (owner && owner !== member.orgId) {
     throw new HTTPException(409, { message: `${domain} is already set up by another workspace` });
   }
   const result = await callMailService(
-    config,
+    c.var,
     PROVISION_DOMAIN_PATH,
     { domain },
     provisionDomainResultSchema,
@@ -89,6 +92,17 @@ async function refreshDomain(c: Context<AppEnv>, domain: string) {
     throw new HTTPException(409, { message: `${domain} is already set up by another workspace` });
   }
   return domainView(row, result.provider === "purelymail" ? result.addError : undefined);
+}
+
+/** A domain that answered counts as added; once every record passes, as DNS verified. */
+async function domainStep(c: Context<AppEnv>, domain: string) {
+  const view = await refreshDomain(c, domain);
+  await advanceOrgSetup(
+    c.var.db,
+    c.var.member.orgId,
+    view.verified ? "dns_verified" : "domain_added",
+  );
+  return view;
 }
 
 const server = z.object({
@@ -147,7 +161,13 @@ export const onboarding = new Hono<AppEnv>()
     ]);
     return c.json({
       canCreateOrganization,
-      organization: { id: member.orgId, name: org?.name ?? "", role: member.role },
+      organization: {
+        id: member.orgId,
+        name: org?.name ?? "",
+        role: member.role,
+        /** How far setup got; `/onboarding` resumes here. */
+        setup: await orgSetupStep(db, member.orgId),
+      },
       domains: domains.map((row) => domainView(row)),
       mailboxes: mailboxes.map(({ id, address, kind, provider, status }) => ({
         id,
@@ -167,14 +187,14 @@ export const onboarding = new Hono<AppEnv>()
     async (c) => {
       const domain = normalizeDomain(c.req.valid("json").domain);
       if (!domain) throw new HTTPException(400, { message: "that is not a domain name" });
-      return c.json(await refreshDomain(c, domain));
+      return c.json(await domainStep(c, domain));
     },
   )
   /** Re-checks a domain's DNS (and adds it at the provider once its ownership record is in). */
   .post("/domains/:id/check", requireMember, requireDomainAdmin, async (c) => {
     const row = await findMemberDomain(c.var.db, c.var.member.id, c.req.param("id"));
     if (!row) throw new HTTPException(404, { message: "no such domain" });
-    return c.json(await refreshDomain(c, row.domain));
+    return c.json(await domainStep(c, row.domain));
   })
   /**
    * Creates one mailbox on a domain of the active org and starts syncing it. The creator gets an
@@ -186,7 +206,7 @@ export const onboarding = new Hono<AppEnv>()
     requireDomainAdmin,
     zValidator("json", mailboxBody),
     async (c) => {
-      const { db, config, member, user } = c.var;
+      const { db, member, user } = c.var;
       const body = c.req.valid("json");
       const domain = await findMemberDomain(db, member.id, body.domainId);
       if (!domain) throw new HTTPException(404, { message: "no such domain" });
@@ -227,7 +247,7 @@ export const onboarding = new Hono<AppEnv>()
       }
 
       const result = await callMailService(
-        config,
+        c.var,
         PROVISION_MAILBOX_PATH,
         {
           orgId: member.orgId,
@@ -240,6 +260,19 @@ export const onboarding = new Hono<AppEnv>()
         } satisfies ProvisionMailboxBody,
         provisionMailboxResultSchema,
       ).catch(fromMailService);
+      await advanceOrgSetup(db, member.orgId, "mailboxes_created");
       return c.json(result);
     },
-  );
+  )
+  /**
+   * Finishes setup ("Finish setup" on the invite page, with or without invitations sent). Only
+   * once a mailbox exists; repeating it is harmless.
+   */
+  .post("/complete", requireMember, requireDomainAdmin, async (c) => {
+    const { db, member } = c.var;
+    const step = await orgSetupStep(db, member.orgId);
+    if (SETUP_STEPS.indexOf(step) < SETUP_STEPS.indexOf("mailboxes_created")) {
+      throw new HTTPException(409, { message: "create a mailbox before finishing setup" });
+    }
+    return c.json({ setup: await advanceOrgSetup(db, member.orgId, "complete") });
+  });

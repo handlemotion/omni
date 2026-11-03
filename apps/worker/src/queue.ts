@@ -3,6 +3,7 @@
 // a redelivered or duplicate job converges on the same result, and work already done for that
 // message (`triage_message_id`, `summary_message_id`) is skipped without a model call.
 import Anthropic from "@anthropic-ai/sdk";
+import * as Sentry from "@sentry/cloudflare";
 import {
   chooseTriageClient,
   shouldSummarize,
@@ -18,14 +19,87 @@ import {
   createDb,
   getAiUsage,
   loadThreadForAi,
+  recordDeadLetter,
   saveSummary,
   saveTriage,
   type Db,
 } from "@omni/db";
 import { loadConfig, type Config } from "./env.ts";
+import { createLogger } from "./log.ts";
 import { fanOut } from "./realtime.ts";
 
-export type AiJob = { kind: "thread"; threadId: string; mailboxId: string };
+/**
+ * Ids only, never mail content. `orgId`, `jobId` and `requestId` (the request that queued it)
+ * are absent from jobs queued before they existed.
+ */
+export type AiJob = {
+  kind: "thread";
+  threadId: string;
+  mailboxId: string;
+  orgId?: string;
+  jobId?: string;
+  requestId?: string;
+};
+
+/** Must match `max_retries` of the `omni-ai` consumer in wrangler.jsonc. */
+export const AI_QUEUE_MAX_RETRIES = 5;
+
+/**
+ * One handler for both queues the Worker consumes: AI jobs, and their dead-letter queue (by
+ * convention the source queue's name plus `-dlq`).
+ */
+export async function consumeQueue(batch: MessageBatch<AiJob>, env: Env) {
+  if (batch.queue.endsWith("-dlq")) return consumeDeadLetters(batch, env);
+  return consumeAiQueue(batch, env);
+}
+
+/**
+ * A job that used up its retries lands here. Recorded in `dead_letters` (listed with failed
+ * outbox actions by `pnpm --filter @omni/mail dead-letters`) and acked. The consumer's last attempt
+ * usually recorded it already, with its error; this catches jobs whose consumer died mid-run.
+ */
+export async function consumeDeadLetters(batch: MessageBatch<AiJob>, env: Env) {
+  const { db, close } = createDb(env.HYPERDRIVE.connectionString, {
+    max: 2,
+    fetch_types: false,
+    onnotice: () => {},
+  });
+  const source = batch.queue.slice(0, -"-dlq".length);
+  try {
+    for (const message of batch.messages) {
+      const job = message.body;
+      const log = createLogger({
+        component: "queue",
+        queue: batch.queue,
+        requestId: job.requestId,
+        orgId: job.orgId,
+      });
+      try {
+        const recorded = await recordDeadLetter(db, {
+          orgId: job.orgId ?? null,
+          threadId: job.threadId,
+          queue: source,
+          jobId: job.jobId ?? message.id,
+          job: { ...job },
+          error: null,
+          attempts: message.attempts,
+          requestId: job.requestId ?? null,
+        });
+        log.error("queue.dead_letter", {
+          jobId: job.jobId ?? message.id,
+          threadId: job.threadId,
+          recorded,
+        });
+        message.ack();
+      } catch (error) {
+        log.error("queue.dead_letter_not_recorded", { error, threadId: job.threadId });
+        message.retry({ delaySeconds: 60 });
+      }
+    }
+  } finally {
+    await close();
+  }
+}
 
 /** `superseded`: a newer message arrived mid-job; that message's own job files the thread. */
 export type AiJobOutcome =
@@ -57,24 +131,52 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
   });
   try {
     for (const message of batch.messages) {
+      const job = message.body;
+      const log = createLogger({
+        component: "queue",
+        queue: batch.queue,
+        requestId: job.requestId,
+        orgId: job.orgId,
+      });
+      const started = Date.now();
       try {
-        const outcome = await runAiJob(db, models, config, message.body);
+        const outcome = await Sentry.withScope(async (scope) => {
+          if (job.requestId) scope.setTag("request_id", job.requestId);
+          return runAiJob(db, models, config, job);
+        });
         if (outcome === "triaged" || outcome === "summarized") {
-          const { mailboxId, threadId } = message.body;
+          const { mailboxId, threadId } = job;
           await fanOut(env, db, config, new Map([[mailboxId, new Set([threadId])]]));
         }
-        // oxlint-disable-next-line no-console -- one structured line per job
-        console.log(JSON.stringify({ event: "ai.job", threadId: message.body.threadId, outcome }));
+        log.info("ai.job", { threadId: job.threadId, outcome, durationMs: Date.now() - started });
         message.ack();
       } catch (error) {
-        console.error(
-          JSON.stringify({
-            event: "ai.job_failed",
-            threadId: message.body.threadId,
+        const fields = {
+          threadId: job.threadId,
+          jobId: job.jobId ?? message.id,
+          attempts: message.attempts,
+          error,
+          durationMs: Date.now() - started,
+        };
+        // The last attempt: record the dead letter with its error now; the DLQ copy that
+        // follows finds it recorded. Retrying still hands it to the DLQ, as configured.
+        if (message.attempts > AI_QUEUE_MAX_RETRIES) {
+          log.error("ai.job_dead", fields);
+          await recordDeadLetter(db, {
+            orgId: job.orgId ?? null,
+            threadId: job.threadId,
+            queue: batch.queue,
+            jobId: job.jobId ?? message.id,
+            job: { ...job },
+            error: error instanceof Error ? error.message : String(error),
             attempts: message.attempts,
-            error: String(error),
-          }),
-        );
+            requestId: job.requestId ?? null,
+          }).catch((recordError: unknown) =>
+            log.error("ai.dead_letter_not_recorded", { error: recordError }),
+          );
+        } else {
+          log.warn("ai.job_failed", fields);
+        }
         // Backoff grows with each attempt; after max_retries the job lands in the DLQ.
         message.retry({ delaySeconds: Math.min(30 * 2 ** (message.attempts - 1), 600) });
       }

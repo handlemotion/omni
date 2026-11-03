@@ -1,4 +1,4 @@
-# 0009: Search returns threads, recalled by full text and ordered by Jev
+# 0010: Search returns threads, recalled by full text and ordered by Jev
 
 Date: 2026-11-03 · Status: accepted
 

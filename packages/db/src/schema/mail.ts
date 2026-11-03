@@ -19,7 +19,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
-import { members, organizations } from "./auth.ts";
+import { members, organizations, teams } from "./auth.ts";
 
 // Text ids holding a UUIDv7: time-ordered (index friendly) and generated in the app, so a row's
 // id is known before the insert and can double as an idempotency handle.
@@ -91,11 +91,18 @@ export const mailboxes = pgTable(
     /** AES-256-GCM ciphertext. Only the mail service holds the key. */
     credentialsEnc: text("credentials_enc").notNull(),
     status: mailboxStatus("status").notNull().default("pending"),
+    /**
+     * A shared mailbox's Better Auth team: its members are who can see it, and `mailbox_access`
+     * is derived from them (ADR 0008). Null for personal mailboxes, and for a shared mailbox
+     * until `ensureMailboxTeam` runs. Same org as the mailbox, enforced where it is read.
+     */
+    teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     unique("mailboxes_org_id_address_unique").on(t.orgId, t.address),
+    unique("mailboxes_team_id_unique").on(t.teamId),
     // Target for composite foreign keys that pin a child row to its mailbox's org.
     unique("mailboxes_id_org_id_unique").on(t.id, t.orgId),
   ],
@@ -138,6 +145,34 @@ export const mailDomains = pgTable(
     index("mail_domains_org_id_idx").on(t.orgId),
   ],
 );
+
+/**
+ * How far an organization's setup got, in order. Postgres compares enum values by this order,
+ * so `greatest()` keeps whichever step is further along.
+ */
+export const setupStep = pgEnum("setup_step", [
+  "created",
+  "domain_added",
+  "dns_verified",
+  "mailboxes_created",
+  "invites_sent",
+  "complete",
+]);
+
+/**
+ * Onboarding progress per organization (resumable setup). One row per org, written the first
+ * time a setup step succeeds; it only ever moves forward. An org with no row (made by the
+ * `org:create` CLI, or before this table) counts as `complete` once it has a mailbox and as
+ * `created` before that (`orgSetupStep`).
+ */
+export const orgSetup = pgTable("org_setup", {
+  orgId: text("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  step: setupStep("step").notNull().default("created"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 export const mailboxFolders = pgTable(
   "mailbox_folders",
@@ -422,6 +457,8 @@ export const mailActions = pgTable(
     /** SMTP accepted the send; a retry only finishes the Sent append and never resends. */
     smtpAcceptedAt: timestamptz("smtp_accepted_at"),
     completedAt: timestamptz("completed_at"),
+    /** The request that asked for it (`x-request-id`): ties its logs to the Worker's. */
+    requestId: text("request_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -435,6 +472,31 @@ export const mailActions = pgTable(
       .on(t.runAfter)
       .where(sql`${t.status} in ('pending', 'running')`),
   ],
+);
+
+/**
+ * Background jobs that will not run again: Cloudflare Queue messages that reached the dead-letter
+ * queue. Failed outbox actions stay in `mail_actions` (status `failed`); the dead-letter listing
+ * reads both. Keyed by `job_id`, so recording one twice (the consumer's last attempt and the DLQ
+ * consumer) keeps the first row, which has the error.
+ */
+export const deadLetters = pgTable(
+  "dead_letters",
+  {
+    id: id(),
+    orgId: orgId(),
+    /** The queue the job came from, e.g. `omni-ai`. */
+    queue: text("queue").notNull(),
+    jobId: text("job_id").notNull().unique(),
+    /** The job body: ids only, never mail content. */
+    job: jsonb("job").$type<Record<string, unknown>>().notNull(),
+    /** Null when the consumer died without reporting one; the logs have the job id. */
+    error: text("error"),
+    attempts: integer("attempts").notNull(),
+    requestId: text("request_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("dead_letters_created_idx").on(t.createdAt)],
 );
 
 export const triageFeedback = pgTable(

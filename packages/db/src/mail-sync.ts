@@ -3,6 +3,7 @@
 // is idempotent so a repeated sync step converges.
 import { and, desc, eq, gte, inArray, ne, notInArray, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
+import { ensureMailboxTeam, syncMailboxAccess } from "./mailbox-teams.ts";
 import {
   mailActions,
   mailboxAccess,
@@ -379,6 +380,7 @@ export async function rescheduleAction(db: Db, id: string, error: string, retryA
       mailboxId: mailActions.mailboxId,
       memberId: mailActions.memberId,
       status: mailActions.status,
+      requestId: mailActions.requestId,
     });
   return rows[0] ?? null;
 }
@@ -422,7 +424,8 @@ export async function findMailboxByAddress(db: Db, orgId: string, address: strin
 }
 
 /**
- * Creates a mailbox, or replaces its credentials when it exists, and grants the owner access.
+ * Creates a mailbox, or replaces its credentials when it exists, and grants the owner access. A
+ * shared mailbox also gets its Better Auth team, with the owner on it.
  * The caller picks `id` first because the credential ciphertext is bound to it.
  */
 export async function saveMailbox(
@@ -471,6 +474,12 @@ export async function saveMailbox(
         target: [mailboxAccess.mailboxId, mailboxAccess.memberId],
         set: { role: "owner" },
       });
+    // A shared mailbox's team is its access list (ADR 0008). A new one is seeded with the owner
+    // grant above; for one that already has a team, the team decides and the sync wins.
+    if (input.kind === "shared") {
+      await ensureMailboxTeam(tx, row!.id);
+      await syncMailboxAccess(tx, row!.id);
+    }
     return row!.id;
   });
 }

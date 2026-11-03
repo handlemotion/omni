@@ -36,6 +36,8 @@ export const actionFailedEventSchema = z.object({
   /** Null for system mail (magic links, invitations): nobody to tell. */
   memberId: z.string().min(1).nullable(),
   error: z.string(),
+  /** The request that asked for the action, for tracing. Absent from older senders. */
+  requestId: z.string().nullable().optional(),
 });
 
 export const mailEventSchema = z.discriminatedUnion("type", [

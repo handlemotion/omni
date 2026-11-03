@@ -1,9 +1,11 @@
-// Placeholder UI: a search box bound to `?q=` and a plain result list.
-import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useRouter } from "@tanstack/react-router";
+import { useMemo } from "react";
+import { List, type ListRow } from "../../../components/inbox/thread-list.tsx";
 import { useSearch } from "../../../hooks/use-mail.ts";
 import { searchQuery } from "../../../lib/mail-queries.ts";
 import { searchSearch } from "../../../lib/search-params.ts";
 
+// Smart search results (`?q=`) in the same list as the inbox; the search popover opens it.
 export const Route = createFileRoute("/_authed/_member/search")({
   validateSearch: searchSearch,
   loaderDeps: ({ search }) => search,
@@ -15,29 +17,32 @@ export const Route = createFileRoute("/_authed/_member/search")({
 
 function Search() {
   const search = Route.useSearch();
-  const navigate = Route.useNavigate();
-  const results = useSearch(search.q, search.mailbox);
+  const router = useRouter();
+  const { data: hits } = useSearch(search.q, search.mailbox);
+
+  // One row per thread, best match first, with the passage that matched.
+  const rows = useMemo(
+    () =>
+      (hits ?? []).map((hit): ListRow => ({
+        id: hit.threadId,
+        sender: hit.from.name || hit.from.address,
+        subject: hit.subject,
+        snippet: hit.snippet,
+        unread: false,
+      })),
+    [hits],
+  );
+
   return (
-    <section>
-      <input
-        type="search"
-        defaultValue={search.q}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            void navigate({ search: { ...search, q: event.currentTarget.value } });
-          }
-        }}
-      />
-      <ul>
-        {results.data?.map((r) => (
-          <li key={r.threadId}>
-            <Link to="/search/$threadId" params={{ threadId: r.threadId }} search={search}>
-              {r.subject} · {r.from.name ?? r.from.address} · {r.sentAt} · {r.snippet}
-            </Link>
-          </li>
-        ))}
-      </ul>
+    <List
+      title="Search results"
+      caption={`Matching “${search.q}”`}
+      rows={rows}
+      href={(threadId) =>
+        router.buildLocation({ to: "/search/$threadId", params: { threadId }, search }).href
+      }
+    >
       <Outlet />
-    </section>
+    </List>
   );
 }

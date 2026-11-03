@@ -4,7 +4,7 @@ import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react
 import { api, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import { authCall, resetSession } from "./session.ts";
-import type { Onboarding, OnboardingDomain } from "./types.ts";
+import type { Onboarding, OnboardingDomain, SetupStep, Workspace } from "./types.ts";
 
 /** Where setup stands: may this user create a workspace, and what the active one has so far. */
 export const onboardingQuery = () =>
@@ -13,10 +13,49 @@ export const onboardingQuery = () =>
     queryFn: ({ signal }) => call(api.onboarding.$get(undefined, { init: { signal } })),
   });
 
-/** True when the active workspace still needs its domain or mailboxes, and the member can add them. */
-export function needsSetup(data: { organization: { role: string } | null; mailboxes: unknown[] }) {
-  const role = data.organization?.role;
-  return (role === "owner" || role === "admin") && data.mailboxes.length === 0;
+/**
+ * True when a workspace's setup is unfinished and this member can finish it (owners and admins).
+ * Takes the session's member, the onboarding status's organization, or a switcher workspace.
+ */
+export function needsSetup(org: { role: string; setup: SetupStep } | null | undefined) {
+  return !!org && (org.role === "owner" || org.role === "admin") && org.setup !== "complete";
+}
+
+/**
+ * Where onboarding's way out leads, so nobody is stuck in setup: the inbox when the active
+ * workspace is ready (you came to make another), else another workspace that is ready (switch to
+ * it), else signing out (no workspace to go to yet).
+ */
+export type OnboardingExit =
+  | { kind: "inbox" }
+  | { kind: "workspace"; workspace: Workspace }
+  | { kind: "sign-out" };
+
+export function onboardingExit(
+  status: Onboarding | undefined,
+  workspaces: readonly Workspace[] | undefined,
+): OnboardingExit {
+  const active = status?.organization;
+  if (active && !needsSetup(active)) return { kind: "inbox" };
+  const ready = workspaces?.find((w) => w.id !== active?.id && !needsSetup(w));
+  return ready ? { kind: "workspace", workspace: ready } : { kind: "sign-out" };
+}
+
+/** Onboarding's pages, in order. */
+export const ONBOARDING_PAGES = ["Workspace", "DNS", "Mailboxes", "Invite"] as const;
+
+/**
+ * The page a saved setup resumes on (an index into `ONBOARDING_PAGES`). A domain on its own
+ * mail host resumes on the server page even once verified: its IMAP and SMTP servers are never
+ * stored, so they are asked again before mailboxes.
+ */
+export function resumePage(data: Onboarding) {
+  const step = data.organization?.setup ?? "created";
+  const domain = data.domains[0];
+  if (step === "mailboxes_created" || step === "invites_sent" || step === "complete") return 3;
+  if (!domain) return 0;
+  if (step === "dns_verified" && domain.provider !== "imap") return 2;
+  return 1;
 }
 
 /** Lowercase letters and digits joined by dashes, plus a random tail so slugs never collide. */
@@ -113,5 +152,20 @@ export const createMailboxesMutation = (client: QueryClient) =>
       Promise.all([
         client.invalidateQueries({ queryKey: keys.onboarding() }),
         client.invalidateQueries({ queryKey: keys.mailboxes() }),
+      ]),
+  });
+
+/**
+ * `mutate()` marks setup complete (the invite page's "Finish setup"), then reloads the session
+ * and status so the route guards let the member into the inbox.
+ */
+export const finishSetupMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: () => call(api.onboarding.complete.$post()),
+    onSuccess: () =>
+      Promise.all([
+        client.refetchQueries({ queryKey: keys.session() }),
+        client.refetchQueries({ queryKey: keys.onboarding() }),
+        client.invalidateQueries({ queryKey: keys.workspaces() }),
       ]),
   });
