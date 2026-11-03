@@ -263,6 +263,7 @@ Bindings:
 | `REALTIME`                                   | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                                                                                                                                                                     |
 | `DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER` | Rate limiting           | Nothing to create. Per-workspace limits on adding and checking domains (`ratelimits` in `wrangler.jsonc`); `namespace_id` must be unique in your account.                                                                                                                                                            |
 | `DOMAIN_WATCH`                               | Durable Object (SQLite) | Migration `v2`. One per domain claim; re-checks DNS while the DNS page is open.                                                                                                                                                                                                                                      |
+| `RATE_LIMITER`                               | Durable Object (SQLite) | Migration `v3`. One per rate-limit key (hashed); counts hits in a window, then clears itself. See [Rate limits](#rate-limits).                                                                                                                                                                                       |
 
 Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashboard values on
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
@@ -283,7 +284,7 @@ to `.dev.vars`.
 | `SYSTEM_MAIL_FROM`           | var    | no       | Address of a mailbox in Omni that sends magic links and invitations. Empty disables them.                                                                                       |
 | `SENTRY_DSN`                 | var    | no       | Empty keeps Sentry off. Its environment tag is `ENVIRONMENT`.                                                                                                                   |
 | `ANTHROPIC_API_KEY`          | secret | no       | Summaries, and triage when Jev is off. Without any AI key threads stay unsorted (a wordless reply of yours still files as FYI).                                                 |
-| `TYPESAFE_API_KEY`           | secret | no       | Triage on TypeSafe's Jev; summaries stay on Claude.                                                                                                                             |
+| `TYPESAFE_API_KEY`           | secret | no       | Triage on TypeSafe's Jev, and search reordered by Jev's relevance judgment; summaries stay on Claude. Without it search keeps full-text order.                                  |
 | `TRIAGE_PROVIDER`            | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                                                                              |
 | `JEV_MODEL`                  | var    | no       | Jev model override.                                                                                                                                                             |
 | `TYPESAFE_API_URL`           | var    | no       | TypeSafe API base URL. Defaults to `https://api.typesafe.ai`.                                                                                                                   |
@@ -295,6 +296,8 @@ to `.dev.vars`.
 | `DOMAIN_CONNECT_PRIVATE_KEY` | secret | no       | PKCS#8 PEM key that signs Domain Connect apply URLs.                                                                                                                            |
 | `IMAGE_PROXY_DOH_URL`        | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                      |
 | `ENVIRONMENT`                | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`. |
+
+| `RATE_LIMIT_*` | var | no | Rate limits, `<count>/<seconds>` or `off`. See [Rate limits](#rate-limits). |
 
 The `triggers.crons` entry in `wrangler.jsonc` runs the domain re-check (ADR 0010); it needs no
 setup beyond the deploy.
@@ -317,6 +320,35 @@ no account and no pending invitation is sent back to `/login?error=SIGN_UP_REQUI
 A Google account whose email matches an existing user signs in as that user only once that
 user's email is verified (any magic-link sign-in verifies it); until then the callback returns
 `?error=account_not_linked`.
+
+#### Rate limits
+
+The Worker limits the routes that send mail, call the mail service, fetch remote URLs (the
+image proxy) or let someone guess at sign-in, in the `RATE_LIMITER` Durable Object (one
+instance per key, so counts are exact). Each is a var of the form `<count>/<seconds>`; `off` disables it, empty means the default. Over a
+limit the Worker answers `429` with `Retry-After`. Per-IP limits key on `CF-Connecting-IP`,
+which Cloudflare sets and clients cannot.
+
+| Variable                 | Default    | Counts                                                                                                                                                                        |
+| ------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RATE_LIMIT_AUTH`        | `60/60`    | Per IP: every sign-in step (magic link and its link, passkey options and verify, Google). Session reads are free.                                                             |
+| `RATE_LIMIT_MAGIC_LINK`  | `5/900`    | Per email address: magic-link requests, so nobody can flood an inbox from your no-reply mailbox.                                                                              |
+| `RATE_LIMIT_INVITE`      | `30/3600`  | Per inviting user: invitations sent or resent.                                                                                                                                |
+| `RATE_LIMIT_SEARCH`      | `60/60`    | Per member: searches.                                                                                                                                                         |
+| `RATE_LIMIT_SEND`        | `100/3600` | Per member: new mail and replies.                                                                                                                                             |
+| `RATE_LIMIT_ACTIONS`     | `300/60`   | Per member: other writes that reach IMAP (read state, archive, move).                                                                                                         |
+| `RATE_LIMIT_PROVISION`   | `30/3600`  | Per member: creating a mailbox, which calls the mail service. Adding and checking domains have their own per-workspace limits (`DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER`). |
+| `RATE_LIMIT_IMAGE_PROXY` | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                                                                                          |
+
+#### Security headers
+
+Every response carries HSTS (two years, subdomains included), `X-Content-Type-Options: nosniff`
+and a Permissions-Policy that turns off unused browser features (passkeys stay on). The web
+app's files get them from `apps/web/public/_headers`, which Cloudflare applies to static assets,
+with a CSP that loads scripts, frames and connections only from your own origin. Worker answers
+get them from `apps/worker/src/security-headers.ts`, with a deny-all CSP unless the route sets
+its own (message HTML is sandboxed with scripts off). Serve Omni over HTTPS only: HSTS makes
+browsers refuse plain http on that host for two years.
 
 The mail service reports new and changed mail with a signed `POST /internal/mail-events`
 (timestamp and nonce required; replays are rejected). Expose `/internal/*` only to it.

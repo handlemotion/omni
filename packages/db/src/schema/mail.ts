@@ -427,6 +427,10 @@ export const messages = pgTable(
     unique("messages_mailbox_id_message_id_header_unique").on(t.mailboxId, t.messageIdHeader),
     index("messages_thread_id_sent_at_idx").on(t.threadId, t.sentAt),
     index("messages_search_vector_idx").using("gin", t.searchVector),
+    // Threading asks which stored messages reply to a new one, for every message that starts a
+    // thread; without these an import scans the mailbox once per message.
+    index("messages_mailbox_id_in_reply_to_idx").on(t.mailboxId, t.inReplyTo),
+    index("messages_references_idx").using("gin", t.references),
     // Search walks each mailbox newest first when a term is common, instead of ranking every hit.
     index("messages_mailbox_id_sent_at_idx").on(
       t.mailboxId,
@@ -513,7 +517,16 @@ export const threadState = pgTable(
     doneThrough: timestamptz("done_through"),
     updatedAt: updatedAt(),
   },
-  (t) => [primaryKey({ columns: [t.threadId, t.memberId] })],
+  (t) => [
+    primaryKey({ columns: [t.threadId, t.memberId] }),
+    // The Queue checks each candidate thread against the member's deferred rows. Those are a
+    // sliver of `thread_state`, so probing this instead of the primary key reads a few pages and
+    // answers from the index alone (perf:explain: 41k buffers down to 8k). The two trailing
+    // columns are only there for that; Drizzle has no `include`.
+    index("thread_state_member_deferred_idx")
+      .on(t.memberId, t.threadId, t.snoozedUntil, t.doneThrough)
+      .where(sql`${t.snoozedUntil} is not null`),
+  ],
 );
 
 export const assignments = pgTable("assignments", {

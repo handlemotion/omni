@@ -22,6 +22,26 @@ const optionalText = z
   .optional()
   .transform((value) => value || undefined);
 
+/** `<count>/<seconds>`, e.g. `5/900` for five per 15 minutes; `off` disables the rule. */
+function rateLimit(fallback: string) {
+  return z
+    .string()
+    .optional()
+    .transform((value) => value || fallback)
+    .pipe(
+      z
+        .string()
+        .regex(/^(off|[1-9]\d*\/[1-9]\d*)$/, 'use "<count>/<seconds>" (e.g. "5/900") or "off"'),
+    )
+    .transform((value) => {
+      if (value === "off") return null;
+      const [count, windowSeconds] = value.split("/").map(Number) as [number, number];
+      return { count, windowSeconds };
+    });
+}
+
+export type RateLimit = { count: number; windowSeconds: number } | null;
+
 const configSchema = z
   .object({
     MAIL_SERVICE_URL: z.url(),
@@ -31,7 +51,7 @@ const configSchema = z
     SENTRY_DSN: optionalText.pipe(z.url().optional()),
     /** Empty with no TYPESAFE_API_KEY: no triage beyond the wordless-reply rule, no summaries. */
     ANTHROPIC_API_KEY: optionalText,
-    /** Triage on TypeSafe's Jev when set (summaries stay on Claude). */
+    /** Triage and search relevance on TypeSafe's Jev when set (summaries stay on Claude). */
     TYPESAFE_API_KEY: optionalText,
     /** `jev` or `claude`; defaults to Jev when TYPESAFE_API_KEY is set. */
     TRIAGE_PROVIDER: optionalText.pipe(z.enum(["jev", "claude"]).optional()),
@@ -65,6 +85,23 @@ const configSchema = z
     DOMAIN_CONNECT_PRIVATE_KEY: optionalText,
     /** Optional: required only if the Expo project enforces push security. */
     EXPO_ACCESS_TOKEN: optionalText,
+    // Rate limits (see rate-limiter.ts). Defaults leave room for real use; tighten per deploy.
+    /** Per IP: every sign-in step (magic link, passkey, Google, verify links). */
+    RATE_LIMIT_AUTH: rateLimit("60/60"),
+    /** Per email address: magic-link requests, each of which sends mail. */
+    RATE_LIMIT_MAGIC_LINK: rateLimit("5/900"),
+    /** Per inviting user: invitations sent or resent. */
+    RATE_LIMIT_INVITE: rateLimit("30/3600"),
+    /** Per member: full-text searches. */
+    RATE_LIMIT_SEARCH: rateLimit("60/60"),
+    /** Per member: new mail and replies. */
+    RATE_LIMIT_SEND: rateLimit("100/3600"),
+    /** Per member: other outbox writes (read state, done, defer, archive, move). */
+    RATE_LIMIT_ACTIONS: rateLimit("300/60"),
+    /** Per member: creating mailboxes (a mail service call). Domains have their own limiters. */
+    RATE_LIMIT_PROVISION: rateLimit("30/3600"),
+    /** Per member: image proxy fetches of images not already cached. */
+    RATE_LIMIT_IMAGE_PROXY: rateLimit("300/60"),
   })
   .refine((env) => !env.IMAGE_PROXY_TEST_ALLOW_ORIGIN || env.ENVIRONMENT === "test", {
     path: ["IMAGE_PROXY_TEST_ALLOW_ORIGIN"],

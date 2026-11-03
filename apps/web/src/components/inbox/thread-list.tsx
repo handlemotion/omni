@@ -4,8 +4,11 @@ import {
   ViewColumnsIcon,
 } from "@heroicons/react/24/outline";
 import { useParams } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import type { Key, Selection } from "react-aria-components";
+import { Collection } from "react-aria-components/Collection";
+import { GridListLoadMoreItem } from "react-aria-components/GridList";
+import { ListLayout, Virtualizer } from "react-aria-components/Virtualizer";
 import { SearchPopover } from "@/components/search/search-popover";
 import { buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
@@ -44,21 +47,20 @@ interface ListProps {
 export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
   const { threads, hasNextPage, fetchNextPage, isFetchingNextPage } = useThreads(props.filter);
   const unread = useUnreadCount(props.filter);
+  // Stable rows, so the virtualized list's row cache survives renders that don't change them.
+  const rows = useMemo(() => threads.map(toRow), [threads]);
   return (
     <List
       {...props}
-      rows={threads.map(toRow)}
+      rows={rows}
       count={unread}
       shortcuts={{
         view: props.filter.view,
         threads,
         loadMore: hasNextPage ? () => void fetchNextPage() : undefined,
       }}
-      more={
-        hasNextPage && (
-          <LoadMore onVisible={() => void fetchNextPage()} isLoading={isFetchingNextPage} />
-        )
-      }
+      loadMore={hasNextPage ? () => void fetchNextPage() : undefined}
+      isLoadingMore={isFetchingNextPage}
     />
   );
 }
@@ -80,8 +82,9 @@ export function List(
     count?: number;
     /** What the bar above the rows says about their order or scope. */
     caption?: ReactNode;
-    /** After the last row: loads the next page. */
-    more?: ReactNode;
+    /** Loads the next page, called as the end of the list nears. */
+    loadMore?: (() => void) | undefined;
+    isLoadingMore?: boolean;
     /** The list keys (j/k, x, e, ...), for lists of threads. */
     shortcuts?: ShortcutsSource;
   },
@@ -103,7 +106,9 @@ export function List(
   });
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    // Viewport height, so the virtualized list is its own scroll container however tall the
+    // thread beside it is. No `flex-1`: its 0% basis resolves to the content height here.
+    <div className="flex h-svh min-h-0 flex-col">
       {props.shortcuts && (
         <ListShortcuts
           {...props.shortcuts}
@@ -171,32 +176,44 @@ export function List(
             <span className="text-xs text-subtle-foreground">{props.caption ?? "Most recent"}</span>
           </div>
 
-          <div className="relative" {...hover.containerProps}>
+          {/* Only the rows on screen are in the DOM, so thousands of threads scroll like fifty.
+              The list is its own scroll container; rows keep the frame's fixed height. The
+              wrapper holds the fluid hover highlight, which sits under the rows and follows the
+              list's scroll. */}
+          <div className="relative flex min-h-0 flex-1 flex-col" {...hover.containerProps}>
             <FluidHoverHighlight {...hover.highlightProps} />
-            <GridList
-              // Transparent: the list is positioned, so its own fill would paint over the
-              // highlight. The page behind it is already the background.
-              className="bg-transparent"
-              aria-label={props.title}
-              // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
-              disallowTypeAhead
-              items={threads}
-              selectionMode="multiple"
-              selectionBehavior="toggle"
-              selectedKeys={selected}
-              onSelectionChange={setSelected}
-            >
-              {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
-            </GridList>
+            <Virtualizer layout={ListLayout} layoutOptions={LIST_LAYOUT}>
+              <GridList
+                aria-label={props.title}
+                // Transparent: the list is positioned, so its own fill would paint over the
+                // highlight. The page behind it is already the background.
+                className="min-h-0 flex-1 overflow-y-auto bg-transparent"
+                // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
+                disallowTypeAhead
+                selectionMode="multiple"
+                selectionBehavior="toggle"
+                selectedKeys={selected}
+                onSelectionChange={setSelected}
+              >
+                {/* `items` lets React Aria cache rows by thread, so a scroll renders only new rows. */}
+                <Collection items={threads} dependencies={[props.href]}>
+                  {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
+                </Collection>
+                {/* Asks for the next page as the end of the list nears. */}
+                <GridListLoadMoreItem onLoadMore={props.loadMore} isLoading={props.isLoadingMore} />
+              </GridList>
+            </Virtualizer>
           </div>
-
-          {props.more}
         </section>
         {props.children}
       </div>
     </div>
   );
 }
+
+// 53px: the frame's row (12px padding, the 28px avatar, 12px padding, 1px border). The load-more
+// sentinel takes no space; `loaderSize` 0 keeps the list's end where it was.
+const LIST_LAYOUT = { rowSize: 53, loaderSize: 0 };
 
 interface ShortcutsSource {
   view: ThreadView;
@@ -280,18 +297,4 @@ function useUnreadCount(filter: ThreadFilter) {
   return data.counts
     .filter((c) => !filter.mailbox || c.mailboxId === filter.mailbox)
     .reduce((sum, c) => sum + c.unread, 0);
-}
-
-/** Loads the next page when it scrolls into view. */
-function LoadMore(props: { onVisible: () => void; isLoading: boolean }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const { onVisible, isLoading } = props;
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || isLoading) return;
-    const observer = new IntersectionObserver(([entry]) => entry?.isIntersecting && onVisible());
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [onVisible, isLoading]);
-  return <div ref={ref} className="h-px" />;
 }

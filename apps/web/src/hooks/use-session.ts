@@ -58,10 +58,8 @@ export function useSignInGoogle() {
 /** `mutate()` signs in with a passkey; on success, navigate to where the user was going. */
 export function useSignInPasskey() {
   const client = useQueryClient();
-  return useMutation({
-    mutationFn: () => signInWithPasskey(),
-    onSuccess: () => client.invalidateQueries({ queryKey: sessionQuery().queryKey }),
-  });
+  const router = useRouter();
+  return useMutation({ mutationFn: () => signInWithPasskey(client, router) });
 }
 
 /** `mutate()` signs out, clears every cached query, and reruns the route guards. */

@@ -85,6 +85,20 @@
       "when": 1793743585958,
       "tag": "0011_domain_claim_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793747295196,
+      "tag": "0012_aspiring_genesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793747433747,
+      "tag": "0013_thread_reply_lookup",
+      "breakpoints": true
     }
   ]
 }

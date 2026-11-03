@@ -32,7 +32,7 @@ export function mailbox(kind: MailboxConfig["kind"] = "personal"): MailboxConfig
 export async function deliver(
   to: string,
   subject: string,
-  reply: { inReplyTo?: string } = {},
+  reply: { inReplyTo?: string; references?: string[]; messageId?: string } = {},
 ): Promise<void> {
   const transport = createTransport({ host, port: smtpPort, secure: false });
   try {
@@ -41,7 +41,10 @@ export async function deliver(
       to,
       subject,
       text: `body of ${subject}`,
-      ...(reply.inReplyTo ? { inReplyTo: reply.inReplyTo, references: [reply.inReplyTo] } : {}),
+      ...(reply.messageId ? { messageId: reply.messageId } : {}),
+      ...(reply.inReplyTo
+        ? { inReplyTo: reply.inReplyTo, references: reply.references ?? [reply.inReplyTo] }
+        : {}),
     });
   } finally {
     transport.close();

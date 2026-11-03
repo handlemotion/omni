@@ -42,7 +42,8 @@ SYSTEM_MAIL_FROM=
 # Secret. Summaries, and triage when TYPESAFE_API_KEY is empty. With neither key, threads stay
 # unsorted (only a wordless reply from you files itself, as FYI).
 ANTHROPIC_API_KEY=
-# Secret. TypeSafe key: triage runs on Jev when set (summaries stay on Claude).
+# Secret. TypeSafe key: triage runs on Jev when set (summaries stay on Claude), and search
+# results are reordered by Jev's relevance judgment. Empty: search keeps full-text order.
 TYPESAFE_API_KEY=
 # Optional. "jev" or "claude"; defaults to Jev when TYPESAFE_API_KEY is set.
 TRIAGE_PROVIDER=
@@ -80,6 +81,17 @@ ENVIRONMENT=development
 # Test-only. One origin exempt from the image proxy's address checks. The Worker refuses to
 # start with it unless ENVIRONMENT=test.
 IMAGE_PROXY_TEST_ALLOW_ORIGIN=
+
+# Rate limits as "<count>/<seconds>" or "off"; empty uses the default in wrangler.jsonc. See
+# docs/self-hosting.md (Rate limits).
+RATE_LIMIT_AUTH=
+RATE_LIMIT_MAGIC_LINK=
+RATE_LIMIT_INVITE=
+RATE_LIMIT_SEARCH=
+RATE_LIMIT_SEND=
+RATE_LIMIT_ACTIONS=
+RATE_LIMIT_PROVISION=
+RATE_LIMIT_IMAGE_PROXY=
 
 # --- E2E tests only (`pnpm --filter @omni/worker test:e2e`) ---
 # Admin URL of the local Postgres; each test file creates and drops its own database.

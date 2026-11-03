@@ -147,7 +147,7 @@ export async function startWorker(options: WorkerOptions) {
  * stack. The test harness routes outbound fetch through Node's `fetch`, which follows redirects
  * even under `redirect: "manual"`; suites that check redirect handling need the real behavior.
  */
-export async function startWorkerWithNetwork(options: WorkerOptions) {
+export async function startWorkerWithNetwork(options: WorkerOptions & { port?: number }) {
   process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = options.databaseUrl;
   const worker = await unstable_startWorker({
     config: join(import.meta.dirname, "../wrangler.jsonc"),
@@ -162,7 +162,7 @@ export async function startWorkerWithNetwork(options: WorkerOptions) {
       ]),
     ]),
     dev: {
-      server: { hostname: "127.0.0.1", port: 0 },
+      server: { hostname: "127.0.0.1", port: options.port ?? 0 },
       inspector: false,
       persist: false,
       watch: false,
@@ -291,6 +291,7 @@ export async function seedMessage(
   message: {
     subject: string;
     fromAddress: string;
+    fromName?: string;
     to?: string[];
     folder?: string;
     uid: number;
@@ -328,6 +329,7 @@ export async function seedMessage(
     messageIdHeader: message.messageId ?? `<${randomUUID()}@omni.test>`,
     subject: message.subject,
     fromAddress: message.fromAddress,
+    fromName: message.fromName ?? null,
     to: (message.to ?? []).map((address) => ({ name: null, address })),
     sentAt,
     cleanText: message.text ?? message.subject,
