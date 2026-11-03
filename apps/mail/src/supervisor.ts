@@ -1,3 +1,4 @@
+import { Effect, Fiber, Semaphore } from "effect";
 import type { Logger } from "./log.ts";
 import {
   MailboxConnection,
@@ -6,7 +7,7 @@ import {
 } from "./mailbox-connection.ts";
 import { OutboxExecutor } from "./outbox.ts";
 import type { ActionSource, MailStore } from "./ports.ts";
-import { createLimiter } from "./timing.ts";
+import { every } from "./timing.ts";
 
 export interface SupervisorOptions {
   store: MailStore;
@@ -24,11 +25,14 @@ export interface SupervisorOptions {
 /** Owns one `MailboxConnection` per mailbox, the periodic folder sync, and the outbox loop. */
 export class Supervisor {
   private readonly connections = new Map<string, MailboxConnection>();
-  private readonly limit: ReturnType<typeof createLimiter>;
+  /** Mailboxes connecting or syncing at once (`concurrency`). */
+  private readonly permits: Semaphore.Semaphore;
+  private readonly limit: <T>(task: () => Promise<T>) => Promise<T>;
   private readonly outbox: OutboxExecutor;
   private readonly log: Logger;
   private readonly options: SupervisorOptions;
-  private timers: NodeJS.Timeout[] = [];
+  /** The periodic folder sync and outbox poll. */
+  private loops: Fiber.Fiber<unknown, unknown>[] = [];
   private running = false;
   private stopping = false;
   private readonly inFlight = new Set<Promise<void>>();
@@ -36,7 +40,9 @@ export class Supervisor {
   constructor(options: SupervisorOptions) {
     this.options = options;
     this.log = options.logger;
-    this.limit = createLimiter(options.concurrency ?? 4);
+    const permits = Semaphore.makeUnsafe(options.concurrency ?? 4);
+    this.permits = permits;
+    this.limit = (task) => Effect.runPromise(Semaphore.withPermit(permits, Effect.promise(task)));
     this.outbox = new OutboxExecutor({
       actions: options.actions,
       logger: options.logger,
@@ -72,10 +78,10 @@ export class Supervisor {
   start(): void {
     if (this.running) return;
     this.running = true;
-    this.timers.push(
-      setInterval(() => void this.syncAll(), this.options.syncIntervalMs ?? 5 * 60_000),
-      setInterval(() => void this.ping(), this.options.outboxIntervalMs ?? 30_000),
-    );
+    this.loops = [
+      every(this.options.syncIntervalMs ?? 5 * 60_000, () => this.syncAll()),
+      every(this.options.outboxIntervalMs ?? 30_000, () => this.ping()),
+    ];
   }
 
   /** Adds a mailbox and connects it in the background. Connect attempts share the `concurrency` gate. */
@@ -86,7 +92,7 @@ export class Supervisor {
     const connection = new MailboxConnection(mailbox, {
       store: this.options.store,
       logger: this.log,
-      gate: this.limit,
+      gate: this.permits,
     });
     if (this.options.onMessage) connection.on("message", this.options.onMessage);
     // Actions that failed while the mailbox was offline become runnable again on reconnect.
@@ -134,15 +140,16 @@ export class Supervisor {
   }
 
   /**
-   * Stops timers and claims, lets claimed actions finish and record their outcome while storage
+   * Stops the periodic loops and claims, lets claimed actions finish and record their outcome while storage
    * is still open, then stops every mailbox: each finishes the message it is storing, abandons the
    * rest of its sync (the next start resumes it) and logs out.
    */
   async stop(): Promise<void> {
     this.running = false;
     this.stopping = true;
-    for (const timer of this.timers) clearInterval(timer);
-    this.timers = [];
+    const loops = this.loops;
+    this.loops = [];
+    await Effect.runPromise(Effect.forEach(loops, Fiber.interrupt, { discard: true }));
     await this.outbox.stop();
     await Promise.all(this.inFlight);
     await Promise.all([...this.connections.values()].map((c) => c.stop()));

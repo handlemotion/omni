@@ -359,3 +359,145 @@ test("the mail service's provisioning routes refuse unsigned calls", async () =>
   });
   expect(response.status).toBe(401);
 });
+
+/** An existing login on the mail host (GreenMail takes any password). */
+function imapMailbox(domainId: string, localPart: string) {
+  return {
+    domainId,
+    localPart,
+    login: {
+      password: "app-password",
+      imap: { host: greenmail.host, port: greenmail.imapPort },
+      smtp: { host: greenmail.host, port: greenmail.smtpPort },
+    },
+  };
+}
+
+async function setupStep(jar: CookieJar) {
+  const status = await api(jar, "GET", "/onboarding");
+  const me = await api(jar, "GET", "/me");
+  // The route guards read `/me`; onboarding resumes from `/onboarding`. They must agree.
+  expect(me.body.setup).toBe((status.body.organization as { setup: string }).setup);
+  return me.body.setup;
+}
+
+test("setup is saved per workspace, resumes at its step, and never goes backwards on retries", async () => {
+  const owner = await signedInOwner();
+  const created = await authPost(worker, owner.jar, "/organization/create", {
+    name: "Resume Co",
+    slug: `resume-${randomUUID().slice(0, 8)}`,
+  });
+  const orgId = ((await created.json()) as { id: string }).id;
+
+  // Step 1 made the workspace: it is listed, active, and unfinished.
+  const listed = await api(owner.jar, "GET", "/workspaces");
+  expect(listed.body.activeOrganizationId).toBe(orgId);
+  expect(listed.body.workspaces).toContainEqual(
+    expect.objectContaining({
+      id: orgId,
+      name: "Resume Co",
+      role: "owner",
+      setup: "created",
+      mailboxes: [],
+    }),
+  );
+  expect(await setupStep(owner.jar)).toBe("created");
+
+  // Finishing is refused while there is nothing to read mail with.
+  expect((await api(owner.jar, "POST", "/onboarding/complete")).status).toBe(409);
+
+  // The domain on its own mail host has nothing to verify, so DNS counts as verified at once.
+  const domain = `resume-${randomUUID().slice(0, 8)}.test`;
+  const added = await api(owner.jar, "POST", "/onboarding/domains", { domain });
+  expect(await setupStep(owner.jar)).toBe("dns_verified");
+  const domainId = added.body.id as string;
+
+  // Coming back later: the status carries what was saved, at the saved step.
+  expect((await api(owner.jar, "GET", "/onboarding")).body).toMatchObject({
+    organization: { id: orgId, name: "Resume Co", setup: "dns_verified" },
+    domains: [{ id: domainId, domain }],
+    mailboxes: [],
+  });
+
+  const mailbox = await api(
+    owner.jar,
+    "POST",
+    "/onboarding/mailboxes",
+    imapMailbox(domainId, "hello"),
+  );
+  expect(mailbox.status).toBe(200);
+  expect(await setupStep(owner.jar)).toBe("mailboxes_created");
+
+  // Retries of earlier steps (a double submit, a back button, a DNS recheck) keep the step.
+  await api(owner.jar, "POST", "/onboarding/domains", { domain });
+  await api(owner.jar, "POST", `/onboarding/domains/${domainId}/check`);
+  await api(owner.jar, "POST", "/onboarding/mailboxes", imapMailbox(domainId, "hello"));
+  expect(await setupStep(owner.jar)).toBe("mailboxes_created");
+
+  // Inviting someone is the invite step; finishing completes setup, and repeating it is harmless.
+  const invited = await authPost(worker, owner.jar, "/organization/invite-member", {
+    email: `ana@${domain}`,
+    role: "member",
+  });
+  expect(invited.status).toBe(200);
+  expect(await setupStep(owner.jar)).toBe("invites_sent");
+  expect((await api(owner.jar, "POST", "/onboarding/complete")).body).toEqual({
+    setup: "complete",
+  });
+  expect((await api(owner.jar, "POST", "/onboarding/complete")).body).toEqual({
+    setup: "complete",
+  });
+  expect(await setupStep(owner.jar)).toBe("complete");
+  await api(owner.jar, "POST", "/onboarding/domains", { domain });
+  expect(await setupStep(owner.jar)).toBe("complete");
+});
+
+test("an invitation sent before any mailbox exists does not skip setup steps", async () => {
+  const { jar } = await workspaceWithDomain();
+  const invited = await authPost(worker, jar, "/organization/invite-member", {
+    email: `early-${randomUUID().slice(0, 8)}@elsewhere.test`,
+    role: "member",
+  });
+  expect(invited.status).toBe(200);
+  expect(await setupStep(jar)).toBe("dns_verified");
+});
+
+test("the switcher lists only the user's workspaces and the mailboxes their member there can open", async () => {
+  const a = await workspaceWithDomain();
+  const hello = await api(a.jar, "POST", "/onboarding/mailboxes", imapMailbox(a.domainId, "hello"));
+  const team = await api(a.jar, "POST", "/onboarding/mailboxes", imapMailbox(a.domainId, "team"));
+  const ownerView = await api(a.jar, "GET", "/workspaces");
+  const acme = (ownerView.body.workspaces as { id: string; mailboxes: unknown[] }[]).find(
+    (w) => w.id === a.orgId,
+  );
+  expect(acme?.mailboxes).toEqual([
+    { id: hello.body.mailboxId, address: `hello@${a.domain}`, kind: "shared" },
+    { id: team.body.mailboxId, address: `team@${a.domain}`, kind: "shared" },
+  ]);
+  // The owner's first workspace (from `org:create`, no mailbox yet) is listed too, unfinished.
+  expect(ownerView.body.workspaces).toHaveLength(2);
+  expect(ownerView.body.workspaces).toContainEqual(
+    expect.objectContaining({ name: a.name, setup: "created", mailboxes: [] }),
+  );
+
+  // A plain member of A without a grant sees A, and none of its mailboxes.
+  const plainEmail = `plain-${randomUUID().slice(0, 8)}@${a.domain}`;
+  await createMember(database.db, a.orgId, plainEmail);
+  const plainJar = new CookieJar();
+  await signIn(worker, database.db, plainEmail, plainJar);
+  expect((await api(plainJar, "GET", "/workspaces")).body).toEqual({
+    activeOrganizationId: a.orgId,
+    workspaces: [expect.objectContaining({ id: a.orgId, role: "member", mailboxes: [] })],
+  });
+
+  // Another workspace's owner never sees A or its mailboxes.
+  const b = await workspaceWithDomain();
+  const other = await api(b.jar, "GET", "/workspaces");
+  const ids = (other.body.workspaces as { id: string }[]).map((w) => w.id);
+  expect(ids).toContain(b.orgId);
+  expect(ids).not.toContain(a.orgId);
+  expect(JSON.stringify(other.body)).not.toContain(a.domain);
+
+  // Signed out: nothing.
+  expect((await api(new CookieJar(), "GET", "/workspaces")).status).toBe(401);
+});

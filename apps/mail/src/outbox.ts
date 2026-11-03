@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { setTimeout as sleep } from "node:timers/promises";
+import { Effect, Schedule } from "effect";
 import { createTransport } from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import type { Logger } from "./log.ts";
@@ -10,7 +10,7 @@ import {
   MailboxUnavailableError,
 } from "./mailbox-connection.ts";
 import type { ActionSource, MailAction, MessageTarget, SendPayload } from "./ports.ts";
-import { backoffDelay, createLimiter } from "./timing.ts";
+import { backoffDelay } from "./timing.ts";
 
 /** Retrying cannot help: bad payload, or the folder's UIDVALIDITY moved under the action. */
 export class PermanentActionError extends Error {
@@ -37,7 +37,6 @@ export interface OutboxOptions {
 export class OutboxExecutor {
   private readonly options: Required<Omit<OutboxOptions, "connection">> &
     Pick<OutboxOptions, "connection">;
-  private readonly limit: ReturnType<typeof createLimiter>;
   private draining: Promise<number> | null = null;
   private drainAgain = false;
   private stopped = false;
@@ -58,7 +57,6 @@ export class OutboxExecutor {
       deferMs: 30_000,
       ...options,
     };
-    this.limit = createLimiter(this.options.concurrency);
   }
 
   /** Claims and runs due actions until none are left. Concurrent calls share one drain. */
@@ -76,7 +74,13 @@ export class OutboxExecutor {
           const batch = await this.options.actions.claim(this.options.batchSize);
           if (batch.length === 0) break;
           total += batch.length;
-          await Promise.all(batch.map((action) => this.limit(() => this.execute(action))));
+          // `execute` never throws; the bound keeps one batch from holding every SMTP slot.
+          await Effect.runPromise(
+            Effect.forEach(batch, (action) => Effect.promise(() => this.execute(action)), {
+              concurrency: this.options.concurrency,
+              discard: true,
+            }),
+          );
         }
       } while (this.drainAgain && !this.stopped);
       return total;
@@ -212,17 +216,14 @@ export class OutboxExecutor {
 
 /**
  * After SMTP's OK, losing the `smtp_accepted_at` write means the retry sends again. A Postgres
- * blip is the likely cause, so try a few times before giving up.
+ * blip is the likely cause, so try 5 times, 400ms to 3.2s apart, before giving up.
  */
-async function persistAccepted(write: () => Promise<void>): Promise<void> {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await write();
-    } catch (error) {
-      if (attempt >= 5) throw error;
-      await sleep(200 * 2 ** attempt);
-    }
-  }
+function persistAccepted(write: () => Promise<void>): Promise<void> {
+  return Effect.runPromise(
+    Effect.tryPromise({ try: write, catch: (error) => error }).pipe(
+      Effect.retry(Schedule.exponential("400 millis").pipe(Schedule.upTo({ times: 4 }))),
+    ),
+  );
 }
 
 /** `<sha256(key)@domain>`: the same idempotency key always yields the same Message-ID. */
