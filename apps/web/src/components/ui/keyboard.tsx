@@ -8,7 +8,9 @@ export function Keyboard({ className, ...props }: React.ComponentProps<typeof Ke
     <KeyboardPrimitive
       data-slot="keyboard"
       className={cn(
-        "hidden font-mono text-[0.80rem] text-current/60 group-hover:text-foreground group-focus:text-foreground group-focus:opacity-90 group-disabled:opacity-50 lg:inline forced-colors:group-focus:text-[HighlightText]",
+        // A key hint ("Esc", "/"): a grey key cap, no border. `font-sans` because <kbd> defaults
+        // to monospace, whose metrics sit the text off-center.
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-secondary px-1 font-sans text-xs text-muted-foreground group-disabled:opacity-50",
         className,
       )}
       {...props}
