@@ -3,12 +3,12 @@ import {
   PencilSquareIcon,
   ViewColumnsIcon,
 } from "@heroicons/react/24/outline";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Key, Selection } from "react-aria-components";
+import { SearchPopover } from "@/components/search/search-popover";
 import { buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
-import { SearchField, SearchInput } from "@/components/ui/search-field";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Avatar } from "@/components/ui/avatar";
@@ -66,7 +66,7 @@ export function ThreadList(props: {
             </ToggleGroupItem>
           </ToggleGroup>
           <Separator orientation="vertical" className="mx-1 h-4" />
-          <Search />
+          <SearchPopover />
           <Link href="/compose" className={buttonStyles({ intent: "primary" })}>
             <PencilSquareIcon />
             Compose
@@ -106,20 +106,6 @@ export function ThreadList(props: {
         {props.children}
       </div>
     </div>
-  );
-}
-
-/** Searches all mail: Enter opens the search page with the query. */
-function Search() {
-  const navigate = useNavigate();
-  return (
-    <SearchField
-      aria-label="Search"
-      className="w-60"
-      onSubmit={(q) => void navigate({ to: "/search", search: { q } })}
-    >
-      <SearchInput placeholder="Search" />
-    </SearchField>
   );
 }
 
