@@ -68,7 +68,11 @@ export const assets = new Hono<AppEnv>()
         "x-content-type-options": "nosniff",
         "referrer-policy": "no-referrer",
         // Images only from our proxy and attachments; inline styles are the sanitizer's output.
-        "content-security-policy": `default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors ${frameAncestors}; sandbox allow-popups allow-popups-to-escape-sandbox`,
+        // The sandbox keeps our origin (allow-same-origin) so those image requests carry the
+        // session cookie; an opaque origin is cross-site, gets no cookie, and every image 401s.
+        // Nothing can run with that origin: no allow-scripts, no script-src, and the HTML was
+        // sanitized on save. Forms, plugins and top-level navigation stay off.
+        "content-security-policy": `default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors ${frameAncestors}; sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox`,
         "cache-control": "private, max-age=3600",
       },
     });
