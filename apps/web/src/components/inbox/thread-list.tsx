@@ -98,9 +98,9 @@ export function List(
   const listRef = useRef<HTMLElement>(null);
 
   return (
-    // Viewport height: the virtualized list must be its own scroll container, however tall the
-    // thread beside it is.
-    <div className="flex h-svh min-h-0 flex-1 flex-col">
+    // Viewport height, so the virtualized list is its own scroll container however tall the
+    // thread beside it is. No `flex-1`: its 0% basis resolves to the content height here.
+    <div className="flex h-svh min-h-0 flex-col">
       {props.shortcuts && (
         <ListShortcuts
           {...props.shortcuts}
