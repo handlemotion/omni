@@ -75,8 +75,22 @@
     {
       "idx": 10,
       "version": "7",
-      "when": 1793745992365,
-      "tag": "0010_thread_reply_lookup",
+      "when": 1793743178318,
+      "tag": "0010_domain_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793743585958,
+      "tag": "0011_domain_claim_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793746619300,
+      "tag": "0012_thread_reply_lookup",
       "breakpoints": true
     }
   ]

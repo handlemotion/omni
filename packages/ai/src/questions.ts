@@ -1,6 +1,6 @@
-// Everything Jev is asked during triage, and the thresholds that read its answers. Edit wording
-// here and nowhere else. Each question is one judgment about the state built in `jev.ts`; the
-// truth tables in `decide.ts` turn the answers into a bucket. Who wrote the latest message is a
+// Everything Jev is asked, during triage and search, and the thresholds that read its answers.
+// Edit wording here and nowhere else. Each triage question is one judgment about the state built
+// in `jev.ts`; the truth tables in `decide.ts` turn the answers into a bucket. Who wrote the latest message is a
 // fact code knows, so it picks the question set: `TRIAGE_QUESTIONS` when someone else did,
 // `SENT_QUESTIONS` when the reader did.
 
@@ -127,3 +127,23 @@ export const SENT_QUESTIONS = {
 
 export type SentJudgment = keyof typeof SENT_QUESTIONS;
 export const SENT_JUDGMENTS = Object.keys(SENT_QUESTIONS) as SentJudgment[];
+
+// Search: one Noul per candidate thread, "is this what the searcher is looking for?", over a
+// state that holds only the query and today's date (`search.ts`). Each candidate rides in its
+// own question's instructions, so no question has to look a thread up in a shared list.
+
+/** Shared facts for every relevance question. `{today}` is filled in by `search.ts`. */
+export const SEARCH_NOTE =
+  "A person typed `query` into the search box of their email inbox to find an email thread. Today is {today}.";
+
+export const RELEVANCE_INSTRUCTIONS =
+  "Is `thread` the email thread the person who typed `query` is looking for?";
+
+export const RELEVANCE_CRITERIA = {
+  true: "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+  false:
+    "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names.",
+};
+
+/** Token budget for each candidate's `excerpt`. */
+export const SEARCH_EXCERPT_TOKENS = 300;

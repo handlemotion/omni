@@ -6,6 +6,7 @@ import { Effect, Fiber } from "effect";
 import type { Hono } from "hono";
 import type { Config } from "./config.ts";
 import { openCredentials } from "./credentials.ts";
+import { createDnsLookup } from "./dns.ts";
 import { createApp, hmacVerifier } from "./http.ts";
 import type { Logger } from "./log.ts";
 import { WorkerNotifier } from "./notify.ts";
@@ -33,7 +34,12 @@ export type ServiceConfig = Pick<
   | "IMAGE_PROXY_URL"
   | "ATTACHMENT_URL"
 > &
-  Partial<Pick<Config, "PURELYMAIL_API_TOKEN">>;
+  Partial<
+    Pick<
+      Config,
+      "PURELYMAIL_API_TOKEN" | "DNS_RESOLVERS" | "DNS_NAMESERVER_PORT" | "DNS_TIMEOUT_MS"
+    >
+  >;
 
 export interface MailService {
   app: Hono;
@@ -158,6 +164,12 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
   const app = createApp({
     provisioner,
     log: httpLog,
+    dns: createDnsLookup({
+      resolvers: config.DNS_RESOLVERS ?? [],
+      nameserverPort: config.DNS_NAMESERVER_PORT ?? 53,
+      timeoutMs: config.DNS_TIMEOUT_MS ?? 2_000,
+      logger: log,
+    }),
     onError: (error) => httpLog.error("http.error", { error }),
     verify: hmacVerifier(config.MAIL_SERVICE_HMAC_SECRET, {
       onReject: (reason) => httpLog.warn("http.ping_rejected", { reason }),

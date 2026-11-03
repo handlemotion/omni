@@ -10,6 +10,7 @@ import {
   completeAction,
   createThread,
   deferAction,
+  sendingPaused,
   type Db,
   findFolder,
   findMailbox,
@@ -369,6 +370,10 @@ export class PgActionSource implements ActionSource {
 
   async defer(actionId: string, retryAt: Date): Promise<void> {
     await deferAction(this.db, actionId, retryAt);
+  }
+
+  sendingPaused(address: string): Promise<boolean> {
+    return sendingPaused(this.db, address.slice(address.lastIndexOf("@") + 1).toLowerCase());
   }
 }
 

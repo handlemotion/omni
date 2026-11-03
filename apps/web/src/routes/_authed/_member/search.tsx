@@ -20,23 +20,18 @@ function Search() {
   const router = useRouter();
   const { data: hits } = useSearch(search.q, search.mailbox);
 
-  // One row per thread, at its newest matching message; the API returns one per message.
-  const rows = useMemo(() => {
-    const seen = new Set<string>();
-    return (hits ?? []).flatMap((hit): ListRow[] => {
-      if (seen.has(hit.threadId)) return [];
-      seen.add(hit.threadId);
-      return [
-        {
-          id: hit.threadId,
-          sender: hit.fromName || hit.fromAddress,
-          subject: hit.subject,
-          snippet: "",
-          unread: false,
-        },
-      ];
-    });
-  }, [hits]);
+  // One row per thread, best match first, with the passage that matched.
+  const rows = useMemo(
+    () =>
+      (hits ?? []).map((hit): ListRow => ({
+        id: hit.threadId,
+        sender: hit.from.name || hit.from.address,
+        subject: hit.subject,
+        snippet: hit.snippet,
+        unread: false,
+      })),
+    [hits],
+  );
 
   return (
     <List

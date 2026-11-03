@@ -9,7 +9,8 @@
     "./clean": "./src/clean.ts",
     "./display": "./src/display.ts",
     "./domains": "./src/domains.ts",
-    "./telemetry": "./src/telemetry.ts"
+    "./telemetry": "./src/telemetry.ts",
+    "./dns-diagnostics": "./src/dns-diagnostics.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

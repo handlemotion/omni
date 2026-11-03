@@ -1,165 +1,34 @@
-// Onboarding end to end on the bring-your-own-IMAP path: the real Worker under workerd, the real
-// mail service in-process (no Purelymail token, as a self-hoster runs it), GreenMail for IMAP and
-// SMTP, Postgres and the local S3 gateway. The Purelymail path cannot run locally (ADR 0007).
-import { randomBytes, randomUUID } from "node:crypto";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
-import { getRequestListener } from "@hono/node-server";
+// Onboarding end to end on the bring-your-own-IMAP path, on the stack in `onboarding-stack.ts`:
+// real Worker, real mail service, GreenMail, Postgres, S3 gateway and a local authoritative DNS
+// server. The Purelymail path cannot run locally (ADR 0007).
+import { randomUUID } from "node:crypto";
 import { PROVISION_MAILBOX_PATH } from "@omni/contracts";
-import { parseKeyring } from "@omni/crypto";
-import { createOrgWithOwner, schema } from "@omni/db";
-import {
-  createLogger,
-  type MailService,
-  openCredentials,
-  sealCredentials,
-  startService,
-} from "@omni/mail";
+import { schema } from "@omni/db";
+import { openCredentials } from "@omni/mail";
 import { and, eq } from "drizzle-orm";
 import { createTransport } from "nodemailer";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
-  authPost,
-  CookieJar,
-  createMember,
-  createOrg,
-  createTestDatabase,
-  HMAC_SECRET,
-  signIn,
-  startWorker,
-  SYSTEM_MAIL_FROM,
-  WEB_ORIGIN,
-} from "./support.ts";
+  greenmail,
+  login,
+  type OnboardingStack,
+  startOnboardingStack,
+  waitFor,
+} from "./onboarding-stack.ts";
+import { authPost, CookieJar, createMember, signIn } from "./support.ts";
 
-const greenmail = {
-  host: process.env.GREENMAIL_HOST ?? "localhost",
-  imapPort: Number(process.env.GREENMAIL_IMAP_PORT ?? 3143),
-  smtpPort: Number(process.env.GREENMAIL_SMTP_PORT ?? 3025),
-};
-const keyring = parseKeyring(`k1:${randomBytes(32).toString("base64")}`);
-
-let database: Awaited<ReturnType<typeof createTestDatabase>>;
-let worker: Awaited<ReturnType<typeof startWorker>>;
-let service: MailService;
-let mailHttp: ReturnType<typeof createServer>;
-let mailServiceUrl: string;
-
+let stack: OnboardingStack;
 beforeAll(async () => {
-  database = await createTestDatabase();
-  // Auth mail (the invitation) goes out from this mailbox, which the service connects too.
-  const system = await createOrg(database.db, "system");
-  const systemId = randomUUID();
-  await database.db.insert(schema.mailboxes).values({
-    id: systemId,
-    orgId: system.id,
-    address: SYSTEM_MAIL_FROM,
-    kind: "shared",
-    provider: "imap",
-    credentialsEnc: await sealCredentials(keyring, systemId, login(SYSTEM_MAIL_FROM, "unused")),
-  });
-
-  // The Worker and the mail service each need the other's URL: listen first, attach the
-  // service once the Worker is up.
-  let handle: ((req: IncomingMessage, res: ServerResponse) => void) | null = null;
-  mailHttp = createServer((req, res) => (handle ? handle(req, res) : res.writeHead(503).end()));
-  await new Promise<void>((resolve) => mailHttp.listen(0, "127.0.0.1", resolve));
-  mailServiceUrl = `http://127.0.0.1:${(mailHttp.address() as AddressInfo).port}`;
-  worker = await startWorker({ databaseUrl: database.url, mailServiceUrl });
-  service = await startService(
-    {
-      DATABASE_URL: database.url,
-      MAIL_CREDENTIALS_KEY: keyring,
-      MAIL_SERVICE_HMAC_SECRET: HMAC_SECRET,
-      WORKER_URL: String(worker.url),
-      S3_ENDPOINT: process.env.S3_ENDPOINT ?? "http://localhost:7070",
-      S3_BUCKET: process.env.S3_BUCKET ?? "omni-mail-dev",
-      S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ?? "omni-local",
-      S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ?? "omni-local-secret",
-      S3_REGION: process.env.S3_REGION ?? "auto",
-      IMAGE_PROXY_URL: "/api/image-proxy",
-      ATTACHMENT_URL: "/api/attachments",
-      SYNC_INTERVAL_MS: 60 * 60_000,
-      OUTBOX_INTERVAL_MS: 60 * 60_000,
-      MAILBOX_CONCURRENCY: 4,
-    },
-    createLogger(process.env.E2E_LOG_LEVEL === "debug" ? "debug" : "error"),
-  );
-  handle = getRequestListener(service.app.fetch);
+  stack = await startOnboardingStack();
 });
+afterAll(() => stack?.stop());
 
-afterAll(async () => {
-  await new Promise((resolve) => mailHttp?.close(resolve));
-  await service?.stop();
-  await worker?.server.close();
-  await database?.teardown();
-});
-
-function login(user: string, pass: string) {
-  return {
-    user,
-    pass,
-    imap: { host: greenmail.host, port: greenmail.imapPort, secure: false },
-    smtp: { host: greenmail.host, port: greenmail.smtpPort, secure: false },
-  };
-}
-
-/** A same-origin JSON call from the web app. */
-async function api(jar: CookieJar, method: "GET" | "POST", path: string, body?: unknown) {
-  const headers = { cookie: jar.header, origin: WEB_ORIGIN, "content-type": "application/json" };
-  const response = await fetch(
-    new URL(`/api${path}`, worker.url),
-    method === "GET" ? { headers } : { method, headers, body: JSON.stringify(body ?? {}) },
-  );
-  return { status: response.status, body: (await response.json()) as Record<string, unknown> };
-}
-
-async function waitFor<T>(check: () => Promise<T | undefined | false>, timeoutMs = 15_000) {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await check();
-    if (value) return value;
-    if (Date.now() > deadline) throw new Error(`timed out after ${timeoutMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-}
-
-/** An owner of an existing workspace, signed in (the default policy lets owners make more). */
-async function signedInOwner() {
-  const slug = `home-${randomUUID().slice(0, 8)}`;
-  const owner = await createOrgWithOwner(database.db, {
-    name: slug,
-    slug,
-    ownerEmail: `owner@${slug}.test`,
-  });
-  const jar = new CookieJar();
-  await signIn(worker, database.db, `owner@${slug}.test`, jar);
-  return { ...owner, jar };
-}
-
-/** A new workspace with its domain on the mail host, as the first two steps leave it. */
-async function workspaceWithDomain() {
-  const owner = await signedInOwner();
-  const suffix = randomUUID().slice(0, 8);
-  const created = await authPost(worker, owner.jar, "/organization/create", {
-    name: "Acme",
-    slug: `acme-${suffix}`,
-  });
-  expect(created.status).toBe(200);
-  const orgId = ((await created.json()) as { id: string }).id;
-  const domain = `acme-${suffix}.test`;
-  // Typed the way people paste it; stored the one way every spelling normalizes to.
-  const added = await api(owner.jar, "POST", "/onboarding/domains", {
-    domain: `https://ACME-${suffix}.test/`,
-  });
-  expect(added).toMatchObject({
-    status: 200,
-    body: { domain, provider: "imap", added: true, verified: true, records: [] },
-  });
-  return { ...owner, orgId, domain, domainId: added.body.id as string };
-}
+const api: OnboardingStack["api"] = (...args) => stack.api(...args);
+const signedInOwner = () => stack.signedInOwner();
+const workspaceWithDomain = () => stack.workspaceWithDomain();
 
 test("an owner creates a workspace, adds a domain and a mailbox that syncs, and invites", async () => {
-  const { db } = database;
+  const { db } = stack.database;
   const owner = await signedInOwner();
   expect(await api(owner.jar, "GET", "/onboarding")).toMatchObject({
     status: 200,
@@ -203,7 +72,7 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
     provider: "imap",
   });
   expect(rows[0]!.credentialsEnc).not.toContain("app-password-1");
-  expect(await openCredentials(keyring, mailboxId, rows[0]!.credentialsEnc)).toEqual(
+  expect(await openCredentials(stack.keyring, mailboxId, rows[0]!.credentialsEnc)).toEqual(
     login(`hello@${domain}`, "app-password-1"),
   );
   const access = await db
@@ -268,7 +137,9 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
     .select({ enc: schema.mailboxes.credentialsEnc })
     .from(schema.mailboxes)
     .where(eq(schema.mailboxes.id, mailboxId));
-  expect((await openCredentials(keyring, mailboxId, stored!.enc)).pass).toBe("app-password-2");
+  expect((await openCredentials(stack.keyring, mailboxId, stored!.enc)).pass).toBe(
+    "app-password-2",
+  );
   await waitFor(async () => {
     const [row] = await db
       .select({ status: schema.mailboxes.status })
@@ -278,7 +149,7 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
   });
 
   // The invite step: the existing Better Auth endpoint, into the new workspace.
-  const invited = await authPost(worker, jar, "/organization/invite-member", {
+  const invited = await authPost(stack.worker, jar, "/organization/invite-member", {
     email: `ana@${domain}`,
     role: "member",
   });
@@ -310,10 +181,17 @@ test("a domain belongs to the workspace that claimed it, and only its owners and
   });
   expect(borrowed.status).toBe(404);
 
+  // A subdomain of A's domain is A's too.
+  const sub = await api(b.jar, "POST", "/onboarding/domains", { domain: `mail.${a.domain}` });
+  expect(sub).toMatchObject({
+    status: 409,
+    body: { error: expect.stringContaining(`under ${a.domain}`) },
+  });
+
   // A plain member of A sees no domains and cannot add one.
-  const member = await createMember(database.db, a.orgId, `member@${a.domain}`);
+  const member = await createMember(stack.database.db, a.orgId, `member@${a.domain}`);
   const memberJar = new CookieJar();
-  await signIn(worker, database.db, `member@${a.domain}`, memberJar);
+  await signIn(stack.worker, stack.database.db, `member@${a.domain}`, memberJar);
   expect((await api(memberJar, "GET", "/onboarding")).body).toMatchObject({
     organization: { id: member.organizationId, role: "member" },
     domains: [],
@@ -337,14 +215,14 @@ test("a domain belongs to the workspace that claimed it, and only its owners and
 
 test("by default a signed-in user with no workspace cannot create one", async () => {
   const email = `loner-${randomUUID().slice(0, 8)}@solo.test`;
-  await database.db.insert(schema.users).values({ id: randomUUID(), name: email, email });
+  await stack.database.db.insert(schema.users).values({ id: randomUUID(), name: email, email });
   const jar = new CookieJar();
-  await signIn(worker, database.db, email, jar);
+  await signIn(stack.worker, stack.database.db, email, jar);
   expect(await api(jar, "GET", "/onboarding")).toEqual({
     status: 200,
     body: { canCreateOrganization: false, organization: null, domains: [], mailboxes: [] },
   });
-  const created = await authPost(worker, jar, "/organization/create", {
+  const created = await authPost(stack.worker, jar, "/organization/create", {
     name: "Mine",
     slug: `mine-${randomUUID().slice(0, 8)}`,
   });
@@ -352,7 +230,7 @@ test("by default a signed-in user with no workspace cannot create one", async ()
 });
 
 test("the mail service's provisioning routes refuse unsigned calls", async () => {
-  const response = await fetch(new URL(PROVISION_MAILBOX_PATH, mailServiceUrl), {
+  const response = await fetch(new URL(PROVISION_MAILBOX_PATH, stack.mailServiceUrl), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({}),
@@ -383,7 +261,7 @@ async function setupStep(jar: CookieJar) {
 
 test("setup is saved per workspace, resumes at its step, and never goes backwards on retries", async () => {
   const owner = await signedInOwner();
-  const created = await authPost(worker, owner.jar, "/organization/create", {
+  const created = await authPost(stack.worker, owner.jar, "/organization/create", {
     name: "Resume Co",
     slug: `resume-${randomUUID().slice(0, 8)}`,
   });
@@ -406,11 +284,16 @@ test("setup is saved per workspace, resumes at its step, and never goes backward
   // Finishing is refused while there is nothing to read mail with.
   expect((await api(owner.jar, "POST", "/onboarding/complete")).status).toBe(409);
 
-  // The domain on its own mail host has nothing to verify, so DNS counts as verified at once.
+  // The domain on its own mail host still proves ownership (ADR 0010): added first, DNS
+  // verified once its challenge is in.
   const domain = `resume-${randomUUID().slice(0, 8)}.test`;
+  stack.dns.addZone(domain);
   const added = await api(owner.jar, "POST", "/onboarding/domains", { domain });
-  expect(await setupStep(owner.jar)).toBe("dns_verified");
+  expect(await setupStep(owner.jar)).toBe("domain_added");
   const domainId = added.body.id as string;
+  stack.publishChallenge(added.body);
+  await api(owner.jar, "POST", `/onboarding/domains/${domainId}/check`);
+  expect(await setupStep(owner.jar)).toBe("dns_verified");
 
   // Coming back later: the status carries what was saved, at the saved step.
   expect((await api(owner.jar, "GET", "/onboarding")).body).toMatchObject({
@@ -435,7 +318,7 @@ test("setup is saved per workspace, resumes at its step, and never goes backward
   expect(await setupStep(owner.jar)).toBe("mailboxes_created");
 
   // Inviting someone is the invite step; finishing completes setup, and repeating it is harmless.
-  const invited = await authPost(worker, owner.jar, "/organization/invite-member", {
+  const invited = await authPost(stack.worker, owner.jar, "/organization/invite-member", {
     email: `ana@${domain}`,
     role: "member",
   });
@@ -454,7 +337,7 @@ test("setup is saved per workspace, resumes at its step, and never goes backward
 
 test("an invitation sent before any mailbox exists does not skip setup steps", async () => {
   const { jar } = await workspaceWithDomain();
-  const invited = await authPost(worker, jar, "/organization/invite-member", {
+  const invited = await authPost(stack.worker, jar, "/organization/invite-member", {
     email: `early-${randomUUID().slice(0, 8)}@elsewhere.test`,
     role: "member",
   });
@@ -482,9 +365,9 @@ test("the switcher lists only the user's workspaces and the mailboxes their memb
 
   // A plain member of A without a grant sees A, and none of its mailboxes.
   const plainEmail = `plain-${randomUUID().slice(0, 8)}@${a.domain}`;
-  await createMember(database.db, a.orgId, plainEmail);
+  await createMember(stack.database.db, a.orgId, plainEmail);
   const plainJar = new CookieJar();
-  await signIn(worker, database.db, plainEmail, plainJar);
+  await signIn(stack.worker, stack.database.db, plainEmail, plainJar);
   expect((await api(plainJar, "GET", "/workspaces")).body).toEqual({
     activeOrganizationId: a.orgId,
     workspaces: [expect.objectContaining({ id: a.orgId, role: "member", mailboxes: [] })],

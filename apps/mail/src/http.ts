@@ -1,4 +1,6 @@
 import {
+  DNS_LOOKUP_PATH,
+  dnsLookupBodySchema,
   MAIL_PING_PATH,
   PROVISION_DOMAIN_PATH,
   PROVISION_MAILBOX_PATH,
@@ -14,6 +16,7 @@ import {
 import { type Context, Hono } from "hono";
 import { routePath } from "hono/route";
 import type { z } from "zod";
+import { DnsLookupError, type DnsLookup } from "./dns.ts";
 import type { Logger } from "./log.ts";
 import { ProvisionError, type Provisioner } from "./provisioning.ts";
 
@@ -74,6 +77,8 @@ export interface HttpDeps {
   health(): Promise<{ ok: boolean } & Record<string, unknown>>;
   /** Onboarding's domain and mailbox setup. Absent: those routes answer 404. */
   provisioner?: Provisioner;
+  /** Authoritative DNS lookups for domain verification. Absent: that route answers 404. */
+  dns?: DnsLookup;
   onError?(error: unknown): void;
 }
 
@@ -109,9 +114,9 @@ export function createApp(deps: HttpDeps): Hono {
   });
 
   /** Verifies the signature, then parses the JSON body; null when the response is already set. */
-  async function signedBody<S extends z.ZodType>(c: Context, schema: S) {
+  async function signedBody<S extends z.ZodType>(c: Context, schema: S, available: boolean) {
     if (!(await deps.verify(c.req.raw))) return c.json({ error: "unauthorized" }, 401);
-    if (!deps.provisioner) return c.json({ error: "not found" }, 404);
+    if (!available) return c.json({ error: "not found" }, 404);
     const parsed = schema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: "invalid body" }, 400);
     return parsed.data as z.output<S>;
@@ -122,21 +127,28 @@ export function createApp(deps: HttpDeps): Hono {
       return c.json(await task());
     } catch (error) {
       if (error instanceof ProvisionError) return c.json({ error: error.message }, error.status);
+      if (error instanceof DnsLookupError) return c.json({ error: error.message }, 400);
       deps.onError?.(error);
       return c.json({ error: "internal error" }, 500);
     }
   }
 
   app.post(PROVISION_DOMAIN_PATH, async (c) => {
-    const body = await signedBody(c, provisionDomainBodySchema);
+    const body = await signedBody(c, provisionDomainBodySchema, deps.provisioner !== undefined);
     if (body instanceof Response) return body;
-    return answer(c, () => deps.provisioner!.domain(body.domain));
+    return answer(c, () => deps.provisioner!.domain(body.domain, { add: body.add }));
   });
 
   app.post(PROVISION_MAILBOX_PATH, async (c) => {
-    const body = await signedBody(c, provisionMailboxBodySchema);
+    const body = await signedBody(c, provisionMailboxBodySchema, deps.provisioner !== undefined);
     if (body instanceof Response) return body;
     return answer(c, () => deps.provisioner!.mailbox(body));
+  });
+
+  app.post(DNS_LOOKUP_PATH, async (c) => {
+    const body = await signedBody(c, dnsLookupBodySchema, deps.dns !== undefined);
+    if (body instanceof Response) return body;
+    return answer(c, () => deps.dns!(body));
   });
 
   return app;

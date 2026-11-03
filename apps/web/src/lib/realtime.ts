@@ -63,6 +63,8 @@ export function startRealtime(client: QueryClient): () => void {
     if (event.type === "action" && event.status === "failed") {
       onActionFailed(client, event.actionId, undefined, event.error);
     }
+    // A domain's DNS was checked again (the DNS page's auto-check): refetch its verdicts.
+    if (event.type === "domain") void client.invalidateQueries({ queryKey: keys.onboarding() });
   };
 
   const connection = connectRealtime({

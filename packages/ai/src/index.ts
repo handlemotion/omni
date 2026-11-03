@@ -22,6 +22,13 @@ export {
 } from "./decide.ts";
 export { triageInputFor, type ThreadMessage } from "./input.ts";
 export { JEV_MODEL } from "./questions.ts";
+export {
+  describeDate,
+  jevSearchRequest,
+  judgeRelevance,
+  rankByRelevance,
+  type SearchCandidate,
+} from "./search.ts";
 export { summarize, DEFAULT_SUMMARY_INPUT_TOKENS } from "./summarize.ts";
 export {
   DEFAULT_AUTO_FILE_THRESHOLD,

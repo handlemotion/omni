@@ -42,7 +42,8 @@ SYSTEM_MAIL_FROM=
 # Secret. Summaries, and triage when TYPESAFE_API_KEY is empty. With neither key, threads stay
 # unsorted (only a wordless reply from you files itself, as FYI).
 ANTHROPIC_API_KEY=
-# Secret. TypeSafe key: triage runs on Jev when set (summaries stay on Claude).
+# Secret. TypeSafe key: triage runs on Jev when set (summaries stay on Claude), and search
+# results are reordered by Jev's relevance judgment. Empty: search keeps full-text order.
 TYPESAFE_API_KEY=
 # Optional. "jev" or "claude"; defaults to Jev when TYPESAFE_API_KEY is set.
 TRIAGE_PROVIDER=
@@ -61,6 +62,14 @@ EXPO_ACCESS_TOKEN=
 # Sentry DSN. Empty keeps error reporting off. Events are scrubbed of mail content, addresses
 # and credentials; their environment tag is ENVIRONMENT.
 SENTRY_DSN=
+
+# --- Domain Connect (ADR 0011, docs/domain-connect/) ---
+# Optional. The providerId our templates are published under. Empty hides "Set up automatically".
+DOMAIN_CONNECT_PROVIDER_ID=
+# Optional. Host of the TXT record with our public key, for templates that require signing.
+DOMAIN_CONNECT_KEY_HOST=
+# Secret, optional. PKCS#8 PEM private key that signs apply URLs (with DOMAIN_CONNECT_KEY_HOST).
+DOMAIN_CONNECT_PRIVATE_KEY=
 
 # DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse private addresses.
 IMAGE_PROXY_DOH_URL=https://cloudflare-dns.com/dns-query
