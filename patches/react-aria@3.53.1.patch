@@ -1,0 +1,153 @@
+diff --git a/dist/private/gridlist/useGridListItem.cjs b/dist/private/gridlist/useGridListItem.cjs
+index 5118a57ca5662770e8e131bd39cc8f1cdf755e9f..579f0edf5b624c534541116ef2b8ab5b32ca7f27 100644
+--- a/dist/private/gridlist/useGridListItem.cjs
++++ b/dist/private/gridlist/useGridListItem.cjs
+@@ -15,6 +15,30 @@ var $75bd88aab025820b$exports = require("../utils/openLink.cjs");
+ var $aj3Ek$react = require("react");
+ 
+ 
++
++// Patched (Omni): a virtualized row's aria-rowindex was computed by spreading the whole
++// collection on every row render, so scrolling cost grew with the number of loaded rows. Row
++// indexes are now computed once per collection snapshot (collections are immutable).
++const $omni$rowIndexes = new WeakMap();
++function $omni$rowIndex(collection, node) {
++    let indexes = $omni$rowIndexes.get(collection);
++    if (indexes === undefined) {
++        indexes = null;
++        for (let n of collection)if (n.type === 'section') {
++            indexes = new Map();
++            let i = 0;
++            for (let key of collection.getKeys()){
++                let item = collection.getItem(key);
++                if ((item === null || item === void 0 ? void 0 : item.type) !== 'section') indexes.set(key, ++i);
++            }
++            break;
++        }
++        $omni$rowIndexes.set(collection, indexes);
++    }
++    var _indexes_get;
++    return indexes ? (_indexes_get = indexes.get(node.key)) !== null && _indexes_get !== void 0 ? _indexes_get : 0 : node.index + 1;
++}
++
+ function $parcel$export(e, n, v, s) {
+   Object.defineProperty(e, n, {get: v, set: s, enumerable: true, configurable: true});
+ }
+@@ -297,13 +321,7 @@ function $d07dc266c3dc14c0$export$9610e69494fadfd2(props, state, ref) {
+     };
+     if (isVirtualized) {
+         let { collection: collection } = state;
+-        let nodes = [
+-            ...collection
+-        ];
+-        // TODO: refactor ListCollection to store an absolute index of a node's position?
+-        rowProps['aria-rowindex'] = nodes.find((node)=>node.type === 'section') ? [
+-            ...collection.getKeys()
+-        ].filter((key)=>collection.getItem(key)?.type !== 'section').findIndex((key)=>key === node.key) + 1 : node.index + 1;
++        rowProps['aria-rowindex'] = $omni$rowIndex(collection, node);
+     }
+     let gridCellProps = {
+         role: 'gridcell',
+diff --git a/dist/private/gridlist/useGridListItem.js b/dist/private/gridlist/useGridListItem.js
+index 5fe604565797daec99388a21169736c2c0b16526..4d2def906693961374a3886e6b1c1bcd4c31a62e 100644
+--- a/dist/private/gridlist/useGridListItem.js
++++ b/dist/private/gridlist/useGridListItem.js
+@@ -49,6 +49,30 @@ const $7d08662b45460e3b$var$EXPANSION_KEYS = {
+         rtl: 'ArrowRight'
+     }
+ };
++
++// Patched (Omni): a virtualized row's aria-rowindex was computed by spreading the whole
++// collection on every row render, so scrolling cost grew with the number of loaded rows. Row
++// indexes are now computed once per collection snapshot (collections are immutable).
++const $omni$rowIndexes = new WeakMap();
++function $omni$rowIndex(collection, node) {
++    let indexes = $omni$rowIndexes.get(collection);
++    if (indexes === undefined) {
++        indexes = null;
++        for (let n of collection)if (n.type === 'section') {
++            indexes = new Map();
++            let i = 0;
++            for (let key of collection.getKeys()){
++                let item = collection.getItem(key);
++                if ((item === null || item === void 0 ? void 0 : item.type) !== 'section') indexes.set(key, ++i);
++            }
++            break;
++        }
++        $omni$rowIndexes.set(collection, indexes);
++    }
++    var _indexes_get;
++    return indexes ? (_indexes_get = indexes.get(node.key)) !== null && _indexes_get !== void 0 ? _indexes_get : 0 : node.index + 1;
++}
++
+ function $7d08662b45460e3b$export$9610e69494fadfd2(props, state, ref) {
+     var _node_props, _node_props1;
+     // Copied from useGridCell + some modifications to make it not so grid specific
+@@ -294,16 +318,7 @@ function $7d08662b45460e3b$export$9610e69494fadfd2(props, state, ref) {
+     };
+     if (isVirtualized) {
+         let { collection: collection } = state;
+-        let nodes = [
+-            ...collection
+-        ];
+-        // TODO: refactor ListCollection to store an absolute index of a node's position?
+-        rowProps['aria-rowindex'] = nodes.find((node)=>node.type === 'section') ? [
+-            ...collection.getKeys()
+-        ].filter((key)=>{
+-            var _collection_getItem;
+-            return ((_collection_getItem = collection.getItem(key)) === null || _collection_getItem === void 0 ? void 0 : _collection_getItem.type) !== 'section';
+-        }).findIndex((key)=>key === node.key) + 1 : node.index + 1;
++        rowProps['aria-rowindex'] = $omni$rowIndex(collection, node);
+     }
+     let gridCellProps = {
+         role: 'gridcell',
+diff --git a/dist/private/gridlist/useGridListItem.mjs b/dist/private/gridlist/useGridListItem.mjs
+index be18c68f9c3325e33e839ec9a11927ba0cbbe2c8..95b909645fddd107c6d1b388e4dc1fc681d604ca 100644
+--- a/dist/private/gridlist/useGridListItem.mjs
++++ b/dist/private/gridlist/useGridListItem.mjs
+@@ -49,6 +49,30 @@ const $be7bed9611dd7497$var$EXPANSION_KEYS = {
+         rtl: 'ArrowRight'
+     }
+ };
++
++// Patched (Omni): a virtualized row's aria-rowindex was computed by spreading the whole
++// collection on every row render, so scrolling cost grew with the number of loaded rows. Row
++// indexes are now computed once per collection snapshot (collections are immutable).
++const $omni$rowIndexes = new WeakMap();
++function $omni$rowIndex(collection, node) {
++    let indexes = $omni$rowIndexes.get(collection);
++    if (indexes === undefined) {
++        indexes = null;
++        for (let n of collection)if (n.type === 'section') {
++            indexes = new Map();
++            let i = 0;
++            for (let key of collection.getKeys()){
++                let item = collection.getItem(key);
++                if ((item === null || item === void 0 ? void 0 : item.type) !== 'section') indexes.set(key, ++i);
++            }
++            break;
++        }
++        $omni$rowIndexes.set(collection, indexes);
++    }
++    var _indexes_get;
++    return indexes ? (_indexes_get = indexes.get(node.key)) !== null && _indexes_get !== void 0 ? _indexes_get : 0 : node.index + 1;
++}
++
+ function $be7bed9611dd7497$export$9610e69494fadfd2(props, state, ref) {
+     // Copied from useGridCell + some modifications to make it not so grid specific
+     let { node: node, isVirtualized: isVirtualized, focusMode: focusMode = 'row', allowsArrowNavigation: allowsArrowNavigation } = props;
+@@ -291,13 +315,7 @@ function $be7bed9611dd7497$export$9610e69494fadfd2(props, state, ref) {
+     };
+     if (isVirtualized) {
+         let { collection: collection } = state;
+-        let nodes = [
+-            ...collection
+-        ];
+-        // TODO: refactor ListCollection to store an absolute index of a node's position?
+-        rowProps['aria-rowindex'] = nodes.find((node)=>node.type === 'section') ? [
+-            ...collection.getKeys()
+-        ].filter((key)=>collection.getItem(key)?.type !== 'section').findIndex((key)=>key === node.key) + 1 : node.index + 1;
++        rowProps['aria-rowindex'] = $omni$rowIndex(collection, node);
+     }
+     let gridCellProps = {
+         role: 'gridcell',

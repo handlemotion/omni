@@ -10,3 +10,6 @@ allowBuilds:
   lefthook: true
   workerd: true
   sharp: false
+
+patchedDependencies:
+  react-aria@3.53.1: patches/react-aria@3.53.1.patch
