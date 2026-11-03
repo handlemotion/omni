@@ -2,7 +2,7 @@
 
 import { DialogCloseIcon } from "./dialog";
 
-import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import { IconChevronDownSmall } from "@/components/icons/sidebar";
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type ButtonProps, Button as PrimitiveButton } from "react-aria-components/Button";
 import { composeRenderProps } from "react-aria-components/composeRenderProps";
@@ -34,7 +34,7 @@ import { Button } from "./button";
 import { Link } from "./link";
 import { TooltipTrigger, Tooltip } from "./tooltip";
 
-const SIDEBAR_WIDTH = "17rem";
+const SIDEBAR_WIDTH = "var(--spacing-sidebar)";
 const SIDEBAR_WIDTH_DOCK = "3.25rem";
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -280,7 +280,7 @@ export function Sidebar({
         <div
           data-sidebar="default"
           data-slot="sidebar-inner"
-          className="text-sidebar-foreground group-data-[intent=float]:border-sidebar-border group-data-[intent=float]:bg-sidebar flex size-full flex-col group-data-[intent=float]:rounded-lg group-data-[intent=float]:border group-data-[intent=float]:shadow-xs"
+          className="gap-3 p-2 text-sidebar-foreground group-data-[intent=float]:border-sidebar-border group-data-[intent=float]:bg-sidebar flex size-full flex-col group-data-[intent=float]:rounded-lg group-data-[intent=float]:border group-data-[intent=float]:shadow-xs"
         >
           {children}
         </div>
@@ -295,12 +295,7 @@ export function SidebarHeader({ className, ref, ...props }: React.ComponentProps
     <div
       ref={ref}
       data-slot="sidebar-header"
-      className={cn(
-        "flex flex-col gap-2 p-2.5 [.border-b]:border-sidebar-border",
-        "in-data-[intent=inset]:p-4",
-        state === "collapsed" ? "items-center p-2.5" : "p-4",
-        className,
-      )}
+      className={cn("flex items-center gap-2.5", state === "collapsed" && "flex-col", className)}
       {...props}
     />
   );
@@ -310,11 +305,7 @@ export function SidebarFooter({ className, ...props }: React.ComponentProps<"div
   return (
     <div
       data-slot="sidebar-footer"
-      className={cn([
-        "mt-auto flex shrink-0 items-center justify-center p-4 **:data-[slot=chevron]:text-muted-foreground",
-        "in-data-[intent=inset]:px-6 in-data-[intent=inset]:py-4",
-        className,
-      ])}
+      className={cn(["mt-auto flex shrink-0 items-center", className])}
       {...props}
     />
   );
@@ -322,37 +313,12 @@ export function SidebarFooter({ className, ...props }: React.ComponentProps<"div
 
 export function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
   const { state } = useSidebar();
-  const [isAtBottom, setIsAtBottom] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const check = () => {
-      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 1;
-      setIsAtBottom(atBottom);
-    };
-
-    check();
-    el.addEventListener("scroll", check, { passive: true });
-
-    const observer = new ResizeObserver(check);
-    observer.observe(el);
-
-    return () => {
-      el.removeEventListener("scroll", check);
-      observer.disconnect();
-    };
-  }, []);
-
   return (
     <div
-      ref={ref}
       data-slot="sidebar-content"
       className={cn(
-        "flex min-h-0 flex-1 scroll-mb-96 flex-col overflow-auto *:data-[slot=sidebar-section]:border-l-0",
-        state === "collapsed" ? "items-center" : !isAtBottom && "mask-b-from-95%",
+        "flex min-h-0 flex-1 flex-col gap-3 overflow-auto",
+        state === "collapsed" && "items-center",
         className,
       )}
       {...props}
@@ -387,22 +353,15 @@ export function SidebarSection({ className, ...props }: SidebarSectionProps) {
   return (
     <div
       data-slot="sidebar-section"
-      className={cn(
-        "col-span-full flex min-w-0 flex-col gap-y-0.5 **:data-[slot=sidebar-section]:**:gap-y-0",
-        "in-data-[state=collapsed]:p-2 p-4",
-        className,
-      )}
+      className={cn("flex min-w-0 flex-col gap-y-0.5", className)}
       {...props}
     >
       {state !== "collapsed" && "label" in props && (
-        <Header className="text-sidebar-foreground/70 ring-sidebar-ring mb-1 flex shrink-0 items-center rounded-md px-2 text-xs/6 transition-[margin,opa] duration-200 ease-linear outline-none group-data-[collapsible=dock]:-mt-8 group-data-[collapsible=dock]:opacity-0 *:[svg]:size-4 *:[svg]:shrink-0">
+        <Header className="flex h-8 shrink-0 items-center px-2.25 text-xs text-subtle-foreground">
           {props.label}
         </Header>
       )}
-      <div
-        data-slot="sidebar-section-inner"
-        className="grid grid-cols-[auto_1fr] gap-y-0.5 in-data-[state=collapsed]:gap-y-1.5 *:data-[slot=control]:col-span-full"
-      >
+      <div data-slot="sidebar-section-inner" className="flex flex-col gap-y-0.5">
         {props.children}
       </div>
     </div>
@@ -436,27 +395,14 @@ export function SidebarItem({
       aria-current={isCurrent ? "page" : undefined}
       className={composeRenderProps(
         className,
-        (className, { isFocusVisible, isPressed, isHovered, isDisabled }) =>
+        (className, { isFocusVisible, isHovered, isDisabled }) =>
           cn(
-            "w-full min-w-0 items-center rounded-lg p-2 text-start font-medium text-base/6 text-sidebar-foreground has-[a]:p-0",
-            "group/sidebar-item relative col-span-full overflow-hidden focus-visible:outline-hidden",
-            "grid grid-cols-[auto_1fr_1.5rem_0.5rem_auto] supports-[grid-template-columns:subgrid]:grid-cols-subgrid sm:text-sm/5 **:last:[svg]:ms-auto",
-            // icon
-            "[&_svg:not([class*='size-'])]:size-5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground **:[svg]:shrink-0",
-            "**:last:[svg]:size-5 sm:**:last:[svg]:size-4",
-            "[&:has(svg+[data-slot=sidebar-label])_svg:has(+[data-slot=sidebar-label])]:me-2",
-
-            // avatar
-            "**:data-[slot=avatar]:[--avatar-size:--spacing(5)]",
-            "[&:has([data-slot=avatar]+[data-slot=sidebar-label])_[data-slot=avatar]:has(+[data-slot=sidebar-label])]:me-2",
-            "[--sidebar-current-background:var(--color-sidebar-primary)] [--sidebar-current-foreground:var(--color-sidebar-primary-foreground)]",
-            isCurrent &&
-              "font-medium text-(--sidebar-current-foreground) hover:bg-(--sidebar-current-background) hover:text-(--sidebar-current-foreground) [&_.text-muted-foreground]:text-foreground/80 [&_svg:not([class*='text-'])]:text-(--sidebar-current-foreground) hover:[&_svg:not([class*='text-'])]:text-(--sidebar-current-foreground)",
-            isFocusVisible && "inset-ring inset-ring-sidebar-ring outline-hidden",
-            isPressed &&
-              "bg-sidebar-accent text-sidebar-accent-foreground [&_svg:not([class*='text-'])]:text-sidebar-accent-foreground",
-            isHovered &&
-              "bg-sidebar-accent text-sidebar-accent-foreground [&_svg:not([class*='text-'])]:text-sidebar-accent-foreground",
+            "flex h-8 w-full min-w-0 items-center gap-2.5 rounded-lg px-2 text-start text-sm text-sidebar-foreground",
+            "group/sidebar-item relative overflow-hidden focus-visible:outline-hidden",
+            "**:[svg]:shrink-0 [&_svg:not([class*='text-'])]:text-muted-foreground",
+            isCurrent && "bg-sidebar-accent [&_svg:not([class*='text-'])]:text-foreground",
+            isHovered && "[&_svg:not([class*='text-'])]:text-foreground",
+            isFocusVisible && "inset-ring inset-ring-sidebar-ring",
             isDisabled && "opacity-50",
             className,
           ),
@@ -576,12 +522,11 @@ export interface SidebarDisclosureProps extends DisclosureProps {
 }
 
 export function SidebarDisclosure({ className, ref, ...props }: SidebarDisclosureProps) {
-  const { state } = useSidebar();
   return (
     <Disclosure
       ref={ref}
       data-slot="sidebar-disclosure"
-      className={cx("col-span-full min-w-0", state === "collapsed" ? "px-2" : "px-4", className)}
+      className={cx("flex min-w-0 flex-col gap-y-0.5", className)}
       {...props}
     />
   );
@@ -602,23 +547,14 @@ export function SidebarDisclosureTrigger({
       <PrimitiveButton
         ref={ref}
         slot="trigger"
-        className={composeRenderProps(
-          className,
-          (className, { isPressed, isFocusVisible, isHovered, isDisabled }) =>
-            cn(
-              "flex w-full min-w-0 items-center rounded-lg text-start font-medium text-base/6 text-sidebar-foreground",
-              "group/sidebar-disclosure-trigger relative col-span-full overflow-hidden focus-visible:outline-hidden",
-              "**:[svg]:size-5 **:[svg]:shrink-0 **:[svg]:text-muted-foreground sm:**:[svg]:size-4",
-              "**:last:[svg]:size-5 sm:**:last:[svg]:size-4",
-              "**:data-[slot=avatar]:size-6 sm:**:data-[slot=avatar]:size-5",
-              "col-span-full gap-3 p-2 **:data-[slot=chevron]:text-muted-foreground sm:gap-2 sm:text-sm/5 **:last:[svg]:ms-auto",
-
-              isFocusVisible && "inset-ring inset-ring-ring/70",
-              (isPressed || isHovered) &&
-                "bg-sidebar-accent text-sidebar-accent-foreground **:data-[slot=chevron]:text-sidebar-accent-foreground **:[svg]:text-sidebar-accent-foreground **:last:[svg]:text-sidebar-accent-foreground",
-              isDisabled && "opacity-50",
-              className,
-            ),
+        className={composeRenderProps(className, (className, { isFocusVisible, isDisabled }) =>
+          cn(
+            "flex h-8 w-full min-w-0 items-center gap-1 px-2.25 text-start text-xs text-subtle-foreground",
+            "group/sidebar-disclosure-trigger relative focus-visible:outline-hidden",
+            isFocusVisible && "inset-ring inset-ring-ring/70",
+            isDisabled && "opacity-50",
+            className,
+          ),
         )}
         {...props}
       >
@@ -626,9 +562,9 @@ export function SidebarDisclosureTrigger({
           <>
             {typeof props.children === "function" ? props.children(values) : props.children}
             {state !== "collapsed" && (
-              <ChevronDownIcon
+              <IconChevronDownSmall
                 data-slot="chevron"
-                className="z-10 ms-auto size-3.5 transition-transform duration-200 group-aria-expanded/sidebar-disclosure-trigger:rotate-180"
+                className="mt-0.5 transition-transform duration-200 group-not-aria-expanded/sidebar-disclosure-trigger:-rotate-90"
               />
             )}
           </>
@@ -648,10 +584,7 @@ export function SidebarDisclosurePanel({ className, ...props }: DisclosurePanelP
       )}
       {...props}
     >
-      <div
-        data-slot="sidebar-disclosure-panel-content"
-        className="col-span-full grid grid-cols-[auto_1fr] gap-y-0.5 in-data-[state=collapsed]:gap-y-1.5"
-      >
+      <div data-slot="sidebar-disclosure-panel-content" className="flex flex-col gap-y-0.5">
         {props.children}
       </div>
     </DisclosurePanel>
@@ -746,7 +679,7 @@ export function SidebarLabel({ className, ref, ...props }: React.ComponentProps<
         data-slot="sidebar-label"
         tabIndex={-1}
         ref={ref}
-        className={cn("col-start-2 truncate pe-6 outline-hidden", className)}
+        className={cn("truncate outline-hidden", className)}
         {...props}
       />
     );

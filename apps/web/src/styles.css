@@ -15,6 +15,7 @@
   --muted-foreground: #858585;
   --subtle-foreground: #a6a6a6;
   --border: #e8e8e8;
+  --accent: #f3f3f3;
   --primary: #0d3eef;
   --primary-foreground: #ffffff;
 
@@ -33,12 +34,11 @@
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary-subtle);
   --sidebar-primary-foreground: var(--primary);
-  --sidebar-accent: var(--secondary);
+  --sidebar-accent: var(--accent);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
   --secondary-foreground: var(--foreground);
-  --accent: var(--secondary);
   --accent-foreground: var(--foreground);
   --primary-subtle: color-mix(in oklab, var(--primary) 12%, transparent);
   --primary-subtle-foreground: var(--primary);
@@ -80,6 +80,7 @@
   --radius-xl: 8px;
 
   --spacing-icon: 15px;
+  --spacing-sidebar: 275px;
 
   --color-background: var(--background);
   --color-surface: var(--surface);
@@ -166,5 +167,31 @@
     min-height: 44px;
     min-width: 44px;
     z-index: 9999;
+  }
+}
+
+/* Loading text: a highlight sweeps across the text in its own color. */
+@utility shimmer {
+  background: linear-gradient(
+      90deg,
+      currentColor 40%,
+      color-mix(in oklab, currentColor 35%, transparent) 50%,
+      currentColor 60%
+    )
+    0 0 / 300% 100%;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 1.6s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
   }
 }
