@@ -1,8 +1,11 @@
-import { ArrowsPointingOutIcon, ViewColumnsIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowsPointingOutIcon,
+  PencilSquareIcon,
+  ViewColumnsIcon,
+} from "@heroicons/react/24/outline";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Key, Selection } from "react-aria-components";
-import { IconWrite } from "@/components/icons/sidebar";
 import { buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
 import { SearchField, SearchInput } from "@/components/ui/search-field";
@@ -44,7 +47,6 @@ export function ThreadList(props: {
           {unread > 0 && <span className="ms-1 text-primary tabular-nums">{unread}</span>}
         </Heading>
         <div className="ms-auto flex items-center gap-2">
-          <Search />
           <ToggleGroup
             size="sq-xs"
             aria-label="View"
@@ -64,8 +66,9 @@ export function ThreadList(props: {
             </ToggleGroupItem>
           </ToggleGroup>
           <Separator orientation="vertical" className="mx-1 h-4" />
+          <Search />
           <Link href="/compose" className={buttonStyles({ intent: "primary" })}>
-            <IconWrite />
+            <PencilSquareIcon />
             Compose
           </Link>
         </div>
