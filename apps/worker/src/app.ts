@@ -7,6 +7,7 @@ import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
 import { mail } from "./routes/mail.ts";
 import { mailboxMembers } from "./routes/mailbox-members.ts";
+import { onboarding } from "./routes/onboarding.ts";
 
 function allowedOrigins(config: Config) {
   return new Set([new URL(config.auth.baseURL).origin, ...config.auth.trustedOrigins]);
@@ -45,6 +46,8 @@ export const app = new Hono<AppEnv>()
   /** Public: which sign-in buttons the login page shows. Google needs its OAuth client set. */
   .get("/api/sign-in-methods", (c) => c.json({ google: c.var.config.auth.google !== undefined }))
   .on(["GET", "POST"], "/api/auth/*", (c) => c.var.auth.handler(c.req.raw))
+  // Before `api`: its first route works for a user who has no organization yet.
+  .route("/api/onboarding", onboarding)
   .route("/api", api)
   .onError((error, c) => {
     if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);

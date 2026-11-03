@@ -49,8 +49,8 @@
   --chart-5: color-mix(in oklab, var(--primary) 20%, white);
 
   /* Status colors: not designed yet, Intent UI defaults until they are. */
-  --danger: oklch(0.577 0.245 27.325);
-  --danger-foreground: oklch(0.971 0.013 17.38);
+  --danger: #e54666; /* From the onboarding reference. */
+  --danger-foreground: #ffffff;
   --danger-subtle: oklch(0.637 0.237 25.331 / 0.15);
   --danger-subtle-foreground: oklch(0.505 0.213 27.518);
   --success: oklch(0.596 0.145 163.225);

@@ -1,7 +1,13 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import {
+  findMemberDomain,
+  listMemberDomains,
+  mailDomainOwner,
+  saveMailDomain,
+} from "../src/domains.ts";
 import { forMember } from "../src/for-member.ts";
-import { threadState, threads } from "../src/schema/index.ts";
+import { members, threadState, threads } from "../src/schema/index.ts";
 import { createThread, enqueueAction, upsertMessage } from "../src/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
 
@@ -318,4 +324,34 @@ test("thread pages and search merge granted mailboxes newest first, each row onc
   // Thread ids are UUIDv7 in creation order, and so are message ids here: same tie order.
   const hits = await scoped.search("walrus", { limit: 3 });
   expect(hits.map((h) => h.messageId)).toEqual(visible.slice(0, 3).map((s) => s.messageId));
+});
+
+test("a domain claim is visible only to its own org's owners and admins, and never changes hands", async () => {
+  const orgA = await createOrg(db, "domains-a");
+  const orgB = await createOrg(db, "domains-b");
+  const owner = await createMember(db, orgA.id, "domain-owner");
+  await db.update(members).set({ role: "owner" }).where(eq(members.id, owner.id));
+  const plain = await createMember(db, orgA.id, "domain-member");
+  const outsider = await createMember(db, orgB.id, "domain-outsider");
+  await db.update(members).set({ role: "owner" }).where(eq(members.id, outsider.id));
+
+  const claim = {
+    domain: "claimed.test",
+    provider: "imap" as const,
+    dnsRecords: [],
+    added: true,
+    verified: true,
+  };
+  const row = await saveMailDomain(db, { ...claim, orgId: orgA.id });
+  expect(row).toMatchObject({ orgId: orgA.id, domain: "claimed.test" });
+  // A second org's claim, even racing past the Worker's check, never takes the row over.
+  expect(await saveMailDomain(db, { ...claim, orgId: orgB.id })).toBeNull();
+  expect(await mailDomainOwner(db, "claimed.test")).toBe(orgA.id);
+
+  expect((await listMemberDomains(db, owner.id)).map((d) => d.id)).toEqual([row!.id]);
+  expect(await findMemberDomain(db, owner.id, row!.id)).toMatchObject({ id: row!.id });
+  expect(await listMemberDomains(db, plain.id)).toEqual([]);
+  expect(await findMemberDomain(db, plain.id, row!.id)).toBeNull();
+  expect(await listMemberDomains(db, outsider.id)).toEqual([]);
+  expect(await findMemberDomain(db, outsider.id, row!.id)).toBeNull();
 });

@@ -23,6 +23,10 @@ WEB_APP_URL=http://localhost:5173
 GOOGLE_CLIENT_ID=
 # Secret.
 GOOGLE_CLIENT_SECRET=
+# Optional. Who may create a workspace (organization) in the app's onboarding: "owners" (default:
+# people who already own one; the first comes from `pnpm --filter @omni/db org:create`) or
+# "anyone" signed in. Sign-up stays invitation-only either way.
+ORGANIZATION_CREATION=
 
 # --- Mail service ---
 # Base URL of apps/mail. The Worker pings it after writing to the outbox.

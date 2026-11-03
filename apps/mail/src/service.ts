@@ -10,6 +10,8 @@ import type { Logger } from "./log.ts";
 import { WorkerNotifier } from "./notify.ts";
 import { createS3Store } from "./objects.ts";
 import { PgActionSource, PgMailStore } from "./pg-store.ts";
+import { createPurelymailClient } from "./providers/purelymail.ts";
+import { createProvisioner } from "./provisioning.ts";
 import { Supervisor } from "./supervisor.ts";
 
 export type ServiceConfig = Pick<
@@ -28,7 +30,8 @@ export type ServiceConfig = Pick<
   | "S3_REGION"
   | "IMAGE_PROXY_URL"
   | "ATTACHMENT_URL"
->;
+> &
+  Partial<Pick<Config, "PURELYMAIL_API_TOKEN">>;
 
 export interface MailService {
   app: Hono;
@@ -138,7 +141,22 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     config.SYNC_INTERVAL_MS,
   );
 
+  const provisioner = createProvisioner({
+    db,
+    keyring: config.MAIL_CREDENTIALS_KEY,
+    purelymail: config.PURELYMAIL_API_TOKEN
+      ? createPurelymailClient(config.PURELYMAIL_API_TOKEN)
+      : undefined,
+    connect: async (mailboxId) => {
+      if (supervisor.has(mailboxId)) await supervisor.remove(mailboxId);
+      await reconcileMailboxes();
+    },
+    logger: log,
+  });
+
   const app = createApp({
+    provisioner,
+    onError: (error) => log.error("http.error", { error }),
     verify: hmacVerifier(config.MAIL_SERVICE_HMAC_SECRET, {
       onReject: (reason) => log.warn("http.ping_rejected", { reason }),
     }),
