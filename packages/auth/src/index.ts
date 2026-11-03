@@ -55,6 +55,11 @@ export const authEnvSchema = z
     /** Google OAuth client. Both set turns on "Sign in with Google"; neither leaves it off. */
     GOOGLE_CLIENT_ID: optionalText,
     GOOGLE_CLIENT_SECRET: optionalText,
+    /**
+     * Who may create an organization in the app: `owners` (people who already own one; the first
+     * comes from the `org:create` CLI) or `anyone` signed in. Sign-up stays invitation-only.
+     */
+    ORGANIZATION_CREATION: optionalText.pipe(z.enum(["owners", "anyone"]).default("owners")),
   })
   .refine((env) => !env.GOOGLE_CLIENT_ID === !env.GOOGLE_CLIENT_SECRET, {
     path: ["GOOGLE_CLIENT_SECRET"],
@@ -72,6 +77,7 @@ export const authEnvSchema = z
       env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
         ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
         : undefined,
+    organizationCreation: env.ORGANIZATION_CREATION,
   }));
 
 export type AuthConfig = z.output<typeof authEnvSchema>;
@@ -81,8 +87,13 @@ export function parseAuthEnv(env: Record<string, unknown>): AuthConfig {
   return authEnvSchema.parse(env);
 }
 
+export type OrganizationCreation = AuthConfig["organizationCreation"];
+
 export interface AuthEnv extends Partial<
-  Pick<AuthConfig, "trustedOrigins" | "passkeyRpId" | "appName" | "webAppURL" | "google">
+  Pick<
+    AuthConfig,
+    "trustedOrigins" | "passkeyRpId" | "appName" | "webAppURL" | "google" | "organizationCreation"
+  >
 > {
   db: Db;
   /** BETTER_AUTH_SECRET */
@@ -107,6 +118,24 @@ export async function maySignIn(db: Db, email: string) {
     .where(eq(sql`lower(${schema.users.email})`, address))
     .limit(1);
   return user !== undefined || (await hasPendingInvitation(db, address));
+}
+
+/**
+ * Whether `userId` may create an organization in the app under `policy`. `owners`: only someone
+ * who already owns one (they set up a second workspace); everyone else joins by invitation.
+ */
+export async function mayCreateOrganization(
+  db: Db,
+  userId: string,
+  policy: OrganizationCreation = "owners",
+) {
+  if (policy === "anyone") return true;
+  const [owned] = await db
+    .select({ id: schema.members.id })
+    .from(schema.members)
+    .where(and(eq(schema.members.userId, userId), eq(schema.members.role, "owner")))
+    .limit(1);
+  return owned !== undefined;
 }
 
 async function hasPendingInvitation(db: Db, email: string) {
@@ -191,8 +220,11 @@ export function createAuth(env: AuthEnv) {
         schema: { passkey: { modelName: "passkeys" } },
       }),
       organization({
-        // Organizations come from the `org:create` CLI; members join by invitation.
-        allowUserToCreateOrganization: false,
+        // The first organization comes from the `org:create` CLI; after that, per
+        // ORGANIZATION_CREATION (onboarding creates one, ADR 0007). Members join by invitation.
+        // The creator becomes its owner and it becomes their active organization.
+        allowUserToCreateOrganization: (user) =>
+          mayCreateOrganization(env.db, user.id, env.organizationCreation),
         sendInvitationEmail: ({ id, email, organization, inviter, invitation }) =>
           env.sendInvitation({
             invitationId: id,

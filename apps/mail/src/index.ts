@@ -10,3 +10,4 @@ export * from "./objects.ts";
 export * from "./notify.ts";
 export * from "./service.ts";
 export * from "./credentials.ts";
+export * from "./provisioning.ts";

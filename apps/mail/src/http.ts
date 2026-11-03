@@ -1,6 +1,14 @@
-import { MAIL_PING_PATH } from "@omni/contracts";
+import {
+  MAIL_PING_PATH,
+  PROVISION_DOMAIN_PATH,
+  PROVISION_MAILBOX_PATH,
+  provisionDomainBodySchema,
+  provisionMailboxBodySchema,
+} from "@omni/contracts";
 import { DEFAULT_MAX_AGE_SECONDS, verifyRequest } from "@omni/crypto";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
+import type { z } from "zod";
+import { ProvisionError, type Provisioner } from "./provisioning.ts";
 
 /** Decides whether a request really came from the Worker. */
 export type RequestVerifier = (request: Request) => Promise<boolean>;
@@ -52,6 +60,9 @@ export interface HttpDeps {
   onPing(): void;
   /** `ok: false` answers 503, so a host stops routing to (or fails the deploy of) this machine. */
   health(): Promise<{ ok: boolean } & Record<string, unknown>>;
+  /** Onboarding's domain and mailbox setup. Absent: those routes answer 404. */
+  provisioner?: Provisioner;
+  onError?(error: unknown): void;
 }
 
 export function createApp(deps: HttpDeps): Hono {
@@ -66,6 +77,37 @@ export function createApp(deps: HttpDeps): Hono {
     if (!(await deps.verify(c.req.raw))) return c.json({ error: "unauthorized" }, 401);
     deps.onPing();
     return c.json({ ok: true }, 202);
+  });
+
+  /** Verifies the signature, then parses the JSON body; null when the response is already set. */
+  async function signedBody<S extends z.ZodType>(c: Context, schema: S) {
+    if (!(await deps.verify(c.req.raw))) return c.json({ error: "unauthorized" }, 401);
+    if (!deps.provisioner) return c.json({ error: "not found" }, 404);
+    const parsed = schema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: "invalid body" }, 400);
+    return parsed.data as z.output<S>;
+  }
+
+  async function answer(c: Context, task: () => Promise<unknown>) {
+    try {
+      return c.json(await task());
+    } catch (error) {
+      if (error instanceof ProvisionError) return c.json({ error: error.message }, error.status);
+      deps.onError?.(error);
+      return c.json({ error: "internal error" }, 500);
+    }
+  }
+
+  app.post(PROVISION_DOMAIN_PATH, async (c) => {
+    const body = await signedBody(c, provisionDomainBodySchema);
+    if (body instanceof Response) return body;
+    return answer(c, () => deps.provisioner!.domain(body.domain));
+  });
+
+  app.post(PROVISION_MAILBOX_PATH, async (c) => {
+    const body = await signedBody(c, provisionMailboxBodySchema);
+    if (body instanceof Response) return body;
+    return answer(c, () => deps.provisioner!.mailbox(body));
   });
 
   return app;

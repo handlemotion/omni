@@ -101,6 +101,44 @@ export const mailboxes = pgTable(
   ],
 );
 
+/** A DNS record the provider asks for, with its last check. */
+export interface MailDomainRecord {
+  check: "ownership" | "mx" | "spf" | "dkim" | "dmarc";
+  type: "TXT" | "MX" | "CNAME";
+  name: string;
+  value: string;
+  priority?: number;
+  verified: boolean;
+}
+
+/**
+ * A domain an org set up mailboxes on (ADR 0007). Unique across orgs: the first org to claim a
+ * domain owns it, so no other org can create mailboxes on it through the provider API.
+ */
+export const mailDomains = pgTable(
+  "mail_domains",
+  {
+    id: id(),
+    orgId: orgId(),
+    /** Normalized: lowercase punycode, no trailing dot. */
+    domain: text("domain").notNull(),
+    provider: mailProvider("provider").notNull(),
+    /** Empty for `imap`: DNS belongs to the existing mail host. */
+    dnsRecords: jsonb("dns_records").$type<MailDomainRecord[]>().notNull().default([]),
+    /** When the provider accepted the domain (ownership proven). Set at claim for `imap`. */
+    addedAt: timestamptz("added_at"),
+    /** When every record last passed; null while any is waiting. */
+    verifiedAt: timestamptz("verified_at"),
+    checkedAt: timestamptz("checked_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("mail_domains_domain_unique").on(t.domain),
+    index("mail_domains_org_id_idx").on(t.orgId),
+  ],
+);
+
 export const mailboxFolders = pgTable(
   "mailbox_folders",
   {

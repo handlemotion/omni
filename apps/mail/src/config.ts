@@ -40,6 +40,14 @@ const schema = z.object({
     .default(5 * 60_000),
   OUTBOX_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
   MAILBOX_CONCURRENCY: z.coerce.number().int().positive().default(4),
+  /**
+   * Optional Purelymail admin API token. Set: onboarding adds domains, users and app passwords
+   * on that account. Unset: onboarding adds existing IMAP/SMTP logins only.
+   */
+  PURELYMAIL_API_TOKEN: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
 });
 
 export type Config = z.infer<typeof schema>;

@@ -2,7 +2,7 @@
 //
 //   omni
 //   ├─ session · device-sessions · sign-in-methods
-//   ├─ org ─ organizations · members · invitations · invitation(id) · passkeys
+//   ├─ org ─ organizations · members · invitations · invitation(id) · passkeys · onboarding
 //   ├─ mail ─ mailboxes · counts · threads(filter) · thread(id) · search(q) · action(id)
 //   └─ local ─ pending(threadId) · failures       (client-only state, never fetched)
 //
@@ -36,6 +36,7 @@ export const keys = {
   invitations: () => [...org, "invitations"] as const,
   invitation: (id: string) => [...org, "invitation", id] as const,
   passkeys: () => [...org, "passkeys"] as const,
+  onboarding: () => [...org, "onboarding"] as const,
 
   mail: () => mail,
   mailboxes: () => [...mail, "mailboxes"] as const,

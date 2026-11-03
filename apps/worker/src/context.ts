@@ -17,7 +17,7 @@ export interface Member {
 
 export interface AppEnv {
   Bindings: Env;
-  Variables: { config: Config; db: Db; auth: Auth; member: Member };
+  Variables: { config: Config; db: Db; auth: Auth; member: Member; user: SessionUser };
 }
 
 /**
@@ -69,11 +69,22 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
   }
 });
 
-/** Resolves the session to a member of its active org (or the user's first org). 401 without one. */
-export const requireMember = createMiddleware<AppEnv>(async (c, next) => {
-  const session = await c.var.auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session) throw new HTTPException(401, { message: "sign in first" });
+/** The signed-in user, from Better Auth's session. */
+export interface SessionUser {
+  id: string;
+  email: string;
+}
 
+/**
+ * The session's user and their member in the active org (or the user's first org), or null when
+ * signed out. `member` is null for a user who belongs to no organization yet.
+ */
+export async function resolveSession(c: {
+  req: { raw: Request };
+  var: { auth: Auth; db: Db };
+}): Promise<{ user: SessionUser; member: Member | null } | null> {
+  const session = await c.var.auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session) return null;
   const activeOrg = (session.session as { activeOrganizationId?: string | null })
     .activeOrganizationId;
   const [member] = await c.var.db
@@ -92,8 +103,17 @@ export const requireMember = createMiddleware<AppEnv>(async (c, next) => {
     )
     .orderBy(asc(schema.members.createdAt))
     .limit(1);
-  if (!member) throw new HTTPException(403, { message: "not a member of any organization" });
-  c.set("member", member);
+  return { user: { id: session.user.id, email: session.user.email }, member: member ?? null };
+}
+
+/** Resolves the session to a member of its active org (or the user's first org). 401 without one. */
+export const requireMember = createMiddleware<AppEnv>(async (c, next) => {
+  const resolved = await resolveSession(c);
+  if (!resolved) throw new HTTPException(401, { message: "sign in first" });
+  if (!resolved.member)
+    throw new HTTPException(403, { message: "not a member of any organization" });
+  c.set("user", resolved.user);
+  c.set("member", resolved.member);
   await next();
 });
 

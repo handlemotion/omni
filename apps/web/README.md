@@ -39,6 +39,7 @@ Components use `hooks/` only. `lib/` is how the hooks work.
 | `/`                          |                               | redirect to `/inbox`                        |
 | `/login`                     | `redirect?`, `error?`         | signed-in members are sent on to `redirect` |
 | `/invite/$invitationId`      |                               | the invitation (any signed-in user)         |
+| `/onboarding`                |                               | setup status (may create, or finishing one) |
 | `/inbox`, `/inbox/$threadId` | `mailbox?`, `lane?`           | first page of the list; the thread          |
 | `/snoozed`, `/snoozed/$id`   | `mailbox?`                    | same, snoozed view                          |
 | `/archive`, `/archive/$id`   | `mailbox?`                    | same, archive view                          |
@@ -48,7 +49,9 @@ Components use `hooks/` only. `lib/` is how the hooks work.
 | `/settings/organization`     |                               | members, invitations                        |
 
 Guards: `_authed` needs a user, `_authed/_member` needs a member of the active organization and
-loads mailboxes and counts for the shell. The thread routes are children of their list, so the
+loads mailboxes and counts for the shell. A user with no organization goes to `/onboarding` if
+they may create one (`ORGANIZATION_CREATION`), else to `/login?error=no_organization`; an owner or
+admin whose workspace has no mailboxes goes to `/onboarding` to finish it (ADR 0007). The thread routes are children of their list, so the
 list stays mounted (three panes) and the back button walks the URL history.
 
 ## How the data layer works
@@ -101,6 +104,7 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 | `useInvitation(id)`, `useAcceptInvitation()`, `useRejectInvitation()`                                                          | invitation; `mutate(id)`                     |
 | `useMembers()`, `useInvitations()`, `useInviteMember()`, `useCancelInvitation()`, `useRemoveMember()`, `useUpdateMemberRole()` | organization admin                           |
 | `usePasskeys()`, `useAddPasskey()`, `useDeletePasskey()`                                                                       | passkeys                                     |
+| `useOnboarding()`, `useCreateWorkspace()`, `useAddDomain()`, `useCheckDomain()`, `useCreateMailboxes()`                        | workspace setup (`hooks/use-onboarding.ts`)  |
 | `useMailboxes()`, `useCounts()`                                                                                                | sidebar data                                 |
 | `useThreads({ view, mailbox?, lane? })`                                                                                        | `{ threads, fetchNextPage, hasNextPage, … }` |
 | `useThread(id)`, `useSuspenseThread(id)`                                                                                       | `{ thread, pending, … }`                     |
