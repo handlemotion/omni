@@ -9,6 +9,7 @@ import {
   IconClock,
   IconEmail,
   IconHelp,
+  IconSettings,
   IconInbox,
   IconPaperPlane,
   IconSidebar,
@@ -17,7 +18,8 @@ import {
   IconWarning,
 } from "@/components/icons/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
+import { Link } from "@/components/ui/link";
 import { MailboxSwitcher } from "./mailbox-switcher";
 import {
   Sidebar,
@@ -109,15 +111,21 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="justify-between">
-        <Button
-          intent="plain"
-          size="xs"
-          isPending={signOut.isPending}
-          onPress={() => signOut.mutate()}
-        >
-          <IconCircleDashed />
-          Log Out
-        </Button>
+        <div className="flex items-center gap-0.5">
+          <Button
+            intent="plain"
+            size="xs"
+            isPending={signOut.isPending}
+            onPress={() => signOut.mutate()}
+          >
+            <IconCircleDashed />
+            Log Out
+          </Button>
+          <Link href="/settings" className={buttonStyles({ intent: "plain", size: "xs" })}>
+            <IconSettings />
+            Settings
+          </Link>
+        </div>
         <OfflineBadge />
         <Button intent="plain" size="sq-xs" aria-label="Help">
           <IconHelp />
