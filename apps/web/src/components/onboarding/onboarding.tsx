@@ -63,7 +63,7 @@ function OnboardingPage(props: { page: number; onBack?: () => void; children: Re
 function StepProgress(props: { current: number; names: readonly string[] }) {
   const { current, names } = props;
   return (
-    <div className="flex flex-col gap-2 pt-12">
+    <div className="flex flex-col gap-3 pt-12">
       <span className="text-sm text-muted-foreground">
         Step {current + 1} of {names.length}
         <span className="text-subtle-foreground"> · </span>
