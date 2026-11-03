@@ -63,6 +63,14 @@ EXPO_ACCESS_TOKEN=
 # and credentials; their environment tag is ENVIRONMENT.
 SENTRY_DSN=
 
+# --- Domain Connect (ADR 0011, docs/domain-connect/) ---
+# Optional. The providerId our templates are published under. Empty hides "Set up automatically".
+DOMAIN_CONNECT_PROVIDER_ID=
+# Optional. Host of the TXT record with our public key, for templates that require signing.
+DOMAIN_CONNECT_KEY_HOST=
+# Secret, optional. PKCS#8 PEM private key that signs apply URLs (with DOMAIN_CONNECT_KEY_HOST).
+DOMAIN_CONNECT_PRIVATE_KEY=
+
 # DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse private addresses.
 IMAGE_PROXY_DOH_URL=https://cloudflare-dns.com/dns-query
 # production (default), development or test. Only "test" allows test-only switches.

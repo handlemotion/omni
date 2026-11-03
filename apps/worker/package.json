@@ -31,8 +31,10 @@
     "@cloudflare/workers-types": "^5.20261030.1",
     "@hono/node-server": "^2.1.5",
     "@omni/mail": "workspace:*",
+    "@types/dns-packet": "^5.6.5",
     "@types/nodemailer": "^8.0.2",
     "aws4fetch": "1.0.20",
+    "dns-packet": "5.6.1",
     "imapflow": "^2.10.0",
     "nodemailer": "^10.3.1",
     "wrangler": "^4.156.0"

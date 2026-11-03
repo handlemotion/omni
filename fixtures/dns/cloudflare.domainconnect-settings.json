@@ -1,0 +1,7 @@
+{
+  "providerId": "cloudflare.com",
+  "providerName": "cloudflare",
+  "providerDisplayName": "Cloudflare",
+  "urlSyncUX": "https://dash.cloudflare.com/domainconnect",
+  "urlAPI": "https://api.cloudflare.com/client/v4/dns/domainconnect"
+}

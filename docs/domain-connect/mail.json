@@ -1,0 +1,58 @@
+{
+  "providerId": "example.com",
+  "providerName": "Omni",
+  "serviceId": "mail",
+  "serviceName": "Omni mail on Purelymail",
+  "version": 1,
+  "logoUrl": "https://example.com/logo.png",
+  "description": "Proves the domain belongs to your Omni workspace and points its mail at Purelymail.",
+  "variableDescription": "challenge: Omni's ownership value for this claim. ownership: the Purelymail account's ownership code.",
+  "syncBlock": false,
+  "syncPubKeyDomain": "example.com",
+  "syncRedirectDomain": "example.com",
+  "hostRequired": false,
+  "records": [
+    {
+      "type": "TXT",
+      "host": "_omni-challenge",
+      "data": "%challenge%",
+      "ttl": 300,
+      "txtConflictMatchingMode": "Prefix",
+      "txtConflictMatchingPrefix": "omni-challenge="
+    },
+    {
+      "type": "TXT",
+      "host": "@",
+      "data": "%ownership%",
+      "ttl": 3600,
+      "txtConflictMatchingMode": "None"
+    },
+    {
+      "type": "MX",
+      "host": "@",
+      "pointsTo": "mailserver.purelymail.com",
+      "priority": 50,
+      "ttl": 3600
+    },
+    { "type": "SPFM", "host": "@", "spfRules": "include:_spf.purelymail.com" },
+    {
+      "type": "CNAME",
+      "host": "purelymail1._domainkey",
+      "pointsTo": "key1.dkimroot.purelymail.com",
+      "ttl": 3600
+    },
+    {
+      "type": "CNAME",
+      "host": "purelymail2._domainkey",
+      "pointsTo": "key2.dkimroot.purelymail.com",
+      "ttl": 3600
+    },
+    {
+      "type": "CNAME",
+      "host": "purelymail3._domainkey",
+      "pointsTo": "key3.dkimroot.purelymail.com",
+      "ttl": 3600
+    },
+    { "type": "CNAME", "host": "_dmarc", "pointsTo": "dmarcroot.purelymail.com", "ttl": 3600 }
+  ]
+}

@@ -1,59 +1,63 @@
-// Onboarding (ADR 0007): what a new workspace has set up so far, adding its domain, and creating
-// its mailboxes. The workspace itself is Better Auth's `organization.create`; invitations are
-// Better Auth's too. Provider work (Purelymail, IMAP logins) happens only in the mail service,
-// which the Worker asks over the signed channel; the Worker never holds a mailbox credential.
+// Onboarding (ADR 0007): what a new workspace has set up so far, claiming its domain (ADR 0010),
+// and creating its mailboxes. The workspace itself is Better Auth's `organization.create`;
+// invitations are Better Auth's too. Provider work (Purelymail, IMAP logins) and DNS lookups happen
+// only in the mail service, which the Worker asks over the signed channel; the Worker never holds
+// a mailbox credential.
 import { zValidator } from "@hono/zod-validator";
 import { mayCreateOrganization } from "@omni/auth";
 import {
-  PROVISION_DOMAIN_PATH,
   PROVISION_MAILBOX_PATH,
-  provisionDomainResultSchema,
   provisionMailboxResultSchema,
   type ProvisionMailboxBody,
 } from "@omni/contracts";
+import { newChallenge } from "@omni/crypto";
 import {
   advanceOrgSetup,
   DOMAIN_ADMIN_ROLES,
   findMemberDomain,
+  listDomainAudit,
   listMemberDomains,
   listMemberMailboxes,
-  mailDomainOwner,
   orgSetupStep,
-  saveMailDomain,
+  releaseDomain,
+  roleInOrg,
+  rotateChallenge,
   schema,
   SETUP_STEPS,
-  type MailDomain,
+  transferDomain,
 } from "@omni/db";
+import { mailboxAddress, parseDomain } from "@omni/mail-core/domains";
 import { eq } from "drizzle-orm";
-import { mailboxAddress, normalizeDomain } from "@omni/mail-core/domains";
 import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { requireMember, resolveSession, type AppEnv } from "../context.ts";
+import {
+  audit,
+  checkDomain,
+  claimDomain,
+  DomainError,
+  type DomainDeps,
+  domainView,
+  notifyOwners,
+  orgName,
+  withCheck,
+} from "../domains.ts";
+import { domainConnectUrl } from "../dns-check.ts";
 import { callMailService, MailServiceError } from "../mail-service.ts";
-
-/** What the onboarding screen shows for a domain. */
-function domainView(row: MailDomain, addError?: string) {
-  return {
-    id: row.id,
-    domain: row.domain,
-    /** `purelymail`: records to add below. `imap`: mailboxes are existing logins on your host. */
-    provider: row.provider,
-    records: row.dnsRecords,
-    /** The provider accepted the domain, so mailboxes can be created on it. */
-    added: row.addedAt !== null,
-    /** Every record passed at the last check. */
-    verified: row.verifiedAt !== null,
-    checkedAt: row.checkedAt?.toISOString() ?? null,
-    /** Why the provider would not add it yet, in its words (usually: no ownership record). */
-    ...(addError ? { addError } : {}),
-  };
-}
 
 const requireDomainAdmin = createMiddleware<AppEnv>(async (c, next) => {
   if (!(DOMAIN_ADMIN_ROLES as readonly string[]).includes(c.var.member.role)) {
     throw new HTTPException(403, { message: "only owners and admins can set up mail" });
+  }
+  await next();
+});
+
+/** Releasing or moving a domain cannot be undone by the same workspace: owners only. */
+const requireOwner = createMiddleware<AppEnv>(async (c, next) => {
+  if (c.var.member.role !== "owner") {
+    throw new HTTPException(403, { message: "only owners can release or move a domain" });
   }
   await next();
 });
@@ -65,38 +69,49 @@ function fromMailService(error: unknown): never {
   throw error;
 }
 
-/** Adds the domain at the provider if needed, re-checks its DNS, and records the claim. */
-async function refreshDomain(c: Context<AppEnv>, domain: string) {
-  const { db, member } = c.var;
-  const owner = await mailDomainOwner(db, domain);
-  if (owner && owner !== member.orgId) {
-    throw new HTTPException(409, { message: `${domain} is already set up by another workspace` });
-  }
-  const result = await callMailService(
-    c.var,
-    PROVISION_DOMAIN_PATH,
-    { domain },
-    provisionDomainResultSchema,
-  ).catch(fromMailService);
-  const records = result.provider === "purelymail" ? result.records : [];
-  const row = await saveMailDomain(db, {
-    orgId: member.orgId,
-    domain,
-    provider: result.provider,
-    dnsRecords: records,
-    // Without a provider API there is nothing to prove: the mail host already serves the domain.
-    added: result.provider === "imap" || result.added,
-    verified: result.provider === "imap" || (result.added && records.every((r) => r.verified)),
-  });
-  if (!row) {
-    throw new HTTPException(409, { message: `${domain} is already set up by another workspace` });
-  }
-  return domainView(row, result.provider === "purelymail" ? result.addError : undefined);
+function deps(c: Context<AppEnv>): DomainDeps {
+  return {
+    db: c.var.db,
+    config: c.var.config,
+    requestId: c.var.requestId,
+    log: c.var.log,
+    waitUntil: (promise) => c.executionCtx.waitUntil(promise),
+  };
 }
 
-/** A domain that answered counts as added; once every record passes, as DNS verified. */
-async function domainStep(c: Context<AppEnv>, domain: string) {
-  const view = await refreshDomain(c, domain);
+/** Domain refusals become HTTP errors with their status. */
+async function domainCall<T>(task: () => Promise<T>): Promise<T> {
+  try {
+    return await task();
+  } catch (error) {
+    if (error instanceof DomainError)
+      throw new HTTPException(error.status, { message: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Per org, so one workspace hammering its DNS cannot slow anyone else's. Workers Rate Limiting
+ * is approximate per location, which is enough to stop loops and scripts.
+ */
+async function limit(c: Context<AppEnv>, limiter: RateLimit, what: string) {
+  const { success } = await limiter.limit({ key: c.var.member.orgId });
+  if (!success)
+    throw new HTTPException(429, { message: `too many ${what}: wait a minute and try again` });
+}
+
+/** The member's org's domain by id, or 404. */
+async function memberDomain(c: Context<AppEnv>) {
+  const setup = await findMemberDomain(c.var.db, c.var.member.id, c.req.param("id") ?? "");
+  if (!setup) throw new HTTPException(404, { message: "no such domain" });
+  return setup;
+}
+
+/**
+ * Resumable setup (ADR 0009): a claimed domain counts as added; once it is locked and every
+ * provider record passed, as DNS verified.
+ */
+async function domainStep<V extends { verified: boolean }>(c: Context<AppEnv>, view: V) {
   await advanceOrgSetup(
     c.var.db,
     c.var.member.orgId,
@@ -168,7 +183,7 @@ export const onboarding = new Hono<AppEnv>()
         /** How far setup got; `/onboarding` resumes here. */
         setup: await orgSetupStep(db, member.orgId),
       },
-      domains: domains.map((row) => domainView(row)),
+      domains: domains.map((setup) => domainView(setup)),
       mailboxes: mailboxes.map(({ id, address, kind, provider, status }) => ({
         id,
         address,
@@ -178,24 +193,176 @@ export const onboarding = new Hono<AppEnv>()
       })),
     });
   })
-  /** Claims a domain for the active org and returns the DNS records to add, each checked. */
+  /**
+   * Claims a domain for the active org (ADR 0010): returns Omni's challenge record, shown this
+   * once, and the provider's records, so all of them can go in at one visit to the DNS host.
+   * Claiming a domain the org already claimed returns that claim, without a new challenge.
+   */
   .post(
     "/domains",
     requireMember,
     requireDomainAdmin,
     zValidator("json", z.object({ domain: z.string().min(1).max(300) })),
     async (c) => {
-      const domain = normalizeDomain(c.req.valid("json").domain);
-      if (!domain) throw new HTTPException(400, { message: "that is not a domain name" });
-      return c.json(await domainStep(c, domain));
+      await limit(c, c.env.DOMAIN_ADD_LIMITER, "domains added");
+      const parsed = parseDomain(c.req.valid("json").domain);
+      if ("error" in parsed) throw new HTTPException(400, { message: parsed.error });
+      const { claim, challengeValue } = await domainCall(() =>
+        claimDomain(deps(c), c.var.member, parsed.domain),
+      );
+      const setup = (await findMemberDomain(c.var.db, c.var.member.id, claim.id)) ?? {
+        claim,
+        lock: null,
+      };
+      const url = await domainConnectUrl(deps(c), {
+        check: claim.lastCheck,
+        claimId: claim.id,
+        domain: claim.domain,
+        provider: claim.provider,
+        challengeValue,
+        records: claim.dnsRecords,
+      });
+      return c.json(
+        await domainStep(c, domainView(setup, { challengeValue, domainConnectUrl: url })),
+      );
     },
   )
-  /** Re-checks a domain's DNS (and adds it at the provider once its ownership record is in). */
+  /**
+   * Checks a domain's DNS: locks it to the org once its challenge is in, then re-checks the
+   * provider's records (and adds it at the provider once its ownership record is in).
+   */
   .post("/domains/:id/check", requireMember, requireDomainAdmin, async (c) => {
-    const row = await findMemberDomain(c.var.db, c.var.member.id, c.req.param("id"));
-    if (!row) throw new HTTPException(404, { message: "no such domain" });
-    return c.json(await domainStep(c, row.domain));
+    await limit(c, c.env.DOMAIN_CHECK_LIMITER, "checks");
+    const setup = await memberDomain(c);
+    const result = await domainCall(() => checkDomain(deps(c), c.var.member, setup));
+    return c.json(await domainStep(c, domainView(result.setup, { addError: result.addError })));
   })
+  /**
+   * A new challenge value, shown this once: for a member who lost the first one. The old value
+   * stops counting, so a domain already verified reads as lost until DNS has the new one.
+   */
+  .post("/domains/:id/challenge", requireMember, requireDomainAdmin, async (c) => {
+    await limit(c, c.env.DOMAIN_ADD_LIMITER, "new values");
+    const setup = await memberDomain(c);
+    if (!setup.claim) throw new HTTPException(409, { message: "this domain has no challenge" });
+    const challenge = await newChallenge();
+    const rotated = await rotateChallenge(c.var.db, {
+      orgId: c.var.member.orgId,
+      claimId: setup.claim.id,
+      challengeHash: challenge.hash,
+    });
+    if (!rotated) throw new HTTPException(404, { message: "no such domain" });
+    // What DNS holds now, judged against the new value (and the host's one-click setup).
+    const claim = await withCheck(deps(c), rotated);
+    await audit(
+      c.var,
+      c.var.member.orgId,
+      c.var.member.id,
+      "domain.challenge_rotated",
+      claim.domain,
+    );
+    const url = await domainConnectUrl(deps(c), {
+      check: claim.lastCheck,
+      claimId: claim.id,
+      domain: claim.domain,
+      provider: claim.provider,
+      challengeValue: challenge.value,
+      records: setup.lock?.dnsRecords ?? claim.dnsRecords,
+    });
+    return c.json(
+      domainView(
+        { claim, lock: setup.lock },
+        { challengeValue: challenge.value, domainConnectUrl: url },
+      ),
+    );
+  })
+  /**
+   * Keeps the domain checked while its DNS page is open (ADR 0011): the page calls this when it
+   * opens and about every minute, with `reset` when it comes back into focus. Results arrive as
+   * `{ type: "domain", domainId }` on the realtime socket.
+   */
+  .post(
+    "/domains/:id/watch",
+    requireMember,
+    requireDomainAdmin,
+    zValidator("json", z.object({ reset: z.boolean().default(false) })),
+    async (c) => {
+      const setup = await memberDomain(c);
+      if (!setup.claim) return c.json({ watching: false, nextCheckAt: null });
+      const stub = c.env.DOMAIN_WATCH.get(c.env.DOMAIN_WATCH.idFromName(setup.claim.id));
+      const { nextCheckAt } = await stub.watch({
+        claimId: setup.claim.id,
+        orgId: c.var.member.orgId,
+        memberId: c.var.member.id,
+        reset: c.req.valid("json").reset,
+      });
+      return c.json({ watching: true, nextCheckAt: new Date(nextCheckAt).toISOString() });
+    },
+  )
+  /** The domain's history: claims, checks that changed something, hand-overs. */
+  .get("/domains/:id/events", requireMember, requireDomainAdmin, async (c) => {
+    const setup = await memberDomain(c);
+    const domain = (setup.claim?.domain ?? setup.lock?.domain)!;
+    const events = await listDomainAudit(c.var.db, c.var.member.id, domain);
+    return c.json({
+      events: events.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
+    });
+  })
+  /**
+   * Gives the domain up: another workspace can claim it. Refused while this one has mailboxes on
+   * it. Every owner is told.
+   */
+  .post("/domains/:id/release", requireMember, requireOwner, async (c) => {
+    const { db, member, user } = c.var;
+    const setup = await memberDomain(c);
+    const domain = (setup.claim?.domain ?? setup.lock?.domain)!;
+    const result = await releaseDomain(db, { orgId: member.orgId, domain });
+    if (!result.ok) throw handOverRefusal(result.reason, domain);
+    const eventId = await audit(c.var, member.orgId, member.id, "domain.released", domain);
+    await notifyOwners(deps(c), member.orgId, eventId, {
+      subject: `${domain} was released`,
+      text: `${user.email} released ${domain} from ${await orgName(db, member.orgId)}. Any workspace that controls its DNS can now claim it.`,
+    });
+    return c.json({ released: true });
+  })
+  /**
+   * Moves the domain to another workspace the caller also runs (owner or admin there), keeping
+   * its verified challenge. Refused while this one has mailboxes on it. Owners of both are told.
+   */
+  .post(
+    "/domains/:id/transfer",
+    requireMember,
+    requireOwner,
+    zValidator("json", z.object({ organizationId: z.string().min(1) })),
+    async (c) => {
+      const { db, member, user } = c.var;
+      const to = c.req.valid("json").organizationId;
+      if (to === member.orgId) throw new HTTPException(400, { message: "that is this workspace" });
+      const role = await roleInOrg(db, user.id, to);
+      if (!role || !(DOMAIN_ADMIN_ROLES as readonly string[]).includes(role)) {
+        throw new HTTPException(403, {
+          message: "you can only move a domain to a workspace you own or administer",
+        });
+      }
+      const setup = await memberDomain(c);
+      const domain = (setup.claim?.domain ?? setup.lock?.domain)!;
+      const result = await transferDomain(db, { fromOrgId: member.orgId, toOrgId: to, domain });
+      if (!result.ok) throw handOverRefusal(result.reason, domain);
+      const [fromName, toName] = await Promise.all([orgName(db, member.orgId), orgName(db, to)]);
+      const text = `${user.email} moved ${domain} from ${fromName} to ${toName}.`;
+      const subject = `${domain} moved to ${toName}`;
+      const out = await audit(c.var, member.orgId, member.id, "domain.transferred_out", domain, {
+        toOrgId: to,
+      });
+      const into = await audit(c.var, to, null, "domain.transferred_in", domain, {
+        fromOrgId: member.orgId,
+        byUserId: user.id,
+      });
+      await notifyOwners(deps(c), member.orgId, out, { subject, text });
+      await notifyOwners(deps(c), to, into, { subject, text });
+      return c.json({ transferred: true, organizationId: to });
+    },
+  )
   /**
    * Creates one mailbox on a domain of the active org and starts syncing it. The creator gets an
    * owner grant. Idempotent per address: a repeat returns the same mailbox.
@@ -208,8 +375,14 @@ export const onboarding = new Hono<AppEnv>()
     async (c) => {
       const { db, member, user } = c.var;
       const body = c.req.valid("json");
-      const domain = await findMemberDomain(db, member.id, body.domainId);
-      if (!domain) throw new HTTPException(404, { message: "no such domain" });
+      const setup = await findMemberDomain(db, member.id, body.domainId);
+      if (!setup) throw new HTTPException(404, { message: "no such domain" });
+      const domain = setup.lock;
+      if (!domain) {
+        throw new HTTPException(409, {
+          message: `${setup.claim!.domain} is not verified yet: add its _omni-challenge record and check again`,
+        });
+      }
       const address = mailboxAddress(body.localPart, domain.domain);
       if (!address) {
         throw new HTTPException(400, {
@@ -276,3 +449,12 @@ export const onboarding = new Hono<AppEnv>()
     }
     return c.json({ setup: await advanceOrgSetup(db, member.orgId, "complete") });
   });
+
+function handOverRefusal(reason: "not_locked" | "has_mailboxes", domain: string) {
+  return new HTTPException(409, {
+    message:
+      reason === "has_mailboxes"
+        ? `${domain} still has mailboxes in this workspace`
+        : `${domain} is not set up by this workspace`,
+  });
+}

@@ -118,10 +118,15 @@ export const dnsRecordStatusSchema = z.object({
   verified: z.boolean(),
 });
 
-/** Add `domain` at the provider if it is not there yet, then re-check its DNS. Idempotent. */
+/**
+ * Add `domain` at the provider if it is not there yet, then re-check its DNS. Idempotent. With
+ * `add: false` only the records and their current state are read: the Worker asks for those
+ * before the domain is locked to an org, and adds it at the provider only after (ADR 0010).
+ */
 export const provisionDomainBodySchema = z.object({
   /** Already normalized (`normalizeDomain` from `@omni/mail-core/domains`). */
   domain: z.string().min(1),
+  add: z.boolean().default(true),
 });
 
 export const provisionDomainResultSchema = z.discriminatedUnion("provider", [
@@ -176,7 +181,58 @@ export const provisionMailboxResultSchema = z.object({
   created: z.boolean(),
 });
 
+/**
+ * Ask the domain's own nameservers (ADR 0010). The mail service finds the zone's NS records and
+ * queries those servers directly, so an answer reflects a record seconds after it is saved
+ * instead of after a public resolver's cache expires. Names must be `domain` or under it.
+ */
+export const DNS_LOOKUP_PATH = "/dns/lookup";
+
+export const dnsQueryTypeSchema = z.enum(["TXT", "MX", "CNAME", "NS"]);
+
+export const dnsLookupBodySchema = z.object({
+  /** Already normalized; its zone's nameservers answer every query. */
+  domain: z.string().min(1).max(253),
+  queries: z
+    .array(z.object({ name: z.string().min(1).max(253), type: dnsQueryTypeSchema }))
+    .min(1)
+    .max(32),
+});
+
+export const dnsAnswerSchema = z.discriminatedUnion("status", [
+  /**
+   * TXT: each record's strings joined. MX: `"<priority> <host>"`. CNAME and NS: the host. Hosts
+   * are lowercase with no trailing dot.
+   */
+  z.object({ status: z.literal("found"), values: z.array(z.string()) }),
+  /** The name does not exist. */
+  z.object({ status: z.literal("nxdomain") }),
+  /** The name exists but has no record of this type (or only a CNAME, for TXT and MX). */
+  z.object({ status: z.literal("nodata") }),
+  /** No answer (timeout, SERVFAIL, refused): says nothing about the record. */
+  z.object({ status: z.literal("error"), code: z.string() }),
+]);
+
+export const dnsLookupResultSchema = z.object({
+  /** The zone the domain is in, and its nameservers; null when no NS records were found. */
+  zone: z.string().nullable(),
+  nameservers: z.array(z.string()),
+  answers: z.array(
+    z.object({
+      name: z.string(),
+      type: dnsQueryTypeSchema,
+      /** `authoritative`: from the zone's nameservers. `recursive`: they could not be reached. */
+      source: z.enum(["authoritative", "recursive"]),
+      answer: dnsAnswerSchema,
+    }),
+  ),
+});
+
 export type DnsRecordStatus = z.infer<typeof dnsRecordStatusSchema>;
+export type DnsQueryType = z.infer<typeof dnsQueryTypeSchema>;
+export type DnsAnswer = z.infer<typeof dnsAnswerSchema>;
+export type DnsLookupBody = z.infer<typeof dnsLookupBodySchema>;
+export type DnsLookupResult = z.infer<typeof dnsLookupResultSchema>;
 export type ProvisionDomainBody = z.infer<typeof provisionDomainBodySchema>;
 export type ProvisionDomainResult = z.infer<typeof provisionDomainResultSchema>;
 export type ProvisionMailboxBody = z.infer<typeof provisionMailboxBodySchema>;

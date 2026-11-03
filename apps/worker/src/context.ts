@@ -131,7 +131,7 @@ export const requireMember = createMiddleware<AppEnv>(async (c, next) => {
  * Auth mail (magic links, invitations) goes out as an ordinary `send` in the outbox, from the
  * mailbox at `SYSTEM_MAIL_FROM`, so it gets the mail service's retries and idempotency for free.
  */
-function systemMailSender(
+export function systemMailSender(
   c: {
     executionCtx: { waitUntil(promise: Promise<unknown>): void };
     var: { requestId: string; log: Logger };
