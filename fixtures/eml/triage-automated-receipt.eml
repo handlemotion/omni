@@ -1,0 +1,23 @@
+Return-Path: <bounce-7731@billing.paperline.example>
+MIME-Version: 1.0
+Date: Sat, 31 Oct 2026 23:58:02 +0000
+Message-ID: <receipt.PL-20261031-0042@billing.paperline.example>
+Subject: Your Paperline receipt for October
+From: Paperline Billing <no-reply@billing.paperline.example>
+To: sam@example.com
+Auto-Submitted: auto-generated
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: 7bit
+
+Receipt PL-20261031-0042
+
+Thanks for your payment.
+
+Plan: Team (5 seats)
+Amount: $60.00
+Charged to: Visa ending 4242
+Date: October 31, 2026
+
+Download invoices any time from your billing settings.
+
+This is an automated message. Replies to this address are not monitored.

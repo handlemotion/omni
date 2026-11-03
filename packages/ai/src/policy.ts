@@ -11,10 +11,15 @@ export const DEFAULT_AUTO_FILE_THRESHOLD = 0.85;
 const CHARS_PER_TOKEN = 3;
 const TRUNCATION_MARKER = "\n[truncated]";
 
-/** A thread whose latest message is ours waits on them. No model call. */
+/**
+ * The one case code settles without a model: the reader replied with no words at all (an empty
+ * body, a lone "👍", only an attachment). Such a reply asks nothing, so the thread is `fyi`. A
+ * first message is left to the model, since its subject may carry the ask. Everything else,
+ * including every other reader-sent message, needs a judgment.
+ */
 export function triageByRule(input: TriageInput): TriageResult | null {
-  if (input.latestFromUs) {
-    return { bucket: "waiting_on_them", confidence: 1, source: "rule", usage: NO_USAGE };
+  if (input.latestFromUs && input.messageCount > 1 && !/[\p{L}\p{N}]/u.test(input.latestText)) {
+    return { bucket: "fyi", confidence: 1, source: "rule", usage: NO_USAGE };
   }
   return null;
 }

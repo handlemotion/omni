@@ -154,6 +154,14 @@ export const threads = pgTable(
     triage: triageBucket("triage"),
     triageConfidence: real("triage_confidence"),
     triageSource: triageSource("triage_source"),
+    /**
+     * The message the triage describes: the thread's latest message when it was triaged. A job for
+     * that message again skips the model, and a newer message re-triages even a person's re-sort.
+     * A re-sort sets it to the latest message it was made on.
+     */
+    triageMessageId: text("triage_message_id").references((): AnyPgColumn => messages.id, {
+      onDelete: "set null",
+    }),
     summary: text("summary"),
     /** Last message the summary covers; a newer message means the summary is stale. */
     summaryMessageId: text("summary_message_id").references((): AnyPgColumn => messages.id, {
