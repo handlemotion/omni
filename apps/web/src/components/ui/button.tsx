@@ -19,7 +19,7 @@ export const buttonStyles = tv({
   variants: {
     intent: {
       primary:
-        "[--btn-bg:var(--color-primary)] [--btn-foreground:var(--color-primary-foreground)] [--btn-icon-active:var(--primary-foreground)]/80 [--btn-icon:var(--primary-foreground)]/60 [--btn-overlay:color-mix(in_oklab,var(--color-primary-foreground)_10%,var(--color-primary)_90%)]",
+        "[--btn-bg:var(--color-primary)] [--btn-border:var(--color-primary-foreground)] [--btn-foreground:var(--color-primary-foreground)] [--btn-icon-active:var(--primary-foreground)]/80 [--btn-icon:var(--primary-foreground)]/60 [--btn-overlay:color-mix(in_oklab,var(--color-primary-foreground)_10%,var(--color-primary)_90%)]",
       secondary:
         "[--btn-bg:var(--color-secondary)] [--btn-foreground:var(--color-secondary-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-secondary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-secondary-foreground)_10%,var(--color-secondary)_90%)] [--btn-ring:var(--color-muted-foreground)]/20",
       warning:
@@ -35,25 +35,17 @@ export const buttonStyles = tv({
     },
     size: {
       xs: [
-        "min-h-8 gap-x-1.5 px-3 text-sm sm:min-h-7",
+        "min-h-8 gap-x-1.5 px-[calc(--spacing(3)-1px)] py-[calc(--spacing(1.5)-1px)] text-sm sm:min-h-7 sm:px-2 sm:py-[calc(--spacing(1.5)-1px)] sm:text-xs/4",
         "*:[svg]:-mx-px *:[svg]:size-3.5 sm:*:[svg]:size-3",
         "*:data-[slot=loader]:-mx-px *:data-[slot=loader]:size-3.5 sm:*:data-[slot=loader]:size-3",
       ],
       sm: [
-        "min-h-9 gap-x-2.5 px-2 text-sm sm:min-h-8",
-        "*:[svg]:size-icon",
+        "min-h-9 gap-x-1.5 px-3 py-[calc(--spacing(2)-1px)] sm:min-h-8 sm:px-[calc(--spacing(3)-1px)] sm:py-[calc(--spacing(1.5)-1px)] sm:text-sm/5",
+        "*:[svg]:size-4.5 sm:*:[svg]:size-4",
         "*:data-[slot=loader]:size-4.5 sm:*:data-[slot=loader]:size-4",
       ],
-      md: [
-        "min-h-10 gap-x-2 px-[calc(--spacing(3.5)-1px)] py-[calc(--spacing(2.5)-1px)] sm:min-h-9 sm:px-3 sm:py-[calc(--spacing(1.5)-1px)] sm:text-sm/6",
-        "*:[svg]:size-5 sm:*:[svg]:size-4",
-        "*:data-[slot=loader]:size-5 sm:*:data-[slot=loader]:size-4",
-      ],
-      lg: [
-        "min-h-10 gap-x-2 px-[calc(--spacing(3.5)-1px)] py-[calc(--spacing(3)-1px)] sm:min-h-9 sm:px-3 sm:py-[calc(--spacing(1.5)-1px)] sm:text-sm/7",
-        "*:[svg]:size-5 sm:*:[svg]:size-4.5",
-        "*:data-[slot=loader]:size-5 sm:*:data-[slot=loader]:size-4.5",
-      ],
+      md: ["h-8 gap-x-2.5 px-2 text-sm", "*:[svg]:size-icon", "*:data-[slot=loader]:size-icon"],
+      lg: ["h-9 gap-x-2.5 px-2 text-sm", "*:[svg]:size-icon", "*:data-[slot=loader]:size-icon"],
       "sq-xs": [
         "touch-target size-8 shrink-0 sm:size-7",
         "*:[svg]:size-3.5 sm:*:[svg]:size-3",

@@ -7,16 +7,19 @@ import {
 } from "react-aria-components/Input";
 import { cx } from "@/lib/primitive";
 
-export interface InputProps extends InputPrimitiveProps {
+export interface InputProps extends Omit<InputPrimitiveProps, "size"> {
   ref?: React.RefObject<HTMLInputElement | null>;
+  /** md is 32px, lg is 36px. */
+  size?: "md" | "lg";
 }
-export function Input({ className, ref, ...props }: InputProps) {
+export function Input({ className, ref, size = "md", ...props }: InputProps) {
   return (
     <span data-slot="control" className="relative block w-full">
       <InputPrimitive
         className={cx(
-          "relative block h-10 w-full appearance-none rounded-lg bg-(--control-bg,transparent) px-3 sm:h-8 sm:px-2",
-          "text-base text-foreground placeholder:text-muted-foreground sm:text-sm",
+          "relative block w-full appearance-none rounded-lg bg-(--control-bg,transparent) px-2",
+          size === "md" ? "h-8" : "h-9",
+          "text-sm text-foreground placeholder:text-subtle-foreground",
           "border border-input enabled:hover:border-muted-foreground/30",
           "outline-hidden focus:border-ring/70 focus:enabled:hover:border-ring/80",
           "invalid:border-danger-subtle-foreground/70 focus:invalid:border-danger-subtle-foreground/70 invalid:enabled:hover:border-danger-subtle-foreground/80 focus:invalid:enabled:hover:border-danger-subtle-foreground/80",

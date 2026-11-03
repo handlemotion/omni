@@ -33,6 +33,8 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
 - **Brand.** `primary` is the brand color: primary buttons and selected/active components, with
   `primary-foreground` text on it. Use it sparingly; most controls are neutral.
 - **Inputs stay calm.** Focus shows as a `ring`-colored border only: no glow, no tint.
+- **Control sizes.** Buttons and inputs share a size scale: `md` is the default, `lg` the larger
+  one. Pick the size the frame shows; don't resize a control with classes.
 - **Inset actions.** An action inside a field (submit arrow, clear, reveal) is
   `<Button size="inset">` placed in an `InputGroup`; the group handles position and padding.
 - **Balanced padding.** Equal padding on opposite sides of a container, and the same gap between

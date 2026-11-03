@@ -11,7 +11,7 @@ import {
   ComboBoxContext,
   ComboBoxValue as ComboBoxValuePrimitive,
 } from "react-aria-components/ComboBox";
-import type { InputProps } from "react-aria-components/Input";
+import type { InputProps } from "./input";
 import { ListBox, type ListBoxProps } from "react-aria-components/ListBox";
 import type { PopoverProps } from "react-aria-components/Popover";
 import { useSlottedContext } from "react-aria-components/slots";

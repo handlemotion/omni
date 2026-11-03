@@ -1,6 +1,6 @@
 import { MinusIcon, PlusIcon } from "@heroicons/react/20/solid";
 import { Button, type ButtonProps } from "react-aria-components/Button";
-import type { InputProps as PrimitiveInputProps } from "react-aria-components/Input";
+import type { InputProps as PrimitiveInputProps } from "./input";
 import {
   NumberField as NumberFieldPrimitive,
   type NumberFieldProps,

@@ -1,6 +1,6 @@
 import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/20/solid";
 import { Button } from "react-aria-components/Button";
-import type { InputProps } from "react-aria-components/Input";
+import type { InputProps } from "./input";
 import {
   SearchField as SearchFieldPrimitive,
   type SearchFieldProps,
