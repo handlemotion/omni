@@ -17,8 +17,8 @@ export function Input({ className, ref, size = "md", ...props }: InputProps) {
     <span data-slot="control" className="relative block w-full">
       <InputPrimitive
         className={cx(
-          "relative block w-full appearance-none rounded-lg bg-(--control-bg,transparent) px-2",
-          size === "md" ? "h-8" : "h-9",
+          "relative block w-full appearance-none rounded-lg bg-(--control-bg,transparent)",
+          size === "md" ? "h-8 px-2" : "h-9 px-2.5",
           "text-sm text-foreground placeholder:text-subtle-foreground",
           "border border-input enabled:hover:border-muted-foreground/30",
           "outline-hidden focus:border-ring/70 focus:enabled:hover:border-ring/80",
