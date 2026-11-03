@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./clean": "./src/clean.ts",
     "./display": "./src/display.ts",
-    "./domains": "./src/domains.ts"
+    "./domains": "./src/domains.ts",
+    "./telemetry": "./src/telemetry.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

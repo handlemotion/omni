@@ -100,14 +100,18 @@ export class OutboxExecutor {
   async execute(action: MailAction): Promise<void> {
     const { actions, logger } = this.options;
     const log = logger.child({
+      component: "outbox",
       actionId: action.id,
       kind: action.kind,
+      orgId: action.orgId,
       mailboxId: action.mailboxId,
+      requestId: action.requestId,
     });
+    const started = Date.now();
     try {
       await this.perform(action);
       await actions.complete(action.id);
-      log.info("outbox.done", { attempts: action.attempts });
+      log.info("outbox.done", { attempts: action.attempts, durationMs: Date.now() - started });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (error instanceof MailboxUnavailableError) {
@@ -139,7 +143,12 @@ export class OutboxExecutor {
               this.options.retryBaseMs +
               backoffDelay(action.attempts, this.options.retryBaseMs, this.options.retryMaxMs),
           );
-      log.warn("outbox.failed", { error: message, attempts: action.attempts, retryAt });
+      log.warn("outbox.failed", {
+        error: message,
+        attempts: action.attempts,
+        retryAt,
+        durationMs: Date.now() - started,
+      });
       await actions.fail(action.id, message, retryAt).catch((failError: unknown) => {
         log.error("outbox.fail_not_recorded", { error: failError });
       });

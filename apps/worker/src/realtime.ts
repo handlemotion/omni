@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { mailboxAudience, pushTokensFor, type Db } from "@omni/db";
 import type { Config } from "./env.ts";
+import { createLogger } from "./log.ts";
 
 /** Header the Worker sets (never the client) to tell the DO whose socket this is. */
 export const MEMBER_HEADER = "x-omni-member-id";
@@ -121,5 +122,7 @@ async function sendExpoPush(
     },
     body: JSON.stringify(tokens.map((t) => ({ to: t.expoToken, ...message, sound: "default" }))),
   });
-  if (!response.ok) console.warn(`expo push failed: ${response.status}`);
+  if (!response.ok) {
+    createLogger({ component: "realtime" }).warn("expo.push_failed", { status: response.status });
+  }
 }

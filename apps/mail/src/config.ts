@@ -15,6 +15,14 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(8788),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  /** Optional Sentry DSN. Unset or empty keeps error reporting off. */
+  SENTRY_DSN: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined)
+    .pipe(z.url().optional()),
+  /** Sentry's environment tag. */
+  SENTRY_ENVIRONMENT: z.string().min(1).default("production"),
   /** Shared with the Worker: signs our mail events and verifies its pings. */
   MAIL_SERVICE_HMAC_SECRET: z.string().min(32),
   /** Base URL of the Worker; new mail is reported to its `/internal/mail-events`. */

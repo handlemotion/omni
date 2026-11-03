@@ -70,7 +70,10 @@ export type MailAction =
 
 interface ActionBase<K extends string, P> {
   id: string;
+  orgId: string;
   mailboxId: string;
+  /** The Worker request that queued it, for tracing; null for older rows. */
+  requestId: string | null;
   kind: K;
   payload: P;
   idempotencyKey: string;

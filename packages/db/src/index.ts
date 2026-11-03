@@ -19,3 +19,4 @@ export * from "./orgs.ts";
 export * from "./domains.ts";
 export * from "./mailbox-teams.ts";
 export * from "./workspaces.ts";
+export * from "./dead-letters.ts";
