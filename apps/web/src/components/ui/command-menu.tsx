@@ -142,7 +142,7 @@ export function CommandMenuSearch({ className, placeholder, ...props }: CommandM
       {...props}
     >
       {isPending ? (
-        <Loader className="size-4.5" variant="spin" />
+        <Loader className="size-4.5" />
       ) : (
         <MagnifyingGlassIcon
           data-slot="command-menu-search-icon"
