@@ -289,24 +289,25 @@ export class MailboxConnection extends EventEmitter<Events> {
     }).pipe(
       Schedule.setInputType<SessionError>(),
       Schedule.while(
-        ({ input }) => input._tag !== "ImapAuthFailed" || this.authFailures < this.maxAuthFailures,
+        ({ input }) =>
+          !(input instanceof ImapAuthFailed) || this.authFailures < this.maxAuthFailures,
       ),
       // Wrong credentials will not fix themselves in a second: wait the longest.
       Schedule.modifyDelay(({ input, duration }) =>
         Effect.succeed(
-          input._tag === "ImapAuthFailed" ? Duration.millis(this.reconnectMaxMs) : duration,
+          input instanceof ImapAuthFailed ? Duration.millis(this.reconnectMaxMs) : duration,
         ),
       ),
       Schedule.tap(({ input, attempt, duration }) =>
         Effect.sync(() => {
           const retryInMs = Duration.toMillis(duration);
-          if (input._tag === "ImapDropped") {
+          if (input instanceof ImapDropped) {
             this.log.warn("imap.disconnected", { wasReady: true, failures: attempt, retryInMs });
           } else {
             this.log.warn("imap.connect_failed", {
               error: input.cause,
               attempt,
-              authFailed: input._tag === "ImapAuthFailed",
+              authFailed: input instanceof ImapAuthFailed,
               retryInMs,
             });
           }
@@ -318,7 +319,7 @@ export class MailboxConnection extends EventEmitter<Events> {
       Effect.catchDefect((cause) => Effect.fail(new ImapConnectFailed({ cause }))),
       Effect.tapError((error) =>
         Effect.sync(() => {
-          if (error._tag !== "ImapAuthFailed") return;
+          if (!(error instanceof ImapAuthFailed)) return;
           this.authFailures++;
           this.emit("auth_failed");
         }),
@@ -328,7 +329,7 @@ export class MailboxConnection extends EventEmitter<Events> {
       Effect.catch((error) =>
         Effect.sync(() => {
           this.log.error("imap.gave_up", {
-            reason: error._tag,
+            reason: error.name,
             error: "cause" in error ? error.cause : undefined,
             authFailures: this.authFailures,
           });
@@ -348,7 +349,7 @@ export class MailboxConnection extends EventEmitter<Events> {
     return Effect.gen({ self: this }, function* () {
       const client = yield* Effect.acquireRelease(
         Effect.sync(() => this.createClient()),
-        (client) => this.release(client),
+        (created) => this.release(created),
       );
       const closed = Deferred.makeUnsafe<void>();
       client.on("close", () => Deferred.doneUnsafe(closed, Effect.void));
