@@ -14,7 +14,7 @@ import { cx } from "@/lib/primitive";
 
 export const labelStyles = tv({
   base: [
-    "select-none text-base/6 text-foreground in-data-required:not-data-[slot='control-label']:after:ml-1.5 sm:text-sm/6",
+    "select-none text-sm text-foreground in-data-required:not-data-[slot='control-label']:after:ml-1.5",
     "in-data-required:not-data-[slot='control-label']:after:text-danger-subtle-foreground in-data-required:not-data-[slot='control-label']:after:content-['*']",
     "in-disabled:pointer-events-none in-disabled:opacity-50 group-disabled:opacity-50",
   ],
