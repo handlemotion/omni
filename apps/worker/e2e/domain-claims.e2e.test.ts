@@ -137,10 +137,15 @@ test("lookalike names, claims past the cap and checks past the rate limit are re
     }),
   ).toMatchObject({ status: 409, body: { error: expect.stringContaining("5 domains waiting") } });
 
-  // Checks are limited per workspace (30 a minute): a script looping on the button stops.
+  // Checks are limited per workspace (30 a minute): a script looping on the button stops. The
+  // limiter counts in fixed one-minute windows, so a run that crosses a window boundary starts
+  // counting again: the first 30 always pass, and within 61 a refusal must come, since at most
+  // one boundary falls inside a run this short.
   const statuses: number[] = [];
-  for (let i = 0; i < 32; i++) statuses.push((await check(owner.jar, owner.domainId)).status);
-  expect(statuses.slice(0, 30).every((s) => s === 200)).toBe(true);
+  while (statuses.length < 61 && !statuses.includes(429)) {
+    statuses.push((await check(owner.jar, owner.domainId)).status);
+  }
+  expect(statuses.slice(0, 30)).toEqual(Array(30).fill(200));
   expect(statuses.at(-1)).toBe(429);
 });
 
