@@ -51,7 +51,7 @@ const configSchema = z
     SENTRY_DSN: optionalText.pipe(z.url().optional()),
     /** Empty with no TYPESAFE_API_KEY: no triage beyond the wordless-reply rule, no summaries. */
     ANTHROPIC_API_KEY: optionalText,
-    /** Triage on TypeSafe's Jev when set (summaries stay on Claude). */
+    /** Triage and search relevance on TypeSafe's Jev when set (summaries stay on Claude). */
     TYPESAFE_API_KEY: optionalText,
     /** `jev` or `claude`; defaults to Jev when TYPESAFE_API_KEY is set. */
     TRIAGE_PROVIDER: optionalText.pipe(z.enum(["jev", "claude"]).optional()),

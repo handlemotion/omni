@@ -147,6 +147,8 @@ const cases: Case[] = [
   { name: "search two words", run: () => all.search("harbor glacier") },
   { name: "search medium, 2 boxes", run: () => few.search("harbor") },
   { name: "search medium, one mailbox", run: () => all.search("harbor", { mailboxId: box.id }) },
+  { name: "search sentence", run: () => all.search("the invoice from harbor last month") },
+  { name: "search typing prefix", run: () => all.search("harb") },
   {
     name: "setThreadState",
     write: true,

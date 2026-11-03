@@ -119,14 +119,16 @@ export function jevTriageRequest(input: TriageInput, model = JEV_MODEL) {
     : { model, state: triageState(input), questions: TRIAGE_QUESTIONS };
 }
 
-const NoulAnswer = z.object({ type: z.literal("noul"), noul: z.number().min(0).max(1) });
+export const NoulAnswer = z.object({ type: z.literal("noul"), noul: z.number().min(0).max(1) });
 const SystemOneResponse = z.object({
   model: z.string(),
   answers: z.record(z.string(), z.unknown()),
   usage: z.object({ input_tokens: z.number(), output_tokens: z.number() }),
 });
 
-async function ask(client: JevClient, body: unknown) {
+/** One `POST /v1/systemone`. `signal` cuts it short sooner than the client's own timeout. */
+export async function ask(client: JevClient, body: unknown, signal?: AbortSignal) {
+  const timeout = AbortSignal.timeout(TIMEOUT_MS);
   let response: Response;
   try {
     response = await client.fetch(`${client.baseUrl}/v1/systemone`, {
@@ -136,7 +138,7 @@ async function ask(client: JevClient, body: unknown) {
         "content-type": "application/json",
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });
   } catch (error) {
     throw new JevError(`TypeSafe request failed: ${String(error)}`);
