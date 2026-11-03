@@ -14,8 +14,13 @@ import { useMember, useSignOut } from "@/hooks/use-session.ts";
 import { useOpenMailbox, useOpenWorkspace, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { Workspace, WorkspaceMailbox } from "@/lib/types.ts";
 
-/** Taller than a menu row: a name over an address, like the search menu's rows. */
-const ROW = "min-h-12 rounded-lg px-2.5 py-1.5";
+/**
+ * Every row, mailbox or action: 40px like the search menu's rows, 6px inside top and bottom. With
+ * the menu's 6px padding, the divider's 6px margins and the group labels' 6px padding, content
+ * sits 12px from content everywhere: menu edge, group label, divider. Same inset left and right,
+ * so icons line up with the avatars.
+ */
+const ROW = "min-h-10 rounded-sm px-2.5 py-1.5";
 const ROW_CONTENT = "col-span-full flex min-w-0 items-center gap-3";
 /** A footer row: a 16px icon in the avatar's column, then its label. */
 const ACTION_CONTENT = "col-span-full flex min-w-0 items-center gap-3";
@@ -54,7 +59,7 @@ function RowBody(props: { name: string; detail: string; chosen: boolean; loading
       <Initial name={props.name} loading={props.loading} />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-foreground">{props.name}</span>
-        <span className="truncate text-xs text-muted-foreground">{props.detail}</span>
+        <span className="truncate text-xs/3 text-muted-foreground">{props.detail}</span>
       </span>
       <span aria-hidden className="grid size-4 shrink-0 place-items-center">
         {props.chosen && <CheckIcon className="size-4 text-foreground" />}
@@ -147,7 +152,8 @@ export function MailboxSwitcher() {
       >
         {grouped
           ? all.map((workspace) => (
-              <MenuSection key={workspace.id} label={workspace.name}>
+              // `mt-0`: the label's own padding already spaces the groups (12px content to content).
+              <MenuSection key={workspace.id} label={workspace.name} className="mt-0">
                 {rows(workspace)}
               </MenuSection>
             ))
@@ -156,7 +162,7 @@ export function MailboxSwitcher() {
         {/* Full width: through the menu's padding, edge to edge. */}
         <MenuSeparator className="-mx-1.5 my-1.5" />
 
-        <MenuItem href="/settings" textValue="Manage mailboxes">
+        <MenuItem href="/settings" className={ROW} textValue="Manage mailboxes">
           <span className={ACTION_CONTENT}>
             <span className="grid size-7 shrink-0 place-items-center">
               <IconSettings className="size-4 text-muted-foreground" />
@@ -165,6 +171,7 @@ export function MailboxSwitcher() {
           </span>
         </MenuItem>
         <MenuItem
+          className={ROW}
           textValue="Log out"
           isDisabled={signOut.isPending}
           shouldCloseOnSelect={false}
