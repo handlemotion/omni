@@ -15,10 +15,7 @@ export function GridList<T extends object>({ className, ...props }: GridListProp
   return (
     <GridListPrimitive
       data-slot="grid-list"
-      className={cx(
-        "relative divide-y overflow-hidden rounded-lg border bg-background *:drop-target:border-accent sm:text-sm/6 dark:bg-muted",
-        className,
-      )}
+      className={cx("relative flex flex-col bg-background text-sm outline-hidden", className)}
       {...props}
     />
   );
@@ -57,11 +54,8 @@ export function GridListItem({ className, children, ...props }: GridListItemProp
       textValue={textValue}
       {...props}
       className={cx(
-        "group relative min-w-0 px-3 py-2.5 outline-hidden [--me-icon:--spacing(2)]",
-        "flex min-w-0 cursor-default items-center gap-2 sm:gap-2.5",
+        "group relative flex min-w-0 cursor-default items-center outline-hidden focus-visible:inset-ring focus-visible:inset-ring-ring",
         "dragging:cursor-grab dragging:opacity-70 dragging:**:[[slot=drag]]:text-foreground",
-        "hover:bg-accent/50 **:[svg:not([data-slot='check-indicator'])]:size-5 **:[svg:not([data-slot='check-indicator'])]:shrink-0 **:[svg:not([data-slot='check-indicator'])]:text-muted-foreground sm:**:[svg:not([data-slot='check-indicator'])]:size-4",
-        "selected:bg-accent/40 selected:text-foreground selected:hover:bg-accent/80 selected:**:[.text-muted-foreground]:text-accent-foreground/80",
         "href" in props && "cursor-pointer",
         className,
       )}

@@ -1,25 +1,25 @@
-import { useLocation, useSearch } from "@tanstack/react-router";
+import { useLocation, useRouter, useSearch } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import {
   IconBubble,
   IconBubbleAnnotation,
   IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
+  IconCircleDashed,
   IconClock,
   IconEmail,
   IconHelp,
   IconInbox,
   IconPaperPlane,
-  IconSearch,
-  IconSettings,
   IconSidebar,
   IconStar,
   IconTrash,
   IconWarning,
 } from "@/components/icons/sidebar";
 import { Avatar } from "@/components/ui/avatar";
-import { Button, buttonStyles } from "@/components/ui/button";
-import { Link } from "@/components/ui/link";
-import { Menu, MenuItem, MenuTrigger } from "@/components/ui/menu";
+import { Button } from "@/components/ui/button";
+import { Menu, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import {
   Sidebar,
   SidebarContent,
@@ -33,22 +33,72 @@ import {
   SidebarSection,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { useMember, useOrganizations, useSetActiveOrganization } from "@/hooks/use-session.ts";
+import {
+  useMember,
+  useOrganizations,
+  useSetActiveOrganization,
+  useSignOut,
+} from "@/hooks/use-session.ts";
+
+/** A nav row. No `href`: the frame shows it, but the app has no view for it yet. */
+interface NavItem {
+  label: string;
+  icon: ReactNode;
+  href?: string;
+  /** Path (and lane, for inbox lanes) that marks this row current. */
+  current?: { path: string; lane?: string; exact?: boolean };
+}
+
+const mail: NavItem[] = [
+  { label: "Inbox", icon: <IconInbox />, href: "/inbox", current: { path: "/inbox" } },
+  { label: "Queue", icon: <IconClock />, href: "/snoozed", current: { path: "/snoozed" } },
+  {
+    label: "Needs reply",
+    icon: <IconBubble />,
+    href: "/inbox?lane=needs_reply",
+    current: { path: "/inbox", lane: "needs_reply" },
+  },
+  {
+    label: "Awaiting reply",
+    icon: <IconBubbleAnnotation />,
+    href: "/inbox?lane=waiting_on_them",
+    current: { path: "/inbox", lane: "waiting_on_them" },
+  },
+];
+
+const folders: NavItem[] = [
+  { label: "All mail", icon: <IconEmail /> },
+  { label: "Favorite", icon: <IconStar /> },
+  { label: "Sent", icon: <IconPaperPlane /> },
+  { label: "Trash", icon: <IconTrash /> },
+  { label: "Spam", icon: <IconWarning /> },
+];
 
 // Figma: Omni, sidebar (node 1:3).
 export function AppSidebar() {
-  const { pathname } = useLocation();
-  const { lane } = useSearch({ strict: false }) as { lane?: string };
-  const at = (path: string, withLane?: string) => pathname.startsWith(path) && lane === withLane;
-
+  const router = useRouter();
+  const signOut = useSignOut();
   return (
     <Sidebar>
       <SidebarHeader>
         <OrganizationMenu />
         <div className="flex items-center gap-0.5">
-          <Link href="/search" aria-label="Search" className={iconLink}>
-            <IconSearch />
-          </Link>
+          <Button
+            intent="plain"
+            size="sq-xs"
+            aria-label="Back"
+            onPress={() => router.history.back()}
+          >
+            <IconChevronLeft />
+          </Button>
+          <Button
+            intent="plain"
+            size="sq-xs"
+            aria-label="Forward"
+            onPress={() => router.history.forward()}
+          >
+            <IconChevronRight />
+          </Button>
           <SidebarTrigger size="sq-xs">
             <IconSidebar />
           </SidebarTrigger>
@@ -56,69 +106,56 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* The first group needs no heading: it's what the app opens to. */}
         <SidebarSection>
-          <Item href="/inbox" icon={<IconInbox />} isCurrent={at("/inbox")}>
-            Inbox
-          </Item>
-          <Item href="/snoozed" icon={<IconClock />} isCurrent={at("/snoozed")}>
-            Queue
-          </Item>
-          <Item
-            href="/inbox?lane=needs_reply"
-            icon={<IconBubble />}
-            isCurrent={at("/inbox", "needs_reply")}
-          >
-            Needs reply
-          </Item>
-          <Item
-            href="/inbox?lane=waiting_on_them"
-            icon={<IconBubbleAnnotation />}
-            isCurrent={at("/inbox", "waiting_on_them")}
-          >
-            Awaiting reply
-          </Item>
+          <Items items={mail} />
         </SidebarSection>
-
-        {/* Labels, items and destinations below are the frame's; these views don't exist yet. */}
-        <SidebarDisclosure defaultExpanded>
-          <SidebarDisclosureTrigger>Inbox</SidebarDisclosureTrigger>
-          <SidebarDisclosurePanel>
-            <Item icon={<IconEmail />}>All mail</Item>
-            <Item icon={<IconStar />}>Favorite</Item>
-            <Item icon={<IconPaperPlane />}>Sent</Item>
-          </SidebarDisclosurePanel>
-        </SidebarDisclosure>
-        <SidebarDisclosure defaultExpanded>
-          <SidebarDisclosureTrigger>Inbox</SidebarDisclosureTrigger>
-          <SidebarDisclosurePanel>
-            <Item icon={<IconTrash />}>Trash</Item>
-            <Item icon={<IconWarning />}>Spam</Item>
-          </SidebarDisclosurePanel>
-        </SidebarDisclosure>
+        <Group label="Folders" items={folders} />
       </SidebarContent>
 
-      <SidebarFooter className="gap-0.5 px-0.5">
+      <SidebarFooter className="justify-between">
+        <Button
+          intent="plain"
+          size="xs"
+          isPending={signOut.isPending}
+          onPress={() => signOut.mutate()}
+        >
+          <IconCircleDashed />
+          Log Out
+        </Button>
         <Button intent="plain" size="sq-xs" aria-label="Help">
           <IconHelp />
         </Button>
-        <Link href="/settings" aria-label="Settings" className={iconLink}>
-          <IconSettings />
-        </Link>
       </SidebarFooter>
     </Sidebar>
   );
 }
 
-// Icon links share the plain 26px button's look.
-const iconLink = buttonStyles({ intent: "plain", size: "sq-xs" });
-
-function Item(props: { href?: string; icon: ReactNode; isCurrent?: boolean; children: string }) {
+function Group({ label, items }: { label: string; items: NavItem[] }) {
   return (
-    <SidebarItem href={props.href} isCurrent={props.isCurrent}>
-      {props.icon}
-      <SidebarLabel>{props.children}</SidebarLabel>
-    </SidebarItem>
+    <SidebarDisclosure defaultExpanded>
+      <SidebarDisclosureTrigger>{label}</SidebarDisclosureTrigger>
+      <SidebarDisclosurePanel>
+        <Items items={items} />
+      </SidebarDisclosurePanel>
+    </SidebarDisclosure>
   );
+}
+
+function Items({ items }: { items: NavItem[] }) {
+  const { pathname } = useLocation();
+  const { lane } = useSearch({ strict: false }) as { lane?: string };
+  const isCurrent = ({ current }: NavItem) =>
+    !!current &&
+    (current.exact ? pathname === current.path : pathname.startsWith(current.path)) &&
+    lane === current.lane;
+
+  return items.map((item) => (
+    <SidebarItem key={item.label} href={item.href} isCurrent={isCurrent(item)}>
+      {item.icon}
+      <SidebarLabel>{item.label}</SidebarLabel>
+    </SidebarItem>
+  ));
 }
 
 /** The active organization; the menu switches to another one. */
@@ -149,6 +186,8 @@ function OrganizationMenu() {
             {org.name}
           </MenuItem>
         ))}
+        <MenuSeparator />
+        <MenuItem href="/settings">Settings</MenuItem>
       </Menu>
     </MenuTrigger>
   );

@@ -1,4 +1,5 @@
-import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/20/solid";
+import { XMarkIcon } from "@heroicons/react/20/solid";
+import { IconSearch } from "@/components/icons/sidebar";
 import { Button } from "react-aria-components/Button";
 import type { InputProps } from "./input";
 import {
@@ -24,15 +25,15 @@ export function SearchField({ className, ...props }: SearchFieldProps) {
 export function SearchInput(props: InputProps) {
   return (
     <InputGroup className="[--input-gutter-end:--spacing(8)]">
-      <MagnifyingGlassIcon className="in-disabled:opacity-50" />
+      <IconSearch className="in-disabled:opacity-50" />
       <Input {...props} />
       <Button
         className={twJoin(
           "touch-target grid place-content-center pressed:text-foreground text-muted-foreground hover:text-foreground group-empty/search-field:invisible",
-          "px-3 py-2 sm:px-2.5 sm:py-1.5 sm:text-sm/5",
+          "px-2",
         )}
       >
-        <XMarkIcon className="size-5 sm:size-4" />
+        <XMarkIcon className="size-3.5" />
       </Button>
     </InputGroup>
   );
