@@ -44,24 +44,75 @@ export const markReadMutation = (client: QueryClient) =>
     onSettled: () => client.invalidateQueries({ queryKey: keys.counts() }),
   });
 
-export const snoozeMutation = (client: QueryClient) =>
+/** Into the Queue until `until`; `until: null` puts it back in the Inbox now. Clears done. */
+export const deferMutation = (client: QueryClient) =>
   mutationOptions({
-    mutationKey: [...keys.mail(), "snooze"],
+    mutationKey: [...keys.mail(), "defer"],
     retry,
-    /** `until: null` unsnoozes. */
     mutationFn: ({ threadId, until, key }: Keyed & { threadId: string; until: Date | null }) =>
-      call(
-        api.threads[":id"].state.$patch({
-          param: { id: threadId },
-          header: header(key),
-          json: { snoozedUntil: until ? until.toISOString() : null },
-        }),
-      ),
+      until
+        ? call(
+            api.threads[":id"].defer.$post({
+              param: { id: threadId },
+              header: header(key),
+              json: { until: until.toISOString() },
+            }),
+          )
+        : call(api.threads[":id"].defer.$delete({ param: { id: threadId }, header: header(key) })),
     onMutate: async ({ threadId, until }) => {
       const snapshot = await snapshotThread(client, threadId);
-      const snoozed = until !== null && until.getTime() > Date.now();
-      patchThread(client, threadId, { snoozedUntil: until ? until.toISOString() : null });
-      removeFromLists(client, threadId, (f) => f.view === (snoozed ? "inbox" : "snoozed"));
+      const deferred = until !== null && until.getTime() > Date.now();
+      patchThread(client, threadId, {
+        deferredUntil: until ? until.toISOString() : null,
+        ...(until ? { done: false } : {}),
+      });
+      removeFromLists(client, threadId, (f) =>
+        deferred ? f.view === "inbox" || f.view === "done" : f.view === "queue",
+      );
+      return { snapshot };
+    },
+    onError: (_error, _vars, context) => restore(client, context?.snapshot),
+    onSettled: (_data, _error, { threadId }) => invalidateThread(client, threadId),
+  });
+
+/**
+ * Done through `through`: the thread's `lastMessageAt` as shown. Leaves the Inbox and Queue for
+ * this member only. A newer message brings it back; if one arrived after `through`, the server
+ * answers `done: false` and the refetch puts the thread back.
+ */
+export const doneMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationKey: [...keys.mail(), "done"],
+    retry,
+    mutationFn: ({ threadId, through, key }: Keyed & { threadId: string; through: string }) =>
+      call(
+        api.threads[":id"].done.$post({
+          param: { id: threadId },
+          header: header(key),
+          json: { through },
+        }),
+      ),
+    onMutate: async ({ threadId }) => {
+      const snapshot = await snapshotThread(client, threadId);
+      patchThread(client, threadId, { done: true, deferredUntil: null });
+      removeFromLists(client, threadId, (f) => f.view === "inbox" || f.view === "queue");
+      return { snapshot };
+    },
+    onError: (_error, _vars, context) => restore(client, context?.snapshot),
+    onSettled: (_data, _error, { threadId }) => invalidateThread(client, threadId),
+  });
+
+/** Not done: back in the Inbox. */
+export const undoneMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationKey: [...keys.mail(), "undone"],
+    retry,
+    mutationFn: ({ threadId, key }: Keyed & { threadId: string }) =>
+      call(api.threads[":id"].done.$delete({ param: { id: threadId }, header: header(key) })),
+    onMutate: async ({ threadId }) => {
+      const snapshot = await snapshotThread(client, threadId);
+      patchThread(client, threadId, { done: false });
+      removeFromLists(client, threadId, (f) => f.view === "done");
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),
@@ -77,7 +128,7 @@ export const archiveMutation = (client: QueryClient) =>
     onMutate: async ({ threadId }) => {
       const snapshot = await snapshotThread(client, threadId);
       patchThread(client, threadId, { archived: true });
-      removeFromLists(client, threadId, (f) => f.view !== "archive");
+      removeFromLists(client, threadId, (f) => f.view === "inbox" || f.view === "queue");
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),

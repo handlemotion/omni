@@ -187,6 +187,12 @@ export const threads = pgTable(
       t.lastMessageAt.desc().nullsFirst(),
       t.id.desc().nullsFirst(),
     ),
+    // Views that ignore `archived` (All mail, Done) page each mailbox in the same keyset order.
+    index("threads_mailbox_all_page_idx").on(
+      t.mailboxId,
+      t.lastMessageAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
     // Subject threading looks up recent threads by normalized subject for every new message.
     index("threads_mailbox_subject_key_idx").on(
       t.mailboxId,
@@ -326,7 +332,14 @@ export const threadState = pgTable(
       .references(() => threads.id, { onDelete: "cascade" }),
     memberId: memberId(),
     read: boolean("read").notNull().default(false),
+    /** Deferred (the Queue) until this time; back in the Inbox once it passes. */
     snoozedUntil: timestamptz("snoozed_until"),
+    /**
+     * Done, up to the thread's `last_message_at` as the member saw it. The thread is done while
+     * `last_message_at <= done_through`, so a newer message brings it back to the Inbox without
+     * any job (ADR 0007).
+     */
+    doneThrough: timestamptz("done_through"),
     updatedAt: updatedAt(),
   },
   (t) => [primaryKey({ columns: [t.threadId, t.memberId] })],

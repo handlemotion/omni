@@ -72,6 +72,7 @@ describe("forMember isolation", () => {
   test("a member reads only threads, messages and search hits from mailboxes they were granted", async () => {
     const asAlice = forMember(db, alice);
     expect((await asAlice.listThreads()).map((t) => t.id)).toEqual([hello.threadId]);
+    expect((await asAlice.listThreads({ view: "all" })).map((t) => t.id)).toEqual([hello.threadId]);
     expect((await asAlice.getThread(hello.threadId))?.messages.map((m) => m.id)).toEqual([
       hello.messageId,
     ]);
@@ -89,6 +90,7 @@ describe("forMember isolation", () => {
   test("a grant that crosses orgs opens nothing", async () => {
     const asCarol = forMember(db, carol);
     expect((await asCarol.listThreads()).map((t) => t.id)).toEqual([ops.threadId]);
+    expect((await asCarol.listThreads({ view: "all" })).map((t) => t.id)).toEqual([ops.threadId]);
     expect(await asCarol.getThread(hello.threadId)).toBeNull();
     expect(await asCarol.search("pelican")).toEqual([]);
     expect(await asCarol.setThreadState(hello.threadId, { read: true })).toBeNull();
@@ -102,9 +104,23 @@ describe("forMember isolation", () => {
 
     const asBob = forMember(db, bob);
     await asBob.setThreadState(billing.threadId, { read: true });
-    await asBob.setThreadState(billing.threadId, { snoozedUntil: new Date("2027-01-01Z") });
-    const [thread] = await asBob.listThreads({ view: "snoozed" });
-    expect(thread).toMatchObject({ read: true, snoozedUntil: new Date("2027-01-01Z") });
+    await asBob.setThreadState(billing.threadId, { deferredUntil: new Date("2027-01-01Z") });
+    const [thread] = await asBob.listThreads({ view: "queue" });
+    expect(thread).toMatchObject({ read: true, deferredUntil: new Date("2027-01-01Z") });
+
+    // Done through a time later than the thread's newest message is capped at that message, and
+    // Alice cannot mark Bob's thread done.
+    expect(
+      await forMember(db, alice).setThreadState(billing.threadId, { doneThrough: new Date() }),
+    ).toBeNull();
+    const done = await asBob.setThreadState(billing.threadId, {
+      doneThrough: new Date("2030-01-01Z"),
+    });
+    expect(done).toMatchObject({ done: true, doneThrough: new Date("2026-10-01T00:00:00Z") });
+    expect((await asBob.listThreads({ view: "done" })).map((t) => t.id)).toEqual([
+      billing.threadId,
+    ]);
+    expect(await forMember(db, alice).listThreads({ view: "done" })).toEqual([]);
   });
 
   test("counts and outbox actions cover only the member's own grants and requests", async () => {
@@ -134,7 +150,7 @@ describe("forMember isolation", () => {
   });
 });
 
-test("a snooze hides the thread from the snoozer's inbox until its time, and only theirs", async () => {
+test("a deferral hides the thread from the member's inbox until its time, and only theirs", async () => {
   const org = await createOrg(db, "snooze-org");
   const dana = (await createMember(db, org.id, "dana")).id;
   const erin = (await createMember(db, org.id, "erin")).id;
@@ -142,24 +158,24 @@ test("a snooze hides the thread from the snoozer's inbox until its time, and onl
   await grant(db, org.id, shared.id, dana);
   await grant(db, org.id, shared.id, erin);
   const { threadId } = await seedThread(org.id, shared.id, "heron");
-  const ids = async (member: string, view: "inbox" | "snoozed") =>
+  const ids = async (member: string, view: "inbox" | "queue") =>
     (await forMember(db, member).listThreads({ view })).map((t) => t.id);
 
   await forMember(db, dana).setThreadState(threadId, {
-    snoozedUntil: new Date(Date.now() + 3_600_000),
+    deferredUntil: new Date(Date.now() + 3_600_000),
   });
   expect(await ids(dana, "inbox")).toEqual([]);
-  expect(await ids(dana, "snoozed")).toEqual([threadId]);
+  expect(await ids(dana, "queue")).toEqual([threadId]);
   expect(await ids(erin, "inbox")).toEqual([threadId]);
-  expect(await forMember(db, dana).counts()).toMatchObject([{ inbox: 0, unread: 0, snoozed: 1 }]);
-  expect(await forMember(db, erin).counts()).toMatchObject([{ inbox: 1, unread: 1, snoozed: 0 }]);
+  expect(await forMember(db, dana).counts()).toMatchObject([{ inbox: 0, unread: 0, queue: 1 }]);
+  expect(await forMember(db, erin).counts()).toMatchObject([{ inbox: 1, unread: 1, queue: 0 }]);
 
   // The time passes: back in the inbox with nothing left to do.
   await forMember(db, dana).setThreadState(threadId, {
-    snoozedUntil: new Date(Date.now() - 1_000),
+    deferredUntil: new Date(Date.now() - 1_000),
   });
   expect(await ids(dana, "inbox")).toEqual([threadId]);
-  expect(await ids(dana, "snoozed")).toEqual([]);
+  expect(await ids(dana, "queue")).toEqual([]);
 });
 
 test("a list row summarizes the thread: latest message, senders once each, count, attachments", async () => {

@@ -60,7 +60,7 @@ export function AppSidebar() {
           <Item href="/inbox" icon={<IconInbox />} isCurrent={at("/inbox")}>
             Inbox
           </Item>
-          <Item href="/snoozed" icon={<IconClock />} isCurrent={at("/snoozed")}>
+          <Item href="/queue" icon={<IconClock />} isCurrent={at("/queue")}>
             Queue
           </Item>
           <Item
@@ -79,11 +79,13 @@ export function AppSidebar() {
           </Item>
         </SidebarSection>
 
-        {/* Labels, items and destinations below are the frame's; these views don't exist yet. */}
+        {/* Labels and items below are the frame's; only All mail has a view so far. */}
         <SidebarDisclosure defaultExpanded>
           <SidebarDisclosureTrigger>Inbox</SidebarDisclosureTrigger>
           <SidebarDisclosurePanel>
-            <Item icon={<IconEmail />}>All mail</Item>
+            <Item href="/all" icon={<IconEmail />} isCurrent={at("/all")}>
+              All mail
+            </Item>
             <Item icon={<IconStar />}>Favorite</Item>
             <Item icon={<IconPaperPlane />}>Sent</Item>
           </SidebarDisclosurePanel>

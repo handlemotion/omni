@@ -29,6 +29,13 @@
       "when": 1793506820450,
       "tag": "0003_inbox_scale_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793736542200,
+      "tag": "0004_done_and_all_views",
+      "breakpoints": true
     }
   ]
 }

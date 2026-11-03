@@ -4,6 +4,7 @@ export {
   TRIAGE_AUTO_FILE_CONFIDENCE,
   LANES,
   type Lane,
+  THREAD_VIEWS,
   type ThreadView,
   type Participant,
   type MemberQueries,
