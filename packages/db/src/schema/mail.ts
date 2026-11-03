@@ -513,7 +513,16 @@ export const threadState = pgTable(
     doneThrough: timestamptz("done_through"),
     updatedAt: updatedAt(),
   },
-  (t) => [primaryKey({ columns: [t.threadId, t.memberId] })],
+  (t) => [
+    primaryKey({ columns: [t.threadId, t.memberId] }),
+    // The Queue checks each candidate thread against the member's deferred rows. Those are a
+    // sliver of `thread_state`, so probing this instead of the primary key reads a few pages and
+    // answers from the index alone (perf:explain: 41k buffers down to 8k). The two trailing
+    // columns are only there for that; Drizzle has no `include`.
+    index("thread_state_member_deferred_idx")
+      .on(t.memberId, t.threadId, t.snoozedUntil, t.doneThrough)
+      .where(sql`${t.snoozedUntil} is not null`),
+  ],
 );
 
 export const assignments = pgTable("assignments", {

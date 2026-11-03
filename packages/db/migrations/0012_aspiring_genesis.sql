@@ -1,0 +1,1 @@
+CREATE INDEX "thread_state_member_deferred_idx" ON "thread_state" USING btree ("member_id","thread_id","snoozed_until","done_through") WHERE "thread_state"."snoozed_until" is not null;
