@@ -1,0 +1,170 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/inter";
+
+@plugin "tailwindcss-react-aria-components";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Design tokens. Raw values live here and nowhere else; DESIGN.md says how to use them. */
+:root {
+  /* From the Figma file. */
+  --background: #ffffff;
+  --surface: #fdfdfd;
+  --foreground: #171717;
+  --muted-foreground: #858585;
+  --subtle-foreground: #a6a6a6;
+  --border: #e8e8e8;
+  --primary: #0d3eef;
+  --primary-foreground: #ffffff;
+
+  /* Intent UI's names, mapped onto the tokens above. */
+  --secondary: #eeeeee; /* Not in the current frame; Intent UI needs it. */
+  --muted: #d9d9d9; /* Not in the current frame; Intent UI needs it. */
+  --input: var(--border);
+  --ring: var(--primary);
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --overlay: var(--surface);
+  --overlay-foreground: var(--foreground);
+  --navbar: var(--surface);
+  --navbar-foreground: var(--foreground);
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary-subtle);
+  --sidebar-primary-foreground: var(--primary);
+  --sidebar-accent: var(--secondary);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --secondary-foreground: var(--foreground);
+  --accent: var(--secondary);
+  --accent-foreground: var(--foreground);
+  --primary-subtle: color-mix(in oklab, var(--primary) 12%, transparent);
+  --primary-subtle-foreground: var(--primary);
+  --chart-1: var(--primary);
+  --chart-2: color-mix(in oklab, var(--primary) 80%, white);
+  --chart-3: color-mix(in oklab, var(--primary) 60%, white);
+  --chart-4: color-mix(in oklab, var(--primary) 40%, white);
+  --chart-5: color-mix(in oklab, var(--primary) 20%, white);
+
+  /* Status colors: not designed yet, Intent UI defaults until they are. */
+  --danger: oklch(0.577 0.245 27.325);
+  --danger-foreground: oklch(0.971 0.013 17.38);
+  --danger-subtle: oklch(0.637 0.237 25.331 / 0.15);
+  --danger-subtle-foreground: oklch(0.505 0.213 27.518);
+  --success: oklch(0.596 0.145 163.225);
+  --success-foreground: oklch(1 0 0);
+  --success-subtle: oklch(0.696 0.17 162.48 / 0.15);
+  --success-subtle-foreground: oklch(0.508 0.118 165.612);
+  --warning: oklch(0.828 0.189 84.429);
+  --warning-foreground: oklch(0.279 0.077 45.635);
+  --warning-subtle: oklch(0.828 0.189 84.429 / 0.2);
+  --warning-subtle-foreground: oklch(0.555 0.163 48.998);
+  --info-subtle: oklch(0.685 0.169 237.323 / 0.15);
+  --info-subtle-foreground: oklch(0.5 0.134 242.749);
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --text-xs: 11px;
+  --text-xs--line-height: 13px;
+  --text-sm: 13px;
+  --text-sm--line-height: 16px;
+  --text-lg: 17px;
+  --text-lg--line-height: 21px;
+
+  --radius-sm: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+
+  --spacing-icon: 15px;
+
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-subtle-foreground: var(--primary-subtle-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-overlay: var(--overlay);
+  --color-overlay-foreground: var(--overlay-foreground);
+  --color-navbar: var(--navbar);
+  --color-navbar-foreground: var(--navbar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-danger-subtle-foreground: var(--danger-subtle-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-subtle-foreground: var(--success-subtle-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-subtle-foreground: var(--warning-subtle-foreground);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-subtle-foreground: var(--info-subtle-foreground);
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border, currentColor);
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}
+
+/* Intent UI: a 44px hit area around small controls on touch screens. */
+@utility touch-target {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    min-height: 44px;
+    min-width: 44px;
+    z-index: 9999;
+  }
+}
