@@ -18,6 +18,7 @@ import {
   useCreateWorkspace,
   useFinishSetup,
   useOnboarding,
+  useOnboardingExit,
 } from "@/hooks/use-onboarding";
 import { useInviteMember } from "@/hooks/use-organization";
 import { needsSetup, ONBOARDING_PAGES as PAGES, resumePage } from "@/lib/onboarding";
@@ -113,8 +114,30 @@ function OnboardingPage(props: {
             Back
           </Button>
         )}
+        <ExitButton />
       </div>
     </main>
+  );
+}
+
+/** Leaves setup for the app (same look as Back): it stays saved, and resumes on return. */
+function ExitButton() {
+  const { exit, leave, isPending } = useOnboardingExit();
+  const label =
+    exit.kind === "inbox"
+      ? "Back to inbox"
+      : exit.kind === "workspace"
+        ? `Back to ${exit.workspace.name}`
+        : "Sign out";
+  return (
+    <Button
+      intent="plain"
+      className="mt-3 self-center text-muted-foreground"
+      isPending={isPending}
+      onPress={leave}
+    >
+      {label}
+    </Button>
   );
 }
 

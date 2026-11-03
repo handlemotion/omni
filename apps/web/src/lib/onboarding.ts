@@ -4,7 +4,7 @@ import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react
 import { api, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import { authCall, resetSession } from "./session.ts";
-import type { Onboarding, OnboardingDomain, SetupStep } from "./types.ts";
+import type { Onboarding, OnboardingDomain, SetupStep, Workspace } from "./types.ts";
 
 /** Where setup stands: may this user create a workspace, and what the active one has so far. */
 export const onboardingQuery = () =>
@@ -19,6 +19,26 @@ export const onboardingQuery = () =>
  */
 export function needsSetup(org: { role: string; setup: SetupStep } | null | undefined) {
   return !!org && (org.role === "owner" || org.role === "admin") && org.setup !== "complete";
+}
+
+/**
+ * Where onboarding's way out leads, so nobody is stuck in setup: the inbox when the active
+ * workspace is ready (you came to make another), else another workspace that is ready (switch to
+ * it), else signing out (no workspace to go to yet).
+ */
+export type OnboardingExit =
+  | { kind: "inbox" }
+  | { kind: "workspace"; workspace: Workspace }
+  | { kind: "sign-out" };
+
+export function onboardingExit(
+  status: Onboarding | undefined,
+  workspaces: readonly Workspace[] | undefined,
+): OnboardingExit {
+  const active = status?.organization;
+  if (active && !needsSetup(active)) return { kind: "inbox" };
+  const ready = workspaces?.find((w) => w.id !== active?.id && !needsSetup(w));
+  return ready ? { kind: "workspace", workspace: ready } : { kind: "sign-out" };
 }
 
 /** Onboarding's pages, in order. */
