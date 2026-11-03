@@ -19,7 +19,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
-import { members, organizations } from "./auth.ts";
+import { members, organizations, teams } from "./auth.ts";
 
 // Text ids holding a UUIDv7: time-ordered (index friendly) and generated in the app, so a row's
 // id is known before the insert and can double as an idempotency handle.
@@ -91,11 +91,18 @@ export const mailboxes = pgTable(
     /** AES-256-GCM ciphertext. Only the mail service holds the key. */
     credentialsEnc: text("credentials_enc").notNull(),
     status: mailboxStatus("status").notNull().default("pending"),
+    /**
+     * A shared mailbox's Better Auth team: its members are who can see it, and `mailbox_access`
+     * is derived from them (ADR 0008). Null for personal mailboxes, and for a shared mailbox
+     * until `ensureMailboxTeam` runs. Same org as the mailbox, enforced where it is read.
+     */
+    teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     unique("mailboxes_org_id_address_unique").on(t.orgId, t.address),
+    unique("mailboxes_team_id_unique").on(t.teamId),
     // Target for composite foreign keys that pin a child row to its mailbox's org.
     unique("mailboxes_id_org_id_unique").on(t.id, t.orgId),
   ],

@@ -38,6 +38,8 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "passkeys",
       "push_tokens",
       "sessions",
+      "team_members",
+      "teams",
       "thread_state",
       "threads",
       "triage_feedback",

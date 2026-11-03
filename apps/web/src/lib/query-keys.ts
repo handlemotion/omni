@@ -4,7 +4,8 @@
 //   ├─ session · device-sessions · sign-in-methods
 //   ├─ org ─ organizations · members · invitations · invitation(id) · passkeys · onboarding
 //   │        · workspaces
-//   ├─ mail ─ mailboxes · counts · threads(filter) · thread(id) · search(q) · action(id)
+//   ├─ mail ─ mailboxes · mailbox-members(id) · counts · threads(filter) · thread(id) · search(q)
+//   │        · action(id)
 //   └─ local ─ pending(threadId) · failures       (client-only state, never fetched)
 //
 // Switching organization or account clears the whole cache (see `session.ts`), so keys do not
@@ -43,6 +44,7 @@ export const keys = {
 
   mail: () => mail,
   mailboxes: () => [...mail, "mailboxes"] as const,
+  mailboxMembers: (mailboxId: string) => [...mail, "mailbox-members", mailboxId] as const,
   counts: () => [...mail, "counts"] as const,
   threadLists: () => [...mail, "threads"] as const,
   threads: (filter: ThreadFilter) => [...mail, "threads", normalize(filter)] as const,

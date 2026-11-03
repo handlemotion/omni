@@ -1,4 +1,4 @@
-# 0008: Resumable onboarding and the workspace switcher's data
+# 0009: Resumable onboarding and the workspace switcher's data
 
 Date: 2026-11-03 · Status: accepted
 
@@ -37,8 +37,8 @@ dns_verified → mailboxes_created → invites_sent → complete`. Additive, key
 Every org the signed-in user belongs to, with name, logo, role, `setup`, and the mailboxes
 `{ id, address, kind }` their member in that org holds a grant on. Like `forMember`, a mailbox
 shows only through a grant to a member of the mailbox's own org (`listUserWorkspaces`, with an
-isolation case in `for-member.e2e.test.ts`). Shared vs. personal is the `kind` field only, so
-moving shared inboxes to Better Auth teams later changes the source of grants, not this shape.
+isolation case in `for-member.e2e.test.ts`). Shared vs. personal is the `kind` field only. Shared mailboxes' grants now come from their
+Better Auth team (ADR 0008), which derives `mailbox_access`, so this read is unchanged by it.
 
 ## Not stored
 

@@ -1,6 +1,6 @@
 import { passkey } from "@better-auth/passkey";
 import type { Db } from "@omni/db";
-import { advanceOrgSetup, schema } from "@omni/db";
+import { advanceOrgSetup, schema, syncTeamMailboxAccess, teamMailbox } from "@omni/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
@@ -237,6 +237,9 @@ export function createAuth(env: AuthEnv) {
             inviterName: inviter.user.name || inviter.user.email,
             expiresAt: invitation.expiresAt,
           }),
+        // A team is the access list of one shared mailbox (ADR 0008): `saveMailbox` creates it,
+        // and `mailbox_access` is derived from its members. No default team per organization.
+        teams: { enabled: true, defaultTeam: { enabled: false } },
         organizationHooks: {
           // The invite step of onboarding, but only once the org has mailboxes: an invitation
           // sent from settings mid-setup must not skip the domain and mailbox steps.
@@ -245,11 +248,29 @@ export function createAuth(env: AuthEnv) {
               onlyFrom: "mailboxes_created",
             });
           },
+          // Better Auth's own team endpoints stay usable; these keep `mailbox_access` in step.
+          afterAddTeamMember: ({ team }) => syncTeamMailboxAccess(env.db, team.id),
+          afterRemoveTeamMember: ({ team }) => syncTeamMailboxAccess(env.db, team.id),
+          // An invitation can name teams; accepting it adds the user to them without the hook above.
+          afterAcceptInvitation: async ({ invitation }) => {
+            const teamIds = (invitation as { teamId?: string | null }).teamId?.split(",") ?? [];
+            for (const teamId of teamIds) await syncTeamMailboxAccess(env.db, teamId);
+          },
+          beforeDeleteTeam: async ({ team }) => {
+            if (await teamMailbox(env.db, team.id)) {
+              throw new APIError("BAD_REQUEST", {
+                code: "TEAM_BELONGS_TO_MAILBOX",
+                message: "this team is a shared mailbox's access list",
+              });
+            }
+          },
         },
         schema: {
           organization: { modelName: "organizations" },
           member: { modelName: "members" },
           invitation: { modelName: "invitations" },
+          team: { modelName: "teams" },
+          teamMember: { modelName: "teamMembers" },
         },
       }),
       // Several accounts signed in on one device; switch with `multiSession.setActive`.
