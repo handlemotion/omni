@@ -35,6 +35,10 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
 - **Inputs stay calm.** Focus shows as a `ring`-colored border only: no glow, no tint.
 - **Control sizes.** Buttons and inputs share a size scale: `md` is the default, `lg` the larger
   one. Pick the size the frame shows; don't resize a control with classes.
+- **Destructive actions.** `<Button intent="danger">`: filled red with a darker edge. Use it only
+  for actions that delete or can't be undone, and say what happens on the button itself.
+- **Multi-step flows.** `Steps` / `Step` (`components/ui/steps.tsx`): one step open at a time,
+  finished steps collapse to their answer, upcoming steps are dimmed.
 - **Inset actions.** An action inside a field (submit arrow, clear, reveal) is
   `<Button size="inset">` placed in an `InputGroup`; the group handles position and padding.
 - **Balanced padding.** Equal padding on opposite sides of a container, and the same gap between
