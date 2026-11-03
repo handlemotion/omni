@@ -68,6 +68,9 @@ The per-domain claim does not prove that a workspace controls the domain beyond 
 checked when it was added to our account. That is enough while every workspace is ours. Before
 outside customers, a claim needs its own proof (for example an Omni TXT token).
 
+Superseded by ADR 0010: a claim now needs Omni's own `_omni-challenge` TXT, and the lock is made
+only once it verifies.
+
 ### Mailboxes: created by the mail service, idempotent on (org, address)
 
 - **Purelymail:** if the address is not in `listUser`, the mail service creates the user. It

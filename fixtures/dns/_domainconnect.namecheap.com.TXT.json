@@ -1,0 +1,22 @@
+{
+  "Status": 3,
+  "TC": false,
+  "RD": true,
+  "RA": true,
+  "AD": true,
+  "CD": false,
+  "Question": [
+    {
+      "name": "_domainconnect.namecheap.com",
+      "type": 16
+    }
+  ],
+  "Authority": [
+    {
+      "name": "namecheap.com",
+      "type": 6,
+      "TTL": 3600,
+      "data": "edns.registrar-servers.com. support.namecheap.com. 1793694426 28800 7200 604800 3600"
+    }
+  ]
+}

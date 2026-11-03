@@ -12,6 +12,7 @@ declare global {
       TYPESAFE_API_KEY?: string;
       EXPO_ACCESS_TOKEN?: string;
       GOOGLE_CLIENT_SECRET?: string;
+      DOMAIN_CONNECT_PRIVATE_KEY?: string;
     }
   }
 }
@@ -73,6 +74,15 @@ const configSchema = z
     ENVIRONMENT: z.enum(["production", "development", "test"]).default("production"),
     /** Test-only: one origin exempt from the proxy's address checks. Refused unless ENVIRONMENT=test. */
     IMAGE_PROXY_TEST_ALLOW_ORIGIN: optionalText.pipe(z.url().optional()),
+    /**
+     * Domain Connect (ADR 0011): the provider id our templates are published under. Empty keeps
+     * "Set up automatically" off; members add records by hand.
+     */
+    DOMAIN_CONNECT_PROVIDER_ID: optionalText,
+    /** Host of the TXT record holding our public key, for templates that require signed requests. */
+    DOMAIN_CONNECT_KEY_HOST: optionalText,
+    /** PKCS#8 PEM private key that signs apply URLs. Needs DOMAIN_CONNECT_KEY_HOST. */
+    DOMAIN_CONNECT_PRIVATE_KEY: optionalText,
     /** Optional: required only if the Expo project enforces push security. */
     EXPO_ACCESS_TOKEN: optionalText,
     // Rate limits (see rate-limiter.ts). Defaults leave room for real use; tighten per deploy.
@@ -88,7 +98,7 @@ const configSchema = z
     RATE_LIMIT_SEND: rateLimit("100/3600"),
     /** Per member: other outbox writes (read state, done, defer, archive, move). */
     RATE_LIMIT_ACTIONS: rateLimit("300/60"),
-    /** Per member: onboarding calls to the mail service (domains, DNS checks, mailboxes). */
+    /** Per member: creating mailboxes (a mail service call). Domains have their own limiters. */
     RATE_LIMIT_PROVISION: rateLimit("30/3600"),
     /** Per member: image proxy fetches of images not already cached. */
     RATE_LIMIT_IMAGE_PROXY: rateLimit("300/60"),

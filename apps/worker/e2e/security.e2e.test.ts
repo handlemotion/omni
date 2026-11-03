@@ -335,25 +335,26 @@ describe("rate limits", () => {
     expect((await state()).status).toBe(429);
   });
 
-  test("onboarding calls to the mail service are limited per member", async () => {
+  test("mailbox creation, which calls the mail service, is limited per member", async () => {
     const { db } = database;
     const slug = `prov-${randomUUID().slice(0, 8)}`;
     await createOrgWithOwner(db, { name: slug, slug, ownerEmail: `o@${slug}.test` });
     const cookie = await signIn(limited, db, `o@${slug}.test`);
-    const before = mailService.requests.filter((r) => r.path.startsWith("/provision")).length;
+    const before = mailService.requests.length;
 
-    const addDomain = () =>
-      fetch(new URL("/api/onboarding/domains", limited.url), {
+    const createMailbox = () =>
+      fetch(new URL("/api/onboarding/mailboxes", limited.url), {
         method: "POST",
         headers: { cookie, "content-type": "application/json" },
-        body: JSON.stringify({ domain: `${slug}.test` }),
+        body: JSON.stringify({ domainId: randomUUID(), localPart: "hello" }),
       });
-    // The stand-in mail service answers nothing useful, so the first call fails upstream (502);
-    // it still counted, and the second never reaches the mail service.
-    expect((await addDomain()).status).toBe(502);
-    expect((await addDomain()).status).toBe(429);
-    const after = mailService.requests.filter((r) => r.path.startsWith("/provision")).length;
-    expect(after - before).toBe(1);
+    // Even a request the route turns down (no such domain) spends the budget: the limit runs
+    // first, so a burst never reaches the database or the mail service.
+    expect((await createMailbox()).status).toBe(404);
+    const refused = await createMailbox();
+    expect(refused.status).toBe(429);
+    expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect(mailService.requests.length).toBe(before);
   });
 
   test("image proxy fetches are limited per member; cached images do not count", async () => {

@@ -1,0 +1,28 @@
+{
+  "Status": 0,
+  "TC": false,
+  "RD": true,
+  "RA": true,
+  "AD": true,
+  "CD": false,
+  "Question": [
+    {
+      "name": "discord.com",
+      "type": 2
+    }
+  ],
+  "Answer": [
+    {
+      "name": "discord.com",
+      "type": 2,
+      "TTL": 84230,
+      "data": "gabe.ns.cloudflare.com."
+    },
+    {
+      "name": "discord.com",
+      "type": 2,
+      "TTL": 84230,
+      "data": "sima.ns.cloudflare.com."
+    }
+  ]
+}

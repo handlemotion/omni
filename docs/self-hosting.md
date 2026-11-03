@@ -81,6 +81,9 @@ UID-list diffs and polling. On every connect it logs the server's capabilities
 | `PURELYMAIL_API_TOKEN`     | no       |                    | Purelymail admin API token. Unset: onboarding uses IMAP logins. |
 | `SENTRY_DSN`               | no       |                    | Sentry DSN. Unset keeps error reporting off.                    |
 | `SENTRY_ENVIRONMENT`       | no       | `production`       | Sentry environment tag.                                         |
+| `DNS_RESOLVERS`            | no       | system resolvers   | `ip` or `ip:port` list used to find a domain's nameservers.     |
+| `DNS_NAMESERVER_PORT`      | no       | `53`               | Port nameservers are asked on. Change only for a test server.   |
+| `DNS_TIMEOUT_MS`           | no       | `2000`             | Per-query DNS timeout.                                          |
 
 Generate the secrets with `openssl rand -hex 32` and `echo "k1:$(openssl rand -base64 32)"`.
 Keep `MAIL_CREDENTIALS_KEY` only on the mail service. To rotate it, put the new key first
@@ -92,7 +95,8 @@ mailboxes added later.
 
 The Worker and the mail service call each other over HMAC-signed HTTP (`@omni/crypto`, 60 s
 window). The Worker pings `POST /ping` after writing to the outbox or adding a mailbox, and calls
-`POST /provision/domain` and `POST /provision/mailbox` during onboarding (ADR 0007); the mail
+`POST /provision/domain`, `POST /provision/mailbox` and `POST /dns/lookup` during onboarding
+(ADR 0007, ADR 0010); the mail
 service posts batches of `message.created` events to the Worker after indexing new mail. Paths
 and bodies are defined once in `packages/contracts`.
 
@@ -145,7 +149,40 @@ What the Domain and Mailboxes steps do depends on the mail service:
   IMAP before storing it.
 
 Either way the credentials are encrypted with `MAIL_CREDENTIALS_KEY` by the mail service, and the
-mailbox starts syncing at once. A domain belongs to the first workspace that claims it.
+mailbox starts syncing at once.
+
+#### Domain ownership (ADR 0010)
+
+Adding a domain opens a claim with a one-time TXT record, `_omni-challenge.<domain>`, whose
+value the app shows once (only its hash is stored). The domain is locked to the first workspace
+whose record shows up in the domain's DNS; until then several workspaces may wait on it, and a
+claim expires after 7 days. Each workspace may hold 5 waiting claims. Subdomains of a locked
+domain cannot be claimed by another workspace, and names that mix alphabets (a Cyrillic letter
+in a Latin name) are refused.
+
+The mail service reads records from the domain's own nameservers (it finds them through
+`DNS_RESOLVERS`, then asks them directly on port 53), so a saved record verifies within seconds
+instead of waiting out a public resolver's cache. The host it runs on needs outbound DNS (UDP and
+TCP port 53).
+
+Each check reads every record from the nameservers and says why one is not passing yet:
+not found, found with another value (shown), an SPF record already there (merge our include into
+it; the page shows the merged record), MX pointing at another host (mail moves when it changes),
+or a CNAME at a name that needs another record. When the nameservers belong to a host the app
+knows (Cloudflare, GoDaddy, Namecheap, Route 53 and others), it shows where to add records
+there. While the DNS page is open the Worker re-checks on its own (5 s, 10 s, 30 s, then every
+minute, for up to 30 minutes) through the `DOMAIN_WATCH` Durable Object, and pushes each result
+over the realtime socket; "Check record" still checks at once.
+
+"Set up automatically" (Domain Connect) needs templates published under your own domain and
+onboarded by each DNS host; see `docs/domain-connect/README.md`. It stays hidden until
+`DOMAIN_CONNECT_PROVIDER_ID` is set and the host confirms it has the template.
+
+Keep the record after setup. The Worker's cron trigger re-checks every verified domain every six
+hours; if the record is gone, sending from the domain pauses (the domain stays locked) and the
+workspace's owners get an email, and again when it is back. Owners can release a domain or move
+it to another workspace they run, once it has no mailboxes; every step is in the audit log
+(`GET /api/onboarding/domains/:id/events`).
 
 ### Adding a mailbox from the command line
 
@@ -217,47 +254,55 @@ every name and id there is a neutral default to replace with your own.
 
 Bindings:
 
-| Binding        | Kind                    | Setup                                                                                                                                                                                                                                                                                                                |
-| -------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HYPERDRIVE`   | Hyperdrive              | `wrangler hyperdrive create omni --connection-string=postgres://...`, then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres.                                                                                                                                                 |
-| `MAIL_BUCKET`  | R2                      | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker only reads attachments from it.                                                                                                                                                                      |
-| `AI_QUEUE`     | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes both. Failed jobs land in the DLQ after `max_retries`, and the Worker's DLQ consumer records them in `dead_letters` (see [Observability](#observability)). A DLQ is the source queue's name plus `-dlq`. |
-| `REPLAY_GUARD` | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                                                                                                                                                                    |
-| `REALTIME`     | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                                                                                                                                                                     |
-| `RATE_LIMITER` | Durable Object (SQLite) | Created by the `v2` migration. One per rate-limit key (hashed); counts hits in a window, then clears itself. See [Rate limits](#rate-limits).                                                                                                                                                                        |
+| Binding                                      | Kind                    | Setup                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HYPERDRIVE`                                 | Hyperdrive              | `wrangler hyperdrive create omni --connection-string=postgres://...`, then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres.                                                                                                                                                 |
+| `MAIL_BUCKET`                                | R2                      | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker only reads attachments from it.                                                                                                                                                                      |
+| `AI_QUEUE`                                   | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes both. Failed jobs land in the DLQ after `max_retries`, and the Worker's DLQ consumer records them in `dead_letters` (see [Observability](#observability)). A DLQ is the source queue's name plus `-dlq`. |
+| `REPLAY_GUARD`                               | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                                                                                                                                                                    |
+| `REALTIME`                                   | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                                                                                                                                                                     |
+| `DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER` | Rate limiting           | Nothing to create. Per-workspace limits on adding and checking domains (`ratelimits` in `wrangler.jsonc`); `namespace_id` must be unique in your account.                                                                                                                                                            |
+| `DOMAIN_WATCH`                               | Durable Object (SQLite) | Migration `v2`. One per domain claim; re-checks DNS while the DNS page is open.                                                                                                                                                                                                                                      |
+| `RATE_LIMITER`                               | Durable Object (SQLite) | Migration `v3`. One per rate-limit key (hashed); counts hits in a window, then clears itself. See [Rate limits](#rate-limits).                                                                                                                                                                                       |
 
 Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashboard values on
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
 to `.dev.vars`.
 
-| Variable                   | Kind   | Required | Notes                                                                                                                                                                           |
-| -------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`       | secret | yes      | At least 32 random characters.                                                                                                                                                  |
-| `BETTER_AUTH_URL`          | var    | yes      | Public origin of the Worker (and the web app it serves). Magic links point here.                                                                                                |
-| `AUTH_TRUSTED_ORIGINS`     | var    | no       | Comma-separated web/app origins.                                                                                                                                                |
-| `AUTH_PASSKEY_RP_ID`       | var    | no       | WebAuthn relying party ID.                                                                                                                                                      |
-| `APP_NAME`                 | var    | no       | Defaults to `Omni`.                                                                                                                                                             |
-| `WEB_APP_URL`              | var    | no       | Web app origin; invitation emails link to `<WEB_APP_URL>/invite/<id>`. Defaults to `BETTER_AUTH_URL`.                                                                           |
-| `GOOGLE_CLIENT_ID`         | var    | no       | Google OAuth client ID. With `GOOGLE_CLIENT_SECRET`, the login page shows "Using Google". See [Sign in with Google](#sign-in-with-google).                                      |
-| `GOOGLE_CLIENT_SECRET`     | secret | no       | Google OAuth client secret. Set both or neither; one alone stops the Worker from starting.                                                                                      |
-| `MAIL_SERVICE_URL`         | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                              |
-| `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                                                                                                                               |
-| `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links and invitations. Empty disables them.                                                                                       |
-| `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off. Its environment tag is `ENVIRONMENT`.                                                                                                                   |
-| `ANTHROPIC_API_KEY`        | secret | no       | Summaries, and triage when Jev is off. Without any AI key threads stay unsorted (a wordless reply of yours still files as FYI).                                                 |
-| `TYPESAFE_API_KEY`         | secret | no       | Triage on TypeSafe's Jev; summaries stay on Claude.                                                                                                                             |
-| `TRIAGE_PROVIDER`          | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                                                                              |
-| `JEV_MODEL`                | var    | no       | Jev model override.                                                                                                                                                             |
-| `TYPESAFE_API_URL`         | var    | no       | TypeSafe API base URL. Defaults to `https://api.typesafe.ai`.                                                                                                                   |
-| `AI_DAILY_TOKEN_CAP`       | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause.                                                                                                       |
-| `EXPO_PUSH_ENABLED`        | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                                                                                                            |
-| `EXPO_ACCESS_TOKEN`        | secret | no       | Only if your Expo project enforces push security.                                                                                                                               |
-| `IMAGE_PROXY_DOH_URL`      | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                      |
-| `ENVIRONMENT`              | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`. |
+| Variable                     | Kind   | Required | Notes                                                                                                                                                                           |
+| ---------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`         | secret | yes      | At least 32 random characters.                                                                                                                                                  |
+| `BETTER_AUTH_URL`            | var    | yes      | Public origin of the Worker (and the web app it serves). Magic links point here.                                                                                                |
+| `AUTH_TRUSTED_ORIGINS`       | var    | no       | Comma-separated web/app origins.                                                                                                                                                |
+| `AUTH_PASSKEY_RP_ID`         | var    | no       | WebAuthn relying party ID.                                                                                                                                                      |
+| `APP_NAME`                   | var    | no       | Defaults to `Omni`.                                                                                                                                                             |
+| `WEB_APP_URL`                | var    | no       | Web app origin; invitation emails link to `<WEB_APP_URL>/invite/<id>`. Defaults to `BETTER_AUTH_URL`.                                                                           |
+| `GOOGLE_CLIENT_ID`           | var    | no       | Google OAuth client ID. With `GOOGLE_CLIENT_SECRET`, the login page shows "Using Google". See [Sign in with Google](#sign-in-with-google).                                      |
+| `GOOGLE_CLIENT_SECRET`       | secret | no       | Google OAuth client secret. Set both or neither; one alone stops the Worker from starting.                                                                                      |
+| `MAIL_SERVICE_URL`           | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                              |
+| `MAIL_SERVICE_HMAC_SECRET`   | secret | yes      | Same value as the mail service's.                                                                                                                                               |
+| `SYSTEM_MAIL_FROM`           | var    | no       | Address of a mailbox in Omni that sends magic links and invitations. Empty disables them.                                                                                       |
+| `SENTRY_DSN`                 | var    | no       | Empty keeps Sentry off. Its environment tag is `ENVIRONMENT`.                                                                                                                   |
+| `ANTHROPIC_API_KEY`          | secret | no       | Summaries, and triage when Jev is off. Without any AI key threads stay unsorted (a wordless reply of yours still files as FYI).                                                 |
+| `TYPESAFE_API_KEY`           | secret | no       | Triage on TypeSafe's Jev; summaries stay on Claude.                                                                                                                             |
+| `TRIAGE_PROVIDER`            | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                                                                              |
+| `JEV_MODEL`                  | var    | no       | Jev model override.                                                                                                                                                             |
+| `TYPESAFE_API_URL`           | var    | no       | TypeSafe API base URL. Defaults to `https://api.typesafe.ai`.                                                                                                                   |
+| `AI_DAILY_TOKEN_CAP`         | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause.                                                                                                       |
+| `EXPO_PUSH_ENABLED`          | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                                                                                                            |
+| `EXPO_ACCESS_TOKEN`          | secret | no       | Only if your Expo project enforces push security.                                                                                                                               |
+| `DOMAIN_CONNECT_PROVIDER_ID` | var    | no       | Domain Connect provider id our templates are published under. Empty hides one-click setup.                                                                                      |
+| `DOMAIN_CONNECT_KEY_HOST`    | var    | no       | TXT host of the public key, for templates that require signed requests.                                                                                                         |
+| `DOMAIN_CONNECT_PRIVATE_KEY` | secret | no       | PKCS#8 PEM key that signs Domain Connect apply URLs.                                                                                                                            |
+| `IMAGE_PROXY_DOH_URL`        | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                      |
+| `ENVIRONMENT`                | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`. |
 
 | `RATE_LIMIT_*` | var | no | Rate limits, `<count>/<seconds>` or `off`. See [Rate limits](#rate-limits). |
 
-Magic links and invitations are sent through the outbox: the Worker writes a `send` action for
+The `triggers.crons` entry in `wrangler.jsonc` runs the domain re-check (ADR 0010); it needs no
+setup beyond the deploy.
+
+Magic links, invitations and domain notices are sent through the outbox: the Worker writes a `send` action for
 the `SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be
 connected like any other. Locally, `ENVIRONMENT=development` (the `.dev.vars.example` default)
 also prints each link to the `wrangler dev` console as `{"event":"auth.dev_link",...}`, so you
@@ -284,16 +329,16 @@ instance per key, so counts are exact). Each is a var of the form `<count>/<seco
 limit the Worker answers `429` with `Retry-After`. Per-IP limits key on `CF-Connecting-IP`,
 which Cloudflare sets and clients cannot.
 
-| Variable                 | Default    | Counts                                                                                                            |
-| ------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------- |
-| `RATE_LIMIT_AUTH`        | `60/60`    | Per IP: every sign-in step (magic link and its link, passkey options and verify, Google). Session reads are free. |
-| `RATE_LIMIT_MAGIC_LINK`  | `5/900`    | Per email address: magic-link requests, so nobody can flood an inbox from your no-reply mailbox.                  |
-| `RATE_LIMIT_INVITE`      | `30/3600`  | Per inviting user: invitations sent or resent.                                                                    |
-| `RATE_LIMIT_SEARCH`      | `60/60`    | Per member: searches.                                                                                             |
-| `RATE_LIMIT_SEND`        | `100/3600` | Per member: new mail and replies.                                                                                 |
-| `RATE_LIMIT_ACTIONS`     | `300/60`   | Per member: other writes that reach IMAP (read state, archive, move).                                             |
-| `RATE_LIMIT_PROVISION`   | `30/3600`  | Per member: onboarding calls to the mail service (add a domain, check DNS, create a mailbox).                     |
-| `RATE_LIMIT_IMAGE_PROXY` | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                              |
+| Variable                 | Default    | Counts                                                                                                                                                                        |
+| ------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RATE_LIMIT_AUTH`        | `60/60`    | Per IP: every sign-in step (magic link and its link, passkey options and verify, Google). Session reads are free.                                                             |
+| `RATE_LIMIT_MAGIC_LINK`  | `5/900`    | Per email address: magic-link requests, so nobody can flood an inbox from your no-reply mailbox.                                                                              |
+| `RATE_LIMIT_INVITE`      | `30/3600`  | Per inviting user: invitations sent or resent.                                                                                                                                |
+| `RATE_LIMIT_SEARCH`      | `60/60`    | Per member: searches.                                                                                                                                                         |
+| `RATE_LIMIT_SEND`        | `100/3600` | Per member: new mail and replies.                                                                                                                                             |
+| `RATE_LIMIT_ACTIONS`     | `300/60`   | Per member: other writes that reach IMAP (read state, archive, move).                                                                                                         |
+| `RATE_LIMIT_PROVISION`   | `30/3600`  | Per member: creating a mailbox, which calls the mail service. Adding and checking domains have their own per-workspace limits (`DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER`). |
+| `RATE_LIMIT_IMAGE_PROXY` | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                                                                                          |
 
 #### Security headers
 

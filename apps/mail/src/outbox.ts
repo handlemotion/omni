@@ -17,6 +17,13 @@ export class PermanentActionError extends Error {
   override name = "PermanentActionError";
 }
 
+const PAUSED_RETRY_MS = 5 * 60_000;
+
+/** The sender's domain lost its ownership challenge: the send waits instead of failing. */
+export class SendingPausedError extends Error {
+  override name = "SendingPausedError";
+}
+
 export interface OutboxOptions {
   actions: ActionSource;
   logger: Logger;
@@ -114,10 +121,13 @@ export class OutboxExecutor {
       log.info("outbox.done", { attempts: action.attempts, durationMs: Date.now() - started });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (error instanceof MailboxUnavailableError) {
-        // Not the action's fault: wait for the mailbox without spending one of its attempts.
+      if (error instanceof MailboxUnavailableError || error instanceof SendingPausedError) {
+        // Not the action's fault: wait for the mailbox (or the domain's DNS) without spending
+        // one of its attempts.
         // A send that SMTP accepted already has `smtp_accepted_at`, so the retry only files it.
-        const retryAt = new Date(Date.now() + this.options.deferMs);
+        // DNS comes back in hours, not seconds: a paused send looks again every few minutes.
+        const wait = error instanceof SendingPausedError ? PAUSED_RETRY_MS : this.options.deferMs;
+        const retryAt = new Date(Date.now() + wait);
         log.info("outbox.deferred", { retryAt });
         await actions.defer(action.id, retryAt).catch((deferError: unknown) => {
           log.error("outbox.defer_not_recorded", { error: deferError });
@@ -204,6 +214,11 @@ export class OutboxExecutor {
     // this write; appending to Sent first would trade it for "filed but never sent", which is worse.
     if (!action.smtpAcceptedAt) {
       if (!this.accepted.has(action.id)) {
+        if (await this.options.actions.sendingPaused(mailbox.address)) {
+          throw new SendingPausedError(
+            `sending from ${mailbox.address} is paused: its domain's DNS no longer verifies`,
+          );
+        }
         await smtpSend(mailbox, action.payload, raw);
         this.accepted.add(action.id);
       }

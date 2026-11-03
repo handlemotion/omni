@@ -1,9 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { domainToASCII } from "node:url";
 import { describe, expect, test } from "vitest";
 import {
   mailboxAddress,
   normalizeDomain,
+  parentDomains,
+  parseDomain,
   purelymailDnsRecords,
   purelymailDomainState,
 } from "./domains.ts";
@@ -49,6 +52,53 @@ describe("normalizeDomain", () => {
     ]) {
       expect({ input, domain: normalizeDomain(input) }).toEqual({ input, domain: null });
     }
+  });
+});
+
+describe("parseDomain: internationalized names", () => {
+  // Real scripts in one alphabet are ordinary domains and must stay claimable.
+  test("accepts names written in one script, and the script mixes languages use", () => {
+    for (const name of [
+      "bücher.de",
+      "пример.рф",
+      "例え.jp",
+      "東京ディズニー.jp",
+      "한국.kr",
+      "παράδειγμα.gr",
+    ]) {
+      expect({ name, ok: "domain" in parseDomain(name) }).toEqual({ name, ok: true });
+    }
+  });
+
+  // Each of these renders as (or like) a Latin name another workspace may own: "pаypal" has a
+  // Cyrillic "а", "аррӏе" is all Cyrillic. Claimed, they would let a lookalike pass review.
+  test("refuses mixed-script and whole-script lookalikes", () => {
+    for (const name of [
+      "pаypal.com",
+      "gооgle.com",
+      "аррӏе.com",
+      "αpple.com",
+      "xn--pypal-4ve.com",
+    ]) {
+      const parsed = parseDomain(name);
+      expect({ name, refused: "error" in parsed }).toEqual({ name, refused: true });
+    }
+    // The lookalike rule is about passing for Latin: under a Cyrillic TLD the same letters are
+    // just Russian.
+    expect(parseDomain("аррӏе.рф")).toEqual({ domain: domainToASCII("аррӏе.рф") });
+  });
+
+  // A label that does not decode cannot be checked for lookalikes, so it is not let through.
+  test("refuses punycode that does not decode", () => {
+    expect(parseDomain("xn--zz.com")).toEqual({ error: "that domain name is not valid punycode" });
+  });
+});
+
+describe("parentDomains", () => {
+  // A lock on acme.com must cover mail.acme.com, and never stop at the bare TLD.
+  test("lists every claimable domain above, nearest first", () => {
+    expect(parentDomains("a.mail.acme.co.uk")).toEqual(["mail.acme.co.uk", "acme.co.uk", "co.uk"]);
+    expect(parentDomains("acme.com")).toEqual([]);
   });
 });
 
