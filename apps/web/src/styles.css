@@ -67,6 +67,8 @@
 
 @theme inline {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  /* Inter's recommended web setting (rsms.me/inter): ligatures and contextual alternates. */
+  --font-sans--font-feature-settings: "liga" 1, "calt" 1;
 
   --text-xs: 11px;
   --text-xs--line-height: 13px;
