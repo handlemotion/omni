@@ -24,6 +24,8 @@ export interface SupervisorOptions {
 /** Owns one `MailboxConnection` per mailbox, the periodic folder sync, and the outbox loop. */
 export class Supervisor {
   private readonly connections = new Map<string, MailboxConnection>();
+  /** Mailboxes connecting or syncing at once (`concurrency`). */
+  private readonly permits: Semaphore.Semaphore;
   private readonly limit: <T>(task: () => Promise<T>) => Promise<T>;
   private readonly outbox: OutboxExecutor;
   private readonly log: Logger;
@@ -37,6 +39,7 @@ export class Supervisor {
     this.options = options;
     this.log = options.logger;
     const permits = Semaphore.makeUnsafe(options.concurrency ?? 4);
+    this.permits = permits;
     this.limit = (task) => Effect.runPromise(Semaphore.withPermit(permits, Effect.promise(task)));
     this.outbox = new OutboxExecutor({
       actions: options.actions,
@@ -87,7 +90,7 @@ export class Supervisor {
     const connection = new MailboxConnection(mailbox, {
       store: this.options.store,
       logger: this.log,
-      gate: this.limit,
+      gate: this.permits,
     });
     if (this.options.onMessage) connection.on("message", this.options.onMessage);
     // Actions that failed while the mailbox was offline become runnable again on reconnect.
