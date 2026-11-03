@@ -15,7 +15,8 @@
     "test:e2e": "vitest run --config vitest.e2e.mts",
     "perf:seed": "node scripts/seed-perf.ts",
     "perf:explain": "node scripts/explain-perf.ts",
-    "org:create": "node src/cli/org-create.ts"
+    "org:create": "node src/cli/org-create.ts",
+    "mailbox-teams:backfill": "node src/cli/mailbox-teams-backfill.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",

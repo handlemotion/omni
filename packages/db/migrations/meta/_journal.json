@@ -43,6 +43,13 @@
       "when": 1793738787273,
       "tag": "0005_done_and_all_views",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793739838773,
+      "tag": "0006_shared_mailbox_teams",
+      "breakpoints": true
     }
   ]
 }

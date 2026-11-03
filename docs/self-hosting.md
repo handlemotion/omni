@@ -144,7 +144,10 @@ mailbox id, stores the mailbox with an owner grant, and prints the mailbox id. R
 for the same address replaces the credentials. With `MAIL_SERVICE_URL` set it pings the running
 service, which connects the mailbox immediately; otherwise it is picked up on the next sync
 interval. `--kind shared` adds a shared inbox (read state stays per person; `\Seen` is never
-changed on the server).
+changed on the server). A shared inbox gets a team with the owner on it; owners and admins add
+and remove its members through `PUT`/`DELETE /api/mailboxes/<id>/members/<member id>` (ADR
+0008). Upgrading an install whose shared inboxes predate teams: run
+`pnpm --filter @omni/db mailbox-teams:backfill` once after `db:migrate` (safe to repeat).
 
 Run from source: `pnpm --filter @omni/mail start` reads `apps/mail/.env`. Variables already set
 in the environment win over the file.
