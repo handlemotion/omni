@@ -1,0 +1,16 @@
+# Headers for the web app's static files, applied by Cloudflare (Workers static assets) before
+# the Worker runs. Worker responses get theirs from apps/worker/src/security-headers.ts; keep the
+# shared values (HSTS, nosniff, Permissions-Policy) in step.
+#
+# CSP: everything from our own origin only. Message HTML loads in `<iframe sandbox>` from
+# /api/threads/:id/messages/:messageId/html (frame-src 'self'), and that route sets its own,
+# stricter CSP. Remote mail images never load here: they go through /api/image-proxy.
+# Styles allow 'unsafe-inline': React Aria sets style attributes (its live announcer, overlays)
+# and UI libraries inject <style> at runtime. Scripts stay 'self' only, which is what stops XSS.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=63072000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: same-origin
+  Permissions-Policy: accelerometer=(), browsing-topics=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), hid=(), magnetometer=(), microphone=(), midi=(), payment=(), serial=(), usb=(), publickey-credentials-create=(self), publickey-credentials-get=(self)
+  Cross-Origin-Opener-Policy: same-origin

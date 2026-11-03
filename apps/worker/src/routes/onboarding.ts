@@ -46,6 +46,7 @@ import {
 } from "../domains.ts";
 import { domainConnectUrl } from "../dns-check.ts";
 import { callMailService, MailServiceError } from "../mail-service.ts";
+import { limitPerMember } from "../rate-limiter.ts";
 
 const requireDomainAdmin = createMiddleware<AppEnv>(async (c, next) => {
   if (!(DOMAIN_ADMIN_ROLES as readonly string[]).includes(c.var.member.role)) {
@@ -371,6 +372,7 @@ export const onboarding = new Hono<AppEnv>()
     "/mailboxes",
     requireMember,
     requireDomainAdmin,
+    limitPerMember("provision"),
     zValidator("json", mailboxBody),
     async (c) => {
       const { db, member, user } = c.var;

@@ -10,3 +10,13 @@ allowBuilds:
   lefthook: true
   workerd: true
   sharp: false
+
+# drizzle-kit 0.31 (latest stable) still loads the deprecated @esbuild-kit loader, which pins
+# esbuild 0.18 (GHSA-67mh-4wv8-2f99). Give it the esbuild drizzle-kit itself already uses.
+# Drop this once drizzle-kit stops depending on @esbuild-kit.
+overrides:
+  "@esbuild-kit/core-utils>esbuild": 0.25.12
+  # @sentry/bundler-plugins 11.10.0 (latest) pins glob ^13, whose glob and minimatch carry
+  # GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249. Sentry only calls `glob(patterns, options)`,
+  # unchanged in 14. Drop this once Sentry depends on glob >= 14.0.2.
+  "@sentry/bundler-plugins>glob": 14.0.3

@@ -8,6 +8,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { imageHeaders, isProxiableImageType, proxyImage } from "../image-proxy.ts";
+import { checkRateLimit, tooManyRequests } from "../rate-limiter.ts";
 
 function notFound(): never {
   throw new HTTPException(404, { message: "not found" });
@@ -37,11 +38,15 @@ export const assets = new Hono<AppEnv>()
     "/image-proxy",
     zValidator("query", z.object({ url: z.string().min(1).max(4096) })),
     async (c) => {
+      const { config, member } = c.var;
       const result = await proxyImage(c.req.valid("query").url, {
-        dohUrl: c.var.config.IMAGE_PROXY_DOH_URL,
-        testAllowOrigin: c.var.config.IMAGE_PROXY_TEST_ALLOW_ORIGIN,
+        dohUrl: config.IMAGE_PROXY_DOH_URL,
+        testAllowOrigin: config.IMAGE_PROXY_TEST_ALLOW_ORIGIN,
+        // Each miss is an outbound fetch on the member's behalf; cached images are free.
+        beforeFetch: () => checkRateLimit(c.env, config, "imageProxy", member.id),
       });
       if (result instanceof Response) return result;
+      if (result.status === 429) return tooManyRequests(result.retryAfter);
       return c.json({ error: result.reason }, result.status);
     },
   )
@@ -68,7 +73,11 @@ export const assets = new Hono<AppEnv>()
         "x-content-type-options": "nosniff",
         "referrer-policy": "no-referrer",
         // Images only from our proxy and attachments; inline styles are the sanitizer's output.
-        "content-security-policy": `default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors ${frameAncestors}; sandbox allow-popups allow-popups-to-escape-sandbox`,
+        // The sandbox keeps our origin (allow-same-origin) so those image requests carry the
+        // session cookie; an opaque origin is cross-site, gets no cookie, and every image 401s.
+        // Nothing can run with that origin: no allow-scripts, no script-src, and the HTML was
+        // sanitized on save. Forms, plugins and top-level navigation stay off.
+        "content-security-policy": `default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors ${frameAncestors}; sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox`,
         "cache-control": "private, max-age=3600",
       },
     });
