@@ -159,16 +159,14 @@ function ExitButton() {
   );
 }
 
-/** "Step 2 of 4 · DNS" over one bar per step, filled through the current one. */
+/**
+ * One bar per step, filled through the current one. No "Step 2 of 4" above it: the page's title
+ * names the step, and the bar's accessible label says where it is.
+ */
 function StepProgress(props: { current: number; names: readonly string[] }) {
   const { current, names } = props;
   return (
-    <div className="flex flex-col gap-3 pt-12">
-      <span className="text-sm text-muted-foreground">
-        Step {current + 1} of {names.length}
-        <span className="text-subtle-foreground"> · </span>
-        <span className="text-foreground">{names[current]}</span>
-      </span>
+    <div className="pt-12">
       <div
         role="progressbar"
         aria-label="Setup progress"
@@ -176,12 +174,12 @@ function StepProgress(props: { current: number; names: readonly string[] }) {
         aria-valuemax={names.length}
         aria-valuenow={current + 1}
         aria-valuetext={`Step ${current + 1} of ${names.length}: ${names[current]}`}
-        className="flex gap-1"
+        className="flex gap-1.5"
       >
         {names.map((name, i) => (
           <span
             key={name}
-            className={`h-1 flex-1 rounded-full ${i <= current ? "bg-foreground" : "bg-border"}`}
+            className={`h-1.5 flex-1 rounded-full ${i <= current ? "bg-foreground" : "bg-border"}`}
           />
         ))}
       </div>
@@ -215,7 +213,7 @@ function PageForm(props: {
       </div>
       <div className="flex flex-col gap-6 pt-8">{props.children}</div>
       {props.problem && (
-        <Note intent="danger" className="mt-6" role="alert">
+        <Note intent="danger" indicator={false} className="mt-6" role="alert">
           {props.problem}
         </Note>
       )}
@@ -673,7 +671,7 @@ function InputList(props: {
     <div className="flex flex-col gap-1.5">
       <span className="text-sm text-muted-foreground">
         {props.label}
-        {props.optional && <span className="ms-1 text-subtle-foreground">(Optional)</span>}
+        {props.optional && <span className="ms-1 text-muted-foreground">(optional)</span>}
       </span>
       <div className="flex flex-col gap-2">
         {values.map((value, i) => (

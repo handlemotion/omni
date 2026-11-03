@@ -74,12 +74,13 @@ const folders: NavItem[] = [
   { label: "Spam", icon: <IconWarning /> },
 ];
 
-// Figma: Omni, sidebar (node 1:3).
+// Figma: Omni, sidebar (node 1:3). The rail sits on the ground with no border; the page beside
+// it is a white panel floating on the same ground (tactile-design: ground, rail, panel).
 export function AppSidebar() {
   const router = useRouter();
   const signOut = useSignOut();
   return (
-    <Sidebar>
+    <Sidebar intent="inset">
       <SidebarHeader>
         <OrganizationMenu />
         <div className="flex items-center gap-0.5">
@@ -121,7 +122,7 @@ export function AppSidebar() {
           onPress={() => signOut.mutate()}
         >
           <IconCircleDashed />
-          Log Out
+          Log out
         </Button>
         <Button intent="plain" size="sq-xs" aria-label="Help">
           <IconHelp />
@@ -177,7 +178,8 @@ function OrganizationMenu() {
         />
         <span className="flex items-center gap-1.25 truncate">
           {active?.name}
-          <IconChevronDown className="mt-px text-subtle-foreground" />
+          {/* Turns over while the menu is open, in step with it. */}
+          <IconChevronDown className="mt-px text-subtle-foreground transition-transform duration-150 ease-out in-aria-expanded:rotate-180" />
         </span>
       </Button>
       <Menu placement="bottom start">

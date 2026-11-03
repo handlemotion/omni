@@ -13,6 +13,7 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
 | Icons              | `apps/web/src/components/icons/`: SVGs exported from Figma, wrapped as components.                                                  |
 | Feature components | `apps/web/src/components/<feature>/` (for example `auth/`): compositions of primitives. Routes render these and stay thin.          |
 | Registry config    | `apps/web/components.json`. Add a primitive with `npx shadcn@latest add @intentui/<name>` from `apps/web`.                          |
+| Tactile layer      | The `tactile-design` skill (`.claude/skills/tactile-design`): how surfaces, controls and motion feel. Load it for any UI work.      |
 
 ## Rules
 
@@ -28,11 +29,25 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
   Never hex values, arbitrary colors, or Tailwind palette colors (`gray-200`) in components.
 - **Add a token only when a design uses it.** A new value goes into `styles.css` first, named for
   its role, not its look. Keep the file short.
-- **Background vs. surface.** `background` is the app canvas. `surface` is anything raised on it:
-  cards, popovers, sidebars.
+- **Tactile, layered, quiet.** Follow the `tactile-design` skill for elevation, controls and
+  motion; this file wins where they differ. Its roles map to our tokens: ink-2 is `ground`,
+  ink-3 `well`, the shadows are `--shadow-button`, `--shadow-card`, `--shadow-menu`,
+  `--shadow-panel` and `--shadow-primary` (use them as `shadow-(--shadow-card)`, never a
+  Tailwind `shadow-lg`), hover is `hover-wash`, keyboard focus is `focus-ring`.
+- **Ground, panel, raised.** `ground` is the window and the sidebar rail. The page is a white
+  `background` panel floating on it. Cards, menus and popovers are white and raised by their
+  shadow's ring and crisp drop, not by a border. `surface` is the near-white tint for the rare
+  surface that is neither.
+- **Brand primary.** We keep the brand blue as the skill's opt-in "accent primary" instead of its
+  default black. Blue stays off counts, labels and text: it marks the primary action, selection
+  and state (the unread dot), never importance.
 - **Brand.** `primary` is the brand color: primary buttons and selected/active components, with
   `primary-foreground` text on it. Use it sparingly; most controls are neutral.
-- **Inputs stay calm.** Focus shows as a `ring`-colored border only: no glow, no tint.
+- **Fields are wells.** An input sits one step into its surface (`bg-well`, no border, no
+  shadow); focus deepens it to `well-focus` with a 1px `focus-ring`. A field never looks like a
+  button. The one exception is the search trigger, a white field with a hairline edge.
+- **Buttons are raised.** Secondary (`intent="outline"`) is white with `--shadow-button`; there
+  are no grey filled buttons. Every button squeezes to `scale(.97)` when pressed.
 - **Control sizes.** Buttons and inputs share a size scale: `md` is the default, `lg` the larger
   one. Pick the size the frame shows; don't resize a control with classes.
 - **Destructive actions.** `<Button intent="danger">`: filled red with a darker edge. Use it only

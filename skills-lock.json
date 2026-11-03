@@ -6,6 +6,12 @@
       "sourceType": "github",
       "note": "Upstream guidance with an Omni 'Repo overrides' section."
     },
+    "tactile-design": {
+      "source": "kosta4a/tactile-design",
+      "sourceType": "github",
+      "skillPath": "skills/tactile-design/SKILL.md",
+      "computedHash": "63a959c28919f1b7248e44cc54d21ea0022f4da6f282fa32c2708c55d341e01a"
+    },
     "typesafe-ai": {
       "source": "typesafe-ai/skills",
       "sourceType": "github",

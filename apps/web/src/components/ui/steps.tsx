@@ -22,7 +22,7 @@ export type StepState = "complete" | "current" | "upcoming";
 
 export function Step(props: {
   state: StepState;
-  /** Muted line above the title, e.g. "MX". */
+  /** Muted tag after the title, e.g. "MX". After, not above: no eyebrow labels. */
   label: string;
   title: string;
   /** Shown only on the current step. */
@@ -32,7 +32,7 @@ export function Step(props: {
     <li
       data-slot="step"
       aria-current={props.state === "current" ? "step" : undefined}
-      className="relative flex flex-col gap-1"
+      className="relative flex flex-col"
     >
       <span
         aria-hidden
@@ -47,14 +47,11 @@ export function Step(props: {
           )}
         />
       </span>
-      <span className="text-xs text-muted-foreground">{props.label}</span>
-      <span
-        className={cn(
-          "text-sm",
-          props.state === "upcoming" ? "text-muted-foreground" : "text-foreground",
-        )}
-      >
-        {props.title}
+      <span className="flex items-baseline gap-2 text-sm">
+        <span className={props.state === "upcoming" ? "text-muted-foreground" : "text-foreground"}>
+          {props.title}
+        </span>
+        <span className="text-xs text-muted-foreground">{props.label}</span>
       </span>
       {props.state === "current" && props.children && <div className="pt-3">{props.children}</div>}
     </li>
