@@ -1,5 +1,13 @@
+import { ArrowsPointingOutIcon, ViewColumnsIcon } from "@heroicons/react/24/outline";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Selection } from "react-aria-components";
+import type { Key, Selection } from "react-aria-components";
+import { IconWrite } from "@/components/icons/sidebar";
+import { buttonStyles } from "@/components/ui/button";
+import { Link } from "@/components/ui/link";
+import { SearchField, SearchInput } from "@/components/ui/search-field";
+import { Separator } from "@/components/ui/separator";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Avatar } from "@/components/ui/avatar";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
@@ -21,47 +29,116 @@ export function ThreadList(props: {
   const unread = useUnreadCount(props.filter);
   const [selected, setSelected] = useState<Selection>(new Set());
   const count = selected === "all" ? threads.length : selected.size;
+  const [view, setView] = useViewMode();
+  const { threadId } = useParams({ strict: false });
+  // List view: an open thread takes the whole width; split view: it sits beside the list.
+  const hideList = view === "list" && !!threadId;
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-12 items-center px-5">
-          <Heading>
-            {props.title}
-            {unread > 0 && <span className="ms-1 text-primary tabular-nums">{unread}</span>}
-          </Heading>
-        </header>
-
-        <div className="flex h-10.5 items-center gap-2 border-b px-5">
-          <CheckboxField
-            aria-label="Select all"
-            isSelected={threads.length > 0 && count === threads.length}
-            isIndeterminate={count > 0 && count < threads.length}
-            onChange={(all) => setSelected(all ? "all" : new Set())}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="flex h-12 shrink-0 items-center gap-2 px-5">
+        {/* 1px down: centers the title's capitals on the sidebar header's icons. */}
+        <Heading className="translate-y-px">
+          {props.title}
+          {unread > 0 && <span className="ms-1 text-primary tabular-nums">{unread}</span>}
+        </Heading>
+        <div className="ms-auto flex items-center gap-2">
+          <Search />
+          <ToggleGroup
+            size="sq-xs"
+            aria-label="View"
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={[view]}
+            onSelectionChange={(keys: Set<Key>) => {
+              const next = [...keys][0];
+              if (next === "list" || next === "split") setView(next);
+            }}
           >
-            <Checkbox />
-          </CheckboxField>
-          <span className="text-xs text-subtle-foreground">Most recent</span>
+            <ToggleGroupItem id="list" aria-label="List">
+              <ArrowsPointingOutIcon />
+            </ToggleGroupItem>
+            <ToggleGroupItem id="split" aria-label="Split">
+              <ViewColumnsIcon />
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Separator orientation="vertical" className="mx-1 h-4" />
+          <Link href="/compose" className={buttonStyles({ intent: "primary" })}>
+            <IconWrite />
+            Compose
+          </Link>
         </div>
+      </header>
 
-        <GridList
-          aria-label={props.title}
-          items={threads}
-          selectionMode="multiple"
-          selectionBehavior="toggle"
-          selectedKeys={selected}
-          onSelectionChange={setSelected}
-        >
-          {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
-        </GridList>
+      <div className="flex min-h-0 flex-1">
+        <section className={`flex min-w-0 flex-1 flex-col ${hideList ? "hidden" : ""}`}>
+          <div className="flex h-10.5 items-center gap-2 border-b px-5">
+            <CheckboxField
+              aria-label="Select all"
+              isSelected={threads.length > 0 && count === threads.length}
+              isIndeterminate={count > 0 && count < threads.length}
+              onChange={(all) => setSelected(all ? "all" : new Set())}
+            >
+              <Checkbox />
+            </CheckboxField>
+            <span className="text-xs text-subtle-foreground">Most recent</span>
+          </div>
 
-        {hasNextPage && (
-          <LoadMore onVisible={() => void fetchNextPage()} isLoading={isFetchingNextPage} />
-        )}
-      </section>
-      {props.children}
+          <GridList
+            aria-label={props.title}
+            items={threads}
+            selectionMode="multiple"
+            selectionBehavior="toggle"
+            selectedKeys={selected}
+            onSelectionChange={setSelected}
+          >
+            {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
+          </GridList>
+
+          {hasNextPage && (
+            <LoadMore onVisible={() => void fetchNextPage()} isLoading={isFetchingNextPage} />
+          )}
+        </section>
+        {props.children}
+      </div>
     </div>
   );
+}
+
+/** Searches all mail: Enter opens the search page with the query. */
+function Search() {
+  const navigate = useNavigate();
+  return (
+    <SearchField
+      aria-label="Search"
+      className="w-60"
+      onSubmit={(q) => void navigate({ to: "/search", search: { q } })}
+    >
+      <SearchInput placeholder="Search" />
+    </SearchField>
+  );
+}
+
+type ViewMode = "list" | "split";
+
+/** List or split, remembered in this browser. */
+function useViewMode() {
+  const [view, setView] = useState<ViewMode>(() => {
+    try {
+      return localStorage.getItem("omni:view") === "list" ? "list" : "split";
+    } catch {
+      return "split";
+    }
+  });
+  const set = (next: ViewMode) => {
+    setView(next);
+    try {
+      localStorage.setItem("omni:view", next);
+    } catch {
+      // Storage unavailable (private mode): the choice lasts for this page only.
+    }
+  };
+  return [view, set] as const;
 }
 
 function ThreadRow({ thread, href }: { thread: ThreadSummary; href: string }) {

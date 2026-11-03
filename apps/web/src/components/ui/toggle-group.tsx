@@ -48,11 +48,12 @@ export function ToggleGroup({
         className={cx(
           [
             "[--toggle-group-radius:var(--radius-lg)] [--toggle-gutter:--spacing(0.5)]",
-            "[--toggle-foreground:var(--color-foreground)] [--toggle-selected-bg:var(--color-primary)] [--toggle-selected-foreground:var(--color-primary-foreground)]",
-            "[--toggle-focused-bg:var(--color-secondary)] [--toggle-focused-foreground:var(--color-secondary-foreground)]",
-            "[--toggle-hover-bg:var(--toggle-focused-bg)] [--toggle-hover-foreground:var(--toggle-focused-foreground)]",
-            "[--toggle-icon:color-mix(in_oklab,var(--toggle-focused-foreground)_50%,var(--toggle-focused-bg))]",
-            "inset-ring inset-ring-border inline-flex overflow-hidden p-(--toggle-gutter)",
+            // A segmented control: accent track, the selected option a background-colored chip.
+            "[--toggle-foreground:var(--color-foreground)] [--toggle-selected-bg:var(--color-background)] [--toggle-selected-foreground:var(--color-foreground)]",
+            "[--toggle-focused-bg:transparent] [--toggle-focused-foreground:var(--color-foreground)]",
+            "[--toggle-hover-bg:transparent] [--toggle-hover-foreground:var(--color-foreground)]",
+            "[--btn-icon:var(--color-muted-foreground)] [--btn-icon-active:var(--color-foreground)]",
+            "inline-flex overflow-hidden bg-accent p-(--toggle-gutter)",
             orientation === "horizontal" ? "flex-row" : "flex-col",
             selectionMode === "single" ? "gap-(--toggle-gutter)" : "gap-0",
             isCircle ? "rounded-full" : "rounded-(--toggle-group-radius)",
@@ -80,7 +81,7 @@ const toggleGroupItemStyles = tv({
     "relative isolate",
     "inline-flex flex-row items-center text-(--toggle-foreground) outline-hidden",
     "inset-ring inset-ring-transparent",
-    "*:[svg]:-mx-0.5 *:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-(--btn-icon) hover:*:[svg]:text-(--btn-icon-active)/90 focus-visible:*:[svg]:text-(--btn-icon-active)/80",
+    "*:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-(--btn-icon) hover:*:[svg]:text-(--btn-icon-active) focus-visible:*:[svg]:text-(--btn-icon-active)",
     "forced-colors:[--btn-icon:ButtonText] forced-colors:hover:[--btn-icon:ButtonText]",
   ],
   variants: {
@@ -113,8 +114,8 @@ const toggleGroupItemStyles = tv({
         "*:[svg]:size-5 sm:*:[svg]:size-4.5",
         "*:data-[slot=loader]:size-5 sm:*:data-[slot=loader]:size-4.5",
       ],
-      "sq-xs":
-        "touch-target size-8 *:data-[slot=loader]:size-3.5 sm:size-7 sm:*:data-[slot=loader]:size-3 *:[svg]:size-3.5 sm:*:[svg]:size-3",
+      // 28px items + 2px gutters: a 32px control, the height of md buttons.
+      "sq-xs": "size-7 *:data-[slot=loader]:size-icon *:[svg]:size-icon",
       "sq-sm":
         "touch-target size-9 *:data-[slot=loader]:size-4.5 sm:size-8 sm:*:data-[slot=loader]:size-4 *:[svg]:size-4.5 sm:*:[svg]:size-4",
       "sq-md":
@@ -123,7 +124,7 @@ const toggleGroupItemStyles = tv({
         "touch-target size-11 *:data-[slot=loader]:size-5 sm:size-10 sm:*:data-[slot=loader]:size-5 *:[svg]:size-5 sm:*:[svg]:size-5",
     },
     isSelected: {
-      true: "inset-ring-foreground/20 bg-(--toggle-selected-bg) text-(--toggle-selected-foreground) [--toggle-icon:var(--primary-foreground)] hover:bg-(--toggle-selected-bg)/90",
+      true: "bg-(--toggle-selected-bg) text-(--toggle-selected-foreground) *:[svg]:text-(--btn-icon-active)",
     },
     isFocused: {
       true: "not-selected:bg-(--toggle-focused-bg) not-selected:text-(--toggle-focused-foreground) not-selected:[--toggle-icon:var(--toggle-focused-foreground)]",

@@ -12,18 +12,14 @@ import {
   IconHelp,
   IconInbox,
   IconPaperPlane,
-  IconSearch,
-  IconSettings,
   IconSidebar,
   IconStar,
   IconTrash,
   IconWarning,
-  IconWrite,
 } from "@/components/icons/sidebar";
 import { Avatar } from "@/components/ui/avatar";
-import { Button, buttonStyles } from "@/components/ui/button";
-import { Link } from "@/components/ui/link";
-import { Menu, MenuItem, MenuTrigger } from "@/components/ui/menu";
+import { Button } from "@/components/ui/button";
+import { Menu, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import {
   Sidebar,
   SidebarContent,
@@ -53,16 +49,6 @@ interface NavItem {
   current?: { path: string; lane?: string; exact?: boolean };
 }
 
-const general: NavItem[] = [
-  { label: "Search", icon: <IconSearch />, href: "/search", current: { path: "/search" } },
-  {
-    label: "Settings",
-    icon: <IconSettings />,
-    href: "/settings",
-    current: { path: "/settings", exact: true },
-  },
-];
-
 const mail: NavItem[] = [
   { label: "Inbox", icon: <IconInbox />, href: "/inbox", current: { path: "/inbox" } },
   { label: "Queue", icon: <IconClock />, href: "/snoozed", current: { path: "/snoozed" } },
@@ -80,7 +66,7 @@ const mail: NavItem[] = [
   },
 ];
 
-const special: NavItem[] = [
+const folders: NavItem[] = [
   { label: "All mail", icon: <IconEmail /> },
   { label: "Favorite", icon: <IconStar /> },
   { label: "Sent", icon: <IconPaperPlane /> },
@@ -120,24 +106,11 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* The first group needs no heading: it's what the app opens to. */}
         <SidebarSection>
-          {/* Compose: an outline button with a foreground icon and label. 7px padding plus the
-              1px border puts the icon on the same 8px line as the rows below. */}
-          <Link
-            href="/compose"
-            className={buttonStyles({
-              intent: "outline",
-              className:
-                "w-full justify-start px-1.75 [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-foreground)]",
-            })}
-          >
-            <IconWrite />
-            Compose
-          </Link>
-          <Items items={general} />
+          <Items items={mail} />
         </SidebarSection>
-        <Group label="Mail" items={mail} />
-        <Group label="Special" items={special} />
+        <Group label="Folders" items={folders} />
       </SidebarContent>
 
       <SidebarFooter className="justify-between">
@@ -213,6 +186,8 @@ function OrganizationMenu() {
             {org.name}
           </MenuItem>
         ))}
+        <MenuSeparator />
+        <MenuItem href="/settings">Settings</MenuItem>
       </Menu>
     </MenuTrigger>
   );
