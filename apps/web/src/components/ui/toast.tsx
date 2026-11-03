@@ -1,44 +1,269 @@
-import { Toaster as ToasterPrimitive, type ToasterProps } from "sonner";
-import { twJoin } from "cn";
+// Toasts, ported from transitive (`packages/ui/src/components/ui/toast.tsx` and `sonner.tsx`):
+// a near-black card with a tone icon, the message, an optional action and a countdown bar.
+// Sonner owns placement, stacking, swipe and the close timer; `ToastCard` paints the toast.
+import {
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon,
+  XCircleIcon,
+} from "@heroicons/react/20/solid";
+import { cn } from "cn";
+import { useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { Toaster as Sonner, toast, type ToasterProps } from "sonner";
 
-export function Toast(props: ToasterProps) {
+const MAX_TOAST_LENGTH = 160;
+const NOTICE_DURATION_MS = 4_000;
+// Errors carry a fix, so they stay up long enough to read it.
+const ERROR_DURATION_MS = 6_000;
+
+type ToastId = string | number;
+
+type ToastTone = "success" | "error" | "warning" | "info";
+
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+interface ToastTarget {
+  /**
+   * Reuse an id to replace a visible toast in place instead of stacking a new one.
+   * A string, because Sonner reads a falsy id (`0`) as "no id" and dismisses every toast.
+   */
+  id?: string;
+}
+
+interface NoticeOptions extends ToastTarget {
+  /** A second, quieter line under the message. */
+  description?: string;
+  /** One inline action, e.g. Undo. Clicking it dismisses the toast. */
+  action?: ToastAction;
+  /** Milliseconds before the toast leaves. Defaults by tone. */
+  duration?: number;
+}
+
+interface PromptOptions extends ToastTarget {
+  tone?: ToastTone;
+  description?: string;
+  /** The committing action, e.g. Save. */
+  primary: ToastAction;
+  /** The backing-out action, e.g. Revert. */
+  secondary?: ToastAction;
+}
+
+/** Hosts the toasts: bottom right, 356px wide (the full width less a gutter on a phone). */
+export function Toaster({ style, toastOptions, ...props }: ToasterProps) {
   return (
-    <ToasterPrimitive
+    <Sonner
+      className="toaster group font-sans"
+      closeButton={false}
+      duration={NOTICE_DURATION_MS}
+      position="bottom-right"
       theme="light"
-      className="toaster group"
-      richColors
+      style={{ "--width": "min(356px, calc(100vw - 2rem))", ...style } as CSSProperties}
       toastOptions={{
-        className: twJoin(
-          "not-has-data-[slot=note]:backdrop-blur-3xl will-change-transform *:data-[slot=note]:relative *:data-[slot=note]:z-50 *:data-icon:mt-0.5 *:data-icon:self-start has-data-description:*:data-icon:mt-1",
-          "**:data-action:[--normal-bg:var(--color-primary-foreground)] **:data-action:[--normal-text:var(--color-primary)]",
-        ),
+        ...toastOptions,
+        classNames: {
+          ...toastOptions?.classNames,
+          // No overflow-hidden: Sonner's expanded ::after fills the gap between stacked toasts;
+          // clipping it makes hover flicker in the gaps.
+          toast: cn("!w-(--width) !max-w-[calc(100vw-2rem)]", toastOptions?.classNames?.toast),
+          content: cn("h-full", toastOptions?.classNames?.content),
+          title: cn("h-full", toastOptions?.classNames?.title),
+        },
       }}
-      style={
-        {
-          "--normal-bg": "var(--color-overlay)",
-          "--normal-text": "var(--color-overlay-foreground)",
-          "--normal-border": "var(--color-border)",
-
-          "--success-bg": "var(--color-success-subtle)",
-          "--success-border":
-            "color-mix(in oklab, var(--success-subtle-foreground) 20%, transparent)",
-          "--success-text": "var(--color-success-subtle-foreground)",
-
-          "--error-bg": "var(--color-danger-subtle)",
-          "--error-border": "color-mix(in oklab, var(--danger-subtle-foreground) 20%, transparent)",
-          "--error-text": "var(--color-danger-subtle-foreground)",
-
-          "--warning-bg": "var(--color-warning-subtle)",
-          "--warning-border":
-            "color-mix(in oklab, var(--warning-subtle-foreground) 20%, transparent)",
-          "--warning-text": "var(--color-warning-subtle-foreground)",
-
-          "--info-bg": "var(--color-info-subtle)",
-          "--info-border": "color-mix(in oklab, var(--info-subtle-foreground) 20%, transparent)",
-          "--info-text": "var(--color-info-subtle-foreground)",
-        } as React.CSSProperties
-      }
       {...props}
     />
   );
 }
+
+// The glyphs draw a 16px shape in a 20px box. Flex baseline-aligns the box bottom, so shifting
+// it down centres the shape on the capitals of the first line.
+const toneIconClassName = "aspect-square h-[1.56cap] w-auto shrink-0 translate-y-[0.28cap]";
+
+const TONE_ICONS: Record<ToastTone, ReactNode> = {
+  success: <CheckCircleIcon aria-hidden className={cn(toneIconClassName, "text-success")} />,
+  error: <XCircleIcon aria-hidden className={cn(toneIconClassName, "text-danger")} />,
+  warning: (
+    <ExclamationTriangleIcon aria-hidden className={cn(toneIconClassName, "text-warning")} />
+  ),
+  info: <InformationCircleIcon aria-hidden className={cn(toneIconClassName, "text-info")} />,
+};
+
+function shorten(message: string): string {
+  const text = message.trim();
+  return text.length <= MAX_TOAST_LENGTH ? text : `${text.slice(0, MAX_TOAST_LENGTH - 1)}…`;
+}
+
+function subscribeToVisibility(onChange: () => void) {
+  document.addEventListener("visibilitychange", onChange);
+  return () => document.removeEventListener("visibilitychange", onChange);
+}
+
+/** Sonner pauses its close timer while the tab is hidden; the countdown bar follows it. */
+function useDocumentHidden(): boolean {
+  return useSyncExternalStore(
+    subscribeToVisibility,
+    () => document.hidden,
+    () => false,
+  );
+}
+
+function ToastButton(props: {
+  action: ToastAction;
+  emphasis: "primary" | "quiet";
+  onDone?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "inline-flex h-6 shrink-0 cursor-pointer items-center rounded-sm px-2 text-sm leading-5 font-medium tracking-[-0.01em]",
+        "outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        props.emphasis === "primary"
+          ? "bg-inverse-foreground text-inverse hover:bg-inverse-foreground/90"
+          : "text-inverse-muted-foreground hover:bg-inverse-hover hover:text-inverse-foreground",
+      )}
+      onClick={() => {
+        props.action.onClick();
+        props.onDone?.();
+      }}
+    >
+      {props.action.label}
+    </button>
+  );
+}
+
+interface ToastCardProps {
+  tone: ToastTone;
+  message: string;
+  description?: string | undefined;
+  /** Countdown length in milliseconds; omit for a toast that stays until it is resolved. */
+  duration?: number;
+  children?: ReactNode;
+}
+
+/** The toast card, inverted against the light page. */
+export function ToastCard({ tone, message, description, duration, children }: ToastCardProps) {
+  const hidden = useDocumentHidden();
+  return (
+    <div
+      data-slot="toast"
+      data-tone={tone}
+      className={cn(
+        // h-full + overflow-hidden: a collapsed stack sizes every toast to the front one.
+        "relative flex h-full w-full flex-col overflow-hidden bg-inverse text-inverse-foreground",
+        "rounded-lg border border-inverse-border shadow-(--shadow-toast)",
+      )}
+    >
+      <div
+        className={cn(
+          // Baseline alignment: icon, first message line and action labels share one baseline.
+          "flex flex-1 items-baseline gap-2 py-1.5 ps-3 pe-1.5 text-sm transition-opacity duration-200",
+          // Behind the front toast in a collapsed stack only the card edge shows.
+          "[[data-expanded=false][data-front=false]_&]:opacity-0",
+        )}
+      >
+        {TONE_ICONS[tone]}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <p
+            data-slot="toast-message"
+            className="line-clamp-3 text-sm leading-5 tracking-[-0.01em] text-pretty break-words"
+          >
+            {message}
+          </p>
+          {description && (
+            <p
+              data-slot="toast-description"
+              className="line-clamp-2 text-sm leading-5 tracking-[-0.01em] break-words text-inverse-muted-foreground"
+            >
+              {description}
+            </p>
+          )}
+        </div>
+        {children && <div className="flex shrink-0 items-baseline gap-0.5">{children}</div>}
+      </div>
+      {duration !== undefined && (
+        // Reduced motion hides the countdown: a frozen bar would misstate the time left.
+        <div
+          aria-hidden
+          data-slot="toast-countdown"
+          className="h-0.5 w-full bg-inverse-border motion-reduce:hidden"
+        >
+          <div
+            className={cn(
+              "h-full w-full origin-left animate-[toast-countdown_var(--toast-duration)_linear_forwards] bg-info",
+              // Mirror Sonner's timer: it pauses while the stack is hovered or swiped, or the tab
+              // is hidden.
+              "in-data-[expanded=true]:[animation-play-state:paused] in-data-[swiping=true]:[animation-play-state:paused]",
+              hidden && "[animation-play-state:paused]",
+            )}
+            style={{ "--toast-duration": `${duration}ms` } as CSSProperties}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sonner keeps its close timer running across in-place updates, but restarts it from the
+// remaining time; a fresh key restarts the bar with it.
+let renderCount = 0;
+
+function notice(tone: ToastTone, message: string, options: NoticeOptions = {}): ToastId {
+  const duration = options.duration ?? (tone === "error" ? ERROR_DURATION_MS : NOTICE_DURATION_MS);
+  const key = ++renderCount;
+  return toast.custom(
+    (id) => (
+      <ToastCard
+        key={key}
+        tone={tone}
+        message={shorten(message)}
+        description={options.description ? shorten(options.description) : undefined}
+        duration={duration}
+      >
+        {options.action && (
+          <ToastButton action={options.action} emphasis="quiet" onDone={() => toast.dismiss(id)} />
+        )}
+      </ToastCard>
+    ),
+    { id: options.id, duration },
+  );
+}
+
+/**
+ * Product toasts. Every toast is a dark card:
+ * - notices (`success`, `error`, `warning`, `message`) leave on their own and show a countdown;
+ * - `prompt` stays until the caller dismisses it, with a primary and an optional secondary action.
+ */
+export const appToast = {
+  success: (message: string, options?: NoticeOptions) => notice("success", message, options),
+  error: (message: string, options?: NoticeOptions) => notice("error", message, options),
+  warning: (message: string, options?: NoticeOptions) => notice("warning", message, options),
+  message: (message: string, options?: NoticeOptions) => notice("info", message, options),
+
+  /**
+   * A persistent bar that asks for a decision, e.g. "2 unsaved changes · Revert · Save". Its
+   * actions do not dismiss it: the caller calls `appToast.dismiss(id)` once the decision lands.
+   */
+  prompt(message: string, options: PromptOptions): ToastId {
+    return toast.custom(
+      () => (
+        <ToastCard
+          tone={options.tone ?? "info"}
+          message={shorten(message)}
+          description={options.description ? shorten(options.description) : undefined}
+        >
+          {options.secondary && <ToastButton action={options.secondary} emphasis="quiet" />}
+          <ToastButton action={options.primary} emphasis="primary" />
+        </ToastCard>
+      ),
+      { id: options.id, duration: Number.POSITIVE_INFINITY, dismissible: false },
+    );
+  },
+
+  dismiss: (id?: ToastId) => void toast.dismiss(id),
+};
+
+export type { NoticeOptions, PromptOptions, ToastAction, ToastId, ToastTone };

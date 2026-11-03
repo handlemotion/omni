@@ -37,7 +37,7 @@ export function Popover({ children, arrow = false, className, ref, ...props }: P
       className={cx(
         "[--visual-viewport-vertical-padding:16px] sm:[--visual-viewport-vertical-padding:32px]",
         "max-h-[calc(var(--visual-viewport-height)-var(--visual-viewport-vertical-padding)*2)]",
-        "group/popover min-w-(--trigger-width) max-w-xs origin-(--trigger-anchor-point) rounded-(--popover-radius) bg-overlay text-overlay-foreground shadow-(--shadow-overlay) outline-hidden ring ring-muted-foreground/20 [--gutter:--spacing(6)] [--popover-radius:var(--radius-lg)] sm:text-sm dark:ring-border dark:backdrop-saturate-200 **:[[role=dialog]]:[--gutter:--spacing(6)]",
+        "group/popover min-w-(--trigger-width) max-w-xs origin-(--trigger-anchor-point) rounded-(--popover-radius) bg-overlay text-overlay-foreground border border-border shadow-(--shadow-overlay) outline-hidden [--gutter:--spacing(6)] [--popover-radius:var(--radius-lg)] sm:text-sm dark:ring-border dark:backdrop-saturate-200 **:[[role=dialog]]:[--gutter:--spacing(6)]",
         // Grows from its trigger: 150ms in from scale .97 with a fade, out faster (120ms).
         // Reduced motion keeps only the fade.
         "entering:animate-in entering:fade-in entering:zoom-in-97 entering:duration-150 entering:ease-out",

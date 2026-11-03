@@ -51,7 +51,7 @@ export interface MenuProps<T> extends MenuPrimitiveProps<T>, Pick<PopoverProps, 
 }
 
 export const menuStyles = tv({
-  base: "grid max-h-[inherit] grid-cols-[auto_1fr] gap-y-1 overflow-x-hidden overflow-y-auto overscroll-contain p-1 outline-hidden [clip-path:inset(0_0_0_0_round_calc(var(--radius-xl)-(--spacing(1))))] [&>[data-slot=menu-section]+[data-slot=menu-section]:not([class*='mt-']):not([class*='my-'])]:mt-3",
+  base: "grid max-h-[inherit] grid-cols-[auto_1fr] gap-y-0 overflow-x-hidden overflow-y-auto overscroll-contain p-1 outline-hidden [clip-path:inset(0_0_0_0_round_calc(var(--radius-xl)-(--spacing(1))))] [&>[data-slot=menu-section]+[data-slot=menu-section]:not([class*='mt-']):not([class*='my-'])]:mt-3",
 });
 
 export function Menu<T extends object>({ className, placement, popover, ...props }: MenuProps<T>) {

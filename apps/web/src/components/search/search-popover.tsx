@@ -60,7 +60,8 @@ const COMMANDS: Command[] = [
 const FIELD = { width: 240, height: 32, radius: 6 };
 const clip = {
   closed: `inset(0px 0px calc(100% - ${FIELD.height}px) calc(100% - ${FIELD.width}px) round ${FIELD.radius}px)`,
-  open: "inset(0px 0px 0px 0px round 8px)",
+  // Open, the clip reaches past the sides and bottom so the bottom drop shadow shows.
+  open: "inset(0px -12px -16px -12px round 8px)",
 };
 // The strong ease-out (tactile-design), the same curve as `--ease-out`.
 const ease = [0.23, 1, 0.32, 1] as const;
@@ -129,7 +130,7 @@ export function SearchPopover() {
         className="z-50 outline-hidden"
       >
         <motion.div
-          className="w-100 overflow-hidden rounded-xl border border-border bg-background shadow-lg"
+          className="w-100 overflow-hidden rounded-xl border border-border bg-background shadow-(--shadow-overlay)"
           initial={reduceMotion ? { clipPath: clip.open, opacity: 0 } : { clipPath: clip.closed }}
           animate={
             reduceMotion
