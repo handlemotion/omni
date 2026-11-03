@@ -399,6 +399,8 @@ describe("what the app learns about its own actions", () => {
         actionId: stale.id,
         memberId: seeded.ownerId,
         error: expect.stringContaining("UIDVALIDITY"),
+        // Enqueued straight into Postgres here, not through a Worker request.
+        requestId: null,
       },
     ]);
   });

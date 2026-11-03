@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   NONCE_HEADER,
+  REQUEST_ID_HEADER,
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
   signRequest,
@@ -15,14 +16,38 @@ const request = {
   body: '{"action":"archive","threadId":"thr_1"}',
 };
 
-async function signed(overrides: { timestamp?: number; nonce?: string } = {}) {
+async function signed(overrides: { timestamp?: number; nonce?: string; requestId?: string } = {}) {
   return new Headers(await signRequest({ secret, ...request, timestamp: now, ...overrides }));
 }
 
 describe("verifyRequest", () => {
   it("accepts a request signed with the same secret", async () => {
     const result = await verifyRequest({ secret, ...request, headers: await signed(), now });
-    expect(result).toEqual({ ok: true, timestamp: now, nonce: null });
+    expect(result).toEqual({ ok: true, timestamp: now, nonce: null, requestId: null });
+  });
+
+  it("returns the signed request id", async () => {
+    const headers = await signed({ requestId: "req-aaaaaaaa" });
+    const result = await verifyRequest({ secret, ...request, headers, now });
+    expect(result).toEqual({ ok: true, timestamp: now, nonce: null, requestId: "req-aaaaaaaa" });
+  });
+
+  // The request id lands in logs and outbox rows; a forged one would misattribute an action.
+  it.each([
+    ["swapped", (h: Headers) => h.set(REQUEST_ID_HEADER, "req-bbbbbbbb")],
+    ["stripped", (h: Headers) => h.delete(REQUEST_ID_HEADER)],
+  ])("rejects a request id %s after signing", async (_, tamper) => {
+    const headers = await signed({ requestId: "req-aaaaaaaa" });
+    tamper(headers);
+    const result = await verifyRequest({ secret, ...request, headers, now });
+    expect(result).toEqual({ ok: false, reason: "bad_signature" });
+  });
+
+  it("rejects a request id added to a request signed without one", async () => {
+    const headers = await signed();
+    headers.set(REQUEST_ID_HEADER, "req-aaaaaaaa");
+    const result = await verifyRequest({ secret, ...request, headers, now });
+    expect(result).toEqual({ ok: false, reason: "bad_signature" });
   });
 
   it.each([

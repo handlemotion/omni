@@ -1,8 +1,10 @@
 export {
   DEFAULT_MAX_AGE_SECONDS,
   NONCE_HEADER,
+  REQUEST_ID_HEADER,
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
+  isValidRequestId,
   signRequest,
   verifyRequest,
   type RequestBody,

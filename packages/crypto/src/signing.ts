@@ -9,17 +9,24 @@
 //   <timestamp, unix seconds>
 //   <nonce, or empty>
 //   <hex sha256 of the raw body bytes>
+//   <request id>                       (only when the request carries one)
 //
 // The signature covers every field, so changing any of them (or the body) fails verification.
 // Timestamps outside `maxAgeSeconds` in either direction are rejected, which bounds replay to
 // that window. For full replay protection, send a unique `nonce` and have the receiver remember
 // nonces it accepted for `maxAgeSeconds`; this package signs the nonce but keeps no state.
+//
+// A request ID (for tracing one action across processes) travels in REQUEST_ID_HEADER and is
+// signed as a seventh line when present. Without one the canonical string is exactly the six
+// lines above, so senders that never set it verify unchanged; with one, stripping, adding or
+// swapping the header fails verification like any other tampering.
 
 import { toHex, fromHex, utf8 } from "./encoding.ts";
 
 export const SIGNATURE_HEADER = "x-omni-signature";
 export const TIMESTAMP_HEADER = "x-omni-timestamp";
 export const NONCE_HEADER = "x-omni-nonce";
+export const REQUEST_ID_HEADER = "x-omni-request-id";
 
 export const DEFAULT_MAX_AGE_SECONDS = 60;
 
@@ -37,6 +44,8 @@ export interface SignRequestInput {
   /** Unix seconds. Defaults to now. */
   timestamp?: number;
   nonce?: string;
+  /** Signed when given; see `isValidRequestId`. */
+  requestId?: string;
 }
 
 export interface VerifyRequestInput {
@@ -51,7 +60,7 @@ export interface VerifyRequestInput {
 }
 
 export type VerifyResult =
-  | { ok: true; timestamp: number; nonce: string | null }
+  | { ok: true; timestamp: number; nonce: string | null; requestId: string | null }
   | { ok: false; reason: "missing_headers" | "malformed" | "expired" | "bad_signature" };
 
 /** Returns the headers to attach to the request. */
@@ -62,9 +71,20 @@ export async function signRequest(input: SignRequestInput): Promise<Record<strin
   }
   const nonce = input.nonce ?? null;
   if (nonce !== null) assertNonce(nonce);
+  const requestId = input.requestId ?? null;
+  if (requestId !== null && !isValidRequestId(requestId)) {
+    throw new TypeError("requestId must be 8-128 characters of [A-Za-z0-9_-]");
+  }
 
   const key = await importHmacKey(input.secret, ["sign"]);
-  const canonical = await canonicalString(input.method, input.path, timestamp, nonce, input.body);
+  const canonical = await canonicalString(
+    input.method,
+    input.path,
+    timestamp,
+    nonce,
+    input.body,
+    requestId,
+  );
   const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, utf8(canonical)));
 
   const headers: Record<string, string> = {
@@ -72,6 +92,7 @@ export async function signRequest(input: SignRequestInput): Promise<Record<strin
     [SIGNATURE_HEADER]: SIGNATURE_PREFIX + toHex(mac),
   };
   if (nonce !== null) headers[NONCE_HEADER] = nonce;
+  if (requestId !== null) headers[REQUEST_ID_HEADER] = requestId;
   return headers;
 }
 
@@ -90,6 +111,8 @@ export async function verifyRequest(input: VerifyRequestInput): Promise<VerifyRe
 
   const nonce = input.headers.get(NONCE_HEADER);
   if (nonce !== null && !isValidNonce(nonce)) return { ok: false, reason: "malformed" };
+  const requestId = input.headers.get(REQUEST_ID_HEADER);
+  if (requestId !== null && !isValidRequestId(requestId)) return { ok: false, reason: "malformed" };
 
   const timestamp = Number(timestampHeader);
   const maxAge = input.maxAgeSeconds ?? DEFAULT_MAX_AGE_SECONDS;
@@ -98,10 +121,17 @@ export async function verifyRequest(input: VerifyRequestInput): Promise<VerifyRe
   }
 
   const key = await importHmacKey(input.secret, ["verify"]);
-  const canonical = await canonicalString(input.method, input.path, timestamp, nonce, input.body);
+  const canonical = await canonicalString(
+    input.method,
+    input.path,
+    timestamp,
+    nonce,
+    input.body,
+    requestId,
+  );
   // subtle.verify compares in constant time.
   const valid = await crypto.subtle.verify("HMAC", key, mac, utf8(canonical));
-  return valid ? { ok: true, timestamp, nonce } : { ok: false, reason: "bad_signature" };
+  return valid ? { ok: true, timestamp, nonce, requestId } : { ok: false, reason: "bad_signature" };
 }
 
 async function canonicalString(
@@ -110,13 +140,16 @@ async function canonicalString(
   timestamp: number,
   nonce: string | null,
   body: RequestBody,
+  requestId: string | null,
 ): Promise<string> {
   if (/[\r\n]/.test(method) || /[\r\n]/.test(path)) {
     throw new TypeError("method and path must not contain line breaks");
   }
   const bytes = typeof body === "string" ? utf8(body) : (body ?? new Uint8Array());
   const bodyHash = toHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
-  return [VERSION, method.toUpperCase(), path, String(timestamp), nonce ?? "", bodyHash].join("\n");
+  const lines = [VERSION, method.toUpperCase(), path, String(timestamp), nonce ?? "", bodyHash];
+  if (requestId !== null) lines.push(requestId);
+  return lines.join("\n");
 }
 
 async function importHmacKey(secret: string, usages: ["sign"] | ["verify"]) {
@@ -129,6 +162,14 @@ async function importHmacKey(secret: string, usages: ["sign"] | ["verify"]) {
 
 function isValidNonce(nonce: string): boolean {
   return /^[A-Za-z0-9_-]{16,128}$/.test(nonce);
+}
+
+/**
+ * A request ID safe to put in a header, a log line and a database column: 8-128 URL-safe
+ * characters (a UUID fits). Anything else from outside is replaced, never echoed.
+ */
+export function isValidRequestId(value: string): boolean {
+  return /^[A-Za-z0-9_-]{8,128}$/.test(value);
 }
 
 function assertNonce(nonce: string): void {

@@ -52,7 +52,19 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     events.push(event.data);
   }
 
-  const jobs = aiJobsFor(events);
+  const log = c.var.log.child({ component: "internal" });
+  const jobs = aiJobsFor(events, c.var.requestId);
+  const failed = events.filter((e) => e.type === "action.failed");
+  log.info("mail_events.received", { events: events.length, jobs: jobs.length });
+  // The original request's ID, so a failed send traces back to the click that asked for it.
+  for (const event of failed) {
+    log.warn("action.failed", {
+      actionId: event.actionId,
+      orgId: event.orgId,
+      mailboxId: event.mailboxId,
+      actionRequestId: event.requestId ?? null,
+    });
+  }
   if (jobs.length) await c.env.AI_QUEUE.sendBatch(jobs.map((body) => ({ body })));
 
   const { db, close } = createDb(c.env.HYPERDRIVE.connectionString, {
@@ -63,10 +75,7 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   try {
     const created = events.filter((e) => e.type === "message.created");
     if (created.length) await fanOut(c.env, db, config, changedThreads(created), { push: true });
-    await notifyFailedActions(
-      c.env,
-      events.filter((e) => e.type === "action.failed"),
-    );
+    await notifyFailedActions(c.env, failed);
   } finally {
     c.executionCtx.waitUntil(close());
   }
@@ -92,7 +101,7 @@ function changedThreads(events: Extract<MailEvent, { type: "message.created" }>[
 }
 
 /** One AI job per thread that got a new message; flag changes need no AI. */
-function aiJobsFor(events: MailEvent[]): AiJob[] {
+function aiJobsFor(events: MailEvent[], requestId: string): AiJob[] {
   const threads = new Map<string, AiJob>();
   for (const event of events) {
     if (event.type !== "message.created") continue;
@@ -100,6 +109,9 @@ function aiJobsFor(events: MailEvent[]): AiJob[] {
       kind: "thread",
       threadId: event.threadId,
       mailboxId: event.mailboxId,
+      orgId: event.orgId,
+      jobId: crypto.randomUUID(),
+      requestId,
     });
   }
   return [...threads.values()];
