@@ -332,22 +332,39 @@ export interface DomainConnectSettings {
 /** The settings document, or null when it is not one (missing fields, or not https). */
 export function parseDomainConnectSettings(json: unknown): DomainConnectSettings | null {
   const s = json as Partial<Record<keyof DomainConnectSettings, unknown>> | null;
-  const https = (v: unknown) => typeof v === "string" && /^https:\/\/[^/\s]+/.test(v);
+  // Both come from the DNS host's own server: bound them before any pattern sees them.
+  const https = (v: unknown) =>
+    typeof v === "string" && v.length <= MAX_URL && /^https:\/\/[^/\s]+/.test(v);
   if (!s || typeof s.providerId !== "string" || !https(s.urlSyncUX) || !https(s.urlAPI)) {
     return null;
   }
   return {
     providerId: s.providerId,
     providerName: typeof s.providerName === "string" ? s.providerName : s.providerId,
-    urlSyncUX: (s.urlSyncUX as string).replace(/\/+$/, ""),
-    urlAPI: (s.urlAPI as string).replace(/\/+$/, ""),
+    urlSyncUX: trimSlashes(s.urlSyncUX as string),
+    urlAPI: trimSlashes(s.urlAPI as string),
   };
 }
 
 /** The API host a `_domainconnect` TXT names (`api.example.com/path`), or null. */
 export function domainConnectHost(txt: readonly string[]): string | null {
-  const value = txt.map((v) => v.trim()).find((v) => /^[a-z0-9.-]+(\/[\w./-]*)?$/i.test(v));
-  return value ? value.replace(/\/+$/, "") : null;
+  const value = txt
+    .map((v) => v.trim())
+    .find((v) => v.length <= MAX_URL && /^[a-z0-9.-]+(\/[\w./-]*)?$/i.test(v));
+  return value ? trimSlashes(value) : null;
+}
+
+/** Longer than any real Domain Connect URL; past it a value is refused unread. */
+const MAX_URL = 2048;
+
+/**
+ * Drops trailing slashes. A loop, not `/\/+$/`: that pattern is quadratic on a long run of
+ * slashes that does not end the string, and these values come from someone else's server.
+ */
+function trimSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") end--;
+  return value.slice(0, end);
 }
 
 /**
