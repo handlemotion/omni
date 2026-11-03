@@ -18,7 +18,7 @@ import {
 } from "@/components/icons/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { WorkspaceSwitcher } from "./workspace-switcher";
+import { MailboxSwitcher } from "./mailbox-switcher";
 import {
   Sidebar,
   SidebarContent,
@@ -76,7 +76,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <WorkspaceSwitcher />
+        <MailboxSwitcher />
         <div className="flex items-center gap-0.5">
           <Button
             intent="plain"
