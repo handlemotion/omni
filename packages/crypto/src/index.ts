@@ -21,3 +21,4 @@ export {
   parseKeyring,
   type Keyring,
 } from "./credentials.ts";
+export { signDomainConnectQuery } from "./domain-connect.ts";

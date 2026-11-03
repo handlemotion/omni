@@ -8,6 +8,7 @@ import { createLogger } from "./log.ts";
 import { consumeQueue, type AiJob } from "./queue.ts";
 
 export type { AppType } from "./app.ts";
+export { DomainWatch } from "./domain-watch.ts";
 export { Realtime } from "./realtime.ts";
 export { ReplayGuard } from "./replay-guard.ts";
 

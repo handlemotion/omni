@@ -78,6 +78,13 @@
       "when": 1793743178318,
       "tag": "0010_domain_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793743585958,
+      "tag": "0011_domain_claim_checks",
+      "breakpoints": true
     }
   ]
 }

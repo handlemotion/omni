@@ -139,6 +139,14 @@ export const rotateChallengeMutation = (client: QueryClient) =>
     onSuccess: (domain) => storeDomain(client, domain),
   });
 
+/**
+ * Keeps the domain checked while its DNS page is open (ADR 0011): results arrive over realtime.
+ * `reset` restarts the quick checks (the page came back into focus).
+ */
+export function watchDomain(id: string, reset: boolean) {
+  return call(api.onboarding.domains[":id"].watch.$post({ param: { id }, json: { reset } }));
+}
+
 /** `mutate(domainId)`: checks the DNS records again. */
 export const checkDomainMutation = (client: QueryClient) =>
   mutationOptions({

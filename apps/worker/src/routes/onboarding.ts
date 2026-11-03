@@ -42,7 +42,9 @@ import {
   domainView,
   notifyOwners,
   orgName,
+  withCheck,
 } from "../domains.ts";
+import { domainConnectUrl } from "../dns-check.ts";
 import { callMailService, MailServiceError } from "../mail-service.ts";
 
 const requireDomainAdmin = createMiddleware<AppEnv>(async (c, next) => {
@@ -212,7 +214,17 @@ export const onboarding = new Hono<AppEnv>()
         claim,
         lock: null,
       };
-      return c.json(await domainStep(c, domainView(setup, { challengeValue })));
+      const url = await domainConnectUrl(deps(c), {
+        check: claim.lastCheck,
+        claimId: claim.id,
+        domain: claim.domain,
+        provider: claim.provider,
+        challengeValue,
+        records: claim.dnsRecords,
+      });
+      return c.json(
+        await domainStep(c, domainView(setup, { challengeValue, domainConnectUrl: url })),
+      );
     },
   )
   /**
@@ -234,12 +246,14 @@ export const onboarding = new Hono<AppEnv>()
     const setup = await memberDomain(c);
     if (!setup.claim) throw new HTTPException(409, { message: "this domain has no challenge" });
     const challenge = await newChallenge();
-    const claim = await rotateChallenge(c.var.db, {
+    const rotated = await rotateChallenge(c.var.db, {
       orgId: c.var.member.orgId,
       claimId: setup.claim.id,
       challengeHash: challenge.hash,
     });
-    if (!claim) throw new HTTPException(404, { message: "no such domain" });
+    if (!rotated) throw new HTTPException(404, { message: "no such domain" });
+    // What DNS holds now, judged against the new value (and the host's one-click setup).
+    const claim = await withCheck(deps(c), rotated);
     await audit(
       c.var,
       c.var.member.orgId,
@@ -247,8 +261,44 @@ export const onboarding = new Hono<AppEnv>()
       "domain.challenge_rotated",
       claim.domain,
     );
-    return c.json(domainView({ claim, lock: setup.lock }, { challengeValue: challenge.value }));
+    const url = await domainConnectUrl(deps(c), {
+      check: claim.lastCheck,
+      claimId: claim.id,
+      domain: claim.domain,
+      provider: claim.provider,
+      challengeValue: challenge.value,
+      records: setup.lock?.dnsRecords ?? claim.dnsRecords,
+    });
+    return c.json(
+      domainView(
+        { claim, lock: setup.lock },
+        { challengeValue: challenge.value, domainConnectUrl: url },
+      ),
+    );
   })
+  /**
+   * Keeps the domain checked while its DNS page is open (ADR 0011): the page calls this when it
+   * opens and about every minute, with `reset` when it comes back into focus. Results arrive as
+   * `{ type: "domain", domainId }` on the realtime socket.
+   */
+  .post(
+    "/domains/:id/watch",
+    requireMember,
+    requireDomainAdmin,
+    zValidator("json", z.object({ reset: z.boolean().default(false) })),
+    async (c) => {
+      const setup = await memberDomain(c);
+      if (!setup.claim) return c.json({ watching: false, nextCheckAt: null });
+      const stub = c.env.DOMAIN_WATCH.get(c.env.DOMAIN_WATCH.idFromName(setup.claim.id));
+      const { nextCheckAt } = await stub.watch({
+        claimId: setup.claim.id,
+        orgId: c.var.member.orgId,
+        memberId: c.var.member.id,
+        reset: c.req.valid("json").reset,
+      });
+      return c.json({ watching: true, nextCheckAt: new Date(nextCheckAt).toISOString() });
+    },
+  )
   /** The domain's history: claims, checks that changed something, hand-overs. */
   .get("/domains/:id/events", requireMember, requireDomainAdmin, async (c) => {
     const setup = await memberDomain(c);

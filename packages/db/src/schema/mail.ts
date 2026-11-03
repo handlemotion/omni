@@ -179,6 +179,34 @@ export const orgSetup = pgTable("org_setup", {
   updatedAt: updatedAt(),
 });
 
+/** One record's verdict at the last check (`@omni/mail-core/dns-diagnostics`). */
+export interface DomainRecordDiagnostic {
+  type: "TXT" | "MX" | "CNAME";
+  name: string;
+  status: string;
+  message: string;
+  found: string[];
+  suggestion?: string;
+}
+
+/** What the last DNS check of a claim saw (ADR 0011), shown until the next one. */
+export interface DomainCheck {
+  checkedAt: string;
+  zone: string | null;
+  nameservers: string[];
+  /** The DNS host, when its nameservers say which. */
+  host: { id: string; name: string; steps: string; help: string } | null;
+  /** The host's Domain Connect settings, when it offers the standard and our template. */
+  domainConnect: {
+    providerName: string;
+    urlSyncUX: string;
+    urlAPI: string;
+    zone: string;
+  } | null;
+  challenge: DomainRecordDiagnostic | null;
+  records: DomainRecordDiagnostic[];
+}
+
 export const domainClaimStatus = pgEnum("domain_claim_status", ["pending", "verified", "released"]);
 
 /**
@@ -206,6 +234,8 @@ export const domainClaims = pgTable(
     expiresAt: timestamptz("expires_at").notNull(),
     verifiedAt: timestamptz("verified_at"),
     checkedAt: timestamptz("checked_at"),
+    /** The last check's per-record verdicts and the DNS host it found. */
+    lastCheck: jsonb("last_check").$type<DomainCheck>(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

@@ -92,7 +92,12 @@
     "bindings": [
       { "name": "REPLAY_GUARD", "class_name": "ReplayGuard" },
       { "name": "REALTIME", "class_name": "Realtime" },
+      { "name": "DOMAIN_WATCH", "class_name": "DomainWatch" },
     ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReplayGuard", "Realtime"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ReplayGuard", "Realtime"] },
+    // Auto-checks a domain's DNS while its setup page is open (ADR 0011).
+    { "tag": "v2", "new_sqlite_classes": ["DomainWatch"] },
+  ],
 }

@@ -165,6 +165,19 @@ The mail service reads records from the domain's own nameservers (it finds them 
 instead of waiting out a public resolver's cache. The host it runs on needs outbound DNS (UDP and
 TCP port 53).
 
+Each check reads every record from the nameservers and says why one is not passing yet:
+not found, found with another value (shown), an SPF record already there (merge our include into
+it; the page shows the merged record), MX pointing at another host (mail moves when it changes),
+or a CNAME at a name that needs another record. When the nameservers belong to a host the app
+knows (Cloudflare, GoDaddy, Namecheap, Route 53 and others), it shows where to add records
+there. While the DNS page is open the Worker re-checks on its own (5 s, 10 s, 30 s, then every
+minute, for up to 30 minutes) through the `DOMAIN_WATCH` Durable Object, and pushes each result
+over the realtime socket; "Check record" still checks at once.
+
+"Set up automatically" (Domain Connect) needs templates published under your own domain and
+onboarded by each DNS host; see `docs/domain-connect/README.md`. It stays hidden until
+`DOMAIN_CONNECT_PROVIDER_ID` is set and the host confirms it has the template.
+
 Keep the record after setup. The Worker's cron trigger re-checks every verified domain every six
 hours; if the record is gone, sending from the domain pauses (the domain stays locked) and the
 workspace's owners get an email, and again when it is back. Owners can release a domain or move
@@ -249,35 +262,39 @@ Bindings:
 | `REPLAY_GUARD`                               | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                                                                                                                                                                    |
 | `REALTIME`                                   | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                                                                                                                                                                     |
 | `DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER` | Rate limiting           | Nothing to create. Per-workspace limits on adding and checking domains (`ratelimits` in `wrangler.jsonc`); `namespace_id` must be unique in your account.                                                                                                                                                            |
+| `DOMAIN_WATCH`                               | Durable Object (SQLite) | Migration `v2`. One per domain claim; re-checks DNS while the DNS page is open.                                                                                                                                                                                                                                      |
 
 Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashboard values on
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
 to `.dev.vars`.
 
-| Variable                   | Kind   | Required | Notes                                                                                                                                                                           |
-| -------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`       | secret | yes      | At least 32 random characters.                                                                                                                                                  |
-| `BETTER_AUTH_URL`          | var    | yes      | Public origin of the Worker (and the web app it serves). Magic links point here.                                                                                                |
-| `AUTH_TRUSTED_ORIGINS`     | var    | no       | Comma-separated web/app origins.                                                                                                                                                |
-| `AUTH_PASSKEY_RP_ID`       | var    | no       | WebAuthn relying party ID.                                                                                                                                                      |
-| `APP_NAME`                 | var    | no       | Defaults to `Omni`.                                                                                                                                                             |
-| `WEB_APP_URL`              | var    | no       | Web app origin; invitation emails link to `<WEB_APP_URL>/invite/<id>`. Defaults to `BETTER_AUTH_URL`.                                                                           |
-| `GOOGLE_CLIENT_ID`         | var    | no       | Google OAuth client ID. With `GOOGLE_CLIENT_SECRET`, the login page shows "Using Google". See [Sign in with Google](#sign-in-with-google).                                      |
-| `GOOGLE_CLIENT_SECRET`     | secret | no       | Google OAuth client secret. Set both or neither; one alone stops the Worker from starting.                                                                                      |
-| `MAIL_SERVICE_URL`         | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                              |
-| `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                                                                                                                               |
-| `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links and invitations. Empty disables them.                                                                                       |
-| `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off. Its environment tag is `ENVIRONMENT`.                                                                                                                   |
-| `ANTHROPIC_API_KEY`        | secret | no       | Summaries, and triage when Jev is off. Without any AI key threads stay unsorted (a wordless reply of yours still files as FYI).                                                 |
-| `TYPESAFE_API_KEY`         | secret | no       | Triage on TypeSafe's Jev; summaries stay on Claude.                                                                                                                             |
-| `TRIAGE_PROVIDER`          | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                                                                              |
-| `JEV_MODEL`                | var    | no       | Jev model override.                                                                                                                                                             |
-| `TYPESAFE_API_URL`         | var    | no       | TypeSafe API base URL. Defaults to `https://api.typesafe.ai`.                                                                                                                   |
-| `AI_DAILY_TOKEN_CAP`       | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause.                                                                                                       |
-| `EXPO_PUSH_ENABLED`        | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                                                                                                            |
-| `EXPO_ACCESS_TOKEN`        | secret | no       | Only if your Expo project enforces push security.                                                                                                                               |
-| `IMAGE_PROXY_DOH_URL`      | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                      |
-| `ENVIRONMENT`              | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`. |
+| Variable                     | Kind   | Required | Notes                                                                                                                                                                           |
+| ---------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`         | secret | yes      | At least 32 random characters.                                                                                                                                                  |
+| `BETTER_AUTH_URL`            | var    | yes      | Public origin of the Worker (and the web app it serves). Magic links point here.                                                                                                |
+| `AUTH_TRUSTED_ORIGINS`       | var    | no       | Comma-separated web/app origins.                                                                                                                                                |
+| `AUTH_PASSKEY_RP_ID`         | var    | no       | WebAuthn relying party ID.                                                                                                                                                      |
+| `APP_NAME`                   | var    | no       | Defaults to `Omni`.                                                                                                                                                             |
+| `WEB_APP_URL`                | var    | no       | Web app origin; invitation emails link to `<WEB_APP_URL>/invite/<id>`. Defaults to `BETTER_AUTH_URL`.                                                                           |
+| `GOOGLE_CLIENT_ID`           | var    | no       | Google OAuth client ID. With `GOOGLE_CLIENT_SECRET`, the login page shows "Using Google". See [Sign in with Google](#sign-in-with-google).                                      |
+| `GOOGLE_CLIENT_SECRET`       | secret | no       | Google OAuth client secret. Set both or neither; one alone stops the Worker from starting.                                                                                      |
+| `MAIL_SERVICE_URL`           | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                              |
+| `MAIL_SERVICE_HMAC_SECRET`   | secret | yes      | Same value as the mail service's.                                                                                                                                               |
+| `SYSTEM_MAIL_FROM`           | var    | no       | Address of a mailbox in Omni that sends magic links and invitations. Empty disables them.                                                                                       |
+| `SENTRY_DSN`                 | var    | no       | Empty keeps Sentry off. Its environment tag is `ENVIRONMENT`.                                                                                                                   |
+| `ANTHROPIC_API_KEY`          | secret | no       | Summaries, and triage when Jev is off. Without any AI key threads stay unsorted (a wordless reply of yours still files as FYI).                                                 |
+| `TYPESAFE_API_KEY`           | secret | no       | Triage on TypeSafe's Jev; summaries stay on Claude.                                                                                                                             |
+| `TRIAGE_PROVIDER`            | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                                                                              |
+| `JEV_MODEL`                  | var    | no       | Jev model override.                                                                                                                                                             |
+| `TYPESAFE_API_URL`           | var    | no       | TypeSafe API base URL. Defaults to `https://api.typesafe.ai`.                                                                                                                   |
+| `AI_DAILY_TOKEN_CAP`         | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause.                                                                                                       |
+| `EXPO_PUSH_ENABLED`          | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                                                                                                            |
+| `EXPO_ACCESS_TOKEN`          | secret | no       | Only if your Expo project enforces push security.                                                                                                                               |
+| `DOMAIN_CONNECT_PROVIDER_ID` | var    | no       | Domain Connect provider id our templates are published under. Empty hides one-click setup.                                                                                      |
+| `DOMAIN_CONNECT_KEY_HOST`    | var    | no       | TXT host of the public key, for templates that require signed requests.                                                                                                         |
+| `DOMAIN_CONNECT_PRIVATE_KEY` | secret | no       | PKCS#8 PEM key that signs Domain Connect apply URLs.                                                                                                                            |
+| `IMAGE_PROXY_DOH_URL`        | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                      |
+| `ENVIRONMENT`                | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`. |
 
 The `triggers.crons` entry in `wrangler.jsonc` runs the domain re-check (ADR 0010); it needs no
 setup beyond the deploy.
