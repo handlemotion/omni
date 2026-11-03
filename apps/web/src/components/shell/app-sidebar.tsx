@@ -121,13 +121,14 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarSection>
-          {/* The frame's Compose: an outline button with a foreground icon and label. */}
+          {/* Compose: an outline button with a foreground icon and label. 7px padding plus the
+              1px border puts the icon on the same 8px line as the rows below. */}
           <Link
             href="/compose"
             className={buttonStyles({
               intent: "outline",
               className:
-                "w-full justify-start [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-foreground)]",
+                "w-full justify-start px-1.75 [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-foreground)]",
             })}
           >
             <IconWrite />
