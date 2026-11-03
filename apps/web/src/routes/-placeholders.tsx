@@ -1,9 +1,8 @@
 // Placeholder UI shared by the list and thread routes (the `-` prefix keeps the router from
 // treating this file as a route). It renders raw data to prove the wiring; replace it with real
 // components in `src/components` and keep the hooks.
-import type { ReactNode } from "react";
 import { useState } from "react";
-import { useThreads, useThread } from "../hooks/use-mail.ts";
+import { useThread } from "../hooks/use-mail.ts";
 import {
   useArchive,
   useMarkRead,
@@ -11,40 +10,7 @@ import {
   useSendReply,
   useSnooze,
 } from "../hooks/use-mail-actions.ts";
-import type { ThreadFilter } from "../lib/types.ts";
 import { attachmentUrl, messageHtmlUrl } from "../lib/urls.ts";
-
-export function ThreadList(props: {
-  filter: ThreadFilter;
-  link: (threadId: string, children: ReactNode) => ReactNode;
-  children?: ReactNode;
-}) {
-  const { threads, hasNextPage, fetchNextPage, isFetchingNextPage } = useThreads(props.filter);
-  return (
-    <section>
-      <ul>
-        {threads.map((t) => (
-          <li key={t.id}>
-            {props.link(
-              t.id,
-              <>
-                {t.read ? "" : "● "}
-                {t.subject || "(no subject)"} · {t.latestFrom?.name ?? t.latestFrom?.address} ·{" "}
-                {t.messageCount} · {t.triage ?? "untriaged"} · {t.snippet}
-              </>,
-            )}
-          </li>
-        ))}
-      </ul>
-      {hasNextPage && (
-        <button type="button" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>
-          More
-        </button>
-      )}
-      {props.children}
-    </section>
-  );
-}
 
 export function ThreadView({ threadId }: { threadId: string }) {
   const { thread, pending } = useThread(threadId);
