@@ -56,6 +56,22 @@ const schema = z.object({
     .string()
     .optional()
     .transform((value) => value || undefined),
+  /**
+   * Recursive resolvers used to find a domain's nameservers, comma-separated `ip` or `ip:port`.
+   * Empty: the system's. Verification then asks those nameservers directly (ADR 0010).
+   */
+  DNS_RESOLVERS: z
+    .string()
+    .optional()
+    .transform((value) =>
+      (value ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  /** Port a zone's nameservers are asked on. 53; only a local test DNS server needs another. */
+  DNS_NAMESERVER_PORT: z.coerce.number().int().positive().max(65_535).default(53),
+  DNS_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
 });
 
 export type Config = z.infer<typeof schema>;

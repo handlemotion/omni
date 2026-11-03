@@ -96,4 +96,9 @@ export interface ActionSource {
   fail(actionId: string, error: string, retryAt: Date | null): Promise<void>;
   /** Hand a claimed action back to run at `retryAt`, without counting the attempt it claimed. */
   defer(actionId: string, retryAt: Date): Promise<void>;
+  /**
+   * True while sending from this address's domain is paused: the domain's ownership challenge
+   * left DNS (ADR 0010). Sends wait, attempts not counted, until it is back.
+   */
+  sendingPaused(address: string): Promise<boolean>;
 }
