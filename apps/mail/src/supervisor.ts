@@ -1,3 +1,4 @@
+import { Effect, Semaphore } from "effect";
 import type { Logger } from "./log.ts";
 import {
   MailboxConnection,
@@ -6,7 +7,6 @@ import {
 } from "./mailbox-connection.ts";
 import { OutboxExecutor } from "./outbox.ts";
 import type { ActionSource, MailStore } from "./ports.ts";
-import { createLimiter } from "./timing.ts";
 
 export interface SupervisorOptions {
   store: MailStore;
@@ -24,7 +24,7 @@ export interface SupervisorOptions {
 /** Owns one `MailboxConnection` per mailbox, the periodic folder sync, and the outbox loop. */
 export class Supervisor {
   private readonly connections = new Map<string, MailboxConnection>();
-  private readonly limit: ReturnType<typeof createLimiter>;
+  private readonly limit: <T>(task: () => Promise<T>) => Promise<T>;
   private readonly outbox: OutboxExecutor;
   private readonly log: Logger;
   private readonly options: SupervisorOptions;
@@ -36,7 +36,8 @@ export class Supervisor {
   constructor(options: SupervisorOptions) {
     this.options = options;
     this.log = options.logger;
-    this.limit = createLimiter(options.concurrency ?? 4);
+    const permits = Semaphore.makeUnsafe(options.concurrency ?? 4);
+    this.limit = (task) => Effect.runPromise(Semaphore.withPermit(permits, Effect.promise(task)));
     this.outbox = new OutboxExecutor({
       actions: options.actions,
       logger: options.logger,
