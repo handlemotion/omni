@@ -16,8 +16,10 @@ import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
 import { useCounts, useThreads } from "@/hooks/use-mail.ts";
+import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
+import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { senderLabel } from "@/lib/threads.ts";
-import type { ThreadFilter, ThreadSummary } from "@/lib/types.ts";
+import type { ThreadFilter, ThreadSummary, ThreadView } from "@/lib/types.ts";
 
 /** What a list row shows. Threads and search results both map to it. */
 export interface ListRow {
@@ -45,6 +47,11 @@ export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
       {...props}
       rows={threads.map(toRow)}
       count={unread}
+      shortcuts={{
+        view: props.filter.view,
+        threads,
+        loadMore: hasNextPage ? () => void fetchNextPage() : undefined,
+      }}
       more={
         hasNextPage && (
           <LoadMore onVisible={() => void fetchNextPage()} isLoading={isFetchingNextPage} />
@@ -73,6 +80,8 @@ export function List(
     caption?: ReactNode;
     /** After the last row: loads the next page. */
     more?: ReactNode;
+    /** The list keys (j/k, x, e, ...), for lists of threads. */
+    shortcuts?: ShortcutsSource;
   },
 ) {
   const threads = props.rows;
@@ -83,9 +92,21 @@ export function List(
   const { threadId } = useParams({ strict: false });
   // List view: an open thread takes the whole width; split view: it sits beside the list.
   const hideList = view === "list" && !!threadId;
+  const listRef = useRef<HTMLElement>(null);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {props.shortcuts && (
+        <ListShortcuts
+          {...props.shortcuts}
+          threadId={threadId}
+          href={props.href}
+          selected={selected}
+          setSelected={setSelected}
+          listRef={listRef}
+          listHidden={hideList}
+        />
+      )}
       {/* 8px on the right, the same as the controls' inset from the top. */}
       <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2">
         {/* 1px down: centers the title's capitals on the sidebar header's icons. */}
@@ -114,7 +135,11 @@ export function List(
           </ToggleGroup>
           <Separator orientation="vertical" className="mx-1 h-4" />
           <SearchPopover />
-          <Link href="/compose" className={buttonStyles({ intent: "primary" })}>
+          <Link
+            href="/compose"
+            aria-keyshortcuts={ariaKeyShortcuts("compose")}
+            className={buttonStyles({ intent: "primary" })}
+          >
             <PencilSquareIcon />
             Compose
           </Link>
@@ -122,7 +147,10 @@ export function List(
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <section className={`flex min-w-0 flex-1 flex-col ${hideList ? "hidden" : ""}`}>
+        <section
+          ref={listRef}
+          className={`flex min-w-0 flex-1 flex-col ${hideList ? "hidden" : ""}`}
+        >
           <div className="flex h-10.5 items-center gap-2 border-b px-5">
             <CheckboxField
               aria-label="Select all"
@@ -137,6 +165,8 @@ export function List(
 
           <GridList
             aria-label={props.title}
+            // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
+            disallowTypeAhead
             items={threads}
             selectionMode="multiple"
             selectionBehavior="toggle"
@@ -152,6 +182,18 @@ export function List(
       </div>
     </div>
   );
+}
+
+interface ShortcutsSource {
+  view: ThreadView;
+  threads: ThreadSummary[];
+  loadMore?: (() => void) | undefined;
+}
+
+/** Binds the list keys while mounted; a component so `List` can use them only for threads. */
+function ListShortcuts(props: Parameters<typeof useThreadListShortcuts>[0]) {
+  useThreadListShortcuts(props);
+  return null;
 }
 
 type ViewMode = "list" | "split";

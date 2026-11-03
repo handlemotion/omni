@@ -30,6 +30,7 @@ export const sessions = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     activeOrganizationId: text("active_organization_id"),
+    activeTeamId: text("active_team_id"),
   },
   (table) => [index("sessions_userId_idx").on(table.userId)],
 );
@@ -106,6 +107,40 @@ export const organizations = pgTable("organizations", {
   metadata: text("metadata"),
 });
 
+export const teams = pgTable(
+  "teams",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    memberCount: integer("member_count").default(0).notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").$onUpdate(() => /* @__PURE__ */ new Date()),
+  },
+  (table) => [index("teams_organizationId_idx").on(table.organizationId)],
+);
+
+export const teamMembers = pgTable(
+  "team_members",
+  {
+    id: text("id").primaryKey(),
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    membershipKey: text("membership_key").unique(),
+    createdAt: timestamp("created_at"),
+  },
+  (table) => [
+    index("teamMembers_teamId_idx").on(table.teamId),
+    index("teamMembers_userId_idx").on(table.userId),
+  ],
+);
+
 export const members = pgTable(
   "members",
   {
@@ -134,6 +169,7 @@ export const invitations = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
     role: text("role"),
+    teamId: text("team_id"),
     status: text("status").default("pending").notNull(),
     expiresAt: timestamp("expires_at").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -151,6 +187,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   sessionss: many(sessions),
   accountss: many(accounts),
   passkeyss: many(passkeys),
+  teamMemberss: many(teamMembers),
   memberss: many(members),
   invitationss: many(invitations),
 }));
@@ -177,8 +214,28 @@ export const passkeysRelations = relations(passkeys, ({ one }) => ({
 }));
 
 export const organizationsRelations = relations(organizations, ({ many }) => ({
+  teamss: many(teams),
   memberss: many(members),
   invitationss: many(invitations),
+}));
+
+export const teamsRelations = relations(teams, ({ one, many }) => ({
+  organizations: one(organizations, {
+    fields: [teams.organizationId],
+    references: [organizations.id],
+  }),
+  teamMemberss: many(teamMembers),
+}));
+
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  teams: one(teams, {
+    fields: [teamMembers.teamId],
+    references: [teams.id],
+  }),
+  users: one(users, {
+    fields: [teamMembers.userId],
+    references: [users.id],
+  }),
 }));
 
 export const membersRelations = relations(members, ({ one }) => ({
