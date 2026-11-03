@@ -9,7 +9,9 @@ export const MEMBER_HEADER = "x-omni-member-id";
 export type RealtimeEvent =
   | { type: "changed"; mailboxId: string; threadIds: string[] }
   /** An outbox action this member asked for failed for good (e.g. a send). */
-  | { type: "action"; actionId: string; status: "failed"; error: string };
+  | { type: "action"; actionId: string; status: "failed"; error: string }
+  /** A domain's DNS was checked again (ADR 0011): refetch the onboarding status. */
+  | { type: "domain"; domainId: string };
 
 /**
  * One instance per org. Each open app holds a hibernatable websocket tagged with its member id;

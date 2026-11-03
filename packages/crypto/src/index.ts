@@ -12,6 +12,7 @@ export {
   type VerifyRequestInput,
   type VerifyResult,
 } from "./signing.ts";
+export { challengeMatches, hashChallenge, newChallenge } from "./challenge.ts";
 export {
   CredentialError,
   decryptCredential,
@@ -20,3 +21,4 @@ export {
   parseKeyring,
   type Keyring,
 } from "./credentials.ts";
+export { signDomainConnectQuery } from "./domain-connect.ts";

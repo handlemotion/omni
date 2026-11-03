@@ -138,5 +138,8 @@ function parseEvent(data: string): RealtimeEvent | undefined {
   ) {
     return { type: "action", actionId: event.actionId, status: "failed", error: event.error };
   }
+  if (event.type === "domain" && typeof event.domainId === "string") {
+    return { type: "domain", domainId: event.domainId };
+  }
   return undefined;
 }

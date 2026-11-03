@@ -1,13 +1,24 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
+  conflictingLock,
   findMemberDomain,
   listMemberDomains,
-  mailDomainOwner,
-  saveMailDomain,
+  lockClaim,
+  MAX_PENDING_CLAIMS,
+  openClaim,
+  recordChallengeState,
+  releaseDomain,
+  transferDomain,
 } from "../src/domains.ts";
 import { forMember } from "../src/for-member.ts";
-import { members, threadState, threads } from "../src/schema/index.ts";
+import {
+  mailboxes as schemaMailboxes,
+  mailDomains,
+  members,
+  threadState,
+  threads,
+} from "../src/schema/index.ts";
 import { listUserWorkspaces } from "../src/workspaces.ts";
 import { createThread, enqueueAction, upsertMessage } from "../src/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
@@ -356,7 +367,7 @@ test("thread pages and search merge granted mailboxes newest first, each row onc
   expect(hits.map((h) => h.messageId)).toEqual(visible.slice(0, 3).map((s) => s.messageId));
 });
 
-test("a domain claim is visible only to its own org's owners and admins, and never changes hands", async () => {
+test("a domain locks to the first org whose challenge verifies, once, and only owners and admins see it", async () => {
   const orgA = await createOrg(db, "domains-a");
   const orgB = await createOrg(db, "domains-b");
   const owner = await createMember(db, orgA.id, "domain-owner");
@@ -365,23 +376,126 @@ test("a domain claim is visible only to its own org's owners and admins, and nev
   const outsider = await createMember(db, orgB.id, "domain-outsider");
   await db.update(members).set({ role: "owner" }).where(eq(members.id, outsider.id));
 
-  const claim = {
-    domain: "claimed.test",
-    provider: "imap" as const,
-    dnsRecords: [],
-    added: true,
-    verified: true,
-  };
-  const row = await saveMailDomain(db, { ...claim, orgId: orgA.id });
-  expect(row).toMatchObject({ orgId: orgA.id, domain: "claimed.test" });
-  // A second org's claim, even racing past the Worker's check, never takes the row over.
-  expect(await saveMailDomain(db, { ...claim, orgId: orgB.id })).toBeNull();
-  expect(await mailDomainOwner(db, "claimed.test")).toBe(orgA.id);
+  const claimFor = (orgId: string, memberId: string, domain = "claimed.test") =>
+    openClaim(db, {
+      orgId,
+      domain,
+      memberId,
+      challengeHash: `hash-${orgId}-${domain}`,
+      provider: "imap",
+      dnsRecords: [],
+    });
+  const a = await claimFor(orgA.id, owner.id);
+  const b = await claimFor(orgB.id, outsider.id);
+  if (!("claim" in a) || !("claim" in b)) throw new Error("claims refused");
+  // Both may wait on the same domain: a pending claim blocks nobody.
+  expect([a.created, b.created]).toEqual([true, true]);
+  // Claiming again keeps the challenge already handed out.
+  expect(await claimFor(orgA.id, owner.id)).toMatchObject({
+    created: false,
+    claim: { id: a.claim.id, challengeHash: a.claim.challengeHash },
+  });
 
-  expect((await listMemberDomains(db, owner.id)).map((d) => d.id)).toEqual([row!.id]);
-  expect(await findMemberDomain(db, owner.id, row!.id)).toMatchObject({ id: row!.id });
+  // Both challenges "verify" at once: exactly one org gets the lock, whatever the timing.
+  const results = await Promise.all([lockClaim(db, a.claim), lockClaim(db, b.claim)]);
+  const winners = results.filter((r) => r.ok && r.locked);
+  expect(winners).toHaveLength(1);
+  expect(results.filter((r) => !r.ok)).toEqual([
+    { ok: false, reason: "taken", by: "claimed.test" },
+  ]);
+  const locks = await db.select().from(mailDomains).where(eq(mailDomains.domain, "claimed.test"));
+  expect(locks).toHaveLength(1);
+  const winner =
+    locks[0]!.orgId === orgA.id ? { org: orgA, claim: a.claim } : { org: orgB, claim: b.claim };
+  const loser = winner.org === orgA ? orgB : orgA;
+  // A repeat by the winner is a no-op that still reads as success.
+  expect(await lockClaim(db, winner.claim)).toMatchObject({ ok: true, locked: false });
+
+  // The lock covers subdomains for everyone else, not for the org that holds it.
+  expect(await conflictingLock(db, loser.id, "mail.claimed.test")).toEqual({
+    domain: "claimed.test",
+    orgId: winner.org.id,
+  });
+  expect(await conflictingLock(db, winner.org.id, "mail.claimed.test")).toBeNull();
+
+  // Visible to the holding org's owners and admins only.
+  const ownerSees = (await listMemberDomains(db, owner.id)).map((d) => d.claim?.domain);
+  expect(ownerSees).toEqual(["claimed.test"]);
+  expect(await findMemberDomain(db, owner.id, a.claim.id)).toMatchObject({
+    claim: { id: a.claim.id },
+  });
   expect(await listMemberDomains(db, plain.id)).toEqual([]);
-  expect(await findMemberDomain(db, plain.id, row!.id)).toBeNull();
-  expect(await listMemberDomains(db, outsider.id)).toEqual([]);
-  expect(await findMemberDomain(db, outsider.id, row!.id)).toBeNull();
+  expect(await findMemberDomain(db, plain.id, a.claim.id)).toBeNull();
+  expect(await findMemberDomain(db, outsider.id, a.claim.id)).toBeNull();
+
+  // Lost DNS is reported once per change, and never removes the lock.
+  const state = (ok: boolean) =>
+    recordChallengeState(db, { orgId: winner.org.id, domain: "claimed.test", ok });
+  expect([await state(false), await state(false), await state(true), await state(true)]).toEqual([
+    "lost",
+    null,
+    "restored",
+    null,
+  ]);
+
+  // Hand-overs: refused while the org has a mailbox on the domain, then move or free it.
+  const box = await createMailbox(db, winner.org.id, "hello@claimed.test");
+  expect(
+    await transferDomain(db, {
+      fromOrgId: winner.org.id,
+      toOrgId: loser.id,
+      domain: "claimed.test",
+    }),
+  ).toEqual({ ok: false, reason: "has_mailboxes" });
+  await db.delete(schemaMailboxes).where(eq(schemaMailboxes.id, box.id));
+  expect(
+    await transferDomain(db, {
+      fromOrgId: winner.org.id,
+      toOrgId: loser.id,
+      domain: "claimed.test",
+    }),
+  ).toEqual({ ok: true });
+  const [moved] = await db.select().from(mailDomains).where(eq(mailDomains.domain, "claimed.test"));
+  expect(moved!.orgId).toBe(loser.id);
+  expect(await releaseDomain(db, { orgId: winner.org.id, domain: "claimed.test" })).toEqual({
+    ok: false,
+    reason: "not_locked",
+  });
+  expect(await releaseDomain(db, { orgId: loser.id, domain: "claimed.test" })).toEqual({
+    ok: true,
+  });
+  expect(await db.select().from(mailDomains).where(eq(mailDomains.domain, "claimed.test"))).toEqual(
+    [],
+  );
+});
+
+test("pending claims are capped per org and an expired one can no longer lock", async () => {
+  const org = await createOrg(db, "domains-cap");
+  const admin = await createMember(db, org.id, "cap-admin");
+  const open = (domain: string, now?: Date) =>
+    openClaim(db, {
+      orgId: org.id,
+      domain,
+      memberId: admin.id,
+      challengeHash: `hash-${domain}`,
+      provider: "imap",
+      dnsRecords: [],
+      now,
+    });
+  // Opened eight days ago: past its week, so it does not count and cannot verify.
+  const stale = await open("stale.test", new Date(Date.now() - 8 * 24 * 60 * 60_000));
+  if (!("claim" in stale)) throw new Error("refused");
+  expect(await lockClaim(db, stale.claim)).toEqual({ ok: false, reason: "expired" });
+  expect(await db.select().from(mailDomains).where(eq(mailDomains.domain, "stale.test"))).toEqual(
+    [],
+  );
+
+  const opened = await Promise.all(
+    Array.from({ length: MAX_PENDING_CLAIMS + 2 }, (_, i) => open(`cap-${i}.test`)),
+  );
+  // Concurrent adds cannot slip past the cap together.
+  expect(opened.filter((r) => "claim" in r)).toHaveLength(MAX_PENDING_CLAIMS);
+  expect(opened.filter((r) => "error" in r)).toEqual([{ error: "cap" }, { error: "cap" }]);
+  // The expired claim renews with a new expiry, but only once there is room under the cap.
+  expect(await open("stale.test")).toEqual({ error: "cap" });
 });

@@ -1,0 +1,106 @@
+{
+  "now": "2026-11-03T15:00:00Z",
+  "mailbox": "sam@example.com",
+  "threads": [
+    {
+      "id": "nightwatch-invoice-oct",
+      "subject": "Invoice NW-2291 for October",
+      "from": { "name": "Nightwatch Billing", "address": "billing@nightwatch.example" },
+      "sentAt": "2026-10-06T09:12:00Z",
+      "messageCount": 1,
+      "text": "Hi Sam, attached is invoice NW-2291 for October uptime monitoring (Team plan, 25 checks). Amount due: $1,240.00, payable by November 5. Pay online from your billing page or by bank transfer. Thanks for being a Nightwatch customer."
+    },
+    {
+      "id": "nightwatch-invoice-aug",
+      "subject": "Invoice NW-1874 for August",
+      "from": { "name": "Nightwatch Billing", "address": "billing@nightwatch.example" },
+      "sentAt": "2026-08-04T09:10:00Z",
+      "messageCount": 1,
+      "text": "Hi Sam, attached is invoice NW-1874 for August uptime monitoring (Team plan, 25 checks). Amount due: $1,240.00, payable by September 5. Thanks for being a Nightwatch customer."
+    },
+    {
+      "id": "nightwatch-release-notes",
+      "subject": "What's new in Nightwatch: October release",
+      "from": { "name": "Nightwatch", "address": "news@nightwatch.example" },
+      "sentAt": "2026-10-21T16:00:00Z",
+      "messageCount": 1,
+      "text": "This month we shipped status pages with custom domains, faster alerting, and a new invoice history view in billing. Read the full release notes on our blog. You are receiving this because you subscribed to product updates. Unsubscribe."
+    },
+    {
+      "id": "lumen-invoice-oct",
+      "subject": "Your Lumen Hosting invoice is ready",
+      "from": { "name": "Lumen Hosting", "address": "accounts@lumenhost.example" },
+      "sentAt": "2026-10-14T07:30:00Z",
+      "messageCount": 1,
+      "text": "Your invoice for October is ready: 3 servers, $96.00, charged to the card ending 4242 on October 15. Download the PDF from your account."
+    },
+    {
+      "id": "brightside-contract-question",
+      "subject": "Re: Website redesign proposal",
+      "from": { "name": "Lena Park", "address": "lena@brightside.example" },
+      "sentAt": "2026-10-28T13:45:00Z",
+      "messageCount": 4,
+      "text": "Thanks Sam, the proposal looks great. Before we sign, could you clarify the termination clause in the contract? We'd prefer 30 days' notice instead of 60. Also, does the fixed price include the two rounds of revisions?"
+    },
+    {
+      "id": "brightside-contract-signed",
+      "subject": "Completed: Brightside services contract",
+      "from": { "name": "Signwell", "address": "notifications@signwell.example" },
+      "sentAt": "2026-10-30T18:02:00Z",
+      "messageCount": 1,
+      "text": "All parties have signed \"Brightside services contract\". Signed by Lena Park and Sam Rivera. Download the completed document from your Signwell dashboard."
+    },
+    {
+      "id": "lunch-mentions-contract",
+      "subject": "Lunch Friday?",
+      "from": { "name": "Omar Haddad", "address": "omar@example.com" },
+      "sentAt": "2026-10-29T11:20:00Z",
+      "messageCount": 2,
+      "text": "Sounds good. I'm stuck on the contract review for the office lease until noon, so could we do lunch at 12:30 at the usual place?"
+    },
+    {
+      "id": "lisbon-flight",
+      "subject": "Your booking is confirmed: Boston to Lisbon, November 18",
+      "from": { "name": "Aerolinea", "address": "bookings@aerolinea.example" },
+      "sentAt": "2026-10-09T20:15:00Z",
+      "messageCount": 1,
+      "text": "Booking reference QX7P2L. Flight AE 214 departs Boston (BOS) on Wednesday, November 18 at 21:40 and arrives in Lisbon (LIS) at 09:35 the next day. Seat 23A. Check in online 24 hours before departure."
+    },
+    {
+      "id": "pricing-question",
+      "subject": "Question about pricing for the starter plan",
+      "from": { "name": "Priya Nair", "address": "priya@fernway.example" },
+      "sentAt": "2026-10-26T10:05:00Z",
+      "messageCount": 1,
+      "text": "Hi, we're a team of four and wondering whether the starter plan covers shared inboxes, or whether we'd need the team plan. Is there a discount for annual billing?"
+    },
+    {
+      "id": "password-reset",
+      "subject": "Reset your password",
+      "from": { "name": "Lumen Hosting", "address": "no-reply@lumenhost.example" },
+      "sentAt": "2026-10-31T22:40:00Z",
+      "messageCount": 1,
+      "text": "Someone asked to reset the password for your Lumen Hosting account. If it was you, follow the link below within an hour. If not, you can ignore this email."
+    }
+  ],
+  "queries": [
+    {
+      "id": "nightwatch-last-month",
+      "query": "the invoice from Nightwatch last month",
+      "best": "nightwatch-invoice-oct"
+    },
+    {
+      "id": "who-asked-contract",
+      "query": "who asked about the contract",
+      "best": "brightside-contract-question"
+    },
+    {
+      "id": "nightwatch-august",
+      "query": "nightwatch bill from august",
+      "best": "nightwatch-invoice-aug"
+    },
+    { "id": "lisbon-trip", "query": "my lisbon trip", "best": "lisbon-flight" },
+    { "id": "signed-contract", "query": "signed contract", "best": "brightside-contract-signed" },
+    { "id": "hosting-receipt", "query": "hosting receipt", "best": "lumen-invoice-oct" }
+  ]
+}

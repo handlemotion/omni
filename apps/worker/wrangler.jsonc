@@ -72,11 +72,32 @@
       { "queue": "omni-ai-dlq", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 10 },
     ],
   },
+  // Per-org limits on domain setup (ADR 0010). `namespace_id` is any number unique in the
+  // account; `period` is 10 or 60 seconds.
+  "ratelimits": [
+    {
+      "name": "DOMAIN_ADD_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 },
+    },
+    {
+      "name": "DOMAIN_CHECK_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 30, "period": 60 },
+    },
+  ],
+  // Re-checks every verified domain's ownership record; a lost one pauses sending (ADR 0010).
+  "triggers": { "crons": ["23 */6 * * *"] },
   "durable_objects": {
     "bindings": [
       { "name": "REPLAY_GUARD", "class_name": "ReplayGuard" },
       { "name": "REALTIME", "class_name": "Realtime" },
+      { "name": "DOMAIN_WATCH", "class_name": "DomainWatch" },
     ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReplayGuard", "Realtime"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ReplayGuard", "Realtime"] },
+    // Auto-checks a domain's DNS while its setup page is open (ADR 0011).
+    { "tag": "v2", "new_sqlite_classes": ["DomainWatch"] },
+  ],
 }

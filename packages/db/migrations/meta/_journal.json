@@ -75,8 +75,22 @@
     {
       "idx": 10,
       "version": "7",
-      "when": 1793744649403,
-      "tag": "0010_safe_jackal",
+      "when": 1793743178318,
+      "tag": "0010_domain_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793743585958,
+      "tag": "0011_domain_claim_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793747295196,
+      "tag": "0012_aspiring_genesis",
       "breakpoints": true
     }
   ]

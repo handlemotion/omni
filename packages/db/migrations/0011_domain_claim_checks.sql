@@ -1,0 +1,1 @@
+ALTER TABLE "domain_claims" ADD COLUMN "last_check" jsonb;
