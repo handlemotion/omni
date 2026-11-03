@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { serve } from "@hono/node-server";
+import { Effect, Option } from "effect";
 import { loadConfig } from "./config.ts";
 import { createLogger } from "./log.ts";
 import { flushErrorReporting, initErrorReporting } from "./sentry.ts";
@@ -22,25 +23,42 @@ const server = serve({ fetch: service.app.fetch, port: config.PORT }, (info) =>
   log.info("http.listening", { port: info.port }),
 );
 
+/**
+ * Stop accepting HTTP, then stop the service in order: periodic loops, outbox claims, actions in
+ * flight (a send finishes and records its outcome), then every mailbox fiber, whose scope logs out
+ * and closes its socket. Container hosts SIGKILL some seconds after SIGTERM (Fly: `kill_timeout`,
+ * 30s), so all of it gets 20s; past that the process exits 1 and the next start resumes.
+ */
+const shutdown = (signal: string) =>
+  Effect.gen(function* () {
+    log.info("shutdown.start", { signal });
+    // Drop idle keep-alive sockets so `close` does not wait on them.
+    server.close();
+    if ("closeIdleConnections" in server) server.closeIdleConnections();
+    const finished = yield* Effect.promise(() => service.stop()).pipe(
+      Effect.timeoutOption("20 seconds"),
+    );
+    if (Option.isNone(finished)) {
+      log.error("shutdown.timeout");
+      return 1;
+    }
+    log.info("shutdown.done");
+    return 0;
+  });
+
 let stopping = false;
-async function shutdown(signal: string) {
+function onSignal(signal: string) {
   if (stopping) return;
   stopping = true;
-  log.info("shutdown.start", { signal });
-  // Container hosts usually SIGKILL 10-30s after SIGTERM; give in-flight work up to 20s.
-  const force = setTimeout(() => {
-    log.error("shutdown.timeout");
-    void flushErrorReporting().finally(() => process.exit(1));
-  }, 20_000);
-  force.unref();
-  // Stop accepting, and drop idle keep-alive sockets so `close` does not wait on them.
-  server.close();
-  if ("closeIdleConnections" in server) server.closeIdleConnections();
-  await service.stop();
-  log.info("shutdown.done");
-  await flushErrorReporting();
-  process.exit(0);
+  // Error reports still queued go out before the process exits, either way.
+  void Effect.runPromise(shutdown(signal)).then(
+    (code) => flushErrorReporting().finally(() => process.exit(code)),
+    (error: unknown) => {
+      log.error("shutdown.failed", { error });
+      void flushErrorReporting().finally(() => process.exit(1));
+    },
+  );
 }
 
-process.on("SIGTERM", () => void shutdown("SIGTERM"));
-process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => onSignal("SIGTERM"));
+process.on("SIGINT", () => onSignal("SIGINT"));

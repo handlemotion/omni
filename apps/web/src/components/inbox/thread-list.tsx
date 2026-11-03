@@ -3,12 +3,12 @@ import {
   PencilSquareIcon,
   ViewColumnsIcon,
 } from "@heroicons/react/24/outline";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Key, Selection } from "react-aria-components";
+import { SearchPopover } from "@/components/search/search-popover";
 import { buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
-import { SearchField, SearchInput } from "@/components/ui/search-field";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Avatar } from "@/components/ui/avatar";
@@ -18,20 +18,74 @@ import { Heading } from "@/components/ui/heading";
 import { useCounts, useThreads } from "@/hooks/use-mail.ts";
 import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
-import type { ThreadFilter, ThreadSummary } from "@/lib/types.ts";
+import { senderLabel } from "@/lib/threads.ts";
+import type { ThreadFilter, ThreadSummary, ThreadView } from "@/lib/types.ts";
 
-// Figma: Omni, inbox list (node 15:2), on our tokens: brand blue for the count, checkboxes and
-// unread dot; foreground for unread text, muted for read, subtle for previews.
-export function ThreadList(props: {
+/** What a list row shows. Threads and search results both map to it. */
+export interface ListRow {
+  id: string;
+  sender: string;
+  subject: string;
+  snippet: string;
+  unread: boolean;
+}
+
+interface ListProps {
   title: string;
-  filter: ThreadFilter;
   /** Where a row opens. */
   href: (threadId: string) => string;
   /** The open thread, beside the list. */
   children?: ReactNode;
-}) {
+}
+
+/** One view's threads (inbox, queue, all mail...), loading more as it scrolls. */
+export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
   const { threads, hasNextPage, fetchNextPage, isFetchingNextPage } = useThreads(props.filter);
   const unread = useUnreadCount(props.filter);
+  return (
+    <List
+      {...props}
+      rows={threads.map(toRow)}
+      count={unread}
+      shortcuts={{
+        view: props.filter.view,
+        threads,
+        loadMore: hasNextPage ? () => void fetchNextPage() : undefined,
+      }}
+      more={
+        hasNextPage && (
+          <LoadMore onVisible={() => void fetchNextPage()} isLoading={isFetchingNextPage} />
+        )
+      }
+    />
+  );
+}
+
+const toRow = (thread: ThreadSummary): ListRow => ({
+  id: thread.id,
+  sender: senderLabel(thread),
+  subject: thread.subject,
+  snippet: thread.snippet,
+  unread: thread.unread,
+});
+
+// Figma: Omni, inbox list (node 15:2), on our tokens: brand blue for the count, checkboxes and
+// unread dot; foreground for unread text, muted for read, subtle for previews.
+export function List(
+  props: ListProps & {
+    rows: ListRow[];
+    /** Shown in brand blue after the title (unread threads), when above zero. */
+    count?: number;
+    /** What the bar above the rows says about their order or scope. */
+    caption?: ReactNode;
+    /** After the last row: loads the next page. */
+    more?: ReactNode;
+    /** The list keys (j/k, x, e, ...), for lists of threads. */
+    shortcuts?: ShortcutsSource;
+  },
+) {
+  const threads = props.rows;
+  const unread = props.count ?? 0;
   const [selected, setSelected] = useState<Selection>(new Set());
   const count = selected === "all" ? threads.length : selected.size;
   const [view, setView] = useViewMode();
@@ -39,20 +93,20 @@ export function ThreadList(props: {
   // List view: an open thread takes the whole width; split view: it sits beside the list.
   const hideList = view === "list" && !!threadId;
   const listRef = useRef<HTMLElement>(null);
-  useThreadListShortcuts({
-    view: props.filter.view,
-    threads,
-    threadId,
-    href: props.href,
-    selected,
-    setSelected,
-    listRef,
-    listHidden: hideList,
-    loadMore: hasNextPage ? () => void fetchNextPage() : undefined,
-  });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {props.shortcuts && (
+        <ListShortcuts
+          {...props.shortcuts}
+          threadId={threadId}
+          href={props.href}
+          selected={selected}
+          setSelected={setSelected}
+          listRef={listRef}
+          listHidden={hideList}
+        />
+      )}
       {/* 8px on the right, the same as the controls' inset from the top. */}
       <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2">
         {/* 1px down: centers the title's capitals on the sidebar header's icons. */}
@@ -80,7 +134,7 @@ export function ThreadList(props: {
             </ToggleGroupItem>
           </ToggleGroup>
           <Separator orientation="vertical" className="mx-1 h-4" />
-          <Search />
+          <SearchPopover />
           <Link
             href="/compose"
             aria-keyshortcuts={ariaKeyShortcuts("compose")}
@@ -106,7 +160,7 @@ export function ThreadList(props: {
             >
               <Checkbox />
             </CheckboxField>
-            <span className="text-xs text-subtle-foreground">Most recent</span>
+            <span className="text-xs text-subtle-foreground">{props.caption ?? "Most recent"}</span>
           </div>
 
           <GridList
@@ -122,9 +176,7 @@ export function ThreadList(props: {
             {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
           </GridList>
 
-          {hasNextPage && (
-            <LoadMore onVisible={() => void fetchNextPage()} isLoading={isFetchingNextPage} />
-          )}
+          {props.more}
         </section>
         {props.children}
       </div>
@@ -132,18 +184,16 @@ export function ThreadList(props: {
   );
 }
 
-/** Searches all mail: Enter opens the search page with the query. */
-function Search() {
-  const navigate = useNavigate();
-  return (
-    <SearchField
-      aria-label="Search"
-      className="w-60"
-      onSubmit={(q) => void navigate({ to: "/search", search: { q } })}
-    >
-      <SearchInput placeholder="Search" />
-    </SearchField>
-  );
+interface ShortcutsSource {
+  view: ThreadView;
+  threads: ThreadSummary[];
+  loadMore?: (() => void) | undefined;
+}
+
+/** Binds the list keys while mounted; a component so `List` can use them only for threads. */
+function ListShortcuts(props: Parameters<typeof useThreadListShortcuts>[0]) {
+  useThreadListShortcuts(props);
+  return null;
 }
 
 type ViewMode = "list" | "split";
@@ -168,8 +218,8 @@ function useViewMode() {
   return [view, set] as const;
 }
 
-function ThreadRow({ thread, href }: { thread: ThreadSummary; href: string }) {
-  const sender = senderLabel(thread);
+function ThreadRow({ thread, href }: { thread: ListRow; href: string }) {
+  const sender = thread.sender;
   return (
     <GridListItem
       id={thread.id}
@@ -197,24 +247,16 @@ function ThreadRow({ thread, href }: { thread: ThreadSummary; href: string }) {
         )}
         <span className="truncate">
           <span className={thread.unread ? "text-foreground" : "text-muted-foreground"}>
-            {thread.subject || "(no subject)"} –
-          </span>{" "}
-          <span className="ms-1.5 text-subtle-foreground">{thread.snippet}</span>
+            {thread.subject || "(no subject)"}
+            {thread.snippet && " –"}
+          </span>
+          {thread.snippet && (
+            <span className="ms-1.5 text-subtle-foreground">{thread.snippet}</span>
+          )}
         </span>
       </span>
     </GridListItem>
   );
-}
-
-/** One sender: their name. Several: first names, in the order they wrote. */
-function senderLabel(thread: ThreadSummary) {
-  const people = thread.participants.length
-    ? thread.participants
-    : thread.latestFrom
-      ? [thread.latestFrom]
-      : [];
-  if (people.length === 1) return people[0]?.name || people[0]?.address || "";
-  return people.map((p) => p.name?.split(" ")[0] || p.address.split("@")[0]).join(", ");
 }
 
 /** Unread threads in the inbox (or one lane of it), across the filtered mailbox(es). */

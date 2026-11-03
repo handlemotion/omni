@@ -5,6 +5,7 @@ import {
   useQuery,
   useQueryClient,
   useSuspenseQuery,
+  keepPreviousData,
 } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import {
@@ -71,7 +72,8 @@ export function usePendingSends(threadId: string) {
 
 /** Full-text search. Disabled for an empty query. */
 export function useSearch(q: string, mailbox?: string) {
-  return useQuery(searchQuery(q, mailbox));
+  // Keep the previous results on screen while the next query loads, so lists don't flash empty.
+  return useQuery({ ...searchQuery(q, mailbox), placeholderData: keepPreviousData });
 }
 
 /**

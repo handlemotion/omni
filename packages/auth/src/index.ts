@@ -1,6 +1,6 @@
 import { passkey } from "@better-auth/passkey";
 import type { Db } from "@omni/db";
-import { schema, syncTeamMailboxAccess, teamMailbox } from "@omni/db";
+import { advanceOrgSetup, schema, syncTeamMailboxAccess, teamMailbox } from "@omni/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
@@ -241,6 +241,13 @@ export function createAuth(env: AuthEnv) {
         // and `mailbox_access` is derived from its members. No default team per organization.
         teams: { enabled: true, defaultTeam: { enabled: false } },
         organizationHooks: {
+          // The invite step of onboarding, but only once the org has mailboxes: an invitation
+          // sent from settings mid-setup must not skip the domain and mailbox steps.
+          afterCreateInvitation: async ({ invitation }) => {
+            await advanceOrgSetup(env.db, invitation.organizationId, "invites_sent", {
+              onlyFrom: "mailboxes_created",
+            });
+          },
           // Better Auth's own team endpoints stay usable; these keep `mailbox_access` in step.
           afterAddTeamMember: ({ team }) => syncTeamMailboxAccess(env.db, team.id),
           afterRemoveTeamMember: ({ team }) => syncTeamMailboxAccess(env.db, team.id),

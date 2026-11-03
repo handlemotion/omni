@@ -1,8 +1,9 @@
 import { EventEmitter } from "node:events";
+import { Data, Deferred, Duration, Effect, Fiber, Schedule, Semaphore } from "effect";
 import { ImapFlow, type ListResponse } from "imapflow";
 import type { Logger } from "./log.ts";
 import type { FlagChange, FolderInfo, FolderRole, MailStore, SyncPosition } from "./ports.ts";
-import { backoffDelay } from "./timing.ts";
+import { backoff } from "./timing.ts";
 
 export interface ServerEndpoint {
   host: string;
@@ -80,8 +81,13 @@ export interface ConnectionOptions {
    * bounds how long a dead peer (NAT dropped the flow, no FIN) goes unnoticed to about twice this.
    */
   socketTimeoutMs?: number;
-  /** Bounds work shared across mailboxes; each connect attempt (with its initial sync) runs inside it. */
-  gate?: <T>(task: () => Promise<T>) => Promise<T>;
+  /** Bounds work shared across mailboxes; each connect attempt (with its initial sync) holds a permit. */
+  gate?: Semaphore.Semaphore;
+  /**
+   * Rejected logins in a row, each a full `reconnectMaxMs` apart, before the connection gives up
+   * and emits `gave_up`. More than one, so a mail host's brief auth outage does not need a restart.
+   */
+  maxAuthFailures?: number;
 }
 
 type Events = {
@@ -89,9 +95,22 @@ type Events = {
   /** Logged in and the first full sync finished: outbox actions run from here on. */
   connected: [Capabilities];
   disconnected: [];
-  /** The server rejected the credentials. Retrying continues, at the backoff ceiling. */
+  /** The server rejected the credentials. Retried at the backoff ceiling, up to `maxAuthFailures`. */
   auth_failed: [];
+  /** Stopped retrying after `maxAuthFailures` rejected logins. Only a new `start()` tries again. */
+  gave_up: [];
 };
+
+/** The server rejected the login. Retrying soon cannot fix it; the user must replace the password. */
+export class ImapAuthFailed extends Data.TaggedError("ImapAuthFailed")<{ cause: unknown }> {}
+
+/** Connecting or the first sync failed: network, TLS, a timeout, storage. Retried with backoff. */
+export class ImapConnectFailed extends Data.TaggedError("ImapConnectFailed")<{ cause: unknown }> {}
+
+/** A ready connection closed before it counted as stable (`stableAfterMs`). Retried with backoff. */
+class ImapDropped extends Data.TaggedError("ImapDropped")<{}> {}
+
+type SessionError = ImapAuthFailed | ImapConnectFailed | ImapDropped;
 
 /** The mailbox is offline or still on its first sync. Retry later; the action is not at fault. */
 export class MailboxUnavailableError extends Error {
@@ -130,7 +149,8 @@ export class MailboxConnection extends EventEmitter<Events> {
   private readonly reconnectMaxMs: number;
   private readonly stableAfterMs: number;
   private readonly socketTimeoutMs: number;
-  private readonly gate: <T>(task: () => Promise<T>) => Promise<T>;
+  private readonly gate: Semaphore.Semaphore;
+  private readonly maxAuthFailures: number;
 
   private client: ImapFlow | null = null;
   private capabilities: Capabilities | null = null;
@@ -139,11 +159,12 @@ export class MailboxConnection extends EventEmitter<Events> {
   private stopped = true;
   private ready = false;
   private readySince = 0;
-  /** Failed connects since the last stable connection; drives the backoff. */
-  private failures = 0;
-  private connecting: Promise<void> | null = null;
+  private authFailures = 0;
+  /** Runs `lifecycle()`: connect, serve, reconnect. Interrupting it closes the socket. */
+  private fiber: Fiber.Fiber<void> | null = null;
+  /** Settles `start()`: on the first ready connection, a give-up, or `stop()`. */
+  private started: PromiseWithResolvers<void> | null = null;
   private syncingAll: Promise<FolderSyncResult[]> | null = null;
-  private wakeSleeper: (() => void) | null = null;
   private inboxSyncQueued = false;
 
   constructor(mailbox: MailboxConfig, options: ConnectionOptions) {
@@ -157,7 +178,8 @@ export class MailboxConnection extends EventEmitter<Events> {
     this.reconnectMaxMs = options.reconnectMaxMs ?? 5 * 60_000;
     this.stableAfterMs = options.stableAfterMs ?? 60_000;
     this.socketTimeoutMs = options.socketTimeoutMs ?? 90_000;
-    this.gate = options.gate ?? ((task) => task());
+    this.gate = options.gate ?? Semaphore.makeUnsafe(1);
+    this.maxAuthFailures = options.maxAuthFailures ?? 3;
   }
 
   get connected(): boolean {
@@ -169,37 +191,33 @@ export class MailboxConnection extends EventEmitter<Events> {
     return this.ready && this.connected;
   }
 
-  /** Connects (retrying with backoff until it works or `stop()` is called) and syncs every folder. */
-  async start(): Promise<void> {
+  /**
+   * Connects and syncs every folder, retrying with backoff until that works, `stop()` is called, or
+   * the server rejects the login `maxAuthFailures` times. A dropped connection reconnects the same
+   * way for as long as the connection runs.
+   */
+  start(): Promise<void> {
+    if (this.fiber && this.started) return this.started.promise;
     this.stopped = false;
-    await this.reconnect();
+    this.authFailures = 0;
+    this.started = Promise.withResolvers<void>();
+    this.fiber = Effect.runFork(this.lifecycle());
+    return this.started.promise;
   }
 
   /**
    * Lets the message being stored finish, abandons the rest of any sync (the next start resumes
-   * it), waits for a running outbox action, then logs out.
+   * it), waits for a running outbox action, then interrupts the connection: its scope logs out
+   * and closes the socket, whether it was connected, mid-connect, or waiting to retry.
    */
   async stop(): Promise<void> {
     this.stopped = true;
     this.ready = false;
-    this.wakeSleeper?.();
-    await this.connecting?.catch(() => {});
     await this.queue.catch(() => {});
-    const client = this.client;
-    this.client = null;
-    if (!client) return;
-    if (!client.usable) {
-      client.close();
-      return;
-    }
-    // A server that never answers LOGOUT must not hold up shutdown.
-    let timer: NodeJS.Timeout | undefined;
-    await Promise.race([
-      client.logout().catch(() => {}),
-      new Promise((resolve) => (timer = setTimeout(resolve, 5_000))),
-    ]);
-    clearTimeout(timer);
-    client.close();
+    const fiber = this.fiber;
+    this.fiber = null;
+    if (fiber) await Effect.runPromise(Fiber.interrupt(fiber));
+    this.started?.resolve();
   }
 
   /**
@@ -256,46 +274,115 @@ export class MailboxConnection extends EventEmitter<Events> {
     });
   }
 
-  private reconnect(): Promise<void> {
-    this.connecting ??= this.connectWithRetry().finally(() => {
-      this.connecting = null;
-    });
-    return this.connecting;
+  /**
+   * Connection sessions, forever. A session that fails (or drops before it was stable) is retried
+   * on a jittered, capped exponential backoff; a stable one that drops reconnects at once with the
+   * backoff reset. Rejected logins wait the longest delay, and after `maxAuthFailures` in a row the
+   * loop stops. Defects (bugs in the sync code) are retried like failures: one mailbox's bug must
+   * not end its loop or reach the process.
+   */
+  private lifecycle(): Effect.Effect<void> {
+    const schedule = backoff({
+      baseMs: this.reconnectBaseMs,
+      maxMs: this.reconnectMaxMs,
+      floorMs: this.reconnectBaseMs / 2,
+    }).pipe(
+      Schedule.setInputType<SessionError>(),
+      Schedule.while(
+        ({ input }) =>
+          !(input instanceof ImapAuthFailed) || this.authFailures < this.maxAuthFailures,
+      ),
+      // Wrong credentials will not fix themselves in a second: wait the longest.
+      Schedule.modifyDelay(({ input, duration }) =>
+        Effect.succeed(
+          input instanceof ImapAuthFailed ? Duration.millis(this.reconnectMaxMs) : duration,
+        ),
+      ),
+      Schedule.tap(({ input, attempt, duration }) =>
+        Effect.sync(() => {
+          const retryInMs = Duration.toMillis(duration);
+          if (input instanceof ImapDropped) {
+            this.log.warn("imap.disconnected", { wasReady: true, failures: attempt, retryInMs });
+          } else {
+            this.log.warn("imap.connect_failed", {
+              error: input.cause,
+              attempt,
+              authFailed: input instanceof ImapAuthFailed,
+              retryInMs,
+            });
+          }
+        }),
+      ),
+    );
+
+    return this.session().pipe(
+      Effect.catchDefect((cause) => Effect.fail(new ImapConnectFailed({ cause }))),
+      Effect.tapError((error) =>
+        Effect.sync(() => {
+          if (!(error instanceof ImapAuthFailed)) return;
+          this.authFailures++;
+          this.emit("auth_failed");
+        }),
+      ),
+      Effect.retry(schedule),
+      Effect.forever,
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          this.log.error("imap.gave_up", {
+            reason: error.name,
+            error: "cause" in error ? error.cause : undefined,
+            authFailures: this.authFailures,
+          });
+          this.emit("gave_up");
+        }),
+      ),
+      Effect.ensuring(Effect.sync(() => this.started?.resolve())),
+    );
   }
 
-  private async connectWithRetry(): Promise<void> {
-    // A drop right after a connect counts as a failed attempt (see `stableAfterMs`).
-    if (this.failures > 0) await this.sleep(this.retryDelay());
-    while (!this.stopped) {
-      try {
-        await this.gate(() => this.connect());
-        return;
-      } catch (error) {
-        if (this.stopped) return;
-        this.failures++;
-        const authFailed =
-          (error as { authenticationFailed?: unknown }).authenticationFailed === true;
-        if (authFailed) this.emit("auth_failed");
-        // Wrong credentials will not fix themselves in a second: wait the longest.
-        const retryInMs = authFailed ? this.reconnectMaxMs : this.retryDelay();
-        this.log.warn("imap.connect_failed", {
-          error,
-          attempt: this.failures,
-          authFailed,
-          retryInMs,
-        });
-        await this.sleep(retryInMs);
-      }
-    }
+  /**
+   * One connection, from socket to close. The client is a scoped resource: however the session
+   * ends (dropped, failed, interrupted by `stop()`), its finalizer logs out if it can and closes
+   * the socket, so no attempt leaves a connection behind against the server's connection cap.
+   */
+  private session(): Effect.Effect<void, SessionError> {
+    return Effect.gen({ self: this }, function* () {
+      const client = yield* Effect.acquireRelease(
+        Effect.sync(() => this.createClient()),
+        (created) => this.release(created),
+      );
+      const closed = Deferred.makeUnsafe<void>();
+      client.on("close", () => Deferred.doneUnsafe(closed, Effect.void));
+
+      yield* Semaphore.withPermit(
+        this.gate,
+        Effect.tryPromise({
+          try: () => this.connect(client),
+          catch: (cause) =>
+            (cause as { authenticationFailed?: unknown }).authenticationFailed === true
+              ? new ImapAuthFailed({ cause })
+              : new ImapConnectFailed({ cause }),
+        }),
+      );
+      this.ready = true;
+      this.readySince = Date.now();
+      this.authFailures = 0;
+      this.emit("connected", this.capabilities as Capabilities);
+      this.log.info("imap.connected");
+      this.started?.resolve();
+
+      yield* Deferred.await(closed);
+      if (this.client === client) this.client = null;
+      this.ready = false;
+      this.emit("disconnected");
+      // A drop right after a connect counts as a failed attempt, so a server that accepts the
+      // login and then hangs up is not hammered.
+      if (Date.now() - this.readySince < this.stableAfterMs) return yield* new ImapDropped();
+      this.log.warn("imap.disconnected", { wasReady: true, failures: 0 });
+    }).pipe(Effect.scoped);
   }
 
-  private retryDelay(): number {
-    // Never zero: a burst of reconnects from many mailboxes after a network blip still spreads out.
-    const base = this.reconnectBaseMs;
-    return Math.round(base / 2 + backoffDelay(this.failures - 1, base, this.reconnectMaxMs));
-  }
-
-  private async connect(): Promise<void> {
+  private createClient(): ImapFlow {
     const { imap, user, pass } = this.mailbox;
     const client = new ImapFlow({
       host: imap.host,
@@ -312,11 +399,14 @@ export class MailboxConnection extends EventEmitter<Events> {
       connectionTimeout: 60_000,
     });
     client.on("error", (error: Error) => this.log.warn("imap.error", { error }));
-    client.on("close", () => this.onClose(client));
     client.on("exists", (event: { path: string }) => {
       if (event.path === this.inbox()?.path) this.requestInboxSync();
     });
+    return client;
+  }
 
+  /** Logs in and runs the first full sync. Throws when either fails or the socket closes. */
+  private async connect(client: ImapFlow): Promise<void> {
     try {
       await client.connect();
       this.client = client;
@@ -326,39 +416,23 @@ export class MailboxConnection extends EventEmitter<Events> {
       if (!client.usable) throw new Error("connection closed during the first sync");
     } catch (error) {
       if (this.client === client) this.client = null;
-      // Also after a failed LOGIN: never leave a socket behind against the server's connection cap.
-      client.close();
       throw error;
     }
-    if (this.stopped) return;
-    this.ready = true;
-    this.readySince = Date.now();
-    this.emit("connected", this.capabilities);
-    this.log.info("imap.connected");
   }
 
-  private onClose(client: ImapFlow): void {
-    if (client !== this.client) return; // a client we already replaced or shut down
-    this.client = null;
-    const wasReady = this.ready;
-    this.ready = false;
-    if (wasReady && Date.now() - this.readySince >= this.stableAfterMs) this.failures = 0;
-    else this.failures++;
-    this.emit("disconnected");
-    if (this.stopped) return;
-    this.log.warn("imap.disconnected", { wasReady, failures: this.failures });
-    void this.reconnect();
-  }
-
-  private sleep(ms: number): Promise<void> {
-    if (this.stopped) return Promise.resolve();
-    return new Promise((resolve) => {
-      const timer = setTimeout(done, ms);
-      function done() {
+  /** Finalizer: LOGOUT when the connection still works (a silent server gets 5s), then close. */
+  private release(client: ImapFlow): Effect.Effect<void> {
+    return Effect.promise(async () => {
+      if (this.client === client) this.client = null;
+      if (client.usable) {
+        let timer: NodeJS.Timeout | undefined;
+        await Promise.race([
+          client.logout().catch(() => {}),
+          new Promise((resolve) => (timer = setTimeout(resolve, 5_000))),
+        ]);
         clearTimeout(timer);
-        resolve();
       }
-      this.wakeSleeper = done;
+      client.close();
     });
   }
 

@@ -5,18 +5,15 @@ import {
   useDeletePasskey,
   usePasskeys,
 } from "../../../../hooks/use-organization.ts";
-import {
-  useMember,
-  useOrganizations,
-  useSetActiveOrganization,
-  useSignOut,
-} from "../../../../hooks/use-session.ts";
-import { organizationsQuery, passkeysQuery } from "../../../../lib/org-queries.ts";
+import { useMember, useSignOut } from "../../../../hooks/use-session.ts";
+import { useOpenWorkspace, useWorkspaces } from "../../../../hooks/use-workspaces.ts";
+import { passkeysQuery } from "../../../../lib/org-queries.ts";
+import { workspacesQuery } from "../../../../lib/workspaces.ts";
 
 export const Route = createFileRoute("/_authed/_member/settings/")({
   loader: ({ context }) =>
     Promise.all([
-      context.queryClient.ensureQueryData(organizationsQuery()),
+      context.queryClient.ensureQueryData(workspacesQuery()),
       context.queryClient.ensureQueryData(passkeysQuery()),
     ]),
   component: Settings,
@@ -24,8 +21,8 @@ export const Route = createFileRoute("/_authed/_member/settings/")({
 
 function Settings() {
   const { user, member } = useMember();
-  const organizations = useOrganizations();
-  const switchOrg = useSetActiveOrganization();
+  const workspaces = useWorkspaces();
+  const openWorkspace = useOpenWorkspace();
   const passkeys = usePasskeys();
   const addPasskey = useAddPasskey();
   const deletePasskey = useDeletePasskey();
@@ -38,14 +35,15 @@ function Settings() {
       </p>
       <h2>Organizations</h2>
       <ul>
-        {organizations.data?.map((org) => (
+        {workspaces.data?.workspaces.map((org) => (
           <li key={org.id}>
-            {org.name}{" "}
-            {org.id === member.orgId ? (
+            {org.name}
+            {org.setup !== "complete" && ` (setup: ${org.setup})`}{" "}
+            {org.id === member.orgId && org.setup === "complete" ? (
               "(active)"
             ) : (
-              <button type="button" onClick={() => switchOrg.mutate(org.id)}>
-                Switch
+              <button type="button" onClick={() => openWorkspace.mutate(org)}>
+                {org.id === member.orgId ? "Continue setup" : "Switch"}
               </button>
             )}
           </li>
