@@ -276,21 +276,22 @@ user's email is verified (any magic-link sign-in verifies it); until then the ca
 
 #### Rate limits
 
-The Worker limits the routes that send mail, call the mail service, or let someone guess at
-sign-in, in the `RATE_LIMITER` Durable Object (one instance per key, so counts are exact). Each
-is a var of the form `<count>/<seconds>`; `off` disables it, empty means the default. Over a
+The Worker limits the routes that send mail, call the mail service, fetch remote URLs (the
+image proxy) or let someone guess at sign-in, in the `RATE_LIMITER` Durable Object (one
+instance per key, so counts are exact). Each is a var of the form `<count>/<seconds>`; `off` disables it, empty means the default. Over a
 limit the Worker answers `429` with `Retry-After`. Per-IP limits key on `CF-Connecting-IP`,
 which Cloudflare sets and clients cannot.
 
-| Variable                | Default    | Counts                                                                                                            |
-| ----------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------- |
-| `RATE_LIMIT_AUTH`       | `60/60`    | Per IP: every sign-in step (magic link and its link, passkey options and verify, Google). Session reads are free. |
-| `RATE_LIMIT_MAGIC_LINK` | `5/900`    | Per email address: magic-link requests, so nobody can flood an inbox from your no-reply mailbox.                  |
-| `RATE_LIMIT_INVITE`     | `30/3600`  | Per inviting user: invitations sent or resent.                                                                    |
-| `RATE_LIMIT_SEARCH`     | `60/60`    | Per member: searches.                                                                                             |
-| `RATE_LIMIT_SEND`       | `100/3600` | Per member: new mail and replies.                                                                                 |
-| `RATE_LIMIT_ACTIONS`    | `300/60`   | Per member: other writes that reach IMAP (read state, archive, move).                                             |
-| `RATE_LIMIT_PROVISION`  | `30/3600`  | Per member: onboarding calls to the mail service (add a domain, check DNS, create a mailbox).                     |
+| Variable                 | Default    | Counts                                                                                                            |
+| ------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| `RATE_LIMIT_AUTH`        | `60/60`    | Per IP: every sign-in step (magic link and its link, passkey options and verify, Google). Session reads are free. |
+| `RATE_LIMIT_MAGIC_LINK`  | `5/900`    | Per email address: magic-link requests, so nobody can flood an inbox from your no-reply mailbox.                  |
+| `RATE_LIMIT_INVITE`      | `30/3600`  | Per inviting user: invitations sent or resent.                                                                    |
+| `RATE_LIMIT_SEARCH`      | `60/60`    | Per member: searches.                                                                                             |
+| `RATE_LIMIT_SEND`        | `100/3600` | Per member: new mail and replies.                                                                                 |
+| `RATE_LIMIT_ACTIONS`     | `300/60`   | Per member: other writes that reach IMAP (read state, archive, move).                                             |
+| `RATE_LIMIT_PROVISION`   | `30/3600`  | Per member: onboarding calls to the mail service (add a domain, check DNS, create a mailbox).                     |
+| `RATE_LIMIT_IMAGE_PROXY` | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                              |
 
 #### Security headers
 

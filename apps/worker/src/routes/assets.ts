@@ -8,6 +8,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { imageHeaders, isProxiableImageType, proxyImage } from "../image-proxy.ts";
+import { checkRateLimit, tooManyRequests } from "../rate-limiter.ts";
 
 function notFound(): never {
   throw new HTTPException(404, { message: "not found" });
@@ -37,11 +38,15 @@ export const assets = new Hono<AppEnv>()
     "/image-proxy",
     zValidator("query", z.object({ url: z.string().min(1).max(4096) })),
     async (c) => {
+      const { config, member } = c.var;
       const result = await proxyImage(c.req.valid("query").url, {
-        dohUrl: c.var.config.IMAGE_PROXY_DOH_URL,
-        testAllowOrigin: c.var.config.IMAGE_PROXY_TEST_ALLOW_ORIGIN,
+        dohUrl: config.IMAGE_PROXY_DOH_URL,
+        testAllowOrigin: config.IMAGE_PROXY_TEST_ALLOW_ORIGIN,
+        // Each miss is an outbound fetch on the member's behalf; cached images are free.
+        beforeFetch: () => checkRateLimit(c.env, config, "imageProxy", member.id),
       });
       if (result instanceof Response) return result;
+      if (result.status === 429) return tooManyRequests(result.retryAfter);
       return c.json({ error: result.reason }, result.status);
     },
   )

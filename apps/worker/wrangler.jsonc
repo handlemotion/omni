@@ -47,6 +47,7 @@
     "RATE_LIMIT_SEND": "100/3600",
     "RATE_LIMIT_ACTIONS": "300/60",
     "RATE_LIMIT_PROVISION": "30/3600",
+    "RATE_LIMIT_IMAGE_PROXY": "300/60",
   },
   "hyperdrive": [
     {

@@ -90,6 +90,8 @@ const configSchema = z
     RATE_LIMIT_ACTIONS: rateLimit("300/60"),
     /** Per member: onboarding calls to the mail service (domains, DNS checks, mailboxes). */
     RATE_LIMIT_PROVISION: rateLimit("30/3600"),
+    /** Per member: image proxy fetches of images not already cached. */
+    RATE_LIMIT_IMAGE_PROXY: rateLimit("300/60"),
   })
   .refine((env) => !env.IMAGE_PROXY_TEST_ALLOW_ORIGIN || env.ENVIRONMENT === "test", {
     path: ["IMAGE_PROXY_TEST_ALLOW_ORIGIN"],

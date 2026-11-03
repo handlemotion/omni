@@ -2,6 +2,8 @@
 // send mail, call the mail service, or let someone guess at sign-in. Real Worker, real assets,
 // real Durable Objects, real Postgres.
 import { randomUUID } from "node:crypto";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { createOrgWithOwner, schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -27,10 +29,25 @@ let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
 let worker: Awaited<ReturnType<typeof startWorker>>;
 /** Tight limits, so a test can reach each one in a few calls. */
 let limited: Awaited<ReturnType<typeof startWorker>>;
+/** A remote image host, standing in for a sender's server. */
+let imageHost: Server;
+let imageOrigin: string;
+const imageHits: string[] = [];
+// 1x1 transparent PNG.
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+  "base64",
+);
 
 beforeAll(async () => {
   database = await createTestDatabase();
   mailService = await startMailServiceEndpoint();
+  imageHost = createServer((req, res) => {
+    imageHits.push(req.url ?? "");
+    res.writeHead(200, { "content-type": "image/png" }).end(PNG);
+  });
+  await new Promise<void>((resolve) => imageHost.listen(0, "127.0.0.1", resolve));
+  imageOrigin = `http://127.0.0.1:${(imageHost.address() as AddressInfo).port}`;
   const base = { databaseUrl: database.url, mailServiceUrl: mailService.url };
   worker = await startWorker(base);
   limited = await startWorker({
@@ -45,6 +62,8 @@ beforeAll(async () => {
       RATE_LIMIT_SEND: "1/60",
       RATE_LIMIT_ACTIONS: "2/60",
       RATE_LIMIT_PROVISION: "1/60",
+      RATE_LIMIT_IMAGE_PROXY: "2/60",
+      IMAGE_PROXY_TEST_ALLOW_ORIGIN: imageOrigin,
     },
   });
 });
@@ -53,6 +72,7 @@ afterAll(async () => {
   await worker?.server.close();
   await limited?.server.close();
   await mailService?.close();
+  await new Promise((resolve) => imageHost?.close(resolve));
   await database?.teardown();
 });
 
@@ -334,5 +354,37 @@ describe("rate limits", () => {
     expect((await addDomain()).status).toBe(429);
     const after = mailService.requests.filter((r) => r.path.startsWith("/provision")).length;
     expect(after - before).toBe(1);
+  });
+
+  test("image proxy fetches are limited per member; cached images do not count", async () => {
+    const { db } = database;
+    const org = await createOrg(db, "pics");
+    await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+    await createMember(db, org.id, "ana@pics.test");
+    await createMember(db, org.id, "bea@pics.test");
+    const anaCookie = await signIn(limited, db, "ana@pics.test");
+    const beaCookie = await signIn(limited, db, "bea@pics.test");
+    const run = randomUUID();
+    const image = (cookie: string, name: string) =>
+      get(
+        limited,
+        `/api/image-proxy?url=${encodeURIComponent(`${imageOrigin}/${run}/${name}.png`)}`,
+        cookie,
+      );
+
+    expect((await image(anaCookie, "a")).status).toBe(200);
+    // Cached: served without a fetch, so it does not spend the budget.
+    for (let i = 0; i < 3; i++) expect((await image(anaCookie, "a")).status).toBe(200);
+    expect((await image(anaCookie, "b")).status).toBe(200);
+    const refused = await image(anaCookie, "c");
+    expect(refused.status).toBe(429);
+    expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
+    // The refused image never left the Worker.
+    expect(imageHits.filter((url) => url.startsWith(`/${run}/`))).toEqual([
+      `/${run}/a.png`,
+      `/${run}/b.png`,
+    ]);
+    // Another member has their own budget.
+    expect((await image(beaCookie, "c")).status).toBe(200);
   });
 });

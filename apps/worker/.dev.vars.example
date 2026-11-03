@@ -81,6 +81,7 @@ RATE_LIMIT_SEARCH=
 RATE_LIMIT_SEND=
 RATE_LIMIT_ACTIONS=
 RATE_LIMIT_PROVISION=
+RATE_LIMIT_IMAGE_PROXY=
 
 # --- E2E tests only (`pnpm --filter @omni/worker test:e2e`) ---
 # Admin URL of the local Postgres; each test file creates and drops its own database.
