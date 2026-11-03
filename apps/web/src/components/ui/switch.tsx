@@ -13,7 +13,7 @@ export function SwitchField({ className, ...props }: SwitchFieldProps) {
     <SwitchFieldPrimitive
       {...props}
       data-slot="control"
-      className={cx("has-[[slot=description]]:**:data-[slot=control-label]:font-medium", className)}
+      className={cx("", className)}
       style={({ defaultStyle }) => ({
         ...defaultStyle,
         WebkitTapHighlightColor: "transparent",

@@ -777,7 +777,7 @@ export function SidebarTreeContent({ className, isCurrent, children }: SidebarTr
           />
           <div
             className={cn(
-              "group/tree-item flex min-w-0 flex-1 items-center gap-x-2 rounded-lg p-2 font-medium text-base/6 text-sidebar-foreground sm:text-sm/5",
+              "group/tree-item flex min-w-0 flex-1 items-center gap-x-2 rounded-lg p-2 text-base/6 text-sidebar-foreground sm:text-sm/5",
               "[&_svg:not([class*='size-'])]:size-5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground **:[svg]:-mx-0.5 **:[svg]:shrink-0",
               "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:[&_svg:not([class*='text-'])]:text-sidebar-accent-foreground",
               "[--sidebar-current-background:var(--color-sidebar-primary)] [--sidebar-current-foreground:var(--color-sidebar-primary-foreground)]",
@@ -785,7 +785,7 @@ export function SidebarTreeContent({ className, isCurrent, children }: SidebarTr
               values.isPressed &&
                 "bg-sidebar-accent text-sidebar-accent-foreground [&_svg:not([class*='text-'])]:text-sidebar-accent-foreground",
               (values.isCurrent || isCurrent) &&
-                "font-medium text-(--sidebar-current-foreground) hover:bg-(--sidebar-current-background) hover:text-(--sidebar-current-foreground) [&_.text-muted-foreground]:text-foreground/80 [&_svg:not([class*='text-'])]:text-(--sidebar-current-foreground) hover:[&_svg:not([class*='text-'])]:text-(--sidebar-current-foreground)",
+                "text-(--sidebar-current-foreground) hover:bg-(--sidebar-current-background) hover:text-(--sidebar-current-foreground) [&_.text-muted-foreground]:text-foreground/80 [&_svg:not([class*='text-'])]:text-(--sidebar-current-foreground) hover:[&_svg:not([class*='text-'])]:text-(--sidebar-current-foreground)",
               values.isCurrentAncestor &&
                 "text-sidebar-accent-foreground [&_svg:not([class*='text-'])]:text-sidebar-accent-foreground",
               values.isDisabled && "opacity-50",

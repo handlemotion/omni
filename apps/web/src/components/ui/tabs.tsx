@@ -126,7 +126,7 @@ export function Tab({ className, ref, ...props }: TabProps) {
         orientation === "horizontal"
           ? "[--tab-gutter-x:--spacing(2.5)] [--tab-gutter-y:--spacing(1)] first:-ms-(--tab-gutter) last:-me-(--tab-gutter)"
           : "w-full justify-start [--tab-gutter-x:--spacing(4)] [--tab-gutter-y:--spacing(1.5)]",
-        "relative flex cursor-default items-center whitespace-nowrap font-medium text-sm/6 outline-hidden transition [-webkit-tap-highlight-color:transparent]",
+        "relative flex cursor-default items-center whitespace-nowrap text-sm/6 outline-hidden transition [-webkit-tap-highlight-color:transparent]",
         "px-(--tab-gutter-x) py-(--tab-gutter-y)",
         "*:[svg]:-ms-0.5 *:[svg]:me-2 *:[svg]:size-4 *:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-muted-foreground selected:*:[svg]:text-primary-subtle-foreground",
         "selected:text-primary-subtle-foreground text-muted-foreground hover:bg-secondary selected:hover:bg-primary-subtle hover:text-foreground selected:hover:text-primary-subtle-foreground focus:ring-0",

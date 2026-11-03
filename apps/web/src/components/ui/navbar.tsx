@@ -213,7 +213,7 @@ export function NavbarItem({ className, isCurrent, ...props }: NavbarItemProps) 
           "group/sidebar-item pressed:bg-secondary pressed:text-secondary-foreground hover:bg-secondary hover:text-secondary-foreground",
           "aria-[current=page]:text-foreground aria-[current=page]*:[svg]:text-foreground",
           "col-span-full grid grid-cols-[auto_1fr_1.5rem_0.5rem_auto] supports-[grid-template-columns:subgrid]:grid-cols-subgrid md:supports-[grid-template-columns:subgrid]:grid-cols-none",
-          "relative min-w-0 items-center gap-x-3 rounded-lg p-2 text-start font-medium text-base/6 md:gap-x-(--navbar-gutter) md:px-(--navbar-gutter) md:py-[calc(var(--navbar-gutter)---spacing(0.5))] md:text-sm/5",
+          "relative min-w-0 items-center gap-x-3 rounded-lg p-2 text-start text-base/6 md:gap-x-(--navbar-gutter) md:px-(--navbar-gutter) md:py-[calc(var(--navbar-gutter)---spacing(0.5))] md:text-sm/5",
           "*:[svg]:size-5 *:[svg]:shrink-0 *:[svg]:text-muted-foreground md:*:[svg]:size-4",
           "*:data-[slot=loader]:size-5 *:data-[slot=loader]:shrink-0 md:*:data-[slot=loader]:size-4",
           "*:not-nth-2:last:[svg]:row-start-1 *:not-nth-2:last:[svg]:ms-auto *:not-nth-2:last:[svg]:size-5 md:*:not-nth-2:last:[svg]:size-4",

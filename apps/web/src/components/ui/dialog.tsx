@@ -135,10 +135,7 @@ export function DialogTitle({ className, ...props }: HeadingProps) {
   return (
     <Heading
       slot="title"
-      className={cn(
-        "text-balance font-semibold text-foreground text-lg/6 sm:text-base/6",
-        className,
-      )}
+      className={cn("text-balance text-foreground text-lg/6 sm:text-base/6", className)}
       {...props}
     />
   );

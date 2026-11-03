@@ -122,7 +122,7 @@ export function CalendarGridHeader() {
   return (
     <CalendarGridHeaderPrimitive>
       {(day) => (
-        <CalendarHeaderCell className="pb-2 text-center font-semibold text-muted-foreground text-sm/6 sm:px-0 sm:py-0.5 lg:text-xs">
+        <CalendarHeaderCell className="pb-2 text-center text-muted-foreground text-sm/6 sm:px-0 sm:py-0.5 lg:text-xs">
           {day}
         </CalendarHeaderCell>
       )}

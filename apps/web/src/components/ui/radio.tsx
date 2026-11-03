@@ -19,7 +19,7 @@ export function RadioGroup({ className, ...props }: RadioGroupProps) {
       {...props}
       data-slot="control"
       className={cx(
-        "space-y-3 has-[[slot=description]]:not-has-[[slot=errorMessage]]:space-y-6 *:data-[slot=label]:font-medium",
+        "space-y-3 has-[[slot=description]]:not-has-[[slot=errorMessage]]:space-y-6",
         className,
       )}
     />
@@ -35,7 +35,7 @@ export function RadioField({ className, ...props }: RadioFieldProps) {
         "*:data-[slot=control]:col-start-1 *:data-[slot=control]:row-start-1 *:data-[slot=control]:mt-0.75 sm:*:data-[slot=control]:mt-1",
         "**:data-[slot=control-label]:col-start-2 **:data-[slot=control-label]:row-start-1",
         "*:[[slot=description]]:col-start-2 *:[[slot=description]]:row-start-2",
-        "has-[[slot=description]]:**:data-[slot=control-label]:font-medium",
+        "",
         className,
       )}
       data-slot="control"

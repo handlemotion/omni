@@ -38,12 +38,7 @@ export function SliderOutput({
   className,
   ...props
 }: ComponentProps<typeof PrimitiveSliderOutput>) {
-  return (
-    <PrimitiveSliderOutput
-      className={cx("font-medium text-base/6 sm:text-sm/6", className)}
-      {...props}
-    />
-  );
+  return <PrimitiveSliderOutput className={cx("text-base/6 sm:text-sm/6", className)} {...props} />;
 }
 
 export function SliderThumb({ className, ...props }: ComponentProps<typeof PrimitiveSliderThumb>) {

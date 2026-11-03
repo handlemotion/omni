@@ -8,7 +8,7 @@ import { tv, type VariantProps } from "tailwind-variants";
 export const toggleStyles = tv({
   base: [
     "[--toggle-icon-active:var(--secondary-foreground)] [--toggle-icon:color-mix(in_oklab,var(--secondary-foreground)_50%,var(--secondary))]",
-    "relative isolate inline-flex items-center justify-center border font-medium",
+    "relative isolate inline-flex items-center justify-center border",
     "focus-visible:outline focus-visible:outline-offset-2 focus-visible:ring-2 focus-visible:ring-offset-3 focus-visible:ring-offset-bg",
     "*:[svg]:-mx-0.5 *:[svg]:my-0.5 *:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-(--toggle-icon) sm:*:[svg]:my-1",
     "focus-visible:*:[svg]:text-(--toggle-icon-active)",

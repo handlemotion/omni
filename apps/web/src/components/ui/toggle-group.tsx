@@ -78,7 +78,7 @@ export interface ToggleGroupItemProps extends ToggleButtonProps {
 const toggleGroupItemStyles = tv({
   base: [
     "relative isolate",
-    "inline-flex flex-row items-center font-medium text-(--toggle-foreground) outline-hidden",
+    "inline-flex flex-row items-center text-(--toggle-foreground) outline-hidden",
     "inset-ring inset-ring-transparent",
     "*:[svg]:-mx-0.5 *:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-(--btn-icon) hover:*:[svg]:text-(--btn-icon-active)/90 focus-visible:*:[svg]:text-(--btn-icon-active)/80",
     "forced-colors:[--btn-icon:ButtonText] forced-colors:hover:[--btn-icon:ButtonText]",
