@@ -9,41 +9,36 @@ import { Loader } from "./loader";
 
 export const buttonStyles = tv({
   base: [
-    "[--btn-border:transparent] [--btn-icon-active:var(--btn-foreground)] [--btn-radius:calc(var(--radius-lg)-1px)]",
-    "bg-(--btn-bg) text-(--btn-foreground) hover:bg-(--btn-overlay) pressed:bg-(--btn-overlay)",
-    "relative isolate inline-flex items-center justify-center tracking-label hover:no-underline",
-    // Tactile press: a short squeeze that a quick second press retargets. Hover is colour only.
-    "transition-[scale,background-color,color] duration-150 ease-out pressed:scale-97 disabled:pressed:scale-100 motion-reduce:pressed:scale-100",
-    // One focus cue on every control: a 2px ring-colored outline, offset from the edge.
-    "outline-focus-ring focus:outline-0 focus-visible:outline-2 focus-visible:outline-offset-2",
+    "[--btn-border:var(--color-foreground)]/15 [--btn-icon-active:var(--btn-foreground)] [--btn-outline:var(--btn-bg)] [--btn-radius:calc(var(--radius-lg)-1px)] [--btn-ring:var(--btn-bg)]/20",
+    "bg-(--btn-bg) text-(--btn-foreground) outline-(--btn-outline) ring-(--btn-ring) hover:bg-(--btn-overlay) pressed:bg-(--btn-overlay)",
+    "relative isolate inline-flex items-center justify-center border border-(--btn-border) hover:no-underline",
+    // Tactile press: a short squeeze a quick second press retargets. Off when disabled and
+    // under reduced motion.
+    "transition-[scale,background-color] duration-150 ease-out pressed:scale-97 disabled:pressed:scale-100 motion-reduce:pressed:scale-100",
+    "focus:outline-0 focus-visible:outline focus-visible:outline-offset-2 focus-visible:ring-2 focus-visible:ring-offset-3 focus-visible:ring-offset-background",
     "forced-colors:[--btn-icon:ButtonText] forced-colors:hover:[--btn-icon:ButtonText] *:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-(--btn-icon) hover:*:[svg]:text-(--btn-icon-active) pressed:*:[svg]:text-(--btn-icon-active) focus-visible:*:[svg]:text-(--btn-icon-active)/80",
     "*:data-[slot=loader]:-mx-0.5 *:data-[slot=loader]:shrink-0 *:data-[slot=loader]:self-center *:data-[slot=loader]:text-(--btn-icon)",
-    "pending:opacity-60 disabled:opacity-60 disabled:forced-colors:text-[GrayText]",
+    "pending:opacity-50 disabled:opacity-50 disabled:forced-colors:text-[GrayText]",
     "*:data-[slot=color-swatch]:-mx-0.5 *:data-[slot=color-swatch]:shrink-0 *:data-[slot=color-swatch]:self-center *:data-[slot=color-swatch]:[--size:--spacing(5)]",
   ],
   variants: {
     intent: {
-      // The brand's accent primary: one per surface, for the action that commits it. Its ring is
-      // the surface's own colour, so it reads a pixel smaller and levels with the white buttons.
       primary:
-        "shadow-(--shadow-primary) [--btn-bg:var(--color-primary)] [--btn-foreground:var(--color-primary-foreground)] [--btn-icon-active:var(--primary-foreground)]/80 [--btn-icon:var(--primary-foreground)]/60 [--btn-overlay:color-mix(in_oklab,var(--color-primary-foreground)_7%,var(--color-primary)_93%)]",
-      // No grey filled buttons: a grey fill reads as disabled. Secondary is the raised white one.
+        "shadow-(--shadow-raised) [--btn-bg:var(--color-primary)] [--btn-border:var(--color-primary-foreground)] [--btn-foreground:var(--color-primary-foreground)] [--btn-icon-active:var(--primary-foreground)]/80 [--btn-icon:var(--primary-foreground)]/60 [--btn-overlay:color-mix(in_oklab,var(--color-primary-foreground)_10%,var(--color-primary)_90%)]",
       secondary:
-        "shadow-(--shadow-button) [--btn-bg:var(--color-background)] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-overlay:var(--color-ground)]",
+        "[--btn-bg:var(--color-secondary)] [--btn-foreground:var(--color-secondary-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-secondary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-secondary-foreground)_10%,var(--color-secondary)_90%)] [--btn-ring:var(--color-muted-foreground)]/20",
       warning:
         "[--btn-bg:var(--color-warning)] [--btn-foreground:var(--color-warning-foreground)] [--btn-icon:var(--color-warning-foreground)]/60 [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-warning)_90%)]",
-      // Filled red with a 1px darker edge and a faint top highlight (onboarding reference). Only
-      // the final confirm of something that can't be undone.
+      // Filled red with a 1px darker edge and a faint top highlight (onboarding reference).
       danger:
-        "border [--btn-bg:var(--color-danger)] [--btn-border:color-mix(in_oklab,var(--color-danger)_80%,black)] border-(--btn-border) [--btn-foreground:var(--color-danger-foreground)] [--btn-icon:var(--color-danger-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-danger)_90%)] shadow-[inset_0_1px_0_rgb(255_255_255/0.15),0_1px_2px_rgb(0_0_0/0.06)]",
+        "[--btn-bg:var(--color-danger)] [--btn-border:color-mix(in_oklab,var(--color-danger)_80%,black)] [--btn-foreground:var(--color-danger-foreground)] [--btn-icon:var(--color-danger-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-danger)_90%)] shadow-[inset_0_1px_0_rgb(255_255_255/0.15),0_1px_2px_rgb(0_0_0/0.06)]",
       success:
         "[--btn-bg:var(--color-success)] [--btn-foreground:var(--color-success-foreground)] [--btn-icon:color-mix(in_oklab,var(--color-success-foreground)_60%,var(--success)_40%)] [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-success)_90%)]",
-      // The secondary: white, raised by a 1px ring and a crisp 1px drop instead of a border.
+      // Raised: a crisp 1px drop under the border, so it reads as something to press.
       outline:
-        "shadow-(--shadow-button) [--btn-bg:var(--color-background)] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-overlay:var(--color-ground)]",
-      // Ghost and icon buttons: no fill at rest, a wash one step above whatever is beneath on hover.
+        "shadow-(--shadow-raised) border-border [--btn-bg:var(--color-background)] [--btn-foreground:var(--color-black)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-secondary)] [--btn-ring:var(--color-ring)]/20",
       plain:
-        "[--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-overlay:var(--color-hover-wash)]",
+        "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:transparent] [--btn-ring:var(--color-ring)]/20",
     },
     size: {
       xs: ["h-7 gap-x-2.5 px-2 text-sm", "*:[svg]:size-icon", "*:data-[slot=loader]:size-icon"],
@@ -75,7 +70,7 @@ export const buttonStyles = tv({
         "*:data-[slot=loader]:size-6 sm:*:data-[slot=loader]:size-5",
       ],
       // An action tucked inside a field, e.g. the submit arrow at the end of an input.
-      inset: "size-4.5 shrink-0",
+      inset: "size-4.5 shrink-0 border-0",
     },
 
     isCircle: {
@@ -120,7 +115,7 @@ export function Button({
 }
 
 /**
- * Loading: the button dims like a disabled one (`pending:opacity-60`). The first icon is swapped
+ * Loading: the button dims like a disabled one (`pending:opacity-50`). The first icon is swapped
  * for a spinner in the same place; a button with no icon shimmers its text instead.
  */
 function Pending({ children }: { children: React.ReactNode }) {

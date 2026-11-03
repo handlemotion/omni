@@ -399,14 +399,10 @@ export function SidebarItem({
           cn(
             "flex h-8 w-full min-w-0 items-center gap-2.5 rounded-lg px-2 text-start text-sm text-sidebar-foreground",
             "group/sidebar-item relative overflow-hidden focus-visible:outline-hidden",
-            // Each row fades its own fill in place; no highlight slides between rows.
-            "transition-colors duration-150 ease-out",
             "**:[svg]:shrink-0 [&_svg:not([class*='text-'])]:text-muted-foreground",
-            // Hover is one step above the rail, current two, so the two never match.
-            isHovered && !isCurrent && "bg-hover-wash",
             isCurrent && "bg-sidebar-accent [&_svg:not([class*='text-'])]:text-foreground",
             isHovered && "[&_svg:not([class*='text-'])]:text-foreground",
-            isFocusVisible && "inset-ring-2 inset-ring-focus-ring",
+            isFocusVisible && "inset-ring inset-ring-sidebar-ring",
             isDisabled && "opacity-50",
             className,
           ),
@@ -489,13 +485,11 @@ export function SidebarInset({ className, ref, ...props }: React.ComponentProps<
       ref={ref}
       className={cn(
         "relative flex w-full flex-1 flex-col bg-background lg:min-w-0",
-        // Inset: the page is a white panel floating 8px off the window, flush against the rail,
-        // its edge drawn by the panel shadow's hairline ring rather than a border.
-        "md:group-has-data-[intent=inset]/sidebar-root:shadow-(--shadow-panel)",
-        "md:group-has-data-[intent=inset]/sidebar-root:m-2 md:group-has-data-[intent=inset]/sidebar-root:min-h-[calc(100svh-(--spacing(4)))]",
+        "md:group-has-data-[intent=inset]/sidebar-root:border group-has-data-[intent=inset]/sidebar-root:border-sidebar-border group-has-data-[intent=inset]/sidebar-root:bg-muted",
+        "md:group-has-data-[intent=inset]/sidebar-root:m-2",
         "md:group-has-data-[side=left]:group-has-data-[intent=inset]/sidebar-root:ms-0",
         "md:group-has-data-[side=right]:group-has-data-[intent=inset]/sidebar-root:me-0",
-        "md:group-has-data-[intent=inset]/sidebar-root:rounded-xl",
+        "md:group-has-data-[intent=inset]/sidebar-root:rounded-2xl",
         "md:group-has-data-[intent=inset]/sidebar-root:peer-data-[state=collapsed]:ms-2",
         className,
       )}
@@ -557,7 +551,7 @@ export function SidebarDisclosureTrigger({
           cn(
             "flex h-8 w-full min-w-0 items-center gap-1 px-2.25 text-start text-xs text-subtle-foreground",
             "group/sidebar-disclosure-trigger relative focus-visible:outline-hidden",
-            isFocusVisible && "inset-ring-2 inset-ring-focus-ring",
+            isFocusVisible && "inset-ring inset-ring-ring/70",
             isDisabled && "opacity-50",
             className,
           ),

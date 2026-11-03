@@ -58,11 +58,9 @@ const COMMANDS: Command[] = [
 // The panel grows out of the field: it's anchored to the field's top-right corner, so the closed
 // state is the panel clipped to the field's 240×32 rectangle at that corner.
 const FIELD = { width: 240, height: 32, radius: 6 };
-// Open, the clip reaches 16px past the panel so its shadow (the menu level's ring and short drop)
-// shows; the larger radius keeps that clip concentric with the panel's own 8px corners.
 const clip = {
   closed: `inset(0px 0px calc(100% - ${FIELD.height}px) calc(100% - ${FIELD.width}px) round ${FIELD.radius}px)`,
-  open: "inset(-16px -16px -16px -16px round 24px)",
+  open: "inset(0px 0px 0px 0px round 8px)",
 };
 // The strong ease-out (tactile-design), the same curve as `--ease-out`.
 const ease = [0.23, 1, 0.32, 1] as const;
@@ -73,7 +71,7 @@ type Phase = "closed" | "open" | "closing";
 export function SearchPopover() {
   const [phase, setPhase] = useState<Phase>("closed");
   const triggerRef = useRef<HTMLButtonElement>(null);
-  // Reduced motion: no growing out of the field, the panel crossfades in place instead.
+  // Reduced motion: no growing out of the field; the panel crossfades in place instead.
   const reduceMotion = useReducedMotion();
   const open = () => setPhase("open");
   const close = () => setPhase((p) => (p === "closed" ? p : "closing"));
@@ -104,8 +102,7 @@ export function SearchPopover() {
         ref={triggerRef}
         onPress={open}
         aria-label="Search"
-        // A button that opens search wears a field's look: a hairline edge on white, no shadow.
-        className="flex h-8 w-60 cursor-text items-center gap-2 rounded-lg border-(length:--hairline) border-line bg-background ps-2 pe-1.25 text-sm text-muted-foreground outline-hidden transition-colors duration-150 ease-out hover:border-line-strong focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="flex h-8 w-60 cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 pe-1.25 text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70"
       >
         <IconSearch className="text-muted-foreground" />
         <span className="flex-1 text-start">Search</span>
@@ -132,8 +129,7 @@ export function SearchPopover() {
         className="z-50 outline-hidden"
       >
         <motion.div
-          // The menu shadow's 1px ring is the panel's edge: no border.
-          className="w-100 overflow-hidden rounded-xl bg-background shadow-(--shadow-menu)"
+          className="w-100 overflow-hidden rounded-xl border border-border bg-background shadow-lg"
           initial={reduceMotion ? { clipPath: clip.open, opacity: 0 } : { clipPath: clip.closed }}
           animate={
             reduceMotion
@@ -197,14 +193,14 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <Command label="Search" loop filter={filter} className="outline-hidden">
-      <div className="flex h-11 items-center gap-2.5 border-b-(length:--hairline) border-line ps-4.5 pe-3">
+      <div className="flex h-11 items-center gap-2.5 border-b border-border ps-4.5 pe-3">
         <IconSearch className="size-4 shrink-0 text-muted-foreground" />
         <Command.Input
           autoFocus
           value={q}
           onValueChange={setQ}
           placeholder="Search mail or jump to…"
-          className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-hidden placeholder:text-muted-foreground"
+          className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-hidden placeholder:text-subtle-foreground"
         />
         <Keyboard>Esc</Keyboard>
       </div>

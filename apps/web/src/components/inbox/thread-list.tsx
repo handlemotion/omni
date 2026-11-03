@@ -69,13 +69,12 @@ const toRow = (thread: ThreadSummary): ListRow => ({
   unread: thread.unread,
 });
 
-// Figma: Omni, inbox list (node 15:2), on our tokens: brand blue for the checkboxes and unread
-// dot; foreground for unread text, muted for read, subtle for previews. The count is neutral:
-// hue marks state (unread), never importance.
+// Figma: Omni, inbox list (node 15:2), on our tokens: brand blue for the count, checkboxes and
+// unread dot; foreground for unread text, muted for read, subtle for previews.
 export function List(
   props: ListProps & {
     rows: ListRow[];
-    /** Shown after the title (unread threads), when above zero. */
+    /** Shown in brand blue after the title (unread threads), when above zero. */
     count?: number;
     /** What the bar above the rows says about their order or scope. */
     caption?: ReactNode;
@@ -113,7 +112,7 @@ export function List(
         {/* 1px down: centers the title's capitals on the sidebar header's icons. */}
         <Heading className="translate-y-px">
           {props.title}
-          {unread > 0 && <span className="ms-1 text-muted-foreground tabular-nums">{unread}</span>}
+          {unread > 0 && <span className="ms-1 text-primary tabular-nums">{unread}</span>}
         </Heading>
         <div className="ms-auto flex items-center gap-2">
           <ToggleGroup
@@ -161,7 +160,7 @@ export function List(
             >
               <Checkbox />
             </CheckboxField>
-            <span className="text-xs text-muted-foreground">{props.caption ?? "Most recent"}</span>
+            <span className="text-xs text-subtle-foreground">{props.caption ?? "Most recent"}</span>
           </div>
 
           <GridList
@@ -226,8 +225,7 @@ function ThreadRow({ thread, href }: { thread: ListRow; href: string }) {
       id={thread.id}
       href={href}
       textValue={`${sender} ${thread.subject}`}
-      // Each row fades its own hover fill in place; a selected row sits one step deeper.
-      className="gap-4 border-b px-5 py-3 transition-colors duration-150 ease-out hover:bg-hover-wash selected:bg-accent"
+      className="gap-4 border-b px-5 py-3"
     >
       <Avatar
         isSquare

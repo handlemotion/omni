@@ -17,21 +17,14 @@ export function Input({ className, ref, size = "md", ...props }: InputProps) {
     <span data-slot="control" className="relative block w-full">
       <InputPrimitive
         className={cx(
-          // A well: sunk one step below its surface, no border and no shadow. A field never looks
-          // like a button (buttons are raised).
-          "relative block w-full appearance-none rounded-lg bg-(--control-bg,var(--color-well))",
+          "relative block w-full appearance-none rounded-lg bg-(--control-bg,transparent)",
           size === "md" ? "h-8 px-2" : "h-9 px-2.5",
-          "text-sm text-foreground placeholder:text-muted-foreground",
-          "transition-[background-color,box-shadow] duration-150 ease-out",
-          // Focus deepens the fill one step, plus a 1px focus ring (3:1 on the well). 1px, not the
-          // buttons' 2px: fields autofocus on load, and a field should stay calm.
-          "outline-hidden enabled:hover:bg-well-focus focus:bg-well-focus focus-visible:ring-1 focus-visible:ring-focus-ring",
-          // Read-only keeps its resting fill.
-          "read-only:hover:bg-(--control-bg,var(--color-well)) read-only:focus:bg-(--control-bg,var(--color-well))",
-          // Invalid: a 1px red ring as a box-shadow, so nothing moves.
-          "invalid:ring-1 invalid:ring-danger-subtle-foreground focus-visible:invalid:ring-danger-subtle-foreground",
+          "text-sm text-foreground placeholder:text-subtle-foreground",
+          "border border-input enabled:hover:border-muted-foreground/30",
+          "outline-hidden focus:border-ring/70 focus:enabled:hover:border-ring/80",
+          "invalid:border-danger-subtle-foreground/70 focus:invalid:border-danger-subtle-foreground/70 invalid:enabled:hover:border-danger-subtle-foreground/80 focus:invalid:enabled:hover:border-danger-subtle-foreground/80",
           "[&::-ms-reveal]:hidden [&::-webkit-search-cancel-button]:hidden",
-          "disabled:opacity-60 forced-colors:in-disabled:text-[GrayText]",
+          "disabled:bg-secondary in-disabled:bg-secondary forced-colors:in-disabled:text-[GrayText]",
           "dark:scheme-dark",
           className,
         )}

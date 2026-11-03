@@ -12,40 +12,24 @@
   --background: #ffffff;
   --surface: #fdfdfd;
   --foreground: #171717;
-  /* Tuned darker than the Figma #858585 so text people read to act passes 4.5:1 (tactile-design). */
-  --muted-foreground: #737373;
+  --muted-foreground: #858585;
   --subtle-foreground: #a6a6a6;
   --border: #e8e8e8;
   --accent: #f3f3f3;
   --primary: #0d3eef;
   --primary-foreground: #ffffff;
 
-  /* Tactile layer (`.claude/skills/tactile-design`): grounds, wells, edges and drops. The ink
-     comments name the step of the 12-step neutral the skill speaks in. */
-  --ground: #f9f9f9; /* ink-2: the window and the sidebar rail, under the white panel. */
-  --well: #f0f0f0; /* ink-3: a field, sunk one step below its surface. */
-  --well-focus: #e8e8e8; /* ink-4: a focused or hovered field. */
-  --line: #d9d9d9; /* ink-6: hairlines and the search field's edge. */
-  --line-strong: #cecece; /* ink-7: a hovered hairline edge. */
-  --focus-ring: #838383; /* ink-10: keyboard focus on every control; 3:1 on white and wells. */
-  /* Hover on any fill: one step above whatever sits beneath, so it works on panel and rail. */
-  --hover-wash: rgb(var(--shadow-ink) / 0.04);
-  --hairline: 0.5px;
-  /* Every light shadow is drawn in the foreground's ink, never pure black. */
+  /* Tactility (`.claude/skills/tactile-design`): depth and press, layered on the Figma look
+     without changing it. Crisp, never a big soft blur: a 1px drop, plus one short drop for
+     things that float. Drawn in the foreground's ink, not pure black. */
   --shadow-ink: 23 23 23;
-  /* Crisp, not blurry: a 1px ring and a 1px drop, plus at most one short drop per level. */
-  --shadow-button:
-    0 1px 2px 0 rgb(var(--shadow-ink) / 0.12), 0 0 0 1px rgb(var(--shadow-ink) / 0.08);
-  --shadow-primary: 0 0 0 1px var(--background);
-  --shadow-card:
-    0 0 0 1px rgb(var(--shadow-ink) / 0.07), 0 1px 2px 0 rgb(var(--shadow-ink) / 0.12),
-    0 3px 4px -2px rgb(var(--shadow-ink) / 0.08);
-  --shadow-panel:
-    0 0 0 0.5px rgb(var(--shadow-ink) / 0.1), 0 1px 2px 0 rgb(var(--shadow-ink) / 0.015),
-    0 3px 4px -2px rgb(var(--shadow-ink) / 0.025);
-  --shadow-menu:
-    0 0 0 1px rgb(var(--shadow-ink) / 0.08), 0 1px 2px 0 rgb(var(--shadow-ink) / 0.12),
-    0 4px 8px -4px rgb(var(--shadow-ink) / 0.16);
+  /* A well: sunk one step into its surface (the copy field). */
+  --well: #f0f0f0;
+  --well-hover: #e8e8e8;
+  --hairline-line: #d9d9d9;
+  --shadow-raised: 0 1px 2px 0 rgb(var(--shadow-ink) / 0.06);
+  --shadow-overlay:
+    0 1px 2px 0 rgb(var(--shadow-ink) / 0.1), 0 4px 8px -4px rgb(var(--shadow-ink) / 0.14);
 
   /* Intent UI's names, mapped onto the tokens above. */
   --secondary: #eeeeee; /* Not in the current frame; Intent UI needs it. */
@@ -58,12 +42,11 @@
   --overlay-foreground: var(--foreground);
   --navbar: var(--surface);
   --navbar-foreground: var(--foreground);
-  --sidebar: var(--ground);
+  --sidebar: var(--surface);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary-subtle);
   --sidebar-primary-foreground: var(--primary);
-  /* The current row on the rail: two steps above the ground, so hover (one step) never matches. */
-  --sidebar-accent: var(--well-focus);
+  --sidebar-accent: var(--accent);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
@@ -106,7 +89,6 @@
   --text-lg: 17px;
   --text-lg--line-height: 21px;
 
-  --radius-xs: 3px;
   --radius-sm: 4px;
   --radius-lg: 6px;
   --radius-xl: 8px;
@@ -114,17 +96,11 @@
   --spacing-icon: 15px;
   --spacing-sidebar: 275px;
 
-  --tracking-label: -0.01em;
-
   --color-background: var(--background);
   --color-surface: var(--surface);
-  --color-ground: var(--ground);
   --color-well: var(--well);
-  --color-well-focus: var(--well-focus);
-  --color-line: var(--line);
-  --color-line-strong: var(--line-strong);
-  --color-focus-ring: var(--focus-ring);
-  --color-hover-wash: var(--hover-wash);
+  --color-well-hover: var(--well-hover);
+  --color-hairline-line: var(--hairline-line);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
@@ -175,11 +151,9 @@
   --color-info-subtle-foreground: var(--info-subtle-foreground);
 }
 
-/* Motion curves, defined once (tactile-design). A plain @theme emits them as variables too, so
-   the `ease-out` utility and `var(--ease-out)` are the same strong ease-out. */
+/* The strong ease-out for anything the user causes, defined once (tactile-design). */
 @theme {
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @layer base {

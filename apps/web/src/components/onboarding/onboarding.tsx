@@ -10,6 +10,7 @@ import { Input, InputGroup } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { Step, Steps, type StepState } from "@/components/ui/steps";
 import { Text } from "@/components/ui/text";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { TextField } from "@/components/ui/text-field";
 import {
   useAddDomain,
@@ -159,14 +160,16 @@ function ExitButton() {
   );
 }
 
-/**
- * One bar per step, filled through the current one. No "Step 2 of 4" above it: the page's title
- * names the step, and the bar's accessible label says where it is.
- */
+/** "Step 2 of 4 · DNS" over one bar per step, filled through the current one. */
 function StepProgress(props: { current: number; names: readonly string[] }) {
   const { current, names } = props;
   return (
-    <div className="pt-12">
+    <div className="flex flex-col gap-3 pt-12">
+      <span className="text-sm text-muted-foreground">
+        Step {current + 1} of {names.length}
+        <span className="text-subtle-foreground"> · </span>
+        <span className="text-foreground">{names[current]}</span>
+      </span>
       <div
         role="progressbar"
         aria-label="Setup progress"
@@ -174,12 +177,12 @@ function StepProgress(props: { current: number; names: readonly string[] }) {
         aria-valuemax={names.length}
         aria-valuenow={current + 1}
         aria-valuetext={`Step ${current + 1} of ${names.length}: ${names[current]}`}
-        className="flex gap-1.5"
+        className="flex gap-1"
       >
         {names.map((name, i) => (
           <span
             key={name}
-            className={`h-1.5 flex-1 rounded-full ${i <= current ? "bg-foreground" : "bg-border"}`}
+            className={`h-1 flex-1 rounded-full ${i <= current ? "bg-foreground" : "bg-border"}`}
           />
         ))}
       </div>
@@ -213,7 +216,7 @@ function PageForm(props: {
       </div>
       <div className="flex flex-col gap-6 pt-8">{props.children}</div>
       {props.problem && (
-        <Note intent="danger" indicator={false} className="mt-6" role="alert">
+        <Note intent="danger" className="mt-6" role="alert">
           {props.problem}
         </Note>
       )}
@@ -422,20 +425,19 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
                       Show a new value
                     </Button>
                   )}
-                  {record.diagnostic && !passes(record) && (
-                    <RecordDiagnostic diagnostic={record.diagnostic} />
-                  )}
                 </div>
               ))}
-              {group.check === "ownership" && domain.addError && <Text>{domain.addError}</Text>}
-              <Button
-                intent="outline"
-                className="mt-1 self-start"
+              <CheckButton
                 isPending={checkDomain.isPending}
                 onPress={check}
-              >
-                Check record
-              </Button>
+                // No status lines under the fields: why it isn't passing yet lives on the button.
+                why={[
+                  ...(group.check === "ownership" && domain.addError ? [domain.addError] : []),
+                  ...group.records
+                    .filter((r) => r.diagnostic && !passes(r))
+                    .map((r) => diagnosticText(r.diagnostic!)),
+                ]}
+              />
             </div>
           </Step>
         ))}
@@ -445,13 +447,30 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
 }
 
 /** Why a record is not passing yet, and what the nameservers hold instead. */
-function RecordDiagnostic(props: { diagnostic: Diagnostic }) {
-  const { message, found } = props.diagnostic;
+function diagnosticText({ message, found }: Diagnostic) {
+  return found.length > 0 ? `${message} Found: ${found.join(", ")}` : message;
+}
+
+/** "Check record", with the reasons the last check didn't pass in its tooltip (hover or focus). */
+function CheckButton(props: { isPending: boolean; onPress: () => void; why: string[] }) {
+  const button = (
+    <Button
+      intent="outline"
+      className="mt-1 self-start"
+      isPending={props.isPending}
+      onPress={props.onPress}
+    >
+      Check record
+    </Button>
+  );
+  if (props.why.length === 0) return button;
   return (
-    <Text>
-      {message}
-      {found.length > 0 && <> Found: {found.join(", ")}</>}
-    </Text>
+    <TooltipTrigger delay={300}>
+      {button}
+      <Tooltip inverse placement="end" className="max-w-xs text-xs">
+        {props.why.join(" ")}
+      </Tooltip>
+    </TooltipTrigger>
   );
 }
 
@@ -671,7 +690,7 @@ function InputList(props: {
     <div className="flex flex-col gap-1.5">
       <span className="text-sm text-muted-foreground">
         {props.label}
-        {props.optional && <span className="ms-1 text-muted-foreground">(optional)</span>}
+        {props.optional && <span className="ms-1 text-subtle-foreground">(Optional)</span>}
       </span>
       <div className="flex flex-col gap-2">
         {values.map((value, i) => (

@@ -27,8 +27,7 @@ export function SignIn({ redirect }: { redirect?: string }) {
   const [email, setEmail] = useState("");
 
   return (
-    // The card is white and raised (ring and crisp drop) on the soft ground.
-    <main className="flex min-h-dvh items-center justify-center bg-ground">
+    <main className="flex min-h-dvh items-center justify-center bg-surface">
       {/* The bottom padding lifts the card a little above center, where it looks centered. */}
       <div className="flex h-137.5 w-100 flex-col pb-12">
         <Card className="flex-1 justify-between gap-0 p-6">
@@ -82,7 +81,7 @@ export function SignIn({ redirect }: { redirect?: string }) {
                 }
               >
                 <IconKey />
-                Using a passkey
+                Using a Passkey
               </Button>
               {/* Shown only when the deployment has a Google OAuth client configured. */}
               {methods.data?.google && (

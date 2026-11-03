@@ -5,10 +5,10 @@ import { cn } from "cn";
 import { Tooltip, TooltipTrigger } from "./tooltip";
 
 /**
- * A read-only value to copy, shaped like a 32px input (a well): the kind on the left (hugging its
- * label), a hairline divider, the value on the right. Clicking anywhere copies the value; a
- * tooltip says so, then confirms. For DNS records, API keys, addresses. The label hugs its text;
- * to line up the dividers of stacked fields, set `--copy-label-width` on their container.
+ * A read-only value to copy, shaped like a 32px input: the kind on the left (hugging its label),
+ * a divider, the value on the right. Clicking anywhere copies the value; a tooltip says so, then
+ * confirms. For DNS records, API keys, addresses. The label hugs its text; to line up the dividers
+ * of stacked fields, set `--copy-label-width` on their container.
  */
 export function CopyField(props: { label: string; value: string; className?: string }) {
   const [hovered, setHovered] = useState(false);
@@ -33,12 +33,13 @@ export function CopyField(props: { label: string; value: string; className?: str
         aria-label={`Copy ${props.label.toLowerCase()}: ${props.value}`}
         onPress={copy}
         className={cn(
+          // A well: sunk into its surface, no border; hover deepens it one step.
           "flex h-8 w-full min-w-0 cursor-copy items-stretch overflow-hidden rounded-lg bg-well text-start text-sm outline-hidden",
-          "transition-colors duration-150 ease-out hover:bg-well-focus focus-visible:ring-2 focus-visible:ring-focus-ring",
+          "transition-colors duration-150 ease-out hover:bg-well-hover focus-visible:ring-1 focus-visible:ring-ring",
           props.className,
         )}
       >
-        <span className="flex min-w-(--copy-label-width,0) shrink-0 items-center border-e-(length:--hairline) border-line px-2 text-muted-foreground">
+        <span className="flex min-w-(--copy-label-width,0) shrink-0 items-center border-e-[0.5px] border-hairline-line px-2 text-muted-foreground">
           {props.label}
         </span>
         <span className="flex min-w-0 flex-1 items-center px-2 text-foreground">
