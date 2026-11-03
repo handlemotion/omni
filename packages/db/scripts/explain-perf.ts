@@ -233,7 +233,8 @@ const cases: Case[] = [
   {
     name: "saveTriage",
     write: true,
-    run: (tx) => saveTriage(tx, typical.id, { bucket: "fyi", confidence: 0.9 }),
+    run: (tx) =>
+      saveTriage(tx, typical.id, { bucket: "fyi", confidence: 0.9, messageId: typicalMessage.id }),
   },
   { name: "mailboxAudience", run: () => mailboxAudience(db, [box.id]) },
 ];

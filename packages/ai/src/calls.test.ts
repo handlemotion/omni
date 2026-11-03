@@ -39,23 +39,19 @@ function reply(text: string, stop_reason: Anthropic.StopReason = "end_turn") {
   return { client, requests };
 }
 
-const noCalls = {
-  messages: {
-    create: () => {
-      throw new Error("model must not be called");
-    },
-  },
-} as unknown as ModelClient;
-
 describe("triage", () => {
-  it("files ours-last threads as waiting_on_them without calling the model", async () => {
-    const result = await triage(noCalls, { ...thread, latestFromUs: true });
-    expect(result).toEqual({
-      bucket: "waiting_on_them",
-      confidence: 1,
-      source: "rule",
-      usage: { tokensIn: 0, tokensOut: 0 },
-    });
+  it("never lets a reader-sent latest message come back as needs_reply", async () => {
+    const { client, requests } = reply('{"bucket":"fyi","confidence":0.95}');
+    const ours = { ...thread, latestFromUs: true, latestText: "Thanks, that's all I needed!" };
+    expect(await triage(client, ours)).toMatchObject({ bucket: "fyi", source: "ai" });
+    const schema = JSON.stringify(requests[0]?.output_config?.format);
+    expect(schema).toContain("waiting_on_them");
+    expect(schema).not.toContain("needs_reply");
+    expect(requests[0]?.messages[0]?.content).toContain("From: the reader");
+
+    // Output outside the narrowed schema is invalid, not a needs_reply.
+    const { client: wrong } = reply('{"bucket":"needs_reply","confidence":0.99}');
+    expect(await triage(wrong, ours)).toMatchObject({ source: "fallback", confidence: 0 });
   });
 
   it("returns the model's bucket and counts cached input tokens", async () => {

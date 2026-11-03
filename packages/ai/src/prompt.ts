@@ -21,6 +21,10 @@ Pick exactly one bucket:
 - fyi: worth reading but no reply needed, such as receipts, confirmations, shipping or account notices, and announcements the reader cares about.
 - noise: bulk or promotional mail, newsletters the reader is unlikely to act on, automated notifications with no value.
 
+When the reader wrote the latest message ("From: the reader"), only two buckets fit:
+- waiting_on_them: it asks the recipients a question, or asks them to send, sign, approve or do something.
+- fyi: it thanks, confirms, answers or informs and asks for nothing, or an app sent it from the reader's address (a sign-in link, a receipt). An offer such as "let me know if you need anything" asks for nothing.
+
 List-Unsubscribe, List-Id, Precedence: bulk and Auto-Submitted suggest automated or bulk mail but do not decide it alone.
 
 confidence is your probability from 0 to 1 that the bucket is right. Use lower values when the thread is ambiguous.`;
@@ -51,9 +55,11 @@ function block(lines: string[]): string {
 }
 
 export function triagePrompt(input: TriageInput, maxInputTokens: number): string {
-  const sender = input.from.name
-    ? `${field(input.from.name)} <${field(input.from.address)}>`
-    : field(input.from.address);
+  const sender = input.latestFromUs
+    ? "the reader"
+    : input.from.name
+      ? `${field(input.from.name)} <${field(input.from.address)}>`
+      : field(input.from.address);
   const list = input.list ?? {};
   const lines = [
     `From: ${sender}`,

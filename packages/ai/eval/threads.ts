@@ -16,7 +16,7 @@ export const threads: Array<{ name: string; expected: Bucket; input: TriageInput
     },
   },
   {
-    name: "we sent the last message",
+    name: "we sent an invoice and asked to hear back",
     expected: "waiting_on_them",
     input: {
       from: { name: "Rodrigo", address: "rodrigo@handlemotion.example" },
@@ -143,4 +143,72 @@ export const threads: Array<{ name: string; expected: Bucket; input: TriageInput
       list: { listUnsubscribe: true },
     },
   },
+  {
+    name: "sign-in link our system mailbox sent",
+    expected: "fyi",
+    input: {
+      from: { name: "Omni", address: "no-reply@studio.example" },
+      subject: "Sign in to Omni",
+      latestText:
+        "Click the link below to sign in to Omni. It expires in 10 minutes.\n\nhttps://omni.studio.example/api/auth/magic-link/verify?token=AbC123\n\nIf you didn't ask to sign in, you can ignore this email.",
+      latestFromUs: true,
+      messageCount: 1,
+      repliedBefore: false,
+    },
+  },
+  // The reader wrote last. Only an ask keeps the thread in waiting_on_them.
+  ...(
+    [
+      [
+        "reader closes with an offer",
+        "fyi",
+        "Thanks so much, this is perfect! Let me know if you need anything else.",
+      ],
+      ["reader confirms a time", "fyi", "Sounds good, see you Thursday at 10."],
+      [
+        "reader promises to send something",
+        "fyi",
+        "Got it. I'll send the revised deck over tomorrow morning.",
+      ],
+      ["reader sends the file asked for", "fyi", "Here's the signed contract, attached."],
+      [
+        "reader asks for a review",
+        "waiting_on_them",
+        "Attached is the first draft. Could you have a look and flag anything that's off by Wednesday?",
+      ],
+      [
+        "reader asks a yes/no question",
+        "waiting_on_them",
+        "Quick one: is the launch still on for the 14th?",
+      ],
+      [
+        "reader thanks and asks in one go",
+        "waiting_on_them",
+        "Thanks for the update! Do you have a rough date for the second batch?",
+      ],
+    ] as const
+  ).map(([name, expected, latestText]) => ({
+    name,
+    expected,
+    input: {
+      from: { name: "Sam Rivera", address: "sam@studio.example" },
+      subject: "Re: Website refresh",
+      latestText,
+      latestFromUs: true,
+      messageCount: 3,
+      repliedBefore: true,
+      earlierMessages: [
+        {
+          from: "sam@studio.example",
+          fromUs: true,
+          text: "Hi Priya, kicking off the refresh next week.",
+        },
+        {
+          from: "priya@client.example",
+          fromUs: false,
+          text: "Great. I've attached the brand guide and the copy doc for the home page.",
+        },
+      ],
+    } satisfies TriageInput,
+  })),
 ];

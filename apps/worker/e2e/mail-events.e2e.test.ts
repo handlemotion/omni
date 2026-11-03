@@ -1,16 +1,10 @@
 import type { MailEventsBody } from "@omni/contracts";
-import { schema } from "@omni/db";
-import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
-  createMailbox,
-  createOrg,
   createTestDatabase,
   postMailEvents,
-  seedMessage,
   startMailServiceEndpoint,
   startWorker,
-  waitForEvents,
 } from "./support.ts";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -73,65 +67,4 @@ test("event types this Worker does not know are accepted and ignored, so deploy 
   );
   expect(response.status).toBe(202);
   expect(await response.json()).toEqual({ ok: true, jobs: 0 });
-});
-
-test("AI jobs converge on redelivery: ours-last files as waiting_on_them with no model call", async () => {
-  const { db } = database;
-  const org = await createOrg(db, "acme");
-  const box = await createMailbox(db, org.id, "hello@acme.test");
-  const first = await seedMessage(db, box, {
-    subject: "Proposal",
-    fromAddress: "luis@client.test",
-    uid: 1,
-    sentAt: new Date("2026-10-01T10:00:00Z"),
-  });
-  const ours = await seedMessage(db, box, {
-    subject: "Re: Proposal",
-    fromAddress: "Hello@Acme.test",
-    folder: "Sent",
-    uid: 1,
-    threadId: first.threadId,
-    sentAt: new Date("2026-10-01T11:00:00Z"),
-  });
-  const body: MailEventsBody = {
-    events: [
-      {
-        type: "message.created",
-        folderRole: "sent",
-        orgId: org.id,
-        mailboxId: box.id,
-        threadId: first.threadId,
-        messageId: ours.messageId,
-      },
-    ],
-  };
-  const forThread = (event: Record<string, unknown>) =>
-    event.event === "ai.job" && event.threadId === first.threadId;
-  const thread = async () =>
-    (await db.select().from(schema.threads).where(eq(schema.threads.id, first.threadId)))[0];
-
-  // Delivered twice, as the mail service may after a timeout.
-  expect((await postMailEvents(worker, body)).status).toBe(202);
-  expect((await postMailEvents(worker, body)).status).toBe(202);
-  const outcomes = await waitForEvents(worker, forThread, 2);
-  expect(outcomes.map((e) => e.outcome)).toEqual(["triaged", "triaged"]);
-  expect(await thread()).toMatchObject({
-    triage: "waiting_on_them",
-    triageConfidence: 1,
-    triageSource: "ai",
-    summary: null,
-  });
-  // No model call was made, so nothing was spent.
-  expect(await db.select().from(schema.aiUsage).where(eq(schema.aiUsage.orgId, org.id))).toEqual(
-    [],
-  );
-
-  // A person re-sorts it; a late redelivery must not undo that.
-  await db
-    .update(schema.threads)
-    .set({ triage: "needs_reply", triageSource: "person" })
-    .where(eq(schema.threads.id, first.threadId));
-  expect((await postMailEvents(worker, body)).status).toBe(202);
-  await waitForEvents(worker, forThread, 3);
-  expect(await thread()).toMatchObject({ triage: "needs_reply", triageSource: "person" });
 });

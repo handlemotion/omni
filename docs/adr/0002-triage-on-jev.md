@@ -1,6 +1,6 @@
 # 0002: Triage on TypeSafe's Jev, summaries stay on Claude
 
-Date: 2026-10-31 · Status: accepted
+Date: 2026-10-31 · Status: accepted · Ours-last rule replaced by ADR 0007
 
 ## Context
 

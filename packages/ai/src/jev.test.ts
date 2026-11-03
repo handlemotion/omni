@@ -9,7 +9,7 @@ import {
   type ModelClient,
   type TriageInput,
 } from "./index.ts";
-import { JUDGMENTS } from "./questions.ts";
+import { JUDGMENTS, SENT_JUDGMENTS } from "./questions.ts";
 
 const thread: TriageInput = {
   from: { name: "Ana", address: "ana@client.example" },
@@ -88,10 +88,33 @@ describe("triage on Jev", () => {
     expect(raw).not.toContain("contract.pdf");
   });
 
-  it("never calls Jev for a thread whose latest message is ours", async () => {
+  it("asks only the reader-sent questions, with no sender or list headers, when the reader wrote last", async () => {
+    const { client, bodies } = jev(
+      ok({ reader_asks_question: 0.97, reader_requests_action: 0.4, sent_by_system: 0.02 }),
+    );
+    const result = await triage(client, {
+      ...thread,
+      from: { name: "Sam", address: "sam@us.example" },
+      latestText: "Which date works for you?",
+      latestFromUs: true,
+      list: { listUnsubscribe: true },
+      earlierMessages: [{ from: "ana@client.example", fromUs: false, text: "Can we meet?" }],
+    });
+    expect(result).toMatchObject({ bucket: "waiting_on_them", confidence: 0.97, source: "ai" });
+
+    const body = bodies[0] ?? {};
+    expect(Object.keys(body.questions as object).toSorted()).toEqual(SENT_JUDGMENTS.toSorted());
+    const state = body.state as Record<string, unknown>;
+    expect(Object.keys(state).toSorted()).toEqual(
+      ["latest_message", "reader_note", "subject", "thread"].toSorted(),
+    );
+    expect(JSON.stringify(state)).not.toContain("sam@us.example");
+  });
+
+  it("files a wordless reader reply as fyi without calling Jev", async () => {
     const { client, bodies } = jev(ok());
-    const result = await triage(client, { ...thread, latestFromUs: true });
-    expect(result.bucket).toBe("waiting_on_them");
+    const result = await triage(client, { ...thread, latestFromUs: true, latestText: " 👍\n" });
+    expect(result).toMatchObject({ bucket: "fyi", confidence: 1, source: "rule" });
     expect(bodies).toHaveLength(0);
   });
 

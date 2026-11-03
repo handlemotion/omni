@@ -1,0 +1,22 @@
+{
+  "reader": "sam@example.com",
+  "threads": [
+    {
+      "name": "kickoff",
+      "messages": [
+        { "eml": "triage-inbound-request.eml", "lane": "needs_reply" },
+        { "eml": "triage-reader-question.eml", "lane": "waiting_on_them" },
+        { "eml": "triage-inbound-answer-asks.eml", "lane": "needs_reply" },
+        { "eml": "triage-reader-thanks.eml", "lane": "fyi" }
+      ]
+    },
+    {
+      "name": "office-closed",
+      "messages": [{ "eml": "triage-inbound-fyi.eml", "lane": "fyi" }]
+    },
+    {
+      "name": "receipt",
+      "messages": [{ "eml": "triage-automated-receipt.eml", "lane": "fyi" }]
+    }
+  ]
+}
