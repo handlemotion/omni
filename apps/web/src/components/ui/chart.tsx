@@ -470,7 +470,7 @@ export function ChartTooltipContent<TValue extends ValueType, TName extends Name
     >
       {!hideLabel && (
         <>
-          {!nestLabel ? <span className="font-medium">{tooltipLabel}</span> : null}
+          {!nestLabel ? <span className="">{tooltipLabel}</span> : null}
           {labelSeparator && (
             <span aria-hidden className="mt-2 mb-3 block h-px w-full bg-background/10" />
           )}
@@ -531,7 +531,7 @@ export function ChartTooltipContent<TValue extends ValueType, TName extends Name
                     </div>
 
                     {item.value && (
-                      <span className="font-medium font-mono text-foreground tabular-nums">
+                      <span className="font-mono text-foreground tabular-nums">
                         {item.value.toString()}
                       </span>
                     )}

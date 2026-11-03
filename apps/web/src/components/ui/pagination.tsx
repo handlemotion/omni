@@ -184,7 +184,7 @@ export function PaginationGap({
     <li
       data-slot="pagination-gap"
       className={cn(
-        "w-9 select-none text-center font-semibold text-foreground text-sm/6 outline-hidden",
+        "w-9 select-none text-center text-foreground text-sm/6 outline-hidden",
         className,
       )}
       {...props}

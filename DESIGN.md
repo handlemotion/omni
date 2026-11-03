@@ -42,6 +42,12 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
 - **Optical alignment.** Center things where they look centered, not where the math puts them
   (a card sits slightly above the true middle; an icon aligns to the text's cap height). When you
   nudge for optics, leave a short comment saying so.
-- **Loading.** Anything that waits on data renders its loading state with `skullet`
-  (`import { Skeleton } from "skullet/react"`), never a spinner or a skeleton div.
+- **Loading.** Data that's on its way renders with `skullet` (`import { Skeleton } from "skullet/react"`),
+  never a spinner or a skeleton div. An action in progress is `<Button isPending>`: it dims like a
+  disabled button, a spinner takes the icon's place, and a text-only button shimmers its text.
+- **Hover and current.** Icons are muted by default and turn `foreground` on hover. The item for
+  the page you're on is _current_ (`isCurrent`, which sets `aria-current="page"`): foreground icon
+  and the `accent` fill. "Selected" is for picking items in a list, not for navigation.
 - **Weight.** Text is regular weight unless the design shows otherwise.
+- **Numbers.** Counts, times and anything that lines up in a column use `tabular-nums`, so digits
+  don't shift as values change.

@@ -28,7 +28,7 @@ export function Meter({ className, children, color, ...props }: MeterProps) {
         "[&>[slot='description']+[data-slot=meter-track]]:mt-2",
         "[&>[data-slot=meter-track]+[slot=description]]:mt-2",
         "[&>[data-slot=meter-track]+[slot=errorMessage]]:mt-2",
-        "*:data-[slot=meter-header]:font-medium",
+        "",
         className,
       )}
     >

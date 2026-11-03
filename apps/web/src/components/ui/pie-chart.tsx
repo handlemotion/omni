@@ -91,7 +91,7 @@ export function PieChart({
         >
           {showLabel && variant === "donut" && (
             <text
-              className="fill-foreground font-semibold"
+              className="fill-foreground"
               x="50%"
               data-slot="label"
               y="50%"

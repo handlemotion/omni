@@ -37,7 +37,7 @@ export const fieldStyles = tv({
     "[&>[slot=description]+[data-slot=control]]:mt-2",
     "[&>[data-slot=control]+[slot=description]]:mt-2",
     "[&>[data-slot=control]+[slot=errorMessage]]:mt-2",
-    "*:data-[slot=label]:font-medium",
+    "",
     "in-disabled:opacity-50 disabled:opacity-50",
   ],
 });
@@ -86,7 +86,7 @@ export function Legend({ className, ...props }: React.ComponentProps<"legend">) 
     <legend
       data-slot="legend"
       {...props}
-      className={cn("font-semibold text-base/6 data-disabled:opacity-50", className)}
+      className={cn("text-base/6 data-disabled:opacity-50", className)}
     />
   );
 }

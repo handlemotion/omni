@@ -273,7 +273,7 @@ export function TableBody<T extends object>({ renderEmptyState, ...props }: Tabl
               />
 
               <div className="absolute top-[65%] space-y-0.5 px-2 text-center">
-                <CardTitle className="text-lg font-semibold">No data found</CardTitle>
+                <CardTitle className="text-lg">No data found</CardTitle>
                 <CardDescription>
                   No information is currently available in this section.
                 </CardDescription>
@@ -299,7 +299,7 @@ export function TableColumn({ isResizable = false, className, ...props }: TableC
       {...props}
       className={cx(
         [
-          "text-muted-foreground text-start font-medium",
+          "text-muted-foreground text-start",
           "allows-sorting:cursor-default dragging:cursor-grabbing relative outline-hidden",
           "px-4 py-(--gutter-y)",
           "first:ps-(--gutter,--spacing(2)) last:pe-(--gutter,--spacing(2))",
@@ -531,5 +531,5 @@ export function TableCell({ className, ref, ...props }: TableCellProps) {
 }
 
 export function TableFooter<T extends object>({ className, ...props }: TableFooterProps<T>) {
-  return <TableFooterPrimitive className={cn("**:font-semibold", className)} {...props} />;
+  return <TableFooterPrimitive className={cn("", className)} {...props} />;
 }

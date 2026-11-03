@@ -23,7 +23,7 @@ export function ProgressBar({ className, children, ...props }: ProgressBarProps)
         "[&>[slot='description']+[data-slot=progress-bar-track]]:mt-2",
         "[&>[data-slot=progress-bar-track]+[slot=description]]:mt-2",
         "[&>[data-slot=progress-bar-track]+[slot=errorMessage]]:mt-2",
-        "*:data-[slot=progress-bar-header]:font-medium",
+        "",
         className,
       )}
       {...props}

@@ -44,7 +44,7 @@ export function GridListHeader({
   return (
     <GridListHeaderPrimitive
       data-slot="grid-list-header"
-      className={cn("px-3 py-2.5 font-semibold text-sm/6", className)}
+      className={cn("px-3 py-2.5 text-sm/6", className)}
       {...props}
     />
   );
@@ -140,7 +140,7 @@ export interface GridListTextProps extends TextProps {
 }
 
 export function GridListLabel({ className, ref, ...props }: GridListTextProps) {
-  return <Text ref={ref} className={cn("font-medium", className)} {...props} />;
+  return <Text ref={ref} className={cn("", className)} {...props} />;
 }
 
 export function GridListDescription({ className, ref, ...props }: GridListTextProps) {

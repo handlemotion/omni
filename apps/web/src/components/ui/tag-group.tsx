@@ -13,7 +13,7 @@ export function TagGroup({ className, ...props }: TagGroupProps) {
   return (
     <PrimitiveTagGroup
       data-slot="control"
-      className={cn("flex flex-col gap-y-1 *:data-[slot=label]:font-medium", className)}
+      className={cn("flex flex-col gap-y-1", className)}
       {...props}
     />
   );
@@ -31,7 +31,7 @@ export function Tag({ children, className, ...props }: TagProps) {
       textValue={textValue}
       className={cx(
         "inset-ring inset-ring-input outline-hidden dark:bg-input/30",
-        "inline-flex items-center gap-x-1.5 py-0.5 font-medium text-xs/5 forced-colors:outline",
+        "inline-flex items-center gap-x-1.5 py-0.5 text-xs/5 forced-colors:outline",
         "*:[svg]:size-3 *:[svg]:shrink-0",
         "cursor-default rounded-full px-2",
         "selected:inset-ring-ring/70 selected:bg-primary-subtle selected:text-primary-subtle-foreground",

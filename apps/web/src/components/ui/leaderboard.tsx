@@ -29,7 +29,7 @@ export function LeaderboardTitle({ className, ...props }: React.ComponentProps<"
   return (
     <div
       data-slot="leaderboard-title"
-      className={cn("text-balance font-semibold text-base/6", className)}
+      className={cn("text-balance text-base/6", className)}
       {...props}
     />
   );
@@ -80,7 +80,7 @@ export function LeaderboardItem({
       >
         {(values) => (
           <>
-            <span className="relative z-2 flex items-center justify-between font-medium">
+            <span className="relative z-2 flex items-center justify-between">
               {typeof children === "function" ? children(values) : children}
             </span>
             <span

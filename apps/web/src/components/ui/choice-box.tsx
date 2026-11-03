@@ -90,13 +90,13 @@ const choiceBoxItemStyles = tv({
     "group outline-hidden",
     "[--choice-box-foreground:var(--color-primary-subtle-foreground)] [--choice-box:var(--color-primary-subtle)]",
     "[--choice-box-selected-hovered:var(--color-primary-subtle)]/90",
-    "inset-ring inset-ring-border rounded-lg p-(--gutter) **:data-[slot=label]:font-medium",
+    "inset-ring inset-ring-border rounded-lg p-(--gutter)",
     "**:data-[slot=avatar]:row-span-2 **:data-[slot=avatar]:mt-0.5 **:data-[slot=avatar]:shrink-0",
     "**:[svg]:row-span-2 **:[svg]:h-[1.1lh] **:[svg]:w-5 **:[svg]:shrink-0",
     "has-[svg:not([data-slot=check-indicator])]:grid-cols-[auto_1fr_auto] has-data-[slot=avatar]:grid-cols-[auto_1fr_auto]",
     "grid grid-cols-[1fr_auto] content-start items-start gap-x-[calc(var(--gutter)-(--spacing(1)))] gap-y-1",
     "[--choice-box-active-ring:var(--color-ring)]/70 [--choice-box-ring:var(--color-ring)]/20",
-    "has-[[slot=description]]:**:data-[slot=label]:font-medium",
+    "",
   ],
   variants: {
     isLink: {
