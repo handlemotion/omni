@@ -52,6 +52,53 @@ export interface ThreadCursor {
 
 export type MemberQueries = ReturnType<typeof forMember>;
 
+/** Newest messages per granted mailbox that contain every word of the query. */
+const SEARCH_EXACT_HITS = 20;
+/** Newest messages per granted mailbox for each query word on its own. */
+const SEARCH_WORD_HITS = 25;
+/** How many of each mailbox's newest messages are checked for a word in the sender address. */
+const SEARCH_SENDER_WINDOW = 300;
+/** Days over which the recency boost (up to 2x for mail sent now) halves. */
+const SEARCH_RECENCY_DAYS = 30;
+/** Query words matched one by one; more are ignored (the exact match still sees them all). */
+const SEARCH_MAX_WORDS = 6;
+
+/**
+ * The words of a typed query, lowercased and deduplicated: runs of letters and digits only, so
+ * each one is a safe `to_tsquery` operand and `ilike` pattern. Words after a leading `-` are
+ * exclusions in web search syntax and are left out. `prefix` is true while the last word is
+ * still being typed (no trailing space or closing quote), so "nightw" can find "Nightwatch".
+ */
+function searchWords(query: string) {
+  const words = new Set<string>();
+  for (const chunk of query.split(/\s+/)) {
+    if (chunk.startsWith("-")) continue;
+    for (const [word] of chunk.toLowerCase().matchAll(/[\p{L}\p{N}]+/gu)) words.add(word);
+  }
+  return { words: [...words].slice(0, SEARCH_MAX_WORDS), prefix: /[\p{L}\p{N}]$/u.test(query) };
+}
+
+/** A plain-text passage of the message body around the query's matches. */
+function headline(query: SQL, options: string) {
+  return sql`ts_headline('english', regexp_replace(left(m.clean_text, 6000), '\\s+', ' ', 'g'), ${query}, ${`${options}, StartSel="", StopSel="", ShortWord=2`})`;
+}
+
+interface SearchRow {
+  thread_id: string;
+  message_id: string;
+  mailbox_id: string;
+  mailbox_address: string;
+  subject: string;
+  from_name: string | null;
+  from_address: string;
+  sent_at: string | Date;
+  last_message_at: string | Date;
+  message_count: number;
+  score: number;
+  snippet: string;
+  excerpt: string;
+}
+
 const { searchVector: _searchVector, ...messageColumns } = getTableColumns(messages);
 
 /**
@@ -270,50 +317,106 @@ export function forMember(db: Db, memberId: string) {
     },
 
     /**
-     * Full-text search over subject, sender and clean text, newest first. `query` uses web search
-     * syntax; `rank` is the match's relevance, for display. Each granted mailbox is searched on
-     * its own and the newest hits merged: a common term walks the mailbox's newest messages and
-     * stops after `limit` hits, a rare one uses the GIN index. Ranking every hit instead costs a
-     * read of every matching message.
+     * Search, one row per thread, best match first. Recall is cheap and bounded per granted
+     * mailbox, so cost follows grants and query words, not the size of the mail:
+     *
+     * - every word of `query` (web search syntax: quotes, `-word`), newest `SEARCH_EXACT_HITS`;
+     * - each word on its own, the last one as a prefix while it is still being typed, newest
+     *   `SEARCH_WORD_HITS` (a typed sentence such as "the invoice from Nightwatch last month"
+     *   rarely has every word in the mail);
+     * - a word inside a sender address (`billing@nightwatch.io` is one search token, so the
+     *   index can't find "nightwatch" in it), within the newest `SEARCH_SENDER_WINDOW` messages.
+     *
+     * A message scores the words it matched, each weighted by how rare it was among the hits (a
+     * word that filled its quota everywhere, like "last", counts least), plus one for matching
+     * every word and one for a sender match, times a recency boost that halves over
+     * `SEARCH_RECENCY_DAYS`. No per-row `ts_rank`: it would read every hit's search vector. A
+     * thread takes its best message, which supplies `from`, `sentAt`, the `snippet` around the
+     * match, and `excerpt`, a longer passage for a relevance judge.
      */
     async search(query: string, options: { mailboxId?: string; limit?: number } = {}) {
       const { mailboxId, limit = 20 } = options;
-      const tsquery = sql`websearch_to_tsquery('english', ${query})`;
-      const hits = db
-        .select()
-        .from(messages)
-        .where(
-          and(
-            eq(messages.mailboxId, mailboxAccess.mailboxId),
-            eq(messages.orgId, members.organizationId),
-            sql`${messages.searchVector} @@ ${tsquery}`,
-          ),
-        )
-        .orderBy(desc(messages.sentAt), desc(messages.id))
-        .limit(limit)
-        .as("messages");
-      return db
-        .select({
-          messageId: messages.id,
-          threadId: messages.threadId,
-          mailboxId: messages.mailboxId,
-          subject: messages.subject,
-          fromName: messages.fromName,
-          fromAddress: messages.fromAddress,
-          sentAt: messages.sentAt,
-          rank: sql<number>`ts_rank(${messages.searchVector}, ${tsquery})`,
-        })
-        .from(mailboxAccess)
-        .innerJoin(members, eq(members.id, mailboxAccess.memberId))
-        .crossJoinLateral(hits)
-        .where(
-          and(
-            eq(mailboxAccess.memberId, memberId),
-            mailboxId ? eq(mailboxAccess.mailboxId, mailboxId) : undefined,
-          ),
-        )
-        .orderBy(desc(messages.sentAt), desc(messages.id))
-        .limit(limit);
+      const { words, prefix } = searchWords(query);
+      const terms = words.map((w, i) => (prefix && i === words.length - 1 ? `${w}:*` : w));
+      const exact = sql`websearch_to_tsquery('english', ${query})`;
+      // Every word in one query, for the snippet: it highlights whichever words the message has.
+      const any = terms.length ? sql`to_tsquery('english', ${terms.join(" | ")})` : exact;
+      const recall = (source: SQL, filter: SQL, cap: number) =>
+        sql`(select m.id, m.thread_id, m.sent_at, ${source} as source from ${messages} m where m.mailbox_id = ma.mailbox_id and m.org_id = mem.organization_id and ${filter} order by m.sent_at desc, m.id desc limit ${cap})`;
+      // One word: its own branch below already is the exact match (as a prefix while typing).
+      const exactRecall =
+        terms.length === 1
+          ? sql`(select null::text as id, null::text as thread_id, null::timestamptz as sent_at, null::text as source where false)`
+          : recall(sql`'exact'`, sql`m.search_vector @@ ${exact}`, SEARCH_EXACT_HITS);
+      // One branch per word with the word as a constant, so the planner sees how common it is
+      // (the GIN index for a rare word, a newest-first walk for a common one). A stop word turns
+      // into an empty query, and its branch is skipped.
+      const wordRecall = sql.join(
+        terms.map(
+          (term) =>
+            sql` union all ${recall(sql`${term}::text`, sql`m.search_vector @@ to_tsquery('english', ${term}) and numnode(to_tsquery('english', ${term})) > 0`, SEARCH_WORD_HITS)}`,
+        ),
+      );
+      const senderPatterns = words.filter((w) => w.length >= 3).map((w) => `%${w}%`);
+      const senderRecall = senderPatterns.length
+        ? sql`union all (select r.id, r.thread_id, r.sent_at, 'sender' as source from (select m.id, m.thread_id, m.sent_at, m.from_address from ${messages} m where m.mailbox_id = ma.mailbox_id and m.org_id = mem.organization_id order by m.sent_at desc, m.id desc limit ${SEARCH_SENDER_WINDOW}) r where r.from_address ilike any (array[${sql.join(
+            senderPatterns.map((pattern) => sql`${pattern}`),
+            sql`, `,
+          )}]))`
+        : sql``;
+      const rows = (await db.execute(sql`
+        with hits as (
+          select h.* from ${mailboxAccess} ma
+          join ${members} mem on mem.id = ma.member_id
+          cross join lateral (
+            ${exactRecall}
+            ${wordRecall}
+            ${senderRecall}
+          ) h
+          where ma.member_id = ${memberId} ${mailboxId ? sql`and ma.mailbox_id = ${mailboxId}` : sql``}
+        ),
+        weighted as (
+          select id, thread_id, sent_at, source,
+            case when source in ('exact', 'sender') then 1.0
+              else ln(1 + (count(*) over ())::float8 / count(*) over (partition by source)) end as weight
+          from hits
+        ),
+        scored as (
+          select id, thread_id,
+            sum(weight) * (1 + power(0.5, greatest(extract(epoch from now() - sent_at), 0) / 86400 / ${SEARCH_RECENCY_DAYS}::float8)) as score
+          from (select distinct on (id, source) * from weighted) d
+          group by id, thread_id, sent_at
+        ),
+        best as (
+          select distinct on (thread_id) thread_id, id, score
+          from scored order by thread_id, score desc, id desc
+        ),
+        top as (select * from best order by score desc, thread_id desc limit ${limit})
+        select top.thread_id, m.id as message_id, t.mailbox_id, mb.address as mailbox_address,
+          m.subject, m.from_name, m.from_address, m.sent_at, t.last_message_at, top.score::float8 as score,
+          (select count(*)::int from ${messages} c where c.thread_id = t.id) as message_count,
+          ${headline(any, "MaxWords=20, MinWords=10, MaxFragments=1")} as snippet,
+          ${headline(any, "MaxWords=60, MinWords=40")} as excerpt
+        from top
+        join ${messages} m on m.id = top.id
+        join ${threads} t on t.id = top.thread_id
+        join ${mailboxes} mb on mb.id = t.mailbox_id
+        order by top.score desc, top.thread_id desc
+      `)) as unknown as SearchRow[]; // postgres-js: the rows themselves
+      return rows.map((row) => ({
+        threadId: row.thread_id,
+        messageId: row.message_id,
+        mailboxId: row.mailbox_id,
+        mailboxAddress: row.mailbox_address,
+        subject: row.subject,
+        from: { name: row.from_name, address: row.from_address } satisfies Participant,
+        sentAt: new Date(row.sent_at),
+        lastMessageAt: new Date(row.last_message_at),
+        messageCount: row.message_count,
+        score: row.score,
+        snippet: row.snippet,
+        excerpt: row.excerpt,
+      }));
     },
 
     /**

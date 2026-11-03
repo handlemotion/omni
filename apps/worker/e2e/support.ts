@@ -291,6 +291,7 @@ export async function seedMessage(
   message: {
     subject: string;
     fromAddress: string;
+    fromName?: string;
     to?: string[];
     folder?: string;
     uid: number;
@@ -328,6 +329,7 @@ export async function seedMessage(
     messageIdHeader: message.messageId ?? `<${randomUUID()}@omni.test>`,
     subject: message.subject,
     fromAddress: message.fromAddress,
+    fromName: message.fromName ?? null,
     to: (message.to ?? []).map((address) => ({ name: null, address })),
     sentAt,
     cleanText: message.text ?? message.subject,
