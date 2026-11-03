@@ -33,6 +33,7 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "members",
       "message_locations",
       "messages",
+      "org_setup",
       "organizations",
       "passkeys",
       "push_tokens",

@@ -57,6 +57,13 @@
       "when": 1793740865340,
       "tag": "0007_shared_mailbox_teams",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793741742977,
+      "tag": "0008_org_setup",
+      "breakpoints": true
     }
   ]
 }

@@ -42,3 +42,9 @@ export type Onboarding = InferResponseType<Api["onboarding"]["$get"], 200>;
 /** A domain being set up, with its DNS records and their last check. */
 export type OnboardingDomain = InferResponseType<Api["onboarding"]["domains"]["$post"], 200>;
 export type DnsRecord = OnboardingDomain["records"][number];
+/** Every workspace the user belongs to, for the switcher (`GET /api/workspaces`). */
+export type Workspaces = InferResponseType<Api["workspaces"]["$get"], 200>;
+export type Workspace = Workspaces["workspaces"][number];
+export type WorkspaceMailbox = Workspace["mailboxes"][number];
+/** `created → domain_added → dns_verified → mailboxes_created → invites_sent → complete`. */
+export type SetupStep = Workspace["setup"];

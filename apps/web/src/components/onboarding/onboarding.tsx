@@ -16,20 +16,20 @@ import {
   useCheckDomain,
   useCreateMailboxes,
   useCreateWorkspace,
+  useFinishSetup,
   useOnboarding,
+  useOnboardingExit,
 } from "@/hooks/use-onboarding";
 import { useInviteMember } from "@/hooks/use-organization";
-import { needsSetup } from "@/lib/onboarding";
+import { needsSetup, ONBOARDING_PAGES as PAGES, resumePage } from "@/lib/onboarding";
 import type { DnsRecord, OnboardingDomain } from "@/lib/types";
 
 // Workspace setup, one short form per page (layout from the Figma references 16:1400 and
 // 25:1509, on our tokens). Only DNS uses steps: each record is checked before the next.
 //
-// Each page calls the API (ADR 0007). A workspace that exists but has no mailboxes resumes where
-// it stopped. Without Purelymail the domain stays on its mail host: the DNS page asks for that
+// Each page calls the API (ADR 0007), which saves how far setup got; an unfinished workspace
+// resumes on that step's page with what it saved (name, domain, mailboxes). Without Purelymail the domain stays on its mail host: the DNS page asks for that
 // host's servers instead, and each mailbox is added with its existing password.
-
-const PAGES = ["Workspace", "DNS", "Mailboxes", "Invite"] as const;
 
 /** `host` or `host:port`; the port defaults to the implicit-TLS one. */
 function server(value: string, defaultPort: number) {
@@ -43,15 +43,17 @@ type Servers = { imap: { host: string; port: number }; smtp: { host: string; por
 export function Onboarding() {
   const status = useOnboarding();
   // Decided once, from what the route loaded: finish the active workspace, or start a new one.
-  const [resuming, setResuming] = useState(() => (status.data ? needsSetup(status.data) : false));
-  const [page, setPage] = useState(() => (resuming && status.data?.domains[0] ? 1 : 0));
+  const [resuming, setResuming] = useState(() => needsSetup(status.data?.organization));
+  const [page, setPage] = useState(() => (resuming && status.data ? resumePage(status.data) : 0));
   const [servers, setServers] = useState<Servers | null>(null);
   // Only the workspace being set up: a new one has no domain until page 0 adds it.
   const domain = resuming ? status.data?.domains[0] : undefined;
   const ownHost = domain?.provider === "imap";
   const next = () => setPage((p) => Math.min(p + 1, PAGES.length - 1));
-  // Never back onto page 0: the workspace and domain it saved stay saved.
-  const back = page > 1 ? () => setPage(page - 1) : undefined;
+  // Never back onto page 0: the workspace and domain it saved stay saved. Mailboxes on their own
+  // host need the servers, which a resumed setup has not asked for yet.
+  const back =
+    page > 1 ? () => setPage(page === 3 && ownHost && !servers ? 1 : page - 1) : undefined;
   const names = ownHost ? PAGES.map((n) => (n === "DNS" ? "Mail server" : n)) : PAGES;
 
   return (
@@ -76,7 +78,12 @@ export function Onboarding() {
         />
       )}
       {page === 2 && domain && (
-        <MailboxesForm domain={domain} servers={ownHost ? servers : null} onDone={next} />
+        <MailboxesForm
+          domain={domain}
+          servers={ownHost ? servers : null}
+          created={status.data?.mailboxes ?? []}
+          onDone={next}
+        />
       )}
       {page === 3 && <InviteForm domain={domain?.domain} />}
     </OnboardingPage>
@@ -107,8 +114,30 @@ function OnboardingPage(props: {
             Back
           </Button>
         )}
+        <ExitButton />
       </div>
     </main>
+  );
+}
+
+/** Leaves setup for the app (same look as Back): it stays saved, and resumes on return. */
+function ExitButton() {
+  const { exit, leave, isPending } = useOnboardingExit();
+  const label =
+    exit.kind === "inbox"
+      ? "Back to inbox"
+      : exit.kind === "workspace"
+        ? `Back to ${exit.workspace.name}`
+        : "Sign out";
+  return (
+    <Button
+      intent="plain"
+      className="mt-3 self-center text-muted-foreground"
+      isPending={isPending}
+      onPress={leave}
+    >
+      {label}
+    </Button>
   );
 }
 
@@ -343,10 +372,18 @@ function MailboxesForm(props: {
   domain: OnboardingDomain;
   /** Set on the bring-your-own-host path: each mailbox then needs its password. */
   servers: Servers | null;
+  /** Mailboxes saved earlier, shown again when setup resumes or comes back here. */
+  created: { address: string }[];
   onDone: () => void;
 }) {
   const createMailboxes = useCreateMailboxes();
-  const [names, setNames] = useState([""]);
+  const suffix = `@${props.domain.domain}`;
+  const [names, setNames] = useState(() => {
+    const saved = props.created
+      .filter((m) => m.address.endsWith(suffix))
+      .map((m) => m.address.slice(0, -suffix.length));
+    return saved.length > 0 ? saved : [""];
+  });
   const [passwords, setPasswords] = useState<string[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const { servers } = props;
@@ -422,10 +459,14 @@ function MailboxesForm(props: {
   );
 }
 
-/** Invites each address into the new workspace (the existing invitation flow), then opens the inbox. */
+/**
+ * Invites each address into the new workspace (the existing invitation flow), marks setup
+ * complete, then opens the inbox.
+ */
 function InviteForm(props: { domain?: string }) {
   const navigate = useNavigate();
   const inviteMember = useInviteMember();
+  const finishSetup = useFinishSetup();
   const [emails, setEmails] = useState([""]);
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -437,6 +478,7 @@ function InviteForm(props: { domain?: string }) {
       for (const email of emails.map((e) => e.trim()).filter(Boolean)) {
         await inviteMember.mutateAsync({ email });
       }
+      await finishSetup.mutateAsync();
       await navigate({ to: "/inbox" });
     } catch (error) {
       setProblem((error as Error).message);

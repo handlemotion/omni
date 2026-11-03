@@ -8,6 +8,7 @@ import {
 } from "../src/domains.ts";
 import { forMember } from "../src/for-member.ts";
 import { members, threadState, threads } from "../src/schema/index.ts";
+import { listUserWorkspaces } from "../src/workspaces.ts";
 import { createThread, enqueueAction, upsertMessage } from "../src/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
 
@@ -53,6 +54,7 @@ describe("forMember isolation", () => {
   // Org A: alice sees hello@, bob sees billing@. Org B: carol sees ops@, and holds a forged
   // grant on org A's hello@ (a buggy or malicious write must not open another org's mail).
   let alice: string, bob: string, carol: string;
+  let carolUser: string, orgAId: string, orgBId: string, opsBoxId: string;
   let hello: { threadId: string; messageId: string };
   let billing: { threadId: string; messageId: string };
   let ops: { threadId: string; messageId: string };
@@ -62,13 +64,18 @@ describe("forMember isolation", () => {
     const orgB = await createOrg(db, "org-b");
     alice = (await createMember(db, orgA.id, "alice")).id;
     bob = (await createMember(db, orgA.id, "bob")).id;
-    carol = (await createMember(db, orgB.id, "carol")).id;
+    const carolMember = await createMember(db, orgB.id, "carol");
+    carol = carolMember.id;
+    carolUser = carolMember.userId;
+    orgAId = orgA.id;
+    orgBId = orgB.id;
     const helloBox = await createMailbox(db, orgA.id, "hello@a.test");
     const billingBox = await createMailbox(db, orgA.id, "billing@a.test");
     const opsBox = await createMailbox(db, orgB.id, "ops@b.test");
     await grant(db, orgA.id, helloBox.id, alice);
     await grant(db, orgA.id, billingBox.id, bob);
     await grant(db, orgB.id, opsBox.id, carol);
+    opsBoxId = opsBox.id;
     await grant(db, orgA.id, helloBox.id, carol);
     hello = await seedThread(orgA.id, helloBox.id, "pelican");
     billing = await seedThread(orgA.id, billingBox.id, "flamingo");
@@ -100,6 +107,29 @@ describe("forMember isolation", () => {
     expect(await asCarol.getThread(hello.threadId)).toBeNull();
     expect(await asCarol.search("pelican")).toEqual([]);
     expect(await asCarol.setThreadState(hello.threadId, { read: true })).toBeNull();
+  });
+
+  test("the workspace switcher lists only the user's orgs and the mailboxes granted to them there", async () => {
+    // Carol also joins org A, with no grant there of her own: only the forged one from org B.
+    await db.insert(members).values({
+      id: crypto.randomUUID(),
+      organizationId: orgAId,
+      userId: carolUser,
+      createdAt: new Date(),
+    });
+    const workspaces = await listUserWorkspaces(db, carolUser);
+    expect(workspaces.map((w) => [w.id, w.mailboxes.map((m) => m.id)])).toEqual([
+      [orgBId, [opsBoxId]],
+      [orgAId, []],
+    ]);
+    // Alice's view is her own org and hello@ only: never billing@ (Bob's) or org B.
+    const [aliceRow] = await db.select().from(members).where(eq(members.id, alice));
+    expect(
+      (await listUserWorkspaces(db, aliceRow!.userId)).map((w) => [
+        w.id,
+        w.mailboxes.map((m) => m.address),
+      ]),
+    ).toEqual([[orgAId, ["hello@a.test"]]]);
   });
 
   test("thread state is per member and cannot be written without access", async () => {
