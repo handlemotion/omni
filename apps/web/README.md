@@ -26,7 +26,8 @@ src/
   routes/            the path map; each route = guard + loader + placeholder component
   lib/               data layer: no React components, no styling
   hooks/             what components call
-  components/        UI (Rodrigo's)
+  components/        UI (Rodrigo's): ui/ primitives, icons/, one folder per feature
+  styles.css         design tokens (see DESIGN.md)
 ```
 
 Components use `hooks/` only. `lib/` is how the hooks work.

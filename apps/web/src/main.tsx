@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { createQueryClient } from "./lib/query-client.ts";
 import { resetSession } from "./lib/session.ts";
 import { createAppRouter } from "./router.ts";
+import "./styles.css";
 
 let resetting = false;
 const queryClient = createQueryClient(() => {
