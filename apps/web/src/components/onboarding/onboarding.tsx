@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { IconRedirectArrow } from "@/components/icons";
 import { IconChevronRight } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,9 @@ import {
   ONBOARDING_PAGES as PAGES,
   rememberedChallenge,
   resumePage,
+  watchDomain,
 } from "@/lib/onboarding";
+import { useRealtimeConnection } from "@/hooks/use-realtime";
 import type { DnsRecord, OnboardingDomain } from "@/lib/types";
 
 // Workspace setup, one short form per page (layout from the Figma references 16:1400 and
@@ -77,7 +79,13 @@ export function Onboarding() {
           }}
         />
       )}
-      {page === 1 && domain && !serversNext && <DnsForm domain={domain} onDone={next} />}
+      {page === 1 && domain && !serversNext && (
+        <DnsForm
+          domain={domain}
+          organizationId={status.data?.organization?.id ?? ""}
+          onDone={next}
+        />
+      )}
       {page === 1 && domain && serversNext && (
         <ServerForm
           domain={domain.domain}
@@ -285,6 +293,8 @@ const PURPOSES: { check: DnsRecord["check"]; purpose: string }[] = [
   { check: "dmarc", purpose: "Set a policy (DMARC)" },
 ];
 
+type Diagnostic = NonNullable<DnsRecord["diagnostic"]>;
+
 /** One record as the page shows it. Omni's challenge has no value once its one showing is gone. */
 interface ShownRecord {
   check: DnsRecord["check"];
@@ -294,7 +304,12 @@ interface ShownRecord {
   priority?: number;
   verified: boolean;
   challenge?: boolean;
+  /** What the domain's nameservers held at the last check, and why it is not passing yet. */
+  diagnostic: Diagnostic | null;
 }
+
+/** Passing: the provider saw it, or the domain's own nameservers already serve it. */
+const passes = (r: ShownRecord) => r.verified || r.diagnostic?.status === "ok";
 
 function shownRecords(domain: OnboardingDomain): ShownRecord[] {
   const challenge: ShownRecord[] = domain.challenge
@@ -306,13 +321,14 @@ function shownRecords(domain: OnboardingDomain): ShownRecord[] {
           value: rememberedChallenge(domain),
           verified: domain.challenge.verified,
           challenge: true,
+          diagnostic: domain.challenge.diagnostic,
         },
       ]
     : [];
   return [...challenge, ...domain.records];
 }
 
-function DnsForm(props: { domain: OnboardingDomain; onDone: () => void }) {
+function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDone: () => void }) {
   const checkDomain = useCheckDomain();
   const rotateChallenge = useRotateChallenge();
   const [problem, setProblem] = useState<string | null>(null);
@@ -322,7 +338,10 @@ function DnsForm(props: { domain: OnboardingDomain; onDone: () => void }) {
     ...p,
     records: records.filter((r) => r.check === p.check),
   })).filter((g) => g.records.length > 0);
-  const current = groups.findIndex((g) => !g.records.every((r) => r.verified));
+  const current = groups.findIndex((g) => !g.records.every(passes));
+  // Re-checked on its own while this page is open; results arrive over realtime.
+  useRealtimeConnection(props.organizationId);
+  useDomainWatch(domain.id, current !== -1);
   const state = (i: number): StepState =>
     current === -1 || i < current ? "complete" : i === current ? "current" : "upcoming";
   const check = () => {
@@ -332,6 +351,22 @@ function DnsForm(props: { domain: OnboardingDomain; onDone: () => void }) {
   const rotate = () => {
     setProblem(null);
     rotateChallenge.mutate(domain.id, { onError: (error) => setProblem(error.message) });
+  };
+  // Domain Connect: the one-click URL carries the challenge value, which exists only while it is
+  // fresh; otherwise a new value (and URL) is made first.
+  const setUpAutomatically = () => {
+    setProblem(null);
+    if (domain.domainConnect?.url) return window.location.assign(domain.domainConnect.url);
+    rotateChallenge.mutate(domain.id, {
+      onSuccess: (fresh) => {
+        if (fresh.domainConnect?.url) window.location.assign(fresh.domainConnect.url);
+        else
+          setProblem(
+            "Your DNS host did not offer automatic setup this time. Add the records below.",
+          );
+      },
+      onError: (error) => setProblem(error.message),
+    });
   };
 
   return (
@@ -343,6 +378,17 @@ function DnsForm(props: { domain: OnboardingDomain; onDone: () => void }) {
       problem={problem}
       onSubmit={props.onDone}
     >
+      {domain.dnsHost && <Text>{domain.dnsHost.steps}</Text>}
+      {domain.domainConnect && current !== -1 && (
+        <Button
+          intent="outline"
+          className="self-start"
+          isPending={rotateChallenge.isPending}
+          onPress={setUpAutomatically}
+        >
+          Set up automatically with {domain.domainConnect.providerName}
+        </Button>
+      )}
       <Steps>
         {groups.map((group, i) => (
           <Step
@@ -359,9 +405,11 @@ function DnsForm(props: { domain: OnboardingDomain; onDone: () => void }) {
                     <CopyField
                       label="Value"
                       value={
-                        record.priority !== undefined
+                        // A merged SPF record replaces the one already there.
+                        record.diagnostic?.suggestion ??
+                        (record.priority !== undefined
                           ? `${record.priority} ${record.value}`
-                          : record.value
+                          : record.value)
                       }
                     />
                   ) : (
@@ -375,6 +423,9 @@ function DnsForm(props: { domain: OnboardingDomain; onDone: () => void }) {
                     >
                       Show a new value
                     </Button>
+                  )}
+                  {record.diagnostic && !passes(record) && (
+                    <RecordDiagnostic diagnostic={record.diagnostic} />
                   )}
                 </div>
               ))}
@@ -393,6 +444,41 @@ function DnsForm(props: { domain: OnboardingDomain; onDone: () => void }) {
       </Steps>
     </PageForm>
   );
+}
+
+/** Why a record is not passing yet, and what the nameservers hold instead. */
+function RecordDiagnostic(props: { diagnostic: Diagnostic }) {
+  const { message, found } = props.diagnostic;
+  return (
+    <Text>
+      {message}
+      {found.length > 0 && <> Found: {found.join(", ")}</>}
+    </Text>
+  );
+}
+
+/**
+ * Asks the Worker to keep checking the domain while this page is open: once on open, again about
+ * every minute (the watch lapses without it), and with a reset when the tab comes back into focus,
+ * since that is when someone has just saved a record at their DNS host.
+ */
+function useDomainWatch(domainId: string, pending: boolean) {
+  useEffect(() => {
+    if (!pending) return;
+    const watch = (reset: boolean) => void watchDomain(domainId, reset).catch(() => {});
+    watch(false);
+    const renew = setInterval(() => watch(false), 60_000);
+    const onFocus = () => {
+      if (document.visibilityState === "visible") watch(true);
+    };
+    document.addEventListener("visibilitychange", onFocus);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(renew);
+      document.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [domainId, pending]);
 }
 
 /** Without Purelymail: the existing mail host's servers, which every mailbox signs in to. */

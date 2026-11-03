@@ -19,6 +19,7 @@ import {
 import type { Db } from "./client.ts";
 import {
   auditEvents,
+  type DomainCheck,
   domainClaims,
   mailboxes,
   mailDomains,
@@ -178,12 +179,21 @@ export async function rotateChallenge(
   return claim ?? null;
 }
 
-/** Records when a claim was last checked, whatever the result. */
-export async function touchClaim(db: Db, claimId: string, now = new Date()) {
+/** Records a claim's check, whatever the result: when, and (with `check`) what it saw. */
+export async function touchClaim(db: Db, claimId: string, check?: DomainCheck, now = new Date()) {
   await db
     .update(domainClaims)
-    .set({ checkedAt: now, updatedAt: now })
+    .set({ checkedAt: now, updatedAt: now, ...(check ? { lastCheck: check } : {}) })
     .where(eq(domainClaims.id, claimId));
+}
+
+/** Member ids of the org's owners and admins: who sees a domain's progress live. */
+export async function orgDomainAdmins(db: Db, orgId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.organizationId, orgId), inArray(members.role, DOMAIN_ADMIN_ROLES)));
+  return rows.map((r) => r.id);
 }
 
 export type LockResult =

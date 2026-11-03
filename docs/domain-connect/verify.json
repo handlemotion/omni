@@ -1,0 +1,24 @@
+{
+  "providerId": "example.com",
+  "providerName": "Omni",
+  "serviceId": "verify",
+  "serviceName": "Omni domain ownership",
+  "version": 1,
+  "logoUrl": "https://example.com/logo.png",
+  "description": "Proves the domain belongs to your Omni workspace. Mail stays with your current host.",
+  "variableDescription": "challenge: Omni's ownership value for this claim.",
+  "syncBlock": false,
+  "syncPubKeyDomain": "example.com",
+  "syncRedirectDomain": "example.com",
+  "hostRequired": false,
+  "records": [
+    {
+      "type": "TXT",
+      "host": "_omni-challenge",
+      "data": "%challenge%",
+      "ttl": 300,
+      "txtConflictMatchingMode": "Prefix",
+      "txtConflictMatchingPrefix": "omni-challenge="
+    }
+  ]
+}

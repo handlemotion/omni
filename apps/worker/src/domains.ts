@@ -16,6 +16,7 @@ import {
   conflictingLock,
   type Db,
   type DomainAuditAction,
+  type DomainClaim,
   type DomainSetup,
   listVerifiedLocks,
   lockClaim,
@@ -30,6 +31,7 @@ import {
 import { challengeRecordName } from "@omni/mail-core/domains";
 import { eq } from "drizzle-orm";
 import { systemMailSender } from "./context.ts";
+import { inspectDomain } from "./dns-check.ts";
 import { callMailService, MailServiceError, type MailServiceScope } from "./mail-service.ts";
 
 export interface DomainDeps extends MailServiceScope {
@@ -59,15 +61,26 @@ export function lookupDns(scope: MailServiceScope, body: DnsLookupBody) {
   );
 }
 
-/** What the onboarding screen shows for a domain. `challengeValue` only right after it is made. */
+/**
+ * What the onboarding screen shows for a domain, with the last check's verdict on each record.
+ * `challengeValue` (and the one-click URL that carries it) only right after the value is made.
+ */
 export function domainView(
   setup: DomainSetup,
-  options: { challengeValue?: string; addError?: string; now?: Date } = {},
+  options: {
+    challengeValue?: string;
+    addError?: string;
+    domainConnectUrl?: string | null;
+    now?: Date;
+  } = {},
 ) {
   const { claim, lock } = setup;
   const now = options.now ?? new Date();
   const domain = (claim?.domain ?? lock?.domain)!;
   const status = lock ? "verified" : claim!.expiresAt <= now ? "expired" : "pending";
+  const check = claim?.lastCheck ?? null;
+  const diagnosticOf = (type: string, name: string) =>
+    check?.records.find((d) => d.type === type && d.name === name) ?? null;
   return {
     /** The claim's id; the lock shares it. A legacy lock (no claim) has only its own. */
     id: (claim?.id ?? lock?.id)!,
@@ -83,9 +96,23 @@ export function domainView(
           name: challengeRecordName(domain),
           value: options.challengeValue ?? null,
           verified: claim.status === "verified" && lock?.dnsLostAt == null,
+          /** Why it is not passing yet, as the domain's nameservers answered at the last check. */
+          diagnostic: check?.challenge ?? null,
         }
       : null,
-    records: lock?.dnsRecords ?? claim?.dnsRecords ?? [],
+    records: (lock?.dnsRecords ?? claim?.dnsRecords ?? []).map((record) => ({
+      ...record,
+      diagnostic: diagnosticOf(record.type, record.name),
+    })),
+    /** Who serves the domain's DNS, with where to add records there, when it is a host we know. */
+    dnsHost: check?.host ?? null,
+    /**
+     * One-click setup at the DNS host (Domain Connect), when it has our template. `url` is set
+     * only while the challenge value is in hand; without it, make a new value to get one.
+     */
+    domainConnect: check?.domainConnect
+      ? { providerName: check.domainConnect.providerName, url: options.domainConnectUrl ?? null }
+      : null,
     /** The provider accepted the domain, so mailboxes can be created on it. */
     added: lock?.addedAt != null,
     /** Locked and every provider record passed at the last check. */
@@ -156,7 +183,29 @@ export async function claimDomain(
   if (opened.created) {
     await audit(deps, member.orgId, member.id, "domain.claimed", domain);
   }
-  return { claim: opened.claim, challengeValue: opened.created ? challenge.value : undefined };
+  const claim = await withCheck(deps, opened.claim);
+  return { claim, challengeValue: opened.created ? challenge.value : undefined };
+}
+
+/**
+ * Runs a check of the claim's DNS and stores it on the claim. Best effort: a claim whose DNS
+ * cannot be read yet is still a claim, and the next check tries again.
+ */
+export async function withCheck(deps: DomainDeps, claim: DomainClaim): Promise<DomainClaim> {
+  try {
+    const { check } = await inspectDomain(deps, {
+      domain: claim.domain,
+      challengeHash: claim.challengeHash,
+      records: claim.dnsRecords,
+      provider: claim.provider,
+      previous: claim.lastCheck,
+    });
+    await touchClaim(deps.db, claim.id, check);
+    return { ...claim, lastCheck: check, checkedAt: new Date() };
+  } catch (error) {
+    deps.log.warn("domains.inspect_failed", { orgId: claim.orgId, error });
+    return claim;
+  }
 }
 
 /**
@@ -176,11 +225,16 @@ export async function checkDomain(
     if (claim.expiresAt <= new Date()) {
       throw new DomainError(410, `the claim on ${domain} expired: add the domain again`);
     }
-    const found = await challengeInDns(deps, domain, claim.challengeHash);
-    if (!found) {
-      await touchClaim(db, claim.id);
-      return { setup: { claim: { ...claim, checkedAt: new Date() }, lock } };
-    }
+    const { check, challengeFound } = await inspectDomain(deps, {
+      domain,
+      challengeHash: claim.challengeHash,
+      records: claim.dnsRecords,
+      provider: claim.provider,
+      previous: claim.lastCheck,
+    });
+    await touchClaim(db, claim.id, check);
+    claim = { ...claim, lastCheck: check, checkedAt: new Date() };
+    if (!challengeFound) return { setup: { claim, lock } };
     const result = await lockClaim(db, claim);
     if (!result.ok) {
       if (result.reason === "expired") {
@@ -198,8 +252,18 @@ export async function checkDomain(
     claim = { ...claim, status: "verified" };
   } else if (claim && lock) {
     // Locked already: the challenge must stay, or sending pauses (ADR 0010).
-    const found = await challengeInDns(deps, domain, claim.challengeHash);
-    if (found !== null) await applyChallengeState(deps, member.id, lock.orgId, domain, found);
+    const { check, challengeFound } = await inspectDomain(deps, {
+      domain,
+      challengeHash: claim.challengeHash,
+      records: lock.dnsRecords,
+      provider: lock.provider,
+      previous: claim.lastCheck,
+    });
+    await touchClaim(db, claim.id, check);
+    claim = { ...claim, lastCheck: check, checkedAt: new Date() };
+    if (challengeFound !== null) {
+      await applyChallengeState(deps, member.id, lock.orgId, domain, challengeFound);
+    }
   }
 
   // Only a locked domain reaches the provider.
