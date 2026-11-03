@@ -114,8 +114,8 @@ const toggleGroupItemStyles = tv({
         "*:[svg]:size-5 sm:*:[svg]:size-4.5",
         "*:data-[slot=loader]:size-5 sm:*:data-[slot=loader]:size-4.5",
       ],
-      // 28px items + 2px gutters: a 32px control, the height of md buttons.
-      "sq-xs": "size-7 *:data-[slot=loader]:size-icon *:[svg]:size-icon",
+      // 24px items + 2px gutters: a 28px control.
+      "sq-xs": "size-6 *:data-[slot=loader]:size-icon *:[svg]:size-icon",
       "sq-sm":
         "touch-target size-9 *:data-[slot=loader]:size-4.5 sm:size-8 sm:*:data-[slot=loader]:size-4 *:[svg]:size-4.5 sm:*:[svg]:size-4",
       "sq-md":

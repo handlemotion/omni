@@ -42,9 +42,10 @@ export function InputGroup({ className, ...props }: GroupProps) {
       className={cx(
         "relative isolate block",
         // icon
-        "has-[>[data-slot=icon]:first-child]:[&_input]:ps-10 has-[>[data-slot=icon]:last-child]:[&_input]:pe-10 sm:has-[>[data-slot=icon]:first-child]:[&_input]:ps-8 sm:has-[>[data-slot=icon]:last-child]:[&_input]:pe-8",
-        "*:data-[slot=icon]:pointer-events-none *:data-[slot=icon]:absolute *:data-[slot=icon]:top-3 *:data-[slot=icon]:z-10 *:data-[slot=icon]:size-5 sm:*:data-[slot=icon]:top-2.5 sm:*:data-[slot=icon]:size-4",
-        "[&>[data-slot=icon]:first-child]:start-3 sm:[&>[data-slot=icon]:first-child]:start-2.5 [&>[data-slot=icon]:last-child]:end-3 sm:[&>[data-slot=icon]:last-child]:end-2.5",
+        // icon: 15px, vertically centered, 8px from the edge; text starts 7px after it
+        "has-[>[data-slot=icon]:first-child]:[&_input]:ps-7.5 has-[>[data-slot=icon]:last-child]:[&_input]:pe-7.5",
+        "*:data-[slot=icon]:pointer-events-none *:data-[slot=icon]:absolute *:data-[slot=icon]:top-1/2 *:data-[slot=icon]:z-10 *:data-[slot=icon]:size-icon *:data-[slot=icon]:-translate-y-1/2",
+        "[&>[data-slot=icon]:first-child]:start-2 [&>[data-slot=icon]:last-child]:end-2",
 
         // loader
         "has-[[data-slot=loader]:first-child]:[&_input]:ps-10 has-[[data-slot=loader]:last-child]:[&_input]:pe-10 sm:has-[[data-slot=loader]:first-child]:[&_input]:ps-8 sm:has-[[data-slot=loader]:last-child]:[&_input]:pe-8",
@@ -64,7 +65,7 @@ export function InputGroup({ className, ...props }: GroupProps) {
         // button: attached to the edge, full height
         "has-[>button:not([data-inset]):first-child]:[&_input]:ps-(--input-gutter-start,--spacing(16)) has-[>button:not([data-inset]):last-child]:[&_input]:pe-(--input-gutter-end,--spacing(16)) sm:has-[>button:not([data-inset]):first-child]:[&_input]:ps-(--input-gutter-start,--spacing(14)) sm:has-[>button:not([data-inset]):last-child]:[&_input]:pe-(--input-gutter-end,--spacing(14))",
         "[&>button:not([data-inset]):first-child]:rounded-e-none [&>button:not([data-inset]):last-child]:rounded-s-none",
-        "[&>button[data-intent=outline]]:border-input *:[button:not([data-inset])]:absolute *:[button:not([data-inset])]:top-0 *:[button:not([data-inset])]:z-10 *:[button:not([data-inset])]:min-h-11 sm:*:[button:not([data-inset])]:min-h-9",
+        "[&>button[data-intent=outline]]:border-input *:[button:not([data-inset])]:absolute *:[button:not([data-inset])]:top-0 *:[button:not([data-inset])]:z-10 *:[button:not([data-inset])]:h-full",
         "[&>button:not([data-inset]):first-child]:start-0 [&>button:not([data-inset]):last-child]:end-0",
 
         // button: inset (Button size="inset"), centered with an even gap to the field's edge

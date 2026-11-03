@@ -36,7 +36,8 @@ export function ThreadList(props: {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-2 px-5">
+      {/* 8px on the right, the same as the controls' inset from the top. */}
+      <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2">
         {/* 1px down: centers the title's capitals on the sidebar header's icons. */}
         <Heading className="translate-y-px">
           {props.title}
