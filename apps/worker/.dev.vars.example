@@ -42,7 +42,8 @@ SYSTEM_MAIL_FROM=
 # Secret. Summaries, and triage when TYPESAFE_API_KEY is empty. With neither key, threads stay
 # unsorted (only a wordless reply from you files itself, as FYI).
 ANTHROPIC_API_KEY=
-# Secret. TypeSafe key: triage runs on Jev when set (summaries stay on Claude).
+# Secret. TypeSafe key: triage runs on Jev when set (summaries stay on Claude), and search
+# results are reordered by Jev's relevance judgment. Empty: search keeps full-text order.
 TYPESAFE_API_KEY=
 # Optional. "jev" or "claude"; defaults to Jev when TYPESAFE_API_KEY is set.
 TRIAGE_PROVIDER=

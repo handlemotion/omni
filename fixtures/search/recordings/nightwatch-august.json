@@ -1,0 +1,240 @@
+{
+  "request": {
+    "model": "jev-1.14.0",
+    "state": {
+      "search_note": "A person typed `query` into the search box of their email inbox to find an email thread. Today is Tuesday, November 3, 2026.",
+      "query": "nightwatch bill from august"
+    },
+    "questions": {
+      "candidate_0": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `thread` the email thread the person who typed `query` is looking for?",
+          "thread": {
+            "subject": "Reset your password",
+            "from": "Lumen Hosting <no-reply@lumenhost.example>",
+            "sent": "October 31, 2026 (3 days ago)",
+            "mailbox": "sam@example.com",
+            "messages_in_thread": 1,
+            "excerpt": "Someone asked to reset the password for your Lumen Hosting account. If it was you, follow the link below within an hour. If not, you can ignore this email."
+          }
+        },
+        "criteria": {
+          "true": "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+          "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
+        }
+      },
+      "candidate_1": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `thread` the email thread the person who typed `query` is looking for?",
+          "thread": {
+            "subject": "Completed: Brightside services contract",
+            "from": "Signwell <notifications@signwell.example>",
+            "sent": "October 30, 2026 (4 days ago)",
+            "mailbox": "sam@example.com",
+            "messages_in_thread": 1,
+            "excerpt": "All parties have signed \"Brightside services contract\". Signed by Lena Park and Sam Rivera. Download the completed document from your Signwell dashboard."
+          }
+        },
+        "criteria": {
+          "true": "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+          "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
+        }
+      },
+      "candidate_2": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `thread` the email thread the person who typed `query` is looking for?",
+          "thread": {
+            "subject": "Lunch Friday?",
+            "from": "Omar Haddad <omar@example.com>",
+            "sent": "October 29, 2026 (5 days ago)",
+            "mailbox": "sam@example.com",
+            "messages_in_thread": 2,
+            "excerpt": "Sounds good. I'm stuck on the contract review for the office lease until noon, so could we do lunch at 12:30 at the usual place?"
+          }
+        },
+        "criteria": {
+          "true": "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+          "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
+        }
+      },
+      "candidate_3": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `thread` the email thread the person who typed `query` is looking for?",
+          "thread": {
+            "subject": "Re: Website redesign proposal",
+            "from": "Lena Park <lena@brightside.example>",
+            "sent": "October 28, 2026 (6 days ago)",
+            "mailbox": "sam@example.com",
+            "messages_in_thread": 4,
+            "excerpt": "Thanks Sam, the proposal looks great. Before we sign, could you clarify the termination clause in the contract? We'd prefer 30 days' notice instead of 60. Also, does the fixed price include the two rounds of revisions?"
+          }
+        },
+        "criteria": {
+          "true": "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+          "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
+        }
+      },
+      "candidate_4": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `thread` the email thread the person who typed `query` is looking for?",
+          "thread": {
+            "subject": "Question about pricing for the starter plan",
+            "from": "Priya Nair <priya@fernway.example>",
+            "sent": "October 26, 2026 (8 days ago)",
+            "mailbox": "sam@example.com",
+            "messages_in_thread": 1,
+            "excerpt": "Hi, we're a team of four and wondering whether the starter plan covers shared inboxes, or whether we'd need the team plan. Is there a discount for annual billing?"
+          }
+        },
+        "criteria": {
+          "true": "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+          "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
+        }
+      },
+      "candidate_5": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `thread` the email thread the person who typed `query` is looking for?",
+          "thread": {
+            "subject": "What's new in Nightwatch: October release",
+            "from": "Nightwatch <news@nightwatch.example>",
+            "sent": "October 21, 2026 (13 days ago)",
+            "mailbox": "sam@example.com",
+            "messages_in_thread": 1,
+            "excerpt": "This month we shipped status pages with custom domains, faster alerting, and a new invoice history view in billing. Read the full release notes on our blog. You are receiving this because you subscribed to product updates. Unsubscribe."
+          }
+        },
+        "criteria": {
+          "true": "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+          "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
+        }
+      },
+      "candidate_6": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `thread` the email thread the person who typed `query` is looking for?",
+          "thread": {
+            "subject": "Your Lumen Hosting invoice is ready",
+            "from": "Lumen Hosting <accounts@lumenhost.example>",
+            "sent": "October 14, 2026 (2 weeks ago)",
+            "mailbox": "sam@example.com",
+            "messages_in_thread": 1,
+            "excerpt": "Your invoice for October is ready: 3 servers, $96.00, charged to the card ending 4242 on October 15. Download the PDF from your account."
+          }
+        },
+        "criteria": {
+          "true": "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+          "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
+        }
+      },
+      "candidate_7": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `thread` the email thread the person who typed `query` is looking for?",
+          "thread": {
+            "subject": "Your booking is confirmed: Boston to Lisbon, November 18",
+            "from": "Aerolinea <bookings@aerolinea.example>",
+            "sent": "October 9, 2026 (3 weeks ago)",
+            "mailbox": "sam@example.com",
+            "messages_in_thread": 1,
+            "excerpt": "Booking reference QX7P2L. Flight AE 214 departs Boston (BOS) on Wednesday, November 18 at 21:40 and arrives in Lisbon (LIS) at 09:35 the next day. Seat 23A. Check in online 24 hours before departure."
+          }
+        },
+        "criteria": {
+          "true": "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+          "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
+        }
+      },
+      "candidate_8": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `thread` the email thread the person who typed `query` is looking for?",
+          "thread": {
+            "subject": "Invoice NW-2291 for October",
+            "from": "Nightwatch Billing <billing@nightwatch.example>",
+            "sent": "October 6, 2026 (4 weeks ago)",
+            "mailbox": "sam@example.com",
+            "messages_in_thread": 1,
+            "excerpt": "Hi Sam, attached is invoice NW-2291 for October uptime monitoring (Team plan, 25 checks). Amount due: $1,240.00, payable by November 5. Pay online from your billing page or by bank transfer. Thanks for being a Nightwatch customer."
+          }
+        },
+        "criteria": {
+          "true": "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+          "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
+        }
+      },
+      "candidate_9": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `thread` the email thread the person who typed `query` is looking for?",
+          "thread": {
+            "subject": "Invoice NW-1874 for August",
+            "from": "Nightwatch Billing <billing@nightwatch.example>",
+            "sent": "August 4, 2026 (2 months ago)",
+            "mailbox": "sam@example.com",
+            "messages_in_thread": 1,
+            "excerpt": "Hi Sam, attached is invoice NW-1874 for August uptime monitoring (Team plan, 25 checks). Amount due: $1,240.00, payable by September 5. Thanks for being a Nightwatch customer."
+          }
+        },
+        "criteria": {
+          "true": "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+          "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
+        }
+      }
+    }
+  },
+  "response": {
+    "model": "jev-1.14.0",
+    "answers": {
+      "candidate_0": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_1": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_2": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_3": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_4": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_5": {
+        "type": "noul",
+        "noul": 0.02
+      },
+      "candidate_6": {
+        "type": "noul",
+        "noul": 0.02
+      },
+      "candidate_7": {
+        "type": "noul",
+        "noul": 0.01
+      },
+      "candidate_8": {
+        "type": "noul",
+        "noul": 0.02
+      },
+      "candidate_9": {
+        "type": "noul",
+        "noul": 0.95
+      }
+    },
+    "usage": {
+      "input_tokens": 2760,
+      "output_tokens": 184
+    }
+  }
+}

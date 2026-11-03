@@ -30,9 +30,9 @@ function Search() {
       />
       <ul>
         {results.data?.map((r) => (
-          <li key={r.messageId}>
+          <li key={r.threadId}>
             <Link to="/search/$threadId" params={{ threadId: r.threadId }} search={search}>
-              {r.subject} · {r.fromName ?? r.fromAddress} · {r.sentAt}
+              {r.subject} · {r.from.name ?? r.from.address} · {r.sentAt} · {r.snippet}
             </Link>
           </li>
         ))}

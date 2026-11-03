@@ -23,7 +23,7 @@ import { useSearch } from "@/hooks/use-mail.ts";
 
 // Search and commands in one popover anchored to the title-bar field (Vercel's Find as the
 // reference): focusing it dims the app and opens the list attached to the field, not centered.
-// "/" or ⌘K opens it from anywhere. Mail results come from `useSearch`; ranking lives in the API.
+// "/" or ⌘K opens it from anywhere. Mail results come from `useSearch`: threads, best first.
 
 interface Command {
   id: string;
@@ -134,15 +134,8 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState("");
   const query = useDebounced(q.trim(), 150);
   const { data: hits } = useSearch(query);
-
-  // One row per thread; the API returns one per matching message.
-  const threads = useMemo(() => {
-    if (!query) return [];
-    const seen = new Set<string>();
-    return (hits ?? [])
-      .filter((hit) => !seen.has(hit.threadId) && seen.add(hit.threadId))
-      .slice(0, 6);
-  }, [hits, query]);
+  // One row per thread, best match first.
+  const threads = query ? (hits ?? []).slice(0, 6) : [];
 
   const commands = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -207,7 +200,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
                 id={`thread:${hit.threadId}`}
                 icon={<IconEmail />}
                 title={hit.subject || "(no subject)"}
-                subtitle={`${hit.fromName || hit.fromAddress} · ${formatDate(hit.sentAt)}`}
+                subtitle={`${hit.from.name || hit.from.address} · ${formatDate(hit.sentAt)} · ${hit.snippet}`}
               />
             ))}
           </MenuSection>

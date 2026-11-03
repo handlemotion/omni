@@ -19,6 +19,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
+import { smartSearch } from "../search.ts";
 import { attachmentResponse } from "./assets.ts";
 
 const cursorSchema = z.object({ t: z.iso.datetime(), id: z.string().min(1) });
@@ -56,7 +57,7 @@ const listQuery = z.object({
 const searchQuery = z.object({
   q: z.string().trim().min(1).max(500),
   mailboxId: z.string().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
 const stateBody = z.object({ read: z.boolean() });
@@ -176,9 +177,23 @@ export const mail = new Hono<AppEnv>()
     return c.json(action);
   })
 
+  /**
+   * One row per thread, best first: the matching message's subject, sender and date, a snippet
+   * around the match, and the thread's mailbox. `ranking` says whether Jev ordered them (`jev`)
+   * or full-text relevance did (`text`: no TypeSafe key, or Jev failed or was slow).
+   */
   .get("/search", zValidator("query", searchQuery), async (c) => {
     const { q, ...options } = c.req.valid("query");
-    return c.json({ results: await forMember(c.var.db, c.var.member.id).search(q, options) });
+    const { hits, ranking } = await smartSearch(
+      forMember(c.var.db, c.var.member.id),
+      c.var.config,
+      q,
+      options,
+    );
+    return c.json({
+      results: hits.map(({ excerpt: _excerpt, score: _score, ...hit }) => hit),
+      ranking,
+    });
   })
 
   .get("/threads/:id/attachments/:attachmentId", async (c) => {

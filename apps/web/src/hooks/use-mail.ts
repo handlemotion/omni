@@ -70,7 +70,7 @@ export function usePendingSends(threadId: string) {
   );
 }
 
-/** Full-text search. Disabled for an empty query. */
+/** Mail search: one row per thread, best match first. Disabled for an empty query. */
 export function useSearch(q: string, mailbox?: string) {
   // Keep the previous results on screen while the next query loads, so lists don't flash empty.
   return useQuery({ ...searchQuery(q, mailbox), placeholderData: keepPreviousData });
