@@ -16,6 +16,9 @@
   --subtle-foreground: #a6a6a6;
   --border: #e8e8e8;
   --accent: #f3f3f3;
+  /* The fluid hover highlight: a faint wash of the foreground, so it reads on any surface and
+     stays lighter than the current row's accent fill. */
+  --hover: color-mix(in oklab, var(--foreground) 3%, transparent);
   --primary: #0d3eef;
   --primary-foreground: #ffffff;
 
@@ -133,6 +136,7 @@
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);
+  --color-hover: var(--hover);
   --color-accent-foreground: var(--accent-foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);

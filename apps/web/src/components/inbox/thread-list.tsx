@@ -13,8 +13,10 @@ import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Avatar } from "@/components/ui/avatar";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
+import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
+import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { useCounts, useThreads } from "@/hooks/use-mail.ts";
 import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
@@ -93,6 +95,12 @@ export function List(
   // List view: an open thread takes the whole width; split view: it sits beside the list.
   const hideList = view === "list" && !!threadId;
   const listRef = useRef<HTMLElement>(null);
+  // One hover highlight springs between the rows (transitive's fluid hover). The row moved to with
+  // j/k lights the same way whenever the pointer is not over the list.
+  const hover = useFluidHoverList({
+    itemSelector: "[role='row']",
+    highlightedSelector: "[data-focus-visible]",
+  });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -163,18 +171,24 @@ export function List(
             <span className="text-xs text-subtle-foreground">{props.caption ?? "Most recent"}</span>
           </div>
 
-          <GridList
-            aria-label={props.title}
-            // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
-            disallowTypeAhead
-            items={threads}
-            selectionMode="multiple"
-            selectionBehavior="toggle"
-            selectedKeys={selected}
-            onSelectionChange={setSelected}
-          >
-            {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
-          </GridList>
+          <div className="relative" {...hover.containerProps}>
+            <FluidHoverHighlight {...hover.highlightProps} />
+            <GridList
+              // Transparent: the list is positioned, so its own fill would paint over the
+              // highlight. The page behind it is already the background.
+              className="bg-transparent"
+              aria-label={props.title}
+              // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
+              disallowTypeAhead
+              items={threads}
+              selectionMode="multiple"
+              selectionBehavior="toggle"
+              selectedKeys={selected}
+              onSelectionChange={setSelected}
+            >
+              {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
+            </GridList>
+          </div>
 
           {props.more}
         </section>

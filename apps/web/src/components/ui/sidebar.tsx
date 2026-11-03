@@ -29,7 +29,9 @@ import { cn } from "cn";
 import { Sheet } from "@/components/ui/sheet";
 import { TreeIndicator } from "@/components/ui/tree";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { cx } from "@/lib/primitive";
+import { FluidHoverHighlight } from "./fluid-hover-highlight";
 import { Button } from "./button";
 import { Link } from "./link";
 import { TooltipTrigger, Tooltip } from "./tooltip";
@@ -313,16 +315,21 @@ export function SidebarFooter({ className, ...props }: React.ComponentProps<"div
 
 export function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
   const { state } = useSidebar();
+  // One hover highlight springs between the rows (transitive's fluid hover); rows have no hover
+  // fill of their own. Only the row under the pointer lights: the space between groups does not.
+  const hover = useFluidHoverList({ itemSelector: "[data-slot='sidebar-item']" });
   return (
     <div
       data-slot="sidebar-content"
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-3 overflow-auto",
+        "relative flex min-h-0 flex-1 flex-col gap-3 overflow-auto",
         state === "collapsed" && "items-center",
         className,
       )}
       {...props}
+      {...hover.containerProps}
     >
+      <FluidHoverHighlight {...hover.highlightProps} />
       {props.children}
     </div>
   );
