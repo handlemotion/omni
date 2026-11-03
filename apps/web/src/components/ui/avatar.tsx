@@ -38,7 +38,8 @@ export function Avatar({
       {...props}
       className={cn(
         "inline-grid size-(--avatar-size) shrink-0 align-middle outline-1 outline-foreground/(--ring-opacity) -outline-offset-1 [--avatar-radius:20%] [--ring-opacity:20%] *:col-start-1 *:row-start-1 *:size-(--avatar-size)",
-        size === "icon" && "[--avatar-radius:var(--radius-sm)] [--avatar-size:var(--spacing-icon)]",
+        size === "icon" &&
+          "outline-0 [--avatar-radius:var(--radius-sm)] [--avatar-size:var(--spacing-icon)]",
         size === "xs" && "[--avatar-size:--spacing(5)]",
         size === "sm" && "[--avatar-size:--spacing(6)]",
         size === "md" && "[--avatar-size:--spacing(8)]",

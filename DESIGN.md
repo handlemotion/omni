@@ -16,6 +16,10 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
 
 ## Rules
 
+- **Never invent.** Build only what the Figma frame shows: no added text, borders, rings,
+  shadows, opacity, offsets or sizes. Take every value from the frame (`get_design_context`) and
+  check the result against Figma's own render, pixel for pixel. A state the frame doesn't show
+  (error, sent, loading) is a question for the designer, not something to fill in.
 - **Always use components.** Build from `components/ui` primitives. No raw `<button>`, `<input>`
   or hand-styled boxes in feature code. If a primitive can't express the design, change the
   primitive (a new variant or size) so every screen gets it, rather than overriding it in place.

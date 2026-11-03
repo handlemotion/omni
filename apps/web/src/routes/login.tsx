@@ -10,6 +10,6 @@ export const Route = createFileRoute("/login")({
 });
 
 function Login() {
-  const { redirect, error } = Route.useSearch();
-  return <SignIn redirect={redirect} error={error} />;
+  const { redirect } = Route.useSearch();
+  return <SignIn redirect={redirect} />;
 }
