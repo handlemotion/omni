@@ -10,3 +10,9 @@ allowBuilds:
   lefthook: true
   workerd: true
   sharp: false
+
+# drizzle-kit 0.31 (latest stable) still loads the deprecated @esbuild-kit loader, which pins
+# esbuild 0.18 (GHSA-67mh-4wv8-2f99). Give it the esbuild drizzle-kit itself already uses.
+# Drop this once drizzle-kit stops depending on @esbuild-kit.
+overrides:
+  "@esbuild-kit/core-utils>esbuild": 0.25.12
