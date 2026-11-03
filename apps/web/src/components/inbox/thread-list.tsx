@@ -16,7 +16,6 @@ import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
 import { useCounts, useThreads } from "@/hooks/use-mail.ts";
-import { useShortcut } from "@/hooks/use-shortcuts.ts";
 import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import type { ThreadFilter, ThreadSummary } from "@/lib/types.ts";
@@ -136,19 +135,13 @@ export function ThreadList(props: {
 /** Searches all mail: Enter opens the search page with the query. */
 function Search() {
   const navigate = useNavigate();
-  const input = useRef<HTMLInputElement>(null);
-  useShortcut("search", () => input.current?.focus());
   return (
     <SearchField
       aria-label="Search"
       className="w-60"
       onSubmit={(q) => void navigate({ to: "/search", search: { q } })}
     >
-      <SearchInput
-        ref={input}
-        placeholder="Search"
-        aria-keyshortcuts={ariaKeyShortcuts("search")}
-      />
+      <SearchInput placeholder="Search" />
     </SearchField>
   );
 }

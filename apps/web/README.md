@@ -130,11 +130,13 @@ Message HTML goes in a sandboxed iframe: `messageHtmlUrl(threadId, messageId)`; 
 ## Keyboard shortcuts
 
 `lib/shortcuts.ts` is the one definition: id, label, keys. The shell mounts one document listener
-(`useShortcutListener`) and the `?` list and ⌘K menu (`components/shell/keyboard-shortcuts.tsx`),
-all read from that table. A screen binds what a key does with `useShortcut(id, run)`; the ⌘K menu
-offers only the commands something on screen handles. Keys never fire in a field, a dialog or a
-menu, or when a focused widget already handled them (React Aria's list moves on the arrows and
-opens on Enter). The list cursor is real focus on a row, so screen readers follow it; actions
+(`useShortcutListener`) and the `?` list (`components/shell/keyboard-shortcuts.tsx`), both read
+from that table. A screen binds what a key does with `useShortcut(id, run)`. `/` and ⌘K are
+listed there but bound by the title-bar search popover; its command rows are `COMMAND_IDS`,
+filtered by `useAvailableShortcuts()` (what the screen handles right now) and run with
+`runShortcut(id)`, so a command and its key can't disagree. Keys never fire in a field, a dialog
+or a menu, or when a focused widget already handled them (React Aria's list moves on the arrows
+and opens on Enter). The list cursor is real focus on a row, so screen readers follow it; actions
 announce what they did in a polite live region.
 
 ## Not yet

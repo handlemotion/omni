@@ -262,7 +262,7 @@ export function CommandMenuShortcut({
   return (
     <DropdownKeyboard
       className={cn(
-        "gap-0.5 font-sans text-[10.5px] uppercase lg:inline-flex *:inset-ring *:inset-ring-muted-foreground/20 *:grid *:size-5.5 *:place-content-center *:rounded-xs *:bg-background",
+        "gap-0.5 font-sans text-[10.5px] uppercase *:inset-ring *:inset-ring-muted-foreground/20 *:grid *:size-5.5 *:place-content-center *:rounded-xs *:bg-background",
         className,
       )}
       {...props}

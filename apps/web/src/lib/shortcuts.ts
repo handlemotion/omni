@@ -13,7 +13,7 @@ export interface ShortcutDefinition {
   group: "Threads" | "Go to" | "General";
   /** Alternatives; the first is the one shown. */
   keys: readonly KeySequence[];
-  /** Also offered in the ⌘K menu (moving the cursor makes no sense there). */
+  /** A command row in the search popover's ⌘K list (moving the cursor makes no sense there). */
   command?: boolean;
 }
 
@@ -30,14 +30,22 @@ export const SHORTCUTS = {
   goQueue: { label: "Queue", group: "Go to", keys: [["g", "q"]], command: true },
   goAll: { label: "All mail", group: "Go to", keys: [["g", "a"]], command: true },
   compose: { label: "Compose", group: "General", keys: [["c"]], command: true },
+  // Bound by the title-bar search popover, which listens for them itself; listed here so `?`
+  // shows them. Nothing registers a handler, so the shared listener leaves them alone.
   search: { label: "Search", group: "General", keys: [["/"]] },
-  commandMenu: { label: "Command menu", group: "General", keys: [["Mod+k"]] },
+  commandMenu: { label: "Search and commands", group: "General", keys: [["Mod+k"]] },
   help: { label: "Keyboard shortcuts", group: "General", keys: [["?"]], command: true },
 } as const satisfies Record<string, ShortcutDefinition>;
 
 export type ShortcutId = keyof typeof SHORTCUTS;
 
 export const SHORTCUT_IDS = Object.keys(SHORTCUTS) as ShortcutId[];
+
+/**
+ * The shortcuts that are also commands, in display order. The search popover renders these as
+ * its command rows: offer the ones in `useAvailableShortcuts()`, run one with `runShortcut(id)`.
+ */
+export const COMMAND_IDS = SHORTCUT_IDS.filter((id) => "command" in SHORTCUTS[id]);
 
 /** The key this event names in `SHORTCUTS`' terms, or null for a chord we never bind. */
 export function eventKey(event: KeyboardEvent): string | null {
