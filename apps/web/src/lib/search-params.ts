@@ -1,33 +1,37 @@
 // URL search params per route. Invalid values fall back instead of throwing, so a hand-edited or
-// stale link still opens.
-import { z } from "zod";
+// stale link still opens. `zod/mini` because these load with the app's entry chunk on every
+// route, and full zod is most of that chunk's weight.
+import * as z from "zod/mini";
+// `z.catch`, renamed: a parsing fallback, not a promise handler.
+import { catch as fallback } from "zod/mini";
 import { LANES } from "./types.ts";
 
-const optionalId = z.string().min(1).optional().catch(undefined);
+const optional = <T extends z.ZodMiniType>(schema: T) => fallback(z.optional(schema), undefined);
+const optionalId = optional(z.string().check(z.minLength(1)));
 
 export const loginSearch = z.object({
-  redirect: z.string().optional().catch(undefined),
+  redirect: optional(z.string()),
   /**
    * `magic_link` (expired or used link), `no_organization` (signed in, no membership), or a
    * Better Auth OAuth code from Google sign-in (`SIGN_UP_REQUIRES_INVITATION`, `access_denied`).
    */
-  error: z.string().optional().catch(undefined),
+  error: optional(z.string()),
 });
 
 export const inboxSearch = z.object({
   mailbox: optionalId,
-  lane: z.enum(LANES).optional().catch(undefined),
+  lane: optional(z.enum(LANES)),
 });
 
 export const listSearch = z.object({ mailbox: optionalId });
 
 export const searchSearch = z.object({
-  q: z.string().default("").catch(""),
+  q: fallback(z._default(z.string(), ""), ""),
   mailbox: optionalId,
 });
 
 export const composeSearch = z.object({
   mailbox: optionalId,
-  to: z.string().optional().catch(undefined),
-  subject: z.string().optional().catch(undefined),
+  to: optional(z.string()),
+  subject: optional(z.string()),
 });

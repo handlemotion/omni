@@ -1,5 +1,5 @@
 {
-  "id": "5654c161-80b6-467c-b607-b0bce3400505",
+  "id": "ad9c5074-b303-447a-bca9-c583a6bec66e",
   "prevId": "0d3cc5f5-391d-4527-bf06-eddf9c4f6eff",
   "version": "7",
   "dialect": "postgresql",
@@ -2563,42 +2563,6 @@
           "method": "gin",
           "with": {}
         },
-        "messages_mailbox_id_in_reply_to_idx": {
-          "name": "messages_mailbox_id_in_reply_to_idx",
-          "columns": [
-            {
-              "expression": "mailbox_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "in_reply_to",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "messages_references_idx": {
-          "name": "messages_references_idx",
-          "columns": [
-            {
-              "expression": "references",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
-        },
         "messages_mailbox_id_sent_at_idx": {
           "name": "messages_mailbox_id_sent_at_idx",
           "columns": [
@@ -2912,7 +2876,42 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "thread_state_member_deferred_idx": {
+          "name": "thread_state_member_deferred_idx",
+          "columns": [
+            {
+              "expression": "member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "thread_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "snoozed_until",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "done_through",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"thread_state\".\"snoozed_until\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "thread_state_org_id_organizations_id_fk": {
           "name": "thread_state_org_id_organizations_id_fk",

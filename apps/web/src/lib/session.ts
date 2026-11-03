@@ -106,8 +106,10 @@ export function signInWithGoogle(redirect?: string) {
   );
 }
 
-export function signInWithPasskey() {
-  return authCall(auth.signIn.passkey());
+/** Signs in with a passkey, then drops the signed-out cache so the route guards see the session. */
+export async function signInWithPasskey(client: QueryClient, router: Reloadable) {
+  await authCall(auth.signIn.passkey());
+  await resetSession(client, router);
 }
 
 export async function signOut(client: QueryClient, router: Reloadable) {

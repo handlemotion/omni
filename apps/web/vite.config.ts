@@ -58,7 +58,15 @@ export default defineConfig(({ mode }) => {
           telemetry: false,
         }),
     ],
-    resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+    resolve: {
+      alias: [
+        { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
+        // Intent UI imports `cn` and `twJoin` from the `cn` package, and tailwind-variants bundles
+        // the same merge engine under the same names. One copy instead of two (~45 kB unminified).
+        // The `cn` package stays installed for its types and for components added later.
+        { find: /^cn$/, replacement: "tailwind-variants" },
+      ],
+    },
     server: {
       port: 5173,
       strictPort: true,

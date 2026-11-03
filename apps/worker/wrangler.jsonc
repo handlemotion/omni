@@ -38,6 +38,16 @@
     "TYPESAFE_API_URL": "",
     "EXPO_PUSH_ENABLED": "false",
     "IMAGE_PROXY_DOH_URL": "https://cloudflare-dns.com/dns-query",
+    // Rate limits as "<count>/<seconds>", or "off". Empty means the default shown. Sign-in steps
+    // count per IP; magic links per address; invitations per inviting user; the rest per member.
+    "RATE_LIMIT_AUTH": "60/60",
+    "RATE_LIMIT_MAGIC_LINK": "5/900",
+    "RATE_LIMIT_INVITE": "30/3600",
+    "RATE_LIMIT_SEARCH": "60/60",
+    "RATE_LIMIT_SEND": "100/3600",
+    "RATE_LIMIT_ACTIONS": "300/60",
+    "RATE_LIMIT_PROVISION": "30/3600",
+    "RATE_LIMIT_IMAGE_PROXY": "300/60",
   },
   "hyperdrive": [
     {
@@ -93,11 +103,14 @@
       { "name": "REPLAY_GUARD", "class_name": "ReplayGuard" },
       { "name": "REALTIME", "class_name": "Realtime" },
       { "name": "DOMAIN_WATCH", "class_name": "DomainWatch" },
+      { "name": "RATE_LIMITER", "class_name": "RateLimiter" },
     ],
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["ReplayGuard", "Realtime"] },
     // Auto-checks a domain's DNS while its setup page is open (ADR 0011).
     { "tag": "v2", "new_sqlite_classes": ["DomainWatch"] },
+    // Rate limits on abuse-prone routes (src/rate-limiter.ts).
+    { "tag": "v3", "new_sqlite_classes": ["RateLimiter"] },
   ],
 }

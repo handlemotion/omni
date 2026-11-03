@@ -24,6 +24,12 @@ const router = createAppRouter(queryClient);
 const root = document.getElementById("root");
 if (!root) throw new Error("index.html has no #root");
 
+// Web Vitals go where errors go (Sentry, when the build has a DSN) or to the console in dev.
+// Loaded after the first render, and not at all when neither applies.
+if (import.meta.env.DEV || import.meta.env.VITE_SENTRY_DSN) {
+  void import("./lib/web-vitals.ts").then((m) => m.reportWebVitals());
+}
+
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>

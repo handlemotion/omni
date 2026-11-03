@@ -60,7 +60,17 @@ export function useThreadListShortcuts(options: {
 
   const focusRow = (id: string) => {
     cursorRef.current = id;
-    listRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(id)}"]`)?.focus();
+    const row = () => listRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(id)}"]`);
+    const found = row();
+    if (found) return found.focus();
+    // The list is virtualized: only rows near the viewport are in the DOM. Scroll this one's
+    // position into view (rows share one height), then focus it once it has rendered.
+    const grid = listRef.current?.querySelector<HTMLElement>('[role="grid"]');
+    const height = grid?.querySelector("[data-key]")?.getBoundingClientRect().height;
+    const at = ids.indexOf(id);
+    if (!grid || !height || at === -1) return;
+    grid.scrollTop = at * height - (grid.clientHeight - height) / 2;
+    requestAnimationFrame(() => requestAnimationFrame(() => row()?.focus()));
   };
 
   const open = (id: string) => void navigate({ href: href(id) });
