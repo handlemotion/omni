@@ -117,32 +117,6 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 
 ## Hooks
 
-<<<<<<< HEAD
-
-| Hook                                                                                                                                               | Returns / takes                               |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `useSession()`                                                                                                                                     | `{ user, session, member } \| null`           |
-| `useMember()`                                                                                                                                      | `{ user, member }` (member routes only)       |
-| `useSignInMagicLink()`                                                                                                                             | `mutate({ email, redirect? })`                |
-| `useSignInPasskey()`                                                                                                                               | `mutate()`                                    |
-| `useSignOut()`                                                                                                                                     | `mutate()`                                    |
-| `useOrganizations()`, `useSetActiveOrganization()`                                                                                                 | list; `mutate(organizationId)`                |
-| `useInvitation(id)`, `useAcceptInvitation()`, `useRejectInvitation()`                                                                              | invitation; `mutate(id)`                      |
-| `useMembers()`, `useInvitations()`, `useInviteMember()`, `useCancelInvitation()`, `useRemoveMember()`, `useUpdateMemberRole()`                     | organization admin                            |
-| `usePasskeys()`, `useAddPasskey()`, `useDeletePasskey()`                                                                                           | passkeys                                      |
-| `useOnboarding()`, `useCreateWorkspace()`, `useAddDomain()`, `useCheckDomain()`, `useCreateMailboxes()`                                            | workspace setup (`hooks/use-onboarding.ts`)   |
-| `useMailboxes()`, `useCounts()`                                                                                                                    | sidebar data                                  |
-| `useThreads({ view, mailbox?, lane? })`                                                                                                            | `{ threads, fetchNextPage, hasNextPage, … }`  |
-| `useThread(id)`, `useSuspenseThread(id)`                                                                                                           | `{ thread, pending, … }`                      |
-| `useSearch(q, mailbox?)`                                                                                                                           | results                                       |
-| `usePrefetchThread()`                                                                                                                              | `(threadId) => void`                          |
-| `useMarkRead()`, `useDefer()`, `useMarkDone()`, `useMarkUndone()`, `useArchive()`, `useMove()`                                                     | `mutate({ threadId, … })`                     |
-| `useMarkReadOnOpen(thread)`                                                                                                                        | marks an opened unread thread read, once      |
-| `useSendReply()`, `useSend()`                                                                                                                      | `mutate({ … })`                               |
-| `useDiscardPending()`, `useActionFailures()`                                                                                                       | failed sends and actions                      |
-| `useRealtimeConnection(memberId)`, `useRealtimeStatus()`                                                                                           | the socket                                    |
-| `useConnectivity()`                                                                                                                                | `{ online, queued }`                          |
-| =======                                                                                                                                            |
 | Hook                                                                                                                                               | Returns / takes                               |
 | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | `useSession()`                                                                                                                                     | `{ user, session, member } \| null`           |
@@ -166,6 +140,7 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 | `useSendReply()`, `useSend()`                                                                                                                      | `mutate({ … })`                               |
 | `useDiscardPending()`, `useActionFailures()`                                                                                                       | failed sends and actions                      |
 | `useRealtimeConnection(memberId)`, `useRealtimeStatus()`                                                                                           | the socket                                    |
+| `useConnectivity()`                                                                                                                                | `{ online, queued }`                          |
 | `useShortcut(id, run, enabled?)`, `runShortcut(id)`, `useAvailableShortcuts()`, `announce(text)`                                                   | keyboard shortcuts (`hooks/use-shortcuts.ts`) |
 | `useThreadListShortcuts({ … })`                                                                                                                    | the list keys: j/k, o, x, e, h, u, Esc        |
 
