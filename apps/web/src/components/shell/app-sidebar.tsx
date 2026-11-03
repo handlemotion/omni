@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import {
   IconBubble,
   IconBubbleAnnotation,
-  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconCircleDashed,
@@ -17,10 +16,9 @@ import {
   IconTrash,
   IconWarning,
 } from "@/components/icons/sidebar";
-import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Menu, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 import {
   Sidebar,
   SidebarContent,
@@ -35,12 +33,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
-import {
-  useMember,
-  useOrganizations,
-  useSetActiveOrganization,
-  useSignOut,
-} from "@/hooks/use-session.ts";
+import { useSignOut } from "@/hooks/use-session.ts";
 
 /** A nav row. No `href`: the frame shows it, but the app has no view for it yet. */
 interface NavItem {
@@ -83,7 +76,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <OrganizationMenu />
+        <WorkspaceSwitcher />
         <div className="flex items-center gap-0.5">
           <Button
             intent="plain"
@@ -173,40 +166,5 @@ function OfflineBadge() {
     <Badge intent="warning" role="status" className="tabular-nums">
       {queued > 0 ? `Offline · ${queued} queued` : "Offline"}
     </Badge>
-  );
-}
-
-/** The active organization; the menu switches to another one. */
-function OrganizationMenu() {
-  const { member } = useMember();
-  const organizations = useOrganizations();
-  const setActive = useSetActiveOrganization();
-  const active = organizations.data?.find((org) => org.id === member.orgId);
-
-  return (
-    <MenuTrigger>
-      {/* 7px instead of 8: centers the 17px logo on the same axis as the 15px icons below. */}
-      <Button intent="plain" className="min-w-0 flex-1 justify-start px-1.75">
-        <Avatar
-          isSquare
-          src={active?.logo ?? null}
-          initials={active?.name.slice(0, 1).toUpperCase()}
-          className="bg-accent text-foreground outline-0 [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(4.25)]"
-        />
-        <span className="flex items-center gap-1.25 truncate">
-          {active?.name}
-          <IconChevronDown className="mt-px text-subtle-foreground" />
-        </span>
-      </Button>
-      <Menu placement="bottom start">
-        {(organizations.data ?? []).map((org) => (
-          <MenuItem key={org.id} onAction={() => setActive.mutate(org.id)}>
-            {org.name}
-          </MenuItem>
-        ))}
-        <MenuSeparator />
-        <MenuItem href="/settings">Settings</MenuItem>
-      </Menu>
-    </MenuTrigger>
   );
 }
