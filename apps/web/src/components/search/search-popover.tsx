@@ -99,7 +99,7 @@ export function SearchPopover() {
         ref={triggerRef}
         onPress={open}
         aria-label="Search"
-        className="flex h-8 w-60 cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 pe-1.5 text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70"
+        className="flex h-8 w-60 cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 pe-1.25 text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70"
       >
         <IconSearch className="text-muted-foreground" />
         <span className="flex-1 text-start">Search</span>
@@ -145,9 +145,9 @@ export function SearchPopover() {
   );
 }
 
-// Seven rows: the empty state's commands fill the list exactly, so it never changes height while
-// typing; more results scroll.
-const LIST_HEIGHT = "h-90";
+// Seven 40px rows plus padding: the empty state's commands fill the list exactly, so it never
+// changes height while typing; more results scroll.
+const LIST_HEIGHT = "h-73";
 
 // Rows match on their keywords (title, sender), not on their value, which is just a unique id.
 // Smart search always matches: it searches the server for whatever was typed.
@@ -179,14 +179,15 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
     } finally {
       setSearching(false);
     }
+    // Together: the band slides down under the popover while it closes.
     onClose();
     sweep(() => navigate({ to: "/search", search: { q: query } }));
   };
 
   return (
     <Command label="Search" loop filter={filter} className="outline-hidden">
-      <div className="flex h-12 items-center gap-3 border-b border-border ps-4.5 pe-3">
-        <IconSearch className="shrink-0 text-muted-foreground" />
+      <div className="flex h-11 items-center gap-2.5 border-b border-border ps-4.5 pe-3">
+        <IconSearch className="size-4 shrink-0 text-muted-foreground" />
         <Command.Input
           autoFocus
           value={q}
@@ -202,7 +203,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
           <Command.Group>
             <Row
               value={SMART}
-              icon={searching ? <Loader className="size-icon" /> : <IconSearch />}
+              icon={searching ? <Loader className="size-4" /> : <IconSearch />}
               title={`Smart search for “${query}”`}
               pending={searching}
               onSelect={() => void smartSearch()}
@@ -245,8 +246,9 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
 }
 
 /**
- * Every row is 48px, the height of one with a detail line, so the list keeps one rhythm. The
- * selected row (keyboard or pointer, cmdk keeps one) gets the accent fill and a foreground icon.
+ * Every row is one 40px line, a detail (the sender) beside the title rather than under it, so the
+ * list keeps one rhythm. The selected row (keyboard or pointer, cmdk keeps one) gets the accent
+ * fill and a foreground icon.
  */
 function Row(props: {
   value: string;
@@ -262,19 +264,19 @@ function Row(props: {
       value={props.value}
       keywords={props.keywords}
       onSelect={props.onSelect}
-      className="group flex h-12 cursor-default items-center gap-3 rounded-lg px-3 outline-hidden data-[selected=true]:bg-accent"
+      className="group flex h-10 cursor-default items-center gap-2.5 rounded-lg px-3 text-sm outline-hidden data-[selected=true]:bg-accent"
     >
-      <span className="flex shrink-0 text-muted-foreground group-data-[selected=true]:text-foreground">
+      <span className="flex shrink-0 text-muted-foreground group-data-[selected=true]:text-foreground *:size-4">
         {props.icon}
       </span>
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className={`truncate text-sm text-foreground ${props.pending ? "shimmer" : ""}`}>
-          {props.title}
-        </span>
-        {props.detail && (
-          <span className="truncate text-xs text-muted-foreground">{props.detail}</span>
-        )}
+      <span className={`min-w-0 truncate text-foreground ${props.pending ? "shimmer" : ""}`}>
+        {props.title}
       </span>
+      {props.detail && (
+        <span className="ms-auto max-w-2/5 shrink-0 truncate text-muted-foreground">
+          {props.detail}
+        </span>
+      )}
     </Command.Item>
   );
 }

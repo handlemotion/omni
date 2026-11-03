@@ -26,9 +26,10 @@ function Root() {
   const router = useRouter();
   return (
     <RouterProvider navigate={(href, options) => router.navigate({ ...options, href })}>
-      {/* The sweep that reveals smart search results; skipped under reduced motion. Azure: the
-          preset closest to the brand blue. */}
-      <GlimmProvider palette="azure">
+      {/* The sweep that reveals smart search results: top to bottom, under the search popover
+          (z-50) as it closes, over the page. Skipped under reduced motion. Azure: the preset
+          closest to the brand blue. */}
+      <GlimmProvider palette="azure" direction="ttb" zIndex={45}>
         <Outlet />
       </GlimmProvider>
     </RouterProvider>
