@@ -10,6 +10,7 @@ import { consumeQueue, type AiJob } from "./queue.ts";
 export type { AppType } from "./app.ts";
 export { DomainWatch } from "./domain-watch.ts";
 export { Realtime } from "./realtime.ts";
+export { RateLimiter } from "./rate-limiter.ts";
 export { ReplayGuard } from "./replay-guard.ts";
 
 // Sentry stays off unless SENTRY_DSN is set. Events are scrubbed of mail content, addresses,

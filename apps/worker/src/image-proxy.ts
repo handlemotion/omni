@@ -19,10 +19,9 @@ const IMAGE_TYPES = new Set([
   "image/vnd.microsoft.icon",
 ]);
 
-export type ProxyFailure = {
-  status: 400 | 403 | 413 | 415 | 502 | 504;
-  reason: string;
-};
+export type ProxyFailure =
+  | { status: 400 | 403 | 413 | 415 | 502 | 504; reason: string }
+  | { status: 429; reason: string; retryAfter: number };
 
 export interface ProxyOptions {
   /** DNS-over-HTTPS JSON endpoint used to check where a hostname points. */
@@ -32,6 +31,11 @@ export interface ProxyOptions {
    * so e2e can serve images and redirects locally. Empty in every real deployment.
    */
   testAllowOrigin?: string;
+  /**
+   * Runs on a cache miss, before anything is fetched: seconds to wait, or 0 to go ahead. Cached
+   * images never call it, so only real outbound fetches count against a rate limit.
+   */
+  beforeFetch?: () => Promise<number>;
 }
 
 /** Headers for any image we serve: never sniffed, never scripted, never framed elsewhere. */
@@ -58,6 +62,9 @@ export async function proxyImage(
   const cache = await caches.open("image-proxy");
   const hit = await cache.match(cacheKey);
   if (hit) return withCacheControl(hit, `private, max-age=${CACHE_SECONDS}`);
+
+  const wait = (await options.beforeFetch?.()) ?? 0;
+  if (wait) return { status: 429, reason: "too many requests", retryAfter: wait };
 
   const fetched = await fetchImage(target, options);
   if (!(fetched instanceof Response)) return fetched;

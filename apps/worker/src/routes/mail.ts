@@ -19,6 +19,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
+import { limitPerMember } from "../rate-limiter.ts";
 import { smartSearch } from "../search.ts";
 import { attachmentResponse } from "./assets.ts";
 
@@ -182,7 +183,7 @@ export const mail = new Hono<AppEnv>()
    * around the match, and the thread's mailbox. `ranking` says whether Jev ordered them (`jev`)
    * or full-text relevance did (`text`: no TypeSafe key, or Jev failed or was slow).
    */
-  .get("/search", zValidator("query", searchQuery), async (c) => {
+  .get("/search", limitPerMember("search"), zValidator("query", searchQuery), async (c) => {
     const { q, ...options } = c.req.valid("query");
     const { hits, ranking } = await smartSearch(
       forMember(c.var.db, c.var.member.id),
@@ -213,6 +214,7 @@ export const mail = new Hono<AppEnv>()
    */
   .patch(
     "/threads/:id/state",
+    limitPerMember("actions"),
     zValidator("header", idempotencyHeader),
     zValidator("json", stateBody),
     async (c) => {
@@ -302,33 +304,39 @@ export const mail = new Hono<AppEnv>()
     return c.json({ state });
   })
 
-  .post("/threads/:id/archive", zValidator("header", idempotencyHeader), async (c) => {
-    const key = c.req.valid("header")["idempotency-key"];
-    const threadId = c.req.param("id");
-    const found = await threadActionTargets(c.var.db, c.var.member.id, threadId);
-    if (!found) notFound();
-    await setThreadArchived(c.var.db, c.var.member.id, threadId, true);
+  .post(
+    "/threads/:id/archive",
+    limitPerMember("actions"),
+    zValidator("header", idempotencyHeader),
+    async (c) => {
+      const key = c.req.valid("header")["idempotency-key"];
+      const threadId = c.req.param("id");
+      const found = await threadActionTargets(c.var.db, c.var.member.id, threadId);
+      if (!found) notFound();
+      await setThreadArchived(c.var.db, c.var.member.id, threadId, true);
 
-    const actionIds: string[] = [];
-    for (const { role, ...target } of found.targets) {
-      if (role === "archive" || role === "trash") continue;
-      const action = await enqueueAction(c.var.db, {
-        orgId: found.orgId,
-        mailboxId: found.mailboxId,
-        memberId: c.var.member.id,
-        requestId: c.var.requestId,
-        kind: "archive",
-        payload: target,
-        idempotencyKey: outboxKey(c, key, "archive", target.folder),
-      });
-      actionIds.push(action.id);
-    }
-    if (actionIds.length) pingLater(c);
-    return c.json({ actionIds });
-  })
+      const actionIds: string[] = [];
+      for (const { role, ...target } of found.targets) {
+        if (role === "archive" || role === "trash") continue;
+        const action = await enqueueAction(c.var.db, {
+          orgId: found.orgId,
+          mailboxId: found.mailboxId,
+          memberId: c.var.member.id,
+          requestId: c.var.requestId,
+          kind: "archive",
+          payload: target,
+          idempotencyKey: outboxKey(c, key, "archive", target.folder),
+        });
+        actionIds.push(action.id);
+      }
+      if (actionIds.length) pingLater(c);
+      return c.json({ actionIds });
+    },
+  )
 
   .post(
     "/threads/:id/move",
+    limitPerMember("actions"),
     zValidator("header", idempotencyHeader),
     zValidator("json", moveBody),
     async (c) => {
@@ -358,6 +366,7 @@ export const mail = new Hono<AppEnv>()
 
   .post(
     "/send",
+    limitPerMember("send"),
     zValidator("header", idempotencyHeader),
     zValidator("json", sendBody),
     async (c) => {
@@ -387,6 +396,7 @@ export const mail = new Hono<AppEnv>()
   /** Replies to the latest message, with In-Reply-To and References so it threads everywhere. */
   .post(
     "/threads/:id/reply",
+    limitPerMember("send"),
     zValidator("header", idempotencyHeader),
     zValidator("json", replyBody),
     async (c) => {

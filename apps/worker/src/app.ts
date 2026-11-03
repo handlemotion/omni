@@ -15,6 +15,8 @@ import { mail } from "./routes/mail.ts";
 import { mailboxMembers } from "./routes/mailbox-members.ts";
 import { onboarding } from "./routes/onboarding.ts";
 import { workspaces } from "./routes/workspaces.ts";
+import { limitAuth } from "./rate-limiter.ts";
+import { securityHeaders } from "./security-headers.ts";
 
 function allowedOrigins(config: Config) {
   return new Set([new URL(config.auth.baseURL).origin, ...config.auth.trustedOrigins]);
@@ -84,12 +86,13 @@ const api = new Hono<AppEnv>()
 
 export const app = new Hono<AppEnv>()
   .use(trace)
+  .use(securityHeaders)
   .get("/health", (c) => c.json({ ok: true }))
   .route("/", internal)
   .use("/api/*", requestScope)
   /** Public: which sign-in buttons the login page shows. Google needs its OAuth client set. */
   .get("/api/sign-in-methods", (c) => c.json({ google: c.var.config.auth.google !== undefined }))
-  .on(["GET", "POST"], "/api/auth/*", (c) => c.var.auth.handler(c.req.raw))
+  .on(["GET", "POST"], "/api/auth/*", limitAuth, (c) => c.var.auth.handler(c.req.raw))
   // Before `api`: these work for a user who has no organization yet.
   .route("/api/onboarding", onboarding)
   .route("/api/workspaces", workspaces)
