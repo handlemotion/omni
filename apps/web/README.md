@@ -53,7 +53,8 @@ Components use `hooks/` only. `lib/` is how the hooks work.
 Guards: `_authed` needs a user, `_authed/_member` needs a member of the active organization and
 loads mailboxes and counts for the shell. A user with no organization goes to `/onboarding` if
 they may create one (`ORGANIZATION_CREATION`), else to `/login?error=no_organization`; an owner or
-admin whose workspace has no mailboxes goes to `/onboarding` to finish it (ADR 0007). The thread routes are children of their list, so the
+admin whose workspace's setup is unfinished (`member.setup !== "complete"`, from `/api/me`) goes
+to `/onboarding`, which resumes at the saved step; `/settings` stays reachable (ADR 0007, 0008). The thread routes are children of their list, so the
 list stays mounted (three panes) and the back button walks the URL history.
 
 ## How the data layer works
@@ -110,7 +111,8 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 | `useInvitation(id)`, `useAcceptInvitation()`, `useRejectInvitation()`                                                          | invitation; `mutate(id)`                     |
 | `useMembers()`, `useInvitations()`, `useInviteMember()`, `useCancelInvitation()`, `useRemoveMember()`, `useUpdateMemberRole()` | organization admin                           |
 | `usePasskeys()`, `useAddPasskey()`, `useDeletePasskey()`                                                                       | passkeys                                     |
-| `useOnboarding()`, `useCreateWorkspace()`, `useAddDomain()`, `useCheckDomain()`, `useCreateMailboxes()`                        | workspace setup (`hooks/use-onboarding.ts`)  |
+| `useOnboarding()`, `useCreateWorkspace()`, `useAddDomain()`, `useCheckDomain()`, `useCreateMailboxes()`, `useFinishSetup()`    | workspace setup (`hooks/use-onboarding.ts`)  |
+| `useWorkspaces()`, `useOpenWorkspace()`, `useOpenMailbox()`                                                                    | switcher (`hooks/use-workspaces.ts`)         |
 | `useMailboxes()`, `useCounts()`                                                                                                | sidebar data                                 |
 | `useThreads({ view, mailbox?, lane? })`                                                                                        | `{ threads, fetchNextPage, hasNextPage, … }` |
 | `useThread(id)`, `useSuspenseThread(id)`                                                                                       | `{ thread, pending, … }`                     |

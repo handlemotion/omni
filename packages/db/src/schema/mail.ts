@@ -139,6 +139,34 @@ export const mailDomains = pgTable(
   ],
 );
 
+/**
+ * How far an organization's setup got, in order. Postgres compares enum values by this order,
+ * so `greatest()` keeps whichever step is further along.
+ */
+export const setupStep = pgEnum("setup_step", [
+  "created",
+  "domain_added",
+  "dns_verified",
+  "mailboxes_created",
+  "invites_sent",
+  "complete",
+]);
+
+/**
+ * Onboarding progress per organization (resumable setup). One row per org, written the first
+ * time a setup step succeeds; it only ever moves forward. An org with no row (made by the
+ * `org:create` CLI, or before this table) counts as `complete` once it has a mailbox and as
+ * `created` before that (`orgSetupStep`).
+ */
+export const orgSetup = pgTable("org_setup", {
+  orgId: text("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  step: setupStep("step").notNull().default("created"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
 export const mailboxFolders = pgTable(
   "mailbox_folders",
   {

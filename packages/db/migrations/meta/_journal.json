@@ -50,6 +50,13 @@
       "when": 1793739478995,
       "tag": "0006_mail_domains",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793740413434,
+      "tag": "0007_org_setup",
+      "breakpoints": true
     }
   ]
 }

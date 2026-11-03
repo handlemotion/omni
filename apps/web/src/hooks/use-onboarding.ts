@@ -7,10 +7,11 @@ import {
   checkDomainMutation,
   createMailboxesMutation,
   createWorkspace,
+  finishSetupMutation,
   onboardingQuery,
 } from "../lib/onboarding.ts";
 
-/** `{ canCreateOrganization, organization, domains, mailboxes }`. */
+/** `{ canCreateOrganization, organization: { id, name, role, setup } | null, domains, mailboxes }`. */
 export function useOnboarding() {
   return useQuery(onboardingQuery());
 }
@@ -35,4 +36,9 @@ export function useCheckDomain() {
 /** `mutate({ domainId, mailboxes, servers? })` creates the mailboxes and starts syncing them. */
 export function useCreateMailboxes() {
   return useMutation(createMailboxesMutation(useQueryClient()));
+}
+
+/** `mutate()` finishes setup once a mailbox exists; then `/inbox` opens instead of onboarding. */
+export function useFinishSetup() {
+  return useMutation(finishSetupMutation(useQueryClient()));
 }

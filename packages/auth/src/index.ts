@@ -1,6 +1,6 @@
 import { passkey } from "@better-auth/passkey";
 import type { Db } from "@omni/db";
-import { schema } from "@omni/db";
+import { advanceOrgSetup, schema } from "@omni/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
@@ -237,6 +237,15 @@ export function createAuth(env: AuthEnv) {
             inviterName: inviter.user.name || inviter.user.email,
             expiresAt: invitation.expiresAt,
           }),
+        organizationHooks: {
+          // The invite step of onboarding, but only once the org has mailboxes: an invitation
+          // sent from settings mid-setup must not skip the domain and mailbox steps.
+          afterCreateInvitation: async ({ invitation }) => {
+            await advanceOrgSetup(env.db, invitation.organizationId, "invites_sent", {
+              onlyFrom: "mailboxes_created",
+            });
+          },
+        },
         schema: {
           organization: { modelName: "organizations" },
           member: { modelName: "members" },
