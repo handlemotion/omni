@@ -221,3 +221,40 @@ test("realtime hands typed events to the app and reconnects after the server dro
   expect(statuses.length).toBe(settled);
   expect(statuses.at(-1)?.[0]).toBe("closed");
 });
+
+test("wake() reconnects now instead of waiting out the backoff", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "wake");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  await createMember(db, org.id, "ana@wake.test");
+  const { jar } = await signIn(db, "ana@wake.test");
+  const statuses: RealtimeStatus[] = [];
+  const realtime = connectRealtime({
+    baseUrl: String(worker.url),
+    openSocket: (url) =>
+      new WebSocket(url, {
+        headers: { cookie: jar.header(), origin: WEB_ORIGIN },
+      } as unknown as string[]),
+    onEvent: () => {},
+    onStatus: (status) => statuses.push(status),
+    // A backoff long enough that only `wake()` can explain a reconnect within the test.
+    minDelayMs: 60_000,
+    maxDelayMs: 60_000,
+  });
+  const opens = () => statuses.filter((s) => s === "open").length;
+
+  try {
+    await until(() => (opens() === 1 ? true : undefined), "the socket to open");
+    await worker.server
+      .getWorker()
+      .evictDurableObject("Realtime", { name: org.id, webSockets: "close" });
+    await until(() => (statuses.at(-1) === "closed" ? true : undefined), "the socket to drop");
+
+    // The network is back (an `online` event, the app in front again).
+    realtime.wake();
+    await until(() => (opens() === 2 ? true : undefined), "the socket to reopen", 5_000);
+    expect(statuses.slice(-2)).toEqual(["connecting", "open"]);
+  } finally {
+    realtime.close();
+  }
+});

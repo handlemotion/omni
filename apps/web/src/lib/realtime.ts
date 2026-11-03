@@ -4,6 +4,7 @@
 import { connectRealtime, type RealtimeEvent, type RealtimeStatus } from "@omni/client";
 import type { QueryClient } from "@tanstack/react-query";
 import { call, api } from "./api.ts";
+import { onWake, reportAnswer } from "./connectivity.ts";
 import { addFailure, allPending, failPendingByAction } from "./pending.ts";
 import { filterOf, keys } from "./query-keys.ts";
 
@@ -71,17 +72,24 @@ export function startRealtime(client: QueryClient): () => void {
     onEvent,
     onStatus: (next, { reconnected }) => {
       setStatus(next);
-      // Events sent while the socket was down are gone: refetch what is on screen and ask the
-      // outbox about sends still waiting.
-      if (next === "open" && reconnected) {
-        void client.invalidateQueries({ queryKey: keys.mail() });
+      if (next !== "open") return;
+      // The Worker answered. Going online resumes paused mutations and refetches stale queries.
+      reportAnswer();
+      // Events sent while the socket was down are gone: mark all mail stale. Only queries on
+      // screen refetch now (the rest when next shown), and one already refetching because the
+      // app just came online is joined, not cancelled and sent again. Then ask the outbox
+      // about sends still waiting.
+      if (reconnected) {
+        void client.invalidateQueries({ queryKey: keys.mail() }, { cancelRefetch: false });
         void recheckPendingSends(client);
       }
     },
   });
+  const stopWaking = onWake(() => connection.wake());
 
   return () => {
     clearTimeout(timer);
+    stopWaking();
     connection.close();
     setStatus("closed");
   };

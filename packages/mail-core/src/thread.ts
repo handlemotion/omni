@@ -31,6 +31,12 @@ export interface ThreadContext {
   candidates: readonly ThreadCandidate[];
   /** The mailbox's own addresses. They appear on every message, so they never count as overlap. */
   selfAddresses: readonly string[];
+  /**
+   * Thread of a stored message whose reply headers name this message or one of its parents.
+   * Mail can arrive child first (a history import runs newest first, Sent before INBOX), and
+   * this keeps the grouping the same whatever the order.
+   */
+  relatedThreadId?: string | null | undefined;
 }
 
 export type ThreadDecision =
@@ -50,6 +56,7 @@ export function decideThread(message: ParsedMessage, context: ThreadContext): Th
     const threadId = context.knownMessageIds.get(id);
     if (threadId !== undefined) return { kind: "headers", threadId };
   }
+  if (context.relatedThreadId) return { kind: "headers", threadId: context.relatedThreadId };
 
   const subjectKey = normalizeSubject(message.subject);
   // A reply whose parent we never saw starts a thread; subject matching is only for mail

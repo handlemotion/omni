@@ -2,6 +2,7 @@
 // (ADR 0006), so the session cookie is first-party and there is nothing to configure.
 import { createApi, createAuth } from "@omni/client";
 import { DetailedError, parseResponse, type ClientResponse } from "hono/client";
+import { reportAnswer, reportNoAnswer } from "./connectivity.ts";
 import { tracedFetch } from "./telemetry.ts";
 
 const origin = window.location.origin;
@@ -32,9 +33,12 @@ export async function call<T extends ClientResponse<any>>(
   request: Promise<T>,
 ): ReturnType<typeof parseResponse<T>> {
   try {
-    return await parseResponse(request);
+    const body = await parseResponse(request);
+    reportAnswer();
+    return body;
   } catch (error) {
     if (error instanceof DetailedError) {
+      reportAnswer();
       const data = (error.detail as { data?: unknown } | undefined)?.data;
       const message =
         typeof data === "object" && data !== null && "error" in data
@@ -43,6 +47,7 @@ export async function call<T extends ClientResponse<any>>(
       throw new ApiError(Number(error.statusCode ?? 0), message);
     }
     if (error instanceof DOMException && error.name === "AbortError") throw error;
+    reportNoAnswer();
     throw new ApiError(0, error instanceof Error ? error.message : String(error));
   }
 }

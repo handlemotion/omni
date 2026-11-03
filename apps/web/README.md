@@ -17,6 +17,11 @@ the Worker reads `apps/worker/.dev.vars` instead. `OMNI_API_ORIGIN` (see `.env.e
 the dev proxy somewhere else. `pnpm build` writes `dist/`; `wrangler dev` and `wrangler deploy`
 build it themselves.
 
+`pnpm test:e2e` (stack up, `DATABASE_URL` set) drives the app in Chromium against the Worker under
+`wrangler dev` and the mail service: reconnecting after a Worker restart, and replies written
+offline. It uses Playwright's Chromium when installed (`PLAYWRIGHT_BROWSERS_PATH`), else the
+machine's Chrome.
+
 ## Layout
 
 ```
@@ -73,8 +78,19 @@ bounds how long a missed event can leave something old. Window focus refetches s
 **Realtime.** The `_member` shell calls `useRealtimeConnection(member.id)`, which opens the
 websocket (`lib/realtime.ts`). A `changed` event marks the thread and the lists for that mailbox
 stale (batched over 150 ms), plus counts and search; TanStack Query refetches the ones on screen.
-After a reconnect everything mail-related is refetched, and queued sends are checked against the
-outbox. `useRealtimeStatus()` exposes `connecting | open | closed`.
+The socket reconnects with jittered exponential backoff (0.5 s up to 30 s), and at once when the
+browser comes online, the tab becomes visible again, or the API answers again after a failure.
+After a reconnect every mail query is marked stale: the ones on screen refetch (joining any fetch
+already running), the rest when next shown, and queued sends are checked against the outbox.
+`useRealtimeStatus()` exposes `connecting | open | closed`.
+
+**Offline.** `lib/connectivity.ts` drives TanStack Query's `onlineManager`: offline when the
+browser says so or a request got no answer at all, online again when the API answers (any
+response, the socket opening, or a probe of `/api/me` with backoff). While offline, queries keep
+their data and actions pause after their optimistic update; they run when the connection is back,
+one at a time in the order they were made (one mutation `scope`), with the idempotency keys they
+started with. `useConnectivity()` gives `{ online, queued }`; the sidebar shows a small badge
+while offline. Queued actions live in memory: closing the tab while offline drops them.
 
 **Optimistic updates.** Archive, read/unread, defer and done change every cached list and the
 thread at once (`lib/cache.ts`), then roll back if the request fails. Move just refetches.
@@ -91,8 +107,9 @@ message, the pending entry is dropped. If the outbox gives up, a realtime `actio
 `useActionFailures()`.
 
 **Idempotency.** Every outbox action carries an idempotency key. The action hooks mint one per
-`mutate()` call, and TanStack's automatic retries (network errors only) reuse it, so a retry
-never sends twice.
+`mutate()` call, and TanStack's automatic retries (network errors only, waiting while offline)
+reuse it, so a retry never sends twice, even when the first request arrived and only its answer
+was lost.
 
 **Identity changes.** Sign out, account switch, organization switch and invitation accept cancel in-flight
 queries, clear the whole cache, and rerun the route guards (`resetSession`); the shell then
@@ -123,8 +140,11 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 | `useSendReply()`, `useSend()`                                                                                                                      | `mutate({ … })`                               |
 | `useDiscardPending()`, `useActionFailures()`                                                                                                       | failed sends and actions                      |
 | `useRealtimeConnection(memberId)`, `useRealtimeStatus()`                                                                                           | the socket                                    |
+| `useConnectivity()`                                                                                                                                | `{ online, queued }`                          |
 | `useShortcut(id, run, enabled?)`, `runShortcut(id)`, `useAvailableShortcuts()`, `announce(text)`                                                   | keyboard shortcuts (`hooks/use-shortcuts.ts`) |
 | `useThreadListShortcuts({ … })`                                                                                                                    | the list keys: j/k, o, x, e, h, u, Esc        |
+
+> > > > > > > origin/main
 
 Message HTML goes in a sandboxed iframe: `messageHtmlUrl(threadId, messageId)`; attachments:
 `attachmentUrl(threadId, attachmentId)` (`lib/urls.ts`).

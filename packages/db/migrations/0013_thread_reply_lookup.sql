@@ -1,0 +1,2 @@
+CREATE INDEX "messages_mailbox_id_in_reply_to_idx" ON "messages" USING btree ("mailbox_id","in_reply_to");--> statement-breakpoint
+CREATE INDEX "messages_references_idx" ON "messages" USING gin ("references");
