@@ -33,6 +33,7 @@
     "AI_DAILY_TOKEN_CAP": "1000000",
     "TRIAGE_PROVIDER": "",
     "JEV_MODEL": "",
+    "TYPESAFE_API_URL": "",
     "EXPO_PUSH_ENABLED": "false",
     "IMAGE_PROXY_DOH_URL": "https://cloudflare-dns.com/dns-query",
   },

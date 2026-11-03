@@ -19,14 +19,22 @@ const TriageOutput = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+/** The reader wrote last: someone else can't be waiting on them, so `needs_reply` is off the table. */
+const SentOutput = z.object({
+  bucket: z.enum(["waiting_on_them", "fyi"]),
+  confidence: z.number().min(0).max(1),
+});
+
 /** Jev (judgments plus the truth table) or Claude (one structured call). */
 export type TriageClient = JevClient | ModelClient;
 
 /**
- * Sorts a thread into a bucket. Ours-last threads short-circuit to `waiting_on_them` on either
- * provider. API errors throw on either provider, so the queue retries. On Claude, a refusal,
- * truncated answer, or invalid output falls back to `fyi` at confidence 0, which `laneFor` sends
- * to Unsure; on Jev, judgments the truth table can't settle land below the auto-file threshold.
+ * Sorts a thread into a bucket. A reader reply with no words short-circuits to `fyi`
+ * (`triageByRule`); every other thread, including one the reader wrote last, gets a model's
+ * judgment. A reader-sent latest message can only become `waiting_on_them` or `fyi`. API errors
+ * throw on either provider, so the queue retries. On Claude, a refusal, truncated answer, or
+ * invalid output falls back to `fyi` at confidence 0, which `laneFor` sends to Unsure; on Jev,
+ * judgments the truth table can't settle land below the auto-file threshold.
  */
 export async function triage(
   client: TriageClient,
@@ -47,12 +55,17 @@ export function chooseTriageClient(config: {
   provider?: "jev" | "claude";
   typesafeApiKey?: string;
   jevModel?: string;
+  typesafeApiUrl?: string;
   anthropic: ModelClient;
 }): TriageClient {
   const provider = config.provider ?? (config.typesafeApiKey ? "jev" : "claude");
   if (provider === "claude") return config.anthropic;
   if (!config.typesafeApiKey) throw new Error("TRIAGE_PROVIDER=jev needs TYPESAFE_API_KEY");
-  return createJevClient({ apiKey: config.typesafeApiKey, model: config.jevModel });
+  return createJevClient({
+    apiKey: config.typesafeApiKey,
+    model: config.jevModel,
+    baseUrl: config.typesafeApiUrl,
+  });
 }
 
 async function triageWithClaude(
@@ -64,7 +77,7 @@ async function triageWithClaude(
     model: options.model ?? AI_MODEL,
     system: TRIAGE_SYSTEM,
     user: triagePrompt(input, options.maxInputTokens ?? DEFAULT_TRIAGE_INPUT_TOKENS),
-    schema: TriageOutput,
+    schema: input.latestFromUs ? SentOutput : TriageOutput,
     // Room for adaptive thinking ahead of a ~20-token answer.
     maxTokens: 1_024,
   });

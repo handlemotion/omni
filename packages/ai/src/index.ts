@@ -11,7 +11,16 @@ export {
   TYPESAFE_API_URL,
   type JevClient,
 } from "./jev.ts";
-export { decide, TRIAGE_TABLE, type Decision, type Judgments } from "./decide.ts";
+export {
+  decide,
+  decideSent,
+  SENT_TABLE,
+  TRIAGE_TABLE,
+  type Decision,
+  type Judgments,
+  type SentJudgments,
+} from "./decide.ts";
+export { triageInputFor, type ThreadMessage } from "./input.ts";
 export { JEV_MODEL } from "./questions.ts";
 export { summarize, DEFAULT_SUMMARY_INPUT_TOKENS } from "./summarize.ts";
 export {
@@ -19,6 +28,7 @@ export {
   isOverDailyCap,
   laneFor,
   shouldSummarize,
+  triageByRule,
   type DailyUsage,
   type Lane,
   type SummaryDecision,

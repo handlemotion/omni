@@ -3,23 +3,23 @@ import { threadsQuery } from "../../../lib/mail-queries.ts";
 import { listSearch } from "../../../lib/search-params.ts";
 import { ThreadList } from "../../../components/inbox/thread-list.tsx";
 
-export const Route = createFileRoute("/_authed/_member/snoozed")({
+export const Route = createFileRoute("/_authed/_member/queue")({
   validateSearch: listSearch,
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) =>
-    context.queryClient.ensureInfiniteQueryData(threadsQuery({ view: "snoozed", ...deps })),
-  component: Snoozed,
+    context.queryClient.ensureInfiniteQueryData(threadsQuery({ view: "queue", ...deps })),
+  component: Queue,
 });
 
-function Snoozed() {
+function Queue() {
   const search = Route.useSearch();
   const router = useRouter();
   return (
     <ThreadList
       title="Queue"
-      filter={{ view: "snoozed", ...search }}
+      filter={{ view: "queue", ...search }}
       href={(threadId) =>
-        router.buildLocation({ to: "/snoozed/$threadId", params: { threadId }, search }).href
+        router.buildLocation({ to: "/queue/$threadId", params: { threadId }, search }).href
       }
     >
       <Outlet />

@@ -35,7 +35,8 @@ MAIL_SERVICE_HMAC_SECRET=
 SYSTEM_MAIL_FROM=
 
 # --- AI ---
-# Secret. Empty runs only the rule path (ours-last threads file as waiting_on_them, no summaries).
+# Secret. Summaries, and triage when TYPESAFE_API_KEY is empty. With neither key, threads stay
+# unsorted (only a wordless reply from you files itself, as FYI).
 ANTHROPIC_API_KEY=
 # Secret. TypeSafe key: triage runs on Jev when set (summaries stay on Claude).
 TYPESAFE_API_KEY=
@@ -43,6 +44,8 @@ TYPESAFE_API_KEY=
 TRIAGE_PROVIDER=
 # Optional. Jev model override.
 JEV_MODEL=
+# Optional. TypeSafe API base URL. Defaults to https://api.typesafe.ai.
+TYPESAFE_API_URL=
 # Tokens per org per UTC day. Over the cap, summaries pause and triage keeps running.
 AI_DAILY_TOKEN_CAP=1000000
 

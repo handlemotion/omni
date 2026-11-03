@@ -1,8 +1,9 @@
 // TypeSafe's Jev over plain fetch, so it runs in a Worker with no Node APIs. One request per
-// thread: the state below plus every question in `questions.ts`, answered in parallel.
+// thread: the state below plus one question set from `questions.ts`, answered in parallel. Who
+// wrote the latest message picks the set (and the state's framing); code knows that fact.
 
 import { z } from "zod";
-import { decide, type Judgments } from "./decide.ts";
+import { decide, decideSent, type Decision } from "./decide.ts";
 import { truncateToTokens } from "./policy.ts";
 import {
   JEV_EARLIER_MESSAGE_TOKENS,
@@ -11,6 +12,9 @@ import {
   JEV_MODEL,
   JUDGMENTS,
   READER_NOTE,
+  SENT_JUDGMENTS,
+  SENT_NOTE,
+  SENT_QUESTIONS,
   TRIAGE_QUESTIONS,
 } from "./questions.ts";
 import type { TriageInput, TriageResult } from "./types.ts";
@@ -52,14 +56,26 @@ export class JevError extends Error {
   }
 }
 
+/** The newest few earlier messages, each named by who wrote it. Left out when there are none. */
+function earlierMessages(input: TriageInput) {
+  const earlier = (input.earlierMessages ?? []).slice(-JEV_EARLIER_MESSAGES);
+  if (earlier.length === 0) return {};
+  return {
+    earlier_messages: earlier.map((m) => ({
+      from: m.fromUs ? "the reader" : m.from,
+      text: truncateToTokens(m.text, JEV_EARLIER_MESSAGE_TOKENS),
+    })),
+  };
+}
+
 /**
- * What a person would look at to sort the thread. Built field by field from the spec's triage
- * inputs: never HTML, attachments, or anything else the caller's object happens to carry.
- * Untrusted text only ever lands in string values, so JSON escaping keeps it from forging keys.
+ * What a person would look at to sort a thread someone else wrote last. Built field by field
+ * from the spec's triage inputs: never HTML, attachments, or anything else the caller's object
+ * happens to carry. Untrusted text only ever lands in string values, so JSON escaping keeps it
+ * from forging keys.
  */
 export function triageState(input: TriageInput) {
   const list = input.list ?? {};
-  const earlier = (input.earlierMessages ?? []).slice(-JEV_EARLIER_MESSAGES);
   // Absent facts are left out rather than sent as null or [], which the model could read as a
   // signal.
   return {
@@ -72,12 +88,7 @@ export function triageState(input: TriageInput) {
     thread: {
       message_count: input.messageCount,
       reader_has_replied_before: input.repliedBefore,
-      ...(earlier.length > 0 && {
-        earlier_messages: earlier.map((m) => ({
-          from: m.fromUs ? "the reader" : m.from,
-          text: truncateToTokens(m.text, JEV_EARLIER_MESSAGE_TOKENS),
-        })),
-      }),
+      ...earlierMessages(input),
     },
     mail_headers: {
       has_list_unsubscribe: list.listUnsubscribe ?? false,
@@ -88,9 +99,24 @@ export function triageState(input: TriageInput) {
   };
 }
 
+/**
+ * What a person would look at to tell whether the reader's own latest message asks for
+ * something. No sender (it is the reader) and no list headers (the reader's own mail).
+ */
+export function sentState(input: TriageInput) {
+  return {
+    reader_note: SENT_NOTE,
+    subject: input.subject,
+    latest_message: truncateToTokens(input.latestText, JEV_LATEST_MESSAGE_TOKENS),
+    thread: { message_count: input.messageCount, ...earlierMessages(input) },
+  };
+}
+
 /** The exact body sent to `POST /v1/systemone`. Exported so callers can log or replay it. */
 export function jevTriageRequest(input: TriageInput, model = JEV_MODEL) {
-  return { model, state: triageState(input), questions: TRIAGE_QUESTIONS };
+  return input.latestFromUs
+    ? { model, state: sentState(input), questions: SENT_QUESTIONS }
+    : { model, state: triageState(input), questions: TRIAGE_QUESTIONS };
 }
 
 const NoulAnswer = z.object({ type: z.literal("noul"), noul: z.number().min(0).max(1) });
@@ -127,13 +153,18 @@ async function ask(client: JevClient, body: unknown) {
 /** Triage through Jev's judgments and the truth table. Errors throw; there is no fallback. */
 export async function triageWithJev(client: JevClient, input: TriageInput): Promise<TriageResult> {
   const response = await ask(client, jevTriageRequest(input, client.model));
-  const judgments = {} as Judgments;
-  for (const judgment of JUDGMENTS) {
-    const answer = NoulAnswer.safeParse(response.answers[judgment]);
-    if (!answer.success) throw new JevError(`TypeSafe gave no Noul answer for ${judgment}`);
-    judgments[judgment] = answer.data.noul;
-  }
-  const { bucket, confidence } = decide(judgments);
+  const nouls = (keys: readonly string[]) => {
+    const judgments: Record<string, number> = {};
+    for (const key of keys) {
+      const answer = NoulAnswer.safeParse(response.answers[key]);
+      if (!answer.success) throw new JevError(`TypeSafe gave no Noul answer for ${key}`);
+      judgments[key] = answer.data.noul;
+    }
+    return judgments;
+  };
+  const { bucket, confidence }: Decision = input.latestFromUs
+    ? decideSent(nouls(SENT_JUDGMENTS) as Parameters<typeof decideSent>[0])
+    : decide(nouls(JUDGMENTS) as Parameters<typeof decide>[0]);
   return {
     bucket,
     confidence,

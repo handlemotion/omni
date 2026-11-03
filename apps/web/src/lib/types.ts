@@ -19,7 +19,10 @@ type ThreadListQuery = InferRequestType<Api["threads"]["$get"]>["query"];
 
 /** Triage lane filter. `unsure` is AI triage below the auto-file confidence. */
 export type Lane = NonNullable<ThreadListQuery["lane"]>;
-/** Which threads a list shows: the inbox, snoozed threads, or the archive. */
+/**
+ * Which threads a list shows: `inbox` (not done, not deferred), `queue` (deferred), `done`,
+ * `archive`, or `all` (ADR 0007).
+ */
 export type ThreadView = NonNullable<ThreadListQuery["view"]>;
 
 export const LANES = [
@@ -32,8 +35,10 @@ export const LANES = [
 
 export const THREAD_VIEWS = [
   "inbox",
-  "snoozed",
+  "queue",
+  "done",
   "archive",
+  "all",
 ] as const satisfies readonly ThreadView[];
 
 /** What a thread list shows. Absent `mailbox` means every mailbox the member can see. */

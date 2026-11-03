@@ -154,6 +154,14 @@ export const threads = pgTable(
     triage: triageBucket("triage"),
     triageConfidence: real("triage_confidence"),
     triageSource: triageSource("triage_source"),
+    /**
+     * The message the triage describes: the thread's latest message when it was triaged. A job for
+     * that message again skips the model, and a newer message re-triages even a person's re-sort.
+     * A re-sort sets it to the latest message it was made on.
+     */
+    triageMessageId: text("triage_message_id").references((): AnyPgColumn => messages.id, {
+      onDelete: "set null",
+    }),
     summary: text("summary"),
     /** Last message the summary covers; a newer message means the summary is stale. */
     summaryMessageId: text("summary_message_id").references((): AnyPgColumn => messages.id, {
@@ -184,6 +192,12 @@ export const threads = pgTable(
       t.mailboxId,
       t.archived,
       t.triage,
+      t.lastMessageAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
+    // Views that ignore `archived` (All mail, Done) page each mailbox in the same keyset order.
+    index("threads_mailbox_all_page_idx").on(
+      t.mailboxId,
       t.lastMessageAt.desc().nullsFirst(),
       t.id.desc().nullsFirst(),
     ),
@@ -326,7 +340,14 @@ export const threadState = pgTable(
       .references(() => threads.id, { onDelete: "cascade" }),
     memberId: memberId(),
     read: boolean("read").notNull().default(false),
+    /** Deferred (the Queue) until this time; back in the Inbox once it passes. */
     snoozedUntil: timestamptz("snoozed_until"),
+    /**
+     * Done, up to the thread's `last_message_at` as the member saw it. The thread is done while
+     * `last_message_at <= done_through`, so a newer message brings it back to the Inbox without
+     * any job (ADR 0007).
+     */
+    doneThrough: timestamptz("done_through"),
     updatedAt: updatedAt(),
   },
   (t) => [primaryKey({ columns: [t.threadId, t.memberId] })],
