@@ -16,6 +16,8 @@ import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
 import { useCounts, useThreads } from "@/hooks/use-mail.ts";
+import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
+import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import type { ThreadFilter, ThreadSummary } from "@/lib/types.ts";
 
 // Figma: Omni, inbox list (node 15:2), on our tokens: brand blue for the count, checkboxes and
@@ -36,6 +38,18 @@ export function ThreadList(props: {
   const { threadId } = useParams({ strict: false });
   // List view: an open thread takes the whole width; split view: it sits beside the list.
   const hideList = view === "list" && !!threadId;
+  const listRef = useRef<HTMLElement>(null);
+  useThreadListShortcuts({
+    view: props.filter.view,
+    threads,
+    threadId,
+    href: props.href,
+    selected,
+    setSelected,
+    listRef,
+    listHidden: hideList,
+    loadMore: hasNextPage ? () => void fetchNextPage() : undefined,
+  });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -67,7 +81,11 @@ export function ThreadList(props: {
           </ToggleGroup>
           <Separator orientation="vertical" className="mx-1 h-4" />
           <Search />
-          <Link href="/compose" className={buttonStyles({ intent: "primary" })}>
+          <Link
+            href="/compose"
+            aria-keyshortcuts={ariaKeyShortcuts("compose")}
+            className={buttonStyles({ intent: "primary" })}
+          >
             <PencilSquareIcon />
             Compose
           </Link>
@@ -75,7 +93,10 @@ export function ThreadList(props: {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <section className={`flex min-w-0 flex-1 flex-col ${hideList ? "hidden" : ""}`}>
+        <section
+          ref={listRef}
+          className={`flex min-w-0 flex-1 flex-col ${hideList ? "hidden" : ""}`}
+        >
           <div className="flex h-10.5 items-center gap-2 border-b px-5">
             <CheckboxField
               aria-label="Select all"
@@ -90,6 +111,8 @@ export function ThreadList(props: {
 
           <GridList
             aria-label={props.title}
+            // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
+            disallowTypeAhead
             items={threads}
             selectionMode="multiple"
             selectionBehavior="toggle"
