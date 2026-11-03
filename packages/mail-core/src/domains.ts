@@ -26,8 +26,14 @@ const LABEL = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
  * no scheme, path, port or trailing dot, so every spelling of a domain claims the same row.
  */
 export function normalizeDomain(input: string): string | null {
+  // A domain is at most 253 characters; anything far longer is not one, whatever follows.
+  if (input.length > 2048) return null;
   let text = input.trim().replace(/^@/, "");
-  text = text.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/[/?#].*$/, "");
+  text = text.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+  // Drop a path, query or fragment. `search` with one character class is linear; a `[/?#].*$`
+  // replace is quadratic on input like "####…".
+  const end = text.search(/[/?#]/);
+  if (end !== -1) text = text.slice(0, end);
   // `user@host` and `host:port` would parse as a URL's credentials or port; neither is a domain.
   if (!text || /[@:\s\\]/.test(text)) return null;
   let host: string;
