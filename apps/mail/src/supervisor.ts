@@ -1,4 +1,4 @@
-import { Effect, Semaphore } from "effect";
+import { Duration, Effect, Fiber, Schedule, Semaphore } from "effect";
 import type { Logger } from "./log.ts";
 import {
   MailboxConnection,
@@ -30,7 +30,8 @@ export class Supervisor {
   private readonly outbox: OutboxExecutor;
   private readonly log: Logger;
   private readonly options: SupervisorOptions;
-  private timers: NodeJS.Timeout[] = [];
+  /** The periodic folder sync and outbox poll. */
+  private loops: Fiber.Fiber<unknown, unknown>[] = [];
   private running = false;
   private stopping = false;
   private readonly inFlight = new Set<Promise<void>>();
@@ -76,10 +77,10 @@ export class Supervisor {
   start(): void {
     if (this.running) return;
     this.running = true;
-    this.timers.push(
-      setInterval(() => void this.syncAll(), this.options.syncIntervalMs ?? 5 * 60_000),
-      setInterval(() => void this.ping(), this.options.outboxIntervalMs ?? 30_000),
-    );
+    this.loops = [
+      every(this.options.syncIntervalMs ?? 5 * 60_000, () => this.syncAll()),
+      every(this.options.outboxIntervalMs ?? 30_000, () => this.ping()),
+    ];
   }
 
   /** Adds a mailbox and connects it in the background. Connect attempts share the `concurrency` gate. */
@@ -138,18 +139,33 @@ export class Supervisor {
   }
 
   /**
-   * Stops timers and claims, lets claimed actions finish and record their outcome while storage
+   * Stops the periodic loops and claims, lets claimed actions finish and record their outcome while storage
    * is still open, then stops every mailbox: each finishes the message it is storing, abandons the
    * rest of its sync (the next start resumes it) and logs out.
    */
   async stop(): Promise<void> {
     this.running = false;
     this.stopping = true;
-    for (const timer of this.timers) clearInterval(timer);
-    this.timers = [];
+    const loops = this.loops;
+    this.loops = [];
+    await Effect.runPromise(Effect.forEach(loops, Fiber.interrupt, { discard: true }));
     await this.outbox.stop();
     await Promise.all(this.inFlight);
     await Promise.all([...this.connections.values()].map((c) => c.stop()));
     this.connections.clear();
   }
+}
+
+/**
+ * Runs `task` every `intervalMs`, first after one interval, on its own fiber. A run that takes
+ * longer than the interval delays the next instead of overlapping it, and a failure (these tasks
+ * log their own) never ends the loop.
+ */
+function every(intervalMs: number, task: () => Promise<unknown>): Fiber.Fiber<unknown, unknown> {
+  return Effect.runFork(
+    Effect.schedule(
+      Effect.tryPromise(task).pipe(Effect.ignore),
+      Schedule.fixed(Duration.millis(intervalMs)),
+    ),
+  );
 }
