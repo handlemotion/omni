@@ -102,6 +102,7 @@ interface WorkerOptions {
   databaseUrl: string;
   mailServiceUrl: string;
   vars?: Record<string, string>;
+  secrets?: Record<string, string>;
 }
 
 function workerVars(options: WorkerOptions) {
@@ -133,7 +134,7 @@ export async function startWorker(options: WorkerOptions) {
       {
         configPath: "./wrangler.jsonc",
         vars: workerVars(options),
-        secrets: workerSecrets,
+        secrets: { ...workerSecrets, ...options.secrets },
       },
     ],
   });

@@ -1,12 +1,15 @@
-// AI queue consumer: triage and summary for a thread after new mail. A job names only the
-// thread; the consumer reads its current state, so a redelivered or duplicate job converges on
-// the same result and a job finished once is skipped without a model call.
+// AI queue consumer: triage and summary for a thread after new mail, in either direction. A job
+// names only the thread; the consumer reads its current state and triages the latest message, so
+// a redelivered or duplicate job converges on the same result, and work already done for that
+// message (`triage_message_id`, `summary_message_id`) is skipped without a model call.
 import Anthropic from "@anthropic-ai/sdk";
 import {
   chooseTriageClient,
   shouldSummarize,
   summarize,
   triage,
+  triageByRule,
+  triageInputFor,
   type ModelClient,
   type TriageClient,
 } from "@omni/ai";
@@ -24,17 +27,25 @@ import { fanOut } from "./realtime.ts";
 
 export type AiJob = { kind: "thread"; threadId: string; mailboxId: string };
 
-export type AiJobOutcome = "missing" | "done_already" | "no_model" | "triaged" | "summarized";
+/** `superseded`: a newer message arrived mid-job; that message's own job files the thread. */
+export type AiJobOutcome =
+  | "missing"
+  | "done_already"
+  | "no_model"
+  | "superseded"
+  | "triaged"
+  | "summarized";
 
 export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
   const config = loadConfig(env);
-  // With no key the client is never called: only the ours-last rule runs (see runAiJob).
+  // With no key the client is never called: only the wordless-reply rule runs (see runAiJob).
   const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY ?? null });
   const models = {
     triage: chooseTriageClient({
       provider: config.TRIAGE_PROVIDER,
       typesafeApiKey: config.TYPESAFE_API_KEY,
       jevModel: config.JEV_MODEL,
+      typesafeApiUrl: config.TYPESAFE_API_URL,
       anthropic,
     }),
     summary: anthropic,
@@ -89,46 +100,45 @@ export async function runAiJob(
   const triageEnabled = Boolean(config.TYPESAFE_API_KEY || config.ANTHROPIC_API_KEY);
   const summaryEnabled = Boolean(config.ANTHROPIC_API_KEY);
   const isUs = (address: string) => thread.selfAddresses.has(address.toLowerCase());
-  const latestFromUs = isUs(latest.fromAddress);
   const day = new Date().toISOString().slice(0, 10);
 
   let bucket = thread.triage;
-  // A person's re-sort is final. Without a model only the ours-last rule can file a thread, and
-  // `triage` short-circuits it without a call.
-  if (thread.triageSource !== "person" && (triageEnabled || latestFromUs)) {
-    const result = await triage(models.triage, {
-      from: { name: latest.fromName, address: latest.fromAddress },
-      subject: latest.subject,
-      latestText: latest.cleanText,
-      latestFromUs,
-      messageCount: thread.messages.length,
-      repliedBefore: thread.messages.slice(0, -1).some((m) => isUs(m.fromAddress)),
-      earlierMessages: thread.messages.slice(0, -1).map((m) => ({
-        from: m.fromAddress,
-        fromUs: isUs(m.fromAddress),
-        text: m.cleanText,
-      })),
-    });
-    await addAiUsage(db, thread.orgId, day, result.usage);
-    // Lanes are derived on read: below the auto-file confidence a thread shows in Unsure.
-    await saveTriage(db, thread.id, { bucket: result.bucket, confidence: result.confidence });
-    bucket = result.bucket;
+  let triaged = false;
+  // The triage describes the latest message. Already done for it (a redelivery, or a retry after
+  // the summary failed): reuse it. A newer message, from either side, re-triages, even a thread a
+  // person re-sorted. Without a model only the wordless-reply rule can file a thread.
+  if (thread.triageMessageId !== latest.id) {
+    const input = triageInputFor(thread.messages, isUs);
+    const result = triageEnabled ? await triage(models.triage, input) : triageByRule(input);
+    if (result) {
+      await addAiUsage(db, thread.orgId, day, result.usage);
+      // Lanes are derived on read: below the auto-file confidence a thread shows in Unsure.
+      const saved = await saveTriage(db, thread.id, {
+        bucket: result.bucket,
+        confidence: result.confidence,
+        messageId: latest.id,
+      });
+      if (!saved) return "superseded";
+      bucket = result.bucket;
+      triaged = true;
+    }
   }
   if (!bucket) return "no_model";
+  const nothingNew = triaged ? "triaged" : "done_already";
 
   // Noise never gets a summary, so the job is complete.
   if (bucket === "noise") {
     await saveSummary(db, thread.id, { summary: null, messageId: latest.id });
     return "triaged";
   }
-  if (!summaryEnabled) return "triaged";
+  if (!summaryEnabled) return nothingNew;
 
   const decision = shouldSummarize({
     bucket,
     usage: await getAiUsage(db, thread.orgId, day),
     dailyTokenCap: config.AI_DAILY_TOKEN_CAP,
   });
-  if (!decision.run) return "triaged";
+  if (!decision.run) return nothingNew;
 
   const summary = await summarize(models.summary, {
     subject: latest.subject,

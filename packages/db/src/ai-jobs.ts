@@ -1,8 +1,11 @@
 // Reads and writes for the Worker's AI queue consumer: trusted background code, not
 // member-scoped. Every write is idempotent and none overrides a person's decision.
-import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, notExists, or, sql, type Column } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "./client.ts";
 import { aiUsage, mailboxes, messages, threads } from "./schema/index.ts";
+
+const isDistinctFrom = (column: Column, value: string) => sql`${column} is distinct from ${value}`;
 
 /** A thread with its messages oldest first and every address that counts as "us" in its org. */
 export async function loadThreadForAi(db: Db, threadId: string) {
@@ -13,6 +16,7 @@ export async function loadThreadForAi(db: Db, threadId: string) {
       mailboxId: threads.mailboxId,
       triage: threads.triage,
       triageSource: threads.triageSource,
+      triageMessageId: threads.triageMessageId,
       summaryMessageId: threads.summaryMessageId,
     })
     .from(threads)
@@ -44,24 +48,51 @@ export async function loadThreadForAi(db: Db, threadId: string) {
   };
 }
 
-/** Files the thread. A person's re-sort (`triage_source = 'person'`) always wins. */
+/**
+ * Files the thread on the triage of `messageId`. Writes nothing (returns false) when that message
+ * is no longer the thread's latest, so a slow job can't overwrite the triage of a newer message,
+ * or when a person re-sorted the thread on this same message: a re-sort holds until new mail.
+ */
 export async function saveTriage(
   db: Db,
   threadId: string,
-  result: { bucket: NonNullable<typeof threads.$inferSelect.triage>; confidence: number },
+  result: {
+    bucket: NonNullable<typeof threads.$inferSelect.triage>;
+    confidence: number;
+    messageId: string;
+  },
 ) {
+  const triaged = alias(messages, "triaged");
   const rows = await db
     .update(threads)
     .set({
       triage: result.bucket,
       triageConfidence: result.confidence,
       triageSource: "ai",
+      triageMessageId: result.messageId,
       updatedAt: new Date(),
     })
     .where(
       and(
         eq(threads.id, threadId),
-        or(isNull(threads.triageSource), eq(threads.triageSource, "ai")),
+        or(
+          isNull(threads.triageSource),
+          eq(threads.triageSource, "ai"),
+          isDistinctFrom(threads.triageMessageId, result.messageId),
+        ),
+        // Same order as `loadThreadForAi`: nothing in the thread sorts after `messageId`.
+        notExists(
+          db
+            .select({ id: messages.id })
+            .from(messages)
+            .innerJoin(triaged, eq(triaged.id, result.messageId))
+            .where(
+              and(
+                eq(messages.threadId, threadId),
+                sql`(${messages.sentAt}, ${messages.id}) > (${triaged.sentAt}, ${triaged.id})`,
+              ),
+            ),
+        ),
       ),
     )
     .returning({ id: threads.id });

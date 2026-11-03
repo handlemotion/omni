@@ -73,9 +73,8 @@ possible later, as an option on top of this. It is not part of this change.
 ## Consequences
 
 - **Any newer message reopens the thread, including your own reply** (once the Sent copy is
-  indexed) and a teammate's reply on a shared mailbox. A reopened thread whose latest message is
-  ours is triaged `waiting_on_them`, so it shows in that lane. If "send and mark done" is wanted,
-  the client marks done after the reply arrives.
+  indexed) and a teammate's reply on a shared mailbox. If "send and mark done" is wanted, the
+  client marks done after the reply arrives.
 - **Timestamps, not message ids.** `last_message_at` is the newest `Date` header in the thread.
   A message dated at or before the newest one the member had seen (a wrong sender clock, or two
   messages in the same second, since `Date` has one-second precision) does not reopen the thread.

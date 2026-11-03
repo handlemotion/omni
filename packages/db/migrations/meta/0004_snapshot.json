@@ -1,5 +1,5 @@
 {
-  "id": "20611a43-1b96-4ffb-9df6-3b7f28380833",
+  "id": "9c8abb22-93f1-47d9-a7dd-06627d75628b",
   "prevId": "a34d5156-9806-4b24-9c6c-1f511cd92777",
   "version": "7",
   "dialect": "postgresql",
@@ -2080,12 +2080,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "done_through": {
-          "name": "done_through",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp with time zone",
@@ -2208,6 +2202,12 @@
           "name": "triage_source",
           "type": "triage_source",
           "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "triage_message_id": {
+          "name": "triage_message_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -2365,33 +2365,6 @@
           "method": "btree",
           "with": {}
         },
-        "threads_mailbox_all_page_idx": {
-          "name": "threads_mailbox_all_page_idx",
-          "columns": [
-            {
-              "expression": "mailbox_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "last_message_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "first"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "first"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "threads_mailbox_subject_key_idx": {
           "name": "threads_mailbox_subject_key_idx",
           "columns": [
@@ -2437,6 +2410,19 @@
         }
       },
       "foreignKeys": {
+        "threads_triage_message_id_messages_id_fk": {
+          "name": "threads_triage_message_id_messages_id_fk",
+          "tableFrom": "threads",
+          "tableTo": "messages",
+          "columnsFrom": [
+            "triage_message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "threads_summary_message_id_messages_id_fk": {
           "name": "threads_summary_message_id_messages_id_fk",
           "tableFrom": "threads",

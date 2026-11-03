@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { decide, TRIAGE_TABLE, type Judgments } from "./decide.ts";
+import {
+  decide,
+  decideSent,
+  SENT_TABLE,
+  TRIAGE_TABLE,
+  type Judgments,
+  type SentJudgments,
+} from "./decide.ts";
 import { laneFor } from "./policy.ts";
-import { JUDGMENTS } from "./questions.ts";
+import { JUDGMENTS, SENT_JUDGMENTS } from "./questions.ts";
 
 const person: Judgments = {
   expects_reply: 0.05,
@@ -65,5 +72,53 @@ describe("triage truth table", () => {
     expect(decision.bucket).toBe("needs_reply");
     expect(decision.confidence).toBeCloseTo(0.8);
     expect(lane({ ...person, expects_reply: 0.99, bulk: 0.2 })).toBe("unsure");
+  });
+});
+
+describe("reader-sent truth table", () => {
+  const sent = (judgments: SentJudgments) => laneFor({ ...decideSent(judgments), source: "ai" });
+  const closer: SentJudgments = {
+    reader_asks_question: 0.03,
+    reader_requests_action: 0.04,
+    sent_by_system: 0.02,
+  };
+
+  it("gives every settled combination a row, and never says needs_reply", () => {
+    for (let mask = 0; mask < 2 ** SENT_JUDGMENTS.length; mask++) {
+      const judgments = Object.fromEntries(
+        SENT_JUDGMENTS.map((j, i) => [j, mask & (1 << i) ? 0.95 : 0.05]),
+      ) as SentJudgments;
+      const { row, bucket } = decideSent(judgments);
+      expect(SENT_TABLE[row as number]?.bucket).toBe(bucket);
+      expect(bucket).not.toBe("needs_reply");
+    }
+  });
+
+  it.each([
+    ["a closer that asks nothing", {}, "fyi"],
+    ["a question", { reader_asks_question: 0.95 }, "waiting_on_them"],
+    ["a request with no question mark", { reader_requests_action: 0.93 }, "waiting_on_them"],
+    // Asking either way is enough; the other judgment being unsure doesn't matter.
+    [
+      "a question beside an unsure request",
+      { reader_asks_question: 0.9, reader_requests_action: 0.5 },
+      "waiting_on_them",
+    ],
+    ["an unsure ask", { reader_asks_question: 0.55 }, "unsure"],
+    ["a sign-in link an app sent", { reader_requests_action: 0.95, sent_by_system: 0.97 }, "fyi"],
+    [
+      "an ask that may be app-sent",
+      { reader_requests_action: 0.95, sent_by_system: 0.5 },
+      "unsure",
+    ],
+  ] as const)("files %s", (_, overrides, lane) => {
+    expect(sent({ ...closer, ...overrides })).toBe(lane);
+  });
+
+  it("files a closer only as surely as its least-sure 'no'", () => {
+    expect(
+      decideSent({ reader_asks_question: 0.02, reader_requests_action: 0.2, sent_by_system: 0.01 })
+        .confidence,
+    ).toBeCloseTo(0.8);
   });
 });
