@@ -23,6 +23,7 @@
     "@omni/mail-core": "workspace:*",
     "aws4fetch": "1.0.20",
     "drizzle-orm": "^0.45.4",
+    "effect": "4.1.2",
     "hono": "^4.13.14",
     "imapflow": "^2.10.0",
     "nodemailer": "^10.3.1",

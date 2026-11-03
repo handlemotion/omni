@@ -214,6 +214,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@cloudflare/workers-types@5.20261030.1)(@opentelemetry/api@1.10.0)(kysely@0.29.7)(postgres@4.0.0)
+      effect:
+        specifier: 4.1.2
+        version: 4.1.2
       hono:
         specifier: ^4.13.14
         version: 4.13.14
@@ -2907,6 +2910,9 @@ packages:
         optional: true
       sqlite3:
         optional: true
+
+  effect@4.1.2:
+    resolution: {integrity: sha512-d3Oah1WyKxFLFh19yWheS5IXIVaITzxZ71JkE1rkUozq/6EcJSU5nPk5bF2QrSygZ3SQoiNQB8TsxFriyMeMaQ==}
 
   electron-to-chromium@1.5.470:
     resolution: {integrity: sha512-omO9daK1eC5K0AFhIYtCcKsxm1erRC/SNr9I1RtPZrgdcR5KdAkPT8jtaoPgNhMsUf/zcslmDev4T7KqiDEa9w==}
@@ -5923,6 +5929,8 @@ snapshots:
       '@opentelemetry/api': 1.10.0
       kysely: 0.29.7
       postgres: 4.0.0
+
+  effect@4.1.2: {}
 
   electron-to-chromium@1.5.470: {}
 
