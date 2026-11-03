@@ -23,11 +23,19 @@ export interface RealtimeOptions {
   maxDelayMs?: number;
   /** How often to ping. A ping unanswered by the next one counts as a dead socket. */
   pingIntervalMs?: number;
+  /** How long `wake()` waits for its ping's answer before it counts the socket as dead. */
+  probeTimeoutMs?: number;
 }
 
 export interface Realtime {
   /** Stops reconnecting and closes the socket. Call on sign-out. */
   close(): void;
+  /**
+   * The network may be back, or the app is in front again after a while (browser `online`,
+   * `visibilitychange`, React Native `AppState` "active"). A socket waiting out its backoff
+   * reconnects now; an open one is pinged and dropped if it does not answer in time.
+   */
+  wake(): void;
 }
 
 /**
@@ -40,6 +48,7 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
     minDelayMs = 500,
     maxDelayMs = 30_000,
     pingIntervalMs = 25_000,
+    probeTimeoutMs = 5_000,
     openSocket = (url) => new WebSocket(url),
   } = options;
   const url = new URL("/api/realtime", options.baseUrl);
@@ -51,6 +60,9 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
   let stopped = false;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let pingTimer: ReturnType<typeof setInterval> | undefined;
+  let probeTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Pings the open socket now; set while one is open. */
+  let probe: (() => void) | undefined;
 
   const connect = () => {
     options.onStatus?.("connecting", { reconnected: everOpened });
@@ -62,7 +74,9 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
     const drop = () => {
       if (socket !== current) return;
       socket = undefined;
+      probe = undefined;
       clearInterval(pingTimer);
+      clearTimeout(probeTimer);
       try {
         current.close();
       } catch {
@@ -84,12 +98,20 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
         awaitingPong = true;
         current.send("ping");
       }, pingIntervalMs);
+      probe = () => {
+        if (awaitingPong) return;
+        awaitingPong = true;
+        current.send("ping");
+        clearTimeout(probeTimer);
+        probeTimer = setTimeout(() => awaitingPong && drop(), probeTimeoutMs);
+      };
       options.onStatus?.("open", { reconnected });
     });
     current.addEventListener("message", (message) => {
       if (socket !== current || typeof message.data !== "string") return;
       if (message.data === "pong") {
         awaitingPong = false;
+        clearTimeout(probeTimer);
         return;
       }
       const event = parseEvent(message.data);
@@ -106,9 +128,19 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
       clearTimeout(retryTimer);
       const current = socket;
       socket = undefined;
+      probe = undefined;
       clearInterval(pingTimer);
+      clearTimeout(probeTimer);
       current?.close(1000);
       if (current) options.onStatus?.("closed", { reconnected: everOpened });
+    },
+    wake() {
+      if (stopped) return;
+      if (socket) return probe?.();
+      // Waiting out the backoff: the reason to wait may be gone, so try now and start over.
+      clearTimeout(retryTimer);
+      attempt = 0;
+      connect();
     },
   };
 }

@@ -1,7 +1,7 @@
 // Mail service writers for IMAP sync: folders, sync positions, message locations, mailboxes and
 // outbox bookkeeping. Like `writers.ts`, only trusted background code calls these, and each one
 // is idempotent so a repeated sync step converges.
-import { and, desc, eq, gte, inArray, ne, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, ne, notInArray, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import {
   mailActions,
@@ -11,6 +11,7 @@ import {
   members,
   messageLocations,
   messages,
+  threadState,
   threads,
   users,
 } from "./schema/index.ts";
@@ -179,6 +180,31 @@ export async function threadsByMessageIds(db: Db, mailboxId: string, messageIds:
 }
 
 /**
+ * Thread of the newest stored message that names any of `messageIds` in its In-Reply-To or
+ * References: a reply that arrived before this message, or a sibling with the same parent. Pass
+ * the new message's own Message-ID and its reply ids.
+ */
+export async function threadReferencing(db: Db, mailboxId: string, messageIds: string[]) {
+  if (messageIds.length === 0) return null;
+  const ids = sql`array[${sql.join(
+    messageIds.map((id) => sql`${id}`),
+    sql`, `,
+  )}]::text[]`;
+  const [row] = await db
+    .select({ threadId: messages.threadId })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.mailboxId, mailboxId),
+        sql`(${messages.inReplyTo} = any(${ids}) or ${messages.references} && ${ids})`,
+      ),
+    )
+    .orderBy(desc(messages.sentAt))
+    .limit(1);
+  return row?.threadId ?? null;
+}
+
+/**
  * Recent threads with this subject key and every address on their messages, for subject
  * threading. `since` bounds the scan; the threading rule applies its own window on top.
  */
@@ -263,6 +289,7 @@ export async function addLocation(
       .update(messages)
       .set({ folderId: input.folderId, imapUid: input.uid, updatedAt: new Date() })
       .where(eq(messages.id, input.messageId));
+    await reconcileThreads(tx, sql`${input.messageId}`);
     return true;
   });
 }
@@ -284,15 +311,24 @@ export async function setLocationFlags(
       modseq: c.modseq?.toString() ?? null,
     })),
   );
-  await db.execute(sql`
-    update ${messageLocations} l set
-      flags = c.flags,
-      modseq = c.modseq,
-      updated_at = now()
-    from ${mailboxFolders} f,
-      jsonb_to_recordset(${changes}::text::jsonb) as c(uid bigint, flags text[], modseq bigint)
-    where f.mailbox_id = ${input.mailboxId} and f.path = ${input.path}
-      and l.folder_id = f.id and l.imap_uid = c.uid`);
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`
+      update ${messageLocations} l set
+        flags = c.flags,
+        modseq = c.modseq,
+        updated_at = now()
+      from ${mailboxFolders} f,
+        jsonb_to_recordset(${changes}::text::jsonb) as c(uid bigint, flags text[], modseq bigint)
+      where f.mailbox_id = ${input.mailboxId} and f.path = ${input.path}
+        and l.folder_id = f.id and l.imap_uid = c.uid`);
+    await reconcileThreads(
+      tx,
+      sql`select l.message_id from ${messageLocations} l
+        join ${mailboxFolders} f on f.id = l.folder_id,
+        jsonb_to_recordset(${changes}::text::jsonb) as c(uid bigint)
+        where f.mailbox_id = ${input.mailboxId} and f.path = ${input.path} and l.imap_uid = c.uid`,
+    );
+  });
 }
 
 /**
@@ -338,7 +374,50 @@ export async function removeLocations(
         )}) and m2.folder_id = ${folder.id}
       ) l
       where m.id = l.id`);
+    await reconcileThreads(
+      tx,
+      sql.join(
+        ids.map((id) => sql`${id}`),
+        sql`, `,
+      ),
+    );
   });
+}
+
+/**
+ * Brings the threads of these messages (`messageIds`: a list of ids or a query selecting them) in line with where their IMAP copies are and how they
+ * are flagged, so that state set in Omni, in Apple Mail, or by a full re-sync all end up the same
+ * (spec, "Sync rules"):
+ *
+ * - Archived: a copy in INBOX means not archived; otherwise a copy in the archive folder means
+ *   archived. A thread with neither (Sent only, another folder, or mid-move) keeps its state.
+ * - Read, on personal mailboxes only: read when every copy has `\Seen`, for every member with
+ *   access. Shared mailboxes keep read per person in Postgres and never look at `\Seen`.
+ */
+async function reconcileThreads(db: Pick<Db, "execute">, messageIds: SQL) {
+  const summary = sql`
+    select m.thread_id,
+      bool_or(f.role = 'inbox') as in_inbox,
+      bool_or(f.role = 'archive') as in_archive,
+      bool_and(${"\\Seen"}::text = any(l.flags)) as seen
+    from ${messages} m
+    join ${messageLocations} l on l.message_id = m.id
+    join ${mailboxFolders} f on f.id = l.folder_id
+    where m.thread_id in (select thread_id from ${messages} where id in (${messageIds}))
+    group by m.thread_id`;
+  await db.execute(sql`
+    update ${threads} t set archived = not s.in_inbox, updated_at = now()
+    from (${summary}) s
+    where t.id = s.thread_id and (s.in_inbox or s.in_archive) and t.archived = s.in_inbox`);
+  await db.execute(sql`
+    insert into ${threadState} (org_id, thread_id, member_id, read)
+    select t.org_id, t.id, a.member_id, s.seen
+    from (${summary}) s
+    join ${threads} t on t.id = s.thread_id
+    join ${mailboxes} mb on mb.id = t.mailbox_id and mb.kind = 'personal'
+    join ${mailboxAccess} a on a.mailbox_id = t.mailbox_id
+    on conflict (thread_id, member_id) do update set read = excluded.read, updated_at = now()
+    where ${threadState}.read is distinct from excluded.read`);
 }
 
 /** Marks the folder for a full re-sync: no sync position and no stored copies. */

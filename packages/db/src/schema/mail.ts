@@ -302,6 +302,10 @@ export const messages = pgTable(
     unique("messages_mailbox_id_message_id_header_unique").on(t.mailboxId, t.messageIdHeader),
     index("messages_thread_id_sent_at_idx").on(t.threadId, t.sentAt),
     index("messages_search_vector_idx").using("gin", t.searchVector),
+    // Threading asks which stored messages reply to a new one, for every message that starts a
+    // thread; without these an import scans the mailbox once per message.
+    index("messages_mailbox_id_in_reply_to_idx").on(t.mailboxId, t.inReplyTo),
+    index("messages_references_idx").using("gin", t.references),
     // Search walks each mailbox newest first when a term is common, instead of ranking every hit.
     index("messages_mailbox_id_sent_at_idx").on(
       t.mailboxId,

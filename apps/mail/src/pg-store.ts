@@ -26,6 +26,7 @@ import {
   schema,
   setLocationFlags,
   subjectThreadCandidates,
+  threadReferencing,
   threadsByMessageIds,
   upsertMessage,
 } from "@omni/db";
@@ -262,6 +263,11 @@ export class PgMailStore implements MailStore {
       (id): id is string => id !== null,
     );
     const knownMessageIds = await threadsByMessageIds(this.db, mailboxId, replyIds);
+    // No known parent: a stored reply to this message (or to its parent) may have come first.
+    const relatedThreadId =
+      knownMessageIds.size === 0
+        ? await threadReferencing(this.db, mailboxId, [message.messageId, ...replyIds])
+        : null;
     const subjectKey = normalizeSubject(message.subject);
     const candidates =
       replyIds.length === 0 && subjectKey !== ""
@@ -273,7 +279,7 @@ export class PgMailStore implements MailStore {
         : [];
     const decision = decideThread(
       { ...message, sentAt },
-      { knownMessageIds, candidates, selfAddresses: [mailbox.address] },
+      { knownMessageIds, candidates, selfAddresses: [mailbox.address], relatedThreadId },
     );
     if (decision.kind !== "new") return decision.threadId;
     return createThread(this.db, {

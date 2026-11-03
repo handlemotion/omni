@@ -18,6 +18,7 @@ import {
   IconWarning,
 } from "@/components/icons/sidebar";
 import { Avatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import {
@@ -33,6 +34,7 @@ import {
   SidebarSection,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { useConnectivity } from "@/hooks/use-connectivity.ts";
 import {
   useMember,
   useOrganizations,
@@ -123,6 +125,7 @@ export function AppSidebar() {
           <IconCircleDashed />
           Log Out
         </Button>
+        <OfflineBadge />
         <Button intent="plain" size="sq-xs" aria-label="Help">
           <IconHelp />
         </Button>
@@ -156,6 +159,21 @@ function Items({ items }: { items: NavItem[] }) {
       <SidebarLabel>{item.label}</SidebarLabel>
     </SidebarItem>
   ));
+}
+
+/**
+ * Shown only while the API cannot be reached. Not in the Figma frame: the smallest thing that
+ * says what is going on, from the existing badge and its warning tokens. Actions taken meanwhile
+ * are queued and counted.
+ */
+function OfflineBadge() {
+  const { online, queued } = useConnectivity();
+  if (online) return null;
+  return (
+    <Badge intent="warning" role="status" className="tabular-nums">
+      {queued > 0 ? `Offline · ${queued} queued` : "Offline"}
+    </Badge>
+  );
 }
 
 /** The active organization; the menu switches to another one. */

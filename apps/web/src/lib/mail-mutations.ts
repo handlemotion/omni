@@ -17,9 +17,20 @@ export interface Keyed {
   key: string;
 }
 
-/** Retry only when the request may never have arrived; a 4xx/5xx answer will not change. */
+/**
+ * Retry only when the request may never have arrived; a 4xx/5xx answer will not change. A request
+ * without an answer also marks the app offline (`connectivity.ts`), so the retry waits, paused,
+ * until the API answers again: a send made offline goes out once the connection is back. The cap
+ * only stops a request that fails while everything else gets through.
+ */
 const retry = (failureCount: number, error: Error) =>
-  error instanceof ApiError && error.status === 0 && failureCount < 3;
+  error instanceof ApiError && error.status === 0 && failureCount < 10;
+
+/**
+ * Every mail action shares one scope, so they run one at a time in the order they were made:
+ * queued offline, "defer" then "done" still lands in that order when they flush.
+ */
+const scope = { id: "mail-actions" };
 
 const header = (key: string) => ({ "idempotency-key": key });
 
@@ -27,6 +38,7 @@ export const markReadMutation = (client: QueryClient) =>
   mutationOptions({
     mutationKey: [...keys.mail(), "mark-read"],
     retry,
+    scope,
     mutationFn: ({ threadId, read, key }: Keyed & { threadId: string; read: boolean }) =>
       call(
         api.threads[":id"].state.$patch({
@@ -49,6 +61,7 @@ export const deferMutation = (client: QueryClient) =>
   mutationOptions({
     mutationKey: [...keys.mail(), "defer"],
     retry,
+    scope,
     mutationFn: ({ threadId, until, key }: Keyed & { threadId: string; until: Date | null }) =>
       until
         ? call(
@@ -84,6 +97,7 @@ export const doneMutation = (client: QueryClient) =>
   mutationOptions({
     mutationKey: [...keys.mail(), "done"],
     retry,
+    scope,
     mutationFn: ({ threadId, through, key }: Keyed & { threadId: string; through: string }) =>
       call(
         api.threads[":id"].done.$post({
@@ -107,6 +121,7 @@ export const undoneMutation = (client: QueryClient) =>
   mutationOptions({
     mutationKey: [...keys.mail(), "undone"],
     retry,
+    scope,
     mutationFn: ({ threadId, key }: Keyed & { threadId: string }) =>
       call(api.threads[":id"].done.$delete({ param: { id: threadId }, header: header(key) })),
     onMutate: async ({ threadId }) => {
@@ -123,6 +138,7 @@ export const archiveMutation = (client: QueryClient) =>
   mutationOptions({
     mutationKey: [...keys.mail(), "archive"],
     retry,
+    scope,
     mutationFn: ({ threadId, key }: Keyed & { threadId: string }) =>
       call(api.threads[":id"].archive.$post({ param: { id: threadId }, header: header(key) })),
     onMutate: async ({ threadId }) => {
@@ -140,6 +156,7 @@ export const moveMutation = (client: QueryClient) =>
   mutationOptions({
     mutationKey: [...keys.mail(), "move"],
     retry,
+    scope,
     mutationFn: ({
       threadId,
       destination,
@@ -170,6 +187,7 @@ export const replyMutation = (client: QueryClient) =>
   mutationOptions({
     mutationKey: [...keys.mail(), "reply"],
     retry,
+    scope,
     mutationFn: ({ threadId, text, html, replyAll = false, key }: ReplyVariables) =>
       call(
         api.threads[":id"].reply.$post({
@@ -220,6 +238,7 @@ export const sendMutation = (client: QueryClient) =>
   mutationOptions({
     mutationKey: [...keys.mail(), "send"],
     retry,
+    scope,
     mutationFn: ({ key, ...json }: SendVariables) =>
       call(api.send.$post({ header: header(key), json })),
     onSuccess: () => client.invalidateQueries({ queryKey: keys.threadLists() }),

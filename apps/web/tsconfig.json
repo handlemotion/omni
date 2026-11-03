@@ -1,7 +1,11 @@
 {
-  // Two projects: the app against the DOM, and the Vite config against Node.
+  // Three projects: the app against the DOM, the Vite config and the e2e suites against Node.
   "files": [],
   // The shadcn CLI reads the import alias from here.
   "compilerOptions": { "paths": { "@/*": ["./src/*"] } },
-  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" },
+    { "path": "./tsconfig.e2e.json" }
+  ]
 }
