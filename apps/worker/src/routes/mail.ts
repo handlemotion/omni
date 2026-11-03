@@ -99,7 +99,7 @@ function notFound(): never {
 }
 
 function pingLater(c: Context<AppEnv>) {
-  c.executionCtx.waitUntil(pingMailService(c.var.config));
+  c.executionCtx.waitUntil(pingMailService(c.var));
 }
 
 /**
@@ -216,6 +216,7 @@ export const mail = new Hono<AppEnv>()
             orgId: found.orgId,
             mailboxId: found.mailboxId,
             memberId: c.var.member.id,
+            requestId: c.var.requestId,
             kind,
             payload: target,
             idempotencyKey: outboxKey(c, key, kind, target.folder),
@@ -300,6 +301,7 @@ export const mail = new Hono<AppEnv>()
         orgId: found.orgId,
         mailboxId: found.mailboxId,
         memberId: c.var.member.id,
+        requestId: c.var.requestId,
         kind: "archive",
         payload: target,
         idempotencyKey: outboxKey(c, key, "archive", target.folder),
@@ -327,6 +329,7 @@ export const mail = new Hono<AppEnv>()
           orgId: found.orgId,
           mailboxId: found.mailboxId,
           memberId: c.var.member.id,
+          requestId: c.var.requestId,
           kind: "move",
           payload: { ...target, destination } satisfies ActionPayload<"move">,
           idempotencyKey: outboxKey(c, key, "move", target.folder),
@@ -352,6 +355,7 @@ export const mail = new Hono<AppEnv>()
         orgId: mailbox.orgId,
         mailboxId: mailbox.id,
         memberId: c.var.member.id,
+        requestId: c.var.requestId,
         kind: "send",
         payload: {
           from: mailbox.address,
@@ -397,6 +401,7 @@ export const mail = new Hono<AppEnv>()
         orgId: found.orgId,
         mailboxId: found.mailboxId,
         memberId: c.var.member.id,
+        requestId: c.var.requestId,
         kind: "send",
         payload: {
           from: found.mailboxAddress,

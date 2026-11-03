@@ -2,13 +2,17 @@ import { existsSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { loadConfig } from "./config.ts";
 import { createLogger } from "./log.ts";
+import { flushErrorReporting, initErrorReporting } from "./sentry.ts";
 import { startService } from "./service.ts";
 
 // A plain `.env` works for self-hosters; variables already set (Doppler, Docker) win over it.
 if (existsSync(".env")) process.loadEnvFile(".env");
 
 const config = loadConfig();
-const log = createLogger(config.LOG_LEVEL);
+// Before anything can fail: Sentry (when SENTRY_DSN is set) sees every `log.error` line.
+const report = initErrorReporting(config);
+const log = createLogger(config.LOG_LEVEL, {}, { report });
+log.info("service.starting", { errorReporting: report ? "sentry" : "off" });
 
 // Loads every mailbox that is not disabled, decrypts its credentials, and resumes each folder
 // from its saved sync position.
@@ -26,7 +30,7 @@ async function shutdown(signal: string) {
   // Container hosts usually SIGKILL 10-30s after SIGTERM; give in-flight work up to 20s.
   const force = setTimeout(() => {
     log.error("shutdown.timeout");
-    process.exit(1);
+    void flushErrorReporting().finally(() => process.exit(1));
   }, 20_000);
   force.unref();
   // Stop accepting, and drop idle keep-alive sockets so `close` does not wait on them.
@@ -34,6 +38,7 @@ async function shutdown(signal: string) {
   if ("closeIdleConnections" in server) server.closeIdleConnections();
   await service.stop();
   log.info("shutdown.done");
+  await flushErrorReporting();
   process.exit(0);
 }
 

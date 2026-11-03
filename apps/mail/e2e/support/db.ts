@@ -122,7 +122,9 @@ export async function asClaimed(db: TestDb, id: string): Promise<MailAction> {
   const row = await actionRow(db, id);
   return {
     id: row.id,
+    orgId: row.orgId,
     mailboxId: row.mailboxId,
+    requestId: row.requestId,
     kind: row.kind,
     payload: row.payload,
     idempotencyKey: row.idempotencyKey,

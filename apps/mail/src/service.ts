@@ -154,13 +154,16 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     logger: log,
   });
 
+  const httpLog = log.child({ component: "http" });
   const app = createApp({
     provisioner,
-    onError: (error) => log.error("http.error", { error }),
+    log: httpLog,
+    onError: (error) => httpLog.error("http.error", { error }),
     verify: hmacVerifier(config.MAIL_SERVICE_HMAC_SECRET, {
-      onReject: (reason) => log.warn("http.ping_rejected", { reason }),
+      onReject: (reason) => httpLog.warn("http.ping_rejected", { reason }),
     }),
-    onPing: () => {
+    onPing: ({ requestId }) => {
+      httpLog.info("outbox.pinged", { requestId });
       // A ping means the Worker changed something: new actions, or a mailbox added.
       void reconcileMailboxes()
         .catch((error: unknown) => log.error("mailbox.reconcile_failed", { error }))

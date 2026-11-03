@@ -64,13 +64,13 @@ function fromMailService(error: unknown): never {
 
 /** Adds the domain at the provider if needed, re-checks its DNS, and records the claim. */
 async function refreshDomain(c: Context<AppEnv>, domain: string) {
-  const { db, config, member } = c.var;
+  const { db, member } = c.var;
   const owner = await mailDomainOwner(db, domain);
   if (owner && owner !== member.orgId) {
     throw new HTTPException(409, { message: `${domain} is already set up by another workspace` });
   }
   const result = await callMailService(
-    config,
+    c.var,
     PROVISION_DOMAIN_PATH,
     { domain },
     provisionDomainResultSchema,
@@ -186,7 +186,7 @@ export const onboarding = new Hono<AppEnv>()
     requireDomainAdmin,
     zValidator("json", mailboxBody),
     async (c) => {
-      const { db, config, member, user } = c.var;
+      const { db, member, user } = c.var;
       const body = c.req.valid("json");
       const domain = await findMemberDomain(db, member.id, body.domainId);
       if (!domain) throw new HTTPException(404, { message: "no such domain" });
@@ -227,7 +227,7 @@ export const onboarding = new Hono<AppEnv>()
       }
 
       const result = await callMailService(
-        config,
+        c.var,
         PROVISION_MAILBOX_PATH,
         {
           orgId: member.orgId,
