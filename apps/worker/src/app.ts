@@ -1,3 +1,4 @@
+import { orgSetupStep } from "@omni/db";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { requestScope, requireMember, type AppEnv } from "./context.ts";
@@ -6,7 +7,9 @@ import { MEMBER_HEADER } from "./realtime.ts";
 import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
 import { mail } from "./routes/mail.ts";
+import { mailboxMembers } from "./routes/mailbox-members.ts";
 import { onboarding } from "./routes/onboarding.ts";
+import { workspaces } from "./routes/workspaces.ts";
 
 function allowedOrigins(config: Config) {
   return new Set([new URL(config.auth.baseURL).origin, ...config.auth.trustedOrigins]);
@@ -14,7 +17,10 @@ function allowedOrigins(config: Config) {
 
 const api = new Hono<AppEnv>()
   .use(requireMember)
-  .get("/me", (c) => c.json(c.var.member))
+  /** The member in the active org, with how far that org's setup got (route guards read it). */
+  .get("/me", async (c) =>
+    c.json({ ...c.var.member, setup: await orgSetupStep(c.var.db, c.var.member.orgId) }),
+  )
   /** Websocket of `{ type: "changed", mailboxId, threadIds }` events for this member. */
   .get("/realtime", async (c) => {
     if (c.req.header("upgrade") !== "websocket") {
@@ -35,6 +41,7 @@ const api = new Hono<AppEnv>()
     return stub.fetch(new Request(c.req.raw, { headers }));
   })
   .route("/", mail)
+  .route("/", mailboxMembers)
   .route("/", assets);
 
 export const app = new Hono<AppEnv>()
@@ -44,8 +51,9 @@ export const app = new Hono<AppEnv>()
   /** Public: which sign-in buttons the login page shows. Google needs its OAuth client set. */
   .get("/api/sign-in-methods", (c) => c.json({ google: c.var.config.auth.google !== undefined }))
   .on(["GET", "POST"], "/api/auth/*", (c) => c.var.auth.handler(c.req.raw))
-  // Before `api`: its first route works for a user who has no organization yet.
+  // Before `api`: these work for a user who has no organization yet.
   .route("/api/onboarding", onboarding)
+  .route("/api/workspaces", workspaces)
   .route("/api", api)
   .onError((error, c) => {
     if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);

@@ -16,6 +16,10 @@ export type {
   ThreadSummary,
   RealtimeEvent,
   RealtimeStatus,
+  SetupStep,
+  Workspace,
+  WorkspaceMailbox,
+  Workspaces,
 } from "@omni/client";
 
 type ThreadListQuery = InferRequestType<Api["threads"]["$get"]>["query"];

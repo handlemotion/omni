@@ -49,7 +49,8 @@ export const markReadMutation = (client: QueryClient) =>
       ),
     onMutate: async ({ threadId, read }) => {
       const snapshot = await snapshotThread(client, threadId);
-      patchThread(client, threadId, { read });
+      // List rows carry `unread` as well as `read`; patch both so the dot goes at once.
+      patchThread(client, threadId, { read, unread: !read });
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),

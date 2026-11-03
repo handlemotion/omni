@@ -211,7 +211,10 @@ test("replies written offline go out once each, in order, when the connection is
       .where(and(eq(schema.mailActions.memberId, ana.id), eq(schema.mailActions.kind, "send")))
       .orderBy(asc(schema.mailActions.createdAt), asc(schema.mailActions.id));
   await expect.poll(async () => (await sends()).length, { timeout: 30_000 }).toBe(2);
-  await page.getByRole("status").waitFor({ state: "detached", timeout: 30_000 });
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Offline" })
+    .waitFor({ state: "detached", timeout: 30_000 });
   // The first reply was sent again after its answer was lost, under the same key.
   expect(replyRequests).toBe(3);
   const queued = await sends();

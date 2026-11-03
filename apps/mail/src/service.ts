@@ -2,6 +2,7 @@
 // `main.ts` runs it as a process; e2e suites run it in-process against the real local stack.
 import { createDb, listServiceMailboxes, setMailboxStatus } from "@omni/db";
 import { sql } from "drizzle-orm";
+import { Effect, Fiber } from "effect";
 import type { Hono } from "hono";
 import type { Config } from "./config.ts";
 import { openCredentials } from "./credentials.ts";
@@ -13,6 +14,7 @@ import { PgActionSource, PgMailStore } from "./pg-store.ts";
 import { createPurelymailClient } from "./providers/purelymail.ts";
 import { createProvisioner } from "./provisioning.ts";
 import { Supervisor } from "./supervisor.ts";
+import { every } from "./timing.ts";
 
 export type ServiceConfig = Pick<
   Config,
@@ -133,12 +135,10 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
 
   supervisor.start();
   await reconcileMailboxes();
-  const timer = setInterval(
-    () =>
-      void reconcileMailboxes().catch((error: unknown) =>
-        log.error("mailbox.reconcile_failed", { error }),
-      ),
-    config.SYNC_INTERVAL_MS,
+  const reconcileLoop = every(config.SYNC_INTERVAL_MS, () =>
+    reconcileMailboxes().catch((error: unknown) =>
+      log.error("mailbox.reconcile_failed", { error }),
+    ),
   );
 
   const provisioner = createProvisioner({
@@ -202,7 +202,7 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     reconcileMailboxes,
     stop: async () => {
       stopping = true;
-      clearInterval(timer);
+      await Effect.runPromise(Fiber.interrupt(reconcileLoop));
       await reconciling?.catch(() => {});
       await supervisor.stop();
       await notifier.stop();

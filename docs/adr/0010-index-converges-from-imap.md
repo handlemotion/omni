@@ -1,4 +1,4 @@
-# 0008: The index converges from IMAP alone
+# 0010: The index converges from IMAP alone
 
 Date: 2026-11-03 · Status: accepted · Amends: spec v1 "Grouping messages into threads", "Sync rules"
 
