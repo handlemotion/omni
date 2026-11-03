@@ -1,3 +1,4 @@
+import { CheckIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
 import { Button } from "react-aria-components/Button";
 import { cn } from "cn";
@@ -37,7 +38,14 @@ export function CopyField(props: { label: string; value: string; className?: str
           <span className="truncate">{props.value}</span>
         </span>
       </Button>
-      <Tooltip inverse arrow={false} offset={8} placement="end" className="px-2 py-1 text-xs">
+      <Tooltip
+        inverse
+        arrow={false}
+        offset={8}
+        placement="end"
+        className="flex items-center gap-1 px-1.5 py-1 text-xs"
+      >
+        {copied && <CheckIcon aria-hidden className="size-3" />}
         {copied ? "Copied" : "Click to copy"}
       </Tooltip>
     </TooltipTrigger>
