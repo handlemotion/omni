@@ -5,6 +5,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { loadConfig, type Config } from "./env.ts";
+import type { Logger } from "./log.ts";
 import { pingMailService } from "./mail-service.ts";
 
 export interface Member {
@@ -17,7 +18,16 @@ export interface Member {
 
 export interface AppEnv {
   Bindings: Env;
-  Variables: { config: Config; db: Db; auth: Auth; member: Member; user: SessionUser };
+  Variables: {
+    config: Config;
+    db: Db;
+    auth: Auth;
+    member: Member;
+    user: SessionUser;
+    /** This request's ID (`x-request-id`), on every log line, outbox row and mail-service call. */
+    requestId: string;
+    log: Logger;
+  };
 }
 
 /**
@@ -122,7 +132,10 @@ export const requireMember = createMiddleware<AppEnv>(async (c, next) => {
  * mailbox at `SYSTEM_MAIL_FROM`, so it gets the mail service's retries and idempotency for free.
  */
 function systemMailSender(
-  c: { executionCtx: { waitUntil(promise: Promise<unknown>): void } },
+  c: {
+    executionCtx: { waitUntil(promise: Promise<unknown>): void };
+    var: { requestId: string; log: Logger };
+  },
   db: Db,
   config: Config,
 ) {
@@ -140,6 +153,7 @@ function systemMailSender(
       memberId: null,
       kind: "send",
       idempotencyKey: message.idempotencyKey,
+      requestId: c.var.requestId,
       payload: {
         from: mailbox.address,
         to: [message.to],
@@ -147,7 +161,9 @@ function systemMailSender(
         text: message.text,
       } satisfies SendPayload,
     });
-    c.executionCtx.waitUntil(pingMailService(config));
+    c.executionCtx.waitUntil(
+      pingMailService({ config, requestId: c.var.requestId, log: c.var.log }),
+    );
   };
 }
 

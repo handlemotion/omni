@@ -3,13 +3,17 @@ import { serve } from "@hono/node-server";
 import { Effect, Option } from "effect";
 import { loadConfig } from "./config.ts";
 import { createLogger } from "./log.ts";
+import { flushErrorReporting, initErrorReporting } from "./sentry.ts";
 import { startService } from "./service.ts";
 
 // A plain `.env` works for self-hosters; variables already set (Doppler, Docker) win over it.
 if (existsSync(".env")) process.loadEnvFile(".env");
 
 const config = loadConfig();
-const log = createLogger(config.LOG_LEVEL);
+// Before anything can fail: Sentry (when SENTRY_DSN is set) sees every `log.error` line.
+const report = initErrorReporting(config);
+const log = createLogger(config.LOG_LEVEL, {}, { report });
+log.info("service.starting", { errorReporting: report ? "sentry" : "off" });
 
 // Loads every mailbox that is not disabled, decrypts its credentials, and resumes each folder
 // from its saved sync position.
@@ -46,11 +50,12 @@ let stopping = false;
 function onSignal(signal: string) {
   if (stopping) return;
   stopping = true;
+  // Error reports still queued go out before the process exits, either way.
   void Effect.runPromise(shutdown(signal)).then(
-    (code) => process.exit(code),
+    (code) => flushErrorReporting().finally(() => process.exit(code)),
     (error: unknown) => {
       log.error("shutdown.failed", { error });
-      process.exit(1);
+      void flushErrorReporting().finally(() => process.exit(1));
     },
   );
 }

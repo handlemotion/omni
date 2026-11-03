@@ -1,0 +1,11 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test:e2e": {
+      // Both suites start `wrangler dev`, whose build step rewrites this app's `dist/`. Run after
+      // the Worker's suite so one build never empties `dist/` under the other's open page.
+      "dependsOn": ["@omni/worker#test:e2e"]
+    }
+  }
+}

@@ -307,6 +307,7 @@ export interface FailedAction {
   mailboxId: string;
   memberId: string | null;
   error: string;
+  requestId: string | null;
 }
 
 export class PgActionSource implements ActionSource {
@@ -337,7 +338,9 @@ export class PgActionSource implements ActionSource {
       }
       claimed.push({
         id: row.id,
+        orgId: row.orgId,
         mailboxId: row.mailboxId,
+        requestId: row.requestId,
         kind: row.kind,
         payload: payload.data,
         idempotencyKey: row.idempotencyKey,
@@ -359,8 +362,8 @@ export class PgActionSource implements ActionSource {
   async fail(actionId: string, error: string, retryAt: Date | null): Promise<void> {
     const row = await rescheduleAction(this.db, actionId, error, retryAt);
     if (row?.status === "failed") {
-      const { id, orgId, mailboxId, memberId } = row;
-      this.onFailed?.({ actionId: id, orgId, mailboxId, memberId, error });
+      const { id, orgId, mailboxId, memberId, requestId } = row;
+      this.onFailed?.({ actionId: id, orgId, mailboxId, memberId, error, requestId });
     }
   }
 

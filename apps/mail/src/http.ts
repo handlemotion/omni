@@ -5,9 +5,16 @@ import {
   provisionDomainBodySchema,
   provisionMailboxBodySchema,
 } from "@omni/contracts";
-import { DEFAULT_MAX_AGE_SECONDS, verifyRequest } from "@omni/crypto";
+import {
+  DEFAULT_MAX_AGE_SECONDS,
+  isValidRequestId,
+  REQUEST_ID_HEADER,
+  verifyRequest,
+} from "@omni/crypto";
 import { type Context, Hono } from "hono";
+import { routePath } from "hono/route";
 import type { z } from "zod";
+import type { Logger } from "./log.ts";
 import { ProvisionError, type Provisioner } from "./provisioning.ts";
 
 /** Decides whether a request really came from the Worker. */
@@ -56,8 +63,13 @@ export function hmacVerifier(
 
 export interface HttpDeps {
   verify: RequestVerifier;
-  /** The Worker wrote to `mail_actions`: run the outbox now instead of at the next poll. */
-  onPing(): void;
+  /**
+   * The Worker wrote to `mail_actions`: run the outbox now instead of at the next poll.
+   * `requestId` is the Worker request that pinged, when it sent one.
+   */
+  onPing(trace: { requestId: string | null }): void;
+  /** One `http.request` line per request. */
+  log?: Logger;
   /** `ok: false` answers 503, so a host stops routing to (or fails the deploy of) this machine. */
   health(): Promise<{ ok: boolean } & Record<string, unknown>>;
   /** Onboarding's domain and mailbox setup. Absent: those routes answer 404. */
@@ -68,6 +80,23 @@ export interface HttpDeps {
 export function createApp(deps: HttpDeps): Hono {
   const app = new Hono();
 
+  // The Worker's request ID rides `x-omni-request-id`, covered by the HMAC signature: on signed
+  // routes it is trustworthy once `verify` passed (a forged or stripped one fails verification).
+  // Logs carry the route pattern, never bodies.
+  app.use(async (c, next) => {
+    const started = Date.now();
+    await next();
+    if (c.req.path === "/health" && c.res.ok) return;
+    deps.log?.info("http.request", {
+      method: c.req.method,
+      route: routePath(c, -1),
+      status: c.res.status,
+      durationMs: Date.now() - started,
+      // A refused request's ID is unverified: whoever sent it chose it.
+      requestId: c.res.status === 401 ? null : requestIdOf(c),
+    });
+  });
+
   app.get("/health", async (c) => {
     const health = await deps.health();
     return c.json(health, health.ok ? 200 : 503);
@@ -75,7 +104,7 @@ export function createApp(deps: HttpDeps): Hono {
 
   app.post(MAIL_PING_PATH, async (c) => {
     if (!(await deps.verify(c.req.raw))) return c.json({ error: "unauthorized" }, 401);
-    deps.onPing();
+    deps.onPing({ requestId: requestIdOf(c) });
     return c.json({ ok: true }, 202);
   });
 
@@ -111,4 +140,10 @@ export function createApp(deps: HttpDeps): Hono {
   });
 
   return app;
+}
+
+/** The signed request ID; only meaningful after `verify` passed. */
+function requestIdOf(c: Context): string | null {
+  const value = c.req.header(REQUEST_ID_HEADER);
+  return value && isValidRequestId(value) ? value : null;
 }

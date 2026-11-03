@@ -3,11 +3,12 @@
 import { createApi, createAuth } from "@omni/client";
 import { DetailedError, parseResponse, type ClientResponse } from "hono/client";
 import { reportAnswer, reportNoAnswer } from "./connectivity.ts";
+import { tracedFetch } from "./telemetry.ts";
 
 const origin = window.location.origin;
 
 /** Typed Hono RPC calls: `api.threads.$get({ query })`. Prefer `call()` to unwrap them. */
-export const api = createApi({ baseUrl: origin });
+export const api = createApi({ baseUrl: origin, fetch: tracedFetch });
 
 /** Better Auth's client: magic link, passkeys, organizations. */
 export const auth = createAuth({ baseUrl: origin });

@@ -459,6 +459,7 @@ export async function rescheduleAction(db: Db, id: string, error: string, retryA
       mailboxId: mailActions.mailboxId,
       memberId: mailActions.memberId,
       status: mailActions.status,
+      requestId: mailActions.requestId,
     });
   return rows[0] ?? null;
 }

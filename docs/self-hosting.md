@@ -79,6 +79,8 @@ UID-list diffs and polling. On every connect it logs the server's capabilities
 | `OUTBOX_INTERVAL_MS`       | no       | `30000`            | Outbox poll interval when no ping arrives.                      |
 | `MAILBOX_CONCURRENCY`      | no       | `4`                | Mailboxes connecting or syncing at once.                        |
 | `PURELYMAIL_API_TOKEN`     | no       |                    | Purelymail admin API token. Unset: onboarding uses IMAP logins. |
+| `SENTRY_DSN`               | no       |                    | Sentry DSN. Unset keeps error reporting off.                    |
+| `SENTRY_ENVIRONMENT`       | no       | `production`       | Sentry environment tag.                                         |
 
 Generate the secrets with `openssl rand -hex 32` and `echo "k1:$(openssl rand -base64 32)"`.
 Keep `MAIL_CREDENTIALS_KEY` only on the mail service. To rotate it, put the new key first
@@ -215,13 +217,13 @@ every name and id there is a neutral default to replace with your own.
 
 Bindings:
 
-| Binding        | Kind                    | Setup                                                                                                                                                                |
-| -------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HYPERDRIVE`   | Hyperdrive              | `wrangler hyperdrive create omni --connection-string=postgres://...`, then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres. |
-| `MAIL_BUCKET`  | R2                      | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker only reads attachments from it.                      |
-| `AI_QUEUE`     | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes, failed jobs land in the DLQ after `max_retries`.        |
-| `REPLAY_GUARD` | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                    |
-| `REALTIME`     | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                     |
+| Binding        | Kind                    | Setup                                                                                                                                                                                                                                                                                                                |
+| -------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HYPERDRIVE`   | Hyperdrive              | `wrangler hyperdrive create omni --connection-string=postgres://...`, then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres.                                                                                                                                                 |
+| `MAIL_BUCKET`  | R2                      | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker only reads attachments from it.                                                                                                                                                                      |
+| `AI_QUEUE`     | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes both. Failed jobs land in the DLQ after `max_retries`, and the Worker's DLQ consumer records them in `dead_letters` (see [Observability](#observability)). A DLQ is the source queue's name plus `-dlq`. |
+| `REPLAY_GUARD` | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                                                                                                                                                                    |
+| `REALTIME`     | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                                                                                                                                                                     |
 
 Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashboard values on
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
@@ -240,7 +242,7 @@ to `.dev.vars`.
 | `MAIL_SERVICE_URL`         | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                              |
 | `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                                                                                                                               |
 | `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links and invitations. Empty disables them.                                                                                       |
-| `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off.                                                                                                                                                         |
+| `SENTRY_DSN`               | var    | no       | Empty keeps Sentry off. Its environment tag is `ENVIRONMENT`.                                                                                                                   |
 | `ANTHROPIC_API_KEY`        | secret | no       | Summaries, and triage when Jev is off. Without any AI key threads stay unsorted (a wordless reply of yours still files as FYI).                                                 |
 | `TYPESAFE_API_KEY`         | secret | no       | Triage on TypeSafe's Jev; summaries stay on Claude.                                                                                                                             |
 | `TRIAGE_PROVIDER`          | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                                                                              |
@@ -292,3 +294,45 @@ origin (so magic links land on Vite), then Vite, which forwards `/api` to the Wo
 pnpm --filter @omni/worker dev --var BETTER_AUTH_URL:http://localhost:5173
 pnpm --filter @omni/web dev         # http://localhost:5173
 ```
+
+## Web app build (`apps/web`)
+
+Built by Wrangler with the Worker; it needs no config. Optional build-time variables, documented
+in `apps/web/.env.example` and validated by `vite.config.ts`:
+
+| Variable                  | Required | Notes                                                                                   |
+| ------------------------- | -------- | --------------------------------------------------------------------------------------- |
+| `VITE_SENTRY_DSN`         | no       | Sentry DSN for the browser. Unset keeps error reporting off. Ships in the bundle.       |
+| `VITE_SENTRY_ENVIRONMENT` | no       | Sentry environment tag; defaults to `production`.                                       |
+| `SENTRY_AUTH_TOKEN`       | no       | Secret. With `SENTRY_ORG` and `SENTRY_PROJECT`, the build uploads source maps to Sentry |
+| `SENTRY_ORG`              | no       | and deletes them from `dist/`. Without all three the maps stay in the build and are     |
+| `SENTRY_PROJECT`          | no       | served next to the bundle.                                                              |
+
+## Observability
+
+All three units are observable without any extra service; Sentry is optional everywhere.
+
+- **Logs** are JSON lines: `time`, `level`, `event`, and where they apply `component`,
+  `requestId`, `orgId`, `durationMs` and ids. Never message content, addresses or credentials;
+  request lines carry the route pattern (`/api/threads/:id/reply`), not the URL. The Worker's go
+  to Workers Logs (`observability` in `wrangler.jsonc`); the mail service's go to stdout.
+- **Request IDs.** Every request gets one: the caller's `x-request-id` when it is 8-128 URL-safe
+  characters (the web app sends a UUID per call), else a fresh one, echoed on the response. The
+  Worker passes it to the mail service as `x-omni-request-id`, covered by the HMAC signature (a
+  forged or stripped ID fails verification), and stores it on `mail_actions.request_id` and on
+  AI queue jobs. Search either unit's logs for it to follow one action across processes.
+- **Sentry** (`SENTRY_DSN`, `VITE_SENTRY_DSN`): errors only. The SDKs collect no headers,
+  cookies, bodies, query strings or user info, and every event and breadcrumb is scrubbed of mail
+  content, addresses and credentials before it leaves (`packages/mail-core/src/telemetry.ts`).
+  Events are tagged with the request ID.
+- **Dead letters**: AI jobs that used up their retries (`dead_letters`, written by the Worker's
+  consumers) and outbox actions that failed for good (`mail_actions` with status `failed`), with
+  their error and request ID, in one listing:
+
+```bash
+pnpm --filter @omni/mail dead-letters [--org <org id>] [--since 24h] [--limit 50] [--json]
+# In the mail service's container image: node dist/dead-letters.js --since 24h
+```
+
+It needs `DATABASE_URL` and reads every org, so run it as an operator. It prints ids, errors and
+request IDs, never payloads.
