@@ -219,6 +219,7 @@ Bindings:
 | `AI_QUEUE`     | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes, failed jobs land in the DLQ after `max_retries`.        |
 | `REPLAY_GUARD` | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                    |
 | `REALTIME`     | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                     |
+| `RATE_LIMITER` | Durable Object (SQLite) | Created by the `v2` migration. One per rate-limit key (hashed); counts hits in a window, then clears itself. See [Rate limits](#rate-limits).                        |
 
 Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashboard values on
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
@@ -249,6 +250,8 @@ to `.dev.vars`.
 | `IMAGE_PROXY_DOH_URL`      | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                      |
 | `ENVIRONMENT`              | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`. |
 
+| `RATE_LIMIT_*` | var | no | Rate limits, `<count>/<seconds>` or `off`. See [Rate limits](#rate-limits). |
+
 Magic links and invitations are sent through the outbox: the Worker writes a `send` action for
 the `SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be
 connected like any other. Locally, `ENVIRONMENT=development` (the `.dev.vars.example` default)
@@ -267,6 +270,34 @@ no account and no pending invitation is sent back to `/login?error=SIGN_UP_REQUI
 A Google account whose email matches an existing user signs in as that user only once that
 user's email is verified (any magic-link sign-in verifies it); until then the callback returns
 `?error=account_not_linked`.
+
+#### Rate limits
+
+The Worker limits the routes that send mail, call the mail service, or let someone guess at
+sign-in, in the `RATE_LIMITER` Durable Object (one instance per key, so counts are exact). Each
+is a var of the form `<count>/<seconds>`; `off` disables it, empty means the default. Over a
+limit the Worker answers `429` with `Retry-After`. Per-IP limits key on `CF-Connecting-IP`,
+which Cloudflare sets and clients cannot.
+
+| Variable                | Default    | Counts                                                                                                            |
+| ----------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| `RATE_LIMIT_AUTH`       | `60/60`    | Per IP: every sign-in step (magic link and its link, passkey options and verify, Google). Session reads are free. |
+| `RATE_LIMIT_MAGIC_LINK` | `5/900`    | Per email address: magic-link requests, so nobody can flood an inbox from your no-reply mailbox.                  |
+| `RATE_LIMIT_INVITE`     | `30/3600`  | Per inviting user: invitations sent or resent.                                                                    |
+| `RATE_LIMIT_SEARCH`     | `60/60`    | Per member: searches.                                                                                             |
+| `RATE_LIMIT_SEND`       | `100/3600` | Per member: new mail and replies.                                                                                 |
+| `RATE_LIMIT_ACTIONS`    | `300/60`   | Per member: other writes that reach IMAP (read state, archive, move).                                             |
+| `RATE_LIMIT_PROVISION`  | `30/3600`  | Per member: onboarding calls to the mail service (add a domain, check DNS, create a mailbox).                     |
+
+#### Security headers
+
+Every response carries HSTS (two years, subdomains included), `X-Content-Type-Options: nosniff`
+and a Permissions-Policy that turns off unused browser features (passkeys stay on). The web
+app's files get them from `apps/web/public/_headers`, which Cloudflare applies to static assets,
+with a CSP that loads scripts, frames and connections only from your own origin. Worker answers
+get them from `apps/worker/src/security-headers.ts`, with a deny-all CSP unless the route sets
+its own (message HTML is sandboxed with scripts off). Serve Omni over HTTPS only: HSTS makes
+browsers refuse plain http on that host for two years.
 
 The mail service reports new and changed mail with a signed `POST /internal/mail-events`
 (timestamp and nonce required; replays are rejected). Expose `/internal/*` only to it.

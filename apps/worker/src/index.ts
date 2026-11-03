@@ -4,6 +4,7 @@ import { consumeAiQueue, type AiJob } from "./queue.ts";
 
 export type { AppType } from "./app.ts";
 export { Realtime } from "./realtime.ts";
+export { RateLimiter } from "./rate-limiter.ts";
 export { ReplayGuard } from "./replay-guard.ts";
 
 // Sentry stays off unless SENTRY_DSN is set.

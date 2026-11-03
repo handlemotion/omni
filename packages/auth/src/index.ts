@@ -175,6 +175,9 @@ export function createAuth(env: AuthEnv) {
     account: { modelName: "accounts" },
     verification: { modelName: "verifications" },
     advanced: { database: { generateId: () => uuidv7() } },
+    // Off: its default store is per-process memory (per isolate on Workers) and it keys on
+    // spoofable forwarding headers. The Worker rate-limits every auth route itself.
+    rateLimit: { enabled: false },
     databaseHooks: {
       user: {
         create: {

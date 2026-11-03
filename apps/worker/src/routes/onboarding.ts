@@ -29,6 +29,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { requireMember, resolveSession, type AppEnv } from "../context.ts";
 import { callMailService, MailServiceError } from "../mail-service.ts";
+import { limitPerMember } from "../rate-limiter.ts";
 
 /** What the onboarding screen shows for a domain. */
 function domainView(row: MailDomain, addError?: string) {
@@ -163,6 +164,7 @@ export const onboarding = new Hono<AppEnv>()
     "/domains",
     requireMember,
     requireDomainAdmin,
+    limitPerMember("provision"),
     zValidator("json", z.object({ domain: z.string().min(1).max(300) })),
     async (c) => {
       const domain = normalizeDomain(c.req.valid("json").domain);
@@ -171,11 +173,17 @@ export const onboarding = new Hono<AppEnv>()
     },
   )
   /** Re-checks a domain's DNS (and adds it at the provider once its ownership record is in). */
-  .post("/domains/:id/check", requireMember, requireDomainAdmin, async (c) => {
-    const row = await findMemberDomain(c.var.db, c.var.member.id, c.req.param("id"));
-    if (!row) throw new HTTPException(404, { message: "no such domain" });
-    return c.json(await refreshDomain(c, row.domain));
-  })
+  .post(
+    "/domains/:id/check",
+    requireMember,
+    requireDomainAdmin,
+    limitPerMember("provision"),
+    async (c) => {
+      const row = await findMemberDomain(c.var.db, c.var.member.id, c.req.param("id"));
+      if (!row) throw new HTTPException(404, { message: "no such domain" });
+      return c.json(await refreshDomain(c, row.domain));
+    },
+  )
   /**
    * Creates one mailbox on a domain of the active org and starts syncing it. The creator gets an
    * owner grant. Idempotent per address: a repeat returns the same mailbox.
@@ -184,6 +192,7 @@ export const onboarding = new Hono<AppEnv>()
     "/mailboxes",
     requireMember,
     requireDomainAdmin,
+    limitPerMember("provision"),
     zValidator("json", mailboxBody),
     async (c) => {
       const { db, config, member, user } = c.var;
