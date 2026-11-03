@@ -82,6 +82,30 @@ export function signInWithMagicLink(email: string, redirect?: string) {
   );
 }
 
+/** Which sign-in methods this deployment offers beyond email and passkeys. */
+export const signInMethodsQuery = () =>
+  queryOptions({
+    queryKey: keys.signInMethods(),
+    queryFn: ({ signal }) => call(api["sign-in-methods"].$get(undefined, { init: { signal } })),
+    // Server config: it changes only on a redeploy.
+    staleTime: Infinity,
+  });
+
+/**
+ * Leaves for Google's consent screen; Google returns through the Worker to `redirect` (a
+ * same-origin path) or the inbox. A refused sign-in (no invitation, cancelled consent) comes back
+ * to `/login?error=<code>`.
+ */
+export function signInWithGoogle(redirect?: string) {
+  return authCall(
+    auth.signIn.social({
+      provider: "google",
+      callbackURL: safeRedirect(redirect),
+      errorCallbackURL: "/login",
+    }),
+  );
+}
+
 export function signInWithPasskey() {
   return authCall(auth.signIn.passkey());
 }

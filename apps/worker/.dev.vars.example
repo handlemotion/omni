@@ -17,6 +17,12 @@ APP_NAME=Omni
 # Optional. Web app origin; invitation emails link to <WEB_APP_URL>/invite/<id>. Defaults to
 # BETTER_AUTH_URL (the Worker serves the web app on the same origin). Locally, Vite's origin.
 WEB_APP_URL=http://localhost:5173
+# Optional. Google OAuth client ("Web application" type, Google Cloud console). Set both to show
+# "Sign in with Google"; leave both empty to hide it. Authorized redirect URI:
+# <BETTER_AUTH_URL>/api/auth/callback/google. Sign-up still needs an invitation.
+GOOGLE_CLIENT_ID=
+# Secret.
+GOOGLE_CLIENT_SECRET=
 
 # --- Mail service ---
 # Base URL of apps/mail. The Worker pings it after writing to the outbox.

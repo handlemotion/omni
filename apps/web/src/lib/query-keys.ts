@@ -1,7 +1,7 @@
 // Every query key in the app, in one tree, so invalidation can target a branch:
 //
 //   omni
-//   ├─ session · device-sessions
+//   ├─ session · device-sessions · sign-in-methods
 //   ├─ org ─ organizations · members · invitations · invitation(id) · passkeys
 //   ├─ mail ─ mailboxes · counts · threads(filter) · thread(id) · search(q) · action(id)
 //   └─ local ─ pending(threadId) · failures       (client-only state, never fetched)
@@ -28,6 +28,7 @@ export const keys = {
   root,
   session: () => [...root, "session"] as const,
   deviceSessions: () => [...root, "device-sessions"] as const,
+  signInMethods: () => [...root, "sign-in-methods"] as const,
 
   org: () => org,
   organizations: () => [...org, "organizations"] as const,

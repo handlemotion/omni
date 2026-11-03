@@ -7,7 +7,10 @@ const optionalId = z.string().min(1).optional().catch(undefined);
 
 export const loginSearch = z.object({
   redirect: z.string().optional().catch(undefined),
-  /** `magic_link` (expired or used link) or `no_organization` (signed in, no membership). */
+  /**
+   * `magic_link` (expired or used link), `no_organization` (signed in, no membership), or a
+   * Better Auth OAuth code from Google sign-in (`SIGN_UP_REQUIRES_INVITATION`, `access_denied`).
+   */
   error: z.string().optional().catch(undefined),
 });
 

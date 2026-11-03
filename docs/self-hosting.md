@@ -49,6 +49,8 @@ Filled in per unit: see each unit's `.env.example`.
 | `AUTH_TRUSTED_ORIGINS` | Worker (auth)                   | no       | Comma-separated web/app origins allowed to call auth.                   |
 | `AUTH_PASSKEY_RP_ID`   | Worker (auth)                   | no       | WebAuthn relying party ID; defaults to the `BETTER_AUTH_URL` host.      |
 | `APP_NAME`             | Worker (auth)                   | no       | Shown in passkey prompts; defaults to `Omni`.                           |
+| `GOOGLE_CLIENT_ID`     | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on sign-in with Google.              |
+| `GOOGLE_CLIENT_SECRET` | Worker (auth)                   | no       | Secret. Set together with `GOOGLE_CLIENT_ID`, or neither.               |
 
 ### Mail service (`apps/mail`)
 
@@ -203,6 +205,8 @@ to `.dev.vars`.
 | `AUTH_PASSKEY_RP_ID`       | var    | no       | WebAuthn relying party ID.                                                                                                                                                      |
 | `APP_NAME`                 | var    | no       | Defaults to `Omni`.                                                                                                                                                             |
 | `WEB_APP_URL`              | var    | no       | Web app origin; invitation emails link to `<WEB_APP_URL>/invite/<id>`. Defaults to `BETTER_AUTH_URL`.                                                                           |
+| `GOOGLE_CLIENT_ID`         | var    | no       | Google OAuth client ID. With `GOOGLE_CLIENT_SECRET`, the login page shows "Using Google". See [Sign in with Google](#sign-in-with-google).                                      |
+| `GOOGLE_CLIENT_SECRET`     | secret | no       | Google OAuth client secret. Set both or neither; one alone stops the Worker from starting.                                                                                      |
 | `MAIL_SERVICE_URL`         | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                              |
 | `MAIL_SERVICE_HMAC_SECRET` | secret | yes      | Same value as the mail service's.                                                                                                                                               |
 | `SYSTEM_MAIL_FROM`         | var    | no       | Address of a mailbox in Omni that sends magic links and invitations. Empty disables them.                                                                                       |
@@ -223,6 +227,18 @@ connected like any other. Locally, `ENVIRONMENT=development` (the `.dev.vars.exa
 also prints each link to the `wrangler dev` console as `{"event":"auth.dev_link",...}`, so you
 can sign in without opening GreenMail. Those URLs sign you in: never set `development` in
 production.
+
+#### Sign in with Google
+
+Optional. In the Google Cloud console, create an OAuth client of type "Web application" with
+the authorized redirect URI `<BETTER_AUTH_URL>/api/auth/callback/google` (locally, with Vite,
+`http://localhost:5173/api/auth/callback/google`). Set `GOOGLE_CLIENT_ID` as a var and
+`GOOGLE_CLIENT_SECRET` as a secret. The login page asks `GET /api/sign-in-methods` and shows the
+button only when both are set. Sign-up stays invitation-only: a Google account whose email has
+no account and no pending invitation is sent back to `/login?error=SIGN_UP_REQUIRES_INVITATION`.
+A Google account whose email matches an existing user signs in as that user only once that
+user's email is verified (any magic-link sign-in verifies it); until then the callback returns
+`?error=account_not_linked`.
 
 The mail service reports new and changed mail with a signed `POST /internal/mail-events`
 (timestamp and nonce required; replays are rejected). Expose `/internal/*` only to it.
