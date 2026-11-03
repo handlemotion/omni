@@ -6,6 +6,7 @@ import { MEMBER_HEADER } from "./realtime.ts";
 import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
 import { mail } from "./routes/mail.ts";
+import { mailboxMembers } from "./routes/mailbox-members.ts";
 import { onboarding } from "./routes/onboarding.ts";
 
 function allowedOrigins(config: Config) {
@@ -35,6 +36,7 @@ const api = new Hono<AppEnv>()
     return stub.fetch(new Request(c.req.raw, { headers }));
   })
   .route("/", mail)
+  .route("/", mailboxMembers)
   .route("/", assets);
 
 export const app = new Hono<AppEnv>()
