@@ -1,13 +1,12 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Command, defaultFilter } from "cmdk";
+import { useGlimm } from "glimm/react";
+import { motion } from "motion/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Autocomplete } from "react-aria-components/Autocomplete";
 import { Button } from "react-aria-components/Button";
-import { Header } from "react-aria-components/Header";
-import { Input } from "react-aria-components/Input";
-import { Menu, MenuItem, MenuSection } from "react-aria-components/Menu";
 import { Popover } from "react-aria-components/Popover";
-import { SearchField } from "react-aria-components/SearchField";
 import {
   IconBubble,
   IconBubbleAnnotation,
@@ -19,87 +18,86 @@ import {
   IconWrite,
 } from "@/components/icons/sidebar";
 import { Keyboard } from "@/components/ui/keyboard";
-import { useSearch } from "@/hooks/use-mail.ts";
+import { Loader } from "@/components/ui/loader";
+import { useThreads } from "@/hooks/use-mail.ts";
+import { searchQuery } from "@/lib/mail-queries.ts";
+import { senderLabel } from "@/lib/threads.ts";
 
-// Search and commands in one popover anchored to the title-bar field (Vercel's Find as the
-// reference): focusing it dims the app and opens the list attached to the field, not centered.
-// "/" or ⌘K opens it from anywhere. Mail results come from `useSearch`; ranking lives in the API.
+// Commands and recent threads in one popover anchored to the title-bar field (Vercel's Find as the
+// reference): opening it dims the app and grows the field into the panel, not a centered window.
+// "/" or ⌘K opens it from anywhere. Typing filters fuzzily in the browser (cmdk); "Smart search"
+// asks the server and shows its results in the main list, at `/search?q=`.
 
 interface Command {
   id: string;
   title: string;
-  subtitle: string;
   icon: ReactNode;
   href: string;
 }
 
 const COMMANDS: Command[] = [
-  {
-    id: "compose",
-    title: "Compose",
-    subtitle: "New message",
-    icon: <IconWrite />,
-    href: "/compose",
-  },
-  {
-    id: "inbox",
-    title: "Inbox",
-    subtitle: "Mail to attend to",
-    icon: <IconInbox />,
-    href: "/inbox",
-  },
-  { id: "queue", title: "Queue", subtitle: "Deferred mail", icon: <IconClock />, href: "/queue" },
+  { id: "compose", title: "Compose", icon: <IconWrite />, href: "/compose" },
+  { id: "inbox", title: "Inbox", icon: <IconInbox />, href: "/inbox" },
+  { id: "queue", title: "Queue", icon: <IconClock />, href: "/queue" },
   {
     id: "needs-reply",
     title: "Needs reply",
-    subtitle: "Waiting on you",
     icon: <IconBubble />,
     href: "/inbox?lane=needs_reply",
   },
   {
     id: "awaiting-reply",
     title: "Awaiting reply",
-    subtitle: "Waiting on them",
     icon: <IconBubbleAnnotation />,
     href: "/inbox?lane=waiting_on_them",
   },
-  { id: "all", title: "All mail", subtitle: "Every thread", icon: <IconEmail />, href: "/all" },
-  {
-    id: "settings",
-    title: "Settings",
-    subtitle: "Workspace",
-    icon: <IconSettings />,
-    href: "/settings",
-  },
+  { id: "all", title: "All mail", icon: <IconEmail />, href: "/all" },
+  { id: "settings", title: "Settings", icon: <IconSettings />, href: "/settings" },
 ];
 
-/** The closed state: a 32px field in the title bar. */
+// The panel grows out of the field: it's anchored to the field's top-right corner, so the closed
+// state is the panel clipped to the field's 240×32 rectangle at that corner.
+const FIELD = { width: 240, height: 32, radius: 6 };
+const clip = {
+  closed: `inset(0px 0px calc(100% - ${FIELD.height}px) calc(100% - ${FIELD.width}px) round ${FIELD.radius}px)`,
+  open: "inset(0px 0px 0px 0px round 8px)",
+};
+const ease = [0.2, 0, 0, 1] as const;
+
+type Phase = "closed" | "open" | "closing";
+
+/** The closed state is a 32px field in the title bar. */
 export function SearchPopover() {
-  const [open, setOpen] = useState(false);
+  const [phase, setPhase] = useState<Phase>("closed");
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const open = () => setPhase("open");
+  const close = () => setPhase((p) => (p === "closed" ? p : "closing"));
 
   // "/" (outside text fields) and ⌘K / Ctrl+K open it from anywhere.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const typing = target?.closest("input, textarea, [contenteditable=true]");
+      const typing =
+        event.target instanceof Element &&
+        event.target.closest("input, textarea, [contenteditable=true]");
       if (
         (event.key === "k" && (event.metaKey || event.ctrlKey)) ||
         (event.key === "/" && !typing)
       ) {
         event.preventDefault();
-        setOpen(true);
+        open();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const isOpen = phase === "open";
+
   return (
     <>
       <Button
         ref={triggerRef}
-        onPress={() => setOpen(true)}
+        onPress={open}
         aria-label="Search"
         className="flex h-8 w-60 cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 pe-1.5 text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70"
       >
@@ -107,156 +105,176 @@ export function SearchPopover() {
         <span className="flex-1 text-start">Search</span>
         <Keyboard>/</Keyboard>
       </Button>
-      {open &&
+      {phase !== "closed" &&
         createPortal(
-          // Dims the app behind the popover; a click on it closes the popover (outside click).
-          <div aria-hidden className="fixed inset-0 z-40 bg-foreground/10" />,
+          <motion.div
+            aria-hidden
+            className="fixed inset-0 z-40 bg-foreground/10"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: isOpen ? 1 : 0 }}
+            transition={{ duration: 0.2, ease }}
+          />,
           document.body,
         )}
       <Popover
         triggerRef={triggerRef}
-        isOpen={open}
-        onOpenChange={setOpen}
+        isOpen={phase !== "closed"}
+        onOpenChange={(next) => (next ? open() : close())}
         placement="bottom end"
         // Opens over the field itself: its top edge sits where the field's top edge is.
-        offset={-32}
-        className="z-50 w-100 overflow-hidden rounded-xl border border-border bg-background shadow-lg outline-hidden"
+        offset={-FIELD.height}
+        className="z-50 outline-hidden"
       >
-        <SearchPanel onClose={() => setOpen(false)} />
+        <motion.div
+          className="w-100 overflow-hidden rounded-xl border border-border bg-background shadow-lg"
+          initial={{ clipPath: clip.closed }}
+          animate={{ clipPath: isOpen ? clip.open : clip.closed }}
+          transition={{ duration: 0.24, ease }}
+          onAnimationComplete={() => phase === "closing" && setPhase("closed")}
+        >
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: isOpen ? 1 : 0 }}
+            transition={{ duration: isOpen ? 0.18 : 0.1, delay: isOpen ? 0.06 : 0, ease }}
+          >
+            <SearchPanel onClose={close} />
+          </motion.div>
+        </motion.div>
       </Popover>
     </>
   );
 }
 
+// Seven rows: the empty state's commands fill the list exactly, so it never changes height while
+// typing; more results scroll.
+const LIST_HEIGHT = "h-90";
+
+// Rows match on their keywords (title, sender), not on their value, which is just a unique id.
+// Smart search always matches: it searches the server for whatever was typed.
+const SMART = "smart-search";
+const filter = (value: string, search: string, keywords?: string[]) =>
+  value === SMART ? 1 : defaultFilter("", search, keywords);
+
 function SearchPanel({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { sweep } = useGlimm();
+  const { threads } = useThreads({ view: "inbox" });
   const [q, setQ] = useState("");
-  const query = useDebounced(q.trim(), 150);
-  const { data: hits } = useSearch(query);
+  const [searching, setSearching] = useState(false);
+  const query = q.trim();
 
-  // One row per thread; the API returns one per matching message.
-  const threads = useMemo(() => {
-    if (!query) return [];
-    const seen = new Set<string>();
-    return (hits ?? [])
-      .filter((hit) => !seen.has(hit.threadId) && seen.add(hit.threadId))
-      .slice(0, 6);
-  }, [hits, query]);
-
-  const commands = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return needle ? COMMANDS.filter((c) => c.title.toLowerCase().includes(needle)) : COMMANDS;
-  }, [q]);
-
-  const go = (href: string) => {
+  const go = (to: () => unknown) => {
     onClose();
-    void router.navigate({ href });
+    void to();
+  };
+
+  // Loads the results first, so the sweep reveals a full list rather than a loading one.
+  const smartSearch = async () => {
+    if (!query || searching) return;
+    setSearching(true);
+    try {
+      await queryClient.fetchQuery(searchQuery(query));
+    } finally {
+      setSearching(false);
+    }
+    onClose();
+    sweep(() => navigate({ to: "/search", search: { q: query } }));
   };
 
   return (
-    <Autocomplete inputValue={q} onInputChange={setQ}>
-      <SearchField
-        aria-label="Search mail or jump to"
-        autoFocus
-        onSubmit={(value) =>
-          value.trim() && (onClose(), void navigate({ to: "/search", search: { q: value.trim() } }))
-        }
-        className="flex h-12 items-center gap-2.5 border-b border-border px-3"
-      >
+    <Command label="Search" loop filter={filter} className="outline-hidden">
+      <div className="flex h-12 items-center gap-3 border-b border-border ps-4.5 pe-3">
         <IconSearch className="shrink-0 text-muted-foreground" />
-        <Input
+        <Command.Input
+          autoFocus
+          value={q}
+          onValueChange={setQ}
           placeholder="Search mail or jump to…"
-          className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-hidden placeholder:text-subtle-foreground [&::-webkit-search-cancel-button]:hidden"
+          className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-hidden placeholder:text-subtle-foreground"
         />
         <Keyboard>Esc</Keyboard>
-      </SearchField>
+      </div>
 
-      {/* One fixed height (the empty state, seven commands) so the panel never jumps while typing; more results scroll. */}
-      <Menu
-        aria-label="Results"
-        onAction={(key) => {
-          const id = String(key);
-          if (id === "search-all")
-            return (onClose(), void navigate({ to: "/search", search: { q: q.trim() } }));
-          if (id.startsWith("thread:")) {
-            onClose();
-            return void navigate({
-              to: "/search/$threadId",
-              params: { threadId: id.slice("thread:".length) },
-              search: { q: q.trim() },
-            });
-          }
-          const command = COMMANDS.find((c) => c.id === id);
-          if (command) go(command.href);
-        }}
-        className="flex h-97.5 flex-col gap-0.5 overflow-y-auto p-1.5 outline-hidden"
-      >
-        {q.trim() && (
-          <MenuSection className="flex flex-col gap-0.5">
-            <SectionHeader>Mail</SectionHeader>
+      <Command.List className={`${LIST_HEIGHT} overflow-y-auto p-1.5 outline-hidden`}>
+        {query && (
+          <Command.Group>
             <Row
-              id="search-all"
-              icon={<IconSearch />}
-              title={`Search all mail for “${q.trim()}”`}
-              subtitle="Full results"
+              value={SMART}
+              icon={searching ? <Loader className="size-icon" /> : <IconSearch />}
+              title={`Smart search for “${query}”`}
+              pending={searching}
+              onSelect={() => void smartSearch()}
             />
-            {threads.map((hit) => (
-              <Row
-                key={hit.threadId}
-                id={`thread:${hit.threadId}`}
-                icon={<IconEmail />}
-                title={hit.subject || "(no subject)"}
-                subtitle={`${hit.fromName || hit.fromAddress} · ${formatDate(hit.sentAt)}`}
-              />
-            ))}
-          </MenuSection>
+          </Command.Group>
         )}
-        {commands.length > 0 && (
-          <MenuSection className="flex flex-col gap-0.5">
-            <SectionHeader>Go to</SectionHeader>
-            {commands.map((c) => (
-              <Row key={c.id} id={c.id} icon={c.icon} title={c.title} subtitle={c.subtitle} />
-            ))}
-          </MenuSection>
-        )}
-      </Menu>
-    </Autocomplete>
+        <Command.Group>
+          {COMMANDS.map((c) => (
+            <Row
+              key={c.id}
+              value={`command:${c.id}`}
+              keywords={[c.title]}
+              icon={c.icon}
+              title={c.title}
+              onSelect={() => go(() => router.navigate({ href: c.href }))}
+            />
+          ))}
+          {/* Threads only once there's something to match them against. */}
+          {query &&
+            threads.map((thread) => {
+              const sender = senderLabel(thread);
+              return (
+                <Row
+                  key={thread.id}
+                  value={`thread:${thread.id}`}
+                  keywords={[thread.subject, sender]}
+                  icon={<IconEmail />}
+                  title={thread.subject || "(no subject)"}
+                  detail={sender}
+                  onSelect={() =>
+                    go(() => navigate({ to: "/inbox/$threadId", params: { threadId: thread.id } }))
+                  }
+                />
+              );
+            })}
+        </Command.Group>
+      </Command.List>
+    </Command>
   );
 }
 
-function SectionHeader({ children }: { children: string }) {
-  return <Header className="px-2.5 pt-2 pb-1 text-xs text-subtle-foreground">{children}</Header>;
-}
-
-/** A 48px two-line row: icon, title, and a short line about it. Focus gets the accent fill. */
-function Row(props: { id: string; icon: ReactNode; title: string; subtitle: string }) {
+/**
+ * Every row is 48px, the height of one with a detail line, so the list keeps one rhythm. The
+ * selected row (keyboard or pointer, cmdk keeps one) gets the accent fill and a foreground icon.
+ */
+function Row(props: {
+  value: string;
+  keywords?: string[];
+  icon: ReactNode;
+  title: string;
+  detail?: string;
+  pending?: boolean;
+  onSelect: () => void;
+}) {
   return (
-    <MenuItem
-      id={props.id}
-      textValue={props.title}
-      className="group flex h-12 shrink-0 cursor-default items-center gap-2.5 rounded-lg px-2.5 outline-hidden data-focused:bg-accent"
+    <Command.Item
+      value={props.value}
+      keywords={props.keywords}
+      onSelect={props.onSelect}
+      className="group flex h-12 cursor-default items-center gap-3 rounded-lg px-3 outline-hidden data-[selected=true]:bg-accent"
     >
-      <span className="flex shrink-0 text-muted-foreground group-data-focused:text-foreground">
+      <span className="flex shrink-0 text-muted-foreground group-data-[selected=true]:text-foreground">
         {props.icon}
       </span>
-      <span className="flex min-w-0 flex-col">
-        <span className="truncate text-sm text-foreground">{props.title}</span>
-        <span className="truncate text-xs text-muted-foreground">{props.subtitle}</span>
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className={`truncate text-sm text-foreground ${props.pending ? "shimmer" : ""}`}>
+          {props.title}
+        </span>
+        {props.detail && (
+          <span className="truncate text-xs text-muted-foreground">{props.detail}</span>
+        )}
       </span>
-    </MenuItem>
+    </Command.Item>
   );
-}
-
-function useDebounced<T>(value: T, ms: number) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), ms);
-    return () => clearTimeout(timer);
-  }, [value, ms]);
-  return debounced;
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }

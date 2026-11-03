@@ -16,20 +16,67 @@ import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
 import { useCounts, useThreads } from "@/hooks/use-mail.ts";
+import { senderLabel } from "@/lib/threads.ts";
 import type { ThreadFilter, ThreadSummary } from "@/lib/types.ts";
 
-// Figma: Omni, inbox list (node 15:2), on our tokens: brand blue for the count, checkboxes and
-// unread dot; foreground for unread text, muted for read, subtle for previews.
-export function ThreadList(props: {
+/** What a list row shows. Threads and search results both map to it. */
+export interface ListRow {
+  id: string;
+  sender: string;
+  subject: string;
+  snippet: string;
+  unread: boolean;
+}
+
+interface ListProps {
   title: string;
-  filter: ThreadFilter;
   /** Where a row opens. */
   href: (threadId: string) => string;
   /** The open thread, beside the list. */
   children?: ReactNode;
-}) {
+}
+
+/** One view's threads (inbox, queue, all mail...), loading more as it scrolls. */
+export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
   const { threads, hasNextPage, fetchNextPage, isFetchingNextPage } = useThreads(props.filter);
   const unread = useUnreadCount(props.filter);
+  return (
+    <List
+      {...props}
+      rows={threads.map(toRow)}
+      count={unread}
+      more={
+        hasNextPage && (
+          <LoadMore onVisible={() => void fetchNextPage()} isLoading={isFetchingNextPage} />
+        )
+      }
+    />
+  );
+}
+
+const toRow = (thread: ThreadSummary): ListRow => ({
+  id: thread.id,
+  sender: senderLabel(thread),
+  subject: thread.subject,
+  snippet: thread.snippet,
+  unread: thread.unread,
+});
+
+// Figma: Omni, inbox list (node 15:2), on our tokens: brand blue for the count, checkboxes and
+// unread dot; foreground for unread text, muted for read, subtle for previews.
+export function List(
+  props: ListProps & {
+    rows: ListRow[];
+    /** Shown in brand blue after the title (unread threads), when above zero. */
+    count?: number;
+    /** What the bar above the rows says about their order or scope. */
+    caption?: ReactNode;
+    /** After the last row: loads the next page. */
+    more?: ReactNode;
+  },
+) {
+  const threads = props.rows;
+  const unread = props.count ?? 0;
   const [selected, setSelected] = useState<Selection>(new Set());
   const count = selected === "all" ? threads.length : selected.size;
   const [view, setView] = useViewMode();
@@ -85,7 +132,7 @@ export function ThreadList(props: {
             >
               <Checkbox />
             </CheckboxField>
-            <span className="text-xs text-subtle-foreground">Most recent</span>
+            <span className="text-xs text-subtle-foreground">{props.caption ?? "Most recent"}</span>
           </div>
 
           <GridList
@@ -99,9 +146,7 @@ export function ThreadList(props: {
             {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
           </GridList>
 
-          {hasNextPage && (
-            <LoadMore onVisible={() => void fetchNextPage()} isLoading={isFetchingNextPage} />
-          )}
+          {props.more}
         </section>
         {props.children}
       </div>
@@ -131,8 +176,8 @@ function useViewMode() {
   return [view, set] as const;
 }
 
-function ThreadRow({ thread, href }: { thread: ThreadSummary; href: string }) {
-  const sender = senderLabel(thread);
+function ThreadRow({ thread, href }: { thread: ListRow; href: string }) {
+  const sender = thread.sender;
   return (
     <GridListItem
       id={thread.id}
@@ -160,24 +205,16 @@ function ThreadRow({ thread, href }: { thread: ThreadSummary; href: string }) {
         )}
         <span className="truncate">
           <span className={thread.unread ? "text-foreground" : "text-muted-foreground"}>
-            {thread.subject || "(no subject)"} –
-          </span>{" "}
-          <span className="ms-1.5 text-subtle-foreground">{thread.snippet}</span>
+            {thread.subject || "(no subject)"}
+            {thread.snippet && " –"}
+          </span>
+          {thread.snippet && (
+            <span className="ms-1.5 text-subtle-foreground">{thread.snippet}</span>
+          )}
         </span>
       </span>
     </GridListItem>
   );
-}
-
-/** One sender: their name. Several: first names, in the order they wrote. */
-function senderLabel(thread: ThreadSummary) {
-  const people = thread.participants.length
-    ? thread.participants
-    : thread.latestFrom
-      ? [thread.latestFrom]
-      : [];
-  if (people.length === 1) return people[0]?.name || people[0]?.address || "";
-  return people.map((p) => p.name?.split(" ")[0] || p.address.split("@")[0]).join(", ");
 }
 
 /** Unread threads in the inbox (or one lane of it), across the filtered mailbox(es). */
