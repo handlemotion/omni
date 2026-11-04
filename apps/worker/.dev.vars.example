@@ -19,14 +19,15 @@ APP_NAME=Omni
 WEB_APP_URL=http://localhost:5173
 # Optional. Google OAuth client ("Web application" type, Google Cloud console). Set both to show
 # "Sign in with Google"; leave both empty to hide it. Authorized redirect URI:
-# <BETTER_AUTH_URL>/api/auth/callback/google. Sign-up still needs an invitation.
+# <BETTER_AUTH_URL>/api/auth/callback/google.
 GOOGLE_CLIENT_ID=
 # Secret.
 GOOGLE_CLIENT_SECRET=
-# Optional. Who may create a workspace (organization) in the app's onboarding: "owners" (default:
-# people who already own one; the first comes from `pnpm --filter @omni/db org:create`) or
-# "anyone" signed in. Sign-up stays invitation-only either way.
-ORGANIZATION_CREATION=
+# Optional. Who may sign up (ADR 0018): "open" (default: anyone with a verified email signs up and
+# creates their own workspace in onboarding) or "invitation" (a private install: sign-up needs a
+# pending invitation, and only owners create workspaces; the first comes from
+# `pnpm --filter @omni/db org:create`).
+SIGN_UP=
 
 # --- Mail service ---
 # Base URL of apps/mail. The Worker pings it after writing to the outbox.

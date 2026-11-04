@@ -213,26 +213,52 @@ test("a domain belongs to the workspace that claimed it, and only its owners and
   expect(offDomain.status).toBe(400);
 });
 
-test("by default a signed-in user with no workspace cannot create one", async () => {
-  const email = `loner-${randomUUID().slice(0, 8)}@solo.test`;
-  await stack.database.db.insert(schema.users).values({ id: randomUUID(), name: email, email });
+test("a brand-new sign-up with no invitation creates its own workspace through onboarding", async () => {
+  // Nobody made this user or invited them: the magic link itself signs them up (ADR 0018).
+  const email = `founder-${randomUUID().slice(0, 8)}@solo.test`;
   const jar = new CookieJar();
   await signIn(stack.worker, stack.database.db, email, jar);
+  expect((await api(jar, "GET", "/me")).status).toBe(403);
   expect(await api(jar, "GET", "/onboarding")).toEqual({
     status: 200,
     body: {
-      canCreateOrganization: false,
+      canCreateOrganization: true,
       billing: { enabled: false },
       organization: null,
       domains: [],
       mailboxes: [],
     },
   });
+
+  // Onboarding's steps, as the web app calls them: workspace, domain, mailbox, finish.
   const created = await authPost(stack.worker, jar, "/organization/create", {
-    name: "Mine",
-    slug: `mine-${randomUUID().slice(0, 8)}`,
+    name: "Solo",
+    slug: `solo-${randomUUID().slice(0, 8)}`,
   });
-  expect(created.status).toBe(403);
+  expect(created.status).toBe(200);
+  const orgId = ((await created.json()) as { id: string }).id;
+  expect((await api(jar, "GET", "/me")).body).toMatchObject({ orgId, role: "owner" });
+
+  const domain = `solo-${randomUUID().slice(0, 8)}.test`;
+  stack.dns.addZone(domain);
+  const added = await api(jar, "POST", "/onboarding/domains", { domain });
+  expect(added.status).toBe(200);
+  stack.publishChallenge(added.body);
+  const checked = await api(jar, "POST", `/onboarding/domains/${added.body.id as string}/check`);
+  expect(checked.body).toMatchObject({ status: "verified" });
+  const mailbox = await api(
+    jar,
+    "POST",
+    "/onboarding/mailboxes",
+    imapMailbox(added.body.id as string, "hello"),
+  );
+  expect(mailbox).toMatchObject({ status: 200, body: { address: `hello@${domain}` } });
+  expect((await api(jar, "POST", "/onboarding/complete")).body).toEqual({ setup: "complete" });
+  expect((await api(jar, "GET", "/me")).body).toMatchObject({
+    orgId,
+    role: "owner",
+    setup: "complete",
+  });
 });
 
 test("the mail service's provisioning routes refuse unsigned calls", async () => {

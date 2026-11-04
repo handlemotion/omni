@@ -232,19 +232,9 @@ test("a verified second address signs into the same user and the same mailboxes"
   const before = await workspaceMailboxes(fay.jar);
   expect(before[0]!.mailboxes).toEqual(["fay@fay.test", "hello@fay.test"]);
 
-  // Not verified yet: the address is a stranger to sign-in and to Google.
+  // Not verified yet, the address is not Fay's (the next test shows a sign-up with it).
   const token = await requestAddress(fay.jar, "fay.work@outlook.test");
   expect(token).toBeTruthy();
-  const pending = await api(new CookieJar(), "/api/auth/sign-in/magic-link", {
-    method: "POST",
-    body: { email: "fay.work@outlook.test", callbackURL: "/" },
-  });
-  expect(pending.status).toBe(200);
-  expect(await mailTo("fay.work@outlook.test")).toHaveLength(1); // only the confirmation link
-  expect(
-    (await googleSignIn({ sub: "google-fay-work", email: "fay.work@outlook.test", verified: true }))
-      .userId,
-  ).toBeNull();
 
   // Another signed-in person cannot use Fay's link, and trying does not spend it.
   const gil = await owner("gil");
@@ -287,6 +277,36 @@ test("a verified second address signs into the same user and the same mailboxes"
     verified: true,
   });
   expect(viaGoogle.userId).toBe(fay.userId);
+});
+
+test("an address asked for but never confirmed is not the asker's: a sign-up with it is someone else", async () => {
+  const kit = await owner("kit");
+  const token = await requestAddress(kit.jar, "kit.work@outlook.test");
+
+  // Whoever proves the address first owns it: here Google vouches for it, so it signs up a new
+  // person (ADR 0018), never Kit.
+  const viaGoogle = await googleSignIn({
+    sub: "google-kit-work",
+    email: "kit.work@outlook.test",
+    verified: true,
+  });
+  expect(viaGoogle.userId).not.toBeNull();
+  expect(viaGoogle.userId).not.toBe(kit.userId);
+  // A magic link to it signs in as that new person too.
+  const jar = new CookieJar();
+  await signIn(worker, database.db, "kit.work@outlook.test", jar);
+  const session = (await (await api(jar, "/api/auth/get-session")).json()) as {
+    user: { id: string };
+  };
+  expect(session.user.id).toBe(viaGoogle.userId);
+
+  // Kit's own confirmation link now finds the address taken.
+  const verified = await api(kit.jar, "/api/account/emails/verify", {
+    method: "POST",
+    body: { token },
+  });
+  expect(verified.status).toBe(409);
+  expect(await usersWithEmail("kit.work@outlook.test")).toEqual([{ id: viaGoogle.userId }]);
 });
 
 test("an address someone else signs in with cannot be claimed, and the answer does not say so", async () => {
@@ -386,15 +406,16 @@ test("the primary can move to another verified address; the last verified addres
     expect((await me(jar))?.id).toBe(lea.memberId);
   }
 
-  // The old one removed: it is a stranger again and gets no link.
+  // The old one removed: it no longer signs in as Lea. Its link now signs up someone new.
   const removed = await api(lea.jar, `/api/account/emails/${encodeURIComponent(lea.email)}`, {
     method: "DELETE",
   });
   expect(removed.status).toBe(200);
-  const sent = (await mailTo(lea.email)).length;
-  await api(new CookieJar(), "/api/auth/sign-in/magic-link", {
-    method: "POST",
-    body: { email: lea.email, callbackURL: "/" },
-  });
-  expect(await mailTo(lea.email)).toHaveLength(sent);
+  const jar = new CookieJar();
+  await signIn(worker, database.db, lea.email, jar);
+  expect(await me(jar)).toBeNull();
+  const session = (await (await api(jar, "/api/auth/get-session")).json()) as {
+    user: { id: string };
+  };
+  expect(session.user.id).not.toBe(lea.userId);
 });

@@ -13,7 +13,8 @@ export const loginSearch = z.object({
   redirect: optional(z.string()),
   /**
    * `magic_link` (expired or used link), `no_organization` (signed in, no membership), or a
-   * Better Auth OAuth code from Google sign-in (`SIGN_UP_REQUIRES_INVITATION`, `access_denied`).
+   * Better Auth OAuth code from Google sign-in (`access_denied`; `SIGN_UP_REQUIRES_INVITATION`
+   * on an install with `SIGN_UP=invitation`).
    */
   error: optional(z.string()),
 });

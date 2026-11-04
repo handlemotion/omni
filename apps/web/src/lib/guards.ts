@@ -14,8 +14,8 @@ export async function requireUser(client: QueryClient, location: ParsedLocation)
 
 /**
  * Signed in and a member of the active organization. A user with no organization goes to
- * onboarding when this deployment lets them create one (ORGANIZATION_CREATION), otherwise back
- * to sign-in with `no_organization` (they need an invitation). An owner or admin whose
+ * onboarding when this deployment lets them create one (always with open sign-up, ADR 0018),
+ * otherwise back to sign-in with `no_organization` (they need an invitation). An owner or admin whose
  * workspace's setup is unfinished goes to onboarding, which resumes at the saved step; settings
  * stay reachable (to switch workspace or account, or sign out).
  */

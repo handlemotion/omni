@@ -1,7 +1,8 @@
 import { Google } from "@ridemountainpig/svgl-react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
-import { IconKey, IconRedirectArrow } from "@/components/icons";
+import { IconRedirectArrow } from "@/components/icons";
+import { IconKey } from "@/components/icons/lucide";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
@@ -92,7 +93,7 @@ export function SignIn({ redirect }: { redirect?: string }) {
                   isPending={google.isPending}
                   onPress={() => google.mutate({ redirect })}
                 >
-                  <Google width={15} height={15} aria-hidden />
+                  <Google aria-hidden />
                   Using Google
                 </Button>
               )}

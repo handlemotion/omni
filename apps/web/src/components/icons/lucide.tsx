@@ -13,7 +13,7 @@ import {
   Globe,
   Inbox,
   Info,
-  Key,
+  KeyRound,
   Keyboard,
   Laptop,
   List,
@@ -54,7 +54,7 @@ export const IconEllipsis = thin(Ellipsis, "IconEllipsis");
 export const IconGlobe = thin(Globe, "IconGlobe");
 export const IconInbox = thin(Inbox, "IconInbox");
 export const IconInfo = thin(Info, "IconInfo");
-export const IconKey = thin(Key, "IconKey");
+export const IconKey = thin(KeyRound, "IconKey");
 export const IconKeyboard = thin(Keyboard, "IconKeyboard");
 export const IconLaptop = thin(Laptop, "IconLaptop");
 export const IconList = thin(List, "IconList");
