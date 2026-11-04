@@ -1,5 +1,6 @@
-// Storage ports. The IMAP/SMTP engine talks to storage only through these two interfaces, so the
-// `@omni/db` + R2 implementation can replace the e2e in-memory one without touching the engine.
+// Storage ports. The IMAP/SMTP engine talks to storage only through these two interfaces
+// (`pg-store.ts` implements them on `@omni/db` and object storage), so it never imports the
+// database itself.
 //
 // Every method must be idempotent: the engine may repeat any call after a crash or a reconnect,
 // and the IMAP server stays the source of truth (a full re-sync must converge).
@@ -57,16 +58,14 @@ export interface MailStore {
 // that targets existing messages carries it; a mismatch fails the action instead of touching the
 // wrong message.
 
-// Payload shapes live in `@omni/contracts`, shared with the Worker that writes them.
+// Kinds and payload shapes live in `@omni/contracts`, shared with the Worker that writes them.
 export type { MessageTarget, SendPayload } from "@omni/contracts";
-import type { MessageTarget, SendPayload } from "@omni/contracts";
+import type { ActionPayload, MailActionKind } from "@omni/contracts";
 
-export type MailAction =
-  | ActionBase<"send", SendPayload>
-  | ActionBase<"archive", MessageTarget>
-  | ActionBase<"move", MessageTarget & { destination: string }>
-  | ActionBase<"mark_read", MessageTarget>
-  | ActionBase<"mark_unread", MessageTarget>;
+/** A claimed action: each kind with its own payload. */
+export type MailAction = {
+  [K in MailActionKind]: ActionBase<K, ActionPayload<K>>;
+}[MailActionKind];
 
 interface ActionBase<K extends string, P> {
   id: string;

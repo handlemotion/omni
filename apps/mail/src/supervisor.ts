@@ -1,10 +1,6 @@
 import { Effect, Fiber, Semaphore } from "effect";
 import type { Logger } from "./log.ts";
-import {
-  MailboxConnection,
-  type MailboxConfig,
-  type NewMessageEvent,
-} from "./mailbox-connection.ts";
+import { MailboxConnection, type MailboxConfig } from "./mailbox-connection.ts";
 import { OutboxExecutor } from "./outbox.ts";
 import type { ActionSource, MailStore } from "./ports.ts";
 import { every } from "./timing.ts";
@@ -19,7 +15,6 @@ export interface SupervisorOptions {
   outboxIntervalMs?: number;
   /** Mailboxes connecting or syncing at the same time. */
   concurrency?: number;
-  onMessage?: (event: NewMessageEvent) => void;
 }
 
 /** Owns one `MailboxConnection` per mailbox, the periodic folder sync, and the outbox loop. */
@@ -63,10 +58,6 @@ export class Supervisor {
     return [...this.connections.values()].filter((c) => c.isReady).length;
   }
 
-  connection(mailboxId: string): MailboxConnection | undefined {
-    return this.connections.get(mailboxId);
-  }
-
   has(mailboxId: string): boolean {
     return this.connections.has(mailboxId);
   }
@@ -94,7 +85,6 @@ export class Supervisor {
       logger: this.log,
       gate: this.permits,
     });
-    if (this.options.onMessage) connection.on("message", this.options.onMessage);
     // Actions that failed while the mailbox was offline become runnable again on reconnect.
     connection.on("connected", () => void this.ping());
     this.connections.set(mailbox.id, connection);

@@ -113,13 +113,17 @@ export function createApp(deps: HttpDeps): Hono {
     return c.json({ ok: true }, 202);
   });
 
-  /** Verifies the signature, then parses the JSON body; null when the response is already set. */
-  async function signedBody<S extends z.ZodType>(c: Context, schema: S, available: boolean) {
+  /**
+   * Verifies the signature, then that this service has `feature` (an unconfigured one is a 404,
+   * only after the signature, so a caller cannot probe what is configured), then parses the JSON
+   * body. A `Response` when the request ends here.
+   */
+  async function signedBody<S extends z.ZodType, F>(c: Context, schema: S, feature: F | undefined) {
     if (!(await deps.verify(c.req.raw))) return c.json({ error: "unauthorized" }, 401);
-    if (!available) return c.json({ error: "not found" }, 404);
+    if (feature === undefined) return c.json({ error: "not found" }, 404);
     const parsed = schema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: "invalid body" }, 400);
-    return parsed.data as z.output<S>;
+    return { body: parsed.data as z.output<S>, feature };
   }
 
   async function answer(c: Context, task: () => Promise<unknown>) {
@@ -134,21 +138,24 @@ export function createApp(deps: HttpDeps): Hono {
   }
 
   app.post(PROVISION_DOMAIN_PATH, async (c) => {
-    const body = await signedBody(c, provisionDomainBodySchema, deps.provisioner !== undefined);
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.provisioner!.domain(body.domain, { add: body.add }));
+    const signed = await signedBody(c, provisionDomainBodySchema, deps.provisioner);
+    if (signed instanceof Response) return signed;
+    const { body, feature: provisioner } = signed;
+    return answer(c, () => provisioner.domain(body.domain, { add: body.add }));
   });
 
   app.post(PROVISION_MAILBOX_PATH, async (c) => {
-    const body = await signedBody(c, provisionMailboxBodySchema, deps.provisioner !== undefined);
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.provisioner!.mailbox(body));
+    const signed = await signedBody(c, provisionMailboxBodySchema, deps.provisioner);
+    if (signed instanceof Response) return signed;
+    const { body, feature: provisioner } = signed;
+    return answer(c, () => provisioner.mailbox(body));
   });
 
   app.post(DNS_LOOKUP_PATH, async (c) => {
-    const body = await signedBody(c, dnsLookupBodySchema, deps.dns !== undefined);
-    if (body instanceof Response) return body;
-    return answer(c, () => deps.dns!(body));
+    const signed = await signedBody(c, dnsLookupBodySchema, deps.dns);
+    if (signed instanceof Response) return signed;
+    const { body, feature: lookup } = signed;
+    return answer(c, () => lookup(body));
   });
 
   return app;
