@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { IconRedirectArrow } from "@/components/icons";
 import { IconChevronRight } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
-import { CopyField } from "@/components/ui/copy-field";
+import { CopyField, RenewField } from "@/components/ui/copy-field";
 import { Label } from "@/components/ui/field";
 import { Heading } from "@/components/ui/heading";
 import { Input, InputGroup } from "@/components/ui/input";
@@ -379,13 +379,14 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
         const after = recordGroups(fresh);
         if (after.current === -1) return props.onDone();
         const group = after.groups[after.current]!;
+        const type = group.records[0]!.type;
         const why = groupProblems(fresh, group);
-        appToast.message(`The ${group.records[0]!.type} record isn't passing yet`, {
-          description:
-            why.length > 0
-              ? why.join(" ")
-              : "DNS changes can take a few minutes. Omni keeps checking while this page is open.",
-        });
+        if (why.length > 0)
+          appToast.message(`${type} record isn't right yet`, { description: why.join(" ") });
+        else
+          appToast.message(`${type} record not found yet`, {
+            description: "Still checking. DNS can take a few minutes.",
+          });
       },
       onError: (error) => setProblem(error.message),
     });
@@ -464,16 +465,15 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
                     />
                   ) : (
                     // Only its hash is stored, so a value shown before (another browser, cleared
-                    // storage) cannot be shown again: make a new one instead. The step's one
-                    // action, at the end of the fields it fills in.
-                    <Button
-                      intent="outline"
-                      className="self-end"
+                    // storage) cannot be shown again: the field makes a new one when pressed. Not
+                    // made on its own: it would replace a record the user may have just added.
+                    <RenewField
+                      label="Value"
+                      placeholder="Hidden"
+                      tooltip="Show a new value. It replaces the old one."
                       isPending={rotateChallenge.isPending}
                       onPress={rotate}
-                    >
-                      Show a new value
-                    </Button>
+                    />
                   )}
                 </div>
               ))}
