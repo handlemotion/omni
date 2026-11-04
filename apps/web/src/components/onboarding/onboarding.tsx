@@ -11,10 +11,10 @@ import { CopyField, RenewField } from "@/components/ui/copy-field";
 import { Label } from "@/components/ui/field";
 import { Heading } from "@/components/ui/heading";
 import { Input, InputGroup } from "@/components/ui/input";
-import { Note } from "@/components/ui/note";
 import { Step, Steps, type StepState } from "@/components/ui/steps";
 import { Text, TextLink } from "@/components/ui/text";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { FieldRevealedError, SlotError } from "@/components/ui/revealed-error";
 import { TextField } from "@/components/ui/text-field";
 import { appToast } from "@/components/ui/toast";
 import {
@@ -68,27 +68,31 @@ export function Onboarding() {
   // Only the workspace being set up: a new one has no domain until page 0 adds it.
   const domain = resuming ? status.data?.domains[0] : undefined;
   const ownHost = domain?.provider === "imap";
-  // On its own host the domain still proves ownership first; then the page asks for the servers.
-  const serversNext = ownHost && domain?.status === "verified";
+  // On its own host the domain proves ownership on the DNS page like any other; the Mailboxes page
+  // then asks for the servers first (they live only in memory), so no path reaches the mailbox
+  // form without them and Back never lands on a step that was skipped.
+  const askServers = page === "Mailboxes" && ownHost && !servers;
   // A workspace with a plan has nothing to do on the plan page: it is passed over both ways.
   const passed = (p: OnboardingPage) => p === "Plan" && !status.data?.organization?.needsPlan;
   const next = () => {
     const after = pages.slice(index + 1).find((p) => !passed(p));
     setPage(after ?? pages[pages.length - 1]!);
   };
-  // Never back onto the first page: the workspace and domain it saved stay saved. Mailboxes on
-  // their own host need the servers, which a resumed setup has not asked for yet.
+  // Never back onto the first page: the workspace and domain it saved stay saved. From the
+  // mailbox form on its own host, Back returns to the servers it was given.
   const previous = pages
     .slice(1, Math.max(index, 1))
     .toReversed()
     .find((p) => !passed(p));
-  const back = previous
-    ? () => setPage(previous === "Mailboxes" && ownHost && !servers ? "DNS" : previous)
-    : undefined;
-  const names = serversNext ? pages.map((n) => (n === "DNS" ? "Mail server" : n)) : pages;
+  const back =
+    page === "Mailboxes" && ownHost && servers
+      ? () => setServers(null)
+      : previous
+        ? () => setPage(previous)
+        : undefined;
 
   return (
-    <OnboardingPage page={index} names={names} onBack={back}>
+    <OnboardingPage page={index} names={pages} onBack={back}>
       {page === "Workspace" && (
         <WorkspaceForm
           existing={resuming ? status.data?.organization?.name : undefined}
@@ -98,23 +102,15 @@ export function Onboarding() {
           }}
         />
       )}
-      {page === "DNS" && domain && !serversNext && (
+      {page === "DNS" && domain && (
         <DnsForm
           domain={domain}
           organizationId={status.data?.organization?.id ?? ""}
           onDone={next}
         />
       )}
-      {page === "DNS" && domain && serversNext && (
-        <ServerForm
-          domain={domain.domain}
-          onDone={(s) => {
-            setServers(s);
-            next();
-          }}
-        />
-      )}
-      {page === "Mailboxes" && domain && (
+      {askServers && domain && <ServerForm domain={domain.domain} onDone={setServers} />}
+      {page === "Mailboxes" && domain && !askServers && (
         <MailboxesForm
           domain={domain}
           servers={ownHost ? servers : null}
@@ -246,12 +242,9 @@ function PageForm(props: {
         {props.shortcut && <div className="mt-4.5 flex">{props.shortcut}</div>}
       </div>
       <div className="flex flex-col gap-6 pt-8">{props.children}</div>
-      {props.problem && (
-        <Note intent="danger" className="mt-6" role="alert">
-          {props.problem}
-        </Note>
-      )}
-      <Button type="submit" size="lg" className="mt-10 w-full" isPending={props.isPending}>
+      {/* The 40px above the button holds the form's error, so it appears without moving anything. */}
+      <SlotError className="min-h-10 pt-3">{props.problem}</SlotError>
+      <Button type="submit" size="lg" className="w-full" isPending={props.isPending}>
         {props.submit}
         <IconChevronRight />
       </Button>
@@ -301,10 +294,12 @@ function WorkspaceForm(props: { existing?: string; onDone: () => void }) {
       >
         <Label>Workspace name</Label>
         <Input placeholder="Acme" />
+        <FieldRevealedError message="Enter a name for the workspace." />
       </TextField>
       <TextField value={domain} onChange={setDomain} isRequired autoFocus={created}>
         <Label>Domain</Label>
         <Input placeholder="acme.com" />
+        <FieldRevealedError message="Enter your domain, like acme.com." />
       </TextField>
     </PageForm>
   );
@@ -393,7 +388,9 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
   // isn't passing yet and why. No disabled button, no per-step check buttons, no status lines.
   const checkAndContinue = () => {
     setProblem(null);
-    if (current === -1) return props.onDone();
+    // A domain on its own host is checked again even when it passes: the check is what moves it
+    // to Purelymail once this install has a Purelymail token (it then shows Purelymail's records).
+    if (current === -1 && domain.provider !== "imap") return props.onDone();
     checkDomain.mutate(domain.id, {
       onSuccess: (fresh) => {
         const after = recordGroups(fresh);
@@ -516,9 +513,7 @@ function DnsHostLink(props: { host: NonNullable<OnboardingDomain["dnsHost"]> }) 
       <TextLink href={props.host.help} target="_blank" rel="noreferrer">
         {props.host.name}
       </TextLink>
-      <Tooltip inverse placement="bottom" className="max-w-xs text-xs">
-        {props.host.steps}
-      </Tooltip>
+      <Tooltip placement="bottom">{props.host.steps}</Tooltip>
     </TooltipTrigger>
   );
 }
@@ -580,10 +575,12 @@ function ServerForm(props: { domain: string; onDone: (servers: Servers) => void 
       <TextField value={imap} onChange={setImap} isRequired autoFocus>
         <Label>IMAP server</Label>
         <Input placeholder={`imap.${props.domain}:993`} />
+        <FieldRevealedError message="Enter the IMAP server." />
       </TextField>
       <TextField value={smtp} onChange={setSmtp} isRequired>
         <Label>SMTP server</Label>
         <Input placeholder={`smtp.${props.domain}:465`} />
+        <FieldRevealedError message="Enter the SMTP server." />
       </TextField>
     </PageForm>
   );
@@ -591,91 +588,72 @@ function ServerForm(props: { domain: string; onDone: (servers: Servers) => void 
 
 function MailboxesForm(props: {
   domain: OnboardingDomain;
-  /** Set on the bring-your-own-host path: each mailbox then needs its password. */
+  /** Set on the bring-your-own-host path: the mailbox then needs its password. */
   servers: Servers | null;
-  /** Mailboxes saved earlier, shown again when setup resumes or comes back here. */
+  /** Mailboxes saved earlier: setup that resumes or comes back here shows the first, fixed. */
   created: { address: string }[];
   onDone: () => void;
 }) {
   const createMailboxes = useCreateMailboxes();
   const suffix = `@${props.domain.domain}`;
-  const [names, setNames] = useState(() => {
-    const saved = props.created
-      .filter((m) => m.address.endsWith(suffix))
-      .map((m) => m.address.slice(0, -suffix.length));
-    return saved.length > 0 ? saved : [""];
-  });
-  const [passwords, setPasswords] = useState<string[]>([]);
+  // Setup makes one mailbox; more come later, from settings. One made already is shown as it is
+  // and not sent again.
+  const [saved] = useState(() =>
+    props.created.find((m) => m.address.endsWith(suffix))?.address.slice(0, -suffix.length),
+  );
+  const [name, setName] = useState(saved ?? "");
+  const [password, setPassword] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const { servers } = props;
 
   return (
     <PageForm
-      title="Create mailboxes"
+      title="Create your mailbox"
       description={
-        servers ? "Each with its password (an app password if your host has them)." : undefined
+        servers && !saved ? "With its password (an app password if your host has them)." : undefined
       }
       submit="Continue"
       isPending={createMailboxes.isPending}
       problem={problem}
       onSubmit={() => {
         setProblem(null);
+        if (saved) return props.onDone();
         createMailboxes.mutate(
           {
             domainId: props.domain.id,
-            mailboxes: names
-              .map((localPart, i) => ({
-                localPart: localPart.trim(),
-                password: passwords[i] ?? "",
-              }))
-              .filter((m) => m.localPart),
+            mailboxes: [{ localPart: name.trim(), password }],
             ...(servers ? { servers } : {}),
           },
           { onSuccess: props.onDone, onError: (error) => setProblem(error.message) },
         );
       }}
     >
-      <InputList
-        label="Addresses"
-        values={names}
-        onChange={setNames}
-        addLabel="Add mailbox"
-        render={(value, set, i) => (
-          <div className="flex flex-col gap-2">
-            <TextField
-              aria-label={`Address ${i + 1}`}
-              value={value}
-              onChange={set}
-              isRequired={i === 0}
-              autoFocus={i === names.length - 1}
-            >
-              <InputGroup className="[--input-gutter-end:--spacing(4)]">
-                <Input placeholder="name" />
-                <span data-slot="text" className="text-sm text-muted-foreground">
-                  @{props.domain.domain}
-                </span>
-              </InputGroup>
-            </TextField>
-            {servers && (
-              <TextField
-                aria-label={`Password for address ${i + 1}`}
-                type="password"
-                value={passwords[i] ?? ""}
-                onChange={(next) =>
-                  setPasswords((all) => {
-                    const copy = [...all];
-                    copy[i] = next;
-                    return copy;
-                  })
-                }
-                isRequired={value.trim() !== ""}
-              >
-                <Input placeholder="Password" autoComplete="off" />
-              </TextField>
-            )}
-          </div>
+      <div className="flex flex-col gap-2">
+        <TextField value={name} onChange={setName} isReadOnly={!!saved} isRequired autoFocus>
+          <Label>Address</Label>
+          <InputGroup className="[--input-gutter-end:--spacing(4)]">
+            <Input placeholder="name" />
+            <span data-slot="text" className="text-sm text-muted-foreground">
+              {suffix}
+            </span>
+          </InputGroup>
+          <FieldRevealedError message="Enter the mailbox's name." />
+        </TextField>
+        {servers && !saved && (
+          <TextField
+            aria-label="Password"
+            type="password"
+            value={password}
+            onChange={setPassword}
+            isRequired
+          >
+            <Input placeholder="Password" autoComplete="off" />
+            <FieldRevealedError
+              message={`Enter the password for ${name.trim() || "this mailbox"}${suffix}.`}
+            />
+          </TextField>
         )}
-      />
+      </div>
     </PageForm>
   );
 }
@@ -830,6 +808,7 @@ function InviteForm(props: { domain?: string }) {
             autoFocus={i === emails.length - 1}
           >
             <Input placeholder={`teammate@${props.domain ?? "acme.com"}`} />
+            <FieldRevealedError message="Enter a valid email address." />
           </TextField>
         )}
       />

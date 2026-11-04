@@ -276,7 +276,8 @@ function isRollback(error: unknown) {
 
 /**
  * Updates a lock with the provider's latest check. Never creates one: only `lockClaim` does.
- * Idempotent: `addedAt` keeps its first time, `verifiedAt` the time every record first passed.
+ * Idempotent: `addedAt` keeps its first time while the provider lists the domain, `verifiedAt` the
+ * time every record first passed; each clears when that stops being true.
  */
 export async function saveMailDomain(
   db: Db,
@@ -297,7 +298,9 @@ export async function saveMailDomain(
     .set({
       provider: input.provider,
       dnsRecords: input.dnsRecords,
-      addedAt: input.added ? sql`coalesce(${mailDomains.addedAt}, ${at})` : mailDomains.addedAt,
+      // Follows the provider: a domain it does not list (one just moved from its own host to
+      // Purelymail) is not added, whatever an earlier provider said.
+      addedAt: input.added ? sql`coalesce(${mailDomains.addedAt}, ${at})` : null,
       verifiedAt: input.verified ? sql`coalesce(${mailDomains.verifiedAt}, ${at})` : null,
       checkedAt: now,
       updatedAt: now,
