@@ -1,5 +1,5 @@
-// Live updates: one websocket per signed-in member (per org; the Durable Object is per org),
-// turned into cache invalidations. Events say what changed, not its contents, so this marks
+// Live updates: one websocket per workspace the user belongs to (the Durable Object is per org,
+// and lists span every workspace, ADR 0014), turned into cache invalidations. Events say what changed, not its contents, so this marks
 // those queries stale and TanStack Query refetches only the ones on screen.
 import { connectRealtime, type RealtimeEvent, type RealtimeStatus } from "@omni/client";
 import type { QueryClient } from "@tanstack/react-query";
@@ -28,8 +28,15 @@ export const realtimeStatus = {
   },
 };
 
-/** Opens the socket and keeps the cache in step with it. Returns the function that stops it. */
-export function startRealtime(client: QueryClient): () => void {
+/**
+ * Opens a socket per org in `orgIds` and keeps the cache in step with them. The status shown is
+ * the active org's socket. Returns the function that stops them all.
+ */
+export function startRealtime(
+  client: QueryClient,
+  orgIds: readonly string[],
+  activeOrgId: string,
+): () => void {
   const changedThreads = new Set<string>();
   const changedMailboxes = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -67,30 +74,36 @@ export function startRealtime(client: QueryClient): () => void {
     if (event.type === "domain") void client.invalidateQueries({ queryKey: keys.onboarding() });
   };
 
-  const connection = connectRealtime({
-    baseUrl: window.location.origin,
-    onEvent,
-    onStatus: (next, { reconnected }) => {
-      setStatus(next);
-      if (next !== "open") return;
-      // The Worker answered. Going online resumes paused mutations and refetches stale queries.
-      reportAnswer();
-      // Events sent while the socket was down are gone: mark all mail stale. Only queries on
-      // screen refetch now (the rest when next shown), and one already refetching because the
-      // app just came online is joined, not cancelled and sent again. Then ask the outbox
-      // about sends still waiting.
-      if (reconnected) {
-        void client.invalidateQueries({ queryKey: keys.mail() }, { cancelRefetch: false });
-        void recheckPendingSends(client);
-      }
-    },
+  const connect = (orgId: string) =>
+    connectRealtime({
+      baseUrl: window.location.origin,
+      orgId,
+      onEvent,
+      onStatus: (next, { reconnected }) => onStatus(orgId, next, reconnected),
+    });
+  const onStatus = (orgId: string, next: RealtimeStatus, reconnected: boolean) => {
+    if (orgId === activeOrgId) setStatus(next);
+    if (next !== "open") return;
+    // The Worker answered. Going online resumes paused mutations and refetches stale queries.
+    reportAnswer();
+    // Events sent while the socket was down are gone: mark all mail stale. Only queries on
+    // screen refetch now (the rest when next shown), and one already refetching because the
+    // app just came online is joined, not cancelled and sent again. Then ask the outbox about
+    // sends still waiting.
+    if (reconnected) {
+      void client.invalidateQueries({ queryKey: keys.mail() }, { cancelRefetch: false });
+      void recheckPendingSends(client);
+    }
+  };
+  const connections = [...new Set([activeOrgId, ...orgIds])].map(connect);
+  const stopWaking = onWake(() => {
+    for (const connection of connections) connection.wake();
   });
-  const stopWaking = onWake(() => connection.wake());
 
   return () => {
     clearTimeout(timer);
     stopWaking();
-    connection.close();
+    for (const connection of connections) connection.close();
     setStatus("closed");
   };
 }

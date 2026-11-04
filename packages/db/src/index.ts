@@ -1,6 +1,7 @@
 export { createDb, type Db } from "./client.ts";
 export {
   forMember,
+  forUser,
   TRIAGE_AUTO_FILE_CONFIDENCE,
   LANES,
   type Lane,
