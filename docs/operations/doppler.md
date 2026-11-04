@@ -8,7 +8,7 @@ Project `omni`. Branch configs inherit from their environment's root config.
 | `dev_mail`   | `apps/mail` locally                    | `MAIL_CREDENTIALS_KEY` (AES-256-GCM, base64 32 bytes)                                                                                                                                         |
 | `dev_worker` | `apps/worker` locally (`wrangler dev`) | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ANTHROPIC_API_KEY`, `ENVIRONMENT=development`, Stripe sandbox billing (`STRIPE_*`, `BILLING_*`; webhook secret from `stripe listen --print-secret`) |
 | `prd_mail`   | Fly.io mail service (`omni-mail`)      | `DATABASE_URL`, `MAIL_CREDENTIALS_KEY`, `MAIL_SERVICE_HMAC_SECRET`, `WORKER_URL`, `S3_*` (R2), optional `PURELYMAIL_API_TOKEN`                                                                |
-| `prd_worker` | Cloudflare Worker secrets              | `BETTER_AUTH_SECRET`, `MAIL_SERVICE_HMAC_SECRET`, `ANTHROPIC_API_KEY`, `TYPESAFE_API_KEY`                                                                                                     |
+| `prd_worker` | Cloudflare Worker secrets              | `BETTER_AUTH_SECRET`, `MAIL_SERVICE_HMAC_SECRET`, `ANTHROPIC_API_KEY`, `TYPESAFE_API_KEY`, `GOOGLE_CLIENT_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`                               |
 | `prd_github` | `production.yml`, records              | `MIGRATE_DATABASE_URL`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `WORKER_DOMAIN`; kept as records: `HYPERDRIVE_ID`, `HYPERDRIVE_ORIGIN_URL`, `WORKER_VAR_*`                           |
 
 Rules:
@@ -24,6 +24,9 @@ Rules:
   named pipe that Doppler serves from memory and deletes on exit: nothing is written to disk, and
   only the config's keys become bindings. The command refuses to start while a `.dev.vars` file
   exists (your own copy, or a pipe left by a killed run); move or delete it first.
+- A key is either a Worker secret (`prd_worker`) or a Worker var (`WORKER_VAR_*`), never both: a
+  name that `wrangler.jsonc` defines as a var cannot also be a secret (Cloudflare refuses the
+  second binding). Public values such as `STRIPE_PUBLISHABLE_KEY` are vars.
 - Check presence by name only: `doppler secrets -p omni -c <config> --only-names`.
 
 ## Production deploys
