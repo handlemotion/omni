@@ -30,9 +30,9 @@ Rules:
 
 Each platform deploys `main` itself (ADR 0019). GitHub Actions (`.github/workflows/production.yml`)
 does the two things the platforms can't, on each push to `main` and by hand (Actions → Production
-→ Run). It reads Doppler through read-only service tokens kept as secrets of the GitHub
-environment `production`: `DOPPLER_TOKEN_GITHUB` (`prd_github`) and `DOPPLER_TOKEN_WORKER`
-(`prd_worker`).
+→ Run). Doppler's GitHub sync copies `prd_github` into the secrets of the GitHub environment
+`production` (only jobs that declare it can read them). `prd_worker` is read at run time with a
+read-only service token, `DOPPLER_TOKEN_WORKER`, so exactly its keys become Worker secrets.
 
 - **Migrations** run with `prd_github`'s `MIGRATE_DATABASE_URL`, so the admin role is in no
   running service. Nothing waits for them (both platforms deploy as soon as `main` changes), so

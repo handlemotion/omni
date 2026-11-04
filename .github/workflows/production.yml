@@ -4,6 +4,8 @@ name: Production
 # Cloudflare Workers Builds deploys the Worker, Fly's GitHub deploy the mail service, and Doppler
 # syncs Fly's secrets. Left here:
 #
+# prd_github arrives as secrets of the GitHub environment `production` (Doppler's GitHub sync).
+#
 # 1. Database migrations, with prd_github's MIGRATE_DATABASE_URL: the admin role stays out of
 #    every running service. Nothing waits for them, so schema changes are additive-first.
 # 2. Doppler prd_worker -> the Worker's secrets (Doppler has no automatic sync for Workers).
@@ -46,12 +48,8 @@ jobs:
 
       - name: Apply migrations
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_GITHUB }}
-        run: |
-          .github/scripts/doppler.sh mask
-          DATABASE_URL="$(.github/scripts/doppler.sh get MIGRATE_DATABASE_URL)"
-          export DATABASE_URL
-          pnpm --filter @omni/db db:migrate
+          DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
+        run: pnpm --filter @omni/db db:migrate
 
   worker-secrets:
     name: Sync Worker secrets
@@ -78,21 +76,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: .github/scripts/wait-for-checks.sh "$GITHUB_SHA"
 
+      # prd_github reaches this job through Doppler's GitHub sync (environment `production`).
+      # prd_worker is read with its own token: its keys, and only those, become Worker secrets.
       - name: Sync
         env:
-          DOPPLER_TOKEN_GITHUB: ${{ secrets.DOPPLER_TOKEN_GITHUB }}
-          DOPPLER_TOKEN_WORKER: ${{ secrets.DOPPLER_TOKEN_WORKER }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER_DOMAIN: ${{ secrets.WORKER_DOMAIN }}
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_WORKER }}
         run: |
-          github() { DOPPLER_TOKEN="$DOPPLER_TOKEN_GITHUB" .github/scripts/doppler.sh "$@"; }
-          worker() { DOPPLER_TOKEN="$DOPPLER_TOKEN_WORKER" .github/scripts/doppler.sh "$@"; }
-          github mask
-          worker mask
-          CLOUDFLARE_API_TOKEN="$(github get CLOUDFLARE_API_TOKEN)"
-          CLOUDFLARE_ACCOUNT_ID="$(github get CLOUDFLARE_ACCOUNT_ID)"
-          export CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID
+          .github/scripts/doppler.sh mask
           secrets_file="$RUNNER_TEMP/worker-secrets.json"
-          worker json > "$secrets_file"
+          .github/scripts/doppler.sh json > "$secrets_file"
           cd apps/worker
           pnpm exec wrangler secret bulk "$secrets_file"
           rm -f "$secrets_file"
-          curl -fsS --retry 5 --retry-all-errors --retry-delay 5 "https://$(github get WORKER_DOMAIN | cut -d, -f1)/health"
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 5 "https://${WORKER_DOMAIN%%,*}/health"
