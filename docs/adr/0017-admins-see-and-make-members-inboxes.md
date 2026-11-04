@@ -1,4 +1,4 @@
-# 0016: Owners and admins see every mailbox, and make a teammate's inbox, without reading it
+# 0017: Owners and admins see every mailbox, and make a teammate's inbox, without reading it
 
 Date: 2026-11-04 · Status: accepted
 

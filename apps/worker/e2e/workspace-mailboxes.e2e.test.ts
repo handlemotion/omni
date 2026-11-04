@@ -1,5 +1,5 @@
 // Every mailbox of a workspace for its owners and admins, and creating a teammate's personal inbox
-// after setup (ADR 0016), on the onboarding stack: real Worker, real mail service, GreenMail and
+// after setup (ADR 0017), on the onboarding stack: real Worker, real mail service, GreenMail and
 // Postgres. Seeing that a teammate's inbox exists must never be a way into its mail.
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";

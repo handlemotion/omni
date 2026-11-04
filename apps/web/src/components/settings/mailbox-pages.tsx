@@ -3,7 +3,7 @@
 // - Shared mailboxes: every shared mailbox and who sees it; owners and admins add one and change
 //   who sees it (ADR 0008).
 // - Members' inboxes (owners and admins): each teammate's personal inbox, whether it exists and
-//   syncs. Never its mail: nothing here opens it or gives anyone access (ADR 0016).
+//   syncs. Never its mail: nothing here opens it or gives anyone access (ADR 0017).
 import { UserMinusIcon } from "@heroicons/react/24/outline";
 import { lazy, useState } from "react";
 import { Skeleton, SkeletonSuspense } from "skullet/react";
@@ -605,7 +605,7 @@ export function MembersInboxesPage() {
 const localPartOf = (email: string) => email.split("@")[0] ?? "";
 
 /**
- * Creates a mailbox on one of the workspace's domains (the setup route, ADR 0016): a shared one,
+ * Creates a mailbox on one of the workspace's domains (the setup route, ADR 0017): a shared one,
  * or a teammate's personal inbox that only they will see. On the workspace's own mail host it
  * needs the mailbox's existing password and servers, as in setup.
  */

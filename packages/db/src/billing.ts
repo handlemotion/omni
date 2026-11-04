@@ -2,7 +2,7 @@
 // and, when its webhook missed something, by the daily reconcile; this file reads them, counts
 // AI-triaged emails against the monthly allowance, and remembers which Stripe events were
 // applied. Trusted code: callers have already resolved the workspace.
-import { and, count, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNotNull, or, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
 import { organizations, subscriptions } from "./schema/auth.ts";
@@ -39,6 +39,28 @@ export async function workspaceSubscription(db: Db, orgId: string) {
     .where(eq(subscriptions.orgId, orgId))
     .orderBy(desc(subscriptions.id));
   return rows.find((row) => isPaid(row.status)) ?? rows[0] ?? null;
+}
+
+/**
+ * Whether the workspace ever had a trial. Better Auth's Stripe plugin grants one per workspace
+ * by this same rule, so the app can say up front whether Checkout will start a trial.
+ */
+export async function hadTrial(db: Db, orgId: string) {
+  const [row] = await db
+    .select({ id: subscriptions.id })
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.orgId, orgId),
+        or(
+          isNotNull(subscriptions.trialStart),
+          isNotNull(subscriptions.trialEnd),
+          eq(subscriptions.status, "trialing"),
+        ),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
 }
 
 export function isPaid(status: string) {

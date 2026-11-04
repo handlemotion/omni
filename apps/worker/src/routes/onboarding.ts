@@ -27,6 +27,7 @@ import {
   schema,
   SETUP_STEPS,
   transferDomain,
+  withdrawClaim,
 } from "@omni/db";
 import { mailboxAddress, parseDomain } from "@omni/mail-core/domains";
 import { eq } from "drizzle-orm";
@@ -34,6 +35,7 @@ import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { inGoodStanding } from "../billing.ts";
 import { requireMember, resolveSession, type AppEnv } from "../context.ts";
 import {
   advanceDomainStep,
@@ -166,8 +168,16 @@ export const onboarding = new Hono<AppEnv>()
       user.id,
       config.auth.organizationCreation,
     );
+    /** Billing is on for this deployment (ADR 0015): setup then has a plan step. */
+    const billing = { enabled: config.auth.billing !== undefined };
     if (!member) {
-      return c.json({ canCreateOrganization, organization: null, domains: [], mailboxes: [] });
+      return c.json({
+        canCreateOrganization,
+        billing,
+        organization: null,
+        domains: [],
+        mailboxes: [],
+      });
     }
     const [org] = await db
       .select({ name: schema.organizations.name })
@@ -179,12 +189,18 @@ export const onboarding = new Hono<AppEnv>()
     ]);
     return c.json({
       canCreateOrganization,
+      billing,
       organization: {
         id: member.orgId,
         name: org?.name ?? "",
         role: member.role,
         /** How far setup got; `/onboarding` resumes here. */
         setup: await orgSetupStep(db, member.orgId),
+        /**
+         * Billing is on and the workspace has no trial or plan in good standing. Read from the
+         * subscription each time, not saved as a setup step, so it follows Stripe.
+         */
+        needsPlan: !(await inGoodStanding(db, config, member.orgId)),
       },
       domains: domains.map((setup) => domainView(setup)),
       mailboxes: mailboxes.map(({ id, address, kind, provider, status }) => ({
@@ -312,13 +328,26 @@ export const onboarding = new Hono<AppEnv>()
     });
   })
   /**
-   * Gives the domain up: another workspace can claim it. Refused while this one has mailboxes on
-   * it. Every owner is told.
+   * Removes the domain from this workspace (ADR 0016). A claim that never verified is withdrawn
+   * by an owner or admin: nothing was set up on it. A verified domain is released by an owner
+   * only, and refused while this workspace has mailboxes on it; another workspace can then claim
+   * it, and every owner is told. Neither deletes mail or touches the mail host.
    */
-  .post("/domains/:id/release", requireMember, requireOwner, async (c) => {
+  .post("/domains/:id/release", requireMember, requireDomainAdmin, async (c) => {
     const { db, member, user } = c.var;
     const setup = await memberDomain(c);
     const domain = (setup.claim?.domain ?? setup.lock?.domain)!;
+    if (!setup.lock) {
+      const withdrawn = await withdrawClaim(db, { orgId: member.orgId, claimId: setup.claim!.id });
+      if (!withdrawn) {
+        throw new HTTPException(409, { message: `${domain} just verified: check it again` });
+      }
+      await audit(c.var, member.orgId, member.id, "domain.claim_withdrawn", domain);
+      return c.json({ released: true });
+    }
+    if (member.role !== "owner") {
+      throw new HTTPException(403, { message: "only owners can release or move a domain" });
+    }
     const result = await releaseDomain(db, { orgId: member.orgId, domain });
     if (!result.ok) throw handOverRefusal(result.reason, domain);
     const eventId = await audit(c.var, member.orgId, member.id, "domain.released", domain);
@@ -369,7 +398,7 @@ export const onboarding = new Hono<AppEnv>()
   /**
    * Creates one mailbox on a domain of the active org and starts syncing it, during setup or
    * later from settings. The creator gets an owner grant, or with `forMemberId` that teammate
-   * does (their personal inbox; ADR 0016). Idempotent per address: a repeat returns the same
+   * does (their personal inbox; ADR 0017). Idempotent per address: a repeat returns the same
    * mailbox. 409 when the address is a mailbox of another kind or owner.
    */
   .post(
@@ -480,6 +509,15 @@ export const onboarding = new Hono<AppEnv>()
     const step = await orgSetupStep(db, member.orgId);
     if (SETUP_STEPS.indexOf(step) < SETUP_STEPS.indexOf("mailboxes_created")) {
       throw new HTTPException(409, { message: "create a mailbox before finishing setup" });
+    }
+    if (!(await inGoodStanding(db, c.var.config, member.orgId))) {
+      return c.json(
+        {
+          error: "start the free trial or choose a plan before finishing setup",
+          code: "BILLING_REQUIRED",
+        },
+        402,
+      );
     }
     return c.json({ setup: await advanceOrgSetup(db, member.orgId, "complete") });
   });

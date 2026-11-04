@@ -10,6 +10,7 @@ import {
   finishSetupMutation,
   onboardingExit,
   onboardingQuery,
+  removeDomainMutation,
   rotateChallengeMutation,
 } from "../lib/onboarding.ts";
 import { signOut } from "../lib/session.ts";
@@ -67,6 +68,14 @@ export function useOnboardingExit() {
     },
   });
   return { exit, leave: () => leave.mutate(), isPending: leave.isPending };
+}
+
+/**
+ * `mutate(domainId)` removes a domain from the workspace: withdraws a claim that never verified,
+ * or releases a verified one (owners only; refused while it has mailboxes).
+ */
+export function useRemoveDomain() {
+  return useMutation(removeDomainMutation(useQueryClient()));
 }
 
 /** `mutate(domainId)` makes a new challenge value (the old one stops counting). */

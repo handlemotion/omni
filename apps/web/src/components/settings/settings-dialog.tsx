@@ -4,8 +4,8 @@
 // Full screen, still a dialog: it settles from 105% while the app recedes under it (the shell
 // scales it to 95% and fades it). The nav lists your account's pages, then a workspace chooser
 // and the chosen workspace's pages under it. The nav is the app sidebar's (240px, 13px rows 32px tall, 11px
-// group labels, the search field on top), set at the right of the left 30%; the page is a 640px
-// column in the right 70%, its title 17px. The page body is transitive's settings kit (`./kit`).
+// group labels, the search field on top), set at the right of the left 35%; the page is a 640px
+// column in the right 65%, its title 17px. The page body is transitive's settings kit (`./kit`).
 import {
   ComputerDesktopIcon,
   InboxStackIcon,

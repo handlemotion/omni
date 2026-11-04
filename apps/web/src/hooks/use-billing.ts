@@ -1,18 +1,28 @@
 // The workspace's plan and AI triage allowance, and the Stripe hand-offs (ADR 0015).
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { billingQuery, checkoutMutation, portalMutation } from "../lib/billing.ts";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  billingQuery,
+  checkoutMutation,
+  portalMutation,
+  startTrialMutation,
+} from "../lib/billing.ts";
 
-/** `{ enabled: false }` without billing; else plan, `readOnly`, `canManage` and `triage` usage. */
-export function useBilling() {
-  return useQuery(billingQuery());
+/** `{ enabled: false }` without billing; else plan, prices, trial, `readOnly` and triage usage. */
+export function useBilling(options: { enabled?: boolean } = {}) {
+  return useQuery({ ...billingQuery(), enabled: options.enabled ?? true });
 }
 
-/** `mutate("month" | "year")` leaves for Stripe Checkout (the trial, when the workspace has one). */
+/** `mutate(interval)` starts the free trial now (no card); setup's plan step is then done. */
+export function useStartTrial() {
+  return useMutation(startTrialMutation(useQueryClient()));
+}
+
+/** `mutate({ interval, returnPath })` leaves for Stripe Checkout to pay. */
 export function useStartCheckout() {
   return useMutation(checkoutMutation());
 }
 
-/** `mutate()` leaves for the Stripe customer portal: card, interval, invoices, cancel. */
+/** `mutate(returnPath)` leaves for the Stripe customer portal: card, interval, invoices, cancel. */
 export function useOpenBillingPortal() {
   return useMutation(portalMutation());
 }

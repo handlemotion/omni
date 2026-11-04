@@ -41,21 +41,34 @@ export function onboardingExit(
   return ready ? { kind: "workspace", workspace: ready } : { kind: "sign-out" };
 }
 
-/** Onboarding's pages, in order. */
-export const ONBOARDING_PAGES = ["Workspace", "DNS", "Mailboxes", "Invite"] as const;
+/** Every onboarding page, in order. `Plan` appears only where billing is on (ADR 0015). */
+export type OnboardingPage = "Workspace" | "DNS" | "Mailboxes" | "Plan" | "Invite";
 
 /**
- * The page a saved setup resumes on (an index into `ONBOARDING_PAGES`). A domain on its own
- * mail host resumes on the server page even once verified: its IMAP and SMTP servers are never
- * stored, so they are asked again before mailboxes.
+ * This deployment's pages. The plan comes after mailboxes, once the workspace works, and before
+ * invitations, so nobody is invited into a workspace that has no plan yet.
  */
-export function resumePage(data: Onboarding) {
+export function onboardingPages(data: Pick<Onboarding, "billing"> | undefined): OnboardingPage[] {
+  return data?.billing.enabled
+    ? ["Workspace", "DNS", "Mailboxes", "Plan", "Invite"]
+    : ["Workspace", "DNS", "Mailboxes", "Invite"];
+}
+
+/**
+ * The page a saved setup resumes on. Once mailboxes exist it is the plan while the workspace has
+ * none (coming back from Stripe without paying included), else the invitations. A domain on its
+ * own mail host resumes on the server page even once verified: its IMAP and SMTP servers are
+ * never stored, so they are asked again before mailboxes.
+ */
+export function resumePage(data: Onboarding): OnboardingPage {
   const step = data.organization?.setup ?? "created";
   const domain = data.domains[0];
-  if (step === "mailboxes_created" || step === "invites_sent" || step === "complete") return 3;
-  if (!domain) return 0;
-  if (step === "dns_verified" && domain.provider !== "imap") return 2;
-  return 1;
+  if (step === "mailboxes_created" || step === "invites_sent" || step === "complete") {
+    return data.billing.enabled && data.organization?.needsPlan ? "Plan" : "Invite";
+  }
+  if (!domain) return "Workspace";
+  if (step === "dns_verified" && domain.provider !== "imap") return "Mailboxes";
+  return "DNS";
 }
 
 /** Lowercase letters and digits joined by dashes, plus a random tail so slugs never collide. */
@@ -129,6 +142,28 @@ export const addDomainMutation = (client: QueryClient) =>
   mutationOptions({
     mutationFn: (domain: string) => call(api.onboarding.domains.$post({ json: { domain } })),
     onSuccess: (domain) => storeDomain(client, domain),
+  });
+
+/**
+ * `mutate(domainId)`: removes the domain from the workspace (ADR 0016). A claim that never
+ * verified is withdrawn; a verified domain is released (owners only, refused while it has
+ * mailboxes). Its remembered challenge value goes with it.
+ */
+export const removeDomainMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: (id: string) =>
+      call(api.onboarding.domains[":id"].release.$post({ param: { id } })),
+    onSuccess: (_, id) => {
+      try {
+        localStorage.removeItem(challengeKey(id));
+      } catch {
+        // Storage blocked: nothing was kept.
+      }
+      client.setQueryData<Onboarding>(keys.onboarding(), (data) =>
+        data?.organization ? { ...data, domains: data.domains.filter((d) => d.id !== id) } : data,
+      );
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: keys.onboarding() }),
   });
 
 /** `mutate(domainId)`: a new challenge value, for a member who lost the first one. */
