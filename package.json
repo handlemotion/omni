@@ -24,6 +24,8 @@
     "mail:local:up": "docker compose up -d --wait greenmail",
     "stack:up": "docker compose up -d --wait",
     "stack:down": "docker compose down",
+    "stack:serve": "node scripts/serve.mjs start",
+    "stack:serve:stop": "node scripts/serve.mjs stop",
     "prepare": "node scripts/install-git-hooks.mjs"
   },
   "devDependencies": {

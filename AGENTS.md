@@ -43,6 +43,12 @@ extends this file and wins where they differ. Explicit user instructions overrid
   applies the fixable ones.
 - `pnpm test` runs affected unit suites. `pnpm test:e2e` runs e2e suites; start the local stack
   first with `pnpm stack:up` (Postgres on `localhost:54329`, GreenMail IMAP `3143` / SMTP `3025`).
+  E2E files run in parallel, and the Worker is built once per change
+  (`apps/worker/e2e/global-setup.ts`); one file: `pnpm --filter <pkg> test:e2e e2e/<file>`.
+- `pnpm stack:serve` serves the real Worker and built web app on `:8787` against the local
+  database, detached; it returns once `/health` answers (`pnpm stack:serve:stop` stops it). Use it
+  for UI checks instead of backgrounding a server yourself (`cmd &` in a piped script hangs).
+- Node is 26 (`.nvmrc`); the mail service needs it. Cloud sessions put `/opt/node/bin` first.
 - The pre-commit hook runs `lint-staged` (`oxfmt`, `oxlint --fix`, test policy), so staged files
   can change during `git commit`. Re-read a file after committing before you edit it again.
 

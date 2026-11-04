@@ -1,5 +1,7 @@
 // E2E support: a throwaway migrated database per file, the real Worker under workerd via
 // wrangler's test harness, and a real HTTP endpoint standing where the mail service listens.
+// The Worker runs from the bundle global-setup.ts builds once per change; any vitest config that
+// imports this file needs that globalSetup.
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -11,6 +13,7 @@ import { desc, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { createTestHarness, unstable_startWorker } from "wrangler";
+import { prebuiltWorkerDir } from "./global-setup.ts";
 
 export const HMAC_SECRET = "e2e-hmac-secret-e2e-hmac-secret-e2e-hmac";
 export const SYSTEM_MAIL_FROM = "no-reply@omni.test";
@@ -133,6 +136,7 @@ export async function startWorker(options: WorkerOptions) {
     workers: [
       {
         configPath: "./wrangler.jsonc",
+        prebuiltWorkerDir,
         vars: workerVars(options),
         secrets: { ...workerSecrets, ...options.secrets },
       },
@@ -151,6 +155,9 @@ export async function startWorkerWithNetwork(options: WorkerOptions & { port?: n
   process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = options.databaseUrl;
   const worker = await unstable_startWorker({
     config: join(import.meta.dirname, "../wrangler.jsonc"),
+    // The bundle global-setup.ts built; an empty custom command skips wrangler.jsonc's web build.
+    entrypoint: join(prebuiltWorkerDir, "index.js"),
+    build: { bundle: false, custom: { command: "" } },
     bindings: Object.fromEntries([
       ...Object.entries(workerVars(options)).map(([k, value]) => [
         k,

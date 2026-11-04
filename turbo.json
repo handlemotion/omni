@@ -8,6 +8,9 @@
       "outputs": ["dist/**"]
     },
     "test": {
+      // Unit suites read the shared config and the repo-level fixtures; editing either must
+      // rerun them instead of replaying a cached pass.
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.shared.mts", "$TURBO_ROOT$/fixtures/**"],
       "outputs": []
     },
     "test:e2e": {

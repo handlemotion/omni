@@ -16,11 +16,14 @@ log=/tmp/omni-session-start.log
 : >"$log"
 trap 'echo "omni: session start failed; see $log" >&2' ERR
 
+# Node from .nvmrc and pnpm from `packageManager`, both in /opt/node/bin. An environment whose
+# setup script is not scripts/cloud/setup.sh (or an old copy of it) lacks them, and the image's
+# own Node is too old for the mail service: run the setup script here instead (idempotent, ~20 s).
 node_bin=/opt/node/bin
-[ -x "$node_bin/node" ] || {
-  echo "omni: $node_bin/node missing; is scripts/cloud/setup.sh the environment's setup script?" >&2
-  exit 1
-}
+if [ "$("$node_bin/node" --version 2>/dev/null)" != "v$(cat .nvmrc)" ] || [ ! -x "$node_bin/pnpm" ]; then
+  echo "omni: Node $(cat .nvmrc) or pnpm missing from $node_bin; running scripts/cloud/setup.sh" >&2
+  bash scripts/cloud/setup.sh >>"$log" 2>&1
+fi
 export PATH="$node_bin:$PATH"
 if [ -n "${CLAUDE_ENV_FILE:-}" ] && ! grep -qs "$node_bin" "$CLAUDE_ENV_FILE"; then
   echo "export PATH=\"$node_bin:\$PATH\"" >>"$CLAUDE_ENV_FILE"
