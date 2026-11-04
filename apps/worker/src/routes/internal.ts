@@ -7,10 +7,10 @@ import {
   mailEventSchema,
   type MailEvent,
 } from "@omni/contracts";
-import { createDb } from "@omni/db";
 import { z } from "zod";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
+import { openDb } from "../db.ts";
 import { loadConfig } from "../env.ts";
 import type { AiJob } from "../queue.ts";
 import { fanOut, notifyFailedActions } from "../realtime.ts";
@@ -67,11 +67,7 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   }
   if (jobs.length) await c.env.AI_QUEUE.sendBatch(jobs.map((body) => ({ body })));
 
-  const { db, close } = createDb(c.env.HYPERDRIVE.connectionString, {
-    max: 2,
-    fetch_types: false,
-    onnotice: () => {},
-  });
+  const { db, close } = openDb(c.env);
   try {
     const created = events.filter((e) => e.type === "message.created");
     if (created.length) await fanOut(c.env, db, config, changedThreads(created), { push: true });

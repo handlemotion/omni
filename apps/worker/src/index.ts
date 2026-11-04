@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/cloudflare";
-import { createDb } from "@omni/db";
 import { PRIVATE_DATA_COLLECTION, scrubBreadcrumb, scrubEvent } from "@omni/mail-core/telemetry";
 import { app } from "./app.ts";
+import { openDb } from "./db.ts";
 import { recheckLocks } from "./domains.ts";
 import { loadConfig } from "./env.ts";
 import { createLogger } from "./log.ts";
@@ -36,7 +36,7 @@ export default Sentry.withSentry(
 /** The cron trigger: re-check every verified domain's challenge (ADR 0010). Safe to run twice. */
 async function scheduledRecheck(env: Env, ctx: ExecutionContext) {
   const config = loadConfig(env);
-  const { db, close } = createDb(env.HYPERDRIVE.connectionString, { max: 2, fetch_types: false });
+  const { db, close } = openDb(env);
   const requestId = crypto.randomUUID();
   const log = createLogger({ component: "domains", requestId });
   try {

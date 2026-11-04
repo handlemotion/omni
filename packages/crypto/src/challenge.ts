@@ -1,7 +1,7 @@
 // Domain ownership challenges (ADR 0010). A claim gets a random token that only the domain's DNS
 // can publish, as the TXT value `omni-challenge=<token>`. Only the token's SHA-256 is stored, so a
 // database read alone cannot produce a passing record; checks compare digests in constant time.
-import { toBase64Url, toHex, utf8 } from "./encoding.ts";
+import { sha256Hex, toBase64Url } from "./encoding.ts";
 
 const PREFIX = "omni-challenge=";
 const TOKEN_BYTES = 32;
@@ -15,7 +15,7 @@ export async function newChallenge(): Promise<{ value: string; hash: string }> {
 
 /** The stored form of a challenge value: SHA-256, hex. */
 export async function hashChallenge(value: string): Promise<string> {
-  return toHex(new Uint8Array(await crypto.subtle.digest("SHA-256", utf8(value.trim()))));
+  return sha256Hex(value.trim());
 }
 
 /**
