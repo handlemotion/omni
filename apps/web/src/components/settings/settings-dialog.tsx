@@ -1,9 +1,10 @@
 // Settings: a dialog over the workspace (Figma: Omni, settings dialog, node 40:1608). ⌘. opens
 // and closes it from anywhere; so do the sidebar's Settings button and the `/settings` path.
 //
-// The frame follows Figma at the app's own scale: the nav is the app sidebar's (240px, 13px rows
-// 32px tall, 11px group labels, the search field on top), the page is a 640px column centred in
-// the rest, its title 17px. The page body is transitive's settings kit (`./kit`).
+// Full screen, still a dialog: it settles from 105% while the app recedes under it (the shell
+// scales it to 95% and fades it). The nav is the app sidebar's (240px, 13px rows 32px tall, 11px
+// group labels, the search field on top), set at the right of the left 40%; the page is a 640px
+// column in the right 60%, its title 17px. The page body is transitive's settings kit (`./kit`).
 import { CommandLineIcon, KeyIcon } from "@heroicons/react/24/outline";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
@@ -127,7 +128,7 @@ export function SettingsDialog() {
   return (
     <Dialog
       aria-label="Settings"
-      size="5xl"
+      size="full"
       bare
       isOpen={isOpen}
       onOpenChange={(open) => {
@@ -136,7 +137,6 @@ export function SettingsDialog() {
         // `/settings` is only a way in: closing returns to the inbox, not to an empty page.
         if (pathname === "/settings") void navigate({ to: "/inbox" });
       }}
-      className="h-[min(720px,calc(100dvh-64px))]"
     >
       <SettingsBody page={page} />
     </Dialog>
@@ -152,41 +152,44 @@ function SettingsBody({ page }: { page: SettingsPageId }) {
   const current = groups.flatMap((group) => group.pages).find((p) => p.id === page);
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <nav
-        aria-label="Settings pages"
-        className="flex w-sidebar shrink-0 flex-col gap-3 overflow-y-auto border-e border-border bg-surface p-2"
-      >
-        <SearchField aria-label="Search settings" value={query} onChange={setQuery}>
-          <SearchInput placeholder="Search settings" />
-        </SearchField>
-        {shown.length === 0 ? (
-          <p className="px-2.25 text-sm text-muted-foreground">No settings match.</p>
-        ) : (
-          <NavList
-            aria-label="Settings pages"
-            selectedKeys={[page]}
-            onSelectionChange={(keys) => {
-              const [next] = [...(keys === "all" ? [] : keys)];
-              if (next) showSettingsPage(next as SettingsPageId);
-            }}
-          >
-            {shown.map((group) => (
-              <NavListSection key={group.label} id={group.label} label={group.label}>
-                {group.pages.map((p) => (
-                  <NavListItem key={p.id} id={p.id} textValue={p.title}>
-                    {p.icon}
-                    <NavListLabel>{p.title}</NavListLabel>
-                  </NavListItem>
-                ))}
-              </NavListSection>
-            ))}
-          </NavList>
-        )}
-      </nav>
-      <div className="min-w-0 flex-1 overflow-y-auto bg-background">
-        {/* Optical: the column starts a little higher than its sides, as the Figma page does. */}
-        <div className="mx-auto max-w-160 px-10 pt-9 pb-12">
+    // 40/60: the left part is the surface, its nav (the app sidebar's width) set against the
+    // divider so it sits beside the page; the page column starts on the same line as the nav.
+    <div className="grid min-h-0 flex-1 grid-cols-[2fr_3fr]">
+      <div className="flex min-h-0 justify-end overflow-y-auto border-e border-border bg-surface">
+        <nav
+          aria-label="Settings pages"
+          className="flex w-sidebar shrink-0 flex-col gap-3 px-2 pt-14 pb-8"
+        >
+          <SearchField aria-label="Search settings" value={query} onChange={setQuery}>
+            <SearchInput placeholder="Search settings" />
+          </SearchField>
+          {shown.length === 0 ? (
+            <p className="px-2.25 text-sm text-muted-foreground">No settings match.</p>
+          ) : (
+            <NavList
+              aria-label="Settings pages"
+              selectedKeys={[page]}
+              onSelectionChange={(keys) => {
+                const [next] = [...(keys === "all" ? [] : keys)];
+                if (next) showSettingsPage(next as SettingsPageId);
+              }}
+            >
+              {shown.map((group) => (
+                <NavListSection key={group.label} id={group.label} label={group.label}>
+                  {group.pages.map((p) => (
+                    <NavListItem key={p.id} id={p.id} textValue={p.title}>
+                      {p.icon}
+                      <NavListLabel>{p.title}</NavListLabel>
+                    </NavListItem>
+                  ))}
+                </NavListSection>
+              ))}
+            </NavList>
+          )}
+        </nav>
+      </div>
+      <div className="min-w-0 overflow-y-auto bg-background">
+        <div className="max-w-160 px-12 pt-14 pb-16">
           {current && (
             <>
               <SettingsPageHeader title={current.id === "profile" ? "Profile" : current.title} />

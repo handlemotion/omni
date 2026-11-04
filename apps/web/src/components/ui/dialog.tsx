@@ -28,6 +28,9 @@ const sizes = {
   "3xl": "sm:max-w-3xl",
   "4xl": "sm:max-w-4xl",
   "5xl": "sm:max-w-5xl",
+  // The whole screen: no scrim to see through, no edge. It settles from 105% while the app
+  // under it recedes (the caller scales the app), so it reads as a layer stacked on top.
+  full: "h-dvh max-h-none rounded-none border-0",
 };
 
 export interface DialogProps
@@ -51,13 +54,18 @@ export function Dialog({
   ...props
 }: DialogProps) {
   const dismissable = isDismissable ?? role !== "alertdialog";
+  const full = size === "full";
   return (
     <ModalOverlay
       data-slot="dialog-overlay"
       isDismissable={dismissable}
       className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4",
-        "entering:animate-in entering:fade-in-0 exiting:animate-out exiting:fade-out-0 duration-100 motion-reduce:animate-none",
+        "fixed inset-0 z-50 flex items-center justify-center",
+        full
+          ? // An identity animation of the panel's length: React Aria keeps the overlay (and so
+            // the panel's exit) mounted only while the overlay itself animates.
+            "entering:animate-in exiting:animate-out entering:duration-300 exiting:duration-200 motion-reduce:animate-none"
+          : "entering:animate-in entering:fade-in-0 exiting:animate-out exiting:fade-out-0 bg-scrim p-4 duration-100 motion-reduce:animate-none",
       )}
       {...props}
     >
@@ -65,7 +73,10 @@ export function Dialog({
         data-slot="dialog-content"
         className={cn(
           "relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-xl border border-border bg-background text-sm text-foreground outline-hidden",
-          "entering:animate-in entering:fade-in-0 entering:zoom-in-95 exiting:animate-out exiting:fade-out-0 exiting:zoom-out-95 duration-100 motion-reduce:animate-none",
+          "entering:animate-in entering:fade-in-0 exiting:animate-out exiting:fade-out-0 motion-reduce:animate-none",
+          full
+            ? "entering:zoom-in-105 exiting:zoom-out-105 ease-out entering:duration-300 exiting:duration-200"
+            : "entering:zoom-in-95 exiting:zoom-out-95 duration-100",
           sizes[size],
           className,
         )}
