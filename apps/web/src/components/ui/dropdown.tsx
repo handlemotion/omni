@@ -41,12 +41,12 @@ export function DropdownSection<T extends object>({
 
 export const dropdownItemStyles = tv({
   base: [
-    "min-w-0 [--me-icon:--spacing(2.5)] sm:[--me-icon:--spacing(2)]",
+    "min-w-0 [--me-icon:--spacing(3)] sm:[--me-icon:--spacing(2.5)]",
     // Rows from transitive's menus: 30px, a small radius, 13px text, the fill fading in place.
     // 10px before the icon (which pulls 2px back) and 14px after the label: with the list's 4px
     // padding the icon's box sits 12px from the edge and the longest label ends 18px from it, so
     // the widest item sets the dropdown's width with room on both sides (measured).
-    "col-span-full grid min-h-7.5 grid-cols-[auto_1fr_1.5rem_0.5rem_auto] ps-2.5 pe-3.5 py-1.5 supports-[grid-template-columns:subgrid]:grid-cols-subgrid",
+    "col-span-full grid min-h-7.5 grid-cols-[auto_1fr_1.5rem_0.5rem_auto] ps-2.5 pe-8 py-1.5 supports-[grid-template-columns:subgrid]:grid-cols-subgrid",
     "transition-[background-color] duration-150 ease-out motion-reduce:transition-none",
     "not-has-[[slot=description]]:items-center",
     "group relative cursor-default select-none rounded-sm outline-0",
@@ -56,8 +56,8 @@ export const dropdownItemStyles = tv({
     "*:data-[slot=avatar]:*:me-(--me-icon) *:data-[slot=avatar]:me-(--me-icon) has-[[slot=description]]:*:data-[slot=avatar]:row-span-2 *:data-[slot=avatar]:[--avatar-size:--spacing(5)] sm:*:data-[slot=avatar]:[--avatar-size:--spacing(4)]",
     // icon
     "[&_svg:not([class*='text-'])]:text-muted-foreground *:[svg:not([data-slot='check-indicator'])]:col-start-1 *:[svg:not([data-slot='check-indicator'])]:row-start-1 *:[svg:not([data-slot='check-indicator'])]:-ms-0.5 *:[svg:not([data-slot='check-indicator'])]:me-(--me-icon) *:[svg]:shrink-0",
-    "not-has-[[slot=description]]:*:[svg]:size-5 sm:not-has-[[slot=description]]:*:[svg]:size-4",
-    "has-[[slot=description]]:[&_svg:not([class*='w-'])]:w-5 sm:has-[[slot=description]]:[&_svg:not([class*='w-'])]:w-4 has-[[slot=description]]:*:[svg]:h-lh",
+    "not-has-[[slot=description]]:*:[svg]:size-5 sm:not-has-[[slot=description]]:*:[svg]:size-3.5",
+    "has-[[slot=description]]:[&_svg:not([class*='w-'])]:w-5 sm:has-[[slot=description]]:[&_svg:not([class*='w-'])]:w-3.5 has-[[slot=description]]:*:[svg]:h-lh",
     "[&>[slot=label]+svg:not([data-slot='check-indicator'])]:absolute [&>[slot=label]+svg:not([data-slot='check-indicator'])]:inset-e-0 [&>[slot=label]+svg:not([data-slot='check-indicator'])]:top-1",
     "selected:[&>svg:not([data-slot='check-indicator']):has(+svg:not([data-slot='check-indicator']))]:absolute selected:[&>svg:not([data-slot='check-indicator']):has(+svg:not([data-slot='check-indicator']))]:inset-e-0 selected:[&>svg:not([data-slot='check-indicator']):has(+svg:not([data-slot='check-indicator']))]:top-1",
     "selected:[&>svg:not([data-slot='check-indicator']):has(+[data-slot=avatar])]:absolute selected:[&>svg:not([data-slot='check-indicator']):has(+[data-slot=avatar])]:inset-e-0 selected:[&>svg:not([data-slot='check-indicator']):has(+[data-slot=avatar])]:top-1",
