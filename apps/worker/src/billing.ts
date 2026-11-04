@@ -111,11 +111,44 @@ export async function inGoodStanding(db: Db, config: Config, orgId: string) {
 }
 
 /**
- * Mail writes (send, reply, archive, read state…) need a workspace in good standing. Reads pass,
- * so a read-only workspace keeps its mail visible and syncing.
+ * The writes under `/api` an unpaid workspace may still make (ADR 0015: "setup, members,
+ * invitations and billing stay open so an owner can always fix it"). Everything else is denied.
+ * A path matches an entry when it is the entry or below it; `:param` matches one segment.
+ * `e2e/billing-gate.e2e.test.ts` sends every write route in `app` and holds this list to it.
+ */
+export const READ_ONLY_ALLOWED = [
+  // Inside the member API: `requireWritableWorkspace` lets these through.
+  { path: "/api/billing", reason: "checkout and the portal are how a workspace becomes paid" },
+  { path: "/api/mailboxes/:id/members", reason: "who can see a mailbox is access, not mail" },
+  // Mounted ahead of the member API in app.ts, so the gate never runs for them.
+  { path: "/api/auth", reason: "sign-in, invitations, organizations and Stripe's webhook" },
+  { path: "/api/onboarding", reason: "workspace setup: domains and mailboxes" },
+  { path: "/api/workspaces", reason: "which workspaces the user belongs to" },
+  { path: "/api/account", reason: "the person's own sign-in emails, not the workspace" },
+] as const satisfies readonly { path: string; reason: string }[];
+
+export function allowedWhileReadOnly(path: string) {
+  const segments = path.split("/");
+  return READ_ONLY_ALLOWED.some((entry) => {
+    const pattern = entry.path.split("/");
+    return (
+      segments.length >= pattern.length &&
+      pattern.every((part, i) => part.startsWith(":") || part === segments[i])
+    );
+  });
+}
+
+/**
+ * Every write under the member API needs a workspace in good standing unless `READ_ONLY_ALLOWED`
+ * names it. Reads pass, so a read-only workspace keeps its mail visible and syncing.
  */
 export const requireWritableWorkspace = createMiddleware<AppEnv>(async (c, next) => {
-  if (c.req.method !== "GET" && c.req.method !== "HEAD" && c.var.config.auth.billing) {
+  if (
+    c.req.method !== "GET" &&
+    c.req.method !== "HEAD" &&
+    c.var.config.auth.billing &&
+    !allowedWhileReadOnly(c.req.path)
+  ) {
     if (!(await inGoodStanding(c.var.db, c.var.config, c.var.member.orgId))) {
       return c.json(
         {
