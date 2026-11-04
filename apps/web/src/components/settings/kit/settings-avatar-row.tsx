@@ -1,4 +1,5 @@
-import { ArrowUpTrayIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { IconArrowOutOfBox } from "central-icons-outlined/IconArrowOutOfBox";
+import { IconTrashCanSimple } from "central-icons-outlined/IconTrashCanSimple";
 import { useRef, type ReactNode } from "react";
 import { Button as AvatarButton } from "react-aria-components/Button";
 import { FileTrigger } from "react-aria-components/FileTrigger";
@@ -67,12 +68,12 @@ export function SettingsAvatarRow({
                   textValue={`Upload a new ${noun}`}
                   onAction={() => input.current?.click()}
                 >
-                  <ArrowUpTrayIcon data-slot="icon" />
+                  <IconArrowOutOfBox data-slot="icon" />
                   <MenuLabel>Upload a new {noun}</MenuLabel>
                 </MenuItem>
                 {onRemove && (
                   <MenuItem intent="danger" textValue={`Remove ${noun}`} onAction={onRemove}>
-                    <TrashIcon data-slot="icon" />
+                    <IconTrashCanSimple data-slot="icon" />
                     <MenuLabel>Remove {noun}</MenuLabel>
                   </MenuItem>
                 )}

@@ -1,9 +1,9 @@
-import { ArrowUpRightIcon } from "@heroicons/react/16/solid";
+import { IconArrowUpRight } from "central-icons-outlined/IconArrowUpRight";
+import { IconChevronRightMedium } from "central-icons-outlined/IconChevronRightMedium";
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Button } from "react-aria-components/Button";
 import { Link } from "react-aria-components/Link";
-import { IconChevronRight } from "@/components/icons/sidebar";
 import {
   settingsRowClassName,
   settingsRowInteractiveClassName,
@@ -46,9 +46,9 @@ export function SettingsLinkRow({
         <span className="max-w-56 shrink-0 truncate text-sm/4 text-muted-foreground">{value}</span>
       )}
       {href ? (
-        <ArrowUpRightIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+        <IconArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" />
       ) : (
-        <IconChevronRight className="shrink-0 text-muted-foreground" />
+        <IconChevronRightMedium className="size-icon shrink-0 text-muted-foreground" />
       )}
     </>
   );

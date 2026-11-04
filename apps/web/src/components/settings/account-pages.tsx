@@ -1,15 +1,14 @@
 // Settings pages about you: your name and the accounts on this browser, how you sign in and where
 // you are signed in, and the keyboard shortcuts.
-import {
-  ComputerDesktopIcon,
-  DevicePhoneMobileIcon,
-  DeviceTabletIcon,
-} from "@heroicons/react/24/outline";
+import { IconKey1 } from "central-icons-outlined/IconKey1";
+import { IconMacbook } from "central-icons-outlined/IconMacbook";
+import { IconPencil } from "central-icons-outlined/IconPencil";
+import { IconPhone } from "central-icons-outlined/IconPhone";
+import { IconTablet } from "central-icons-outlined/IconTablet";
+import { IconTrashCanSimple } from "central-icons-outlined/IconTrashCanSimple";
 import { Fragment, useEffect, useState } from "react";
-import { PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { Skeleton } from "skullet/react";
 import { IconCircleDashed } from "@/components/icons/sidebar";
-import { IconKey } from "@/components/icons";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Keyboard } from "@/components/ui/keyboard";
@@ -287,10 +286,10 @@ function describeDevice(agent: string | null | undefined): {
             : null;
   const icon =
     os === "iPhone" || (os === "Android" && /Mobile/.test(ua))
-      ? DevicePhoneMobileIcon
+      ? IconPhone
       : os === "iPad" || os === "Android"
-        ? DeviceTabletIcon
-        : ComputerDesktopIcon;
+        ? IconTablet
+        : IconMacbook;
   const name =
     browser && os
       ? `${browser} on ${os}`
@@ -338,7 +337,7 @@ export function SecurityPage() {
                 return (
                   <SettingsRow
                     key={passkey.id}
-                    icon={IconKey}
+                    icon={IconKey1}
                     label={name}
                     hint={passkey.backedUp ? "synced" : "this device only"}
                     description={`Added ${DAY.format(new Date(passkey.createdAt))}`}
@@ -347,13 +346,13 @@ export function SecurityPage() {
                         label={`Actions for ${name}`}
                         items={[
                           {
-                            icon: PencilIcon,
+                            icon: IconPencil,
                             label: "Rename",
                             onAction: () =>
                               setDialog({ kind: "rename-passkey", id: passkey.id, name }),
                           },
                           {
-                            icon: TrashIcon,
+                            icon: IconTrashCanSimple,
                             label: "Remove passkey",
                             danger: true,
                             onAction: () =>

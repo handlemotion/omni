@@ -21,11 +21,18 @@ not done yet".
 2. **`POST /api/onboarding/mailboxes` takes an optional `forMemberId`**, a member of the active
    workspace. The mailbox is then that member's personal inbox at any address on a verified
    domain: they get the owner grant, the creator gets none. Without it, ADR 0007's rule stands.
-   Settings uses the same route after setup, for "Add a shared mailbox" and "Create an inbox".
+   Settings uses the same route after setup, for "Add a shared mailbox" and "Create inbox".
 3. **Provisioning an existing address never changes whose it is.** The route answers 409 when
    the address is already a mailbox of the other kind, or a personal inbox of someone else. The
    mail service's `saveMailbox` keeps existing grants when it replaces a login, so without this
    an admin could turn a teammate's personal inbox into a shared mailbox they are on.
+
+4. **Settings shows a teammate's inbox on People, not on a page of its own.** For owners and
+   admins, each person's row on People says their inbox address, or "No inbox", and its state
+   when it isn't syncing ("Not syncing", "Connecting"). A person without one gets "Create inbox"
+   in their row menu, prefilled with their sign-in address. Members see People without inbox
+   facts, and People asks for the workspace list only for owners and admins. The mailbox pages
+   are two: Inboxes (what you can open) and Shared (each shared mailbox and who sees it).
 
 ## Consequences
 

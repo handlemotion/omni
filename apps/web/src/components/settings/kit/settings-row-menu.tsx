@@ -1,4 +1,4 @@
-import { EllipsisHorizontalIcon } from "@heroicons/react/16/solid";
+import { IconDotGrid1x3Horizontal } from "central-icons-outlined/IconDotGrid1x3Horizontal";
 import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
@@ -26,7 +26,7 @@ export function SettingsRowMenu({
   return (
     <MenuTrigger>
       <Button intent="plain" size="sq-xs" aria-label={label} isDisabled={disabled}>
-        <EllipsisHorizontalIcon />
+        <IconDotGrid1x3Horizontal />
       </Button>
       <Menu placement="bottom end">
         {items.map(({ icon: Icon, ...item }) => (

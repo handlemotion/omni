@@ -4,7 +4,7 @@
 //
 // Geometry: a section's title sits on the rows' text axis (16px in). It gets 32px from the group
 // above and 8px to its own, so it reads as the label of what follows.
-import { InformationCircleIcon } from "@heroicons/react/16/solid";
+import { IconCircleInfo } from "central-icons-outlined/IconCircleInfo";
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
@@ -78,7 +78,7 @@ export function SettingsSection({
                   aria-label={info}
                   className="inline-flex rounded-full text-subtle-foreground outline-hidden hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
-                  <InformationCircleIcon aria-hidden className="size-3.5" />
+                  <IconCircleInfo className="size-3.5" />
                 </Button>
                 <Tooltip>{info}</Tooltip>
               </TooltipTrigger>

@@ -3,7 +3,8 @@
 // workspace you belong to, a check on the active one. Choosing another switches to it: settings
 // act on the active workspace (ADR 0014). An owner or admin of a workspace still being set up
 // goes to onboarding instead, as from the mailbox switcher (ADR 0009).
-import { CheckIcon, ChevronUpDownIcon } from "@heroicons/react/20/solid";
+import { IconCheckmark1 } from "central-icons-outlined/IconCheckmark1";
+import { IconChevronGrabberVertical } from "central-icons-outlined/IconChevronGrabberVertical";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
@@ -53,7 +54,7 @@ export function WorkspaceChooser() {
           )}
         </span>
         <span className="min-w-0 flex-1 truncate text-start">{active.name}</span>
-        <ChevronUpDownIcon className="size-3.5 shrink-0 text-subtle-foreground" />
+        <IconChevronGrabberVertical className="size-3.5 shrink-0 text-subtle-foreground" />
       </Button>
       {/* As wide as its trigger, so the menu reads as the chooser opened. */}
       <Menu
@@ -70,7 +71,7 @@ export function WorkspaceChooser() {
             <MenuLabel className="flex min-w-0 items-center justify-between gap-3">
               <span className="truncate">{w.name}</span>
               {w.id === member.orgId && (
-                <CheckIcon aria-hidden className="size-3.5 shrink-0 text-foreground" />
+                <IconCheckmark1 className="size-3.5 shrink-0 text-foreground" />
               )}
             </MenuLabel>
           </MenuItem>

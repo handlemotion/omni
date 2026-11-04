@@ -282,6 +282,9 @@ importers:
       '@tanstack/react-router':
         specifier: ^1.170.46
         version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      central-icons-outlined:
+        specifier: npm:@central-icons-react/round-outlined-radius-3-stroke-1.5@^1.2.27
+        version: '@central-icons-react/round-outlined-radius-3-stroke-1.5@1.2.27(react@19.3.1)'
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -856,6 +859,11 @@ packages:
   '@bramus/specificity@2.4.3':
     resolution: {integrity: sha512-0GEz8qJWokkUVYQYRukmkSHIFNoBH8QTreeHrAFbvz1XFYc3Y+puhMs8PQ5x8GNugiC2l5jvDBXKLbBIByeSBw==}
     hasBin: true
+
+  '@central-icons-react/round-outlined-radius-3-stroke-1.5@1.2.27':
+    resolution: {integrity: sha512-oS9MvuAkFHAmf1T1sWArQmq/MTGD5dyeW1QR51NXjEUOUEyHri1n2wtpFWyq2q3gKJMWG4M3Ki91N13siNd0uQ==}
+    peerDependencies:
+      react: '>=16.6.0 <20'
 
   '@chevrotain/cst-dts-gen@12.0.0':
     resolution: {integrity: sha512-fSL4KXjTl7cDgf0B5Rip9Q05BOrYvkJV/RrBTE/bKDN096E4hN/ySpcBK5B24T76dlQ2i32Zc3PAE27jFnFrKg==}
@@ -4865,6 +4873,10 @@ snapshots:
   '@bramus/specificity@2.4.3':
     dependencies:
       css-tree: 3.2.1
+
+  '@central-icons-react/round-outlined-radius-3-stroke-1.5@1.2.27(react@19.3.1)':
+    dependencies:
+      react: 19.3.1
 
   '@chevrotain/cst-dts-gen@12.0.0':
     dependencies:

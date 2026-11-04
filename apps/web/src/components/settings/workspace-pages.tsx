@@ -1,15 +1,21 @@
 // Settings pages about the active workspace: what it is and the others you belong to, and who is
-// in it. Its mailboxes are `mailbox-pages.tsx`.
-import { GlobeAltIcon, ServerStackIcon, TrashIcon } from "@heroicons/react/24/outline";
+// in it. Owners and admins also see each person's personal inbox there (ADR 0017). The mailboxes
+// you open and the shared ones are `mailbox-pages.tsx`.
+import { IconGlobe } from "central-icons-outlined/IconGlobe";
+import { IconInboxEmpty } from "central-icons-outlined/IconInboxEmpty";
+import { IconListBullets } from "central-icons-outlined/IconListBullets";
+import { IconPaperPlane } from "central-icons-outlined/IconPaperPlane";
+import { IconPeopleCircle } from "central-icons-outlined/IconPeopleCircle";
+import { IconTrashCanSimple } from "central-icons-outlined/IconTrashCanSimple";
+import { IconUserRemove } from "central-icons-outlined/IconUserRemove";
+import { IconCircleX } from "central-icons-outlined/IconCircleX";
 import { cn } from "cn";
 import { type CSSProperties, useState } from "react";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
-import { UserCircleIcon, UserMinusIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import { Skeleton } from "skullet/react";
-import { IconPaperPlane } from "@/components/icons/sidebar";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,11 +40,18 @@ import {
   useResendInvitation,
   useUpdateMemberRole,
 } from "@/hooks/use-organization.ts";
+import { useWorkspaceMailboxes } from "@/hooks/use-mailbox-members.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useRemoveWorkspaceLogo, useUploadWorkspaceLogo } from "@/hooks/use-pictures.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
-import type { DnsRecord, OnboardingDomain, Workspace } from "@/lib/types.ts";
+import type { DnsRecord, OnboardingDomain, OrgMailbox, Workspace } from "@/lib/types.ts";
 import { NameInputRow, PersonAvatar } from "./account-pages";
+import {
+  type InboxOwner,
+  MAILBOX_STATUS,
+  NewMailboxDialog,
+  useMailboxDomains,
+} from "./mailbox-pages";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import {
   SettingsEmptyState,
@@ -245,7 +258,7 @@ function DomainsSection() {
               return (
                 <SettingsRow
                   key={domain.id}
-                  icon={GlobeAltIcon}
+                  icon={IconGlobe}
                   label={domain.domain}
                   description={
                     domain.provider === "purelymail" ? "Hosted by Purelymail" : "Your own mail host"
@@ -257,7 +270,7 @@ function DomainsSection() {
                         label={`Actions for ${domain.domain}`}
                         items={[
                           {
-                            icon: ServerStackIcon,
+                            icon: IconListBullets,
                             label: "DNS records",
                             onAction: () => setDialog({ kind: "records", domainId: domain.id }),
                           },
@@ -266,7 +279,7 @@ function DomainsSection() {
                           ...(isOwner || domain.status !== "verified"
                             ? [
                                 {
-                                  icon: TrashIcon,
+                                  icon: IconTrashCanSimple,
                                   label: "Remove domain",
                                   danger: true,
                                   onAction: () =>
@@ -488,7 +501,29 @@ type PeopleDialog =
   | { kind: "invite" }
   | { kind: "role"; memberId: string; name: string; role: Role }
   | { kind: "remove"; memberId: string; name: string }
-  | { kind: "revoke"; invitationId: string; email: string };
+  | { kind: "revoke"; invitationId: string; email: string }
+  | { kind: "inbox"; person: InboxOwner };
+
+/**
+ * A person's personal inbox as their People row says it: its address, then its state when it
+ * isn't syncing normally. Text in the description, so the row stays as tall as the others.
+ */
+function InboxDescription({ inboxes }: { inboxes: OrgMailbox[] }) {
+  const [first] = inboxes;
+  if (!first) return "No inbox";
+  const status = MAILBOX_STATUS[first.status];
+  return (
+    <>
+      {first.address}
+      {inboxes.length > 1 && ` and ${inboxes.length - 1} more`}
+      {status && (
+        <span className={cn(status.intent === "danger" && "text-danger-subtle-foreground")}>
+          {` · ${status.label}`}
+        </span>
+      )}
+    </>
+  );
+}
 
 export function PeoplePage() {
   const { member: me } = useMember();
@@ -498,19 +533,21 @@ export function PeoplePage() {
   const cancel = useCancelInvitation();
   const resend = useResendInvitation();
   const canManage = isManager(me.role);
+  // Owners and admins see whose personal inbox exists; the list is theirs only (ADR 0017).
+  const workspaceMailboxes = useWorkspaceMailboxes(canManage);
+  const domains = useMailboxDomains();
   const pending = invitations.data?.filter((invitation) => invitation.status === "pending");
   const [dialog, setDialog] = useState<PeopleDialog | null>(null);
   const close = () => setDialog(null);
+  const personal = workspaceMailboxes.data?.mailboxes.filter((m) => m.kind === "personal");
+  // Members alone for everyone else; for owners and admins, members once their inboxes load too.
+  const rows = canManage && !personal ? undefined : members.data?.members;
+  const canCreateInbox = canManage && !!domains && domains.length > 0;
 
   return (
     <SettingsSections>
       <SettingsSection title="Members">
-        <Skeleton
-          id="settings-members"
-          data={members.data?.members}
-          sample={SAMPLE_MEMBERS}
-          label="Loading members"
-        >
+        <Skeleton id="settings-members" data={rows} sample={SAMPLE_MEMBERS} label="Loading members">
           {(list) => (
             <SettingsGroup>
               {canManage && (
@@ -523,40 +560,66 @@ export function PeoplePage() {
                 const name = person.user.name || person.user.email;
                 const self = person.id === me.id;
                 const editable = canManage && !self && !person.role.includes("owner");
+                const inboxes = personal?.filter((m) => m.owner?.memberId === person.id);
+                const items = [
+                  ...(canCreateInbox && inboxes?.length === 0
+                    ? [
+                        {
+                          icon: IconInboxEmpty,
+                          label: "Create inbox",
+                          onAction: () =>
+                            setDialog({
+                              kind: "inbox",
+                              person: {
+                                id: person.id,
+                                name,
+                                email: person.user.email,
+                                isYou: self,
+                              },
+                            }),
+                        },
+                      ]
+                    : []),
+                  ...(editable
+                    ? [
+                        {
+                          icon: IconPeopleCircle,
+                          label: "Change role",
+                          onAction: () =>
+                            setDialog({
+                              kind: "role",
+                              memberId: person.id,
+                              name,
+                              role: person.role.includes("admin") ? "admin" : "member",
+                            }),
+                        },
+                        {
+                          icon: IconUserRemove,
+                          label: "Remove from workspace",
+                          danger: true,
+                          onAction: () => setDialog({ kind: "remove", memberId: person.id, name }),
+                        },
+                      ]
+                    : []),
+                ];
                 return (
                   <SettingsRow
                     key={person.id}
                     avatar={<PersonAvatar name={name} image={person.user.image} />}
                     label={name}
                     hint={self ? "you" : undefined}
-                    description={person.user.name ? person.user.email : undefined}
+                    description={
+                      inboxes ? (
+                        <InboxDescription inboxes={inboxes} />
+                      ) : person.user.name ? (
+                        person.user.email
+                      ) : undefined
+                    }
                     control={
                       <>
                         <RoleBadge role={person.role} />
-                        {editable && (
-                          <SettingsRowMenu
-                            label={`Actions for ${name}`}
-                            items={[
-                              {
-                                icon: UserCircleIcon,
-                                label: "Change role",
-                                onAction: () =>
-                                  setDialog({
-                                    kind: "role",
-                                    memberId: person.id,
-                                    name,
-                                    role: person.role.includes("admin") ? "admin" : "member",
-                                  }),
-                              },
-                              {
-                                icon: UserMinusIcon,
-                                label: "Remove from workspace",
-                                danger: true,
-                                onAction: () =>
-                                  setDialog({ kind: "remove", memberId: person.id, name }),
-                              },
-                            ]}
-                          />
+                        {items.length > 0 && (
+                          <SettingsRowMenu label={`Actions for ${name}`} items={items} />
                         )}
                       </>
                     }
@@ -611,7 +674,7 @@ export function PeoplePage() {
                                 },
                               },
                               {
-                                icon: XCircleIcon,
+                                icon: IconCircleX,
                                 label: "Revoke invitation",
                                 danger: true,
                                 onAction: () =>
@@ -636,6 +699,9 @@ export function PeoplePage() {
 
       <InviteDialog isOpen={dialog?.kind === "invite"} onClose={close} />
       {dialog?.kind === "role" && <RoleDialog key={dialog.memberId} {...dialog} onClose={close} />}
+      {dialog?.kind === "inbox" && domains && (
+        <NewMailboxDialog domains={domains} person={dialog.person} onClose={close} />
+      )}
       <SettingsConfirmDialog
         isOpen={dialog?.kind === "remove"}
         onOpenChange={(open) => !open && close()}

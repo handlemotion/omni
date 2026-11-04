@@ -9,9 +9,8 @@ export const SETTINGS_PAGES = [
   "shortcuts",
   "general",
   "people",
-  "mailboxes",
-  "shared-mailboxes",
-  "members-inboxes",
+  "inboxes",
+  "shared",
 ] as const;
 
 export type SettingsPageId = (typeof SETTINGS_PAGES)[number];

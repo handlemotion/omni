@@ -1,10 +1,10 @@
 // Settings pages about the workspace's mailboxes, one question each:
-// - Your mailboxes: what you can open here and how full each inbox is. Facts only.
-// - Shared mailboxes: every shared mailbox and who sees it; owners and admins add one and change
-//   who sees it (ADR 0008).
-// - Members' inboxes (owners and admins): each teammate's personal inbox, whether it exists and
-//   syncs. Never its mail: nothing here opens it or gives anyone access (ADR 0017).
-import { UserMinusIcon } from "@heroicons/react/24/outline";
+// - Inboxes: what you can open here and how full each inbox is. Facts only.
+// - Shared: every shared mailbox and who sees it; owners and admins add one and choose its people
+//   (ADR 0008).
+// A teammate's personal inbox is on People (owners and admins): whether it exists and syncs,
+// never its mail (ADR 0017). Its create dialog is `NewMailboxDialog`, here.
+import { IconUserRemove } from "central-icons-outlined/IconUserRemove";
 import { lazy, useState } from "react";
 import { Skeleton, SkeletonSuspense } from "skullet/react";
 import { Badge } from "@/components/ui/badge";
@@ -77,7 +77,7 @@ function mailboxName(mailbox: { address: string }) {
 }
 
 /** A mailbox that isn't syncing normally, in words; null while it is. */
-const MAILBOX_STATUS: Record<
+export const MAILBOX_STATUS: Record<
   Mailbox["status"],
   { label: string; intent: "secondary" | "danger" } | null
 > = {
@@ -94,21 +94,8 @@ function MailboxStatusBadge({ mailbox }: { mailbox: Pick<Mailbox, "status"> }) {
 
 const people = (count: number) => `${count} ${count === 1 ? "person" : "people"}`;
 
-const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
-
-/** "Synced 4 minutes ago", from the latest folder sync. */
-function syncedLabel(at: string | null) {
-  if (!at) return "Not synced yet";
-  const minutes = Math.round((Date.parse(at) - Date.now()) / 60_000);
-  if (minutes > -1) return "Synced just now";
-  if (minutes > -60) return `Synced ${RELATIVE.format(minutes, "minute")}`;
-  if (minutes > -60 * 24) return `Synced ${RELATIVE.format(Math.round(minutes / 60), "hour")}`;
-  return `Synced ${RELATIVE.format(Math.round(minutes / 1440), "day")}`;
-}
-
 // Skeleton stand-ins, the shape of what loads, drawn before the first load.
 type AccessList = NonNullable<ReturnType<typeof useMailboxMembers>["data"]>["members"];
-type MemberList = NonNullable<ReturnType<typeof useMembers>["data"]>["members"];
 const SAMPLE_ADDRESSES = ["you@example.com", "hello@example.com", "billing@example.com"];
 const SAMPLE_MAILBOXES = SAMPLE_ADDRESSES.map((address, i) => ({
   id: `sample-${i}`,
@@ -141,11 +128,6 @@ const SAMPLE_ACCESS = SAMPLE_PEOPLE.map((p) => ({
   email: p.email,
   image: null,
 })) as unknown as AccessList;
-const SAMPLE_MEMBERS = SAMPLE_PEOPLE.map((p) => ({
-  id: p.id,
-  role: "member",
-  user: { name: p.name, email: p.email, image: null },
-})) as unknown as MemberList;
 
 /** The mailboxes the signed-in member can open in the active workspace. */
 function useOwnMailboxes() {
@@ -155,14 +137,14 @@ function useOwnMailboxes() {
 }
 
 /** Domains a new mailbox can go on: verified here, and accepted by the provider. */
-function useMailboxDomains() {
+export function useMailboxDomains() {
   const onboarding = useOnboarding();
   return onboarding.data?.domains.filter(
     (domain) => domain.status === "verified" && (domain.provider === "imap" || domain.added),
   );
 }
 
-export function YourMailboxesPage() {
+export function InboxesPage() {
   const mine = useOwnMailboxes();
   const counts = useCounts();
   // Each mailbox with something in its inbox, beside its counts; undefined until both load.
@@ -247,7 +229,7 @@ export function YourMailboxesPage() {
   );
 }
 
-/** A mailbox you can open: who else sees it, as a fact. Changing that is on Shared mailboxes. */
+/** A mailbox you can open: who else sees it, as a fact. Changing that is on Shared. */
 function OwnMailboxRow({ mailbox }: { mailbox: Mailbox }) {
   const shared = mailbox.kind === "shared";
   const count = useMailboxMembers(mailbox.id, shared).data?.members.length;
@@ -327,9 +309,7 @@ export function SharedMailboxesPage() {
       {open && (
         <MailboxAccessDialog mailbox={open} canManage={canManage} onClose={() => setOpenId(null)} />
       )}
-      {adding && domains && (
-        <NewMailboxDialog kind="shared" domains={domains} onClose={() => setAdding(false)} />
-      )}
+      {adding && domains && <NewMailboxDialog domains={domains} onClose={() => setAdding(false)} />}
     </SettingsSections>
   );
 }
@@ -403,7 +383,7 @@ function MailboxAccessDialog(props: {
                         label={`Actions for ${name}`}
                         items={[
                           {
-                            icon: UserMinusIcon,
+                            icon: IconUserRemove,
                             label: "Remove access",
                             danger: true,
                             onAction: () =>
@@ -500,148 +480,60 @@ function PersonSelect(props: {
   );
 }
 
-export function MembersInboxesPage() {
-  const members = useMembers();
-  const all = useWorkspaceMailboxes();
-  const domains = useMailboxDomains();
-  const { member: me } = useMember();
-  const [creating, setCreating] = useState(false);
-  const personal = all.data?.mailboxes.filter((mailbox) => mailbox.kind === "personal");
-  // Each member with their personal inboxes, in the People page's order; then any inbox whose
-  // owner has left. Undefined until both lists load.
-  const rows =
-    members.data && personal
-      ? {
-          people: members.data.members.map((person) => ({
-            person,
-            inboxes: personal.filter((mailbox) => mailbox.owner?.memberId === person.id),
-          })),
-          orphans: personal.filter((mailbox) => !mailbox.owner),
-        }
-      : undefined;
-  const without = rows?.people.filter((row) => row.inboxes.length === 0) ?? [];
-  const canCreate = !!domains && domains.length > 0 && without.length > 0;
-
-  return (
-    <SettingsSections>
-      <SettingsSection
-        title="Personal inboxes"
-        info="You see that each inbox exists and whether it syncs, never its mail."
-      >
-        <Skeleton
-          id="settings-members-inboxes"
-          data={rows}
-          sample={{
-            people: SAMPLE_MEMBERS.map((person) => ({ person, inboxes: [] })),
-            orphans: [],
-          }}
-          label="Loading inboxes"
-        >
-          {({ people: list, orphans }) => (
-            <SettingsGroup>
-              {canCreate && (
-                <SettingsAddRow label="Create an inbox" onPress={() => setCreating(true)} />
-              )}
-              {list.flatMap(({ person, inboxes }) => {
-                const name = person.user.name || person.user.email;
-                const avatar = <PersonAvatar name={name} image={person.user.image} />;
-                const hint = person.id === me.id ? "you" : undefined;
-                if (inboxes.length === 0) {
-                  return [
-                    <SettingsValueRow
-                      key={person.id}
-                      avatar={avatar}
-                      label={name}
-                      hint={hint}
-                      description={person.user.email}
-                      value="No inbox"
-                      tone="muted"
-                    />,
-                  ];
-                }
-                // Its health is the value: a badge would make the row taller than its peers.
-                return inboxes.map((inbox) => (
-                  <SettingsValueRow
-                    key={inbox.id}
-                    avatar={avatar}
-                    label={name}
-                    hint={hint}
-                    description={inbox.address}
-                    value={MAILBOX_STATUS[inbox.status]?.label ?? syncedLabel(inbox.syncedAt)}
-                    tone={inbox.status === "error" ? "danger" : "muted"}
-                  />
-                ));
-              })}
-              {orphans.map((inbox) => (
-                <SettingsValueRow
-                  key={inbox.id}
-                  label={mailboxName(inbox)}
-                  description={inbox.address}
-                  value="No owner"
-                  tone="muted"
-                />
-              ))}
-            </SettingsGroup>
-          )}
-        </Skeleton>
-      </SettingsSection>
-      {creating && domains && (
-        <NewMailboxDialog
-          kind="personal"
-          domains={domains}
-          people={without.map(({ person }) => ({
-            id: person.id,
-            name: person.user.name || person.user.email,
-            email: person.user.email,
-          }))}
-          onClose={() => setCreating(false)}
-        />
-      )}
-    </SettingsSections>
-  );
-}
-
 /** The local part people get by default: theirs, as they sign in. */
 const localPartOf = (email: string) => email.split("@")[0] ?? "";
 
+/** The person a new personal inbox is for, as People lists them. */
+export interface InboxOwner {
+  id: string;
+  name: string;
+  email: string;
+  /** The signed-in member, making their own. */
+  isYou: boolean;
+}
+
 /**
  * Creates a mailbox on one of the workspace's domains (the setup route, ADR 0017): a shared one,
- * or a teammate's personal inbox that only they will see. On the workspace's own mail host it
- * needs the mailbox's existing password and servers, as in setup.
+ * or `person`'s personal inbox that only they will see. A personal inbox starts as their sign-in
+ * address when its domain is one of these. On the workspace's own mail host it needs the
+ * mailbox's existing password and servers, as in setup.
  */
-function NewMailboxDialog(props: {
-  kind: "shared" | "personal";
+export function NewMailboxDialog(props: {
   domains: OnboardingDomain[];
-  people?: { id: string; name: string; email: string }[];
+  person?: InboxOwner;
   onClose: () => void;
 }) {
+  const { person } = props;
   const create = useCreateMailboxes();
-  const [domainId, setDomainId] = useState(props.domains[0]!.id);
-  const [personId, setPersonId] = useState<string | null>(null);
-  const [localPart, setLocalPart] = useState("");
+  const signInDomain = person?.email.split("@")[1]?.toLowerCase();
+  const [domainId, setDomainId] = useState(
+    (props.domains.find((d) => d.domain.toLowerCase() === signInDomain) ?? props.domains[0]!).id,
+  );
+  const [localPart, setLocalPart] = useState(person ? localPartOf(person.email) : "");
   const [password, setPassword] = useState("");
   const [imap, setImap] = useState("");
   const [smtp, setSmtp] = useState("");
   const domain = props.domains.find((d) => d.id === domainId) ?? props.domains[0]!;
   const ownHost = domain.provider === "imap";
-  const person = props.people?.find((p) => p.id === personId);
   const servers = ownHost ? { imap: parseServer(imap, 993), smtp: parseServer(smtp, 465) } : null;
   const ready =
-    localPart.trim() !== "" &&
-    (props.kind === "shared" || !!person) &&
-    (!servers || (!!password && !!servers.imap && !!servers.smtp));
+    localPart.trim() !== "" && (!servers || (!!password && !!servers.imap && !!servers.smtp));
 
   return (
     <SettingsFormDialog
       isOpen
       onOpenChange={(open) => !open && props.onClose()}
-      title={props.kind === "shared" ? "Add a shared mailbox" : "Create an inbox"}
-      description={
-        props.kind === "shared"
-          ? "You can choose who sees it next."
-          : "Only they will see it. You won't."
+      title={
+        !person ? "Add a shared mailbox" : person.isYou ? "Create your inbox" : "Create an inbox"
       }
-      action={props.kind === "shared" ? "Add" : "Create"}
+      description={
+        !person
+          ? "You can choose who sees it next."
+          : person.isYou
+            ? "Only you will see it."
+            : `Only ${person.name} will see it. You won't.`
+      }
+      action={person ? "Create" : "Add"}
       disabled={!ready}
       saving={create.isPending}
       onSubmit={() =>
@@ -663,7 +555,11 @@ function NewMailboxDialog(props: {
             onSuccess: ([made]) => {
               props.onClose();
               appToast.success(
-                person ? `Created ${made?.address} for ${person.name}` : `Added ${made?.address}`,
+                !person
+                  ? `Added ${made?.address}`
+                  : person.isYou
+                    ? `Created ${made?.address}`
+                    : `Created ${made?.address} for ${person.name}`,
               );
             },
             onError: (error) => appToast.error(error.message || "The mailbox was not created."),
@@ -671,18 +567,6 @@ function NewMailboxDialog(props: {
         )
       }
     >
-      {props.people && (
-        <PersonSelect
-          people={props.people}
-          value={personId}
-          onChange={(id) => {
-            setPersonId(id);
-            // Their sign-in name is the likely address; typed one stays.
-            const next = props.people?.find((p) => p.id === id);
-            if (next && !localPart) setLocalPart(localPartOf(next.email));
-          }}
-        />
-      )}
       {props.domains.length > 1 && (
         <Select value={domainId} onChange={(next) => next && setDomainId(String(next))}>
           <Label>Domain</Label>
@@ -696,10 +580,10 @@ function NewMailboxDialog(props: {
           </SelectContent>
         </Select>
       )}
-      <TextField isRequired autoFocus={!props.people} value={localPart} onChange={setLocalPart}>
+      <TextField isRequired autoFocus value={localPart} onChange={setLocalPart}>
         <Label>Address</Label>
         <InputGroup className="[--input-gutter-end:--spacing(4)]">
-          <Input placeholder={props.kind === "shared" ? "hello" : "name"} autoComplete="off" />
+          <Input placeholder={person ? "name" : "hello"} autoComplete="off" />
           <span data-slot="text" className="text-sm text-muted-foreground">
             @{domain.domain}
           </span>

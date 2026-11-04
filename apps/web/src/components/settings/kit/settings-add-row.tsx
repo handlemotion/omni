@@ -1,4 +1,4 @@
-import { PlusIcon } from "@heroicons/react/16/solid";
+import { IconPlusMedium } from "central-icons-outlined/IconPlusMedium";
 import { cn } from "cn";
 import { Button } from "react-aria-components/Button";
 import {
@@ -33,7 +33,7 @@ export function SettingsAddRow({
       onPress={onPress}
     >
       <span className="flex size-icon shrink-0 items-center justify-center">
-        <PlusIcon aria-hidden className="size-3.5" />
+        <IconPlusMedium className="size-icon" />
       </span>
       <span className={cn(loading && "shimmer")}>{label}</span>
     </Button>

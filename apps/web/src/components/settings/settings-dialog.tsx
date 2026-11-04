@@ -6,18 +6,18 @@
 // and the chosen workspace's pages under it. The nav is the app sidebar's (240px, 13px rows 32px tall, 11px
 // group labels, the search field on top), set at the right of the left 35%; the page is a 640px
 // column in the right 65%, its title 17px. The page body is transitive's settings kit (`./kit`).
-import {
-  ComputerDesktopIcon,
-  InboxStackIcon,
-  ShieldCheckIcon,
-  UserGroupIcon,
-  UsersIcon,
-} from "@heroicons/react/24/outline";
+import { IconGroup1 } from "central-icons-outlined/IconGroup1";
+import { IconInboxEmpty } from "central-icons-outlined/IconInboxEmpty";
+import { IconKeyboard } from "central-icons-outlined/IconKeyboard";
+import { IconMacbook } from "central-icons-outlined/IconMacbook";
+import { IconMailbox } from "central-icons-outlined/IconMailbox";
+import { IconSettingsGear2 } from "central-icons-outlined/IconSettingsGear2";
+import { IconShield } from "central-icons-outlined/IconShield";
+import { IconUserDuo } from "central-icons-outlined/IconUserDuo";
 import { cn } from "cn";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
-import { IconKeyboard } from "@/components/icons/keyboard";
-import { IconCircleDashed, IconInbox, IconSettings, IconTeam } from "@/components/icons/sidebar";
+import { type ComponentType, type CSSProperties, type ReactNode, useMemo, useState } from "react";
+import { IconCircleDashed } from "@/components/icons/sidebar";
 import { Avatar } from "@/components/ui/avatar";
 import { Dialog } from "@/components/ui/dialog";
 import { NavList, NavListItem, NavListLabel, NavListSection } from "@/components/ui/nav-list";
@@ -47,8 +47,8 @@ import { ProfilePage, SecurityPage, ShortcutsPage } from "./account-pages";
 import { SettingsPageHeader } from "./kit/settings-layout";
 import { SettingsConfirmDialog } from "./kit/settings-stacked-dialog";
 import { WorkspaceChooser } from "./workspace-chooser";
-import { MembersInboxesPage, SharedMailboxesPage, YourMailboxesPage } from "./mailbox-pages";
-import { GeneralPage, isManager, PeoplePage } from "./workspace-pages";
+import { InboxesPage, SharedMailboxesPage } from "./mailbox-pages";
+import { GeneralPage, PeoplePage } from "./workspace-pages";
 
 interface PageDefinition {
   id: SettingsPageId;
@@ -57,12 +57,10 @@ interface PageDefinition {
   /** What the search finds it by, besides its title: its sections and the words on its rows. */
   terms: string[];
   render: () => ReactNode;
-  /** Only owners and admins see it in the nav. */
-  managersOnly?: boolean;
 }
 
-/** A heroicons outline glyph drawn at the Figma icons' 15px; its 1.5 stroke lands at their 0.94. */
-const outline = (Icon: typeof ShieldCheckIcon) => <Icon data-slot="icon" className="size-icon" />;
+/** A Central icon (round, outlined, stroke 1.5) at the nav's 15px icon size. */
+const glyph = (Icon: ComponentType<{ className?: string }>) => <Icon className="size-icon" />;
 
 function useAccountPages(): PageDefinition[] {
   const { user } = useMember();
@@ -88,14 +86,14 @@ function useAccountPages(): PageDefinition[] {
         id: "security",
         title: "Security",
         // A shield, not a key: the page is passkeys and the devices you're signed in on.
-        icon: outline(ShieldCheckIcon),
+        icon: glyph(IconShield),
         terms: ["passkeys", "sign in", "fingerprint", "face", "devices", "sessions", "sign out"],
         render: () => <SecurityPage />,
       },
       {
         id: "shortcuts",
         title: "Shortcuts",
-        icon: <IconKeyboard />,
+        icon: glyph(IconKeyboard),
         terms: ["keyboard", "keys", ...SHORTCUT_IDS.map((id) => SHORTCUTS[id].label)],
         render: () => <ShortcutsPage />,
       },
@@ -109,39 +107,41 @@ const WORKSPACE_PAGES: PageDefinition[] = [
   {
     id: "general",
     title: "General",
-    icon: <IconSettings />,
+    icon: glyph(IconSettingsGear2),
     terms: ["workspace", "name", "rename", "handle", "role", "domain", "dns"],
     render: () => <GeneralPage />,
   },
   {
     id: "people",
     title: "People",
-    icon: <IconTeam />,
-    terms: ["members", "invite", "invitations", "resend", "roles", "admin", "remove"],
+    icon: glyph(IconGroup1),
+    // Owners and admins also find each person's personal inbox here.
+    terms: [
+      "members",
+      "invite",
+      "invitations",
+      "resend",
+      "roles",
+      "admin",
+      "remove",
+      "personal inbox",
+      "create inbox",
+    ],
     render: () => <PeoplePage />,
   },
   {
-    id: "mailboxes",
-    title: "Your mailboxes",
-    icon: <IconInbox />,
-    terms: ["mailboxes", "personal", "unread", "inbox", "lanes", "triage", "sync"],
-    render: () => <YourMailboxesPage />,
+    id: "inboxes",
+    title: "Inboxes",
+    icon: glyph(IconInboxEmpty),
+    terms: ["mailboxes", "your mailboxes", "personal", "unread", "lanes", "triage", "sync"],
+    render: () => <InboxesPage />,
   },
   {
-    id: "shared-mailboxes",
-    title: "Shared mailboxes",
-    // A stack: one address, many people's inboxes.
-    icon: outline(InboxStackIcon),
-    terms: ["shared", "access", "who can see", "team", "add mailbox", "hello"],
+    id: "shared",
+    title: "Shared",
+    icon: glyph(IconMailbox),
+    terms: ["shared mailboxes", "access", "who can see", "team", "add mailbox", "hello"],
     render: () => <SharedMailboxesPage />,
-  },
-  {
-    id: "members-inboxes",
-    title: "Members' inboxes",
-    icon: outline(UserGroupIcon),
-    terms: ["personal", "inboxes", "members", "create inbox", "sync", "mailboxes"],
-    render: () => <MembersInboxesPage />,
-    managersOnly: true,
   },
 ];
 
@@ -204,13 +204,13 @@ function SessionGroup() {
       </span>
       {otherDevices.length > 0 && (
         <Button intent="plain" className={NAV_ACTION} onPress={() => setDialog("others")}>
-          <ComputerDesktopIcon data-slot="icon" className="size-icon" />
+          <IconMacbook data-slot="icon" className="size-icon" />
           Sign out of other devices
         </Button>
       )}
       {otherAccounts.length > 0 && (
         <Button intent="plain" className={NAV_ACTION} onPress={() => setDialog("accounts")}>
-          <UsersIcon data-slot="icon" className="size-icon" />
+          <IconUserDuo data-slot="icon" className="size-icon" />
           Log out of all accounts
         </Button>
       )}
@@ -267,14 +267,11 @@ function show(keys: Selection) {
 
 function SettingsBody({ page }: { page: SettingsPageId }) {
   const account = useAccountPages();
-  const { member } = useMember();
   const [query, setQuery] = useState("");
-  const manager = isManager(member.role);
-  const workspacePages = WORKSPACE_PAGES.filter((p) => manager || !p.managersOnly);
   const shownAccount = account.filter((p) => matches(p, query));
-  const shownWorkspace = workspacePages.filter((p) => matches(p, query));
-  // A page this member can't see (a managers' page after switching workspace) shows General.
-  const current = [...account, ...workspacePages].find((p) => p.id === page) ?? workspacePages[0];
+  const shownWorkspace = WORKSPACE_PAGES.filter((p) => matches(p, query));
+  // Every member sees every page; should the id match none, General shows.
+  const current = [...account, ...WORKSPACE_PAGES].find((p) => p.id === page) ?? WORKSPACE_PAGES[0];
   // Two lists, one current page: each list marks it only when it's one of its own.
   const selectedIn = (pages: PageDefinition[]) =>
     current && pages.some((p) => p.id === current.id) ? [current.id] : [];
@@ -319,7 +316,7 @@ function SettingsBody({ page }: { page: SettingsPageId }) {
             {shownWorkspace.length > 0 && (
               <NavList
                 aria-label="Workspace settings"
-                selectedKeys={selectedIn(workspacePages)}
+                selectedKeys={selectedIn(WORKSPACE_PAGES)}
                 onSelectionChange={show}
               >
                 <NavListSection id="workspace">
