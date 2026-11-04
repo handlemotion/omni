@@ -30,6 +30,7 @@ import { Route as AuthedMemberQueueThreadIdRouteImport } from "./routes/_authed/
 import { Route as AuthedMemberSearchThreadIdRouteImport } from "./routes/_authed/_member/search.$threadId";
 import { Route as AuthedMemberSettingsIndexRouteImport } from "./routes/_authed/_member/settings/index";
 import { Route as AuthedMemberSettingsOrganizationRouteImport } from "./routes/_authed/_member/settings/organization";
+import { Route as AuthedSettingsEmailsVerifyRouteImport } from "./routes/_authed/settings/emails.verify";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -142,6 +143,12 @@ const AuthedMemberSettingsOrganizationRoute =
     path: "/settings/organization",
     getParentRoute: () => AuthedMemberRoute,
   } as any);
+const AuthedSettingsEmailsVerifyRoute =
+  AuthedSettingsEmailsVerifyRouteImport.update({
+    id: "/settings/emails/verify",
+    path: "/settings/emails/verify",
+    getParentRoute: () => AuthedRoute,
+  } as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
@@ -162,6 +169,7 @@ export interface FileRoutesByFullPath {
   "/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
   "/settings/organization": typeof AuthedMemberSettingsOrganizationRoute;
+  "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/settings/": typeof AuthedMemberSettingsIndexRoute;
 }
 export interface FileRoutesByTo {
@@ -183,6 +191,7 @@ export interface FileRoutesByTo {
   "/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
   "/settings/organization": typeof AuthedMemberSettingsOrganizationRoute;
+  "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/settings": typeof AuthedMemberSettingsIndexRoute;
 }
 export interface FileRoutesById {
@@ -207,6 +216,7 @@ export interface FileRoutesById {
   "/_authed/_member/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
   "/_authed/_member/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
   "/_authed/_member/settings/organization": typeof AuthedMemberSettingsOrganizationRoute;
+  "/_authed/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/_authed/_member/settings/": typeof AuthedMemberSettingsIndexRoute;
 }
 export interface FileRouteTypes {
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | "/queue/$threadId"
     | "/search/$threadId"
     | "/settings/organization"
+    | "/settings/emails/verify"
     | "/settings/";
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | "/queue/$threadId"
     | "/search/$threadId"
     | "/settings/organization"
+    | "/settings/emails/verify"
     | "/settings";
   id:
     | "__root__"
@@ -274,6 +286,7 @@ export interface FileRouteTypes {
     | "/_authed/_member/queue/$threadId"
     | "/_authed/_member/search/$threadId"
     | "/_authed/_member/settings/organization"
+    | "/_authed/settings/emails/verify"
     | "/_authed/_member/settings/";
   fileRoutesById: FileRoutesById;
 }
@@ -432,6 +445,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedMemberSettingsOrganizationRouteImport;
       parentRoute: typeof AuthedMemberRoute;
     };
+    "/_authed/settings/emails/verify": {
+      id: "/_authed/settings/emails/verify";
+      path: "/settings/emails/verify";
+      fullPath: "/settings/emails/verify";
+      preLoaderRoute: typeof AuthedSettingsEmailsVerifyRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
   }
 }
 
@@ -534,12 +554,14 @@ interface AuthedRouteChildren {
   AuthedMemberRoute: typeof AuthedMemberRouteWithChildren;
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute;
   AuthedInviteInvitationIdRoute: typeof AuthedInviteInvitationIdRoute;
+  AuthedSettingsEmailsVerifyRoute: typeof AuthedSettingsEmailsVerifyRoute;
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMemberRoute: AuthedMemberRouteWithChildren,
   AuthedOnboardingRoute: AuthedOnboardingRoute,
   AuthedInviteInvitationIdRoute: AuthedInviteInvitationIdRoute,
+  AuthedSettingsEmailsVerifyRoute: AuthedSettingsEmailsVerifyRoute,
 };
 
 const AuthedRouteWithChildren =

@@ -35,3 +35,6 @@ export const composeSearch = z.object({
   to: optional(z.string()),
   subject: optional(z.string()),
 });
+
+/** The confirmation link mailed to a new sign-in email (ADR 0014). */
+export const verifySignInEmailSearch = z.object({ token: optional(z.string()) });

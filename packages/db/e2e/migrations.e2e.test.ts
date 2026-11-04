@@ -46,6 +46,7 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "thread_state",
       "threads",
       "triage_feedback",
+      "user_emails",
       "users",
       "verifications",
     ].toSorted(),
