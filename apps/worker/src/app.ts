@@ -14,6 +14,7 @@ import { account } from "./routes/account.ts";
 import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
 import { billing } from "./routes/billing.ts";
+import { billingCards } from "./routes/billing-cards.ts";
 import { stripeWebhook } from "./routes/stripe-webhook.ts";
 import { mail } from "./routes/mail.ts";
 import { mailboxMembers } from "./routes/mailbox-members.ts";
@@ -115,7 +116,8 @@ const api = new Hono<AppEnv>()
   .route("/", mailboxMembers)
   .route("/workspace", workspaceLogo)
   .route("/", assets)
-  .route("/", billing);
+  .route("/", billing)
+  .route("/", billingCards);
 
 export const app = new Hono<AppEnv>()
   .use(trace)

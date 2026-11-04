@@ -65,6 +65,9 @@ STRIPE_WEBHOOK_SECRET=
 STRIPE_PRICE_MONTHLY=
 # Optional. Price id of the yearly price. Empty offers monthly only.
 STRIPE_PRICE_YEARLY=
+# Optional, public. Publishable key (pk_test_..., same mode as STRIPE_SECRET_KEY): owners add a card
+# in the Billing page with Stripe Elements. Empty: adding a card happens in Stripe's portal.
+STRIPE_PUBLISHABLE_KEY=
 # Optional. Free trial days, once per workspace, no card needed. Empty or 0: no trial.
 BILLING_TRIAL_DAYS=
 # Required. AI-triaged emails per workspace per month. Past it, triage pauses until the next period.

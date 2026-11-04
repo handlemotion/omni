@@ -297,6 +297,21 @@ test("checkout and the portal are for the workspace's owners and admins only", a
     (await api(worker, "/billing/portal", member.cookie, { method: "POST", body: "{}" })).status,
   ).toBe(403);
   expect(await billing(member.cookie)).toMatchObject({ canManage: false });
+  // Cards and invoices too, refused before Stripe is asked anything.
+  for (const [method, path] of [
+    ["GET", "/billing/cards"],
+    ["POST", "/billing/cards/setup"],
+    ["POST", "/billing/cards"],
+    ["POST", "/billing/cards/pm_e2e/default"],
+    ["DELETE", "/billing/cards/pm_e2e"],
+    ["GET", "/billing/invoices"],
+  ] as const) {
+    const response = await api(worker, path, member.cookie, {
+      method,
+      body: method === "GET" ? undefined : JSON.stringify({ setupIntent: "seti_e2e" }),
+    });
+    expect({ method, path, status: response.status }).toEqual({ method, path, status: 403 });
+  }
 
   // The plugin's own endpoints would let anyone subscribe for themselves: closed.
   const direct = await api(worker, "/auth/subscription/upgrade", member.cookie, {
@@ -410,6 +425,8 @@ test("with no Stripe configuration there is no billing: no webhook, no limits, a
   expect(
     (await api(unbilled, "/billing/checkout", cookie, { method: "POST", body: "{}" })).status,
   ).toBe(404);
+  expect((await api(unbilled, "/billing/cards", cookie)).status).toBe(404);
+  expect((await api(unbilled, "/billing/invoices", cookie)).status).toBe(404);
   const webhook = await postStripeEvent(
     unbilled.url,
     stripeEvent("customer.subscription.created", {}, new Date()),
