@@ -22,5 +22,6 @@ export * from "./mailbox-teams.ts";
 export * from "./workspaces.ts";
 export * from "./dead-letters.ts";
 export type { DomainCheck, DomainRecordDiagnostic, MailDomainRecord } from "./schema/mail.ts";
+export * from "./pictures.ts";
 export * from "./billing.ts";
 export * from "./sign-in-emails.ts";
