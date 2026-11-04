@@ -4,8 +4,8 @@
 // Full screen, still a dialog: it settles from 105% while the app recedes under it (the shell
 // scales it to 95% and fades it). The nav lists your account's pages, then a workspace chooser
 // and the chosen workspace's pages under it. The nav is the app sidebar's (240px, 13px rows 32px tall, 11px
-// group labels, the search field on top), set at the right of the left 40%; the page is a 640px
-// column in the right 60%, its title 17px. The page body is transitive's settings kit (`./kit`).
+// group labels, the search field on top), set at the right of the left 30%; the page is a 640px
+// column in the right 70%, its title 17px. The page body is transitive's settings kit (`./kit`).
 import { ComputerDesktopIcon, ShieldCheckIcon, UsersIcon } from "@heroicons/react/24/outline";
 import { cn } from "cn";
 import { useLocation, useNavigate } from "@tanstack/react-router";
@@ -250,9 +250,9 @@ function SettingsBody({ page }: { page: SettingsPageId }) {
   const selectedIn = (pages: PageDefinition[]) => (pages.some((p) => p.id === page) ? [page] : []);
 
   return (
-    // 40/60: the left part is the surface, its nav (the app sidebar's width) set 24px off the
+    // 30/70: the left part is the surface, its nav (the app sidebar's width) set 24px off the
     // divider; the page column starts on the same line as the nav.
-    <div className="grid min-h-0 flex-1 grid-cols-[2fr_3fr]">
+    <div className="grid min-h-0 flex-1 grid-cols-[3fr_7fr]">
       <div className="flex min-h-0 justify-end overflow-y-auto border-e border-border bg-surface pe-6">
         <nav
           aria-label="Settings pages"

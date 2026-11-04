@@ -54,12 +54,23 @@ export function WorkspaceChooser() {
         <span className="min-w-0 flex-1 truncate text-start">{active.name}</span>
         <ChevronUpDownIcon className="size-3.5 shrink-0 text-subtle-foreground" />
       </Button>
-      <Menu placement="bottom start" onAction={(key) => choose(String(key))}>
+      {/* As wide as its trigger, so the menu reads as the chooser opened. */}
+      <Menu
+        placement="bottom start"
+        popover={{ className: "w-(--trigger-width) min-w-(--trigger-width) max-w-none" }}
+        onAction={(key) => choose(String(key))}
+      >
         {workspaces.map((w) => (
           <MenuItem key={w.id} id={w.id} textValue={w.name}>
             <WorkspaceAvatar workspace={w} size={15} />
-            <MenuLabel>{w.name}</MenuLabel>
-            {w.id === member.orgId && <CheckIcon className="size-4 text-foreground" />}
+            {/* The check rides inside the label, so it sits on the name's line; after the label
+                the menu row would lift it out of line (an absolute icon slot). */}
+            <MenuLabel className="flex min-w-0 items-center justify-between gap-3">
+              <span className="truncate">{w.name}</span>
+              {w.id === member.orgId && (
+                <CheckIcon aria-hidden className="size-4 shrink-0 text-foreground" />
+              )}
+            </MenuLabel>
           </MenuItem>
         ))}
       </Menu>
