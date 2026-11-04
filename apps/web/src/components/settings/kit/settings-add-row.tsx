@@ -3,6 +3,8 @@ import { cn } from "cn";
 import { Button } from "react-aria-components/Button";
 import {
   settingsRowClassName,
+  settingsRowIconClassName,
+  settingsRowIconSlotClassName,
   settingsRowInteractiveClassName,
   settingsRowTextEndClassName,
 } from "./settings-row";
@@ -25,15 +27,15 @@ export function SettingsAddRow({
         settingsRowClassName,
         settingsRowTextEndClassName,
         settingsRowInteractiveClassName,
-        // The plus takes a row icon's 15px slot, so the label lines up with icon rows.
+        // The plus takes a row icon's slot, so it centres on the avatars and the label lines up.
         "min-h-11 gap-3 text-sm/4 text-muted-foreground hover:text-foreground disabled:opacity-50 pending:opacity-50",
       )}
       isDisabled={disabled}
       isPending={loading}
       onPress={onPress}
     >
-      <span className="flex size-icon shrink-0 items-center justify-center">
-        <IconPlusMedium className="size-icon" />
+      <span className={settingsRowIconSlotClassName}>
+        <IconPlusMedium className={settingsRowIconClassName} />
       </span>
       <span className={cn(loading && "shimmer")}>{label}</span>
     </Button>

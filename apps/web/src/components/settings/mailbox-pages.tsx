@@ -1,5 +1,6 @@
 // Settings pages about the workspace's mailboxes, one question each:
-// - Inboxes: what you can open here and how full each inbox is. Facts only.
+// - Inboxes: what you can open here, its unread threads, and each inbox's threads by lane. Facts
+//   only.
 // - Shared: every shared mailbox and who sees it; owners and admins add one and choose its people
 //   (ADR 0008).
 // A teammate's personal inbox is on People (owners and admins): whether it exists and syncs,
@@ -8,6 +9,7 @@ import { IconUserRemove } from "central-icons-outlined/IconUserRemove";
 import { lazy, useState } from "react";
 import { Skeleton, SkeletonSuspense } from "skullet/react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { ChartConfig } from "@/components/ui/chart";
 import { Label } from "@/components/ui/field";
 import { Input, InputGroup } from "@/components/ui/input";
@@ -41,9 +43,9 @@ import {
   SettingsSections,
 } from "./kit/settings-layout";
 import { SettingsLinkRow } from "./kit/settings-link-row";
-import { SettingsMeterRow } from "./kit/settings-meter-row";
 import { SettingsRow } from "./kit/settings-row";
 import { SettingsRowMenu } from "./kit/settings-row-menu";
+import { SettingsSeriesRow } from "./kit/settings-series-row";
 import {
   SettingsConfirmDialog,
   SettingsFormDialog,
@@ -93,6 +95,7 @@ function MailboxStatusBadge({ mailbox }: { mailbox: Pick<Mailbox, "status"> }) {
 }
 
 const people = (count: number) => `${count} ${count === 1 ? "person" : "people"}`;
+const threads = (count: number) => `${count} ${count === 1 ? "thread" : "threads"}`;
 
 // Skeleton stand-ins, the shape of what loads, drawn before the first load.
 type AccessList = NonNullable<ReturnType<typeof useMailboxMembers>["data"]>["members"];
@@ -106,6 +109,7 @@ const SAMPLE_MAILBOXES = SAMPLE_ADDRESSES.map((address, i) => ({
   status: "active",
   role: "member",
 })) as Mailbox[];
+const SAMPLE_ROWS = SAMPLE_MAILBOXES.map((mailbox) => ({ mailbox, row: undefined }));
 const SAMPLE_ORG_MAILBOXES = SAMPLE_ADDRESSES.map((address, i) => ({
   id: `sample-${i}`,
   address,
@@ -147,36 +151,42 @@ export function useMailboxDomains() {
 export function InboxesPage() {
   const mine = useOwnMailboxes();
   const counts = useCounts();
-  // Each mailbox with something in its inbox, beside its counts; undefined until both load.
-  const busy =
+  // Each of your mailboxes beside its counts; undefined until both load.
+  const rows =
     mine && counts.data
-      ? mine.flatMap((mailbox) => {
-          const row = counts.data.counts.find((count) => count.mailboxId === mailbox.id);
-          return row && row.inbox > 0 ? [{ mailbox, row }] : [];
-        })
+      ? mine.map((mailbox) => ({
+          mailbox,
+          row: counts.data.counts.find((count) => count.mailboxId === mailbox.id),
+        }))
       : undefined;
+  const busy = rows?.flatMap(({ mailbox, row }) =>
+    row && row.inbox > 0 ? [{ mailbox, row }] : [],
+  );
 
   return (
     <SettingsSections>
       <SettingsSection title="Mailboxes">
         <Skeleton
           id="settings-mailboxes"
-          data={mine}
-          sample={SAMPLE_MAILBOXES}
+          data={rows}
+          sample={SAMPLE_ROWS}
           label="Loading mailboxes"
         >
-          {(list) => (
-            <SettingsGroup>
-              {list.length === 0 ? (
-                <SettingsEmptyState
-                  title="No mailboxes"
-                  description="An owner or admin can create your inbox or add you to a shared one."
-                />
-              ) : (
-                list.map((mailbox) => <OwnMailboxRow key={mailbox.id} mailbox={mailbox} />)
-              )}
-            </SettingsGroup>
-          )}
+          {(list) =>
+            list.length === 0 ? (
+              <SettingsEmptyState
+                illustration="envelopes"
+                title="No mailboxes"
+                description="An owner or admin can create your inbox or add you to a shared one."
+              />
+            ) : (
+              <SettingsGroup>
+                {list.map(({ mailbox, row }) => (
+                  <OwnMailboxRow key={mailbox.id} mailbox={mailbox} unread={row?.unread ?? 0} />
+                ))}
+              </SettingsGroup>
+            )
+          }
         </Skeleton>
       </SettingsSection>
 
@@ -185,16 +195,18 @@ export function InboxesPage() {
         info="Threads in each inbox now, by the lane triage put them in."
       >
         <Skeleton id="settings-inbox" data={busy} sample={[]} label="Loading counts">
-          {(list) => (
-            <SettingsGroup>
-              {list.length === 0 ? (
-                <SettingsEmptyState
-                  title="Inbox zero"
-                  description="Nothing waits in any inbox right now."
-                />
-              ) : (
+          {(list) =>
+            list.length === 0 ? (
+              <SettingsEmptyState
+                title="Inbox zero"
+                description="Nothing waits in any inbox right now."
+              />
+            ) : (
+              // The chart and its lanes in one group: the rows are the chart's legend.
+              <SettingsGroup>
                 <SkeletonSuspense skeleton={<div className="h-62" />}>
                   <SettingsChart
+                    label="Threads in each inbox by lane"
                     config={LANE_CHART}
                     dataKey="mailbox"
                     data={list.map(({ mailbox, row }) => ({
@@ -203,42 +215,40 @@ export function InboxesPage() {
                     }))}
                   />
                 </SkeletonSuspense>
-              )}
-            </SettingsGroup>
-          )}
+                {LANES.map((lane, i) => {
+                  const total = list.reduce((sum, { row }) => sum + row.lanes[lane], 0);
+                  return (
+                    <SettingsSeriesRow
+                      key={lane}
+                      color={`var(--chart-${i + 1})`}
+                      label={LANE_LABELS[lane]}
+                      value={threads(total)}
+                    />
+                  );
+                })}
+              </SettingsGroup>
+            )
+          }
         </Skeleton>
       </SettingsSection>
-
-      {/* Only when there is an inbox to read: an empty one is said once, above. */}
-      {busy && busy.length > 0 && (
-        <SettingsSection title="Unread">
-          <SettingsGroup>
-            {busy.map(({ mailbox, row }) => (
-              <SettingsMeterRow
-                key={mailbox.id}
-                label={mailboxName(mailbox)}
-                amount={`${row.unread} of ${row.inbox}`}
-                value={row.unread}
-                max={row.inbox}
-              />
-            ))}
-          </SettingsGroup>
-        </SettingsSection>
-      )}
     </SettingsSections>
   );
 }
 
-/** A mailbox you can open: who else sees it, as a fact. Changing that is on Shared. */
-function OwnMailboxRow({ mailbox }: { mailbox: Mailbox }) {
+/**
+ * A mailbox you can open: who else sees it, as a fact (changing that is on Shared), and how many
+ * of its inbox's threads are unread, when any are.
+ */
+function OwnMailboxRow({ mailbox, unread }: { mailbox: Mailbox; unread: number }) {
   const shared = mailbox.kind === "shared";
   const count = useMailboxMembers(mailbox.id, shared).data?.members.length;
+  const who = shared ? (count === undefined ? null : people(count)) : "Only you";
   return (
     <SettingsValueRow
       label={mailboxName(mailbox)}
       badge={<MailboxStatusBadge mailbox={mailbox} />}
-      description={mailbox.address}
-      value={shared ? (count === undefined ? "" : people(count)) : "Only you"}
+      description={who ? `${mailbox.address} · ${who}` : mailbox.address}
+      value={unread > 0 ? <span className="tabular-nums">{unread} unread</span> : ""}
       tone="muted"
     />
   );
@@ -280,30 +290,39 @@ export function SharedMailboxesPage() {
           sample={SAMPLE_ORG_MAILBOXES}
           label="Loading shared mailboxes"
         >
-          {(list) => (
-            <SettingsGroup>
-              {canAdd && (
-                <SettingsAddRow label="Add a shared mailbox" onPress={() => setAdding(true)} />
-              )}
-              {list.length === 0 && (
-                <SettingsEmptyState
-                  title="No shared mailboxes"
-                  description={
-                    canManage
-                      ? "For an address several people answer, like hello@."
-                      : "An owner or admin can add you to one."
-                  }
-                />
-              )}
-              {list.map((mailbox) => (
-                <SharedMailboxRow
-                  key={mailbox.id}
-                  mailbox={mailbox}
-                  onOpen={() => setOpenId(mailbox.id)}
-                />
-              ))}
-            </SettingsGroup>
-          )}
+          {(list) =>
+            list.length === 0 ? (
+              <SettingsEmptyState
+                illustration="envelopes"
+                title="No shared mailboxes"
+                description={
+                  canManage
+                    ? "For an address several people answer, like hello@."
+                    : "An owner or admin can add you to one."
+                }
+                action={
+                  canAdd && (
+                    <Button intent="outline" onPress={() => setAdding(true)}>
+                      Add a shared mailbox
+                    </Button>
+                  )
+                }
+              />
+            ) : (
+              <SettingsGroup>
+                {canAdd && (
+                  <SettingsAddRow label="Add a shared mailbox" onPress={() => setAdding(true)} />
+                )}
+                {list.map((mailbox) => (
+                  <SharedMailboxRow
+                    key={mailbox.id}
+                    mailbox={mailbox}
+                    onOpen={() => setOpenId(mailbox.id)}
+                  />
+                ))}
+              </SettingsGroup>
+            )
+          }
         </Skeleton>
       </SettingsSection>
       {open && (
@@ -361,43 +380,55 @@ function MailboxAccessDialog(props: {
         sample={SAMPLE_ACCESS}
         label="Loading access"
       >
-        {(list) => (
-          <SettingsGroup>
-            {canManage && addable.length > 0 && (
-              <SettingsAddRow label="Add a person" onPress={() => setDialog({ kind: "add" })} />
-            )}
-            {list.length === 0 && (
-              <SettingsEmptyState title="Nobody yet" description="Add the people who answer it." />
-            )}
-            {list.map((person) => {
-              const name = person.name || person.email;
-              return (
-                <SettingsRow
-                  key={person.memberId}
-                  avatar={<PersonAvatar name={name} image={person.image} />}
-                  label={name}
-                  description={person.name ? person.email : undefined}
-                  control={
-                    canManage && (
-                      <SettingsRowMenu
-                        label={`Actions for ${name}`}
-                        items={[
-                          {
-                            icon: IconUserRemove,
-                            label: "Remove access",
-                            danger: true,
-                            onAction: () =>
-                              setDialog({ kind: "remove", memberId: person.memberId, name }),
-                          },
-                        ]}
-                      />
-                    )
-                  }
-                />
-              );
-            })}
-          </SettingsGroup>
-        )}
+        {(list) =>
+          list.length === 0 ? (
+            <SettingsEmptyState
+              title="Nobody yet"
+              description="Add the people who answer it."
+              action={
+                canManage &&
+                addable.length > 0 && (
+                  <Button intent="outline" onPress={() => setDialog({ kind: "add" })}>
+                    Add a person
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <SettingsGroup>
+              {canManage && addable.length > 0 && (
+                <SettingsAddRow label="Add a person" onPress={() => setDialog({ kind: "add" })} />
+              )}
+              {list.map((person) => {
+                const name = person.name || person.email;
+                return (
+                  <SettingsRow
+                    key={person.memberId}
+                    avatar={<PersonAvatar name={name} image={person.image} />}
+                    label={name}
+                    description={person.name ? person.email : undefined}
+                    control={
+                      canManage && (
+                        <SettingsRowMenu
+                          label={`Actions for ${name}`}
+                          items={[
+                            {
+                              icon: IconUserRemove,
+                              label: "Remove access",
+                              danger: true,
+                              onAction: () =>
+                                setDialog({ kind: "remove", memberId: person.memberId, name }),
+                            },
+                          ]}
+                        />
+                      )
+                    }
+                  />
+                );
+              })}
+            </SettingsGroup>
+          )
+        }
       </Skeleton>
       {dialog?.kind === "add" && (
         <AddAccessDialog mailbox={mailbox} people={addable} onClose={close} />

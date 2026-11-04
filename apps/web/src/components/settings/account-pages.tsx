@@ -316,6 +316,10 @@ export function SecurityPage() {
   const [dialog, setDialog] = useState<SecurityDialog | null>(null);
   const close = () => setDialog(null);
   const otherDevices = sessions.data?.filter((entry) => entry.token !== session.token) ?? [];
+  const addOne = () =>
+    addPasskey.mutate(devicePasskeyName(), {
+      onError: (error) => appToast.error(error.message || "No passkey was added."),
+    });
 
   return (
     <SettingsSections>
@@ -324,57 +328,60 @@ export function SecurityPage() {
         info="Sign in with your fingerprint, face or a security key instead of an emailed link."
       >
         <Skeleton id="settings-passkeys" data={passkeys.data} sample={[]} label="Loading passkeys">
-          {(list) => (
-            <SettingsGroup>
-              {list.length === 0 && (
-                <SettingsEmptyState
-                  title="No passkeys yet"
-                  description="Add one to sign in without waiting for an email."
-                />
-              )}
-              {list.map((passkey) => {
-                const name = passkey.name || "Passkey";
-                return (
-                  <SettingsRow
-                    key={passkey.id}
-                    icon={IconKey1}
-                    label={name}
-                    hint={passkey.backedUp ? "synced" : "this device only"}
-                    description={`Added ${DAY.format(new Date(passkey.createdAt))}`}
-                    control={
-                      <SettingsRowMenu
-                        label={`Actions for ${name}`}
-                        items={[
-                          {
-                            icon: IconPencil,
-                            label: "Rename",
-                            onAction: () =>
-                              setDialog({ kind: "rename-passkey", id: passkey.id, name }),
-                          },
-                          {
-                            icon: IconTrashCanSimple,
-                            label: "Remove passkey",
-                            danger: true,
-                            onAction: () =>
-                              setDialog({ kind: "remove-passkey", id: passkey.id, name }),
-                          },
-                        ]}
-                      />
-                    }
-                  />
-                );
-              })}
-              <SettingsAddRow
-                label="Add a passkey"
-                loading={addPasskey.isPending}
-                onPress={() =>
-                  addPasskey.mutate(devicePasskeyName(), {
-                    onError: (error) => appToast.error(error.message || "No passkey was added."),
-                  })
+          {(list) =>
+            list.length === 0 ? (
+              <SettingsEmptyState
+                illustration="key"
+                title="No passkeys yet"
+                description="Add one to sign in without waiting for an email."
+                action={
+                  <Button intent="outline" isPending={addPasskey.isPending} onPress={addOne}>
+                    Add a passkey
+                  </Button>
                 }
               />
-            </SettingsGroup>
-          )}
+            ) : (
+              <SettingsGroup>
+                {list.map((passkey) => {
+                  const name = passkey.name || "Passkey";
+                  return (
+                    <SettingsRow
+                      key={passkey.id}
+                      icon={IconKey1}
+                      label={name}
+                      hint={passkey.backedUp ? "synced" : "this device only"}
+                      description={`Added ${DAY.format(new Date(passkey.createdAt))}`}
+                      control={
+                        <SettingsRowMenu
+                          label={`Actions for ${name}`}
+                          items={[
+                            {
+                              icon: IconPencil,
+                              label: "Rename",
+                              onAction: () =>
+                                setDialog({ kind: "rename-passkey", id: passkey.id, name }),
+                            },
+                            {
+                              icon: IconTrashCanSimple,
+                              label: "Remove passkey",
+                              danger: true,
+                              onAction: () =>
+                                setDialog({ kind: "remove-passkey", id: passkey.id, name }),
+                            },
+                          ]}
+                        />
+                      }
+                    />
+                  );
+                })}
+                <SettingsAddRow
+                  label="Add a passkey"
+                  loading={addPasskey.isPending}
+                  onPress={addOne}
+                />
+              </SettingsGroup>
+            )
+          }
         </Skeleton>
       </SettingsSection>
 

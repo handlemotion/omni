@@ -9,6 +9,7 @@ import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "react-aria-components/Button";
+import { SettingsIllustration, type SettingsIllustrationName } from "./settings-illustrations";
 
 /** The anchor of a section, from its title; settings search names sections by it. */
 export function settingsSectionId(title: string): string {
@@ -129,23 +130,43 @@ export function SettingsGroupBody({
   );
 }
 
-/** A group with nothing in it yet: what would be here, and how to add it. */
+/**
+ * A section with nothing to show, in place of its group: the same card, always 240px tall, so no
+ * section disappears and every empty one reads alike. `empty`: nothing here yet (what would be
+ * here, and how to add it). `restricted`: there is something, but not for you (who can see it).
+ * A hairline figure says which at a glance: by default a tray for empty, a padlock for restricted.
+ */
 export function SettingsEmptyState({
   action,
   description,
+  illustration,
   title,
+  variant = "empty",
 }: {
+  /** One button that fills it: "Add a passkey". Never on `restricted`. */
   action?: ReactNode;
   description: string;
+  illustration?: SettingsIllustrationName;
   title: string;
+  variant?: "empty" | "restricted";
 }) {
   return (
-    <div className="flex min-h-28 w-full items-center justify-center p-6 text-center">
-      <div className="flex w-full max-w-90 flex-col items-center gap-1">
-        <p className="text-sm/4 text-pretty text-foreground">{title}</p>
-        <p className="text-xs/4 text-pretty text-muted-foreground">{description}</p>
-        {action && <div className="mt-3">{action}</div>}
+    <SettingsGroup>
+      {/* 24px more below than above: the figure, title and line sit a little above the middle,
+          where a centred block looks centred (optical). */}
+      <div
+        data-slot="settings-empty-state"
+        data-variant={variant}
+        className="flex min-h-60 w-full flex-col items-center justify-center px-6 pt-6 pb-12 text-center"
+      >
+        <SettingsIllustration
+          name={illustration ?? (variant === "restricted" ? "lock" : "tray")}
+          className="mb-5"
+        />
+        <p className="text-sm/4 font-semibold text-pretty text-foreground">{title}</p>
+        <p className="mt-1 max-w-90 text-xs/4 text-pretty text-muted-foreground">{description}</p>
+        {action && variant === "empty" && <div className="mt-4">{action}</div>}
       </div>
-    </div>
+    </SettingsGroup>
   );
 }

@@ -191,7 +191,17 @@ export function GeneralPage() {
         </Skeleton>
       </SettingsSection>
 
-      {canManage && <DomainsSection />}
+      {canManage ? (
+        <DomainsSection />
+      ) : (
+        <SettingsSection title="Domains">
+          <SettingsEmptyState
+            variant="restricted"
+            title="Only owners and admins see domains"
+            description="Ask one of them to add a domain or check its DNS records."
+          />
+        </SettingsSection>
+      )}
     </SettingsSections>
   );
 }
@@ -250,52 +260,67 @@ function DomainsSection() {
   return (
     <SettingsSection title="Domains">
       <Skeleton id="settings-domains" data={domains} sample={[]} label="Loading domains">
-        {(list) => (
-          <SettingsGroup>
-            <SettingsAddRow label="Add a domain" onPress={() => setDialog({ kind: "add" })} />
-            {list.map((domain) => {
-              const state = domainState(domain);
-              return (
-                <SettingsRow
-                  key={domain.id}
-                  icon={IconGlobe}
-                  label={domain.domain}
-                  description={
-                    domain.provider === "purelymail" ? "Hosted by Purelymail" : "Your own mail host"
-                  }
-                  control={
-                    <>
-                      <Badge intent={state.intent}>{state.label}</Badge>
-                      <SettingsRowMenu
-                        label={`Actions for ${domain.domain}`}
-                        items={[
-                          {
-                            icon: IconListBullets,
-                            label: "DNS records",
-                            onAction: () => setDialog({ kind: "records", domainId: domain.id }),
-                          },
-                          // A verified domain is released by owners only (ADR 0010); a claim
-                          // that never verified, by any owner or admin.
-                          ...(isOwner || domain.status !== "verified"
-                            ? [
-                                {
-                                  icon: IconTrashCanSimple,
-                                  label: "Remove domain",
-                                  danger: true,
-                                  onAction: () =>
-                                    setDialog({ kind: "remove", domainId: domain.id }),
-                                },
-                              ]
-                            : []),
-                        ]}
-                      />
-                    </>
-                  }
-                />
-              );
-            })}
-          </SettingsGroup>
-        )}
+        {(list) =>
+          list.length === 0 ? (
+            <SettingsEmptyState
+              illustration="envelopes"
+              title="No domains yet"
+              description="Add the domain your mail is on to create mailboxes there."
+              action={
+                <Button intent="outline" onPress={() => setDialog({ kind: "add" })}>
+                  Add a domain
+                </Button>
+              }
+            />
+          ) : (
+            <SettingsGroup>
+              <SettingsAddRow label="Add a domain" onPress={() => setDialog({ kind: "add" })} />
+              {list.map((domain) => {
+                const state = domainState(domain);
+                return (
+                  <SettingsRow
+                    key={domain.id}
+                    icon={IconGlobe}
+                    label={domain.domain}
+                    description={
+                      domain.provider === "purelymail"
+                        ? "Hosted by Purelymail"
+                        : "Your own mail host"
+                    }
+                    control={
+                      <>
+                        <Badge intent={state.intent}>{state.label}</Badge>
+                        <SettingsRowMenu
+                          label={`Actions for ${domain.domain}`}
+                          items={[
+                            {
+                              icon: IconListBullets,
+                              label: "DNS records",
+                              onAction: () => setDialog({ kind: "records", domainId: domain.id }),
+                            },
+                            // A verified domain is released by owners only (ADR 0010); a claim
+                            // that never verified, by any owner or admin.
+                            ...(isOwner || domain.status !== "verified"
+                              ? [
+                                  {
+                                    icon: IconTrashCanSimple,
+                                    label: "Remove domain",
+                                    danger: true,
+                                    onAction: () =>
+                                      setDialog({ kind: "remove", domainId: domain.id }),
+                                  },
+                                ]
+                              : []),
+                          ]}
+                        />
+                      </>
+                    }
+                  />
+                );
+              })}
+            </SettingsGroup>
+          )
+        }
       </Skeleton>
       <AddDomainDialog
         isOpen={dialog?.kind === "add"}
@@ -633,15 +658,16 @@ export function PeoplePage() {
 
       <SettingsSection title="Invited">
         <Skeleton id="settings-invitations" data={pending} sample={[]} label="Loading invitations">
-          {(list) => (
-            <SettingsGroup>
-              {list.length === 0 ? (
-                <SettingsEmptyState
-                  title="No pending invitations"
-                  description="People you invite appear here until they join."
-                />
-              ) : (
-                list.map((invitation) => (
+          {(list) =>
+            list.length === 0 ? (
+              <SettingsEmptyState
+                illustration="envelopes"
+                title="No pending invitations"
+                description="People you invite appear here until they join."
+              />
+            ) : (
+              <SettingsGroup>
+                {list.map((invitation) => (
                   <SettingsRow
                     key={invitation.id}
                     label={invitation.email}
@@ -690,10 +716,10 @@ export function PeoplePage() {
                       </>
                     }
                   />
-                ))
-              )}
-            </SettingsGroup>
-          )}
+                ))}
+              </SettingsGroup>
+            )
+          }
         </Skeleton>
       </SettingsSection>
 
