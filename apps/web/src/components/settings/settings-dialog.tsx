@@ -128,6 +128,7 @@ export function SettingsDialog() {
     <Dialog
       aria-label="Settings"
       size="5xl"
+      bare
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (open) return;

@@ -44,7 +44,7 @@ export function SettingsFormDialog({
       closeButton={!saving}
     >
       <form
-        className="flex min-h-0 flex-col"
+        className="flex min-h-0 flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
           onSubmit();
@@ -88,7 +88,7 @@ export function SettingsListDialog({
         <DialogTitle>{title}</DialogTitle>
         {description && <DialogDescription>{description}</DialogDescription>}
       </DialogHeader>
-      <DialogBody className="pb-(--gutter)">{children}</DialogBody>
+      <DialogBody>{children}</DialogBody>
     </Dialog>
   );
 }
