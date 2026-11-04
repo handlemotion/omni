@@ -117,13 +117,17 @@ describe("security headers", () => {
       expectBaseline(page);
       const policy = csp(page);
       expect(policy.get("default-src")).toBe("'self'");
-      // No inline or eval'd script, and nothing but our origin.
-      expect(policy.get("script-src")).toBe("'self'");
+      // No inline or eval'd script: our origin, plus Stripe.js for adding a card in Billing.
+      expect(policy.get("script-src")).toBe("'self' https://js.stripe.com https://*.js.stripe.com");
       expect(policy.get("object-src")).toBe("'none'");
       expect(policy.get("base-uri")).toBe("'none'");
       expect(policy.get("frame-ancestors")).toBe("'none'");
-      // The message iframe is same-origin; nothing else may be framed.
-      expect(policy.get("frame-src")).toBe("'self'");
+      // The message iframe is same-origin; the only other frames are Stripe's card fields and
+      // 3-D Secure.
+      expect(policy.get("frame-src")).toBe(
+        "'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com",
+      );
+      expect(policy.get("connect-src")).toBe("'self' https://api.stripe.com");
       expect(page.headers.get("referrer-policy")).toBe("same-origin");
       expect(page.headers.get("cross-origin-opener-policy")).toBe("same-origin");
     }
