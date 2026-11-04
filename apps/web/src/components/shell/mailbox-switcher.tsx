@@ -216,7 +216,9 @@ export function MailboxSwitcher() {
         placement="bottom start"
         popover={{
           offset: 8,
-          className: "w-80 max-w-[calc(100vw-16px)] [--popover-radius:var(--radius-xl)]",
+          // Fit-content like every menu; rows carry an avatar and two lines, so the cap is
+          // raised to 320px (addresses truncate past it).
+          className: "max-w-[min(20rem,calc(100vw-16px))] [--popover-radius:var(--radius-xl)]",
         }}
         className="p-2"
       >
