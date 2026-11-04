@@ -131,6 +131,28 @@ export const addDomainMutation = (client: QueryClient) =>
     onSuccess: (domain) => storeDomain(client, domain),
   });
 
+/**
+ * `mutate(domainId)`: removes the domain from the workspace (ADR 0016). A claim that never
+ * verified is withdrawn; a verified domain is released (owners only, refused while it has
+ * mailboxes). Its remembered challenge value goes with it.
+ */
+export const removeDomainMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: (id: string) =>
+      call(api.onboarding.domains[":id"].release.$post({ param: { id } })),
+    onSuccess: (_, id) => {
+      try {
+        localStorage.removeItem(challengeKey(id));
+      } catch {
+        // Storage blocked: nothing was kept.
+      }
+      client.setQueryData<Onboarding>(keys.onboarding(), (data) =>
+        data?.organization ? { ...data, domains: data.domains.filter((d) => d.id !== id) } : data,
+      );
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: keys.onboarding() }),
+  });
+
 /** `mutate(domainId)`: a new challenge value, for a member who lost the first one. */
 export const rotateChallengeMutation = (client: QueryClient) =>
   mutationOptions({
