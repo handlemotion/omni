@@ -7,6 +7,8 @@ export const SETTINGS_PAGES = [
   "profile",
   "security",
   "shortcuts",
+  // The active workspace's index: a link to each of its pages (transitive's company overview).
+  "workspace",
   "general",
   "people",
   "mailboxes",

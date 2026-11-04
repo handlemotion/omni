@@ -1,6 +1,8 @@
 // Settings pages about the active workspace: what it is and the others you belong to, who is in
 // it, and who can see each mailbox.
-import { lazy, useState } from "react";
+import { cn } from "cn";
+import { type CSSProperties, lazy, useState } from "react";
+import { IconInbox, IconSettings, IconTeam } from "@/components/icons/sidebar";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -26,16 +28,19 @@ import {
   useUpdateMemberRole,
 } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
-import { useOpenWorkspace, useWorkspaces } from "@/hooks/use-workspaces.ts";
-import { LANES, type Lane, type Mailbox } from "@/lib/types.ts";
+import { showSettingsPage } from "@/hooks/use-settings-dialog.ts";
+import { useWorkspaces } from "@/hooks/use-workspaces.ts";
+import { LANES, type Lane, type Mailbox, type Workspace } from "@/lib/types.ts";
 import { PersonAvatar } from "./account-pages";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import {
   SettingsEmptyState,
   SettingsGroup,
+  SettingsPageHeader,
   SettingsSection,
   SettingsSections,
 } from "./kit/settings-layout";
+import { SettingsLinkRow } from "./kit/settings-link-row";
 import { SettingsMeterRow } from "./kit/settings-meter-row";
 import { SettingsRow } from "./kit/settings-row";
 import { SettingsRowMenu } from "./kit/settings-row-menu";
@@ -81,12 +86,70 @@ const SAMPLE_ACCESS = SAMPLE_PEOPLE.map((p) => ({
 
 const isManager = (role: string) => /\b(owner|admin)\b/.test(role);
 
+/** The active workspace's square mark at `size` px: its logo, or its initial. */
+export function WorkspaceAvatar({ workspace, size }: { workspace: Workspace; size: number }) {
+  return (
+    <Avatar
+      isSquare
+      src={workspace.logo}
+      initials={size >= 20 ? workspace.name.slice(0, 1).toUpperCase() : undefined}
+      // A plain nav-sized mark is `muted`, so it still reads on the current row's accent fill.
+      className={cn("text-foreground outline-0", size >= 20 ? "bg-accent" : "bg-muted")}
+      style={{ "--avatar-size": `${size}px` } as CSSProperties}
+    />
+  );
+}
+
+const WORKSPACE_PAGES = [
+  {
+    id: "general",
+    label: "General",
+    description: "Its name, handle and your role",
+    icon: IconSettings,
+  },
+  { id: "people", label: "People", description: "Members, roles and invitations", icon: IconTeam },
+  {
+    id: "mailboxes",
+    label: "Mailboxes",
+    description: "Who sees each mailbox, and what waits in it",
+    icon: IconInbox,
+  },
+] as const;
+
+/** The active workspace's index: its mark and name, then a row for each of its pages. */
+export function WorkspaceIndexPage() {
+  const { member } = useMember();
+  const workspaces = useWorkspaces();
+  const active = workspaces.data?.workspaces.find((workspace) => workspace.id === member.orgId);
+  return (
+    <>
+      <SettingsPageHeader
+        title={active?.name ?? "Workspace"}
+        avatar={active && <WorkspaceAvatar workspace={active} size={28} />}
+      />
+      <SettingsSections>
+        <SettingsSection title="Settings">
+          <SettingsGroup>
+            {WORKSPACE_PAGES.map((page) => (
+              <SettingsLinkRow
+                key={page.id}
+                icon={page.icon}
+                label={page.label}
+                description={page.description}
+                onPress={() => showSettingsPage(page.id)}
+              />
+            ))}
+          </SettingsGroup>
+        </SettingsSection>
+      </SettingsSections>
+    </>
+  );
+}
+
 export function GeneralPage() {
   const { member } = useMember();
   const workspaces = useWorkspaces();
-  const openWorkspace = useOpenWorkspace();
-  const all = workspaces.data?.workspaces;
-  const active = all?.find((workspace) => workspace.id === member.orgId);
+  const active = workspaces.data?.workspaces.find((workspace) => workspace.id === member.orgId);
 
   return (
     <SettingsSections>
@@ -101,54 +164,6 @@ export function GeneralPage() {
                   <SettingsValueRow label="Your role" value={roleLabel(member.role)} />
                 </>
               }
-            </SettingsGroup>
-          )}
-        </Skeleton>
-      </SettingsSection>
-
-      <SettingsSection title="Your workspaces">
-        <Skeleton id="settings-workspaces" data={all} label="Loading workspaces">
-          {(list) => (
-            <SettingsGroup>
-              {list.map((workspace) => {
-                const current = workspace.id === member.orgId;
-                const unfinished = workspace.setup !== "complete";
-                const count = workspace.mailboxes.length;
-                return (
-                  <SettingsRow
-                    key={workspace.id}
-                    avatar={
-                      <Avatar
-                        isSquare
-                        src={workspace.logo}
-                        initials={workspace.name.slice(0, 1).toUpperCase()}
-                        className="bg-accent text-foreground outline-0"
-                      />
-                    }
-                    label={workspace.name}
-                    description={`${count} ${count === 1 ? "mailbox" : "mailboxes"}`}
-                    control={
-                      current && !unfinished ? (
-                        <Badge intent="secondary">Current</Badge>
-                      ) : (
-                        <Button
-                          intent="outline"
-                          isPending={
-                            openWorkspace.isPending && openWorkspace.variables.id === workspace.id
-                          }
-                          onPress={() =>
-                            openWorkspace.mutate(workspace, {
-                              onError: () => appToast.error("The workspace could not be opened."),
-                            })
-                          }
-                        >
-                          {unfinished ? "Continue setup" : "Open"}
-                        </Button>
-                      )
-                    }
-                  />
-                );
-              })}
             </SettingsGroup>
           )}
         </Skeleton>
