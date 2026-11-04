@@ -9,6 +9,9 @@ import {
   membersQuery,
   passkeysQuery,
   removeMemberMutation,
+  renameOrganizationMutation,
+  renamePasskeyMutation,
+  resendInvitationMutation,
   updateMemberRoleMutation,
 } from "../lib/org-queries.ts";
 
@@ -52,4 +55,19 @@ export function useAddPasskey() {
 /** `mutate(passkeyId)`. */
 export function useDeletePasskey() {
   return useMutation(deletePasskeyMutation(useQueryClient()));
+}
+
+/** `mutate({ id, name })`. */
+export function useRenamePasskey() {
+  return useMutation(renamePasskeyMutation(useQueryClient()));
+}
+
+/** `mutate({ email, role })` emails a pending invitation again. */
+export function useResendInvitation() {
+  return useMutation(resendInvitationMutation(useQueryClient()));
+}
+
+/** `mutate(name)` renames the active workspace. */
+export function useRenameWorkspace() {
+  return useMutation(renameOrganizationMutation(useQueryClient()));
 }

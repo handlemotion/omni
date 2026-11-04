@@ -1,7 +1,7 @@
 // Who is signed in, and the transitions that change it (sign in, sign out, switch organization).
 // Any change of identity clears the whole cache and reloads the routes, so no data from one
 // member or organization is ever shown to another.
-import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, ApiError, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import type { Member } from "./types.ts";
@@ -165,3 +165,44 @@ export async function setActiveOrganization(
   await authCall(auth.organization.setActive({ organizationId }));
   await resetSession(client, router);
 }
+
+/** The signed-in user's sessions on every device, newest activity first (Better Auth `listSessions`). */
+export const sessionsQuery = () =>
+  queryOptions({
+    queryKey: keys.sessions(),
+    queryFn: async ({ signal }) => {
+      const sessions = await authCall(auth.listSessions({ fetchOptions: { signal } }));
+      return sessions.toSorted(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
+    },
+  });
+
+/** `mutate(sessionToken)` signs the user out on that device. Not for the current session. */
+export const revokeSessionMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: (token: string) => authCall(auth.revokeSession({ token })),
+    onSettled: () => client.invalidateQueries({ queryKey: keys.sessions() }),
+  });
+
+/** `mutate()` signs the user out on every device but this one. */
+export const revokeOtherSessionsMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: () => authCall(auth.revokeOtherSessions()),
+    onSettled: () => client.invalidateQueries({ queryKey: keys.sessions() }),
+  });
+
+/**
+ * `mutate(name)` changes the signed-in user's name. The session, the member list and the
+ * accounts on this browser all show it, so they reload.
+ */
+export const updateNameMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: (name: string) => authCall(auth.updateUser({ name })),
+    onSuccess: () =>
+      Promise.all([
+        client.refetchQueries({ queryKey: keys.session() }),
+        client.invalidateQueries({ queryKey: keys.deviceSessions() }),
+        client.invalidateQueries({ queryKey: keys.members() }),
+      ]),
+  });
