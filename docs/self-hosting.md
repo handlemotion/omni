@@ -41,18 +41,18 @@ apply. The database is an index of your mail host: if it is lost, re-sync rebuil
 
 Filled in per unit: see each unit's `.env.example`.
 
-| Variable                | Used by                         | Required | Notes                                                                   |
-| ----------------------- | ------------------------------- | -------- | ----------------------------------------------------------------------- |
-| `DATABASE_URL`          | migrations, mail service, tests | yes      | `postgres://` URL. The Worker reaches the same database via Hyperdrive. |
-| `BETTER_AUTH_SECRET`    | Worker (auth)                   | yes      | At least 32 random characters.                                          |
-| `BETTER_AUTH_URL`       | Worker (auth)                   | yes      | Public origin of the API.                                               |
-| `AUTH_TRUSTED_ORIGINS`  | Worker (auth)                   | no       | Comma-separated web/app origins allowed to call auth.                   |
-| `AUTH_PASSKEY_RP_ID`    | Worker (auth)                   | no       | WebAuthn relying party ID; defaults to the `BETTER_AUTH_URL` host.      |
-| `APP_NAME`              | Worker (auth)                   | no       | Shown in passkey prompts; defaults to `Omni`.                           |
-| `GOOGLE_CLIENT_ID`      | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on sign-in with Google.              |
-| `GOOGLE_CLIENT_SECRET`  | Worker (auth)                   | no       | Secret. Set together with `GOOGLE_CLIENT_ID`, or neither.               |
-| `ORGANIZATION_CREATION` | Worker (auth)                   | no       | `owners` (default) or `anyone`: who may create a workspace in the app.  |
-| `PURELYMAIL_API_TOKEN`  | mail service                    | no       | Secret. Lets onboarding create domains, users and app passwords.        |
+| Variable               | Used by                         | Required | Notes                                                                   |
+| ---------------------- | ------------------------------- | -------- | ----------------------------------------------------------------------- |
+| `DATABASE_URL`         | migrations, mail service, tests | yes      | `postgres://` URL. The Worker reaches the same database via Hyperdrive. |
+| `BETTER_AUTH_SECRET`   | Worker (auth)                   | yes      | At least 32 random characters.                                          |
+| `BETTER_AUTH_URL`      | Worker (auth)                   | yes      | Public origin of the API.                                               |
+| `AUTH_TRUSTED_ORIGINS` | Worker (auth)                   | no       | Comma-separated web/app origins allowed to call auth.                   |
+| `AUTH_PASSKEY_RP_ID`   | Worker (auth)                   | no       | WebAuthn relying party ID; defaults to the `BETTER_AUTH_URL` host.      |
+| `APP_NAME`             | Worker (auth)                   | no       | Shown in passkey prompts; defaults to `Omni`.                           |
+| `GOOGLE_CLIENT_ID`     | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on sign-in with Google.              |
+| `GOOGLE_CLIENT_SECRET` | Worker (auth)                   | no       | Secret. Set together with `GOOGLE_CLIENT_ID`, or neither.               |
+| `SIGN_UP`              | Worker (auth)                   | no       | `open` (default) or `invitation`: who may sign up (ADR 0018).           |
+| `PURELYMAIL_API_TOKEN` | mail service                    | no       | Secret. Lets onboarding create domains, users and app passwords.        |
 
 ### Mail service (`apps/mail`)
 
@@ -107,7 +107,12 @@ Objects are keyed by content hash under `<org id>/<mailbox id>/` (`raw/<sha256>.
 
 ### First organization
 
-Sign-up is by invitation only, so an install starts from the command line. In this order:
+Sign-up is open by default (`SIGN_UP=open`, ADR 0018): anyone with a verified email signs up and
+creates a workspace in onboarding, so a new install only needs the `SYSTEM_MAIL_FROM` mailbox to
+send sign-in links from. Anyone who reaches your install can then make a workspace on your AI key
+and, with `PURELYMAIL_API_TOKEN`, your Purelymail account (on domains they prove they control).
+For a private install set `SIGN_UP=invitation`: sign-up then needs a pending invitation, and an
+install starts from the command line. In this order:
 
 1. **Create the organization and its owner** with the same `DATABASE_URL` as the service:
 
@@ -125,15 +130,16 @@ Sign-up is by invitation only, so an install starts from the command line. In th
 
 3. **Sign in** with a magic link to the owner address. Owners and admins then invite everyone
    else from the app (Better Auth invitations); an invited person signs in by magic link with
-   the invited address and accepts. A magic-link request for an address with no account and no
-   pending invitation gets the same answer as any other, but no email.
+   the invited address and accepts. With `SIGN_UP=invitation`, a magic-link request for an
+   address with no account and no pending invitation gets the same answer as any other, but no
+   email.
 
 ### Onboarding in the app
 
 `/onboarding` in the web app sets up a workspace: its name, its domain, its mailboxes, and
 invitations. An owner or admin whose workspace has no mailboxes is sent there after signing in.
-Owners can also open it to create another workspace; with `ORGANIZATION_CREATION=anyone`, any
-signed-in user without a workspace is sent there too (sign-up itself stays invitation-only).
+A signed-in user without a workspace is sent there to create one; with `SIGN_UP=invitation`,
+only people who already own a workspace may create another, and everyone else needs an invitation.
 
 What the Domain and Mailboxes steps do depends on the mail service:
 
@@ -316,8 +322,9 @@ Optional. In the Google Cloud console, create an OAuth client of type "Web appli
 the authorized redirect URI `<BETTER_AUTH_URL>/api/auth/callback/google` (locally, with Vite,
 `http://localhost:5173/api/auth/callback/google`). Set `GOOGLE_CLIENT_ID` as a var and
 `GOOGLE_CLIENT_SECRET` as a secret. The login page asks `GET /api/sign-in-methods` and shows the
-button only when both are set. Sign-up stays invitation-only: a Google account whose email has
-no account and no pending invitation is sent back to `/login?error=SIGN_UP_REQUIRES_INVITATION`.
+button only when both are set. A Google account signs up only when Google says its email is
+verified. With `SIGN_UP=invitation`, one whose email has no account and no pending invitation is
+sent back to `/login?error=SIGN_UP_REQUIRES_INVITATION`.
 A Google account whose email matches an existing user signs in as that user only once that
 user's email is verified (any magic-link sign-in verifies it); until then the callback returns
 `?error=account_not_linked`.

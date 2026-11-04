@@ -18,7 +18,10 @@ import {
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
-let worker: Awaited<ReturnType<typeof startWorker>>;
+type Worker = Awaited<ReturnType<typeof startWorker>>;
+let worker: Worker;
+/** The same database behind a private install's Worker (`SIGN_UP=invitation`, ADR 0018). */
+let invitationOnly: Worker;
 
 beforeAll(async () => {
   database = await createTestDatabase();
@@ -28,10 +31,16 @@ beforeAll(async () => {
     mailServiceUrl: mailService.url,
     vars: { WEB_APP_URL: WEB_ORIGIN },
   });
+  invitationOnly = await startWorker({
+    databaseUrl: database.url,
+    mailServiceUrl: mailService.url,
+    vars: { WEB_APP_URL: WEB_ORIGIN, SIGN_UP: "invitation" },
+  });
 });
 
 afterAll(async () => {
   await worker?.server.close();
+  await invitationOnly?.server.close();
   await mailService?.close();
   await database?.teardown();
 });
@@ -93,8 +102,8 @@ test("a magic link from the outbox signs the member in, and the outbox ping veri
   expect(reused.headers.getSetCookie().filter((c) => /session_token=[^;]/.test(c))).toEqual([]);
 });
 
-async function me(jar: CookieJar) {
-  const response = await fetch(new URL("/api/me", worker.url), { headers: { cookie: jar.header } });
+async function me(jar: CookieJar, on: Worker = worker) {
+  const response = await fetch(new URL("/api/me", on.url), { headers: { cookie: jar.header } });
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
 
@@ -130,8 +139,8 @@ async function signedInOwner(slug: string) {
 }
 
 /** Invites into the owner's active org, with no `organizationId`, as the web app does. */
-async function invite(owner: { jar: CookieJar }, email: string) {
-  const response = await authPost(worker, owner.jar, "/organization/invite-member", {
+async function invite(owner: { jar: CookieJar }, email: string, on: Worker = worker) {
+  const response = await authPost(on, owner.jar, "/organization/invite-member", {
     email,
     role: "member",
   });
@@ -139,9 +148,58 @@ async function invite(owner: { jar: CookieJar }, email: string) {
   return ((await response.json()) as { id: string }).id;
 }
 
-test("an email with no account and no invitation is answered alike but mailed nothing", async () => {
-  await signedInOwner("gate");
+test("a brand-new email with no invitation signs up by magic link and has no workspace yet", async () => {
+  await signedInOwner("open");
   const requested = await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: WEB_ORIGIN },
+    body: JSON.stringify({ email: "newcomer@open.test", callbackURL: "/" }),
+  });
+  expect(requested.status).toBe(200);
+  const [mail] = await mailTo("newcomer@open.test");
+  expect(mail!.from).toBe(SYSTEM_MAIL_FROM);
+  const link = new URL(mail!.text.match(/https?:\/\/\S+magic-link\S+/)![0]);
+
+  const jar = new CookieJar();
+  const opened = await fetch(new URL(link.pathname + link.search, worker.url), {
+    redirect: "manual",
+  });
+  jar.store(opened);
+  expect(opened.status).toBe(302);
+  expect(opened.headers.get("location")).not.toContain("error=");
+  expect(jar.header).toContain("session_token");
+
+  // One user, proven by the link, in no workspace: the app sends them to create one.
+  const users = await database.db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.email, "newcomer@open.test"));
+  expect(users).toEqual([expect.objectContaining({ emailVerified: true })]);
+  expect(
+    await database.db.select().from(schema.members).where(eq(schema.members.userId, users[0]!.id)),
+  ).toEqual([]);
+  expect((await me(jar)).status).toBe(403);
+  const onboarding = await fetch(new URL("/api/onboarding", worker.url), {
+    headers: { cookie: jar.header },
+  });
+  expect(await onboarding.json()).toMatchObject({
+    canCreateOrganization: true,
+    organization: null,
+  });
+
+  // A second link to the same address signs in the same user, not a second one.
+  await signIn(worker, database.db, "newcomer@open.test", jar);
+  expect(
+    await database.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(eq(schema.users.email, "newcomer@open.test")),
+  ).toEqual([{ id: users[0]!.id }]);
+});
+
+test("with SIGN_UP=invitation, an email with no account and no invitation is answered alike but mailed nothing", async () => {
+  await signedInOwner("gate");
+  const requested = await fetch(new URL("/api/auth/sign-in/magic-link", invitationOnly.url), {
     method: "POST",
     headers: { "content-type": "application/json", origin: WEB_ORIGIN },
     body: JSON.stringify({ email: "stranger@elsewhere.test", callbackURL: "/" }),
@@ -175,10 +233,10 @@ test("invite, then a brand-new user signs in by magic link, accepts, and is a me
   expect(workerEvents(worker).filter((e) => e.event === "auth.dev_link")).toEqual([]);
 });
 
-test("a link sent while invited cannot sign up once the invitation is canceled", async () => {
+test("with SIGN_UP=invitation, a link sent while invited cannot sign up once the invitation is canceled", async () => {
   const owner = await signedInOwner("cancel");
-  const invitationId = await invite(owner, "late@cancel.test");
-  await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
+  const invitationId = await invite(owner, "late@cancel.test", invitationOnly);
+  await fetch(new URL("/api/auth/sign-in/magic-link", invitationOnly.url), {
     method: "POST",
     headers: { "content-type": "application/json", origin: WEB_ORIGIN },
     body: JSON.stringify({ email: "late@cancel.test", callbackURL: "/" }),
@@ -188,13 +246,13 @@ test("a link sent while invited cannot sign up once the invitation is canceled",
     .find(Boolean);
   expect(link).toBeDefined();
 
-  const canceled = await authPost(worker, owner.jar, "/organization/cancel-invitation", {
+  const canceled = await authPost(invitationOnly, owner.jar, "/organization/cancel-invitation", {
     invitationId,
   });
   expect(canceled.status).toBe(200);
 
   const url = new URL(link!);
-  const opened = await fetch(new URL(url.pathname + url.search, worker.url), {
+  const opened = await fetch(new URL(url.pathname + url.search, invitationOnly.url), {
     redirect: "manual",
   });
   expect(opened.headers.get("location")).toContain("error=SIGN_UP_REQUIRES_INVITATION");
@@ -204,6 +262,32 @@ test("a link sent while invited cannot sign up once the invitation is canceled",
     .from(schema.users)
     .where(eq(schema.users.email, "late@cancel.test"));
   expect(users).toEqual([]);
+});
+
+test("with SIGN_UP=invitation, a signed-in user with no workspace cannot create one", async () => {
+  // Invited, signed up, then removed from the only workspace they had.
+  const owner = await signedInOwner("private");
+  const invitationId = await invite(owner, "former@private.test", invitationOnly);
+  const jar = new CookieJar();
+  await signIn(invitationOnly, database.db, "former@private.test", jar);
+  const accepted = await authPost(invitationOnly, jar, "/organization/accept-invitation", {
+    invitationId,
+  });
+  expect(accepted.status).toBe(200);
+  const removed = await authPost(invitationOnly, owner.jar, "/organization/remove-member", {
+    memberIdOrEmail: "former@private.test",
+  });
+  expect(removed.status).toBe(200);
+
+  const status = await fetch(new URL("/api/onboarding", invitationOnly.url), {
+    headers: { cookie: jar.header },
+  });
+  expect(await status.json()).toMatchObject({ canCreateOrganization: false, organization: null });
+  const created = await authPost(invitationOnly, jar, "/organization/create", {
+    name: "Mine",
+    slug: "mine-private",
+  });
+  expect(created.status).toBe(403);
 });
 
 test("a member of two orgs switches the active org, and /api/me follows it", async () => {

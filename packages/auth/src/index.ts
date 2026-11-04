@@ -101,10 +101,12 @@ export const authEnvSchema = z
     GOOGLE_CLIENT_ID: optionalText,
     GOOGLE_CLIENT_SECRET: optionalText,
     /**
-     * Who may create an organization in the app: `owners` (people who already own one; the first
-     * comes from the `org:create` CLI) or `anyone` signed in. Sign-up stays invitation-only.
+     * Who may have an account (ADR 0018). `open` (default): anyone with a verified email signs up
+     * and creates their own workspace in onboarding. `invitation`: sign-up needs a pending
+     * invitation, and only people who already own a workspace create another (the first comes
+     * from the `org:create` CLI).
      */
-    ORGANIZATION_CREATION: optionalText.pipe(z.enum(["owners", "anyone"]).default("owners")),
+    SIGN_UP: optionalText.pipe(z.enum(["open", "invitation"]).default("open")),
     ...billingFields,
   })
   .refine((env) => !env.GOOGLE_CLIENT_ID === !env.GOOGLE_CLIENT_SECRET, {
@@ -164,7 +166,7 @@ export const authEnvSchema = z
       env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
         ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
         : undefined,
-    organizationCreation: env.ORGANIZATION_CREATION,
+    signUp: env.SIGN_UP,
     billing:
       env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && env.STRIPE_PRICE_MONTHLY
         ? {
@@ -186,7 +188,7 @@ export function parseAuthEnv(env: Record<string, unknown>): AuthConfig {
   return authEnvSchema.parse(env);
 }
 
-export type OrganizationCreation = AuthConfig["organizationCreation"];
+export type SignUp = AuthConfig["signUp"];
 
 /** Present only when billing is on (`STRIPE_SECRET_KEY` and friends set). */
 export type BillingConfig = NonNullable<AuthConfig["billing"]>;
@@ -275,13 +277,7 @@ function billingPlugin(env: AuthEnv, billing: BillingConfig) {
 export interface AuthEnv extends Partial<
   Pick<
     AuthConfig,
-    | "trustedOrigins"
-    | "passkeyRpId"
-    | "appName"
-    | "webAppURL"
-    | "google"
-    | "organizationCreation"
-    | "billing"
+    "trustedOrigins" | "passkeyRpId" | "appName" | "webAppURL" | "google" | "signUp" | "billing"
   >
 > {
   db: Db;
@@ -298,24 +294,23 @@ export interface AuthEnv extends Partial<
 }
 
 /**
- * Sign-up is by invitation only. Any of a known user's sign-in emails may always sign in (ADR
- * 0014); an unknown email may sign up only while it holds a pending, unexpired invitation.
+ * Who gets a magic link. With open sign-up, anyone: the link proves the address, and a new
+ * address becomes a user with no workspace (ADR 0018). With `invitation`, any of a known user's
+ * sign-in emails (ADR 0014), or an unknown email while it holds a pending, unexpired invitation.
  */
-export async function maySignIn(db: Db, email: string) {
+export async function maySignIn(db: Db, email: string, policy: SignUp = "open") {
+  if (policy === "open") return true;
   const address = email.toLowerCase();
   return (await findEmailOwner(db, address)) !== null || (await hasPendingInvitation(db, address));
 }
 
 /**
- * Whether `userId` may create an organization in the app under `policy`. `owners`: only someone
- * who already owns one (they set up a second workspace); everyone else joins by invitation.
+ * Whether `userId` may create an organization in the app under `policy`. `open`: anyone signed
+ * in (a new account's first step is its own workspace). `invitation`: only someone who already
+ * owns one (they set up a second workspace); everyone else joins by invitation.
  */
-export async function mayCreateOrganization(
-  db: Db,
-  userId: string,
-  policy: OrganizationCreation = "owners",
-) {
-  if (policy === "anyone") return true;
+export async function mayCreateOrganization(db: Db, userId: string, policy: SignUp = "open") {
+  if (policy === "open") return true;
   const [owned] = await db
     .select({ id: schema.members.id })
     .from(schema.members)
@@ -352,7 +347,7 @@ export function createAuth(env: AuthEnv) {
     trustedOrigins: env.trustedOrigins ?? [],
     // Any verified sign-in email finds its person, wherever Better Auth looks a user up by email.
     database: resolveSignInEmails(drizzleAdapter(env.db, { provider: "pg", schema }), env.db),
-    // Sign-up stays invitation-only: a new Google user goes through the same `user.create` hook.
+    // A new Google user goes through the same `user.create` hook as a magic link (ADR 0018).
     // `select_account` lets one browser add a second Google account (multi-session).
     socialProviders: env.google
       ? { google: { ...env.google, prompt: "select_account" } }
@@ -380,8 +375,9 @@ export function createAuth(env: AuthEnv) {
     databaseHooks: {
       user: {
         create: {
-          // The one place every sign-up path (magic-link verify, Google callback) creates a user. A link
-          // issued while the invitation was pending stops working once it is canceled.
+          // The one place every sign-up path (magic-link verify, Google callback) creates a user.
+          // With `SIGN_UP=invitation`, a link issued while the invitation was pending stops
+          // working once it is canceled.
           before: async (user) => {
             // Only a proven address becomes an identity: a magic link proves it; Google must say so.
             if (!user.emailVerified) {
@@ -398,7 +394,7 @@ export function createAuth(env: AuthEnv) {
                 message: "this email already signs in to an account",
               });
             }
-            if (!(await hasPendingInvitation(env.db, user.email))) {
+            if (env.signUp === "invitation" && !(await hasPendingInvitation(env.db, user.email))) {
               throw new APIError("FORBIDDEN", {
                 code: "SIGN_UP_REQUIRES_INVITATION",
                 message: "sign-up needs a pending invitation",
@@ -425,10 +421,11 @@ export function createAuth(env: AuthEnv) {
     },
     plugins: [
       magicLink({
-        // An email that may not sign in gets the same 200 and no mail, so the endpoint does not
-        // reveal who has an account, and our system mailbox never mails a stranger.
+        // An email that may not sign in (`SIGN_UP=invitation`) gets the same 200 and no mail, so
+        // the endpoint does not reveal who has an account. Either way the Worker limits links
+        // per address and per IP, so nobody can mail-bomb an inbox.
         sendMagicLink: async ({ email, url }) => {
-          if (await maySignIn(env.db, email)) await env.sendMagicLink({ email, url });
+          if (await maySignIn(env.db, email, env.signUp)) await env.sendMagicLink({ email, url });
         },
       }),
       passkey({
@@ -437,11 +434,10 @@ export function createAuth(env: AuthEnv) {
         schema: { passkey: { modelName: "passkeys" } },
       }),
       organization({
-        // The first organization comes from the `org:create` CLI; after that, per
-        // ORGANIZATION_CREATION (onboarding creates one, ADR 0007). Members join by invitation.
+        // Per SIGN_UP (ADR 0018): with open sign-up anyone signed in creates one in onboarding
+        // (ADR 0007); with `invitation`, only owners. Members join by invitation either way.
         // The creator becomes its owner and it becomes their active organization.
-        allowUserToCreateOrganization: (user) =>
-          mayCreateOrganization(env.db, user.id, env.organizationCreation),
+        allowUserToCreateOrganization: (user) => mayCreateOrganization(env.db, user.id, env.signUp),
         sendInvitationEmail: ({ id, email, organization, inviter, invitation }) =>
           env.sendInvitation({
             invitationId: id,

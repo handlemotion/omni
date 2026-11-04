@@ -27,8 +27,8 @@
     "APP_NAME": "Omni",
     // Web app origin for invitation links; empty means the same origin as BETTER_AUTH_URL.
     "WEB_APP_URL": "",
-    // Who may create a workspace in the app: "owners" (empty means this) or "anyone" signed in.
-    "ORGANIZATION_CREATION": "",
+    // Who may sign up (ADR 0018): "open" (empty means this) or "invitation" for a private install.
+    "SIGN_UP": "",
     "MAIL_SERVICE_URL": "http://localhost:8788",
     "SYSTEM_MAIL_FROM": "",
     "SENTRY_DSN": "",

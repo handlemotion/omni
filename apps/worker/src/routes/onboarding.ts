@@ -163,11 +163,7 @@ export const onboarding = new Hono<AppEnv>()
     if (!resolved) throw new HTTPException(401, { message: "sign in first" });
     const { db, config } = c.var;
     const { user, member } = resolved;
-    const canCreateOrganization = await mayCreateOrganization(
-      db,
-      user.id,
-      config.auth.organizationCreation,
-    );
+    const canCreateOrganization = await mayCreateOrganization(db, user.id, config.auth.signUp);
     /** Billing is on for this deployment (ADR 0015): setup then has a plan step. */
     const billing = { enabled: config.auth.billing !== undefined };
     if (!member) {
