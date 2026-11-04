@@ -1,4 +1,5 @@
 import { passkey } from "@better-auth/passkey";
+import { stripe, type StripeOptions } from "@better-auth/stripe";
 import type { Db } from "@omni/db";
 import {
   advanceOrgSetup,
@@ -14,7 +15,8 @@ import { claimInvitationsForSignInEmails, resolveSignInEmails } from "./sign-in-
 import { magicLink } from "better-auth/plugins/magic-link";
 import { multiSession } from "better-auth/plugins/multi-session";
 import { organization } from "better-auth/plugins/organization";
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
+import Stripe from "stripe";
 import { uuidv7 } from "uuidv7";
 import { z } from "zod";
 
@@ -50,6 +52,27 @@ const optionalText = z
   .optional()
   .transform((value) => value || undefined);
 
+const wholeNumber = z.string().regex(/^\d+$/, "use a whole number").transform(Number);
+const positiveInt = optionalText.pipe(wholeNumber.pipe(z.number().positive()).optional());
+
+/**
+ * Billing (ADR 0015): one flat plan per workspace, with a monthly allowance of AI-triaged emails.
+ * All of it is optional: with no `STRIPE_SECRET_KEY` there is no Stripe plugin and no limit.
+ * Amounts live in Stripe as prices; only their ids are config.
+ */
+const billingFields = {
+  STRIPE_SECRET_KEY: optionalText,
+  STRIPE_WEBHOOK_SECRET: optionalText,
+  /** Monthly price of the plan. */
+  STRIPE_PRICE_MONTHLY: optionalText,
+  /** Optional yearly price (usually discounted). Empty offers monthly only. */
+  STRIPE_PRICE_YEARLY: optionalText,
+  /** Free trial length in days, once per workspace. Empty or 0: no trial. */
+  BILLING_TRIAL_DAYS: optionalText.pipe(wholeNumber.optional()).transform((days) => days ?? 0),
+  /** AI-triaged emails per workspace per month. */
+  BILLING_TRIAGE_ALLOWANCE: positiveInt,
+};
+
 /** Auth variables, documented in `packages/auth/.env.example`. */
 export const authEnvSchema = z
   .object({
@@ -67,10 +90,39 @@ export const authEnvSchema = z
      * comes from the `org:create` CLI) or `anyone` signed in. Sign-up stays invitation-only.
      */
     ORGANIZATION_CREATION: optionalText.pipe(z.enum(["owners", "anyone"]).default("owners")),
+    ...billingFields,
   })
   .refine((env) => !env.GOOGLE_CLIENT_ID === !env.GOOGLE_CLIENT_SECRET, {
     path: ["GOOGLE_CLIENT_SECRET"],
     message: "set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET together, or neither",
+  })
+  .superRefine((env, ctx) => {
+    // Half a billing setup is a mistake, not "billing off": name what is missing.
+    if (!env.STRIPE_SECRET_KEY) {
+      const stray = [
+        "STRIPE_WEBHOOK_SECRET",
+        "STRIPE_PRICE_MONTHLY",
+        "STRIPE_PRICE_YEARLY",
+        "BILLING_TRIAGE_ALLOWANCE",
+      ] as const;
+      for (const name of stray.filter((n) => env[n] !== undefined)) {
+        ctx.addIssue({ code: "custom", path: [name], message: "needs STRIPE_SECRET_KEY" });
+      }
+      return;
+    }
+    for (const name of [
+      "STRIPE_WEBHOOK_SECRET",
+      "STRIPE_PRICE_MONTHLY",
+      "BILLING_TRIAGE_ALLOWANCE",
+    ] as const) {
+      if (env[name] === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: [name],
+          message: "is required with STRIPE_SECRET_KEY",
+        });
+      }
+    }
   })
   .transform((env) => ({
     secret: env.BETTER_AUTH_SECRET,
@@ -85,6 +137,17 @@ export const authEnvSchema = z
         ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
         : undefined,
     organizationCreation: env.ORGANIZATION_CREATION,
+    billing:
+      env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && env.STRIPE_PRICE_MONTHLY
+        ? {
+            secretKey: env.STRIPE_SECRET_KEY,
+            webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+            monthlyPriceId: env.STRIPE_PRICE_MONTHLY,
+            yearlyPriceId: env.STRIPE_PRICE_YEARLY,
+            trialDays: env.BILLING_TRIAL_DAYS,
+            triageAllowance: env.BILLING_TRIAGE_ALLOWANCE!,
+          }
+        : undefined,
   }));
 
 export type AuthConfig = z.output<typeof authEnvSchema>;
@@ -96,10 +159,92 @@ export function parseAuthEnv(env: Record<string, unknown>): AuthConfig {
 
 export type OrganizationCreation = AuthConfig["organizationCreation"];
 
+/** Present only when billing is on (`STRIPE_SECRET_KEY` and friends set). */
+export type BillingConfig = NonNullable<AuthConfig["billing"]>;
+
+/**
+ * The one plan's key, as the Stripe plugin stores it in `subscriptions.plan`. What customers see
+ * (Checkout, the portal, invoices) is the Stripe product's name, set in Stripe.
+ */
+export const PLAN_NAME = "omnipresent";
+
+/** Who may start checkout or open the portal for a workspace. */
+export const BILLING_ROLES = ["owner", "admin"] as const;
+
+/** A Stripe client that works on Workers (fetch, Web Crypto) and in Node. */
+export function createStripeClient(secretKey: string) {
+  return new Stripe(secretKey, { httpClient: Stripe.createFetchHttpClient() });
+}
+
+/** Whether `userId` is an owner or admin of `orgId`: the people who manage its billing. */
+export async function mayManageBilling(db: Db, userId: string, orgId: string) {
+  const [member] = await db
+    .select({ id: schema.members.id })
+    .from(schema.members)
+    .where(
+      and(
+        eq(schema.members.userId, userId),
+        eq(schema.members.organizationId, orgId),
+        inArray(schema.members.role, [...BILLING_ROLES]),
+      ),
+    )
+    .limit(1);
+  return member !== undefined;
+}
+
+/**
+ * Better Auth's Stripe plugin for one plan billed to the organization (ADR 0015). Trials need no
+ * card; a trial that ends without one cancels, which leaves the workspace read-only.
+ */
+function billingPlugin(env: AuthEnv, billing: BillingConfig) {
+  return stripe({
+    stripeClient: createStripeClient(billing.secretKey),
+    stripeWebhookSecret: billing.webhookSecret,
+    // Customers are workspaces, created on first checkout; people never get one.
+    createCustomerOnSignUp: false,
+    organization: { enabled: true },
+    subscription: {
+      enabled: true,
+      plans: [
+        {
+          name: PLAN_NAME,
+          priceId: billing.monthlyPriceId,
+          annualDiscountPriceId: billing.yearlyPriceId,
+          freeTrial: billing.trialDays > 0 ? { days: billing.trialDays } : undefined,
+        },
+      ],
+      // Organization subscriptions only (the Worker refuses others): owners and admins.
+      authorizeReference: ({ user, referenceId }) => mayManageBilling(env.db, user.id, referenceId),
+      getCheckoutSessionParams: () => ({
+        params: {
+          payment_method_collection: "if_required",
+          subscription_data: {
+            trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+          },
+        },
+      }),
+    },
+    // The option's type intersects the three tables' field maps and rejects any field rename;
+    // this shape is what the plugin reads (and what `auth:generate` turned into our schema).
+    schema: {
+      subscription: { modelName: "subscriptions", fields: { referenceId: "orgId" } },
+      // It adds `stripeCustomerId` to these; keep the table names the other plugins use.
+      organization: { modelName: "organizations" },
+      user: { modelName: "users" },
+    } as unknown as StripeOptions["schema"],
+  });
+}
+
 export interface AuthEnv extends Partial<
   Pick<
     AuthConfig,
-    "trustedOrigins" | "passkeyRpId" | "appName" | "webAppURL" | "google" | "organizationCreation"
+    | "trustedOrigins"
+    | "passkeyRpId"
+    | "appName"
+    | "webAppURL"
+    | "google"
+    | "organizationCreation"
+    | "billing"
   >
 > {
   db: Db;
@@ -310,6 +455,7 @@ export function createAuth(env: AuthEnv) {
       multiSession(),
       // An invitation to any of your verified sign-in emails is yours to accept (ADR 0014).
       claimInvitationsForSignInEmails(env.db),
+      ...(env.billing ? [billingPlugin(env, env.billing)] : []),
     ],
   });
 }

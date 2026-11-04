@@ -12,6 +12,8 @@ import { MEMBER_HEADER } from "./realtime.ts";
 import { account } from "./routes/account.ts";
 import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
+import { billing } from "./routes/billing.ts";
+import { stripeWebhook } from "./routes/stripe-webhook.ts";
 import { mail } from "./routes/mail.ts";
 import { mailboxMembers } from "./routes/mailbox-members.ts";
 import { onboarding } from "./routes/onboarding.ts";
@@ -106,7 +108,8 @@ const api = new Hono<AppEnv>()
   })
   .route("/", mail)
   .route("/", mailboxMembers)
-  .route("/", assets);
+  .route("/", assets)
+  .route("/", billing);
 
 export const app = new Hono<AppEnv>()
   .use(trace)
@@ -116,6 +119,12 @@ export const app = new Hono<AppEnv>()
   .use("/api/*", requestScope)
   /** Public: which sign-in buttons the login page shows. Google needs its OAuth client set. */
   .get("/api/sign-in-methods", (c) => c.json({ google: c.var.config.auth.google !== undefined }))
+  // Stripe calls this, not a browser: no per-IP auth limit. It dedupes and orders events, then
+  // hands them to Better Auth's Stripe plugin.
+  .route("/api/auth/stripe/webhook", stripeWebhook)
+  // Checkout and the portal go through /api/billing, which pins them to the active workspace.
+  // The plugin's own POSTs would also let a person subscribe for themselves, so they are closed.
+  .post("/api/auth/subscription/*", (c) => c.json({ error: "use /api/billing" }, 404))
   .on(["GET", "POST"], "/api/auth/*", limitAuth, (c) => c.var.auth.handler(c.req.raw))
   // Before `api`: these work for a user who has no organization yet.
   .route("/api/onboarding", onboarding)

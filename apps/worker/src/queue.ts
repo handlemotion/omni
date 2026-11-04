@@ -18,11 +18,13 @@ import {
   addAiUsage,
   getAiUsage,
   loadThreadForAi,
+  markTriagePaused,
   recordDeadLetter,
   saveSummary,
   saveTriage,
   type Db,
 } from "@omni/db";
+import { gateTriage, inGoodStanding } from "./billing.ts";
 import { openDb } from "./db.ts";
 import { loadConfig, type Config } from "./env.ts";
 import { createLogger } from "./log.ts";
@@ -97,9 +99,15 @@ export async function consumeDeadLetters(batch: MessageBatch<AiJob>, env: Env) {
   }
 }
 
-/** `superseded`: a newer message arrived mid-job; that message's own job files the thread. */
+/**
+ * `superseded`: a newer message arrived mid-job; that message's own job files the thread.
+ * `triage_paused`: the workspace used its monthly allowance; the thread records until when.
+ * `billing_inactive`: no plan in good standing, so no AI at all (ADR 0015).
+ */
 export type AiJobOutcome =
   | "missing"
+  | "triage_paused"
+  | "billing_inactive"
   | "done_already"
   | "no_model"
   | "superseded"
@@ -136,7 +144,7 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
           if (job.requestId) scope.setTag("request_id", job.requestId);
           return runAiJob(db, models, config, job);
         });
-        if (outcome === "triaged" || outcome === "summarized") {
+        if (outcome === "triaged" || outcome === "summarized" || outcome === "triage_paused") {
           const { mailboxId, threadId } = job;
           await fanOut(env, db, config, new Map([[mailboxId, new Set([threadId])]]));
         }
@@ -203,7 +211,19 @@ export async function runAiJob(
   // person re-sorted. Without a model only the wordless-reply rule can file a thread.
   if (thread.triageMessageId !== latest.id) {
     const input = triageInputFor(thread.messages, isUs);
-    const result = triageEnabled ? await triage(models.triage, input) : triageByRule(input);
+    const byRule = triageByRule(input);
+    // A model call counts against the workspace's monthly allowance (ADR 0015); the rule is free.
+    if (triageEnabled && !byRule) {
+      const gate = await gateTriage(db, config, { orgId: thread.orgId, messageId: latest.id });
+      if (!gate.run) {
+        if (gate.reason === "allowance_reached") {
+          await markTriagePaused(db, thread.id, gate.until);
+          return "triage_paused";
+        }
+        return "billing_inactive";
+      }
+    }
+    const result = byRule ?? (triageEnabled ? await triage(models.triage, input) : null);
     if (result) {
       await addAiUsage(db, thread.orgId, day, result.usage);
       // Lanes are derived on read: below the auto-file confidence a thread shows in Unsure.
@@ -226,6 +246,7 @@ export async function runAiJob(
     return "triaged";
   }
   if (!summaryEnabled) return nothingNew;
+  if (!(await inGoodStanding(db, config, thread.orgId))) return nothingNew;
 
   const decision = shouldSummarize({
     bucket,

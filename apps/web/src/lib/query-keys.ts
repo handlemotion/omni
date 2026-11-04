@@ -3,7 +3,7 @@
 //   omni
 //   ├─ session · device-sessions · sign-in-methods · sign-in-emails
 //   ├─ org ─ organizations · members · invitations · invitation(id) · passkeys · onboarding
-//   │        · workspaces
+//   │        · workspaces · billing
 //   ├─ mail ─ mailboxes · mailbox-members(id) · counts · threads(filter) · thread(id) · search(q)
 //   │        · action(id)
 //   └─ local ─ pending(threadId) · failures       (client-only state, never fetched)
@@ -40,6 +40,7 @@ export const keys = {
   invitations: () => [...org, "invitations"] as const,
   invitation: (id: string) => [...org, "invitation", id] as const,
   passkeys: () => [...org, "passkeys"] as const,
+  billing: () => [...org, "billing"] as const,
   onboarding: () => [...org, "onboarding"] as const,
   /** Every org the user belongs to, with setup state and mailboxes (the switcher). */
   workspaces: () => [...org, "workspaces"] as const,
