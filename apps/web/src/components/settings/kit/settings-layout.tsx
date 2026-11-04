@@ -144,7 +144,8 @@ export function SettingsEmptyState({
 }: {
   /** One button that fills it: "Add a passkey". Never on `restricted`. */
   action?: ReactNode;
-  description: string;
+  /** One line, only when there is no action: a card with a button says it with the title alone. */
+  description?: string;
   title: string;
   variant?: "empty" | "restricted";
 }) {
@@ -156,8 +157,10 @@ export function SettingsEmptyState({
         className="flex min-h-60 w-full flex-col items-center justify-center px-6 py-8 text-center"
       >
         <SettingsIllustration name={variant === "restricted" ? "lock" : "tray"} className="mb-4" />
-        <p className="text-sm/4 font-semibold text-pretty text-foreground">{title}</p>
-        <p className="mt-1 max-w-90 text-xs/4 text-pretty text-muted-foreground">{description}</p>
+        <p className="text-sm/4 text-pretty text-foreground">{title}</p>
+        {description && !(action && variant === "empty") && (
+          <p className="mt-1 max-w-90 text-xs/4 text-pretty text-muted-foreground">{description}</p>
+        )}
         {action && variant === "empty" && <div className="mt-4">{action}</div>}
       </div>
     </SettingsGroup>

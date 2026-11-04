@@ -293,11 +293,7 @@ export function SharedMailboxesPage() {
             list.length === 0 ? (
               <SettingsEmptyState
                 title="No shared mailboxes"
-                description={
-                  canManage
-                    ? "For an address several people answer, like hello@."
-                    : "An owner or admin can add you to one."
-                }
+                description={canManage ? undefined : "An owner or admin can add you to one."}
                 action={
                   canAdd && (
                     <Button size="xs" intent="outline" onPress={() => setAdding(true)}>
@@ -383,7 +379,6 @@ function MailboxAccessDialog(props: {
           list.length === 0 ? (
             <SettingsEmptyState
               title="Nobody yet"
-              description="Add the people who answer it."
               action={
                 canManage &&
                 addable.length > 0 && (

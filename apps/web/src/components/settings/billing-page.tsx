@@ -222,15 +222,15 @@ export function BillingPage() {
             <SettingsSection title="Payment methods">
               <SettingsEmptyState
                 variant="restricted"
-                title="Only owners and admins see payment methods"
-                description="Ask one of them to add or change the card the plan is paid with."
+                title="Owners and admins only"
+                description="Ask one to change the card."
               />
             </SettingsSection>
             <SettingsSection title="Invoices">
               <SettingsEmptyState
                 variant="restricted"
-                title="Only owners and admins see invoices"
-                description="Ask one of them for a receipt."
+                title="Owners and admins only"
+                description="Ask one for a receipt."
               />
             </SettingsSection>
           </>
@@ -458,11 +458,6 @@ function CardsSection({ billing }: { billing: EnabledBilling | undefined }) {
           state.cards.length === 0 ? (
             <SettingsEmptyState
               title="No saved cards"
-              description={
-                billing?.subscription?.status === "trialing"
-                  ? "Add a card before the trial ends to keep the plan."
-                  : "Add a card to pay for the plan."
-              }
               action={
                 <Button
                   size="xs"

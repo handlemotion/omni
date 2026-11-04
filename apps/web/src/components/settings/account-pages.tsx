@@ -335,7 +335,6 @@ export function SecurityPage() {
             list.length === 0 ? (
               <SettingsEmptyState
                 title="No passkeys yet"
-                description="Add one to sign in without waiting for an email."
                 action={
                   <Button
                     size="xs"

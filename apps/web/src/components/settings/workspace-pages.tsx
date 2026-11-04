@@ -200,8 +200,8 @@ export function GeneralPage() {
         <SettingsSection title="Domains">
           <SettingsEmptyState
             variant="restricted"
-            title="Only owners and admins see domains"
-            description="Ask one of them to add a domain or check its DNS records."
+            title="Owners and admins only"
+            description="Ask one to add a domain."
           />
         </SettingsSection>
       )}
@@ -267,7 +267,6 @@ function DomainsSection() {
           list.length === 0 ? (
             <SettingsEmptyState
               title="No domains yet"
-              description="Add the domain your mail is on to create mailboxes there."
               action={
                 <Button size="xs" intent="outline" onPress={() => setDialog({ kind: "add" })}>
                   <IconPlus data-slot="icon" />
