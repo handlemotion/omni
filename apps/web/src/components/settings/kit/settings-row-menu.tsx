@@ -1,10 +1,13 @@
 import { EllipsisHorizontalIcon } from "@heroicons/react/16/solid";
+import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 
 export interface SettingsRowMenuItem {
   danger?: boolean;
   disabled?: boolean;
+  /** Required: every menu item leads with an icon (DESIGN.md, "Menus"). */
+  icon: ComponentType<{ className?: string; "data-slot"?: string }>;
   label: string;
   onAction: () => void;
 }
@@ -26,7 +29,7 @@ export function SettingsRowMenu({
         <EllipsisHorizontalIcon />
       </Button>
       <Menu placement="bottom end">
-        {items.map((item) => (
+        {items.map(({ icon: Icon, ...item }) => (
           <MenuItem
             key={item.label}
             textValue={item.label}
@@ -34,6 +37,7 @@ export function SettingsRowMenu({
             isDisabled={item.disabled}
             onAction={item.onAction}
           >
+            <Icon data-slot="icon" />
             <MenuLabel>{item.label}</MenuLabel>
           </MenuItem>
         ))}

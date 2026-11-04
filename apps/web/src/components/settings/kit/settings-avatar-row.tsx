@@ -1,15 +1,20 @@
-import type { ReactNode } from "react";
+import { ArrowUpTrayIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { useRef, type ReactNode } from "react";
 import { Button as AvatarButton } from "react-aria-components/Button";
 import { FileTrigger } from "react-aria-components/FileTrigger";
-import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
+import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { SettingsRow } from "./settings-row";
 
 export const SETTINGS_AVATAR_ACCEPT = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
+const avatarButtonClassName =
+  "flex rounded-full outline-hidden transition-[scale] duration-150 ease-out pressed:scale-97 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 motion-reduce:pressed:scale-100";
+
 /**
- * A picture. The avatar itself is the control: pressing it picks a new file; once one is set,
- * Remove sits beside it. Without `onUpload` it only shows the picture.
+ * A picture (transitive's avatar row). The image itself is the control: with none set it picks
+ * a file; once one is, it opens a menu to upload a new one or remove it. Without `onUpload` it
+ * only shows the picture.
  */
 export function SettingsAvatarRow({
   avatar,
@@ -29,7 +34,9 @@ export function SettingsAvatarRow({
   onRemove?: () => void;
   onUpload?: (file: File) => void;
 }) {
+  const input = useRef<HTMLInputElement>(null);
   if (!onUpload) return <SettingsRow control={avatar} description={description} label={label} />;
+  const noun = label.toLowerCase();
   return (
     <SettingsRow
       description={description}
@@ -37,26 +44,50 @@ export function SettingsAvatarRow({
       control={
         <>
           {busy && <Loader className="size-icon text-muted-foreground" />}
-          {hasImage && onRemove && (
-            <Button intent="plain" isDisabled={busy} onPress={onRemove}>
-              Remove
-            </Button>
-          )}
+          {/* One hidden picker, opened by the image or by the menu's Upload. */}
           <FileTrigger
+            ref={input}
             acceptedFileTypes={SETTINGS_AVATAR_ACCEPT}
             onSelect={(files) => {
               const file = files?.[0];
               if (file) onUpload(file);
             }}
-          >
+          />
+          {hasImage ? (
+            <MenuTrigger>
+              <AvatarButton
+                aria-label={`Change ${noun}`}
+                className={avatarButtonClassName}
+                isDisabled={busy}
+              >
+                {avatar}
+              </AvatarButton>
+              <Menu placement="bottom end">
+                <MenuItem
+                  textValue={`Upload a new ${noun}`}
+                  onAction={() => input.current?.click()}
+                >
+                  <ArrowUpTrayIcon data-slot="icon" />
+                  <MenuLabel>Upload a new {noun}</MenuLabel>
+                </MenuItem>
+                {onRemove && (
+                  <MenuItem intent="danger" textValue={`Remove ${noun}`} onAction={onRemove}>
+                    <TrashIcon data-slot="icon" />
+                    <MenuLabel>Remove {noun}</MenuLabel>
+                  </MenuItem>
+                )}
+              </Menu>
+            </MenuTrigger>
+          ) : (
             <AvatarButton
-              aria-label={`Upload ${label.toLowerCase()}`}
-              className="flex rounded-full outline-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+              aria-label={`Upload ${noun}`}
+              className={avatarButtonClassName}
               isDisabled={busy}
+              onPress={() => input.current?.click()}
             >
               {avatar}
             </AvatarButton>
-          </FileTrigger>
+          )}
         </>
       }
     />

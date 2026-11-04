@@ -1,10 +1,12 @@
-import { EllipsisHorizontalIcon } from "@heroicons/react/20/solid";
+// The addresses this person signs in with (ADR 0014), on the settings kit: one row per address,
+// the primary one badged; a row's menu makes another primary or stops signing in with it (asked
+// first); "Add an email" opens a form over settings that mails a confirmation link.
+import { EnvelopeIcon, StarIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
+import { Skeleton } from "skullet/react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Menu, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { TextField } from "@/components/ui/text-field";
 import { appToast } from "@/components/ui/toast";
 import {
@@ -13,100 +15,126 @@ import {
   useSetPrimarySignInEmail,
   useSignInEmails,
 } from "@/hooks/use-sign-in-emails.ts";
-
-/** Rows of the same kind share one rhythm: 8px above and below the 20px line (a 36px row, the
- *  height of the `sq-xs` menu button plus room), and the list keeps the card's 24px sides. */
-const ROW = "flex min-h-10 items-center justify-between gap-4 py-2";
+import { SettingsAddRow } from "./kit/settings-add-row";
+import { SettingsGroup, SettingsSection } from "./kit/settings-layout";
+import { SettingsRow } from "./kit/settings-row";
+import { SettingsRowMenu } from "./kit/settings-row-menu";
+import { SettingsConfirmDialog, SettingsFormDialog } from "./kit/settings-stacked-dialog";
 
 const failed = (error: Error) => appToast.error(error.message);
 
-// Not from a Figma frame yet: a first pass from the primitives, for the designer to replace.
-/** The addresses this person signs in with. Each extra one is confirmed by a mailed link. */
 export function SignInEmails() {
   const emails = useSignInEmails();
-  const add = useAddSignInEmail();
   const setPrimary = useSetPrimarySignInEmail();
   const remove = useRemoveSignInEmail();
-  const [email, setEmail] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
 
   return (
-    <Card>
-      <CardHeader title="Sign-in emails" />
-      <CardContent className="flex flex-col gap-4">
-        {/* The first row's own 8px top padding would add to the card's 24px gap under the
-            title; pulled back so the title keeps one 24px gap to the first address. */}
-        <ul className="-mt-2 flex flex-col">
-          {emails.data?.emails.map((row) => (
-            <li key={row.email} className={ROW}>
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-sm/5">{row.email}</span>
-                {row.primary && <Badge intent="secondary">Primary</Badge>}
-              </span>
-              {!row.primary && (
-                <MenuTrigger>
-                  {/* The glyph's ink sits ~6px inside its 26px button: pulled out so its right edge
-                      keeps the card's 24px, as the addresses do on the left. */}
-                  <Button
-                    intent="plain"
-                    size="sq-xs"
-                    className="-me-1.5"
-                    aria-label={`Options for ${row.email}`}
-                  >
-                    <EllipsisHorizontalIcon />
-                  </Button>
-                  <Menu placement="bottom end" className="p-1">
-                    <MenuItem
-                      onAction={() =>
-                        setPrimary.mutate(row.email, {
-                          onSuccess: () => appToast.success(`${row.email} is now primary`),
-                          onError: failed,
-                        })
-                      }
-                    >
-                      Make primary
-                    </MenuItem>
-                    <MenuItem
-                      intent="danger"
-                      onAction={() => remove.mutate(row.email, { onError: failed })}
-                    >
-                      Stop signing in with it
-                    </MenuItem>
-                  </Menu>
-                </MenuTrigger>
-              )}
-            </li>
-          ))}
-        </ul>
-        <form
-          className="flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            add.mutate(email, {
-              onSuccess: (sent) => {
-                setEmail("");
-                appToast.success(`Link sent to ${sent.email}`, {
-                  description: "Open it in this browser to confirm.",
-                });
-              },
-              onError: failed,
+    <SettingsSection title="Sign-in emails" info="You can sign in with any confirmed address here.">
+      <Skeleton
+        id="settings-sign-in-emails"
+        data={emails.data?.emails}
+        sample={[{ email: "you@example.com", primary: true, verified: true }]}
+        label="Loading sign-in emails"
+      >
+        {(list) => (
+          <SettingsGroup>
+            {list.map((row) => (
+              <SettingsRow
+                key={row.email}
+                icon={EnvelopeIcon}
+                label={row.email}
+                badge={
+                  row.primary ? (
+                    <Badge intent="secondary">Primary</Badge>
+                  ) : row.verified ? undefined : (
+                    <Badge intent="warning">Unconfirmed</Badge>
+                  )
+                }
+                control={
+                  !row.primary && (
+                    <SettingsRowMenu
+                      label={`Actions for ${row.email}`}
+                      items={[
+                        ...(row.verified
+                          ? [
+                              {
+                                icon: StarIcon,
+                                label: "Make primary",
+                                onAction: () =>
+                                  setPrimary.mutate(row.email, {
+                                    onSuccess: () =>
+                                      appToast.success(`${row.email} is now primary`),
+                                    onError: failed,
+                                  }),
+                              },
+                            ]
+                          : []),
+                        {
+                          icon: TrashIcon,
+                          label: "Stop signing in with it",
+                          danger: true,
+                          onAction: () => setRemoving(row.email),
+                        },
+                      ]}
+                    />
+                  )
+                }
+              />
+            ))}
+            <SettingsAddRow label="Add an email" onPress={() => setAdding(true)} />
+          </SettingsGroup>
+        )}
+      </Skeleton>
+
+      <AddEmailDialog isOpen={adding} onClose={() => setAdding(false)} />
+      <SettingsConfirmDialog
+        isOpen={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title="Stop signing in with this email?"
+        description={`${removing ?? "It"} no longer signs you in. Your primary email still does.`}
+        action="Stop"
+        saving={remove.isPending}
+        onConfirm={() =>
+          removing &&
+          remove.mutate(removing, { onSuccess: () => setRemoving(null), onError: failed })
+        }
+      />
+    </SettingsSection>
+  );
+}
+
+function AddEmailDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const add = useAddSignInEmail();
+  const [email, setEmail] = useState("");
+  const address = email.trim();
+  return (
+    <SettingsFormDialog
+      isOpen={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      title="Add a sign-in email"
+      description="We mail it a link; open it in this browser to confirm."
+      action="Send link"
+      disabled={!address}
+      saving={add.isPending}
+      onSubmit={() =>
+        add.mutate(address, {
+          onSuccess: (sent) => {
+            setEmail("");
+            onClose();
+            appToast.success(`Link sent to ${sent.email}`, {
+              description: "Open it in this browser to confirm.",
             });
-          }}
-        >
-          <TextField
-            type="email"
-            aria-label="Add a sign-in email"
-            isRequired
-            value={email}
-            onChange={setEmail}
-            className="flex-1"
-          >
-            <Input placeholder="you@example.com" />
-          </TextField>
-          <Button type="submit" intent="outline" isPending={add.isPending}>
-            Add email
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+          },
+          onError: failed,
+        })
+      }
+    >
+      <TextField type="email" isRequired autoFocus value={email} onChange={setEmail}>
+        <Label>Email</Label>
+        <Input placeholder="you@example.com" autoComplete="off" />
+      </TextField>
+    </SettingsFormDialog>
   );
 }

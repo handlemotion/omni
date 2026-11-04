@@ -37,6 +37,9 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
   one. Pick the size the frame shows; don't resize a control with classes.
 - **Destructive actions.** `<Button intent="danger">`: filled red with a darker edge. Use it only
   for actions that delete or can't be undone, and say what happens on the button itself.
+- **Menus.** Every menu item leads with an icon (15 to 16px, muted, the label after it); a menu
+  without icons is not allowed. A person, workspace or mailbox leads with its avatar instead.
+  `SettingsRowMenu` requires an `icon` per item, so a missing one fails the type check.
 - **Values to copy.** `CopyField` (`components/ui/copy-field.tsx`): the kind on the left, the value
   on the right, the whole field copies on click with a "Click to copy" / "Copied" tooltip. No
   separate Copy buttons.

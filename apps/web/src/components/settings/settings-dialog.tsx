@@ -6,15 +6,27 @@
 // and the chosen workspace's pages under it. The nav is the app sidebar's (240px, 13px rows 32px tall, 11px
 // group labels, the search field on top), set at the right of the left 40%; the page is a 640px
 // column in the right 60%, its title 17px. The page body is transitive's settings kit (`./kit`).
-import { CommandLineIcon, KeyIcon } from "@heroicons/react/24/outline";
+import { ComputerDesktopIcon, ShieldCheckIcon, UsersIcon } from "@heroicons/react/24/outline";
+import { cn } from "cn";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
-import { IconInbox, IconSettings, IconTeam } from "@/components/icons/sidebar";
+import { IconKeyboard } from "@/components/icons/keyboard";
+import { IconCircleDashed, IconInbox, IconSettings, IconTeam } from "@/components/icons/sidebar";
 import { Avatar } from "@/components/ui/avatar";
 import { Dialog } from "@/components/ui/dialog";
 import { NavList, NavListItem, NavListLabel, NavListSection } from "@/components/ui/nav-list";
 import { SearchField, SearchInput } from "@/components/ui/search-field";
-import { useMember } from "@/hooks/use-session.ts";
+import { Button } from "@/components/ui/button";
+import { appToast } from "@/components/ui/toast";
+import {
+  useCurrentSession,
+  useDeviceSessions,
+  useMember,
+  useRevokeDeviceSession,
+  useRevokeOtherSessions,
+  useSessions,
+  useSignOut,
+} from "@/hooks/use-session.ts";
 import type { Selection } from "react-aria-components/ListBox";
 import {
   closeSettings,
@@ -27,6 +39,7 @@ import { useShortcut } from "@/hooks/use-shortcuts.ts";
 import { SHORTCUT_IDS, SHORTCUTS } from "@/lib/shortcuts.ts";
 import { ProfilePage, SecurityPage, ShortcutsPage } from "./account-pages";
 import { SettingsPageHeader } from "./kit/settings-layout";
+import { SettingsConfirmDialog } from "./kit/settings-stacked-dialog";
 import { WorkspaceChooser } from "./workspace-chooser";
 import { GeneralPage, MailboxesPage, PeoplePage } from "./workspace-pages";
 
@@ -40,7 +53,7 @@ interface PageDefinition {
 }
 
 /** A heroicons outline glyph drawn at the Figma icons' 15px; its 1.5 stroke lands at their 0.94. */
-const outline = (Icon: typeof CommandLineIcon) => <Icon data-slot="icon" className="size-icon" />;
+const outline = (Icon: typeof ShieldCheckIcon) => <Icon data-slot="icon" className="size-icon" />;
 
 function useAccountPages(): PageDefinition[] {
   const { user } = useMember();
@@ -59,20 +72,21 @@ function useAccountPages(): PageDefinition[] {
             style={{ "--avatar-size": "15px" } as CSSProperties}
           />
         ),
-        terms: ["profile", "email", "log out", "sign out", "accounts", "switch account"],
+        terms: ["profile", "name", "email", "log out", "sign out", "accounts", "switch account"],
         render: () => <ProfilePage />,
       },
       {
         id: "security",
         title: "Security",
-        icon: outline(KeyIcon),
-        terms: ["passkeys", "sign in", "fingerprint", "face"],
+        // A shield, not a key: the page is passkeys and the devices you're signed in on.
+        icon: outline(ShieldCheckIcon),
+        terms: ["passkeys", "sign in", "fingerprint", "face", "devices", "sessions", "sign out"],
         render: () => <SecurityPage />,
       },
       {
         id: "shortcuts",
         title: "Shortcuts",
-        icon: outline(CommandLineIcon),
+        icon: <IconKeyboard />,
         terms: ["keyboard", "keys", ...SHORTCUT_IDS.map((id) => SHORTCUTS[id].label)],
         render: () => <ShortcutsPage />,
       },
@@ -87,21 +101,21 @@ const WORKSPACE_PAGES: PageDefinition[] = [
     id: "general",
     title: "General",
     icon: <IconSettings />,
-    terms: ["workspace", "name", "handle", "role"],
+    terms: ["workspace", "name", "rename", "handle", "role", "domain", "dns"],
     render: () => <GeneralPage />,
   },
   {
     id: "people",
     title: "People",
     icon: <IconTeam />,
-    terms: ["members", "invite", "invitations", "roles", "admin", "remove"],
+    terms: ["members", "invite", "invitations", "resend", "roles", "admin", "remove"],
     render: () => <PeoplePage />,
   },
   {
     id: "mailboxes",
     title: "Mailboxes",
     icon: <IconInbox />,
-    terms: ["access", "shared", "unread", "inbox", "lanes", "triage"],
+    terms: ["access", "shared", "unread", "inbox", "lanes", "triage", "sync"],
     render: () => <MailboxesPage />,
   },
 ];
@@ -132,6 +146,91 @@ export function SettingsDialog() {
     >
       <SettingsBody page={page} />
     </Dialog>
+  );
+}
+
+// A nav action: a page row's geometry (32px, 8px in, the 15px icon 10px before the label).
+const NAV_ACTION =
+  "h-8 w-full justify-start gap-2.5 rounded-lg px-2 [--btn-overlay:var(--color-accent)]";
+
+type SessionDialog = "others" | "accounts";
+
+/**
+ * The nav's last group, under its header like the others (no hairline): leave this device or
+ * account. The broader ways out show only when they would do something.
+ */
+function SessionGroup() {
+  const session = useCurrentSession();
+  const signOut = useSignOut();
+  const sessions = useSessions();
+  const accounts = useDeviceSessions();
+  const revokeOthers = useRevokeOtherSessions();
+  const revokeAccount = useRevokeDeviceSession();
+  const [dialog, setDialog] = useState<SessionDialog | null>(null);
+  const otherDevices = (sessions.data ?? []).filter((entry) => entry.token !== session.token);
+  const otherAccounts = (accounts.data ?? []).filter(
+    (entry) => entry.session.token !== session.token,
+  );
+
+  return (
+    <div className="flex flex-col gap-y-0.5">
+      <span className="flex h-8 shrink-0 items-center px-2.25 text-xs text-subtle-foreground">
+        Session
+      </span>
+      {otherDevices.length > 0 && (
+        <Button intent="plain" className={NAV_ACTION} onPress={() => setDialog("others")}>
+          <ComputerDesktopIcon data-slot="icon" className="size-icon" />
+          Sign out of other devices
+        </Button>
+      )}
+      {otherAccounts.length > 0 && (
+        <Button intent="plain" className={NAV_ACTION} onPress={() => setDialog("accounts")}>
+          <UsersIcon data-slot="icon" className="size-icon" />
+          Log out of all accounts
+        </Button>
+      )}
+      <Button
+        intent="plain"
+        isPending={signOut.isPending}
+        onPress={() => signOut.mutate()}
+        className={cn(
+          NAV_ACTION,
+          "[--btn-foreground:var(--color-danger)] [--btn-icon:var(--color-danger)] [--btn-icon-active:var(--color-danger)] [--btn-overlay:var(--color-danger-subtle)]",
+        )}
+      >
+        {/* The app sidebar's log out mark. */}
+        <IconCircleDashed />
+        Log out
+      </Button>
+
+      <SettingsConfirmDialog
+        isOpen={dialog === "others"}
+        onOpenChange={(open) => !open && setDialog(null)}
+        title="Sign out of other devices?"
+        description={`You stay signed in here. ${otherDevices.length} other ${otherDevices.length === 1 ? "device is" : "devices are"} signed out.`}
+        action="Sign out"
+        saving={revokeOthers.isPending}
+        onConfirm={() =>
+          revokeOthers.mutate(undefined, {
+            onSuccess: () => setDialog(null),
+            onError: () => appToast.error("The other devices could not be signed out."),
+          })
+        }
+      />
+      <SettingsConfirmDialog
+        isOpen={dialog === "accounts"}
+        onOpenChange={(open) => !open && setDialog(null)}
+        title="Log out of all accounts?"
+        description={`Every account on this browser is logged out: you and ${otherAccounts.length} more.`}
+        action="Log out"
+        saving={revokeAccount.isPending || signOut.isPending}
+        onConfirm={async () => {
+          // The other accounts first: logging out the active one resets the app.
+          for (const entry of otherAccounts) await revokeAccount.mutateAsync(entry.session.token);
+          signOut.mutate();
+        }}
+      />
+    </div>
   );
 }
 
@@ -178,32 +277,36 @@ function SettingsBody({ page }: { page: SettingsPageId }) {
               </NavListSection>
             </NavList>
           )}
-          {/* The workspace these pages act on, then its pages (the reference's org chooser). */}
-          <div className="flex flex-col gap-y-0.5">
-            <span className="flex h-8 shrink-0 items-center px-2.25 text-xs text-subtle-foreground">
-              Workspace
-            </span>
-            <WorkspaceChooser />
+          {/* The workspace these pages act on, then its pages (the reference's org chooser). Its
+              pages sit 4px under it, closer than the 12px between groups: they belong to it. */}
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-y-0.5">
+              <span className="flex h-8 shrink-0 items-center px-2.25 text-xs text-subtle-foreground">
+                Workspace
+              </span>
+              <WorkspaceChooser />
+            </div>
+            {shownWorkspace.length > 0 && (
+              <NavList
+                aria-label="Workspace settings"
+                selectedKeys={selectedIn(WORKSPACE_PAGES)}
+                onSelectionChange={show}
+              >
+                <NavListSection id="workspace">
+                  {shownWorkspace.map((p) => (
+                    <NavListItem key={p.id} id={p.id} textValue={p.title}>
+                      {p.icon}
+                      <NavListLabel>{p.title}</NavListLabel>
+                    </NavListItem>
+                  ))}
+                </NavListSection>
+              </NavList>
+            )}
           </div>
-          {shownWorkspace.length > 0 && (
-            <NavList
-              aria-label="Workspace settings"
-              selectedKeys={selectedIn(WORKSPACE_PAGES)}
-              onSelectionChange={show}
-            >
-              <NavListSection id="workspace">
-                {shownWorkspace.map((p) => (
-                  <NavListItem key={p.id} id={p.id} textValue={p.title}>
-                    {p.icon}
-                    <NavListLabel>{p.title}</NavListLabel>
-                  </NavListItem>
-                ))}
-              </NavListSection>
-            </NavList>
-          )}
           {shownAccount.length === 0 && shownWorkspace.length === 0 && (
             <p className="px-2.25 text-sm text-muted-foreground">No settings match.</p>
           )}
+          <SessionGroup />
         </nav>
       </div>
       <div className="min-w-0 overflow-y-auto bg-background">

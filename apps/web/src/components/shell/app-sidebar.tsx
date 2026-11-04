@@ -5,7 +5,6 @@ import {
   IconBubbleAnnotation,
   IconChevronLeft,
   IconChevronRight,
-  IconCircleDashed,
   IconClock,
   IconEmail,
   IconHelp,
@@ -34,7 +33,6 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
-import { useSignOut } from "@/hooks/use-session.ts";
 import { openSettings } from "@/hooks/use-settings-dialog.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 
@@ -75,7 +73,6 @@ const folders: NavItem[] = [
 // Figma: Omni, sidebar (node 1:3).
 export function AppSidebar() {
   const router = useRouter();
-  const signOut = useSignOut();
   return (
     <Sidebar>
       <SidebarHeader>
@@ -113,15 +110,6 @@ export function AppSidebar() {
 
       <SidebarFooter className="justify-between">
         <div className="flex items-center gap-0.5">
-          <Button
-            intent="plain"
-            size="xs"
-            isPending={signOut.isPending}
-            onPress={() => signOut.mutate()}
-          >
-            <IconCircleDashed />
-            Log out
-          </Button>
           <Button
             intent="plain"
             size="xs"
