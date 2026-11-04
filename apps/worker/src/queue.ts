@@ -106,7 +106,7 @@ export async function consumeDeadLetters(batch: MessageBatch<AiJob>, env: Env) {
 /**
  * `superseded`: a newer message arrived mid-job; that message's own job files the thread.
  * `triage_paused`: the workspace used its monthly allowance; the thread records until when.
- * `billing_inactive`: no plan in good standing, so no AI at all (ADR 0014).
+ * `billing_inactive`: no plan in good standing, so no AI at all (ADR 0015).
  */
 export type AiJobOutcome =
   | "missing"
@@ -220,7 +220,7 @@ export async function runAiJob(
   if (thread.triageMessageId !== latest.id) {
     const input = triageInputFor(thread.messages, isUs);
     const byRule = triageByRule(input);
-    // A model call counts against the workspace's monthly allowance (ADR 0014); the rule is free.
+    // A model call counts against the workspace's monthly allowance (ADR 0015); the rule is free.
     if (triageEnabled && !byRule) {
       const gate = await gateTriage(db, config, { orgId: thread.orgId, messageId: latest.id });
       if (!gate.run) {

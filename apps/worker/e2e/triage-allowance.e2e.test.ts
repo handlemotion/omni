@@ -1,4 +1,4 @@
-// The monthly AI triage allowance (ADR 0014), end to end. Real mail arrives over GreenMail, the
+// The monthly AI triage allowance (ADR 0015), end to end. Real mail arrives over GreenMail, the
 // real mail service syncs it and signs events to the real Worker, and the queue consumer triages
 // with Jev answers replayed from `fixtures/triage/recordings`. The workspace's plan comes from a
 // signed Stripe webhook. Each AI-triaged email counts once; past the allowance mail still

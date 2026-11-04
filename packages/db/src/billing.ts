@@ -1,4 +1,4 @@
-// Billing reads and writes (ADR 0014). Subscriptions are written by Better Auth's Stripe plugin;
+// Billing reads and writes (ADR 0015). Subscriptions are written by Better Auth's Stripe plugin;
 // this file reads them, counts AI-triaged emails against the monthly allowance, and remembers
 // which Stripe events were applied. Trusted code: callers have already resolved the workspace.
 import { and, count, desc, eq, gt, sql } from "drizzle-orm";

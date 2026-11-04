@@ -1,4 +1,4 @@
-// Placeholder UI: the workspace's plan and this period's AI triage usage (ADR 0014). There is no
+// Placeholder UI: the workspace's plan and this period's AI triage usage (ADR 0015). There is no
 // Figma frame for billing yet, so this stays bare like the other settings pages; the hooks are
 // the real part.
 import { createFileRoute } from "@tanstack/react-router";

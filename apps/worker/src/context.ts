@@ -97,7 +97,13 @@ export async function resolveSession(c: {
   if (!session) return null;
   const activeOrg = (session.session as { activeOrganizationId?: string | null })
     .activeOrganizationId;
-  const [member] = await c.var.db
+  const member = await findMember(c.var.db, session.user.id, activeOrg ?? undefined);
+  return { user: { id: session.user.id, email: session.user.email }, member };
+}
+
+/** `userId`'s member in `orgId` (without one, their oldest membership), or null. */
+export async function findMember(db: Db, userId: string, orgId?: string): Promise<Member | null> {
+  const [member] = await db
     .select({
       id: schema.members.id,
       orgId: schema.members.organizationId,
@@ -107,13 +113,13 @@ export async function resolveSession(c: {
     .from(schema.members)
     .where(
       and(
-        eq(schema.members.userId, session.user.id),
-        activeOrg ? eq(schema.members.organizationId, activeOrg) : undefined,
+        eq(schema.members.userId, userId),
+        orgId ? eq(schema.members.organizationId, orgId) : undefined,
       ),
     )
     .orderBy(asc(schema.members.createdAt))
     .limit(1);
-  return { user: { id: session.user.id, email: session.user.email }, member: member ?? null };
+  return member ?? null;
 }
 
 /** Resolves the session to a member of its active org (or the user's first org). 401 without one. */

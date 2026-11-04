@@ -1,4 +1,4 @@
-// The workspace's plan and AI triage allowance, and the Stripe hand-offs (ADR 0014).
+// The workspace's plan and AI triage allowance, and the Stripe hand-offs (ADR 0015).
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { billingQuery, checkoutMutation, portalMutation } from "../lib/billing.ts";
 

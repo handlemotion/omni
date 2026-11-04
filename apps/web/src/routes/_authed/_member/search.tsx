@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, useRouter } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { List, type ListRow } from "../../../components/inbox/thread-list.tsx";
 import { useSearch } from "../../../hooks/use-mail.ts";
+import { useWorkspaceNames } from "../../../hooks/use-workspaces.ts";
 import { searchQuery } from "../../../lib/mail-queries.ts";
 import { searchSearch } from "../../../lib/search-params.ts";
 
@@ -19,6 +20,7 @@ function Search() {
   const search = Route.useSearch();
   const router = useRouter();
   const { data: hits } = useSearch(search.q, search.mailbox);
+  const names = useWorkspaceNames(search.mailbox);
 
   // One row per thread, best match first, with the passage that matched.
   const rows = useMemo(
@@ -29,8 +31,9 @@ function Search() {
         subject: hit.subject,
         snippet: hit.snippet,
         unread: false,
+        workspace: names?.get(hit.orgId),
       })),
-    [hits],
+    [hits, names],
   );
 
   return (

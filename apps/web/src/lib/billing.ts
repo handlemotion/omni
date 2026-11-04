@@ -1,4 +1,4 @@
-// The workspace's plan (`GET /api/billing`, ADR 0014) and the two ways out to Stripe: Checkout to
+// The workspace's plan (`GET /api/billing`, ADR 0015) and the two ways out to Stripe: Checkout to
 // start the trial or subscribe, the customer portal to manage it. Both answer with a Stripe URL;
 // the browser leaves the app for it and Stripe sends it back to /settings/billing.
 import { mutationOptions, queryOptions } from "@tanstack/react-query";

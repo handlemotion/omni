@@ -332,7 +332,7 @@ export const threads = pgTable(
     }),
     /**
      * Set when the latest message was not AI-triaged because the workspace used its monthly
-     * allowance (ADR 0014): when the allowance resets. Cleared by the next triage.
+     * allowance (ADR 0015): when the allowance resets. Cleared by the next triage.
      */
     triagePausedUntil: timestamptz("triage_paused_until"),
     createdAt: createdAt(),
@@ -652,7 +652,7 @@ export const pushTokens = pgTable(
 );
 
 /**
- * One row per AI-triaged email per workspace per usage month (ADR 0014): the count is the rows.
+ * One row per AI-triaged email per workspace per usage month (ADR 0015): the count is the rows.
  * Keyed on the message, so a retried or redelivered job never counts twice. No foreign key to
  * `messages`: an email re-synced under a new id was still triaged once.
  */

@@ -1,6 +1,7 @@
 export { createDb, type Db } from "./client.ts";
 export {
   forMember,
+  forUser,
   TRIAGE_AUTO_FILE_CONFIDENCE,
   LANES,
   type Lane,
@@ -22,3 +23,4 @@ export * from "./workspaces.ts";
 export * from "./dead-letters.ts";
 export type { DomainCheck, DomainRecordDiagnostic, MailDomainRecord } from "./schema/mail.ts";
 export * from "./billing.ts";
+export * from "./sign-in-emails.ts";

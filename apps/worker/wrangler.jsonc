@@ -37,7 +37,7 @@
     "JEV_MODEL": "",
     "TYPESAFE_API_URL": "",
     "EXPO_PUSH_ENABLED": "false",
-    // Billing (ADR 0014). Off unless the STRIPE_SECRET_KEY secret is set; then the monthly price
+    // Billing (ADR 0015). Off unless the STRIPE_SECRET_KEY secret is set; then the monthly price
     // id and the allowance are required. Amounts live in Stripe; these are ids and numbers only.
     "STRIPE_PRICE_MONTHLY": "",
     "STRIPE_PRICE_YEARLY": "",

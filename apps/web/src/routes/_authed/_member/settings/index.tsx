@@ -5,9 +5,11 @@ import {
   useDeletePasskey,
   usePasskeys,
 } from "../../../../hooks/use-organization.ts";
+import { SignInEmails } from "../../../../components/settings/sign-in-emails.tsx";
 import { useMember, useSignOut } from "../../../../hooks/use-session.ts";
 import { useOpenWorkspace, useWorkspaces } from "../../../../hooks/use-workspaces.ts";
 import { passkeysQuery } from "../../../../lib/org-queries.ts";
+import { signInEmailsQuery } from "../../../../lib/sign-in-emails.ts";
 import { workspacesQuery } from "../../../../lib/workspaces.ts";
 
 export const Route = createFileRoute("/_authed/_member/settings/")({
@@ -15,6 +17,7 @@ export const Route = createFileRoute("/_authed/_member/settings/")({
     Promise.all([
       context.queryClient.ensureQueryData(workspacesQuery()),
       context.queryClient.ensureQueryData(passkeysQuery()),
+      context.queryClient.ensureQueryData(signInEmailsQuery()),
     ]),
   component: Settings,
 });
@@ -51,6 +54,7 @@ function Settings() {
       </ul>
       <Link to="/settings/organization">Members and invitations</Link>
       <Link to="/settings/billing">Plan and billing</Link>
+      <SignInEmails />
       <h2>Passkeys</h2>
       <ul>
         {passkeys.data?.map((p) => (

@@ -1,4 +1,4 @@
-// Stripe's webhook (ADR 0014), in front of Better Auth's Stripe plugin. Verifies Stripe's
+// Stripe's webhook (ADR 0015), in front of Better Auth's Stripe plugin. Verifies Stripe's
 // signature, then applies each event at most once and never an older one over a newer: the
 // plugin writes each event's snapshot as-is, so a replayed or late event would roll state back.
 import { createStripeClient } from "@omni/auth";

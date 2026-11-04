@@ -15,6 +15,17 @@ export function messageHtmlUrl(threadId: string, messageId: string) {
     .toString();
 }
 
+/**
+ * A profile picture as the page may load it. The app's CSP takes images from our own origin only,
+ * so a picture on another site (a Google account's photo) goes through the image proxy, which
+ * also keeps that site from seeing the reader. `data:` and same-origin pictures pass as they are.
+ */
+export function pictureUrl(src: string | null | undefined): string | null {
+  if (!src) return null;
+  if (!/^https?:\/\//i.test(src) || new URL(src).origin === window.location.origin) return src;
+  return api["image-proxy"].$url({ query: { url: src } }).toString();
+}
+
 /** An attachment: images display inline, everything else downloads. */
 export function attachmentUrl(threadId: string, attachmentId: string) {
   return api.threads[":id"].attachments[":attachmentId"]

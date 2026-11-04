@@ -54,7 +54,7 @@ TYPESAFE_API_URL=
 # Tokens per org per UTC day. Over the cap, summaries pause and triage keeps running.
 AI_DAILY_TOKEN_CAP=1000000
 
-# --- Billing (optional, ADR 0014; docs/self-hosting.md "Billing") ---
+# --- Billing (optional, ADR 0015; docs/self-hosting.md "Billing") ---
 # Leave STRIPE_SECRET_KEY empty for no billing: no plan, no limits. Set it (test mode, sk_test_...)
 # and the three marked "required" below must be set too, or the Worker will not start.
 # Secret. Stripe secret key.

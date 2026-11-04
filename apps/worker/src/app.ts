@@ -1,14 +1,15 @@
 import * as Sentry from "@sentry/cloudflare";
 import { REQUEST_ID_HEADER as SIGNED_REQUEST_ID_HEADER } from "@omni/crypto";
-import { orgSetupStep } from "@omni/db";
+import { forUser, orgSetupStep } from "@omni/db";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { routePath } from "hono/route";
-import { requestScope, requireMember, type AppEnv } from "./context.ts";
+import { findMember, requestScope, requireMember, type AppEnv } from "./context.ts";
 import type { Config } from "./env.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
 import { MEMBER_HEADER } from "./realtime.ts";
+import { account } from "./routes/account.ts";
 import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
 import { billing } from "./routes/billing.ts";
@@ -57,13 +58,30 @@ const trace = createMiddleware<AppEnv>(async (c, next) => {
   }
 });
 
+/**
+ * Thread routes (mail and assets) act as the user's member in the thread's org (ADR 0014), so a
+ * thread opened from the cross-workspace list reads and changes as that member without
+ * switching the active org. A thread none of their members can see keeps the active member, and
+ * the route answers 404 as before.
+ */
+const actAsThreadMember = createMiddleware<AppEnv>(async (c, next) => {
+  const threadId = c.req.param("id");
+  const member = threadId && (await forUser(c.var.db, c.var.user.id).memberFor(threadId));
+  if (member) c.set("member", member);
+  await next();
+});
+
 const api = new Hono<AppEnv>()
   .use(requireMember)
+  .use("/threads/:id/*", actAsThreadMember)
   /** The member in the active org, with how far that org's setup got (route guards read it). */
   .get("/me", async (c) =>
     c.json({ ...c.var.member, setup: await orgSetupStep(c.var.db, c.var.member.orgId) }),
   )
-  /** Websocket of `{ type: "changed", mailboxId, threadIds }` events for this member. */
+  /**
+   * Websocket of `{ type: "changed", mailboxId, threadIds }` events for this member, or with
+   * `?org=<id>` for the user's member in that org (the cross-workspace view keeps one per org).
+   */
   .get("/realtime", async (c) => {
     if (c.req.header("upgrade") !== "websocket") {
       return c.json({ error: "expected a websocket upgrade" }, 426);
@@ -76,7 +94,13 @@ const api = new Hono<AppEnv>()
     if (origin !== undefined && !allowedOrigins(c.var.config).has(origin)) {
       return c.json({ error: "origin not allowed" }, 403);
     }
-    const { id, orgId } = c.var.member;
+    const org = c.req.query("org");
+    const member =
+      org && org !== c.var.member.orgId
+        ? await findMember(c.var.db, c.var.user.id, org)
+        : c.var.member;
+    if (!member) return c.json({ error: "not a member of that organization" }, 404);
+    const { id, orgId } = member;
     const headers = new Headers(c.req.raw.headers);
     headers.set(MEMBER_HEADER, id);
     const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
@@ -105,6 +129,7 @@ export const app = new Hono<AppEnv>()
   // Before `api`: these work for a user who has no organization yet.
   .route("/api/onboarding", onboarding)
   .route("/api/workspaces", workspaces)
+  .route("/api/account", account)
   .route("/api", api)
   .onError((error, c) => {
     if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);

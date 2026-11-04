@@ -1,4 +1,4 @@
-// Billing (ADR 0014) over the real Worker and Postgres: Stripe's signed webhook drives the
+// Billing (ADR 0015) over the real Worker and Postgres: Stripe's signed webhook drives the
 // workspace's plan through Better Auth's Stripe plugin, a replayed or out-of-order event changes
 // nothing, a workspace without a plan in good standing reads its mail but writes none, and an
 // install with no Stripe configuration has no billing at all.

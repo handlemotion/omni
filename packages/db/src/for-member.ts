@@ -84,6 +84,7 @@ function headline(query: SQL, options: string) {
 }
 
 interface SearchRow {
+  org_id: string;
   thread_id: string;
   message_id: string;
   mailbox_id: string;
@@ -107,11 +108,33 @@ const { searchVector: _searchVector, ...messageColumns } = getTableColumns(messa
  * crosses orgs returns nothing.
  */
 export function forMember(db: Db, memberId: string) {
+  return mailQueries(db, (grantee) => sql`${grantee} = ${memberId}`);
+}
+
+/**
+ * The same reads across every organization `userId` belongs to (ADR 0014): the union of what
+ * each of their members can see. Each row keeps its `org_id`, and per-member state (read, done,
+ * deferred) is the state of the member whose grant shows the row. The grant and org checks are
+ * the ones `forMember` runs, so a user sees exactly what their members can, and nothing else.
+ */
+export function forUser(db: Db, userId: string) {
+  return mailQueries(
+    db,
+    (grantee) => sql`${grantee} in (select um.id from ${members} um where um.user_id = ${userId})`,
+  );
+}
+
+/**
+ * Mail reads for the members `isGrantee` accepts: it gets a member id column and returns the
+ * condition that column must meet. Every query inner-joins `mailbox_access` to a grantee and
+ * `members` to require the row's org to be that member's org.
+ */
+function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
   const access = (mailboxId: AnyColumn, orgId: AnyColumn) =>
     [
       [
         mailboxAccess,
-        and(eq(mailboxAccess.mailboxId, mailboxId), eq(mailboxAccess.memberId, memberId)),
+        and(eq(mailboxAccess.mailboxId, mailboxId), isGrantee(mailboxAccess.memberId)),
       ],
       [members, and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, orgId))],
     ] as const;
@@ -126,12 +149,17 @@ export function forMember(db: Db, memberId: string) {
       "done",
     ),
   };
-  const myState = and(eq(threadState.threadId, threads.id), eq(threadState.memberId, memberId));
-  // The two rules on this member's state row, applied inside the page scan as one primary-key
+  // State belongs to the member whose grant shows the thread: every query that reads it has
+  // `mailbox_access` joined (for a user, one grant per mailbox: one member per org).
+  const myState = and(
+    eq(threadState.threadId, threads.id),
+    eq(threadState.memberId, mailboxAccess.memberId),
+  );
+  // The two rules on that member's state row, applied inside the page scan as one primary-key
   // lookup per thread, so a page never comes back short. `counts` applies the same rules to
   // the joined row.
   const state = (filter: SQL) =>
-    sql`exists (select 1 from ${threadState} s where s.thread_id = ${threads.id} and s.member_id = ${memberId} and (${filter}))`;
+    sql`exists (select 1 from ${threadState} s where s.thread_id = ${threads.id} and s.member_id = ${mailboxAccess.memberId} and (${filter}))`;
   const doneRule = sql`${threads.lastMessageAt} <= s.done_through`;
   const deferredRule = sql`s.snoozed_until > now()`;
   const viewFilters: Record<ThreadView, SQL[]> = {
@@ -212,7 +240,7 @@ export function forMember(db: Db, memberId: string) {
         .leftJoin(threadState, myState)
         .where(
           and(
-            eq(mailboxAccess.memberId, memberId),
+            isGrantee(mailboxAccess.memberId),
             mailboxId ? eq(mailboxAccess.mailboxId, mailboxId) : undefined,
           ),
         )
@@ -241,6 +269,7 @@ export function forMember(db: Db, memberId: string) {
       const count = (filter: SQL) => sql<number>`(count(*) filter (where ${filter}))::int`;
       const rows = await db
         .select({
+          orgId: threads.orgId,
           mailboxId: threads.mailboxId,
           inbox: count(inbox),
           unread: count(and(inbox, unread)!),
@@ -255,8 +284,28 @@ export function forMember(db: Db, memberId: string) {
         .innerJoin(...threadOrg)
         .leftJoin(threadState, myState)
         .where(eq(threads.archived, false))
-        .groupBy(threads.mailboxId);
+        .groupBy(threads.orgId, threads.mailboxId);
       return rows;
+    },
+
+    /**
+     * The grantee member who can see `threadId` (with a user, their member in the thread's org),
+     * or null. Thread routes act as this member.
+     */
+    async memberFor(threadId: string) {
+      const [row] = await db
+        .select({
+          id: members.id,
+          orgId: members.organizationId,
+          userId: members.userId,
+          role: members.role,
+        })
+        .from(threads)
+        .innerJoin(...threadGrant)
+        .innerJoin(...threadOrg)
+        .where(eq(threads.id, threadId))
+        .limit(1);
+      return row ?? null;
     },
 
     /** An outbox action this member asked for, on a mailbox they can still see. */
@@ -276,7 +325,7 @@ export function forMember(db: Db, memberId: string) {
         .from(mailActions)
         .innerJoin(...actionGrant)
         .innerJoin(...actionOrg)
-        .where(and(eq(mailActions.id, actionId), eq(mailActions.memberId, memberId)));
+        .where(and(eq(mailActions.id, actionId), eq(mailActions.memberId, mailboxAccess.memberId)));
       return row ?? null;
     },
 
@@ -373,7 +422,7 @@ export function forMember(db: Db, memberId: string) {
             ${wordRecall}
             ${senderRecall}
           ) h
-          where ma.member_id = ${memberId} ${mailboxId ? sql`and ma.mailbox_id = ${mailboxId}` : sql``}
+          where ${isGrantee(sql`ma.member_id`)} ${mailboxId ? sql`and ma.mailbox_id = ${mailboxId}` : sql``}
         ),
         weighted as (
           select id, thread_id, sent_at, source,
@@ -392,7 +441,7 @@ export function forMember(db: Db, memberId: string) {
           from scored order by thread_id, score desc, id desc
         ),
         top as (select * from best order by score desc, thread_id desc limit ${limit})
-        select top.thread_id, m.id as message_id, t.mailbox_id, mb.address as mailbox_address,
+        select t.org_id, top.thread_id, m.id as message_id, t.mailbox_id, mb.address as mailbox_address,
           m.subject, m.from_name, m.from_address, m.sent_at, t.last_message_at, top.score::float8 as score,
           (select count(*)::int from ${messages} c where c.thread_id = t.id) as message_count,
           ${headline(any, "MaxWords=20, MinWords=10, MaxFragments=1")} as snippet,
@@ -404,6 +453,7 @@ export function forMember(db: Db, memberId: string) {
         order by top.score desc, top.thread_id desc
       `)) as unknown as SearchRow[]; // postgres-js: the rows themselves
       return rows.map((row) => ({
+        orgId: row.org_id,
         threadId: row.thread_id,
         messageId: row.message_id,
         mailboxId: row.mailbox_id,

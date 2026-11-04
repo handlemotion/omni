@@ -99,7 +99,7 @@ export function toPlainText(text: string, maxChars = MAX_SUMMARY_CHARS): string 
 
 /**
  * The usage month holding `now` for a triage allowance anchored at `anchor` (the subscription's
- * period start; ADR 0014). Months step from the anchor the way Stripe bills monthly: same day and
+ * period start; ADR 0015). Months step from the anchor the way Stripe bills monthly: same day and
  * time, clamped to the month's last day (a Jan 31 anchor gives Feb 28, then Mar 31). A yearly
  * plan's allowance is monthly too, so it resets twelve times between invoices.
  */

@@ -20,6 +20,7 @@ import { appToast } from "@/components/ui/toast";
 import { useMember } from "@/hooks/use-session.ts";
 import { useOpenMailbox, useOpenWorkspace, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { Workspace, WorkspaceMailbox } from "@/lib/types.ts";
+import { pictureUrl } from "@/lib/urls.ts";
 
 /** Rows are 50px (8px + the 34px text block + 8px). The 32px avatar sits 9px from the row's top
  *  and left; the check's ink 20px from its top and right (measured). Each mark is even inside its
@@ -133,7 +134,7 @@ export function MailboxSwitcher() {
   const face = (mailbox: WorkspaceMailbox): Face => ({
     key: mailbox.id,
     name: mailboxName(mailbox, you),
-    image: mailbox.kind === "personal" ? (user.image ?? null) : null,
+    image: mailbox.kind === "personal" ? pictureUrl(user.image) : null,
   });
   const active = all.find((workspace) => workspace.id === member.orgId);
   const shown = active?.mailboxes.find((box) => box.id === current);

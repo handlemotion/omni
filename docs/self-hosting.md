@@ -348,7 +348,7 @@ state: every workspace works as it always has. Hosted Omni turns it on; most sel
 need to. When on, each workspace (organization) has one flat plan; people, inboxes and domains
 are unlimited, and the only limit is a monthly allowance of AI-triaged emails. Past it, mail
 keeps arriving and triage pauses until the next period. A workspace with no plan in good
-standing is read-only: its mail syncs and reads, but nothing is sent or changed. See ADR 0014.
+standing is read-only: its mail syncs and reads, but nothing is sent or changed. See ADR 0015.
 
 | Variable                   | Kind   | Required with billing | Notes                                                                                                 |
 | -------------------------- | ------ | --------------------- | ----------------------------------------------------------------------------------------------------- |

@@ -5,6 +5,7 @@ import { zValidator } from "@hono/zod-validator";
 import {
   enqueueAction,
   forMember,
+  forUser,
   LANES,
   listMemberMailboxes,
   setThreadArchived,
@@ -47,7 +48,19 @@ const cursorParam = z
   })
   .optional();
 
+/**
+ * `workspace` (default): the active organization's member. `all`: every organization the user
+ * belongs to, each row read as their member there (ADR 0014).
+ */
+const scopeParam = z.enum(["workspace", "all"]).default("workspace");
+
+/** The read path for `scope`. */
+function reader(c: Context<AppEnv>, scope: z.infer<typeof scopeParam>) {
+  return scope === "all" ? forUser(c.var.db, c.var.user.id) : forMember(c.var.db, c.var.member.id);
+}
+
 const listQuery = z.object({
+  scope: scopeParam,
   mailboxId: z.string().min(1).optional(),
   lane: z.enum(LANES).optional(),
   /** `inbox`, `queue` (deferred), `done`, `archive` or `all`; see `ThreadView` in `@omni/db`. */
@@ -57,6 +70,7 @@ const listQuery = z.object({
 });
 
 const searchQuery = z.object({
+  scope: scopeParam,
   q: z.string().trim().min(1).max(500),
   mailboxId: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
@@ -144,7 +158,7 @@ function newMessageId(address: string) {
 }
 
 export const mail = new Hono<AppEnv>()
-  // A workspace without a plan in good standing reads its mail but changes nothing (ADR 0014).
+  // A workspace without a plan in good standing reads its mail but changes nothing (ADR 0015).
   // Scoped by path: a bare `.use` here would also gate every other `/api` route, billing included.
   .use("/threads/*", requireWritableWorkspace)
   .use("/send", requireWritableWorkspace)
@@ -153,8 +167,8 @@ export const mail = new Hono<AppEnv>()
   })
 
   .get("/threads", zValidator("query", listQuery), async (c) => {
-    const { cursor, ...query } = c.req.valid("query");
-    const threads = await forMember(c.var.db, c.var.member.id).listThreads({
+    const { cursor, scope, ...query } = c.req.valid("query");
+    const threads = await reader(c, scope).listThreads({
       ...query,
       before: cursor,
     });
@@ -172,13 +186,16 @@ export const mail = new Hono<AppEnv>()
   })
 
   /** Per mailbox: inbox and unread inbox threads, queued threads, and inbox threads per lane. */
-  .get("/counts", async (c) => {
-    return c.json({ counts: await forMember(c.var.db, c.var.member.id).counts() });
+  .get("/counts", zValidator("query", z.object({ scope: scopeParam })), async (c) => {
+    return c.json({ counts: await reader(c, c.req.valid("query").scope).counts() });
   })
 
-  /** An outbox action's state, e.g. to learn after a reconnect whether a send failed. */
+  /**
+   * An outbox action's state, e.g. to learn after a reconnect whether a send failed. Any of the
+   * user's members' actions: a reply sent from another workspace's thread is checked here too.
+   */
   .get("/actions/:id", async (c) => {
-    const action = await forMember(c.var.db, c.var.member.id).getAction(c.req.param("id"));
+    const action = await forUser(c.var.db, c.var.user.id).getAction(c.req.param("id"));
     if (!action) notFound();
     return c.json(action);
   })
@@ -189,13 +206,11 @@ export const mail = new Hono<AppEnv>()
    * or full-text relevance did (`text`: no TypeSafe key, or Jev failed or was slow).
    */
   .get("/search", limitPerMember("search"), zValidator("query", searchQuery), async (c) => {
-    const { q, ...options } = c.req.valid("query");
-    const { hits, ranking } = await smartSearch(
-      forMember(c.var.db, c.var.member.id),
-      c.var.config,
-      q,
-      { ...options, log: c.var.log },
-    );
+    const { q, scope, ...options } = c.req.valid("query");
+    const { hits, ranking } = await smartSearch(reader(c, scope), c.var.config, q, {
+      ...options,
+      log: c.var.log,
+    });
     return c.json({
       results: hits.map(({ excerpt: _excerpt, score: _score, ...hit }) => hit),
       ranking,

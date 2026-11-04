@@ -11,7 +11,7 @@ import {
   releaseDomain,
   transferDomain,
 } from "../src/domains.ts";
-import { forMember } from "../src/for-member.ts";
+import { forMember, forUser } from "../src/for-member.ts";
 import {
   mailboxes as schemaMailboxes,
   mailDomains,
@@ -194,6 +194,131 @@ describe("forMember isolation", () => {
     });
     expect(await forMember(db, bob).getAction(action.id)).toBeNull();
     expect(await forMember(db, carol).getAction(action.id)).toBeNull();
+  });
+});
+
+describe("forUser across workspaces", () => {
+  // Uma belongs to org X (member ux) and org Y (member uy). X: inbox@ granted to ux, sales@
+  // granted only to Vic. Y: desk@ granted to uy, plus a forged grant for uy on X's sales@. Org Z
+  // has mail and no Uma at all.
+  let uma: string, ux: string, uy: string, orgXId: string, orgYId: string;
+  let xInbox: string, xSales: string, yDesk: string, zDesk: string;
+
+  async function threadAt(orgId: string, mailboxId: string, text: string, at: string) {
+    const { threadId } = await seedThread(orgId, mailboxId, text);
+    await db
+      .update(threads)
+      .set({ lastMessageAt: new Date(at) })
+      .where(eq(threads.id, threadId));
+    return threadId;
+  }
+
+  beforeAll(async () => {
+    const orgX = await createOrg(db, "user-org-x");
+    const orgY = await createOrg(db, "user-org-y");
+    const orgZ = await createOrg(db, "user-org-z");
+    orgXId = orgX.id;
+    orgYId = orgY.id;
+    const uxMember = await createMember(db, orgX.id, "uma");
+    ux = uxMember.id;
+    uma = uxMember.userId;
+    uy = crypto.randomUUID();
+    await db
+      .insert(members)
+      .values({ id: uy, organizationId: orgY.id, userId: uma, createdAt: new Date() });
+    const vic = (await createMember(db, orgX.id, "vic")).id;
+    const zed = (await createMember(db, orgZ.id, "zed")).id;
+
+    const inboxBox = await createMailbox(db, orgX.id, "inbox@x.test");
+    const salesBox = await createMailbox(db, orgX.id, "sales@x.test");
+    const deskBox = await createMailbox(db, orgY.id, "desk@y.test");
+    const zBox = await createMailbox(db, orgZ.id, "desk@z.test");
+    await grant(db, orgX.id, inboxBox.id, ux);
+    await grant(db, orgX.id, salesBox.id, vic);
+    await grant(db, orgY.id, deskBox.id, uy);
+    await grant(db, orgX.id, salesBox.id, uy); // forged: a Y member on an X mailbox
+    await grant(db, orgZ.id, zBox.id, zed);
+
+    // Interleaved in time across orgs, so newest-first must merge the two workspaces.
+    xInbox = await threadAt(orgX.id, inboxBox.id, "kestrel", "2026-10-04T00:00:00Z");
+    yDesk = await threadAt(orgY.id, deskBox.id, "osprey", "2026-10-03T00:00:00Z");
+    await threadAt(orgX.id, inboxBox.id, "merlin", "2026-10-02T00:00:00Z");
+    await threadAt(orgY.id, deskBox.id, "harrier", "2026-10-01T00:00:00Z");
+    xSales = await threadAt(orgX.id, salesBox.id, "condor", "2026-10-05T00:00:00Z");
+    zDesk = await threadAt(orgZ.id, zBox.id, "vulture", "2026-10-06T00:00:00Z");
+  });
+
+  test("lists every workspace's granted threads newest first, paged by cursor, and nothing else", async () => {
+    const asUma = forUser(db, uma);
+    const all = await asUma.listThreads({ view: "all" });
+    expect(all.map((t) => [t.orgId, t.subject])).toEqual([
+      [orgXId, "About kestrel"],
+      [orgYId, "About osprey"],
+      [orgXId, "About merlin"],
+      [orgYId, "About harrier"],
+    ]);
+    // Page by page with a one-row limit: the same order, each thread once.
+    const paged: string[] = [];
+    let before: { lastMessageAt: Date; id: string } | undefined;
+    for (;;) {
+      const page = await asUma.listThreads({ view: "all", limit: 1, before });
+      if (!page.length) break;
+      paged.push(page[0]!.id);
+      before = page[0]!;
+    }
+    expect(paged).toEqual(all.map((t) => t.id));
+
+    // Neither sales@ (no grant in X; the forged Y grant opens nothing) nor org Z.
+    for (const id of [xSales, zDesk]) {
+      expect(await asUma.getThread(id)).toBeNull();
+      expect(await asUma.memberFor(id)).toBeNull();
+    }
+    expect((await asUma.getThread(yDesk))?.orgId).toBe(orgYId);
+  });
+
+  test("search covers every workspace's granted mailboxes and nothing else", async () => {
+    const asUma = forUser(db, uma);
+    expect((await asUma.search("kestrel")).map((h) => [h.orgId, h.threadId])).toEqual([
+      [orgXId, xInbox],
+    ]);
+    expect((await asUma.search("osprey")).map((h) => [h.orgId, h.threadId])).toEqual([
+      [orgYId, yDesk],
+    ]);
+    // sales@ (forged grant only) and org Z have the words; Uma's search does not reach them.
+    expect(await asUma.search("condor")).toEqual([]);
+    expect(await asUma.search("vulture")).toEqual([]);
+    expect((await forMember(db, ux).search("osprey")).map((h) => h.threadId)).toEqual([]);
+  });
+
+  test("state and counts are each workspace member's own, and a thread names its member", async () => {
+    const asUma = forUser(db, uma);
+    expect((await asUma.memberFor(xInbox))?.id).toBe(ux);
+    expect((await asUma.memberFor(yDesk))?.id).toBe(uy);
+
+    // Acting as the org Y member shows through the user's list; org X's threads are untouched.
+    await forMember(db, uy).setThreadState(yDesk, {
+      doneThrough: new Date("2026-10-03T00:00:00Z"),
+    });
+    await forMember(db, ux).setThreadState(xInbox, { read: true });
+    const inbox = await asUma.listThreads();
+    expect(inbox.map((t) => [t.subject, t.read])).toEqual([
+      ["About kestrel", true],
+      ["About merlin", false],
+      ["About harrier", false],
+    ]);
+    expect((await asUma.listThreads({ view: "done" })).map((t) => t.id)).toEqual([yDesk]);
+
+    const counts = await asUma.counts();
+    expect(
+      counts
+        .map((c) => [c.orgId, c.inbox, c.unread])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    ).toEqual(
+      [
+        [orgXId, 2, 1],
+        [orgYId, 1, 1],
+      ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    );
   });
 });
 

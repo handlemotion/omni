@@ -1,4 +1,4 @@
-// The workspace's plan (ADR 0014): what it is, this month's AI triage against the allowance,
+// The workspace's plan (ADR 0015): what it is, this month's AI triage against the allowance,
 // and the two ways out to Stripe. Checkout and the portal go through Better Auth's Stripe plugin,
 // always for the member's active workspace; its own /api/auth/subscription/* POSTs are closed.
 import { zValidator } from "@hono/zod-validator";

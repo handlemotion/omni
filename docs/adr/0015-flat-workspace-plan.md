@@ -1,4 +1,4 @@
-# 0014: One flat plan per workspace, metered only by AI triage
+# 0015: One flat plan per workspace, metered only by AI triage
 
 Date: 2026-11-04 · Status: accepted · Amends: spec v1 "Non-goals" (billing), "Path to SaaS"
 

@@ -1,4 +1,4 @@
-// Billing as the rest of the Worker sees it (ADR 0014). With billing off (no STRIPE_SECRET_KEY)
+// Billing as the rest of the Worker sees it (ADR 0015). With billing off (no STRIPE_SECRET_KEY)
 // every workspace is unlimited and writable, exactly as before billing existed.
 import { usagePeriod } from "@omni/ai";
 import {

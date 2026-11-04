@@ -147,6 +147,9 @@ Several agents may work in this repository at once.
 
 - PRs target `main` (or the layer below, in a stack). Squash merge. CI (`Checks`) must be green;
   the `main` ruleset enforces both.
+- **PR descriptions follow the `pr-writing` skill, always** (`.claude/skills/pr-writing`): the
+  who-did-what first line, problem first, evidence beside every claim, an ELI5. Load it before
+  opening a pull request or writing or updating its description.
 - **Stacks (`gh stack`, see the `gh-stack` skill).** Work that depends on unmerged work is a
   layer stacked on that branch, never a parallel branch off `main` that copies or re-implements
   it. Each layer is one reviewable PR with one owner. Stacks merge bottom-first.
