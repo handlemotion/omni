@@ -34,6 +34,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { requireMember, resolveSession, type AppEnv } from "../context.ts";
 import {
+  advanceDomainStep,
   audit,
   checkDomain,
   claimDomain,
@@ -108,16 +109,9 @@ async function memberDomain(c: Context<AppEnv>) {
   return setup;
 }
 
-/**
- * Resumable setup (ADR 0009): a claimed domain counts as added; once it is locked and every
- * provider record passed, as DNS verified.
- */
+/** Advances this org's setup step from the domain's view, then answers with that view. */
 async function domainStep<V extends { verified: boolean }>(c: Context<AppEnv>, view: V) {
-  await advanceOrgSetup(
-    c.var.db,
-    c.var.member.orgId,
-    view.verified ? "dns_verified" : "domain_added",
-  );
+  await advanceDomainStep(c.var.db, c.var.member.orgId, view);
   return view;
 }
 

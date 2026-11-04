@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
 import { createDb } from "../src/client.ts";
-import { setLocationFlags } from "../src/mail-sync.ts";
+import { rescheduleAction, setLocationFlags } from "../src/mail-sync.ts";
 import {
   attachments,
   mailActions,
@@ -10,12 +10,10 @@ import {
   threads,
 } from "../src/schema/index.ts";
 import {
-  MAX_ACTION_ATTEMPTS,
   claimActions,
   completeAction,
   createThread,
   enqueueAction,
-  failAction,
   upsertFolder,
   upsertMessage,
 } from "../src/writers.ts";
@@ -95,7 +93,7 @@ describe("mail_actions outbox", () => {
       mailboxId: mailbox.id,
       memberId: null,
       kind: "archive",
-      payload: { threadId: key },
+      payload: { folder: "INBOX", uidValidity: "1", uids: [1] },
       idempotencyKey: key,
     });
 
@@ -136,19 +134,24 @@ describe("mail_actions outbox", () => {
     }
   });
 
-  test("failures back off, then fail for good after the last attempt; done rows stay done", async () => {
+  test("a retry waits for its time, a final failure stays failed, and done rows stay done", async () => {
     const action = await enqueue("flaky");
-    for (let attempt = 1; attempt <= MAX_ACTION_ATTEMPTS; attempt++) {
-      const [claimed] = await claimActions(db);
-      expect(claimed).toMatchObject({ id: action.id, attempts: attempt });
-      const failed = await failAction(db, action.id, `boom ${attempt}`);
-      expect(failed!.status).toBe(attempt < MAX_ACTION_ATTEMPTS ? "pending" : "failed");
-      expect(await claimActions(db)).toEqual([]); // backoff: not due yet
-      await db
-        .update(mailActions)
-        .set({ runAfter: sql`now()` })
-        .where(eq(mailActions.id, action.id));
-    }
+    const [first] = await claimActions(db);
+    expect(first).toMatchObject({ id: action.id, attempts: 1 });
+    const later = new Date(Date.now() + 60_000);
+    expect(await rescheduleAction(db, action.id, "boom 1", later)).toMatchObject({
+      status: "pending",
+    });
+    expect(await claimActions(db)).toEqual([]); // not due yet
+    await db
+      .update(mailActions)
+      .set({ runAfter: sql`now()` })
+      .where(eq(mailActions.id, action.id));
+    const [second] = await claimActions(db);
+    expect(second).toMatchObject({ id: action.id, attempts: 2 });
+    expect(await rescheduleAction(db, action.id, "boom 2", null)).toMatchObject({
+      status: "failed",
+    });
     expect(await claimActions(db)).toEqual([]);
 
     const ok = await enqueue("ok");

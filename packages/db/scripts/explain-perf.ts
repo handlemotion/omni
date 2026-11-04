@@ -242,7 +242,7 @@ const cases: Case[] = [
         mailboxId: box.id,
         memberId: null,
         kind: "archive",
-        payload: {},
+        payload: { folder: "INBOX", uidValidity: "1", uids: [1] },
         idempotencyKey: `perf-${Date.now()}`,
       }),
   },

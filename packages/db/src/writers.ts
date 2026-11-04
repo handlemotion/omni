@@ -2,10 +2,8 @@
 // calls them, never a route handling a member's request. Each one is idempotent.
 import { and, desc, eq, inArray, lt, lte, or, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
+import type { ActionPayload, MailActionKind } from "@omni/contracts";
 import { attachments, mailActions, mailboxFolders, messages, threads } from "./schema/index.ts";
-
-/** After this many failed attempts an action is marked `failed` and shown to the member. */
-export const MAX_ACTION_ATTEMPTS = 5;
 
 type NewMessage = Omit<
   typeof messages.$inferInsert,
@@ -105,14 +103,20 @@ export async function upsertFolder(
   return row!;
 }
 
+/** An action kind with the payload `@omni/contracts` defines for it; one never pairs with another's. */
+export type MailActionRequest = {
+  [K in MailActionKind]: { kind: K; payload: ActionPayload<K> };
+}[MailActionKind];
+
+/** One outbox row to add. */
+export type NewMailAction = Pick<
+  typeof mailActions.$inferInsert,
+  "orgId" | "mailboxId" | "memberId" | "idempotencyKey" | "requestId"
+> &
+  MailActionRequest;
+
 /** Adds an action to the outbox. A repeated idempotency key returns the existing row. */
-export async function enqueueAction(
-  db: Db,
-  input: Pick<
-    typeof mailActions.$inferInsert,
-    "orgId" | "mailboxId" | "memberId" | "kind" | "payload" | "idempotencyKey" | "requestId"
-  >,
-) {
+export async function enqueueAction(db: Db, input: NewMailAction) {
   const [created] = await db
     .insert(mailActions)
     .values(input)
@@ -168,23 +172,4 @@ export async function completeAction(db: Db, id: string) {
     .where(and(eq(mailActions.id, id), eq(mailActions.status, "running")))
     .returning({ id: mailActions.id });
   return rows.length > 0;
-}
-
-/**
- * Records a failed attempt. Retries with exponential backoff (30 s doubling, capped at 1 h) until
- * `MAX_ACTION_ATTEMPTS`, then marks the action `failed`.
- */
-export async function failAction(db: Db, id: string, error: string) {
-  const [row] = await db
-    .update(mailActions)
-    .set({
-      status: sql`case when ${mailActions.attempts} >= ${MAX_ACTION_ATTEMPTS} then 'failed' else 'pending' end::mail_action_status`,
-      runAfter: sql`now() + least(make_interval(secs => 30 * power(2, ${mailActions.attempts} - 1)), interval '1 hour')`,
-      lastError: error,
-      lockedAt: null,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(mailActions.id, id), eq(mailActions.status, "running")))
-    .returning();
-  return row ?? null;
 }

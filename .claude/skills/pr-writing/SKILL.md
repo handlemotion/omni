@@ -1,26 +1,21 @@
 ---
 name: pr-writing
-description: Write pull request descriptions that show the change works instead of only describing it, and say who did what when an AI agent wrote the code. Use whenever you open a pull request, write or update its description, or prepare a change for someone else to review.
+description: Write pull request descriptions that show the change works instead of only describing it, and say when an AI agent wrote the code. Use whenever you open a pull request, write or update its description, or prepare a change for someone else to review.
 ---
 
 # PR writing
 
 A reviewer spends most of their time picturing what the author already saw: the page they opened, the command they ran, the test that went green. Put that in the description. Prose that describes a change is a claim, not evidence.
 
-This skill covers the description only. Prepare it, show it to the user, and wait for their go-ahead before opening or editing the pull request, unless they've told you otherwise.
+This skill covers the description only. Open or update the pull request with it directly; show it to the user first only when they ask to see it.
 
-## 1. Say who did what
+## 1. Say an AI agent wrote it
 
-When an AI agent wrote the change, start the description with one line that tells the reviewer how much a human is behind it. Ask the user for their handle. Use `gh api user -q .login` only after confirming that the signed-in GitHub account is theirs, not a bot or a shared account.
+When an AI agent wrote the change, start the description with one line, and nothing else about authorship:
 
-| What the user did                                                         | First line                                                                                                 |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Gave the task and approved the approach                                   | `> Written by an AI agent on behalf of @handle. @handle has not reviewed it yet.`                          |
-| Wrote a spec (an issue, a doc, a plan) that you implemented               | `> Written by an AI agent on behalf of @handle, following their spec. @handle has not reviewed it yet.`    |
-| Worked out the design with you: the architecture, the API, the trade-offs | `> Written by an AI agent on behalf of @handle, who shaped the solution. @handle has not reviewed it yet.` |
+`> Written with an AI agent.` (or name it: `> Written with Claude Code.`)
 
-- Picking one of your options is approving an approach, not shaping the solution. When in doubt, use the plainer line.
-- The line only changes to `@handle has reviewed it.` when the user tells you they've reviewed it. Keep it first, and keep it unchanged otherwise.
+- Don't ask the user for their GitHub handle, and don't say whether anyone reviewed it: the pull request's own reviews and approvals show that.
 - Use it instead of any default footer such as "Generated with…". No `Co-Authored-By` trailers in commits.
 - If the repository has a pull request template, keep the template and put the line above it.
 
@@ -59,7 +54,7 @@ For browser captures, `agent-browser` (github.com/vercel-labs/agent-browser) can
 
 ## 5. Check before you hand it over
 
-- The first line matches what the user actually did.
+- The first line is the one AI-agent line from section 1, and nothing more about authorship.
 - Every claim in the description has evidence next to it, or says why there's none.
 - The ELI5 is there and makes sense on its own.
 - Nothing in it was invented: no numbers, results, or test runs you didn't see.

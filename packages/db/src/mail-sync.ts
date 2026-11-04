@@ -440,7 +440,7 @@ export async function markActionSmtpAccepted(db: Db, id: string) {
 
 /**
  * Records a failed attempt with the caller's retry time, or marks the action `failed` when
- * `retryAt` is null. Use this when the caller owns the backoff policy; `failAction` applies its own.
+ * `retryAt` is null. The caller (the mail service's outbox) owns the backoff policy.
  */
 export async function rescheduleAction(db: Db, id: string, error: string, retryAt: Date | null) {
   const rows = await db

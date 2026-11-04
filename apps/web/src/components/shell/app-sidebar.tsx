@@ -120,7 +120,7 @@ export function AppSidebar() {
             onPress={() => signOut.mutate()}
           >
             <IconCircleDashed />
-            Log Out
+            Log out
           </Button>
           <Button
             intent="plain"

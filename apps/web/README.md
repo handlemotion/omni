@@ -143,8 +143,6 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 | `useShortcut(id, run, enabled?)`, `runShortcut(id)`, `useAvailableShortcuts()`, `announce(text)`                                                   | keyboard shortcuts (`hooks/use-shortcuts.ts`) |
 | `useThreadListShortcuts({ … })`                                                                                                                    | the list keys: j/k, o, x, e, h, u, Esc        |
 
-> > > > > > > origin/main
-
 Message HTML goes in a sandboxed iframe: `messageHtmlUrl(threadId, messageId)`; attachments:
 `attachmentUrl(threadId, attachmentId)` (`lib/urls.ts`).
 

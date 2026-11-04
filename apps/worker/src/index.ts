@@ -1,7 +1,9 @@
 import * as Sentry from "@sentry/cloudflare";
-import { createDb } from "@omni/db";
 import { PRIVATE_DATA_COLLECTION, scrubBreadcrumb, scrubEvent } from "@omni/mail-core/telemetry";
+import { createStripeClient } from "@omni/auth";
 import { app } from "./app.ts";
+import { reconcileSubscriptions } from "./billing-reconcile.ts";
+import { openDb } from "./db.ts";
 import { recheckLocks } from "./domains.ts";
 import { loadConfig } from "./env.ts";
 import { createLogger } from "./log.ts";
@@ -29,14 +31,44 @@ export default Sentry.withSentry(
   {
     fetch: app.fetch,
     queue: consumeQueue,
-    scheduled: (_controller, env, ctx) => ctx.waitUntil(scheduledRecheck(env, ctx)),
+    scheduled: (controller, env, ctx) =>
+      ctx.waitUntil(
+        controller.cron === BILLING_RECONCILE_CRON
+          ? scheduledReconcile(env)
+          : scheduledRecheck(env, ctx),
+      ),
   } satisfies ExportedHandler<Env, AiJob>,
 );
+
+/** Must match the billing cron in wrangler.jsonc `triggers.crons`; any other cron re-checks domains. */
+const BILLING_RECONCILE_CRON = "47 3 * * *";
+
+/**
+ * The daily billing cron: every workspace's subscriptions read back from Stripe (ADR 0015).
+ * Nothing to do with billing off. Safe to run twice.
+ */
+async function scheduledReconcile(env: Env) {
+  const billing = loadConfig(env).auth.billing;
+  if (!billing) return;
+  const { db, close } = openDb(env);
+  const log = createLogger({ component: "billing", requestId: crypto.randomUUID() });
+  try {
+    const result = await reconcileSubscriptions({
+      db,
+      stripe: createStripeClient(billing.secretKey),
+      billing,
+      log,
+    });
+    log.info("billing.reconciled", { ...result });
+  } finally {
+    await close();
+  }
+}
 
 /** The cron trigger: re-check every verified domain's challenge (ADR 0010). Safe to run twice. */
 async function scheduledRecheck(env: Env, ctx: ExecutionContext) {
   const config = loadConfig(env);
-  const { db, close } = createDb(env.HYPERDRIVE.connectionString, { max: 2, fetch_types: false });
+  const { db, close } = openDb(env);
   const requestId = crypto.randomUUID();
   const log = createLogger({ component: "domains", requestId });
   try {

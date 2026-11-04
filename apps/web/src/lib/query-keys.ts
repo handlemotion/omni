@@ -1,9 +1,9 @@
 // Every query key in the app, in one tree, so invalidation can target a branch:
 //
 //   omni
-//   ├─ session · device-sessions · sign-in-methods
+//   ├─ session · device-sessions · sign-in-methods · sign-in-emails
 //   ├─ org ─ organizations · members · invitations · invitation(id) · passkeys · onboarding
-//   │        · workspaces
+//   │        · workspaces · billing
 //   ├─ mail ─ mailboxes · mailbox-members(id) · counts · threads(filter) · thread(id) · search(q)
 //   │        · action(id)
 //   └─ local ─ pending(threadId) · failures       (client-only state, never fetched)
@@ -31,6 +31,8 @@ export const keys = {
   session: () => [...root, "session"] as const,
   deviceSessions: () => [...root, "device-sessions"] as const,
   signInMethods: () => [...root, "sign-in-methods"] as const,
+  /** The addresses this person signs in with (ADR 0014). */
+  signInEmails: () => [...root, "sign-in-emails"] as const,
 
   org: () => org,
   organizations: () => [...org, "organizations"] as const,
@@ -38,6 +40,7 @@ export const keys = {
   invitations: () => [...org, "invitations"] as const,
   invitation: (id: string) => [...org, "invitation", id] as const,
   passkeys: () => [...org, "passkeys"] as const,
+  billing: () => [...org, "billing"] as const,
   onboarding: () => [...org, "onboarding"] as const,
   /** Every org the user belongs to, with setup state and mailboxes (the switcher). */
   workspaces: () => [...org, "workspaces"] as const,
@@ -54,6 +57,8 @@ export const keys = {
     [...mail, "search", { q, ...(mailbox ? { mailbox } : {}) }] as const,
   action: (id: string) => [...mail, "action", id] as const,
 
+  /** App-only state, never fetched (`query-client.ts` keeps it forever). */
+  local: () => local,
   pendingAll: () => [...local, "pending"] as const,
   pending: (threadId: string) => [...local, "pending", threadId] as const,
   failures: () => [...local, "failures"] as const,

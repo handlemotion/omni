@@ -1,7 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { Command, defaultFilter } from "cmdk";
-import { useGlimm } from "glimm/react";
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -17,6 +16,7 @@ import {
   IconSettings,
   IconWrite,
 } from "@/components/icons/sidebar";
+import { useListSweep } from "@/components/inbox/list-sweep";
 import { Keyboard } from "@/components/ui/keyboard";
 import { Loader } from "@/components/ui/loader";
 import { useThreads } from "@/hooks/use-mail.ts";
@@ -167,7 +167,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { sweep } = useGlimm();
+  const sweepList = useListSweep();
   const { threads } = useThreads({ view: "inbox" });
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
@@ -187,9 +187,9 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
     } finally {
       setSearching(false);
     }
-    // Together: the band slides down under the popover while it closes.
+    // Together: the band slides down the list, under the popover while it closes.
     onClose();
-    sweep(() => navigate({ to: "/search", search: { q: query } }));
+    sweepList(() => navigate({ to: "/search", search: { q: query } }));
   };
 
   return (

@@ -9,6 +9,7 @@ import type { Key, Selection } from "react-aria-components";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
 import { ListLayout, Virtualizer } from "react-aria-components/Virtualizer";
+import { ListSweepSlot } from "@/components/inbox/list-sweep";
 import { SearchPopover } from "@/components/search/search-popover";
 import { buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
@@ -187,31 +188,36 @@ export function List(
           {/* Only the rows on screen are in the DOM, so thousands of threads scroll like fifty.
               The list is its own scroll container; rows keep the frame's fixed height. The
               wrapper holds the fluid hover highlight, which sits under the rows and follows the
-              list's scroll. */}
-          <div className="relative flex min-h-0 flex-1 flex-col" {...hover.containerProps}>
-            <FluidHoverHighlight {...hover.highlightProps} />
-            <Virtualizer layout={ListLayout} layoutOptions={LIST_LAYOUT}>
-              <GridList
-                aria-label={props.title}
-                // Transparent: the list is positioned, so its own fill would paint over the
-                // highlight. The page behind it is already the background.
-                className="min-h-0 flex-1 overflow-y-auto bg-transparent"
-                // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
-                disallowTypeAhead
-                selectionMode="multiple"
-                selectionBehavior="toggle"
-                selectedKeys={selected}
-                onSelectionChange={setSelected}
-              >
-                {/* `items` lets React Aria cache rows by thread, so a scroll renders only new rows. */}
-                <Collection items={threads} dependencies={[props.href]}>
-                  {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
-                </Collection>
-                {/* Asks for the next page as the end of the list nears. */}
-                <GridListLoadMoreItem onLoadMore={props.loadMore} isLoading={props.isLoadingMore} />
-              </GridList>
-            </Virtualizer>
-          </div>
+              list's scroll. The slot puts them inside smart search's sweep. */}
+          <ListSweepSlot>
+            <div className="relative flex min-h-0 flex-1 flex-col" {...hover.containerProps}>
+              <FluidHoverHighlight {...hover.highlightProps} />
+              <Virtualizer layout={ListLayout} layoutOptions={LIST_LAYOUT}>
+                <GridList
+                  aria-label={props.title}
+                  // Transparent: the list is positioned, so its own fill would paint over the
+                  // highlight. The page behind it is already the background.
+                  className="min-h-0 flex-1 overflow-y-auto bg-transparent"
+                  // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
+                  disallowTypeAhead
+                  selectionMode="multiple"
+                  selectionBehavior="toggle"
+                  selectedKeys={selected}
+                  onSelectionChange={setSelected}
+                >
+                  {/* `items` lets React Aria cache rows by thread, so a scroll renders only new rows. */}
+                  <Collection items={threads} dependencies={[props.href]}>
+                    {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
+                  </Collection>
+                  {/* Asks for the next page as the end of the list nears. */}
+                  <GridListLoadMoreItem
+                    onLoadMore={props.loadMore}
+                    isLoading={props.isLoadingMore}
+                  />
+                </GridList>
+              </Virtualizer>
+            </div>
+          </ListSweepSlot>
         </section>
         {props.children}
       </div>
