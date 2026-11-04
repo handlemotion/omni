@@ -6,6 +6,7 @@ import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx
 import { SidebarInset, SidebarProvider } from "../../components/ui/sidebar.tsx";
 import { useSettingsDialog } from "../../hooks/use-settings-dialog.ts";
 import { useRealtimeConnection } from "../../hooks/use-realtime.ts";
+import { billingQuery } from "../../lib/billing.ts";
 import { requireMember } from "../../lib/guards.ts";
 import { countsQuery, mailboxesQuery } from "../../lib/mail-queries.ts";
 import { workspacesQuery } from "../../lib/workspaces.ts";
@@ -19,12 +20,16 @@ export const Route = createFileRoute("/_authed/_member")({
     const { member } = await requireMember(context.queryClient, location);
     return { member };
   },
-  loader: ({ context }) =>
-    Promise.all([
+  loader: ({ context }) => {
+    // Not awaited: settings' nav shows Billing only where the install bills, and this has the
+    // answer ready long before anyone opens settings.
+    void context.queryClient.prefetchQuery(billingQuery());
+    return Promise.all([
       context.queryClient.ensureQueryData(mailboxesQuery()),
       context.queryClient.ensureQueryData(countsQuery()),
       context.queryClient.ensureQueryData(workspacesQuery()),
-    ]),
+    ]);
+  },
   component: Shell,
 });
 
