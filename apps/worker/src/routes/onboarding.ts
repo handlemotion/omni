@@ -32,6 +32,7 @@ import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { inGoodStanding } from "../billing.ts";
 import { requireMember, resolveSession, type AppEnv } from "../context.ts";
 import {
   advanceDomainStep,
@@ -158,8 +159,16 @@ export const onboarding = new Hono<AppEnv>()
       user.id,
       config.auth.organizationCreation,
     );
+    /** Billing is on for this deployment (ADR 0015): setup then has a plan step. */
+    const billing = { enabled: config.auth.billing !== undefined };
     if (!member) {
-      return c.json({ canCreateOrganization, organization: null, domains: [], mailboxes: [] });
+      return c.json({
+        canCreateOrganization,
+        billing,
+        organization: null,
+        domains: [],
+        mailboxes: [],
+      });
     }
     const [org] = await db
       .select({ name: schema.organizations.name })
@@ -171,12 +180,18 @@ export const onboarding = new Hono<AppEnv>()
     ]);
     return c.json({
       canCreateOrganization,
+      billing,
       organization: {
         id: member.orgId,
         name: org?.name ?? "",
         role: member.role,
         /** How far setup got; `/onboarding` resumes here. */
         setup: await orgSetupStep(db, member.orgId),
+        /**
+         * Billing is on and the workspace has no trial or plan in good standing. Read from the
+         * subscription each time, not saved as a setup step, so it follows Stripe.
+         */
+        needsPlan: !(await inGoodStanding(db, config, member.orgId)),
       },
       domains: domains.map((setup) => domainView(setup)),
       mailboxes: mailboxes.map(({ id, address, kind, provider, status }) => ({
@@ -442,6 +457,15 @@ export const onboarding = new Hono<AppEnv>()
     const step = await orgSetupStep(db, member.orgId);
     if (SETUP_STEPS.indexOf(step) < SETUP_STEPS.indexOf("mailboxes_created")) {
       throw new HTTPException(409, { message: "create a mailbox before finishing setup" });
+    }
+    if (!(await inGoodStanding(db, c.var.config, member.orgId))) {
+      return c.json(
+        {
+          error: "start the free trial or choose a plan before finishing setup",
+          code: "BILLING_REQUIRED",
+        },
+        402,
+      );
     }
     return c.json({ setup: await advanceOrgSetup(db, member.orgId, "complete") });
   });

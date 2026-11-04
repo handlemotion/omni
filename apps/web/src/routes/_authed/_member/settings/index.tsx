@@ -53,7 +53,6 @@ function Settings() {
         ))}
       </ul>
       <Link to="/settings/organization">Members and invitations</Link>
-      <Link to="/settings/billing">Plan and billing</Link>
       <SignInEmails />
       <h2>Passkeys</h2>
       <ul>
