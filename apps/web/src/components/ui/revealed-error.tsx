@@ -61,9 +61,10 @@ function ErrorLine(props: { open: boolean; className?: string; children: ReactNo
   return (
     <p
       aria-hidden={!props.open}
-      className={`flex items-center gap-1 text-xs/4 text-danger-subtle-foreground transition-[opacity,translate] ease-out motion-reduce:transition-none ${props.open ? "translate-y-0 opacity-100 delay-100 duration-200" : "-translate-y-1 opacity-0 duration-100"} ${props.className ?? ""}`}
+      className={`flex items-start gap-1 text-xs/4 text-danger-subtle-foreground transition-[opacity,translate] ease-out motion-reduce:transition-none ${props.open ? "translate-y-0 opacity-100 delay-100 duration-200" : "-translate-y-1 opacity-0 duration-100"} ${props.className ?? ""}`}
     >
-      <IconCircleAlert aria-hidden className="size-3.5 shrink-0" />
+      {/* Optical: on the first line's centre, so a wrapped message keeps the mark beside its start. */}
+      <IconCircleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
       <span>{props.children}</span>
     </p>
   );
