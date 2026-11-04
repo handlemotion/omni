@@ -190,7 +190,7 @@ export const subscriptions = pgTable("subscriptions", {
   plan: text("plan").notNull(),
   orgId: text("org_id").notNull(),
   stripeCustomerId: text("stripe_customer_id"),
-  stripeSubscriptionId: text("stripe_subscription_id"),
+  stripeSubscriptionId: text("stripe_subscription_id").unique(),
   status: text("status").default("incomplete").notNull(),
   periodStart: timestamp("period_start"),
   periodEnd: timestamp("period_end"),

@@ -255,24 +255,17 @@ export async function applyStripeSubscription(
 /**
  * Creates the row for a Stripe subscription of `orgId` that Omni never heard of, the way the
  * plugin's `customer.subscription.created` handler does. False when a row for it exists already
- * (a concurrent run, or the webhook got there first). Serialized per Stripe subscription.
+ * (a concurrent run, or the webhook got there first): `stripe_subscription_id` is unique.
  */
 export async function createStripeSubscription(
   db: Db,
   orgId: string,
   fields: StripeSubscriptionFields & { plan: string },
 ): Promise<boolean> {
-  return db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${fields.stripeSubscriptionId}, 0))`,
-    );
-    const [existing] = await tx
-      .select({ id: subscriptions.id })
-      .from(subscriptions)
-      .where(eq(subscriptions.stripeSubscriptionId, fields.stripeSubscriptionId))
-      .limit(1);
-    if (existing) return false;
-    await tx.insert(subscriptions).values({ id: uuidv7(), orgId, ...fields });
-    return true;
-  });
+  const inserted = await db
+    .insert(subscriptions)
+    .values({ id: uuidv7(), orgId, ...fields })
+    .onConflictDoNothing({ target: subscriptions.stripeSubscriptionId })
+    .returning({ id: subscriptions.id });
+  return inserted.length > 0;
 }

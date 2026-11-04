@@ -101,6 +101,10 @@ missing.
   `ended_at` are final and skipped. It paces Stripe calls to 10 a second, logs one
   `billing.reconciled` line (checked, changed, created, errors), and does nothing with billing
   off. A drifted workspace is therefore wrong for a day at most.
+- `subscriptions.stripe_subscription_id` is unique (nulls allowed, for a row checkout made before
+  Stripe knew its id), so the plugin's handlers and the reconcile, which both create rows
+  find-then-insert, cannot store one Stripe subscription twice. The Stripe plugin's schema has no
+  such key; a schema-only plugin (`packages/auth/src/subscription-index.ts`) adds it.
 - Seats, metered prices and per-inbox add-ons are deliberately absent. Changing the price is a
   new Stripe price id in config; changing the allowance is one variable.
 - Live Stripe products and production keys are created by a founder, not by code or CI.

@@ -20,6 +20,7 @@ import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import Stripe from "stripe";
 import { uuidv7 } from "uuidv7";
 import { z } from "zod";
+import { subscriptionIndex } from "./subscription-index.ts";
 
 export type MagicLinkSender = (message: { email: string; url: string }) => Promise<void>;
 
@@ -463,7 +464,7 @@ export function createAuth(env: AuthEnv) {
       multiSession(),
       // An invitation to any of your verified sign-in emails is yours to accept (ADR 0014).
       claimInvitationsForSignInEmails(env.db),
-      ...(env.billing ? [billingPlugin(env, env.billing)] : []),
+      ...(env.billing ? [billingPlugin(env, env.billing), subscriptionIndex()] : []),
     ],
   });
 }
