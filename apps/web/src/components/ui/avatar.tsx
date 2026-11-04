@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useState } from "react";
 
 export interface AvatarProps {
   src?: string | null;
@@ -31,6 +32,9 @@ export function Avatar({
   className,
   ...props
 }: AvatarProps & React.ComponentPropsWithoutRef<"span">) {
+  // A picture that fails to load (gone, blocked, offline) leaves the initials showing instead of
+  // the browser's broken-image glyph over them.
+  const [failed, setFailed] = useState<string | null>(null);
   return (
     <span
       data-slot="avatar"
@@ -77,7 +81,14 @@ export function Avatar({
           </text>
         </svg>
       )}
-      {src && <img className="size-full object-cover object-center" src={src} alt={alt} />}
+      {src && src !== failed && (
+        <img
+          className="size-full object-cover object-center"
+          src={src}
+          alt={alt}
+          onError={() => setFailed(src)}
+        />
+      )}
     </span>
   );
 }
