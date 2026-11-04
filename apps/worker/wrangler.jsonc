@@ -102,8 +102,10 @@
       "simple": { "limit": 30, "period": 60 },
     },
   ],
-  // Re-checks every verified domain's ownership record; a lost one pauses sending (ADR 0010).
-  "triggers": { "crons": ["23 */6 * * *"] },
+  // Every 6 hours: re-checks every verified domain's ownership record; a lost one pauses sending
+  // (ADR 0010). Daily: reads every workspace's subscriptions back from Stripe (ADR 0015); does
+  // nothing with billing off. The daily one must match BILLING_RECONCILE_CRON in src/index.ts.
+  "triggers": { "crons": ["23 */6 * * *", "47 3 * * *"] },
   "durable_objects": {
     "bindings": [
       { "name": "REPLAY_GUARD", "class_name": "ReplayGuard" },

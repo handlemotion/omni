@@ -82,6 +82,15 @@ missing.
   recorded as applied. The handlers it runs for these events make no Stripe call except
   `checkout.session.completed`, which reads the subscription back; the `customer.subscription.*`
   events that follow carry the same state.
+- Because a webhook can still be missed (an outage past Stripe's retries, a swallowed handler
+  error, an event before the workspace existed), a daily cron (`47 3 * * *`,
+  `apps/worker/src/billing-reconcile.ts`) reads every workspace customer's subscriptions back
+  from Stripe and writes the same fields the plugin's handlers write: it updates drifted rows,
+  links a checkout row that never learned its Stripe id (by the `subscriptionId` metadata the
+  plugin sets), and creates rows for subscriptions Omni never heard of. Canceled rows with
+  `ended_at` are final and skipped. It paces Stripe calls to 10 a second, logs one
+  `billing.reconciled` line (checked, changed, created, errors), and does nothing with billing
+  off. A drifted workspace is therefore wrong for a day at most.
 - Seats, metered prices and per-inbox add-ons are deliberately absent. Changing the price is a
   new Stripe price id in config; changing the allowance is one variable.
 - Live Stripe products and production keys are created by a founder, not by code or CI.

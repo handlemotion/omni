@@ -1,9 +1,11 @@
-// Billing reads and writes (ADR 0015). Subscriptions are written by Better Auth's Stripe plugin;
-// this file reads them, counts AI-triaged emails against the monthly allowance, and remembers
-// which Stripe events were applied. Trusted code: callers have already resolved the workspace.
-import { and, count, desc, eq, gt, sql } from "drizzle-orm";
+// Billing reads and writes (ADR 0015). Subscriptions are written by Better Auth's Stripe plugin
+// and, when its webhook missed something, by the daily reconcile; this file reads them, counts
+// AI-triaged emails against the monthly allowance, and remembers which Stripe events were
+// applied. Trusted code: callers have already resolved the workspace.
+import { and, count, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
+import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
-import { subscriptions } from "./schema/auth.ts";
+import { organizations, subscriptions } from "./schema/auth.ts";
 import { stripeEvents, threads, triageUsage } from "./schema/mail.ts";
 
 /**
@@ -141,4 +143,136 @@ export async function recordStripeEvent(db: Db, event: StripeEventRef) {
       eventCreatedAt: event.createdAt,
     })
     .onConflictDoNothing();
+}
+
+/**
+ * The subscription fields Stripe owns, in the plugin's shape: what its `customer.subscription.*`
+ * handlers write from a Stripe subscription, and what the reconcile writes from the same object.
+ */
+export interface StripeSubscriptionFields {
+  stripeSubscriptionId: string;
+  stripeCustomerId: string;
+  status: string;
+  periodStart: Date;
+  periodEnd: Date;
+  /** Absent when Stripe has no trial; like the plugin, a missing trial never clears one. */
+  trialStart?: Date;
+  trialEnd?: Date;
+  cancelAtPeriodEnd: boolean;
+  cancelAt: Date | null;
+  canceledAt: Date | null;
+  endedAt: Date | null;
+  seats: number;
+  billingInterval: string | null;
+  stripeScheduleId: string | null;
+  /** The plan's key, when the subscription's price is one of the plan's. Never cleared. */
+  plan?: string;
+}
+
+const SYNCED_FIELDS = [
+  "stripeSubscriptionId",
+  "stripeCustomerId",
+  "status",
+  "periodStart",
+  "periodEnd",
+  "trialStart",
+  "trialEnd",
+  "cancelAtPeriodEnd",
+  "cancelAt",
+  "canceledAt",
+  "endedAt",
+  "seats",
+  "billingInterval",
+  "stripeScheduleId",
+  "plan",
+] as const satisfies readonly (keyof StripeSubscriptionFields)[];
+
+export type SubscriptionRow = Awaited<ReturnType<typeof subscriptionRows>>[number];
+
+/** Every subscription row, with the fields Stripe owns. One row or two per billed workspace. */
+export async function subscriptionRows(db: Db) {
+  return db
+    .select({
+      id: subscriptions.id,
+      orgId: subscriptions.orgId,
+      plan: subscriptions.plan,
+      stripeSubscriptionId: subscriptions.stripeSubscriptionId,
+      stripeCustomerId: subscriptions.stripeCustomerId,
+      status: subscriptions.status,
+      periodStart: subscriptions.periodStart,
+      periodEnd: subscriptions.periodEnd,
+      trialStart: subscriptions.trialStart,
+      trialEnd: subscriptions.trialEnd,
+      cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd,
+      cancelAt: subscriptions.cancelAt,
+      canceledAt: subscriptions.canceledAt,
+      endedAt: subscriptions.endedAt,
+      seats: subscriptions.seats,
+      billingInterval: subscriptions.billingInterval,
+      stripeScheduleId: subscriptions.stripeScheduleId,
+    })
+    .from(subscriptions)
+    .orderBy(subscriptions.id);
+}
+
+/** A subscription that ended in Stripe and can no longer change there. */
+export function isSettled(row: Pick<SubscriptionRow, "status" | "endedAt">) {
+  return row.status === "canceled" && row.endedAt !== null;
+}
+
+/** Workspaces that are Stripe customers (the plugin sets the id at their first checkout). */
+export async function billedWorkspaces(db: Db) {
+  const rows = await db
+    .select({ orgId: organizations.id, stripeCustomerId: organizations.stripeCustomerId })
+    .from(organizations)
+    .where(isNotNull(organizations.stripeCustomerId))
+    .orderBy(organizations.id);
+  return rows as { orgId: string; stripeCustomerId: string }[];
+}
+
+const same = (a: unknown, b: unknown) =>
+  a instanceof Date && b instanceof Date ? a.getTime() === b.getTime() : a === b;
+
+/**
+ * Brings `row` in line with Stripe's `fields`, writing only what differs. False when it already
+ * matched, so a second run changes nothing.
+ */
+export async function applyStripeSubscription(
+  db: Db,
+  row: SubscriptionRow,
+  fields: StripeSubscriptionFields,
+): Promise<boolean> {
+  const changes: Partial<StripeSubscriptionFields> = {};
+  for (const name of SYNCED_FIELDS) {
+    const next = fields[name];
+    if (next !== undefined && !same(row[name], next)) Object.assign(changes, { [name]: next });
+  }
+  if (Object.keys(changes).length === 0) return false;
+  await db.update(subscriptions).set(changes).where(eq(subscriptions.id, row.id));
+  return true;
+}
+
+/**
+ * Creates the row for a Stripe subscription of `orgId` that Omni never heard of, the way the
+ * plugin's `customer.subscription.created` handler does. False when a row for it exists already
+ * (a concurrent run, or the webhook got there first). Serialized per Stripe subscription.
+ */
+export async function createStripeSubscription(
+  db: Db,
+  orgId: string,
+  fields: StripeSubscriptionFields & { plan: string },
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${fields.stripeSubscriptionId}, 0))`,
+    );
+    const [existing] = await tx
+      .select({ id: subscriptions.id })
+      .from(subscriptions)
+      .where(eq(subscriptions.stripeSubscriptionId, fields.stripeSubscriptionId))
+      .limit(1);
+    if (existing) return false;
+    await tx.insert(subscriptions).values({ id: uuidv7(), orgId, ...fields });
+    return true;
+  });
 }
