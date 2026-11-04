@@ -11,6 +11,7 @@ import {
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
+import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
 import { claimInvitationsForSignInEmails, resolveSignInEmails } from "./sign-in-emails.ts";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { multiSession } from "better-auth/plugins/multi-session";
@@ -197,9 +198,14 @@ export async function mayManageBilling(db: Db, userId: string, orgId: string) {
  * card; a trial that ends without one cancels, which leaves the workspace read-only.
  */
 function billingPlugin(env: AuthEnv, billing: BillingConfig) {
+  const stripeClient = createStripeClient(billing.secretKey);
   return stripe({
-    stripeClient: createStripeClient(billing.secretKey),
+    stripeClient,
     stripeWebhookSecret: billing.webhookSecret,
+    // Never two paid subscriptions for one workspace. Here rather than in the subscription
+    // callbacks: those are skipped when Checkout's row already exists, and their errors are
+    // swallowed, while a throw here fails the webhook so Stripe retries.
+    onEvent: (event) => cancelDuplicateSubscriptions(stripeClient, env.db, event, env.billingLog),
     // Customers are workspaces, created on first checkout; people never get one.
     createCustomerOnSignUp: false,
     organization: { enabled: true },
@@ -256,6 +262,8 @@ export interface AuthEnv extends Partial<
   sendMagicLink: MagicLinkSender;
   /** Delivers an organization invitation. The Worker injects the real sender. */
   sendInvitation: InvitationSender;
+  /** Error-level log for billing a person must act on (a canceled duplicate to refund). */
+  billingLog?: BillingLog;
 }
 
 /**

@@ -59,6 +59,13 @@ in order nor only once, so the Worker records every applied event in `stripe_eve
 front of the plugin, skips an event it has seen (`duplicate`) or one older than an event already
 applied to the same object (`stale`). Replaying any event changes nothing.
 
+**One paid subscription per workspace.** Opening Checkout expires the workspace customer's other
+open Checkout sessions, so two tabs or two admins cannot both subscribe. If two still complete
+(one paid while the next was opened), the webhook keeps the oldest paid subscription in Stripe
+and cancels the rest at once, logging each at error level with its latest invoice for a person to
+refund; nothing is refunded automatically. The survivor is chosen from Stripe's current state, so
+a replayed event cancels nothing more.
+
 **Endpoints.** `GET /api/billing` (plan, read-only state, triage usage), `POST
 /api/billing/checkout` and `POST /api/billing/portal` (owners and admins; always the active
 workspace) on the Worker, and Stripe's webhook at `/api/auth/stripe/webhook`. The plugin's own
@@ -81,7 +88,10 @@ missing.
 - The plugin logs and swallows its own handler errors and answers `200`, so a handler failure is
   recorded as applied. The handlers it runs for these events make no Stripe call except
   `checkout.session.completed`, which reads the subscription back; the `customer.subscription.*`
-  events that follow carry the same state.
+  events that follow carry the same state. The duplicate check runs after the plugin's handler,
+  outside its error swallowing, so a failed cancel fails the webhook and Stripe retries it. It
+  calls Stripe after every completed Checkout, and after a subscription event only when the
+  workspace's own rows show two paid subscriptions.
 - Seats, metered prices and per-inbox add-ons are deliberately absent. Changing the price is a
   new Stripe price id in config; changing the allowance is one variable.
 - Live Stripe products and production keys are created by a founder, not by code or CI.

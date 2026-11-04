@@ -19,6 +19,7 @@ import {
   startMailServiceEndpoint,
   startWorker,
   SYSTEM_MAIL_FROM,
+  workerEvents,
 } from "./support.ts";
 import { postStripeEvent } from "./stripe-events.ts";
 
@@ -183,4 +184,101 @@ describe.runIf(requested)("Stripe test mode", () => {
       subscription: { status: "canceled" },
     });
   }, 90_000);
+
+  async function ownerOf(slug: string) {
+    const { db } = database;
+    const org = await createOrg(db, slug);
+    const email = `owner-${randomUUID().slice(0, 8)}@omni.test`;
+    const member = await createMember(db, org.id, email);
+    await db.update(schema.members).set({ role: "owner" }).where(eq(schema.members.id, member.id));
+    return { org, cookie: await signIn(worker, db, email) };
+  }
+
+  async function customerOf(orgId: string) {
+    const [organization] = await database.db
+      .select({ customer: schema.organizations.stripeCustomerId })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, orgId));
+    const customer = organization!.customer!;
+    if (!customers.includes(customer)) customers.push(customer);
+    return customer;
+  }
+
+  test("a second checkout expires the first, so two tabs cannot both subscribe", async () => {
+    const { org, cookie } = await ownerOf("two-tabs");
+    const first = await api("/billing/checkout", cookie, { interval: "month" });
+    expect(first.status).toBe(200);
+    const customer = await customerOf(org.id);
+    const [opened] = (await stripe.checkout.sessions.list({ customer, limit: 1 })).data;
+    expect(opened?.status).toBe("open");
+
+    const second = await api("/billing/checkout", cookie, { interval: "year" });
+    expect(second.status).toBe(200);
+    expect((await stripe.checkout.sessions.retrieve(opened!.id)).status).toBe("expired");
+    const open = await stripe.checkout.sessions.list({ customer, status: "open" });
+    expect(open.data).toHaveLength(1);
+    expect(open.data[0]!.id).not.toBe(opened!.id);
+  }, 60_000);
+
+  test("two paid subscriptions for one workspace: the newer is canceled, the older kept", async () => {
+    const { org, cookie } = await ownerOf("duplicate");
+    expect((await api("/billing/checkout", cookie, { interval: "month" })).status).toBe(200);
+    const customer = await customerOf(org.id);
+
+    // Both checkouts completing, as Stripe's API does it: same customer, plan and trial.
+    const since = Math.floor(Date.now() / 1000) - 5;
+    const subscribe = () =>
+      stripe.subscriptions.create({
+        customer,
+        items: [{ price: prices.monthly }],
+        trial_period_days: TRIAL_DAYS,
+        trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+        metadata: { referenceId: org.id },
+      });
+    const older = await subscribe();
+    const newer = await subscribe();
+
+    const created = [
+      ...(await forwardEvents(older.id, since, ["customer.subscription.created"])).results,
+      ...(await forwardEvents(newer.id, since, ["customer.subscription.created"])).results,
+    ];
+    expect(created.every((r) => r.status === 200)).toBe(true);
+    expect((await stripe.subscriptions.retrieve(older.id)).status).toBe("trialing");
+    expect((await stripe.subscriptions.retrieve(newer.id)).status).toBe("canceled");
+    // Not refunded automatically: an error a person sees, naming what to refund.
+    expect(
+      workerEvents(worker).filter((e) => e.event === "billing.duplicate_subscription_canceled"),
+    ).toEqual([
+      expect.objectContaining({
+        level: "error",
+        orgId: org.id,
+        customerId: customer,
+        keptSubscriptionId: older.id,
+        canceledSubscriptionId: newer.id,
+      }),
+    ]);
+
+    // What the cancel made Stripe send: the newer one deleted, the older one touched.
+    const deleted = await forwardEvents(newer.id, since, ["customer.subscription.deleted"]);
+    const touched = await forwardEvents(older.id, since, [
+      "customer.subscription.created",
+      "customer.subscription.updated",
+    ]);
+    const all = [...deleted.events, ...touched.events];
+    expect(await (await api("/billing", cookie)).json()).toMatchObject({
+      readOnly: false,
+      subscription: { status: "trialing" },
+    });
+
+    // Replaying every event again cancels nothing more: the survivor stays.
+    for (const event of all) {
+      await postStripeEvent(worker.url, event, { secret: WEBHOOK_SECRET });
+    }
+    const paid = await stripe.subscriptions.list({ customer, status: "all" });
+    expect(
+      paid.data
+        .filter((s) => ["active", "trialing", "past_due"].includes(s.status))
+        .map((s) => s.id),
+    ).toEqual([older.id]);
+  }, 120_000);
 });

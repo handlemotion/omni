@@ -2,7 +2,9 @@
 // and the two ways out to Stripe. Checkout and the portal go through Better Auth's Stripe plugin,
 // always for the member's active workspace; its own /api/auth/subscription/* POSTs are closed.
 import { zValidator } from "@hono/zod-validator";
-import { mayManageBilling, PLAN_NAME } from "@omni/auth";
+import { createStripeClient, mayManageBilling, PLAN_NAME } from "@omni/auth";
+import { schema } from "@omni/db";
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -19,6 +21,36 @@ function settingsUrl(c: { var: AppEnv["Variables"] }) {
 async function requireBillingManager(c: { var: AppEnv["Variables"] }) {
   if (!(await mayManageBilling(c.var.db, c.var.user.id, c.var.member.orgId))) {
     throw new HTTPException(403, { message: "only owners and admins manage billing" });
+  }
+}
+
+/**
+ * Only the newest Checkout stays open, so two tabs (or two admins) cannot both subscribe the
+ * workspace. Expired after the new one exists, so a failure here never leaves no session; the
+ * customer is the workspace's, created by its first checkout.
+ */
+async function expireOtherCheckouts(
+  c: { var: AppEnv["Variables"] },
+  secretKey: string,
+  keepId: string | null,
+) {
+  const [org] = await c.var.db
+    .select({ customer: schema.organizations.stripeCustomerId })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, c.var.member.orgId));
+  if (!org?.customer) return;
+  const stripe = createStripeClient(secretKey);
+  const open = await stripe.checkout.sessions.list({
+    customer: org.customer,
+    status: "open",
+    limit: 100,
+  });
+  for (const other of open.data) {
+    if (other.id === keepId || other.mode !== "subscription") continue;
+    await stripe.checkout.sessions.expire(other.id).catch((error: unknown) => {
+      // Completed since it was listed: the webhook's duplicate check handles that one.
+      c.var.log.warn("billing.checkout_expire_failed", { sessionId: other.id, error });
+    });
   }
 }
 
@@ -79,6 +111,8 @@ export const billing = new Hono<AppEnv>()
       },
     });
     if (!session.url) throw new HTTPException(502, { message: "Stripe returned no checkout URL" });
+    // The plugin answers with a portal link instead when Stripe already has the subscription.
+    await expireOtherCheckouts(c, plans.secretKey, "id" in session ? session.id : null);
     return c.json({ url: session.url });
   })
 
