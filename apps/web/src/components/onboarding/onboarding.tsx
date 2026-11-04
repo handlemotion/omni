@@ -9,7 +9,7 @@ import { Heading } from "@/components/ui/heading";
 import { Input, InputGroup } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { Step, Steps, type StepState } from "@/components/ui/steps";
-import { Text } from "@/components/ui/text";
+import { Text, TextLink } from "@/components/ui/text";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { TextField } from "@/components/ui/text-field";
 import {
@@ -160,32 +160,32 @@ function ExitButton() {
   );
 }
 
-/** "Step 2 of 4 · DNS" over one bar per step, filled through the current one. */
+/**
+ * One bar per step, filled through the current one. No visible "Step 2 of 4" over it: the heading
+ * below names the step, and the bar's own label says where you are to assistive tech.
+ *
+ * Room, in ink: 51.5px from the logo to the bar (the logo box's 3.5px of air plus `pt-12`), then
+ * 35px from the bar to the heading (PageForm's `pt-8` plus the heading's line slack). The bar
+ * sits nearer the heading it leads into than the logo above, so it reads as the page's top.
+ */
 function StepProgress(props: { current: number; names: readonly string[] }) {
   const { current, names } = props;
   return (
-    <div className="flex flex-col gap-3 pt-12">
-      <span className="text-sm text-muted-foreground">
-        Step {current + 1} of {names.length}
-        <span className="text-subtle-foreground"> · </span>
-        <span className="text-foreground">{names[current]}</span>
-      </span>
-      <div
-        role="progressbar"
-        aria-label="Setup progress"
-        aria-valuemin={1}
-        aria-valuemax={names.length}
-        aria-valuenow={current + 1}
-        aria-valuetext={`Step ${current + 1} of ${names.length}: ${names[current]}`}
-        className="flex gap-1"
-      >
-        {names.map((name, i) => (
-          <span
-            key={name}
-            className={`h-1 flex-1 rounded-full ${i <= current ? "bg-foreground" : "bg-border"}`}
-          />
-        ))}
-      </div>
+    <div
+      role="progressbar"
+      aria-label="Setup progress"
+      aria-valuemin={1}
+      aria-valuemax={names.length}
+      aria-valuenow={current + 1}
+      aria-valuetext={`Step ${current + 1} of ${names.length}: ${names[current]}`}
+      className="flex gap-1 pt-12"
+    >
+      {names.map((name, i) => (
+        <span
+          key={name}
+          className={`h-1 flex-1 rounded-full ${i <= current ? "bg-foreground" : "bg-border"}`}
+        />
+      ))}
     </div>
   );
 }
@@ -193,7 +193,7 @@ function StepProgress(props: { current: number; names: readonly string[] }) {
 /** Heading, an optional one-line description, the fields, and the submit button. */
 function PageForm(props: {
   title: string;
-  description?: string;
+  description?: ReactNode;
   submit: string;
   isDisabled?: boolean;
   isPending?: boolean;
@@ -373,13 +373,18 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
   return (
     <PageForm
       title="Connect your domain"
-      description={`Add each record at the registrar for ${domain.domain}.`}
+      description={
+        <>
+          Add each record at{" "}
+          {domain.dnsHost ? <DnsHostLink host={domain.dnsHost} /> : "the registrar"} for{" "}
+          {domain.domain}.
+        </>
+      }
       submit="Continue"
       isDisabled={current !== -1}
       problem={problem}
       onSubmit={props.onDone}
     >
-      {domain.dnsHost && <Text>{domain.dnsHost.steps}</Text>}
       {domain.domainConnect && current !== -1 && (
         <Button
           intent="outline"
@@ -443,6 +448,24 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
         ))}
       </Steps>
     </PageForm>
+  );
+}
+
+/**
+ * The DNS host's name in the description, linking to its own guide, with where records are added
+ * there in a tooltip (hover or focus). It explains the records the user is about to add, so it
+ * lives in the sentence that asks for them, not as a paragraph of its own.
+ */
+function DnsHostLink(props: { host: NonNullable<OnboardingDomain["dnsHost"]> }) {
+  return (
+    <TooltipTrigger delay={300}>
+      <TextLink href={props.host.help} target="_blank" rel="noreferrer">
+        {props.host.name}
+      </TextLink>
+      <Tooltip inverse placement="bottom" className="max-w-xs text-xs">
+        {props.host.steps}
+      </Tooltip>
+    </TooltipTrigger>
   );
 }
 

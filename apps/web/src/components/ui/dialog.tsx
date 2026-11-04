@@ -161,6 +161,10 @@ export function DialogBody({ className, ...props }: React.ComponentProps<"div">)
       className={cn(
         "isolate flex min-h-0 flex-1 flex-col overflow-auto px-(--gutter) py-1",
         "**:data-[slot=dialog-footer]:px-0 **:data-[slot=dialog-footer]:pt-0",
+        // No footer to close the dialog off: instead of ending 4px from the edge, the body ends
+        // the way the header starts it, the gutter less the 12px its rows carry themselves, so
+        // the last row's ink sits as far from the bottom edge as the heading's from the top.
+        "group-not-has-data-[slot=dialog-footer]/dialog:pb-[calc(var(--gutter)---spacing(3))]",
         className,
       )}
       {...props}
