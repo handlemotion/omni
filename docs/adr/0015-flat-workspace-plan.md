@@ -85,6 +85,20 @@ workspace) on the Worker, and Stripe's webhook at `/api/auth/stripe/webhook`. Th
 `POST /api/auth/subscription/*` routes are closed: they would let a person subscribe for
 themselves instead of their workspace.
 
+**Cards and invoices.** Owners and admins see the workspace's saved cards and invoices in the
+app, read from Stripe for the workspace's own customer (`GET /api/billing/cards`,
+`GET /api/billing/invoices`); members get `403`, and with billing off both answer `404`. A card is
+added with a SetupIntent (`POST /api/billing/cards/setup`) that Stripe.js confirms in the browser,
+so card numbers never reach Omni; `POST /api/billing/cards` then lists it and, when the workspace
+has no card being charged, makes it the default (a trial started with no card would otherwise
+cancel at its end). The default card is set on the customer and on every live subscription,
+because Checkout sets a subscription's own default, which wins over the customer's
+(`POST /api/billing/cards/:id/default`). `DELETE /api/billing/cards/:id` refuses (`409`) to remove
+the last card while a plan will still charge it; removing the default card moves the plan onto
+the newest other card first, since Stripe would otherwise leave the renewal with nothing to
+charge. Adding a card in the app needs the optional `STRIPE_PUBLISHABLE_KEY`; without it the add
+row opens the customer portal instead.
+
 **Billing is optional.** Without `STRIPE_SECRET_KEY` the Stripe plugin is not loaded, the webhook
 and checkout answer `404`, `GET /api/billing` answers `{ "enabled": false }`, and nothing is
 limited or gated: a self-hosted install runs exactly as before. Setting the key without the

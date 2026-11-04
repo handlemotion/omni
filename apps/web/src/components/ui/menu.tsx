@@ -62,8 +62,8 @@ export const menuStyles = tv({
 const MENU_ITEM_SELECTOR = "[role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox']";
 
 /**
- * The widest row sets the menu's width (fit-content): the longest label, then 18px to the edge
- * (the menu's 4px padding plus the row's 14px end padding); icons sit 12px in. Short menus keep a 132px floor so
+ * The widest row sets the menu's width (fit-content): the longest label, then 36px to the edge
+ * (the menu's 4px padding plus the row's 32px end padding); icons sit 12px in. Short menus keep a 132px floor so
  * they don't look pinched; past 240px labels truncate. Don't fix a menu's width; a menu whose
  * rows carry more (an avatar and two lines) raises only the cap with `max-w-*`.
  */
@@ -100,8 +100,8 @@ export function Menu<T extends object>({ className, placement, popover, ...props
 export interface MenuItemProps
   extends MenuItemPrimitiveProps, VariantProps<typeof dropdownItemStyles> {}
 
-/** 14px after the label (18px to the menu's edge with its padding): see `MENU_WIDTH`. */
-const ITEM_END = "pe-3.5";
+/** 32px after the label (36px to the menu's edge with its padding): see `MENU_WIDTH`. */
+const ITEM_END = "pe-8";
 
 export function MenuItem({ className, intent, children, ...props }: MenuItemProps) {
   const textValue = props.textValue || (typeof children === "string" ? children : undefined);

@@ -6,6 +6,7 @@
 // and the chosen workspace's pages under it. The nav is the app sidebar's (240px, 13px rows 32px tall, 11px
 // group labels, the search field on top), set at the right of the left 35%; the page is a 640px
 // column in the right 65%, its title 17px. The page body is transitive's settings kit (`./kit`).
+import { IconCreditCard1 } from "central-icons-outlined/IconCreditCard1";
 import { IconGroup1 } from "central-icons-outlined/IconGroup1";
 import { IconInboxEmpty } from "central-icons-outlined/IconInboxEmpty";
 import { IconKeyboard } from "central-icons-outlined/IconKeyboard";
@@ -41,9 +42,11 @@ import {
   useSettingsDialog,
   type SettingsPageId,
 } from "@/hooks/use-settings-dialog.ts";
+import { useBilling } from "@/hooks/use-billing.ts";
 import { useShortcut } from "@/hooks/use-shortcuts.ts";
 import { SHORTCUT_IDS, SHORTCUTS } from "@/lib/shortcuts.ts";
 import { ProfilePage, SecurityPage, ShortcutsPage } from "./account-pages";
+import { BillingPage } from "./billing-page";
 import { SettingsPageHeader } from "./kit/settings-layout";
 import { SettingsConfirmDialog } from "./kit/settings-stacked-dialog";
 import { WorkspaceChooser } from "./workspace-chooser";
@@ -143,7 +146,26 @@ const WORKSPACE_PAGES: PageDefinition[] = [
     terms: ["shared mailboxes", "access", "who can see", "team", "add mailbox", "hello"],
     render: () => <SharedMailboxesPage />,
   },
+  {
+    id: "billing",
+    title: "Billing",
+    icon: glyph(IconCreditCard1),
+    terms: ["plan", "subscription", "trial", "stripe", "invoices", "payment", "card", "usage"],
+    render: () => <BillingPage />,
+  },
 ];
+
+/** The workspace's pages; Billing only where the install bills (ADR 0015: it is optional). */
+function useWorkspacePages() {
+  const billed = useBilling().data?.enabled !== false;
+  return useMemo(
+    () => (billed ? WORKSPACE_PAGES : WORKSPACE_PAGES.filter((p) => p.id !== "billing")),
+    [billed],
+  );
+}
+
+/** The paths that only open settings: closing it there returns to the inbox. */
+const SETTINGS_PATHS = new Set(["/settings", "/settings/billing"]);
 
 function matches(page: Pick<PageDefinition, "title" | "terms">, query: string) {
   const q = query.trim().toLowerCase();
@@ -165,8 +187,9 @@ export function SettingsDialog() {
       onOpenChange={(open) => {
         if (open) return;
         closeSettings();
-        // `/settings` is only a way in: closing returns to the inbox, not to an empty page.
-        if (pathname === "/settings") void navigate({ to: "/inbox" });
+        // `/settings` (and `/settings/billing`, where Stripe sends people back) are only ways in:
+        // closing returns to the inbox, not to an empty page.
+        if (SETTINGS_PATHS.has(pathname)) void navigate({ to: "/inbox" });
       }}
     >
       <SettingsBody page={page} />
@@ -267,10 +290,12 @@ function show(keys: Selection) {
 
 function SettingsBody({ page }: { page: SettingsPageId }) {
   const account = useAccountPages();
+  const workspacePages = useWorkspacePages();
   const [query, setQuery] = useState("");
   const shownAccount = account.filter((p) => matches(p, query));
-  const shownWorkspace = WORKSPACE_PAGES.filter((p) => matches(p, query));
-  // Every member sees every page; should the id match none, General shows.
+  const shownWorkspace = workspacePages.filter((p) => matches(p, query));
+  // All pages, so `/settings/billing` still shows its page on an install without billing; should
+  // the id match none, General shows.
   const current = [...account, ...WORKSPACE_PAGES].find((p) => p.id === page) ?? WORKSPACE_PAGES[0];
   // Two lists, one current page: each list marks it only when it's one of its own.
   const selectedIn = (pages: PageDefinition[]) =>
@@ -316,7 +341,7 @@ function SettingsBody({ page }: { page: SettingsPageId }) {
             {shownWorkspace.length > 0 && (
               <NavList
                 aria-label="Workspace settings"
-                selectedKeys={selectedIn(WORKSPACE_PAGES)}
+                selectedKeys={selectedIn(workspacePages)}
                 onSelectionChange={show}
               >
                 <NavListSection id="workspace">

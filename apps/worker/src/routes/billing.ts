@@ -33,7 +33,7 @@ const trialBody = z.object({ interval });
  * metadata, so its checkout and portal find it), or the one it has. Stripe's idempotency key
  * makes a retried or double-clicked request create one customer.
  */
-async function workspaceCustomer(
+export async function workspaceCustomer(
   c: { var: AppEnv["Variables"] },
   stripe: ReturnType<typeof createStripeClient>,
 ) {
@@ -69,7 +69,12 @@ function appUrl(c: { var: AppEnv["Variables"] }, path: string) {
   return new URL(path, c.var.config.auth.webAppURL).toString();
 }
 
-type PlanPrice = { amount: number; currency: string };
+type PlanPrice = {
+  amount: number;
+  currency: string;
+  /** The Stripe product's name: what customers call the plan. */
+  name: string | null;
+};
 
 /**
  * The plan's prices as Stripe has them (amounts live only in Stripe, ADR 0015), so the app shows
@@ -87,9 +92,15 @@ async function planPrice(
   const cached = priceCache.get(priceId);
   if (cached && cached.until > Date.now()) return cached.price;
   try {
-    const price = await createStripeClient(secretKey).prices.retrieve(priceId);
+    const price = await createStripeClient(secretKey).prices.retrieve(priceId, {
+      expand: ["product"],
+    });
+    const product =
+      typeof price.product === "string" || price.product.deleted ? null : price.product;
     const value =
-      price.unit_amount === null ? null : { amount: price.unit_amount, currency: price.currency };
+      price.unit_amount === null
+        ? null
+        : { amount: price.unit_amount, currency: price.currency, name: product?.name ?? null };
     priceCache.set(priceId, { price: value, until: Date.now() + 5 * 60_000 });
     return value;
   } catch (error) {
@@ -100,7 +111,7 @@ async function planPrice(
   }
 }
 
-async function requireBillingManager(c: { var: AppEnv["Variables"] }) {
+export async function requireBillingManager(c: { var: AppEnv["Variables"] }) {
   if (!(await mayManageBilling(c.var.db, c.var.user.id, c.var.member.orgId))) {
     throw new HTTPException(403, { message: "only owners and admins manage billing" });
   }
@@ -142,16 +153,21 @@ export const billing = new Hono<AppEnv>()
     if (!state.enabled) return c.json({ enabled: false as const });
     const { subscription, readOnly, triage } = state;
     const plans = c.var.config.auth.billing!;
+    const [month, year] = await Promise.all([
+      planPrice(c, plans.secretKey, plans.monthlyPriceId),
+      planPrice(c, plans.secretKey, plans.yearlyPriceId),
+    ]);
+    const amount = (price: PlanPrice | null) =>
+      price && { amount: price.amount, currency: price.currency };
     return c.json({
       enabled: true as const,
       readOnly,
       canManage: await mayManageBilling(c.var.db, c.var.user.id, c.var.member.orgId),
       intervals: plans.yearlyPriceId ? (["month", "year"] as const) : (["month"] as const),
+      /** The plan's name as customers see it: its Stripe product's name. */
+      planName: month?.name ?? year?.name ?? null,
       /** In the currency's smallest unit (cents), as Stripe has them. */
-      prices: {
-        month: await planPrice(c, plans.secretKey, plans.monthlyPriceId),
-        year: await planPrice(c, plans.secretKey, plans.yearlyPriceId),
-      },
+      prices: { month: amount(month), year: amount(year) },
       trialDays: plans.trialDays,
       /** Checkout will start a free trial: one is configured and this workspace never had one. */
       trialAvailable: plans.trialDays > 0 && !(await hadTrial(c.var.db, c.var.member.orgId)),

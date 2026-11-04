@@ -15,6 +15,7 @@ export const auth: Auth = createAuth({
     webhookSecret: "whsec_schema_generation_only",
     monthlyPriceId: "price_schema_generation_only",
     yearlyPriceId: undefined,
+    publishableKey: undefined,
     trialDays: 0,
     triageAllowance: 1,
   },

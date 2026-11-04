@@ -11,6 +11,7 @@ export const SETTINGS_PAGES = [
   "people",
   "inboxes",
   "shared",
+  "billing",
 ] as const;
 
 export type SettingsPageId = (typeof SETTINGS_PAGES)[number];
