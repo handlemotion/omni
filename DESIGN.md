@@ -62,9 +62,11 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
   (a card sits slightly above the true middle; an icon aligns to the text's cap height). When you
   nudge for optics, leave a short comment saying so.
 - **Tactility.** Depth, press and motion follow the `tactile-design` skill
-  (`.claude/skills/tactile-design`), layered on the Figma look without restyling it: raised
-  controls and cards keep their border and add the crisp `--shadow-raised` drop; overlays use
-  `--shadow-overlay`, never a big soft blur; buttons squeeze to `scale(.97)` when pressed; menus
+  (`.claude/skills/tactile-design`), layered on the Figma look without restyling it: cards keep
+  their border and add the crisp `--shadow-raised` drop; buttons get their depth from a darker
+  edge and an inset top highlight (`--shadow-button`), with no outer drop; overlays use
+  `--shadow-overlay`, never a big soft blur; buttons squeeze to `scale(.97)` on native `:active`
+  (not React Aria's `pressed`), except menu triggers; menus
   grow from their trigger; motion uses the `ease-out` curve and has a reduced-motion path. The
   skill's colours, wells and grounds don't apply: Figma and the tokens decide the look.
 - **Loading.** Data that's on its way renders with `skullet` (`import { Skeleton } from "skullet/react"`),

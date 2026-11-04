@@ -41,9 +41,9 @@ export function WorkspaceChooser() {
         intent="plain"
         aria-label={`Workspace: ${active.name}. Choose another`}
         // Hover, pressed and open share the accent fill, as on the mailbox switcher; the mark and
-        // name sit on the page rows' icon and label axes. No press scale: a menu trigger stays
-        // pressed while its menu is open, and a 97% trigger would look narrower than the menu.
-        className="h-8 w-full pressed:scale-100 justify-start gap-2.5 rounded-lg px-2 [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]"
+        // name sit on the page rows' icon and label axes. As a menu trigger it skips the press
+        // scale (`Button` leaves out `aria-haspopup`).
+        className="h-8 w-full justify-start gap-2.5 rounded-lg px-2 [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]"
       >
         <span className="grid size-icon shrink-0 place-items-center">
           {switchTo.isPending ? (

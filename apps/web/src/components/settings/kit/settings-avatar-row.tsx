@@ -9,7 +9,7 @@ import { SettingsRow } from "./settings-row";
 export const SETTINGS_AVATAR_ACCEPT = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
 const avatarButtonClassName =
-  "flex rounded-full outline-hidden transition-[scale] duration-150 ease-out pressed:scale-97 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 motion-reduce:pressed:scale-100";
+  "flex rounded-full outline-hidden transition-[scale] duration-150 ease-out motion-safe:[&:active]:scale-97 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 disabled:[&:active]:scale-100";
 
 /**
  * A picture (transitive's avatar row). The image itself is the control: with none set it picks
