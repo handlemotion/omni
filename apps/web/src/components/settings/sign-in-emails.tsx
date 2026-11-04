@@ -1,9 +1,7 @@
 // The addresses this person signs in with (ADR 0014), on the settings kit: one row per address,
 // the primary one badged; a row's menu makes another primary or stops signing in with it (asked
 // first); "Add an email" opens a form over settings that mails a confirmation link.
-import { IconEmail1 } from "central-icons-outlined/IconEmail1";
-import { IconStar } from "central-icons-outlined/IconStar";
-import { IconTrashCanSimple } from "central-icons-outlined/IconTrashCanSimple";
+import { IconMail, IconStar, IconTrash } from "@/components/icons/lucide";
 import { useState } from "react";
 import { Skeleton } from "skullet/react";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +43,7 @@ export function SignInEmails() {
             {list.map((row) => (
               <SettingsRow
                 key={row.email}
-                icon={IconEmail1}
+                icon={IconMail}
                 label={row.email}
                 badge={
                   row.primary ? (
@@ -74,7 +72,7 @@ export function SignInEmails() {
                             ]
                           : []),
                         {
-                          icon: IconTrashCanSimple,
+                          icon: IconTrash,
                           label: "Stop signing in with it",
                           danger: true,
                           onAction: () => setRemoving(row.email),

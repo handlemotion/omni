@@ -1,5 +1,4 @@
-import { IconArrowUpRight } from "central-icons-outlined/IconArrowUpRight";
-import { IconChevronRightMedium } from "central-icons-outlined/IconChevronRightMedium";
+import { IconArrowUpRight, IconChevronRight } from "@/components/icons/lucide";
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Button } from "react-aria-components/Button";
@@ -48,7 +47,7 @@ export function SettingsLinkRow({
       {href ? (
         <IconArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" />
       ) : (
-        <IconChevronRightMedium className="size-icon shrink-0 text-muted-foreground" />
+        <IconChevronRight className="size-icon shrink-0 text-muted-foreground" />
       )}
     </>
   );

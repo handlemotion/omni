@@ -6,15 +6,17 @@
 // and the chosen workspace's pages under it. The nav is the app sidebar's (240px, 13px rows 32px tall, 11px
 // group labels, the search field on top), set at the right of the left 35%; the page is a 640px
 // column in the right 65%, its title 17px. The page body is transitive's settings kit (`./kit`).
-import { IconCreditCard1 } from "central-icons-outlined/IconCreditCard1";
-import { IconGroup1 } from "central-icons-outlined/IconGroup1";
-import { IconInboxEmpty } from "central-icons-outlined/IconInboxEmpty";
-import { IconKeyboard } from "central-icons-outlined/IconKeyboard";
-import { IconMacbook } from "central-icons-outlined/IconMacbook";
-import { IconMailbox } from "central-icons-outlined/IconMailbox";
-import { IconSettingsGear2 } from "central-icons-outlined/IconSettingsGear2";
-import { IconShield } from "central-icons-outlined/IconShield";
-import { IconUserDuo } from "central-icons-outlined/IconUserDuo";
+import {
+  IconCreditCard,
+  IconInbox,
+  IconKeyboard,
+  IconLaptop,
+  IconMailbox,
+  IconSettings,
+  IconShield,
+  IconUsers,
+  IconUsersRound,
+} from "@/components/icons/lucide";
 import { cn } from "cn";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type ComponentType, type CSSProperties, type ReactNode, useMemo, useState } from "react";
@@ -62,7 +64,7 @@ interface PageDefinition {
   render: () => ReactNode;
 }
 
-/** A Central icon (round, outlined, stroke 1.5) at the nav's 15px icon size. */
+/** A Lucide icon (round, outlined, stroke 1.5) at the nav's 15px icon size. */
 const glyph = (Icon: ComponentType<{ className?: string }>) => <Icon className="size-icon" />;
 
 function useAccountPages(): PageDefinition[] {
@@ -110,14 +112,14 @@ const WORKSPACE_PAGES: PageDefinition[] = [
   {
     id: "general",
     title: "General",
-    icon: glyph(IconSettingsGear2),
+    icon: glyph(IconSettings),
     terms: ["workspace", "name", "rename", "handle", "role", "domain", "dns"],
     render: () => <GeneralPage />,
   },
   {
     id: "people",
     title: "People",
-    icon: glyph(IconGroup1),
+    icon: glyph(IconUsersRound),
     // Owners and admins also find each person's personal inbox here.
     terms: [
       "members",
@@ -135,7 +137,7 @@ const WORKSPACE_PAGES: PageDefinition[] = [
   {
     id: "inboxes",
     title: "Inboxes",
-    icon: glyph(IconInboxEmpty),
+    icon: glyph(IconInbox),
     terms: ["mailboxes", "your mailboxes", "personal", "unread", "lanes", "triage", "sync"],
     render: () => <InboxesPage />,
   },
@@ -149,7 +151,7 @@ const WORKSPACE_PAGES: PageDefinition[] = [
   {
     id: "billing",
     title: "Billing",
-    icon: glyph(IconCreditCard1),
+    icon: glyph(IconCreditCard),
     terms: ["plan", "subscription", "trial", "stripe", "invoices", "payment", "card", "usage"],
     render: () => <BillingPage />,
   },
@@ -227,13 +229,13 @@ function SessionGroup() {
       </span>
       {otherDevices.length > 0 && (
         <Button intent="plain" className={NAV_ACTION} onPress={() => setDialog("others")}>
-          <IconMacbook data-slot="icon" className="size-icon" />
+          <IconLaptop data-slot="icon" className="size-icon" />
           Sign out of other devices
         </Button>
       )}
       {otherAccounts.length > 0 && (
         <Button intent="plain" className={NAV_ACTION} onPress={() => setDialog("accounts")}>
-          <IconUserDuo data-slot="icon" className="size-icon" />
+          <IconUsers data-slot="icon" className="size-icon" />
           Log out of all accounts
         </Button>
       )}

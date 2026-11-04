@@ -10,8 +10,6 @@ minimumReleaseAgeExclude:
   - glimm@0.4.0
 
 allowBuilds:
-  # Central Icons: its only script is a license-key check at install. Skipped, as in transitive.
-  "@central-icons-react/round-outlined-radius-3-stroke-1.5": false
   esbuild: true
   lefthook: true
   workerd: true

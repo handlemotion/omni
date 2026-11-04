@@ -1,8 +1,8 @@
+import { IconChevronDown } from "@/components/icons/lucide";
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Button } from "react-aria-components/Button";
 import { Disclosure, DisclosurePanel } from "react-aria-components/Disclosure";
-import { IconChevronDownMedium } from "central-icons-outlined/IconChevronDownMedium";
 import {
   settingsRowAvatarClassName,
   settingsRowClassName,
@@ -59,7 +59,7 @@ export function SettingsCollapsibleRow({
             {value}
           </span>
         )}
-        <IconChevronDownMedium className="size-3.5 shrink-0 text-muted-foreground transition-transform duration-150 ease-out group-expanded/settings-collapsible:rotate-180 motion-reduce:transition-none" />
+        <IconChevronDown className="size-3.5 shrink-0 text-muted-foreground transition-transform duration-150 ease-out group-expanded/settings-collapsible:rotate-180 motion-reduce:transition-none" />
       </Button>
       {/* Shown only while open: a collapsed panel's border would double the hairline below. */}
       <DisclosurePanel className="hidden flex-col divide-y divide-border border-t border-border group-expanded/settings-collapsible:flex *:ps-8">

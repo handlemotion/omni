@@ -1,11 +1,13 @@
 // Settings pages about you: your name and the accounts on this browser, how you sign in and where
 // you are signed in, and the keyboard shortcuts.
-import { IconKey1 } from "central-icons-outlined/IconKey1";
-import { IconMacbook } from "central-icons-outlined/IconMacbook";
-import { IconPencil } from "central-icons-outlined/IconPencil";
-import { IconPhone } from "central-icons-outlined/IconPhone";
-import { IconTablet } from "central-icons-outlined/IconTablet";
-import { IconTrashCanSimple } from "central-icons-outlined/IconTrashCanSimple";
+import {
+  IconKey,
+  IconLaptop,
+  IconPencil,
+  IconSmartphone,
+  IconTablet,
+  IconTrash,
+} from "@/components/icons/lucide";
 import { Fragment, useEffect, useState } from "react";
 import { Skeleton } from "skullet/react";
 import { IconCircleDashed } from "@/components/icons/sidebar";
@@ -286,10 +288,10 @@ function describeDevice(agent: string | null | undefined): {
             : null;
   const icon =
     os === "iPhone" || (os === "Android" && /Mobile/.test(ua))
-      ? IconPhone
+      ? IconSmartphone
       : os === "iPad" || os === "Android"
         ? IconTablet
-        : IconMacbook;
+        : IconLaptop;
   const name =
     browser && os
       ? `${browser} on ${os}`
@@ -347,7 +349,7 @@ export function SecurityPage() {
                   return (
                     <SettingsRow
                       key={passkey.id}
-                      icon={IconKey1}
+                      icon={IconKey}
                       label={name}
                       hint={passkey.backedUp ? "synced" : "this device only"}
                       description={`Added ${DAY.format(new Date(passkey.createdAt))}`}
@@ -362,7 +364,7 @@ export function SecurityPage() {
                                 setDialog({ kind: "rename-passkey", id: passkey.id, name }),
                             },
                             {
-                              icon: IconTrashCanSimple,
+                              icon: IconTrash,
                               label: "Remove passkey",
                               danger: true,
                               onAction: () =>

@@ -1,14 +1,16 @@
 // Settings pages about the active workspace: what it is and the others you belong to, and who is
 // in it. Owners and admins also see each person's personal inbox there (ADR 0017). The mailboxes
 // you open and the shared ones are `mailbox-pages.tsx`.
-import { IconGlobe } from "central-icons-outlined/IconGlobe";
-import { IconInboxEmpty } from "central-icons-outlined/IconInboxEmpty";
-import { IconListBullets } from "central-icons-outlined/IconListBullets";
-import { IconPaperPlane } from "central-icons-outlined/IconPaperPlane";
-import { IconPeopleCircle } from "central-icons-outlined/IconPeopleCircle";
-import { IconTrashCanSimple } from "central-icons-outlined/IconTrashCanSimple";
-import { IconUserRemove } from "central-icons-outlined/IconUserRemove";
-import { IconCircleX } from "central-icons-outlined/IconCircleX";
+import {
+  IconCircleX,
+  IconGlobe,
+  IconInbox,
+  IconList,
+  IconSend,
+  IconTrash,
+  IconUserCog,
+  IconUserMinus,
+} from "@/components/icons/lucide";
 import { cn } from "cn";
 import { type CSSProperties, useState } from "react";
 import { Label } from "@/components/ui/field";
@@ -294,7 +296,7 @@ function DomainsSection() {
                           label={`Actions for ${domain.domain}`}
                           items={[
                             {
-                              icon: IconListBullets,
+                              icon: IconList,
                               label: "DNS records",
                               onAction: () => setDialog({ kind: "records", domainId: domain.id }),
                             },
@@ -303,7 +305,7 @@ function DomainsSection() {
                             ...(isOwner || domain.status !== "verified"
                               ? [
                                   {
-                                    icon: IconTrashCanSimple,
+                                    icon: IconTrash,
                                     label: "Remove domain",
                                     danger: true,
                                     onAction: () =>
@@ -590,7 +592,7 @@ export function PeoplePage() {
                   ...(canCreateInbox && inboxes?.length === 0
                     ? [
                         {
-                          icon: IconInboxEmpty,
+                          icon: IconInbox,
                           label: "Create inbox",
                           onAction: () =>
                             setDialog({
@@ -608,7 +610,7 @@ export function PeoplePage() {
                   ...(editable
                     ? [
                         {
-                          icon: IconPeopleCircle,
+                          icon: IconUserCog,
                           label: "Change role",
                           onAction: () =>
                             setDialog({
@@ -619,7 +621,7 @@ export function PeoplePage() {
                             }),
                         },
                         {
-                          icon: IconUserRemove,
+                          icon: IconUserMinus,
                           label: "Remove from workspace",
                           danger: true,
                           onAction: () => setDialog({ kind: "remove", memberId: person.id, name }),
@@ -680,7 +682,7 @@ export function PeoplePage() {
                             label={`Actions for ${invitation.email}`}
                             items={[
                               {
-                                icon: IconPaperPlane,
+                                icon: IconSend,
                                 label: "Resend invitation",
                                 onAction: () => {
                                   const role = invitation.role === "admin" ? "admin" : "member";

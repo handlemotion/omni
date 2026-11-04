@@ -1,4 +1,4 @@
-import { IconArrowOutOfBox } from "central-icons-outlined/IconArrowOutOfBox";
+import { IconUpload } from "@/components/icons/lucide";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { FileTrigger } from "react-aria-components/FileTrigger";
@@ -33,7 +33,7 @@ export function SettingsFileRow({
             onSelect={(files) => onFileChange(files?.[0] ?? null)}
           >
             <Button intent="outline" isDisabled={disabled}>
-              <IconArrowOutOfBox />
+              <IconUpload />
               {file ? "Replace" : "Upload"}
             </Button>
           </FileTrigger>

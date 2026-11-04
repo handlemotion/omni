@@ -3,8 +3,7 @@
 // workspace you belong to, a check on the active one. Choosing another switches to it: settings
 // act on the active workspace (ADR 0014). An owner or admin of a workspace still being set up
 // goes to onboarding instead, as from the mailbox switcher (ADR 0009).
-import { IconCheckmark1 } from "central-icons-outlined/IconCheckmark1";
-import { IconChevronGrabberVertical } from "central-icons-outlined/IconChevronGrabberVertical";
+import { IconCheck, IconChevronsUpDown } from "@/components/icons/lucide";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
@@ -54,7 +53,7 @@ export function WorkspaceChooser() {
           )}
         </span>
         <span className="min-w-0 flex-1 truncate text-start">{active.name}</span>
-        <IconChevronGrabberVertical className="size-3.5 shrink-0 text-subtle-foreground" />
+        <IconChevronsUpDown className="size-3.5 shrink-0 text-subtle-foreground" />
       </Button>
       {/* As wide as its trigger, so the menu reads as the chooser opened. */}
       <Menu
@@ -70,9 +69,7 @@ export function WorkspaceChooser() {
                 mark: 14px, 10px in from the row's end as the mark is from its start. */}
             <MenuLabel className="flex min-w-0 items-center justify-between gap-3">
               <span className="truncate">{w.name}</span>
-              {w.id === member.orgId && (
-                <IconCheckmark1 className="size-3.5 shrink-0 text-foreground" />
-              )}
+              {w.id === member.orgId && <IconCheck className="size-3.5 shrink-0 text-foreground" />}
             </MenuLabel>
           </MenuItem>
         ))}

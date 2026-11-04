@@ -1,4 +1,4 @@
-import { IconPlusMedium } from "central-icons-outlined/IconPlusMedium";
+import { IconPlus } from "@/components/icons/lucide";
 import { cn } from "cn";
 import { Button } from "react-aria-components/Button";
 import {
@@ -35,7 +35,7 @@ export function SettingsAddRow({
       onPress={onPress}
     >
       <span className={settingsRowIconSlotClassName}>
-        <IconPlusMedium className={settingsRowIconClassName} />
+        <IconPlus className={settingsRowIconClassName} />
       </span>
       <span className={cn(loading && "shimmer")}>{label}</span>
     </Button>
