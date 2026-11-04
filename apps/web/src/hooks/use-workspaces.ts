@@ -1,6 +1,7 @@
 // The workspace and account switcher: every workspace with its mailboxes, and opening either.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { openMailbox, openWorkspace, workspacesQuery } from "../lib/workspaces.ts";
 import type { Workspace } from "../lib/types.ts";
 
@@ -11,6 +12,21 @@ import type { Workspace } from "../lib/types.ts";
  */
 export function useWorkspaces(options: { enabled?: boolean } = {}) {
   return useQuery({ ...workspacesQuery(), enabled: options.enabled ?? true });
+}
+
+/**
+ * Workspace names by org id, for rows that name their workspace, or undefined when the rows
+ * cannot mix workspaces: one mailbox is chosen, or the user belongs to one workspace.
+ */
+export function useWorkspaceNames(mailbox?: string) {
+  const workspaces = useWorkspaces().data?.workspaces;
+  return useMemo(
+    () =>
+      !mailbox && workspaces && workspaces.length > 1
+        ? new Map(workspaces.map((w) => [w.id, w.name]))
+        : undefined,
+    [mailbox, workspaces],
+  );
 }
 
 /**

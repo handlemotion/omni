@@ -25,7 +25,7 @@ or a mailbox no member of theirs was granted, still opens nothing. Every row kee
 of the member whose grant shows the thread, i.e. the user's member in the thread's org. A user has
 at most one grant per mailbox (one member per org), so each thread appears once.
 
-**The API.** `GET /api/threads` and `GET /api/counts` take `scope=workspace` (the default, as
+**The API.** `GET /api/threads`, `GET /api/counts` and `GET /api/search` take `scope=workspace` (the default, as
 before) or `scope=all` (every workspace). Counts rows now carry `orgId`. The cursor is the same
 `(last_message_at, id)` pair, so pagination works across the merge.
 
@@ -59,6 +59,7 @@ longer pings their phone for mail they are already watching on the web.
   set, so new reads get both scopes and one isolation proof covers both
   (`packages/db/e2e/for-member.e2e.test.ts`, `apps/worker/e2e/all-workspaces.e2e.test.ts`).
 - The extra lookup on thread routes is one indexed join per request.
-- Search stays per active workspace for now; `forUser(...).search` exists if we want it later.
+- Search takes the same `scope` (`GET /api/search?scope=all`), and the web app searches every
+  workspace; each hit carries its `orgId`.
 - If a user ever had two members in one org (Better Auth prevents it; the schema does not), a
   thread in that org would list once per member.

@@ -126,6 +126,17 @@ test("one user in two workspaces lists, counts, opens and acts on both, and noth
   ]);
   expect(rest.nextCursor).toBeNull();
 
+  // Search: every workspace with scope=all, the active one by default; never Gus or Initech.
+  type Hits = { results: { threadId: string; orgId: string }[] };
+  const searched = async (q: string, scope = "all") =>
+    (await get<Hits>(`/search?scope=${scope}&q=${encodeURIComponent(q)}`, cookie)).results.map(
+      (r) => [r.orgId, r.threadId],
+    );
+  expect(await searched("Globex mid")).toEqual([[globex.id, globexMid.threadId]]);
+  expect(await searched("Globex mid", "workspace")).toEqual([]);
+  expect(await searched("Gus private")).toEqual([]);
+  expect(await searched("Initech")).toEqual([]);
+
   const counts = await get<Counts>("/counts?scope=all", cookie);
   expect(counts.counts.map((c) => [c.mailboxId, c.inbox, c.unread]).sort()).toEqual(
     [

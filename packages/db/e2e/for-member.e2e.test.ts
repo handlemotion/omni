@@ -276,6 +276,20 @@ describe("forUser across workspaces", () => {
     expect((await asUma.getThread(yDesk))?.orgId).toBe(orgYId);
   });
 
+  test("search covers every workspace's granted mailboxes and nothing else", async () => {
+    const asUma = forUser(db, uma);
+    expect((await asUma.search("kestrel")).map((h) => [h.orgId, h.threadId])).toEqual([
+      [orgXId, xInbox],
+    ]);
+    expect((await asUma.search("osprey")).map((h) => [h.orgId, h.threadId])).toEqual([
+      [orgYId, yDesk],
+    ]);
+    // sales@ (forged grant only) and org Z have the words; Uma's search does not reach them.
+    expect(await asUma.search("condor")).toEqual([]);
+    expect(await asUma.search("vulture")).toEqual([]);
+    expect((await forMember(db, ux).search("osprey")).map((h) => h.threadId)).toEqual([]);
+  });
+
   test("state and counts are each workspace member's own, and a thread names its member", async () => {
     const asUma = forUser(db, uma);
     expect((await asUma.memberFor(xInbox))?.id).toBe(ux);

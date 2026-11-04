@@ -72,13 +72,14 @@ export const threadQuery = (threadId: string) =>
     },
   });
 
+/** Search across every workspace the user belongs to (ADR 0014); each hit carries its `orgId`. */
 export const searchQuery = (q: string, mailbox?: string) =>
   queryOptions({
     queryKey: keys.search(q, mailbox),
     queryFn: ({ signal }) =>
       call(
         api.search.$get(
-          { query: { q, ...(mailbox ? { mailboxId: mailbox } : {}) } },
+          { query: { scope: "all", q, ...(mailbox ? { mailboxId: mailbox } : {}) } },
           { init: { signal } },
         ),
       ),
