@@ -1,3 +1,4 @@
+import { accentChain } from "glimm";
 import { GlimmScope, type GlimmScopeHandle } from "glimm/react";
 import {
   createContext,
@@ -27,6 +28,16 @@ interface ListSweep {
 
 const ListSweepContext = createContext<ListSweep | null>(null);
 
+// glimm's `azure` stops (cyan, blue, indigo) with blue doubled so it carries most of the band,
+// then a short violet tail so the band isn't one flat blue. Violet rather than green: green
+// reads as "done". A shader palette takes colors, not CSS tokens.
+const BAND = accentChain(["#00C0E8", "#0088FF", "#0088FF", "#6155F5", "#9B4DF5"]);
+
+// glimm fades a contained band out over its last 24px towards each edge (its `auto` feather).
+// The scope reaches that far past the list's sides, where the slot clips it, so the band runs
+// to the real edges (the sidebar's border, the window's edge) instead of fading short of them.
+const FEATHER = 24;
+
 export function ListSweepProvider({ children }: { children: ReactNode }) {
   const scope = useRef<GlimmScopeHandle>(null);
   const [host] = useState(() => {
@@ -39,20 +50,23 @@ export function ListSweepProvider({ children }: { children: ReactNode }) {
     <ListSweepContext value={{ scope, host, rows }}>
       {children}
       {createPortal(
-        // Top to bottom from the top edge, as the popover closes above it. Azure: the preset
-        // closest to the brand blue (the 0.4 default, spectrum, is a full rainbow). The band
-        // fades out towards the box's edges on its own (glimm's `feather`, on for any canvas
-        // smaller than the viewport). `curve`: glimm's starting point for a whole view.
+        // Top to bottom from the top edge, as the popover closes above it. `curve`: glimm's
+        // starting point for a whole view.
         <GlimmScope
           ref={scope}
           direction="ttb"
-          palette="azure"
+          palette={BAND}
           curve={0.12}
-          style={{ position: "absolute", inset: 0 }}
+          style={{ position: "absolute", inset: `0 -${FEATHER}px` }}
         >
           {/* Filled: the sweep reveals by wiping away a frozen copy of the old rows, which has to
-              hide the new ones under it (the list itself is transparent). */}
-          <div ref={setRows} className="flex h-full flex-col bg-background" />
+              hide the new ones under it (the list itself is transparent). Inset by the overhang,
+              so the rows sit where the slot is. */}
+          <div
+            ref={setRows}
+            className="flex h-full flex-col bg-background"
+            style={{ paddingInline: FEATHER }}
+          />
         </GlimmScope>,
         host,
       )}
@@ -74,7 +88,7 @@ export function ListSweepSlot({ children }: { children: ReactNode }) {
     slot.current?.appendChild(host);
   }, [host]);
   return (
-    <div ref={slot} className="relative min-h-0 flex-1">
+    <div ref={slot} className="relative min-h-0 flex-1 overflow-hidden">
       {rows && createPortal(children, rows)}
     </div>
   );
