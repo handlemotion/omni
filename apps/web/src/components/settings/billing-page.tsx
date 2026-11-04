@@ -1,7 +1,8 @@
 // The active workspace's plan (ADR 0015): one plan card at the top (name, price, where it
-// stands, and the one thing to do about it), this month's AI triage against the allowance, then,
-// for owners and admins, the saved cards and the invoices (transitive's payment details, read from
-// Stripe through `/api/billing/cards` and `/api/billing/invoices`). A workspace always has a plan
+// stands, and the one thing to do about it), this month's AI triage against the allowance, then
+// the saved cards and the invoices: for owners and admins (transitive's payment details, read from
+// Stripe through `/api/billing/cards` and `/api/billing/invoices`); members see those two sections
+// say they're for owners and admins. A workspace always has a plan
 // (setup starts its trial), so there is no "no plan" page; one that ended can subscribe again.
 import {
   ArrowDownTrayIcon,
@@ -156,9 +157,7 @@ export function BillingPage() {
   // Cards and invoices are Stripe's, shown to the people who manage billing.
   const manager = data === undefined || enabled?.canManage === true;
   const failed = billing.isError && (
-    <SettingsGroup>
-      <SettingsEmptyState title="Billing didn't load" description="Try again in a moment." />
-    </SettingsGroup>
+    <SettingsEmptyState title="Billing didn't load" description="Try again in a moment." />
   );
 
   return (
@@ -174,39 +173,67 @@ export function BillingPage() {
           state.enabled ? (
             <PlanCard billing={state} />
           ) : (
-            <SettingsGroup>
-              <SettingsEmptyState
-                title="No billing on this install"
-                description="Every workspace here is unlimited."
-              />
-            </SettingsGroup>
+            <SettingsEmptyState
+              title="No billing on this install"
+              description="Every workspace here is unlimited."
+            />
           )
         }
       </Skeleton>
 
-      {/* Only a plan in good standing has an allowance to count against. */}
-      {(data === undefined || triage) && (
+      {(data === undefined || enabled) && (
         <SettingsSection
           title="AI triage"
           info="Each email the AI sorts counts once. Past the allowance, new mail waits untriaged until the reset; everything else keeps working."
         >
+          {/* Only a plan in good standing has an allowance to count against. */}
           <Skeleton
             id="settings-billing-triage"
-            data={triage}
-            sample={SAMPLE_TRIAGE}
+            // Wrapped: skullet reads a bare null as "not loaded yet".
+            data={enabled ? { usage: triage ?? null } : undefined}
+            sample={{ usage: SAMPLE_TRIAGE }}
             label="Loading usage"
           >
-            {(usage) => <TriageGroup triage={usage} />}
+            {({ usage }) =>
+              usage ? (
+                <TriageGroup triage={usage} />
+              ) : (
+                <SettingsEmptyState
+                  title="No allowance right now"
+                  description="AI triage counts against a plan in good standing."
+                />
+              )
+            }
           </Skeleton>
         </SettingsSection>
       )}
 
-      {manager && (data === undefined || enabled) && (
-        <>
-          <CardsSection billing={enabled} />
-          <InvoicesSection ready={enabled !== undefined} />
-        </>
-      )}
+      {(data === undefined || enabled) &&
+        (manager ? (
+          <>
+            <CardsSection billing={enabled} />
+            <InvoicesSection ready={enabled !== undefined} />
+          </>
+        ) : (
+          // Stripe's cards and invoices are for owners and admins: the sections stay, saying so,
+          // and their routes (403 for members) are never called.
+          <>
+            <SettingsSection title="Payment methods">
+              <SettingsEmptyState
+                variant="restricted"
+                title="Only owners and admins see payment methods"
+                description="Ask one of them to add or change the card the plan is paid with."
+              />
+            </SettingsSection>
+            <SettingsSection title="Invoices">
+              <SettingsEmptyState
+                variant="restricted"
+                title="Only owners and admins see invoices"
+                description="Ask one of them for a receipt."
+              />
+            </SettingsSection>
+          </>
+        ))}
     </SettingsSections>
   );
 }
@@ -403,10 +430,15 @@ function CardsSection({ billing }: { billing: EnabledBilling | undefined }) {
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Card | null>(null);
   const busy = makeDefault.isPending || remove.isPending;
+  // Without a publishable key the card is added on Stripe's portal instead.
+  const addCard = (inPage: boolean) =>
+    inPage
+      ? setAdding(true)
+      : portal.mutate(RETURN_PATH, {
+          onError: (error) => appToast.error(error.message || "The portal could not be opened."),
+        });
   const failed = cards.isError && (
-    <SettingsGroup>
-      <SettingsEmptyState title="Cards didn't load" description="Try again in a moment." />
-    </SettingsGroup>
+    <SettingsEmptyState title="Cards didn't load" description="Try again in a moment." />
   );
 
   return (
@@ -421,19 +453,29 @@ function CardsSection({ billing }: { billing: EnabledBilling | undefined }) {
         label="Loading cards"
         error={failed || undefined}
       >
-        {(state) => (
-          <SettingsGroup>
-            {state.cards.length === 0 ? (
-              <SettingsEmptyState
-                title="No saved cards"
-                description={
-                  billing?.subscription?.status === "trialing"
-                    ? "Add a card before the trial ends to keep the plan."
-                    : "Add a card to pay for the plan."
-                }
-              />
-            ) : (
-              state.cards.map((card) => (
+        {(state) =>
+          state.cards.length === 0 ? (
+            <SettingsEmptyState
+              illustration="card"
+              title="No saved cards"
+              description={
+                billing?.subscription?.status === "trialing"
+                  ? "Add a card before the trial ends to keep the plan."
+                  : "Add a card to pay for the plan."
+              }
+              action={
+                <Button
+                  intent="outline"
+                  isPending={!state.addCard && (portal.isPending || portal.isSuccess)}
+                  onPress={() => addCard(state.addCard)}
+                >
+                  Add card
+                </Button>
+              }
+            />
+          ) : (
+            <SettingsGroup>
+              {state.cards.map((card) => (
                 <SettingsRow
                   key={card.id}
                   avatar={<CardBrandMark brand={card.brand} />}
@@ -475,24 +517,16 @@ function CardsSection({ billing }: { billing: EnabledBilling | undefined }) {
                     />
                   }
                 />
-              ))
-            )}
-            {/* Without a publishable key the card is added on Stripe's portal instead. */}
-            <SettingsAddRow
-              label="Add card"
-              disabled={busy}
-              loading={!state.addCard && (portal.isPending || portal.isSuccess)}
-              onPress={() =>
-                state.addCard
-                  ? setAdding(true)
-                  : portal.mutate(RETURN_PATH, {
-                      onError: (error) =>
-                        appToast.error(error.message || "The portal could not be opened."),
-                    })
-              }
-            />
-          </SettingsGroup>
-        )}
+              ))}
+              <SettingsAddRow
+                label="Add card"
+                disabled={busy}
+                loading={!state.addCard && (portal.isPending || portal.isSuccess)}
+                onPress={() => addCard(state.addCard)}
+              />
+            </SettingsGroup>
+          )
+        }
       </Skeleton>
 
       {adding && <BillingAddCardDialog onClose={() => setAdding(false)} />}
@@ -538,9 +572,7 @@ const open = (url: string) => window.open(url, "_blank", "noopener,noreferrer");
 function InvoicesSection({ ready }: { ready: boolean }) {
   const invoices = useBillingInvoices({ enabled: ready });
   const failed = invoices.isError && (
-    <SettingsGroup>
-      <SettingsEmptyState title="Invoices didn't load" description="Try again in a moment." />
-    </SettingsGroup>
+    <SettingsEmptyState title="Invoices didn't load" description="Try again in a moment." />
   );
   return (
     <SettingsSection title="Invoices" info="Stripe's invoices for this workspace, newest first.">
@@ -551,15 +583,16 @@ function InvoicesSection({ ready }: { ready: boolean }) {
         label="Loading invoices"
         error={failed || undefined}
       >
-        {(list) => (
-          <SettingsGroup>
-            {list.length === 0 ? (
-              <SettingsEmptyState
-                title="No invoices yet"
-                description="Each charge for the plan shows here with its receipt."
-              />
-            ) : (
-              list.map((invoice) => {
+        {(list) =>
+          list.length === 0 ? (
+            <SettingsEmptyState
+              illustration="paper"
+              title="No invoices yet"
+              description="Each charge for the plan shows here with its receipt."
+            />
+          ) : (
+            <SettingsGroup>
+              {list.map((invoice) => {
                 const status = INVOICE_STATUS[invoice.status];
                 const items = [
                   ...(invoice.url
@@ -602,10 +635,10 @@ function InvoicesSection({ ready }: { ready: boolean }) {
                     }
                   />
                 );
-              })
-            )}
-          </SettingsGroup>
-        )}
+              })}
+            </SettingsGroup>
+          )
+        }
       </Skeleton>
     </SettingsSection>
   );
