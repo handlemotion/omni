@@ -208,7 +208,13 @@ export function MenuSection<T extends object>({
   );
 }
 
-export const MenuSeparator = DropdownSeparator;
+/** Runs edge to edge: `-mx-1` cancels the menu's 4px padding (`menuStyles`). */
+export function MenuSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownSeparator>) {
+  return <DropdownSeparator className={cn("-mx-1", className)} {...props} />;
+}
 export const MenuShortcut = DropdownKeyboard;
 /** A row's label: one line, truncated once the menu reaches its max width. */
 export function MenuLabel({ className, ...props }: React.ComponentProps<typeof DropdownLabel>) {
