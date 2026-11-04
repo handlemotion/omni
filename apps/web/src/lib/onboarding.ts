@@ -57,8 +57,8 @@ export function onboardingPages(data: Pick<Onboarding, "billing"> | undefined): 
 /**
  * The page a saved setup resumes on. Once mailboxes exist it is the plan while the workspace has
  * none (coming back from Stripe without paying included), else the invitations. A domain on its
- * own mail host resumes on Mailboxes too: that page asks for its IMAP and SMTP servers first,
- * since they are never stored.
+ * own mail host resumes on DNS: Continue there checks it again (which moves it to Purelymail once
+ * the install has a token), then Mailboxes asks for its servers, which are never stored.
  */
 export function resumePage(data: Onboarding): OnboardingPage {
   const step = data.organization?.setup ?? "created";
@@ -67,7 +67,7 @@ export function resumePage(data: Onboarding): OnboardingPage {
     return data.billing.enabled && data.organization?.needsPlan ? "Plan" : "Invite";
   }
   if (!domain) return "Workspace";
-  if (step === "dns_verified") return "Mailboxes";
+  if (step === "dns_verified" && domain.provider !== "imap") return "Mailboxes";
   return "DNS";
 }
 
