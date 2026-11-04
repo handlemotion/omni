@@ -43,10 +43,10 @@ export const dropdownItemStyles = tv({
   base: [
     "min-w-0 [--me-icon:--spacing(2.5)] sm:[--me-icon:--spacing(2)]",
     // Rows from transitive's menus: 30px, a small radius, 13px text, the fill fading in place.
-    // 8px before the icon and 14px after the label: with the list's 4px padding the icon sits
-    // 12px from the edge and the longest label ends 18px from it, so the widest item sets the
-    // dropdown's width with room on both sides.
-    "col-span-full grid min-h-7.5 grid-cols-[auto_1fr_1.5rem_0.5rem_auto] ps-2 pe-3.5 py-1.5 supports-[grid-template-columns:subgrid]:grid-cols-subgrid",
+    // 10px before the icon (which pulls 2px back) and 14px after the label: with the list's 4px
+    // padding the icon's box sits 12px from the edge and the longest label ends 18px from it, so
+    // the widest item sets the dropdown's width with room on both sides (measured).
+    "col-span-full grid min-h-7.5 grid-cols-[auto_1fr_1.5rem_0.5rem_auto] ps-2.5 pe-3.5 py-1.5 supports-[grid-template-columns:subgrid]:grid-cols-subgrid",
     "transition-[background-color] duration-150 ease-out motion-reduce:transition-none",
     "not-has-[[slot=description]]:items-center",
     "group relative cursor-default select-none rounded-sm outline-0",
