@@ -1,9 +1,16 @@
 import { passkey } from "@better-auth/passkey";
 import type { Db } from "@omni/db";
-import { advanceOrgSetup, schema, syncTeamMailboxAccess, teamMailbox } from "@omni/db";
+import {
+  advanceOrgSetup,
+  findEmailOwner,
+  schema,
+  syncTeamMailboxAccess,
+  teamMailbox,
+} from "@omni/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
+import { claimInvitationsForSignInEmails, resolveSignInEmails } from "./sign-in-emails.ts";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { multiSession } from "better-auth/plugins/multi-session";
 import { organization } from "better-auth/plugins/organization";
@@ -107,17 +114,12 @@ export interface AuthEnv extends Partial<
 }
 
 /**
- * Sign-up is by invitation only. A known user may always sign in; an unknown email may sign up
- * only while it holds a pending, unexpired invitation to some organization.
+ * Sign-up is by invitation only. Any of a known user's sign-in emails may always sign in (ADR
+ * 0014); an unknown email may sign up only while it holds a pending, unexpired invitation.
  */
 export async function maySignIn(db: Db, email: string) {
   const address = email.toLowerCase();
-  const [user] = await db
-    .select({ id: schema.users.id })
-    .from(schema.users)
-    .where(eq(sql`lower(${schema.users.email})`, address))
-    .limit(1);
-  return user !== undefined || (await hasPendingInvitation(db, address));
+  return (await findEmailOwner(db, address)) !== null || (await hasPendingInvitation(db, address));
 }
 
 /**
@@ -164,7 +166,8 @@ export function createAuth(env: AuthEnv) {
     secret: env.secret,
     baseURL: env.baseURL,
     trustedOrigins: env.trustedOrigins ?? [],
-    database: drizzleAdapter(env.db, { provider: "pg", schema }),
+    // Any verified sign-in email finds its person, wherever Better Auth looks a user up by email.
+    database: resolveSignInEmails(drizzleAdapter(env.db, { provider: "pg", schema }), env.db),
     // Sign-up stays invitation-only: a new Google user goes through the same `user.create` hook.
     // `select_account` lets one browser add a second Google account (multi-session).
     socialProviders: env.google
@@ -172,7 +175,19 @@ export function createAuth(env: AuthEnv) {
       : undefined,
     user: { modelName: "users" },
     session: { modelName: "sessions" },
-    account: { modelName: "accounts" },
+    account: {
+      modelName: "accounts",
+      // One person, one user (ADR 0014): a Google sign-in joins the user who has that address,
+      // but only when Google says it verified the address and our user has verified it too (a
+      // magic link or an earlier Google sign-in). No provider is trusted past its own
+      // `email_verified`, and an account is never linked under a different address.
+      accountLinking: {
+        enabled: true,
+        trustedProviders: [],
+        requireLocalEmailVerified: true,
+        allowDifferentEmails: false,
+      },
+    },
     verification: { modelName: "verifications" },
     advanced: { database: { generateId: () => uuidv7() } },
     // Off: its default store is per-process memory (per isolate on Workers) and it keys on
@@ -184,6 +199,21 @@ export function createAuth(env: AuthEnv) {
           // The one place every sign-up path (magic-link verify, Google callback) creates a user. A link
           // issued while the invitation was pending stops working once it is canceled.
           before: async (user) => {
+            // Only a proven address becomes an identity: a magic link proves it; Google must say so.
+            if (!user.emailVerified) {
+              throw new APIError("FORBIDDEN", {
+                code: "EMAIL_NOT_VERIFIED",
+                message: "sign-up needs a verified email",
+              });
+            }
+            // Someone's extra sign-in email is theirs, never a new person (the adapter resolves
+            // it first; this holds even if a lookup missed it).
+            if (await findEmailOwner(env.db, user.email)) {
+              throw new APIError("FORBIDDEN", {
+                code: "EMAIL_BELONGS_TO_ANOTHER_USER",
+                message: "this email already signs in to an account",
+              });
+            }
             if (!(await hasPendingInvitation(env.db, user.email))) {
               throw new APIError("FORBIDDEN", {
                 code: "SIGN_UP_REQUIRES_INVITATION",
@@ -278,6 +308,8 @@ export function createAuth(env: AuthEnv) {
       }),
       // Several accounts signed in on one device; switch with `multiSession.setActive`.
       multiSession(),
+      // An invitation to any of your verified sign-in emails is yours to accept (ADR 0014).
+      claimInvitationsForSignInEmails(env.db),
     ],
   });
 }

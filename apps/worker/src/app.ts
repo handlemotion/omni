@@ -9,6 +9,7 @@ import { findMember, requestScope, requireMember, type AppEnv } from "./context.
 import type { Config } from "./env.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
 import { MEMBER_HEADER } from "./realtime.ts";
+import { account } from "./routes/account.ts";
 import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
 import { mail } from "./routes/mail.ts";
@@ -119,6 +120,7 @@ export const app = new Hono<AppEnv>()
   // Before `api`: these work for a user who has no organization yet.
   .route("/api/onboarding", onboarding)
   .route("/api/workspaces", workspaces)
+  .route("/api/account", account)
   .route("/api", api)
   .onError((error, c) => {
     if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);
