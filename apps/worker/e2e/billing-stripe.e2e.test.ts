@@ -134,6 +134,8 @@ describe.runIf(requested)("Stripe test mode", () => {
       mode: "subscription",
       client_reference_id: org.id,
       payment_method_collection: "if_required",
+      // Friends redeem a promotion code (100% off) here.
+      allow_promotion_codes: true,
     });
     const items = await stripe.checkout.sessions.listLineItems(sessions.data[0]!.id);
     expect(items.data[0]?.price?.id).toBe(prices.yearly);

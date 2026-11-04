@@ -223,6 +223,9 @@ function billingPlugin(env: AuthEnv, billing: BillingConfig) {
       authorizeReference: ({ user, referenceId }) => mayManageBilling(env.db, user.id, referenceId),
       getCheckoutSessionParams: () => ({
         params: {
+          // A promotion code box on Checkout (codes are made in Stripe, e.g. a 100%-off one for
+          // friends). With nothing left to pay, no card is asked for.
+          allow_promotion_codes: true,
           payment_method_collection: "if_required",
           subscription_data: {
             trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
