@@ -95,7 +95,7 @@ export function SettingsSection({
   );
 }
 
-/** A raised card of rows, divided by hairlines. */
+/** A flat card of rows: outlined, divided by hairlines, no shadow. */
 export function SettingsGroup({
   children,
   className,
@@ -107,7 +107,7 @@ export function SettingsGroup({
     <div
       data-slot="settings-group"
       className={cn(
-        "flex min-w-0 flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-background shadow-(--shadow-raised)",
+        "flex min-w-0 flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-background",
         className,
       )}
     >
