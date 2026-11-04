@@ -150,12 +150,10 @@ export function SettingsEmptyState({
 }) {
   return (
     <SettingsGroup>
-      {/* 24px more below than above: the figure, title and line sit a little above the middle,
-          where a centred block looks centred (optical). */}
       <div
         data-slot="settings-empty-state"
         data-variant={variant}
-        className="flex min-h-60 w-full flex-col items-center justify-center px-6 pt-6 pb-12 text-center"
+        className="flex min-h-60 w-full flex-col items-center justify-center px-6 py-8 text-center"
       >
         <SettingsIllustration name={variant === "restricted" ? "lock" : "tray"} className="mb-4" />
         <p className="text-sm/4 font-semibold text-pretty text-foreground">{title}</p>

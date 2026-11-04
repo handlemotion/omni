@@ -4,6 +4,7 @@
 // Stripe through `/api/billing/cards` and `/api/billing/invoices`); members see those two sections
 // say they're for owners and admins. A workspace always has a plan
 // (setup starts its trial), so there is no "no plan" page; one that ended can subscribe again.
+import { IconPlus } from "@/components/icons/lucide";
 import {
   ArrowDownTrayIcon,
   ArrowTopRightOnSquareIcon,
@@ -469,6 +470,7 @@ function CardsSection({ billing }: { billing: EnabledBilling | undefined }) {
                   isPending={!state.addCard && (portal.isPending || portal.isSuccess)}
                   onPress={() => addCard(state.addCard)}
                 >
+                  <IconPlus data-slot="icon" />
                   Add card
                 </Button>
               }

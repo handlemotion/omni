@@ -5,7 +5,7 @@
 //   (ADR 0008).
 // A teammate's personal inbox is on People (owners and admins): whether it exists and syncs,
 // never its mail (ADR 0017). Its create dialog is `NewMailboxDialog`, here.
-import { IconUserMinus } from "@/components/icons/lucide";
+import { IconPlus, IconUserMinus } from "@/components/icons/lucide";
 import { lazy, useState } from "react";
 import { Skeleton, SkeletonSuspense } from "skullet/react";
 import { Badge } from "@/components/ui/badge";
@@ -301,6 +301,7 @@ export function SharedMailboxesPage() {
                 action={
                   canAdd && (
                     <Button size="xs" intent="outline" onPress={() => setAdding(true)}>
+                      <IconPlus data-slot="icon" />
                       Add a shared mailbox
                     </Button>
                   )
@@ -387,6 +388,7 @@ function MailboxAccessDialog(props: {
                 canManage &&
                 addable.length > 0 && (
                   <Button size="xs" intent="outline" onPress={() => setDialog({ kind: "add" })}>
+                    <IconPlus data-slot="icon" />
                     Add a person
                   </Button>
                 )

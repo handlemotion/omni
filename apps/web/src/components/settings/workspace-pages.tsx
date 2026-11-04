@@ -2,6 +2,7 @@
 // in it. Owners and admins also see each person's personal inbox there (ADR 0017). The mailboxes
 // you open and the shared ones are `mailbox-pages.tsx`.
 import {
+  IconPlus,
   IconCircleX,
   IconGlobe,
   IconInbox,
@@ -269,6 +270,7 @@ function DomainsSection() {
               description="Add the domain your mail is on to create mailboxes there."
               action={
                 <Button size="xs" intent="outline" onPress={() => setDialog({ kind: "add" })}>
+                  <IconPlus data-slot="icon" />
                   Add a domain
                 </Button>
               }

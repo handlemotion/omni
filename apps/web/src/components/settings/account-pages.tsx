@@ -1,6 +1,7 @@
 // Settings pages about you: your name and the accounts on this browser, how you sign in and where
 // you are signed in, and the keyboard shortcuts.
 import {
+  IconPlus,
   IconKey,
   IconLaptop,
   IconPencil,
@@ -342,6 +343,7 @@ export function SecurityPage() {
                     isPending={addPasskey.isPending}
                     onPress={addOne}
                   >
+                    <IconPlus data-slot="icon" />
                     Add a passkey
                   </Button>
                 }
