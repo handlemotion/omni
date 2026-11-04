@@ -58,8 +58,7 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
   });
   const store = new PgMailStore({
     db,
-    onIngested: ({ folder: _folder, ...message }) =>
-      notifier.push({ type: "message.created", ...message }),
+    onIngested: (message) => notifier.push({ type: "message.created", ...message }),
     objects: createS3Store({
       endpoint: config.S3_ENDPOINT,
       bucket: config.S3_BUCKET,

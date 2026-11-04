@@ -3,7 +3,7 @@
 // parse, thread, clean, upsert. A message is one row per Message-ID in
 // its mailbox; each IMAP copy of it is a location, so re-syncs, moves, UIDVALIDITY resets and
 // restarts converge on the same rows.
-import { actionPayloadSchemas } from "@omni/contracts";
+import { actionPayloadSchemas, type MailEvent } from "@omni/contracts";
 import {
   addLocation,
   claimActions,
@@ -48,9 +48,10 @@ import type {
 
 /** The schema's folder roles; drafts and junk are just folders to the index. */
 type StoredRole = (typeof schema.mailboxFolders.$inferSelect)["role"];
-const STORED_ROLES = new Set<FolderRole>(["inbox", "sent", "archive", "trash"]);
-const storedRole = (role: FolderRole): StoredRole =>
-  STORED_ROLES.has(role) ? (role as StoredRole) : "other";
+const STORED_ROLES: readonly string[] = schema.folderRole.enumValues;
+const isStoredRole = (role: FolderRole): role is FolderRole & StoredRole =>
+  STORED_ROLES.includes(role);
+const storedRole = (role: FolderRole): StoredRole => (isStoredRole(role) ? role : "other");
 
 /** Subject threading only looks this far back; `decideThread` applies the exact window. */
 const SUBJECT_LOOKBACK_MS = 31 * 24 * 60 * 60 * 1000;
@@ -60,15 +61,8 @@ interface MailboxRow {
   address: string;
 }
 
-/** A message that became a new row (not a new copy of a known one). */
-export interface IngestedMessage {
-  orgId: string;
-  mailboxId: string;
-  messageId: string;
-  threadId: string;
-  folder: string;
-  folderRole: StoredRole;
-}
+/** A message that became a new row (not a new copy of a known one): a `message.created` event. */
+export type IngestedMessage = Omit<Extract<MailEvent, { type: "message.created" }>, "type">;
 
 /** Where apps fetch what sanitized HTML points at. Both are Worker routes. */
 export interface ContentLinks {
@@ -166,7 +160,6 @@ export class PgMailStore implements MailStore {
         mailboxId,
         messageId: stored.id,
         threadId: stored.threadId,
-        folder: fetched.folder,
         folderRole: folder.role,
       });
     }
@@ -301,15 +294,10 @@ export class PgMailStore implements MailStore {
   }
 }
 
+/** An action that failed for good: an `action.failed` event. */
+export type FailedAction = Omit<Extract<MailEvent, { type: "action.failed" }>, "type">;
+
 /** `mail_actions` as the outbox. The executor owns retry timing; the claim is a lease. */
-export interface FailedAction {
-  actionId: string;
-  orgId: string;
-  mailboxId: string;
-  memberId: string | null;
-  error: string;
-  requestId: string | null;
-}
 
 export class PgActionSource implements ActionSource {
   private readonly db: Db;
@@ -347,6 +335,8 @@ export class PgActionSource implements ActionSource {
         idempotencyKey: row.idempotencyKey,
         attempts: row.attempts,
         smtpAcceptedAt: row.smtpAcceptedAt,
+        // Sound: `payload` was parsed by the schema `kind` picks, which TypeScript cannot
+        // correlate through the index.
       } as MailAction);
     }
     return claimed;
