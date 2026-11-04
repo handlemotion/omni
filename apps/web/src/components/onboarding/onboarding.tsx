@@ -389,7 +389,9 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
   // isn't passing yet and why. No disabled button, no per-step check buttons, no status lines.
   const checkAndContinue = () => {
     setProblem(null);
-    if (current === -1) return props.onDone();
+    // A domain on its own host is checked again even when it passes: the check is what moves it
+    // to Purelymail once this install has a Purelymail token (it then shows Purelymail's records).
+    if (current === -1 && domain.provider !== "imap") return props.onDone();
     checkDomain.mutate(domain.id, {
       onSuccess: (fresh) => {
         const after = recordGroups(fresh);
