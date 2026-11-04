@@ -1,6 +1,6 @@
 # Fly.io config for the mail service (ADR 0004). Neutral defaults: self-hosters pass their own
 # app name with `--app` and pick their region. Deploy from the repo root so the build sees the
-# workspace:
+# workspace (Fly's GitHub deploy: working directory = repo root, config path = this file):
 #   flyctl deploy . --config apps/mail/fly.toml --app <your-app>
 # Secrets (DATABASE_URL, MAIL_CREDENTIALS_KEY, ...) are set with `flyctl secrets`, never here.
 app = "omni-mail"
@@ -16,6 +16,9 @@ dockerfile = "Dockerfile"
 # opening duplicate IDLE connections and racing on the outbox.
 [deploy]
 strategy = "rolling"
+# Database migrations, in a temporary machine on the new image, before it replaces the running
+# one; a failure stops the deploy. Uses MIGRATE_DATABASE_URL (a role that may change the schema).
+release_command = "node dist/migrate.js"
 
 [env]
 PORT = "8788"

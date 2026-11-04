@@ -9,7 +9,8 @@ RUN npm install -g --silent "$(node -p 'require("./package.json").packageManager
 RUN pnpm install --frozen-lockfile --filter @omni/mail...
 RUN pnpm --filter @omni/mail build \
  && pnpm --filter @omni/mail deploy --prod --config.node-linker=hoisted /out \
- && cp -r apps/mail/dist /out/dist
+ && cp -r apps/mail/dist /out/dist \
+ && cp -r packages/db/migrations /out/migrations
 
 FROM node:26-bookworm-slim
 ENV NODE_ENV=production
@@ -19,6 +20,8 @@ WORKDIR /app
 COPY --from=build --chown=node:node /out/package.json ./
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
 COPY --from=build --chown=node:node /out/dist ./dist
+# Applied by dist/migrate.js, fly.toml's release_command, before each new version goes live.
+COPY --from=build --chown=node:node /out/migrations ./migrations
 USER node
 EXPOSE 8788
 CMD ["node", "--enable-source-maps", "dist/main.js"]
