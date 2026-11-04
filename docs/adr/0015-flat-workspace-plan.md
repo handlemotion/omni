@@ -49,9 +49,22 @@ mail writes (send, reply, archive, move, read state, done, defer) answer `402` w
 `BILLING_INACTIVE`, and no AI runs. Setup, members, invitations and billing stay open so an owner
 can always fix it. Nothing is deleted; subscribing again restores everything at once.
 
-**The trial needs no card.** Checkout uses `payment_method_collection: "if_required"`, and a
-trial that ends without a payment method cancels (`trial_settings.end_behavior`), which makes the
-workspace read-only. The plugin grants a trial once per workspace.
+**Every new workspace starts on a free trial, during setup.** Where billing is on, onboarding has
+a plan page after mailboxes and before invitations: pick monthly or yearly (at Stripe's own
+prices) and press "Start free trial". The trial starts there and then (`POST /api/billing/trial`
+creates the workspace's Stripe customer and a trialing subscription, and writes its row at once),
+with no card and no Stripe page, and setup moves on; a card is due before the trial ends. A
+workspace that has had its trial, or a deployment with no trial, pays on Stripe's Checkout instead,
+which returns to onboarding. The page shows only while the workspace has no plan, and is passed
+over otherwise: its state is read from the subscription each time, not saved as a setup step, so
+it follows Stripe. `POST /api/onboarding/complete` answers `402 BILLING_REQUIRED` without a plan in
+good standing, so invitations go out only from a workspace that has one. Self-hosted installs
+without billing keep the four pages they had.
+
+**The trial needs no card.** A trial that ends without a payment method cancels
+(`trial_settings.end_behavior`), which makes the workspace read-only. A workspace gets one trial,
+by the plugin's own rule (any past subscription with a trial). Checkout, for paying, uses
+`payment_method_collection: "if_required"`, so a 100%-off promotion code needs no card either.
 
 **Stripe's webhook is applied once and in order.** It is verified with Stripe's signature by the
 Stripe SDK. Better Auth's plugin writes each event's snapshot as-is, and Stripe neither delivers

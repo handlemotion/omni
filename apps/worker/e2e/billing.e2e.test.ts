@@ -293,9 +293,9 @@ test("checkout and the portal are for the workspace's owners and admins only", a
   const checkout = (cookie: string) =>
     api(worker, "/billing/checkout", cookie, { method: "POST", body: "{}" });
   expect((await checkout(member.cookie)).status).toBe(403);
-  expect((await api(worker, "/billing/portal", member.cookie, { method: "POST" })).status).toBe(
-    403,
-  );
+  expect(
+    (await api(worker, "/billing/portal", member.cookie, { method: "POST", body: "{}" })).status,
+  ).toBe(403);
   expect(await billing(member.cookie)).toMatchObject({ canManage: false });
 
   // The plugin's own endpoints would let anyone subscribe for themselves: closed.
@@ -325,6 +325,66 @@ test("checkout and the portal are for the workspace's owners and admins only", a
   expect((await checkout(owner.cookie)).status).toBe(409);
 });
 
+test("a new workspace finishes setup only once it has a trial or a plan", async () => {
+  const { db } = database;
+  const owner = await workspace("owner");
+  // Mailboxes made, invitations next: the step the plan page comes before.
+  await db
+    .insert(schema.orgSetup)
+    .values({ orgId: owner.org.id, step: "mailboxes_created" })
+    .onConflictDoUpdate({ target: schema.orgSetup.orgId, set: { step: "mailboxes_created" } });
+  const onboarding = async () =>
+    (await (await api(worker, "/onboarding", owner.cookie)).json()) as {
+      billing: { enabled: boolean };
+      organization: { setup: string; needsPlan: boolean };
+    };
+  const complete = () =>
+    api(worker, "/onboarding/complete", owner.cookie, { method: "POST", body: "{}" });
+
+  expect(await onboarding()).toMatchObject({
+    billing: { enabled: true },
+    organization: { setup: "mailboxes_created", needsPlan: true },
+  });
+  const refused = await complete();
+  expect(refused.status).toBe(402);
+  expect(await refused.json()).toMatchObject({ code: "BILLING_REQUIRED" });
+  expect(await billing(owner.cookie)).toMatchObject({ trialAvailable: true, trialDays: 14 });
+
+  // Checkout's way back must stay in the app: another origin is refused before Stripe is asked.
+  for (const returnPath of ["//evil.example/x", "https://evil.example", "/\\evil.example"]) {
+    const away = await api(worker, "/billing/checkout", owner.cookie, {
+      method: "POST",
+      body: JSON.stringify({ interval: "month", returnPath }),
+    });
+    expect({ returnPath, status: away.status }).toEqual({ returnPath, status: 400 });
+  }
+
+  // The trial starts (Stripe's event, as after Checkout): setup can finish, and the workspace's
+  // one trial is spent.
+  const start = new Date(Math.floor(Date.now() / 1000) * 1000);
+  const end = new Date(start.getTime() + 14 * 86_400_000);
+  await postStripeEvent(
+    worker.url,
+    stripeEvent(
+      "customer.subscription.created",
+      subscriptionObject({
+        id: `sub_e2e_${randomUUID().slice(0, 8)}`,
+        customer: owner.customer,
+        status: "trialing",
+        periodStart: start,
+        periodEnd: end,
+        trialEnd: end,
+      }),
+      new Date(),
+    ),
+  );
+  expect((await onboarding()).organization.needsPlan).toBe(false);
+  const finished = await complete();
+  expect(finished.status).toBe(200);
+  expect(await finished.json()).toMatchObject({ setup: "complete" });
+  expect(await billing(owner.cookie)).toMatchObject({ trialAvailable: false });
+}, 60_000);
+
 test("with no Stripe configuration there is no billing: no webhook, no limits, all writable", async () => {
   unbilled = await startWorker({ databaseUrl: database.url, mailServiceUrl: mailService.url });
   const { db } = database;
@@ -341,6 +401,11 @@ test("with no Stripe configuration there is no billing: no webhook, no limits, a
   const cookie = await signIn(unbilled, db, email);
 
   expect(await billing(cookie, unbilled)).toEqual({ enabled: false });
+  // Setup has no plan page and nothing to pay.
+  expect(await (await api(unbilled, "/onboarding", cookie)).json()).toMatchObject({
+    billing: { enabled: false },
+    organization: { needsPlan: false },
+  });
   expect(await archive(cookie, threadId, unbilled)).toBe(200);
   expect(
     (await api(unbilled, "/billing/checkout", cookie, { method: "POST", body: "{}" })).status,
