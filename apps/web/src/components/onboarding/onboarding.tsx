@@ -1,3 +1,4 @@
+import { Cloudflare } from "@ridemountainpig/svgl-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { IconRedirectArrow } from "@/components/icons";
@@ -12,6 +13,7 @@ import { Step, Steps, type StepState } from "@/components/ui/steps";
 import { Text, TextLink } from "@/components/ui/text";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { TextField } from "@/components/ui/text-field";
+import { appToast } from "@/components/ui/toast";
 import {
   useAddDomain,
   useCheckDomain,
@@ -190,12 +192,20 @@ function StepProgress(props: { current: number; names: readonly string[] }) {
   );
 }
 
-/** Heading, an optional one-line description, the fields, and the submit button. */
+/**
+ * Heading, an optional one-line description, the fields, and the submit button. The submit button
+ * is the page's one primary action and is never disabled: a page that isn't ready says why when
+ * it is pressed.
+ */
 function PageForm(props: {
   title: string;
   description?: ReactNode;
+  /**
+   * An action that spares the fields (one-click setup). It belongs to the sentence above it: 24px
+   * of ink under the description, 32px over the fields.
+   */
+  shortcut?: ReactNode;
   submit: string;
-  isDisabled?: boolean;
   isPending?: boolean;
   /** Why the last submit failed. */
   problem?: string | null;
@@ -213,6 +223,7 @@ function PageForm(props: {
       <div className="flex flex-col gap-1.5 pt-8">
         <Heading>{props.title}</Heading>
         {props.description && <Text>{props.description}</Text>}
+        {props.shortcut && <div className="mt-4.5 flex">{props.shortcut}</div>}
       </div>
       <div className="flex flex-col gap-6 pt-8">{props.children}</div>
       {props.problem && (
@@ -220,13 +231,7 @@ function PageForm(props: {
           {props.problem}
         </Note>
       )}
-      <Button
-        type="submit"
-        size="lg"
-        className="mt-10 w-full"
-        isDisabled={props.isDisabled}
-        isPending={props.isPending}
-      >
+      <Button type="submit" size="lg" className="mt-10 w-full" isPending={props.isPending}>
         {props.submit}
         <IconChevronRight />
       </Button>
@@ -329,25 +334,61 @@ function shownRecords(domain: OnboardingDomain): ShownRecord[] {
   return [...challenge, ...domain.records];
 }
 
-function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDone: () => void }) {
-  const checkDomain = useCheckDomain();
-  const rotateChallenge = useRotateChallenge();
-  const [problem, setProblem] = useState<string | null>(null);
-  const { domain } = props;
+/** The domain's records by purpose, in order, and the first group not passing yet (-1: none). */
+function recordGroups(domain: OnboardingDomain) {
   const records = shownRecords(domain);
   const groups = PURPOSES.map((p) => ({
     ...p,
     records: records.filter((r) => r.check === p.check),
   })).filter((g) => g.records.length > 0);
-  const current = groups.findIndex((g) => !g.records.every(passes));
+  return { groups, current: groups.findIndex((g) => !g.records.every(passes)) };
+}
+
+/** Why a group isn't passing yet: the provider's refusal, then what the nameservers hold. */
+function groupProblems(
+  domain: OnboardingDomain,
+  group: ReturnType<typeof recordGroups>["groups"][number],
+) {
+  return [
+    ...(group.check === "ownership" && domain.addError ? [domain.addError] : []),
+    ...group.records
+      // "Not found yet" is what the toast's title already says; only other reasons add to it.
+      .filter((r) => r.diagnostic && !passes(r) && r.diagnostic.status !== "missing")
+      .map((r) => diagnosticText(r.diagnostic!)),
+  ];
+}
+
+function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDone: () => void }) {
+  const checkDomain = useCheckDomain();
+  const rotateChallenge = useRotateChallenge();
+  const [problem, setProblem] = useState<string | null>(null);
+  const { domain } = props;
+  const { groups, current } = recordGroups(domain);
   // Re-checked on its own while this page is open; results arrive over realtime.
   useRealtimeConnection(props.organizationId);
   useDomainWatch(domain.id, current !== -1);
   const state = (i: number): StepState =>
     current === -1 || i < current ? "complete" : i === current ? "current" : "upcoming";
-  const check = () => {
+  // Continue checks first: it moves on once every record passes, else a toast says which record
+  // isn't passing yet and why. No disabled button, no per-step check buttons, no status lines.
+  const checkAndContinue = () => {
     setProblem(null);
-    checkDomain.mutate(domain.id, { onError: (error) => setProblem(error.message) });
+    if (current === -1) return props.onDone();
+    checkDomain.mutate(domain.id, {
+      onSuccess: (fresh) => {
+        const after = recordGroups(fresh);
+        if (after.current === -1) return props.onDone();
+        const group = after.groups[after.current]!;
+        const why = groupProblems(fresh, group);
+        appToast.message(`The ${group.records[0]!.type} record isn't passing yet`, {
+          description:
+            why.length > 0
+              ? why.join(" ")
+              : "DNS changes can take a few minutes. Omni keeps checking while this page is open.",
+        });
+      },
+      onError: (error) => setProblem(error.message),
+    });
   };
   const rotate = () => {
     setProblem(null);
@@ -380,21 +421,24 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
           {domain.domain}.
         </>
       }
+      shortcut={
+        domain.domainConnect &&
+        current !== -1 && (
+          <Button
+            intent="outline"
+            isPending={rotateChallenge.isPending}
+            onPress={setUpAutomatically}
+          >
+            <ProviderLogo name={domain.domainConnect.providerName} />
+            Set up automatically with {domain.domainConnect.providerName}
+          </Button>
+        )
+      }
       submit="Continue"
-      isDisabled={current !== -1}
+      isPending={checkDomain.isPending}
       problem={problem}
-      onSubmit={props.onDone}
+      onSubmit={checkAndContinue}
     >
-      {domain.domainConnect && current !== -1 && (
-        <Button
-          intent="outline"
-          className="self-start"
-          isPending={rotateChallenge.isPending}
-          onPress={setUpAutomatically}
-        >
-          Set up automatically with {domain.domainConnect.providerName}
-        </Button>
-      )}
       <Steps>
         {groups.map((group, i) => (
           <Step
@@ -420,10 +464,11 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
                     />
                   ) : (
                     // Only its hash is stored, so a value shown before (another browser, cleared
-                    // storage) cannot be shown again: make a new one instead.
+                    // storage) cannot be shown again: make a new one instead. The step's one
+                    // action, at the end of the fields it fills in.
                     <Button
                       intent="outline"
-                      className="self-start"
+                      className="self-end"
                       isPending={rotateChallenge.isPending}
                       onPress={rotate}
                     >
@@ -432,17 +477,6 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
                   )}
                 </div>
               ))}
-              <CheckButton
-                isPending={checkDomain.isPending}
-                onPress={check}
-                // No status lines under the fields: why it isn't passing yet lives on the button.
-                why={[
-                  ...(group.check === "ownership" && domain.addError ? [domain.addError] : []),
-                  ...group.records
-                    .filter((r) => r.diagnostic && !passes(r))
-                    .map((r) => diagnosticText(r.diagnostic!)),
-                ]}
-              />
             </div>
           </Step>
         ))}
@@ -469,32 +503,17 @@ function DnsHostLink(props: { host: NonNullable<OnboardingDomain["dnsHost"]> }) 
   );
 }
 
+/** DNS hosts' logos (svgl) for the one-click button; a host without one shows its name only. */
+const PROVIDER_LOGOS: Record<string, typeof Cloudflare> = { Cloudflare };
+
+function ProviderLogo(props: { name: string }) {
+  const Logo = PROVIDER_LOGOS[props.name];
+  return Logo ? <Logo width={15} height={15} aria-hidden /> : null;
+}
+
 /** Why a record is not passing yet, and what the nameservers hold instead. */
 function diagnosticText({ message, found }: Diagnostic) {
   return found.length > 0 ? `${message} Found: ${found.join(", ")}` : message;
-}
-
-/** "Check record", with the reasons the last check didn't pass in its tooltip (hover or focus). */
-function CheckButton(props: { isPending: boolean; onPress: () => void; why: string[] }) {
-  const button = (
-    <Button
-      intent="outline"
-      className="mt-1 self-start"
-      isPending={props.isPending}
-      onPress={props.onPress}
-    >
-      Check record
-    </Button>
-  );
-  if (props.why.length === 0) return button;
-  return (
-    <TooltipTrigger delay={300}>
-      {button}
-      <Tooltip inverse placement="end" className="max-w-xs text-xs">
-        {props.why.join(" ")}
-      </Tooltip>
-    </TooltipTrigger>
-  );
 }
 
 /**
