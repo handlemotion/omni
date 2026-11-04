@@ -66,3 +66,56 @@ export function formatPrice(price: { amount: number; currency: string }) {
     minimumFractionDigits: price.amount % 100 === 0 ? 0 : 2,
   }).format(price.amount / 100);
 }
+
+/** The saved cards, the one charged first, and whether a card can be added in the app. */
+export const billingCardsQuery = () =>
+  queryOptions({
+    queryKey: keys.billingCards(),
+    queryFn: ({ signal }) => call(api.billing.cards.$get(undefined, { init: { signal } })),
+  });
+
+/** Invoices, newest first, each with Stripe's page and PDF when Stripe has them. */
+export const billingInvoicesQuery = () =>
+  queryOptions({
+    queryKey: keys.billingInvoices(),
+    queryFn: ({ signal }) => call(api.billing.invoices.$get(undefined, { init: { signal } })),
+  });
+
+export type Cards = Awaited<
+  ReturnType<NonNullable<ReturnType<typeof billingCardsQuery>["queryFn"]>>
+>;
+export type Card = Cards["cards"][number];
+export type Invoice = Awaited<
+  ReturnType<NonNullable<ReturnType<typeof billingInvoicesQuery>["queryFn"]>>
+>["invoices"][number];
+
+/** Each card change answers with the cards as they are now; the cache takes them as they come. */
+const cardsChanged = (client: QueryClient) => (cards: Cards) =>
+  client.setQueryData(keys.billingCards(), cards);
+
+/** `mutateAsync()` asks for a SetupIntent: the secret and key Stripe.js needs to take a card. */
+export const cardSetupMutation = () =>
+  mutationOptions({
+    mutationFn: () => call(api.billing.cards.setup.$post()),
+  });
+
+/** `mutate(setupIntentId)` after Stripe confirmed it: the card is listed (and charged if first). */
+export const cardAddedMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: (setupIntent: string) => call(api.billing.cards.$post({ json: { setupIntent } })),
+    onSuccess: cardsChanged(client),
+  });
+
+/** `mutate(cardId)` makes the plan charge this card from now on. */
+export const defaultCardMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: (id: string) => call(api.billing.cards[":id"].default.$post({ param: { id } })),
+    onSuccess: cardsChanged(client),
+  });
+
+/** `mutate(cardId)` removes the card from Stripe; the last one stays while the plan needs it. */
+export const removeCardMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: (id: string) => call(api.billing.cards[":id"].$delete({ param: { id } })),
+    onSuccess: cardsChanged(client),
+  });

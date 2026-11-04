@@ -91,6 +91,9 @@ describe.runIf(requested)("Stripe test mode", () => {
         STRIPE_PRICE_YEARLY: prices.yearly,
         BILLING_TRIAL_DAYS: String(TRIAL_DAYS),
         BILLING_TRIAGE_ALLOWANCE: "500",
+        // The Worker only hands this to Stripe.js in the browser; here the SetupIntent is confirmed
+        // with the secret key instead, as Stripe.js would.
+        STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY || "pk_test_omnie2e",
       },
       secrets: { STRIPE_SECRET_KEY: key, STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET },
     });
@@ -105,9 +108,9 @@ describe.runIf(requested)("Stripe test mode", () => {
     await database?.teardown();
   });
 
-  const api = (path: string, cookie: string, body?: unknown) =>
+  const api = (path: string, cookie: string, body?: unknown, method?: string) =>
     fetch(new URL(`/api${path}`, worker.url), {
-      method: body === undefined ? "GET" : "POST",
+      method: method ?? (body === undefined ? "GET" : "POST"),
       headers: { cookie, "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -431,5 +434,84 @@ describe.runIf(requested)("Stripe test mode", () => {
         .filter((s) => ["active", "trialing", "past_due"].includes(s.status))
         .map((s) => s.id),
     ).toEqual([older.id]);
+  }, 120_000);
+
+  test("cards: added by a SetupIntent, charged by the plan, the last one kept; invoices listed", async () => {
+    const { org, cookie } = await ownerOf("cards");
+    expect(await (await api("/billing/trial", cookie, { interval: "month" })).json()).toEqual({
+      started: true,
+    });
+    const customer = await customerOf(org.id);
+    const [trialing] = (await stripe.subscriptions.list({ customer })).data;
+    type Cards = { cards: { id: string; brand: string; last4: string; isDefault: boolean }[] };
+    const cards = async () => (await (await api("/billing/cards", cookie)).json()) as Cards;
+    expect(await cards()).toEqual({ cards: [], addCard: true });
+
+    /** What the add-card dialog does: a SetupIntent, confirmed by Stripe, then reported. */
+    async function addCard(token: string) {
+      const setup = await api("/billing/cards/setup", cookie, {});
+      expect(setup.status).toBe(200);
+      const { clientSecret } = (await setup.json()) as { clientSecret: string };
+      const intentId = clientSecret.split("_secret_")[0]!;
+      const confirmed = await stripe.setupIntents.confirm(intentId, { payment_method: token });
+      expect(confirmed.status).toBe("succeeded");
+      const saved = await api("/billing/cards", cookie, { setupIntent: intentId });
+      expect(saved.status).toBe(200);
+      return { ...((await saved.json()) as Cards), id: confirmed.payment_method as string };
+    }
+    const charged = async () => ({
+      customer: ((await stripe.customers.retrieve(customer)) as Stripe.Customer).invoice_settings
+        .default_payment_method,
+      subscription: (await stripe.subscriptions.retrieve(trialing!.id)).default_payment_method,
+    });
+
+    // The first card becomes the one the trial charges: without it the trial would cancel at its end.
+    const visa = await addCard("pm_card_visa");
+    expect(visa.cards).toMatchObject([
+      { id: visa.id, brand: "visa", last4: "4242", isDefault: true },
+    ]);
+    expect(await charged()).toEqual({ customer: visa.id, subscription: visa.id });
+
+    // The plan needs a card: the only one cannot go.
+    const lonely = await api(`/billing/cards/${visa.id}`, cookie, undefined, "DELETE");
+    expect(lonely.status).toBe(409);
+
+    // A second card is saved but charges nothing until made the default.
+    const mastercard = await addCard("pm_card_mastercard");
+    expect(mastercard.cards.map((c) => [c.brand, c.isDefault])).toEqual([
+      ["visa", true],
+      ["mastercard", false],
+    ]);
+    const made = await api(`/billing/cards/${mastercard.id}/default`, cookie, {});
+    expect(((await made.json()) as Cards).cards[0]).toMatchObject({
+      id: mastercard.id,
+      isDefault: true,
+    });
+    expect(await charged()).toEqual({ customer: mastercard.id, subscription: mastercard.id });
+
+    // Another workspace's owner cannot touch this workspace's cards.
+    const stranger = await ownerOf("cards-stranger");
+    expect(
+      (await api(`/billing/cards/${visa.id}`, stranger.cookie, undefined, "DELETE")).status,
+    ).toBe(404);
+    expect((await api(`/billing/cards/${visa.id}/default`, stranger.cookie, {})).status).toBe(404);
+
+    // Removing the card being charged moves the plan onto the one left, so the renewal still pays.
+    const removed = await api(`/billing/cards/${mastercard.id}`, cookie, undefined, "DELETE");
+    expect(removed.status).toBe(200);
+    expect(((await removed.json()) as Cards).cards).toMatchObject([
+      { id: visa.id, isDefault: true },
+    ]);
+    expect(await charged()).toEqual({ customer: visa.id, subscription: visa.id });
+    expect((await stripe.paymentMethods.retrieve(mastercard.id)).customer).toBeNull();
+
+    // The trial's own $0 invoice, with Stripe's page and PDF.
+    const { invoices } = (await (await api("/billing/invoices", cookie)).json()) as {
+      invoices: { status: string; total: number; url: string | null; pdfUrl: string | null }[];
+    };
+    expect(invoices).toHaveLength(1);
+    expect(invoices[0]).toMatchObject({ status: "paid", total: 0 });
+    expect(invoices[0]!.url).toMatch(/^https:\/\/invoice\.stripe\.com\//);
+    expect(invoices[0]!.pdfUrl).toMatch(/^https:\/\/pay\.stripe\.com\//);
   }, 120_000);
 });

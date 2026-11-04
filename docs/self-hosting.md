@@ -350,14 +350,15 @@ are unlimited, and the only limit is a monthly allowance of AI-triaged emails. P
 keeps arriving and triage pauses until the next period. A workspace with no plan in good
 standing is read-only: its mail syncs and reads, but nothing is sent or changed. See ADR 0015.
 
-| Variable                   | Kind   | Required with billing | Notes                                                                                                 |
-| -------------------------- | ------ | --------------------- | ----------------------------------------------------------------------------------------------------- |
-| `STRIPE_SECRET_KEY`        | secret | turns it on           | Stripe secret key (`sk_test_…` in development).                                                       |
-| `STRIPE_WEBHOOK_SECRET`    | secret | yes                   | Signing secret of the webhook endpoint below (`whsec_…`).                                             |
-| `STRIPE_PRICE_MONTHLY`     | var    | yes                   | Price id of the plan's monthly price. Amounts live in Stripe.                                         |
-| `STRIPE_PRICE_YEARLY`      | var    | no                    | Price id of the yearly price. Empty offers monthly only.                                              |
-| `BILLING_TRIAL_DAYS`       | var    | no                    | Free trial length, once per workspace, no card needed. Empty or `0`: no trial.                        |
-| `BILLING_TRIAGE_ALLOWANCE` | var    | yes                   | AI-triaged emails per workspace per month. Rule-filed threads and threads with no AI key never count. |
+| Variable                   | Kind   | Required with billing | Notes                                                                                                          |
+| -------------------------- | ------ | --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`        | secret | turns it on           | Stripe secret key (`sk_test_…` in development).                                                                |
+| `STRIPE_WEBHOOK_SECRET`    | secret | yes                   | Signing secret of the webhook endpoint below (`whsec_…`).                                                      |
+| `STRIPE_PRICE_MONTHLY`     | var    | yes                   | Price id of the plan's monthly price. Amounts live in Stripe.                                                  |
+| `STRIPE_PRICE_YEARLY`      | var    | no                    | Price id of the yearly price. Empty offers monthly only.                                                       |
+| `STRIPE_PUBLISHABLE_KEY`   | var    | no                    | Publishable key (`pk_test_…`, same mode as the secret key). Owners add cards in the app; empty: in the portal. |
+| `BILLING_TRIAL_DAYS`       | var    | no                    | Free trial length, once per workspace, no card needed. Empty or `0`: no trial.                                 |
+| `BILLING_TRIAGE_ALLOWANCE` | var    | yes                   | AI-triaged emails per workspace per month. Rule-filed threads and threads with no AI key never count.          |
 
 Set any of them without `STRIPE_SECRET_KEY` (or the key without the required ones) and the Worker
 refuses to start, naming the variable.
@@ -373,8 +374,9 @@ Setup in Stripe:
    `2026-08-26.dahlia`): the billing period is read from each subscription item's
    `current_period_start` / `current_period_end`, which older versions do not send, and the
    plan's period dates would be stored as invalid dates.
-3. Turn on the customer portal (Settings → Billing → Customer portal) so owners can change the
-   card, switch interval and cancel.
+3. Turn on the customer portal (Settings → Billing → Customer portal) so owners can switch
+   interval and cancel. Saved cards and invoices are also in the app's Billing page, which reads
+   them from Stripe; adding a card there needs `STRIPE_PUBLISHABLE_KEY` (Developers → API keys).
 
 Locally, no webhook endpoint is registered in Stripe: the Stripe CLI forwards your sandbox's
 events to the Worker. Its signing secret is `STRIPE_WEBHOOK_SECRET`. It has stayed the same

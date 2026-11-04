@@ -68,6 +68,20 @@ const billingFields = {
   STRIPE_PRICE_MONTHLY: optionalText,
   /** Optional yearly price (usually discounted). Empty offers monthly only. */
   STRIPE_PRICE_YEARLY: optionalText,
+  /**
+   * Optional publishable key (`pk_test_…` / `pk_live_…`), public by design: Stripe.js in the
+   * browser needs it to take a card for the workspace. Empty: cards can be listed, made default
+   * and removed in the app, but a new one is added in Stripe's customer portal.
+   */
+  STRIPE_PUBLISHABLE_KEY: optionalText.pipe(
+    z
+      .string()
+      .regex(
+        /^pk_(test|live)_[A-Za-z0-9]+$/,
+        "use a Stripe publishable key (pk_test_… or pk_live_…)",
+      )
+      .optional(),
+  ),
   /** Free trial length in days, once per workspace. Empty or 0: no trial. */
   BILLING_TRIAL_DAYS: optionalText.pipe(wholeNumber.optional()).transform((days) => days ?? 0),
   /** AI-triaged emails per workspace per month. */
@@ -104,6 +118,7 @@ export const authEnvSchema = z
         "STRIPE_WEBHOOK_SECRET",
         "STRIPE_PRICE_MONTHLY",
         "STRIPE_PRICE_YEARLY",
+        "STRIPE_PUBLISHABLE_KEY",
         "BILLING_TRIAGE_ALLOWANCE",
       ] as const;
       for (const name of stray.filter((n) => env[n] !== undefined)) {
@@ -123,6 +138,18 @@ export const authEnvSchema = z
           message: "is required with STRIPE_SECRET_KEY",
         });
       }
+    }
+    // A test key with a live publishable key (or the reverse) takes cards no subscription sees.
+    const mode = (key: string) => (/^[a-z]+_live_/.test(key) ? "live" : "test");
+    if (
+      env.STRIPE_PUBLISHABLE_KEY &&
+      mode(env.STRIPE_PUBLISHABLE_KEY) !== mode(env.STRIPE_SECRET_KEY)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["STRIPE_PUBLISHABLE_KEY"],
+        message: "must be the same mode (test or live) as STRIPE_SECRET_KEY",
+      });
     }
   })
   .transform((env) => ({
@@ -145,6 +172,7 @@ export const authEnvSchema = z
             webhookSecret: env.STRIPE_WEBHOOK_SECRET,
             monthlyPriceId: env.STRIPE_PRICE_MONTHLY,
             yearlyPriceId: env.STRIPE_PRICE_YEARLY,
+            publishableKey: env.STRIPE_PUBLISHABLE_KEY,
             trialDays: env.BILLING_TRIAL_DAYS,
             triageAllowance: env.BILLING_TRIAGE_ALLOWANCE!,
           }

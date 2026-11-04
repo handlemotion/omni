@@ -41,6 +41,8 @@
     // id and the allowance are required. Amounts live in Stripe; these are ids and numbers only.
     "STRIPE_PRICE_MONTHLY": "",
     "STRIPE_PRICE_YEARLY": "",
+    // Public: Stripe.js needs it to add a card in the Billing page. Empty: cards are added in the portal.
+    "STRIPE_PUBLISHABLE_KEY": "",
     "BILLING_TRIAL_DAYS": "",
     "BILLING_TRIAGE_ALLOWANCE": "",
     "IMAGE_PROXY_DOH_URL": "https://cloudflare-dns.com/dns-query",
