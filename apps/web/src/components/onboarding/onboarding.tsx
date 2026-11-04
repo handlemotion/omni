@@ -1,9 +1,12 @@
 import { Cloudflare } from "@ridemountainpig/svgl-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
+import type { Key } from "react-aria-components";
+import { Skeleton } from "skullet/react";
 import { IconRedirectArrow } from "@/components/icons";
-import { IconChevronRight } from "@/components/icons/sidebar";
+import { IconChevronLeft, IconChevronRight } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
+import { ChoiceBox, ChoiceBoxItem } from "@/components/ui/choice-box";
 import { CopyField, RenewField } from "@/components/ui/copy-field";
 import { Label } from "@/components/ui/field";
 import { Heading } from "@/components/ui/heading";
@@ -24,13 +27,16 @@ import {
   useOnboardingExit,
   useRotateChallenge,
 } from "@/hooks/use-onboarding";
+import { useBilling, useStartCheckout, useStartTrial } from "@/hooks/use-billing";
 import { useInviteMember } from "@/hooks/use-organization";
+import { formatPrice, type Interval } from "@/lib/billing";
 import {
   needsSetup,
-  ONBOARDING_PAGES as PAGES,
+  onboardingPages,
   rememberedChallenge,
   resumePage,
   watchDomain,
+  type OnboardingPage,
 } from "@/lib/onboarding";
 import { useRealtimeConnection } from "@/hooks/use-realtime";
 import type { DnsRecord, OnboardingDomain } from "@/lib/types";
@@ -42,7 +48,8 @@ import type { DnsRecord, OnboardingDomain } from "@/lib/types";
 // resumes on that step's page with what it saved (name, domain, mailboxes). The DNS page starts
 // with Omni's ownership record (ADR 0010), which locks the domain to the workspace. Without
 // Purelymail that is the only record: the domain stays on its mail host, the same page then asks
-// for that host's servers, and each mailbox is added with its existing password.
+// for that host's servers, and each mailbox is added with its existing password. Where billing
+// is on (ADR 0015), a plan page follows mailboxes: the free trial or a paid plan, through Stripe.
 
 /** `host` or `host:port`; the port defaults to the implicit-TLS one. */
 function server(value: string, defaultPort: number) {
@@ -57,23 +64,37 @@ export function Onboarding() {
   const status = useOnboarding();
   // Decided once, from what the route loaded: finish the active workspace, or start a new one.
   const [resuming, setResuming] = useState(() => needsSetup(status.data?.organization));
-  const [page, setPage] = useState(() => (resuming && status.data ? resumePage(status.data) : 0));
+  const pages = onboardingPages(status.data);
+  const [page, setPage] = useState<OnboardingPage>(() =>
+    resuming && status.data ? resumePage(status.data) : "Workspace",
+  );
+  const index = pages.indexOf(page);
   const [servers, setServers] = useState<Servers | null>(null);
   // Only the workspace being set up: a new one has no domain until page 0 adds it.
   const domain = resuming ? status.data?.domains[0] : undefined;
   const ownHost = domain?.provider === "imap";
   // On its own host the domain still proves ownership first; then the page asks for the servers.
   const serversNext = ownHost && domain?.status === "verified";
-  const next = () => setPage((p) => Math.min(p + 1, PAGES.length - 1));
-  // Never back onto page 0: the workspace and domain it saved stay saved. Mailboxes on their own
-  // host need the servers, which a resumed setup has not asked for yet.
-  const back =
-    page > 1 ? () => setPage(page === 3 && ownHost && !servers ? 1 : page - 1) : undefined;
-  const names = serversNext ? PAGES.map((n) => (n === "DNS" ? "Mail server" : n)) : PAGES;
+  // A workspace with a plan has nothing to do on the plan page: it is passed over both ways.
+  const passed = (p: OnboardingPage) => p === "Plan" && !status.data?.organization?.needsPlan;
+  const next = () => {
+    const after = pages.slice(index + 1).find((p) => !passed(p));
+    setPage(after ?? pages[pages.length - 1]!);
+  };
+  // Never back onto the first page: the workspace and domain it saved stay saved. Mailboxes on
+  // their own host need the servers, which a resumed setup has not asked for yet.
+  const previous = pages
+    .slice(1, Math.max(index, 1))
+    .toReversed()
+    .find((p) => !passed(p));
+  const back = previous
+    ? () => setPage(previous === "Mailboxes" && ownHost && !servers ? "DNS" : previous)
+    : undefined;
+  const names = serversNext ? pages.map((n) => (n === "DNS" ? "Mail server" : n)) : pages;
 
   return (
-    <OnboardingPage page={page} names={names} onBack={back}>
-      {page === 0 && (
+    <OnboardingPage page={index} names={names} onBack={back}>
+      {page === "Workspace" && (
         <WorkspaceForm
           existing={resuming ? status.data?.organization?.name : undefined}
           onDone={() => {
@@ -82,14 +103,14 @@ export function Onboarding() {
           }}
         />
       )}
-      {page === 1 && domain && !serversNext && (
+      {page === "DNS" && domain && !serversNext && (
         <DnsForm
           domain={domain}
           organizationId={status.data?.organization?.id ?? ""}
           onDone={next}
         />
       )}
-      {page === 1 && domain && serversNext && (
+      {page === "DNS" && domain && serversNext && (
         <ServerForm
           domain={domain.domain}
           onDone={(s) => {
@@ -98,7 +119,7 @@ export function Onboarding() {
           }}
         />
       )}
-      {page === 2 && domain && (
+      {page === "Mailboxes" && domain && (
         <MailboxesForm
           domain={domain}
           servers={ownHost ? servers : null}
@@ -106,59 +127,63 @@ export function Onboarding() {
           onDone={next}
         />
       )}
-      {page === 3 && <InviteForm domain={domain?.domain} />}
+      {page === "Plan" && <PlanForm onDone={next} />}
+      {page === "Invite" && <InviteForm domain={domain?.domain} />}
     </OnboardingPage>
   );
 }
 
-/** The frame every page shares: logo, step progress, then the page's form. */
+/**
+ * The frame every page shares: logo, step progress, the page's form, and one quiet action under
+ * it. That action goes back a page; on the first page, for someone with nowhere else to go, it
+ * signs out. Leaving setup for a workspace that is ready is a separate way out, top left.
+ */
 function OnboardingPage(props: {
   page: number;
   names: readonly string[];
   onBack?: () => void;
   children: ReactNode;
 }) {
+  const { exit, leave, isPending } = useOnboardingExit();
+  const below = props.onBack
+    ? { label: "Back", onPress: props.onBack, isPending: false }
+    : props.page === 0 && exit.kind === "sign-out"
+      ? { label: "Sign out", onPress: leave, isPending }
+      : null;
   return (
     <main className="flex min-h-dvh justify-center bg-background px-4 py-16">
+      {exit.kind !== "sign-out" && (
+        // Setup stays saved and resumes on return. Optical: `top-3.75` puts the label's ink as far
+        // from the window's top (23.5px) as the chevron's is from its left.
+        <Button
+          intent="plain"
+          size="xs"
+          className="fixed top-3.75 left-3 text-muted-foreground"
+          isPending={isPending}
+          onPress={leave}
+        >
+          <IconChevronLeft />
+          {exit.kind === "inbox" ? "Back to inbox" : `Back to ${exit.workspace.name}`}
+        </Button>
+      )}
       <div className="flex w-100 max-w-full flex-col">
         <div className="flex justify-center">
           <IconRedirectArrow />
         </div>
         <StepProgress current={props.page} names={props.names} />
         {props.children}
-        {props.onBack && (
+        {below && (
           <Button
             intent="plain"
             className="mt-3 self-center text-muted-foreground"
-            onPress={props.onBack}
+            isPending={below.isPending}
+            onPress={below.onPress}
           >
-            Back
+            {below.label}
           </Button>
         )}
-        <ExitButton />
       </div>
     </main>
-  );
-}
-
-/** Leaves setup for the app (same look as Back): it stays saved, and resumes on return. */
-function ExitButton() {
-  const { exit, leave, isPending } = useOnboardingExit();
-  const label =
-    exit.kind === "inbox"
-      ? "Back to inbox"
-      : exit.kind === "workspace"
-        ? `Back to ${exit.workspace.name}`
-        : "Sign out";
-  return (
-    <Button
-      intent="plain"
-      className="mt-3 self-center text-muted-foreground"
-      isPending={isPending}
-      onPress={leave}
-    >
-      {label}
-    </Button>
   );
 }
 
@@ -656,6 +681,105 @@ function MailboxesForm(props: {
           </div>
         )}
       />
+    </PageForm>
+  );
+}
+
+type Billing = Extract<NonNullable<ReturnType<typeof useBilling>["data"]>, { enabled: true }>;
+
+/**
+ * Monthly and yearly, at Stripe's own prices, so the page shows what will be charged. Without a
+ * price (Stripe unreachable just now) the plan is still offered; its amount shows on Stripe.
+ */
+function planChoices(billing: Billing) {
+  const { month, year } = billing.prices;
+  const choices: { id: Interval; label: string; description: string }[] = [
+    {
+      id: "month",
+      label: "Monthly",
+      description: month ? `${formatPrice(month)} a month` : "Billed every month",
+    },
+  ];
+  if ((billing.intervals as readonly string[]).includes("year")) {
+    // Months of the monthly price the yearly one saves, when it saves whole months.
+    const free = month && year ? Math.floor((month.amount * 12 - year.amount) / month.amount) : 0;
+    choices.push({
+      id: "year",
+      label: "Yearly",
+      description: year
+        ? `${formatPrice(year)} a year${free > 0 ? `, ${free} months free` : ""}`
+        : "Billed every year",
+    });
+  }
+  return choices;
+}
+
+/** Stands in for the plan's prices while they load, so the skeleton has the page's shape. */
+const SAMPLE_CHOICES = [
+  { id: "month", label: "Monthly", description: "$19 a month" },
+  { id: "year", label: "Yearly", description: "$190 a year, 2 months free" },
+] as const;
+
+/**
+ * The plan (ADR 0015). Every new workspace starts on the free trial of the plan it picks: no card,
+ * no Stripe page, setup just moves on, and a card is due before the trial ends. A workspace that
+ * has had its trial (or a deployment without one) pays on Stripe's page, which returns here.
+ * Shown only while the workspace has no plan; the page is passed over otherwise.
+ */
+function PlanForm(props: { onDone: () => void }) {
+  const billing = useBilling();
+  const startTrial = useStartTrial();
+  const checkout = useStartCheckout();
+  const [picked, setPicked] = useState<Interval>("month");
+  const [problem, setProblem] = useState<string | null>(null);
+  const plan = billing.data?.enabled ? billing.data : null;
+  const trial = plan?.trialAvailable ?? true;
+  const fail = (error: Error) => setProblem(error.message);
+
+  return (
+    <PageForm
+      title={trial ? "Start your free trial" : "Choose your plan"}
+      description={
+        trial
+          ? `Free for ${plan?.trialDays ?? 14} days. Add a card before it ends to keep going.`
+          : "One price for everyone, every inbox and every domain."
+      }
+      submit={trial ? "Start free trial" : "Continue to payment"}
+      isPending={startTrial.isPending || checkout.isPending}
+      problem={problem ?? (billing.error ? billing.error.message : null)}
+      onSubmit={() => {
+        setProblem(null);
+        if (trial) startTrial.mutate(picked, { onSuccess: props.onDone, onError: fail });
+        else checkout.mutate({ interval: picked, returnPath: "/onboarding" }, { onError: fail });
+      }}
+    >
+      <Skeleton
+        data={plan ? planChoices(plan) : null}
+        sample={[...SAMPLE_CHOICES]}
+        label="Loading plans"
+      >
+        {(choices) => (
+          <ChoiceBox
+            // Optical: other pages' first field starts with a label's text (and its line slack);
+            // this one starts with a border. 4px more puts 35px of ink under the description, as
+            // there.
+            className="mt-1"
+            aria-label="Plan"
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={[picked]}
+            onSelectionChange={(keys) => {
+              const [key] = [...(keys as Set<Key>)];
+              if (key === "month" || key === "year") setPicked(key);
+            }}
+            items={choices}
+          >
+            {(item) => (
+              <ChoiceBoxItem id={item.id} label={item.label} description={item.description} />
+            )}
+          </ChoiceBox>
+        )}
+      </Skeleton>
     </PageForm>
   );
 }

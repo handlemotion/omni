@@ -220,7 +220,13 @@ test("by default a signed-in user with no workspace cannot create one", async ()
   await signIn(stack.worker, stack.database.db, email, jar);
   expect(await api(jar, "GET", "/onboarding")).toEqual({
     status: 200,
-    body: { canCreateOrganization: false, organization: null, domains: [], mailboxes: [] },
+    body: {
+      canCreateOrganization: false,
+      billing: { enabled: false },
+      organization: null,
+      domains: [],
+      mailboxes: [],
+    },
   });
   const created = await authPost(stack.worker, jar, "/organization/create", {
     name: "Mine",

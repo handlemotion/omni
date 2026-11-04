@@ -38,7 +38,9 @@ const SAMPLE_PLAN: Billing = {
   readOnly: false,
   canManage: true,
   intervals: ["month"],
+  prices: { month: null, year: null },
   trialDays: 0,
+  trialAvailable: false,
   subscription: {
     status: "active",
     interval: "month",
@@ -186,9 +188,12 @@ function SubscribeRow({ billing }: { billing: EnabledBilling }) {
   // Pending until the browser has left for Stripe, not just until the URL came back.
   const leaving = checkout.isPending || checkout.isSuccess;
   const start = (interval: Interval) =>
-    checkout.mutate(interval, {
-      onError: (error) => appToast.error(error.message || "Checkout could not be opened."),
-    });
+    checkout.mutate(
+      { interval, returnPath: "/settings/billing" },
+      {
+        onError: (error) => appToast.error(error.message || "Checkout could not be opened."),
+      },
+    );
 
   return (
     <>
@@ -279,7 +284,7 @@ function PortalRow({ primary }: { primary: boolean }) {
       tone={primary ? "primary" : "secondary"}
       loading={portal.isPending || portal.isSuccess}
       onAction={() =>
-        portal.mutate(undefined, {
+        portal.mutate("/settings/billing", {
           onError: (error) => appToast.error(error.message || "The portal could not be opened."),
         })
       }

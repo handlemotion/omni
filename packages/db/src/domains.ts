@@ -367,6 +367,31 @@ export async function releaseDomain(
 }
 
 /**
+ * Withdraws `orgId`'s claim that never locked its domain (pending or expired): it stops counting
+ * toward the cap and leaves the list. Nothing else changes, since no mailbox can exist without a
+ * lock; adding the domain again opens a new claim with a new value. False when there is no such
+ * claim, or it verified meanwhile (that one is released with `releaseDomain`).
+ */
+export async function withdrawClaim(
+  db: Db,
+  input: { orgId: string; claimId: string; now?: Date },
+): Promise<boolean> {
+  const now = input.now ?? new Date();
+  const [withdrawn] = await db
+    .update(domainClaims)
+    .set({ status: "released", updatedAt: now })
+    .where(
+      and(
+        eq(domainClaims.id, input.claimId),
+        eq(domainClaims.orgId, input.orgId),
+        eq(domainClaims.status, "pending"),
+      ),
+    )
+    .returning({ id: domainClaims.id });
+  return withdrawn !== undefined;
+}
+
+/**
  * Moves `fromOrgId`'s lock on `domain` to `toOrgId` in one step, with its verified claim (whose
  * challenge is the one in DNS). The destination's own pending claim on it, if any, is dropped.
  * Refused while the source has mailboxes on it.
@@ -522,6 +547,7 @@ export type DomainAuditAction =
   | "domain.challenge_rotated"
   | "domain.verified"
   | "domain.claim_refused"
+  | "domain.claim_withdrawn"
   | "domain.dns_lost"
   | "domain.dns_restored"
   | "domain.released"
