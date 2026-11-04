@@ -1,7 +1,7 @@
 // The web app in a real Chromium, built and served by the real Worker under `wrangler dev`,
 // on a real Postgres; sends go out through the real mail service outbox to GreenMail. Nothing is
 // mocked: the Worker really stops and starts and the browser really goes offline. The faults
-// injected are a response lost on the wire after the Worker has handled the request, and
+// injected are requests that get no answer (a reply the Worker handled, a counts refetch) and
 // realtime sockets closed by the browser before they reach the Worker.
 import { createServer } from "node:net";
 import { schema } from "@omni/db";
@@ -215,8 +215,28 @@ test("replies written offline go out once each, in order, when the connection is
     .where(eq(schema.threads.mailboxId, box.id));
   if (!thread) throw new Error("the delivered message was not indexed");
 
-  const { page, tab } = await openApp("ana@offline.test", `/inbox/${thread.id}`);
+  // Opening the unread thread marks it read. The counts refetches after that get no answer, and
+  // only once the browser is offline. Mark-read is the first mail action, so the replies queue
+  // behind it: they must still go out when the connection is back.
+  const { page, tab } = await openApp("ana@offline.test", "/");
+  let markedRead = false;
+  let isOffline = false;
+  let wentOffline!: () => void;
+  const offline = new Promise<void>((resolve) => (wentOffline = resolve));
+  await page.route("**/api/threads/*/state", async (route) => {
+    await route.fulfill({ response: await route.fetch() });
+    markedRead = true;
+  });
+  let countsHeld = 0;
+  await page.route("**/api/counts*", async (route) => {
+    if (!markedRead || isOffline) return route.continue();
+    countsHeld++;
+    await offline;
+    await route.abort("internetdisconnected").catch(() => {});
+  });
+  await page.goto(new URL(`/inbox/${thread.id}`, origin).toString());
   await page.locator("article").getByText("body of Plans").waitFor();
+  await expect.poll(() => countsHeld).toBeGreaterThan(0);
 
   // The Worker handles the first reply that reaches it, but its answer never gets back.
   let replyRequests = 0;
@@ -228,6 +248,8 @@ test("replies written offline go out once each, in order, when the connection is
   });
 
   await tab.setOffline(true);
+  isOffline = true;
+  wentOffline();
   await page.getByRole("status").filter({ hasText: "Offline" }).waitFor();
   const reply = async (text: string) => {
     await page.locator("textarea").fill(text);

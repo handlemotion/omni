@@ -30,6 +30,11 @@ const retry = (failureCount: number, error: Error) =>
 /**
  * Every mail action shares one scope, so they run one at a time in the order they were made:
  * queued offline, "defer" then "done" still lands in that order when they flush.
+ *
+ * Their callbacks start refetches but never return them. A returned promise keeps the action
+ * pending, and with it every action queued behind it, until the refetch ends. A refetch paused
+ * offline resumes only after TanStack resumes the paused actions, which wait on that pending
+ * action: back online, nothing would ever run again.
  */
 const scope = { id: "mail-actions" };
 
@@ -55,7 +60,7 @@ export const markReadMutation = (client: QueryClient) =>
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),
-    onSettled: () => client.invalidateQueries({ queryKey: keys.counts() }),
+    onSettled: () => void client.invalidateQueries({ queryKey: keys.counts() }),
   });
 
 /** Into the Queue until `until`; `until: null` puts it back in the Inbox now. Clears done. */
@@ -85,7 +90,7 @@ export const deferMutation = (client: QueryClient) =>
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),
-    onSettled: (_data, _error, { threadId }) => invalidateThread(client, threadId),
+    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
   });
 
 /**
@@ -113,7 +118,7 @@ export const doneMutation = (client: QueryClient) =>
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),
-    onSettled: (_data, _error, { threadId }) => invalidateThread(client, threadId),
+    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
   });
 
 /** Not done: back in the Inbox. */
@@ -131,7 +136,7 @@ export const undoneMutation = (client: QueryClient) =>
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),
-    onSettled: (_data, _error, { threadId }) => invalidateThread(client, threadId),
+    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
   });
 
 export const archiveMutation = (client: QueryClient) =>
@@ -148,7 +153,7 @@ export const archiveMutation = (client: QueryClient) =>
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),
-    onSettled: (_data, _error, { threadId }) => invalidateThread(client, threadId),
+    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
   });
 
 /** Moves the thread's messages to another IMAP folder. Not optimistic: no list shows folders. */
@@ -169,7 +174,7 @@ export const moveMutation = (client: QueryClient) =>
           json: { destination },
         }),
       ),
-    onSettled: (_data, _error, { threadId }) => invalidateThread(client, threadId),
+    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
   });
 
 export interface ReplyVariables extends Keyed {
@@ -241,5 +246,5 @@ export const sendMutation = (client: QueryClient) =>
     scope,
     mutationFn: ({ key, ...json }: SendVariables) =>
       call(api.send.$post({ header: header(key), json })),
-    onSuccess: () => client.invalidateQueries({ queryKey: keys.threadLists() }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.threadLists() }),
   });
