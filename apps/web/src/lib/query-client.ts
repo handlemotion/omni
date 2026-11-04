@@ -24,6 +24,6 @@ export function createQueryClient(onSessionLost: () => void) {
     },
   });
   // Client-only state (pending sends, failures) is never fetched and must not expire unseen.
-  client.setQueryDefaults([...keys.root, "local"], { staleTime: Infinity, gcTime: Infinity });
+  client.setQueryDefaults(keys.local(), { staleTime: Infinity, gcTime: Infinity });
   return client;
 }

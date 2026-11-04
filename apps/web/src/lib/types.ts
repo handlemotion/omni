@@ -40,13 +40,9 @@ export const LANES = [
   "unsure",
 ] as const satisfies readonly Lane[];
 
-export const THREAD_VIEWS = [
-  "inbox",
-  "queue",
-  "done",
-  "archive",
-  "all",
-] as const satisfies readonly ThreadView[];
+// Fails to compile when the API gains a lane that `LANES` leaves out (`?lane=` would ignore it).
+type NoneMissing<Missing extends never> = Missing;
+export type LanesListed = NoneMissing<Exclude<Lane, (typeof LANES)[number]>>;
 
 /** What a thread list shows. Absent `mailbox` means every mailbox the member can see. */
 export interface ThreadFilter {
