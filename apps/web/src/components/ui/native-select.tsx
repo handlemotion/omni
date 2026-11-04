@@ -28,7 +28,7 @@ export function NativeSelectContent({ className, isInvalid, ...props }: NativeSe
         className={cn(
           "relative block w-full appearance-none rounded-lg px-[calc(--spacing(3.5)-1px)] py-[calc(--spacing(2.5)-1px)] sm:py-[calc(--spacing(1.5)-1px)] sm:pr-8 sm:pl-[calc(--spacing(3)-1px)]",
           "text-base/6 text-foreground placeholder:text-muted-foreground sm:text-sm/6",
-          "bg-(--control-bg,transparent)",
+          "bg-(--control-bg,var(--color-background))",
           "border border-input enabled:hover:border-muted-foreground/30",
           "outline-hidden focus:border-ring/70 focus:enabled:hover:border-ring/80",
           "aria-invalid:border-danger-subtle-foreground/70 focus:aria-invalid:border-danger-subtle-foreground/70 aria-invalid:enabled:hover:border-danger-subtle-foreground/80 focus:aria-invalid:enabled:hover:border-danger-subtle-foreground/80",

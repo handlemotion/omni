@@ -70,7 +70,11 @@ export function Menu<T extends object>({ className, placement, popover, ...props
   });
   return (
     <Popover
-      className={cx("min-w-32 *:data-[slot=popover-inner]:overflow-hidden", popover?.className)}
+      // Hugs its widest item: 128px at least, 320px at most (then labels truncate).
+      className={cx(
+        "w-max min-w-32 max-w-xs *:data-[slot=popover-inner]:overflow-hidden",
+        popover?.className,
+      )}
       placement={placement}
       {...popover}
     >

@@ -43,7 +43,9 @@ export const dropdownItemStyles = tv({
   base: [
     "min-w-0 [--me-icon:--spacing(2.5)] sm:[--me-icon:--spacing(2)]",
     // Rows from transitive's menus: 30px, a small radius, 13px text, the fill fading in place.
-    "col-span-full grid min-h-7.5 grid-cols-[auto_1fr_1.5rem_0.5rem_auto] px-1.5 py-1.5 supports-[grid-template-columns:subgrid]:grid-cols-subgrid",
+    // 12px after the label: with the list's 4px padding, the longest label ends 16px from the
+    // edge, so the widest item sets the dropdown's width (no dead space, nothing cramped).
+    "col-span-full grid min-h-7.5 grid-cols-[auto_1fr_1.5rem_0.5rem_auto] ps-1.5 pe-3 py-1.5 supports-[grid-template-columns:subgrid]:grid-cols-subgrid",
     "transition-[background-color] duration-150 ease-out motion-reduce:transition-none",
     "not-has-[[slot=description]]:items-center",
     "group relative cursor-default select-none rounded-sm outline-0",
@@ -137,7 +139,11 @@ export function DropdownItem({ className, children, intent, ...props }: Dropdown
 
 export function DropdownLabel({ className, ...props }: TextProps) {
   return (
-    <Text slot="label" className={cn("col-start-2 [&:has(+svg)]:pe-6", className)} {...props} />
+    <Text
+      slot="label"
+      className={cn("col-start-2 min-w-0 truncate [&:has(+svg)]:pe-6", className)}
+      {...props}
+    />
   );
 }
 

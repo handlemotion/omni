@@ -17,7 +17,9 @@ export function Input({ className, ref, size = "md", ...props }: InputProps) {
     <span data-slot="control" className="relative block w-full">
       <InputPrimitive
         className={cx(
-          "relative block w-full appearance-none rounded-lg bg-(--control-bg,transparent)",
+          // Fields are white wherever they sit (on the canvas or the grey surface), so they read as
+          // places to type; `--control-bg` overrides it.
+          "relative block w-full appearance-none rounded-lg bg-(--control-bg,var(--color-background))",
           size === "md" ? "h-8 px-2" : "h-9 px-2.5",
           "text-sm text-foreground placeholder:text-subtle-foreground",
           "border border-input enabled:hover:border-muted-foreground/30",

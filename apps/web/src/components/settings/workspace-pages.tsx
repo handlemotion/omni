@@ -59,6 +59,26 @@ function roleLabel(role: string) {
   return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
+// Skeleton stand-ins: the shape of what loads (three people), drawn before the first load.
+type MemberList = NonNullable<ReturnType<typeof useMembers>["data"]>["members"];
+type AccessList = NonNullable<ReturnType<typeof useMailboxMembers>["data"]>["members"];
+const SAMPLE_PEOPLE = ["Sample person", "Another person", "Third person"].map((name, i) => ({
+  id: `sample-${i}`,
+  name,
+  email: `person${i}@example.com`,
+}));
+const SAMPLE_MEMBERS = SAMPLE_PEOPLE.map((p) => ({
+  id: p.id,
+  role: "member",
+  user: { name: p.name, email: p.email, image: null },
+})) as unknown as MemberList;
+const SAMPLE_ACCESS = SAMPLE_PEOPLE.map((p) => ({
+  memberId: p.id,
+  name: p.name,
+  email: p.email,
+  image: null,
+})) as unknown as AccessList;
+
 const isManager = (role: string) => /\b(owner|admin)\b/.test(role);
 
 export function GeneralPage() {
@@ -71,7 +91,7 @@ export function GeneralPage() {
   return (
     <SettingsSections>
       <SettingsSection title="Workspace">
-        <Skeleton data={active} label="Loading workspace">
+        <Skeleton id="settings-workspace" data={active} label="Loading workspace">
           {(workspace) => (
             <SettingsGroup>
               {
@@ -87,7 +107,7 @@ export function GeneralPage() {
       </SettingsSection>
 
       <SettingsSection title="Your workspaces">
-        <Skeleton data={all} label="Loading workspaces">
+        <Skeleton id="settings-workspaces" data={all} label="Loading workspaces">
           {(list) => (
             <SettingsGroup>
               {list.map((workspace) => {
@@ -170,7 +190,12 @@ export function PeoplePage() {
   return (
     <SettingsSections>
       <SettingsSection title="Members">
-        <Skeleton data={members.data?.members} label="Loading members">
+        <Skeleton
+          id="settings-members"
+          data={members.data?.members}
+          sample={SAMPLE_MEMBERS}
+          label="Loading members"
+        >
           {(list) => (
             <SettingsGroup>
               {canManage && (
@@ -227,7 +252,7 @@ export function PeoplePage() {
       </SettingsSection>
 
       <SettingsSection title="Invited">
-        <Skeleton data={pending} label="Loading invitations">
+        <Skeleton id="settings-invitations" data={pending} sample={[]} label="Loading invitations">
           {(list) => (
             <SettingsGroup>
               {list.length === 0 ? (
@@ -431,7 +456,7 @@ export function MailboxesPage() {
   return (
     <SettingsSections>
       <SettingsSection title="Mailboxes">
-        <Skeleton data={mine} label="Loading mailboxes">
+        <Skeleton id="settings-mailboxes" data={mine} label="Loading mailboxes">
           {(list) => (
             <SettingsGroup>
               {list.map((mailbox) =>
@@ -456,7 +481,7 @@ export function MailboxesPage() {
         title="Inbox"
         info="Threads in each inbox now, by the lane triage put them in."
       >
-        <Skeleton data={busy} label="Loading counts">
+        <Skeleton id="settings-inbox" data={busy} sample={[]} label="Loading counts">
           {(list) => (
             <SettingsGroup>
               {list.length === 0 ? (
@@ -594,7 +619,12 @@ function MailboxAccessDialog(props: { mailbox: Mailbox; canManage: boolean; onCl
             </Button>
           </form>
         )}
-        <Skeleton data={access.data?.members} label="Loading access">
+        <Skeleton
+          id={`settings-access-${mailbox.id}`}
+          data={access.data?.members}
+          sample={SAMPLE_ACCESS}
+          label="Loading access"
+        >
           {(list) => (
             <SettingsGroup>
               {list.map((person) => {

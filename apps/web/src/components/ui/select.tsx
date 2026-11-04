@@ -87,7 +87,7 @@ export function SelectTrigger({ children, className, ...props }: SelectTriggerPr
     <span data-slot="control" className="relative block w-full">
       <Button
         className={cx(
-          "group/select-trigger flex w-full min-w-0 cursor-default items-center gap-x-2 rounded-lg border border-input bg-(--control-bg,transparent) h-8 px-2 text-start text-sm text-foreground outline-hidden *:text-sm dark:shadow-none",
+          "group/select-trigger flex w-full min-w-0 cursor-default items-center gap-x-2 rounded-lg border border-input bg-(--control-bg,var(--color-background)) h-8 px-2 text-start text-sm text-foreground outline-hidden *:text-sm dark:shadow-none",
           "focus:border-ring/70 focus:enabled:hover:border-ring/80",
           "enabled:hover:border-muted-foreground/30",
           "group-open/select:border-ring/70 ",

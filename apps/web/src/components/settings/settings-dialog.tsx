@@ -155,7 +155,7 @@ function SettingsBody({ page }: { page: SettingsPageId }) {
     // 40/60: the left part is the surface, its nav (the app sidebar's width) set against the
     // divider so it sits beside the page; the page column starts on the same line as the nav.
     <div className="grid min-h-0 flex-1 grid-cols-[2fr_3fr]">
-      <div className="flex min-h-0 justify-end overflow-y-auto border-e border-border bg-surface">
+      <div className="flex min-h-0 justify-end overflow-y-auto border-e border-border bg-surface pe-6">
         <nav
           aria-label="Settings pages"
           className="flex w-sidebar shrink-0 flex-col gap-3 px-2 pt-14 pb-8"

@@ -60,6 +60,7 @@ export function ProfilePage() {
             label={name}
             description={user.name ? user.email : undefined}
             actionLabel="Log out"
+            tone="danger"
             loading={signOut.isPending}
             onAction={() => signOut.mutate()}
           />
@@ -67,7 +68,7 @@ export function ProfilePage() {
       </SettingsSection>
 
       <SettingsSection title="Other accounts on this browser">
-        <Skeleton data={others} label="Loading accounts">
+        <Skeleton id="settings-accounts" data={others} sample={[]} label="Loading accounts">
           {(accounts) => (
             <SettingsGroup>
               {accounts.length === 0 ? (
@@ -124,7 +125,7 @@ export function SecurityPage() {
   return (
     <SettingsSections>
       <SettingsSection title="Passkeys">
-        <Skeleton data={passkeys.data} label="Loading passkeys">
+        <Skeleton id="settings-passkeys" data={passkeys.data} sample={[]} label="Loading passkeys">
           {(list) => (
             <SettingsGroup>
               {list.length === 0 ? (

@@ -25,7 +25,7 @@ export function SettingsRowMenu({
       <Button intent="plain" size="sq-xs" aria-label={label} isDisabled={disabled}>
         <EllipsisHorizontalIcon />
       </Button>
-      <Menu placement="bottom end" popover={{ className: "min-w-44" }}>
+      <Menu placement="bottom end">
         {items.map((item) => (
           <MenuItem
             key={item.label}
