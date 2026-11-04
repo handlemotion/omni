@@ -162,10 +162,13 @@ const { section, header } = dropdownSectionStyles();
 export interface MenuSectionProps<T> extends MenuSectionPrimitiveProps<T> {
   ref?: React.Ref<HTMLDivElement>;
   label?: string;
+  /** Spacing and alignment for the label, which belongs to the rows below it. */
+  labelClassName?: string;
 }
 
 export function MenuSection<T extends object>({
   className,
+  labelClassName,
   children,
   ref,
   ...props
@@ -177,7 +180,9 @@ export function MenuSection<T extends object>({
       className={section({ className })}
       {...props}
     >
-      {"label" in props && <Header className={header()}>{props.label}</Header>}
+      {"label" in props && (
+        <Header className={header({ className: labelClassName })}>{props.label}</Header>
+      )}
       <Collection items={props.items}>{children}</Collection>
     </MenuSectionPrimitive>
   );
