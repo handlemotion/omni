@@ -92,7 +92,7 @@ export function Dialog({
             <>
               {typeof children === "function" ? children(values) : children}
               {closeButton && dismissable && (
-                <DialogCloseIcon className={full ? "top-4 right-4" : undefined} />
+                <DialogCloseIcon filled={full} className={full ? "top-4 right-4" : undefined} />
               )}
             </>
           )}
@@ -162,24 +162,27 @@ export function DialogClose({ intent = "outline", ref, ...props }: ButtonProps) 
   return <Button slot="close" ref={ref} intent={intent} {...props} />;
 }
 
-/** The ✕ in the top-right corner, 10px from both edges (16px on a full-screen dialog). */
+/** The ✕ in the top-right corner, 10px from both edges; on a full-screen dialog a grey disc
+ *  16px in. */
 export function DialogCloseIcon({
   className,
   isDismissable = true,
+  filled = false,
 }: {
   className?: string;
   isDismissable?: boolean;
+  /** A grey disc behind the ✕: for a full-screen dialog, where a bare ✕ reads as a stray glyph. */
+  filled?: boolean;
 }) {
   if (!isDismissable) return null;
   return (
-    // A grey disc, so it reads as a button and not a stray ✕; darker on hover and press.
     <Button
       slot="close"
-      intent="secondary"
+      intent={filled ? "secondary" : "plain"}
       size="sq-xs"
-      isCircle
+      isCircle={filled}
       aria-label="Close"
-      className={cn("absolute top-2.5 right-2.5 border-0", className)}
+      className={cn("absolute top-2.5 right-2.5", filled && "border-0", className)}
     >
       <XMarkIcon />
     </Button>

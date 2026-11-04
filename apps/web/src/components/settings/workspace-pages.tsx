@@ -2,7 +2,6 @@
 // it, and who can see each mailbox.
 import { cn } from "cn";
 import { type CSSProperties, lazy, useState } from "react";
-import { IconInbox, IconSettings, IconTeam } from "@/components/icons/sidebar";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -28,7 +27,6 @@ import {
   useUpdateMemberRole,
 } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
-import { showSettingsPage } from "@/hooks/use-settings-dialog.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
 import { LANES, type Lane, type Mailbox, type Workspace } from "@/lib/types.ts";
 import { PersonAvatar } from "./account-pages";
@@ -36,11 +34,9 @@ import { SettingsAddRow } from "./kit/settings-add-row";
 import {
   SettingsEmptyState,
   SettingsGroup,
-  SettingsPageHeader,
   SettingsSection,
   SettingsSections,
 } from "./kit/settings-layout";
-import { SettingsLinkRow } from "./kit/settings-link-row";
 import { SettingsMeterRow } from "./kit/settings-meter-row";
 import { SettingsRow } from "./kit/settings-row";
 import { SettingsRowMenu } from "./kit/settings-row-menu";
@@ -97,52 +93,6 @@ export function WorkspaceAvatar({ workspace, size }: { workspace: Workspace; siz
       className={cn("text-foreground outline-0", size >= 20 ? "bg-accent" : "bg-muted")}
       style={{ "--avatar-size": `${size}px` } as CSSProperties}
     />
-  );
-}
-
-const WORKSPACE_PAGES = [
-  {
-    id: "general",
-    label: "General",
-    description: "Its name, handle and your role",
-    icon: IconSettings,
-  },
-  { id: "people", label: "People", description: "Members, roles and invitations", icon: IconTeam },
-  {
-    id: "mailboxes",
-    label: "Mailboxes",
-    description: "Who sees each mailbox, and what waits in it",
-    icon: IconInbox,
-  },
-] as const;
-
-/** The active workspace's index: its mark and name, then a row for each of its pages. */
-export function WorkspaceIndexPage() {
-  const { member } = useMember();
-  const workspaces = useWorkspaces();
-  const active = workspaces.data?.workspaces.find((workspace) => workspace.id === member.orgId);
-  return (
-    <>
-      <SettingsPageHeader
-        title={active?.name ?? "Workspace"}
-        avatar={active && <WorkspaceAvatar workspace={active} size={28} />}
-      />
-      <SettingsSections>
-        <SettingsSection title="Settings">
-          <SettingsGroup>
-            {WORKSPACE_PAGES.map((page) => (
-              <SettingsLinkRow
-                key={page.id}
-                icon={page.icon}
-                label={page.label}
-                description={page.description}
-                onPress={() => showSettingsPage(page.id)}
-              />
-            ))}
-          </SettingsGroup>
-        </SettingsSection>
-      </SettingsSections>
-    </>
   );
 }
 
