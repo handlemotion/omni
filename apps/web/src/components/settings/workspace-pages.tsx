@@ -32,6 +32,7 @@ import {
   useUpdateMemberRole,
 } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
+import { useRemoveWorkspaceLogo, useUploadWorkspaceLogo } from "@/hooks/use-pictures.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
 import {
   LANES,
@@ -41,7 +42,7 @@ import {
   type OnboardingDomain,
   type Workspace,
 } from "@/lib/types.ts";
-import { EditableValue, PersonAvatar } from "./account-pages";
+import { NameInputRow, PersonAvatar } from "./account-pages";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import {
   SettingsEmptyState,
@@ -50,6 +51,7 @@ import {
   SettingsSections,
 } from "./kit/settings-layout";
 import { SettingsLinkRow } from "./kit/settings-link-row";
+import { SettingsAvatarRow } from "./kit/settings-avatar-row";
 import { SettingsMeterRow } from "./kit/settings-meter-row";
 import { SettingsRow } from "./kit/settings-row";
 import { SettingsRowMenu } from "./kit/settings-row-menu";
@@ -57,7 +59,6 @@ import {
   SettingsConfirmDialog,
   SettingsFormDialog,
   SettingsListDialog,
-  SettingsRenameDialog,
 } from "./kit/settings-stacked-dialog";
 import { SettingsValueRow } from "./kit/settings-value-row";
 
@@ -114,7 +115,8 @@ export function GeneralPage() {
   const { member } = useMember();
   const workspaces = useWorkspaces();
   const rename = useRenameWorkspace();
-  const [renaming, setRenaming] = useState(false);
+  const uploadLogo = useUploadWorkspaceLogo();
+  const removeLogo = useRemoveWorkspaceLogo();
   const canManage = isManager(member.role);
   const active = workspaces.data?.workspaces.find((workspace) => workspace.id === member.orgId);
 
@@ -124,15 +126,37 @@ export function GeneralPage() {
         <Skeleton id="settings-workspace" data={active} label="Loading workspace">
           {(workspace) => (
             <SettingsGroup>
+              {canManage && (
+                <SettingsAvatarRow
+                  label="Logo"
+                  description="Shown in the switcher. PNG, JPEG, WebP or GIF, up to 2 MB"
+                  avatar={<WorkspaceAvatar workspace={workspace} size={32} />}
+                  hasImage={!!workspace.logo}
+                  busy={uploadLogo.isPending || removeLogo.isPending}
+                  onUpload={(file) =>
+                    uploadLogo.mutate(file, {
+                      onError: (error) =>
+                        appToast.error(error.message || "That logo didn't upload."),
+                    })
+                  }
+                  onRemove={() =>
+                    removeLogo.mutate(undefined, {
+                      onError: () => appToast.error("The logo could not be removed."),
+                    })
+                  }
+                />
+              )}
               {canManage ? (
-                <SettingsRow
+                <NameInputRow
+                  id="settings-workspace-name"
                   label="Name"
-                  control={
-                    <EditableValue
-                      value={workspace.name}
-                      label="Edit workspace name"
-                      onEdit={() => setRenaming(true)}
-                    />
+                  saved={workspace.name}
+                  message="Workspace name changed"
+                  saving={rename.isPending}
+                  onSave={(name) =>
+                    rename.mutate(name, {
+                      onError: () => appToast.error("The workspace could not be renamed."),
+                    })
                   }
                 />
               ) : (
@@ -146,23 +170,6 @@ export function GeneralPage() {
       </SettingsSection>
 
       {canManage && <DomainsSection />}
-
-      {renaming && active && (
-        <SettingsRenameDialog
-          title="Edit workspace name"
-          description="Everyone in the workspace sees it in the switcher and on invitations."
-          label="Name"
-          name={active.name}
-          saving={rename.isPending}
-          onClose={() => setRenaming(false)}
-          onSave={(name) =>
-            rename.mutate(name, {
-              onSuccess: () => setRenaming(false),
-              onError: () => appToast.error("The workspace could not be renamed."),
-            })
-          }
-        />
-      )}
     </SettingsSections>
   );
 }

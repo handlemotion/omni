@@ -6,7 +6,7 @@
 // and the chosen workspace's pages under it. The nav is the app sidebar's (240px, 13px rows 32px tall, 11px
 // group labels, the search field on top), set at the right of the left 40%; the page is a 640px
 // column in the right 60%, its title 17px. The page body is transitive's settings kit (`./kit`).
-import { ShieldCheckIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftStartOnRectangleIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import { IconKeyboard } from "@/components/icons/keyboard";
@@ -15,7 +15,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { Dialog } from "@/components/ui/dialog";
 import { NavList, NavListItem, NavListLabel, NavListSection } from "@/components/ui/nav-list";
 import { SearchField, SearchInput } from "@/components/ui/search-field";
-import { useMember } from "@/hooks/use-session.ts";
+import { Button } from "@/components/ui/button";
+import { useMember, useSignOut } from "@/hooks/use-session.ts";
 import type { Selection } from "react-aria-components/ListBox";
 import {
   closeSettings,
@@ -137,6 +138,24 @@ export function SettingsDialog() {
   );
 }
 
+/** The nav's last row, under a hairline: red text, a nav row's geometry (the reference). */
+function LogOutRow() {
+  const signOut = useSignOut();
+  return (
+    <div className="mt-1 border-t border-border pt-4">
+      <Button
+        intent="plain"
+        isPending={signOut.isPending}
+        onPress={() => signOut.mutate()}
+        className="h-8 w-full justify-start gap-2.5 rounded-lg px-2 text-danger [--btn-foreground:var(--color-danger)] [--btn-icon:var(--color-danger)] [--btn-overlay:var(--color-danger-subtle)] hover:*:[svg]:text-danger"
+      >
+        <ArrowLeftStartOnRectangleIcon data-slot="icon" className="size-icon" />
+        Log out
+      </Button>
+    </div>
+  );
+}
+
 /** Shows the page a nav list picked. */
 function show(keys: Selection) {
   const [next] = [...(keys === "all" ? [] : keys)];
@@ -180,32 +199,36 @@ function SettingsBody({ page }: { page: SettingsPageId }) {
               </NavListSection>
             </NavList>
           )}
-          {/* The workspace these pages act on, then its pages (the reference's org chooser). */}
-          <div className="flex flex-col gap-y-0.5">
-            <span className="flex h-8 shrink-0 items-center px-2.25 text-xs text-subtle-foreground">
-              Workspace
-            </span>
-            <WorkspaceChooser />
+          {/* The workspace these pages act on, then its pages (the reference's org chooser). Its
+              pages sit 4px under it, closer than the 12px between groups: they belong to it. */}
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-y-0.5">
+              <span className="flex h-8 shrink-0 items-center px-2.25 text-xs text-subtle-foreground">
+                Workspace
+              </span>
+              <WorkspaceChooser />
+            </div>
+            {shownWorkspace.length > 0 && (
+              <NavList
+                aria-label="Workspace settings"
+                selectedKeys={selectedIn(WORKSPACE_PAGES)}
+                onSelectionChange={show}
+              >
+                <NavListSection id="workspace">
+                  {shownWorkspace.map((p) => (
+                    <NavListItem key={p.id} id={p.id} textValue={p.title}>
+                      {p.icon}
+                      <NavListLabel>{p.title}</NavListLabel>
+                    </NavListItem>
+                  ))}
+                </NavListSection>
+              </NavList>
+            )}
           </div>
-          {shownWorkspace.length > 0 && (
-            <NavList
-              aria-label="Workspace settings"
-              selectedKeys={selectedIn(WORKSPACE_PAGES)}
-              onSelectionChange={show}
-            >
-              <NavListSection id="workspace">
-                {shownWorkspace.map((p) => (
-                  <NavListItem key={p.id} id={p.id} textValue={p.title}>
-                    {p.icon}
-                    <NavListLabel>{p.title}</NavListLabel>
-                  </NavListItem>
-                ))}
-              </NavListSection>
-            </NavList>
-          )}
           {shownAccount.length === 0 && shownWorkspace.length === 0 && (
             <p className="px-2.25 text-sm text-muted-foreground">No settings match.</p>
           )}
+          <LogOutRow />
         </nav>
       </div>
       <div className="min-w-0 overflow-y-auto bg-background">

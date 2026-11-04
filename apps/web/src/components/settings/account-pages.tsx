@@ -31,7 +31,11 @@ import {
   useUpdateName,
 } from "@/hooks/use-session.ts";
 import { keyLabel, SHORTCUT_IDS, SHORTCUTS, type ShortcutDefinition } from "@/lib/shortcuts.ts";
+import { useRemoveProfilePicture, useUploadProfilePicture } from "@/hooks/use-pictures.ts";
 import { SettingsAddRow } from "./kit/settings-add-row";
+import { SettingsInputRow } from "./kit/settings-input-row";
+import { useSettingsPendingChanges } from "./kit/use-settings-pending-changes";
+import { SettingsAvatarRow } from "./kit/settings-avatar-row";
 import {
   SettingsEmptyState,
   SettingsGroup,
@@ -75,15 +79,38 @@ export function PersonAvatar(props: { name: string; image?: string | null }) {
   );
 }
 
-/** A read-only value beside the button that changes it ("Rodrigo Jiménez  Edit"). */
-export function EditableValue(props: { value: string; label: string; onEdit: () => void }) {
+/**
+ * A name edited in place: the field holds the saved value; changing it raises the page's
+ * pending-changes toast (Save, Discard), never a button in the row (transitive's kit).
+ */
+export function NameInputRow(props: {
+  id: string;
+  label: string;
+  saved: string;
+  message: string;
+  placeholder?: string;
+  saving: boolean;
+  onSave: (name: string) => void;
+}) {
+  const [draft, setDraft] = useState(props.saved);
+  const next = draft.trim();
+  useSettingsPendingChanges({
+    dirty: next !== "" && next !== props.saved,
+    message: props.message,
+    saving: props.saving,
+    onDiscard: () => setDraft(props.saved),
+    onSave: () => props.onSave(next),
+  });
   return (
-    <>
-      <span className="max-w-56 truncate text-sm/4 text-foreground">{props.value}</span>
-      <Button intent="outline" aria-label={props.label} onPress={props.onEdit}>
-        Edit
-      </Button>
-    </>
+    <SettingsInputRow
+      id={props.id}
+      label={props.label}
+      value={draft}
+      placeholder={props.placeholder}
+      maxLength={120}
+      autoComplete="off"
+      onChange={(event) => setDraft(event.currentTarget.value)}
+    />
   );
 }
 
@@ -94,7 +121,8 @@ export function ProfilePage() {
   const switchAccount = useSwitchAccount();
   const revoke = useRevokeDeviceSession();
   const rename = useUpdateName();
-  const [renaming, setRenaming] = useState(false);
+  const uploadPicture = useUploadProfilePicture();
+  const removePicture = useRemoveProfilePicture();
   const name = user.name || user.email;
   const others = sessions.data?.filter((entry) => entry.user.id !== user.id);
 
@@ -102,14 +130,34 @@ export function ProfilePage() {
     <SettingsSections>
       <SettingsSection title="Identity">
         <SettingsGroup>
-          <SettingsRow
+          <SettingsAvatarRow
+            label="Picture"
+            description="PNG, JPEG, WebP or GIF, up to 2 MB"
+            avatar={<PersonAvatar name={name} image={user.image} />}
+            hasImage={!!user.image}
+            busy={uploadPicture.isPending || removePicture.isPending}
+            onUpload={(file) =>
+              uploadPicture.mutate(file, {
+                onError: (error) => appToast.error(error.message || "That picture didn't upload."),
+              })
+            }
+            onRemove={() =>
+              removePicture.mutate(undefined, {
+                onError: () => appToast.error("Your picture could not be removed."),
+              })
+            }
+          />
+          <NameInputRow
+            id="settings-your-name"
             label="Name"
-            control={
-              <EditableValue
-                value={user.name || "Not set"}
-                label="Edit name"
-                onEdit={() => setRenaming(true)}
-              />
+            saved={user.name ?? ""}
+            placeholder="Your name"
+            message="Name changed"
+            saving={rename.isPending}
+            onSave={(next) =>
+              rename.mutate(next, {
+                onError: () => appToast.error("Your name could not be changed."),
+              })
             }
           />
           <SettingsValueRow label="Email" value={user.email} />
@@ -120,26 +168,27 @@ export function ProfilePage() {
         title="Accounts on this browser"
         info="Sign in to another account from the sign-in page to switch between them here."
       >
-        <SettingsGroup>
-          <SettingsRow
-            avatar={<PersonAvatar name={name} image={user.image} />}
-            label={name}
-            hint="current"
-            description={user.name ? user.email : undefined}
-            control={
-              <Button
-                intent="outline"
-                isPending={signOut.isPending}
-                onPress={() => signOut.mutate()}
-              >
-                Log out
-              </Button>
-            }
-          />
-          {/* Only the other accounts load; the signed-in one above is already known. */}
-          <Skeleton id="settings-accounts" data={others} sample={[]} label="Loading accounts">
-            {(accounts) =>
-              accounts.map(({ user: other, session }) => (
+        {/* One skeleton for the whole card: a wrapper inside it would break the hairlines. */}
+        <Skeleton id="settings-accounts" data={others} sample={[]} label="Loading accounts">
+          {(accounts) => (
+            <SettingsGroup>
+              <SettingsRow
+                avatar={<PersonAvatar name={name} image={user.image} />}
+                label={name}
+                hint="current"
+                description={user.name ? user.email : undefined}
+                control={
+                  // Red at Rodrigo's call, though signing out can be undone by signing back in.
+                  <Button
+                    intent="danger"
+                    isPending={signOut.isPending}
+                    onPress={() => signOut.mutate()}
+                  >
+                    Log out
+                  </Button>
+                }
+              />
+              {accounts.map(({ user: other, session }) => (
                 <SettingsRow
                   key={session.token}
                   avatar={<PersonAvatar name={other.name || other.email} image={other.image} />}
@@ -168,28 +217,11 @@ export function ProfilePage() {
                     </>
                   }
                 />
-              ))
-            }
-          </Skeleton>
-        </SettingsGroup>
+              ))}
+            </SettingsGroup>
+          )}
+        </Skeleton>
       </SettingsSection>
-
-      {renaming && (
-        <SettingsRenameDialog
-          title="Edit name"
-          description="People in your workspaces see it on your messages and in their lists."
-          label="Name"
-          name={user.name}
-          saving={rename.isPending}
-          onClose={() => setRenaming(false)}
-          onSave={(next) =>
-            rename.mutate(next, {
-              onSuccess: () => setRenaming(false),
-              onError: () => appToast.error("Your name could not be changed."),
-            })
-          }
-        />
-      )}
     </SettingsSections>
   );
 }
