@@ -243,9 +243,9 @@ flyctl deploy . --config apps/mail/fly.toml --app <your-app>
 curl https://<your-app>.fly.dev/health
 ```
 
-Each deploy first runs the database migrations (`release_command` in `fly.toml`), with
-`MIGRATE_DATABASE_URL` if set, else `DATABASE_URL`; a failed migration stops the deploy. Fly's
-GitHub deploy works the same with the repo root as working directory and this config path.
+Fly's GitHub deploy works the same with the repo root as working directory and this config path.
+Run the database migrations (`pnpm --filter @omni/db db:migrate`) before deploying code that needs
+them.
 
 Set the Worker's `MAIL_SERVICE_URL` to `https://<your-app>.fly.dev`.
 

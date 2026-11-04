@@ -1,4 +1,4 @@
-# 0019: Platforms deploy themselves; Actions only syncs Worker secrets
+# 0019: Platforms deploy themselves; Actions migrates and syncs Worker secrets
 
 Date: 2026-11-04 · Status: accepted · Amends: ADR 0004 (how the mail service is deployed)
 
@@ -19,10 +19,11 @@ itself; it has no automatic sync for Workers secrets (its Cloudflare Workers pag
   domains and `--var` values from build variables, so `wrangler.jsonc` keeps neutral defaults.
   Workers Builds ignores the config's `build` key, so its build command builds `apps/web`.
 - **Mail service: Fly's GitHub deploy** of `main` with `apps/mail/fly.toml`.
-- **Migrations: `release_command`** in `fly.toml` (`dist/migrate.js`, drizzle-orm's migrator over
-  the same journal and table as `drizzle-kit migrate`), in a temporary machine on the new image.
-  A failure stops that deploy. It needs `MIGRATE_DATABASE_URL` in `prd_mail`.
-- **Actions keeps one job**: `sync-worker-secrets.yml` copies `prd_worker` to the Worker's secrets
+- **Migrations stay in GitHub Actions** (`production.yml`, `drizzle-kit migrate` with
+  `prd_github`'s `MIGRATE_DATABASE_URL`) on each push to `main`. Fly's `release_command` would
+  gate the mail deploy on them, but Fly secrets are app-wide, so the admin role would sit in the
+  always-on mail machine too; keeping it in CI keeps it out of every running service.
+- **Actions also syncs Worker secrets** (`production.yml`): `prd_worker` to the Worker's secrets
   with `wrangler secret bulk`, on each push to `main` and by hand. Because that deploys a new
   version of the latest one, it first waits for the commit's platform check runs to finish, so it
   cannot put the previous code back.
@@ -31,8 +32,9 @@ itself; it has no automatic sync for Workers secrets (its Cloudflare Workers pag
 
 - Nothing gates a deploy on CI any more; the `main` ruleset (green `Checks` before merge) is the
   gate.
-- The Worker and the mail service deploy independently, so a migration can land after Worker code
-  that needs it. Additive-first schema changes (AGENTS.md) are now required, not just preferred.
+- Nothing waits for the migrations: both platforms deploy as soon as `main` changes, so a
+  migration can land after code that needs it. Additive-first schema changes (AGENTS.md) are now
+  required, not just preferred.
 - The Worker's build variables are a second copy of `prd_github`'s `HYPERDRIVE_ID`,
   `WORKER_DOMAIN` and `WORKER_VAR_*`. Syncing them from Doppler needs a token with Workers Builds
   access; until then both are changed together (docs/operations/doppler.md).

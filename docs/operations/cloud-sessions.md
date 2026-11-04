@@ -27,7 +27,7 @@ In claude.ai, open the environment settings for `handlemotion/omni`:
    port), `api.cloudflare.com` (`cf`, `wrangler`), `api.fly.io` (`flyctl`). Without Doppler the
    stack still runs with the example env files; without the rest only those tools stop working.
 3. **Environment variables**: read-only Doppler service tokens, one per config, like
-   `sync-worker-secrets.yml`. Create each in Doppler under project `omni` → config → Access → Service Tokens.
+   `production.yml`. Create each in Doppler under project `omni` → config → Access → Service Tokens.
 
 | Variable               | Doppler config | Written to              | Needed for                   |
 | ---------------------- | -------------- | ----------------------- | ---------------------------- |
