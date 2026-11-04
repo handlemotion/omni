@@ -9,6 +9,7 @@ import {
   membersQuery,
   passkeysQuery,
   removeMemberMutation,
+  changeOrganizationHandleMutation,
   renameOrganizationMutation,
   renamePasskeyMutation,
   resendInvitationMutation,
@@ -68,6 +69,11 @@ export function useResendInvitation() {
 }
 
 /** `mutate(name)` renames the active workspace. */
+/** `mutate(handle)` changes the active workspace's handle; refused when another has it. */
+export function useChangeWorkspaceHandle() {
+  return useMutation(changeOrganizationHandleMutation(useQueryClient()));
+}
+
 export function useRenameWorkspace() {
   return useMutation(renameOrganizationMutation(useQueryClient()));
 }

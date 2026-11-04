@@ -5,7 +5,7 @@ import {
   DevicePhoneMobileIcon,
   DeviceTabletIcon,
 } from "@heroicons/react/24/outline";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Skeleton } from "skullet/react";
 import { IconKey } from "@/components/icons";
 import { Avatar } from "@/components/ui/avatar";
@@ -91,9 +91,15 @@ export function NameInputRow(props: {
   placeholder?: string;
   saving: boolean;
   onSave: (name: string) => void;
+  /** Keeps the draft valid as it's typed (a handle: lowercase, dashes). */
+  normalize?: (value: string) => string;
+  /** What the draft saves as, and is compared as (a handle drops a trailing dash). */
+  finalize?: (value: string) => string;
 }) {
   const [draft, setDraft] = useState(props.saved);
-  const next = draft.trim();
+  const next = (props.finalize ?? ((value: string) => value))(draft.trim());
+  // Once a save lands (or someone else changes it), the field shows the saved value.
+  useEffect(() => setDraft(props.saved), [props.saved]);
   useSettingsPendingChanges({
     dirty: next !== "" && next !== props.saved,
     message: props.message,
@@ -109,7 +115,11 @@ export function NameInputRow(props: {
       placeholder={props.placeholder}
       maxLength={120}
       autoComplete="off"
-      onChange={(event) => setDraft(event.currentTarget.value)}
+      onChange={(event) =>
+        setDraft(
+          props.normalize ? props.normalize(event.currentTarget.value) : event.currentTarget.value,
+        )
+      }
     />
   );
 }

@@ -33,6 +33,9 @@
   --well-hover: #e8e8e8;
   --hairline-line: #d9d9d9;
   --shadow-raised: 0 1px 2px 0 rgb(var(--shadow-ink) / 0.06);
+  /* A button's build (the danger button's, now every button's): a faint highlight along the
+     top edge inside, and a 1px drop. The edge itself is the border, a step darker than the fill. */
+  --shadow-button: inset 0 1px 0 rgb(255 255 255 / 0.15), 0 1px 2px rgb(var(--shadow-ink) / 0.06);
   /* Menus, popovers, search: a drop on the bottom edge only (negative spread keeps it off the
      sides and top), the overlay shadow from transitive's menus. The border draws the edge. */
   --shadow-overlay:
@@ -78,7 +81,7 @@
   --chart-5: color-mix(in oklab, var(--primary) 20%, white);
 
   /* Status colors: not designed yet, Intent UI defaults until they are. */
-  --danger: #e54666; /* From the onboarding reference. */
+  --danger: #ef2a51; /* The onboarding reference's red, more saturated. */
   --danger-foreground: #ffffff;
   --danger-subtle: oklch(0.637 0.237 25.331 / 0.15);
   --danger-subtle-foreground: oklch(0.505 0.213 27.518);

@@ -27,6 +27,7 @@ import {
   useInviteMember,
   useMembers,
   useRemoveMember,
+  useChangeWorkspaceHandle,
   useRenameWorkspace,
   useResendInvitation,
   useUpdateMemberRole,
@@ -95,6 +96,14 @@ const SAMPLE_ACCESS = SAMPLE_PEOPLE.map((p) => ({
   image: null,
 })) as unknown as AccessList;
 
+/** A handle as it's typed: lowercase letters, digits and single dashes. */
+const toHandle = (value: string) =>
+  value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9-]+/gu, "-")
+    .replaceAll(/-{2,}/gu, "-")
+    .replace(/^-/u, "");
+
 const isManager = (role: string) => /\b(owner|admin)\b/.test(role);
 
 /** The active workspace's square mark at `size` px: its logo, or its initial. */
@@ -115,6 +124,7 @@ export function GeneralPage() {
   const { member } = useMember();
   const workspaces = useWorkspaces();
   const rename = useRenameWorkspace();
+  const changeHandle = useChangeWorkspaceHandle();
   const uploadLogo = useUploadWorkspaceLogo();
   const removeLogo = useRemoveWorkspaceLogo();
   const canManage = isManager(member.role);
@@ -162,8 +172,25 @@ export function GeneralPage() {
               ) : (
                 <SettingsValueRow label="Name" value={workspace.name} />
               )}
-              <SettingsValueRow label="Handle" value={workspace.slug} mono />
-              <SettingsValueRow label="Your role" value={roleLabel(member.role)} />
+              {canManage ? (
+                <NameInputRow
+                  id="settings-workspace-handle"
+                  label="Handle"
+                  saved={workspace.slug}
+                  message="Workspace handle changed"
+                  normalize={toHandle}
+                  finalize={(handle) => handle.replace(/-+$/u, "")}
+                  saving={changeHandle.isPending}
+                  onSave={(handle) =>
+                    changeHandle.mutate(handle, {
+                      onError: (error) =>
+                        appToast.error(error.message || "That handle could not be used."),
+                    })
+                  }
+                />
+              ) : (
+                <SettingsValueRow label="Handle" value={workspace.slug} />
+              )}
             </SettingsGroup>
           )}
         </Skeleton>

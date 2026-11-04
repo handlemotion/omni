@@ -98,6 +98,20 @@ export const resendInvitationMutation = (client: QueryClient) =>
     onSettled: () => client.invalidateQueries({ queryKey: keys.invitations() }),
   });
 
+/**
+ * `mutate(handle)` changes the active organization's handle (its slug; owners and admins).
+ * Better Auth refuses one another workspace already has.
+ */
+export const changeOrganizationHandleMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: (slug: string) => authCall(auth.organization.update({ data: { slug } })),
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: keys.workspaces() }),
+        client.invalidateQueries({ queryKey: keys.organizations() }),
+      ]),
+  });
+
 /** `mutate(name)` renames the active organization (owners and admins). */
 export const renameOrganizationMutation = (client: QueryClient) =>
   mutationOptions({
