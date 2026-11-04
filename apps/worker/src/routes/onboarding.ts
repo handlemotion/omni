@@ -18,6 +18,8 @@ import {
   listDomainAudit,
   listMemberDomains,
   listMemberMailboxes,
+  mailboxAtAddress,
+  orgMember,
   orgSetupStep,
   releaseDomain,
   roleInOrg,
@@ -126,6 +128,12 @@ const mailboxBody = z.object({
   domainId: z.string().min(1),
   /** "rodrigo", or a full address on the domain. */
   localPart: z.string().trim().min(1).max(320),
+  /**
+   * A member of this workspace to make it a personal inbox for: they get the owner grant, the
+   * creator gets none. Without it the creator's own address is their personal inbox and any
+   * other address is shared.
+   */
+  forMemberId: z.string().min(1).optional(),
   /** Only for an `imap` domain: an existing login on its mail host. */
   login: z
     .object({
@@ -388,8 +396,10 @@ export const onboarding = new Hono<AppEnv>()
     },
   )
   /**
-   * Creates one mailbox on a domain of the active org and starts syncing it. The creator gets an
-   * owner grant. Idempotent per address: a repeat returns the same mailbox.
+   * Creates one mailbox on a domain of the active org and starts syncing it, during setup or
+   * later from settings. The creator gets an owner grant, or with `forMemberId` that teammate
+   * does (their personal inbox; ADR 0017). Idempotent per address: a repeat returns the same
+   * mailbox. 409 when the address is a mailbox of another kind or owner.
    */
   .post(
     "/mailboxes",
@@ -444,16 +454,44 @@ export const onboarding = new Hono<AppEnv>()
         throw new HTTPException(409, { message: `${domain.provider} is not supported yet` });
       }
 
+      // For a teammate, named: their personal inbox, whatever its address. Otherwise the
+      // creator's own address is their personal inbox; the rest (hello@, a teammate's before
+      // they join) are shared, so read state stays per person (spec, sync rules).
+      let owner = member.id;
+      let kind: ProvisionMailboxBody["kind"] =
+        address === user.email.toLowerCase() ? "personal" : "shared";
+      if (body.forMemberId) {
+        const teammate = await orgMember(db, member.orgId, body.forMemberId);
+        if (!teammate) {
+          throw new HTTPException(404, { message: "no such member in this workspace" });
+        }
+        owner = teammate.id;
+        kind = "personal";
+      }
+      // Provisioning an address again replaces its login and keeps its grants, so it must not
+      // change whose it is: a personal inbox never becomes shared or someone else's, and a
+      // shared one never becomes a personal inbox its team could still read.
+      const existing = await mailboxAtAddress(db, member.orgId, address);
+      if (
+        existing &&
+        (existing.kind !== kind || (kind === "personal" && !existing.memberIds.includes(owner)))
+      ) {
+        throw new HTTPException(409, {
+          message:
+            existing.kind === "personal"
+              ? `${address} is already someone's personal inbox`
+              : `${address} is already a shared mailbox`,
+        });
+      }
+
       const result = await callMailService(
         c.var,
         PROVISION_MAILBOX_PATH,
         {
           orgId: member.orgId,
           address,
-          // The creator's own address is their personal inbox; the rest (hello@, a teammate's
-          // before they join) are shared, so read state stays per person (spec, sync rules).
-          kind: address === user.email.toLowerCase() ? "personal" : "shared",
-          ownerMemberId: member.id,
+          kind,
+          ownerMemberId: owner,
           login,
         } satisfies ProvisionMailboxBody,
         provisionMailboxResultSchema,

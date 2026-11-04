@@ -5,10 +5,17 @@ import {
   addMailboxMemberMutation,
   mailboxMembersQuery,
   removeMailboxMemberMutation,
+  workspaceMailboxesQuery,
 } from "../lib/mailbox-members.ts";
 
-export function useMailboxMembers(mailboxId: string) {
-  return useQuery(mailboxMembersQuery(mailboxId));
+/** Every mailbox of the workspace, without its mail. Pass `enabled: false` for non-managers (403). */
+export function useWorkspaceMailboxes(enabled = true) {
+  return useQuery({ ...workspaceMailboxesQuery(), enabled });
+}
+
+/** `enabled: false` when the count is already known, or the mailbox isn't a shared one. */
+export function useMailboxMembers(mailboxId: string, enabled = true) {
+  return useQuery({ ...mailboxMembersQuery(mailboxId), enabled });
 }
 
 /** `mutate({ mailboxId, memberId })` gives that member access to the shared mailbox. */

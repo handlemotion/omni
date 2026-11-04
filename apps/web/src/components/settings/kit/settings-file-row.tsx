@@ -1,4 +1,4 @@
-import { ArrowUpTrayIcon } from "@heroicons/react/16/solid";
+import { IconUpload } from "@/components/icons/lucide";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { FileTrigger } from "react-aria-components/FileTrigger";
@@ -33,7 +33,7 @@ export function SettingsFileRow({
             onSelect={(files) => onFileChange(files?.[0] ?? null)}
           >
             <Button intent="outline" isDisabled={disabled}>
-              <ArrowUpTrayIcon />
+              <IconUpload />
               {file ? "Replace" : "Upload"}
             </Button>
           </FileTrigger>

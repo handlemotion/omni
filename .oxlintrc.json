@@ -24,6 +24,8 @@
     "**/dist/**",
     "**/.wrangler/**",
     "**/migrations/**",
-    "pnpm-lock.yaml"
+    "pnpm-lock.yaml",
+    ".claude/skills/hairline-*/**",
+    ".agents/skills/hairline-*/**"
   ]
 }

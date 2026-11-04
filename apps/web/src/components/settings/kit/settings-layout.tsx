@@ -4,11 +4,12 @@
 //
 // Geometry: a section's title sits on the rows' text axis (16px in). It gets 32px from the group
 // above and 8px to its own, so it reads as the label of what follows.
-import { InformationCircleIcon } from "@heroicons/react/16/solid";
+import { IconInfo } from "@/components/icons/lucide";
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "react-aria-components/Button";
+import { SettingsIllustration } from "./settings-illustrations";
 
 /** The anchor of a section, from its title; settings search names sections by it. */
 export function settingsSectionId(title: string): string {
@@ -78,7 +79,7 @@ export function SettingsSection({
                   aria-label={info}
                   className="inline-flex rounded-full text-subtle-foreground outline-hidden hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
-                  <InformationCircleIcon aria-hidden className="size-3.5" />
+                  <IconInfo className="size-3.5" />
                 </Button>
                 <Tooltip>{info}</Tooltip>
               </TooltipTrigger>
@@ -129,23 +130,39 @@ export function SettingsGroupBody({
   );
 }
 
-/** A group with nothing in it yet: what would be here, and how to add it. */
+/**
+ * A section with nothing to show, in place of its group: the same card, always 240px tall, so no
+ * section disappears and every empty one reads alike. `empty`: nothing here yet (what would be
+ * here, and how to add it). `restricted`: there is something, but not for you (who can see it).
+ * A hairline figure says which at a glance: by default a tray for empty, a padlock for restricted.
+ */
 export function SettingsEmptyState({
   action,
   description,
   title,
+  variant = "empty",
 }: {
+  /** One button that fills it: "Add a passkey". Never on `restricted`. */
   action?: ReactNode;
-  description: string;
+  /** One line, only when there is no action: a card with a button says it with the title alone. */
+  description?: string;
   title: string;
+  variant?: "empty" | "restricted";
 }) {
   return (
-    <div className="flex min-h-28 w-full items-center justify-center p-6 text-center">
-      <div className="flex w-full max-w-90 flex-col items-center gap-1">
+    <SettingsGroup>
+      <div
+        data-slot="settings-empty-state"
+        data-variant={variant}
+        className="flex min-h-60 w-full flex-col items-center justify-center px-6 py-8 text-center"
+      >
+        <SettingsIllustration name={variant === "restricted" ? "lock" : "tray"} className="mb-4" />
         <p className="text-sm/4 text-pretty text-foreground">{title}</p>
-        <p className="text-xs/4 text-pretty text-muted-foreground">{description}</p>
-        {action && <div className="mt-3">{action}</div>}
+        {description && !(action && variant === "empty") && (
+          <p className="mt-1 max-w-90 text-xs/4 text-pretty text-muted-foreground">{description}</p>
+        )}
+        {action && variant === "empty" && <div className="mt-4">{action}</div>}
       </div>
-    </div>
+    </SettingsGroup>
   );
 }

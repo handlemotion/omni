@@ -7,8 +7,9 @@
 //   in text or a glyph (value, chevron) ends 16px in, like it starts.
 // - Rows are at least 52px: a 32px control with 10px above and below. A two-line block is the
 //   13/16 label, 2px, then the 11/16 description (34px), so neither line is clipped.
-// - A leading 15px icon sits 16px in, like text. A 32px avatar is as far from the row's left as
-//   from its top (10px), as in the mailbox switcher, so an avatar row starts 10px in.
+// - A 32px avatar is as far from the row's left as from its top (10px), as in the mailbox
+//   switcher, so an avatar row starts 10px in. A leading icon (18px) is centred in a box the
+//   avatar's size at the same place, so icons and avatars line up down a card.
 import { cn } from "cn";
 import type { ComponentType, ReactNode } from "react";
 
@@ -19,6 +20,17 @@ export const settingsRowClassName =
 
 /** For rows that lead with a 32px avatar: 10px in, as far as it sits from the row's top. */
 export const settingsRowAvatarClassName = "ps-2.5";
+
+/**
+ * A leading icon's slot: an avatar's 32px box, starting where an avatar does (10px in, so 6px
+ * back from the 16px text inset). The icon centres in it, so icon rows and avatar rows in one card
+ * share a centre line and their labels start on the same x.
+ */
+export const settingsRowIconSlotClassName =
+  "-ms-1.5 flex size-8 shrink-0 items-center justify-center";
+
+/** An 18px icon: 15px reads as a speck beside a 32px avatar. */
+export const settingsRowIconClassName = "size-4.5";
 
 /** For rows whose right side is text or a glyph rather than a control. */
 export const settingsRowTextEndClassName = "pe-4";
@@ -68,8 +80,8 @@ export function SettingsRowText({
       {avatar ? (
         <span className="flex shrink-0 items-center">{avatar}</span>
       ) : Icon ? (
-        <span className="flex size-icon shrink-0 items-center justify-center text-muted-foreground">
-          <Icon className="size-icon" />
+        <span className={cn(settingsRowIconSlotClassName, "text-muted-foreground")}>
+          <Icon className={settingsRowIconClassName} />
         </span>
       ) : null}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">

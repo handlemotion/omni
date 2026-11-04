@@ -3,7 +3,7 @@
 // workspace you belong to, a check on the active one. Choosing another switches to it: settings
 // act on the active workspace (ADR 0014). An owner or admin of a workspace still being set up
 // goes to onboarding instead, as from the mailbox switcher (ADR 0009).
-import { CheckIcon, ChevronUpDownIcon } from "@heroicons/react/20/solid";
+import { IconCheck, IconChevronsUpDown } from "@/components/icons/lucide";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
@@ -41,8 +41,9 @@ export function WorkspaceChooser() {
         intent="plain"
         aria-label={`Workspace: ${active.name}. Choose another`}
         // Hover, pressed and open share the accent fill, as on the mailbox switcher; the mark and
-        // name sit on the page rows' icon and label axes.
-        className="h-8 w-full justify-start gap-2.5 rounded-lg px-2 [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]"
+        // name sit on the page rows' icon and label axes. No press scale: a menu trigger stays
+        // pressed while its menu is open, and a 97% trigger would look narrower than the menu.
+        className="h-8 w-full pressed:scale-100 justify-start gap-2.5 rounded-lg px-2 [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]"
       >
         <span className="grid size-icon shrink-0 place-items-center">
           {switchTo.isPending ? (
@@ -52,14 +53,24 @@ export function WorkspaceChooser() {
           )}
         </span>
         <span className="min-w-0 flex-1 truncate text-start">{active.name}</span>
-        <ChevronUpDownIcon className="size-3.5 shrink-0 text-subtle-foreground" />
+        <IconChevronsUpDown className="size-3.5 shrink-0 text-subtle-foreground" />
       </Button>
-      <Menu placement="bottom start" onAction={(key) => choose(String(key))}>
+      {/* As wide as its trigger, so the menu reads as the chooser opened. */}
+      <Menu
+        placement="bottom start"
+        popover={{ className: "w-(--trigger-width) min-w-(--trigger-width) max-w-none" }}
+        onAction={(key) => choose(String(key))}
+      >
         {workspaces.map((w) => (
-          <MenuItem key={w.id} id={w.id} textValue={w.name}>
+          <MenuItem key={w.id} id={w.id} textValue={w.name} className="pe-2.5">
             <WorkspaceAvatar workspace={w} size={15} />
-            <MenuLabel>{w.name}</MenuLabel>
-            {w.id === member.orgId && <CheckIcon className="size-4 text-foreground" />}
+            {/* The check rides inside the label, so it sits on the name's line; after the label
+                the menu row would lift it out of line (an absolute icon slot). It mirrors the
+                mark: 14px, 10px in from the row's end as the mark is from its start. */}
+            <MenuLabel className="flex min-w-0 items-center justify-between gap-3">
+              <span className="truncate">{w.name}</span>
+              {w.id === member.orgId && <IconCheck className="size-3.5 shrink-0 text-foreground" />}
+            </MenuLabel>
           </MenuItem>
         ))}
       </Menu>

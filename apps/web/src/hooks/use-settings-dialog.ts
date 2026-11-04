@@ -9,7 +9,8 @@ export const SETTINGS_PAGES = [
   "shortcuts",
   "general",
   "people",
-  "mailboxes",
+  "inboxes",
+  "shared",
   "billing",
 ] as const;
 

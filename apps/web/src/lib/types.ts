@@ -9,6 +9,7 @@ export type {
   Member,
   Onboarding,
   OnboardingDomain,
+  OrgMailbox,
   Message,
   SearchResult,
   Thread,

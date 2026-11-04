@@ -1,15 +1,17 @@
 // Settings pages about you: your name and the accounts on this browser, how you sign in and where
 // you are signed in, and the keyboard shortcuts.
 import {
-  ComputerDesktopIcon,
-  DevicePhoneMobileIcon,
-  DeviceTabletIcon,
-} from "@heroicons/react/24/outline";
+  IconPlus,
+  IconKey,
+  IconLaptop,
+  IconPencil,
+  IconSmartphone,
+  IconTablet,
+  IconTrash,
+} from "@/components/icons/lucide";
 import { Fragment, useEffect, useState } from "react";
-import { PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { Skeleton } from "skullet/react";
 import { IconCircleDashed } from "@/components/icons/sidebar";
-import { IconKey } from "@/components/icons";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Keyboard } from "@/components/ui/keyboard";
@@ -287,10 +289,10 @@ function describeDevice(agent: string | null | undefined): {
             : null;
   const icon =
     os === "iPhone" || (os === "Android" && /Mobile/.test(ua))
-      ? DevicePhoneMobileIcon
+      ? IconSmartphone
       : os === "iPad" || os === "Android"
-        ? DeviceTabletIcon
-        : ComputerDesktopIcon;
+        ? IconTablet
+        : IconLaptop;
   const name =
     browser && os
       ? `${browser} on ${os}`
@@ -317,6 +319,10 @@ export function SecurityPage() {
   const [dialog, setDialog] = useState<SecurityDialog | null>(null);
   const close = () => setDialog(null);
   const otherDevices = sessions.data?.filter((entry) => entry.token !== session.token) ?? [];
+  const addOne = () =>
+    addPasskey.mutate(devicePasskeyName(), {
+      onError: (error) => appToast.error(error.message || "No passkey was added."),
+    });
 
   return (
     <SettingsSections>
@@ -325,57 +331,64 @@ export function SecurityPage() {
         info="Sign in with your fingerprint, face or a security key instead of an emailed link."
       >
         <Skeleton id="settings-passkeys" data={passkeys.data} sample={[]} label="Loading passkeys">
-          {(list) => (
-            <SettingsGroup>
-              {list.length === 0 && (
-                <SettingsEmptyState
-                  title="No passkeys yet"
-                  description="Add one to sign in without waiting for an email."
-                />
-              )}
-              {list.map((passkey) => {
-                const name = passkey.name || "Passkey";
-                return (
-                  <SettingsRow
-                    key={passkey.id}
-                    icon={IconKey}
-                    label={name}
-                    hint={passkey.backedUp ? "synced" : "this device only"}
-                    description={`Added ${DAY.format(new Date(passkey.createdAt))}`}
-                    control={
-                      <SettingsRowMenu
-                        label={`Actions for ${name}`}
-                        items={[
-                          {
-                            icon: PencilIcon,
-                            label: "Rename",
-                            onAction: () =>
-                              setDialog({ kind: "rename-passkey", id: passkey.id, name }),
-                          },
-                          {
-                            icon: TrashIcon,
-                            label: "Remove passkey",
-                            danger: true,
-                            onAction: () =>
-                              setDialog({ kind: "remove-passkey", id: passkey.id, name }),
-                          },
-                        ]}
-                      />
-                    }
-                  />
-                );
-              })}
-              <SettingsAddRow
-                label="Add a passkey"
-                loading={addPasskey.isPending}
-                onPress={() =>
-                  addPasskey.mutate(devicePasskeyName(), {
-                    onError: (error) => appToast.error(error.message || "No passkey was added."),
-                  })
+          {(list) =>
+            list.length === 0 ? (
+              <SettingsEmptyState
+                title="No passkeys yet"
+                action={
+                  <Button
+                    size="xs"
+                    intent="outline"
+                    isPending={addPasskey.isPending}
+                    onPress={addOne}
+                  >
+                    <IconPlus data-slot="icon" />
+                    Add a passkey
+                  </Button>
                 }
               />
-            </SettingsGroup>
-          )}
+            ) : (
+              <SettingsGroup>
+                {list.map((passkey) => {
+                  const name = passkey.name || "Passkey";
+                  return (
+                    <SettingsRow
+                      key={passkey.id}
+                      icon={IconKey}
+                      label={name}
+                      hint={passkey.backedUp ? "synced" : "this device only"}
+                      description={`Added ${DAY.format(new Date(passkey.createdAt))}`}
+                      control={
+                        <SettingsRowMenu
+                          label={`Actions for ${name}`}
+                          items={[
+                            {
+                              icon: IconPencil,
+                              label: "Rename",
+                              onAction: () =>
+                                setDialog({ kind: "rename-passkey", id: passkey.id, name }),
+                            },
+                            {
+                              icon: IconTrash,
+                              label: "Remove passkey",
+                              danger: true,
+                              onAction: () =>
+                                setDialog({ kind: "remove-passkey", id: passkey.id, name }),
+                            },
+                          ]}
+                        />
+                      }
+                    />
+                  );
+                })}
+                <SettingsAddRow
+                  label="Add a passkey"
+                  loading={addPasskey.isPending}
+                  onPress={addOne}
+                />
+              </SettingsGroup>
+            )
+          }
         </Skeleton>
       </SettingsSection>
 

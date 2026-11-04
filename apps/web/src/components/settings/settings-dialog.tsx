@@ -4,19 +4,23 @@
 // Full screen, still a dialog: it settles from 105% while the app recedes under it (the shell
 // scales it to 95% and fades it). The nav lists your account's pages, then a workspace chooser
 // and the chosen workspace's pages under it. The nav is the app sidebar's (240px, 13px rows 32px tall, 11px
-// group labels, the search field on top), set at the right of the left 40%; the page is a 640px
-// column in the right 60%, its title 17px. The page body is transitive's settings kit (`./kit`).
+// group labels, the search field on top), set at the right of the left 35%; the page is a 640px
+// column in the right 65%, its title 17px. The page body is transitive's settings kit (`./kit`).
 import {
-  ComputerDesktopIcon,
-  CreditCardIcon,
-  ShieldCheckIcon,
-  UsersIcon,
-} from "@heroicons/react/24/outline";
+  IconCreditCard,
+  IconInbox,
+  IconKeyboard,
+  IconLaptop,
+  IconMailbox,
+  IconSettings,
+  IconShield,
+  IconUsers,
+  IconUsersRound,
+} from "@/components/icons/lucide";
 import { cn } from "cn";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
-import { IconKeyboard } from "@/components/icons/keyboard";
-import { IconCircleDashed, IconInbox, IconSettings, IconTeam } from "@/components/icons/sidebar";
+import { type ComponentType, type CSSProperties, type ReactNode, useMemo, useState } from "react";
+import { IconCircleDashed } from "@/components/icons/sidebar";
 import { Avatar } from "@/components/ui/avatar";
 import { Dialog } from "@/components/ui/dialog";
 import { NavList, NavListItem, NavListLabel, NavListSection } from "@/components/ui/nav-list";
@@ -48,7 +52,8 @@ import { BillingPage } from "./billing-page";
 import { SettingsPageHeader } from "./kit/settings-layout";
 import { SettingsConfirmDialog } from "./kit/settings-stacked-dialog";
 import { WorkspaceChooser } from "./workspace-chooser";
-import { GeneralPage, MailboxesPage, PeoplePage } from "./workspace-pages";
+import { InboxesPage, SharedMailboxesPage } from "./mailbox-pages";
+import { GeneralPage, PeoplePage } from "./workspace-pages";
 
 interface PageDefinition {
   id: SettingsPageId;
@@ -59,8 +64,8 @@ interface PageDefinition {
   render: () => ReactNode;
 }
 
-/** A heroicons outline glyph drawn at the Figma icons' 15px; its 1.5 stroke lands at their 0.94. */
-const outline = (Icon: typeof ShieldCheckIcon) => <Icon data-slot="icon" className="size-icon" />;
+/** A Lucide icon (round, outlined, stroke 1.5) at the nav's 15px icon size. */
+const glyph = (Icon: ComponentType<{ className?: string }>) => <Icon className="size-icon" />;
 
 function useAccountPages(): PageDefinition[] {
   const { user } = useMember();
@@ -86,14 +91,14 @@ function useAccountPages(): PageDefinition[] {
         id: "security",
         title: "Security",
         // A shield, not a key: the page is passkeys and the devices you're signed in on.
-        icon: outline(ShieldCheckIcon),
+        icon: glyph(IconShield),
         terms: ["passkeys", "sign in", "fingerprint", "face", "devices", "sessions", "sign out"],
         render: () => <SecurityPage />,
       },
       {
         id: "shortcuts",
         title: "Shortcuts",
-        icon: <IconKeyboard />,
+        icon: glyph(IconKeyboard),
         terms: ["keyboard", "keys", ...SHORTCUT_IDS.map((id) => SHORTCUTS[id].label)],
         render: () => <ShortcutsPage />,
       },
@@ -107,28 +112,46 @@ const WORKSPACE_PAGES: PageDefinition[] = [
   {
     id: "general",
     title: "General",
-    icon: <IconSettings />,
+    icon: glyph(IconSettings),
     terms: ["workspace", "name", "rename", "handle", "role", "domain", "dns"],
     render: () => <GeneralPage />,
   },
   {
     id: "people",
     title: "People",
-    icon: <IconTeam />,
-    terms: ["members", "invite", "invitations", "resend", "roles", "admin", "remove"],
+    icon: glyph(IconUsersRound),
+    // Owners and admins also find each person's personal inbox here.
+    terms: [
+      "members",
+      "invite",
+      "invitations",
+      "resend",
+      "roles",
+      "admin",
+      "remove",
+      "personal inbox",
+      "create inbox",
+    ],
     render: () => <PeoplePage />,
   },
   {
-    id: "mailboxes",
-    title: "Mailboxes",
-    icon: <IconInbox />,
-    terms: ["access", "shared", "unread", "inbox", "lanes", "triage", "sync"],
-    render: () => <MailboxesPage />,
+    id: "inboxes",
+    title: "Inboxes",
+    icon: glyph(IconInbox),
+    terms: ["mailboxes", "your mailboxes", "personal", "unread", "lanes", "triage", "sync"],
+    render: () => <InboxesPage />,
+  },
+  {
+    id: "shared",
+    title: "Shared",
+    icon: glyph(IconMailbox),
+    terms: ["shared mailboxes", "access", "who can see", "team", "add mailbox", "hello"],
+    render: () => <SharedMailboxesPage />,
   },
   {
     id: "billing",
     title: "Billing",
-    icon: outline(CreditCardIcon),
+    icon: glyph(IconCreditCard),
     terms: ["plan", "subscription", "trial", "stripe", "invoices", "payment", "card", "usage"],
     render: () => <BillingPage />,
   },
@@ -206,13 +229,13 @@ function SessionGroup() {
       </span>
       {otherDevices.length > 0 && (
         <Button intent="plain" className={NAV_ACTION} onPress={() => setDialog("others")}>
-          <ComputerDesktopIcon data-slot="icon" className="size-icon" />
+          <IconLaptop data-slot="icon" className="size-icon" />
           Sign out of other devices
         </Button>
       )}
       {otherAccounts.length > 0 && (
         <Button intent="plain" className={NAV_ACTION} onPress={() => setDialog("accounts")}>
-          <UsersIcon data-slot="icon" className="size-icon" />
+          <IconUsers data-slot="icon" className="size-icon" />
           Log out of all accounts
         </Button>
       )}
@@ -273,15 +296,17 @@ function SettingsBody({ page }: { page: SettingsPageId }) {
   const [query, setQuery] = useState("");
   const shownAccount = account.filter((p) => matches(p, query));
   const shownWorkspace = workspacePages.filter((p) => matches(p, query));
-  // All pages, so `/settings/billing` still shows its page on an install without billing.
-  const current = [...account, ...WORKSPACE_PAGES].find((p) => p.id === page);
+  // All pages, so `/settings/billing` still shows its page on an install without billing; should
+  // the id match none, General shows.
+  const current = [...account, ...WORKSPACE_PAGES].find((p) => p.id === page) ?? WORKSPACE_PAGES[0];
   // Two lists, one current page: each list marks it only when it's one of its own.
-  const selectedIn = (pages: PageDefinition[]) => (pages.some((p) => p.id === page) ? [page] : []);
+  const selectedIn = (pages: PageDefinition[]) =>
+    current && pages.some((p) => p.id === current.id) ? [current.id] : [];
 
   return (
-    // 40/60: the left part is the surface, its nav (the app sidebar's width) set 24px off the
+    // 35/65: the left part is the surface, its nav (the app sidebar's width) set 24px off the
     // divider; the page column starts on the same line as the nav.
-    <div className="grid min-h-0 flex-1 grid-cols-[2fr_3fr]">
+    <div className="grid min-h-0 flex-1 grid-cols-[35fr_65fr]">
       <div className="flex min-h-0 justify-end overflow-y-auto border-e border-border bg-surface pe-6">
         <nav
           aria-label="Settings pages"

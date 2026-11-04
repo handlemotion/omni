@@ -194,10 +194,19 @@ export interface MailServer {
   port: number;
 }
 
+/** A server as people type it, `host` or `host:port`; null when it isn't one. */
+export function parseServer(value: string, defaultPort: number): MailServer | null {
+  const match = /^\s*([^\s:]+)(?::(\d{1,5}))?\s*$/.exec(value);
+  if (!match) return null;
+  return { host: match[1]!, port: match[2] ? Number(match[2]) : defaultPort };
+}
+
 export interface NewMailbox {
   localPart: string;
   /** Only on a domain whose provider is `imap`: the mailbox's existing password. */
   password?: string;
+  /** A teammate whose personal inbox this is (settings); they own it, the creator doesn't. */
+  forMemberId?: string;
 }
 
 /**
@@ -219,6 +228,7 @@ export const createMailboxesMutation = (client: QueryClient) =>
               json: {
                 domainId: input.domainId,
                 localPart: mailbox.localPart,
+                ...(mailbox.forMemberId ? { forMemberId: mailbox.forMemberId } : {}),
                 ...(input.servers && mailbox.password
                   ? { login: { password: mailbox.password, ...input.servers } }
                   : {}),
@@ -233,6 +243,8 @@ export const createMailboxesMutation = (client: QueryClient) =>
       Promise.all([
         client.invalidateQueries({ queryKey: keys.onboarding() }),
         client.invalidateQueries({ queryKey: keys.mailboxes() }),
+        client.invalidateQueries({ queryKey: keys.workspaceMailboxes() }),
+        client.invalidateQueries({ queryKey: keys.workspaces() }),
       ]),
   });
 

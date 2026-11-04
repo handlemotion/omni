@@ -1,22 +1,29 @@
-// Settings pages about the active workspace: what it is and the others you belong to, who is in
-// it, and who can see each mailbox.
-import { GlobeAltIcon, ServerStackIcon, TrashIcon } from "@heroicons/react/24/outline";
+// Settings pages about the active workspace: what it is and the others you belong to, and who is
+// in it. Owners and admins also see each person's personal inbox there (ADR 0017). The mailboxes
+// you open and the shared ones are `mailbox-pages.tsx`.
+import {
+  IconPlus,
+  IconCircleX,
+  IconGlobe,
+  IconInbox,
+  IconList,
+  IconSend,
+  IconTrash,
+  IconUserCog,
+  IconUserMinus,
+} from "@/components/icons/lucide";
 import { cn } from "cn";
-import { type CSSProperties, lazy, useState } from "react";
+import { type CSSProperties, useState } from "react";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
-import { UserCircleIcon, UserMinusIcon, XCircleIcon } from "@heroicons/react/24/outline";
-import { Skeleton, SkeletonSuspense } from "skullet/react";
-import { IconPaperPlane } from "@/components/icons/sidebar";
+import { Skeleton } from "skullet/react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { ChartConfig } from "@/components/ui/chart";
 import { CopyField, RenewField } from "@/components/ui/copy-field";
 import { appToast } from "@/components/ui/toast";
-import { useCounts, useMailboxes } from "@/hooks/use-mail.ts";
 import {
   useAddDomain,
   useCheckDomain,
@@ -25,11 +32,6 @@ import {
   useRotateChallenge,
 } from "@/hooks/use-onboarding.ts";
 import { rememberedChallenge } from "@/lib/onboarding.ts";
-import {
-  useAddMailboxMember,
-  useMailboxMembers,
-  useRemoveMailboxMember,
-} from "@/hooks/use-mailbox-members.ts";
 import {
   useCancelInvitation,
   useInvitations,
@@ -41,18 +43,18 @@ import {
   useResendInvitation,
   useUpdateMemberRole,
 } from "@/hooks/use-organization.ts";
+import { useWorkspaceMailboxes } from "@/hooks/use-mailbox-members.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useRemoveWorkspaceLogo, useUploadWorkspaceLogo } from "@/hooks/use-pictures.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
-import {
-  LANES,
-  type DnsRecord,
-  type Lane,
-  type Mailbox,
-  type OnboardingDomain,
-  type Workspace,
-} from "@/lib/types.ts";
+import type { DnsRecord, OnboardingDomain, OrgMailbox, Workspace } from "@/lib/types.ts";
 import { NameInputRow, PersonAvatar } from "./account-pages";
+import {
+  type InboxOwner,
+  MAILBOX_STATUS,
+  NewMailboxDialog,
+  useMailboxDomains,
+} from "./mailbox-pages";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import {
   SettingsEmptyState,
@@ -60,9 +62,7 @@ import {
   SettingsSection,
   SettingsSections,
 } from "./kit/settings-layout";
-import { SettingsLinkRow } from "./kit/settings-link-row";
 import { SettingsAvatarRow } from "./kit/settings-avatar-row";
-import { SettingsMeterRow } from "./kit/settings-meter-row";
 import { SettingsRow } from "./kit/settings-row";
 import { SettingsRowMenu } from "./kit/settings-row-menu";
 import {
@@ -71,11 +71,6 @@ import {
   SettingsListDialog,
 } from "./kit/settings-stacked-dialog";
 import { SettingsValueRow } from "./kit/settings-value-row";
-
-// The chart library is most of a megabyte: it loads when a chart is first drawn, not with the app.
-const SettingsChart = lazy(() =>
-  import("./kit/settings-chart").then((module) => ({ default: module.SettingsChart })),
-);
 
 const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
@@ -87,7 +82,6 @@ function roleLabel(role: string) {
 
 // Skeleton stand-ins: the shape of what loads (three people), drawn before the first load.
 type MemberList = NonNullable<ReturnType<typeof useMembers>["data"]>["members"];
-type AccessList = NonNullable<ReturnType<typeof useMailboxMembers>["data"]>["members"];
 const SAMPLE_PEOPLE = ["Sample person", "Another person", "Third person"].map((name, i) => ({
   id: `sample-${i}`,
   name,
@@ -98,12 +92,6 @@ const SAMPLE_MEMBERS = SAMPLE_PEOPLE.map((p) => ({
   role: "member",
   user: { name: p.name, email: p.email, image: null },
 })) as unknown as MemberList;
-const SAMPLE_ACCESS = SAMPLE_PEOPLE.map((p) => ({
-  memberId: p.id,
-  name: p.name,
-  email: p.email,
-  image: null,
-})) as unknown as AccessList;
 
 /** A handle as it's typed: lowercase letters, digits and single dashes. */
 const toHandle = (value: string) =>
@@ -113,7 +101,8 @@ const toHandle = (value: string) =>
     .replaceAll(/-{2,}/gu, "-")
     .replace(/^-/u, "");
 
-const isManager = (role: string) => /\b(owner|admin)\b/.test(role);
+/** Owners and admins manage the workspace; Better Auth may store several roles. */
+export const isManager = (role: string) => /\b(owner|admin)\b/.test(role);
 
 /** The active workspace's square mark at `size` px: its logo, or its initial. */
 export function WorkspaceAvatar({ workspace, size }: { workspace: Workspace; size: number }) {
@@ -205,7 +194,17 @@ export function GeneralPage() {
         </Skeleton>
       </SettingsSection>
 
-      {canManage && <DomainsSection />}
+      {canManage ? (
+        <DomainsSection />
+      ) : (
+        <SettingsSection title="Domains">
+          <SettingsEmptyState
+            variant="restricted"
+            title="Owners and admins only"
+            description="Ask one to add a domain."
+          />
+        </SettingsSection>
+      )}
     </SettingsSections>
   );
 }
@@ -264,52 +263,66 @@ function DomainsSection() {
   return (
     <SettingsSection title="Domains">
       <Skeleton id="settings-domains" data={domains} sample={[]} label="Loading domains">
-        {(list) => (
-          <SettingsGroup>
-            <SettingsAddRow label="Add a domain" onPress={() => setDialog({ kind: "add" })} />
-            {list.map((domain) => {
-              const state = domainState(domain);
-              return (
-                <SettingsRow
-                  key={domain.id}
-                  icon={GlobeAltIcon}
-                  label={domain.domain}
-                  description={
-                    domain.provider === "purelymail" ? "Hosted by Purelymail" : "Your own mail host"
-                  }
-                  control={
-                    <>
-                      <Badge intent={state.intent}>{state.label}</Badge>
-                      <SettingsRowMenu
-                        label={`Actions for ${domain.domain}`}
-                        items={[
-                          {
-                            icon: ServerStackIcon,
-                            label: "DNS records",
-                            onAction: () => setDialog({ kind: "records", domainId: domain.id }),
-                          },
-                          // A verified domain is released by owners only (ADR 0010); a claim
-                          // that never verified, by any owner or admin.
-                          ...(isOwner || domain.status !== "verified"
-                            ? [
-                                {
-                                  icon: TrashIcon,
-                                  label: "Remove domain",
-                                  danger: true,
-                                  onAction: () =>
-                                    setDialog({ kind: "remove", domainId: domain.id }),
-                                },
-                              ]
-                            : []),
-                        ]}
-                      />
-                    </>
-                  }
-                />
-              );
-            })}
-          </SettingsGroup>
-        )}
+        {(list) =>
+          list.length === 0 ? (
+            <SettingsEmptyState
+              title="No domains yet"
+              action={
+                <Button size="xs" intent="outline" onPress={() => setDialog({ kind: "add" })}>
+                  <IconPlus data-slot="icon" />
+                  Add a domain
+                </Button>
+              }
+            />
+          ) : (
+            <SettingsGroup>
+              <SettingsAddRow label="Add a domain" onPress={() => setDialog({ kind: "add" })} />
+              {list.map((domain) => {
+                const state = domainState(domain);
+                return (
+                  <SettingsRow
+                    key={domain.id}
+                    icon={IconGlobe}
+                    label={domain.domain}
+                    description={
+                      domain.provider === "purelymail"
+                        ? "Hosted by Purelymail"
+                        : "Your own mail host"
+                    }
+                    control={
+                      <>
+                        <Badge intent={state.intent}>{state.label}</Badge>
+                        <SettingsRowMenu
+                          label={`Actions for ${domain.domain}`}
+                          items={[
+                            {
+                              icon: IconList,
+                              label: "DNS records",
+                              onAction: () => setDialog({ kind: "records", domainId: domain.id }),
+                            },
+                            // A verified domain is released by owners only (ADR 0010); a claim
+                            // that never verified, by any owner or admin.
+                            ...(isOwner || domain.status !== "verified"
+                              ? [
+                                  {
+                                    icon: IconTrash,
+                                    label: "Remove domain",
+                                    danger: true,
+                                    onAction: () =>
+                                      setDialog({ kind: "remove", domainId: domain.id }),
+                                  },
+                                ]
+                              : []),
+                          ]}
+                        />
+                      </>
+                    }
+                  />
+                );
+              })}
+            </SettingsGroup>
+          )
+        }
       </Skeleton>
       <AddDomainDialog
         isOpen={dialog?.kind === "add"}
@@ -515,7 +528,29 @@ type PeopleDialog =
   | { kind: "invite" }
   | { kind: "role"; memberId: string; name: string; role: Role }
   | { kind: "remove"; memberId: string; name: string }
-  | { kind: "revoke"; invitationId: string; email: string };
+  | { kind: "revoke"; invitationId: string; email: string }
+  | { kind: "inbox"; person: InboxOwner };
+
+/**
+ * A person's personal inbox as their People row says it: its address, then its state when it
+ * isn't syncing normally. Text in the description, so the row stays as tall as the others.
+ */
+function InboxDescription({ inboxes }: { inboxes: OrgMailbox[] }) {
+  const [first] = inboxes;
+  if (!first) return "No inbox";
+  const status = MAILBOX_STATUS[first.status];
+  return (
+    <>
+      {first.address}
+      {inboxes.length > 1 && ` and ${inboxes.length - 1} more`}
+      {status && (
+        <span className={cn(status.intent === "danger" && "text-danger-subtle-foreground")}>
+          {` · ${status.label}`}
+        </span>
+      )}
+    </>
+  );
+}
 
 export function PeoplePage() {
   const { member: me } = useMember();
@@ -525,19 +560,21 @@ export function PeoplePage() {
   const cancel = useCancelInvitation();
   const resend = useResendInvitation();
   const canManage = isManager(me.role);
+  // Owners and admins see whose personal inbox exists; the list is theirs only (ADR 0017).
+  const workspaceMailboxes = useWorkspaceMailboxes(canManage);
+  const domains = useMailboxDomains();
   const pending = invitations.data?.filter((invitation) => invitation.status === "pending");
   const [dialog, setDialog] = useState<PeopleDialog | null>(null);
   const close = () => setDialog(null);
+  const personal = workspaceMailboxes.data?.mailboxes.filter((m) => m.kind === "personal");
+  // Members alone for everyone else; for owners and admins, members once their inboxes load too.
+  const rows = canManage && !personal ? undefined : members.data?.members;
+  const canCreateInbox = canManage && !!domains && domains.length > 0;
 
   return (
     <SettingsSections>
       <SettingsSection title="Members">
-        <Skeleton
-          id="settings-members"
-          data={members.data?.members}
-          sample={SAMPLE_MEMBERS}
-          label="Loading members"
-        >
+        <Skeleton id="settings-members" data={rows} sample={SAMPLE_MEMBERS} label="Loading members">
           {(list) => (
             <SettingsGroup>
               {canManage && (
@@ -550,40 +587,66 @@ export function PeoplePage() {
                 const name = person.user.name || person.user.email;
                 const self = person.id === me.id;
                 const editable = canManage && !self && !person.role.includes("owner");
+                const inboxes = personal?.filter((m) => m.owner?.memberId === person.id);
+                const items = [
+                  ...(canCreateInbox && inboxes?.length === 0
+                    ? [
+                        {
+                          icon: IconInbox,
+                          label: "Create inbox",
+                          onAction: () =>
+                            setDialog({
+                              kind: "inbox",
+                              person: {
+                                id: person.id,
+                                name,
+                                email: person.user.email,
+                                isYou: self,
+                              },
+                            }),
+                        },
+                      ]
+                    : []),
+                  ...(editable
+                    ? [
+                        {
+                          icon: IconUserCog,
+                          label: "Change role",
+                          onAction: () =>
+                            setDialog({
+                              kind: "role",
+                              memberId: person.id,
+                              name,
+                              role: person.role.includes("admin") ? "admin" : "member",
+                            }),
+                        },
+                        {
+                          icon: IconUserMinus,
+                          label: "Remove from workspace",
+                          danger: true,
+                          onAction: () => setDialog({ kind: "remove", memberId: person.id, name }),
+                        },
+                      ]
+                    : []),
+                ];
                 return (
                   <SettingsRow
                     key={person.id}
                     avatar={<PersonAvatar name={name} image={person.user.image} />}
                     label={name}
                     hint={self ? "you" : undefined}
-                    description={person.user.name ? person.user.email : undefined}
+                    description={
+                      inboxes ? (
+                        <InboxDescription inboxes={inboxes} />
+                      ) : person.user.name ? (
+                        person.user.email
+                      ) : undefined
+                    }
                     control={
                       <>
                         <RoleBadge role={person.role} />
-                        {editable && (
-                          <SettingsRowMenu
-                            label={`Actions for ${name}`}
-                            items={[
-                              {
-                                icon: UserCircleIcon,
-                                label: "Change role",
-                                onAction: () =>
-                                  setDialog({
-                                    kind: "role",
-                                    memberId: person.id,
-                                    name,
-                                    role: person.role.includes("admin") ? "admin" : "member",
-                                  }),
-                              },
-                              {
-                                icon: UserMinusIcon,
-                                label: "Remove from workspace",
-                                danger: true,
-                                onAction: () =>
-                                  setDialog({ kind: "remove", memberId: person.id, name }),
-                              },
-                            ]}
-                          />
+                        {items.length > 0 && (
+                          <SettingsRowMenu label={`Actions for ${name}`} items={items} />
                         )}
                       </>
                     }
@@ -597,15 +660,15 @@ export function PeoplePage() {
 
       <SettingsSection title="Invited">
         <Skeleton id="settings-invitations" data={pending} sample={[]} label="Loading invitations">
-          {(list) => (
-            <SettingsGroup>
-              {list.length === 0 ? (
-                <SettingsEmptyState
-                  title="No pending invitations"
-                  description="People you invite appear here until they join."
-                />
-              ) : (
-                list.map((invitation) => (
+          {(list) =>
+            list.length === 0 ? (
+              <SettingsEmptyState
+                title="No pending invitations"
+                description="People you invite appear here until they join."
+              />
+            ) : (
+              <SettingsGroup>
+                {list.map((invitation) => (
                   <SettingsRow
                     key={invitation.id}
                     label={invitation.email}
@@ -618,7 +681,7 @@ export function PeoplePage() {
                             label={`Actions for ${invitation.email}`}
                             items={[
                               {
-                                icon: IconPaperPlane,
+                                icon: IconSend,
                                 label: "Resend invitation",
                                 onAction: () => {
                                   const role = invitation.role === "admin" ? "admin" : "member";
@@ -638,7 +701,7 @@ export function PeoplePage() {
                                 },
                               },
                               {
-                                icon: XCircleIcon,
+                                icon: IconCircleX,
                                 label: "Revoke invitation",
                                 danger: true,
                                 onAction: () =>
@@ -654,15 +717,18 @@ export function PeoplePage() {
                       </>
                     }
                   />
-                ))
-              )}
-            </SettingsGroup>
-          )}
+                ))}
+              </SettingsGroup>
+            )
+          }
         </Skeleton>
       </SettingsSection>
 
       <InviteDialog isOpen={dialog?.kind === "invite"} onClose={close} />
       {dialog?.kind === "role" && <RoleDialog key={dialog.memberId} {...dialog} onClose={close} />}
+      {dialog?.kind === "inbox" && domains && (
+        <NewMailboxDialog domains={domains} person={dialog.person} onClose={close} />
+      )}
       <SettingsConfirmDialog
         isOpen={dialog?.kind === "remove"}
         onOpenChange={(open) => !open && close()}
@@ -780,297 +846,6 @@ function RoleDialog(props: { memberId: string; name: string; role: Role; onClose
       }
     >
       <RoleSelect value={role} onChange={setRole} />
-    </SettingsFormDialog>
-  );
-}
-
-// The sidebar's names for the lanes, plus the rest.
-const LANE_LABELS: Record<Lane, string> = {
-  needs_reply: "Needs reply",
-  waiting_on_them: "Awaiting reply",
-  fyi: "FYI",
-  noise: "Noise",
-  unsure: "Unsure",
-};
-
-const LANE_CHART: ChartConfig = Object.fromEntries(
-  LANES.map((lane, i) => [lane, { label: LANE_LABELS[lane], color: `chart-${i + 1}` }]),
-);
-
-/** What a mailbox is called in a list: its local part, capitalised. */
-function mailboxName(mailbox: Pick<Mailbox, "address">) {
-  const local = mailbox.address.split("@")[0] ?? mailbox.address;
-  return local.charAt(0).toUpperCase() + local.slice(1);
-}
-
-/** A mailbox that isn't syncing normally, in words; null while it is. */
-const MAILBOX_STATUS: Record<
-  Mailbox["status"],
-  { label: string; intent: "secondary" | "danger" } | null
-> = {
-  active: null,
-  pending: { label: "Connecting", intent: "secondary" },
-  error: { label: "Not syncing", intent: "danger" },
-  disabled: { label: "Turned off", intent: "secondary" },
-};
-
-function MailboxStatusBadge({ mailbox }: { mailbox: Mailbox }) {
-  const status = MAILBOX_STATUS[mailbox.status];
-  return status ? <Badge intent={status.intent}>{status.label}</Badge> : null;
-}
-
-export function MailboxesPage() {
-  const { member } = useMember();
-  const mailboxes = useMailboxes();
-  const counts = useCounts();
-  const canManage = isManager(member.role);
-  const mine = mailboxes.data?.filter((mailbox) => mailbox.orgId === member.orgId);
-  // Each mailbox with something in its inbox, beside its counts; undefined until both load.
-  const busy =
-    mine && counts.data
-      ? mine.flatMap((mailbox) => {
-          const row = counts.data.counts.find((count) => count.mailboxId === mailbox.id);
-          return row && row.inbox > 0 ? [{ mailbox, row }] : [];
-        })
-      : undefined;
-  const [openId, setOpenId] = useState<string | null>(null);
-  const open = mine?.find((mailbox) => mailbox.id === openId);
-
-  return (
-    <SettingsSections>
-      <SettingsSection
-        title="Access"
-        info="Shared mailboxes are seen by the people you choose; a personal one only by its owner."
-      >
-        <Skeleton id="settings-mailboxes" data={mine} label="Loading mailboxes">
-          {(list) => (
-            <SettingsGroup>
-              {list.map((mailbox) =>
-                mailbox.kind === "shared" ? (
-                  <SharedMailboxRow
-                    key={mailbox.id}
-                    mailbox={mailbox}
-                    onOpen={() => setOpenId(mailbox.id)}
-                  />
-                ) : (
-                  <SettingsValueRow
-                    key={mailbox.id}
-                    label={mailboxName(mailbox)}
-                    badge={<MailboxStatusBadge mailbox={mailbox} />}
-                    description={mailbox.address}
-                    value="Only you"
-                    tone="muted"
-                  />
-                ),
-              )}
-            </SettingsGroup>
-          )}
-        </Skeleton>
-      </SettingsSection>
-
-      <SettingsSection
-        title="Inbox by lane"
-        info="Threads in each inbox now, by the lane triage put them in."
-      >
-        <Skeleton id="settings-inbox" data={busy} sample={[]} label="Loading counts">
-          {(list) => (
-            <SettingsGroup>
-              {list.length === 0 ? (
-                <SettingsEmptyState
-                  title="Inbox zero"
-                  description="Nothing waits in any inbox right now."
-                />
-              ) : (
-                <SkeletonSuspense skeleton={<div className="h-62" />}>
-                  <SettingsChart
-                    config={LANE_CHART}
-                    dataKey="mailbox"
-                    data={list.map(({ mailbox, row }) => ({
-                      mailbox: mailboxName(mailbox),
-                      ...row.lanes,
-                    }))}
-                  />
-                </SkeletonSuspense>
-              )}
-            </SettingsGroup>
-          )}
-        </Skeleton>
-      </SettingsSection>
-
-      {/* Only when there is an inbox to read: an empty one is said once, above. */}
-      {busy && busy.length > 0 && (
-        <SettingsSection title="Unread">
-          <SettingsGroup>
-            {busy.map(({ mailbox, row }) => (
-              <SettingsMeterRow
-                key={mailbox.id}
-                label={mailboxName(mailbox)}
-                amount={`${row.unread} of ${row.inbox}`}
-                value={row.unread}
-                max={row.inbox}
-              />
-            ))}
-          </SettingsGroup>
-        </SettingsSection>
-      )}
-
-      {open && (
-        <MailboxAccessDialog mailbox={open} canManage={canManage} onClose={() => setOpenId(null)} />
-      )}
-    </SettingsSections>
-  );
-}
-
-/** A shared mailbox: who can see it, as a count. The whole row opens that list over settings. */
-function SharedMailboxRow({ mailbox, onOpen }: { mailbox: Mailbox; onOpen: () => void }) {
-  const count = useMailboxMembers(mailbox.id).data?.members.length;
-  return (
-    <SettingsLinkRow
-      label={mailboxName(mailbox)}
-      badge={<MailboxStatusBadge mailbox={mailbox} />}
-      description={mailbox.address}
-      value={
-        count !== undefined && (
-          <span className="tabular-nums">
-            {count} {count === 1 ? "person" : "people"}
-          </span>
-        )
-      }
-      onPress={onOpen}
-    />
-  );
-}
-
-/** What a stacked dialog over the access list is doing, if anything. */
-type AccessDialog = { kind: "add" } | { kind: "remove"; memberId: string; name: string };
-
-function MailboxAccessDialog(props: { mailbox: Mailbox; canManage: boolean; onClose: () => void }) {
-  const { mailbox, canManage } = props;
-  const access = useMailboxMembers(mailbox.id);
-  const members = useMembers();
-  const remove = useRemoveMailboxMember();
-  const [dialog, setDialog] = useState<AccessDialog | null>(null);
-  const close = () => setDialog(null);
-  const granted = new Set(access.data?.members.map((person) => person.memberId));
-  const addable = (members.data?.members ?? [])
-    .filter((person) => !granted.has(person.id))
-    .map((person) => ({ id: person.id, name: person.user.name || person.user.email }));
-
-  return (
-    <SettingsListDialog
-      isOpen
-      onOpenChange={(open) => !open && props.onClose()}
-      title={`Who can see ${mailboxName(mailbox)}`}
-      description={mailbox.address}
-    >
-      <Skeleton
-        id={`settings-access-${mailbox.id}`}
-        data={access.data?.members}
-        sample={SAMPLE_ACCESS}
-        label="Loading access"
-      >
-        {(list) => (
-          <SettingsGroup>
-            {canManage && addable.length > 0 && (
-              <SettingsAddRow label="Add a person" onPress={() => setDialog({ kind: "add" })} />
-            )}
-            {list.map((person) => {
-              const name = person.name || person.email;
-              return (
-                <SettingsRow
-                  key={person.memberId}
-                  avatar={<PersonAvatar name={name} image={person.image} />}
-                  label={name}
-                  description={person.name ? person.email : undefined}
-                  control={
-                    canManage && (
-                      <SettingsRowMenu
-                        label={`Actions for ${name}`}
-                        items={[
-                          {
-                            icon: UserMinusIcon,
-                            label: "Remove access",
-                            danger: true,
-                            onAction: () =>
-                              setDialog({ kind: "remove", memberId: person.memberId, name }),
-                          },
-                        ]}
-                      />
-                    )
-                  }
-                />
-              );
-            })}
-          </SettingsGroup>
-        )}
-      </Skeleton>
-      {dialog?.kind === "add" && (
-        <AddAccessDialog mailbox={mailbox} people={addable} onClose={close} />
-      )}
-      <SettingsConfirmDialog
-        isOpen={dialog?.kind === "remove"}
-        onOpenChange={(open) => !open && close()}
-        title="Remove access?"
-        description={`${dialog?.kind === "remove" ? dialog.name : "They"} will no longer see ${mailbox.address} or its threads.`}
-        action="Remove"
-        saving={remove.isPending}
-        onConfirm={() =>
-          dialog?.kind === "remove" &&
-          remove.mutate(
-            { mailboxId: mailbox.id, memberId: dialog.memberId },
-            {
-              onSuccess: close,
-              onError: () => appToast.error(`Access for ${dialog.name} could not be removed.`),
-            },
-          )
-        }
-      />
-    </SettingsListDialog>
-  );
-}
-
-function AddAccessDialog(props: {
-  mailbox: Mailbox;
-  people: { id: string; name: string }[];
-  onClose: () => void;
-}) {
-  const add = useAddMailboxMember();
-  const [picked, setPicked] = useState<string | null>(null);
-  return (
-    <SettingsFormDialog
-      isOpen
-      onOpenChange={(open) => !open && props.onClose()}
-      title={`Add to ${mailboxName(props.mailbox)}`}
-      description="They see its threads in their inbox from now on."
-      action="Add"
-      disabled={!picked}
-      saving={add.isPending}
-      onSubmit={() =>
-        picked &&
-        add.mutate(
-          { mailboxId: props.mailbox.id, memberId: picked },
-          {
-            onSuccess: props.onClose,
-            onError: () => appToast.error("Access could not be given."),
-          },
-        )
-      }
-    >
-      <Select
-        placeholder="Choose a person"
-        value={picked}
-        onChange={(next) => setPicked(next === null ? null : String(next))}
-      >
-        <Label>Person</Label>
-        <SelectTrigger />
-        <SelectContent items={props.people}>
-          {(person) => (
-            <SelectItem id={person.id} textValue={person.name}>
-              {person.name}
-            </SelectItem>
-          )}
-        </SelectContent>
-      </Select>
     </SettingsFormDialog>
   );
 }

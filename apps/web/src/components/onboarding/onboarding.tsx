@@ -33,6 +33,7 @@ import { formatPrice, type Interval } from "@/lib/billing";
 import {
   needsSetup,
   onboardingPages,
+  parseServer as server,
   rememberedChallenge,
   resumePage,
   watchDomain,
@@ -52,12 +53,6 @@ import type { DnsRecord, OnboardingDomain } from "@/lib/types";
 // is on (ADR 0015), a plan page follows mailboxes: the free trial or a paid plan, through Stripe.
 
 /** `host` or `host:port`; the port defaults to the implicit-TLS one. */
-function server(value: string, defaultPort: number) {
-  const match = /^\s*([^\s:]+)(?::(\d{1,5}))?\s*$/.exec(value);
-  if (!match) return null;
-  return { host: match[1]!, port: match[2] ? Number(match[2]) : defaultPort };
-}
-
 type Servers = { imap: { host: string; port: number }; smtp: { host: string; port: number } };
 
 export function Onboarding() {

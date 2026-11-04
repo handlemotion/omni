@@ -1,9 +1,11 @@
 // Who can see a shared mailbox (ADR 0008). Its Better Auth team is the list; adding or removing
 // a member here changes the team and the derived `mailbox_access` grants in one transaction.
-// Org owners and admins manage the list; anyone who can see the mailbox can read it.
+// Org owners and admins manage the list; anyone who can see the mailbox can read it. Owners and
+// admins also list every mailbox of the workspace (`/workspace/mailboxes`), without its mail.
 import {
   addMailboxMember,
   listMailboxMembers,
+  listWorkspaceMailboxes,
   removeMailboxMember,
   type MailboxMembersActor,
   type MailboxMembershipResult,
@@ -39,6 +41,16 @@ function answer(c: Context<AppEnv>, result: MailboxMembershipResult) {
 }
 
 export const mailboxMembers = new Hono<AppEnv>()
+  /**
+   * Every mailbox of the active workspace, for owners and admins: address, kind, sync health,
+   * the owner of a personal one and how many people see a shared one. Never its mail, and it
+   * grants nothing: seeing that a member's inbox exists is not access to it.
+   */
+  .get("/workspace/mailboxes", async (c) => {
+    requireManager(c);
+    return c.json({ mailboxes: await listWorkspaceMailboxes(c.var.db, c.var.member.orgId) });
+  })
+
   /** The shared mailbox's members, oldest first. 404 for a personal mailbox. */
   .get("/mailboxes/:id/members", async (c) => {
     const members = await listMailboxMembers(c.var.db, actor(c), c.req.param("id"));
