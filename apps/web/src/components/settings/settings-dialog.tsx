@@ -6,9 +6,10 @@
 // and the chosen workspace's pages under it. The nav is the app sidebar's (240px, 13px rows 32px tall, 11px
 // group labels, the search field on top), set at the right of the left 40%; the page is a 640px
 // column in the right 60%, its title 17px. The page body is transitive's settings kit (`./kit`).
-import { CommandLineIcon, KeyIcon } from "@heroicons/react/24/outline";
+import { ShieldCheckIcon } from "@heroicons/react/24/outline";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
+import { IconKeyboard } from "@/components/icons/keyboard";
 import { IconInbox, IconSettings, IconTeam } from "@/components/icons/sidebar";
 import { Avatar } from "@/components/ui/avatar";
 import { Dialog } from "@/components/ui/dialog";
@@ -40,7 +41,7 @@ interface PageDefinition {
 }
 
 /** A heroicons outline glyph drawn at the Figma icons' 15px; its 1.5 stroke lands at their 0.94. */
-const outline = (Icon: typeof CommandLineIcon) => <Icon data-slot="icon" className="size-icon" />;
+const outline = (Icon: typeof ShieldCheckIcon) => <Icon data-slot="icon" className="size-icon" />;
 
 function useAccountPages(): PageDefinition[] {
   const { user } = useMember();
@@ -59,20 +60,21 @@ function useAccountPages(): PageDefinition[] {
             style={{ "--avatar-size": "15px" } as CSSProperties}
           />
         ),
-        terms: ["profile", "email", "log out", "sign out", "accounts", "switch account"],
+        terms: ["profile", "name", "email", "log out", "sign out", "accounts", "switch account"],
         render: () => <ProfilePage />,
       },
       {
         id: "security",
         title: "Security",
-        icon: outline(KeyIcon),
-        terms: ["passkeys", "sign in", "fingerprint", "face"],
+        // A shield, not a key: the page is passkeys and the devices you're signed in on.
+        icon: outline(ShieldCheckIcon),
+        terms: ["passkeys", "sign in", "fingerprint", "face", "devices", "sessions", "sign out"],
         render: () => <SecurityPage />,
       },
       {
         id: "shortcuts",
         title: "Shortcuts",
-        icon: outline(CommandLineIcon),
+        icon: <IconKeyboard />,
         terms: ["keyboard", "keys", ...SHORTCUT_IDS.map((id) => SHORTCUTS[id].label)],
         render: () => <ShortcutsPage />,
       },
@@ -87,21 +89,21 @@ const WORKSPACE_PAGES: PageDefinition[] = [
     id: "general",
     title: "General",
     icon: <IconSettings />,
-    terms: ["workspace", "name", "handle", "role"],
+    terms: ["workspace", "name", "rename", "handle", "role", "domain", "dns"],
     render: () => <GeneralPage />,
   },
   {
     id: "people",
     title: "People",
     icon: <IconTeam />,
-    terms: ["members", "invite", "invitations", "roles", "admin", "remove"],
+    terms: ["members", "invite", "invitations", "resend", "roles", "admin", "remove"],
     render: () => <PeoplePage />,
   },
   {
     id: "mailboxes",
     title: "Mailboxes",
     icon: <IconInbox />,
-    terms: ["access", "shared", "unread", "inbox", "lanes", "triage"],
+    terms: ["access", "shared", "unread", "inbox", "lanes", "triage", "sync"],
     render: () => <MailboxesPage />,
   },
 ];
