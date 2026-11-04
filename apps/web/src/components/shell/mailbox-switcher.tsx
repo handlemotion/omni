@@ -2,13 +2,12 @@
 // UX follows a mail app's account menu: All, then each mailbox, grouped by workspace only when
 // the user belongs to more than one. Settings and log out live in the sidebar footer.
 //
-// Geometry, so the menu balances optically:
-// - Every row is 48px: a 32px avatar beside a 34px two-line block (13/16 name, 2px, 11/16
-//   address), nothing clipped. 8px inside the row plus the menu's 4px padding puts each avatar
-//   12px from the menu's edge on every side, and the check 12px from the right.
-// - A group label belongs to the rows under it: 24px under the group above, 12px over its first
-//   avatar, tighter than the 16px between rows, so it binds to its own group.
-// - The menu's corners are 8px and the rows' 4px: concentric across the 4px padding.
+// Geometry, so the menu breathes and balances optically:
+// - Every row is 50px: a 32px avatar beside a 34px two-line block (13/16 name, 2px, 11/16
+//   address), nothing clipped. Each mark is even inside its own corner of the row: the avatar
+//   9px from the row's top and left, the check's ink the same distance from its top and right.
+// - The menu's 8px padding puts avatars 17px from its edges.
+// - A group label gets room on both sides: 24px under the group above, 16px over its own rows.
 import { CheckIcon, ChevronUpDownIcon } from "@heroicons/react/20/solid";
 import { useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
@@ -22,11 +21,14 @@ import { useMember } from "@/hooks/use-session.ts";
 import { useOpenMailbox, useOpenWorkspace, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { Workspace, WorkspaceMailbox } from "@/lib/types.ts";
 
-const ROW = "min-h-12 rounded-sm px-2 py-1.75";
+/** Rows are 50px (8px + the 34px text block + 8px). The 32px avatar sits 9px from the row's top
+ *  and left; the check's ink 20px from its top and right (measured). Each mark is even inside its
+ *  own corner. */
+const ROW = "min-h-12 rounded-sm ps-2.25 pe-4.5 py-2";
 const ROW_CONTENT = "col-span-full flex min-w-0 items-center gap-3";
-/** 12px above (the row before keeps 8px of its own), none below: with the row's 8px inset the
- *  label sits 12px over its first avatar and 24px under the group above. Aligned with the avatars. */
-const GROUP_LABEL = "px-2 pt-3 pb-0 text-xs/4 sm:px-2 sm:pt-3 sm:pb-0 sm:text-xs/4";
+/** 16px above (the row before keeps 8px of its own), 8px below (plus the next row's 8px):
+ *  24px under the group above, 16px over its own rows. Aligned with the avatars. */
+const GROUP_LABEL = "px-2.25 pt-4 pb-2 text-xs/4 sm:px-2.25 sm:pt-4 sm:pb-2 sm:text-xs/4";
 
 const failed = () => appToast.error("The mailbox could not be opened. Try again.");
 
@@ -59,19 +61,19 @@ function FaceAvatar(props: { face: Face; size: number; plain?: boolean }) {
 
 /**
  * "All mailboxes": the mailboxes' own avatars in a triangle over one avatar's square, two on top
- * and one below between them. With more than three, the last becomes "+N". Discs are 9/16 of the
- * square, so neighbours overlap by an eighth of it (4px at 32): enough to read as one group, too
- * little to cover a letter. Each is cut out of the others by a ring in the fill behind it
- * (`ring`), so they stay apart on the menu, under the hover highlight and on the trigger.
+ * and one below between them. With more than three, the last becomes "+N". Discs are half the
+ * square and just touch, so none hides another. A ring in the fill behind them (`ring`) keeps a
+ * hairline between neighbours on the menu, under the hover highlight and on the trigger.
  * `plain` drops initials and the count, for sizes where they would be specks.
  */
 function Cluster(props: { faces: Face[]; size: number; ring: string; plain?: boolean }) {
   const { faces, size } = props;
-  const disc = Math.round(size * 0.5625);
+  // Half-size discs that just touch, none hiding another: two on top, one centred below.
+  const disc = size / 2;
   const spots = [
-    { x: 0, y: 0 },
-    { x: size - disc, y: 0 },
-    { x: (size - disc) / 2, y: size - disc },
+    { x: 0, y: size / 32 },
+    { x: disc, y: size / 32 },
+    { x: disc / 2, y: size - disc - size / 32 },
   ];
   const extra = faces.length - 3;
   const shown: (Face | { more: number })[] =
@@ -111,9 +113,7 @@ function RowBody(props: { lead: React.ReactNode; name: string; detail: string; c
         <span className="truncate text-sm/4 text-foreground">{props.name}</span>
         <span className="truncate text-xs/4 text-muted-foreground">{props.detail}</span>
       </span>
-      {/* -2px: the glyph has 2px of air inside its 16px box; its ink lands 12px from the edge,
-          like the avatars on the left. */}
-      <span aria-hidden className="-me-0.5 grid size-4 shrink-0 place-items-center">
+      <span aria-hidden className="grid size-4 shrink-0 place-items-center">
         {props.chosen && <CheckIcon className="size-4 text-foreground" />}
       </span>
     </span>
@@ -203,7 +203,7 @@ export function MailboxSwitcher() {
           offset: 8,
           className: "w-80 max-w-[calc(100vw-16px)] [--popover-radius:var(--radius-xl)]",
         }}
-        className="p-1"
+        className="p-2"
       >
         {/* One All row for every workspace, above the groups. */}
         <MenuItem
