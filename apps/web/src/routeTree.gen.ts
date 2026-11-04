@@ -29,7 +29,6 @@ import { Route as AuthedMemberInboxThreadIdRouteImport } from "./routes/_authed/
 import { Route as AuthedMemberQueueThreadIdRouteImport } from "./routes/_authed/_member/queue.$threadId";
 import { Route as AuthedMemberSearchThreadIdRouteImport } from "./routes/_authed/_member/search.$threadId";
 import { Route as AuthedMemberSettingsIndexRouteImport } from "./routes/_authed/_member/settings/index";
-import { Route as AuthedMemberSettingsOrganizationRouteImport } from "./routes/_authed/_member/settings/organization";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -136,12 +135,6 @@ const AuthedMemberSettingsIndexRoute =
     path: "/settings/",
     getParentRoute: () => AuthedMemberRoute,
   } as any);
-const AuthedMemberSettingsOrganizationRoute =
-  AuthedMemberSettingsOrganizationRouteImport.update({
-    id: "/settings/organization",
-    path: "/settings/organization",
-    getParentRoute: () => AuthedMemberRoute,
-  } as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
@@ -161,7 +154,6 @@ export interface FileRoutesByFullPath {
   "/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
   "/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
-  "/settings/organization": typeof AuthedMemberSettingsOrganizationRoute;
   "/settings/": typeof AuthedMemberSettingsIndexRoute;
 }
 export interface FileRoutesByTo {
@@ -182,7 +174,6 @@ export interface FileRoutesByTo {
   "/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
   "/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
-  "/settings/organization": typeof AuthedMemberSettingsOrganizationRoute;
   "/settings": typeof AuthedMemberSettingsIndexRoute;
 }
 export interface FileRoutesById {
@@ -206,7 +197,6 @@ export interface FileRoutesById {
   "/_authed/_member/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
   "/_authed/_member/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
   "/_authed/_member/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
-  "/_authed/_member/settings/organization": typeof AuthedMemberSettingsOrganizationRoute;
   "/_authed/_member/settings/": typeof AuthedMemberSettingsIndexRoute;
 }
 export interface FileRouteTypes {
@@ -229,7 +219,6 @@ export interface FileRouteTypes {
     | "/inbox/$threadId"
     | "/queue/$threadId"
     | "/search/$threadId"
-    | "/settings/organization"
     | "/settings/";
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -250,7 +239,6 @@ export interface FileRouteTypes {
     | "/inbox/$threadId"
     | "/queue/$threadId"
     | "/search/$threadId"
-    | "/settings/organization"
     | "/settings";
   id:
     | "__root__"
@@ -273,7 +261,6 @@ export interface FileRouteTypes {
     | "/_authed/_member/inbox/$threadId"
     | "/_authed/_member/queue/$threadId"
     | "/_authed/_member/search/$threadId"
-    | "/_authed/_member/settings/organization"
     | "/_authed/_member/settings/";
   fileRoutesById: FileRoutesById;
 }
@@ -425,13 +412,6 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedMemberSettingsIndexRouteImport;
       parentRoute: typeof AuthedMemberRoute;
     };
-    "/_authed/_member/settings/organization": {
-      id: "/_authed/_member/settings/organization";
-      path: "/settings/organization";
-      fullPath: "/settings/organization";
-      preLoaderRoute: typeof AuthedMemberSettingsOrganizationRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
   }
 }
 
@@ -510,7 +490,6 @@ interface AuthedMemberRouteChildren {
   AuthedMemberInboxRoute: typeof AuthedMemberInboxRouteWithChildren;
   AuthedMemberQueueRoute: typeof AuthedMemberQueueRouteWithChildren;
   AuthedMemberSearchRoute: typeof AuthedMemberSearchRouteWithChildren;
-  AuthedMemberSettingsOrganizationRoute: typeof AuthedMemberSettingsOrganizationRoute;
   AuthedMemberSettingsIndexRoute: typeof AuthedMemberSettingsIndexRoute;
 }
 
@@ -522,7 +501,6 @@ const AuthedMemberRouteChildren: AuthedMemberRouteChildren = {
   AuthedMemberInboxRoute: AuthedMemberInboxRouteWithChildren,
   AuthedMemberQueueRoute: AuthedMemberQueueRouteWithChildren,
   AuthedMemberSearchRoute: AuthedMemberSearchRouteWithChildren,
-  AuthedMemberSettingsOrganizationRoute: AuthedMemberSettingsOrganizationRoute,
   AuthedMemberSettingsIndexRoute: AuthedMemberSettingsIndexRoute,
 };
 

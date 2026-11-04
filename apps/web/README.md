@@ -52,8 +52,7 @@ Components use `hooks/` only. `lib/` is how the hooks work.
 | `/all`, `/all/$id`           | `mailbox?`                    | same, all mail                              |
 | `/search`, `/search/$id`     | `q`, `mailbox?`               | results for `q`; the thread                 |
 | `/compose`                   | `mailbox?`, `to?`, `subject?` | (mailboxes come from the shell)             |
-| `/settings`                  |                               | organizations, passkeys                     |
-| `/settings/organization`     |                               | members, invitations                        |
+| `/settings`                  |                               | opens the settings dialog (⌘. anywhere)     |
 
 Guards: `_authed` needs a user, `_authed/_member` needs a member of the active organization and
 loads mailboxes and counts for the shell. A user with no organization goes to `/onboarding` if

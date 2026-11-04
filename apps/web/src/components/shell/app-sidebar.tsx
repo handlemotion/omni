@@ -18,8 +18,7 @@ import {
   IconWarning,
 } from "@/components/icons/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonStyles } from "@/components/ui/button";
-import { Link } from "@/components/ui/link";
+import { Button } from "@/components/ui/button";
 import { MailboxSwitcher } from "./mailbox-switcher";
 import {
   Sidebar,
@@ -36,6 +35,8 @@ import {
 } from "@/components/ui/sidebar";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
 import { useSignOut } from "@/hooks/use-session.ts";
+import { openSettings } from "@/hooks/use-settings-dialog.ts";
+import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 
 /** A nav row. No `href`: the frame shows it, but the app has no view for it yet. */
 interface NavItem {
@@ -121,10 +122,15 @@ export function AppSidebar() {
             <IconCircleDashed />
             Log Out
           </Button>
-          <Link href="/settings" className={buttonStyles({ intent: "plain", size: "xs" })}>
+          <Button
+            intent="plain"
+            size="xs"
+            aria-keyshortcuts={ariaKeyShortcuts("settings")}
+            onPress={() => openSettings()}
+          >
             <IconSettings />
             Settings
-          </Link>
+          </Button>
         </div>
         <OfflineBadge />
         <Button intent="plain" size="sq-xs" aria-label="Help">

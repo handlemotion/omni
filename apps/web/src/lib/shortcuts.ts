@@ -35,6 +35,8 @@ export const SHORTCUTS = {
   search: { label: "Search", group: "General", keys: [["/"]] },
   commandMenu: { label: "Search and commands", group: "General", keys: [["Mod+k"]] },
   help: { label: "Keyboard shortcuts", group: "General", keys: [["?"]], command: true },
+  // Opens and closes from anywhere, even while typing or inside another dialog (see the listener).
+  settings: { label: "Settings", group: "General", keys: [["Mod+."]] },
 } as const satisfies Record<string, ShortcutDefinition>;
 
 export type ShortcutId = keyof typeof SHORTCUTS;
