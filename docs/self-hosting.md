@@ -366,7 +366,7 @@ standing is read-only: its mail syncs and reads, but nothing is sent or changed.
 | `STRIPE_PRICE_MONTHLY`     | var    | yes                   | Price id of the plan's monthly price. Amounts live in Stripe.                                                  |
 | `STRIPE_PRICE_YEARLY`      | var    | no                    | Price id of the yearly price. Empty offers monthly only.                                                       |
 | `STRIPE_PUBLISHABLE_KEY`   | var    | no                    | Publishable key (`pk_test_…`, same mode as the secret key). Owners add cards in the app; empty: in the portal. |
-| `BILLING_TRIAL_DAYS`       | var    | no                    | Free trial length, once per workspace, no card needed. Empty or `0`: no trial.                                 |
+| `BILLING_TRIAL_DAYS`       | var    | no                    | Free trial length, once per workspace and once per account, no card needed. Empty or `0`: no trial.            |
 | `BILLING_TRIAGE_ALLOWANCE` | var    | yes                   | AI-triaged emails per workspace per month. Rule-filed threads and threads with no AI key never count.          |
 
 Set any of them without `STRIPE_SECRET_KEY` (or the key without the required ones) and the Worker

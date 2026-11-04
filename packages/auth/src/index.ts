@@ -82,7 +82,7 @@ const billingFields = {
       )
       .optional(),
   ),
-  /** Free trial length in days, once per workspace. Empty or 0: no trial. */
+  /** Free trial length in days, once per workspace and once per account. Empty or 0: no trial. */
   BILLING_TRIAL_DAYS: optionalText.pipe(wholeNumber.optional()).transform((days) => days ?? 0),
   /** AI-triaged emails per workspace per month. */
   BILLING_TRIAGE_ALLOWANCE: positiveInt,
@@ -224,8 +224,10 @@ export async function mayManageBilling(db: Db, userId: string, orgId: string) {
 }
 
 /**
- * Better Auth's Stripe plugin for one plan billed to the organization (ADR 0015). Trials need no
- * card; a trial that ends without one cancels, which leaves the workspace read-only.
+ * Better Auth's Stripe plugin for one plan billed to the organization (ADR 0015). Checkout is
+ * only for paying: free trials start in the Worker (`POST /api/billing/trial`), which grants one
+ * per workspace and one per account. The plugin's own trial rule is per workspace only, so it
+ * would hand a person's every new workspace another trial through Checkout.
  */
 function billingPlugin(env: AuthEnv, billing: BillingConfig) {
   const stripeClient = createStripeClient(billing.secretKey);
@@ -246,7 +248,6 @@ function billingPlugin(env: AuthEnv, billing: BillingConfig) {
           name: PLAN_NAME,
           priceId: billing.monthlyPriceId,
           annualDiscountPriceId: billing.yearlyPriceId,
-          freeTrial: billing.trialDays > 0 ? { days: billing.trialDays } : undefined,
         },
       ],
       // Organization subscriptions only (the Worker refuses others): owners and admins.
@@ -257,9 +258,6 @@ function billingPlugin(env: AuthEnv, billing: BillingConfig) {
           // friends). With nothing left to pay, no card is asked for.
           allow_promotion_codes: true,
           payment_method_collection: "if_required",
-          subscription_data: {
-            trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
-          },
         },
       }),
     },

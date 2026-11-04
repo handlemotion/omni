@@ -356,6 +356,36 @@ describe.runIf(requested)("Stripe test mode", () => {
     expect(session!.amount_total).toBe(monthly.unit_amount);
     expect(decodeURIComponent(session!.success_url ?? "")).toContain("/onboarding");
     expect(session!.cancel_url).toMatch(/\/onboarding$/);
+
+    // The same person makes a second workspace: their trial is spent, so it pays from day one,
+    // and Checkout grants no trial of its own.
+    const [owned] = await db
+      .select({ userId: schema.members.userId })
+      .from(schema.members)
+      .where(eq(schema.members.organizationId, org.id));
+    const userId = owned!.userId;
+    const next = await createOrg(db, "plan-page-next");
+    await db.insert(schema.members).values({
+      id: randomUUID(),
+      organizationId: next.id,
+      userId: userId,
+      role: "owner",
+      createdAt: new Date(),
+    });
+    await db
+      .update(schema.sessions)
+      .set({ activeOrganizationId: next.id })
+      .where(eq(schema.sessions.userId, userId));
+    expect(await (await api("/billing", cookie)).json()).toMatchObject({ trialAvailable: false });
+    expect((await api("/billing/trial", cookie, { interval: "month" })).status).toBe(409);
+    expect(
+      (await api("/billing/checkout", cookie, { interval: "month", returnPath: "/onboarding" }))
+        .status,
+    ).toBe(200);
+    const [paid] = (await stripe.checkout.sessions.list({ customer: await customerOf(next.id) }))
+      .data;
+    // A trial would make the first charge 0.
+    expect(paid!.amount_total).toBe(monthly.unit_amount);
   }, 90_000);
 
   test("a second checkout expires the first, so two tabs cannot both subscribe", async () => {

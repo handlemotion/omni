@@ -54,16 +54,24 @@ a plan page after mailboxes and before invitations: pick monthly or yearly (at S
 prices) and press "Start free trial". The trial starts there and then (`POST /api/billing/trial`
 creates the workspace's Stripe customer and a trialing subscription, and writes its row at once),
 with no card and no Stripe page, and setup moves on; a card is due before the trial ends. A
-workspace that has had its trial, or a deployment with no trial, pays on Stripe's Checkout instead,
-which returns to onboarding. The page shows only while the workspace has no plan, and is passed
+workspace that has had its trial, a person who already started one for another workspace, or a
+deployment with no trial, pays on Stripe's Checkout instead, which returns to onboarding. The page shows only while the workspace has no plan, and is passed
 over otherwise: its state is read from the subscription each time, not saved as a setup step, so
 it follows Stripe. `POST /api/onboarding/complete` answers `402 BILLING_REQUIRED` without a plan in
 good standing, so invitations go out only from a workspace that has one. Self-hosted installs
 without billing keep the four pages they had.
 
 **The trial needs no card.** A trial that ends without a payment method cancels
-(`trial_settings.end_behavior`), which makes the workspace read-only. A workspace gets one trial,
-by the plugin's own rule (any past subscription with a trial). Checkout, for paying, uses
+(`trial_settings.end_behavior`), which makes the workspace read-only.
+
+**One trial per workspace, and one per account, ever.** A workspace that had any subscription
+with a trial gets no other. The person who starts a trial also uses up their own: `trial_claims`
+holds one row per trial, unique on the workspace and on the account, taken before Stripe is
+called, so two requests at once (two tabs, two new workspaces) cannot both start one. It has no
+foreign keys, so deleting or leaving the workspace does not hand the trial back. Without this, one
+person could create workspace after workspace, each on a new free trial; the AI allowance is per
+workspace, so nothing else would stop it. Checkout never grants a trial (the plugin's `freeTrial`
+is off: its rule is per workspace only); it is for paying, with
 `payment_method_collection: "if_required"`, so a 100%-off promotion code needs no card either.
 
 **Stripe's webhook is applied once and in order.** It is verified with Stripe's signature by the
@@ -107,7 +115,8 @@ missing.
 
 ## Consequences
 
-- New tables: `subscriptions` (from the plugin, `org_id` keyed), `triage_usage`, `stripe_events`;
+- New tables: `subscriptions` (from the plugin, `org_id` keyed), `triage_usage`, `stripe_events`,
+  `trial_claims` (no foreign keys, so a trial outlives its workspace);
   new columns `organizations.stripe_customer_id`, `users.stripe_customer_id` (the plugin's; unused
   since customers are workspaces) and `threads.triage_paused_until`. All additive.
 - An email that went untriaged past the allowance is not re-queued at the reset; its thread is
