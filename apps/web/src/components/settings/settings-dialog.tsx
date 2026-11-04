@@ -250,9 +250,9 @@ function SettingsBody({ page }: { page: SettingsPageId }) {
   const selectedIn = (pages: PageDefinition[]) => (pages.some((p) => p.id === page) ? [page] : []);
 
   return (
-    // 30/70: the left part is the surface, its nav (the app sidebar's width) set 24px off the
+    // 35/65: the left part is the surface, its nav (the app sidebar's width) set 24px off the
     // divider; the page column starts on the same line as the nav.
-    <div className="grid min-h-0 flex-1 grid-cols-[3fr_7fr]">
+    <div className="grid min-h-0 flex-1 grid-cols-[35fr_65fr]">
       <div className="flex min-h-0 justify-end overflow-y-auto border-e border-border bg-surface pe-6">
         <nav
           aria-label="Settings pages"
