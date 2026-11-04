@@ -1,9 +1,11 @@
 import { createAuth, type Auth, type InvitationMessage } from "@omni/auth";
-import { createDb, enqueueAction, findSystemMailbox, schema, type Db } from "@omni/db";
+import { enqueueAction, findSystemMailbox, schema, type Db } from "@omni/db";
+import { sha256Hex } from "@omni/crypto";
 import type { SendPayload } from "@omni/contracts";
 import { and, asc, eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
+import { openDb } from "./db.ts";
 import { loadConfig, type Config } from "./env.ts";
 import type { Logger } from "./log.ts";
 import { pingMailService } from "./mail-service.ts";
@@ -30,18 +32,10 @@ export interface AppEnv {
   };
 }
 
-/**
- * Per-request config, database and Better Auth. A Worker may not reuse a socket across requests,
- * so each request opens its own small pool over Hyperdrive (which keeps the real connections
- * warm) and closes it after the response.
- */
+/** Per-request config, database (`openDb`) and Better Auth, closed after the response. */
 export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
   const config = loadConfig(c.env);
-  const { db, close } = createDb(c.env.HYPERDRIVE.connectionString, {
-    max: 5,
-    fetch_types: false,
-    onnotice: () => {},
-  });
+  const { db, close } = openDb(c.env, 5);
   c.set("config", config);
   c.set("db", db);
   const mail = systemMailSender(c, db, config);
@@ -192,9 +186,4 @@ function invitationText(invite: InvitationMessage, appName: string) {
 function devLog(config: Config, link: { kind: string; email: string; url: string }) {
   if (config.ENVIRONMENT !== "development") return;
   console.log(JSON.stringify({ event: "auth.dev_link", ...link }));
-}
-
-async function sha256Hex(text: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }

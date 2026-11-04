@@ -18,6 +18,11 @@ export function toHex(bytes: Uint8Array): string {
   return out;
 }
 
+/** SHA-256 of the text's UTF-8 bytes, as lowercase hex. */
+export async function sha256Hex(text: string): Promise<string> {
+  return toHex(new Uint8Array(await crypto.subtle.digest("SHA-256", utf8(text))));
+}
+
 export function fromHex(hex: string): Uint8Array<ArrayBuffer> | null {
   if (hex.length % 2 !== 0 || !/^[0-9a-f]*$/i.test(hex)) return null;
   const out = new Uint8Array(hex.length / 2);

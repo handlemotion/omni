@@ -1,6 +1,7 @@
 // Member-scoped reads and writes the API's mail actions need, beside `forMember`. Like it, every
 // query inner-joins `mailbox_access` for this member and `members` for the row's org, so a
 // missing grant or a grant that crosses orgs finds nothing.
+import type { MessageTarget } from "@omni/contracts";
 import { and, asc, eq, exists, isNotNull, sql, type AnyColumn } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import {
@@ -90,11 +91,8 @@ export async function threadActionTargets(db: Db, memberId: string, threadId: st
     .where(and(eq(messages.threadId, thread.id), isNotNull(mailboxFolders.uidvalidity)))
     .orderBy(asc(mailboxFolders.path), asc(messageLocations.imapUid));
 
-  // Same shape as `messageTargetSchema` in @omni/contracts, plus the folder role.
-  const byFolder = new Map<
-    string,
-    { folder: string; uidValidity: string; uids: number[]; role: string }
-  >();
+  // An outbox payload target, plus the folder role so a route can skip folders by role.
+  const byFolder = new Map<string, MessageTarget & { role: (typeof rows)[number]["role"] }>();
   for (const row of rows) {
     const target = byFolder.get(row.folder) ?? {
       folder: row.folder,

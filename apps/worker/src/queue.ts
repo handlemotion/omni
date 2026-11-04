@@ -16,7 +16,6 @@ import {
 } from "@omni/ai";
 import {
   addAiUsage,
-  createDb,
   getAiUsage,
   loadThreadForAi,
   markTriagePaused,
@@ -26,6 +25,7 @@ import {
   type Db,
 } from "@omni/db";
 import { gateTriage, inGoodStanding } from "./billing.ts";
+import { openDb } from "./db.ts";
 import { loadConfig, type Config } from "./env.ts";
 import { createLogger } from "./log.ts";
 import { fanOut } from "./realtime.ts";
@@ -61,11 +61,7 @@ export async function consumeQueue(batch: MessageBatch<AiJob>, env: Env) {
  * usually recorded it already, with its error; this catches jobs whose consumer died mid-run.
  */
 export async function consumeDeadLetters(batch: MessageBatch<AiJob>, env: Env) {
-  const { db, close } = createDb(env.HYPERDRIVE.connectionString, {
-    max: 2,
-    fetch_types: false,
-    onnotice: () => {},
-  });
+  const { db, close } = openDb(env);
   const source = batch.queue.slice(0, -"-dlq".length);
   try {
     for (const message of batch.messages) {
@@ -132,11 +128,7 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
     }),
     summary: anthropic,
   };
-  const { db, close } = createDb(env.HYPERDRIVE.connectionString, {
-    max: 2,
-    fetch_types: false,
-    onnotice: () => {},
-  });
+  const { db, close } = openDb(env);
   try {
     for (const message of batch.messages) {
       const job = message.body;

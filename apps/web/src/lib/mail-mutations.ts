@@ -12,6 +12,7 @@ import {
 } from "./cache.ts";
 import { addPending, updatePending } from "./pending.ts";
 import { keys } from "./query-keys.ts";
+import { leavesView } from "./threads.ts";
 
 export interface Keyed {
   key: string;
@@ -80,9 +81,7 @@ export const deferMutation = (client: QueryClient) =>
         deferredUntil: until ? until.toISOString() : null,
         ...(until ? { done: false } : {}),
       });
-      removeFromLists(client, threadId, (f) =>
-        deferred ? f.view === "inbox" || f.view === "done" : f.view === "queue",
-      );
+      removeFromLists(client, threadId, (f) => leavesView(deferred ? "defer" : "undefer", f.view));
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),
@@ -110,7 +109,7 @@ export const doneMutation = (client: QueryClient) =>
     onMutate: async ({ threadId }) => {
       const snapshot = await snapshotThread(client, threadId);
       patchThread(client, threadId, { done: true, deferredUntil: null });
-      removeFromLists(client, threadId, (f) => f.view === "inbox" || f.view === "queue");
+      removeFromLists(client, threadId, (f) => leavesView("done", f.view));
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),
@@ -128,7 +127,7 @@ export const undoneMutation = (client: QueryClient) =>
     onMutate: async ({ threadId }) => {
       const snapshot = await snapshotThread(client, threadId);
       patchThread(client, threadId, { done: false });
-      removeFromLists(client, threadId, (f) => f.view === "done");
+      removeFromLists(client, threadId, (f) => leavesView("undone", f.view));
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),
@@ -145,7 +144,7 @@ export const archiveMutation = (client: QueryClient) =>
     onMutate: async ({ threadId }) => {
       const snapshot = await snapshotThread(client, threadId);
       patchThread(client, threadId, { archived: true });
-      removeFromLists(client, threadId, (f) => f.view === "inbox" || f.view === "queue");
+      removeFromLists(client, threadId, (f) => leavesView("archive", f.view));
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),

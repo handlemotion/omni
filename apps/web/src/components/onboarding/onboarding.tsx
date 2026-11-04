@@ -1,17 +1,19 @@
+import { Cloudflare } from "@ridemountainpig/svgl-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { IconRedirectArrow } from "@/components/icons";
 import { IconChevronRight } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
-import { CopyField } from "@/components/ui/copy-field";
+import { CopyField, RenewField } from "@/components/ui/copy-field";
 import { Label } from "@/components/ui/field";
 import { Heading } from "@/components/ui/heading";
 import { Input, InputGroup } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { Step, Steps, type StepState } from "@/components/ui/steps";
-import { Text } from "@/components/ui/text";
+import { Text, TextLink } from "@/components/ui/text";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { TextField } from "@/components/ui/text-field";
+import { appToast } from "@/components/ui/toast";
 import {
   useAddDomain,
   useCheckDomain,
@@ -160,42 +162,50 @@ function ExitButton() {
   );
 }
 
-/** "Step 2 of 4 · DNS" over one bar per step, filled through the current one. */
+/**
+ * One bar per step, filled through the current one. No visible "Step 2 of 4" over it: the heading
+ * below names the step, and the bar's own label says where you are to assistive tech.
+ *
+ * Room, in ink: 51.5px from the logo to the bar (the logo box's 3.5px of air plus `pt-12`), then
+ * 35px from the bar to the heading (PageForm's `pt-8` plus the heading's line slack). The bar
+ * sits nearer the heading it leads into than the logo above, so it reads as the page's top.
+ */
 function StepProgress(props: { current: number; names: readonly string[] }) {
   const { current, names } = props;
   return (
-    <div className="flex flex-col gap-3 pt-12">
-      <span className="text-sm text-muted-foreground">
-        Step {current + 1} of {names.length}
-        <span className="text-subtle-foreground"> · </span>
-        <span className="text-foreground">{names[current]}</span>
-      </span>
-      <div
-        role="progressbar"
-        aria-label="Setup progress"
-        aria-valuemin={1}
-        aria-valuemax={names.length}
-        aria-valuenow={current + 1}
-        aria-valuetext={`Step ${current + 1} of ${names.length}: ${names[current]}`}
-        className="flex gap-1"
-      >
-        {names.map((name, i) => (
-          <span
-            key={name}
-            className={`h-1 flex-1 rounded-full ${i <= current ? "bg-foreground" : "bg-border"}`}
-          />
-        ))}
-      </div>
+    <div
+      role="progressbar"
+      aria-label="Setup progress"
+      aria-valuemin={1}
+      aria-valuemax={names.length}
+      aria-valuenow={current + 1}
+      aria-valuetext={`Step ${current + 1} of ${names.length}: ${names[current]}`}
+      className="flex gap-1 pt-12"
+    >
+      {names.map((name, i) => (
+        <span
+          key={name}
+          className={`h-1 flex-1 rounded-full ${i <= current ? "bg-foreground" : "bg-border"}`}
+        />
+      ))}
     </div>
   );
 }
 
-/** Heading, an optional one-line description, the fields, and the submit button. */
+/**
+ * Heading, an optional one-line description, the fields, and the submit button. The submit button
+ * is the page's one primary action and is never disabled: a page that isn't ready says why when
+ * it is pressed.
+ */
 function PageForm(props: {
   title: string;
-  description?: string;
+  description?: ReactNode;
+  /**
+   * An action that spares the fields (one-click setup). It belongs to the sentence above it: 24px
+   * of ink under the description, 32px over the fields.
+   */
+  shortcut?: ReactNode;
   submit: string;
-  isDisabled?: boolean;
   isPending?: boolean;
   /** Why the last submit failed. */
   problem?: string | null;
@@ -213,6 +223,7 @@ function PageForm(props: {
       <div className="flex flex-col gap-1.5 pt-8">
         <Heading>{props.title}</Heading>
         {props.description && <Text>{props.description}</Text>}
+        {props.shortcut && <div className="mt-4.5 flex">{props.shortcut}</div>}
       </div>
       <div className="flex flex-col gap-6 pt-8">{props.children}</div>
       {props.problem && (
@@ -220,13 +231,7 @@ function PageForm(props: {
           {props.problem}
         </Note>
       )}
-      <Button
-        type="submit"
-        size="lg"
-        className="mt-10 w-full"
-        isDisabled={props.isDisabled}
-        isPending={props.isPending}
-      >
+      <Button type="submit" size="lg" className="mt-10 w-full" isPending={props.isPending}>
         {props.submit}
         <IconChevronRight />
       </Button>
@@ -329,25 +334,62 @@ function shownRecords(domain: OnboardingDomain): ShownRecord[] {
   return [...challenge, ...domain.records];
 }
 
-function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDone: () => void }) {
-  const checkDomain = useCheckDomain();
-  const rotateChallenge = useRotateChallenge();
-  const [problem, setProblem] = useState<string | null>(null);
-  const { domain } = props;
+/** The domain's records by purpose, in order, and the first group not passing yet (-1: none). */
+function recordGroups(domain: OnboardingDomain) {
   const records = shownRecords(domain);
   const groups = PURPOSES.map((p) => ({
     ...p,
     records: records.filter((r) => r.check === p.check),
   })).filter((g) => g.records.length > 0);
-  const current = groups.findIndex((g) => !g.records.every(passes));
+  return { groups, current: groups.findIndex((g) => !g.records.every(passes)) };
+}
+
+/** Why a group isn't passing yet: the provider's refusal, then what the nameservers hold. */
+function groupProblems(
+  domain: OnboardingDomain,
+  group: ReturnType<typeof recordGroups>["groups"][number],
+) {
+  return [
+    ...(group.check === "ownership" && domain.addError ? [domain.addError] : []),
+    ...group.records
+      // "Not found yet" is what the toast's title already says; only other reasons add to it.
+      .filter((r) => r.diagnostic && !passes(r) && r.diagnostic.status !== "missing")
+      .map((r) => diagnosticText(r.diagnostic!)),
+  ];
+}
+
+function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDone: () => void }) {
+  const checkDomain = useCheckDomain();
+  const rotateChallenge = useRotateChallenge();
+  const [problem, setProblem] = useState<string | null>(null);
+  const { domain } = props;
+  const { groups, current } = recordGroups(domain);
   // Re-checked on its own while this page is open; results arrive over realtime.
   useRealtimeConnection(props.organizationId);
   useDomainWatch(domain.id, current !== -1);
   const state = (i: number): StepState =>
     current === -1 || i < current ? "complete" : i === current ? "current" : "upcoming";
-  const check = () => {
+  // Continue checks first: it moves on once every record passes, else a toast says which record
+  // isn't passing yet and why. No disabled button, no per-step check buttons, no status lines.
+  const checkAndContinue = () => {
     setProblem(null);
-    checkDomain.mutate(domain.id, { onError: (error) => setProblem(error.message) });
+    if (current === -1) return props.onDone();
+    checkDomain.mutate(domain.id, {
+      onSuccess: (fresh) => {
+        const after = recordGroups(fresh);
+        if (after.current === -1) return props.onDone();
+        const group = after.groups[after.current]!;
+        const type = group.records[0]!.type;
+        const why = groupProblems(fresh, group);
+        if (why.length > 0)
+          appToast.message(`${type} record isn't right yet`, { description: why.join(" ") });
+        else
+          appToast.message(`${type} record not found yet`, {
+            description: "Still checking. DNS can take a few minutes.",
+          });
+      },
+      onError: (error) => setProblem(error.message),
+    });
   };
   const rotate = () => {
     setProblem(null);
@@ -373,23 +415,31 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
   return (
     <PageForm
       title="Connect your domain"
-      description={`Add each record at the registrar for ${domain.domain}.`}
+      description={
+        <>
+          Add each record at{" "}
+          {domain.dnsHost ? <DnsHostLink host={domain.dnsHost} /> : "the registrar"} for{" "}
+          {domain.domain}.
+        </>
+      }
+      shortcut={
+        domain.domainConnect &&
+        current !== -1 && (
+          <Button
+            intent="outline"
+            isPending={rotateChallenge.isPending}
+            onPress={setUpAutomatically}
+          >
+            <ProviderLogo name={domain.domainConnect.providerName} />
+            Set up automatically with {domain.domainConnect.providerName}
+          </Button>
+        )
+      }
       submit="Continue"
-      isDisabled={current !== -1}
+      isPending={checkDomain.isPending}
       problem={problem}
-      onSubmit={props.onDone}
+      onSubmit={checkAndContinue}
     >
-      {domain.dnsHost && <Text>{domain.dnsHost.steps}</Text>}
-      {domain.domainConnect && current !== -1 && (
-        <Button
-          intent="outline"
-          className="self-start"
-          isPending={rotateChallenge.isPending}
-          onPress={setUpAutomatically}
-        >
-          Set up automatically with {domain.domainConnect.providerName}
-        </Button>
-      )}
       <Steps>
         {groups.map((group, i) => (
           <Step
@@ -415,29 +465,18 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
                     />
                   ) : (
                     // Only its hash is stored, so a value shown before (another browser, cleared
-                    // storage) cannot be shown again: make a new one instead.
-                    <Button
-                      intent="outline"
-                      className="self-start"
+                    // storage) cannot be shown again: the field makes a new one when pressed. Not
+                    // made on its own: it would replace a record the user may have just added.
+                    <RenewField
+                      label="Value"
+                      placeholder="Hidden"
+                      tooltip="Show a new value. It replaces the old one."
                       isPending={rotateChallenge.isPending}
                       onPress={rotate}
-                    >
-                      Show a new value
-                    </Button>
+                    />
                   )}
                 </div>
               ))}
-              <CheckButton
-                isPending={checkDomain.isPending}
-                onPress={check}
-                // No status lines under the fields: why it isn't passing yet lives on the button.
-                why={[
-                  ...(group.check === "ownership" && domain.addError ? [domain.addError] : []),
-                  ...group.records
-                    .filter((r) => r.diagnostic && !passes(r))
-                    .map((r) => diagnosticText(r.diagnostic!)),
-                ]}
-              />
             </div>
           </Step>
         ))}
@@ -446,32 +485,35 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
   );
 }
 
-/** Why a record is not passing yet, and what the nameservers hold instead. */
-function diagnosticText({ message, found }: Diagnostic) {
-  return found.length > 0 ? `${message} Found: ${found.join(", ")}` : message;
-}
-
-/** "Check record", with the reasons the last check didn't pass in its tooltip (hover or focus). */
-function CheckButton(props: { isPending: boolean; onPress: () => void; why: string[] }) {
-  const button = (
-    <Button
-      intent="outline"
-      className="mt-1 self-start"
-      isPending={props.isPending}
-      onPress={props.onPress}
-    >
-      Check record
-    </Button>
-  );
-  if (props.why.length === 0) return button;
+/**
+ * The DNS host's name in the description, linking to its own guide, with where records are added
+ * there in a tooltip (hover or focus). It explains the records the user is about to add, so it
+ * lives in the sentence that asks for them, not as a paragraph of its own.
+ */
+function DnsHostLink(props: { host: NonNullable<OnboardingDomain["dnsHost"]> }) {
   return (
     <TooltipTrigger delay={300}>
-      {button}
-      <Tooltip inverse placement="end" className="max-w-xs text-xs">
-        {props.why.join(" ")}
+      <TextLink href={props.host.help} target="_blank" rel="noreferrer">
+        {props.host.name}
+      </TextLink>
+      <Tooltip inverse placement="bottom" className="max-w-xs text-xs">
+        {props.host.steps}
       </Tooltip>
     </TooltipTrigger>
   );
+}
+
+/** DNS hosts' logos (svgl) for the one-click button; a host without one shows its name only. */
+const PROVIDER_LOGOS: Record<string, typeof Cloudflare> = { Cloudflare };
+
+function ProviderLogo(props: { name: string }) {
+  const Logo = PROVIDER_LOGOS[props.name];
+  return Logo ? <Logo width={15} height={15} aria-hidden /> : null;
+}
+
+/** Why a record is not passing yet, and what the nameservers hold instead. */
+function diagnosticText({ message, found }: Diagnostic) {
+  return found.length > 0 ? `${message} Found: ${found.join(", ")}` : message;
 }
 
 /**

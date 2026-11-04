@@ -11,9 +11,10 @@ import {
   setThreadArchived,
   THREAD_VIEWS,
   threadActionTargets,
+  type MailActionRequest,
   type MemberQueries,
 } from "@omni/db";
-import type { ActionPayload, SendPayload } from "@omni/contracts";
+import type { SendPayload } from "@omni/contracts";
 import { addedParticipants, messageDisplay } from "@omni/mail-core/display";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -117,6 +118,48 @@ function notFound(): never {
 
 function pingLater(c: Context<AppEnv>) {
   c.executionCtx.waitUntil(pingMailService(c.var));
+}
+
+/** Where an action runs: the mailbox it acts on and that mailbox's org. */
+interface ActionMailbox {
+  orgId: string;
+  mailboxId: string;
+}
+
+/** Queues one action for this member's request. A repeated idempotency key returns the first. */
+function enqueue(
+  c: Context<AppEnv>,
+  mailbox: ActionMailbox,
+  request: MailActionRequest,
+  idempotencyKey: string,
+) {
+  return enqueueAction(c.var.db, {
+    orgId: mailbox.orgId,
+    mailboxId: mailbox.mailboxId,
+    memberId: c.var.member.id,
+    requestId: c.var.requestId,
+    idempotencyKey,
+    ...request,
+  });
+}
+
+/**
+ * Queues actions that each target one folder's copies, keyed by kind and folder so a retry under
+ * the same idempotency key queues nothing new, and pings the mail service when any was queued.
+ */
+async function enqueuePerFolder(
+  c: Context<AppEnv>,
+  mailbox: ActionMailbox,
+  key: string,
+  requests: Exclude<MailActionRequest, { kind: "send" }>[],
+) {
+  const actionIds: string[] = [];
+  for (const request of requests) {
+    const idempotencyKey = outboxKey(c, key, request.kind, request.payload.folder);
+    actionIds.push((await enqueue(c, mailbox, request, idempotencyKey)).id);
+  }
+  if (actionIds.length) pingLater(c);
+  return actionIds;
 }
 
 /**
@@ -244,24 +287,17 @@ export const mail = new Hono<AppEnv>()
       const state = await forMember(c.var.db, c.var.member.id).setThreadState(threadId, { read });
       if (!state) notFound();
 
-      const actionIds: string[] = [];
       const found = await threadActionTargets(c.var.db, c.var.member.id, threadId);
-      if (found?.mailboxKind === "personal") {
-        const kind = read ? "mark_read" : "mark_unread";
-        for (const { role: _role, ...target } of found.targets) {
-          const action = await enqueueAction(c.var.db, {
-            orgId: found.orgId,
-            mailboxId: found.mailboxId,
-            memberId: c.var.member.id,
-            requestId: c.var.requestId,
-            kind,
-            payload: target,
-            idempotencyKey: outboxKey(c, key, kind, target.folder),
-          });
-          actionIds.push(action.id);
-        }
-        if (actionIds.length) pingLater(c);
-      }
+      const kind = read ? "mark_read" : "mark_unread";
+      const actionIds =
+        found?.mailboxKind === "personal"
+          ? await enqueuePerFolder(
+              c,
+              found,
+              key,
+              found.targets.map(({ role: _role, ...target }) => ({ kind, payload: target })),
+            )
+          : [];
       return c.json({ state, actionIds });
     },
   )
@@ -335,21 +371,14 @@ export const mail = new Hono<AppEnv>()
       if (!found) notFound();
       await setThreadArchived(c.var.db, c.var.member.id, threadId, true);
 
-      const actionIds: string[] = [];
-      for (const { role, ...target } of found.targets) {
-        if (role === "archive" || role === "trash") continue;
-        const action = await enqueueAction(c.var.db, {
-          orgId: found.orgId,
-          mailboxId: found.mailboxId,
-          memberId: c.var.member.id,
-          requestId: c.var.requestId,
-          kind: "archive",
-          payload: target,
-          idempotencyKey: outboxKey(c, key, "archive", target.folder),
-        });
-        actionIds.push(action.id);
-      }
-      if (actionIds.length) pingLater(c);
+      const actionIds = await enqueuePerFolder(
+        c,
+        found,
+        key,
+        found.targets
+          .filter(({ role }) => role !== "archive" && role !== "trash")
+          .map(({ role: _role, ...target }) => ({ kind: "archive", payload: target })),
+      );
       return c.json({ actionIds });
     },
   )
@@ -365,21 +394,17 @@ export const mail = new Hono<AppEnv>()
       const found = await threadActionTargets(c.var.db, c.var.member.id, c.req.param("id"));
       if (!found) notFound();
 
-      const actionIds: string[] = [];
-      for (const { role: _role, ...target } of found.targets) {
-        if (target.folder === destination) continue;
-        const action = await enqueueAction(c.var.db, {
-          orgId: found.orgId,
-          mailboxId: found.mailboxId,
-          memberId: c.var.member.id,
-          requestId: c.var.requestId,
-          kind: "move",
-          payload: { ...target, destination } satisfies ActionPayload<"move">,
-          idempotencyKey: outboxKey(c, key, "move", target.folder),
-        });
-        actionIds.push(action.id);
-      }
-      if (actionIds.length) pingLater(c);
+      const actionIds = await enqueuePerFolder(
+        c,
+        found,
+        key,
+        found.targets
+          .filter(({ folder }) => folder !== destination)
+          .map(({ role: _role, ...target }) => ({
+            kind: "move",
+            payload: { ...target, destination },
+          })),
+      );
       return c.json({ actionIds });
     },
   )
@@ -395,19 +420,15 @@ export const mail = new Hono<AppEnv>()
       const mailboxes = await listMemberMailboxes(c.var.db, c.var.member.id);
       const mailbox = mailboxes.find((m) => m.id === mailboxId);
       if (!mailbox) notFound();
-      const action = await enqueueAction(c.var.db, {
-        orgId: mailbox.orgId,
-        mailboxId: mailbox.id,
-        memberId: c.var.member.id,
-        requestId: c.var.requestId,
-        kind: "send",
-        payload: {
-          from: mailbox.address,
-          ...message,
-          messageId: newMessageId(mailbox.address),
-        } satisfies SendPayload,
-        idempotencyKey: outboxKey(c, key, "send"),
-      });
+      const action = await enqueue(
+        c,
+        { orgId: mailbox.orgId, mailboxId: mailbox.id },
+        {
+          kind: "send",
+          payload: { from: mailbox.address, ...message, messageId: newMessageId(mailbox.address) },
+        },
+        outboxKey(c, key, "send"),
+      );
       pingLater(c);
       return c.json(sendResponse(action), 202);
     },
@@ -442,25 +463,25 @@ export const mail = new Hono<AppEnv>()
         : [];
       const subject = /^re:/i.test(latest.subject) ? latest.subject : `Re: ${latest.subject}`;
 
-      const action = await enqueueAction(c.var.db, {
-        orgId: found.orgId,
-        mailboxId: found.mailboxId,
-        memberId: c.var.member.id,
-        requestId: c.var.requestId,
-        kind: "send",
-        payload: {
-          from: found.mailboxAddress,
-          to,
-          ...(cc.length ? { cc } : {}),
-          subject,
-          text,
-          ...(html ? { html } : {}),
-          inReplyTo: latest.messageIdHeader,
-          references: [...latest.references, latest.messageIdHeader],
-          messageId: newMessageId(found.mailboxAddress),
-        } satisfies SendPayload,
-        idempotencyKey: outboxKey(c, key, "send"),
-      });
+      const action = await enqueue(
+        c,
+        found,
+        {
+          kind: "send",
+          payload: {
+            from: found.mailboxAddress,
+            to,
+            ...(cc.length ? { cc } : {}),
+            subject,
+            text,
+            ...(html ? { html } : {}),
+            inReplyTo: latest.messageIdHeader,
+            references: [...latest.references, latest.messageIdHeader],
+            messageId: newMessageId(found.mailboxAddress),
+          },
+        },
+        outboxKey(c, key, "send"),
+      );
       pingLater(c);
       return c.json(sendResponse(action), 202);
     },
