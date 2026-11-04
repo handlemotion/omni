@@ -54,6 +54,22 @@ TYPESAFE_API_URL=
 # Tokens per org per UTC day. Over the cap, summaries pause and triage keeps running.
 AI_DAILY_TOKEN_CAP=1000000
 
+# --- Billing (optional, ADR 0014; docs/self-hosting.md "Billing") ---
+# Leave STRIPE_SECRET_KEY empty for no billing: no plan, no limits. Set it (test mode, sk_test_...)
+# and the three marked "required" below must be set too, or the Worker will not start.
+# Secret. Stripe secret key.
+STRIPE_SECRET_KEY=
+# Secret, required. Signing secret of the webhook endpoint (locally: `stripe listen` prints it).
+STRIPE_WEBHOOK_SECRET=
+# Required. Price id of the plan's monthly price. Amounts are set in Stripe, not here.
+STRIPE_PRICE_MONTHLY=
+# Optional. Price id of the yearly price. Empty offers monthly only.
+STRIPE_PRICE_YEARLY=
+# Optional. Free trial days, once per workspace, no card needed. Empty or 0: no trial.
+BILLING_TRIAL_DAYS=
+# Required. AI-triaged emails per workspace per month. Past it, triage pauses until the next period.
+BILLING_TRIAGE_ALLOWANCE=
+
 # --- Optional ---
 # "true" sends Expo push notifications to members with no app open.
 EXPO_PUSH_ENABLED=false

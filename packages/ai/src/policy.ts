@@ -96,3 +96,52 @@ export function toPlainText(text: string, maxChars = MAX_SUMMARY_CHARS): string 
   const space = cut.lastIndexOf(" ");
   return (space > maxChars * 0.8 ? cut.slice(0, space) : cut).trimEnd() + "…";
 }
+
+/**
+ * The usage month holding `now` for a triage allowance anchored at `anchor` (the subscription's
+ * period start; ADR 0014). Months step from the anchor the way Stripe bills monthly: same day and
+ * time, clamped to the month's last day (a Jan 31 anchor gives Feb 28, then Mar 31). A yearly
+ * plan's allowance is monthly too, so it resets twelve times between invoices.
+ */
+export function usageMonth(anchor: Date, now: Date): { start: Date; end: Date } {
+  let k =
+    (now.getUTCFullYear() - anchor.getUTCFullYear()) * 12 +
+    (now.getUTCMonth() - anchor.getUTCMonth());
+  if (addMonths(anchor, k) > now) k -= 1;
+  else if (addMonths(anchor, k + 1) <= now) k += 1;
+  return { start: addMonths(anchor, k), end: addMonths(anchor, k + 1) };
+}
+
+function addMonths(anchor: Date, months: number): Date {
+  const total = anchor.getUTCFullYear() * 12 + anchor.getUTCMonth() + months;
+  const year = Math.floor(total / 12);
+  const month = total - year * 12;
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(
+    Date.UTC(
+      year,
+      month,
+      Math.min(anchor.getUTCDate(), lastDay),
+      anchor.getUTCHours(),
+      anchor.getUTCMinutes(),
+      anchor.getUTCSeconds(),
+      anchor.getUTCMilliseconds(),
+    ),
+  );
+}
+
+/**
+ * The window a workspace's triage allowance counts in. Inside a monthly billing period it is that
+ * period, exactly as Stripe set it. Otherwise (a yearly plan, or a renewal whose webhook has not
+ * landed yet) it is the `usageMonth` stepped from the period start.
+ */
+export function usagePeriod(
+  billing: { periodStart: Date; periodEnd: Date | null; interval: string | null },
+  now: Date,
+): { start: Date; end: Date } {
+  const { periodStart, periodEnd, interval } = billing;
+  if (interval !== "year" && periodEnd && periodStart <= now && now < periodEnd) {
+    return { start: periodStart, end: periodEnd };
+  }
+  return usageMonth(periodStart, now);
+}

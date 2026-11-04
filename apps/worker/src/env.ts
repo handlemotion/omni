@@ -13,6 +13,8 @@ declare global {
       EXPO_ACCESS_TOKEN?: string;
       GOOGLE_CLIENT_SECRET?: string;
       DOMAIN_CONNECT_PRIVATE_KEY?: string;
+      STRIPE_SECRET_KEY?: string;
+      STRIPE_WEBHOOK_SECRET?: string;
     }
   }
 }

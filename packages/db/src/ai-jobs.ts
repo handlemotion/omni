@@ -70,6 +70,7 @@ export async function saveTriage(
       triageConfidence: result.confidence,
       triageSource: "ai",
       triageMessageId: result.messageId,
+      triagePausedUntil: null,
       updatedAt: new Date(),
     })
     .where(

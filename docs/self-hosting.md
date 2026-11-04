@@ -298,6 +298,7 @@ to `.dev.vars`.
 | `ENVIRONMENT`                | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`. |
 
 | `RATE_LIMIT_*` | var | no | Rate limits, `<count>/<seconds>` or `off`. See [Rate limits](#rate-limits). |
+| `STRIPE_*`, `BILLING_*` | both | no | Optional billing. Leave unset to self-host with no plan and no limits. See [Billing](#billing-optional). |
 
 The `triggers.crons` entry in `wrangler.jsonc` runs the domain re-check (ADR 0010); it needs no
 setup beyond the deploy.
@@ -339,6 +340,43 @@ which Cloudflare sets and clients cannot.
 | `RATE_LIMIT_ACTIONS`     | `300/60`   | Per member: other writes that reach IMAP (read state, archive, move).                                                                                                         |
 | `RATE_LIMIT_PROVISION`   | `30/3600`  | Per member: creating a mailbox, which calls the mail service. Adding and checking domains have their own per-workspace limits (`DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER`). |
 | `RATE_LIMIT_IMAGE_PROXY` | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                                                                                          |
+
+#### Billing (optional)
+
+Off unless `STRIPE_SECRET_KEY` is set. With it off there is no plan, no limit and no read-only
+state: every workspace works as it always has. Hosted Omni turns it on; most self-hosters never
+need to. When on, each workspace (organization) has one flat plan; people, inboxes and domains
+are unlimited, and the only limit is a monthly allowance of AI-triaged emails. Past it, mail
+keeps arriving and triage pauses until the next period. A workspace with no plan in good
+standing is read-only: its mail syncs and reads, but nothing is sent or changed. See ADR 0014.
+
+| Variable                   | Kind   | Required with billing | Notes                                                                                                 |
+| -------------------------- | ------ | --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`        | secret | turns it on           | Stripe secret key (`sk_test_…` in development).                                                       |
+| `STRIPE_WEBHOOK_SECRET`    | secret | yes                   | Signing secret of the webhook endpoint below (`whsec_…`).                                             |
+| `STRIPE_PRICE_MONTHLY`     | var    | yes                   | Price id of the plan's monthly price. Amounts live in Stripe.                                         |
+| `STRIPE_PRICE_YEARLY`      | var    | no                    | Price id of the yearly price. Empty offers monthly only.                                              |
+| `BILLING_TRIAL_DAYS`       | var    | no                    | Free trial length, once per workspace, no card needed. Empty or `0`: no trial.                        |
+| `BILLING_TRIAGE_ALLOWANCE` | var    | yes                   | AI-triaged emails per workspace per month. Rule-filed threads and threads with no AI key never count. |
+
+Set any of them without `STRIPE_SECRET_KEY` (or the key without the required ones) and the Worker
+refuses to start, naming the variable.
+
+Setup in Stripe:
+
+1. Create a product with a recurring monthly price (and a yearly one if you offer it); put their
+   ids in the price variables.
+2. Add a webhook endpoint at `<BETTER_AUTH_URL>/api/auth/stripe/webhook` for
+   `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`
+   and `customer.subscription.deleted`; its signing secret is `STRIPE_WEBHOOK_SECRET`.
+3. Turn on the customer portal (Settings → Billing → Customer portal) so owners can change the
+   card, switch interval and cancel.
+
+Locally, forward Stripe's test-mode events with the Stripe CLI and use the secret it prints:
+
+```bash
+stripe listen --forward-to localhost:8787/api/auth/stripe/webhook
+```
 
 #### Security headers
 
