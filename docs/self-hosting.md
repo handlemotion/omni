@@ -372,11 +372,22 @@ Setup in Stripe:
 3. Turn on the customer portal (Settings → Billing → Customer portal) so owners can change the
    card, switch interval and cancel.
 
-Locally, forward Stripe's test-mode events with the Stripe CLI and use the secret it prints:
+Locally, no webhook endpoint is registered in Stripe: the Stripe CLI forwards your sandbox's
+events to the Worker. Its signing secret is `STRIPE_WEBHOOK_SECRET`. It has stayed the same
+across runs for the same account and machine; if signatures start failing, print it again:
 
 ```bash
-stripe listen --forward-to localhost:8787/api/auth/stripe/webhook
+stripe listen --print-secret
 ```
+
+Then keep this running next to `wrangler dev`:
+
+```bash
+stripe listen --forward-to localhost:8787/api/auth/stripe/webhook --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted
+```
+
+`stripe events resend <evt_id>` replays a real event; the Worker answers `applied: false` and
+changes nothing.
 
 #### Security headers
 

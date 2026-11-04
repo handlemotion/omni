@@ -19,11 +19,12 @@ self-hosted, and a self-hoster owes us nothing.
 
 ## Decision
 
-**One paid plan, a flat price per workspace** (a Better Auth organization, ADR 0008), billed
+**One paid plan, Omnipresent: a flat price per workspace** (a Better Auth organization, ADR 0008), billed
 monthly or yearly (the yearly price is usually discounted), with an optional free trial. People,
 inboxes (personal and shared) and domains are unlimited. Prices live in Stripe; Omni's config
 holds only their ids (`STRIPE_PRICE_MONTHLY`, optional `STRIPE_PRICE_YEARLY`), the trial length
-(`BILLING_TRIAL_DAYS`) and the allowance (`BILLING_TRIAGE_ALLOWANCE`). No amount is in code.
+(`BILLING_TRIAL_DAYS`) and the allowance (`BILLING_TRIAGE_ALLOWANCE`). No amount is in code. The plan's internal key is `omnipresent`; the name customers see
+is the Stripe product's.
 
 **The only limit is a monthly allowance of AI-triaged emails.** An email counts when a model is
 asked to triage it: one row in `triage_usage` per (workspace, usage month, message), taken

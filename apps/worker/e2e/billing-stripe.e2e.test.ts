@@ -1,8 +1,9 @@
 // Billing against Stripe itself, in test mode. Runs only when asked for: STRIPE_E2E=1 and a
 // test-mode STRIPE_SECRET_KEY (`doppler run -p omni -c dev_worker -- env STRIPE_E2E=1 pnpm
 // --filter @omni/worker test:e2e billing-stripe`); never in `pnpm test` or CI. It refuses a
-// live key. The plan's prices are created in the test account on first run (lookup keys
-// `omni-e2e-monthly` / `omni-e2e-yearly`). Events are the ones Stripe really emitted, read back
+// live key. It uses the plan's prices from STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY when set,
+// else creates them in the test account on first run (lookup keys `omni-e2e-monthly` /
+// `omni-e2e-yearly`). Events are the ones Stripe really emitted, read back
 // from its API and re-signed for this Worker, so no tunnel (`stripe listen`) is needed.
 import { randomUUID } from "node:crypto";
 import { schema } from "@omni/db";
@@ -73,8 +74,9 @@ describe.runIf(requested)("Stripe test mode", () => {
     }
     stripe = new Stripe(key);
     prices = {
-      monthly: await price("omni-e2e-monthly", "month", 1_900),
-      yearly: await price("omni-e2e-yearly", "year", 19_000),
+      monthly:
+        process.env.STRIPE_PRICE_MONTHLY || (await price("omni-e2e-monthly", "month", 1_900)),
+      yearly: process.env.STRIPE_PRICE_YEARLY || (await price("omni-e2e-yearly", "year", 19_000)),
     };
     database = await createTestDatabase();
     mailService = await startMailServiceEndpoint();

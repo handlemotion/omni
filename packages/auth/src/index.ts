@@ -162,8 +162,11 @@ export type OrganizationCreation = AuthConfig["organizationCreation"];
 /** Present only when billing is on (`STRIPE_SECRET_KEY` and friends set). */
 export type BillingConfig = NonNullable<AuthConfig["billing"]>;
 
-/** The one plan's name, as the Stripe plugin stores it in `subscriptions.plan`. */
-export const PLAN_NAME = "workspace";
+/**
+ * The one plan's key, as the Stripe plugin stores it in `subscriptions.plan`. What customers see
+ * (Checkout, the portal, invoices) is the Stripe product's name, set in Stripe.
+ */
+export const PLAN_NAME = "omnipresent";
 
 /** Who may start checkout or open the portal for a workspace. */
 export const BILLING_ROLES = ["owner", "admin"] as const;

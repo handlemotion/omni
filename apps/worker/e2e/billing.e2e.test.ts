@@ -3,6 +3,7 @@
 // nothing, a workspace without a plan in good standing reads its mail but writes none, and an
 // install with no Stripe configuration has no billing at all.
 import { randomUUID } from "node:crypto";
+import { PLAN_NAME } from "@omni/auth";
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -254,7 +255,7 @@ test("checkout and the portal are for the workspace's owners and admins only", a
   const direct = await api(worker, "/auth/subscription/upgrade", member.cookie, {
     method: "POST",
     headers: { origin: "http://localhost:5173" },
-    body: JSON.stringify({ plan: "workspace" }),
+    body: JSON.stringify({ plan: PLAN_NAME }),
   });
   expect(direct.status).toBe(404);
 
