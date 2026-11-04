@@ -37,6 +37,12 @@
     "JEV_MODEL": "",
     "TYPESAFE_API_URL": "",
     "EXPO_PUSH_ENABLED": "false",
+    // Billing (ADR 0015). Off unless the STRIPE_SECRET_KEY secret is set; then the monthly price
+    // id and the allowance are required. Amounts live in Stripe; these are ids and numbers only.
+    "STRIPE_PRICE_MONTHLY": "",
+    "STRIPE_PRICE_YEARLY": "",
+    "BILLING_TRIAL_DAYS": "",
+    "BILLING_TRIAGE_ALLOWANCE": "",
     "IMAGE_PROXY_DOH_URL": "https://cloudflare-dns.com/dns-query",
     // Rate limits as "<count>/<seconds>", or "off". Empty means the default shown. Sign-in steps
     // count per IP; magic links per address; invitations per inviting user; the rest per member.
@@ -97,8 +103,10 @@
       "simple": { "limit": 30, "period": 60 },
     },
   ],
-  // Re-checks every verified domain's ownership record; a lost one pauses sending (ADR 0010).
-  "triggers": { "crons": ["23 */6 * * *"] },
+  // Every 6 hours: re-checks every verified domain's ownership record; a lost one pauses sending
+  // (ADR 0010). Daily: reads every workspace's subscriptions back from Stripe (ADR 0015); does
+  // nothing with billing off. The daily one must match BILLING_RECONCILE_CRON in src/index.ts.
+  "triggers": { "crons": ["23 */6 * * *", "47 3 * * *"] },
   "durable_objects": {
     "bindings": [
       { "name": "REPLAY_GUARD", "class_name": "ReplayGuard" },

@@ -38,14 +38,7 @@
   --shadow-overlay:
     0 1px 2px -1px rgb(var(--shadow-ink) / 0.04), 0 6px 10px -6px rgb(var(--shadow-ink) / 0.07);
 
-  /* Toasts are inverted against the light page: a near-black card (from transitive). */
-  --inverse: #0a0a0a;
-  --inverse-foreground: #fafafa;
-  --inverse-muted-foreground: #a1a1a1;
-  --inverse-border: rgb(255 255 255 / 0.12);
-  --inverse-hover: rgb(255 255 255 / 0.08);
-  --shadow-toast: 0 8px 24px -6px rgb(0 0 0 / 0.35);
-  /* Info on a dark card (the toast's icon and countdown): brand blue is too dark there. */
+  /* The toast's info icon and countdown. */
   --info: oklch(0.585 0.233 277.117);
 
   /* Intent UI's names, mapped onto the tokens above. */
@@ -116,11 +109,6 @@
   --color-background: var(--background);
   --color-scrim: var(--scrim);
   --color-surface: var(--surface);
-  --color-inverse: var(--inverse);
-  --color-inverse-foreground: var(--inverse-foreground);
-  --color-inverse-muted-foreground: var(--inverse-muted-foreground);
-  --color-inverse-border: var(--inverse-border);
-  --color-inverse-hover: var(--inverse-hover);
   --color-info: var(--info);
   --color-well: var(--well);
   --color-well-hover: var(--well-hover);

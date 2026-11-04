@@ -53,11 +53,21 @@ export interface MenuProps<T> extends MenuPrimitiveProps<T>, Pick<PopoverProps, 
 }
 
 export const menuStyles = tv({
-  base: "grid max-h-[inherit] grid-cols-[auto_1fr] gap-y-0 overflow-x-hidden overflow-y-auto overscroll-contain p-1 outline-hidden [&>[data-slot=menu-section]+[data-slot=menu-section]:not([class*='mt-']):not([class*='my-'])]:mt-3",
+  // `minmax(0,1fr)`: the label column may shrink below its text, so a long label truncates
+  // at the menu's max width instead of widening it.
+  base: "grid max-h-[inherit] grid-cols-[auto_minmax(0,1fr)] gap-y-0 overflow-x-hidden overflow-y-auto overscroll-contain p-1 outline-hidden [&>[data-slot=menu-section]+[data-slot=menu-section]:not([class*='mt-']):not([class*='my-'])]:mt-3",
 });
 
 /** Every row React Aria renders in a menu, submenu triggers included. */
 const MENU_ITEM_SELECTOR = "[role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox']";
+
+/**
+ * The widest row sets the menu's width (fit-content): the longest label, then 18px to the edge
+ * (the menu's 4px padding plus the row's 14px end padding); icons sit 12px in. Short menus keep a 132px floor so
+ * they don't look pinched; past 240px labels truncate. Don't fix a menu's width; a menu whose
+ * rows carry more (an avatar and two lines) raises only the cap with `max-w-*`.
+ */
+const MENU_WIDTH = "w-max min-w-33 max-w-60";
 
 export function Menu<T extends object>({ className, placement, popover, ...props }: MenuProps<T>) {
   // One highlight springs between the rows (transitive's fluid hover). React Aria marks the row
@@ -70,11 +80,7 @@ export function Menu<T extends object>({ className, placement, popover, ...props
   });
   return (
     <Popover
-      // Hugs its widest item: 128px at least, 320px at most (then labels truncate).
-      className={cx(
-        "w-max min-w-32 max-w-xs *:data-[slot=popover-inner]:overflow-hidden",
-        popover?.className,
-      )}
+      className={cx(MENU_WIDTH, "*:data-[slot=popover-inner]:overflow-hidden", popover?.className)}
       placement={placement}
       {...popover}
     >
@@ -93,6 +99,9 @@ export function Menu<T extends object>({ className, placement, popover, ...props
 
 export interface MenuItemProps
   extends MenuItemPrimitiveProps, VariantProps<typeof dropdownItemStyles> {}
+
+/** 14px after the label (18px to the menu's edge with its padding): see `MENU_WIDTH`. */
+const ITEM_END = "pe-3.5";
 
 export function MenuItem({ className, intent, children, ...props }: MenuItemProps) {
   const textValue = props.textValue || (typeof children === "string" ? children : undefined);
@@ -113,9 +122,10 @@ export function MenuItem({ className, intent, children, ...props }: MenuItemProp
                   "open:text-accent-foreground open:*:[.text-muted-foreground]:text-accent-foreground open:*:[svg]:text-accent-foreground",
                 // The fluid hover highlight is the row's fill; the row paints none of its own.
                 "bg-transparent focus:bg-transparent hover:bg-transparent",
+                ITEM_END,
                 className,
               )
-            : cn("bg-transparent focus:bg-transparent hover:bg-transparent", className),
+            : cn("bg-transparent focus:bg-transparent hover:bg-transparent", ITEM_END, className),
         }),
       )}
       textValue={textValue}
@@ -127,7 +137,13 @@ export function MenuItem({ className, intent, children, ...props }: MenuItemProp
             <CheckIcon />
           )}
 
-          {typeof children === "function" ? children(values) : children}
+          {typeof children === "function" ? (
+            children(values)
+          ) : typeof children === "string" ? (
+            <MenuLabel>{children}</MenuLabel>
+          ) : (
+            children
+          )}
 
           {values.hasSubmenu && (
             <ChevronRightIcon
@@ -192,7 +208,16 @@ export function MenuSection<T extends object>({
   );
 }
 
-export const MenuSeparator = DropdownSeparator;
+/** Runs edge to edge: `-mx-1` cancels the menu's 4px padding (`menuStyles`). */
+export function MenuSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownSeparator>) {
+  return <DropdownSeparator className={cn("-mx-1", className)} {...props} />;
+}
 export const MenuShortcut = DropdownKeyboard;
-export const MenuLabel = DropdownLabel;
+/** A row's label: one line, truncated once the menu reaches its max width. */
+export function MenuLabel({ className, ...props }: React.ComponentProps<typeof DropdownLabel>) {
+  return <DropdownLabel className={cn("truncate", className)} {...props} />;
+}
 export const MenuDescription = DropdownDescription;

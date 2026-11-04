@@ -19,6 +19,7 @@
     "mailbox-teams:backfill": "node src/cli/mailbox-teams-backfill.ts"
   },
   "dependencies": {
+    "@omni/contracts": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "postgres": "^4.0.0",
     "uuidv7": "^1.2.1",

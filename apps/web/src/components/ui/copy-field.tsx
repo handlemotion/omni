@@ -1,8 +1,18 @@
 import { CheckIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon } from "@heroicons/react/20/solid";
 import { useEffect, useState } from "react";
 import { Button } from "react-aria-components/Button";
 import { cn } from "cn";
+import { Loader } from "./loader";
 import { Tooltip, TooltipTrigger } from "./tooltip";
+
+/** A well: sunk into its surface, no border; hover deepens it one step. */
+const WELL = [
+  "flex h-8 w-full min-w-0 items-stretch overflow-hidden rounded-lg bg-well text-start text-sm outline-hidden",
+  "transition-colors duration-150 ease-out hover:bg-well-hover focus-visible:ring-1 focus-visible:ring-ring",
+];
+const LABEL =
+  "flex min-w-(--copy-label-width,0) shrink-0 items-center border-e-[0.5px] border-hairline-line px-2 text-muted-foreground";
 
 /**
  * A read-only value to copy, shaped like a 32px input: the kind on the left (hugging its label),
@@ -32,16 +42,9 @@ export function CopyField(props: { label: string; value: string; className?: str
       <Button
         aria-label={`Copy ${props.label.toLowerCase()}: ${props.value}`}
         onPress={copy}
-        className={cn(
-          // A well: sunk into its surface, no border; hover deepens it one step.
-          "flex h-8 w-full min-w-0 cursor-copy items-stretch overflow-hidden rounded-lg bg-well text-start text-sm outline-hidden",
-          "transition-colors duration-150 ease-out hover:bg-well-hover focus-visible:ring-1 focus-visible:ring-ring",
-          props.className,
-        )}
+        className={cn(WELL, "cursor-copy", props.className)}
       >
-        <span className="flex min-w-(--copy-label-width,0) shrink-0 items-center border-e-[0.5px] border-hairline-line px-2 text-muted-foreground">
-          {props.label}
-        </span>
+        <span className={LABEL}>{props.label}</span>
         <span className="flex min-w-0 flex-1 items-center px-2 text-foreground">
           <span className="truncate">{props.value}</span>
         </span>
@@ -55,6 +58,49 @@ export function CopyField(props: { label: string; value: string; className?: str
       >
         {result === "copied" && <CheckIcon aria-hidden className="size-3" />}
         {result === "copied" ? "Copied" : result === "failed" ? "Copy failed" : "Click to copy"}
+      </Tooltip>
+    </TooltipTrigger>
+  );
+}
+
+/**
+ * A value that can't be shown again (only its hash is kept), in CopyField's shape so the rows keep
+ * one rhythm and nothing moves when the new value replaces it. The whole field makes a new value;
+ * the refresh mark at its end says so, and a tooltip (hover or focus) says what that costs.
+ */
+export function RenewField(props: {
+  label: string;
+  /** What the field says in place of the value, e.g. "Hidden". */
+  placeholder: string;
+  /** The action and its consequence, e.g. "Show a new value. It replaces the old one." */
+  tooltip: string;
+  isPending?: boolean;
+  onPress: () => void;
+  className?: string;
+}) {
+  return (
+    <TooltipTrigger delay={300}>
+      <Button
+        aria-label={props.tooltip}
+        isPending={props.isPending}
+        onPress={props.onPress}
+        className={cn(WELL, "group/renew cursor-pointer", props.className)}
+      >
+        <span className={LABEL}>{props.label}</span>
+        <span className="flex min-w-0 flex-1 items-center justify-between gap-2 ps-2 pe-1.5 text-muted-foreground">
+          <span className="truncate">{props.placeholder}</span>
+          {props.isPending ? (
+            <Loader className="size-icon" />
+          ) : (
+            <ArrowPathIcon
+              aria-hidden
+              className="size-3.5 shrink-0 transition-colors group-hover/renew:text-foreground group-focus-visible/renew:text-foreground"
+            />
+          )}
+        </span>
+      </Button>
+      <Tooltip inverse arrow={false} offset={8} placement="end" className="px-1.5 py-1 text-xs">
+        {props.tooltip}
       </Tooltip>
     </TooltipTrigger>
   );

@@ -17,6 +17,7 @@ import {
 } from "@/hooks/use-session.ts";
 import { keyLabel, SHORTCUT_IDS, SHORTCUTS, type ShortcutDefinition } from "@/lib/shortcuts.ts";
 import { SettingsAddRow } from "./kit/settings-add-row";
+import { SignInEmails } from "./sign-in-emails";
 import { SettingsButtonRow } from "./kit/settings-button-row";
 import {
   SettingsEmptyState,
@@ -66,6 +67,9 @@ export function ProfilePage() {
           />
         </SettingsGroup>
       </SettingsSection>
+
+      {/* main's sign-in emails (ADR 0014), moved here from the old settings page as it is. */}
+      <SignInEmails />
 
       <SettingsSection title="Other accounts on this browser">
         <Skeleton id="settings-accounts" data={others} sample={[]} label="Loading accounts">

@@ -5,8 +5,9 @@
 // expires, or after half an hour. Each check is the same idempotent `checkDomain` the button runs,
 // and counts against the org's check rate limit.
 import { DurableObject } from "cloudflare:workers";
-import { advanceOrgSetup, createDb, findMemberDomain, orgDomainAdmins } from "@omni/db";
-import { checkDomain, DomainError, domainView } from "./domains.ts";
+import { findMemberDomain, orgDomainAdmins } from "@omni/db";
+import { openDb } from "./db.ts";
+import { advanceDomainStep, checkDomain, DomainError, domainView } from "./domains.ts";
 import { loadConfig } from "./env.ts";
 import { createLogger } from "./log.ts";
 
@@ -83,11 +84,7 @@ export class DomainWatch extends DurableObject<Env> {
     const { success } = await this.env.DOMAIN_CHECK_LIMITER.limit({ key: state.orgId });
     // Over the org's limit (the button is being pressed too): skip this tick, keep the watch.
     if (!success) return true;
-    const { db, close } = createDb(this.env.HYPERDRIVE.connectionString, {
-      max: 2,
-      fetch_types: false,
-      onnotice: () => {},
-    });
+    const { db, close } = openDb(this.env);
     try {
       const setup = await findMemberDomain(db, state.memberId, state.claimId);
       if (!setup) return false;
@@ -102,7 +99,7 @@ export class DomainWatch extends DurableObject<Env> {
       try {
         const result = await checkDomain(deps, { id: state.memberId, orgId: state.orgId }, setup);
         const view = domainView(result.setup, { addError: result.addError });
-        await advanceOrgSetup(db, state.orgId, view.verified ? "dns_verified" : "domain_added");
+        await advanceDomainStep(db, state.orgId, view);
         done = view.verified && view.challenge?.verified !== false;
       } catch (error) {
         // Taken by another workspace, expired, gone: nothing more to wait for. Anything else

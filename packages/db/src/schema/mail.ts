@@ -330,6 +330,11 @@ export const threads = pgTable(
     summaryMessageId: text("summary_message_id").references((): AnyPgColumn => messages.id, {
       onDelete: "set null",
     }),
+    /**
+     * Set when the latest message was not AI-triaged because the workspace used its monthly
+     * allowance (ADR 0015): when the allowance resets. Cleared by the next triage.
+     */
+    triagePausedUntil: timestamptz("triage_paused_until"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -644,4 +649,42 @@ export const pushTokens = pgTable(
     uniqueIndex("push_tokens_expo_token_unique").on(t.expoToken),
     index("push_tokens_member_id_idx").on(t.memberId),
   ],
+);
+
+/**
+ * One row per AI-triaged email per workspace per usage month (ADR 0015): the count is the rows.
+ * Keyed on the message, so a retried or redelivered job never counts twice. No foreign key to
+ * `messages`: an email re-synced under a new id was still triaged once.
+ */
+export const triageUsage = pgTable(
+  "triage_usage",
+  {
+    orgId: orgId(),
+    /** Start of the usage month the email counts toward. */
+    periodStart: timestamptz("period_start").notNull(),
+    messageId: text("message_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.orgId, t.periodStart, t.messageId] })],
+);
+
+/**
+ * Stripe webhook events already applied. A replay of one is a no-op, and an event older than one
+ * already applied to the same object is skipped, since Stripe does not deliver in order.
+ */
+export const stripeEvents = pgTable(
+  "stripe_events",
+  {
+    /** Stripe's event id (`evt_...`). */
+    id: text("id").primaryKey(),
+    /** The workspace the event is about, when its metadata names one. */
+    orgId: text("org_id").references(() => organizations.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    /** The event's object (`sub_...`, `cs_...`). */
+    objectId: text("object_id"),
+    /** When Stripe created the event. */
+    eventCreatedAt: timestamptz("event_created_at").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("stripe_events_object_idx").on(t.objectId, t.eventCreatedAt)],
 );
