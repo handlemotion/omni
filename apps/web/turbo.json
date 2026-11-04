@@ -3,8 +3,9 @@
   "extends": ["//"],
   "tasks": {
     "test:e2e": {
-      // Both suites start `wrangler dev`, whose build step rewrites this app's `dist/`. Run after
-      // the Worker's suite so one build never empties `dist/` under the other's open page.
+      // Run after the Worker's suite: under its parallel load, connectivity's restart test finds the
+      // open thread not refetched after the socket reconnects (an app-side timing bug). The
+      // shared Worker build no longer rewrites `dist/` per start (apps/worker/e2e/global-setup.ts).
       "dependsOn": ["@omni/worker#test:e2e"]
     }
   }

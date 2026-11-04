@@ -39,9 +39,10 @@ fi
 export PATH="/opt/node/bin:$PATH"
 
 # pnpm, matching package.json `packageManager`. Node 25+ no longer bundles corepack, so npm
-# installs it into /opt/node/bin; doing it here caches the download in the snapshot.
+# installs it into /opt/node/bin; doing it here caches the download in the snapshot. Check that
+# path, not PATH: an image's own pnpm (under its own Node) can report the same version.
 pnpm_version=12.16.1
-if [ "$(pnpm --version 2>/dev/null)" != "$pnpm_version" ]; then
+if [ "$(/opt/node/bin/pnpm --version 2>/dev/null)" != "$pnpm_version" ]; then
   npm install -g --silent "pnpm@$pnpm_version"
 fi
 

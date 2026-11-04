@@ -9,9 +9,11 @@ env files. Two files do the work:
   compose images. Claude Code snapshots the result, so it reads no secrets and leaves nothing
   running.
 - `.claude/hooks/cloud-session-start.sh`: a SessionStart hook that exits at once unless
-  `CLAUDE_CODE_REMOTE=true`, which Claude Code sets only in cloud sessions. It starts dockerd,
-  runs `pnpm install --frozen-lockfile` and `pnpm stack:up`, writes env files from Doppler, and
-  runs `db:migrate`. Its log is `/tmp/omni-session-start.log`.
+  `CLAUDE_CODE_REMOTE=true`, which Claude Code sets only in cloud sessions. It puts Node and
+  pnpm from `/opt/node/bin` first on PATH (running `setup.sh` itself, about 20 s, when the
+  environment's setup script did not install the `.nvmrc` version), starts dockerd, runs
+  `pnpm install --frozen-lockfile` and `pnpm stack:up`, writes env files from Doppler, and runs
+  `db:migrate`. Its log is `/tmp/omni-session-start.log`.
 
 ## Set up the environment
 
