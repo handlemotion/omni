@@ -8,15 +8,7 @@
 // `apps/web/dist` under each other.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const workerRoot = join(import.meta.dirname, "..");
@@ -69,12 +61,17 @@ async function withLock<T>(run: () => T): Promise<T> {
   }
 }
 
-function readPid() {
+/** The file's text, or `fallback` when it does not exist (read once: no check-then-read race). */
+function readOr(path: string, fallback: string) {
   try {
-    return Number(readFileSync(join(lockDir, "pid"), "utf8"));
+    return readFileSync(path, "utf8");
   } catch {
-    return 0;
+    return fallback;
   }
+}
+
+function readPid() {
+  return Number(readOr(join(lockDir, "pid"), "0"));
 }
 
 function isAlive(pid: number) {
@@ -89,7 +86,7 @@ function isAlive(pid: number) {
 export default async function setup() {
   await withLock(() => {
     const current = fingerprint();
-    const built = existsSync(stampFile) ? readFileSync(stampFile, "utf8") : "";
+    const built = readOr(stampFile, "");
     if (built === current) return;
     rmSync(prebuiltWorkerDir, { recursive: true, force: true });
     execFileSync(

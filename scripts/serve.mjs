@@ -11,8 +11,8 @@
 // `auth.dev_link` (ENVIRONMENT=development, the .dev.vars.example default).
 import { spawn } from "node:child_process";
 import {
+  constants,
   copyFileSync,
-  existsSync,
   mkdirSync,
   openSync,
   readFileSync,
@@ -30,9 +30,18 @@ const port = Number(process.env.PORT ?? 8787);
 const url = `http://127.0.0.1:${port}`;
 const readyTimeoutMs = 180_000;
 
+/** The file's text, or `fallback` when it does not exist (read once: no check-then-read race). */
+function readOr(path, fallback) {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return fallback;
+  }
+}
+
 function runningPid() {
-  if (!existsSync(pidFile)) return undefined;
-  const pid = Number(readFileSync(pidFile, "utf8"));
+  const pid = Number(readOr(pidFile, ""));
+  if (!pid) return undefined;
   try {
     process.kill(pid, 0);
     return pid;
@@ -51,8 +60,7 @@ async function healthy() {
 }
 
 function tail(lines = 30) {
-  if (!existsSync(logFile)) return "";
-  return readFileSync(logFile, "utf8").trimEnd().split("\n").slice(-lines).join("\n");
+  return readOr(logFile, "").trimEnd().split("\n").slice(-lines).join("\n");
 }
 
 async function start() {
@@ -62,9 +70,12 @@ async function start() {
     return;
   }
   const devVars = join(worker, ".dev.vars");
-  if (!existsSync(devVars)) {
-    copyFileSync(join(worker, ".dev.vars.example"), devVars);
+  try {
+    // COPYFILE_EXCL: copy only when missing, in one step (never overwrite a hand-made file).
+    copyFileSync(join(worker, ".dev.vars.example"), devVars, constants.COPYFILE_EXCL);
     console.log("apps/worker/.dev.vars was missing; copied .dev.vars.example");
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error;
   }
   mkdirSync(stateDir, { recursive: true });
   const log = openSync(logFile, "w");
