@@ -6,7 +6,9 @@ import {
   DeviceTabletIcon,
 } from "@heroicons/react/24/outline";
 import { Fragment, useEffect, useState } from "react";
+import { PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { Skeleton } from "skullet/react";
+import { IconCircleDashed } from "@/components/icons/sidebar";
 import { IconKey } from "@/components/icons";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -219,6 +221,7 @@ export function ProfilePage() {
                         label={`Actions for ${other.email}`}
                         items={[
                           {
+                            icon: IconCircleDashed,
                             label: "Log out of this account",
                             onAction: () => revoke.mutate(session.token),
                           },
@@ -343,11 +346,13 @@ export function SecurityPage() {
                         label={`Actions for ${name}`}
                         items={[
                           {
+                            icon: PencilIcon,
                             label: "Rename",
                             onAction: () =>
                               setDialog({ kind: "rename-passkey", id: passkey.id, name }),
                           },
                           {
+                            icon: TrashIcon,
                             label: "Remove passkey",
                             danger: true,
                             onAction: () =>
@@ -408,6 +413,7 @@ export function SecurityPage() {
                           label={`Actions for ${device.name}`}
                           items={[
                             {
+                              icon: IconCircleDashed,
                               label: "Sign out",
                               danger: true,
                               onAction: () =>

@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
+import { UserCircleIcon, UserMinusIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import { Skeleton, SkeletonSuspense } from "skullet/react";
+import { IconPaperPlane } from "@/components/icons/sidebar";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -405,6 +407,7 @@ export function PeoplePage() {
                             label={`Actions for ${name}`}
                             items={[
                               {
+                                icon: UserCircleIcon,
                                 label: "Change role",
                                 onAction: () =>
                                   setDialog({
@@ -415,6 +418,7 @@ export function PeoplePage() {
                                   }),
                               },
                               {
+                                icon: UserMinusIcon,
                                 label: "Remove from workspace",
                                 danger: true,
                                 onAction: () =>
@@ -456,6 +460,7 @@ export function PeoplePage() {
                             label={`Actions for ${invitation.email}`}
                             items={[
                               {
+                                icon: IconPaperPlane,
                                 label: "Resend invitation",
                                 onAction: () => {
                                   const role = invitation.role === "admin" ? "admin" : "member";
@@ -475,6 +480,7 @@ export function PeoplePage() {
                                 },
                               },
                               {
+                                icon: XCircleIcon,
                                 label: "Revoke invitation",
                                 danger: true,
                                 onAction: () =>
@@ -824,6 +830,7 @@ function MailboxAccessDialog(props: { mailbox: Mailbox; canManage: boolean; onCl
                         label={`Actions for ${name}`}
                         items={[
                           {
+                            icon: UserMinusIcon,
                             label: "Remove access",
                             danger: true,
                             onAction: () =>

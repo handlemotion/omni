@@ -20,6 +20,9 @@
      stays lighter than the current row's accent fill. */
   --hover: color-mix(in oklab, var(--foreground) 3%, transparent);
   --primary: #0d3eef;
+  /* A primary button's fill: the brand blue at full saturation and a little lighter, so the
+     button's darker edge doesn't make it read heavy. */
+  --primary-button: #1a4bff;
   /* What dims the app under a dialog: flat black, no blur (transitive's scrim). */
   --scrim: oklch(0 0 0 / 7%);
   --primary-foreground: #ffffff;
@@ -136,6 +139,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-primary: var(--primary);
+  --color-primary-button: var(--primary-button);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-subtle: var(--primary-subtle);
   --color-primary-subtle-foreground: var(--primary-subtle-foreground);
