@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { routePath } from "hono/route";
+import { requireWritableWorkspace } from "./billing.ts";
 import { findMember, requestScope, requireMember, type AppEnv } from "./context.ts";
 import type { Config } from "./env.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
@@ -74,6 +75,9 @@ const actAsThreadMember = createMiddleware<AppEnv>(async (c, next) => {
 const api = new Hono<AppEnv>()
   .use(requireMember)
   .use("/threads/:id/*", actAsThreadMember)
+  // Deny by default: every write below needs a plan in good standing unless `READ_ONLY_ALLOWED`
+  // (billing.ts) names it. After `actAsThreadMember`, so a thread write checks the thread's org.
+  .use(requireWritableWorkspace)
   /** The member in the active org, with how far that org's setup got (route guards read it). */
   .get("/me", async (c) =>
     c.json({ ...c.var.member, setup: await orgSetupStep(c.var.db, c.var.member.orgId) }),

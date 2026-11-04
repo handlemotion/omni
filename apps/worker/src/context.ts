@@ -44,6 +44,7 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
     createAuth({
       db,
       ...config.auth,
+      billingLog: (event, fields) => c.var.log.error(event, fields),
       sendMagicLink: async ({ email, url }) => {
         devLog(config, { kind: "magic-link", email, url });
         const appName = config.auth.appName;

@@ -19,7 +19,6 @@ import { addedParticipants, messageDisplay } from "@omni/mail-core/display";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { requireWritableWorkspace } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
@@ -201,10 +200,6 @@ function newMessageId(address: string) {
 }
 
 export const mail = new Hono<AppEnv>()
-  // A workspace without a plan in good standing reads its mail but changes nothing (ADR 0015).
-  // Scoped by path: a bare `.use` here would also gate every other `/api` route, billing included.
-  .use("/threads/*", requireWritableWorkspace)
-  .use("/send", requireWritableWorkspace)
   .get("/mailboxes", async (c) => {
     return c.json({ mailboxes: await listMemberMailboxes(c.var.db, c.var.member.id) });
   })
