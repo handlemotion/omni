@@ -69,6 +69,7 @@ const listQuery = z.object({
 });
 
 const searchQuery = z.object({
+  scope: scopeParam,
   q: z.string().trim().min(1).max(500),
   mailboxId: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
@@ -200,13 +201,11 @@ export const mail = new Hono<AppEnv>()
    * or full-text relevance did (`text`: no TypeSafe key, or Jev failed or was slow).
    */
   .get("/search", limitPerMember("search"), zValidator("query", searchQuery), async (c) => {
-    const { q, ...options } = c.req.valid("query");
-    const { hits, ranking } = await smartSearch(
-      forMember(c.var.db, c.var.member.id),
-      c.var.config,
-      q,
-      { ...options, log: c.var.log },
-    );
+    const { q, scope, ...options } = c.req.valid("query");
+    const { hits, ranking } = await smartSearch(reader(c, scope), c.var.config, q, {
+      ...options,
+      log: c.var.log,
+    });
     return c.json({
       results: hits.map(({ excerpt: _excerpt, score: _score, ...hit }) => hit),
       ranking,

@@ -84,6 +84,7 @@ function headline(query: SQL, options: string) {
 }
 
 interface SearchRow {
+  org_id: string;
   thread_id: string;
   message_id: string;
   mailbox_id: string;
@@ -440,7 +441,7 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
           from scored order by thread_id, score desc, id desc
         ),
         top as (select * from best order by score desc, thread_id desc limit ${limit})
-        select top.thread_id, m.id as message_id, t.mailbox_id, mb.address as mailbox_address,
+        select t.org_id, top.thread_id, m.id as message_id, t.mailbox_id, mb.address as mailbox_address,
           m.subject, m.from_name, m.from_address, m.sent_at, t.last_message_at, top.score::float8 as score,
           (select count(*)::int from ${messages} c where c.thread_id = t.id) as message_count,
           ${headline(any, "MaxWords=20, MinWords=10, MaxFragments=1")} as snippet,
@@ -452,6 +453,7 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         order by top.score desc, top.thread_id desc
       `)) as unknown as SearchRow[]; // postgres-js: the rows themselves
       return rows.map((row) => ({
+        orgId: row.org_id,
         threadId: row.thread_id,
         messageId: row.message_id,
         mailboxId: row.mailbox_id,

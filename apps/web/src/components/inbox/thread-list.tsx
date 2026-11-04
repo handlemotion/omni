@@ -22,7 +22,7 @@ import { Heading } from "@/components/ui/heading";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { useCounts, useThreads } from "@/hooks/use-mail.ts";
 import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
-import { useWorkspaces } from "@/hooks/use-workspaces.ts";
+import { useWorkspaceNames } from "@/hooks/use-workspaces.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { senderLabel } from "@/lib/threads.ts";
 import type { ThreadFilter, ThreadSummary, ThreadView } from "@/lib/types.ts";
@@ -50,16 +50,12 @@ interface ListProps {
 export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
   const { threads, hasNextPage, fetchNextPage, isFetchingNextPage } = useThreads(props.filter);
   const unread = useUnreadCount(props.filter);
-  const workspaces = useWorkspaces().data?.workspaces;
+  const names = useWorkspaceNames(props.filter.mailbox);
   // Stable rows, so the virtualized list's row cache survives renders that don't change them.
-  const rows = useMemo(() => {
-    // Rows name their workspace only when the list mixes several (no mailbox chosen).
-    const names =
-      !props.filter.mailbox && workspaces && workspaces.length > 1
-        ? new Map(workspaces.map((w) => [w.id, w.name]))
-        : undefined;
-    return threads.map((thread) => toRow(thread, names?.get(thread.orgId)));
-  }, [threads, workspaces, props.filter.mailbox]);
+  const rows = useMemo(
+    () => threads.map((thread) => toRow(thread, names?.get(thread.orgId))),
+    [threads, names],
+  );
   return (
     <List
       {...props}
