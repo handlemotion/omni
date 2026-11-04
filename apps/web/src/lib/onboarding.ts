@@ -67,7 +67,9 @@ export function resumePage(data: Onboarding): OnboardingPage {
     return data.billing.enabled && data.organization?.needsPlan ? "Plan" : "Invite";
   }
   if (!domain) return "Workspace";
-  if (step === "dns_verified" && domain.provider !== "imap") return "Mailboxes";
+  // The saved step can be behind the domain: one that moved to Purelymail after its DNS step has
+  // new records to add. Only a domain whose records all pass skips its DNS page.
+  if (step === "dns_verified" && domain.provider !== "imap" && dnsReady(domain)) return "Mailboxes";
   return "DNS";
 }
 
@@ -101,6 +103,25 @@ export async function createWorkspace(client: QueryClient, router: Reloadable, n
 const challengeKey = (domainId: string) => `omni.challenge.${domainId}`;
 
 /**
+ * Whether Omni's ownership record is in DNS with the current value. What the domain's nameservers
+ * answered at the last check wins over the claim's flag: right after a new value is made the claim
+ * still reads verified, but DNS holds the old value until it is replaced.
+ */
+export function challengePasses(domain: OnboardingDomain): boolean {
+  const challenge = domain.challenge;
+  if (!challenge) return true;
+  return challenge.diagnostic ? challenge.diagnostic.status === "ok" : challenge.verified;
+}
+
+/** Every record the domain needs passes: the ownership record and the provider's. */
+export function dnsReady(domain: OnboardingDomain): boolean {
+  return (
+    challengePasses(domain) &&
+    domain.records.every((r) => r.verified || r.diagnostic?.status === "ok")
+  );
+}
+
+/**
  * The challenge value for a domain, if this browser saw it. The API shows it once (only its hash
  * is stored, ADR 0010), so it is kept here for a reload mid-setup. A convenience: without it the
  * DNS page offers a new value.
@@ -118,8 +139,9 @@ function rememberChallenge(domain: OnboardingDomain) {
   try {
     if (domain.challenge?.value)
       localStorage.setItem(challengeKey(domain.id), domain.challenge.value);
-    // Verified: the record is in DNS already and the value no longer needed here.
-    if (domain.status === "verified" && domain.challenge?.verified) {
+    // Forgotten only once DNS serves it. Not on the claim's flag alone: a fresh value would be
+    // dropped the moment it was made, and lost on the next refetch (switching apps).
+    if (domain.challenge?.diagnostic?.status === "ok" && !domain.challenge.value) {
       localStorage.removeItem(challengeKey(domain.id));
     }
   } catch {

@@ -1,6 +1,6 @@
 import { Cloudflare } from "@ridemountainpig/svgl-react";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Key } from "react-aria-components";
 import { Skeleton } from "skullet/react";
 import { IconRedirectArrow } from "@/components/icons";
@@ -34,6 +34,8 @@ import {
   needsSetup,
   onboardingPages,
   parseServer as server,
+  challengePasses,
+  dnsReady,
   rememberedChallenge,
   resumePage,
   watchDomain,
@@ -68,6 +70,13 @@ export function Onboarding() {
   // Only the workspace being set up: a new one has no domain until page 0 adds it.
   const domain = resuming ? status.data?.domains[0] : undefined;
   const ownHost = domain?.provider === "imap";
+  // Mailboxes need the domain's DNS done. A domain can fall behind after its DNS page (moving to
+  // Purelymail brings new records, a new ownership value replaces the old), so a mailbox page
+  // reached early (resume, Back, a stale tab) goes back to DNS instead of failing on submit.
+  const dnsPending = !!domain && !ownHost && !dnsReady(domain);
+  useEffect(() => {
+    if (page === "Mailboxes" && dnsPending) setPage("DNS");
+  }, [page, dnsPending]);
   // On its own host the domain proves ownership on the DNS page like any other; the Mailboxes page
   // then asks for the servers first (they live only in memory), so no path reaches the mailbox
   // form without them and Back never lands on a step that was skipped.
@@ -84,12 +93,16 @@ export function Onboarding() {
     .slice(1, Math.max(index, 1))
     .toReversed()
     .find((p) => !passed(p));
+  // A verified own-host domain's DNS page only checks and moves on, so the servers form has no
+  // page behind it.
   const back =
     page === "Mailboxes" && ownHost && servers
       ? () => setServers(null)
-      : previous
-        ? () => setPage(previous)
-        : undefined;
+      : page === "Mailboxes" && ownHost && domain?.status === "verified"
+        ? undefined
+        : previous
+          ? () => setPage(previous)
+          : undefined;
 
   return (
     <OnboardingPage page={index} names={pages} onBack={back}>
@@ -242,8 +255,9 @@ function PageForm(props: {
         {props.shortcut && <div className="mt-4.5 flex">{props.shortcut}</div>}
       </div>
       <div className="flex flex-col gap-6 pt-8">{props.children}</div>
-      {/* The 40px above the button holds the form's error, so it appears without moving anything. */}
-      <SlotError className="min-h-10 pt-3">{props.problem}</SlotError>
+      {/* The 40px above the button holds the form's error: one line (12 + 16 + 12) appears without
+          moving anything, a longer one grows the gap and keeps 12px above the button. */}
+      <SlotError className="min-h-10 py-3">{props.problem}</SlotError>
       <Button type="submit" size="lg" className="w-full" isPending={props.isPending}>
         {props.submit}
         <IconChevronRight />
@@ -340,7 +354,7 @@ function shownRecords(domain: OnboardingDomain): ShownRecord[] {
           type: domain.challenge.type,
           name: domain.challenge.name,
           value: rememberedChallenge(domain),
-          verified: domain.challenge.verified,
+          verified: challengePasses(domain),
           challenge: true,
           diagnostic: domain.challenge.diagnostic,
         },
@@ -382,6 +396,22 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
   // Re-checked on its own while this page is open; results arrive over realtime.
   useRealtimeConnection(props.organizationId);
   useDomainWatch(domain.id, current !== -1);
+  // An own-host domain whose records all pass has nothing to show here. Check it once on open
+  // (the check moves it to Purelymail when this install has a token, which brings Purelymail's
+  // records) and go straight on when it still passes, so nobody lands on an empty step.
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (autoChecked.current || domain.provider !== "imap" || current !== -1) return;
+    autoChecked.current = true;
+    checkDomain.mutate(domain.id, {
+      onSuccess: (fresh) => {
+        if (recordGroups(fresh).current === -1) props.onDone();
+      },
+      onError: (error) => setProblem(error.message),
+    });
+    // Once, on open: later changes come from the check itself.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const state = (i: number): StepState =>
     current === -1 || i < current ? "complete" : i === current ? "current" : "upcoming";
   // Continue checks first: it moves on once every record passes, else a toast says which record
@@ -466,34 +496,38 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
             title={group.purpose}
           >
             <div className="flex flex-col gap-2 [--copy-label-width:--spacing(13)]">
-              {group.records.map((record) => (
-                <div key={record.name} className="flex flex-col gap-2">
-                  <CopyField label="Host" value={record.name} />
-                  {record.value !== null ? (
-                    <CopyField
-                      label="Value"
-                      value={
-                        // A merged SPF record replaces the one already there.
-                        record.diagnostic?.suggestion ??
-                        (record.priority !== undefined
-                          ? `${record.priority} ${record.value}`
-                          : record.value)
-                      }
-                    />
-                  ) : (
-                    // Only its hash is stored, so a value shown before (another browser, cleared
-                    // storage) cannot be shown again: the field makes a new one when pressed. Not
-                    // made on its own: it would replace a record the user may have just added.
-                    <RenewField
-                      label="Value"
-                      placeholder="Hidden"
-                      tooltip="Show a new value. It replaces the old one."
-                      isPending={rotateChallenge.isPending}
-                      onPress={rotate}
-                    />
-                  )}
-                </div>
-              ))}
+              {/* Only what is still to do: a record already in DNS needs nothing (and making its
+                  value again would take the domain's mail offline until DNS catches up). */}
+              {group.records
+                .filter((record) => !passes(record))
+                .map((record) => (
+                  <div key={record.name} className="flex flex-col gap-2">
+                    <CopyField label="Host" value={record.name} />
+                    {record.value !== null ? (
+                      <CopyField
+                        label="Value"
+                        value={
+                          // A merged SPF record replaces the one already there.
+                          record.diagnostic?.suggestion ??
+                          (record.priority !== undefined
+                            ? `${record.priority} ${record.value}`
+                            : record.value)
+                        }
+                      />
+                    ) : (
+                      // Only its hash is stored, so a value shown before (another browser, cleared
+                      // storage) cannot be shown again: the field makes a new one when pressed. Not
+                      // made on its own: it would replace a record the user may have just added.
+                      <RenewField
+                        label="Value"
+                        placeholder="Hidden"
+                        tooltip="Show a new value. It replaces the old one."
+                        isPending={rotateChallenge.isPending}
+                        onPress={rotate}
+                      />
+                    )}
+                  </div>
+                ))}
             </div>
           </Step>
         ))}

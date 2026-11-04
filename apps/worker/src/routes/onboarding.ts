@@ -424,10 +424,10 @@ export const onboarding = new Hono<AppEnv>()
       let login: ProvisionMailboxBody["login"];
       if (domain.provider === "purelymail") {
         if (body.login)
-          throw new HTTPException(400, { message: "Purelymail mailboxes take no login" });
+          throw new HTTPException(400, { message: "This mailbox takes no password." });
         if (!domain.addedAt) {
           throw new HTTPException(409, {
-            message: `${domain.domain} is not on Purelymail yet: add its ownership record and check again`,
+            message: `Finish the DNS records for ${domain.domain} first.`,
           });
         }
         login = { provider: "purelymail" };
