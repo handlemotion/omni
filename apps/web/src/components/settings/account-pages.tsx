@@ -48,7 +48,6 @@ import {
 import { SettingsRow, settingsRowTextEndClassName, type SettingsRowIcon } from "./kit/settings-row";
 import { SettingsRowMenu } from "./kit/settings-row-menu";
 import { SettingsConfirmDialog, SettingsRenameDialog } from "./kit/settings-stacked-dialog";
-import { SettingsValueRow } from "./kit/settings-value-row";
 
 const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
 const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
@@ -173,7 +172,6 @@ export function ProfilePage() {
               })
             }
           />
-          <SettingsValueRow label="Email" value={user.email} />
         </SettingsGroup>
       </SettingsSection>
 
