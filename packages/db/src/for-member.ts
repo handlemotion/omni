@@ -168,7 +168,13 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
       eq(threads.archived, false),
       state(sql`${deferredRule} and not coalesce(${doneRule}, false)`),
     ],
-    done: [state(doneRule)],
+    // Not `exists`: Postgres plans that as a join against every one of the member's state rows,
+    // per mailbox (perf:explain: 250 ms). A scalar subquery on the primary key is checked per
+    // thread as the page index is walked newest first, so the scan stops at `limit` done threads.
+    // No row, or no `done_through`, compares as null: not done.
+    done: [
+      sql`${threads.lastMessageAt} <= (select s.done_through from ${threadState} s where s.thread_id = ${threads.id} and s.member_id = ${mailboxAccess.memberId})`,
+    ],
     archive: [eq(threads.archived, true)],
     all: [],
   };

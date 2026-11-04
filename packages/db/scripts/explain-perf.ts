@@ -18,6 +18,7 @@ import {
   findThreadByMessageIds,
   folderLocations,
   forMember,
+  forUser,
   hasLocation,
   listMemberMailboxes,
   loadThreadForAi,
@@ -115,6 +116,8 @@ const inboxUids = (
 
 const all = forMember(db, memberAll);
 const few = forMember(db, memberFew);
+// The web app reads through `forUser` (every workspace the person belongs to, ADR 0014).
+const user = forUser(db, `user-${memberAll}`);
 const rollback = new Error("rollback");
 
 type Case = { name: string; write?: boolean; run: (db: Db) => Promise<unknown> };
@@ -131,6 +134,20 @@ const cases: Case[] = [
     run: () => all.listThreads({ view: "all", mailboxId: box.id }),
   },
   { name: "counts (12 boxes)", run: () => all.counts() },
+  { name: "user: listThreads inbox", run: () => user.listThreads() },
+  { name: "user: listThreads done", run: () => user.listThreads({ view: "done" }) },
+  { name: "user: listThreads page 41", run: () => user.listThreads({ before: deepCursor }) },
+  { name: "user: listThreads queue", run: () => user.listThreads({ view: "queue" }) },
+  { name: "user: listThreads all", run: () => user.listThreads({ view: "all" }) },
+  {
+    name: "user: lane needs_reply",
+    run: () => user.listThreads({ lane: "needs_reply" }),
+  },
+  {
+    name: "user: lane waiting_on_them",
+    run: () => user.listThreads({ lane: "waiting_on_them" }),
+  },
+  { name: "user: counts", run: () => user.counts() },
   { name: "listThreads page 41 (cursor)", run: () => all.listThreads({ before: deepCursor }) },
   { name: "listThreads lane needs_reply", run: () => all.listThreads({ lane: "needs_reply" }) },
   { name: "listThreads lane unsure", run: () => all.listThreads({ lane: "unsure" }) },
