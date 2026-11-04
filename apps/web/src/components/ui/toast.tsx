@@ -1,5 +1,6 @@
 // Toasts, ported from transitive (`packages/ui/src/components/ui/toast.tsx` and `sonner.tsx`):
-// a near-black card with a tone icon, the message, an optional action and a countdown bar.
+// a card in the page's own theme (the overlay tokens, like menus and popovers) with a tone icon,
+// the message, an optional action and a countdown bar.
 // Sonner owns placement, stacking, swipe and the close timer; `ToastCard` paints the toast.
 import {
   CheckCircleIcon,
@@ -122,8 +123,8 @@ function ToastButton(props: {
         "outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "disabled:cursor-not-allowed disabled:opacity-50",
         props.emphasis === "primary"
-          ? "bg-inverse-foreground text-inverse hover:bg-inverse-foreground/90"
-          : "text-inverse-muted-foreground hover:bg-inverse-hover hover:text-inverse-foreground",
+          ? "bg-foreground text-background hover:bg-foreground/90"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground",
       )}
       onClick={() => {
         props.action.onClick();
@@ -144,7 +145,13 @@ interface ToastCardProps {
   children?: ReactNode;
 }
 
-/** The toast card, inverted against the light page. */
+/**
+ * The toast card, in the page's theme: the overlay fill, border and drop that menus use.
+ *
+ * Room, in ink: the icon's shape and the text sit 16px from the card's left and top edges (12px
+ * padding, plus the glyph's 2px of air or the text line's slack), 16px from the bottom, and the
+ * message and description are 2px apart.
+ */
 export function ToastCard({ tone, message, description, duration, children }: ToastCardProps) {
   const hidden = useDocumentHidden();
   return (
@@ -153,20 +160,20 @@ export function ToastCard({ tone, message, description, duration, children }: To
       data-tone={tone}
       className={cn(
         // h-full + overflow-hidden: a collapsed stack sizes every toast to the front one.
-        "relative flex h-full w-full flex-col overflow-hidden bg-inverse text-inverse-foreground",
-        "rounded-lg border border-inverse-border shadow-(--shadow-toast)",
+        "relative flex h-full w-full flex-col overflow-hidden bg-overlay text-overlay-foreground",
+        "rounded-lg border border-border shadow-(--shadow-overlay)",
       )}
     >
       <div
         className={cn(
           // Baseline alignment: icon, first message line and action labels share one baseline.
-          "flex flex-1 items-baseline gap-2 py-1.5 ps-3 pe-1.5 text-sm transition-opacity duration-200",
+          "flex flex-1 items-baseline gap-2.5 pt-3 pb-3.25 ps-3.75 pe-3 text-sm transition-opacity duration-200",
           // Behind the front toast in a collapsed stack only the card edge shows.
           "[[data-expanded=false][data-front=false]_&]:opacity-0",
         )}
       >
         {TONE_ICONS[tone]}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <p
             data-slot="toast-message"
             className="line-clamp-3 text-sm leading-5 tracking-[-0.01em] text-pretty break-words"
@@ -176,7 +183,7 @@ export function ToastCard({ tone, message, description, duration, children }: To
           {description && (
             <p
               data-slot="toast-description"
-              className="line-clamp-2 text-sm leading-5 tracking-[-0.01em] break-words text-inverse-muted-foreground"
+              className="line-clamp-2 text-sm leading-5 tracking-[-0.01em] break-words text-muted-foreground"
             >
               {description}
             </p>
@@ -189,7 +196,7 @@ export function ToastCard({ tone, message, description, duration, children }: To
         <div
           aria-hidden
           data-slot="toast-countdown"
-          className="h-0.5 w-full bg-inverse-border motion-reduce:hidden"
+          className="h-0.5 w-full bg-border motion-reduce:hidden"
         >
           <div
             className={cn(
@@ -233,7 +240,7 @@ function notice(tone: ToastTone, message: string, options: NoticeOptions = {}): 
 }
 
 /**
- * Product toasts. Every toast is a dark card:
+ * Product toasts. Every toast is a card in the page's theme:
  * - notices (`success`, `error`, `warning`, `message`) leave on their own and show a countdown;
  * - `prompt` stays until the caller dismisses it, with a primary and an optional secondary action.
  */
