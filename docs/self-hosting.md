@@ -243,6 +243,10 @@ flyctl deploy . --config apps/mail/fly.toml --app <your-app>
 curl https://<your-app>.fly.dev/health
 ```
 
+Fly's GitHub deploy works the same with the repo root as working directory and this config path.
+Run the database migrations (`pnpm --filter @omni/db db:migrate`) before deploying code that needs
+them.
+
 Set the Worker's `MAIL_SERVICE_URL` to `https://<your-app>.fly.dev`.
 
 The container runs as a non-root user. Point your host's health check at `GET /health`. It
@@ -427,6 +431,13 @@ redirect hop (up to 3), and returns only raster images up to 5 MB within 8 s, ca
 pnpm --filter @omni/worker dev      # wrangler dev on :8787 (we wrap it in Doppler)
 pnpm --filter @omni/worker exec wrangler deploy
 ```
+
+To deploy from git with Cloudflare Workers Builds instead, use build command
+`pnpm --filter @omni/web build`, deploy command `pnpm --filter @omni/worker deploy:cloudflare`,
+root `/`, and build variables `HYPERDRIVE_ID`, `WORKER_DOMAIN` (optional, comma-separated) and
+`WORKER_VAR_<NAME>` for each var you change from `wrangler.jsonc`
+(`apps/worker/scripts/deploy-cloudflare.mjs`). Set secrets with `wrangler secret`; deploys keep
+them.
 
 To work on the web app with hot reload, run the Worker with `BETTER_AUTH_URL` set to Vite's
 origin (so magic links land on Vite), then Vite, which forwards `/api` to the Worker:

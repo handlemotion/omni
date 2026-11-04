@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "doppler run -p omni -c dev_worker --mount .dev.vars --format env -- wrangler dev",
+    "deploy:cloudflare": "node scripts/deploy-cloudflare.mjs",
     "cf-typegen": "wrangler types --include-runtime=false --strict-vars=false && oxfmt worker-configuration.d.ts",
     "test:e2e": "vitest run --config vitest.e2e.mts"
   },

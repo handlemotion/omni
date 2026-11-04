@@ -9,7 +9,7 @@ Project `omni`. Branch configs inherit from their environment's root config.
 | `dev_worker` | `apps/worker` locally (`wrangler dev`) | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ANTHROPIC_API_KEY`, `ENVIRONMENT=development`, Stripe sandbox billing (`STRIPE_*`, `BILLING_*`; webhook secret from `stripe listen --print-secret`) |
 | `prd_mail`   | Fly.io mail service (`omni-mail`)      | `DATABASE_URL`, `MAIL_CREDENTIALS_KEY`, `MAIL_SERVICE_HMAC_SECRET`, `WORKER_URL`, `S3_*` (R2), optional `PURELYMAIL_API_TOKEN`                                                                |
 | `prd_worker` | Cloudflare Worker secrets              | `BETTER_AUTH_SECRET`, `MAIL_SERVICE_HMAC_SECRET`, `ANTHROPIC_API_KEY`, `TYPESAFE_API_KEY`                                                                                                     |
-| `prd_github` | Deploy workflow (`deploy.yml`)         | `MIGRATE_DATABASE_URL`, `FLY_API_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `HYPERDRIVE_ID`, `HYPERDRIVE_ORIGIN_URL`, `WORKER_DOMAIN`, `WORKER_VAR_*`                           |
+| `prd_github` | `production.yml`, records              | `MIGRATE_DATABASE_URL`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `WORKER_DOMAIN`; kept as records: `HYPERDRIVE_ID`, `HYPERDRIVE_ORIGIN_URL`, `WORKER_VAR_*`                           |
 
 Rules:
 
@@ -28,19 +28,29 @@ Rules:
 
 ## Production deploys
 
-`.github/workflows/deploy.yml` runs on `main` after CI passes: migrate, then the mail service and
-the Worker. It reads Doppler through three read-only service tokens, one per config, stored as
-secrets of the GitHub environment `production`: `DOPPLER_TOKEN_GITHUB` (`prd_github`),
-`DOPPLER_TOKEN_MAIL` (`prd_mail`), `DOPPLER_TOKEN_WORKER` (`prd_worker`).
+Each platform deploys `main` itself (ADR 0019). GitHub Actions (`.github/workflows/production.yml`)
+does the two things the platforms can't, on each push to `main` and by hand (Actions → Production
+→ Run). Doppler's GitHub sync copies `prd_github` into the secrets of the GitHub environment
+`production` (only jobs that declare it can read them). `prd_worker` is read at run time with a
+read-only service token, `DOPPLER_TOKEN_WORKER`, so exactly its keys become Worker secrets.
 
-- Every key in `prd_mail` is imported as a Fly secret on each deploy.
-- Every key in `prd_worker` is uploaded as a Worker secret on each deploy. Removing a key here
-  does not delete the Worker secret; delete it with `wrangler secret delete`.
-- `prd_github` holds deploy-time config. `WORKER_VAR_<NAME>` becomes the Worker var `<NAME>`
-  (overriding the neutral default in `wrangler.jsonc`), for example `WORKER_VAR_BETTER_AUTH_URL`
-  and `WORKER_VAR_MAIL_SERVICE_URL`. `HYPERDRIVE_ID` replaces the placeholder id and
-  `WORKER_DOMAIN` is the Worker's custom domain, or several comma-separated (the first is
-  health-checked after deploy).
+- **Migrations** run with `prd_github`'s `MIGRATE_DATABASE_URL`, so the admin role is in no
+  running service. Nothing waits for them (both platforms deploy as soon as `main` changes), so
+  schema changes stay additive-first (AGENTS.md): the schema lands in an earlier PR than the code
+  that needs it.
+- **Worker secrets**: every key in `prd_worker` becomes a Worker secret, after that commit's
+  Cloudflare build finishes. Removing a key here does not delete the Worker secret; delete it with
+  `wrangler secret delete`.
+- **Worker: Cloudflare Workers Builds.** Build `pnpm --filter @omni/web build`, deploy
+  `pnpm --filter @omni/worker deploy:cloudflare` (`apps/worker/scripts/deploy-cloudflare.mjs`),
+  root `/`, previews off. Its build variables hold this install's values: `HYPERDRIVE_ID`
+  replaces the placeholder id, `WORKER_DOMAIN` lists the custom domains, and `WORKER_VAR_<NAME>`
+  becomes the Worker var `<NAME>` (over the neutral default in `wrangler.jsonc`). They were
+  copied from `prd_github`; change both when one changes (`cf builds triggers
+  environment-variables upsert <trigger-uuid> --body '{...}'`). Build variables reach only the
+  build, never the running Worker.
+- **Mail service: Fly's GitHub deploy** of `main`, working directory the repo root, config
+  `apps/mail/fly.toml`. Doppler's Fly integration syncs `prd_mail` to the app's secrets.
 - Database roles (PlanetScale `omni`, branch `main`): `MIGRATE_DATABASE_URL` is an admin role used
-  only by migrations; the mail service and Hyperdrive (`HYPERDRIVE_ORIGIN_URL`, kept to recreate
-  the config) each have a read/write role.
+  only by the migrate job; the mail service and Hyperdrive (`HYPERDRIVE_ORIGIN_URL`, kept to
+  recreate the config) each have a read/write role.
