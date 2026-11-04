@@ -1,10 +1,11 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
-import { SettingsDialog } from "../../components/settings/settings-dialog.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
 import { SidebarInset, SidebarProvider } from "../../components/ui/sidebar.tsx";
-import { useSettingsDialog } from "../../hooks/use-settings-dialog.ts";
+import { toggleSettings, useSettingsDialog } from "../../hooks/use-settings-dialog.ts";
+import { useShortcut } from "../../hooks/use-shortcuts.ts";
 import { useRealtimeConnection } from "../../hooks/use-realtime.ts";
 import { requireMember } from "../../lib/guards.ts";
 import { countsQuery, mailboxesQuery } from "../../lib/mail-queries.ts";
@@ -48,7 +49,38 @@ function Shell() {
         </ListSweepProvider>
       </SidebarInset>
       <KeyboardShortcuts />
-      <SettingsDialog />
+      <LazySettingsDialog />
     </SidebarProvider>
   );
+}
+
+const loadSettingsDialog = () => import("../../components/settings/settings-dialog.tsx");
+const SettingsDialog = lazy(() =>
+  loadSettingsDialog().then((m) => ({ default: m.SettingsDialog })),
+);
+
+/**
+ * Settings and everything its pages use stay out of the startup bundle: the dialog mounts the
+ * first time it opens, and its code loads once the app is idle, so that first open has it ready.
+ * Until it mounts, ⌘. is bound here (the dialog binds it itself after).
+ */
+function LazySettingsDialog() {
+  const { isOpen } = useSettingsDialog();
+  const [mounted, setMounted] = useState(isOpen);
+  if (isOpen && !mounted) setMounted(true);
+  useShortcut("settings", toggleSettings, !mounted);
+  useEffect(() => {
+    const preload = () => void loadSettingsDialog();
+    if (typeof requestIdleCallback === "undefined") {
+      const timer = setTimeout(preload, 2000);
+      return () => clearTimeout(timer);
+    }
+    const idle = requestIdleCallback(preload, { timeout: 5000 });
+    return () => cancelIdleCallback(idle);
+  }, []);
+  return mounted ? (
+    <Suspense fallback={null}>
+      <SettingsDialog />
+    </Suspense>
+  ) : null;
 }
