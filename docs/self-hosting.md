@@ -300,8 +300,10 @@ to `.dev.vars`.
 | `RATE_LIMIT_*` | var | no | Rate limits, `<count>/<seconds>` or `off`. See [Rate limits](#rate-limits). |
 | `STRIPE_*`, `BILLING_*` | both | no | Optional billing. Leave unset to self-host with no plan and no limits. See [Billing](#billing-optional). |
 
-The `triggers.crons` entry in `wrangler.jsonc` runs the domain re-check (ADR 0010); it needs no
-setup beyond the deploy.
+The `triggers.crons` entry in `wrangler.jsonc` runs the domain re-check (ADR 0010) every six hours,
+and once a day the billing reconcile (ADR 0015) and a sweep that deletes accounts which never
+joined or created a workspace and have not signed in for 30 days (an invitation sent later lets
+them sign up again). It needs no setup beyond the deploy.
 
 Magic links, invitations and domain notices are sent through the outbox: the Worker writes a `send` action for
 the `SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be

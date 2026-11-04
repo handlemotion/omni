@@ -47,7 +47,7 @@ const pictureKey = (owner: Owner, ownerId: string, sha256: string) =>
  * same owner counts: `users.image` can also hold a URL from elsewhere (Better Auth's
  * `updateUser`), and removing that must never delete another owner's object.
  */
-function keyOf(url: string | null | undefined, owner: Owner, ownerId: string) {
+export function pictureKeyOf(url: string | null | undefined, owner: Owner, ownerId: string) {
   const [, urlOwner, urlOwnerId, sha256] =
     url?.match(/^\/api\/pictures\/(users|orgs)\/([^/]+)\/([0-9a-f]{64})$/) ?? [];
   if (!sha256 || urlOwner !== owner || urlOwnerId !== ownerId) return null;
@@ -90,7 +90,7 @@ async function dropReplaced(
   owner: Owner,
   ownerId: string,
 ) {
-  const key = previous !== current && keyOf(previous, owner, ownerId);
+  const key = previous !== current && pictureKeyOf(previous, owner, ownerId);
   // R2 deletes are idempotent: a key already gone is not an error.
   if (key) await c.env.MAIL_BUCKET.delete(key);
 }

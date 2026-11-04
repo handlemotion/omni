@@ -26,3 +26,4 @@ export type { DomainCheck, DomainRecordDiagnostic, MailDomainRecord } from "./sc
 export * from "./pictures.ts";
 export * from "./billing.ts";
 export * from "./sign-in-emails.ts";
+export * from "./abandoned-sign-ups.ts";

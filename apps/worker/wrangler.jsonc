@@ -106,8 +106,9 @@
     },
   ],
   // Every 6 hours: re-checks every verified domain's ownership record; a lost one pauses sending
-  // (ADR 0010). Daily: reads every workspace's subscriptions back from Stripe (ADR 0015); does
-  // nothing with billing off. The daily one must match BILLING_RECONCILE_CRON in src/index.ts.
+  // (ADR 0010). Daily: reads every workspace's subscriptions back from Stripe (ADR 0015; nothing
+  // with billing off), and deletes accounts that never joined or created a workspace and sat
+  // unused for 30 days. The daily one must match DAILY_CRON in src/index.ts.
   "triggers": { "crons": ["23 */6 * * *", "47 3 * * *"] },
   "durable_objects": {
     "bindings": [

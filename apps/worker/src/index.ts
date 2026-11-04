@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/cloudflare";
 import { PRIVATE_DATA_COLLECTION, scrubBreadcrumb, scrubEvent } from "@omni/mail-core/telemetry";
 import { createStripeClient } from "@omni/auth";
+import { pruneAbandonedSignUps } from "./abandoned-sign-ups.ts";
 import { app } from "./app.ts";
 import { reconcileSubscriptions } from "./billing-reconcile.ts";
 import { openDb } from "./db.ts";
@@ -33,15 +34,35 @@ export default Sentry.withSentry(
     queue: consumeQueue,
     scheduled: (controller, env, ctx) =>
       ctx.waitUntil(
-        controller.cron === BILLING_RECONCILE_CRON
-          ? scheduledReconcile(env)
-          : scheduledRecheck(env, ctx),
+        controller.cron === DAILY_CRON ? scheduledDaily(env) : scheduledRecheck(env, ctx),
       ),
   } satisfies ExportedHandler<Env, AiJob>,
 );
 
-/** Must match the billing cron in wrangler.jsonc `triggers.crons`; any other cron re-checks domains. */
-const BILLING_RECONCILE_CRON = "47 3 * * *";
+/** Must match the daily cron in wrangler.jsonc `triggers.crons`; any other cron re-checks domains. */
+const DAILY_CRON = "47 3 * * *";
+
+/**
+ * The daily cron: billing reconcile and the abandoned sign-up sweep. Each runs even if the other
+ * fails; the run still fails so the error is visible.
+ */
+async function scheduledDaily(env: Env) {
+  const results = await Promise.allSettled([scheduledReconcile(env), scheduledPrune(env)]);
+  const failed = results.find((r) => r.status === "rejected");
+  if (failed) throw failed.reason;
+}
+
+/** Deletes accounts that never joined or created a workspace and sat unused. Safe to run twice. */
+async function scheduledPrune(env: Env) {
+  const { db, close } = openDb(env);
+  const log = createLogger({ component: "accounts", requestId: crypto.randomUUID() });
+  try {
+    const result = await pruneAbandonedSignUps({ db, bucket: env.MAIL_BUCKET, log });
+    log.info("accounts.pruned", result);
+  } finally {
+    await close();
+  }
+}
 
 /**
  * The daily billing cron: every workspace's subscriptions read back from Stripe (ADR 0015).
