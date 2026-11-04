@@ -368,7 +368,11 @@ Setup in Stripe:
    ids in the price variables.
 2. Add a webhook endpoint at `<BETTER_AUTH_URL>/api/auth/stripe/webhook` for
    `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`
-   and `customer.subscription.deleted`; its signing secret is `STRIPE_WEBHOOK_SECRET`.
+   and `customer.subscription.deleted`; its signing secret is `STRIPE_WEBHOOK_SECRET`. Set the
+   endpoint's API version to `2025-03-31` or later (the Stripe SDK Omni uses pins
+   `2026-08-26.dahlia`): the billing period is read from each subscription item's
+   `current_period_start` / `current_period_end`, which older versions do not send, and the
+   plan's period dates would be stored as invalid dates.
 3. Turn on the customer portal (Settings → Billing → Customer portal) so owners can change the
    card, switch interval and cancel.
 

@@ -211,6 +211,53 @@ test("the webhook drives the plan; a replayed or older event changes nothing", a
   );
 }, 60_000);
 
+test("an event whose write did not land is retried, not acknowledged; one Omni ignores is", async () => {
+  const { org, customer } = await workspace();
+  const t0 = new Date(Date.now() - 60_000);
+  const sub = subscriptionObject({
+    id: `sub_e2e_${randomUUID().slice(0, 8)}`,
+    customer,
+    status: "trialing",
+    periodStart: t0,
+    periodEnd: new Date(t0.getTime() + 14 * 86_400_000),
+    trialEnd: new Date(t0.getTime() + 14 * 86_400_000),
+  });
+  const recorded = async (id: string) =>
+    database.db.select().from(schema.stripeEvents).where(eq(schema.stripeEvents.id, id));
+
+  // Stripe does not deliver in order: the update arrives before the subscription exists here.
+  // The plugin cannot find the row, logs, and answers 200; the webhook must not.
+  const activated = stripeEvent(
+    "customer.subscription.updated",
+    { ...sub, status: "active", trial_start: null, trial_end: null },
+    new Date(t0.getTime() + 10_000),
+  );
+  expect((await postStripeEvent(worker.url, activated)).status).toBe(500);
+  expect(await recorded(activated.id)).toEqual([]);
+  expect(await subscriptionRows(org.id)).toEqual([]);
+
+  // The creation lands, and Stripe's retry of the update now applies it.
+  const created = stripeEvent("customer.subscription.created", sub, t0);
+  expect((await postStripeEvent(worker.url, created)).body).toMatchObject({ applied: true });
+  expect(await postStripeEvent(worker.url, activated)).toMatchObject({
+    status: 200,
+    body: { applied: true },
+  });
+  expect(await subscriptionRows(org.id)).toMatchObject([
+    { status: "active", stripeSubscriptionId: sub.id },
+  ]);
+  expect(await recorded(activated.id)).toHaveLength(1);
+
+  // A subscription for a customer that is no workspace's is acknowledged, not retried forever.
+  const stranger = stripeEvent(
+    "customer.subscription.updated",
+    { ...sub, id: `sub_e2e_${randomUUID().slice(0, 8)}`, customer: "cus_e2e_nobody" },
+    new Date(),
+  );
+  expect((await postStripeEvent(worker.url, stranger)).status).toBe(200);
+  expect(await recorded(stranger.id)).toHaveLength(1);
+}, 60_000);
+
 test("an unsigned or wrongly signed event is refused and recorded nowhere", async () => {
   const { org, customer } = await workspace();
   const event = stripeEvent(

@@ -129,6 +129,27 @@ export async function stripeEventDisposition(
   return newer ? "stale" : "new";
 }
 
+/**
+ * Stored subscriptions matching one key, the way Better Auth's Stripe plugin finds the row an
+ * event writes: by our id (from the Stripe object's metadata), by Stripe's subscription id, or by
+ * Stripe customer.
+ */
+export async function storedSubscriptions(
+  db: Db,
+  key: { id: string } | { stripeSubscriptionId: string } | { stripeCustomerId: string },
+) {
+  const where =
+    "id" in key
+      ? eq(subscriptions.id, key.id)
+      : "stripeSubscriptionId" in key
+        ? eq(subscriptions.stripeSubscriptionId, key.stripeSubscriptionId)
+        : eq(subscriptions.stripeCustomerId, key.stripeCustomerId);
+  return db
+    .select({ id: subscriptions.id, status: subscriptions.status })
+    .from(subscriptions)
+    .where(where);
+}
+
 /** Marks an event applied (or deliberately skipped). Idempotent. */
 export async function recordStripeEvent(db: Db, event: StripeEventRef) {
   await db
