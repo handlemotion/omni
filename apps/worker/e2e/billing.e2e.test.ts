@@ -400,6 +400,62 @@ test("a new workspace finishes setup only once it has a trial or a plan", async 
   expect(await billing(owner.cookie)).toMatchObject({ trialAvailable: false });
 }, 60_000);
 
+test("one free trial per account: the same person's next workspace pays, even after deleting the first", async () => {
+  const { db } = database;
+  const first = await workspace("owner");
+  const [owned] = await db
+    .select({ userId: schema.members.userId })
+    .from(schema.members)
+    .where(eq(schema.members.organizationId, first.org.id));
+  const userId = owned!.userId;
+  // They started the first workspace's trial (what POST /billing/trial records before Stripe).
+  await db.insert(schema.trialClaims).values({ orgId: first.org.id, userId: userId });
+
+  // Their own new workspace, opened in the same session.
+  const second = await createOrg(db, "second");
+  await db.insert(schema.members).values({
+    id: randomUUID(),
+    organizationId: second.id,
+    userId: userId,
+    role: "owner",
+    createdAt: new Date(),
+  });
+  await db
+    .update(schema.sessions)
+    .set({ activeOrganizationId: second.id })
+    .where(eq(schema.sessions.userId, userId));
+
+  const trial = () =>
+    api(worker, "/billing/trial", first.cookie, {
+      method: "POST",
+      body: JSON.stringify({ interval: "month" }),
+    });
+  expect(await billing(first.cookie)).toMatchObject({ readOnly: true, trialAvailable: false });
+  const refused = await trial();
+  expect(refused.status).toBe(409);
+  expect(await refused.text()).toContain("another workspace");
+
+  // Deleting the first workspace does not hand the trial back.
+  await db.delete(schema.organizations).where(eq(schema.organizations.id, first.org.id));
+  expect(await billing(first.cookie)).toMatchObject({ trialAvailable: false });
+  expect((await trial()).status).toBe(409);
+
+  // Someone else in that new workspace cannot start one either once it is claimed: a workspace
+  // gets one trial, whoever starts it.
+  const other = `admin-${randomUUID().slice(0, 8)}@omni.test`;
+  const admin = await createMember(db, second.id, other);
+  await db.update(schema.members).set({ role: "admin" }).where(eq(schema.members.id, admin.id));
+  await db.insert(schema.trialClaims).values({ orgId: second.id, userId: randomUUID() });
+  const adminCookie = await signIn(worker, db, other);
+  expect(await billing(adminCookie)).toMatchObject({ trialAvailable: false });
+  const taken = await api(worker, "/billing/trial", adminCookie, {
+    method: "POST",
+    body: JSON.stringify({ interval: "month" }),
+  });
+  expect(taken.status).toBe(409);
+  expect(await taken.text()).toContain("this workspace has had its free trial");
+}, 60_000);
+
 test("with no Stripe configuration there is no billing: no webhook, no limits, all writable", async () => {
   unbilled = await startWorker({ databaseUrl: database.url, mailServiceUrl: mailService.url });
   const { db } = database;

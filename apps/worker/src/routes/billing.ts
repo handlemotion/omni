@@ -3,7 +3,7 @@
 // always for the member's active workspace; its own /api/auth/subscription/* POSTs are closed.
 import { zValidator } from "@hono/zod-validator";
 import { createStripeClient, mayManageBilling, PLAN_NAME } from "@omni/auth";
-import { createStripeSubscription, hadTrial, schema } from "@omni/db";
+import { claimTrial, createStripeSubscription, schema, trialUnavailable } from "@omni/db";
 import { and, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -169,8 +169,14 @@ export const billing = new Hono<AppEnv>()
       /** In the currency's smallest unit (cents), as Stripe has them. */
       prices: { month: amount(month), year: amount(year) },
       trialDays: plans.trialDays,
-      /** Checkout will start a free trial: one is configured and this workspace never had one. */
-      trialAvailable: plans.trialDays > 0 && !(await hadTrial(c.var.db, c.var.member.orgId)),
+      /**
+       * This person can start a free trial here: one is configured, this workspace never had one,
+       * and they never started one for another workspace. Otherwise the plan is paid on Checkout.
+       */
+      trialAvailable:
+        plans.trialDays > 0 &&
+        (await trialUnavailable(c.var.db, { orgId: c.var.member.orgId, userId: c.var.user.id })) ===
+          null,
       subscription: subscription && {
         status: subscription.status,
         interval: subscription.billingInterval,
@@ -189,7 +195,8 @@ export const billing = new Hono<AppEnv>()
   })
 
   /**
-   * Starts the workspace's one free trial on the chosen interval, here and now: no card and no
+   * Starts the workspace's one free trial (also the starter's one, across all their workspaces) on
+   * the chosen interval, here and now: no card and no
    * Stripe page (a card is added before it ends, or it cancels, ADR 0015). The row is written at
    * once, so setup moves on; Stripe's webhook for it then finds it and changes nothing. Starting
    * it again, or with a plan already in good standing, changes nothing either.
@@ -203,8 +210,19 @@ export const billing = new Hono<AppEnv>()
     const { orgId } = c.var.member;
     const state = await workspaceBilling(c.var.db, c.var.config, orgId);
     if (state.enabled && !state.readOnly) return c.json({ started: false as const });
-    if (plans.trialDays === 0 || (await hadTrial(c.var.db, orgId))) {
+    if (plans.trialDays === 0) {
+      throw new HTTPException(409, { message: "no free trial is offered" });
+    }
+    // One trial per workspace and one per account, ever: a person's next workspace pays.
+    const who = { orgId, userId: c.var.user.id };
+    const taken = (await trialUnavailable(c.var.db, who)) ?? (await claimTrial(c.var.db, who));
+    if (taken === "workspace") {
       throw new HTTPException(409, { message: "this workspace has had its free trial" });
+    }
+    if (taken === "account") {
+      throw new HTTPException(409, {
+        message: "you have used your free trial on another workspace",
+      });
     }
     const stripe = createStripeClient(plans.secretKey);
     const customer = await workspaceCustomer(c, stripe);

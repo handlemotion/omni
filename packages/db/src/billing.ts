@@ -6,7 +6,7 @@ import { and, count, desc, eq, gt, isNotNull, or, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
 import { organizations, subscriptions } from "./schema/auth.ts";
-import { stripeEvents, threads, triageUsage } from "./schema/mail.ts";
+import { stripeEvents, threads, trialClaims, triageUsage } from "./schema/mail.ts";
 
 /**
  * Stripe subscription statuses that keep a workspace fully usable. `past_due` is Stripe's grace
@@ -42,16 +42,20 @@ export async function workspaceSubscription(db: Db, orgId: string) {
 }
 
 /**
- * Whether the workspace ever had a trial. Better Auth's Stripe plugin grants one per workspace
- * by this same rule, so the app can say up front whether Checkout will start a trial.
+ * Why `userId` cannot start a free trial for `orgId`, or null when they can. A workspace gets one
+ * trial, and so does an account: `workspace` when this workspace had one (a past subscription
+ * with a trial, or a claim), `account` when this person started one for another workspace.
  */
-export async function hadTrial(db: Db, orgId: string) {
-  const [row] = await db
+export async function trialUnavailable(
+  db: Db,
+  input: { orgId: string; userId: string },
+): Promise<"workspace" | "account" | null> {
+  const [trialed] = await db
     .select({ id: subscriptions.id })
     .from(subscriptions)
     .where(
       and(
-        eq(subscriptions.orgId, orgId),
+        eq(subscriptions.orgId, input.orgId),
         or(
           isNotNull(subscriptions.trialStart),
           isNotNull(subscriptions.trialEnd),
@@ -60,7 +64,31 @@ export async function hadTrial(db: Db, orgId: string) {
       ),
     )
     .limit(1);
-  return row !== undefined;
+  if (trialed) return "workspace";
+  return otherClaim(db, input);
+}
+
+/**
+ * Takes the trial of both the workspace and the account before Stripe is asked for it, so two
+ * requests at once (two tabs, two workspaces) cannot both start one. Null when the claim is
+ * theirs, new or left by an earlier attempt at the same start (so a retry goes on); otherwise why
+ * not.
+ */
+export async function claimTrial(db: Db, input: { orgId: string; userId: string }) {
+  await db.insert(trialClaims).values(input).onConflictDoNothing();
+  return otherClaim(db, input);
+}
+
+/** A claim on this workspace or by this account, other than this exact pair. */
+async function otherClaim(db: Db, input: { orgId: string; userId: string }) {
+  const claims = await db
+    .select({ orgId: trialClaims.orgId, userId: trialClaims.userId })
+    .from(trialClaims)
+    .where(or(eq(trialClaims.orgId, input.orgId), eq(trialClaims.userId, input.userId)));
+  const others = claims.filter((c) => c.orgId !== input.orgId || c.userId !== input.userId);
+  if (others.some((c) => c.orgId === input.orgId)) return "workspace" as const;
+  if (others.length > 0) return "account" as const;
+  return null;
 }
 
 export function isPaid(status: string) {

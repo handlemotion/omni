@@ -688,3 +688,16 @@ export const stripeEvents = pgTable(
   },
   (t) => [index("stripe_events_object_idx").on(t.objectId, t.eventCreatedAt)],
 );
+
+/**
+ * Free trials granted, and to whom: one per workspace and one per account, ever (ADR 0015). The
+ * person who starts a trial uses up their own, so a new workspace of theirs pays. No foreign
+ * keys: deleting the workspace or leaving it must not hand the trial back.
+ */
+export const trialClaims = pgTable("trial_claims", {
+  /** The workspace the trial is for. */
+  orgId: text("org_id").primaryKey(),
+  /** The account that started it. */
+  userId: text("user_id").notNull().unique(),
+  createdAt: createdAt(),
+});
