@@ -14,6 +14,7 @@ import { Input, InputGroup } from "@/components/ui/input";
 import { Step, Steps, type StepState } from "@/components/ui/steps";
 import { Text, TextLink } from "@/components/ui/text";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { FieldRevealedError, SlotError } from "@/components/ui/revealed-error";
 import { TextField } from "@/components/ui/text-field";
 import { appToast } from "@/components/ui/toast";
 import {
@@ -241,13 +242,9 @@ function PageForm(props: {
         {props.shortcut && <div className="mt-4.5 flex">{props.shortcut}</div>}
       </div>
       <div className="flex flex-col gap-6 pt-8">{props.children}</div>
-      {props.problem && (
-        // Said like a field's own error, under the fields it is about: no banner.
-        <p role="alert" className="mt-4 text-sm/6 text-danger-subtle-foreground">
-          {props.problem}
-        </p>
-      )}
-      <Button type="submit" size="lg" className="mt-10 w-full" isPending={props.isPending}>
+      {/* The 40px above the button holds the form's error, so it appears without moving anything. */}
+      <SlotError className="min-h-10 pt-3">{props.problem}</SlotError>
+      <Button type="submit" size="lg" className="w-full" isPending={props.isPending}>
         {props.submit}
         <IconChevronRight />
       </Button>
@@ -297,10 +294,12 @@ function WorkspaceForm(props: { existing?: string; onDone: () => void }) {
       >
         <Label>Workspace name</Label>
         <Input placeholder="Acme" />
+        <FieldRevealedError message="Enter a name for the workspace." />
       </TextField>
       <TextField value={domain} onChange={setDomain} isRequired autoFocus={created}>
         <Label>Domain</Label>
         <Input placeholder="acme.com" />
+        <FieldRevealedError message="Enter your domain, like acme.com." />
       </TextField>
     </PageForm>
   );
@@ -576,10 +575,12 @@ function ServerForm(props: { domain: string; onDone: (servers: Servers) => void 
       <TextField value={imap} onChange={setImap} isRequired autoFocus>
         <Label>IMAP server</Label>
         <Input placeholder={`imap.${props.domain}:993`} />
+        <FieldRevealedError message="Enter the IMAP server." />
       </TextField>
       <TextField value={smtp} onChange={setSmtp} isRequired>
         <Label>SMTP server</Label>
         <Input placeholder={`smtp.${props.domain}:465`} />
+        <FieldRevealedError message="Enter the SMTP server." />
       </TextField>
     </PageForm>
   );
@@ -636,6 +637,7 @@ function MailboxesForm(props: {
               {suffix}
             </span>
           </InputGroup>
+          <FieldRevealedError message="Enter the mailbox's name." />
         </TextField>
         {servers && !saved && (
           <TextField
@@ -646,6 +648,9 @@ function MailboxesForm(props: {
             isRequired
           >
             <Input placeholder="Password" autoComplete="off" />
+            <FieldRevealedError
+              message={`Enter the password for ${name.trim() || "this mailbox"}${suffix}.`}
+            />
           </TextField>
         )}
       </div>
@@ -803,6 +808,7 @@ function InviteForm(props: { domain?: string }) {
             autoFocus={i === emails.length - 1}
           >
             <Input placeholder={`teammate@${props.domain ?? "acme.com"}`} />
+            <FieldRevealedError message="Enter a valid email address." />
           </TextField>
         )}
       />

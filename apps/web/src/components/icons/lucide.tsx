@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronsUpDown,
+  CircleAlert,
   CircleX,
   CreditCard,
   Ellipsis,
@@ -48,6 +49,7 @@ export const IconCheck = thin(Check, "IconCheck");
 export const IconChevronDown = thin(ChevronDown, "IconChevronDown");
 export const IconChevronRight = thin(ChevronRight, "IconChevronRight");
 export const IconChevronsUpDown = thin(ChevronsUpDown, "IconChevronsUpDown");
+export const IconCircleAlert = thin(CircleAlert, "IconCircleAlert");
 export const IconCircleX = thin(CircleX, "IconCircleX");
 export const IconCreditCard = thin(CreditCard, "IconCreditCard");
 export const IconEllipsis = thin(Ellipsis, "IconEllipsis");
