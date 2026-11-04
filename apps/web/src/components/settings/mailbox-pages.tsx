@@ -175,7 +175,6 @@ export function InboxesPage() {
           {(list) =>
             list.length === 0 ? (
               <SettingsEmptyState
-                illustration="envelopes"
                 title="No mailboxes"
                 description="An owner or admin can create your inbox or add you to a shared one."
               />
@@ -293,7 +292,6 @@ export function SharedMailboxesPage() {
           {(list) =>
             list.length === 0 ? (
               <SettingsEmptyState
-                illustration="envelopes"
                 title="No shared mailboxes"
                 description={
                   canManage
@@ -302,7 +300,7 @@ export function SharedMailboxesPage() {
                 }
                 action={
                   canAdd && (
-                    <Button intent="outline" onPress={() => setAdding(true)}>
+                    <Button size="xs" intent="outline" onPress={() => setAdding(true)}>
                       Add a shared mailbox
                     </Button>
                   )
@@ -388,7 +386,7 @@ function MailboxAccessDialog(props: {
               action={
                 canManage &&
                 addable.length > 0 && (
-                  <Button intent="outline" onPress={() => setDialog({ kind: "add" })}>
+                  <Button size="xs" intent="outline" onPress={() => setDialog({ kind: "add" })}>
                     Add a person
                   </Button>
                 )

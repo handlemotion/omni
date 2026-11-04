@@ -9,7 +9,7 @@ import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "react-aria-components/Button";
-import { SettingsIllustration, type SettingsIllustrationName } from "./settings-illustrations";
+import { SettingsIllustration } from "./settings-illustrations";
 
 /** The anchor of a section, from its title; settings search names sections by it. */
 export function settingsSectionId(title: string): string {
@@ -139,14 +139,12 @@ export function SettingsGroupBody({
 export function SettingsEmptyState({
   action,
   description,
-  illustration,
   title,
   variant = "empty",
 }: {
   /** One button that fills it: "Add a passkey". Never on `restricted`. */
   action?: ReactNode;
   description: string;
-  illustration?: SettingsIllustrationName;
   title: string;
   variant?: "empty" | "restricted";
 }) {
@@ -159,10 +157,7 @@ export function SettingsEmptyState({
         data-variant={variant}
         className="flex min-h-60 w-full flex-col items-center justify-center px-6 pt-6 pb-12 text-center"
       >
-        <SettingsIllustration
-          name={illustration ?? (variant === "restricted" ? "lock" : "tray")}
-          className="mb-5"
-        />
+        <SettingsIllustration name={variant === "restricted" ? "lock" : "tray"} className="mb-4" />
         <p className="text-sm/4 font-semibold text-pretty text-foreground">{title}</p>
         <p className="mt-1 max-w-90 text-xs/4 text-pretty text-muted-foreground">{description}</p>
         {action && variant === "empty" && <div className="mt-4">{action}</div>}

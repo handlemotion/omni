@@ -265,11 +265,10 @@ function DomainsSection() {
         {(list) =>
           list.length === 0 ? (
             <SettingsEmptyState
-              illustration="envelopes"
               title="No domains yet"
               description="Add the domain your mail is on to create mailboxes there."
               action={
-                <Button intent="outline" onPress={() => setDialog({ kind: "add" })}>
+                <Button size="xs" intent="outline" onPress={() => setDialog({ kind: "add" })}>
                   Add a domain
                 </Button>
               }
@@ -663,7 +662,6 @@ export function PeoplePage() {
           {(list) =>
             list.length === 0 ? (
               <SettingsEmptyState
-                illustration="envelopes"
                 title="No pending invitations"
                 description="People you invite appear here until they join."
               />

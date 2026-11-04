@@ -333,11 +333,15 @@ export function SecurityPage() {
           {(list) =>
             list.length === 0 ? (
               <SettingsEmptyState
-                illustration="key"
                 title="No passkeys yet"
                 description="Add one to sign in without waiting for an email."
                 action={
-                  <Button intent="outline" isPending={addPasskey.isPending} onPress={addOne}>
+                  <Button
+                    size="xs"
+                    intent="outline"
+                    isPending={addPasskey.isPending}
+                    onPress={addOne}
+                  >
                     Add a passkey
                   </Button>
                 }

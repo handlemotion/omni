@@ -456,7 +456,6 @@ function CardsSection({ billing }: { billing: EnabledBilling | undefined }) {
         {(state) =>
           state.cards.length === 0 ? (
             <SettingsEmptyState
-              illustration="card"
               title="No saved cards"
               description={
                 billing?.subscription?.status === "trialing"
@@ -465,6 +464,7 @@ function CardsSection({ billing }: { billing: EnabledBilling | undefined }) {
               }
               action={
                 <Button
+                  size="xs"
                   intent="outline"
                   isPending={!state.addCard && (portal.isPending || portal.isSuccess)}
                   onPress={() => addCard(state.addCard)}
@@ -586,7 +586,6 @@ function InvoicesSection({ ready }: { ready: boolean }) {
         {(list) =>
           list.length === 0 ? (
             <SettingsEmptyState
-              illustration="paper"
               title="No invoices yet"
               description="Each charge for the plan shows here with its receipt."
             />
