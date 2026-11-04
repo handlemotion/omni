@@ -5,7 +5,6 @@ import {
   IconBubbleAnnotation,
   IconChevronLeft,
   IconChevronRight,
-  IconCircleDashed,
   IconClock,
   IconEmail,
   IconHelp,
@@ -18,8 +17,7 @@ import {
   IconWarning,
 } from "@/components/icons/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonStyles } from "@/components/ui/button";
-import { Link } from "@/components/ui/link";
+import { Button } from "@/components/ui/button";
 import { MailboxSwitcher } from "./mailbox-switcher";
 import {
   Sidebar,
@@ -35,7 +33,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
-import { useSignOut } from "@/hooks/use-session.ts";
+import { openSettings } from "@/hooks/use-settings-dialog.ts";
+import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 
 /** A nav row. No `href`: the frame shows it, but the app has no view for it yet. */
 interface NavItem {
@@ -74,7 +73,6 @@ const folders: NavItem[] = [
 // Figma: Omni, sidebar (node 1:3).
 export function AppSidebar() {
   const router = useRouter();
-  const signOut = useSignOut();
   return (
     <Sidebar>
       <SidebarHeader>
@@ -115,16 +113,12 @@ export function AppSidebar() {
           <Button
             intent="plain"
             size="xs"
-            isPending={signOut.isPending}
-            onPress={() => signOut.mutate()}
+            aria-keyshortcuts={ariaKeyShortcuts("settings")}
+            onPress={() => openSettings()}
           >
-            <IconCircleDashed />
-            Log out
-          </Button>
-          <Link href="/settings" className={buttonStyles({ intent: "plain", size: "xs" })}>
             <IconSettings />
             Settings
-          </Link>
+          </Button>
         </div>
         <OfflineBadge />
         <Button intent="plain" size="sq-xs" aria-label="Help">

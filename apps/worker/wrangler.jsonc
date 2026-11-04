@@ -64,7 +64,8 @@
       "localConnectionString": "postgres://postgres:postgres@localhost:54329/omni",
     },
   ],
-  // Raw messages and attachments, written by the mail service; the Worker only reads.
+  // Raw messages and attachments, written by the mail service and read by the Worker. The Worker
+  // also writes profile pictures and workspace logos under `pictures/` (src/routes/pictures.ts).
   "r2_buckets": [
     {
       "binding": "MAIL_BUCKET",

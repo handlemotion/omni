@@ -18,6 +18,7 @@ import { stripeWebhook } from "./routes/stripe-webhook.ts";
 import { mail } from "./routes/mail.ts";
 import { mailboxMembers } from "./routes/mailbox-members.ts";
 import { onboarding } from "./routes/onboarding.ts";
+import { account as accountPicture, pictures, workspaceLogo } from "./routes/pictures.ts";
 import { workspaces } from "./routes/workspaces.ts";
 import { limitAuth } from "./rate-limiter.ts";
 import { securityHeaders } from "./security-headers.ts";
@@ -112,6 +113,7 @@ const api = new Hono<AppEnv>()
   })
   .route("/", mail)
   .route("/", mailboxMembers)
+  .route("/workspace", workspaceLogo)
   .route("/", assets)
   .route("/", billing);
 
@@ -134,6 +136,9 @@ export const app = new Hono<AppEnv>()
   .route("/api/onboarding", onboarding)
   .route("/api/workspaces", workspaces)
   .route("/api/account", account)
+  // Your picture lives beside your sign-in emails under /api/account.
+  .route("/api/account", accountPicture)
+  .route("/api/pictures", pictures)
   .route("/api", api)
   .onError((error, c) => {
     if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);

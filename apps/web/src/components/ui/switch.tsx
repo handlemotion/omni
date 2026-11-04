@@ -26,8 +26,10 @@ export function Switch({ children, className, ...props }: SwitchButtonProps) {
   return (
     <SwitchButton
       className={cx(
-        "[--switch-bg-ring:var(--color-blue-700)]/90 [--switch-bg:var(--color-blue-600)] dark:[--switch-bg-ring:transparent]",
-        "[--switch-ring:var(--color-blue-700)]/90 [--switch-shadow:var(--color-blue-900)]/20 [--switch:white]",
+        // On is the brand colour (DESIGN.md: selected controls), edged a step darker; the knob
+        // takes the text colour that sits on it.
+        "[--switch-bg:var(--color-primary)] [--switch-bg-ring:transparent] [--switch:var(--color-primary-foreground)]",
+        "[--switch-ring:transparent] [--switch-shadow:color-mix(in_oklab,var(--color-primary)_85%,black)]",
         "group relative grid cursor-default gap-x-6 gap-y-1 ltr:grid-cols-[1fr_auto] rtl:grid-cols-[auto_1fr]",
         "*:data-[slot=control-label]:row-start-1 ltr:*:data-[slot=control-label]:col-start-1 rtl:*:data-[slot=control-label]:col-start-2",
         "*:[[slot=description]]:row-start-2 ltr:*:[[slot=description]]:col-start-1 rtl:*:[[slot=description]]:col-start-2",
@@ -43,7 +45,7 @@ export function Switch({ children, className, ...props }: SwitchButtonProps) {
             className={cn(
               "relative isolate inline-flex h-6 w-10 cursor-default self-start rounded-full p-0.75 sm:mt-0.5 sm:h-5 sm:w-8 ltr:col-start-2 rtl:col-start-1",
               "transition duration-200 ease-in-out",
-              "inset-ring inset-ring-input bg-input/30",
+              "inset-ring inset-ring-input bg-muted",
               "forced-colors:outline forced-colors:[--switch-bg:Highlight]",
               values.isHovered && "inset-ring-muted-foreground/30",
               values.isFocusVisible &&

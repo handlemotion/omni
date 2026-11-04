@@ -6,7 +6,11 @@ import {
   acceptInvitation,
   deviceSessionsQuery,
   revokeDeviceSession,
+  revokeOtherSessionsMutation,
+  revokeSessionMutation,
+  sessionsQuery,
   switchAccount,
+  updateNameMutation,
   rejectInvitation,
   sessionQuery,
   setActiveOrganization,
@@ -30,6 +34,13 @@ export function useMember() {
   const { data } = useSuspenseQuery(sessionQuery());
   if (!data?.member) throw new Error("useMember() used outside the member routes");
   return { user: data.user, member: data.member };
+}
+
+/** This browser's session for the signed-in user; like `useMember()`, only under the member routes. */
+export function useCurrentSession() {
+  const { data } = useSuspenseQuery(sessionQuery());
+  if (!data) throw new Error("useCurrentSession() used while signed out");
+  return data.session;
 }
 
 /** `mutate({ email, redirect? })` emails a sign-in link that returns to `redirect`. */
@@ -123,4 +134,24 @@ export function useRevokeDeviceSession() {
   return useMutation({
     mutationFn: (sessionToken: string) => revokeDeviceSession(client, router, sessionToken),
   });
+}
+
+/** `mutate(name)` renames the signed-in user. */
+export function useUpdateName() {
+  return useMutation(updateNameMutation(useQueryClient()));
+}
+
+/** The signed-in user's sessions on every device, most recently active first. */
+export function useSessions() {
+  return useQuery(sessionsQuery());
+}
+
+/** `mutate(sessionToken)` signs out on that device. */
+export function useRevokeSession() {
+  return useMutation(revokeSessionMutation(useQueryClient()));
+}
+
+/** `mutate()` signs out on every other device. */
+export function useRevokeOtherSessions() {
+  return useMutation(revokeOtherSessionsMutation(useQueryClient()));
 }

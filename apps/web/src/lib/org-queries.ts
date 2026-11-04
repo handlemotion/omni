@@ -81,3 +81,45 @@ export const deletePasskeyMutation = (client: QueryClient) =>
     mutationFn: (id: string) => authCall(auth.passkey.deletePasskey({ id })),
     onSettled: () => client.invalidateQueries({ queryKey: keys.passkeys() }),
   });
+
+/** `mutate({ id, name })` renames one of the user's passkeys. */
+export const renamePasskeyMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      authCall(auth.passkey.updatePasskey({ id, name })),
+    onSettled: () => client.invalidateQueries({ queryKey: keys.passkeys() }),
+  });
+
+/** `mutate({ email, role })` sends a pending invitation's email again. */
+export const resendInvitationMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: ({ email, role }: { email: string; role: Role }) =>
+      authCall(auth.organization.inviteMember({ email, role, resend: true })),
+    onSettled: () => client.invalidateQueries({ queryKey: keys.invitations() }),
+  });
+
+/**
+ * `mutate(handle)` changes the active organization's handle (its slug; owners and admins).
+ * Better Auth refuses one another workspace already has.
+ */
+export const changeOrganizationHandleMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: (slug: string) => authCall(auth.organization.update({ data: { slug } })),
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: keys.workspaces() }),
+        client.invalidateQueries({ queryKey: keys.organizations() }),
+      ]),
+  });
+
+/** `mutate(name)` renames the active organization (owners and admins). */
+export const renameOrganizationMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationFn: (name: string) => authCall(auth.organization.update({ data: { name } })),
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: keys.workspaces() }),
+        client.invalidateQueries({ queryKey: keys.organizations() }),
+        client.invalidateQueries({ queryKey: keys.onboarding() }),
+      ]),
+  });

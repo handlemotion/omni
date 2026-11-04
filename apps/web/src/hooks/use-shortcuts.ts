@@ -60,8 +60,8 @@ const OWN_KEYS = "[role=dialog], [role=alertdialog], [role=menu], [role=listbox]
 const NATIVE = new Set(["Enter", "ArrowDown", "ArrowUp"]);
 
 /**
- * The one document key listener. Never fires while typing in a field or inside a dialog or
- * menu, and leaves alone any key a focused widget already handled (`defaultPrevented`): React
+ * The one document key listener. Plain keys never fire while typing in a field or inside a
+ * dialog or menu (⌘ chords do), and it leaves alone any key a focused widget already handled (`defaultPrevented`): React
  * Aria's list moves with the arrows itself and opens a row on Enter.
  */
 export function useShortcutListener() {
@@ -73,7 +73,9 @@ export function useShortcutListener() {
       if (!key) return;
       const target = event.target instanceof Element ? event.target : null;
       const focused = target && target !== document.body && target !== document.documentElement;
-      if (target?.closest(EDITABLE) || target?.closest(OWN_KEYS)) return;
+      // A ⌘ chord can't be typing and no widget uses one, so it works from anywhere.
+      const chord = key.startsWith("Mod+");
+      if (!chord && (target?.closest(EDITABLE) || target?.closest(OWN_KEYS))) return;
       if (focused && NATIVE.has(key)) return;
       const id = match(key);
       if (id === "pending") event.preventDefault();
