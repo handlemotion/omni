@@ -170,8 +170,9 @@ Several agents may work in this repository at once.
   work: push and read its result. Locally, keep every command scoped to your change and short;
   narrow a slow one (one package, one file, one test) or leave it to CI. Chasing a flake means
   looping the one failing test, not the suite.
-- Deploys happen from `main` through CI only. Never `wrangler deploy` or `flyctl deploy` from a
-  laptop for production.
+- Deploys happen when `main` changes: Cloudflare Workers Builds ships the Worker, Fly's GitHub
+  deploy the mail service, and `.github/workflows/production.yml` migrates and syncs Worker
+  secrets (ADR 0019). Never `wrangler deploy` or `flyctl deploy` from a laptop for production.
 
 ## Infrastructure
 
