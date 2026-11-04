@@ -163,8 +163,13 @@ Several agents may work in this repository at once.
   agent names the packages it owns; two stacks never edit the same package. Shared touch points
   (`pnpm-lock.yaml`, root config, `docs/self-hosting.md`) are resolved by the later layer: merge
   `main`, reinstall to regenerate the lockfile (`pnpm install`), never hand-merge it.
-- Before each push run `pnpm check`, `pnpm check-types`, and the affected tests (unit and e2e).
-  Batch fixes into one push; CI minutes cost money.
+- Before each push run `pnpm check`, `pnpm check-types`, and the tests your change touches: the
+  affected unit suites and the e2e files that cover it (one file, or `-t` one test). Batch fixes
+  into one push; CI minutes cost money.
+- **CI runs the heavy suites.** The full `pnpm test:e2e` (5-10 minutes) is the `Checks` job's
+  work: push and read its result. Locally, keep every command scoped to your change and short;
+  narrow a slow one (one package, one file, one test) or leave it to CI. Chasing a flake means
+  looping the one failing test, not the suite.
 - Deploys happen from `main` through CI only. Never `wrangler deploy` or `flyctl deploy` from a
   laptop for production.
 

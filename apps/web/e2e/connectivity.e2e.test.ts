@@ -1,7 +1,8 @@
 // The web app in a real Chromium, built and served by the real Worker under `wrangler dev`,
 // on a real Postgres; sends go out through the real mail service outbox to GreenMail. Nothing is
-// mocked: the Worker really stops and starts, the browser really goes offline, and the one fault
-// injected is a response lost on the wire after the Worker has handled the request.
+// mocked: the Worker really stops and starts and the browser really goes offline. The faults
+// injected are requests that get no answer (a reply the Worker handled, a counts refetch) and
+// realtime sockets closed by the browser before they reach the Worker.
 import { createServer } from "node:net";
 import { schema } from "@omni/db";
 import { and, asc, eq } from "drizzle-orm";
@@ -142,6 +143,47 @@ test(
   },
 );
 
+test("mail that arrives before the realtime socket first opens shows once it opens", async () => {
+  const org = await createOrg(db, "late-socket");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@late-socket.test");
+  const box = await createMailbox(db, org.id, "ana@late-socket.test", "personal");
+  await grant(db, org.id, box.id, ana.id);
+  const first = await seedMessage(db, box, {
+    subject: "Kickoff",
+    fromAddress: "pm@client.test",
+    uid: 1,
+    text: "Loaded before the socket.",
+  });
+
+  // Every socket is closed before it reaches the Worker, as when the Worker goes down during the
+  // handshake: the thread loads over HTTP, but no socket has ever been open.
+  const { page, tab } = await openApp("ana@late-socket.test", "/");
+  let refuse = true;
+  let refused = 0;
+  await tab.routeWebSocket("**/api/realtime*", (ws) => {
+    if (!refuse) return ws.connectToServer();
+    refused++;
+    return ws.close({ code: 4000 });
+  });
+  await page.goto(new URL(`/inbox/${first.threadId}`, origin).toString());
+  await page.locator("article").getByText("Loaded before the socket.").waitFor();
+  await expect.poll(() => refused).toBeGreaterThan(0);
+
+  // Mail arrives while no socket is listening: no event will ever announce it.
+  await seedMessage(db, box, {
+    subject: "Re: Kickoff",
+    fromAddress: "pm@client.test",
+    uid: 2,
+    threadId: first.threadId,
+    text: "Sent before the socket opened.",
+  });
+  refuse = false;
+
+  // The first socket to open follows failed attempts, so the thread on screen is refetched.
+  await page.locator("article").getByText("Sent before the socket opened.").waitFor();
+});
+
 test("replies written offline go out once each, in order, when the connection is back", async () => {
   const org = await createOrg(db, "offline");
   await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
@@ -173,8 +215,28 @@ test("replies written offline go out once each, in order, when the connection is
     .where(eq(schema.threads.mailboxId, box.id));
   if (!thread) throw new Error("the delivered message was not indexed");
 
-  const { page, tab } = await openApp("ana@offline.test", `/inbox/${thread.id}`);
+  // Opening the unread thread marks it read. The counts refetches after that get no answer, and
+  // only once the browser is offline. Mark-read is the first mail action, so the replies queue
+  // behind it: they must still go out when the connection is back.
+  const { page, tab } = await openApp("ana@offline.test", "/");
+  let markedRead = false;
+  let isOffline = false;
+  let wentOffline!: () => void;
+  const offline = new Promise<void>((resolve) => (wentOffline = resolve));
+  await page.route("**/api/threads/*/state", async (route) => {
+    await route.fulfill({ response: await route.fetch() });
+    markedRead = true;
+  });
+  let countsHeld = 0;
+  await page.route("**/api/counts*", async (route) => {
+    if (!markedRead || isOffline) return route.continue();
+    countsHeld++;
+    await offline;
+    await route.abort("internetdisconnected").catch(() => {});
+  });
+  await page.goto(new URL(`/inbox/${thread.id}`, origin).toString());
   await page.locator("article").getByText("body of Plans").waitFor();
+  await expect.poll(() => countsHeld).toBeGreaterThan(0);
 
   // The Worker handles the first reply that reaches it, but its answer never gets back.
   let replyRequests = 0;
@@ -186,6 +248,8 @@ test("replies written offline go out once each, in order, when the connection is
   });
 
   await tab.setOffline(true);
+  isOffline = true;
+  wentOffline();
   await page.getByRole("status").filter({ hasText: "Offline" }).waitFor();
   const reply = async (text: string) => {
     await page.locator("textarea").fill(text);

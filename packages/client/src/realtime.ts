@@ -14,8 +14,8 @@ export interface RealtimeOptions {
   orgId?: string;
   onEvent: (event: RealtimeEvent) => void;
   /**
-   * Socket state. An `"open"` with `reconnected: true` means events may have been missed while
-   * the socket was down: refetch what is on screen.
+   * Socket state. An `"open"` with `reconnected: true` follows a socket that dropped or never
+   * opened, so events may have been missed while none was listening: refetch what is on screen.
    */
   onStatus?: (status: RealtimeStatus, info: { reconnected: boolean }) => void;
   /**
@@ -62,7 +62,11 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
 
   let socket: WebSocket | undefined;
   let attempt = 0;
-  let everOpened = false;
+  /**
+   * Set once any socket has dropped, including one that never opened. A first open after failed
+   * attempts is a reconnect too: data loaded meanwhile missed the events sent in between.
+   */
+  let dropped = false;
   let stopped = false;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let pingTimer: ReturnType<typeof setInterval> | undefined;
@@ -71,7 +75,7 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
   let probe: (() => void) | undefined;
 
   const connect = () => {
-    options.onStatus?.("connecting", { reconnected: everOpened });
+    options.onStatus?.("connecting", { reconnected: dropped });
     const current = openSocket(url.toString());
     socket = current;
     let awaitingPong = false;
@@ -88,7 +92,8 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
       } catch {
         // Already closed.
       }
-      options.onStatus?.("closed", { reconnected: everOpened });
+      dropped = true;
+      options.onStatus?.("closed", { reconnected: dropped });
       if (stopped) return;
       const ceiling = Math.min(maxDelayMs, minDelayMs * 2 ** attempt++);
       retryTimer = setTimeout(connect, ceiling / 2 + (Math.random() * ceiling) / 2);
@@ -96,8 +101,6 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
 
     current.addEventListener("open", () => {
       if (socket !== current) return;
-      const reconnected = everOpened;
-      everOpened = true;
       attempt = 0;
       pingTimer = setInterval(() => {
         if (awaitingPong) return drop();
@@ -111,7 +114,7 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
         clearTimeout(probeTimer);
         probeTimer = setTimeout(() => awaitingPong && drop(), probeTimeoutMs);
       };
-      options.onStatus?.("open", { reconnected });
+      options.onStatus?.("open", { reconnected: dropped });
     });
     current.addEventListener("message", (message) => {
       if (socket !== current || typeof message.data !== "string") return;
@@ -138,7 +141,7 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
       clearInterval(pingTimer);
       clearTimeout(probeTimer);
       current?.close(1000);
-      if (current) options.onStatus?.("closed", { reconnected: everOpened });
+      if (current) options.onStatus?.("closed", { reconnected: dropped });
     },
     wake() {
       if (stopped) return;
