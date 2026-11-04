@@ -12,9 +12,11 @@ export const buttonStyles = tv({
     "[--btn-border:var(--color-foreground)]/15 [--btn-icon-active:var(--btn-foreground)] [--btn-outline:var(--btn-bg)] [--btn-radius:calc(var(--radius-lg)-1px)] [--btn-ring:var(--btn-bg)]/20",
     "bg-(--btn-bg) text-(--btn-foreground) outline-(--btn-outline) ring-(--btn-ring) hover:bg-(--btn-overlay) pressed:bg-(--btn-overlay)",
     "relative isolate inline-flex items-center justify-center border border-(--btn-border) hover:no-underline",
-    // Tactile press: a short squeeze a quick second press retargets. Off when disabled and
-    // under reduced motion.
-    "transition-[scale,background-color] duration-150 ease-out pressed:scale-97 disabled:pressed:scale-100 motion-reduce:pressed:scale-100",
+    // Tactile press: a short squeeze a quick second press retargets. Driven by native `:active`
+    // (shadcn's press), not React Aria's `pressed`, so it never waits on a React render. Off on
+    // menu triggers (a squeezed trigger looks narrower than its open menu), when disabled or
+    // pending, and under reduced motion.
+    "transition-[scale,background-color] duration-150 ease-out motion-safe:[&:active]:not-aria-[haspopup]:scale-97 disabled:[&:active]:scale-100 pending:[&:active]:scale-100",
     "focus:outline-0 focus-visible:outline focus-visible:outline-offset-2 focus-visible:ring-2 focus-visible:ring-offset-3 focus-visible:ring-offset-background",
     "forced-colors:[--btn-icon:ButtonText] forced-colors:hover:[--btn-icon:ButtonText] *:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-(--btn-icon) hover:*:[svg]:text-(--btn-icon-active) pressed:*:[svg]:text-(--btn-icon-active) focus-visible:*:[svg]:text-(--btn-icon-active)/80",
     "*:data-[slot=loader]:-mx-0.5 *:data-[slot=loader]:shrink-0 *:data-[slot=loader]:self-center *:data-[slot=loader]:text-(--btn-icon)",
@@ -24,7 +26,7 @@ export const buttonStyles = tv({
   variants: {
     intent: {
       // Every button shares the danger button's build: an edge a step darker than its fill, a
-      // faint top highlight and a 1px drop (`--shadow-button`).
+      // faint top highlight inside (`--shadow-button`), no outer drop.
       primary:
         "shadow-(--shadow-button) [--btn-bg:var(--color-primary-button)] [--btn-border:color-mix(in_oklab,var(--color-primary-button)_85%,black)] [--btn-foreground:var(--color-primary-foreground)] [--btn-icon-active:var(--primary-foreground)]/80 [--btn-icon:var(--primary-foreground)]/60 [--btn-overlay:color-mix(in_oklab,var(--color-primary-foreground)_10%,var(--color-primary-button)_90%)]",
       secondary:

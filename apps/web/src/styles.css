@@ -37,8 +37,8 @@
   --hairline-line: #d9d9d9;
   --shadow-raised: 0 1px 2px 0 rgb(var(--shadow-ink) / 0.06);
   /* A button's build (the danger button's, now every button's): a faint highlight along the
-     top edge inside, and a 1px drop. The edge itself is the border, a step darker than the fill. */
-  --shadow-button: inset 0 1px 0 rgb(255 255 255 / 0.15), 0 1px 2px rgb(var(--shadow-ink) / 0.06);
+     top edge inside. No outer drop: the edge, a step darker than the fill, gives the depth. */
+  --shadow-button: inset 0 1px 0 rgb(255 255 255 / 0.15);
   /* Menus, popovers, search: a drop on the bottom edge only (negative spread keeps it off the
      sides and top), the overlay shadow from transitive's menus. The border draws the edge. */
   --shadow-overlay:
