@@ -27,6 +27,8 @@ const key = process.env.STRIPE_SECRET_KEY ?? "";
 const requested = process.env.STRIPE_E2E === "1";
 const WEBHOOK_SECRET = `whsec_live_e2e_${randomUUID().replaceAll("-", "")}`;
 const TRIAL_DAYS = 7;
+/** The daily billing cron in wrangler.jsonc. */
+const RECONCILE_CRON = "47 3 * * *";
 
 describe.runIf(requested)("Stripe test mode", () => {
   let stripe: Stripe;
@@ -184,6 +186,93 @@ describe.runIf(requested)("Stripe test mode", () => {
       subscription: { status: "canceled" },
     });
   }, 90_000);
+
+  /** A workspace that is a Stripe customer, as its first checkout leaves it. */
+  async function billedWorkspace(slug: string) {
+    const org = await createOrg(database.db, slug);
+    const customer = await stripe.customers.create({ metadata: { organizationId: org.id } });
+    customers.push(customer.id);
+    await database.db
+      .update(schema.organizations)
+      .set({ stripeCustomerId: customer.id })
+      .where(eq(schema.organizations.id, org.id));
+    const rows = () =>
+      database.db.select().from(schema.subscriptions).where(eq(schema.subscriptions.orgId, org.id));
+    return { org, customer: customer.id, rows };
+  }
+
+  const trial = (customer: string, metadata: Record<string, string>) =>
+    stripe.subscriptions.create({
+      customer,
+      items: [{ price: prices.monthly }],
+      trial_period_days: TRIAL_DAYS,
+      trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+      metadata,
+    });
+
+  /** The daily billing cron, run the way Cloudflare runs it. */
+  async function reconcile() {
+    const result = await worker.server.getWorker().scheduled({ cron: RECONCILE_CRON });
+    expect(result.outcome).toBe("ok");
+  }
+
+  test("the daily reconcile follows Stripe when no webhook arrives, and a rerun changes nothing", async () => {
+    const { org, customer, rows } = await billedWorkspace("reconcile");
+
+    // A subscription made in Stripe whose webhook never reached Omni: the cron creates its row.
+    const subscription = await trial(customer, { referenceId: org.id });
+    await reconcile();
+    expect(await rows()).toMatchObject([
+      {
+        stripeSubscriptionId: subscription.id,
+        stripeCustomerId: customer,
+        plan: "omnipresent",
+        status: "trialing",
+        billingInterval: "month",
+        trialEnd: new Date((subscription.trial_end ?? 0) * 1000),
+        periodEnd: new Date((subscription.items.data[0]?.current_period_end ?? 0) * 1000),
+        cancelAtPeriodEnd: false,
+        seats: 1,
+      },
+    ]);
+
+    // Changed in Stripe (set to cancel at the trial's end): the row follows; a rerun is a no-op.
+    await stripe.subscriptions.update(subscription.id, { cancel_at_period_end: true });
+    await reconcile();
+    const pending = await rows();
+    expect(pending).toMatchObject([{ status: "trialing", cancelAtPeriodEnd: true }]);
+    expect(pending[0]?.cancelAt).toBeInstanceOf(Date);
+    await reconcile();
+    expect(await rows()).toEqual(pending);
+
+    // Canceled in Stripe: the row turns canceled, so the workspace is read-only; then it settles.
+    await stripe.subscriptions.cancel(subscription.id);
+    await reconcile();
+    const canceled = await rows();
+    expect(canceled).toMatchObject([{ status: "canceled" }]);
+    expect(canceled[0]?.endedAt).toBeInstanceOf(Date);
+    await reconcile();
+    expect(await rows()).toEqual(canceled);
+  }, 90_000);
+
+  test("a checkout whose completion never arrived is linked to the row checkout made, not duplicated", async () => {
+    const { org, customer, rows } = await billedWorkspace("reconcile-checkout");
+    // What the plugin writes when checkout starts: a row that does not know its Stripe id yet,
+    // whose id rides in the subscription's metadata.
+    const rowId = randomUUID();
+    await database.db.insert(schema.subscriptions).values({
+      id: rowId,
+      orgId: org.id,
+      plan: "omnipresent",
+      stripeCustomerId: customer,
+      status: "incomplete",
+    });
+    const subscription = await trial(customer, { referenceId: org.id, subscriptionId: rowId });
+    await reconcile();
+    expect(await rows()).toMatchObject([
+      { id: rowId, stripeSubscriptionId: subscription.id, status: "trialing" },
+    ]);
+  }, 60_000);
 
   async function ownerOf(slug: string) {
     const { db } = database;
