@@ -7,6 +7,11 @@ export type RealtimeStatus = "connecting" | "open" | "closed";
 export interface RealtimeOptions {
   /** The Worker's origin; the socket is `/api/realtime` on it. */
   baseUrl: string;
+  /**
+   * One of the user's organizations: the socket carries that org's events for their member
+   * there. Without it, the session's active organization.
+   */
+  orgId?: string;
   onEvent: (event: RealtimeEvent) => void;
   /**
    * Socket state. An `"open"` with `reconnected: true` means events may have been missed while
@@ -52,6 +57,7 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
     openSocket = (url) => new WebSocket(url),
   } = options;
   const url = new URL("/api/realtime", options.baseUrl);
+  if (options.orgId) url.searchParams.set("org", options.orgId);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 
   let socket: WebSocket | undefined;

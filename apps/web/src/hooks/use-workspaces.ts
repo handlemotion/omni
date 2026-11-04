@@ -9,8 +9,8 @@ import type { Workspace } from "../lib/types.ts";
  * [{ id, address, kind: "personal" | "shared" }] }] }`. Only workspaces the user belongs to, and
  * only mailboxes their member there was granted.
  */
-export function useWorkspaces() {
-  return useQuery(workspacesQuery());
+export function useWorkspaces(options: { enabled?: boolean } = {}) {
+  return useQuery({ ...workspacesQuery(), enabled: options.enabled ?? true });
 }
 
 /**

@@ -17,14 +17,22 @@ export const mailboxesQuery = () =>
     staleTime: 5 * 60_000,
   });
 
-/** Unread threads per mailbox and lane (inbox view), for badges. Counts are capped server-side. */
+/**
+ * Unread threads per mailbox and lane (inbox view), for badges, in every workspace the user
+ * belongs to (each row carries its `orgId`).
+ */
 export const countsQuery = () =>
   queryOptions({
     queryKey: keys.counts(),
-    queryFn: ({ signal }) => call(api.counts.$get(undefined, { init: { signal } })),
+    queryFn: ({ signal }) =>
+      call(api.counts.$get({ query: { scope: "all" } }, { init: { signal } })),
   });
 
-/** One thread list, newest first, paged by an opaque cursor kept in the cache (not the URL). */
+/**
+ * One thread list, newest first, paged by an opaque cursor kept in the cache (not the URL).
+ * Without a mailbox it spans every workspace the user belongs to ("All mailboxes", ADR 0014);
+ * each row carries its `orgId`, and opening or acting on it needs no workspace switch.
+ */
 export const threadsQuery = (filter: ThreadFilter) =>
   infiniteQueryOptions({
     queryKey: keys.threads(filter),
@@ -33,6 +41,7 @@ export const threadsQuery = (filter: ThreadFilter) =>
         api.threads.$get(
           {
             query: {
+              scope: "all",
               view: filter.view,
               ...(filter.mailbox ? { mailboxId: filter.mailbox } : {}),
               ...(filter.lane ? { lane: filter.lane } : {}),

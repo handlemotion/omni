@@ -22,6 +22,7 @@ import { Heading } from "@/components/ui/heading";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { useCounts, useThreads } from "@/hooks/use-mail.ts";
 import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
+import { useWorkspaces } from "@/hooks/use-workspaces.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { senderLabel } from "@/lib/threads.ts";
 import type { ThreadFilter, ThreadSummary, ThreadView } from "@/lib/types.ts";
@@ -33,6 +34,8 @@ export interface ListRow {
   subject: string;
   snippet: string;
   unread: boolean;
+  /** The workspace it belongs to, when the list spans more than one. */
+  workspace?: string | undefined;
 }
 
 interface ListProps {
@@ -47,8 +50,16 @@ interface ListProps {
 export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
   const { threads, hasNextPage, fetchNextPage, isFetchingNextPage } = useThreads(props.filter);
   const unread = useUnreadCount(props.filter);
+  const workspaces = useWorkspaces().data?.workspaces;
   // Stable rows, so the virtualized list's row cache survives renders that don't change them.
-  const rows = useMemo(() => threads.map(toRow), [threads]);
+  const rows = useMemo(() => {
+    // Rows name their workspace only when the list mixes several (no mailbox chosen).
+    const names =
+      !props.filter.mailbox && workspaces && workspaces.length > 1
+        ? new Map(workspaces.map((w) => [w.id, w.name]))
+        : undefined;
+    return threads.map((thread) => toRow(thread, names?.get(thread.orgId)));
+  }, [threads, workspaces, props.filter.mailbox]);
   return (
     <List
       {...props}
@@ -65,12 +76,13 @@ export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
   );
 }
 
-const toRow = (thread: ThreadSummary): ListRow => ({
+const toRow = (thread: ThreadSummary, workspace?: string): ListRow => ({
   id: thread.id,
   sender: senderLabel(thread),
   subject: thread.subject,
   snippet: thread.snippet,
   unread: thread.unread,
+  workspace,
 });
 
 // Figma: Omni, inbox list (node 15:2), on our tokens: brand blue for the count, checkboxes and
@@ -286,6 +298,11 @@ function ThreadRow({ thread, href }: { thread: ListRow; href: string }) {
           )}
         </span>
       </span>
+      {thread.workspace && (
+        <span className="max-w-40 shrink-0 truncate text-xs text-subtle-foreground">
+          {thread.workspace}
+        </span>
+      )}
     </GridListItem>
   );
 }

@@ -5,6 +5,7 @@ import { zValidator } from "@hono/zod-validator";
 import {
   enqueueAction,
   forMember,
+  forUser,
   LANES,
   listMemberMailboxes,
   setThreadArchived,
@@ -46,7 +47,19 @@ const cursorParam = z
   })
   .optional();
 
+/**
+ * `workspace` (default): the active organization's member. `all`: every organization the user
+ * belongs to, each row read as their member there (ADR 0014).
+ */
+const scopeParam = z.enum(["workspace", "all"]).default("workspace");
+
+/** The read path for `scope`. */
+function reader(c: Context<AppEnv>, scope: z.infer<typeof scopeParam>) {
+  return scope === "all" ? forUser(c.var.db, c.var.user.id) : forMember(c.var.db, c.var.member.id);
+}
+
 const listQuery = z.object({
+  scope: scopeParam,
   mailboxId: z.string().min(1).optional(),
   lane: z.enum(LANES).optional(),
   /** `inbox`, `queue` (deferred), `done`, `archive` or `all`; see `ThreadView` in `@omni/db`. */
@@ -148,8 +161,8 @@ export const mail = new Hono<AppEnv>()
   })
 
   .get("/threads", zValidator("query", listQuery), async (c) => {
-    const { cursor, ...query } = c.req.valid("query");
-    const threads = await forMember(c.var.db, c.var.member.id).listThreads({
+    const { cursor, scope, ...query } = c.req.valid("query");
+    const threads = await reader(c, scope).listThreads({
       ...query,
       before: cursor,
     });
@@ -167,13 +180,16 @@ export const mail = new Hono<AppEnv>()
   })
 
   /** Per mailbox: inbox and unread inbox threads, queued threads, and inbox threads per lane. */
-  .get("/counts", async (c) => {
-    return c.json({ counts: await forMember(c.var.db, c.var.member.id).counts() });
+  .get("/counts", zValidator("query", z.object({ scope: scopeParam })), async (c) => {
+    return c.json({ counts: await reader(c, c.req.valid("query").scope).counts() });
   })
 
-  /** An outbox action's state, e.g. to learn after a reconnect whether a send failed. */
+  /**
+   * An outbox action's state, e.g. to learn after a reconnect whether a send failed. Any of the
+   * user's members' actions: a reply sent from another workspace's thread is checked here too.
+   */
   .get("/actions/:id", async (c) => {
-    const action = await forMember(c.var.db, c.var.member.id).getAction(c.req.param("id"));
+    const action = await forUser(c.var.db, c.var.user.id).getAction(c.req.param("id"));
     if (!action) notFound();
     return c.json(action);
   })
