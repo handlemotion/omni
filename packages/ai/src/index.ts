@@ -36,6 +36,8 @@ export {
   laneFor,
   shouldSummarize,
   triageByRule,
+  usageMonth,
+  usagePeriod,
   type DailyUsage,
   type Lane,
   type SummaryDecision,

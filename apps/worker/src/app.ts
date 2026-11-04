@@ -5,16 +5,20 @@ import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { routePath } from "hono/route";
+import { requireWritableWorkspace } from "./billing.ts";
 import { findMember, requestScope, requireMember, type AppEnv } from "./context.ts";
 import type { Config } from "./env.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
 import { MEMBER_HEADER } from "./realtime.ts";
+import { account } from "./routes/account.ts";
 import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
+import { billing } from "./routes/billing.ts";
+import { stripeWebhook } from "./routes/stripe-webhook.ts";
 import { mail } from "./routes/mail.ts";
 import { mailboxMembers } from "./routes/mailbox-members.ts";
 import { onboarding } from "./routes/onboarding.ts";
-import { account, pictures, workspaceLogo } from "./routes/pictures.ts";
+import { account as accountPicture, pictures, workspaceLogo } from "./routes/pictures.ts";
 import { workspaces } from "./routes/workspaces.ts";
 import { limitAuth } from "./rate-limiter.ts";
 import { securityHeaders } from "./security-headers.ts";
@@ -72,6 +76,9 @@ const actAsThreadMember = createMiddleware<AppEnv>(async (c, next) => {
 const api = new Hono<AppEnv>()
   .use(requireMember)
   .use("/threads/:id/*", actAsThreadMember)
+  // Deny by default: every write below needs a plan in good standing unless `READ_ONLY_ALLOWED`
+  // (billing.ts) names it. After `actAsThreadMember`, so a thread write checks the thread's org.
+  .use(requireWritableWorkspace)
   /** The member in the active org, with how far that org's setup got (route guards read it). */
   .get("/me", async (c) =>
     c.json({ ...c.var.member, setup: await orgSetupStep(c.var.db, c.var.member.orgId) }),
@@ -107,7 +114,8 @@ const api = new Hono<AppEnv>()
   .route("/", mail)
   .route("/", mailboxMembers)
   .route("/workspace", workspaceLogo)
-  .route("/", assets);
+  .route("/", assets)
+  .route("/", billing);
 
 export const app = new Hono<AppEnv>()
   .use(trace)
@@ -117,11 +125,19 @@ export const app = new Hono<AppEnv>()
   .use("/api/*", requestScope)
   /** Public: which sign-in buttons the login page shows. Google needs its OAuth client set. */
   .get("/api/sign-in-methods", (c) => c.json({ google: c.var.config.auth.google !== undefined }))
+  // Stripe calls this, not a browser: no per-IP auth limit. It dedupes and orders events, then
+  // hands them to Better Auth's Stripe plugin.
+  .route("/api/auth/stripe/webhook", stripeWebhook)
+  // Checkout and the portal go through /api/billing, which pins them to the active workspace.
+  // The plugin's own POSTs would also let a person subscribe for themselves, so they are closed.
+  .post("/api/auth/subscription/*", (c) => c.json({ error: "use /api/billing" }, 404))
   .on(["GET", "POST"], "/api/auth/*", limitAuth, (c) => c.var.auth.handler(c.req.raw))
   // Before `api`: these work for a user who has no organization yet.
   .route("/api/onboarding", onboarding)
   .route("/api/workspaces", workspaces)
   .route("/api/account", account)
+  // Your picture lives beside your sign-in emails under /api/account.
+  .route("/api/account", accountPicture)
   .route("/api/pictures", pictures)
   .route("/api", api)
   .onError((error, c) => {

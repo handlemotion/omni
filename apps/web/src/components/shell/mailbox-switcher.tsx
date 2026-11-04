@@ -20,6 +20,7 @@ import { appToast } from "@/components/ui/toast";
 import { useMember } from "@/hooks/use-session.ts";
 import { useOpenMailbox, useOpenWorkspace, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { Workspace, WorkspaceMailbox } from "@/lib/types.ts";
+import { pictureUrl } from "@/lib/urls.ts";
 
 /** Rows are 50px (8px + the 34px text block + 8px). The 32px avatar sits 9px from the row's top
  *  and left; the check's ink 20px from its top and right (measured). Each mark is even inside its
@@ -128,19 +129,29 @@ export function MailboxSwitcher() {
   const { mailbox: current } = useSearch({ strict: false }) as { mailbox?: string };
 
   const all = workspaces.data?.workspaces ?? [];
-  const grouped = all.length > 1;
+  // A workspace still in setup has no mailboxes yet: no group label with nothing under it.
+  const groups = all.filter((workspace) => workspace.mailboxes.length > 0);
+  const grouped = groups.length > 1;
   const you = user.name || user.email;
   const face = (mailbox: WorkspaceMailbox): Face => ({
     key: mailbox.id,
     name: mailboxName(mailbox, you),
-    image: mailbox.kind === "personal" ? (user.image ?? null) : null,
+    image: mailbox.kind === "personal" ? pictureUrl(user.image) : null,
   });
   const active = all.find((workspace) => workspace.id === member.orgId);
   const shown = active?.mailboxes.find((box) => box.id === current);
   const pending = openWorkspace.isPending || openMailbox.isPending;
   const faces = all.flatMap((workspace) => workspace.mailboxes.map(face));
 
+  // The trigger shares the header with three buttons, leaving its label 65px: "All mailboxes"
+  // (99px) would clip, so it says "All" beside the cluster, and a personal mailbox shows the
+  // first name. The menu rows and the trigger's accessible name keep the full names.
   const triggerName = shown ? mailboxName(shown, you) : "All mailboxes";
+  const triggerLabel = shown
+    ? shown.kind === "personal"
+      ? (you.split(" ")[0] ?? you)
+      : triggerName
+    : "All";
 
   const mailboxRows = (workspace: Workspace) =>
     workspace.mailboxes.map((mailbox) => (
@@ -179,7 +190,11 @@ export function MailboxSwitcher() {
           {pending ? (
             <Loader className="size-icon text-muted-foreground" />
           ) : shown ? (
-            <FaceAvatar face={face(shown)} size={18} plain />
+            // 18px over the 15px box: the grid would start it at the box's left edge (centre
+            // 1.5px right of the nav icons'), so the margin centres it on the same axis.
+            <span className="-m-[1.5px]">
+              <FaceAvatar face={face(shown)} size={18} plain />
+            </span>
           ) : (
             // 20px over the 15px box, centred on the same axis; at this size initials are
             // specks, so the discs are plain (pictures still show).
@@ -193,7 +208,7 @@ export function MailboxSwitcher() {
             </span>
           )}
         </span>
-        <span className="min-w-0 truncate">{triggerName}</span>
+        <span className="min-w-0 truncate">{triggerLabel}</span>
         <ChevronUpDownIcon className="size-3.5 shrink-0 text-subtle-foreground" />
       </Button>
 
@@ -201,7 +216,9 @@ export function MailboxSwitcher() {
         placement="bottom start"
         popover={{
           offset: 8,
-          className: "w-80 max-w-[calc(100vw-16px)] [--popover-radius:var(--radius-xl)]",
+          // Fit-content like every menu; rows carry an avatar and two lines, so the cap is
+          // raised to 320px (addresses truncate past it).
+          className: "max-w-[min(20rem,calc(100vw-16px))] [--popover-radius:var(--radius-xl)]",
         }}
         className="p-2"
       >
@@ -226,7 +243,7 @@ export function MailboxSwitcher() {
           />
         </MenuItem>
         {grouped
-          ? all.map((workspace) => (
+          ? groups.map((workspace) => (
               <MenuSection
                 key={workspace.id}
                 label={workspace.name}
@@ -236,7 +253,7 @@ export function MailboxSwitcher() {
                 {mailboxRows(workspace)}
               </MenuSection>
             ))
-          : active && mailboxRows(active)}
+          : groups[0] && mailboxRows(groups[0])}
       </Menu>
     </MenuTrigger>
   );

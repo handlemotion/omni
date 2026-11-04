@@ -1,6 +1,6 @@
 // Postgres side of the mail e2e suites: one throwaway, migrated database per file (from
 // `@omni/db/testing`), plus readers that show what the service stored.
-import { enqueueAction, schema } from "@omni/db";
+import { enqueueAction, schema, type MailActionRequest } from "@omni/db";
 import { createMember, createOrg, createTestDatabase } from "@omni/db/testing";
 import { and, asc, eq } from "drizzle-orm";
 import type { MailboxConfig } from "../../src/mailbox-connection.ts";
@@ -99,15 +99,13 @@ export function messageRows(db: TestDb, mailboxId: string) {
 export async function enqueue(
   db: TestDb,
   seeded: { box: MailboxConfig; orgId: string; ownerId: string },
-  input: { kind: MailAction["kind"]; idempotencyKey: string; payload: object },
+  input: MailActionRequest & { idempotencyKey: string },
 ) {
   return enqueueAction(db, {
     orgId: seeded.orgId,
     mailboxId: seeded.box.id,
     memberId: seeded.ownerId,
-    kind: input.kind,
-    idempotencyKey: input.idempotencyKey,
-    payload: input.payload as Record<string, unknown>,
+    ...input,
   });
 }
 

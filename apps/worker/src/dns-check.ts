@@ -5,7 +5,7 @@
 // the same verdicts.
 import type { DnsAnswer } from "@omni/contracts";
 import { challengeMatches, signDomainConnectQuery } from "@omni/crypto";
-import type { DomainCheck, DomainRecordDiagnostic, MailDomainRecord } from "@omni/db";
+import type { DomainCheck, DomainRecordDiagnostic, MailDomainRecord, schema } from "@omni/db";
 import {
   type Answers,
   detectDnsProvider,
@@ -25,7 +25,12 @@ import { lookupDns, type DomainDeps } from "./domains.ts";
  * Our Domain Connect templates (docs/domain-connect/): `mail` carries Purelymail's records with
  * the challenge, `verify` the challenge alone (a domain that stays on its own mail host).
  */
-export const DOMAIN_CONNECT_SERVICES = { purelymail: "mail", imap: "verify" } as const;
+export const DOMAIN_CONNECT_SERVICES: Partial<Record<MailProvider, "mail" | "verify">> = {
+  purelymail: "mail",
+  imap: "verify",
+};
+
+type MailProvider = (typeof schema.mailProvider.enumValues)[number];
 
 const CHALLENGE: Omit<ExpectedRecord, "name"> = { type: "TXT", value: "omni-challenge=" };
 
@@ -36,7 +41,7 @@ export async function inspectDomain(
     domain: string;
     challengeHash: string | null;
     records: MailDomainRecord[];
-    provider: string;
+    provider: MailProvider;
     /** The last check, whose host and Domain Connect findings are reused instead of fetched again. */
     previous?: DomainCheck | null;
   },
@@ -90,7 +95,7 @@ export async function inspectDomain(
         domain,
         zone: result.zone ?? domain,
         txt: at(dcName).TXT,
-        serviceId: DOMAIN_CONNECT_SERVICES[input.provider as keyof typeof DOMAIN_CONNECT_SERVICES],
+        serviceId: DOMAIN_CONNECT_SERVICES[input.provider],
       })
     : (input.previous?.domainConnect ?? null);
 
@@ -174,14 +179,14 @@ export async function domainConnectUrl(
     check: DomainCheck | null;
     claimId: string;
     domain: string;
-    provider: string;
+    provider: MailProvider;
     challengeValue: string | undefined;
     records: MailDomainRecord[];
   },
 ): Promise<string | null> {
   const dc = input.check?.domainConnect;
   const { config } = deps;
-  const serviceId = DOMAIN_CONNECT_SERVICES[input.provider as keyof typeof DOMAIN_CONNECT_SERVICES];
+  const serviceId = DOMAIN_CONNECT_SERVICES[input.provider];
   if (!dc || !input.challengeValue || !config.DOMAIN_CONNECT_PROVIDER_ID || !serviceId) return null;
   const ownership = input.records.find((r) => r.check === "ownership")?.value;
   const query = domainConnectQuery({

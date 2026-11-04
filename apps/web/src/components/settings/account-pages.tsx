@@ -38,6 +38,7 @@ import { SettingsAddRow } from "./kit/settings-add-row";
 import { SettingsInputRow } from "./kit/settings-input-row";
 import { useSettingsPendingChanges } from "./kit/use-settings-pending-changes";
 import { SettingsAvatarRow } from "./kit/settings-avatar-row";
+import { SignInEmails } from "./sign-in-emails";
 import {
   SettingsEmptyState,
   SettingsGroup,
@@ -175,6 +176,8 @@ export function ProfilePage() {
           <SettingsValueRow label="Email" value={user.email} />
         </SettingsGroup>
       </SettingsSection>
+
+      <SignInEmails />
 
       <SettingsSection
         title="Accounts on this browser"

@@ -3,9 +3,9 @@
 // those queries stale and TanStack Query refetches only the ones on screen.
 import { connectRealtime, type RealtimeEvent, type RealtimeStatus } from "@omni/client";
 import type { QueryClient } from "@tanstack/react-query";
-import { call, api } from "./api.ts";
 import { onWake, reportAnswer } from "./connectivity.ts";
 import { addFailure, allPending, failPendingByAction } from "./pending.ts";
+import { actionQuery } from "./mail-queries.ts";
 import { filterOf, keys } from "./query-keys.ts";
 
 /** Bursts of new mail (an import, a busy thread) collapse into one refetch per window. */
@@ -123,11 +123,14 @@ function onActionFailed(
 }
 
 async function recheckPendingSends(client: QueryClient) {
-  const queued = allPending(client).filter((p) => p.status === "queued" && p.actionId);
+  const queued = allPending(client).flatMap((p) =>
+    p.status === "queued" && p.actionId ? [p.actionId] : [],
+  );
   await Promise.all(
-    queued.map(async (p) => {
+    queued.map(async (actionId) => {
       try {
-        const action = await call(api.actions[":id"].$get({ param: { id: p.actionId ?? "" } }));
+        // Always ask the server: the point is to learn what happened while we were away.
+        const action = await client.fetchQuery({ ...actionQuery(actionId), staleTime: 0 });
         if (action.status === "failed") {
           onActionFailed(client, action.id, action.kind, action.error ?? "Sending failed");
         }
