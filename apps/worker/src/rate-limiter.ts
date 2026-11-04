@@ -3,6 +3,7 @@
 // One Durable Object instance per (rule, key), so every count is strongly consistent and a busy
 // key never slows another. Fixed windows: simple, and exact enough for abuse control.
 import { DurableObject } from "cloudflare:workers";
+import { sha256Hex } from "@omni/crypto";
 import { createMiddleware } from "hono/factory";
 import type { AppEnv } from "./context.ts";
 import type { Config, RateLimit } from "./env.ts";
@@ -42,11 +43,6 @@ export class RateLimiter extends DurableObject<Env> {
   override async alarm() {
     await this.ctx.storage.deleteAll();
   }
-}
-
-async function sha256Hex(text: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /**

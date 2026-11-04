@@ -13,6 +13,7 @@ import {
 } from "@omni/contracts";
 import { challengeMatches, newChallenge } from "@omni/crypto";
 import {
+  advanceOrgSetup,
   conflictingLock,
   type Db,
   type DomainAuditAction,
@@ -59,6 +60,14 @@ export function lookupDns(scope: MailServiceScope, body: DnsLookupBody) {
   return callMailService(scope, DNS_LOOKUP_PATH, body, dnsLookupResultSchema).catch(
     fromMailService,
   );
+}
+
+/**
+ * Resumable setup (ADR 0009): a claimed domain counts as added; once it is locked and every
+ * provider record passed (`domainView(...).verified`), as DNS verified.
+ */
+export function advanceDomainStep(db: Db, orgId: string, view: { verified: boolean }) {
+  return advanceOrgSetup(db, orgId, view.verified ? "dns_verified" : "domain_added");
 }
 
 /**
