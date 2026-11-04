@@ -1,8 +1,10 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
+import { SettingsDialog } from "../../components/settings/settings-dialog.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
 import { SidebarInset, SidebarProvider } from "../../components/ui/sidebar.tsx";
+import { useSettingsDialog } from "../../hooks/use-settings-dialog.ts";
 import { useRealtimeConnection } from "../../hooks/use-realtime.ts";
 import { requireMember } from "../../lib/guards.ts";
 import { countsQuery, mailboxesQuery } from "../../lib/mail-queries.ts";
@@ -29,8 +31,16 @@ export const Route = createFileRoute("/_authed/_member")({
 function Shell() {
   const { member } = Route.useRouteContext();
   useRealtimeConnection(member.orgId, { memberId: member.id, everyWorkspace: true });
+  const settings = useSettingsDialog();
   return (
-    <SidebarProvider>
+    // While settings is open the whole app recedes under it: 100% to 95% and fading, as settings
+    // settles from 105% to 100% on top (a parallax stack). Same length and curve as the dialog.
+    <SidebarProvider
+      className={
+        "origin-center transition-[scale,opacity] duration-300 ease-out motion-reduce:transition-none " +
+        (settings.isOpen ? "scale-95 opacity-40" : "")
+      }
+    >
       <AppSidebar />
       <SidebarInset>
         <ListSweepProvider>
@@ -38,6 +48,7 @@ function Shell() {
         </ListSweepProvider>
       </SidebarInset>
       <KeyboardShortcuts />
+      <SettingsDialog />
     </SidebarProvider>
   );
 }

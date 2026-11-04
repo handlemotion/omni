@@ -1,17 +1,19 @@
 "use client";
 
-import { XMarkIcon } from "@heroicons/react/20/solid";
-import { Button as PrimitiveButton } from "react-aria-components/Button";
+// Ported from transitive (`packages/ui/src/components/ui/dialog.tsx`) onto React Aria: a flat
+// black scrim (no blur), a white card with a 1px line and no shadow, 16px in, that fades and
+// grows from 95% in 100ms, and a footer that is an action rail along its bottom edge. Dialogs
+// stack: one opened from another dims the one below again.
+import { XMarkIcon } from "@heroicons/react/16/solid";
+import { cn } from "cn";
 import {
   DialogTrigger as DialogTriggerPrimitive,
   Dialog as PrimitiveDialog,
   type DialogProps as DialogPrimitiveProps,
 } from "react-aria-components/Dialog";
 import { Heading, type HeadingProps } from "react-aria-components/Heading";
-import { cn } from "cn";
-import { cx } from "@/lib/primitive";
-import { Button, type ButtonProps } from "./button";
 import { Modal, ModalOverlay, type ModalOverlayProps } from "react-aria-components/Modal";
+import { Button, type ButtonProps } from "./button";
 
 export const DialogTrigger = DialogTriggerPrimitive;
 
@@ -26,7 +28,9 @@ const sizes = {
   "3xl": "sm:max-w-3xl",
   "4xl": "sm:max-w-4xl",
   "5xl": "sm:max-w-5xl",
-  fullscreen: "",
+  // The whole screen: no scrim to see through, no edge. It settles from 105% while the app
+  // under it recedes (the caller scales the app), so it reads as a layer stacked on top.
+  full: "h-dvh max-h-none rounded-none border-0",
 };
 
 export interface DialogProps
@@ -35,99 +39,77 @@ export interface DialogProps
     Pick<DialogPrimitiveProps, "aria-label" | "aria-labelledby" | "role" | "children"> {
   size?: keyof typeof sizes;
   closeButton?: boolean;
-  overlay?: Pick<ModalOverlayProps, "className">;
+  /** No padding or gap: the content lays itself out (the settings dialog). */
+  bare?: boolean;
 }
+
 export function Dialog({
   className,
-  isDismissable: isDismissableInternal,
+  isDismissable,
   children,
-  overlay,
-  size = "md",
+  size = "xl",
   role = "dialog",
   closeButton = true,
+  bare = false,
   ...props
 }: DialogProps) {
-  const isDismissable = isDismissableInternal ?? role !== "alertdialog";
+  const dismissable = isDismissable ?? role !== "alertdialog";
+  const full = size === "full";
   return (
     <ModalOverlay
       data-slot="dialog-overlay"
-      isDismissable={isDismissable}
-      className={cx(
-        "fixed top-0 left-0 z-50 h-(--visual-viewport-height,100dvh) w-(--visual-viewport-width,100vw) overflow-clip sm:absolute sm:h-[max(var(--page-height),100dvh)] sm:w-[max(var(--page-width),100vw)]",
-        "bg-background/15 backdrop-blur-[1px] motion-reduce:backdrop-blur-none",
-        "entering:fade-in entering:animate-in entering:duration-300 entering:ease-out",
-        "exiting:fade-out exiting:animate-out exiting:fill-mode-forwards exiting:ease-in",
-        overlay?.className,
+      isDismissable={dismissable}
+      className={cn(
+        "fixed inset-0 z-50 flex items-center justify-center",
+        full
+          ? // An identity animation of the panel's length: React Aria keeps the overlay (and so
+            // the panel's exit) mounted only while the overlay itself animates.
+            "entering:animate-in exiting:animate-out entering:duration-300 exiting:duration-200 motion-reduce:animate-none"
+          : "entering:animate-in entering:fade-in-0 exiting:animate-out exiting:fade-out-0 bg-scrim p-4 duration-100 motion-reduce:animate-none",
       )}
       {...props}
     >
-      <div
+      <Modal
+        data-slot="dialog-content"
         className={cn(
-          "sticky top-0 flex h-(--visual-viewport-height,100dvh) w-(--visual-viewport-width,100vw) flex-col items-center justify-end sm:grid sm:grid-rows-[1fr_auto_3fr] sm:justify-normal sm:justify-items-center",
-          size === "fullscreen" ? "md:p-3" : "md:p-4",
+          "relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-xl border border-border bg-background text-sm text-foreground outline-hidden",
+          "entering:animate-in entering:fade-in-0 exiting:animate-out exiting:fade-out-0 motion-reduce:animate-none",
+          full
+            ? "entering:zoom-in-105 exiting:zoom-out-105 ease-out entering:duration-300 exiting:duration-200"
+            : "entering:zoom-in-95 exiting:zoom-out-95 duration-100",
+          sizes[size],
+          className,
         )}
       >
-        <Modal
-          data-slot="dialog-content"
-          className={cx(
-            "row-start-2 w-full text-start align-middle",
-            "[--visual-viewport-vertical-padding:16px]",
-            size === "fullscreen"
-              ? "**:data-[slot=dialog-body]:min-h-[calc(var(--visual-viewport-height)-var(--visual-viewport-vertical-padding)-var(--dialog-header-height)-var(--dialog-footer-height))] sm:[--visual-viewport-vertical-padding:16px]"
-              : "sm:[--visual-viewport-vertical-padding:32px]",
-            "relative overflow-hidden bg-overlay text-overlay-foreground",
-            "inset-shadow-xs rounded-t-2xl ring ring-muted-foreground/25 drop-shadow-xl sm:rounded-2xl dark:ring-border",
-            sizes[size],
-            "entering:slide-in-from-bottom sm:entering:zoom-in-95 sm:entering:slide-in-from-bottom-0 entering:animate-in entering:duration-300 entering:ease-out",
-            "exiting:slide-out-to-bottom sm:exiting:zoom-out-95 sm:exiting:slide-out-to-bottom-0 exiting:animate-out exiting:fill-mode-forwards exiting:ease-in",
-            className,
-          )}
+        <PrimitiveDialog
+          aria-label={props["aria-label"]}
+          aria-labelledby={props["aria-labelledby"]}
+          role={role}
+          data-slot="dialog"
+          className={cn("flex min-h-0 flex-1 flex-col outline-hidden", !bare && "gap-4 p-4")}
         >
-          <PrimitiveDialog
-            aria-label={props["aria-label"] ?? undefined}
-            aria-labelledby={props["aria-labelledby"]}
-            data-slot="dialog"
-            role={role}
-            className={cn(
-              "peer/dialog group/dialog relative flex max-h-[calc(var(--visual-viewport-height)-var(--visual-viewport-vertical-padding))] flex-col overflow-hidden outline-hidden [--gutter:--spacing(6)] sm:[--gutter:--spacing(8)]",
-              className,
-            )}
-          >
-            {(values) => (
-              <>
-                {typeof children === "function" ? children(values) : children}
-                {closeButton && <DialogCloseIcon isDismissable={isDismissable} />}
-              </>
-            )}
-          </PrimitiveDialog>
-        </Modal>
-      </div>
+          {(values) => (
+            <>
+              {typeof children === "function" ? children(values) : children}
+              {closeButton && dismissable && (
+                <DialogCloseIcon filled={full} className={full ? "top-4 right-4" : undefined} />
+              )}
+            </>
+          )}
+        </PrimitiveDialog>
+      </Modal>
     </ModalOverlay>
   );
 }
 
-export interface DialogHeaderProps extends Omit<React.ComponentProps<"div">, "title"> {
-  title?: string;
-  description?: string;
-}
-
-export function DialogHeader({ className, ...props }: DialogHeaderProps) {
+/** Title and description; room on the right for the close button. */
+export function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn(
-        "relative space-y-1 p-(--gutter) pb-[calc(var(--gutter)---spacing(3))]",
-        className,
-      )}
-    >
-      {props.title && <DialogTitle>{props.title}</DialogTitle>}
-      {props.description && <DialogDescription>{props.description}</DialogDescription>}
-      {!props.title && typeof props.children === "string" ? (
-        <DialogTitle>{props.children}</DialogTitle>
-      ) : (
-        props.children
-      )}
-    </div>
+      className={cn("flex flex-col gap-2 pe-10", className)}
+      {...props}
+    />
   );
 }
 
@@ -135,50 +117,40 @@ export function DialogTitle({ className, ...props }: HeadingProps) {
   return (
     <Heading
       slot="title"
-      className={cn("text-balance text-foreground text-lg/6 sm:text-base/6", className)}
+      className={cn("m-0 text-sm/5 font-medium text-foreground", className)}
       {...props}
     />
   );
 }
 
-export function DialogDescription({ className, ...props }: React.ComponentProps<"div">) {
+export function DialogDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
       data-slot="description"
-      className={cn(
-        "text-pretty text-base/6 text-muted-foreground group-disabled:opacity-50 sm:text-sm/6",
-        className,
-      )}
+      className={cn("m-0 text-sm/5 text-pretty text-muted-foreground", className)}
       {...props}
     />
   );
 }
 
+/** The part that scrolls when the content is taller than the screen. */
 export function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-body"
-      className={cn(
-        "isolate flex min-h-0 flex-1 flex-col overflow-auto px-(--gutter) py-1",
-        "**:data-[slot=dialog-footer]:px-0 **:data-[slot=dialog-footer]:pt-0",
-        // No footer to close the dialog off: instead of ending 4px from the edge, the body ends
-        // the way the header starts it, the gutter less the 12px its rows carry themselves, so
-        // the last row's ink sits as far from the bottom edge as the heading's from the top.
-        "group-not-has-data-[slot=dialog-footer]/dialog:pb-[calc(var(--gutter)---spacing(3))]",
-        className,
-      )}
+      className={cn("flex min-h-0 flex-1 flex-col overflow-auto", className)}
       {...props}
     />
   );
 }
 
-export interface DialogFooterProps extends React.ComponentProps<"div"> {}
-export function DialogFooter({ className, ...props }: DialogFooterProps) {
+/** An action rail: the dialog's whole bottom edge, set apart by a line and the surface fill. */
+export function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-footer"
       className={cn(
-        "isolate mt-auto flex flex-col-reverse justify-end gap-3 p-(--gutter) pt-[calc(var(--gutter)---spacing(2))] group-not-has-data-[slot=dialog-body]/dialog:pt-0 group-not-has-data-[slot=dialog-body]/popover:pt-0 sm:flex-row",
+        "-mx-4 mt-2 -mb-4 flex flex-col-reverse gap-1.5 border-t border-border bg-surface p-4 sm:flex-row sm:justify-end",
         className,
       )}
       {...props}
@@ -186,26 +158,33 @@ export function DialogFooter({ className, ...props }: DialogFooterProps) {
   );
 }
 
-export function DialogClose({ intent = "plain", ref, ...props }: ButtonProps) {
+export function DialogClose({ intent = "outline", ref, ...props }: ButtonProps) {
   return <Button slot="close" ref={ref} intent={intent} {...props} />;
 }
 
-export interface CloseButtonIndicatorProps extends Omit<ButtonProps, "children"> {
+/** The ✕ in the top-right corner, 10px from both edges; on a full-screen dialog a grey disc
+ *  16px in. */
+export function DialogCloseIcon({
+  className,
+  isDismissable = true,
+  filled = false,
+}: {
   className?: string;
-  isDismissable?: boolean | undefined;
-}
-
-export function DialogCloseIcon({ className, ...props }: CloseButtonIndicatorProps) {
-  return props.isDismissable ? (
-    <PrimitiveButton
-      aria-label="Close dialog"
+  isDismissable?: boolean;
+  /** A grey disc behind the ✕: for a full-screen dialog, where a bare ✕ reads as a stray glyph. */
+  filled?: boolean;
+}) {
+  if (!isDismissable) return null;
+  return (
+    <Button
       slot="close"
-      className={cx(
-        "close absolute isolate end-1 top-1 z-50 grid size-8 place-content-center rounded-xl hover:bg-secondary focus:bg-secondary focus:outline-hidden focus-visible:ring-1 focus-visible:ring-primary sm:end-2 sm:top-2 sm:size-7 sm:rounded-md",
-        className,
-      )}
+      intent={filled ? "secondary" : "plain"}
+      size="sq-xs"
+      isCircle={filled}
+      aria-label="Close"
+      className={cn("absolute top-2.5 right-2.5", filled && "border-0", className)}
     >
-      <XMarkIcon className="size-4" />
-    </PrimitiveButton>
-  ) : null;
+      <XMarkIcon />
+    </Button>
+  );
 }

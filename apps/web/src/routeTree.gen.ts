@@ -30,7 +30,6 @@ import { Route as AuthedMemberQueueThreadIdRouteImport } from "./routes/_authed/
 import { Route as AuthedMemberSearchThreadIdRouteImport } from "./routes/_authed/_member/search.$threadId";
 import { Route as AuthedMemberSettingsIndexRouteImport } from "./routes/_authed/_member/settings/index";
 import { Route as AuthedMemberSettingsBillingRouteImport } from "./routes/_authed/_member/settings/billing";
-import { Route as AuthedMemberSettingsOrganizationRouteImport } from "./routes/_authed/_member/settings/organization";
 import { Route as AuthedSettingsEmailsVerifyRouteImport } from "./routes/_authed/settings/emails.verify";
 
 const IndexRoute = IndexRouteImport.update({
@@ -144,12 +143,6 @@ const AuthedMemberSettingsBillingRoute =
     path: "/settings/billing",
     getParentRoute: () => AuthedMemberRoute,
   } as any);
-const AuthedMemberSettingsOrganizationRoute =
-  AuthedMemberSettingsOrganizationRouteImport.update({
-    id: "/settings/organization",
-    path: "/settings/organization",
-    getParentRoute: () => AuthedMemberRoute,
-  } as any);
 const AuthedSettingsEmailsVerifyRoute =
   AuthedSettingsEmailsVerifyRouteImport.update({
     id: "/settings/emails/verify",
@@ -176,7 +169,6 @@ export interface FileRoutesByFullPath {
   "/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
   "/settings/billing": typeof AuthedMemberSettingsBillingRoute;
-  "/settings/organization": typeof AuthedMemberSettingsOrganizationRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/settings/": typeof AuthedMemberSettingsIndexRoute;
 }
@@ -199,7 +191,6 @@ export interface FileRoutesByTo {
   "/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
   "/settings/billing": typeof AuthedMemberSettingsBillingRoute;
-  "/settings/organization": typeof AuthedMemberSettingsOrganizationRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/settings": typeof AuthedMemberSettingsIndexRoute;
 }
@@ -225,7 +216,6 @@ export interface FileRoutesById {
   "/_authed/_member/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
   "/_authed/_member/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
   "/_authed/_member/settings/billing": typeof AuthedMemberSettingsBillingRoute;
-  "/_authed/_member/settings/organization": typeof AuthedMemberSettingsOrganizationRoute;
   "/_authed/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/_authed/_member/settings/": typeof AuthedMemberSettingsIndexRoute;
 }
@@ -250,7 +240,6 @@ export interface FileRouteTypes {
     | "/queue/$threadId"
     | "/search/$threadId"
     | "/settings/billing"
-    | "/settings/organization"
     | "/settings/emails/verify"
     | "/settings/";
   fileRoutesByTo: FileRoutesByTo;
@@ -273,7 +262,6 @@ export interface FileRouteTypes {
     | "/queue/$threadId"
     | "/search/$threadId"
     | "/settings/billing"
-    | "/settings/organization"
     | "/settings/emails/verify"
     | "/settings";
   id:
@@ -298,7 +286,6 @@ export interface FileRouteTypes {
     | "/_authed/_member/queue/$threadId"
     | "/_authed/_member/search/$threadId"
     | "/_authed/_member/settings/billing"
-    | "/_authed/_member/settings/organization"
     | "/_authed/settings/emails/verify"
     | "/_authed/_member/settings/";
   fileRoutesById: FileRoutesById;
@@ -458,13 +445,6 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedMemberSettingsBillingRouteImport;
       parentRoute: typeof AuthedMemberRoute;
     };
-    "/_authed/_member/settings/organization": {
-      id: "/_authed/_member/settings/organization";
-      path: "/settings/organization";
-      fullPath: "/settings/organization";
-      preLoaderRoute: typeof AuthedMemberSettingsOrganizationRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
     "/_authed/settings/emails/verify": {
       id: "/_authed/settings/emails/verify";
       path: "/settings/emails/verify";
@@ -551,7 +531,6 @@ interface AuthedMemberRouteChildren {
   AuthedMemberQueueRoute: typeof AuthedMemberQueueRouteWithChildren;
   AuthedMemberSearchRoute: typeof AuthedMemberSearchRouteWithChildren;
   AuthedMemberSettingsBillingRoute: typeof AuthedMemberSettingsBillingRoute;
-  AuthedMemberSettingsOrganizationRoute: typeof AuthedMemberSettingsOrganizationRoute;
   AuthedMemberSettingsIndexRoute: typeof AuthedMemberSettingsIndexRoute;
 }
 
@@ -564,7 +543,6 @@ const AuthedMemberRouteChildren: AuthedMemberRouteChildren = {
   AuthedMemberQueueRoute: AuthedMemberQueueRouteWithChildren,
   AuthedMemberSearchRoute: AuthedMemberSearchRouteWithChildren,
   AuthedMemberSettingsBillingRoute: AuthedMemberSettingsBillingRoute,
-  AuthedMemberSettingsOrganizationRoute: AuthedMemberSettingsOrganizationRoute,
   AuthedMemberSettingsIndexRoute: AuthedMemberSettingsIndexRoute,
 };
 

@@ -20,6 +20,8 @@
      stays lighter than the current row's accent fill. */
   --hover: color-mix(in oklab, var(--foreground) 3%, transparent);
   --primary: #0d3eef;
+  /* What dims the app under a dialog: flat black, no blur (transitive's scrim). */
+  --scrim: oklch(0 0 0 / 7%);
   --primary-foreground: #ffffff;
 
   /* Tactility (`.claude/skills/tactile-design`): depth and press, layered on the Figma look
@@ -105,6 +107,7 @@
   --spacing-sidebar: 240px;
 
   --color-background: var(--background);
+  --color-scrim: var(--scrim);
   --color-surface: var(--surface);
   --color-info: var(--info);
   --color-well: var(--well);
