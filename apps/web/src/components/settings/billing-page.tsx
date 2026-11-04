@@ -1,16 +1,36 @@
-// The active workspace's plan (ADR 0015): its state, this month's AI triage against the
-// allowance, and the two ways out to Stripe (Checkout to start or restart the plan, the customer
-// portal to manage it). Everything shown is `GET /api/billing`; prices, invoices and cards live in
-// Stripe and are reached through the portal. Owners and admins (`canManage`) get the actions;
-// everyone else reads the same facts.
+// The active workspace's plan (ADR 0015): one plan card at the top (name, price, where it
+// stands, and the one thing to do about it), this month's AI triage against the allowance, then,
+// for owners and admins, the saved cards and the invoices (transitive's payment details, read from
+// Stripe through `/api/billing/cards` and `/api/billing/invoices`). A workspace always has a plan
+// (setup starts its trial), so there is no "no plan" page; one that ended can subscribe again.
+import {
+  ArrowDownTrayIcon,
+  ArrowTopRightOnSquareIcon,
+  CheckCircleIcon,
+  DocumentTextIcon,
+  TrashIcon,
+} from "@heroicons/react/16/solid";
+import { cn } from "cn";
 import { useState } from "react";
 import { Skeleton } from "skullet/react";
+import { CardBrandMark } from "@/components/icons/card-brand-mark";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { appToast } from "@/components/ui/toast";
-import { useBilling, useOpenBillingPortal, useStartCheckout } from "@/hooks/use-billing.ts";
-import { SettingsButtonRow } from "./kit/settings-button-row";
+import {
+  useBilling,
+  useBillingCards,
+  useBillingInvoices,
+  useMakeDefaultCard,
+  useOpenBillingPortal,
+  useRemoveCard,
+  useStartCheckout,
+} from "@/hooks/use-billing.ts";
+import { type Card, type Cards, formatPrice, type Invoice } from "@/lib/billing.ts";
+import { BillingAddCardDialog } from "./billing-add-card-dialog";
+import { SettingsAddRow } from "./kit/settings-add-row";
 import {
   SettingsEmptyState,
   SettingsGroup,
@@ -18,8 +38,9 @@ import {
   SettingsSections,
 } from "./kit/settings-layout";
 import { SettingsMeterRow } from "./kit/settings-meter-row";
-import { SettingsRow, settingsRowTextEndClassName } from "./kit/settings-row";
-import { SettingsFormDialog } from "./kit/settings-stacked-dialog";
+import { SettingsRow } from "./kit/settings-row";
+import { SettingsRowMenu } from "./kit/settings-row-menu";
+import { SettingsConfirmDialog, SettingsFormDialog } from "./kit/settings-stacked-dialog";
 import { SettingsValueRow } from "./kit/settings-value-row";
 
 type Billing = NonNullable<ReturnType<typeof useBilling>["data"]>;
@@ -28,17 +49,23 @@ type Subscription = NonNullable<EnabledBilling["subscription"]>;
 type Triage = NonNullable<EnabledBilling["triage"]>;
 type Interval = EnabledBilling["intervals"][number];
 
+/** Where Stripe's Checkout and portal send people back: this page. */
+const RETURN_PATH = "/settings/billing";
+
 const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+const SHORT_DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const NUMBER = new Intl.NumberFormat();
 const day = (iso: string) => DAY.format(new Date(iso));
+const shortDay = (iso: string) => SHORT_DAY.format(new Date(iso));
 
-// Skeleton stand-ins: an active monthly plan part way through its month.
+// Skeleton stand-ins: an active monthly plan part way through its month, two cards, two invoices.
 const SAMPLE_PLAN: Billing = {
   enabled: true,
   readOnly: false,
   canManage: true,
   intervals: ["month"],
-  prices: { month: null, year: null },
+  planName: "Omnipresent",
+  prices: { month: { amount: 1900, currency: "usd" }, year: null },
   trialDays: 0,
   trialAvailable: false,
   subscription: {
@@ -56,43 +83,78 @@ const SAMPLE_TRIAGE: Triage = {
   periodEnd: "2026-12-04T00:00:00.000Z",
   pausedUntil: null,
 };
+const SAMPLE_CARDS: Cards = {
+  addCard: true,
+  cards: [
+    { id: "pm_1", brand: "visa", last4: "4242", expMonth: 4, expYear: 2030, isDefault: true },
+    {
+      id: "pm_2",
+      brand: "mastercard",
+      last4: "4444",
+      expMonth: 9,
+      expYear: 2028,
+      isDefault: false,
+    },
+  ],
+};
+const SAMPLE_INVOICES: Invoice[] = ["2026-11-04", "2026-10-04"].map((date, index) => ({
+  id: `in_${index}`,
+  number: `OMNI-000${2 - index}`,
+  createdAt: `${date}T00:00:00.000Z`,
+  total: 1900,
+  currency: "usd",
+  status: "paid",
+  url: null,
+  pdfUrl: null,
+}));
 
 const INTERVAL_LABELS: Record<Interval, string> = { month: "Monthly", year: "Yearly" };
 
-/** Stripe's subscription statuses in a word, and the badge colour each reads in. */
-const STATUS: Record<
-  string,
-  { label: string; intent: "success" | "info" | "warning" | "danger" | "secondary" }
-> = {
-  active: { label: "Active", intent: "success" },
-  trialing: { label: "Trial", intent: "info" },
-  past_due: { label: "Past due", intent: "warning" },
-  incomplete: { label: "Incomplete", intent: "warning" },
-  unpaid: { label: "Unpaid", intent: "danger" },
-  canceled: { label: "Canceled", intent: "secondary" },
-  incomplete_expired: { label: "Expired", intent: "secondary" },
-  paused: { label: "Paused", intent: "secondary" },
-};
-const NO_PLAN = { label: "No plan", intent: "secondary" } as const;
+type Intent = "success" | "info" | "warning" | "danger" | "secondary";
 
-/** The one date that matters for the plan now, and what it is. */
-function planDate(subscription: Subscription) {
+/**
+ * Where the plan stands, in the card's own words: a badge only when it is not simply running,
+ * and the one date that matters now.
+ */
+function planState(subscription: Subscription | null): {
+  badge?: { label: string; intent: Intent };
+  date?: string;
+} {
+  if (!subscription) return { badge: { label: "No plan", intent: "secondary" } };
   const { status, periodEnd, trialEnd, cancelAtPeriodEnd } = subscription;
-  if (status === "trialing" && !cancelAtPeriodEnd) {
-    const end = trialEnd ?? periodEnd;
-    return end ? { label: "Trial ends", value: day(end) } : null;
+  const end = (status === "trialing" ? (trialEnd ?? periodEnd) : periodEnd) ?? null;
+  if (status === "trialing") {
+    return {
+      badge: { label: "Trial", intent: "info" },
+      date: end ? `${cancelAtPeriodEnd ? "Ends" : "Trial ends"} ${shortDay(end)}` : undefined,
+    };
   }
-  if (!periodEnd) return null;
-  if (status === "canceled") return { label: "Ended", value: day(periodEnd) };
-  if (status === "active" || status === "past_due" || status === "trialing")
-    return { label: cancelAtPeriodEnd ? "Ends" : "Renews", value: day(periodEnd) };
-  return null;
+  if (status === "active") {
+    return cancelAtPeriodEnd
+      ? {
+          badge: { label: "Ending", intent: "secondary" },
+          date: end ? `Ends ${shortDay(end)}` : undefined,
+        }
+      : { date: end ? `Renews ${shortDay(end)}` : undefined };
+  }
+  if (status === "past_due") {
+    return { badge: { label: "Past due", intent: "warning" }, date: "Stripe is retrying the card" };
+  }
+  if (status === "unpaid") return { badge: { label: "Unpaid", intent: "danger" } };
+  if (status === "incomplete") return { badge: { label: "Incomplete", intent: "warning" } };
+  return {
+    badge: { label: "Ended", intent: "secondary" },
+    date: end ? `Ended ${shortDay(end)}` : undefined,
+  };
 }
 
 export function BillingPage() {
   const billing = useBilling();
   const data = billing.data;
-  const triage = data?.enabled ? data.triage : undefined;
+  const enabled = data?.enabled ? data : undefined;
+  const triage = enabled?.triage;
+  // Cards and invoices are Stripe's, shown to the people who manage billing.
+  const manager = data === undefined || enabled?.canManage === true;
   const failed = billing.isError && (
     <SettingsGroup>
       <SettingsEmptyState title="Billing didn't load" description="Try again in a moment." />
@@ -101,28 +163,26 @@ export function BillingPage() {
 
   return (
     <SettingsSections>
-      <SettingsSection title="Plan">
-        <Skeleton
-          id="settings-billing-plan"
-          data={data}
-          sample={SAMPLE_PLAN}
-          label="Loading plan"
-          error={failed || undefined}
-        >
-          {(state) =>
-            state.enabled ? (
-              <PlanGroup billing={state} />
-            ) : (
-              <SettingsGroup>
-                <SettingsEmptyState
-                  title="No billing on this install"
-                  description="Every workspace here is unlimited."
-                />
-              </SettingsGroup>
-            )
-          }
-        </Skeleton>
-      </SettingsSection>
+      <Skeleton
+        id="settings-billing-plan"
+        data={data}
+        sample={SAMPLE_PLAN}
+        label="Loading plan"
+        error={failed || undefined}
+      >
+        {(state) =>
+          state.enabled ? (
+            <PlanCard billing={state} />
+          ) : (
+            <SettingsGroup>
+              <SettingsEmptyState
+                title="No billing on this install"
+                description="Every workspace here is unlimited."
+              />
+            </SettingsGroup>
+          )
+        }
+      </Skeleton>
 
       {/* Only a plan in good standing has an allowance to count against. */}
       {(data === undefined || triage) && (
@@ -140,89 +200,77 @@ export function BillingPage() {
           </Skeleton>
         </SettingsSection>
       )}
+
+      {manager && (data === undefined || enabled) && (
+        <>
+          <CardsSection billing={enabled} />
+          <InvoicesSection ready={enabled !== undefined} />
+        </>
+      )}
     </SettingsSections>
   );
 }
 
-function PlanGroup({ billing }: { billing: EnabledBilling }) {
+/** The plan at a glance: what it is, what it costs, where it stands, and the one action. */
+function PlanCard({ billing }: { billing: EnabledBilling }) {
   const { subscription, readOnly, canManage } = billing;
-  const status = subscription ? (STATUS[subscription.status] ?? NO_PLAN) : NO_PLAN;
-  const date = subscription && planDate(subscription);
+  const state = planState(subscription);
+  const interval = subscription?.interval as Interval | null | undefined;
+  const price = interval ? billing.prices[interval] : null;
   const pastDue = subscription?.status === "past_due";
-  const statusNote = readOnly
+  const note = readOnly
     ? canManage
-      ? "Read-only: mail keeps syncing, nothing is sent"
-      : "Read-only until an owner or admin subscribes"
-    : pastDue
-      ? "The last payment failed; Stripe is retrying it"
-      : undefined;
+      ? "Read-only: mail keeps syncing, nothing is sent until the plan is back."
+      : "Read-only until an owner or admin subscribes again."
+    : undefined;
+  const line = [price && `${formatPrice(price)} / ${interval}`, state.date].filter(Boolean);
 
   return (
     <SettingsGroup>
-      <SettingsRow
-        label="Status"
-        description={statusNote}
-        className={settingsRowTextEndClassName}
-        control={<Badge intent={status.intent}>{status.label}</Badge>}
-      />
-      {!readOnly && subscription?.interval && (
-        <SettingsValueRow
-          label="Billing"
-          value={INTERVAL_LABELS[subscription.interval as Interval] ?? subscription.interval}
-        />
-      )}
-      {date && <SettingsValueRow label={date.label} value={date.value} />}
-      {canManage && readOnly && <SubscribeRow billing={billing} />}
-      {/* The portal needs the workspace's Stripe customer, which its first checkout made. */}
-      {canManage && subscription && <PortalRow primary={pastDue} />}
+      <div className="flex min-h-21 items-center gap-4 py-4 ps-4 pe-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <h3 className="truncate text-lg text-foreground">{billing.planName ?? "Plan"}</h3>
+            {state.badge && <Badge intent={state.badge.intent}>{state.badge.label}</Badge>}
+          </div>
+          {line.length > 0 && (
+            <p className="truncate text-sm text-muted-foreground tabular-nums">
+              {line.join(" · ")}
+            </p>
+          )}
+        </div>
+        {canManage &&
+          (readOnly ? <SubscribeButton billing={billing} /> : <PortalButton primary={pastDue} />)}
+      </div>
+      {note && <p className="px-4 py-3 text-xs/4 text-muted-foreground">{note}</p>}
     </SettingsGroup>
   );
 }
 
-/** Starts Checkout: the trial for a workspace that never had a plan, else the plan itself. */
-function SubscribeRow({ billing }: { billing: EnabledBilling }) {
+/** For a plan that ended: Checkout again (its one trial is spent), monthly or yearly. */
+function SubscribeButton({ billing }: { billing: EnabledBilling }) {
   const checkout = useStartCheckout();
   const [choosing, setChoosing] = useState(false);
-  const trial = billing.trialDays > 0 && !billing.subscription;
-  const action = trial ? "Start trial" : "Subscribe";
   // Pending until the browser has left for Stripe, not just until the URL came back.
   const leaving = checkout.isPending || checkout.isSuccess;
   const start = (interval: Interval) =>
     checkout.mutate(
-      { interval, returnPath: "/settings/billing" },
-      {
-        onError: (error) => appToast.error(error.message || "Checkout could not be opened."),
-      },
+      { interval, returnPath: RETURN_PATH },
+      { onError: (error) => appToast.error(error.message || "Checkout could not be opened.") },
     );
-
   return (
     <>
-      <SettingsButtonRow
-        label={
-          trial
-            ? `Start a ${billing.trialDays}-day trial`
-            : billing.subscription
-              ? "Subscribe again"
-              : "Start the plan"
-        }
-        description={
-          trial
-            ? "No card needed"
-            : billing.subscription
-              ? "Turns sending and AI triage back on"
-              : "Turns on sending and AI triage"
-        }
-        actionLabel={action}
-        tone="primary"
-        loading={leaving && !choosing}
-        onAction={() =>
+      <Button
+        isPending={leaving && !choosing}
+        onPress={() =>
           billing.intervals.length > 1 ? setChoosing(true) : start(billing.intervals[0])
         }
-      />
+      >
+        Subscribe
+      </Button>
       {choosing && (
         <IntervalDialog
-          title={trial ? `Start a ${billing.trialDays}-day trial` : "Subscribe"}
-          intervals={billing.intervals}
+          billing={billing}
           saving={leaving}
           onClose={() => setChoosing(false)}
           onContinue={start}
@@ -232,22 +280,30 @@ function SubscribeRow({ billing }: { billing: EnabledBilling }) {
   );
 }
 
-/** Monthly or yearly, before Checkout; prices and promo codes are on Stripe's page. */
+/** Monthly or yearly, at Stripe's prices, before Checkout; promo codes go in on Stripe's page. */
 function IntervalDialog(props: {
-  title: string;
-  intervals: readonly Interval[];
+  billing: EnabledBilling;
   saving: boolean;
   onClose: () => void;
   onContinue: (interval: Interval) => void;
 }) {
-  const [interval, setInterval] = useState<Interval>(props.intervals[0] ?? "month");
-  const options = props.intervals.map((value) => ({ id: value, label: INTERVAL_LABELS[value] }));
+  const { intervals, prices } = props.billing;
+  const [interval, setInterval] = useState<Interval>(intervals[0] ?? "month");
+  const options = intervals.map((value) => {
+    const price = prices[value];
+    return {
+      id: value,
+      label: price
+        ? `${INTERVAL_LABELS[value]} · ${formatPrice(price)} / ${value}`
+        : INTERVAL_LABELS[value],
+    };
+  });
   return (
     <SettingsFormDialog
       isOpen
       onOpenChange={(open) => !open && props.onClose()}
-      title={props.title}
-      description="Prices and promo codes are shown at checkout."
+      title="Subscribe"
+      description="Promo codes are entered at checkout."
       action="Continue to checkout"
       saving={props.saving}
       onSubmit={() => props.onContinue(interval)}
@@ -255,7 +311,7 @@ function IntervalDialog(props: {
       <Select
         value={interval}
         onChange={(next) => {
-          const option = props.intervals.find((value) => value === next);
+          const option = intervals.find((value) => value === next);
           if (option) setInterval(option);
         }}
       >
@@ -273,22 +329,21 @@ function IntervalDialog(props: {
   );
 }
 
-/** The Stripe customer portal: card, invoices, interval, cancellation. */
-function PortalRow({ primary }: { primary: boolean }) {
+/** Stripe's customer portal: billing interval and cancellation. */
+function PortalButton({ primary }: { primary: boolean }) {
   const portal = useOpenBillingPortal();
   return (
-    <SettingsButtonRow
-      label="Payment and invoices"
-      description="Card, invoices, billing interval and cancellation"
-      actionLabel={primary ? "Update payment" : "Manage"}
-      tone={primary ? "primary" : "secondary"}
-      loading={portal.isPending || portal.isSuccess}
-      onAction={() =>
-        portal.mutate("/settings/billing", {
+    <Button
+      intent={primary ? "primary" : "outline"}
+      isPending={portal.isPending || portal.isSuccess}
+      onPress={() =>
+        portal.mutate(RETURN_PATH, {
           onError: (error) => appToast.error(error.message || "The portal could not be opened."),
         })
       }
-    />
+    >
+      Manage plan
+    </Button>
   );
 }
 
@@ -309,5 +364,249 @@ function TriageGroup({ triage }: { triage: Triage }) {
         tone={paused ? "danger" : "default"}
       />
     </SettingsGroup>
+  );
+}
+
+const BRANDS: Record<string, string> = {
+  amex: "American Express",
+  cartes_bancaires: "Cartes Bancaires",
+  diners: "Diners Club",
+  discover: "Discover",
+  eftpos_au: "eftpos",
+  jcb: "JCB",
+  mastercard: "Mastercard",
+  unionpay: "UnionPay",
+  visa: "Visa",
+};
+
+/** "Visa •••• 4242". */
+const cardLabel = (card: Pick<Card, "brand" | "last4">) =>
+  `${BRANDS[card.brand] ?? "Card"} •••• ${card.last4}`;
+
+/** True once the card's expiry month is over. */
+function cardExpired(card: Pick<Card, "expMonth" | "expYear">, now = new Date()) {
+  const year = now.getFullYear();
+  return card.expYear < year || (card.expYear === year && card.expMonth < now.getMonth() + 1);
+}
+
+/** "Expires 04/2030", or "Expired 04/2024". */
+function cardExpiry(card: Pick<Card, "expMonth" | "expYear">) {
+  const date = `${String(card.expMonth).padStart(2, "0")}/${card.expYear}`;
+  return cardExpired(card) ? `Expired ${date}` : `Expires ${date}`;
+}
+
+function CardsSection({ billing }: { billing: EnabledBilling | undefined }) {
+  const cards = useBillingCards({ enabled: billing !== undefined });
+  const makeDefault = useMakeDefaultCard();
+  const remove = useRemoveCard();
+  const portal = useOpenBillingPortal();
+  const [adding, setAdding] = useState(false);
+  const [removing, setRemoving] = useState<Card | null>(null);
+  const busy = makeDefault.isPending || remove.isPending;
+  const failed = cards.isError && (
+    <SettingsGroup>
+      <SettingsEmptyState title="Cards didn't load" description="Try again in a moment." />
+    </SettingsGroup>
+  );
+
+  return (
+    <SettingsSection
+      title="Payment methods"
+      info="Cards are kept by Stripe. Card numbers never reach Omni."
+    >
+      <Skeleton
+        id="settings-billing-cards"
+        data={cards.data}
+        sample={SAMPLE_CARDS}
+        label="Loading cards"
+        error={failed || undefined}
+      >
+        {(state) => (
+          <SettingsGroup>
+            {state.cards.length === 0 ? (
+              <SettingsEmptyState
+                title="No saved cards"
+                description={
+                  billing?.subscription?.status === "trialing"
+                    ? "Add a card before the trial ends to keep the plan."
+                    : "Add a card to pay for the plan."
+                }
+              />
+            ) : (
+              state.cards.map((card) => (
+                <SettingsRow
+                  key={card.id}
+                  avatar={<CardBrandMark brand={card.brand} />}
+                  label={<span className="tabular-nums">{cardLabel(card)}</span>}
+                  hint={card.isDefault ? "default" : undefined}
+                  description={
+                    <span className={cn("tabular-nums", cardExpired(card) && "text-danger")}>
+                      {cardExpiry(card)}
+                    </span>
+                  }
+                  control={
+                    <SettingsRowMenu
+                      label={`Actions for ${cardLabel(card)}`}
+                      disabled={busy}
+                      items={[
+                        ...(card.isDefault
+                          ? []
+                          : [
+                              {
+                                icon: CheckCircleIcon,
+                                label: "Make default",
+                                onAction: () =>
+                                  makeDefault.mutate(card.id, {
+                                    onSuccess: () => appToast.success("Default card changed."),
+                                    onError: (error) =>
+                                      appToast.error(
+                                        error.message || "The default card didn't change.",
+                                      ),
+                                  }),
+                              },
+                            ]),
+                        {
+                          icon: TrashIcon,
+                          label: "Remove card",
+                          danger: true,
+                          onAction: () => setRemoving(card),
+                        },
+                      ]}
+                    />
+                  }
+                />
+              ))
+            )}
+            {/* Without a publishable key the card is added on Stripe's portal instead. */}
+            <SettingsAddRow
+              label="Add card"
+              disabled={busy}
+              loading={!state.addCard && (portal.isPending || portal.isSuccess)}
+              onPress={() =>
+                state.addCard
+                  ? setAdding(true)
+                  : portal.mutate(RETURN_PATH, {
+                      onError: (error) =>
+                        appToast.error(error.message || "The portal could not be opened."),
+                    })
+              }
+            />
+          </SettingsGroup>
+        )}
+      </Skeleton>
+
+      {adding && <BillingAddCardDialog onClose={() => setAdding(false)} />}
+      <SettingsConfirmDialog
+        isOpen={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title="Remove card?"
+        description={`${removing ? cardLabel(removing) : "This card"} is removed from Stripe.${
+          removing?.isDefault ? " The plan moves to your next card." : ""
+        } Past invoices stay.`}
+        action="Remove card"
+        saving={remove.isPending}
+        onConfirm={() =>
+          removing &&
+          remove.mutate(removing.id, {
+            onSuccess: () => {
+              appToast.success("Card removed.");
+              setRemoving(null);
+            },
+            onError: (error) => {
+              appToast.error(error.message || "The card wasn't removed.");
+              setRemoving(null);
+            },
+          })
+        }
+      />
+    </SettingsSection>
+  );
+}
+
+const INVOICE_STATUS: Partial<Record<Invoice["status"], { label: string; intent: Intent }>> = {
+  open: { label: "Due", intent: "warning" },
+  uncollectible: { label: "Unpaid", intent: "danger" },
+  void: { label: "Void", intent: "secondary" },
+};
+
+/** "$19", or "$19.50", from Stripe's smallest unit. */
+const amount = (invoice: Pick<Invoice, "total" | "currency">) =>
+  formatPrice({ amount: invoice.total, currency: invoice.currency });
+
+const open = (url: string) => window.open(url, "_blank", "noopener,noreferrer");
+
+function InvoicesSection({ ready }: { ready: boolean }) {
+  const invoices = useBillingInvoices({ enabled: ready });
+  const failed = invoices.isError && (
+    <SettingsGroup>
+      <SettingsEmptyState title="Invoices didn't load" description="Try again in a moment." />
+    </SettingsGroup>
+  );
+  return (
+    <SettingsSection title="Invoices" info="Stripe's invoices for this workspace, newest first.">
+      <Skeleton
+        id="settings-billing-invoices"
+        data={invoices.data?.invoices}
+        sample={SAMPLE_INVOICES}
+        label="Loading invoices"
+        error={failed || undefined}
+      >
+        {(list) => (
+          <SettingsGroup>
+            {list.length === 0 ? (
+              <SettingsEmptyState
+                title="No invoices yet"
+                description="Each charge for the plan shows here with its receipt."
+              />
+            ) : (
+              list.map((invoice) => {
+                const status = INVOICE_STATUS[invoice.status];
+                const items = [
+                  ...(invoice.url
+                    ? [
+                        {
+                          icon: ArrowTopRightOnSquareIcon,
+                          label: invoice.status === "open" ? "Pay invoice" : "View invoice",
+                          onAction: () => open(invoice.url!),
+                        },
+                      ]
+                    : []),
+                  ...(invoice.pdfUrl
+                    ? [
+                        {
+                          icon: ArrowDownTrayIcon,
+                          label: "Download PDF",
+                          onAction: () => open(invoice.pdfUrl!),
+                        },
+                      ]
+                    : []),
+                ];
+                return (
+                  <SettingsRow
+                    key={invoice.id}
+                    icon={DocumentTextIcon}
+                    label={<span className="tabular-nums">{invoice.number ?? "Invoice"}</span>}
+                    badge={status && <Badge intent={status.intent}>{status.label}</Badge>}
+                    description={
+                      <span className="tabular-nums">
+                        {day(invoice.createdAt)} · {amount(invoice)}
+                      </span>
+                    }
+                    control={
+                      items.length > 0 && (
+                        <SettingsRowMenu
+                          label={`Actions for invoice ${invoice.number ?? day(invoice.createdAt)}`}
+                          items={items}
+                        />
+                      )
+                    }
+                  />
+                );
+              })
+            )}
+          </SettingsGroup>
+        )}
+      </Skeleton>
+    </SettingsSection>
   );
 }
