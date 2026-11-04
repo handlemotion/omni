@@ -28,6 +28,7 @@ import { useInviteMember } from "@/hooks/use-organization";
 import {
   needsSetup,
   ONBOARDING_PAGES as PAGES,
+  parseServer as server,
   rememberedChallenge,
   resumePage,
   watchDomain,
@@ -45,12 +46,6 @@ import type { DnsRecord, OnboardingDomain } from "@/lib/types";
 // for that host's servers, and each mailbox is added with its existing password.
 
 /** `host` or `host:port`; the port defaults to the implicit-TLS one. */
-function server(value: string, defaultPort: number) {
-  const match = /^\s*([^\s:]+)(?::(\d{1,5}))?\s*$/.exec(value);
-  if (!match) return null;
-  return { host: match[1]!, port: match[2] ? Number(match[2]) : defaultPort };
-}
-
 type Servers = { imap: { host: string; port: number }; smtp: { host: string; port: number } };
 
 export function Onboarding() {

@@ -6,7 +6,13 @@
 // and the chosen workspace's pages under it. The nav is the app sidebar's (240px, 13px rows 32px tall, 11px
 // group labels, the search field on top), set at the right of the left 30%; the page is a 640px
 // column in the right 70%, its title 17px. The page body is transitive's settings kit (`./kit`).
-import { ComputerDesktopIcon, ShieldCheckIcon, UsersIcon } from "@heroicons/react/24/outline";
+import {
+  ComputerDesktopIcon,
+  InboxStackIcon,
+  ShieldCheckIcon,
+  UserGroupIcon,
+  UsersIcon,
+} from "@heroicons/react/24/outline";
 import { cn } from "cn";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
@@ -41,7 +47,8 @@ import { ProfilePage, SecurityPage, ShortcutsPage } from "./account-pages";
 import { SettingsPageHeader } from "./kit/settings-layout";
 import { SettingsConfirmDialog } from "./kit/settings-stacked-dialog";
 import { WorkspaceChooser } from "./workspace-chooser";
-import { GeneralPage, MailboxesPage, PeoplePage } from "./workspace-pages";
+import { MembersInboxesPage, SharedMailboxesPage, YourMailboxesPage } from "./mailbox-pages";
+import { GeneralPage, isManager, PeoplePage } from "./workspace-pages";
 
 interface PageDefinition {
   id: SettingsPageId;
@@ -50,6 +57,8 @@ interface PageDefinition {
   /** What the search finds it by, besides its title: its sections and the words on its rows. */
   terms: string[];
   render: () => ReactNode;
+  /** Only owners and admins see it in the nav. */
+  managersOnly?: boolean;
 }
 
 /** A heroicons outline glyph drawn at the Figma icons' 15px; its 1.5 stroke lands at their 0.94. */
@@ -113,10 +122,26 @@ const WORKSPACE_PAGES: PageDefinition[] = [
   },
   {
     id: "mailboxes",
-    title: "Mailboxes",
+    title: "Your mailboxes",
     icon: <IconInbox />,
-    terms: ["access", "shared", "unread", "inbox", "lanes", "triage", "sync"],
-    render: () => <MailboxesPage />,
+    terms: ["mailboxes", "personal", "unread", "inbox", "lanes", "triage", "sync"],
+    render: () => <YourMailboxesPage />,
+  },
+  {
+    id: "shared-mailboxes",
+    title: "Shared mailboxes",
+    // A stack: one address, many people's inboxes.
+    icon: outline(InboxStackIcon),
+    terms: ["shared", "access", "who can see", "team", "add mailbox", "hello"],
+    render: () => <SharedMailboxesPage />,
+  },
+  {
+    id: "members-inboxes",
+    title: "Members' inboxes",
+    icon: outline(UserGroupIcon),
+    terms: ["personal", "inboxes", "members", "create inbox", "sync", "mailboxes"],
+    render: () => <MembersInboxesPage />,
+    managersOnly: true,
   },
 ];
 
@@ -242,12 +267,17 @@ function show(keys: Selection) {
 
 function SettingsBody({ page }: { page: SettingsPageId }) {
   const account = useAccountPages();
+  const { member } = useMember();
   const [query, setQuery] = useState("");
+  const manager = isManager(member.role);
+  const workspacePages = WORKSPACE_PAGES.filter((p) => manager || !p.managersOnly);
   const shownAccount = account.filter((p) => matches(p, query));
-  const shownWorkspace = WORKSPACE_PAGES.filter((p) => matches(p, query));
-  const current = [...account, ...WORKSPACE_PAGES].find((p) => p.id === page);
+  const shownWorkspace = workspacePages.filter((p) => matches(p, query));
+  // A page this member can't see (a managers' page after switching workspace) shows General.
+  const current = [...account, ...workspacePages].find((p) => p.id === page) ?? workspacePages[0];
   // Two lists, one current page: each list marks it only when it's one of its own.
-  const selectedIn = (pages: PageDefinition[]) => (pages.some((p) => p.id === page) ? [page] : []);
+  const selectedIn = (pages: PageDefinition[]) =>
+    current && pages.some((p) => p.id === current.id) ? [current.id] : [];
 
   return (
     // 35/65: the left part is the surface, its nav (the app sidebar's width) set 24px off the
@@ -289,7 +319,7 @@ function SettingsBody({ page }: { page: SettingsPageId }) {
             {shownWorkspace.length > 0 && (
               <NavList
                 aria-label="Workspace settings"
-                selectedKeys={selectedIn(WORKSPACE_PAGES)}
+                selectedKeys={selectedIn(workspacePages)}
                 onSelectionChange={show}
               >
                 <NavListSection id="workspace">

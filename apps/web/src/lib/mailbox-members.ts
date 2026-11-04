@@ -5,6 +5,17 @@ import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 
+/**
+ * Every mailbox of the active workspace for its owners and admins: shared ones with their head
+ * count, personal ones with their owner, each with its sync health. Never their mail. 403 for
+ * anyone else, so only managers' screens ask.
+ */
+export const workspaceMailboxesQuery = () =>
+  queryOptions({
+    queryKey: keys.workspaceMailboxes(),
+    queryFn: ({ signal }) => call(api.workspace.mailboxes.$get(undefined, { init: { signal } })),
+  });
+
 export const mailboxMembersQuery = (mailboxId: string) =>
   queryOptions({
     queryKey: keys.mailboxMembers(mailboxId),

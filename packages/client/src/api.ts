@@ -46,5 +46,13 @@ export type DnsRecord = OnboardingDomain["records"][number];
 export type Workspaces = InferResponseType<Api["workspaces"]["$get"], 200>;
 export type Workspace = Workspaces["workspaces"][number];
 export type WorkspaceMailbox = Workspace["mailboxes"][number];
+/**
+ * One mailbox of the active workspace as owners and admins see it (`GET /api/workspace/mailboxes`):
+ * its health, a personal one's owner, a shared one's head count. No mail.
+ */
+export type OrgMailbox = InferResponseType<
+  Api["workspace"]["mailboxes"]["$get"],
+  200
+>["mailboxes"][number];
 /** `created → domain_added → dns_verified → mailboxes_created → invites_sent → complete`. */
 export type SetupStep = Workspace["setup"];
