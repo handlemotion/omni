@@ -25,6 +25,8 @@ import {
   dropdownSectionStyles,
   DropdownSeparator,
 } from "./dropdown";
+import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
+import { FluidHoverHighlight } from "./fluid-hover-highlight";
 import { Popover, type PopoverProps } from "./popover";
 
 export const MenuTrigger = MenuTriggerPrimitive;
@@ -51,17 +53,36 @@ export interface MenuProps<T> extends MenuPrimitiveProps<T>, Pick<PopoverProps, 
 }
 
 export const menuStyles = tv({
-  base: "grid max-h-[inherit] grid-cols-[auto_1fr] gap-y-1 overflow-x-hidden overflow-y-auto overscroll-contain p-1 outline-hidden [clip-path:inset(0_0_0_0_round_calc(var(--radius-xl)-(--spacing(1))))] [&>[data-slot=menu-section]+[data-slot=menu-section]:not([class*='mt-']):not([class*='my-'])]:mt-3",
+  base: "grid max-h-[inherit] grid-cols-[auto_1fr] gap-y-0 overflow-x-hidden overflow-y-auto overscroll-contain p-1 outline-hidden [&>[data-slot=menu-section]+[data-slot=menu-section]:not([class*='mt-']):not([class*='my-'])]:mt-3",
 });
 
+/** Every row React Aria renders in a menu, submenu triggers included. */
+const MENU_ITEM_SELECTOR = "[role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox']";
+
 export function Menu<T extends object>({ className, placement, popover, ...props }: MenuProps<T>) {
+  // One highlight springs between the rows (transitive's fluid hover). React Aria marks the row
+  // it highlights (pointer or keys) with `data-focused`; an open submenu's trigger stays lit
+  // while the pointer is in the submenu.
+  const hover = useFluidHoverList({
+    itemSelector: MENU_ITEM_SELECTOR,
+    highlightedSelector: "[data-focused]",
+    heldSelector: "[data-open]",
+  });
   return (
     <Popover
       className={cx("min-w-32 *:data-[slot=popover-inner]:overflow-hidden", popover?.className)}
       placement={placement}
       {...popover}
     >
-      <MenuPrimitive data-slot="menu-content" className={menuStyles({ className })} {...props} />
+      <div className="relative flex max-h-[inherit] min-h-0 flex-col" {...hover.containerProps}>
+        <FluidHoverHighlight
+          {...hover.highlightProps}
+          className={
+            hover.activeElement?.dataset.intent === "danger" ? "bg-danger-subtle" : "bg-accent"
+          }
+        />
+        <MenuPrimitive data-slot="menu-content" className={menuStyles({ className })} {...props} />
+      </div>
     </Popover>
   );
 }
@@ -74,6 +95,7 @@ export function MenuItem({ className, intent, children, ...props }: MenuItemProp
   return (
     <MenuItemPrimitive
       data-slot="menu-item"
+      data-intent={intent}
       className={composeRenderProps(className, (className, { hasSubmenu, ...renderProps }) =>
         dropdownItemStyles({
           ...renderProps,
@@ -84,10 +106,12 @@ export function MenuItem({ className, intent, children, ...props }: MenuItemProp
                 intent === "warning" &&
                   "open:bg-warning-subtle open:text-warning-subtle-foreground",
                 intent === undefined &&
-                  "open:bg-accent open:text-accent-foreground open:*:[.text-muted-foreground]:text-accent-foreground open:*:[svg]:text-accent-foreground",
+                  "open:text-accent-foreground open:*:[.text-muted-foreground]:text-accent-foreground open:*:[svg]:text-accent-foreground",
+                // The fluid hover highlight is the row's fill; the row paints none of its own.
+                "bg-transparent focus:bg-transparent hover:bg-transparent",
                 className,
               )
-            : className,
+            : cn("bg-transparent focus:bg-transparent hover:bg-transparent", className),
         }),
       )}
       textValue={textValue}
@@ -138,10 +162,13 @@ const { section, header } = dropdownSectionStyles();
 export interface MenuSectionProps<T> extends MenuSectionPrimitiveProps<T> {
   ref?: React.Ref<HTMLDivElement>;
   label?: string;
+  /** Spacing and alignment for the label, which belongs to the rows below it. */
+  labelClassName?: string;
 }
 
 export function MenuSection<T extends object>({
   className,
+  labelClassName,
   children,
   ref,
   ...props
@@ -153,7 +180,9 @@ export function MenuSection<T extends object>({
       className={section({ className })}
       {...props}
     >
-      {"label" in props && <Header className={header()}>{props.label}</Header>}
+      {"label" in props && (
+        <Header className={header({ className: labelClassName })}>{props.label}</Header>
+      )}
       <Collection items={props.items}>{children}</Collection>
     </MenuSectionPrimitive>
   );

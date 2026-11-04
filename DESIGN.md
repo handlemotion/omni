@@ -44,11 +44,22 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
   finished steps collapse to their answer, upcoming steps are dimmed.
 - **Inset actions.** An action inside a field (submit arrow, clear, reveal) is
   `<Button size="inset">` placed in an `InputGroup`; the group handles position and padding.
+- **Balance, measured in ink.** Every UI change follows the `design-balance` skill
+  (`.claude/skills/design-balance`): plan each mark's distance from the edges of its own box,
+  measure the rendered pixels with its scripts (not element boxes), fix tightness by adding room,
+  and keep detail minimal (no restating subtitles, no status lines under fields). Report the
+  numbers.
 - **Balanced padding.** Equal padding on opposite sides of a container, and the same gap between
   siblings of the same kind. Take spacing from the Tailwind scale.
 - **Optical alignment.** Center things where they look centered, not where the math puts them
   (a card sits slightly above the true middle; an icon aligns to the text's cap height). When you
   nudge for optics, leave a short comment saying so.
+- **Tactility.** Depth, press and motion follow the `tactile-design` skill
+  (`.claude/skills/tactile-design`), layered on the Figma look without restyling it: raised
+  controls and cards keep their border and add the crisp `--shadow-raised` drop; overlays use
+  `--shadow-overlay`, never a big soft blur; buttons squeeze to `scale(.97)` when pressed; menus
+  grow from their trigger; motion uses the `ease-out` curve and has a reduced-motion path. The
+  skill's colours, wells and grounds don't apply: Figma and the tokens decide the look.
 - **Loading.** Data that's on its way renders with `skullet` (`import { Skeleton } from "skullet/react"`),
   never a spinner or a skeleton div. An action in progress is `<Button isPending>`: it dims like a
   disabled button, a spinner takes the icon's place, and a text-only button shimmers its text.

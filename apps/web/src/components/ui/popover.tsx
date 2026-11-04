@@ -37,10 +37,12 @@ export function Popover({ children, arrow = false, className, ref, ...props }: P
       className={cx(
         "[--visual-viewport-vertical-padding:16px] sm:[--visual-viewport-vertical-padding:32px]",
         "max-h-[calc(var(--visual-viewport-height)-var(--visual-viewport-vertical-padding)*2)]",
-        "group/popover min-w-(--trigger-width) max-w-xs origin-(--trigger-anchor-point) rounded-(--popover-radius) bg-overlay text-overlay-foreground shadow-xs outline-hidden ring ring-muted-foreground/20 drop-shadow-xl transition-transform [--gutter:--spacing(6)] [--popover-radius:var(--radius-lg)] sm:text-sm dark:ring-border dark:backdrop-saturate-200 **:[[role=dialog]]:[--gutter:--spacing(6)]",
-        "entering:fade-in exiting:fade-out entering:animate-in exiting:animate-out",
-        "placement-left:entering:slide-in-from-right-1 placement-right:entering:slide-in-from-left-1 placement-top:entering:slide-in-from-bottom-1 placement-bottom:entering:slide-in-from-top-1",
-        "placement-left:exiting:slide-out-to-right-1 placement-right:exiting:slide-out-to-left-1 placement-top:exiting:slide-out-to-bottom-1 placement-bottom:exiting:slide-out-to-top-1",
+        "group/popover min-w-(--trigger-width) max-w-xs origin-(--trigger-anchor-point) rounded-(--popover-radius) bg-overlay text-overlay-foreground border border-border shadow-(--shadow-overlay) outline-hidden [--gutter:--spacing(6)] [--popover-radius:var(--radius-lg)] sm:text-sm dark:ring-border dark:backdrop-saturate-200 **:[[role=dialog]]:[--gutter:--spacing(6)]",
+        // Grows from its trigger: 150ms in from scale .97 with a fade, out faster (120ms).
+        // Reduced motion keeps only the fade.
+        "entering:animate-in entering:fade-in entering:zoom-in-97 entering:duration-150 entering:ease-out",
+        "exiting:animate-out exiting:fade-out exiting:zoom-out-97 exiting:duration-120 exiting:ease-out",
+        "motion-reduce:entering:zoom-in-100 motion-reduce:exiting:zoom-out-100",
         "forced-colors:bg-[Canvas]",
         className,
       )}

@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { GlimmProvider } from "glimm/react";
 import { RouterProvider } from "react-aria-components";
+import { Toaster } from "../components/ui/toast.tsx";
 import type { RouterContext } from "../router.ts";
 
 // React Aria links (`href` on Intent UI's Link, SidebarItem, Menu items) navigate through the
@@ -32,6 +33,7 @@ function Root() {
       <GlimmProvider palette="azure" direction="ttb" zIndex={45}>
         <Outlet />
       </GlimmProvider>
+      <Toaster />
     </RouterProvider>
   );
 }

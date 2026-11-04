@@ -5,7 +5,7 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
     <div
       data-slot="card"
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) rounded-xl bg-card text-card-foreground border py-(--card-spacing) [--card-spacing:--spacing(6)] has-[table]:overflow-hidden has-[table]:not-has-data-[slot=card-footer]:pb-0 **:data-[slot=table-header]:bg-muted/50 has-[table]:**:data-[slot=card-footer]:pt-0 **:[table]:overflow-hidden",
+        "group/card flex flex-col gap-(--card-spacing) rounded-xl bg-card text-card-foreground border shadow-(--shadow-raised) py-(--card-spacing) [--card-spacing:--spacing(6)] has-[table]:overflow-hidden has-[table]:not-has-data-[slot=card-footer]:pb-0 **:data-[slot=table-header]:bg-muted/50 has-[table]:**:data-[slot=card-footer]:pt-0 **:[table]:overflow-hidden",
         className,
       )}
       {...props}

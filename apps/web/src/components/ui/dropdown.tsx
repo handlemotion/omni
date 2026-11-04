@@ -42,11 +42,13 @@ export function DropdownSection<T extends object>({
 export const dropdownItemStyles = tv({
   base: [
     "min-w-0 [--me-icon:--spacing(2.5)] sm:[--me-icon:--spacing(2)]",
-    "col-span-full grid grid-cols-[auto_1fr_1.5rem_0.5rem_auto] px-3 py-2 supports-[grid-template-columns:subgrid]:grid-cols-subgrid sm:px-2.5 sm:py-1.5",
+    // Rows from transitive's menus: 30px, a small radius, 13px text, the fill fading in place.
+    "col-span-full grid min-h-7.5 grid-cols-[auto_1fr_1.5rem_0.5rem_auto] px-1.5 py-1.5 supports-[grid-template-columns:subgrid]:grid-cols-subgrid",
+    "transition-[background-color] duration-150 ease-out motion-reduce:transition-none",
     "not-has-[[slot=description]]:items-center",
-    "group relative cursor-default select-none rounded-[calc(var(--radius-lg)-(--spacing(1)))] outline-0",
+    "group relative cursor-default select-none rounded-sm outline-0",
     // text
-    "text-base/6 text-foreground sm:text-sm/6 forced-colors:text-[CanvasText]",
+    "text-sm tracking-[-0.01em] text-foreground forced-colors:text-[CanvasText]",
     // avatar
     "*:data-[slot=avatar]:*:me-(--me-icon) *:data-[slot=avatar]:me-(--me-icon) has-[[slot=description]]:*:data-[slot=avatar]:row-span-2 *:data-[slot=avatar]:[--avatar-size:--spacing(5)] sm:*:data-[slot=avatar]:[--avatar-size:--spacing(4)]",
     // icon
@@ -153,7 +155,7 @@ export function DropdownSeparator({ className, ...props }: Omit<SeparatorProps, 
   return (
     <Separator
       orientation="horizontal"
-      className={cn("col-span-full -mx-1 h-px bg-foreground/10", className)}
+      className={cn("col-span-full mx-2 my-1 h-px bg-border", className)}
       {...props}
     />
   );

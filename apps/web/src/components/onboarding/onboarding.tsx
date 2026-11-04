@@ -10,6 +10,7 @@ import { Input, InputGroup } from "@/components/ui/input";
 import { Note } from "@/components/ui/note";
 import { Step, Steps, type StepState } from "@/components/ui/steps";
 import { Text } from "@/components/ui/text";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { TextField } from "@/components/ui/text-field";
 import {
   useAddDomain,
@@ -424,20 +425,19 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
                       Show a new value
                     </Button>
                   )}
-                  {record.diagnostic && !passes(record) && (
-                    <RecordDiagnostic diagnostic={record.diagnostic} />
-                  )}
                 </div>
               ))}
-              {group.check === "ownership" && domain.addError && <Text>{domain.addError}</Text>}
-              <Button
-                intent="outline"
-                className="mt-1 self-start"
+              <CheckButton
                 isPending={checkDomain.isPending}
                 onPress={check}
-              >
-                Check record
-              </Button>
+                // No status lines under the fields: why it isn't passing yet lives on the button.
+                why={[
+                  ...(group.check === "ownership" && domain.addError ? [domain.addError] : []),
+                  ...group.records
+                    .filter((r) => r.diagnostic && !passes(r))
+                    .map((r) => diagnosticText(r.diagnostic!)),
+                ]}
+              />
             </div>
           </Step>
         ))}
@@ -447,13 +447,30 @@ function DnsForm(props: { domain: OnboardingDomain; organizationId: string; onDo
 }
 
 /** Why a record is not passing yet, and what the nameservers hold instead. */
-function RecordDiagnostic(props: { diagnostic: Diagnostic }) {
-  const { message, found } = props.diagnostic;
+function diagnosticText({ message, found }: Diagnostic) {
+  return found.length > 0 ? `${message} Found: ${found.join(", ")}` : message;
+}
+
+/** "Check record", with the reasons the last check didn't pass in its tooltip (hover or focus). */
+function CheckButton(props: { isPending: boolean; onPress: () => void; why: string[] }) {
+  const button = (
+    <Button
+      intent="outline"
+      className="mt-1 self-start"
+      isPending={props.isPending}
+      onPress={props.onPress}
+    >
+      Check record
+    </Button>
+  );
+  if (props.why.length === 0) return button;
   return (
-    <Text>
-      {message}
-      {found.length > 0 && <> Found: {found.join(", ")}</>}
-    </Text>
+    <TooltipTrigger delay={300}>
+      {button}
+      <Tooltip inverse placement="end" className="max-w-xs text-xs">
+        {props.why.join(" ")}
+      </Tooltip>
+    </TooltipTrigger>
   );
 }
 

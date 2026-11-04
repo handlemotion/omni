@@ -69,7 +69,9 @@ export function Avatar({
             alignmentBaseline="middle"
             dominantBaseline="middle"
             textAnchor="middle"
-            dy=".125em"
+            // Optical centre: the ink sits a hair above the disc's middle, where the eye reads
+            // centre (measured: .125em left capitals 0.4px below the middle, reading ~1px low).
+            dy=".07em"
           >
             {initials}
           </text>

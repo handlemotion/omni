@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { Command, defaultFilter } from "cmdk";
 import { useGlimm } from "glimm/react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "react-aria-components/Button";
@@ -60,9 +60,11 @@ const COMMANDS: Command[] = [
 const FIELD = { width: 240, height: 32, radius: 6 };
 const clip = {
   closed: `inset(0px 0px calc(100% - ${FIELD.height}px) calc(100% - ${FIELD.width}px) round ${FIELD.radius}px)`,
-  open: "inset(0px 0px 0px 0px round 8px)",
+  // Open, the clip reaches past the sides and bottom so the bottom drop shadow shows.
+  open: "inset(0px -12px -16px -12px round 8px)",
 };
-const ease = [0.2, 0, 0, 1] as const;
+// The strong ease-out (tactile-design), the same curve as `--ease-out`.
+const ease = [0.23, 1, 0.32, 1] as const;
 
 type Phase = "closed" | "open" | "closing";
 
@@ -70,6 +72,8 @@ type Phase = "closed" | "open" | "closing";
 export function SearchPopover() {
   const [phase, setPhase] = useState<Phase>("closed");
   const triggerRef = useRef<HTMLButtonElement>(null);
+  // Reduced motion: no growing out of the field; the panel crossfades in place instead.
+  const reduceMotion = useReducedMotion();
   const open = () => setPhase("open");
   const close = () => setPhase((p) => (p === "closed" ? p : "closing"));
 
@@ -126,10 +130,14 @@ export function SearchPopover() {
         className="z-50 outline-hidden"
       >
         <motion.div
-          className="w-100 overflow-hidden rounded-xl border border-border bg-background shadow-lg"
-          initial={{ clipPath: clip.closed }}
-          animate={{ clipPath: isOpen ? clip.open : clip.closed }}
-          transition={{ duration: 0.24, ease }}
+          className="w-100 overflow-hidden rounded-xl border border-border bg-background shadow-(--shadow-overlay)"
+          initial={reduceMotion ? { clipPath: clip.open, opacity: 0 } : { clipPath: clip.closed }}
+          animate={
+            reduceMotion
+              ? { opacity: isOpen ? 1 : 0 }
+              : { clipPath: isOpen ? clip.open : clip.closed }
+          }
+          transition={{ duration: reduceMotion ? 0.15 : 0.24, ease }}
           onAnimationComplete={() => phase === "closing" && setPhase("closed")}
         >
           <motion.div

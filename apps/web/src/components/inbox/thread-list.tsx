@@ -16,8 +16,10 @@ import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Avatar } from "@/components/ui/avatar";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
+import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
+import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { useCounts, useThreads } from "@/hooks/use-mail.ts";
 import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
@@ -96,6 +98,12 @@ export function List(
   // List view: an open thread takes the whole width; split view: it sits beside the list.
   const hideList = view === "list" && !!threadId;
   const listRef = useRef<HTMLElement>(null);
+  // One hover highlight springs between the rows (transitive's fluid hover). The row moved to with
+  // j/k lights the same way whenever the pointer is not over the list.
+  const hover = useFluidHoverList({
+    itemSelector: "[role='row']",
+    highlightedSelector: "[data-focus-visible]",
+  });
 
   return (
     // Viewport height, so the virtualized list is its own scroll container however tall the
@@ -169,26 +177,33 @@ export function List(
           </div>
 
           {/* Only the rows on screen are in the DOM, so thousands of threads scroll like fifty.
-              The list is its own scroll container; rows keep the frame's fixed height. */}
-          <Virtualizer layout={ListLayout} layoutOptions={LIST_LAYOUT}>
-            <GridList
-              aria-label={props.title}
-              className="min-h-0 flex-1 overflow-y-auto"
-              // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
-              disallowTypeAhead
-              selectionMode="multiple"
-              selectionBehavior="toggle"
-              selectedKeys={selected}
-              onSelectionChange={setSelected}
-            >
-              {/* `items` lets React Aria cache rows by thread, so a scroll renders only new rows. */}
-              <Collection items={threads} dependencies={[props.href]}>
-                {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
-              </Collection>
-              {/* Asks for the next page as the end of the list nears. */}
-              <GridListLoadMoreItem onLoadMore={props.loadMore} isLoading={props.isLoadingMore} />
-            </GridList>
-          </Virtualizer>
+              The list is its own scroll container; rows keep the frame's fixed height. The
+              wrapper holds the fluid hover highlight, which sits under the rows and follows the
+              list's scroll. */}
+          <div className="relative flex min-h-0 flex-1 flex-col" {...hover.containerProps}>
+            <FluidHoverHighlight {...hover.highlightProps} />
+            <Virtualizer layout={ListLayout} layoutOptions={LIST_LAYOUT}>
+              <GridList
+                aria-label={props.title}
+                // Transparent: the list is positioned, so its own fill would paint over the
+                // highlight. The page behind it is already the background.
+                className="min-h-0 flex-1 overflow-y-auto bg-transparent"
+                // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
+                disallowTypeAhead
+                selectionMode="multiple"
+                selectionBehavior="toggle"
+                selectedKeys={selected}
+                onSelectionChange={setSelected}
+              >
+                {/* `items` lets React Aria cache rows by thread, so a scroll renders only new rows. */}
+                <Collection items={threads} dependencies={[props.href]}>
+                  {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
+                </Collection>
+                {/* Asks for the next page as the end of the list nears. */}
+                <GridListLoadMoreItem onLoadMore={props.loadMore} isLoading={props.isLoadingMore} />
+              </GridList>
+            </Virtualizer>
+          </div>
         </section>
         {props.children}
       </div>
