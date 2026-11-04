@@ -33,19 +33,24 @@ export const sessionQuery = () =>
   queryOptions({
     queryKey: keys.session(),
     queryFn: async ({ signal }): Promise<Session | null> => {
+      // Both read the session cookie, so they go out together: every route waits on this, and
+      // one round trip instead of two is what startup saves. Signed out, `/me` is ignored.
+      const me = call(api.me.$get(undefined, { init: { signal } })).then(
+        (member) => ({ member }),
+        (error: unknown) => ({ error }),
+      );
       const data = await authCall(auth.getSession({ fetchOptions: { signal } }));
       if (!data) return null;
-      try {
-        const member = await call(api.me.$get(undefined, { init: { signal } }));
-        return { user: data.user, session: data.session, member };
-      } catch (error) {
-        // Signed in but not a member of any organization (yet): an invitation can fix that.
-        if (error instanceof ApiError && error.status === 403) {
-          return { user: data.user, session: data.session, member: null };
-        }
-        if (error instanceof ApiError && error.status === 401) return null;
-        throw error;
+      const result = await me;
+      if ("member" in result)
+        return { user: data.user, session: data.session, member: result.member };
+      const { error } = result;
+      // Signed in but not a member of any organization (yet): an invitation can fix that.
+      if (error instanceof ApiError && error.status === 403) {
+        return { user: data.user, session: data.session, member: null };
       }
+      if (error instanceof ApiError && error.status === 401) return null;
+      throw error;
     },
     staleTime: 5 * 60_000,
   });

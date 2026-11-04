@@ -22,6 +22,10 @@ build it themselves.
 offline. It uses Playwright's Chromium when installed (`PLAYWRIGHT_BROWSERS_PATH`), else the
 machine's Chrome.
 
+`pnpm bench` (stack up, `perf:seed` run, `DATABASE_URL` set) measures startup, switching lists,
+opening a thread, loading older mail and scrolling in that Chromium against the 200k-message seed,
+with the CPU slowed 4x (`scripts/bench.ts`). Run it before and after a performance change.
+
 ## Layout
 
 ```

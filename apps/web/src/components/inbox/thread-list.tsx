@@ -4,7 +4,7 @@ import {
   ViewColumnsIcon,
 } from "@heroicons/react/24/outline";
 import { useParams } from "@tanstack/react-router";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Key, Selection } from "react-aria-components";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
@@ -57,17 +57,18 @@ export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
     () => threads.map((thread) => toRow(thread, names?.get(thread.orgId))),
     [threads, names],
   );
+  // Stable too: a new function would re-render every row (see `Rows`).
+  const loadMore = useMemo(
+    () => (hasNextPage ? () => void fetchNextPage() : undefined),
+    [hasNextPage, fetchNextPage],
+  );
   return (
     <List
       {...props}
       rows={rows}
       count={unread}
-      shortcuts={{
-        view: props.filter.view,
-        threads,
-        loadMore: hasNextPage ? () => void fetchNextPage() : undefined,
-      }}
-      loadMore={hasNextPage ? () => void fetchNextPage() : undefined}
+      shortcuts={{ view: props.filter.view, threads, loadMore }}
+      loadMore={loadMore}
       isLoadingMore={isFetchingNextPage}
     />
   );
@@ -107,12 +108,6 @@ export function List(
   // List view: an open thread takes the whole width; split view: it sits beside the list.
   const hideList = view === "list" && !!threadId;
   const listRef = useRef<HTMLElement>(null);
-  // One hover highlight springs between the rows (transitive's fluid hover). The row moved to with
-  // j/k lights the same way whenever the pointer is not over the list.
-  const hover = useFluidHoverList({
-    itemSelector: "[role='row']",
-    highlightedSelector: "[data-focus-visible]",
-  });
 
   return (
     // Viewport height, so the virtualized list is its own scroll container however tall the
@@ -190,37 +185,80 @@ export function List(
               wrapper holds the fluid hover highlight, which sits under the rows and follows the
               list's scroll. The slot puts them inside smart search's sweep. */}
           <ListSweepSlot>
-            <div className="relative flex min-h-0 flex-1 flex-col" {...hover.containerProps}>
-              <FluidHoverHighlight {...hover.highlightProps} />
-              <Virtualizer layout={ListLayout} layoutOptions={LIST_LAYOUT}>
-                <GridList
-                  aria-label={props.title}
-                  // Transparent: the list is positioned, so its own fill would paint over the
-                  // highlight. The page behind it is already the background.
-                  className="min-h-0 flex-1 overflow-y-auto bg-transparent"
-                  // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
-                  disallowTypeAhead
-                  selectionMode="multiple"
-                  selectionBehavior="toggle"
-                  selectedKeys={selected}
-                  onSelectionChange={setSelected}
-                >
-                  {/* `items` lets React Aria cache rows by thread, so a scroll renders only new rows. */}
-                  <Collection items={threads} dependencies={[props.href]}>
-                    {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
-                  </Collection>
-                  {/* Asks for the next page as the end of the list nears. */}
-                  <GridListLoadMoreItem
-                    onLoadMore={props.loadMore}
-                    isLoading={props.isLoadingMore}
-                  />
-                </GridList>
-              </Virtualizer>
-            </div>
+            <RowHover>
+              <Rows
+                label={props.title}
+                rows={threads}
+                href={props.href}
+                selected={selected}
+                onSelectionChange={setSelected}
+                loadMore={props.loadMore}
+                isLoadingMore={props.isLoadingMore}
+              />
+            </RowHover>
           </ListSweepSlot>
         </section>
         {props.children}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The virtualized rows, memoized: `List` re-renders when a thread opens (the URL), the selection
+ * count changes or the hover highlight moves, and any re-render of the grid re-renders every
+ * visible row (React Aria hands each row fresh context). With stable props the rows render only
+ * when what they show changes.
+ */
+const Rows = memo(function Rows(props: {
+  label: string;
+  rows: ListRow[];
+  href: (threadId: string) => string;
+  selected: Selection;
+  onSelectionChange: (keys: Selection) => void;
+  loadMore?: (() => void) | undefined;
+  isLoadingMore?: boolean | undefined;
+}) {
+  return (
+    <Virtualizer layout={ListLayout} layoutOptions={LIST_LAYOUT}>
+      <GridList
+        aria-label={props.label}
+        // Transparent: the list is positioned, so its own fill would paint over the
+        // highlight. The page behind it is already the background.
+        className="min-h-0 flex-1 overflow-y-auto bg-transparent"
+        // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
+        disallowTypeAhead
+        selectionMode="multiple"
+        selectionBehavior="toggle"
+        selectedKeys={props.selected}
+        onSelectionChange={props.onSelectionChange}
+      >
+        {/* `items` lets React Aria cache rows by thread, so a scroll renders only new rows. */}
+        <Collection items={props.rows} dependencies={[props.href]}>
+          {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
+        </Collection>
+        {/* Asks for the next page as the end of the list nears. */}
+        <GridListLoadMoreItem onLoadMore={props.loadMore} isLoading={props.isLoadingMore} />
+      </GridList>
+    </Virtualizer>
+  );
+});
+
+/**
+ * One hover highlight springs between the rows (transitive's fluid hover). The row moved to with
+ * j/k lights the same way whenever the pointer is not over the list. Its own component, taking
+ * the rows as `children`: the highlight moves on every scroll (the rows move under the pointer),
+ * and re-rendering here leaves the rows alone, where re-rendering `List` re-rendered every row.
+ */
+function RowHover({ children }: { children: ReactNode }) {
+  const hover = useFluidHoverList({
+    itemSelector: "[role='row']",
+    highlightedSelector: "[data-focus-visible]",
+  });
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col" {...hover.containerProps}>
+      <FluidHoverHighlight {...hover.highlightProps} />
+      {children}
     </div>
   );
 }
