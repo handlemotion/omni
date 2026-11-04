@@ -4,6 +4,10 @@ packages:
 
 # Supply-chain guard: never install a version published less than a day ago.
 minimumReleaseAge: 1440
+# glimm 0.4.0 (GlimmScope for the smart-search sweep) was taken on its release day by choice.
+# Only this exact version is exempt; drop the entry once it is a day old.
+minimumReleaseAgeExclude:
+  - glimm@0.4.0
 
 allowBuilds:
   esbuild: true

@@ -5,7 +5,6 @@ import {
   type NavigateOptions,
   type ToOptions,
 } from "@tanstack/react-router";
-import { GlimmProvider } from "glimm/react";
 import { RouterProvider } from "react-aria-components";
 import { Toaster } from "../components/ui/toast.tsx";
 import type { RouterContext } from "../router.ts";
@@ -27,12 +26,7 @@ function Root() {
   const router = useRouter();
   return (
     <RouterProvider navigate={(href, options) => router.navigate({ ...options, href })}>
-      {/* The sweep that reveals smart search results: top to bottom, under the search popover
-          (z-50) as it closes, over the page. Skipped under reduced motion. Azure: the preset
-          closest to the brand blue. */}
-      <GlimmProvider palette="azure" direction="ttb" zIndex={45}>
-        <Outlet />
-      </GlimmProvider>
+      <Outlet />
       <Toaster />
     </RouterProvider>
   );

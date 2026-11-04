@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
 import { SidebarInset, SidebarProvider } from "../../components/ui/sidebar.tsx";
@@ -30,7 +31,9 @@ function Shell() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <Outlet />
+        <ListSweepProvider>
+          <Outlet />
+        </ListSweepProvider>
       </SidebarInset>
       <KeyboardShortcuts />
     </SidebarProvider>

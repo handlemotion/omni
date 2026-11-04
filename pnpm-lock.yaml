@@ -292,8 +292,8 @@ importers:
         specifier: ^8.6.0
         version: 8.6.0(react@19.3.1)
       glimm:
-        specifier: ^0.3.1
-        version: 0.3.1(react@19.3.1)
+        specifier: ^0.4.0
+        version: 0.4.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       hono:
         specifier: ^4.13.14
         version: 4.13.14
@@ -3315,16 +3315,19 @@ packages:
   get-tsconfig@4.14.3:
     resolution: {integrity: sha512-++QEw4DIY7WGoukz+/+A/8dGYPT9l9yIadnmSgZ8Rjr3YVSVDipQSO9CdnJo9ePqFqUUqh+wk9uIaoiAwsiPkA==}
 
-  glimm@0.3.1:
-    resolution: {integrity: sha512-7O+Ga+cqqP8FEFDa63X+BXCYKndlnZZEMjTl1DhMfQ3yWweDgl8nC+ImP/zLo351YEn/6WpnOL6jKfvFWmnyDg==}
+  glimm@0.4.0:
+    resolution: {integrity: sha512-Fqq9QW2drEw4vo9SjNdIlDWybKrO5TxJJqNx4jTLeY0Aocp66+QRJitrVQkl6SRl6b5STBeTymwlMXrrKD38hw==}
     engines: {node: '>=18'}
     peerDependencies:
       next: '>=14'
       react: '>=18'
+      react-dom: '>=18'
     peerDependenciesMeta:
       next:
         optional: true
       react:
+        optional: true
+      react-dom:
         optional: true
 
   glob@14.0.3:
@@ -6678,9 +6681,10 @@ snapshots:
     dependencies:
       resolve-pkg-maps: 1.0.0
 
-  glimm@0.3.1(react@19.3.1):
+  glimm@0.4.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     optionalDependencies:
       react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
 
   glob@14.0.3:
     dependencies:
