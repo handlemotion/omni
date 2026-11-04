@@ -9,33 +9,26 @@ import { twJoin } from "cn";
 import type { VariantProps } from "tailwind-variants";
 import { tv } from "tailwind-variants";
 
+// shadcn's tooltip look on React Aria's tooltip: a small dark chip (foreground on background),
+// 12px text, a short fade and zoom from its trigger. `inverse={false}` keeps the light overlay.
 const tooltipStyles = tv({
   base: [
-    "group max-w-sm origin-(--trigger-anchor-point) rounded-lg border border-(--tooltip-border) px-2.5 py-1.5 text-sm/6 will-change-transform [--tooltip-border:var(--color-muted-foreground)]/30 dark:shadow-none *:[strong]:font-medium",
+    "group w-fit max-w-xs origin-(--trigger-anchor-point) rounded-md px-3 py-1.5 text-xs text-balance will-change-transform *:[strong]:font-medium",
   ],
   variants: {
     inverse: {
-      true: [
-        "border-transparent bg-foreground text-background",
-        "**:[.text-muted-foreground]:text-background/60",
-      ],
-      false: "bg-overlay text-overlay-foreground",
+      true: ["bg-foreground text-background", "**:[.text-muted-foreground]:text-background/60"],
+      false: "border border-border bg-overlay text-overlay-foreground",
     },
     isEntering: {
-      true: [
-        "fade-in animate-in",
-        "placement-left:slide-in-from-right-1 placement-right:slide-in-from-left-1 placement-top:slide-in-from-bottom-1 placement-bottom:slide-in-from-top-1",
-      ],
+      true: "fade-in-0 zoom-in-95 animate-in duration-150 ease-out motion-reduce:animate-none",
     },
     isExiting: {
-      true: [
-        "fade-in direction-reverse animate-in",
-        "placement-left:slide-out-to-right-1 placement-right:slide-out-to-left-1 placement-top:slide-out-to-bottom-1 placement-bottom:slide-out-to-top-1",
-      ],
+      true: "fade-out-0 zoom-out-95 animate-out duration-100 ease-out motion-reduce:animate-none",
     },
   },
   defaultVariants: {
-    inverse: false,
+    inverse: true,
   },
 });
 
@@ -47,7 +40,7 @@ export interface TooltipProps
   children?: React.ReactNode;
 }
 
-export function Tooltip({ offset = 10, arrow = true, inverse, children, ...props }: TooltipProps) {
+export function Tooltip({ offset = 6, arrow = true, inverse, children, ...props }: TooltipProps) {
   return (
     <TooltipPrimitive
       {...props}
@@ -63,17 +56,17 @@ export function Tooltip({ offset = 10, arrow = true, inverse, children, ...props
       {arrow && (
         <OverlayArrow className="group">
           <svg
-            width={12}
-            height={12}
-            viewBox="0 0 12 12"
+            width={10}
+            height={5}
+            viewBox="0 0 10 5"
             className={twJoin(
               "block group-placement-bottom:rotate-180 group-placement-left:-rotate-90 group-placement-right:rotate-90 forced-colors:fill-[Canvas] forced-colors:stroke-[ButtonBorder]",
-              inverse
-                ? "fill-foreground stroke-transparent"
-                : "fill-overlay stroke-(--tooltip-border)",
+              inverse === false
+                ? "fill-overlay stroke-border"
+                : "fill-foreground stroke-transparent",
             )}
           >
-            <path d="M0 0 L6 6 L12 0" />
+            <path d="M0 0 L5 5 L10 0" />
           </svg>
         </OverlayArrow>
       )}

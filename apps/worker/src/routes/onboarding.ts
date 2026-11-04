@@ -434,7 +434,7 @@ export const onboarding = new Hono<AppEnv>()
       } else if (domain.provider === "imap") {
         if (!body.login) {
           throw new HTTPException(400, {
-            message: "a mailbox on your own mail host needs its login",
+            message: `Enter the password for ${address}.`,
           });
         }
         // Passed through to the mail service, which checks and encrypts it. Never stored or

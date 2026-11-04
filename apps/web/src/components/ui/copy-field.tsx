@@ -1,6 +1,6 @@
 import { CheckIcon } from "@heroicons/react/24/outline";
 import { ArrowPathIcon } from "@heroicons/react/20/solid";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "react-aria-components/Button";
 import { cn } from "cn";
 import { Loader } from "./loader";
@@ -21,24 +21,32 @@ const LABEL =
  * of stacked fields, set `--copy-label-width` on their container.
  */
 export function CopyField(props: { label: string; value: string; className?: string }) {
-  const [hovered, setHovered] = useState(false);
+  const [open, setOpen] = useState(false);
   const [result, setResult] = useState<"copied" | "failed" | null>(null);
 
-  useEffect(() => {
-    if (!result) return;
-    const timer = setTimeout(() => setResult(null), 1500);
-    return () => clearTimeout(timer);
-  }, [result]);
+  // The tooltip is open only while hovered or focused, like any other: "Copied" shows there and
+  // never holds a field's tooltip open after the pointer leaves, so moving on to the next field
+  // can't leave two up. Leaving resets it to "Click to copy".
+  const onOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setResult(null);
+  };
 
   // The tick shows on the click itself, before the clipboard answers; if it refuses, say so
   // rather than claim a copy that didn't happen.
   const copy = () => {
     setResult("copied");
+    setOpen(true);
     navigator.clipboard.writeText(props.value).catch(() => setResult("failed"));
   };
 
   return (
-    <TooltipTrigger isOpen={hovered || result !== null} onOpenChange={setHovered} delay={300}>
+    <TooltipTrigger
+      isOpen={open}
+      onOpenChange={onOpenChange}
+      delay={300}
+      shouldCloseOnPress={false}
+    >
       <Button
         aria-label={`Copy ${props.label.toLowerCase()}: ${props.value}`}
         onPress={copy}
@@ -49,13 +57,7 @@ export function CopyField(props: { label: string; value: string; className?: str
           <span className="truncate">{props.value}</span>
         </span>
       </Button>
-      <Tooltip
-        inverse
-        arrow={false}
-        offset={8}
-        placement="end"
-        className="flex items-center gap-1 px-1.5 py-1 text-xs"
-      >
+      <Tooltip arrow={false} placement="end" className="flex items-center gap-1">
         {result === "copied" && <CheckIcon aria-hidden className="size-3" />}
         {result === "copied" ? "Copied" : result === "failed" ? "Copy failed" : "Click to copy"}
       </Tooltip>
@@ -99,7 +101,7 @@ export function RenewField(props: {
           )}
         </span>
       </Button>
-      <Tooltip inverse arrow={false} offset={8} placement="end" className="px-1.5 py-1 text-xs">
+      <Tooltip arrow={false} placement="end">
         {props.tooltip}
       </Tooltip>
     </TooltipTrigger>
