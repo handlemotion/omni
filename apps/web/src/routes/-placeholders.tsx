@@ -12,12 +12,8 @@ import {
   useMarkUndone,
   useSendReply,
 } from "../hooks/use-mail-actions.ts";
+import { DEFER_MS, isDeferred } from "../lib/threads.ts";
 import { attachmentUrl, messageHtmlUrl } from "../lib/urls.ts";
-
-/** A deferral whose time has passed is over: the thread is back in the inbox. */
-function isDeferred(until: string | null) {
-  return until !== null && new Date(until).getTime() > Date.now();
-}
 
 export function ThreadView({ threadId }: { threadId: string }) {
   const { thread, pending } = useThread(threadId);
@@ -55,9 +51,7 @@ export function ThreadView({ threadId }: { threadId: string }) {
         onClick={() =>
           defer.mutate({
             threadId,
-            until: isDeferred(thread.deferredUntil)
-              ? null
-              : new Date(Date.now() + 24 * 60 * 60 * 1000),
+            until: isDeferred(thread.deferredUntil) ? null : new Date(Date.now() + DEFER_MS),
           })
         }
       >

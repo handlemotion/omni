@@ -56,6 +56,8 @@ export const keys = {
     [...mail, "search", { q, ...(mailbox ? { mailbox } : {}) }] as const,
   action: (id: string) => [...mail, "action", id] as const,
 
+  /** App-only state, never fetched (`query-client.ts` keeps it forever). */
+  local: () => local,
   pendingAll: () => [...local, "pending"] as const,
   pending: (threadId: string) => [...local, "pending", threadId] as const,
   failures: () => [...local, "failures"] as const,

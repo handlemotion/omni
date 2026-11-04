@@ -3,15 +3,10 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, type RefObject } from "react";
 import type { Selection } from "react-aria-components";
+import { DEFER_MS, isDeferred, leavesView } from "../lib/threads.ts";
 import type { ThreadSummary, ThreadView } from "../lib/types.ts";
 import { useDefer, useMarkDone, useMarkRead, useMarkUndone } from "./use-mail-actions.ts";
 import { announce, useShortcut } from "./use-shortcuts.ts";
-
-/** How long `h` defers for, until there's a picker. */
-const DEFER_MS = 24 * 60 * 60 * 1000;
-
-const isDeferred = (t: ThreadSummary) =>
-  t.deferredUntil !== null && new Date(t.deferredUntil).getTime() > Date.now();
 
 const plural = (n: number) => (n === 1 ? "Thread" : `${n} threads`);
 
@@ -162,7 +157,7 @@ export function useThreadListShortcuts(options: {
           undo
             ? markUndone.mutate({ threadId: t.id })
             : markDone.mutate({ threadId: t.id, through: t.lastMessageAt }),
-        () => (undo ? view === "done" : view === "inbox" || view === "queue"),
+        () => leavesView(undo ? "undone" : "done", view),
         (n) => `${plural(n)} ${undo ? "back in the Inbox" : "marked done"}`,
       );
     },
@@ -171,11 +166,11 @@ export function useThreadListShortcuts(options: {
   useShortcut(
     "defer",
     () => {
-      const back = targets().every(isDeferred);
+      const back = targets().every((t) => isDeferred(t.deferredUntil));
       const until = back ? null : new Date(Date.now() + DEFER_MS);
       act(
         (t) => defer.mutate({ threadId: t.id, until }),
-        () => (back ? view === "queue" : view === "inbox" || view === "done"),
+        () => leavesView(back ? "undefer" : "defer", view),
         (n) => `${plural(n)} ${back ? "back in the Inbox" : "deferred until tomorrow"}`,
       );
     },
