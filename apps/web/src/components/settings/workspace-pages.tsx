@@ -1,6 +1,6 @@
 // Settings pages about the active workspace: what it is and the others you belong to, who is in
 // it, and who can see each mailbox.
-import { GlobeAltIcon } from "@heroicons/react/24/outline";
+import { GlobeAltIcon, ServerStackIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { cn } from "cn";
 import { type CSSProperties, lazy, useState } from "react";
 import { Label } from "@/components/ui/field";
@@ -14,10 +14,17 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ChartConfig } from "@/components/ui/chart";
-import { CopyField } from "@/components/ui/copy-field";
+import { CopyField, RenewField } from "@/components/ui/copy-field";
 import { appToast } from "@/components/ui/toast";
 import { useCounts, useMailboxes } from "@/hooks/use-mail.ts";
-import { useCheckDomain, useOnboarding } from "@/hooks/use-onboarding.ts";
+import {
+  useAddDomain,
+  useCheckDomain,
+  useOnboarding,
+  useRemoveDomain,
+  useRotateChallenge,
+} from "@/hooks/use-onboarding.ts";
+import { rememberedChallenge } from "@/lib/onboarding.ts";
 import {
   useAddMailboxMember,
   useMailboxMembers,
@@ -233,58 +240,201 @@ function domainState(domain: OnboardingDomain) {
   return { label: "Verified", intent: "success" } as const;
 }
 
+/** What a stacked dialog over the Domains section is doing, if anything. */
+type DomainDialog =
+  | { kind: "add" }
+  | { kind: "records"; domainId: string }
+  | { kind: "remove"; domainId: string };
+
 /**
- * The workspace's mail domains (owners and admins: only they can see or change them). Each opens
- * its DNS records over settings, to copy again or check after a change at the DNS host.
+ * The workspace's mail domains (owners and admins: only they can see or change them). A domain is
+ * added here after setup too (ADR 0016); each row's menu opens its DNS records over settings, to
+ * copy again or check after a change at the DNS host, or removes it.
  */
 function DomainsSection() {
+  const { member } = useMember();
   const onboarding = useOnboarding();
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<DomainDialog | null>(null);
+  const close = () => setDialog(null);
   const domains = onboarding.data?.domains;
-  const open = domains?.find((domain) => domain.id === openId);
-  if (domains && domains.length === 0) return null;
+  const target =
+    dialog && dialog.kind !== "add" ? domains?.find((d) => d.id === dialog.domainId) : undefined;
+  const isOwner = /\bowner\b/.test(member.role);
 
   return (
     <SettingsSection title="Domains">
       <Skeleton id="settings-domains" data={domains} sample={[]} label="Loading domains">
         {(list) => (
           <SettingsGroup>
+            <SettingsAddRow label="Add a domain" onPress={() => setDialog({ kind: "add" })} />
             {list.map((domain) => {
               const state = domainState(domain);
-              const description =
-                domain.provider === "purelymail" ? "Hosted by Purelymail" : "Your own mail host";
-              const badge = <Badge intent={state.intent}>{state.label}</Badge>;
-              return domain.records.length > 0 ? (
-                <SettingsLinkRow
-                  key={domain.id}
-                  icon={GlobeAltIcon}
-                  label={domain.domain}
-                  description={description}
-                  value={badge}
-                  onPress={() => setOpenId(domain.id)}
-                />
-              ) : (
+              return (
                 <SettingsRow
                   key={domain.id}
                   icon={GlobeAltIcon}
                   label={domain.domain}
-                  description={description}
-                  className="pe-4"
-                  control={badge}
+                  description={
+                    domain.provider === "purelymail" ? "Hosted by Purelymail" : "Your own mail host"
+                  }
+                  control={
+                    <>
+                      <Badge intent={state.intent}>{state.label}</Badge>
+                      <SettingsRowMenu
+                        label={`Actions for ${domain.domain}`}
+                        items={[
+                          {
+                            icon: ServerStackIcon,
+                            label: "DNS records",
+                            onAction: () => setDialog({ kind: "records", domainId: domain.id }),
+                          },
+                          // A verified domain is released by owners only (ADR 0010); a claim
+                          // that never verified, by any owner or admin.
+                          ...(isOwner || domain.status !== "verified"
+                            ? [
+                                {
+                                  icon: TrashIcon,
+                                  label: "Remove domain",
+                                  danger: true,
+                                  onAction: () =>
+                                    setDialog({ kind: "remove", domainId: domain.id }),
+                                },
+                              ]
+                            : []),
+                        ]}
+                      />
+                    </>
+                  }
                 />
               );
             })}
           </SettingsGroup>
         )}
       </Skeleton>
-      {open && <DomainRecordsDialog domain={open} onClose={() => setOpenId(null)} />}
+      <AddDomainDialog
+        isOpen={dialog?.kind === "add"}
+        onClose={close}
+        onAdded={(domainId) => setDialog({ kind: "records", domainId })}
+      />
+      {dialog?.kind === "records" && target && (
+        <DomainRecordsDialog domain={target} onClose={close} />
+      )}
+      <RemoveDomainDialog domain={dialog?.kind === "remove" ? target : undefined} onClose={close} />
     </SettingsSection>
   );
+}
+
+function AddDomainDialog(props: {
+  isOpen: boolean;
+  onClose: () => void;
+  onAdded: (domainId: string) => void;
+}) {
+  const add = useAddDomain();
+  const [name, setName] = useState("");
+  const domain = name.trim();
+  return (
+    <SettingsFormDialog
+      isOpen={props.isOpen}
+      onOpenChange={(open) => !open && props.onClose()}
+      title="Add a domain"
+      description="Next, you add its DNS records to prove it's yours."
+      action="Add"
+      disabled={!domain}
+      saving={add.isPending}
+      onSubmit={() =>
+        add.mutate(domain, {
+          onSuccess: (added) => {
+            setName("");
+            props.onAdded(added.id);
+          },
+          onError: (error) => appToast.error(error.message || "That domain could not be added."),
+        })
+      }
+    >
+      <TextField isRequired autoFocus value={name} onChange={setName}>
+        <Label>Domain</Label>
+        <Input placeholder="example.com" autoComplete="off" spellCheck={false} />
+      </TextField>
+    </SettingsFormDialog>
+  );
+}
+
+function RemoveDomainDialog(props: { domain: OnboardingDomain | undefined; onClose: () => void }) {
+  const remove = useRemoveDomain();
+  // Kept while the dialog animates out, so its text doesn't change under it.
+  const [shown, setShown] = useState(props.domain);
+  if (props.domain && props.domain !== shown) setShown(props.domain);
+  const verified = shown?.status === "verified";
+  return (
+    <SettingsConfirmDialog
+      isOpen={!!props.domain}
+      onOpenChange={(open) => !open && props.onClose()}
+      title={`Remove ${shown?.domain ?? "domain"}?`}
+      description={
+        verified
+          ? "Another workspace can claim it once it's removed. Its mailboxes must be removed first."
+          : "It stops waiting for DNS. You can add it again later."
+      }
+      action="Remove domain"
+      saving={remove.isPending}
+      onConfirm={() =>
+        shown &&
+        remove.mutate(shown.id, {
+          onSuccess: () => {
+            props.onClose();
+            appToast.success(`${shown.domain} removed`);
+          },
+          onError: (error) =>
+            appToast.error(error.message || `${shown.domain} could not be removed.`),
+        })
+      }
+    />
+  );
+}
+
+/** A record as the dialog shows it: Omni's challenge first, then the provider's. */
+interface ShownRecord {
+  key: string;
+  purpose: string;
+  kind: string;
+  name: string;
+  /** Null for the challenge once its one showing is gone (only its hash is stored). */
+  value: string | null;
+  passes: boolean;
+}
+
+function shownRecords(domain: OnboardingDomain): ShownRecord[] {
+  const challenge = domain.challenge
+    ? [
+        {
+          key: "challenge",
+          purpose: "Links it to this workspace",
+          kind: domain.challenge.type,
+          name: domain.challenge.name,
+          value: rememberedChallenge(domain),
+          passes: domain.challenge.verified || domain.challenge.diagnostic?.status === "ok",
+        },
+      ]
+    : [];
+  return [
+    ...challenge,
+    ...domain.records.map((record) => ({
+      key: `${record.type} ${record.name}`,
+      purpose: RECORD_PURPOSES[record.check],
+      kind: recordKind(record),
+      name: record.name,
+      value:
+        record.diagnostic?.suggestion ??
+        (record.priority !== undefined ? `${record.priority} ${record.value}` : record.value),
+      passes: recordPasses(record),
+    })),
+  ];
 }
 
 function DomainRecordsDialog(props: { domain: OnboardingDomain; onClose: () => void }) {
   const { domain } = props;
   const check = useCheckDomain();
+  const rotate = useRotateChallenge();
   return (
     <SettingsListDialog
       isOpen
@@ -306,35 +456,43 @@ function DomainRecordsDialog(props: { domain: OnboardingDomain; onClose: () => v
       }
     >
       <SettingsGroup>
-        {domain.records.map((record) => {
-          const passes = recordPasses(record);
-          return (
-            // A record: what it's for and whether it passes, then its two values to copy.
-            <div key={`${record.type} ${record.name}`} className="flex flex-col gap-3 px-4 py-3.5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm/4 text-foreground">
-                  {RECORD_PURPOSES[record.check]}
-                  <span className="text-muted-foreground"> ({recordKind(record)})</span>
-                </span>
-                <Badge intent={passes ? "success" : "warning"}>
-                  {passes ? "Found" : "Not found"}
-                </Badge>
-              </div>
-              <div className="flex flex-col gap-2 [--copy-label-width:--spacing(13)]">
-                <CopyField label="Host" value={record.name} />
-                <CopyField
-                  label="Value"
-                  value={
-                    record.diagnostic?.suggestion ??
-                    (record.priority !== undefined
-                      ? `${record.priority} ${record.value}`
-                      : record.value)
-                  }
-                />
-              </div>
+        {shownRecords(domain).map((record) => (
+          // A record: what it's for and whether it passes, then its two values to copy.
+          <div key={record.key} className="flex flex-col gap-3 px-4 py-3.5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm/4 text-foreground">
+                {record.purpose}
+                <span className="text-muted-foreground"> ({record.kind})</span>
+              </span>
+              <Badge intent={record.passes ? "success" : "warning"}>
+                {record.passes ? "Found" : "Not found"}
+              </Badge>
             </div>
-          );
-        })}
+            <div className="flex flex-col gap-2 [--copy-label-width:--spacing(13)]">
+              <CopyField label="Host" value={record.name} />
+              {record.value !== null ? (
+                <CopyField label="Value" value={record.value} />
+              ) : (
+                !record.passes && (
+                  // Shown once, then only its hash is kept: pressing makes a new value. Never on
+                  // its own, since it would replace a record that may have just been added.
+                  <RenewField
+                    label="Value"
+                    placeholder="Hidden"
+                    tooltip="Show a new value. It replaces the old one."
+                    isPending={rotate.isPending}
+                    onPress={() =>
+                      rotate.mutate(domain.id, {
+                        onError: (error) =>
+                          appToast.error(error.message || "A new value was not made."),
+                      })
+                    }
+                  />
+                )
+              )}
+            </div>
+          </div>
+        ))}
       </SettingsGroup>
     </SettingsListDialog>
   );

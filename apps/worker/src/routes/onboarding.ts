@@ -25,6 +25,7 @@ import {
   schema,
   SETUP_STEPS,
   transferDomain,
+  withdrawClaim,
 } from "@omni/db";
 import { mailboxAddress, parseDomain } from "@omni/mail-core/domains";
 import { eq } from "drizzle-orm";
@@ -319,13 +320,26 @@ export const onboarding = new Hono<AppEnv>()
     });
   })
   /**
-   * Gives the domain up: another workspace can claim it. Refused while this one has mailboxes on
-   * it. Every owner is told.
+   * Removes the domain from this workspace (ADR 0016). A claim that never verified is withdrawn
+   * by an owner or admin: nothing was set up on it. A verified domain is released by an owner
+   * only, and refused while this workspace has mailboxes on it; another workspace can then claim
+   * it, and every owner is told. Neither deletes mail or touches the mail host.
    */
-  .post("/domains/:id/release", requireMember, requireOwner, async (c) => {
+  .post("/domains/:id/release", requireMember, requireDomainAdmin, async (c) => {
     const { db, member, user } = c.var;
     const setup = await memberDomain(c);
     const domain = (setup.claim?.domain ?? setup.lock?.domain)!;
+    if (!setup.lock) {
+      const withdrawn = await withdrawClaim(db, { orgId: member.orgId, claimId: setup.claim!.id });
+      if (!withdrawn) {
+        throw new HTTPException(409, { message: `${domain} just verified: check it again` });
+      }
+      await audit(c.var, member.orgId, member.id, "domain.claim_withdrawn", domain);
+      return c.json({ released: true });
+    }
+    if (member.role !== "owner") {
+      throw new HTTPException(403, { message: "only owners can release or move a domain" });
+    }
     const result = await releaseDomain(db, { orgId: member.orgId, domain });
     if (!result.ok) throw handOverRefusal(result.reason, domain);
     const eventId = await audit(c.var, member.orgId, member.id, "domain.released", domain);
