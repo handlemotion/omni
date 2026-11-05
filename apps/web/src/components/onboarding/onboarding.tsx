@@ -36,7 +36,6 @@ import {
 import { useBilling, useStartCheckout, useStartTrial } from "@/hooks/use-billing";
 import { useInviteMember } from "@/hooks/use-organization";
 import { formatPrice, type Interval } from "@/lib/billing";
-import { Step, Steps } from "@/components/ui/steps";
 import {
   needsSetup,
   ONBOARDING_PAGES,
@@ -171,9 +170,9 @@ function OnboardingPage(props: {
           16px on the right): the step list weighs the left side, and true centre reads as pushed
           left. Narrower, it keeps clear of the steps instead. */}
       <div className="flex justify-center px-4 py-10 md:pt-23 md:pb-16 md:pr-4 md:pl-72 xl:pl-28">
-        {/* One width for every page, wide enough for the DNS records table, so the column doesn't
-            jump between steps. */}
-        <div className="flex w-160 max-w-full flex-col">
+        {/* One width for every page, so the column doesn't jump between steps; the DNS records
+            stack to fit it. */}
+        <div className="flex w-120 max-w-full flex-col">
           {props.children}
           {props.current === "Workspace" && exit.kind === "sign-out" && (
             <Button
@@ -502,38 +501,18 @@ function DomainForm(props: {
     });
   };
 
-  const ownershipTable = (
-    <DnsRecordsTable
-      {...tableData(ownershipRecords)}
-      renderValue={(record) => {
-        // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
-        // or replace; missing or wrong, the field makes a new one.
-        const shown = ownershipRecords.find((r) => r.challenge);
-        if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
-        return passes(shown) ? (
-          <span className="block px-4 py-3 text-xs text-muted-foreground">In your DNS</span>
-        ) : (
-          <div className="px-4 py-2">
-            <RenewField
-              label="Value"
-              placeholder="Hidden"
-              tooltip="Make a new value. It replaces the old one."
-              isPending={rotateChallenge.isPending}
-              onPress={rotate}
-            />
-          </div>
-        );
-      }}
-    />
-  );
+  // One stage at a time: ownership, then (once it passes) the mail records it unlocks.
+  const mailOpen = owned && mailStage;
+  const records = mailOpen ? mailRecords : ownershipRecords;
 
   return (
     <PageForm
-      title={`Connect ${domain.domain}`}
+      title={mailOpen ? "Add the mail records" : `Verify you own ${domain.domain}`}
       description={
         <>
-          Add each record at{" "}
+          Add {records.length === 1 ? "this record" : "each record"} at{" "}
           {domain.dnsHost ? <DnsHostLink host={domain.dnsHost} /> : "the registrar"}.
+          {!mailOpen && mailStage && " The mail records come next."}
         </>
       }
       shortcut={
@@ -554,35 +533,30 @@ function DomainForm(props: {
       problem={problem}
       onSubmit={checkAndContinue}
     >
-      {mailStage ? (
-        // Two stages in order: ownership, then the mail records it unlocks.
-        <Steps>
-          <Step
-            state={owned ? "complete" : "current"}
-            label={recordTypes(ownershipRecords) || "TXT"}
-            title="Verify you own it"
-          >
-            {ownershipTable}
-          </Step>
-          <Step
-            state={!owned ? "upcoming" : mailRecordsReady(domain) ? "complete" : "current"}
-            label={recordTypes(mailRecords) || "MX, TXT"}
-            title="Add the mail records"
-          >
-            <DnsRecordsTable {...tableData(mailRecords)} />
-          </Step>
-        </Steps>
-      ) : (
-        // A domain on its own mail host has only the ownership stage: no timeline for one step.
-        ownershipTable
-      )}
+      <DnsRecordsTable
+        stacked
+        {...tableData(records)}
+        renderValue={(record) => {
+          // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
+          // or replace; missing or wrong, the field makes a new one. `px-2`: the stacked layout's
+          // own inset, so it lines up with the name above.
+          const shown = records.find((r) => r.challenge);
+          if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
+          return passes(shown) ? (
+            <span className="block px-2 py-2 text-xs text-muted-foreground">In your DNS</span>
+          ) : (
+            <RenewField
+              label="Value"
+              placeholder="Hidden"
+              tooltip="Make a new value. It replaces the old one."
+              isPending={rotateChallenge.isPending}
+              onPress={rotate}
+            />
+          );
+        }}
+      />
     </PageForm>
   );
-}
-
-/** A stage's record types, for the line above its title: "MX, TXT". */
-function recordTypes(records: ShownRecord[]) {
-  return [...new Set(records.map((r) => r.type))].join(", ");
 }
 
 /** The step's records and their problems, in the records table's shape (Domain SDK's). */
