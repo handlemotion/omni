@@ -1,17 +1,24 @@
 import { Cloudflare } from "@ridemountainpig/svgl-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Key } from "react-aria-components";
 import { cn } from "cn";
 import { Skeleton } from "skullet/react";
 import { IconRedirectArrow } from "@/components/icons";
-import { IconCheck, IconPlus } from "@/components/icons/lucide";
-import { IconChevronLeft, IconChevronRight } from "@/components/icons/sidebar";
+import {
+  IconArrowLeft,
+  IconCheck,
+  IconChevronsUpDown,
+  IconLogOut,
+  IconPlus,
+} from "@/components/icons/lucide";
+import { IconChevronRight } from "@/components/icons/sidebar";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ChoiceBox, ChoiceBoxItem } from "@/components/ui/choice-box";
 import { RenewField } from "@/components/ui/copy-field";
 import { Label } from "@/components/ui/field";
+import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { Heading } from "@/components/ui/heading";
 import { Input, InputGroup } from "@/components/ui/input";
 import { DnsRecordsTable } from "@/components/domain/dns-records-table";
@@ -40,40 +47,40 @@ import { formatPrice, type Interval } from "@/lib/billing";
 import {
   needsSetup,
   onboardingPages,
+  PAGE_TITLES,
   parseServer as server,
   challengePasses,
   mailRecordsReady,
   ownershipReady,
   pageDone,
-  PAGE_TITLES,
   rememberedChallenge,
   resumePage,
   watchDomain,
   type OnboardingPage,
 } from "@/lib/onboarding";
 import { useRealtimeConnection } from "@/hooks/use-realtime";
-import { keys } from "@/lib/query-keys";
-import type { DnsRecord, Onboarding, OnboardingDomain } from "@/lib/types";
+import { useSession, useSignOut } from "@/hooks/use-session";
+import type { DnsRecord, OnboardingDomain } from "@/lib/types";
 
-// Workspace setup, one short form per page, with the numbered steps down the left. Nothing moves
-// on by itself: each page's primary button does, and any step already reached opens again.
+// Workspace setup in two long pages of sections, with the steps down a rail on the left (the
+// setup's title on top, the signed-in account at the bottom, with the way out). Nothing moves on by
+// itself: each page's primary button does, and a step already reached opens again.
 //
 // Each page calls the API (ADR 0007), which saves how far setup got; an unfinished workspace
-// resumes on the first step not done, with what it saved (name, domain, mailbox). DNS is two steps:
-// Omni's ownership record (ADR 0010), which locks the domain to the workspace, then the mail
-// records. Without Purelymail the domain stays on its mail host: it has no mail records, and the
-// mailbox step asks for the host's servers and the mailbox's existing password. Where billing is on
-// (ADR 0015), a plan step follows the mailbox: the free trial or a paid plan, through Stripe.
+// resumes on the first step not done, with what it saved (name, domain, mailbox). The Workspace
+// page is the name and domain, then, on the same page once the domain is claimed, its DNS: Omni's
+// ownership record (ADR 0010), which locks the domain to the workspace, then the mail records.
+// Without Purelymail the domain stays on its mail host: it has no mail records, and the mailbox
+// asks for the host's servers and the mailbox's existing password. The Team page is the mailbox,
+// the plan where billing is on (ADR 0015), and the invitations.
 
 export function Onboarding() {
   const status = useOnboarding();
-  const client = useQueryClient();
   // Decided once, from what the route loaded: finish the active workspace, or start a new one.
   const [resuming, setResuming] = useState(() => needsSetup(status.data?.organization));
-  // Only the workspace being set up: a new one has no domain until its first step adds it.
-  const domainOf = (data: Onboarding | undefined) => (resuming ? data?.domains[0] : undefined);
-  const domain = domainOf(status.data);
-  const pages = onboardingPages(status.data, domain);
+  // Only the workspace being set up: a new one has no domain until its first page claims it.
+  const domain = resuming ? status.data?.domains[0] : undefined;
+  const pages = onboardingPages(status.data);
   const done = (p: OnboardingPage) => pageDone(p, status.data, domain);
   const [page, setPage] = useState<OnboardingPage>(() =>
     resuming && status.data ? resumePage(status.data, domain) : "Workspace",
@@ -81,13 +88,7 @@ export function Onboarding() {
   // A step can be opened once every step before it is done: back to any of them, forward only
   // as far as setup got. Nothing moves on by itself; each page's button does.
   const reachable = (p: OnboardingPage) => pages.slice(0, pages.indexOf(p)).every(done);
-  // The step after `from`, read from the latest status: a check can change the steps (a domain
-  // that moved to Purelymail has mail records instead of a mail server).
-  const next = (from: OnboardingPage) => {
-    const data = client.getQueryData<Onboarding>(keys.onboarding()) ?? status.data;
-    const fresh = onboardingPages(data, domainOf(data));
-    setPage(fresh[fresh.indexOf(from) + 1] ?? fresh[fresh.length - 1]!);
-  };
+  const next = (from: OnboardingPage) => setPage(pages[pages.indexOf(from) + 1] ?? "Team");
 
   return (
     <OnboardingPage
@@ -97,25 +98,21 @@ export function Onboarding() {
       reachable={reachable}
       onSelect={setPage}
     >
-      {page === "Workspace" && (
-        <WorkspaceForm
-          existing={resuming ? status.data?.organization?.name : undefined}
-          existingDomain={domain?.domain}
-          onDone={() => {
-            setResuming(true);
-            next("Workspace");
-          }}
-        />
-      )}
-      {(page === "Ownership" || page === "Records") && domain && (
-        <DnsForm
-          key={page}
-          step={page}
-          domain={domain}
-          organizationId={status.data?.organization?.id ?? ""}
-          onDone={() => next(page)}
-        />
-      )}
+      {page === "Workspace" &&
+        (domain ? (
+          <DomainForm
+            workspace={status.data?.organization?.name ?? ""}
+            domain={domain}
+            organizationId={status.data?.organization?.id ?? ""}
+            onDone={() => next("Workspace")}
+          />
+        ) : (
+          // Claiming the domain keeps this page: its DNS opens under the fields.
+          <WorkspaceForm
+            existing={resuming ? status.data?.organization?.name : undefined}
+            onDone={() => setResuming(true)}
+          />
+        ))}
       {page === "Mailbox" && domain && (
         <MailboxesForm
           domain={domain}
@@ -137,16 +134,14 @@ export function Onboarding() {
         ) : (
           <PlanForm onDone={() => next("Plan")} />
         ))}
-      {page === "Invite" && <InviteForm domain={domain?.domain} />}
+      {page === "Team" && <InviteForm domain={domain?.domain} />}
     </OnboardingPage>
   );
 }
 
 /**
- * The frame every page shares: the numbered steps on the left (finished ones green, any step
- * already reached opens with a click) and the page's form beside them. On the first page, for
- * someone with nowhere else to go, a quiet action signs out. Leaving setup for a workspace that
- * is ready is a separate way out, top left.
+ * The frame every page shares: a rail on the left (above the page on phones) with the setup's
+ * title, the steps under it, and the account switcher at its foot; the page's form beside it.
  */
 function OnboardingPage(props: {
   pages: readonly OnboardingPage[];
@@ -156,49 +151,31 @@ function OnboardingPage(props: {
   onSelect: (p: OnboardingPage) => void;
   children: ReactNode;
 }) {
-  const { exit, leave, isPending } = useOnboardingExit();
-  // DNS records need room for their table; the other pages are a single column of fields.
-  const wide = props.current === "Ownership" || props.current === "Records";
   return (
     <main className="min-h-dvh bg-background">
-      {/* The logo in the top-left corner, its ink 35.5px from the top and from the left, and the
-          steps right under it, their markers' ink on the logo's left edge (above the page on
-          phones). `-ms-0.5` cancels most of the step buttons' own inset; measured in ink. */}
-      <aside className="flex flex-col gap-6.5 px-4 pt-6 md:fixed md:top-8 md:left-8 md:w-60 md:p-0">
-        <div className="flex items-center gap-4">
+      {/* The rail sits 32px from the screen's top, left and bottom on wide screens; the logo and
+          title share one row, the steps hang under it, and the account switcher sits at the foot. */}
+      <aside className="flex flex-col gap-8 px-4 pt-6 md:fixed md:inset-y-8 md:left-8 md:w-60 md:p-0">
+        <div className="flex items-center gap-3">
           <IconRedirectArrow />
-          {exit.kind !== "sign-out" && (
-            // Setup stays saved and resumes on return.
-            <Button
-              intent="plain"
-              size="xs"
-              className="text-muted-foreground"
-              isPending={isPending}
-              onPress={leave}
-            >
-              <IconChevronLeft />
-              {exit.kind === "inbox" ? "Back to inbox" : `Back to ${exit.workspace.name}`}
-            </Button>
-          )}
+          <span className="text-sm text-foreground">Set up your workspace</span>
         </div>
         <StepList {...props} />
+        {/* At the rail's foot on wide screens; on phones, at the page's foot (below). */}
+        <div className="-ms-0.5 mt-auto hidden md:block">
+          <AccountSwitcher />
+        </div>
       </aside>
-      {/* The page sits 48px right of the screen's centre on wide screens (112px in on the left,
-          16px on the right): the step list weighs the left side, and true centre reads as pushed
-          left. Narrower, it keeps clear of the steps instead. */}
-      <div className="flex justify-center px-4 py-10 md:pt-23 md:pb-16 md:pr-4 md:pl-72 xl:pl-28">
-        <div className={cn("flex max-w-full flex-col", wide ? "w-200" : "w-100")}>
+      {/* `pt-9.5`: the page heading's ink top lines up with the rail title's (41.5px down;
+          measured). The page sits right of the screen's centre on wide screens: the rail weighs the left
+          side, and true centre reads as pushed left. Narrower, it keeps clear of the rail. */}
+      <div className="flex justify-center px-4 py-10 md:pt-9.5 md:pb-16 md:pr-4 md:pl-72 xl:pl-28">
+        {/* One width for every page, so the column doesn't jump between steps. */}
+        <div className="flex w-120 max-w-full flex-col">
           {props.children}
-          {props.current === "Workspace" && exit.kind === "sign-out" && (
-            <Button
-              intent="plain"
-              className="mt-3 self-center text-muted-foreground"
-              isPending={isPending}
-              onPress={leave}
-            >
-              Sign out
-            </Button>
-          )}
+          <div className="mt-10 md:hidden">
+            <AccountSwitcher />
+          </div>
         </div>
       </div>
     </main>
@@ -206,7 +183,7 @@ function OnboardingPage(props: {
 }
 
 /**
- * Setup's steps, numbered, down the side: finished ones carry a green check, the current one is
+ * Setup's steps, numbered, down the rail: finished ones carry a green check, the current one is
  * marked, and every step already reached is a button back to it.
  */
 function StepList(props: {
@@ -238,7 +215,7 @@ function StepList(props: {
                     "flex size-4 shrink-0 items-center justify-center rounded-full text-xs/none tabular-nums",
                     done
                       ? "bg-success text-success-foreground"
-                      : // `pt-px`: Geist's figures sit half a pixel high in their line box (ink-measured).
+                      : // `pt-px`: the figures sit half a pixel high in their line box (ink-measured).
                         current
                         ? "bg-foreground pt-px text-background"
                         : "pt-px ring-1 ring-border text-muted-foreground",
@@ -265,6 +242,53 @@ function StepList(props: {
 }
 
 /**
+ * The signed-in account at the rail's foot, as the app sidebar's switcher: a plain trigger (avatar,
+ * name, chevron) whose menu is the way out: back to the inbox or a workspace that's ready (setup
+ * stays saved and resumes), and Log out.
+ */
+function AccountSwitcher() {
+  const session = useSession();
+  const signOut = useSignOut();
+  const { exit, leave } = useOnboardingExit();
+  const user = session.data?.user;
+  if (!user) return null;
+  const name = user.name || user.email;
+  return (
+    <MenuTrigger>
+      <Button
+        intent="plain"
+        aria-label={`Account, ${name}`}
+        // The sidebar switcher's trigger: hover, pressed and open share the accent fill.
+        className="h-7 w-full min-w-0 justify-start gap-2.5 rounded-sm px-1.5 [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]"
+      >
+        {/* 16px like the step markers above it and on their axis; at that size an initial is a
+            speck, so a person without a picture gets a plain disc. */}
+        <Avatar
+          src={user.image ?? null}
+          className="bg-accent outline-0 [--avatar-size:--spacing(4)]"
+        />
+        <span className="min-w-0 truncate">{name}</span>
+        <IconChevronsUpDown className="size-3.5 shrink-0 text-subtle-foreground" />
+      </Button>
+      <Menu placement="top start" popover={{ offset: 8 }}>
+        {exit.kind !== "sign-out" && (
+          <MenuItem onAction={leave}>
+            <IconArrowLeft data-slot="icon" />
+            <MenuLabel>
+              {exit.kind === "inbox" ? "Back to inbox" : `Back to ${exit.workspace.name}`}
+            </MenuLabel>
+          </MenuItem>
+        )}
+        <MenuItem onAction={() => signOut.mutate()}>
+          <IconLogOut data-slot="icon" />
+          <MenuLabel>Log out</MenuLabel>
+        </MenuItem>
+      </Menu>
+    </MenuTrigger>
+  );
+}
+
+/**
  * Heading, an optional one-line description, the fields, and the submit button. The submit button
  * is the page's one primary action and is never disabled: a page that isn't ready says why when
  * it is pressed.
@@ -272,11 +296,6 @@ function StepList(props: {
 function PageForm(props: {
   title: string;
   description?: ReactNode;
-  /**
-   * An action that spares the fields (one-click setup). It belongs to the sentence above it: 24px
-   * of ink under the description, 32px over the fields.
-   */
-  shortcut?: ReactNode;
   submit: string;
   isPending?: boolean;
   /** Why the last submit failed. */
@@ -295,7 +314,6 @@ function PageForm(props: {
       <div className="flex flex-col gap-1.5">
         <Heading>{props.title}</Heading>
         {props.description && <Text>{props.description}</Text>}
-        {props.shortcut && <div className="mt-4.5 flex">{props.shortcut}</div>}
       </div>
       <div className="flex flex-col gap-6 pt-8">{props.children}</div>
       {/* The 40px above the button holds the form's error: one line (12 + 16 + 12) appears without
@@ -310,22 +328,87 @@ function PageForm(props: {
 }
 
 /**
- * Creates the workspace (unless it exists already), then claims its domain. Opened again from the
- * step list, both are shown as saved and Continue just moves on.
+ * A part of a long page: a short heading, an optional line under it, an optional action that
+ * spares the fields (one-click setup), then its fields. No rule between sections: the title
+ * divides them, with more room above it than below.
  */
-function WorkspaceForm(props: { existing?: string; existingDomain?: string; onDone: () => void }) {
+function Section(props: {
+  className?: string;
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className={cn("flex flex-col gap-5", props.className)}>
+      <div className="flex flex-col gap-1">
+        <Heading level={2} className="text-sm">
+          {props.title}
+        </Heading>
+        {props.description && <Text>{props.description}</Text>}
+        {props.action && <div className="mt-3 flex">{props.action}</div>}
+      </div>
+      <div className="flex flex-col gap-6">{props.children}</div>
+    </section>
+  );
+}
+
+/** The workspace's name and domain; read-only once the domain is claimed. */
+function WorkspaceFields(props: {
+  name: string;
+  domain: string;
+  onName?: (name: string) => void;
+  onDomain?: (domain: string) => void;
+  nameSaved: boolean;
+  domainSaved: boolean;
+}) {
+  return (
+    <>
+      <TextField
+        value={props.name}
+        onChange={props.onName}
+        isRequired
+        isReadOnly={props.nameSaved}
+        autoFocus={!props.nameSaved}
+      >
+        <Label>Workspace name</Label>
+        <Input placeholder="Acme" />
+        <FieldRevealedError message="Enter a name for the workspace." />
+      </TextField>
+      <TextField
+        value={props.domain}
+        onChange={props.onDomain}
+        isRequired
+        isReadOnly={props.domainSaved}
+        autoFocus={props.nameSaved && !props.domainSaved}
+      >
+        <Label>Domain</Label>
+        <Input placeholder="acme.com" />
+        <FieldRevealedError message="Enter your domain, like acme.com." />
+      </TextField>
+    </>
+  );
+}
+
+// The page is named for its step, as in the rail; the rail's own title says what the flow is.
+const WORKSPACE_TITLE = "Workspace";
+const WORKSPACE_DESCRIPTION = "Mail keeps flowing as it does today until DNS changes.";
+
+/**
+ * Creates the workspace (unless it exists already), then claims its domain. The page stays: the
+ * domain's DNS opens under the fields (`DomainForm`).
+ */
+function WorkspaceForm(props: { existing?: string; onDone: () => void }) {
   const createWorkspace = useCreateWorkspace();
   const addDomain = useAddDomain();
   const [name, setName] = useState(props.existing ?? "");
-  const [domain, setDomain] = useState(props.existingDomain ?? "");
-  const claimed = props.existingDomain !== undefined;
+  const [domain, setDomain] = useState("");
   // Set once the workspace exists, so a retry after a domain error does not create a second one.
   const [created, setCreated] = useState(props.existing !== undefined);
   const [problem, setProblem] = useState<string | null>(null);
 
   async function submit() {
     setProblem(null);
-    if (claimed) return props.onDone();
     try {
       if (!created) {
         await createWorkspace.mutateAsync(name);
@@ -340,35 +423,21 @@ function WorkspaceForm(props: { existing?: string; existingDomain?: string; onDo
 
   return (
     <PageForm
-      title="Set up your workspace"
-      description="Mail keeps flowing as it does today until DNS changes."
+      title={WORKSPACE_TITLE}
+      description={WORKSPACE_DESCRIPTION}
       submit="Continue"
       isPending={createWorkspace.isPending || addDomain.isPending}
       problem={problem}
       onSubmit={() => void submit()}
     >
-      <TextField
-        value={name}
-        onChange={setName}
-        isRequired
-        isReadOnly={created}
-        autoFocus={!created}
-      >
-        <Label>Workspace name</Label>
-        <Input placeholder="Acme" />
-        <FieldRevealedError message="Enter a name for the workspace." />
-      </TextField>
-      <TextField
-        value={domain}
-        onChange={setDomain}
-        isRequired
-        isReadOnly={claimed}
-        autoFocus={created && !claimed}
-      >
-        <Label>Domain</Label>
-        <Input placeholder="acme.com" />
-        <FieldRevealedError message="Enter your domain, like acme.com." />
-      </TextField>
+      <WorkspaceFields
+        name={name}
+        domain={domain}
+        onName={setName}
+        onDomain={setDomain}
+        nameSaved={created}
+        domainSaved={false}
+      />
     </PageForm>
   );
 }
@@ -441,12 +510,17 @@ function groupProblems(
   ];
 }
 
+/** Both DNS stages pass: ownership, then the mail records (none on a domain's own host). */
+const domainReady = (d: OnboardingDomain) => ownershipReady(d) && mailRecordsReady(d);
+
 /**
- * One of the domain's two DNS steps: its ownership records, or the provider's mail records. Every
- * record of the step is listed with its status; Continue checks and moves on only when all pass.
+ * The domain's DNS, one page in two stages: its ownership records, then the provider's mail
+ * records once ownership passes (Purelymail adds the domain only then). Every record of the open
+ * stage is listed with its status; Continue checks, opens the next stage when ownership passes,
+ * and moves on only when all pass.
  */
-function DnsForm(props: {
-  step: "Ownership" | "Records";
+function DomainForm(props: {
+  workspace: string;
   domain: OnboardingDomain;
   organizationId: string;
   onDone: () => void;
@@ -455,25 +529,28 @@ function DnsForm(props: {
   const rotateChallenge = useRotateChallenge();
   const [problem, setProblem] = useState<string | null>(null);
   const { domain } = props;
-  const ownership = props.step === "Ownership";
-  const ready = ownership ? ownershipReady : mailRecordsReady;
-  const ofStep = (d: OnboardingDomain) =>
-    recordGroups(d).groups.filter((g) => (g.check === "ownership") === ownership);
-  const groups = ofStep(domain);
+  const owned = ownershipReady(domain);
+  const { groups } = recordGroups(domain);
+  const ownershipRecords = groups.filter((g) => g.check === "ownership").flatMap((g) => g.records);
+  const mailRecords = groups.filter((g) => g.check !== "ownership").flatMap((g) => g.records);
+  // A domain on its own mail host has no mail records; one moving to Purelymail gets them.
+  const mailStage = domain.provider !== "imap" || mailRecords.length > 0;
   // Re-checked on its own while this page is open; results arrive over realtime.
   useRealtimeConnection(props.organizationId);
-  useDomainWatch(domain.id, !ready(domain));
-  // Continue checks first: it moves on once every record of this step passes, else a toast says
-  // which isn't passing yet and why. Nothing moves on without it.
+  useDomainWatch(domain.id, !domainReady(domain));
+  // Continue checks first: it moves on once every record passes, else a toast says which isn't
+  // passing yet and why. Nothing moves on without it.
   const checkAndContinue = () => {
     setProblem(null);
     // A domain on its own host is checked even when it passes: the check is what moves it to
-    // Purelymail once this install has a Purelymail token (then its mail records come next).
-    if (ready(domain) && domain.provider !== "imap") return props.onDone();
+    // Purelymail once this install has a Purelymail token (then its mail records open here).
+    if (domainReady(domain) && domain.provider !== "imap") return props.onDone();
     checkDomain.mutate(domain.id, {
       onSuccess: (fresh) => {
-        if (ready(fresh)) return props.onDone();
-        const group = ofStep(fresh).find((g) => !g.records.every(passes));
+        if (domainReady(fresh)) return props.onDone();
+        // Ownership just passed: the mail records stage opens, and says what to add.
+        if (!owned && ownershipReady(fresh)) return;
+        const group = recordGroups(fresh).groups.find((g) => !g.records.every(passes));
         if (!group) return;
         const type = group.records[0]!.type;
         const why = groupProblems(fresh, group);
@@ -508,61 +585,70 @@ function DnsForm(props: {
     });
   };
 
+  // One stage at a time: ownership, then (once it passes) the mail records it unlocks.
+  const mailOpen = owned && mailStage;
+  const records = mailOpen ? mailRecords : ownershipRecords;
+
   return (
     <PageForm
-      title={ownership ? `Verify you own ${domain.domain}` : "Add the mail records"}
-      description={
-        <>
-          Add each record at{" "}
-          {domain.dnsHost ? <DnsHostLink host={domain.dnsHost} /> : "the registrar"} for{" "}
-          {domain.domain}.
-        </>
-      }
-      shortcut={
-        domain.domainConnect &&
-        !ready(domain) && (
-          <Button
-            intent="outline"
-            isPending={rotateChallenge.isPending}
-            onPress={setUpAutomatically}
-          >
-            <ProviderLogo name={domain.domainConnect.providerName} />
-            Set up automatically with {domain.domainConnect.providerName}
-          </Button>
-        )
-      }
+      title={WORKSPACE_TITLE}
+      description={WORKSPACE_DESCRIPTION}
       submit="Continue"
       isPending={checkDomain.isPending}
       problem={problem}
       onSubmit={checkAndContinue}
     >
-      <DnsRecordsTable
-        {...tableData(groups.flatMap((group) => group.records))}
-        renderValue={(record) => {
-          // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
-          // or replace; missing or wrong, the field makes a new one.
-          const shown = groups.flatMap((g) => g.records).find((r) => r.challenge);
-          if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
-          return passes(shown) ? (
-            <span className="block px-4 py-3 text-xs text-muted-foreground">In your DNS</span>
-          ) : (
-            <div className="px-4 py-2">
+      <WorkspaceFields name={props.workspace} domain={domain.domain} nameSaved domainSaved />
+      <Section
+        // 24px of the form's gap plus 16px: 40px over the title, 20px under its lines.
+        className="mt-4"
+        title={mailOpen ? "Add the mail records" : "Verify you own it"}
+        description={
+          <>
+            Add {records.length === 1 ? "this record" : "each record"} at{" "}
+            {domain.dnsHost ? <DnsHostLink host={domain.dnsHost} /> : "the registrar"}.
+            {!mailOpen && mailStage && " The mail records come next."}
+          </>
+        }
+        action={
+          domain.domainConnect &&
+          !domainReady(domain) && (
+            <Button
+              intent="outline"
+              isPending={rotateChallenge.isPending}
+              onPress={setUpAutomatically}
+            >
+              <ProviderLogo name={domain.domainConnect.providerName} />
+              Set up automatically with {domain.domainConnect.providerName}
+            </Button>
+          )
+        }
+      >
+        <DnsRecordsTable
+          {...tableData(records)}
+          renderValue={(record) => {
+            // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
+            // or replace; missing or wrong, the field makes a new one.
+            const shown = records.find((r) => r.challenge);
+            if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
+            return passes(shown) ? (
+              <span className="text-xs/4 text-muted-foreground">In your DNS</span>
+            ) : (
               <RenewField
-                label="Value"
                 placeholder="Hidden"
                 tooltip="Make a new value. It replaces the old one."
                 isPending={rotateChallenge.isPending}
                 onPress={rotate}
               />
-            </div>
-          );
-        }}
-      />
+            );
+          }}
+        />
+      </Section>
     </PageForm>
   );
 }
 
-/** The step's records and their problems, in the records table's shape (Domain SDK's). */
+/** The stage's records and their problems, in the records table's shape (Domain SDK's). */
 function tableData(records: ShownRecord[]): { records: TableRecord[]; issues: DomainIssue[] } {
   const rows = records.map((record) => {
     const done = passes(record);

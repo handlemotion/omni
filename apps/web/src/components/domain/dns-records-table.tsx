@@ -1,30 +1,29 @@
-// Domain SDK's DNS records table (domain-sdk.dev/docs/components/dns-records-table), installed from
-// its registry item and kept to its design: layout, spacing, copy behavior, announcements and
-// copy, minus its own title, description and Copy all button (the page's heading and description
-// already say it; nobody copies all records at once) and the footer's top border
-// (the last row's own line already separates them). Only the parts are ours: its shadcn Badge, Button and Table are our Intent
-// UI ones, its Hugeicons are Lucide, and its status colors are our tokens (the badge intents).
-// One addition: `renderValue`, for a record whose value can't be shown (Omni's ownership value,
-// of which only a hash is kept).
+// The DNS records a domain needs, one row each: its type, name and value, whether DNS serves it,
+// and a copy button on each value. Started from Domain SDK's DNS records table
+// (domain-sdk.dev/docs/components/dns-records-table) and kept to its parts and behaviour (its
+// status badges, copy announcements, issue lines, `renderValue` for Omni's ownership value, of
+// which only a hash is kept), laid out as a list so it fits a single form column at any width.
+//
+// Geometry: each record is its own island. Every line (Type, Name, Value) is one 24px row with
+// each mark centred on it, so the label, the value and the copy glyph can't drift apart whatever
+// their fonts. Values stay on one line, truncated: the copy button is how the whole value is taken.
+// Labels sit on the island's 16px inset in a 48px column, values 12px after it, the copy glyphs'
+// ink on the right inset. The record's state is a banner attached to the island's foot, in the
+// status's fill, its glyph on the labels' axis.
+// `pt-2 pb-3`: a 24px row leaves 4px over its text and less under it, so the lines' ink sits
+// 16px from the island's top and 17px above the banner (measured).
 import * as React from "react";
 import type { ReactNode } from "react";
 import {
+  IconCheck,
   IconCircleCheck,
   IconCircleHelp,
   IconClock3,
   IconCopy,
   IconTriangleAlert,
 } from "@/components/icons/lucide";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableColumn,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   filterDnsRecords,
   issuesForRecord,
@@ -40,73 +39,83 @@ export interface DnsRecordsTableProps {
   issues?: readonly DomainIssue[];
   defaultFilter?: DnsRecordFilter;
   onCopy?(content: string, record: DnsRecord, field: DnsRecordCopyField): void | Promise<void>;
-  /** Shown in place of a record's copyable value when it returns something. */
+  /** Shown in place of a record's value (and its copy button) when it returns something. */
   renderValue?(record: DnsRecord): ReactNode;
 }
 
+/** Each status's banner: its fill, its glyph, and what it means, in a few words. */
 const statusMeta = {
-  valid: { label: "Valid", icon: IconCircleCheck, intent: "success" },
-  pending: { label: "Pending", icon: IconClock3, intent: "warning" },
-  invalid: { label: "Invalid", icon: IconTriangleAlert, intent: "danger" },
-  unknown: { label: "Unknown", icon: IconCircleHelp, intent: "outline" },
+  valid: {
+    icon: IconCircleCheck,
+    className: "bg-success-subtle text-success-subtle-foreground",
+    text: "Found in your DNS.",
+  },
+  pending: {
+    icon: IconClock3,
+    className: "bg-warning-subtle text-warning-subtle-foreground",
+    text: "Not found yet. DNS can take a few minutes.",
+  },
+  invalid: {
+    icon: IconTriangleAlert,
+    className: "bg-danger-subtle text-danger-subtle-foreground",
+    text: "Another value is in DNS. Replace it with this one.",
+  },
+  unknown: {
+    icon: IconCircleHelp,
+    className: "bg-muted text-muted-foreground",
+    text: "Not checked yet.",
+  },
 } as const;
 
-const copyableFieldClassName = {
-  desktop:
-    "h-auto min-h-12 w-full touch-manipulation items-baseline justify-between rounded-none px-4 py-4 text-left whitespace-normal",
-  mobile:
-    "h-auto min-h-10 w-full touch-manipulation justify-between rounded-md px-2 py-2 text-left whitespace-normal",
-} as const;
-
-const copyFeedbackClassName = {
-  copied:
-    "inline-flex shrink-0 items-center gap-1 text-xs font-medium text-foreground opacity-100 transition-opacity duration-150 motion-reduce:transition-none",
-  idle: "inline-flex shrink-0 items-center gap-1 text-xs font-medium text-foreground opacity-60 transition-opacity duration-150 motion-reduce:transition-none md:opacity-0 md:group-hover/button:opacity-100 md:group-focus-visible/button:opacity-100",
-} as const;
-
-// Row cells share one baseline (type, name, value and the badge's label), not a centre: the
-// bold label font and the monospace sit at different heights inside equal boxes.
-function RecordStatus({ status }: { status: DnsRecord["status"] }) {
-  const meta = statusMeta[status];
-  const Icon = meta.icon;
-
+/** One line of a record: label, content, trailing mark, centred on one row of at least 24px. */
+function Line(props: { label: string; children: ReactNode; trailing?: ReactNode }) {
   return (
-    <Badge intent={meta.intent}>
-      <Icon aria-hidden="true" className="size-3.5" />
-      {/* The label, not the icon, gives the badge its baseline, so it sits on the row's. */}
-      <span className="self-baseline">{meta.label}</span>
-    </Badge>
+    <div className="flex min-h-6 items-center gap-3">
+      <dt className="w-12 shrink-0 text-xs/4 text-muted-foreground">{props.label}</dt>
+      <dd className="flex min-w-0 flex-1 items-center justify-between gap-3">
+        <span className="min-w-0 flex-1 text-xs/4">{props.children}</span>
+        {props.trailing}
+      </dd>
+    </div>
   );
 }
 
-function CopyableRecordField({
-  record,
-  field,
-  copied,
-  mobile = false,
-  onCopy,
-}: {
-  record: DnsRecord;
-  field: DnsRecordCopyField;
-  copied: boolean;
-  mobile?: boolean;
-  onCopy(record: DnsRecord, field: DnsRecordCopyField): void | Promise<void>;
-}) {
+/**
+ * The record's state, as a banner attached to the foot of its island: the status's fill, its glyph
+ * and one short line saying what it means, never wrapping. The full reason (what DNS holds
+ * instead) is the banner's tooltip.
+ */
+function StatusBanner(props: { status: DnsRecord["status"]; messages: string[] }) {
+  const meta = statusMeta[props.status];
+  const Icon = meta.icon;
   return (
-    <Button
-      intent="plain"
-      className={`group/button ${copyableFieldClassName[mobile ? "mobile" : "desktop"]}`}
-      onPress={() => void onCopy(record, field)}
-      aria-label={`Copy ${field} for ${record.name}`}
+    <p
+      // `px-4`: the glyph on the labels' axis (both 16px in from the island's border).
+      className="flex items-center gap-2 px-4 py-2.5 text-xs/4"
+      title={props.messages.length > 0 ? props.messages.join(" ") : undefined}
     >
-      <code className="block min-w-0 break-all text-xs/4 text-foreground" translate="no">
-        {record[field]}
-      </code>
-      <span className={copyFeedbackClassName[copied ? "copied" : "idle"]} aria-hidden="true">
-        {copied ? <IconCircleCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
-        {copied ? "Copied" : "Copy"}
-      </span>
-    </Button>
+      <Icon aria-hidden="true" className="size-3.25 shrink-0" />
+      <span className="min-w-0 truncate">{meta.text}</span>
+    </p>
+  );
+}
+
+function CopyButton(props: { label: string; copied: boolean; onPress: () => void }) {
+  return (
+    <TooltipTrigger delay={300}>
+      <Button
+        intent="plain"
+        size="sq-xs"
+        // The 26px button keeps the 24px line (`-my-px`), and its glyph's ink (not the
+        // button's box) sits on the row's right inset, under the badge's edge.
+        className="-my-px -me-1.5 text-muted-foreground *:[svg]:size-3.25 hover:text-foreground"
+        aria-label={props.label}
+        onPress={props.onPress}
+      >
+        {props.copied ? <IconCheck aria-hidden /> : <IconCopy aria-hidden />}
+      </Button>
+      <Tooltip arrow={false}>{props.copied ? "Copied" : "Copy"}</Tooltip>
+    </TooltipTrigger>
   );
 }
 
@@ -124,19 +133,12 @@ export function DnsRecordsTable({
 
   React.useEffect(() => () => clearTimeout(timerRef.current), []);
 
-  function showCopied(key: string) {
-    setCopiedField(key);
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setCopiedField(undefined), 1800);
-  }
-
   function fieldKey(record: DnsRecord, field: DnsRecordCopyField) {
     return `${field}:${record.type}:${record.name}:${record.value}`;
   }
 
   async function copyField(record: DnsRecord, field: DnsRecordCopyField) {
     const content = record[field];
-
     try {
       if (onCopy) await onCopy(content, record, field);
       else await navigator.clipboard.writeText(content);
@@ -146,139 +148,72 @@ export function DnsRecordsTable({
       );
       return;
     }
-
-    showCopied(fieldKey(record, field));
+    setCopiedField(fieldKey(record, field));
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopiedField(undefined), 1800);
     setAnnouncement(`Copied the ${field} for ${record.name}.`);
   }
 
-  const valueOf = (record: DnsRecord, mobile = false) =>
-    renderValue?.(record) ?? (
-      <CopyableRecordField
-        record={record}
-        field="value"
-        copied={copiedField === fieldKey(record, "value")}
-        mobile={mobile}
-        onCopy={copyField}
+  const copyable = (record: DnsRecord, field: DnsRecordCopyField) => ({
+    children: (
+      <span
+        // Inter like the labels, not the system monospace (a different font on every machine,
+        // each at its own height): one font keeps one baseline. Copy takes the exact value.
+        className="block truncate text-xs/4 text-foreground"
+        translate="no"
+        title={record[field]}
+      >
+        {record[field]}
+      </span>
+    ),
+    trailing: (
+      <CopyButton
+        label={`Copy ${field} for ${record.name}`}
+        copied={copiedField === fieldKey(record, field)}
+        onPress={() => void copyField(record, field)}
       />
-    );
-
-  const rows = visibleRecords.flatMap((record, index) => {
-    const key = `${record.type}:${record.name}:${record.value}`;
-    const recordIssues = issuesForRecord(issues, record);
-    return [
-      <TableRow key={`${key}:${index}`} id={`${key}:${index}`}>
-        <TableCell className="py-3 align-baseline first:ps-4">
-          <span className="text-xs/4 font-semibold">{record.type}</span>
-        </TableCell>
-        <TableCell className="p-0 align-baseline whitespace-normal">
-          <CopyableRecordField
-            record={record}
-            field="name"
-            copied={copiedField === fieldKey(record, "name")}
-            onCopy={copyField}
-          />
-        </TableCell>
-        <TableCell className="p-0 align-baseline whitespace-normal">{valueOf(record)}</TableCell>
-        <TableCell className="py-3 align-baseline last:pe-4">
-          <RecordStatus status={record.status} />
-        </TableCell>
-      </TableRow>,
-      ...recordIssues.map((issue) => (
-        <TableRow
-          key={`${key}:${issue.code}`}
-          id={`${key}:${issue.code}`}
-          className="bg-danger-subtle/40 hover:bg-danger-subtle/40"
-        >
-          <TableCell
-            colSpan={4}
-            className="px-4 py-2.5 text-xs whitespace-normal text-danger-subtle-foreground first:ps-4"
-          >
-            {issue.message} Update this record, then refresh the domain.
-          </TableCell>
-        </TableRow>
-      )),
-    ];
+    ),
   });
 
   return (
     <section aria-label="DNS records" className="min-w-0 text-foreground">
-      <div className="overflow-hidden rounded-lg border border-border bg-background">
-        <div className="hidden md:block">
-          <Table aria-label="DNS records" bleed className="[--gutter:0]">
-            <TableHeader className="bg-muted/40">
-              <TableColumn className="h-9 w-24 px-4 text-xs text-muted-foreground first:ps-4">
-                Type
-              </TableColumn>
-              <TableColumn isRowHeader className="h-9 w-[30%] px-4 text-xs text-muted-foreground">
-                Name
-              </TableColumn>
-              <TableColumn className="h-9 px-4 text-xs text-muted-foreground">Value</TableColumn>
-              <TableColumn className="h-9 w-24 px-4 text-xs text-muted-foreground last:pe-4">
-                Status
-              </TableColumn>
-            </TableHeader>
-            <TableBody
-              renderEmptyState={() => (
-                <p className="flex h-20 items-center justify-center px-4 text-sm text-muted-foreground">
-                  No DNS records in this view.
-                </p>
-              )}
+      <ul className="flex flex-col gap-3">
+        {visibleRecords.length === 0 && (
+          <li className="rounded-lg border border-border p-4 text-center text-xs/4 text-muted-foreground">
+            No DNS records in this view.
+          </li>
+        )}
+        {visibleRecords.map((record) => {
+          const key = `${record.type}:${record.name}:${record.value}`;
+          const shown = renderValue?.(record);
+          return (
+            // One island per record: its lines, then its status banner attached at the foot.
+            // The island: bordered, the status's fill showing as the banner at its foot. The record's
+            // lines sit on a white surface flush with it (`-m-px`: its border lies on the island's,
+            // so top and sides show one), rounded like the island, so its foot curves into the banner.
+            <li
+              key={key}
+              className={`overflow-hidden rounded-lg border border-border ${statusMeta[record.status].className}`}
             >
-              {rows}
-            </TableBody>
-          </Table>
-        </div>
-
-        <div className="divide-y divide-border md:hidden">
-          {visibleRecords.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No DNS records in this view.
-            </p>
-          ) : null}
-          {visibleRecords.map((record) => {
-            const key = `${record.type}:${record.name}:${record.value}`;
-            const recordIssues = issuesForRecord(issues, record);
-
-            return (
-              <article key={key} className="flex flex-col gap-3 px-4 py-4">
-                <header className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-semibold">{record.type}</span>
-                  <RecordStatus status={record.status} />
-                </header>
-                <dl className="grid gap-2">
-                  <div className="grid gap-0.5">
-                    <dt className="px-2 text-xs text-muted-foreground">Name</dt>
-                    <dd>
-                      <CopyableRecordField
-                        record={record}
-                        field="name"
-                        copied={copiedField === fieldKey(record, "name")}
-                        mobile
-                        onCopy={copyField}
-                      />
-                    </dd>
-                  </div>
-                  <div className="grid gap-0.5">
-                    <dt className="px-2 text-xs text-muted-foreground">Value</dt>
-                    <dd>{valueOf(record, true)}</dd>
-                  </div>
-                </dl>
-                {recordIssues.map((issue) => (
-                  <p key={issue.code} className="text-xs text-danger-subtle-foreground">
-                    {issue.message} Update this record, then refresh the domain.
-                  </p>
-                ))}
-              </article>
-            );
-          })}
-        </div>
-
-        {/* No top border: the last row's own bottom line already separates it. */}
-        <p className="bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
-          DNS changes can take time to propagate. Keep the names and values exactly as shown.
-        </p>
-      </div>
-
+              <dl className="-m-px flex flex-col gap-2 rounded-lg border border-border bg-background px-4 pt-2 pb-3 text-foreground">
+                <Line label="Type">
+                  <span className="font-semibold">{record.type}</span>
+                </Line>
+                <Line label="Name" {...copyable(record, "name")} />
+                {/* A value that can't be shown takes the content and trailing place. */}
+                <Line
+                  label="Value"
+                  {...(shown === undefined ? copyable(record, "value") : { children: shown })}
+                />
+              </dl>
+              <StatusBanner
+                status={record.status}
+                messages={issuesForRecord(issues, record).map((issue) => issue.message)}
+              />
+            </li>
+          );
+        })}
+      </ul>
       <span className="sr-only" aria-live="polite">
         {announcement}
       </span>
