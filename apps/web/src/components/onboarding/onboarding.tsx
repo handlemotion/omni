@@ -175,7 +175,7 @@ function OnboardingPage(props: {
   return (
     <main className="min-h-dvh bg-background">
       {/* The logo and the way out sit in the top-left corner, apart from the steps. */}
-      <div className="flex items-center gap-4 px-4 pt-6 md:fixed md:top-0 md:left-0 md:px-10">
+      <div className="flex items-center gap-4 px-4 pt-6 md:fixed md:top-0 md:left-0 md:px-14">
         <IconRedirectArrow />
         {exit.kind !== "sign-out" && (
           // Setup stays saved and resumes on return.
@@ -193,12 +193,12 @@ function OnboardingPage(props: {
       </div>
       {/* The steps at the far left (above the page on phones), starting on the page heading's line:
           both columns open 128px down. */}
-      <aside className="px-4 pt-8 md:fixed md:top-32 md:left-0 md:w-64 md:px-10 md:pt-0">
+      <aside className="px-4 pt-8 md:fixed md:top-32 md:left-0 md:w-72 md:px-14 md:pt-0">
         <StepList {...props} />
       </aside>
       {/* The page, centred on the screen; between the phone and wide layouts it keeps clear of the
           steps instead. */}
-      <div className="flex justify-center px-4 py-10 md:pt-32 md:pb-16 md:pr-4 md:pl-68 xl:pl-4">
+      <div className="flex justify-center px-4 py-10 md:pt-32 md:pb-16 md:pr-4 md:pl-72 xl:pl-4">
         <div className={cn("flex max-w-full flex-col", wide ? "w-200" : "w-100")}>
           {props.children}
           {props.current === "Workspace" && exit.kind === "sign-out" && (
@@ -230,7 +230,7 @@ function StepList(props: {
 }) {
   return (
     <nav aria-label="Setup steps">
-      <ol className="flex flex-col gap-1">
+      <ol className="flex flex-col gap-0.5">
         {props.pages.map((p, i) => {
           const current = p === props.current;
           const done = props.done(p);
@@ -238,7 +238,8 @@ function StepList(props: {
             <li key={p}>
               <Button
                 intent="plain"
-                className="w-full justify-start gap-3 px-1.5 text-start"
+                size="xs"
+                className="w-full justify-start gap-2.5 px-1.5 text-start"
                 isDisabled={!current && !props.reachable(p)}
                 aria-current={current ? "step" : undefined}
                 onPress={() => props.onSelect(p)}
@@ -246,7 +247,7 @@ function StepList(props: {
                 <span
                   aria-hidden
                   className={cn(
-                    "flex size-5 shrink-0 items-center justify-center rounded-full text-xs tabular-nums",
+                    "flex size-4 shrink-0 items-center justify-center rounded-full text-xs/none tabular-nums",
                     done
                       ? "bg-success text-success-foreground"
                       : current
@@ -254,7 +255,7 @@ function StepList(props: {
                         : "ring-1 ring-border text-muted-foreground",
                   )}
                 >
-                  {done ? <IconCheck className="size-3" strokeWidth={2.5} /> : i + 1}
+                  {done ? <IconCheck className="size-2.5" strokeWidth={3} /> : i + 1}
                 </span>
                 <span
                   className={cn(
