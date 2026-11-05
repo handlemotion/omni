@@ -55,15 +55,15 @@ import { useRealtimeConnection } from "@/hooks/use-realtime";
 import { keys } from "@/lib/query-keys";
 import type { DnsRecord, Onboarding, OnboardingDomain } from "@/lib/types";
 
-// Workspace setup, one short form per page (layout from the Figma references 16:1400 and
-// 25:1509, on our tokens). Only DNS uses steps: each record is checked before the next.
+// Workspace setup, one short form per page, with the numbered steps down the left. Nothing moves
+// on by itself: each page's primary button does, and any step already reached opens again.
 //
 // Each page calls the API (ADR 0007), which saves how far setup got; an unfinished workspace
-// resumes on that step's page with what it saved (name, domain, mailboxes). The DNS page starts
-// with Omni's ownership record (ADR 0010), which locks the domain to the workspace. Without
-// Purelymail that is the only record: the domain stays on its mail host, the same page then asks
-// for that host's servers, and each mailbox is added with its existing password. Where billing
-// is on (ADR 0015), a plan page follows mailboxes: the free trial or a paid plan, through Stripe.
+// resumes on the first step not done, with what it saved (name, domain, mailbox). DNS is two steps:
+// Omni's ownership record (ADR 0010), which locks the domain to the workspace, then the mail
+// records. Without Purelymail the domain stays on its mail host: the mail-server step replaces the
+// mail records, and the mailbox is added with its existing password. Where billing is on
+// (ADR 0015), a plan step follows the mailbox: the free trial or a paid plan, through Stripe.
 
 /** `host` or `host:port`; the port defaults to the implicit-TLS one. */
 type Servers = { imap: { host: string; port: number }; smtp: { host: string; port: number } };
@@ -554,8 +554,8 @@ function DnsForm(props: {
         renderValue={(record) => {
           // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
           // or replace; missing or wrong, the field makes a new one.
-          const shown = groups.flatMap((g) => g.records).find((r) => r.name === record.name);
-          if (!shown?.challenge || shown.value !== null) return undefined;
+          const shown = groups.flatMap((g) => g.records).find((r) => r.challenge);
+          if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
           return passes(shown) ? (
             <span className="block px-4 py-3 text-xs text-muted-foreground">In your DNS</span>
           ) : (
@@ -883,8 +883,13 @@ function InviteForm(props: { domain?: string }) {
     setProblem(null);
     setSending(true);
     try {
+      // Each address leaves the list once invited, so a retry after an error sends only the rest.
       for (const email of emails.map((e) => e.trim()).filter(Boolean)) {
         await inviteMember.mutateAsync({ email });
+        setEmails((list) => {
+          const rest = list.filter((e) => e.trim() !== email);
+          return rest.length > 0 ? rest : [""];
+        });
       }
       await finishSetup.mutateAsync();
       await navigate({ to: "/inbox" });

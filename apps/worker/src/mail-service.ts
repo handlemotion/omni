@@ -84,7 +84,10 @@ export async function callMailService<S extends z.ZodType>(
     });
   } catch (error) {
     log.warn("mail_service.call_failed", { error, durationMs: Date.now() - started });
-    throw new MailServiceError(502, "the mail service is unreachable");
+    throw new MailServiceError(
+      502,
+      "Omni could not reach its mail service. Try again in a minute.",
+    );
   }
   const json = (await response.json().catch(() => null)) as { error?: unknown } | null;
   log.info("mail_service.call", { status: response.status, durationMs: Date.now() - started });
@@ -93,9 +96,16 @@ export async function callMailService<S extends z.ZodType>(
     const status = passed.find((s) => s === response.status);
     if (status && typeof json?.error === "string") throw new MailServiceError(status, json.error);
     log.warn("mail_service.call_refused", { status: response.status });
-    throw new MailServiceError(502, "the mail service could not do that");
+    throw new MailServiceError(
+      502,
+      "Omni's mail service could not do that. Try again in a minute.",
+    );
   }
   const parsed = result.safeParse(json);
-  if (!parsed.success) throw new MailServiceError(502, "the mail service answered unexpectedly");
+  if (!parsed.success)
+    throw new MailServiceError(
+      502,
+      "Omni's mail service answered unexpectedly. Try again in a minute.",
+    );
   return parsed.data;
 }
