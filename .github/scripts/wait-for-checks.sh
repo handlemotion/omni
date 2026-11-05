@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Waits until every check run on a commit that GitHub Actions did not create has finished: the
-# platforms' own deploys (Cloudflare Workers Builds posts one per Worker). Gives up waiting for one
-# to appear after APPEAR_SECONDS (a push its build watch paths skip gets none) and fails after
-# FINISH_SECONDS. Logs each check's name and app so the filter can be narrowed later.
+# Waits until Cloudflare's own check runs on a commit (Workers Builds posts one per Worker) have
+# finished, so the Worker secret sync runs against this commit's deploy. Only Cloudflare's: Fly's
+# GitHub check can stay "in_progress" long after its release is live, and the sync doesn't need it.
+# Gives up waiting for one to appear after APPEAR_SECONDS (a push its build watch paths skip gets
+# none) and fails after FINISH_SECONDS. Logs each check's name and app.
 #   wait-for-checks.sh <sha>     needs GH_TOKEN and GITHUB_REPOSITORY
 set -euo pipefail
 sha="${1:?commit sha}"
@@ -12,7 +13,7 @@ start=$(date +%s)
 
 while :; do
   runs="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/check-runs?per_page=100" \
-    --jq '[.check_runs[] | select(.app.slug != "github-actions") | {name, app: .app.slug, status, conclusion}]')"
+    --jq '[.check_runs[] | select(.app.slug == "cloudflare-workers-and-pages") | {name, app: .app.slug, status, conclusion}]')"
   elapsed=$(($(date +%s) - start))
   total="$(jq length <<<"$runs")"
   pending="$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")"
