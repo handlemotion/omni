@@ -5,12 +5,21 @@ import type { Key } from "react-aria-components";
 import { cn } from "cn";
 import { Skeleton } from "skullet/react";
 import { IconRedirectArrow } from "@/components/icons";
-import { IconCheck, IconPlus } from "@/components/icons/lucide";
-import { IconChevronLeft, IconChevronRight } from "@/components/icons/sidebar";
+import {
+  IconArrowLeft,
+  IconCheck,
+  IconChevronsUpDown,
+  IconLogOut,
+  IconPlus,
+} from "@/components/icons/lucide";
+import { IconChevronRight } from "@/components/icons/sidebar";
+import { PersonAvatar } from "@/components/settings/account-pages";
 import { Button } from "@/components/ui/button";
 import { ChoiceBox, ChoiceBoxItem } from "@/components/ui/choice-box";
 import { RenewField } from "@/components/ui/copy-field";
 import { Label } from "@/components/ui/field";
+import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
+import { Separator } from "@/components/ui/separator";
 import { Heading } from "@/components/ui/heading";
 import { Input, InputGroup } from "@/components/ui/input";
 import { DnsRecordsTable } from "@/components/domain/dns-records-table";
@@ -52,25 +61,27 @@ import {
   type OnboardingPage,
 } from "@/lib/onboarding";
 import { useRealtimeConnection } from "@/hooks/use-realtime";
-import type { DnsRecord, Onboarding, OnboardingDomain } from "@/lib/types";
+import { useSession, useSignOut } from "@/hooks/use-session";
+import type { DnsRecord, OnboardingDomain } from "@/lib/types";
 
-// Workspace setup, one short form per page, with the numbered steps down the left. Nothing moves
-// on by itself: each page's primary button does, and any step already reached opens again.
+// Workspace setup in two long pages of sections, with the steps down a rail on the left (the
+// setup's title on top, the signed-in account at the bottom, with the way out). Nothing moves on by
+// itself: each page's primary button does, and a step already reached opens again.
 //
 // Each page calls the API (ADR 0007), which saves how far setup got; an unfinished workspace
-// resumes on the first step not done, with what it saved (name, domain, mailbox). DNS is two steps:
-// Omni's ownership record (ADR 0010), which locks the domain to the workspace, then the mail
-// records. Without Purelymail the domain stays on its mail host: it has no mail records, and the
-// mailbox step asks for the host's servers and the mailbox's existing password. Where billing is on
-// (ADR 0015), a plan step follows the mailbox: the free trial or a paid plan, through Stripe.
+// resumes on the first step not done, with what it saved (name, domain, mailbox). The Workspace
+// page is the name and domain, then, on the same page once the domain is claimed, its DNS: Omni's
+// ownership record (ADR 0010), which locks the domain to the workspace, then the mail records.
+// Without Purelymail the domain stays on its mail host: it has no mail records, and the mailbox
+// asks for the host's servers and the mailbox's existing password. The Team page is the mailbox,
+// the plan where billing is on (ADR 0015), and the invitations.
 
 export function Onboarding() {
   const status = useOnboarding();
   // Decided once, from what the route loaded: finish the active workspace, or start a new one.
   const [resuming, setResuming] = useState(() => needsSetup(status.data?.organization));
-  // Only the workspace being set up: a new one has no domain until its first step adds it.
-  const domainOf = (data: Onboarding | undefined) => (resuming ? data?.domains[0] : undefined);
-  const domain = domainOf(status.data);
+  // Only the workspace being set up: a new one has no domain until its first page claims it.
+  const domain = resuming ? status.data?.domains[0] : undefined;
   const pages = ONBOARDING_PAGES;
   const done = (p: OnboardingPage) => pageDone(p, status.data, domain);
   const [page, setPage] = useState<OnboardingPage>(() =>
@@ -79,7 +90,6 @@ export function Onboarding() {
   // A step can be opened once every step before it is done: back to any of them, forward only
   // as far as setup got. Nothing moves on by itself; each page's button does.
   const reachable = (p: OnboardingPage) => pages.slice(0, pages.indexOf(p)).every(done);
-  const next = (from: OnboardingPage) => setPage(pages[pages.indexOf(from) + 1] ?? "Team");
 
   return (
     <OnboardingPage
@@ -90,34 +100,25 @@ export function Onboarding() {
       reachable={reachable}
       onSelect={setPage}
     >
-      {page === "Workspace" && (
-        <WorkspaceForm
-          existing={resuming ? status.data?.organization?.name : undefined}
-          existingDomain={domain?.domain}
-          onDone={() => {
-            setResuming(true);
-            next("Workspace");
-          }}
-        />
-      )}
-      {page === "Domain" && domain && (
-        <DomainForm
-          domain={domain}
-          organizationId={status.data?.organization?.id ?? ""}
-          onDone={() => next("Domain")}
-        />
-      )}
-      {page === "Mailbox" && domain && (
-        <MailboxesForm
-          domain={domain}
-          ownHost={domain.provider === "imap"}
-          created={status.data?.mailboxes ?? []}
-          onDone={() => next("Mailbox")}
-        />
-      )}
-      {page === "Team" && (
+      {page === "Workspace" &&
+        (domain ? (
+          <DomainForm
+            workspace={status.data?.organization?.name ?? ""}
+            domain={domain}
+            organizationId={status.data?.organization?.id ?? ""}
+            onDone={() => setPage("Team")}
+          />
+        ) : (
+          // Claiming the domain keeps this page: its DNS opens under the fields.
+          <WorkspaceForm
+            existing={resuming ? status.data?.organization?.name : undefined}
+            onDone={() => setResuming(true)}
+          />
+        ))}
+      {page === "Team" && domain && (
         <TeamForm
-          domain={domain?.domain}
+          domain={domain}
+          created={status.data?.mailboxes ?? []}
           billing={!!status.data?.billing.enabled}
           planSet={planSet(status.data)}
         />
@@ -127,63 +128,42 @@ export function Onboarding() {
 }
 
 /**
- * The frame every page shares: the numbered steps on the left (finished ones green, any step
- * already reached opens with a click) and the page's form beside them. On the first page, for
- * someone with nowhere else to go, a quiet action signs out. Leaving setup for a workspace that
- * is ready is a separate way out, top left.
+ * The frame every page shares: a rail on the left (above the page on phones) with the setup's
+ * title, the steps under it, and the signed-in account at its foot; the page's form beside it.
  */
 function OnboardingPage(props: {
   pages: readonly OnboardingPage[];
-  title: (p: OnboardingPage) => string;
+  title: (p: OnboardingPage) => { title: string; detail: string };
   current: OnboardingPage;
   done: (p: OnboardingPage) => boolean;
   reachable: (p: OnboardingPage) => boolean;
   onSelect: (p: OnboardingPage) => void;
   children: ReactNode;
 }) {
-  const { exit, leave, isPending } = useOnboardingExit();
   return (
     <main className="min-h-dvh bg-background">
-      {/* The logo in the top-left corner, its ink 35.5px from the top and from the left, and the
-          steps right under it, their markers' ink on the logo's left edge (above the page on
-          phones). `-ms-0.5` cancels most of the step buttons' own inset; measured in ink. */}
-      <aside className="flex flex-col gap-6.5 px-4 pt-6 md:fixed md:top-8 md:left-8 md:w-60 md:p-0">
-        <div className="flex items-center gap-4">
+      {/* The rail sits 32px from the screen's top, left and bottom on wide screens; the logo and
+          title share one row, the steps hang under it, and the account card stands at the foot. */}
+      <aside className="flex flex-col gap-8 px-4 pt-6 md:fixed md:inset-y-8 md:left-8 md:w-60 md:p-0">
+        <div className="flex items-center gap-3">
           <IconRedirectArrow />
-          {exit.kind !== "sign-out" && (
-            // Setup stays saved and resumes on return.
-            <Button
-              intent="plain"
-              size="xs"
-              className="text-muted-foreground"
-              isPending={isPending}
-              onPress={leave}
-            >
-              <IconChevronLeft />
-              {exit.kind === "inbox" ? "Back to inbox" : `Back to ${exit.workspace.name}`}
-            </Button>
-          )}
+          <span className="text-sm text-foreground">Set up your workspace</span>
         </div>
         <StepList {...props} />
+        {/* At the rail's foot on wide screens; on phones, at the page's foot (below). */}
+        <div className="mt-auto hidden md:block">
+          <AccountCard />
+        </div>
       </aside>
-      {/* The page sits 48px right of the screen's centre on wide screens (112px in on the left,
-          16px on the right): the step list weighs the left side, and true centre reads as pushed
-          left. Narrower, it keeps clear of the steps instead. */}
+      {/* The page sits right of the screen's centre on wide screens: the rail weighs the left
+          side, and true centre reads as pushed left. Narrower, it keeps clear of the rail. */}
       <div className="flex justify-center px-4 py-10 md:pt-23 md:pb-16 md:pr-4 md:pl-72 xl:pl-28">
-        {/* One width for every page, so the column doesn't jump between steps; the DNS records
-            stack to fit it. */}
+        {/* One width for every page, so the column doesn't jump between steps. */}
         <div className="flex w-120 max-w-full flex-col">
           {props.children}
-          {props.current === "Workspace" && exit.kind === "sign-out" && (
-            <Button
-              intent="plain"
-              className="mt-3 self-center text-muted-foreground"
-              isPending={isPending}
-              onPress={leave}
-            >
-              Sign out
-            </Button>
-          )}
+          <div className="mt-10 md:hidden">
+            <AccountCard />
+          </div>
         </div>
       </div>
     </main>
@@ -191,12 +171,13 @@ function OnboardingPage(props: {
 }
 
 /**
- * Setup's steps, numbered, down the side: finished ones carry a green check, the current one is
- * marked, and every step already reached is a button back to it.
+ * Setup's steps down the rail: a marker (a green check once done, filled while current, numbered
+ * ahead), the step's name and a line on what it holds. A line joins each marker to the next, green
+ * once the step above it is done. Every step already reached is a button back to it.
  */
 function StepList(props: {
   pages: readonly OnboardingPage[];
-  title: (p: OnboardingPage) => string;
+  title: (p: OnboardingPage) => { title: string; detail: string };
   current: OnboardingPage;
   done: (p: OnboardingPage) => boolean;
   reachable: (p: OnboardingPage) => boolean;
@@ -204,16 +185,27 @@ function StepList(props: {
 }) {
   return (
     <nav aria-label="Setup steps">
-      <ol className="-ms-0.5 flex flex-col gap-2">
+      <ol className="-ms-0.5 flex flex-col gap-1">
         {props.pages.map((p, i) => {
           const current = p === props.current;
           const done = props.done(p);
+          const { title, detail } = props.title(p);
           return (
-            <li key={p}>
+            <li key={p} className="relative">
+              {i < props.pages.length - 1 && (
+                // From under this marker to just above the next (button 6px + marker 16px + 4px
+                // of air, then 4px of air before the next marker), centred on the markers.
+                <span
+                  aria-hidden
+                  className={cn(
+                    "absolute top-6.5 -bottom-2.5 left-[13.5px] w-px",
+                    done ? "bg-success" : "bg-border",
+                  )}
+                />
+              )}
               <Button
                 intent="plain"
-                size="xs"
-                className="w-full justify-start gap-2.5 px-1.5 text-start"
+                className="h-auto w-full items-start justify-start gap-2.5 px-1.5 py-1.5 text-start"
                 isDisabled={!current && !props.reachable(p)}
                 aria-current={current ? "step" : undefined}
                 onPress={() => props.onSelect(p)}
@@ -221,24 +213,28 @@ function StepList(props: {
                 <span
                   aria-hidden
                   className={cn(
-                    "flex size-4 shrink-0 items-center justify-center rounded-full text-xs/none tabular-nums",
+                    // `mt-0.5`: the 16px marker centres on the title's 20px line.
+                    "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full text-xs/none tabular-nums",
                     done
                       ? "bg-success text-success-foreground"
-                      : // `pt-px`: Geist's figures sit half a pixel high in their line box (ink-measured).
+                      : // `pt-px`: the figures sit half a pixel high in their line box (ink-measured).
                         current
                         ? "bg-foreground pt-px text-background"
-                        : "pt-px ring-1 ring-border text-muted-foreground",
+                        : "bg-background pt-px ring-1 ring-border text-muted-foreground",
                   )}
                 >
                   {done ? <IconCheck className="size-2.5" strokeWidth={3} /> : i + 1}
                 </span>
-                <span
-                  className={cn(
-                    "truncate text-sm",
-                    current ? "text-foreground" : "text-muted-foreground",
-                  )}
-                >
-                  {props.title(p)}
+                <span className="flex min-w-0 flex-col">
+                  <span
+                    className={cn(
+                      "truncate text-sm/5",
+                      current ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  >
+                    {title}
+                  </span>
+                  <span className="truncate text-xs/4 text-subtle-foreground">{detail}</span>
                 </span>
                 {done && <span className="sr-only">(done)</span>}
               </Button>
@@ -251,6 +247,51 @@ function StepList(props: {
 }
 
 /**
+ * The signed-in account at the rail's foot: avatar, name and email. Its menu is the way out: back
+ * to the inbox or a workspace that's ready (setup stays saved and resumes), and Log out.
+ */
+function AccountCard() {
+  const session = useSession();
+  const signOut = useSignOut();
+  const { exit, leave } = useOnboardingExit();
+  const user = session.data?.user;
+  if (!user) return null;
+  const name = user.name || user.email;
+  return (
+    <MenuTrigger>
+      <Button
+        intent="outline"
+        aria-label={`Account, ${name}`}
+        className="h-auto w-full justify-start gap-2.5 p-2 text-start"
+      >
+        <PersonAvatar name={name} image={user.image} />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-sm/4 text-foreground">{name}</span>
+          {user.name && (
+            <span className="truncate text-xs/4 text-muted-foreground">{user.email}</span>
+          )}
+        </span>
+        <IconChevronsUpDown className="size-3.5 shrink-0 text-subtle-foreground" />
+      </Button>
+      <Menu placement="top start" popover={{ offset: 8 }}>
+        {exit.kind !== "sign-out" && (
+          <MenuItem onAction={leave}>
+            <IconArrowLeft data-slot="icon" />
+            <MenuLabel>
+              {exit.kind === "inbox" ? "Back to inbox" : `Back to ${exit.workspace.name}`}
+            </MenuLabel>
+          </MenuItem>
+        )}
+        <MenuItem onAction={() => signOut.mutate()}>
+          <IconLogOut data-slot="icon" />
+          <MenuLabel>Log out</MenuLabel>
+        </MenuItem>
+      </Menu>
+    </MenuTrigger>
+  );
+}
+
+/**
  * Heading, an optional one-line description, the fields, and the submit button. The submit button
  * is the page's one primary action and is never disabled: a page that isn't ready says why when
  * it is pressed.
@@ -258,11 +299,6 @@ function StepList(props: {
 function PageForm(props: {
   title: string;
   description?: ReactNode;
-  /**
-   * An action that spares the fields (one-click setup). It belongs to the sentence above it: 24px
-   * of ink under the description, 32px over the fields.
-   */
-  shortcut?: ReactNode;
   submit: string;
   isPending?: boolean;
   /** Why the last submit failed. */
@@ -281,7 +317,6 @@ function PageForm(props: {
       <div className="flex flex-col gap-1.5">
         <Heading>{props.title}</Heading>
         {props.description && <Text>{props.description}</Text>}
-        {props.shortcut && <div className="mt-4.5 flex">{props.shortcut}</div>}
       </div>
       <div className="flex flex-col gap-6 pt-8">{props.children}</div>
       {/* The 40px above the button holds the form's error: one line (12 + 16 + 12) appears without
@@ -296,22 +331,85 @@ function PageForm(props: {
 }
 
 /**
- * Creates the workspace (unless it exists already), then claims its domain. Opened again from the
- * step list, both are shown as saved and Continue just moves on.
+ * A part of a long page: a short heading, an optional line under it, an optional action that
+ * spares the fields (one-click setup), then its fields. Sections are divided by a rule.
  */
-function WorkspaceForm(props: { existing?: string; existingDomain?: string; onDone: () => void }) {
+function Section(props: {
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-5">
+      <div className="flex flex-col gap-1">
+        <Heading level={2} className="text-sm">
+          {props.title}
+        </Heading>
+        {props.description && <Text>{props.description}</Text>}
+        {props.action && <div className="mt-3 flex">{props.action}</div>}
+      </div>
+      <div className="flex flex-col gap-6">{props.children}</div>
+    </section>
+  );
+}
+
+/** The workspace's name and domain; read-only once the domain is claimed. */
+function WorkspaceFields(props: {
+  name: string;
+  domain: string;
+  onName?: (name: string) => void;
+  onDomain?: (domain: string) => void;
+  nameSaved: boolean;
+  domainSaved: boolean;
+}) {
+  return (
+    <>
+      <TextField
+        value={props.name}
+        onChange={props.onName}
+        isRequired
+        isReadOnly={props.nameSaved}
+        autoFocus={!props.nameSaved}
+      >
+        <Label>Workspace name</Label>
+        <Input placeholder="Acme" />
+        <FieldRevealedError message="Enter a name for the workspace." />
+      </TextField>
+      <TextField
+        value={props.domain}
+        onChange={props.onDomain}
+        isRequired
+        isReadOnly={props.domainSaved}
+        autoFocus={props.nameSaved && !props.domainSaved}
+      >
+        <Label>Domain</Label>
+        <Input placeholder="acme.com" />
+        <FieldRevealedError message="Enter your domain, like acme.com." />
+      </TextField>
+    </>
+  );
+}
+
+// The page is named for its step, as in the rail; the rail's own title says what the flow is.
+const WORKSPACE_TITLE = "Workspace";
+const WORKSPACE_DESCRIPTION = "Mail keeps flowing as it does today until DNS changes.";
+
+/**
+ * Creates the workspace (unless it exists already), then claims its domain. The page stays: the
+ * domain's DNS opens under the fields (`DomainForm`).
+ */
+function WorkspaceForm(props: { existing?: string; onDone: () => void }) {
   const createWorkspace = useCreateWorkspace();
   const addDomain = useAddDomain();
   const [name, setName] = useState(props.existing ?? "");
-  const [domain, setDomain] = useState(props.existingDomain ?? "");
-  const claimed = props.existingDomain !== undefined;
+  const [domain, setDomain] = useState("");
   // Set once the workspace exists, so a retry after a domain error does not create a second one.
   const [created, setCreated] = useState(props.existing !== undefined);
   const [problem, setProblem] = useState<string | null>(null);
 
   async function submit() {
     setProblem(null);
-    if (claimed) return props.onDone();
     try {
       if (!created) {
         await createWorkspace.mutateAsync(name);
@@ -326,35 +424,21 @@ function WorkspaceForm(props: { existing?: string; existingDomain?: string; onDo
 
   return (
     <PageForm
-      title="Set up your workspace"
-      description="Mail keeps flowing as it does today until DNS changes."
+      title={WORKSPACE_TITLE}
+      description={WORKSPACE_DESCRIPTION}
       submit="Continue"
       isPending={createWorkspace.isPending || addDomain.isPending}
       problem={problem}
       onSubmit={() => void submit()}
     >
-      <TextField
-        value={name}
-        onChange={setName}
-        isRequired
-        isReadOnly={created}
-        autoFocus={!created}
-      >
-        <Label>Workspace name</Label>
-        <Input placeholder="Acme" />
-        <FieldRevealedError message="Enter a name for the workspace." />
-      </TextField>
-      <TextField
-        value={domain}
-        onChange={setDomain}
-        isRequired
-        isReadOnly={claimed}
-        autoFocus={created && !claimed}
-      >
-        <Label>Domain</Label>
-        <Input placeholder="acme.com" />
-        <FieldRevealedError message="Enter your domain, like acme.com." />
-      </TextField>
+      <WorkspaceFields
+        name={name}
+        domain={domain}
+        onName={setName}
+        onDomain={setDomain}
+        nameSaved={created}
+        domainSaved={false}
+      />
     </PageForm>
   );
 }
@@ -437,6 +521,7 @@ const domainReady = (d: OnboardingDomain) => ownershipReady(d) && mailRecordsRea
  * and moves on only when all pass.
  */
 function DomainForm(props: {
+  workspace: string;
   domain: OnboardingDomain;
   organizationId: string;
   onDone: () => void;
@@ -507,51 +592,58 @@ function DomainForm(props: {
 
   return (
     <PageForm
-      title={mailOpen ? "Add the mail records" : `Verify you own ${domain.domain}`}
-      description={
-        <>
-          Add {records.length === 1 ? "this record" : "each record"} at{" "}
-          {domain.dnsHost ? <DnsHostLink host={domain.dnsHost} /> : "the registrar"}.
-          {!mailOpen && mailStage && " The mail records come next."}
-        </>
-      }
-      shortcut={
-        domain.domainConnect &&
-        !domainReady(domain) && (
-          <Button
-            intent="outline"
-            isPending={rotateChallenge.isPending}
-            onPress={setUpAutomatically}
-          >
-            <ProviderLogo name={domain.domainConnect.providerName} />
-            Set up automatically with {domain.domainConnect.providerName}
-          </Button>
-        )
-      }
+      title={WORKSPACE_TITLE}
+      description={WORKSPACE_DESCRIPTION}
       submit="Continue"
       isPending={checkDomain.isPending}
       problem={problem}
       onSubmit={checkAndContinue}
     >
-      <DnsRecordsTable
-        {...tableData(records)}
-        renderValue={(record) => {
-          // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
-          // or replace; missing or wrong, the field makes a new one.
-          const shown = records.find((r) => r.challenge);
-          if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
-          return passes(shown) ? (
-            <span className="text-xs/4 text-muted-foreground">In your DNS</span>
-          ) : (
-            <RenewField
-              placeholder="Hidden"
-              tooltip="Make a new value. It replaces the old one."
+      <WorkspaceFields name={props.workspace} domain={domain.domain} nameSaved domainSaved />
+      <Separator />
+      <Section
+        title={mailOpen ? "Add the mail records" : "Verify you own it"}
+        description={
+          <>
+            Add {records.length === 1 ? "this record" : "each record"} at{" "}
+            {domain.dnsHost ? <DnsHostLink host={domain.dnsHost} /> : "the registrar"}.
+            {!mailOpen && mailStage && " The mail records come next."}
+          </>
+        }
+        action={
+          domain.domainConnect &&
+          !domainReady(domain) && (
+            <Button
+              intent="outline"
               isPending={rotateChallenge.isPending}
-              onPress={rotate}
-            />
-          );
-        }}
-      />
+              onPress={setUpAutomatically}
+            >
+              <ProviderLogo name={domain.domainConnect.providerName} />
+              Set up automatically with {domain.domainConnect.providerName}
+            </Button>
+          )
+        }
+      >
+        <DnsRecordsTable
+          {...tableData(records)}
+          renderValue={(record) => {
+            // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
+            // or replace; missing or wrong, the field makes a new one.
+            const shown = records.find((r) => r.challenge);
+            if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
+            return passes(shown) ? (
+              <span className="text-xs/4 text-muted-foreground">In your DNS</span>
+            ) : (
+              <RenewField
+                placeholder="Hidden"
+                tooltip="Make a new value. It replaces the old one."
+                isPending={rotateChallenge.isPending}
+                onPress={rotate}
+              />
+            );
+          }}
+        />
+      </Section>
     </PageForm>
   );
 }
@@ -646,104 +738,6 @@ function useDomainWatch(domainId: string, pending: boolean) {
   }, [domainId, pending]);
 }
 
-function MailboxesForm(props: {
-  domain: OnboardingDomain;
-  /** The domain stays on its own mail host: the mailbox signs in to its servers, with its password. */
-  ownHost: boolean;
-  /** Mailboxes saved earlier: setup that resumes or comes back here shows the first, fixed. */
-  created: { address: string }[];
-  onDone: () => void;
-}) {
-  const createMailboxes = useCreateMailboxes();
-  const suffix = `@${props.domain.domain}`;
-  // Setup makes one mailbox; more come later, from settings. One made already is shown as it is
-  // and not sent again.
-  const [saved] = useState(() =>
-    props.created.find((m) => m.address.endsWith(suffix))?.address.slice(0, -suffix.length),
-  );
-  const [name, setName] = useState(saved ?? "");
-  const [password, setPassword] = useState("");
-  const [imap, setImap] = useState("");
-  const [smtp, setSmtp] = useState("");
-  const [problem, setProblem] = useState<string | null>(null);
-  const ask = props.ownHost && !saved;
-
-  return (
-    <PageForm
-      title={ask ? "Connect your mailbox" : "Create your mailbox"}
-      description={
-        ask
-          ? `${props.domain.domain} stays on its mail host. Omni signs in to it like a mail app.`
-          : undefined
-      }
-      submit="Continue"
-      isPending={createMailboxes.isPending}
-      problem={problem}
-      onSubmit={() => {
-        setProblem(null);
-        if (saved) return props.onDone();
-        const servers = ask ? { imap: server(imap, 993), smtp: server(smtp, 465) } : null;
-        if (servers && (!servers.imap || !servers.smtp))
-          return setProblem("Enter each server as host or host:port.");
-        createMailboxes.mutate(
-          {
-            domainId: props.domain.id,
-            mailboxes: [{ localPart: name.trim(), password }],
-            ...(servers?.imap && servers.smtp
-              ? { servers: { imap: servers.imap, smtp: servers.smtp } }
-              : {}),
-          },
-          { onSuccess: props.onDone, onError: (error) => setProblem(error.message) },
-        );
-      }}
-    >
-      <div className="flex flex-col gap-2">
-        <TextField value={name} onChange={setName} isReadOnly={!!saved} isRequired autoFocus>
-          <Label>Address</Label>
-          <InputGroup className="[--input-gutter-end:--spacing(4)]">
-            <Input placeholder="name" />
-            <span data-slot="text" className="text-sm text-muted-foreground">
-              {suffix}
-            </span>
-          </InputGroup>
-          <FieldRevealedError message="Enter the mailbox's name." />
-        </TextField>
-        {ask && (
-          <TextField
-            aria-label="Password"
-            type="password"
-            value={password}
-            onChange={setPassword}
-            isRequired
-          >
-            <Input
-              placeholder="Password (an app password if your host has them)"
-              autoComplete="off"
-            />
-            <FieldRevealedError
-              message={`Enter the password for ${name.trim() || "this mailbox"}${suffix}.`}
-            />
-          </TextField>
-        )}
-      </div>
-      {ask && (
-        <>
-          <TextField value={imap} onChange={setImap} isRequired>
-            <Label>IMAP server</Label>
-            <Input placeholder={`imap.${props.domain.domain}:993`} />
-            <FieldRevealedError message="Enter the IMAP server." />
-          </TextField>
-          <TextField value={smtp} onChange={setSmtp} isRequired>
-            <Label>SMTP server</Label>
-            <Input placeholder={`smtp.${props.domain.domain}:465`} />
-            <FieldRevealedError message="Enter the SMTP server." />
-          </TextField>
-        </>
-      )}
-    </PageForm>
-  );
-}
-
 type Billing = Extract<NonNullable<ReturnType<typeof useBilling>["data"]>, { enabled: true }>;
 
 /**
@@ -780,25 +774,45 @@ const SAMPLE_CHOICES = [
 ] as const;
 
 /**
- * The last page: the plan (ADR 0015) and the team, one button for both. Every new workspace starts
- * on the free trial of the plan it picks: no card, no Stripe page, and a card is due before the
- * trial ends; the trial starts, each address is invited, setup is marked complete, and the inbox
- * opens. A workspace that has had its trial (or a deployment without one) pays on Stripe's page
- * first, which returns here with the plan set: invitations wait for it, so nobody is invited into
- * a workspace without a plan (and nothing typed is lost to the redirect).
+ * The last page, in sections, one button for all of them: the mailbox, the plan (ADR 0015) where
+ * billing is on, and the team. Pressed, it makes the mailbox (unless it's saved already: shown as
+ * it is and not sent again), then the plan: a new workspace starts the free trial of the plan it
+ * picks (no card, no Stripe page; a card is due before the trial ends). Then each address is
+ * invited, setup is marked complete, and the inbox opens. A workspace that has had its trial (or a
+ * deployment without one) pays on Stripe's page, which returns here with the plan set: the
+ * invitations wait for it, so nobody is invited into a workspace without a plan (and nothing typed
+ * is lost to the redirect). Every part is saved as it goes, so a retry sends only what's left.
  */
-function TeamForm(props: { domain?: string; billing: boolean; planSet: boolean }) {
+function TeamForm(props: {
+  domain: OnboardingDomain;
+  /** Mailboxes saved earlier: setup that resumes or comes back here shows the first, fixed. */
+  created: { address: string }[];
+  billing: boolean;
+  planSet: boolean;
+}) {
   const navigate = useNavigate();
   const billing = useBilling();
+  const createMailboxes = useCreateMailboxes();
   const startTrial = useStartTrial();
   const checkout = useStartCheckout();
   const inviteMember = useInviteMember();
   const finishSetup = useFinishSetup();
+  const suffix = `@${props.domain.domain}`;
+  // Setup makes one mailbox; more come later, from settings.
+  const saved = props.created
+    .find((m) => m.address.endsWith(suffix))
+    ?.address.slice(0, -suffix.length);
+  const [name, setName] = useState(saved ?? "");
+  const [password, setPassword] = useState("");
+  const [imap, setImap] = useState("");
+  const [smtp, setSmtp] = useState("");
   const [picked, setPicked] = useState<Interval>("month");
   // Three fields to start: most teams invite a few people at once.
   const [emails, setEmails] = useState(["", "", ""]);
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // The domain stays on its own mail host: the mailbox signs in to its servers, with its password.
+  const ask = props.domain.provider === "imap" && saved === undefined;
   const plan = billing.data?.enabled ? billing.data : null;
   const choosing = props.billing && !props.planSet;
   const trial = plan?.trialAvailable ?? true;
@@ -806,14 +820,24 @@ function TeamForm(props: { domain?: string; billing: boolean; planSet: boolean }
 
   async function submit() {
     setProblem(null);
-    if (paying) {
-      return checkout.mutate(
-        { interval: picked, returnPath: "/onboarding" },
-        { onError: (error) => setProblem(error.message) },
-      );
-    }
     setSending(true);
     try {
+      if (saved === undefined) {
+        const servers = ask ? { imap: server(imap, 993), smtp: server(smtp, 465) } : null;
+        if (servers && (!servers.imap || !servers.smtp))
+          throw new Error("Enter each server as host or host:port.");
+        await createMailboxes.mutateAsync({
+          domainId: props.domain.id,
+          mailboxes: [{ localPart: name.trim(), password }],
+          ...(servers?.imap && servers.smtp
+            ? { servers: { imap: servers.imap, smtp: servers.smtp } }
+            : {}),
+        });
+      }
+      if (paying) {
+        await checkout.mutateAsync({ interval: picked, returnPath: "/onboarding" });
+        return;
+      }
       // Once started, the plan is set (the status refetches), so a retry skips it.
       if (choosing) await startTrial.mutateAsync(picked);
       // Each address leaves the list once invited, so a retry after an error sends only the rest.
@@ -835,71 +859,143 @@ function TeamForm(props: { domain?: string; billing: boolean; planSet: boolean }
 
   return (
     <PageForm
-      title={!choosing ? "Invite your team" : trial ? "Start your free trial" : "Choose your plan"}
-      description={
-        !choosing
-          ? props.billing
-            ? "Your plan is set. Change it any time in Settings, Billing."
-            : undefined
-          : trial
-            ? `Free for ${plan?.trialDays ?? 14} days. Add a card before it ends to keep going.`
-            : "One price for everyone, every inbox and every domain. Invite your team after."
-      }
-      submit={!choosing ? "Finish setup" : trial ? "Start free trial" : "Continue to payment"}
-      isPending={sending || checkout.isPending}
+      title="Mailbox and team"
+      submit={paying ? "Continue to payment" : choosing ? "Start free trial" : "Finish setup"}
+      isPending={sending}
       problem={problem ?? (choosing && billing.error ? billing.error.message : null)}
       onSubmit={() => void submit()}
     >
-      {choosing && (
-        <Skeleton
-          data={plan ? planChoices(plan) : null}
-          sample={[...SAMPLE_CHOICES]}
-          label="Loading plans"
-        >
-          {(choices) => (
-            <ChoiceBox
-              // Optical: other pages' first field starts with a label's text (and its line slack);
-              // this one starts with a border. 4px more puts 35px of ink under the description, as
-              // there.
-              className="mt-1"
-              aria-label="Plan"
-              selectionMode="single"
-              disallowEmptySelection
-              selectedKeys={[picked]}
-              onSelectionChange={(keys) => {
-                const [key] = [...(keys as Set<Key>)];
-                if (key === "month" || key === "year") setPicked(key);
-              }}
-              items={choices}
-            >
-              {(item) => (
-                <ChoiceBoxItem id={item.id} label={item.label} description={item.description} />
-              )}
-            </ChoiceBox>
-          )}
-        </Skeleton>
-      )}
-      {!paying && (
-        <InputList
-          label="Emails"
-          optional
-          values={emails}
-          onChange={setEmails}
-          addLabel="Add another"
-          render={(value, set, i) => (
+      <Section
+        title="Your mailbox"
+        description={
+          ask
+            ? `${props.domain.domain} stays on its mail host. Omni signs in to it like a mail app.`
+            : undefined
+        }
+      >
+        <div className="flex flex-col gap-2">
+          <TextField
+            value={name}
+            onChange={setName}
+            isReadOnly={saved !== undefined}
+            isRequired
+            autoFocus={saved === undefined}
+          >
+            <Label>Address</Label>
+            <InputGroup className="[--input-gutter-end:--spacing(4)]">
+              <Input placeholder="name" />
+              <span data-slot="text" className="text-sm text-muted-foreground">
+                {suffix}
+              </span>
+            </InputGroup>
+            <FieldRevealedError message="Enter the mailbox's name." />
+          </TextField>
+          {ask && (
             <TextField
-              aria-label={`Email ${i + 1}`}
-              type="email"
-              value={value}
-              onChange={set}
-              // The first field on arrival (unless a plan is picked first); a field just added after.
-              autoFocus={emails.length <= 3 ? i === 0 && !choosing : i === emails.length - 1}
+              aria-label="Password"
+              type="password"
+              value={password}
+              onChange={setPassword}
+              isRequired
             >
-              <Input placeholder={`teammate@${props.domain ?? "acme.com"}`} />
-              <FieldRevealedError message="Enter a valid email address." />
+              <Input
+                placeholder="Password (an app password if your host has them)"
+                autoComplete="off"
+              />
+              <FieldRevealedError
+                message={`Enter the password for ${name.trim() || "this mailbox"}${suffix}.`}
+              />
             </TextField>
           )}
-        />
+        </div>
+        {ask && (
+          <>
+            <TextField value={imap} onChange={setImap} isRequired>
+              <Label>IMAP server</Label>
+              <Input placeholder={`imap.${props.domain.domain}:993`} />
+              <FieldRevealedError message="Enter the IMAP server." />
+            </TextField>
+            <TextField value={smtp} onChange={setSmtp} isRequired>
+              <Label>SMTP server</Label>
+              <Input placeholder={`smtp.${props.domain.domain}:465`} />
+              <FieldRevealedError message="Enter the SMTP server." />
+            </TextField>
+          </>
+        )}
+      </Section>
+      {props.billing && (
+        <>
+          <Separator />
+          <Section
+            title={
+              !choosing ? "Your plan is set" : trial ? "Start your free trial" : "Choose your plan"
+            }
+            description={
+              !choosing
+                ? "Change it any time in Settings, Billing."
+                : trial
+                  ? `Free for ${plan?.trialDays ?? 14} days. Add a card before it ends to keep going.`
+                  : "One price for everyone, every inbox and every domain. Invite your team after."
+            }
+          >
+            {choosing && (
+              <Skeleton
+                data={plan ? planChoices(plan) : null}
+                sample={[...SAMPLE_CHOICES]}
+                label="Loading plans"
+              >
+                {(choices) => (
+                  <ChoiceBox
+                    aria-label="Plan"
+                    selectionMode="single"
+                    disallowEmptySelection
+                    selectedKeys={[picked]}
+                    onSelectionChange={(keys) => {
+                      const [key] = [...(keys as Set<Key>)];
+                      if (key === "month" || key === "year") setPicked(key);
+                    }}
+                    items={choices}
+                  >
+                    {(item) => (
+                      <ChoiceBoxItem
+                        id={item.id}
+                        label={item.label}
+                        description={item.description}
+                      />
+                    )}
+                  </ChoiceBox>
+                )}
+              </Skeleton>
+            )}
+          </Section>
+        </>
+      )}
+      {!paying && (
+        <>
+          <Separator />
+          <Section title="Invite your team">
+            <InputList
+              label="Emails"
+              optional
+              values={emails}
+              onChange={setEmails}
+              addLabel="Add another"
+              render={(value, set, i) => (
+                <TextField
+                  aria-label={`Email ${i + 1}`}
+                  type="email"
+                  value={value}
+                  onChange={set}
+                  // A field just added takes focus; the page's first field is the mailbox.
+                  autoFocus={emails.length > 3 && i === emails.length - 1}
+                >
+                  <Input placeholder={`teammate@${props.domain.domain}`} />
+                  <FieldRevealedError message="Enter a valid email address." />
+                </TextField>
+              )}
+            />
+          </Section>
+        </>
       )}
     </PageForm>
   );
