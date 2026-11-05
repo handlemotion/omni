@@ -14,13 +14,12 @@ import {
   authPost,
   CookieJar,
   createMailbox,
-  createOrg,
   createTestDatabase,
   grant,
+  sentMail,
   signIn,
   startMailServiceEndpoint,
   startWorker,
-  SYSTEM_MAIL_FROM,
   WEB_ORIGIN,
 } from "./support.ts";
 
@@ -37,7 +36,6 @@ beforeAll(async () => {
     mailServiceUrl: mailService.url,
     vars: { WEB_APP_URL: WEB_ORIGIN },
   });
-  await createMailbox(database.db, (await createOrg(database.db, "system")).id, SYSTEM_MAIL_FROM);
   // The Worker's own auth options, over the same database, with Google configured.
   googleAuth = createAuth({
     db: database.db,
@@ -86,19 +84,9 @@ async function googleAccounts(sub: string) {
     .where(and(eq(schema.accounts.providerId, "google"), eq(schema.accounts.accountId, sub)));
 }
 
-/** Outbox sends to `email`, oldest first. */
-async function mailTo(email: string) {
-  const rows = await database.db
-    .select({ payload: schema.mailActions.payload })
-    .from(schema.mailActions)
-    .where(
-      and(
-        eq(schema.mailActions.kind, "send"),
-        sql`${schema.mailActions.payload}->'to' = ${JSON.stringify([email])}::jsonb`,
-      ),
-    )
-    .orderBy(schema.mailActions.createdAt);
-  return rows.map((r) => r.payload as { subject: string; text: string });
+/** Mail the Worker sent to `email` through its EMAIL binding, oldest first. */
+function mailTo(email: string) {
+  return sentMail(worker, email);
 }
 
 function api(jar: CookieJar, path: string, init: { method?: string; body?: unknown } = {}) {

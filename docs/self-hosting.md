@@ -108,8 +108,8 @@ Objects are keyed by content hash under `<org id>/<mailbox id>/` (`raw/<sha256>.
 ### First organization
 
 Sign-up is open by default (`SIGN_UP=open`, ADR 0018): anyone with a verified email signs up and
-creates a workspace in onboarding, so a new install only needs the `SYSTEM_MAIL_FROM` mailbox to
-send sign-in links from. Anyone who reaches your install can then make a workspace on your AI key
+creates a workspace in onboarding, so a new install only needs `SYSTEM_MAIL_FROM` set (and its
+domain onboarded to Cloudflare Email Sending, below) to send sign-in links. Anyone who reaches your install can then make a workspace on your AI key
 and, with `PURELYMAIL_API_TOKEN`, your Purelymail account (on domains they prove they control).
 For a private install set `SIGN_UP=invitation`: sign-up then needs a pending invitation, and an
 install starts from the command line. In this order:
@@ -124,9 +124,7 @@ install starts from the command line. In this order:
    your user if missing, and your owner membership, then prints `{"orgId", ...}` as JSON.
    Running it again changes nothing and prints the same ids.
 
-2. **Add mailboxes** (next section), using that `orgId` and `--owner you@example.com`. Add the
-   `SYSTEM_MAIL_FROM` mailbox (for example `no-reply@example.com`) too: sign-in links and
-   invitations are sent from it.
+2. **Add mailboxes** (next section), using that `orgId` and `--owner you@example.com`.
 
 3. **Sign in** with a magic link to the owner address. Owners and admins then invite everyone
    else from the app (Better Auth invitations); an invited person signs in by magic link with
@@ -291,7 +289,7 @@ to `.dev.vars`.
 | `GOOGLE_CLIENT_SECRET`       | secret | no       | Google OAuth client secret. Set both or neither; one alone stops the Worker from starting.                                                                                      |
 | `MAIL_SERVICE_URL`           | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                              |
 | `MAIL_SERVICE_HMAC_SECRET`   | secret | yes      | Same value as the mail service's.                                                                                                                                               |
-| `SYSTEM_MAIL_FROM`           | var    | no       | Address of a mailbox in Omni that sends magic links and invitations. Empty disables them.                                                                                       |
+| `SYSTEM_MAIL_FROM`           | var    | no       | Address magic links, invitations and notices come from (Email Sending). Empty disables them.                                                                                    |
 | `SENTRY_DSN`                 | var    | no       | Empty keeps Sentry off. Its environment tag is `ENVIRONMENT`.                                                                                                                   |
 | `ANTHROPIC_API_KEY`          | secret | no       | Summaries, and triage when Jev is off. Without any AI key threads stay unsorted (a wordless reply of yours still files as FYI).                                                 |
 | `TYPESAFE_API_KEY`           | secret | no       | Triage on TypeSafe's Jev, and search reordered by Jev's relevance judgment; summaries stay on Claude. Without it search keeps full-text order.                                  |
@@ -315,9 +313,12 @@ and once a day the billing reconcile (ADR 0015) and a sweep that deletes account
 joined or created a workspace and have not signed in for 30 days (an invitation sent later lets
 them sign up again). It needs no setup beyond the deploy.
 
-Magic links, invitations and domain notices are sent through the outbox: the Worker writes a `send` action for
-the `SYSTEM_MAIL_FROM` mailbox and the mail service delivers it over SMTP, so that mailbox must be
-connected like any other. Locally, `ENVIRONMENT=development` (the `.dev.vars.example` default)
+Magic links, invitations and domain notices are sent with Cloudflare Email Sending (the Worker's
+`EMAIL` binding, ADR 0020) from `SYSTEM_MAIL_FROM`, under `APP_NAME`. No mailbox is needed. Onboard
+the address's domain once: Cloudflare dashboard, **Compute** > **Email Service** > **Email
+Sending** > **Onboard Domain**, which adds its records under `cf-bounce.<domain>`. Sending to any
+address needs the Workers Paid plan. `wrangler dev` sends nothing: it keeps each message, and the
+e2e suites read them from wrangler's local explorer API. Locally, `ENVIRONMENT=development` (the `.dev.vars.example` default)
 also prints each link to the `wrangler dev` console as `{"event":"auth.dev_link",...}`, so you
 can sign in without opening GreenMail. Those URLs sign you in: never set `development` in
 production.

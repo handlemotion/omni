@@ -35,8 +35,8 @@ MAIL_SERVICE_URL=http://localhost:8788
 # Secret. Signs Worker <-> mail service calls; same value as the mail service's.
 # Generate: openssl rand -hex 32
 MAIL_SERVICE_HMAC_SECRET=
-# Address of an existing mailbox that sends magic links (e.g. no-reply@your-domain).
-# Leave empty to disable email sign-in.
+# Address magic links, invitations and notices come from, sent with Cloudflare Email Sending
+# (its domain onboarded there; `wrangler dev` only simulates it). Leave empty to disable email sign-in.
 SYSTEM_MAIL_FROM=
 
 # --- AI ---

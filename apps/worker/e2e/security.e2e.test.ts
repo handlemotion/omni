@@ -16,6 +16,7 @@ import {
   createTestDatabase,
   grant,
   seedMessage,
+  sentMail,
   signIn,
   startMailServiceEndpoint,
   startWorker,
@@ -195,11 +196,7 @@ describe("security headers", () => {
 
 describe("rate limits", () => {
   async function outboxTo(email: string) {
-    const rows = await database.db
-      .select({ payload: schema.mailActions.payload })
-      .from(schema.mailActions)
-      .where(eq(schema.mailActions.kind, "send"));
-    return rows.filter((r) => (r.payload as { to: string[] }).to[0]!.toLowerCase() === email);
+    return (await sentMail(limited)).filter((m) => m.to[0]!.toLowerCase() === email);
   }
 
   function requestMagicLink(email: string) {
@@ -214,7 +211,6 @@ describe("rate limits", () => {
   test("magic links are limited per address, so nobody can mail-bomb an inbox", async () => {
     const { db } = database;
     const org = await createOrg(db, "bomb");
-    await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
     await createMember(db, org.id, "victim@bomb.test");
     await createMember(db, org.id, "other@bomb.test");
 

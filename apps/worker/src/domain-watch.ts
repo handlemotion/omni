@@ -93,6 +93,7 @@ export class DomainWatch extends DurableObject<Env> {
         config,
         requestId,
         log,
+        email: this.env.EMAIL,
         waitUntil: (promise: Promise<unknown>) => this.ctx.waitUntil(promise),
       };
       let done = false;

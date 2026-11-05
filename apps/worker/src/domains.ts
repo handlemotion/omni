@@ -37,6 +37,8 @@ import { callMailService, MailServiceError, type MailServiceScope } from "./mail
 
 export interface DomainDeps extends MailServiceScope {
   db: Db;
+  /** Cloudflare Email Sending, for notices to owners. */
+  email: SendEmail;
   waitUntil(promise: Promise<unknown>): void;
 }
 
@@ -310,8 +312,8 @@ async function applyChallengeState(
   const change = await recordChallengeState(deps.db, { orgId, domain, ok });
   if (!change) return;
   const action = change === "lost" ? "domain.dns_lost" : "domain.dns_restored";
-  const eventId = await audit(deps, orgId, actorMemberId, action, domain);
-  await notifyOwners(deps, orgId, eventId, {
+  await audit(deps, orgId, actorMemberId, action, domain);
+  await notifyOwners(deps, orgId, {
     subject:
       change === "lost" ? `Sending from ${domain} is paused` : `Sending from ${domain} is back on`,
     text:
@@ -358,31 +360,20 @@ export async function audit(
 }
 
 /**
- * Mails every owner of `orgId`, from the system mailbox. Keyed on the audit event, so a retried
- * request sends nothing twice. Without SYSTEM_MAIL_FROM there is no sender: the audit log stays
- * the record.
+ * Mails every owner of `orgId` through Email Sending. Without SYSTEM_MAIL_FROM there is no sender:
+ * the audit log stays the record.
  */
 export async function notifyOwners(
   deps: DomainDeps,
   orgId: string,
-  eventId: string,
   message: { subject: string; text: string },
 ) {
   if (!deps.config.SYSTEM_MAIL_FROM) {
     deps.log.warn("domains.notify_skipped", { orgId, reason: "SYSTEM_MAIL_FROM is not set" });
     return;
   }
-  const send = systemMailSender(
-    {
-      executionCtx: { waitUntil: deps.waitUntil },
-      var: { requestId: deps.requestId, log: deps.log },
-    },
-    deps.db,
-    deps.config,
-  );
-  for (const to of await orgOwnerEmails(deps.db, orgId)) {
-    await send({ to, idempotencyKey: `audit:${eventId}:${to}`, ...message });
-  }
+  const send = systemMailSender(deps);
+  for (const to of await orgOwnerEmails(deps.db, orgId)) await send({ to, ...message });
 }
 
 /** The org's name, for mail that tells owners about another workspace. */

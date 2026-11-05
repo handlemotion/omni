@@ -48,7 +48,10 @@ const configSchema = z
   .object({
     MAIL_SERVICE_URL: z.url(),
     MAIL_SERVICE_HMAC_SECRET: z.string().min(32),
-    /** Address of the mailbox that sends magic links. Required to sign in by email. */
+    /**
+     * The address auth and notice mail is sent from, through Cloudflare Email Sending (its domain
+     * must be onboarded there). Required to sign in by email.
+     */
     SYSTEM_MAIL_FROM: optionalText.pipe(z.email().optional()),
     SENTRY_DSN: optionalText.pipe(z.url().optional()),
     /** Empty with no TYPESAFE_API_KEY: no triage beyond the wordless-reply rule, no summaries. */

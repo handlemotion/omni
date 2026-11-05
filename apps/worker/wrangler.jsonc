@@ -57,6 +57,10 @@
     "RATE_LIMIT_PROVISION": "30/3600",
     "RATE_LIMIT_IMAGE_PROXY": "300/60",
   },
+  // Auth and notice mail (magic links, invitations, domain notices) goes out through Cloudflare
+  // Email Sending from SYSTEM_MAIL_FROM, whose domain must be onboarded to Email Sending.
+  // `wrangler dev` simulates it: nothing is sent, and each message is written to a local file.
+  "send_email": [{ "name": "EMAIL" }],
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",

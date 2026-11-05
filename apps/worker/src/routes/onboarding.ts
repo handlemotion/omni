@@ -81,6 +81,7 @@ function deps(c: Context<AppEnv>): DomainDeps {
     config: c.var.config,
     requestId: c.var.requestId,
     log: c.var.log,
+    email: c.env.EMAIL,
     waitUntil: (promise) => c.executionCtx.waitUntil(promise),
   };
 }
@@ -346,8 +347,8 @@ export const onboarding = new Hono<AppEnv>()
     }
     const result = await releaseDomain(db, { orgId: member.orgId, domain });
     if (!result.ok) throw handOverRefusal(result.reason, domain);
-    const eventId = await audit(c.var, member.orgId, member.id, "domain.released", domain);
-    await notifyOwners(deps(c), member.orgId, eventId, {
+    await audit(c.var, member.orgId, member.id, "domain.released", domain);
+    await notifyOwners(deps(c), member.orgId, {
       subject: `${domain} was released`,
       text: `${user.email} released ${domain} from ${await orgName(db, member.orgId)}. Any workspace that controls its DNS can now claim it.`,
     });
@@ -379,15 +380,15 @@ export const onboarding = new Hono<AppEnv>()
       const [fromName, toName] = await Promise.all([orgName(db, member.orgId), orgName(db, to)]);
       const text = `${user.email} moved ${domain} from ${fromName} to ${toName}.`;
       const subject = `${domain} moved to ${toName}`;
-      const out = await audit(c.var, member.orgId, member.id, "domain.transferred_out", domain, {
+      await audit(c.var, member.orgId, member.id, "domain.transferred_out", domain, {
         toOrgId: to,
       });
-      const into = await audit(c.var, to, null, "domain.transferred_in", domain, {
+      await audit(c.var, to, null, "domain.transferred_in", domain, {
         fromOrgId: member.orgId,
         byUserId: user.id,
       });
-      await notifyOwners(deps(c), member.orgId, out, { subject, text });
-      await notifyOwners(deps(c), to, into, { subject, text });
+      await notifyOwners(deps(c), member.orgId, { subject, text });
+      await notifyOwners(deps(c), to, { subject, text });
       return c.json({ transferred: true, organizationId: to });
     },
   )
