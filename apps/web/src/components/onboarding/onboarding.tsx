@@ -6,7 +6,7 @@ import type { Key } from "react-aria-components";
 import { cn } from "cn";
 import { Skeleton } from "skullet/react";
 import { IconRedirectArrow } from "@/components/icons";
-import { IconCheck } from "@/components/icons/lucide";
+import { IconCheck, IconPlus } from "@/components/icons/lucide";
 import { IconChevronLeft, IconChevronRight } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
 import { ChoiceBox, ChoiceBoxItem } from "@/components/ui/choice-box";
@@ -61,26 +61,22 @@ import type { DnsRecord, Onboarding, OnboardingDomain } from "@/lib/types";
 // Each page calls the API (ADR 0007), which saves how far setup got; an unfinished workspace
 // resumes on the first step not done, with what it saved (name, domain, mailbox). DNS is two steps:
 // Omni's ownership record (ADR 0010), which locks the domain to the workspace, then the mail
-// records. Without Purelymail the domain stays on its mail host: the mail-server step replaces the
-// mail records, and the mailbox is added with its existing password. Where billing is on
+// records. Without Purelymail the domain stays on its mail host: it has no mail records, and the
+// mailbox step asks for the host's servers and the mailbox's existing password. Where billing is on
 // (ADR 0015), a plan step follows the mailbox: the free trial or a paid plan, through Stripe.
-
-/** `host` or `host:port`; the port defaults to the implicit-TLS one. */
-type Servers = { imap: { host: string; port: number }; smtp: { host: string; port: number } };
 
 export function Onboarding() {
   const status = useOnboarding();
   const client = useQueryClient();
   // Decided once, from what the route loaded: finish the active workspace, or start a new one.
   const [resuming, setResuming] = useState(() => needsSetup(status.data?.organization));
-  const [servers, setServers] = useState<Servers | null>(null);
   // Only the workspace being set up: a new one has no domain until its first step adds it.
   const domainOf = (data: Onboarding | undefined) => (resuming ? data?.domains[0] : undefined);
   const domain = domainOf(status.data);
   const pages = onboardingPages(status.data, domain);
-  const done = (p: OnboardingPage) => pageDone(p, status.data, domain, !!servers);
+  const done = (p: OnboardingPage) => pageDone(p, status.data, domain);
   const [page, setPage] = useState<OnboardingPage>(() =>
-    resuming && status.data ? resumePage(status.data, domain, false) : "Workspace",
+    resuming && status.data ? resumePage(status.data, domain) : "Workspace",
   );
   // A step can be opened once every step before it is done: back to any of them, forward only
   // as far as setup got. Nothing moves on by itself; each page's button does.
@@ -120,19 +116,10 @@ export function Onboarding() {
           onDone={() => next(page)}
         />
       )}
-      {page === "Server" && domain && (
-        <ServerForm
-          domain={domain.domain}
-          onDone={(s) => {
-            setServers(s);
-            next("Server");
-          }}
-        />
-      )}
       {page === "Mailbox" && domain && (
         <MailboxesForm
           domain={domain}
-          servers={domain.provider === "imap" ? servers : null}
+          ownHost={domain.provider === "imap"}
           created={status.data?.mailboxes ?? []}
           onDone={() => next("Mailbox")}
         />
@@ -665,41 +652,10 @@ function useDomainWatch(domainId: string, pending: boolean) {
   }, [domainId, pending]);
 }
 
-/** Without Purelymail: the existing mail host's servers, which every mailbox signs in to. */
-function ServerForm(props: { domain: string; onDone: (servers: Servers) => void }) {
-  const [imap, setImap] = useState("");
-  const [smtp, setSmtp] = useState("");
-  const [problem, setProblem] = useState<string | null>(null);
-  return (
-    <PageForm
-      title="Connect your mail server"
-      description={`${props.domain} stays on its mail host. Omni signs in to it like a mail app.`}
-      submit="Continue"
-      problem={problem}
-      onSubmit={() => {
-        const servers = { imap: server(imap, 993), smtp: server(smtp, 465) };
-        if (!servers.imap || !servers.smtp) setProblem("Enter each server as host or host:port.");
-        else props.onDone({ imap: servers.imap, smtp: servers.smtp });
-      }}
-    >
-      <TextField value={imap} onChange={setImap} isRequired autoFocus>
-        <Label>IMAP server</Label>
-        <Input placeholder={`imap.${props.domain}:993`} />
-        <FieldRevealedError message="Enter the IMAP server." />
-      </TextField>
-      <TextField value={smtp} onChange={setSmtp} isRequired>
-        <Label>SMTP server</Label>
-        <Input placeholder={`smtp.${props.domain}:465`} />
-        <FieldRevealedError message="Enter the SMTP server." />
-      </TextField>
-    </PageForm>
-  );
-}
-
 function MailboxesForm(props: {
   domain: OnboardingDomain;
-  /** Set on the bring-your-own-host path: the mailbox then needs its password. */
-  servers: Servers | null;
+  /** The domain stays on its own mail host: the mailbox signs in to its servers, with its password. */
+  ownHost: boolean;
   /** Mailboxes saved earlier: setup that resumes or comes back here shows the first, fixed. */
   created: { address: string }[];
   onDone: () => void;
@@ -713,14 +669,18 @@ function MailboxesForm(props: {
   );
   const [name, setName] = useState(saved ?? "");
   const [password, setPassword] = useState("");
+  const [imap, setImap] = useState("");
+  const [smtp, setSmtp] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
-  const { servers } = props;
+  const ask = props.ownHost && !saved;
 
   return (
     <PageForm
-      title="Create your mailbox"
+      title={ask ? "Connect your mailbox" : "Create your mailbox"}
       description={
-        servers && !saved ? "With its password (an app password if your host has them)." : undefined
+        ask
+          ? `${props.domain.domain} stays on its mail host. Omni signs in to it like a mail app.`
+          : undefined
       }
       submit="Continue"
       isPending={createMailboxes.isPending}
@@ -728,11 +688,16 @@ function MailboxesForm(props: {
       onSubmit={() => {
         setProblem(null);
         if (saved) return props.onDone();
+        const servers = ask ? { imap: server(imap, 993), smtp: server(smtp, 465) } : null;
+        if (servers && (!servers.imap || !servers.smtp))
+          return setProblem("Enter each server as host or host:port.");
         createMailboxes.mutate(
           {
             domainId: props.domain.id,
             mailboxes: [{ localPart: name.trim(), password }],
-            ...(servers ? { servers } : {}),
+            ...(servers?.imap && servers.smtp
+              ? { servers: { imap: servers.imap, smtp: servers.smtp } }
+              : {}),
           },
           { onSuccess: props.onDone, onError: (error) => setProblem(error.message) },
         );
@@ -749,7 +714,7 @@ function MailboxesForm(props: {
           </InputGroup>
           <FieldRevealedError message="Enter the mailbox's name." />
         </TextField>
-        {servers && !saved && (
+        {ask && (
           <TextField
             aria-label="Password"
             type="password"
@@ -757,13 +722,30 @@ function MailboxesForm(props: {
             onChange={setPassword}
             isRequired
           >
-            <Input placeholder="Password" autoComplete="off" />
+            <Input
+              placeholder="Password (an app password if your host has them)"
+              autoComplete="off"
+            />
             <FieldRevealedError
               message={`Enter the password for ${name.trim() || "this mailbox"}${suffix}.`}
             />
           </TextField>
         )}
       </div>
+      {ask && (
+        <>
+          <TextField value={imap} onChange={setImap} isRequired>
+            <Label>IMAP server</Label>
+            <Input placeholder={`imap.${props.domain.domain}:993`} />
+            <FieldRevealedError message="Enter the IMAP server." />
+          </TextField>
+          <TextField value={smtp} onChange={setSmtp} isRequired>
+            <Label>SMTP server</Label>
+            <Input placeholder={`smtp.${props.domain.domain}:465`} />
+            <FieldRevealedError message="Enter the SMTP server." />
+          </TextField>
+        </>
+      )}
     </PageForm>
   );
 }
@@ -875,7 +857,8 @@ function InviteForm(props: { domain?: string }) {
   const navigate = useNavigate();
   const inviteMember = useInviteMember();
   const finishSetup = useFinishSetup();
-  const [emails, setEmails] = useState([""]);
+  // Three fields to start: most teams invite a few people at once.
+  const [emails, setEmails] = useState(["", "", ""]);
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -913,14 +896,15 @@ function InviteForm(props: { domain?: string }) {
         optional
         values={emails}
         onChange={setEmails}
-        addLabel="Add person"
+        addLabel="Add another"
         render={(value, set, i) => (
           <TextField
             aria-label={`Email ${i + 1}`}
             type="email"
             value={value}
             onChange={set}
-            autoFocus={i === emails.length - 1}
+            // The first field on arrival; a field just added after that.
+            autoFocus={emails.length <= 3 ? i === 0 : i === emails.length - 1}
           >
             <Input placeholder={`teammate@${props.domain ?? "acme.com"}`} />
             <FieldRevealedError message="Enter a valid email address." />
@@ -955,11 +939,11 @@ function InputList(props: {
         ))}
       </div>
       <Button
-        intent="plain"
-        size="xs"
-        className="self-start px-0 text-muted-foreground"
+        intent="outline"
+        className="mt-1 self-start"
         onPress={() => onChange([...values, ""])}
       >
+        <IconPlus />
         {props.addLabel}
       </Button>
     </div>

@@ -42,26 +42,18 @@ export function onboardingExit(
 }
 
 /**
- * Every onboarding step, in order. The domain's DNS is two steps: proving ownership comes first
- * (Purelymail only accepts a domain once its ownership record is in), then the mail records, or,
- * for a domain that stays on its own mail host, that host's servers. `Plan` appears only where
+ * Every onboarding step, in order. Proving ownership comes first (Purelymail only accepts a domain
+ * once its ownership record is in), then the mail records. A domain that stays on its own mail host
+ * has no mail records: its servers are asked for on the mailbox step. `Plan` appears only where
  * billing is on (ADR 0015).
  */
-export type OnboardingPage =
-  | "Workspace"
-  | "Ownership"
-  | "Records"
-  | "Server"
-  | "Mailbox"
-  | "Plan"
-  | "Invite";
+export type OnboardingPage = "Workspace" | "Ownership" | "Records" | "Mailbox" | "Plan" | "Invite";
 
 /** What each step is called in the step list. */
 export const PAGE_TITLES: Record<OnboardingPage, string> = {
   Workspace: "Workspace",
   Ownership: "Verify ownership",
   Records: "Mail records",
-  Server: "Mail server",
   Mailbox: "Mailbox",
   Plan: "Plan",
   Invite: "Invite your team",
@@ -78,7 +70,7 @@ export function onboardingPages(
   return [
     "Workspace",
     "Ownership",
-    domain?.provider === "imap" ? "Server" : "Records",
+    ...(domain?.provider === "imap" ? [] : (["Records"] as const)),
     "Mailbox",
     ...(data?.billing.enabled ? (["Plan"] as const) : []),
     "Invite",
@@ -101,15 +93,11 @@ export function mailRecordsReady(domain: OnboardingDomain): boolean {
   return domain.records.filter((r) => r.check !== "ownership").every(recordPasses);
 }
 
-/**
- * Whether a step is done, from what is saved, never from the page someone is on. `servers` is
- * whether this page holds the own host's servers (they are never stored).
- */
+/** Whether a step is done, from what is saved, never from the page someone is on. */
 export function pageDone(
   page: OnboardingPage,
   data: Onboarding | undefined,
   domain: OnboardingDomain | undefined,
-  servers: boolean,
 ): boolean {
   const mailbox =
     !!domain && !!data?.mailboxes.some((m) => m.address.endsWith(`@${domain.domain}`));
@@ -120,8 +108,6 @@ export function pageDone(
       return !!domain && ownershipReady(domain);
     case "Records":
       return !!domain && mailRecordsReady(domain);
-    case "Server":
-      return servers || mailbox;
     case "Mailbox":
       return mailbox;
     case "Plan":
@@ -132,13 +118,9 @@ export function pageDone(
 }
 
 /** Where setup resumes: the first step that is not done. */
-export function resumePage(
-  data: Onboarding,
-  domain: OnboardingDomain | undefined,
-  servers: boolean,
-): OnboardingPage {
+export function resumePage(data: Onboarding, domain: OnboardingDomain | undefined): OnboardingPage {
   const pages = onboardingPages(data, domain);
-  return pages.find((p) => !pageDone(p, data, domain, servers)) ?? pages[pages.length - 1]!;
+  return pages.find((p) => !pageDone(p, data, domain)) ?? pages[pages.length - 1]!;
 }
 
 /** Lowercase letters and digits joined by dashes, plus a random tail so slugs never collide. */
