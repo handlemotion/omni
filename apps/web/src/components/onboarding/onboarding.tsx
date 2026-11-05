@@ -1,5 +1,4 @@
 import { Cloudflare } from "@ridemountainpig/svgl-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Key } from "react-aria-components";
@@ -37,22 +36,23 @@ import {
 import { useBilling, useStartCheckout, useStartTrial } from "@/hooks/use-billing";
 import { useInviteMember } from "@/hooks/use-organization";
 import { formatPrice, type Interval } from "@/lib/billing";
+import { Step, Steps } from "@/components/ui/steps";
 import {
   needsSetup,
-  onboardingPages,
+  ONBOARDING_PAGES,
+  pageTitle,
   parseServer as server,
   challengePasses,
   mailRecordsReady,
   ownershipReady,
   pageDone,
-  PAGE_TITLES,
+  planSet,
   rememberedChallenge,
   resumePage,
   watchDomain,
   type OnboardingPage,
 } from "@/lib/onboarding";
 import { useRealtimeConnection } from "@/hooks/use-realtime";
-import { keys } from "@/lib/query-keys";
 import type { DnsRecord, Onboarding, OnboardingDomain } from "@/lib/types";
 
 // Workspace setup, one short form per page, with the numbered steps down the left. Nothing moves
@@ -67,13 +67,12 @@ import type { DnsRecord, Onboarding, OnboardingDomain } from "@/lib/types";
 
 export function Onboarding() {
   const status = useOnboarding();
-  const client = useQueryClient();
   // Decided once, from what the route loaded: finish the active workspace, or start a new one.
   const [resuming, setResuming] = useState(() => needsSetup(status.data?.organization));
   // Only the workspace being set up: a new one has no domain until its first step adds it.
   const domainOf = (data: Onboarding | undefined) => (resuming ? data?.domains[0] : undefined);
   const domain = domainOf(status.data);
-  const pages = onboardingPages(status.data, domain);
+  const pages = ONBOARDING_PAGES;
   const done = (p: OnboardingPage) => pageDone(p, status.data, domain);
   const [page, setPage] = useState<OnboardingPage>(() =>
     resuming && status.data ? resumePage(status.data, domain) : "Workspace",
@@ -81,17 +80,12 @@ export function Onboarding() {
   // A step can be opened once every step before it is done: back to any of them, forward only
   // as far as setup got. Nothing moves on by itself; each page's button does.
   const reachable = (p: OnboardingPage) => pages.slice(0, pages.indexOf(p)).every(done);
-  // The step after `from`, read from the latest status: a check can change the steps (a domain
-  // that moved to Purelymail has mail records instead of a mail server).
-  const next = (from: OnboardingPage) => {
-    const data = client.getQueryData<Onboarding>(keys.onboarding()) ?? status.data;
-    const fresh = onboardingPages(data, domainOf(data));
-    setPage(fresh[fresh.indexOf(from) + 1] ?? fresh[fresh.length - 1]!);
-  };
+  const next = (from: OnboardingPage) => setPage(pages[pages.indexOf(from) + 1] ?? "Team");
 
   return (
     <OnboardingPage
       pages={pages}
+      title={(p) => pageTitle(p, status.data)}
       current={page}
       done={done}
       reachable={reachable}
@@ -107,13 +101,11 @@ export function Onboarding() {
           }}
         />
       )}
-      {(page === "Ownership" || page === "Records") && domain && (
-        <DnsForm
-          key={page}
-          step={page}
+      {page === "Domain" && domain && (
+        <DomainForm
           domain={domain}
           organizationId={status.data?.organization?.id ?? ""}
-          onDone={() => next(page)}
+          onDone={() => next("Domain")}
         />
       )}
       {page === "Mailbox" && domain && (
@@ -124,20 +116,13 @@ export function Onboarding() {
           onDone={() => next("Mailbox")}
         />
       )}
-      {page === "Plan" &&
-        (done("Plan") ? (
-          <PageForm
-            title="Your plan is set"
-            description="Change it any time in Settings, Billing."
-            submit="Continue"
-            onSubmit={() => next("Plan")}
-          >
-            {null}
-          </PageForm>
-        ) : (
-          <PlanForm onDone={() => next("Plan")} />
-        ))}
-      {page === "Invite" && <InviteForm domain={domain?.domain} />}
+      {page === "Team" && (
+        <TeamForm
+          domain={domain?.domain}
+          billing={!!status.data?.billing.enabled}
+          planSet={planSet(status.data)}
+        />
+      )}
     </OnboardingPage>
   );
 }
@@ -150,6 +135,7 @@ export function Onboarding() {
  */
 function OnboardingPage(props: {
   pages: readonly OnboardingPage[];
+  title: (p: OnboardingPage) => string;
   current: OnboardingPage;
   done: (p: OnboardingPage) => boolean;
   reachable: (p: OnboardingPage) => boolean;
@@ -157,8 +143,6 @@ function OnboardingPage(props: {
   children: ReactNode;
 }) {
   const { exit, leave, isPending } = useOnboardingExit();
-  // DNS records need room for their table; the other pages are a single column of fields.
-  const wide = props.current === "Ownership" || props.current === "Records";
   return (
     <main className="min-h-dvh bg-background">
       {/* The logo in the top-left corner, its ink 35.5px from the top and from the left, and the
@@ -187,7 +171,9 @@ function OnboardingPage(props: {
           16px on the right): the step list weighs the left side, and true centre reads as pushed
           left. Narrower, it keeps clear of the steps instead. */}
       <div className="flex justify-center px-4 py-10 md:pt-23 md:pb-16 md:pr-4 md:pl-72 xl:pl-28">
-        <div className={cn("flex max-w-full flex-col", wide ? "w-200" : "w-100")}>
+        {/* One width for every page, wide enough for the DNS records table, so the column doesn't
+            jump between steps. */}
+        <div className="flex w-160 max-w-full flex-col">
           {props.children}
           {props.current === "Workspace" && exit.kind === "sign-out" && (
             <Button
@@ -211,6 +197,7 @@ function OnboardingPage(props: {
  */
 function StepList(props: {
   pages: readonly OnboardingPage[];
+  title: (p: OnboardingPage) => string;
   current: OnboardingPage;
   done: (p: OnboardingPage) => boolean;
   reachable: (p: OnboardingPage) => boolean;
@@ -252,7 +239,7 @@ function StepList(props: {
                     current ? "text-foreground" : "text-muted-foreground",
                   )}
                 >
-                  {PAGE_TITLES[p]}
+                  {props.title(p)}
                 </span>
                 {done && <span className="sr-only">(done)</span>}
               </Button>
@@ -441,12 +428,16 @@ function groupProblems(
   ];
 }
 
+/** Both DNS stages pass: ownership, then the mail records (none on a domain's own host). */
+const domainReady = (d: OnboardingDomain) => ownershipReady(d) && mailRecordsReady(d);
+
 /**
- * One of the domain's two DNS steps: its ownership records, or the provider's mail records. Every
- * record of the step is listed with its status; Continue checks and moves on only when all pass.
+ * The domain's DNS, one page in two stages: its ownership records, then the provider's mail
+ * records once ownership passes (Purelymail adds the domain only then). Every record of the open
+ * stage is listed with its status; Continue checks, opens the next stage when ownership passes,
+ * and moves on only when all pass.
  */
-function DnsForm(props: {
-  step: "Ownership" | "Records";
+function DomainForm(props: {
   domain: OnboardingDomain;
   organizationId: string;
   onDone: () => void;
@@ -455,25 +446,28 @@ function DnsForm(props: {
   const rotateChallenge = useRotateChallenge();
   const [problem, setProblem] = useState<string | null>(null);
   const { domain } = props;
-  const ownership = props.step === "Ownership";
-  const ready = ownership ? ownershipReady : mailRecordsReady;
-  const ofStep = (d: OnboardingDomain) =>
-    recordGroups(d).groups.filter((g) => (g.check === "ownership") === ownership);
-  const groups = ofStep(domain);
+  const owned = ownershipReady(domain);
+  const { groups } = recordGroups(domain);
+  const ownershipRecords = groups.filter((g) => g.check === "ownership").flatMap((g) => g.records);
+  const mailRecords = groups.filter((g) => g.check !== "ownership").flatMap((g) => g.records);
+  // A domain on its own mail host has no mail records; one moving to Purelymail gets them.
+  const mailStage = domain.provider !== "imap" || mailRecords.length > 0;
   // Re-checked on its own while this page is open; results arrive over realtime.
   useRealtimeConnection(props.organizationId);
-  useDomainWatch(domain.id, !ready(domain));
-  // Continue checks first: it moves on once every record of this step passes, else a toast says
-  // which isn't passing yet and why. Nothing moves on without it.
+  useDomainWatch(domain.id, !domainReady(domain));
+  // Continue checks first: it moves on once every record passes, else a toast says which isn't
+  // passing yet and why. Nothing moves on without it.
   const checkAndContinue = () => {
     setProblem(null);
     // A domain on its own host is checked even when it passes: the check is what moves it to
-    // Purelymail once this install has a Purelymail token (then its mail records come next).
-    if (ready(domain) && domain.provider !== "imap") return props.onDone();
+    // Purelymail once this install has a Purelymail token (then its mail records open here).
+    if (domainReady(domain) && domain.provider !== "imap") return props.onDone();
     checkDomain.mutate(domain.id, {
       onSuccess: (fresh) => {
-        if (ready(fresh)) return props.onDone();
-        const group = ofStep(fresh).find((g) => !g.records.every(passes));
+        if (domainReady(fresh)) return props.onDone();
+        // Ownership just passed: the mail records stage opens, and says what to add.
+        if (!owned && ownershipReady(fresh)) return;
+        const group = recordGroups(fresh).groups.find((g) => !g.records.every(passes));
         if (!group) return;
         const type = group.records[0]!.type;
         const why = groupProblems(fresh, group);
@@ -508,19 +502,43 @@ function DnsForm(props: {
     });
   };
 
+  const ownershipTable = (
+    <DnsRecordsTable
+      {...tableData(ownershipRecords)}
+      renderValue={(record) => {
+        // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
+        // or replace; missing or wrong, the field makes a new one.
+        const shown = ownershipRecords.find((r) => r.challenge);
+        if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
+        return passes(shown) ? (
+          <span className="block px-4 py-3 text-xs text-muted-foreground">In your DNS</span>
+        ) : (
+          <div className="px-4 py-2">
+            <RenewField
+              label="Value"
+              placeholder="Hidden"
+              tooltip="Make a new value. It replaces the old one."
+              isPending={rotateChallenge.isPending}
+              onPress={rotate}
+            />
+          </div>
+        );
+      }}
+    />
+  );
+
   return (
     <PageForm
-      title={ownership ? `Verify you own ${domain.domain}` : "Add the mail records"}
+      title={`Connect ${domain.domain}`}
       description={
         <>
           Add each record at{" "}
-          {domain.dnsHost ? <DnsHostLink host={domain.dnsHost} /> : "the registrar"} for{" "}
-          {domain.domain}.
+          {domain.dnsHost ? <DnsHostLink host={domain.dnsHost} /> : "the registrar"}.
         </>
       }
       shortcut={
         domain.domainConnect &&
-        !ready(domain) && (
+        !domainReady(domain) && (
           <Button
             intent="outline"
             isPending={rotateChallenge.isPending}
@@ -536,30 +554,35 @@ function DnsForm(props: {
       problem={problem}
       onSubmit={checkAndContinue}
     >
-      <DnsRecordsTable
-        {...tableData(groups.flatMap((group) => group.records))}
-        renderValue={(record) => {
-          // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
-          // or replace; missing or wrong, the field makes a new one.
-          const shown = groups.flatMap((g) => g.records).find((r) => r.challenge);
-          if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
-          return passes(shown) ? (
-            <span className="block px-4 py-3 text-xs text-muted-foreground">In your DNS</span>
-          ) : (
-            <div className="px-4 py-2">
-              <RenewField
-                label="Value"
-                placeholder="Hidden"
-                tooltip="Make a new value. It replaces the old one."
-                isPending={rotateChallenge.isPending}
-                onPress={rotate}
-              />
-            </div>
-          );
-        }}
-      />
+      {mailStage ? (
+        // Two stages in order: ownership, then the mail records it unlocks.
+        <Steps>
+          <Step
+            state={owned ? "complete" : "current"}
+            label={recordTypes(ownershipRecords) || "TXT"}
+            title="Verify you own it"
+          >
+            {ownershipTable}
+          </Step>
+          <Step
+            state={!owned ? "upcoming" : mailRecordsReady(domain) ? "complete" : "current"}
+            label={recordTypes(mailRecords) || "MX, TXT"}
+            title="Add the mail records"
+          >
+            <DnsRecordsTable {...tableData(mailRecords)} />
+          </Step>
+        </Steps>
+      ) : (
+        // A domain on its own mail host has only the ownership stage: no timeline for one step.
+        ownershipTable
+      )}
     </PageForm>
   );
+}
+
+/** A stage's record types, for the line above its title: "MX, TXT". */
+function recordTypes(records: ShownRecord[]) {
+  return [...new Set(records.map((r) => r.type))].join(", ");
 }
 
 /** The step's records and their problems, in the records table's shape (Domain SDK's). */
@@ -786,86 +809,42 @@ const SAMPLE_CHOICES = [
 ] as const;
 
 /**
- * The plan (ADR 0015). Every new workspace starts on the free trial of the plan it picks: no card,
- * no Stripe page, setup just moves on, and a card is due before the trial ends. A workspace that
- * has had its trial (or a deployment without one) pays on Stripe's page, which returns here.
- * Shown only while the workspace has no plan; the page is passed over otherwise.
+ * The last page: the plan (ADR 0015) and the team, one button for both. Every new workspace starts
+ * on the free trial of the plan it picks: no card, no Stripe page, and a card is due before the
+ * trial ends; the trial starts, each address is invited, setup is marked complete, and the inbox
+ * opens. A workspace that has had its trial (or a deployment without one) pays on Stripe's page
+ * first, which returns here with the plan set: invitations wait for it, so nobody is invited into
+ * a workspace without a plan (and nothing typed is lost to the redirect).
  */
-function PlanForm(props: { onDone: () => void }) {
+function TeamForm(props: { domain?: string; billing: boolean; planSet: boolean }) {
+  const navigate = useNavigate();
   const billing = useBilling();
   const startTrial = useStartTrial();
   const checkout = useStartCheckout();
-  const [picked, setPicked] = useState<Interval>("month");
-  const [problem, setProblem] = useState<string | null>(null);
-  const plan = billing.data?.enabled ? billing.data : null;
-  const trial = plan?.trialAvailable ?? true;
-  const fail = (error: Error) => setProblem(error.message);
-
-  return (
-    <PageForm
-      title={trial ? "Start your free trial" : "Choose your plan"}
-      description={
-        trial
-          ? `Free for ${plan?.trialDays ?? 14} days. Add a card before it ends to keep going.`
-          : "One price for everyone, every inbox and every domain."
-      }
-      submit={trial ? "Start free trial" : "Continue to payment"}
-      isPending={startTrial.isPending || checkout.isPending}
-      problem={problem ?? (billing.error ? billing.error.message : null)}
-      onSubmit={() => {
-        setProblem(null);
-        if (trial) startTrial.mutate(picked, { onSuccess: props.onDone, onError: fail });
-        else checkout.mutate({ interval: picked, returnPath: "/onboarding" }, { onError: fail });
-      }}
-    >
-      <Skeleton
-        data={plan ? planChoices(plan) : null}
-        sample={[...SAMPLE_CHOICES]}
-        label="Loading plans"
-      >
-        {(choices) => (
-          <ChoiceBox
-            // Optical: other pages' first field starts with a label's text (and its line slack);
-            // this one starts with a border. 4px more puts 35px of ink under the description, as
-            // there.
-            className="mt-1"
-            aria-label="Plan"
-            selectionMode="single"
-            disallowEmptySelection
-            selectedKeys={[picked]}
-            onSelectionChange={(keys) => {
-              const [key] = [...(keys as Set<Key>)];
-              if (key === "month" || key === "year") setPicked(key);
-            }}
-            items={choices}
-          >
-            {(item) => (
-              <ChoiceBoxItem id={item.id} label={item.label} description={item.description} />
-            )}
-          </ChoiceBox>
-        )}
-      </Skeleton>
-    </PageForm>
-  );
-}
-
-/**
- * Invites each address into the new workspace (the existing invitation flow), marks setup
- * complete, then opens the inbox.
- */
-function InviteForm(props: { domain?: string }) {
-  const navigate = useNavigate();
   const inviteMember = useInviteMember();
   const finishSetup = useFinishSetup();
+  const [picked, setPicked] = useState<Interval>("month");
   // Three fields to start: most teams invite a few people at once.
   const [emails, setEmails] = useState(["", "", ""]);
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const plan = billing.data?.enabled ? billing.data : null;
+  const choosing = props.billing && !props.planSet;
+  const trial = plan?.trialAvailable ?? true;
+  const paying = choosing && !trial;
 
   async function submit() {
     setProblem(null);
+    if (paying) {
+      return checkout.mutate(
+        { interval: picked, returnPath: "/onboarding" },
+        { onError: (error) => setProblem(error.message) },
+      );
+    }
     setSending(true);
     try {
+      // Once started, the plan is set (the status refetches), so a retry skips it.
+      if (choosing) await startTrial.mutateAsync(picked);
       // Each address leaves the list once invited, so a retry after an error sends only the rest.
       for (const email of emails.map((e) => e.trim()).filter(Boolean)) {
         await inviteMember.mutateAsync({ email });
@@ -885,32 +864,72 @@ function InviteForm(props: { domain?: string }) {
 
   return (
     <PageForm
-      title="Invite your team"
-      submit="Finish setup"
-      isPending={sending}
-      problem={problem}
+      title={!choosing ? "Invite your team" : trial ? "Start your free trial" : "Choose your plan"}
+      description={
+        !choosing
+          ? props.billing
+            ? "Your plan is set. Change it any time in Settings, Billing."
+            : undefined
+          : trial
+            ? `Free for ${plan?.trialDays ?? 14} days. Add a card before it ends to keep going.`
+            : "One price for everyone, every inbox and every domain. Invite your team after."
+      }
+      submit={!choosing ? "Finish setup" : trial ? "Start free trial" : "Continue to payment"}
+      isPending={sending || checkout.isPending}
+      problem={problem ?? (choosing && billing.error ? billing.error.message : null)}
       onSubmit={() => void submit()}
     >
-      <InputList
-        label="Emails"
-        optional
-        values={emails}
-        onChange={setEmails}
-        addLabel="Add another"
-        render={(value, set, i) => (
-          <TextField
-            aria-label={`Email ${i + 1}`}
-            type="email"
-            value={value}
-            onChange={set}
-            // The first field on arrival; a field just added after that.
-            autoFocus={emails.length <= 3 ? i === 0 : i === emails.length - 1}
-          >
-            <Input placeholder={`teammate@${props.domain ?? "acme.com"}`} />
-            <FieldRevealedError message="Enter a valid email address." />
-          </TextField>
-        )}
-      />
+      {choosing && (
+        <Skeleton
+          data={plan ? planChoices(plan) : null}
+          sample={[...SAMPLE_CHOICES]}
+          label="Loading plans"
+        >
+          {(choices) => (
+            <ChoiceBox
+              // Optical: other pages' first field starts with a label's text (and its line slack);
+              // this one starts with a border. 4px more puts 35px of ink under the description, as
+              // there.
+              className="mt-1"
+              aria-label="Plan"
+              selectionMode="single"
+              disallowEmptySelection
+              selectedKeys={[picked]}
+              onSelectionChange={(keys) => {
+                const [key] = [...(keys as Set<Key>)];
+                if (key === "month" || key === "year") setPicked(key);
+              }}
+              items={choices}
+            >
+              {(item) => (
+                <ChoiceBoxItem id={item.id} label={item.label} description={item.description} />
+              )}
+            </ChoiceBox>
+          )}
+        </Skeleton>
+      )}
+      {!paying && (
+        <InputList
+          label="Emails"
+          optional
+          values={emails}
+          onChange={setEmails}
+          addLabel="Add another"
+          render={(value, set, i) => (
+            <TextField
+              aria-label={`Email ${i + 1}`}
+              type="email"
+              value={value}
+              onChange={set}
+              // The first field on arrival (unless a plan is picked first); a field just added after.
+              autoFocus={emails.length <= 3 ? i === 0 && !choosing : i === emails.length - 1}
+            >
+              <Input placeholder={`teammate@${props.domain ?? "acme.com"}`} />
+              <FieldRevealedError message="Enter a valid email address." />
+            </TextField>
+          )}
+        />
+      )}
     </PageForm>
   );
 }
