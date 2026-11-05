@@ -4,13 +4,13 @@ Cloud sessions (claude.ai/code) run Omni with the full local stack: Postgres, Gr
 S3 gateway from `compose.yml`, the database migrated, and Doppler `dev` secrets in the usual local
 env files. Two files do the work:
 
-- `scripts/cloud/setup.sh`: the environment's setup script. Machine tools only (Node from
+- `kickoff.sh`: the environment's setup script. Machine tools only (Node from
   `.nvmrc`, pnpm from `packageManager`, `doppler`, `cf`, `flyctl`, `psql`) and the
   compose images. Claude Code snapshots the result, so it reads no secrets and leaves nothing
   running.
 - `.claude/hooks/cloud-session-start.sh`: a SessionStart hook that exits at once unless
   `CLAUDE_CODE_REMOTE=true`, which Claude Code sets only in cloud sessions. It puts Node and
-  pnpm from `/opt/node/bin` first on PATH (running `setup.sh` itself, about 20 s, when the
+  pnpm from `/opt/node/bin` first on PATH (running `kickoff.sh` itself, about 20 s, when the
   environment's setup script did not install the `.nvmrc` version), starts dockerd, runs
   `pnpm install --frozen-lockfile` and `pnpm stack:up`, writes env files from Doppler, and runs
   `db:migrate`. Its log is `/tmp/omni-session-start.log`.
@@ -19,7 +19,7 @@ env files. Two files do the work:
 
 In claude.ai, open the environment settings for `handlemotion/omni`:
 
-1. **Setup script**: paste `scripts/cloud/setup.sh` as it is on `main`. Re-paste it whenever the
+1. **Setup script**: paste `kickoff.sh` as it is on `main`. Re-paste it whenever the
    file changes; the snapshot rebuilds when the script does.
 2. **Network access**: Custom, with "Also include default list of common package managers" on,
    plus these hosts: `api.doppler.com` (Doppler), `api.cloudflare.com` (`cf`, `wrangler`),

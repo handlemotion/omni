@@ -2,7 +2,7 @@
 # SessionStart hook: brings up Omni's local stack in Claude Code cloud sessions. A no-op anywhere
 # else (Claude Code sets CLAUDE_CODE_REMOTE=true only in cloud sessions).
 #
-# Machine tools come from scripts/cloud/setup.sh (the environment's cached setup script). Each
+# Machine tools come from kickoff.sh (the environment's cached setup script). Each
 # session this hook puts Node (.nvmrc) on PATH, starts dockerd, installs deps, starts the compose stack,
 # writes local env files from Doppler when tokens are set, and migrates the local database.
 # Everything is idempotent, so `resume` and `compact` re-runs are cheap. Secret values are written
@@ -17,12 +17,12 @@ log=/tmp/omni-session-start.log
 trap 'echo "omni: session start failed; see $log" >&2' ERR
 
 # Node from .nvmrc and pnpm from `packageManager`, both in /opt/node/bin. An environment whose
-# setup script is not scripts/cloud/setup.sh (or an old copy of it) lacks them, and the image's
+# setup script is not kickoff.sh (or an old copy of it) lacks them, and the image's
 # own Node is too old for the mail service: run the setup script here instead (idempotent, ~20 s).
 node_bin=/opt/node/bin
 if [ "$("$node_bin/node" --version 2>/dev/null)" != "v$(cat .nvmrc)" ] || [ ! -x "$node_bin/pnpm" ]; then
-  echo "omni: Node $(cat .nvmrc) or pnpm missing from $node_bin; running scripts/cloud/setup.sh" >&2
-  bash scripts/cloud/setup.sh >>"$log" 2>&1
+  echo "omni: Node $(cat .nvmrc) or pnpm missing from $node_bin; running kickoff.sh" >&2
+  bash kickoff.sh >>"$log" 2>&1
 fi
 export PATH="$node_bin:$PATH"
 if [ -n "${CLAUDE_ENV_FILE:-}" ] && ! grep -qs "$node_bin" "$CLAUDE_ENV_FILE"; then

@@ -1,6 +1,9 @@
 #!/bin/bash
 # Claude Code cloud environment setup script for Omni. Paste this file, unchanged, into the
-# environment's "Setup script" field on claude.ai (docs/operations/cloud-sessions.md).
+# environment's "Setup script" field on claude.ai (docs/operations/cloud-sessions.md). A
+# multi-repo environment's setup script instead runs every cloned repo's kickoff.sh, this one
+# included, as root from that repo's root: keep shared paths (/opt/node, /usr/local/bin)
+# pinned to the same versions the other repos' scripts install.
 #
 # It installs machine tools only: it runs as root on Ubuntu before Claude Code starts, and the
 # resulting filesystem is snapshotted and reused, so nothing here keeps running and no secret is
@@ -12,7 +15,7 @@
 set -euo pipefail
 
 [ "$(uname -m)" = "x86_64" ] || {
-  echo "setup.sh: only linux x86_64 is pinned" >&2
+  echo "kickoff.sh: only linux x86_64 is pinned" >&2
   exit 1
 }
 
