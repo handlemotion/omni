@@ -42,23 +42,27 @@ export function onboardingExit(
 }
 
 /**
- * Every onboarding step, in order: two long pages of sections. `Workspace` is the name, the domain
- * and its DNS: proving ownership first (Purelymail only accepts a domain once its ownership record
- * is in), then the mail records (none for a domain that stays on its own mail host). `Team` is the
- * mailbox (on its own host: with its servers and password), the plan where billing is on (ADR
- * 0015), and the invitations, in that order, so nobody is invited before there is a plan.
+ * Every onboarding step, in order. `Workspace` is the name, the domain and its DNS on one page:
+ * proving ownership first (Purelymail only accepts a domain once its ownership record is in), then
+ * the mail records (none for a domain that stays on its own mail host, whose servers the mailbox
+ * step asks for). `Plan` appears only where billing is on (ADR 0015).
  */
-export type OnboardingPage = "Workspace" | "Team";
+export type OnboardingPage = "Workspace" | "Mailbox" | "Plan" | "Team";
 
-export const ONBOARDING_PAGES: readonly OnboardingPage[] = ["Workspace", "Team"];
+/** What each step is called in the step list. */
+export const PAGE_TITLES: Record<OnboardingPage, string> = {
+  Workspace: "Workspace",
+  Mailbox: "Mailbox",
+  Plan: "Plan",
+  Team: "Invite your team",
+};
 
-/** What each step is called in the step list, and the line under it. */
-export function pageTitle(page: OnboardingPage, data: Pick<Onboarding, "billing"> | undefined) {
-  if (page === "Workspace") return { title: "Workspace", detail: "Name, domain and DNS" };
-  return {
-    title: "Mailbox and team",
-    detail: data?.billing.enabled ? "Mailbox, plan and invites" : "Mailbox and invites",
-  };
+/**
+ * This setup's steps. The plan comes after the mailbox, once the workspace works, and before
+ * invitations, so nobody is invited into a workspace that has no plan yet.
+ */
+export function onboardingPages(data: Pick<Onboarding, "billing"> | undefined): OnboardingPage[] {
+  return ["Workspace", "Mailbox", ...(data?.billing.enabled ? (["Plan"] as const) : []), "Team"];
 }
 
 const recordPasses = (r: OnboardingDomain["records"][number]) =>
@@ -83,18 +87,21 @@ export function pageDone(
   data: Onboarding | undefined,
   domain: OnboardingDomain | undefined,
 ): boolean {
-  if (page === "Workspace") return !!domain && ownershipReady(domain) && mailRecordsReady(domain);
-  return data?.organization?.setup === "complete";
-}
-
-/** The workspace has a plan (or this deployment doesn't bill): the team page only invites. */
-export function planSet(data: Onboarding | undefined): boolean {
-  return !data?.billing.enabled || (!!data.organization && !data.organization.needsPlan);
+  switch (page) {
+    case "Workspace":
+      return !!domain && ownershipReady(domain) && mailRecordsReady(domain);
+    case "Mailbox":
+      return !!domain && !!data?.mailboxes.some((m) => m.address.endsWith(`@${domain.domain}`));
+    case "Plan":
+      return !!data?.organization && !data.organization.needsPlan;
+    case "Team":
+      return data?.organization?.setup === "complete";
+  }
 }
 
 /** Where setup resumes: the first step that is not done. */
 export function resumePage(data: Onboarding, domain: OnboardingDomain | undefined): OnboardingPage {
-  return ONBOARDING_PAGES.find((p) => !pageDone(p, data, domain)) ?? "Team";
+  return onboardingPages(data).find((p) => !pageDone(p, data, domain)) ?? "Team";
 }
 
 /** Lowercase letters and digits joined by dashes, plus a random tail so slugs never collide. */
