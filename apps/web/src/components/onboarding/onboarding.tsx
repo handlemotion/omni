@@ -174,31 +174,32 @@ function OnboardingPage(props: {
   const wide = props.current === "Ownership" || props.current === "Records";
   return (
     <main className="min-h-dvh bg-background">
-      {/* The logo and the way out sit in the top-left corner, apart from the steps. */}
-      <div className="flex items-center gap-4 px-4 pt-6 md:fixed md:top-0 md:left-0 md:px-14">
-        <IconRedirectArrow />
-        {exit.kind !== "sign-out" && (
-          // Setup stays saved and resumes on return.
-          <Button
-            intent="plain"
-            size="xs"
-            className="text-muted-foreground"
-            isPending={isPending}
-            onPress={leave}
-          >
-            <IconChevronLeft />
-            {exit.kind === "inbox" ? "Back to inbox" : `Back to ${exit.workspace.name}`}
-          </Button>
-        )}
-      </div>
-      {/* The steps at the far left (above the page on phones), starting on the page heading's line:
-          both columns open 128px down. */}
-      <aside className="px-4 pt-8 md:fixed md:top-32 md:left-0 md:w-72 md:px-14 md:pt-0">
+      {/* The logo in the top-left corner, its ink 35.5px from the top and from the left, and the
+          steps right under it, their markers' ink on the logo's left edge (above the page on
+          phones). `-ms-0.5` cancels most of the step buttons' own inset; measured in ink. */}
+      <aside className="flex flex-col gap-6.5 px-4 pt-6 md:fixed md:top-8 md:left-8 md:w-60 md:p-0">
+        <div className="flex items-center gap-4">
+          <IconRedirectArrow />
+          {exit.kind !== "sign-out" && (
+            // Setup stays saved and resumes on return.
+            <Button
+              intent="plain"
+              size="xs"
+              className="text-muted-foreground"
+              isPending={isPending}
+              onPress={leave}
+            >
+              <IconChevronLeft />
+              {exit.kind === "inbox" ? "Back to inbox" : `Back to ${exit.workspace.name}`}
+            </Button>
+          )}
+        </div>
         <StepList {...props} />
       </aside>
-      {/* The page, centred on the screen; between the phone and wide layouts it keeps clear of the
-          steps instead. */}
-      <div className="flex justify-center px-4 py-10 md:pt-32 md:pb-16 md:pr-4 md:pl-72 xl:pl-4">
+      {/* The page sits 48px right of the screen's centre on wide screens (112px in on the left,
+          16px on the right): the step list weighs the left side, and true centre reads as pushed
+          left. Narrower, it keeps clear of the steps instead. */}
+      <div className="flex justify-center px-4 py-10 md:pt-23 md:pb-16 md:pr-4 md:pl-72 xl:pl-28">
         <div className={cn("flex max-w-full flex-col", wide ? "w-200" : "w-100")}>
           {props.children}
           {props.current === "Workspace" && exit.kind === "sign-out" && (
@@ -230,7 +231,7 @@ function StepList(props: {
 }) {
   return (
     <nav aria-label="Setup steps">
-      <ol className="flex flex-col gap-0.5">
+      <ol className="-ms-0.5 flex flex-col gap-2">
         {props.pages.map((p, i) => {
           const current = p === props.current;
           const done = props.done(p);
@@ -250,9 +251,10 @@ function StepList(props: {
                     "flex size-4 shrink-0 items-center justify-center rounded-full text-xs/none tabular-nums",
                     done
                       ? "bg-success text-success-foreground"
-                      : current
-                        ? "bg-foreground text-background"
-                        : "ring-1 ring-border text-muted-foreground",
+                      : // `pt-px`: Geist's figures sit half a pixel high in their line box (ink-measured).
+                        current
+                        ? "bg-foreground pt-px text-background"
+                        : "pt-px ring-1 ring-border text-muted-foreground",
                   )}
                 >
                   {done ? <IconCheck className="size-2.5" strokeWidth={3} /> : i + 1}
