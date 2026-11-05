@@ -10,11 +10,15 @@ import { IconCheck } from "@/components/icons/lucide";
 import { IconChevronLeft, IconChevronRight } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
 import { ChoiceBox, ChoiceBoxItem } from "@/components/ui/choice-box";
-import { CopyField, RenewField, StaticField } from "@/components/ui/copy-field";
+import { RenewField } from "@/components/ui/copy-field";
 import { Label } from "@/components/ui/field";
 import { Heading } from "@/components/ui/heading";
 import { Input, InputGroup } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { DnsRecordsTable } from "@/components/domain/dns-records-table";
+import type {
+  DnsRecord as TableRecord,
+  DomainIssue,
+} from "@/components/domain/domain-registry-utils";
 import { Text, TextLink } from "@/components/ui/text";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { FieldRevealedError, SlotError } from "@/components/ui/revealed-error";
@@ -166,28 +170,36 @@ function OnboardingPage(props: {
   children: ReactNode;
 }) {
   const { exit, leave, isPending } = useOnboardingExit();
+  // DNS records need room for their table; the other pages are a single column of fields.
+  const wide = props.current === "Ownership" || props.current === "Records";
   return (
-    <main className="flex min-h-dvh justify-center bg-background px-4 py-16">
-      {exit.kind !== "sign-out" && (
-        // Setup stays saved and resumes on return. Optical: `top-3.75` puts the label's ink as far
-        // from the window's top (23.5px) as the chevron's is from its left.
-        <Button
-          intent="plain"
-          size="xs"
-          className="fixed top-3.75 left-3 text-muted-foreground"
-          isPending={isPending}
-          onPress={leave}
-        >
-          <IconChevronLeft />
-          {exit.kind === "inbox" ? "Back to inbox" : `Back to ${exit.workspace.name}`}
-        </Button>
-      )}
-      <div className="flex w-full max-w-170 flex-col gap-10 md:flex-row md:gap-16">
-        <aside className="flex shrink-0 flex-col gap-8 md:w-48">
-          <IconRedirectArrow />
-          <StepList {...props} />
-        </aside>
-        <div className="flex w-100 max-w-full flex-col">
+    <main className="min-h-dvh bg-background">
+      {/* The logo and the way out sit in the top-left corner, apart from the steps. */}
+      <div className="flex items-center gap-4 px-4 pt-6 md:fixed md:top-0 md:left-0 md:px-10">
+        <IconRedirectArrow />
+        {exit.kind !== "sign-out" && (
+          // Setup stays saved and resumes on return.
+          <Button
+            intent="plain"
+            size="xs"
+            className="text-muted-foreground"
+            isPending={isPending}
+            onPress={leave}
+          >
+            <IconChevronLeft />
+            {exit.kind === "inbox" ? "Back to inbox" : `Back to ${exit.workspace.name}`}
+          </Button>
+        )}
+      </div>
+      {/* The steps at the far left (above the page on phones), starting on the page heading's line:
+          both columns open 128px down. */}
+      <aside className="px-4 pt-8 md:fixed md:top-32 md:left-0 md:w-64 md:px-10 md:pt-0">
+        <StepList {...props} />
+      </aside>
+      {/* The page, centred on the screen; between the phone and wide layouts it keeps clear of the
+          steps instead. */}
+      <div className="flex justify-center px-4 py-10 md:pt-32 md:pb-16 md:pr-4 md:pl-68 xl:pl-4">
+        <div className={cn("flex max-w-full flex-col", wide ? "w-200" : "w-100")}>
           {props.children}
           {props.current === "Workspace" && exit.kind === "sign-out" && (
             <Button
@@ -290,7 +302,7 @@ function PageForm(props: {
         if (!props.isPending) props.onSubmit();
       }}
     >
-      <div className="flex flex-col gap-1.5 pt-8">
+      <div className="flex flex-col gap-1.5">
         <Heading>{props.title}</Heading>
         {props.description && <Text>{props.description}</Text>}
         {props.shortcut && <div className="mt-4.5 flex">{props.shortcut}</div>}
@@ -534,88 +546,67 @@ function DnsForm(props: {
       problem={problem}
       onSubmit={checkAndContinue}
     >
-      {/* Every record at once, each with its status (the Domain SDK records table, stacked to
-          fit this column): nothing is revealed step by step, nothing is hidden. Found records
-          turn green; a record DNS holds with another value says what it found. */}
-      <div className="flex flex-col gap-3 [--copy-label-width:--spacing(13)]">
-        {groups.flatMap((group) =>
-          group.records.map((record) => (
-            <DnsRecordCard
-              key={`${record.type}:${record.name}:${record.check}`}
-              record={record}
-              // The step's two ownership records prove different things: Omni's claim, and the
-              // mail host's own check before it accepts the domain.
-              purpose={
-                record.check === "ownership" && !record.challenge
-                  ? "Let the mail host accept it"
-                  : group.purpose
-              }
-              isRotating={rotateChallenge.isPending}
-              onRotate={rotate}
-            />
-          )),
-        )}
-      </div>
+      <DnsRecordsTable
+        {...tableData(groups.flatMap((group) => group.records))}
+        renderValue={(record) => {
+          // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
+          // or replace; missing or wrong, the field makes a new one.
+          const shown = groups.flatMap((g) => g.records).find((r) => r.name === record.name);
+          if (!shown?.challenge || shown.value !== null) return undefined;
+          return passes(shown) ? (
+            <span className="block px-4 py-3 text-xs text-muted-foreground">In your DNS</span>
+          ) : (
+            <div className="px-4 py-2">
+              <RenewField
+                label="Value"
+                placeholder="Hidden"
+                tooltip="Make a new value. It replaces the old one."
+                isPending={rotateChallenge.isPending}
+                onPress={rotate}
+              />
+            </div>
+          );
+        }}
+      />
     </PageForm>
   );
 }
 
-/**
- * One DNS record: its type and what it is for, a status badge, then the host and value to copy.
- * The ownership value is the one that can be missing (only its hash is kept): while DNS lacks it,
- * the field makes a new one; once DNS serves it, there is nothing to make.
- */
-function DnsRecordCard(props: {
-  record: ShownRecord;
-  purpose: string;
-  isRotating: boolean;
-  onRotate: () => void;
-}) {
-  const { record } = props;
-  const done = passes(record);
-  const wrong = !done && record.diagnostic && record.diagnostic.status !== "missing";
-  const value =
-    record.value === null
-      ? null
-      : // A merged SPF record replaces the one already there.
-        (record.diagnostic?.suggestion ??
-        (record.priority !== undefined ? `${record.priority} ${record.value}` : record.value));
-  return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-sm text-foreground">
-          {record.type}
-          <span className="text-muted-foreground"> · {props.purpose}</span>
-        </span>
-        <Badge intent={done ? "success" : wrong ? "danger" : "secondary"} className="shrink-0">
-          {done ? "Found" : wrong ? "Wrong value" : "Not found yet"}
-        </Badge>
-      </div>
-      <CopyField label="Host" value={record.name} done={done} />
-      {value !== null ? (
-        <CopyField label="Value" value={value} done={done} />
-      ) : done ? (
-        <StaticField label="Value" text="In your DNS" />
-      ) : (
-        // Not made on its own: it would replace a record the user may have just added.
-        <RenewField
-          label="Value"
-          placeholder="Hidden"
-          tooltip="Show a new value. It replaces the old one."
-          isPending={props.isRotating}
-          onPress={props.onRotate}
-        />
-      )}
-      {wrong && (
-        <p className="text-xs/4 text-danger-subtle-foreground">
-          {record.value === null
-            ? // The value it should hold can't be shown again, so the way out is a new one.
-              `DNS has another value${record.diagnostic!.found.length > 0 ? ` (${record.diagnostic!.found.join(", ")})` : ""}. Press Hidden to make a new value, then put it in this record.`
-            : diagnosticText(record.diagnostic!)}
-        </p>
-      )}
-    </div>
-  );
+/** The step's records and their problems, in the records table's shape (Domain SDK's). */
+function tableData(records: ShownRecord[]): { records: TableRecord[]; issues: DomainIssue[] } {
+  const rows = records.map((record) => {
+    const done = passes(record);
+    const wrong = !done && !!record.diagnostic && record.diagnostic.status !== "missing";
+    const row: TableRecord = {
+      type: record.type,
+      name: record.name,
+      value:
+        record.value === null
+          ? ""
+          : // A merged SPF record replaces the one already there.
+            (record.diagnostic?.suggestion ??
+            (record.priority !== undefined ? `${record.priority} ${record.value}` : record.value)),
+      purpose: record.check === "ownership" ? "ownership" : "routing",
+      required: true,
+      status: done ? "valid" : wrong ? "invalid" : "pending",
+    };
+    const issue: DomainIssue | null = wrong
+      ? {
+          code: record.diagnostic!.status,
+          message:
+            record.value === null
+              ? `DNS has another value${record.diagnostic!.found.length > 0 ? ` (${record.diagnostic!.found.join(", ")})` : ""}. Make a new value above.`
+              : diagnosticText(record.diagnostic!),
+          record: row,
+          retryable: true,
+        }
+      : null;
+    return { row, issue };
+  });
+  return {
+    records: rows.map((r) => r.row),
+    issues: rows.flatMap((r) => (r.issue ? [r.issue] : [])),
+  };
 }
 
 /**
