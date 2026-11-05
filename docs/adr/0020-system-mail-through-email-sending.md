@@ -16,7 +16,8 @@ could not send. Production sign-in failed for exactly this reason: `SYSTEM_MAIL_
   Sending, from `SYSTEM_MAIL_FROM` under `APP_NAME`. No mailbox and no outbox row are involved.
 - The address's domain is onboarded to Email Sending once, in the Cloudflare dashboard. It adds
   its own records under `cf-bounce.<domain>`, so the domain's existing mail setup stays as it is.
-- Hosted Omni sends from `hello@omnidirectional.app`.
+- Hosted Omni sends from `hello@mail.omnidirectional.app`. A sending subdomain keeps this mail's
+  reputation and records apart from the apex domain's own mail (Purelymail).
 - Tests read the messages from wrangler's local simulation of the binding (its local explorer
   API), so the e2e suites still check the real message and link without sending anything.
 
