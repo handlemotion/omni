@@ -3,6 +3,7 @@ import { ArrowPathIcon } from "@heroicons/react/20/solid";
 import { useState } from "react";
 import { Button } from "react-aria-components/Button";
 import { cn } from "cn";
+import { IconCheck, IconCopy } from "@/components/icons/lucide";
 import { Loader } from "./loader";
 import { Tooltip, TooltipTrigger } from "./tooltip";
 
@@ -59,16 +60,30 @@ export function CopyField(props: {
       <Button
         aria-label={`Copy ${props.label.toLowerCase()}: ${props.value}`}
         onPress={copy}
-        className={cn(WELL, "cursor-copy", props.done && DONE, props.className)}
+        className={cn(WELL, "group/copy cursor-copy", props.done && DONE, props.className)}
       >
         <span className={LABEL}>{props.label}</span>
+        {/* The copy mark at the end says what a click does, as RenewField's refresh mark does;
+            it turns to a check once copied. Same insets as RenewField's, so stacked fields'
+            marks share one axis. */}
         <span
           className={cn(
-            "flex min-w-0 flex-1 items-center px-2",
+            "flex min-w-0 flex-1 items-center justify-between gap-2 ps-2 pe-2",
             props.done ? "text-success-subtle-foreground" : "text-foreground",
           )}
         >
           <span className="truncate">{props.value}</span>
+          {result === "copied" ? (
+            <IconCheck aria-hidden className="size-3.5 shrink-0" />
+          ) : (
+            <IconCopy
+              aria-hidden
+              className={cn(
+                "size-3.5 shrink-0 transition-colors group-hover/copy:text-foreground group-focus-visible/copy:text-foreground",
+                !props.done && "text-muted-foreground",
+              )}
+            />
+          )}
         </span>
       </Button>
       <Tooltip arrow={false} placement="end" className="flex items-center gap-1">

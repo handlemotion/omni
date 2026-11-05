@@ -4,8 +4,8 @@
 // already say it; nobody copies all records at once) and the footer's top border
 // (the last row's own line already separates them). Only the parts are ours: its shadcn Badge, Button and Table are our Intent
 // UI ones, its Hugeicons are Lucide, and its status colors are our tokens (the badge intents).
-// Two additions: `renderValue`, for a record whose value can't be shown (Omni's ownership value,
-// of which only a hash is kept), and `stacked`, its phone layout at every width.
+// One addition: `renderValue`, for a record whose value can't be shown (Omni's ownership value,
+// of which only a hash is kept).
 import * as React from "react";
 import type { ReactNode } from "react";
 import {
@@ -42,8 +42,6 @@ export interface DnsRecordsTableProps {
   onCopy?(content: string, record: DnsRecord, field: DnsRecordCopyField): void | Promise<void>;
   /** Shown in place of a record's copyable value when it returns something. */
   renderValue?(record: DnsRecord): ReactNode;
-  /** One card per record at every width (the phone layout), for a narrow column. */
-  stacked?: boolean;
 }
 
 const statusMeta = {
@@ -118,7 +116,6 @@ export function DnsRecordsTable({
   defaultFilter = "required",
   onCopy,
   renderValue,
-  stacked = false,
 }: DnsRecordsTableProps) {
   const [copiedField, setCopiedField] = React.useState<string>();
   const [announcement, setAnnouncement] = React.useState("");
@@ -206,7 +203,7 @@ export function DnsRecordsTable({
   return (
     <section aria-label="DNS records" className="min-w-0 text-foreground">
       <div className="overflow-hidden rounded-lg border border-border bg-background">
-        <div className={stacked ? "hidden" : "hidden md:block"}>
+        <div className="hidden md:block">
           <Table aria-label="DNS records" bleed className="[--gutter:0]">
             <TableHeader className="bg-muted/40">
               <TableColumn className="h-9 w-24 px-4 text-xs text-muted-foreground first:ps-4">
@@ -232,7 +229,7 @@ export function DnsRecordsTable({
           </Table>
         </div>
 
-        <div className={stacked ? "divide-y divide-border" : "divide-y divide-border md:hidden"}>
+        <div className="divide-y divide-border md:hidden">
           {visibleRecords.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">
               No DNS records in this view.
