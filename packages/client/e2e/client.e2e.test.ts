@@ -1,7 +1,5 @@
 // The client as the apps use it, against the real Worker under workerd and a real Postgres:
 // Better Auth's client signs in, the Hono RPC client reads, the realtime client listens.
-import { schema } from "@omni/db";
-import { desc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
   createMailbox,
@@ -12,6 +10,7 @@ import {
   postMailEvents,
   seedMessage,
   startMailServiceEndpoint,
+  sentMail,
   startWorker,
   SYSTEM_MAIL_FROM,
   WEB_ORIGIN,
@@ -65,7 +64,7 @@ function cookieJar() {
   };
 }
 
-/** Signs in with the auth client's magic link, reading the link from the outbox. */
+/** Signs in with the auth client's magic link, reading the link from the mail the Worker sent. */
 async function signIn(db: TestDb, email: string) {
   const jar = cookieJar();
   const baseUrl = String(worker.url);
@@ -73,16 +72,8 @@ async function signIn(db: TestDb, email: string) {
   const requested = await auth.signIn.magicLink({ email });
   expect(requested.error).toBeNull();
 
-  const rows = await db
-    .select({ payload: schema.mailActions.payload })
-    .from(schema.mailActions)
-    .where(eq(schema.mailActions.kind, "send"))
-    .orderBy(desc(schema.mailActions.createdAt));
-  const link = rows
-    .map((row) => row.payload as { to?: string[]; text?: string })
-    .find((p) => p.to?.[0] === email)
-    ?.text?.match(/https?:\/\/\S+/)?.[0];
-  if (!link) throw new Error(`no magic link for ${email} in the outbox`);
+  const link = (await sentMail(worker, email)).at(-1)?.text.match(/https?:\/\/\S+/)?.[0];
+  if (!link) throw new Error(`no magic link sent to ${email}`);
   // A native app gets the token from the link it opens and verifies it itself.
   const token = new URL(link).searchParams.get("token") ?? "";
   const verified = await auth.magicLink.verify({ query: { token } });

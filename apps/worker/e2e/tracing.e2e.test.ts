@@ -16,7 +16,6 @@ import { and, eq } from "drizzle-orm";
 import { createTransport } from "nodemailer";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
-  createMailbox,
   createMember,
   createOrg,
   createTestDatabase,
@@ -24,7 +23,6 @@ import {
   HMAC_SECRET,
   signIn,
   startWorker,
-  SYSTEM_MAIL_FROM,
   waitForEvents,
   workerEvents,
 } from "./support.ts";
@@ -82,14 +80,6 @@ beforeAll(async () => {
     service,
     http: serve({ fetch: service.app.fetch, port: mailPort, hostname: "127.0.0.1" }),
   };
-
-  // Sign-in reads the magic link from the outbox; its system mailbox stays disconnected.
-  const system = await createOrg(database.db, "system");
-  const systemBox = await createMailbox(database.db, system.id, SYSTEM_MAIL_FROM);
-  await database.db
-    .update(schema.mailboxes)
-    .set({ status: "disabled" })
-    .where(eq(schema.mailboxes.id, systemBox.id));
 }, 60_000);
 
 afterAll(async () => {
