@@ -9,12 +9,15 @@ import { IconCheck, IconPlus } from "@/components/icons/lucide";
 import { IconChevronLeft, IconChevronRight } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
 import { ChoiceBox, ChoiceBoxItem } from "@/components/ui/choice-box";
-import { CopyField, RenewField, StaticField } from "@/components/ui/copy-field";
+import { RenewField } from "@/components/ui/copy-field";
 import { Label } from "@/components/ui/field";
 import { Heading } from "@/components/ui/heading";
 import { Input, InputGroup } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { SettingsGroup } from "@/components/settings/kit/settings-layout";
+import { DnsRecordsTable } from "@/components/domain/dns-records-table";
+import type {
+  DnsRecord as TableRecord,
+  DomainIssue,
+} from "@/components/domain/domain-registry-utils";
 import { Text, TextLink } from "@/components/ui/text";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { FieldRevealedError, SlotError } from "@/components/ui/revealed-error";
@@ -530,72 +533,64 @@ function DomainForm(props: {
       problem={problem}
       onSubmit={checkAndContinue}
     >
-      <RecordList records={records} renewing={rotateChallenge.isPending} onRenew={rotate} />
+      <DnsRecordsTable
+        {...tableData(records)}
+        renderValue={(record) => {
+          // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
+          // or replace; missing or wrong, the field makes a new one.
+          const shown = records.find((r) => r.challenge);
+          if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
+          return passes(shown) ? (
+            <span className="text-xs/4 text-muted-foreground">In your DNS</span>
+          ) : (
+            <RenewField
+              placeholder="Hidden"
+              tooltip="Make a new value. It replaces the old one."
+              isPending={rotateChallenge.isPending}
+              onPress={rotate}
+            />
+          );
+        }}
+      />
     </PageForm>
   );
 }
 
-/**
- * The stage's records, one row each, laid out as the domain's records are in Settings: what the
- * record is for and whether it's found, then its host and value to copy. Every mark sits on the
- * row's 16px inset: the purpose line, both wells, and the problem under them.
- */
-function RecordList(props: { records: ShownRecord[]; renewing: boolean; onRenew: () => void }) {
-  return (
-    <SettingsGroup>
-      {props.records.map((record) => {
-        const done = passes(record);
-        const wrong = !done && !!record.diagnostic && record.diagnostic.status !== "missing";
-        const value =
-          record.value === null
-            ? null
-            : // A merged SPF record replaces the one already there.
-              (record.diagnostic?.suggestion ??
-              (record.priority !== undefined
-                ? `${record.priority} ${record.value}`
-                : record.value));
-        return (
-          <div key={`${record.type} ${record.name}`} className="flex flex-col gap-3 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm/4 text-foreground">
-                {PURPOSES.find((p) => p.check === record.check)?.purpose}
-                <span className="text-muted-foreground"> ({record.type})</span>
-              </span>
-              <Badge intent={done ? "success" : wrong ? "danger" : "warning"}>
-                {done ? "Found" : wrong ? "Wrong value" : "Not found"}
-              </Badge>
-            </div>
-            {/* Both labels one width, so the dividers and the values line up. */}
-            <div className="flex flex-col gap-2 [--copy-label-width:--spacing(13)]">
-              <CopyField label="Host" value={record.name} />
-              {value !== null ? (
-                <CopyField label="Value" value={value} />
-              ) : done ? (
-                // Omni's ownership value is kept only as a hash: in DNS already, nothing to copy.
-                <StaticField label="Value" text="In your DNS" />
-              ) : (
-                // Missing or wrong, and no longer shown: the field makes a new one.
-                <RenewField
-                  label="Value"
-                  placeholder="Hidden"
-                  tooltip="Make a new value. It replaces the old one."
-                  isPending={props.renewing}
-                  onPress={props.onRenew}
-                />
-              )}
-            </div>
-            {wrong && (
-              <p className="text-xs/4 text-danger-subtle-foreground">
-                {record.value === null
-                  ? `DNS has another value${record.diagnostic!.found.length > 0 ? ` (${record.diagnostic!.found.join(", ")})` : ""}. Make a new value above.`
-                  : diagnosticText(record.diagnostic!)}
-              </p>
-            )}
-          </div>
-        );
-      })}
-    </SettingsGroup>
-  );
+/** The stage's records and their problems, in the records table's shape (Domain SDK's). */
+function tableData(records: ShownRecord[]): { records: TableRecord[]; issues: DomainIssue[] } {
+  const rows = records.map((record) => {
+    const done = passes(record);
+    const wrong = !done && !!record.diagnostic && record.diagnostic.status !== "missing";
+    const row: TableRecord = {
+      type: record.type,
+      name: record.name,
+      value:
+        record.value === null
+          ? ""
+          : // A merged SPF record replaces the one already there.
+            (record.diagnostic?.suggestion ??
+            (record.priority !== undefined ? `${record.priority} ${record.value}` : record.value)),
+      purpose: record.check === "ownership" ? "ownership" : "routing",
+      required: true,
+      status: done ? "valid" : wrong ? "invalid" : "pending",
+    };
+    const issue: DomainIssue | null = wrong
+      ? {
+          code: record.diagnostic!.status,
+          message:
+            record.value === null
+              ? `DNS has another value${record.diagnostic!.found.length > 0 ? ` (${record.diagnostic!.found.join(", ")})` : ""}. Make a new value above.`
+              : diagnosticText(record.diagnostic!),
+          record: row,
+          retryable: true,
+        }
+      : null;
+    return { row, issue };
+  });
+  return {
+    records: rows.map((r) => r.row),
+    issues: rows.flatMap((r) => (r.issue ? [r.issue] : [])),
+  };
 }
 
 /**

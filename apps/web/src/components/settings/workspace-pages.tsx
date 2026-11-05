@@ -22,7 +22,9 @@ import { Skeleton } from "skullet/react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CopyField, RenewField } from "@/components/ui/copy-field";
+import { RenewField } from "@/components/ui/copy-field";
+import { DnsRecordsTable } from "@/components/domain/dns-records-table";
+import type { DnsRecord as TableRecord } from "@/components/domain/domain-registry-utils";
 import { appToast } from "@/components/ui/toast";
 import {
   useAddDomain,
@@ -209,22 +211,6 @@ export function GeneralPage() {
   );
 }
 
-/** What each record is for, in the order setup asks for them (onboarding's names). */
-const RECORD_PURPOSES: Record<DnsRecord["check"], string> = {
-  ownership: "Proves you own it",
-  mx: "Receives mail",
-  spf: "Allows sending",
-  dkim: "Signs outgoing mail",
-  dmarc: "Sets a policy",
-};
-
-/** The record's type, and the standard it implements where that's a name people look up. */
-function recordKind(record: DnsRecord) {
-  return record.check === "spf" || record.check === "dkim" || record.check === "dmarc"
-    ? `${record.check.toUpperCase()}, ${record.type}`
-    : record.type;
-}
-
 /** Passing: the provider saw it, or the domain's own nameservers already serve it. */
 const recordPasses = (record: DnsRecord) => record.verified || record.diagnostic?.status === "ok";
 
@@ -405,41 +391,35 @@ function RemoveDomainDialog(props: { domain: OnboardingDomain | undefined; onClo
   );
 }
 
-/** A record as the dialog shows it: Omni's challenge first, then the provider's. */
-interface ShownRecord {
-  key: string;
-  purpose: string;
-  kind: string;
-  name: string;
-  /** Null for the challenge once its one showing is gone (only its hash is stored). */
-  value: string | null;
-  passes: boolean;
-}
-
-function shownRecords(domain: OnboardingDomain): ShownRecord[] {
-  const challenge = domain.challenge
+/** The domain's records in the records table's shape: Omni's challenge first, then the provider's. */
+function shownRecords(domain: OnboardingDomain): TableRecord[] {
+  const challenge: TableRecord[] = domain.challenge
     ? [
         {
-          key: "challenge",
-          purpose: "Links it to this workspace",
-          kind: domain.challenge.type,
+          type: domain.challenge.type,
           name: domain.challenge.name,
-          value: rememberedChallenge(domain),
-          passes: domain.challenge.verified || domain.challenge.diagnostic?.status === "ok",
+          // Empty once its one showing is gone (only its hash is stored): the dialog renders it.
+          value: rememberedChallenge(domain) ?? "",
+          purpose: "ownership",
+          required: true,
+          status:
+            domain.challenge.verified || domain.challenge.diagnostic?.status === "ok"
+              ? "valid"
+              : "pending",
         },
       ]
     : [];
   return [
     ...challenge,
-    ...domain.records.map((record) => ({
-      key: `${record.type} ${record.name}`,
-      purpose: RECORD_PURPOSES[record.check],
-      kind: recordKind(record),
+    ...domain.records.map((record): TableRecord => ({
+      type: record.type,
       name: record.name,
       value:
         record.diagnostic?.suggestion ??
         (record.priority !== undefined ? `${record.priority} ${record.value}` : record.value),
-      passes: recordPasses(record),
+      purpose: record.check === "ownership" ? "ownership" : "routing",
+      required: true,
+      status: recordPasses(record) ? "valid" : "pending",
     })),
   ];
 }
@@ -468,45 +448,30 @@ function DomainRecordsDialog(props: { domain: OnboardingDomain; onClose: () => v
         </Button>
       }
     >
-      <SettingsGroup>
-        {shownRecords(domain).map((record) => (
-          // A record: what it's for and whether it passes, then its two values to copy.
-          <div key={record.key} className="flex flex-col gap-3 px-4 py-3.5">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm/4 text-foreground">
-                {record.purpose}
-                <span className="text-muted-foreground"> ({record.kind})</span>
-              </span>
-              <Badge intent={record.passes ? "success" : "warning"}>
-                {record.passes ? "Found" : "Not found"}
-              </Badge>
-            </div>
-            <div className="flex flex-col gap-2 [--copy-label-width:--spacing(13)]">
-              <CopyField label="Host" value={record.name} />
-              {record.value !== null ? (
-                <CopyField label="Value" value={record.value} />
-              ) : (
-                !record.passes && (
-                  // Shown once, then only its hash is kept: pressing makes a new value. Never on
-                  // its own, since it would replace a record that may have just been added.
-                  <RenewField
-                    label="Value"
-                    placeholder="Hidden"
-                    tooltip="Show a new value. It replaces the old one."
-                    isPending={rotate.isPending}
-                    onPress={() =>
-                      rotate.mutate(domain.id, {
-                        onError: (error) =>
-                          appToast.error(error.message || "A new value was not made."),
-                      })
-                    }
-                  />
-                )
-              )}
-            </div>
-          </div>
-        ))}
-      </SettingsGroup>
+      <DnsRecordsTable
+        records={shownRecords(domain)}
+        renderValue={(record) => {
+          // Omni's challenge, shown once, then only its hash is kept: in DNS already, nothing to
+          // copy; missing, pressing makes a new value (never on its own, since it would replace a
+          // record that may have just been added).
+          if (record.purpose !== "ownership" || record.value !== "" || !domain.challenge)
+            return undefined;
+          return record.status === "valid" ? (
+            <span className="text-xs/4 text-muted-foreground">In your DNS</span>
+          ) : (
+            <RenewField
+              placeholder="Hidden"
+              tooltip="Show a new value. It replaces the old one."
+              isPending={rotate.isPending}
+              onPress={() =>
+                rotate.mutate(domain.id, {
+                  onError: (error) => appToast.error(error.message || "A new value was not made."),
+                })
+              }
+            />
+          );
+        }}
+      />
     </SettingsListDialog>
   );
 }

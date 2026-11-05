@@ -44,11 +44,9 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
 - **Menus.** Every menu item leads with an icon (14px, muted, the label after it); a menu
   without icons is not allowed. A person, workspace or mailbox leads with its avatar instead.
   `SettingsRowMenu` requires an `icon` per item, so a missing one fails the type check.
-- **Values to copy.** `CopyField` (`components/ui/copy-field.tsx`): the kind on the left, the value
-  on the right, the whole field copies on click with a "Click to copy" / "Copied" tooltip. No
-  separate Copy buttons.
-- **Multi-step flows.** `Steps` / `Step` (`components/ui/steps.tsx`): one step open at a time,
-  finished steps collapse to their answer, upcoming steps are dimmed.
+- **DNS records.** `DnsRecordsTable` (`components/domain/dns-records-table.tsx`), everywhere
+  records are shown: one row per record with its Type, Name and Value labelled, a status badge,
+  and a copy button on each value. Never a value without its record type.
 - **Inset actions.** An action inside a field (submit arrow, clear, reveal) is
   `<Button size="inset">` placed in an `InputGroup`; the group handles position and padding.
 - **Balance, measured in ink.** Every UI change follows the `design-balance` skill
