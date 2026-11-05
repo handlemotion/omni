@@ -48,17 +48,17 @@ const statusMeta = {
   valid: {
     icon: IconCircleCheck,
     className: "bg-success-subtle text-success-subtle-foreground",
-    text: "Found. Your DNS serves this record.",
+    text: "Found in your DNS.",
   },
   pending: {
     icon: IconClock3,
     className: "bg-warning-subtle text-warning-subtle-foreground",
-    text: "Not found yet. DNS changes can take a few minutes.",
+    text: "Not found yet. DNS can take a few minutes.",
   },
   invalid: {
     icon: IconTriangleAlert,
     className: "bg-danger-subtle text-danger-subtle-foreground",
-    text: "A record is there with another value. Replace it with the value above.",
+    text: "Another value is in DNS. Replace it with this one.",
   },
   unknown: {
     icon: IconCircleHelp,
@@ -82,17 +82,21 @@ function Line(props: { label: string; children: ReactNode; trailing?: ReactNode 
 
 /**
  * The record's state, as a banner attached to the foot of its island: the status's fill, its glyph
- * on the first line, and a short line saying what it means (the problem itself, when there is one).
+ * and one short line saying what it means, never wrapping. The full reason (what DNS holds
+ * instead) is the banner's tooltip.
  */
 function StatusBanner(props: { status: DnsRecord["status"]; messages: string[] }) {
   const meta = statusMeta[props.status];
   const Icon = meta.icon;
   return (
-    <p className={`flex items-start gap-2 px-4 py-2.5 text-xs/4 ${meta.className}`}>
-      <Icon aria-hidden="true" className="size-4 shrink-0" />
-      <span className="min-w-0">
-        {props.messages.length > 0 ? props.messages.join(" ") : meta.text}
-      </span>
+    <p
+      // `px-4.25`: under the white surface's border, so the glyph sits on the labels' axis.
+      // `pt-1.75 pb-1.25`: the text's ink about 11px from the surface above and the island's edge.
+      className="flex items-center gap-2 px-4.25 pt-1.75 pb-1.25 text-xs/4"
+      title={props.messages.length > 0 ? props.messages.join(" ") : undefined}
+    >
+      <Icon aria-hidden="true" className="size-3.25 shrink-0" />
+      <span className="min-w-0 truncate">{meta.text}</span>
     </p>
   );
 }
@@ -105,7 +109,7 @@ function CopyButton(props: { label: string; copied: boolean; onPress: () => void
         size="sq-xs"
         // The 26px button keeps the 24px line (`-my-px`), and its glyph's ink (not the
         // button's box) sits on the row's right inset, under the badge's edge.
-        className="-my-px -me-1.5 text-muted-foreground hover:text-foreground"
+        className="-my-px -me-1.5 text-muted-foreground *:[svg]:size-3.25 hover:text-foreground"
         aria-label={props.label}
         onPress={props.onPress}
       >
@@ -185,8 +189,10 @@ export function DnsRecordsTable({
           const shown = renderValue?.(record);
           return (
             // One island per record: its lines, then its status banner attached at the foot.
-            <li key={key} className="overflow-hidden rounded-lg border border-border bg-background">
-              <dl className="flex flex-col gap-2 px-4 pt-2 pb-3">
+            // The island is the status's fill; the record's lines sit on a white surface inside it,
+            // 4px in, with its own border. Concentric corners: 8px outside, 4px inside.
+            <li key={key} className={`rounded-xl p-1 ${statusMeta[record.status].className}`}>
+              <dl className="flex flex-col gap-2 rounded-sm border border-border bg-background text-foreground px-4 pt-2 pb-3">
                 <Line label="Type">
                   <span className="font-semibold">{record.type}</span>
                 </Line>
