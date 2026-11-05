@@ -90,9 +90,8 @@ function StatusBanner(props: { status: DnsRecord["status"]; messages: string[] }
   const Icon = meta.icon;
   return (
     <p
-      // `px-4.25`: under the white surface's border, so the glyph sits on the labels' axis.
-      // `pt-1.75 pb-1.25`: the text's ink about 11px from the surface above and the island's edge.
-      className="flex items-center gap-2 px-4.25 pt-1.75 pb-1.25 text-xs/4"
+      // `px-4`: the glyph on the labels' axis (both 16px in from the island's border).
+      className="flex items-center gap-2 px-4 py-2.5 text-xs/4"
       title={props.messages.length > 0 ? props.messages.join(" ") : undefined}
     >
       <Icon aria-hidden="true" className="size-3.25 shrink-0" />
@@ -189,10 +188,14 @@ export function DnsRecordsTable({
           const shown = renderValue?.(record);
           return (
             // One island per record: its lines, then its status banner attached at the foot.
-            // The island is the status's fill; the record's lines sit on a white surface inside it,
-            // 4px in, with its own border. Concentric corners: 8px outside, 4px inside.
-            <li key={key} className={`rounded-xl p-1 ${statusMeta[record.status].className}`}>
-              <dl className="flex flex-col gap-2 rounded-sm border border-border bg-background text-foreground px-4 pt-2 pb-3">
+            // The island: bordered, the status's fill showing as the banner at its foot. The record's
+            // lines sit on a white surface flush with it (`-m-px`: its border lies on the island's,
+            // so top and sides show one), rounded like the island, so its foot curves into the banner.
+            <li
+              key={key}
+              className={`overflow-hidden rounded-lg border border-border ${statusMeta[record.status].className}`}
+            >
+              <dl className="-m-px flex flex-col gap-2 rounded-lg border border-border bg-background px-4 pt-2 pb-3 text-foreground">
                 <Line label="Type">
                   <span className="font-semibold">{record.type}</span>
                 </Line>
