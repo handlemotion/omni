@@ -4,13 +4,14 @@
 // status badges, copy announcements, issue lines, `renderValue` for Omni's ownership value, of
 // which only a hash is kept), laid out as a list so it fits a single form column at any width.
 //
-// Geometry: every line (Type, Name, Value) is one 24px row with each mark centred on it, so the
-// label, the value, the badge and the copy glyph can't drift apart whatever their fonts. Values
-// stay on one line, truncated: the copy button is how the whole value is taken. Labels sit on the
-// row's left inset in a 48px column, values 12px after it, and the badge's edge and the copy
-// glyph's ink share the right inset. A problem reads under the lines, on the value axis.
-// `pb-3`: the last line's 24px row leaves 4px under its text, so the ink sits 16px from the
-// bottom as from the top (the badge fills its row).
+// Geometry: each record is its own island. Every line (Type, Name, Value) is one 24px row with
+// each mark centred on it, so the label, the value and the copy glyph can't drift apart whatever
+// their fonts. Values stay on one line, truncated: the copy button is how the whole value is taken.
+// Labels sit on the island's 16px inset in a 48px column, values 12px after it, the copy glyphs'
+// ink on the right inset. The record's state is a banner attached to the island's foot, in the
+// status's fill, its glyph on the labels' axis.
+// `pt-2 pb-3`: a 24px row leaves 4px over its text and less under it, so the lines' ink sits
+// 16px from the island's top and 17px above the banner (measured).
 import * as React from "react";
 import type { ReactNode } from "react";
 import {
@@ -21,7 +22,6 @@ import {
   IconCopy,
   IconTriangleAlert,
 } from "@/components/icons/lucide";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -43,11 +43,28 @@ export interface DnsRecordsTableProps {
   renderValue?(record: DnsRecord): ReactNode;
 }
 
+/** Each status's banner: its fill, its glyph, and what it means, in a few words. */
 const statusMeta = {
-  valid: { label: "Valid", icon: IconCircleCheck, intent: "success" },
-  pending: { label: "Pending", icon: IconClock3, intent: "warning" },
-  invalid: { label: "Invalid", icon: IconTriangleAlert, intent: "danger" },
-  unknown: { label: "Unknown", icon: IconCircleHelp, intent: "outline" },
+  valid: {
+    icon: IconCircleCheck,
+    className: "bg-success-subtle text-success-subtle-foreground",
+    text: "Found. Your DNS serves this record.",
+  },
+  pending: {
+    icon: IconClock3,
+    className: "bg-warning-subtle text-warning-subtle-foreground",
+    text: "Not found yet. DNS changes can take a few minutes.",
+  },
+  invalid: {
+    icon: IconTriangleAlert,
+    className: "bg-danger-subtle text-danger-subtle-foreground",
+    text: "A record is there with another value. Replace it with the value above.",
+  },
+  unknown: {
+    icon: IconCircleHelp,
+    className: "bg-muted text-muted-foreground",
+    text: "Not checked yet.",
+  },
 } as const;
 
 /** One line of a record: label, content, trailing mark, centred on one row of at least 24px. */
@@ -63,14 +80,20 @@ function Line(props: { label: string; children: ReactNode; trailing?: ReactNode 
   );
 }
 
-function RecordStatus({ status }: { status: DnsRecord["status"] }) {
-  const meta = statusMeta[status];
+/**
+ * The record's state, as a banner attached to the foot of its island: the status's fill, its glyph
+ * on the first line, and a short line saying what it means (the problem itself, when there is one).
+ */
+function StatusBanner(props: { status: DnsRecord["status"]; messages: string[] }) {
+  const meta = statusMeta[props.status];
   const Icon = meta.icon;
   return (
-    <Badge intent={meta.intent}>
-      <Icon aria-hidden="true" className="size-3.5" />
-      {meta.label}
-    </Badge>
+    <p className={`flex items-start gap-2 px-4 py-2.5 text-xs/4 ${meta.className}`}>
+      <Icon aria-hidden="true" className="size-4 shrink-0" />
+      <span className="min-w-0">
+        {props.messages.length > 0 ? props.messages.join(" ") : meta.text}
+      </span>
+    </p>
   );
 }
 
@@ -151,9 +174,9 @@ export function DnsRecordsTable({
 
   return (
     <section aria-label="DNS records" className="min-w-0 text-foreground">
-      <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-background">
+      <ul className="flex flex-col gap-3">
         {visibleRecords.length === 0 && (
-          <li className="p-4 text-center text-xs/4 text-muted-foreground">
+          <li className="rounded-lg border border-border p-4 text-center text-xs/4 text-muted-foreground">
             No DNS records in this view.
           </li>
         )}
@@ -161,9 +184,10 @@ export function DnsRecordsTable({
           const key = `${record.type}:${record.name}:${record.value}`;
           const shown = renderValue?.(record);
           return (
-            <li key={key} className="px-4 pt-4 pb-3">
-              <dl className="flex flex-col gap-2">
-                <Line label="Type" trailing={<RecordStatus status={record.status} />}>
+            // One island per record: its lines, then its status banner attached at the foot.
+            <li key={key} className="overflow-hidden rounded-lg border border-border bg-background">
+              <dl className="flex flex-col gap-2 px-4 pt-2 pb-3">
+                <Line label="Type">
                   <span className="font-semibold">{record.type}</span>
                 </Line>
                 <Line label="Name" {...copyable(record, "name")} />
@@ -172,15 +196,11 @@ export function DnsRecordsTable({
                   label="Value"
                   {...(shown === undefined ? copyable(record, "value") : { children: shown })}
                 />
-                {issuesForRecord(issues, record).map((issue) => (
-                  <dd
-                    key={issue.code}
-                    className="flex min-h-6 items-center ps-15 pb-1 text-xs/4 text-danger-subtle-foreground"
-                  >
-                    {issue.message}
-                  </dd>
-                ))}
               </dl>
+              <StatusBanner
+                status={record.status}
+                messages={issuesForRecord(issues, record).map((issue) => issue.message)}
+              />
             </li>
           );
         })}
