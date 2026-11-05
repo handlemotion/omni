@@ -9,7 +9,6 @@ import { join } from "node:path";
 import { signRequest, verifyRequest, type VerifyResult } from "@omni/crypto";
 import { addLocation, createDb, createThread, schema, upsertFolder, upsertMessage } from "@omni/db";
 import { MAIL_EVENTS_PATH, type MailEventsBody } from "@omni/contracts";
-import { desc, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { createTestHarness, unstable_startWorker } from "wrangler";
@@ -262,23 +261,15 @@ export async function authPost(worker: Worker, jar: CookieJar, path: string, bod
  * The real magic-link flow: request a link, read it from the outbox, open it. Returns the cookie.
  * With `jar`, the link is opened in that browser (so its other sessions stay signed in).
  */
-export async function signIn(worker: Worker, db: TestDb, email: string, jar?: CookieJar) {
+export async function signIn(worker: Worker, _db: TestDb, email: string, jar?: CookieJar) {
   const requested = await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
     method: "POST",
     headers: { "content-type": "application/json", origin: WEB_ORIGIN },
     body: JSON.stringify({ email, callbackURL: "/" }),
   });
   if (requested.status !== 200) throw new Error(`magic link request failed: ${requested.status}`);
-  const rows = await db
-    .select({ payload: schema.mailActions.payload })
-    .from(schema.mailActions)
-    .where(eq(schema.mailActions.kind, "send"))
-    .orderBy(desc(schema.mailActions.createdAt));
-  const link = rows
-    .map((row) => row.payload as { to?: string[]; text?: string })
-    .find((p) => p.to?.[0] === email)
-    ?.text?.match(/https?:\/\/\S+/)?.[0];
-  if (!link) throw new Error(`no magic link for ${email} in the outbox`);
+  const link = (await sentMail(worker, email)).at(-1)?.text.match(/https?:\/\/\S+/)?.[0];
+  if (!link) throw new Error(`no magic link sent to ${email}`);
   const url = new URL(link);
   const verified = await fetch(new URL(url.pathname + url.search, worker.url), {
     redirect: "manual",
@@ -289,6 +280,39 @@ export async function signIn(worker: Worker, db: TestDb, email: string, jar?: Co
     .getSetCookie()
     .map((c) => c.split(";")[0])
     .join("; ");
+}
+
+/** One email the Worker sent through its `EMAIL` binding. */
+export interface SentMail {
+  from: string;
+  to: string[];
+  subject: string;
+  text: string;
+  sentAt: string;
+}
+
+/**
+ * Mail the Worker sent through its `EMAIL` binding, oldest first, optionally only to `to`. Under
+ * the local runtime Email Sending sends nothing: it keeps each message, and wrangler's local
+ * explorer API (served by the Worker's own dev server) lists them.
+ */
+export async function sentMail(worker: Worker, to?: string): Promise<SentMail[]> {
+  const api = (query: string) =>
+    fetch(new URL(`/cdn-cgi/explorer/api/local/email/sending?${query}`, worker.url)).then(
+      (r) => r.json() as Promise<{ result: unknown; result_info?: { cursor?: string } }>,
+    );
+  const ids: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await api(`per_page=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+    const rows = page.result as { messageId: string; to: string[] }[];
+    for (const row of rows) if (!to || row.to.includes(to)) ids.push(row.messageId);
+    cursor = rows.length === 100 ? page.result_info?.cursor : undefined;
+  } while (cursor);
+  const mail = await Promise.all(
+    ids.map(async (id) => (await api(`email_id=${encodeURIComponent(id)}`)).result as SentMail),
+  );
+  return mail.sort((a, b) => a.sentAt.localeCompare(b.sentAt));
 }
 
 /** One message in an IMAP folder, threaded on its own, the way the mail service stores it. */

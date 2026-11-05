@@ -98,6 +98,7 @@ async function scheduledRecheck(env: Env, ctx: ExecutionContext) {
       config,
       requestId,
       log,
+      email: env.EMAIL,
       waitUntil: (p) => ctx.waitUntil(p),
     });
     log.info("domains.rechecked", result);

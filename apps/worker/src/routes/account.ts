@@ -22,11 +22,6 @@ const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   await next();
 });
 
-async function sha256Hex(text: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 /**
  * Counts against the per-IP sign-in budget, and with `magicLink` also against the address's: each
  * add mails the address, as a magic link does.
@@ -71,13 +66,8 @@ export const account = new Hono<AppEnv>()
       const { config } = c.var;
       const url = new URL("/settings/emails/verify", config.auth.webAppURL);
       url.searchParams.set("token", started.token);
-      await systemMailSender(
-        c,
-        c.var.db,
-        config,
-      )({
+      await systemMailSender({ email: c.env.EMAIL, config, log: c.var.log })({
         to: email,
-        idempotencyKey: `sign-in-email:${await sha256Hex(started.token)}`,
         subject: `Confirm your sign-in email for ${config.auth.appName}`,
         text: [
           `${user.email} asked to sign in to ${config.auth.appName} with this address too.`,

@@ -1,13 +1,13 @@
 import { createOrgWithOwner, schema } from "@omni/db";
-import { and, eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
   authPost,
   CookieJar,
-  createMailbox,
   createMember,
   createOrg,
   createTestDatabase,
+  sentMail,
   startMailServiceEndpoint,
   signIn,
   startWorker,
@@ -45,10 +45,9 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-test("a magic link from the outbox signs the member in, and the outbox ping verifies", async () => {
+test("a magic link sent through Email Sending signs the member in, once", async () => {
   const { db } = database;
   const org = await createOrg(db, "acme");
-  const system = await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
   const member = await createMember(db, org.id, "ana@acme.test");
 
   const anonymous = await fetch(new URL("/api/me", worker.url));
@@ -61,26 +60,14 @@ test("a magic link from the outbox signs the member in, and the outbox ping veri
   });
   expect(requested.status).toBe(200);
 
-  // The link goes out as an ordinary send from the system mailbox.
-  const actions = await db
-    .select()
-    .from(schema.mailActions)
-    .where(eq(schema.mailActions.mailboxId, system.id));
-  expect(actions).toHaveLength(1);
-  const [action] = actions;
-  expect(action!.kind).toBe("send");
-  expect(action!.memberId).toBeNull();
-  const payload = action!.payload as { from: string; to: string[]; text: string };
-  expect(payload.from).toBe(SYSTEM_MAIL_FROM);
-  expect(payload.to).toEqual(["ana@acme.test"]);
+  // The link goes out through the EMAIL binding, from SYSTEM_MAIL_FROM under the app's name.
+  const sent = await mailTo("ana@acme.test");
+  expect(sent).toHaveLength(1);
+  const [payload] = sent;
+  expect(payload!.from).toBe(`"Omni" <${SYSTEM_MAIL_FROM}>`);
+  expect(payload!.subject).toBe("Sign in to Omni");
 
-  // The mail service was told, with a signature its verifier accepts.
-  const [ping] = await mailService.waitFor(1);
-  expect(ping!.method).toBe("POST");
-  expect(ping!.path).toBe("/ping");
-  expect(ping!.verified.ok).toBe(true);
-
-  const link = new URL(payload.text.match(/https?:\/\/\S+/)![0]);
+  const link = new URL(payload!.text.match(/https?:\/\/\S+/)![0]);
   const verified = await fetch(new URL(link.pathname + link.search, worker.url), {
     redirect: "manual",
   });
@@ -107,27 +94,14 @@ async function me(jar: CookieJar, on: Worker = worker) {
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
 
-/** Outbox sends addressed to `email`, oldest first. */
-async function mailTo(email: string) {
-  const rows = await database.db
-    .select({ payload: schema.mailActions.payload })
-    .from(schema.mailActions)
-    .where(
-      and(
-        eq(schema.mailActions.kind, "send"),
-        sql`${schema.mailActions.payload}->'to' = ${JSON.stringify([email])}::jsonb`,
-      ),
-    )
-    .orderBy(schema.mailActions.createdAt);
-  return rows.map((r) => r.payload as { from: string; subject: string; text: string });
+/** Mail `on` sent to `email` through its EMAIL binding, oldest first. */
+function mailTo(email: string, on: Worker = worker) {
+  return sentMail(on, email);
 }
 
 /** An org made the way an operator makes one (`org:create`), its owner signed in. */
 async function signedInOwner(slug: string) {
   const { db } = database;
-  if (!(await db.select().from(schema.mailboxes)).some((m) => m.address === SYSTEM_MAIL_FROM)) {
-    await createMailbox(db, (await createOrg(db, "system")).id, SYSTEM_MAIL_FROM);
-  }
   const owner = await createOrgWithOwner(db, {
     name: slug,
     slug,
@@ -157,7 +131,7 @@ test("a brand-new email with no invitation signs up by magic link and has no wor
   });
   expect(requested.status).toBe(200);
   const [mail] = await mailTo("newcomer@open.test");
-  expect(mail!.from).toBe(SYSTEM_MAIL_FROM);
+  expect(mail!.from).toBe(`"Omni" <${SYSTEM_MAIL_FROM}>`);
   const link = new URL(mail!.text.match(/https?:\/\/\S+magic-link\S+/)![0]);
 
   const jar = new CookieJar();
@@ -206,7 +180,7 @@ test("with SIGN_UP=invitation, an email with no account and no invitation is ans
   });
   expect(requested.status).toBe(200);
   expect(await requested.json()).toEqual({ status: true });
-  expect(await mailTo("stranger@elsewhere.test")).toEqual([]);
+  expect(await mailTo("stranger@elsewhere.test", invitationOnly)).toEqual([]);
 });
 
 test("invite, then a brand-new user signs in by magic link, accepts, and is a member", async () => {
@@ -215,7 +189,7 @@ test("invite, then a brand-new user signs in by magic link, accepts, and is a me
 
   // The invitation goes out through the outbox, linking to the web app's accept page.
   const [mail] = await mailTo("new@invite.test");
-  expect(mail!.from).toBe(SYSTEM_MAIL_FROM);
+  expect(mail!.from).toBe(`"Omni" <${SYSTEM_MAIL_FROM}>`);
   expect(mail!.text).toContain(`${WEB_ORIGIN}/invite/${invitationId}`);
 
   const jar = new CookieJar();
@@ -241,7 +215,7 @@ test("with SIGN_UP=invitation, a link sent while invited cannot sign up once the
     headers: { "content-type": "application/json", origin: WEB_ORIGIN },
     body: JSON.stringify({ email: "late@cancel.test", callbackURL: "/" }),
   });
-  const link = (await mailTo("late@cancel.test"))
+  const link = (await mailTo("late@cancel.test", invitationOnly))
     .map((m) => m.text.match(/https?:\/\/\S+magic-link\S+/)?.[0])
     .find(Boolean);
   expect(link).toBeDefined();

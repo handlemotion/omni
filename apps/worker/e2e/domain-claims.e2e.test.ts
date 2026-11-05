@@ -13,7 +13,7 @@ import {
   startOnboardingStack,
   waitFor,
 } from "./onboarding-stack.ts";
-import { authPost, SYSTEM_MAIL_FROM } from "./support.ts";
+import { authPost, sentMail, SYSTEM_MAIL_FROM } from "./support.ts";
 
 let stack: OnboardingStack;
 beforeAll(async () => {
@@ -25,17 +25,11 @@ const api: OnboardingStack["api"] = (...args) => stack.api(...args);
 const check = (jar: Parameters<typeof api>[0], id: string) =>
   api(jar, "POST", `/onboarding/domains/${id}/check`);
 
-/** Domain notices the Worker put in the outbox for `to` (not sign-in links). */
+/** Domain notices the Worker sent to `to` through its EMAIL binding (not sign-in links). */
 async function mailTo(to: string) {
-  const rows = await stack.database.db
-    .select({ payload: schema.mailActions.payload })
-    .from(schema.mailActions)
-    .where(eq(schema.mailActions.kind, "send"));
-  return rows
-    .map((r) => r.payload as { from: string; to: string[]; subject: string; text: string })
-    .filter(
-      (p) => p.to.includes(to) && p.from === SYSTEM_MAIL_FROM && !p.subject.startsWith("Sign in"),
-    );
+  return (await sentMail(stack.worker, to)).filter(
+    (m) => m.from.includes(SYSTEM_MAIL_FROM) && !m.subject.startsWith("Sign in"),
+  );
 }
 
 async function auditOf(orgId: string, domain: string) {

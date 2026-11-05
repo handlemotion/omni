@@ -1,14 +1,11 @@
 import { createAuth, type Auth, type InvitationMessage } from "@omni/auth";
-import { enqueueAction, findSystemMailbox, schema, type Db } from "@omni/db";
-import { sha256Hex } from "@omni/crypto";
-import type { SendPayload } from "@omni/contracts";
+import { schema, type Db } from "@omni/db";
 import { and, asc, eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { openDb } from "./db.ts";
 import { loadConfig, type Config } from "./env.ts";
 import type { Logger } from "./log.ts";
-import { pingMailService } from "./mail-service.ts";
 
 export interface Member {
   /** `members.id`: what `forMember` and every mail table key on. */
@@ -38,7 +35,7 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
   const { db, close } = openDb(c.env, 5);
   c.set("config", config);
   c.set("db", db);
-  const mail = systemMailSender(c, db, config);
+  const mail = systemMailSender({ email: c.env.EMAIL, config, log: c.var.log });
   c.set(
     "auth",
     createAuth({
@@ -50,7 +47,6 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
         const appName = config.auth.appName;
         await mail({
           to: email,
-          idempotencyKey: `magic-link:${await sha256Hex(url)}`,
           subject: `Sign in to ${appName}`,
           text: `Open this link to sign in to ${appName}:\n\n${url}\n\nIf you did not ask for it, ignore this email.`,
         });
@@ -59,8 +55,6 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
         devLog(config, { kind: "invitation", email: invite.email, url: invite.url });
         await mail({
           to: invite.email,
-          // A resend extends the expiry, so it is a new email; a retried request is not.
-          idempotencyKey: `invitation:${invite.invitationId}:${invite.expiresAt.getTime()}`,
           subject: `${invite.inviterName} invited you to ${invite.organizationName} on ${config.auth.appName}`,
           text: invitationText(invite, config.auth.appName),
         });
@@ -129,42 +123,26 @@ export const requireMember = createMiddleware<AppEnv>(async (c, next) => {
 });
 
 /**
- * Auth mail (magic links, invitations) goes out as an ordinary `send` in the outbox, from the
- * mailbox at `SYSTEM_MAIL_FROM`, so it gets the mail service's retries and idempotency for free.
+ * Auth and notice mail (magic links, invitations, domain notices) goes out through Cloudflare Email
+ * Sending (the `EMAIL` binding), from `SYSTEM_MAIL_FROM` under the app's name. It does not use a
+ * mailbox, so a new install can sign people in before it has any.
  */
-export function systemMailSender(
-  c: {
-    executionCtx: { waitUntil(promise: Promise<unknown>): void };
-    var: { requestId: string; log: Logger };
-  },
-  db: Db,
-  config: Config,
-) {
-  return async (message: { to: string; idempotencyKey: string; subject: string; text: string }) => {
-    if (!config.SYSTEM_MAIL_FROM) {
-      throw new Error("SYSTEM_MAIL_FROM is not set: auth mail has no mailbox to send from");
-    }
-    const mailbox = await findSystemMailbox(db, config.SYSTEM_MAIL_FROM);
-    if (!mailbox) {
-      throw new Error("SYSTEM_MAIL_FROM does not match any mailbox in the database");
-    }
-    await enqueueAction(db, {
-      orgId: mailbox.orgId,
-      mailboxId: mailbox.id,
-      memberId: null,
-      kind: "send",
-      idempotencyKey: message.idempotencyKey,
-      requestId: c.var.requestId,
-      payload: {
-        from: mailbox.address,
-        to: [message.to],
+export function systemMailSender(scope: { email: SendEmail; config: Config; log: Logger }) {
+  return async (message: { to: string; subject: string; text: string }) => {
+    const from = scope.config.SYSTEM_MAIL_FROM;
+    if (!from) throw new Error("SYSTEM_MAIL_FROM is not set: there is no address to send from");
+    try {
+      await scope.email.send({
+        from: { email: from, name: scope.config.auth.appName },
+        to: message.to,
         subject: message.subject,
         text: message.text,
-      } satisfies SendPayload,
-    });
-    c.executionCtx.waitUntil(
-      pingMailService({ config, requestId: c.var.requestId, log: c.var.log }),
-    );
+      });
+    } catch (error) {
+      // The code says why (for example E_SENDER_NOT_VERIFIED); never the message's link.
+      scope.log.error("system_mail.failed", { code: (error as { code?: string }).code, error });
+      throw error;
+    }
   };
 }
 
