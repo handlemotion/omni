@@ -9,6 +9,7 @@ import {
   ChevronsUpDown,
   CircleAlert,
   CircleX,
+  Copy,
   CreditCard,
   Ellipsis,
   Globe,
@@ -34,6 +35,10 @@ import {
   UserMinus,
   Users,
   UsersRound,
+  CircleCheck,
+  CircleHelp,
+  Clock3,
+  TriangleAlert,
   type LucideIcon,
   type LucideProps,
 } from "lucide-react";
@@ -51,6 +56,7 @@ export const IconChevronRight = thin(ChevronRight, "IconChevronRight");
 export const IconChevronsUpDown = thin(ChevronsUpDown, "IconChevronsUpDown");
 export const IconCircleAlert = thin(CircleAlert, "IconCircleAlert");
 export const IconCircleX = thin(CircleX, "IconCircleX");
+export const IconCopy = thin(Copy, "IconCopy");
 export const IconCreditCard = thin(CreditCard, "IconCreditCard");
 export const IconEllipsis = thin(Ellipsis, "IconEllipsis");
 export const IconGlobe = thin(Globe, "IconGlobe");
@@ -76,3 +82,7 @@ export const IconUserCog = thin(UserCog, "IconUserCog");
 export const IconUserMinus = thin(UserMinus, "IconUserMinus");
 export const IconUsers = thin(Users, "IconUsers");
 export const IconUsersRound = thin(UsersRound, "IconUsersRound");
+export const IconCircleCheck = thin(CircleCheck, "IconCircleCheck");
+export const IconCircleHelp = thin(CircleHelp, "IconCircleHelp");
+export const IconClock3 = thin(Clock3, "IconClock3");
+export const IconTriangleAlert = thin(TriangleAlert, "IconTriangleAlert");

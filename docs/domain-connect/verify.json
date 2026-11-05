@@ -1,21 +1,21 @@
 {
-  "providerId": "example.com",
+  "providerId": "omnidirectional.app",
   "providerName": "Omni",
   "serviceId": "verify",
   "serviceName": "Omni domain ownership",
   "version": 1,
-  "logoUrl": "https://example.com/logo.png",
+  "logoUrl": "https://inbox.omnidirectional.app/apple-touch-icon.png",
   "description": "Proves the domain belongs to your Omni workspace. Mail stays with your current host.",
-  "variableDescription": "challenge: Omni's ownership value for this claim.",
+  "variableDescription": "challenge: the token after omni-challenge= in Omni's ownership value.",
   "syncBlock": false,
-  "syncPubKeyDomain": "example.com",
-  "syncRedirectDomain": "example.com",
+  "syncPubKeyDomain": "omnidirectional.app",
+  "syncRedirectDomain": "inbox.omnidirectional.app",
   "hostRequired": false,
   "records": [
     {
       "type": "TXT",
       "host": "_omni-challenge",
-      "data": "%challenge%",
+      "data": "omni-challenge=%challenge%",
       "ttl": 300,
       "txtConflictMatchingMode": "Prefix",
       "txtConflictMatchingPrefix": "omni-challenge="

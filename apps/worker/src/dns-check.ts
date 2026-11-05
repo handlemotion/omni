@@ -188,11 +188,16 @@ export async function domainConnectUrl(
   const { config } = deps;
   const serviceId = DOMAIN_CONNECT_SERVICES[input.provider];
   if (!dc || !input.challengeValue || !config.DOMAIN_CONNECT_PROVIDER_ID || !serviceId) return null;
-  const ownership = input.records.find((r) => r.check === "ownership")?.value;
+  // The templates fix each TXT value's prefix (docs/domain-connect), so only the part after it
+  // travels as a variable.
+  const challenge = afterPrefix(input.challengeValue, "omni-challenge=");
+  const ownershipValue = input.records.find((r) => r.check === "ownership")?.value;
+  const ownership = ownershipValue && afterPrefix(ownershipValue, "purelymail_ownership_proof=");
+  if (!challenge || ownership === null) return null;
   const query = domainConnectQuery({
     domain: dc.zone,
     host: input.domain === dc.zone ? "" : input.domain.slice(0, -(dc.zone.length + 1)),
-    params: { challenge: input.challengeValue, ...(ownership ? { ownership } : {}) },
+    params: { challenge, ...(ownership ? { ownership } : {}) },
     redirectUri: `${config.auth.webAppURL ?? config.auth.baseURL}/onboarding`,
     state: input.claimId,
   });
@@ -210,4 +215,10 @@ export async function domainConnectUrl(
     query,
     signature,
   });
+}
+
+/** The text after `prefix`, or null when the value does not start with it. */
+function afterPrefix(value: string, prefix: string): string | null {
+  const trimmed = value.trim();
+  return trimmed.startsWith(prefix) ? trimmed.slice(prefix.length) : null;
 }

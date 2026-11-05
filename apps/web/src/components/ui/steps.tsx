@@ -42,7 +42,7 @@ export function Step(props: {
           className={cn(
             "size-2 rounded-full",
             props.state === "current" && "bg-foreground",
-            props.state === "complete" && "bg-muted-foreground",
+            props.state === "complete" && "bg-success",
             props.state === "upcoming" && "bg-border",
           )}
         />

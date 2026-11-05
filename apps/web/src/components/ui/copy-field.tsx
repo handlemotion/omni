@@ -20,7 +20,16 @@ const LABEL =
  * confirms. For DNS records, API keys, addresses. The label hugs its text; to line up the dividers
  * of stacked fields, set `--copy-label-width` on their container.
  */
-export function CopyField(props: { label: string; value: string; className?: string }) {
+/** Green well: the value is in place already (a DNS record the domain serves). */
+const DONE = "bg-success-subtle hover:bg-success-subtle text-success-subtle-foreground";
+
+export function CopyField(props: {
+  label: string;
+  value: string;
+  /** In place already: the well turns green. Still copies. */
+  done?: boolean;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<"copied" | "failed" | null>(null);
 
@@ -50,10 +59,15 @@ export function CopyField(props: { label: string; value: string; className?: str
       <Button
         aria-label={`Copy ${props.label.toLowerCase()}: ${props.value}`}
         onPress={copy}
-        className={cn(WELL, "cursor-copy", props.className)}
+        className={cn(WELL, "cursor-copy", props.done && DONE, props.className)}
       >
         <span className={LABEL}>{props.label}</span>
-        <span className="flex min-w-0 flex-1 items-center px-2 text-foreground">
+        <span
+          className={cn(
+            "flex min-w-0 flex-1 items-center px-2",
+            props.done ? "text-success-subtle-foreground" : "text-foreground",
+          )}
+        >
           <span className="truncate">{props.value}</span>
         </span>
       </Button>
@@ -105,5 +119,20 @@ export function RenewField(props: {
         {props.tooltip}
       </Tooltip>
     </TooltipTrigger>
+  );
+}
+
+/**
+ * CopyField's shape, in green, for a value that is in place but can't be shown (only its hash is
+ * kept), said in words. Nothing to press: making a new one would replace a value that works.
+ */
+export function StaticField(props: { label: string; text: string; className?: string }) {
+  return (
+    <div className={cn(WELL[0], DONE, props.className)}>
+      <span className={LABEL}>{props.label}</span>
+      <span className="flex min-w-0 flex-1 items-center px-2">
+        <span className="truncate">{props.text}</span>
+      </span>
+    </div>
   );
 }
