@@ -41,36 +41,104 @@ export function onboardingExit(
   return ready ? { kind: "workspace", workspace: ready } : { kind: "sign-out" };
 }
 
-/** Every onboarding page, in order. `Plan` appears only where billing is on (ADR 0015). */
-export type OnboardingPage = "Workspace" | "DNS" | "Mailboxes" | "Plan" | "Invite";
+/**
+ * Every onboarding step, in order. The domain's DNS is two steps: proving ownership comes first
+ * (Purelymail only accepts a domain once its ownership record is in), then the mail records, or,
+ * for a domain that stays on its own mail host, that host's servers. `Plan` appears only where
+ * billing is on (ADR 0015).
+ */
+export type OnboardingPage =
+  | "Workspace"
+  | "Ownership"
+  | "Records"
+  | "Server"
+  | "Mailbox"
+  | "Plan"
+  | "Invite";
+
+/** What each step is called in the step list. */
+export const PAGE_TITLES: Record<OnboardingPage, string> = {
+  Workspace: "Workspace",
+  Ownership: "Verify ownership",
+  Records: "Mail records",
+  Server: "Mail server",
+  Mailbox: "Mailbox",
+  Plan: "Plan",
+  Invite: "Invite your team",
+};
 
 /**
- * This deployment's pages. The plan comes after mailboxes, once the workspace works, and before
+ * This setup's steps. The plan comes after the mailbox, once the workspace works, and before
  * invitations, so nobody is invited into a workspace that has no plan yet.
  */
-export function onboardingPages(data: Pick<Onboarding, "billing"> | undefined): OnboardingPage[] {
-  return data?.billing.enabled
-    ? ["Workspace", "DNS", "Mailboxes", "Plan", "Invite"]
-    : ["Workspace", "DNS", "Mailboxes", "Invite"];
+export function onboardingPages(
+  data: Pick<Onboarding, "billing"> | undefined,
+  domain: OnboardingDomain | undefined,
+): OnboardingPage[] {
+  return [
+    "Workspace",
+    "Ownership",
+    domain?.provider === "imap" ? "Server" : "Records",
+    "Mailbox",
+    ...(data?.billing.enabled ? (["Plan"] as const) : []),
+    "Invite",
+  ];
+}
+
+const recordPasses = (r: OnboardingDomain["records"][number]) =>
+  r.verified || r.diagnostic?.status === "ok";
+
+/** Omni's ownership record and the provider's ownership records all pass. */
+export function ownershipReady(domain: OnboardingDomain): boolean {
+  return (
+    challengePasses(domain) &&
+    domain.records.filter((r) => r.check === "ownership").every(recordPasses)
+  );
+}
+
+/** The provider's mail records (MX, SPF, DKIM, DMARC) all pass. */
+export function mailRecordsReady(domain: OnboardingDomain): boolean {
+  return domain.records.filter((r) => r.check !== "ownership").every(recordPasses);
 }
 
 /**
- * The page a saved setup resumes on. Once mailboxes exist it is the plan while the workspace has
- * none (coming back from Stripe without paying included), else the invitations. A domain on its
- * own mail host resumes on DNS: Continue there checks it again (which moves it to Purelymail once
- * the install has a token), then Mailboxes asks for its servers, which are never stored.
+ * Whether a step is done, from what is saved, never from the page someone is on. `servers` is
+ * whether this page holds the own host's servers (they are never stored).
  */
-export function resumePage(data: Onboarding): OnboardingPage {
-  const step = data.organization?.setup ?? "created";
-  const domain = data.domains[0];
-  if (step === "mailboxes_created" || step === "invites_sent" || step === "complete") {
-    return data.billing.enabled && data.organization?.needsPlan ? "Plan" : "Invite";
+export function pageDone(
+  page: OnboardingPage,
+  data: Onboarding | undefined,
+  domain: OnboardingDomain | undefined,
+  servers: boolean,
+): boolean {
+  const mailbox =
+    !!domain && !!data?.mailboxes.some((m) => m.address.endsWith(`@${domain.domain}`));
+  switch (page) {
+    case "Workspace":
+      return !!domain;
+    case "Ownership":
+      return !!domain && ownershipReady(domain);
+    case "Records":
+      return !!domain && mailRecordsReady(domain);
+    case "Server":
+      return servers || mailbox;
+    case "Mailbox":
+      return mailbox;
+    case "Plan":
+      return !!data?.organization && !data.organization.needsPlan;
+    case "Invite":
+      return data?.organization?.setup === "complete";
   }
-  if (!domain) return "Workspace";
-  // The saved step can be behind the domain: one that moved to Purelymail after its DNS step has
-  // new records to add. Only a domain whose records all pass skips its DNS page.
-  if (step === "dns_verified" && domain.provider !== "imap" && dnsReady(domain)) return "Mailboxes";
-  return "DNS";
+}
+
+/** Where setup resumes: the first step that is not done. */
+export function resumePage(
+  data: Onboarding,
+  domain: OnboardingDomain | undefined,
+  servers: boolean,
+): OnboardingPage {
+  const pages = onboardingPages(data, domain);
+  return pages.find((p) => !pageDone(p, data, domain, servers)) ?? pages[pages.length - 1]!;
 }
 
 /** Lowercase letters and digits joined by dashes, plus a random tail so slugs never collide. */
@@ -111,14 +179,6 @@ export function challengePasses(domain: OnboardingDomain): boolean {
   const challenge = domain.challenge;
   if (!challenge) return true;
   return challenge.diagnostic ? challenge.diagnostic.status === "ok" : challenge.verified;
-}
-
-/** Every record the domain needs passes: the ownership record and the provider's. */
-export function dnsReady(domain: OnboardingDomain): boolean {
-  return (
-    challengePasses(domain) &&
-    domain.records.every((r) => r.verified || r.diagnostic?.status === "ok")
-  );
 }
 
 /**
