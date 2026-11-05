@@ -154,11 +154,17 @@ async function connect() {
     if (st?.BackendState !== "Running") {
       const link = st?.AuthURL || r.out.match(/https:\/\/login\.tailscale\.com\/\S+/)?.[0];
       if (!key && link) {
-        console.log(`Approve this machine on your tailnet, then run the command again:\n  ${link}`);
-        process.exit(2);
+        // Wait here: the approval is for this daemon's key, and a session restart loses it.
+        console.log(`Approve this machine on your tailnet (waiting up to 10 minutes):\n  ${link}`);
+        for (let i = 0; i < 300 && st?.BackendState !== "Running"; i++) {
+          await sleep(2_000);
+          st = status();
+        }
+        if (st?.BackendState !== "Running") fail("Not approved in time; run the command again.");
       }
       // `tailscale up` output names the key's problem, never the key itself.
-      fail(`Could not join the tailnet (${st?.BackendState ?? "no daemon"}):\n${r.out}`);
+      if (st?.BackendState !== "Running")
+        fail(`Could not join the tailnet (${st?.BackendState ?? "no daemon"}):\n${r.out}`);
     }
   }
   const dns = st.Self?.DNSName?.replace(/\.$/, "");
