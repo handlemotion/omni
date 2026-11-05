@@ -28,6 +28,10 @@ export PATH="$node_bin:$PATH"
 if [ -n "${CLAUDE_ENV_FILE:-}" ] && ! grep -qs "$node_bin" "$CLAUDE_ENV_FILE"; then
   echo "export PATH=\"$node_bin:\$PATH\"" >>"$CLAUDE_ENV_FILE"
 fi
+# Vite dev servers accept the Tailscale names `pnpm share <port>` serves them under.
+if [ -n "${CLAUDE_ENV_FILE:-}" ] && ! grep -qs __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS "$CLAUDE_ENV_FILE"; then
+  echo "export __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=.ts.net" >>"$CLAUDE_ENV_FILE"
+fi
 
 if ! docker info >/dev/null 2>&1; then
   rm -f /var/run/docker.pid
@@ -70,3 +74,4 @@ write_env "${DOPPLER_TOKEN_WORKER:-}" apps/worker/.dev.vars apps/worker/.dev.var
 pnpm --filter @omni/db db:migrate >>"$log" 2>&1
 
 echo "omni: local stack up (Postgres :54329, GreenMail IMAP :3143 SMTP :3025, S3 :7070), db migrated. Log: $log"
+echo "omni: send the user a URL for a local server with \`pnpm share\` (the Omni stack) or \`pnpm share <port>\`."
