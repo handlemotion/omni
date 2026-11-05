@@ -68,22 +68,10 @@ if ! flyctl version 2>/dev/null | grep -q "v$flyctl_version "; then
     "$flyctl_sha256" -z -C /usr/local/bin flyctl
 fi
 
-# psql, and ICU for devtunnel (a .NET binary that aborts without it).
-if ! command -v psql >/dev/null || ! ldconfig -p | grep -q libicuuc; then
+# psql.
+if ! command -v psql >/dev/null; then
   apt-get update -qq
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql-client libicu74 >/dev/null
-fi
-
-# devtunnel shares a local port (e.g. `wrangler dev` on 8787) through the session's egress proxy,
-# where ngrok and cloudflared do not work. Optional: its host may need allowlisting, so a failed
-# download only warns.
-if ! command -v devtunnel >/dev/null; then
-  if curl -fsSL --retry 3 -o /usr/local/bin/devtunnel https://aka.ms/TunnelsCliDownload/linux-x64; then
-    chmod +x /usr/local/bin/devtunnel
-  else
-    rm -f /usr/local/bin/devtunnel
-    echo "warning: devtunnel not installed" >&2
-  fi
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql-client >/dev/null
 fi
 
 # Bake the compose.yml images into the snapshot so sessions start without Docker Hub, which

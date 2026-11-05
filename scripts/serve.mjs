@@ -9,7 +9,14 @@
 //
 // PORT (default 8787) picks the port. Sign in with the magic links the Worker logs as
 // `auth.dev_link` (ENVIRONMENT=development, the .dev.vars.example default).
+//
+// PUBLIC_ORIGIN (set by `pnpm share`, scripts/share.mjs) is the origin a browser elsewhere uses,
+// e.g. https://omni-x.tail1234.ts.net:8787. The Worker then takes it as BETTER_AUTH_URL and
+// WEB_APP_URL (so magic links, cookies and passkeys use it) and still trusts the local origins.
+// A running Worker started without that origin is restarted; without PUBLIC_ORIGIN, `start` keeps
+// whatever is running.
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   constants,
   copyFileSync,
@@ -26,9 +33,11 @@ const worker = join(root, "apps/worker");
 const stateDir = join(root, ".local/serve");
 const pidFile = join(stateDir, "worker.pid");
 const logFile = join(stateDir, "worker.log");
+const originFile = join(stateDir, "origin");
 const port = Number(process.env.PORT ?? 8787);
 const url = `http://127.0.0.1:${port}`;
 const readyTimeoutMs = 180_000;
+const publicOrigin = process.env.PUBLIC_ORIGIN ?? "";
 
 /** The file's text, or `fallback` when it does not exist (read once: no check-then-read race). */
 function readOr(path, fallback) {
@@ -37,6 +46,14 @@ function readOr(path, fallback) {
   } catch {
     return fallback;
   }
+}
+
+/** One plain `KEY=value` line from a .dev.vars file, or undefined. */
+function devVar(path, key) {
+  const line = readOr(path, "")
+    .split("\n")
+    .find((l) => l.startsWith(`${key}=`));
+  return line?.slice(key.length + 1).trim();
 }
 
 function runningPid() {
@@ -65,19 +82,40 @@ function tail(lines = 30) {
 
 async function start() {
   const pid = runningPid();
-  if (pid) {
+  if (pid && (!publicOrigin || readOr(originFile, "") === publicOrigin)) {
     console.log(`Worker already running (pid ${pid}): ${url}  log: ${logFile}`);
     return;
+  }
+  if (pid) {
+    stop();
+    while (await healthy()) await new Promise((resolve) => setTimeout(resolve, 250));
   }
   const devVars = join(worker, ".dev.vars");
   try {
     // COPYFILE_EXCL: copy only when missing, in one step (never overwrite a hand-made file).
     copyFileSync(join(worker, ".dev.vars.example"), devVars, constants.COPYFILE_EXCL);
-    console.log("apps/worker/.dev.vars was missing; copied .dev.vars.example");
+    // The example leaves the signing secrets empty, and config validation rejects every auth
+    // request without them: give this local copy random ones.
+    const filled = readFileSync(devVars, "utf8").replace(
+      /^(BETTER_AUTH_SECRET|MAIL_SERVICE_HMAC_SECRET)=$/gm,
+      (_, key) => `${key}=${randomBytes(32).toString("hex")}`,
+    );
+    writeFileSync(devVars, filled);
+    console.log("apps/worker/.dev.vars was missing; copied .dev.vars.example with local secrets");
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
   }
   mkdirSync(stateDir, { recursive: true });
+  const vars = [];
+  if (publicOrigin) {
+    const local = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
+    const trusted = [...local, ...(devVar(devVars, "AUTH_TRUSTED_ORIGINS")?.split(",") ?? [])];
+    vars.push(
+      `BETTER_AUTH_URL:${publicOrigin}`,
+      `WEB_APP_URL:${publicOrigin}`,
+      `AUTH_TRUSTED_ORIGINS:${trusted.filter(Boolean).join(",")}`,
+    );
+  }
   const log = openSync(logFile, "w");
   const child = spawn(
     "pnpm",
@@ -90,11 +128,13 @@ async function start() {
       "--port",
       String(port),
       "--show-interactive-dev-session=false",
+      ...vars.flatMap((v) => ["--var", v]),
     ],
     { cwd: worker, detached: true, stdio: [log, log, log] },
   );
   child.unref();
   writeFileSync(pidFile, String(child.pid));
+  writeFileSync(originFile, publicOrigin);
 
   let exited = false;
   child.on("exit", () => (exited = true));

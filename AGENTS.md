@@ -48,6 +48,9 @@ extends this file and wins where they differ. Explicit user instructions overrid
 - `pnpm stack:serve` serves the real Worker and built web app on `:8787` against the local
   database, detached; it returns once `/health` answers (`pnpm stack:serve:stop` stops it). Use it
   for UI checks instead of backgrounding a server yourself (`cmd &` in a piped script hangs).
+- `pnpm share` (the Omni stack) or `pnpm share <port>` prints a private HTTPS URL for a server on
+  this machine that opens on the user's own devices; send it whenever they should see or use
+  what you built. `pnpm share stop` ends it. Setup: `docs/operations/cloud-sessions.md`.
 - Node is 26 (`.nvmrc`); the mail service needs it. Cloud sessions put `/opt/node/bin` first.
 - The pre-commit hook runs `lint-staged` (`oxfmt`, `oxlint --fix`, test policy), so staged files
   can change during `git commit`. Re-read a file after committing before you edit it again.
