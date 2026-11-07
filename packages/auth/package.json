@@ -11,11 +11,11 @@
     "auth:generate": "auth generate --config auth.config.ts --output ../db/src/schema/auth.ts -y && cd ../db && oxfmt src/schema/auth.ts"
   },
   "dependencies": {
-    "@better-auth/passkey": "^1.7.14",
-    "@better-auth/stripe": "1.7.14",
+    "@better-auth/passkey": "^1.7.18",
+    "@better-auth/stripe": "1.7.18",
     "@omni/db": "workspace:*",
     "@simplewebauthn/server": "13.3.3",
-    "better-auth": "^1.7.14",
+    "better-auth": "^1.7.18",
     "drizzle-orm": "^0.45.4",
     "stripe": "^22.6.2",
     "uuidv7": "^1.2.1",
