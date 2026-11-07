@@ -11,9 +11,9 @@
     "test:e2e": "vitest run --config vitest.e2e.mts"
   },
   "dependencies": {
-    "@better-auth/passkey": "^1.7.14",
-    "better-auth": "^1.7.14",
-    "hono": "^4.13.14"
+    "@better-auth/passkey": "^1.7.18",
+    "better-auth": "^1.7.18",
+    "hono": "^4.13.16"
   },
   "devDependencies": {
     "@omni/db": "workspace:*",
