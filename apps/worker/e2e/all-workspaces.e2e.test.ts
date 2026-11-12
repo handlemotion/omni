@@ -169,6 +169,16 @@ test("one user in two workspaces lists, counts, opens and acts on both, and noth
   const { actionIds } = (await archived.json()) as { actionIds: string[] };
   expect(actionIds).toHaveLength(1);
 
+  // Her note on it is hers to edit and delete from here too (the thread's member, not Acme's).
+  const created = await write(`/threads/${globexMid.threadId}/notes`, "POST", {
+    body: "Call back",
+  });
+  expect(created.status).toBe(201);
+  const { note } = (await created.json()) as { note: { id: string } };
+  const notePath = `/threads/${globexMid.threadId}/notes/${note.id}`;
+  expect((await write(notePath, "PATCH", { body: "Called" })).status).toBe(200);
+  expect((await write(notePath, "DELETE")).status).toBe(204);
+
   const [state] = await db
     .select()
     .from(schema.threadState)
@@ -258,11 +268,12 @@ test("the web app keeps a realtime socket per workspace, and only for the user's
     ).status,
   ).toBe(202);
   const deadline = Date.now() + 10_000;
-  while (southSocket.received.length === 0 && Date.now() < deadline) {
+  while (southSocket.received.length < 2 && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   expect(southSocket.received).toEqual([
     { type: "changed", mailboxId: southBox.id, threadIds: [thread.threadId] },
+    { type: "thread.changed", mailboxId: southBox.id, threadIds: [thread.threadId] },
   ]);
   southSocket.socket.close();
 });

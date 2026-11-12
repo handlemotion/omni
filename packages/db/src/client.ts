@@ -8,10 +8,12 @@ export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 /**
  * postgres-js client for Node (mail service, scripts, tests) and for Workers through
- * Hyperdrive's connection string. Call `close()` when a short-lived caller is done.
+ * Hyperdrive's connection string. Call `close()` when a short-lived caller is done. With
+ * `{ timeout: 0 }` the sockets are dropped at once instead of after a goodbye to the server: a
+ * Durable Object needs that, since a socket still closing keeps it from hibernating.
  */
 export function createDb(url: string, options: postgres.Options<{}> = {}) {
   const client = postgres(url, options);
   const db = drizzle({ client, schema });
-  return { db, close: () => client.end() };
+  return { db, close: (options?: { timeout?: number }) => client.end(options) };
 }

@@ -1,11 +1,30 @@
 import type { HelpdeskRealtimeEvent, MailActionKind } from "@omni/contracts";
+import type { schema } from "@omni/db";
 import type { Realtime as RealtimeObject } from "@omni/worker";
+
+/** Why a member was notified: assigned to them, @mentioned in a note, a customer replied, an SLA. */
+export type NotificationKind = (typeof schema.notificationKind.enumValues)[number];
+
+/**
+ * This member has a new notification about the thread (`GET /api/notifications` lists it). Sent
+ * only to members whose preferences allow realtime notifications of that kind.
+ */
+export type NotificationEvent =
+  | { type: "notification"; threadId: string; kind: NotificationKind }
+  /**
+   * Notifications this member had about the thread were withdrawn (the note that mentioned them
+   * was deleted): refetch the list. Never show it as a new notification.
+   */
+  | { type: "notification.removed"; threadId: string };
 
 /**
  * What the Worker's realtime Durable Object broadcasts: the events typed from its `broadcast`,
- * plus the helpdesk events from `@omni/contracts` (ADR 0021).
+ * plus the helpdesk events from `@omni/contracts` (ADR 0021) and notifications.
  */
-export type RealtimeEvent = Parameters<RealtimeObject["broadcast"]>[1] | HelpdeskRealtimeEvent;
+export type RealtimeEvent =
+  | Parameters<RealtimeObject["broadcast"]>[1]
+  | HelpdeskRealtimeEvent
+  | NotificationEvent;
 export type RealtimeStatus = "connecting" | "open" | "closed";
 
 /**
@@ -208,6 +227,18 @@ function parseEvent(data: string): RealtimeEvent | undefined {
   if (event.type === "domain" && typeof event.domainId === "string") {
     return { type: "domain", domainId: event.domainId };
   }
+  if (event.type === "notification") {
+    const { threadId, kind } = event;
+    if (!isId(threadId) || typeof kind !== "string" || !Object.hasOwn(NOTIFICATION_KINDS, kind)) {
+      return undefined;
+    }
+    return { type: "notification", threadId, kind: kind as NotificationKind };
+  }
+  if (event.type === "notification.removed") {
+    return isId(event.threadId)
+      ? { type: "notification.removed", threadId: event.threadId }
+      : undefined;
+  }
   return parseHelpdeskEvent(value as Record<string, unknown>);
 }
 
@@ -225,6 +256,14 @@ const ACTION_KINDS: Record<MailActionKind, true> = {
   trash: true,
   spam: true,
   not_spam: true,
+};
+
+const NOTIFICATION_KINDS: Record<NotificationKind, true> = {
+  assigned: true,
+  mention: true,
+  customer_reply: true,
+  sla_at_risk: true,
+  sla_breached: true,
 };
 
 const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0;

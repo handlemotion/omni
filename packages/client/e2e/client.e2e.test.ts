@@ -186,8 +186,12 @@ test("realtime hands typed events to the app and reconnects after the server dro
       });
 
     expect((await post(first)).status).toBe(202);
-    await until(() => events[0], "the first event");
-    expect(events).toEqual([{ type: "changed", mailboxId: box.id, threadIds: [first.threadId] }]);
+    await until(() => events[1], "the first events");
+    // The mail views' event, then the helpdesk views' one for the same change.
+    expect(events).toEqual([
+      { type: "changed", mailboxId: box.id, threadIds: [first.threadId] },
+      { type: "thread.changed", mailboxId: box.id, threadIds: [first.threadId] },
+    ]);
 
     // The Durable Object goes away and takes the socket with it: the client must come back on
     // its own and say so, since anything sent in between is lost.
@@ -201,8 +205,11 @@ test("realtime hands typed events to the app and reconnects after the server dro
     ]);
 
     expect((await post(second)).status).toBe(202);
-    await until(() => events[1], "the event after reconnecting");
-    expect(events[1]).toEqual({ type: "changed", mailboxId: box.id, threadIds: [second.threadId] });
+    await until(() => events[3], "the events after reconnecting");
+    expect(events.slice(2)).toEqual([
+      { type: "changed", mailboxId: box.id, threadIds: [second.threadId] },
+      { type: "thread.changed", mailboxId: box.id, threadIds: [second.threadId] },
+    ]);
   } finally {
     realtime.close();
   }

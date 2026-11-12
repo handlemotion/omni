@@ -7,11 +7,16 @@
 //   ├─ mail ─ mailboxes · workspace-mailboxes · mailbox-members(id) · counts · threads(filter)
 //   │        · thread(id) ─ conversation · search(q) · action(id) · tags(mailbox)
 //   │        · assignees(mailbox) · conversations(filter) · conversation-counts
+//   │        · notifications ─ { unread }
 //   └─ local ─ pending(threadId) · failures       (client-only state, never fetched)
 //
 // Switching organization or account clears the whole cache (see `session.ts`), so keys do not
 // carry the org id.
 import type { ConversationFilter, ThreadFilter } from "./types.ts";
+
+export interface NotificationFilter {
+  unread: boolean;
+}
 
 const root = ["omni"] as const;
 const mail = [...root, "mail"] as const;
@@ -80,6 +85,10 @@ export const keys = {
   conversationCounts: () => [...mail, "conversation-counts"] as const,
   /** Who a shared inbox's conversations can be assigned to. */
   assignees: (mailboxId: string) => [...mail, "assignees", mailboxId] as const,
+  /** Your notifications: every list (all, unread only). Under `mail`, so a reconnect refetches them. */
+  notifications: () => [...mail, "notifications"] as const,
+  notificationList: (filter: NotificationFilter) =>
+    [...mail, "notifications", { unread: filter.unread }] as const,
   searches: () => [...mail, "search"] as const,
   search: (q: string, mailbox?: string) =>
     [...mail, "search", { q, ...(mailbox ? { mailbox } : {}) }] as const,
@@ -102,4 +111,10 @@ export function filterOf(queryKey: readonly unknown[]): ThreadFilter | undefined
 export function conversationFilterOf(queryKey: readonly unknown[]): ConversationFilter | undefined {
   const filter = queryKey[3];
   return typeof filter === "object" && filter !== null ? (filter as ConversationFilter) : undefined;
+}
+
+/** Reads the filter back out of a `keys.notificationList(...)` key. */
+export function notificationFilterOf(queryKey: readonly unknown[]): NotificationFilter | undefined {
+  const filter = queryKey[3];
+  return typeof filter === "object" && filter !== null ? (filter as NotificationFilter) : undefined;
 }

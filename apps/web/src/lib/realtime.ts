@@ -99,6 +99,11 @@ export function startRealtime(
         return changed(event.mailboxId, [event.threadId]);
       case "presence":
         return applyPresence(orgId, event);
+      // You were assigned, mentioned, or a customer replied: refetch your notifications.
+      case "notification":
+      // One you had was withdrawn (its note was deleted).
+      case "notification.removed":
+        return void client.invalidateQueries({ queryKey: keys.notifications() });
       case "action.succeeded": {
         // A reply went out: refetch its thread now rather than waiting for the sync's event.
         const pending = allPending(client).find((p) => p.actionId === event.actionId);

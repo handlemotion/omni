@@ -630,6 +630,30 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
     },
 
     /**
+     * A thread's inbox and every member who can see it there (presence goes to them). Null when
+     * no grantee can see the thread.
+     */
+    async threadAudience(threadId: string) {
+      const [thread] = await db
+        .select({ mailboxId: threads.mailboxId, orgId: threads.orgId })
+        .from(threads)
+        .innerJoin(...threadGrant)
+        .innerJoin(...threadOrg)
+        .where(eq(threads.id, threadId))
+        .limit(1);
+      if (!thread) return null;
+      const rows = await db
+        .select({ memberId: mailboxAccess.memberId })
+        .from(mailboxAccess)
+        .innerJoin(
+          members,
+          and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, thread.orgId)),
+        )
+        .where(eq(mailboxAccess.mailboxId, thread.mailboxId));
+      return { mailboxId: thread.mailboxId, memberIds: rows.map((r) => r.memberId) };
+    },
+
+    /**
      * Who a conversation in this inbox can be assigned to: every member of the inbox's org who
      * can see it, by name. Null when no grantee can see the inbox.
      */

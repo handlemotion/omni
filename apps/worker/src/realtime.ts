@@ -1,5 +1,15 @@
 import { DurableObject } from "cloudflare:workers";
-import { mailboxAudience, pushTokensFor, type Db } from "@omni/db";
+import type { HelpdeskRealtimeEvent } from "@omni/contracts";
+import {
+  forMember,
+  mailboxAudience,
+  membersAccepting,
+  pushTokensFor,
+  type Db,
+  type NotificationKind,
+} from "@omni/db";
+import { z } from "zod";
+import { openDb } from "./db.ts";
 import type { Config } from "./env.ts";
 import { createLogger } from "./log.ts";
 
@@ -11,7 +21,23 @@ export type RealtimeEvent =
   /** An outbox action this member asked for failed for good (e.g. a send). */
   | { type: "action"; actionId: string; status: "failed"; error: string }
   /** A domain's DNS was checked again (ADR 0011): refetch the onboarding status. */
-  | { type: "domain"; domainId: string };
+  | { type: "domain"; domainId: string }
+  /** This member got a new notification (`GET /api/notifications` has it). */
+  | { type: "notification"; threadId: string; kind: NotificationKind };
+
+type OutboundEvent = RealtimeEvent | HelpdeskRealtimeEvent;
+
+/** What an app sends: this member is viewing or replying in a conversation, or left it. */
+const presenceMessage = z.object({
+  type: z.literal("presence"),
+  threadId: z.string().min(1).max(64),
+  state: z.enum(["viewing", "replying", "left"]),
+});
+/** Larger client messages are ignored unread. */
+const MAX_CLIENT_MESSAGE = 1024;
+
+/** A socket's presence, kept in its attachment so it survives hibernation. */
+type Presence = { threadId: string; mailboxId: string; state: "viewing" | "replying" };
 
 /**
  * One instance per org. Each open app holds a hibernatable websocket tagged with its member id;
@@ -35,61 +61,239 @@ export class Realtime extends DurableObject<Env> {
   }
 
   /** Sends the event to these members' sockets; returns the members with none open. */
-  async broadcast(memberIds: string[], event: RealtimeEvent): Promise<string[]> {
-    const message = JSON.stringify(event);
+  async broadcast(memberIds: string[], event: OutboundEvent): Promise<string[]> {
+    return this.send(memberIds, [event]);
+  }
+
+  /** Sends the events, in order, to these members' sockets; returns the members with none open. */
+  async send(memberIds: string[], events: OutboundEvent[]): Promise<string[]> {
+    const messages = events.map((event) => JSON.stringify(event));
     const offline: string[] = [];
     for (const memberId of new Set(memberIds)) {
       const sockets = this.ctx.getWebSockets(memberId);
       if (sockets.length === 0) offline.push(memberId);
       for (const socket of sockets) {
-        try {
-          socket.send(message);
-        } catch {
-          // Closing; the runtime drops it.
+        for (const message of messages) {
+          try {
+            socket.send(message);
+          } catch {
+            // Closing; the runtime drops it.
+          }
         }
       }
     }
     return offline;
   }
 
-  override async webSocketMessage() {
-    // Clients only listen; "ping" is answered by the auto-response.
+  /**
+   * Presence (`{"type":"presence","threadId","state"}`): a socket is in at most one conversation.
+   * The DO checks the member can see it, tells everyone else who can, and answers a new viewer
+   * with who is already there. Anything else is ignored; "ping" is answered by the auto-response.
+   */
+  override async webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer) {
+    if (typeof raw !== "string" || raw.length > MAX_CLIENT_MESSAGE) return;
+    let message;
+    try {
+      message = presenceMessage.parse(JSON.parse(raw));
+    } catch {
+      return;
+    }
+    const memberId = this.ctx.getTags(socket)[0];
+    if (!memberId) return;
+    const current = presenceOf(socket);
+    if (message.state === "left") {
+      if (current?.threadId === message.threadId) await this.leave(socket, memberId, current);
+      return;
+    }
+    if (current && current.threadId !== message.threadId) {
+      await this.leave(socket, memberId, current);
+    }
+    const { db, close } = openDb(this.env, 1);
+    let audience;
+    try {
+      audience = await forMember(db, memberId).threadAudience(message.threadId);
+    } finally {
+      await close({ timeout: 0 });
+    }
+    if (!audience) return;
+    const presence: Presence = {
+      threadId: message.threadId,
+      mailboxId: audience.mailboxId,
+      state: message.state,
+    };
+    socket.serializeAttachment(presence);
+    const others = audience.memberIds.filter((m) => m !== memberId);
+    // Repeats go out too: they are the heartbeat that keeps the member listed on teammates'
+    // screens, which expire anyone they have not heard from. Teammates hear the member's state
+    // across all their sockets here, so a second tab viewing never hides a first one replying.
+    await this.send(others, [presenceEvent(memberId, this.memberState(memberId, presence))]);
+    if (current?.threadId !== presence.threadId) {
+      // The newcomer hears who is already here: one entry per member, replying over viewing.
+      const here = new Map<string, Presence>();
+      for (const other of this.ctx.getWebSockets()) {
+        const theirs = presenceOf(other);
+        const them = this.ctx.getTags(other)[0];
+        if (!theirs || !them || them === memberId || theirs.threadId !== presence.threadId) {
+          continue;
+        }
+        if (here.get(them)?.state !== "replying") here.set(them, theirs);
+      }
+      for (const [them, theirs] of here) {
+        socket.send(JSON.stringify(presenceEvent(them, theirs)));
+      }
+    }
   }
 
   override async webSocketClose(socket: WebSocket, code: number) {
+    const presence = presenceOf(socket);
+    const memberId = this.ctx.getTags(socket)[0];
+    if (presence && memberId) await this.leave(socket, memberId, presence);
     socket.close(code === 1005 ? 1000 : code, "closing");
+  }
+
+  override async webSocketError(socket: WebSocket) {
+    const presence = presenceOf(socket);
+    const memberId = this.ctx.getTags(socket)[0];
+    if (presence && memberId) await this.leave(socket, memberId, presence);
+  }
+
+  /** The member's state in this conversation over all their sockets: replying wins. */
+  private memberState(memberId: string, presence: Presence): Presence {
+    if (presence.state === "replying") return presence;
+    for (const other of this.ctx.getWebSockets(memberId)) {
+      const theirs = presenceOf(other);
+      if (theirs?.threadId === presence.threadId && theirs.state === "replying") return theirs;
+    }
+    return presence;
+  }
+
+  /**
+   * Takes this socket out of the conversation. Teammates hear `left` unless the member is still
+   * there on another socket (a second tab), in which case they hear that socket's state.
+   */
+  private async leave(socket: WebSocket, memberId: string, presence: Presence) {
+    socket.serializeAttachment(null);
+    let still: Presence | null = null;
+    for (const other of this.ctx.getWebSockets(memberId)) {
+      const theirs = other === socket ? null : presenceOf(other);
+      if (theirs?.threadId === presence.threadId && still?.state !== "replying") still = theirs;
+    }
+    if (still?.state === presence.state) return;
+    const { db, close } = openDb(this.env, 1);
+    let audience;
+    try {
+      audience = await mailboxAudience(db, [presence.mailboxId]);
+    } finally {
+      await close({ timeout: 0 });
+    }
+    await this.send(
+      audience.map((row) => row.memberId).filter((m) => m !== memberId),
+      [
+        still
+          ? presenceEvent(memberId, still)
+          : {
+              type: "presence",
+              mailboxId: presence.mailboxId,
+              threadId: presence.threadId,
+              memberId,
+              state: "left",
+            },
+      ],
+    );
   }
 }
 
+function presenceOf(socket: WebSocket): Presence | null {
+  try {
+    return (socket.deserializeAttachment() as Presence | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function presenceEvent(memberId: string, presence: Presence): HelpdeskRealtimeEvent {
+  return {
+    type: "presence",
+    mailboxId: presence.mailboxId,
+    threadId: presence.threadId,
+    memberId,
+    state: presence.state,
+  };
+}
+
 /**
- * Tells every member who can see the mailboxes that these threads changed. With `push`, members
- * with no app open get an Expo notification instead (when enabled).
+ * Tells every member who can see the mailboxes that these threads changed: `changed` for the
+ * mail views and `thread.changed` for helpdesk views. Members with no app open on a mailbox in
+ * `push` get an Expo notification instead (when enabled).
  */
 export async function fanOut(
   env: Env,
   db: Db,
   config: Config,
   changes: Map<string, Set<string>>,
-  options: { push?: boolean } = {},
+  options: { push?: Set<string> } = {},
 ) {
   const audience = await mailboxAudience(db, [...changes.keys()]);
   const offlineByMailbox = new Map<string, { address: string; memberIds: string[] }>();
-  for (const [mailboxId, threadIds] of changes) {
+  for (const [mailboxId, threadSet] of changes) {
     const rows = audience.filter((row) => row.mailboxId === mailboxId);
     const first = rows[0];
     if (!first) continue;
+    const threadIds = [...threadSet];
     const stub = env.REALTIME.get(env.REALTIME.idFromName(first.orgId));
-    const offline = await stub.broadcast(
+    const offline = await stub.send(
       rows.map((row) => row.memberId),
-      { type: "changed", mailboxId, threadIds: [...threadIds] },
+      [
+        { type: "changed", mailboxId, threadIds },
+        { type: "thread.changed", mailboxId, threadIds },
+      ],
     );
-    offlineByMailbox.set(mailboxId, { address: first.address, memberIds: offline });
+    if (options.push?.has(mailboxId)) {
+      offlineByMailbox.set(mailboxId, { address: first.address, memberIds: offline });
+    }
   }
-  if (options.push && config.EXPO_PUSH_ENABLED) {
+  if (config.EXPO_PUSH_ENABLED) {
     for (const { address, memberIds } of offlineByMailbox.values()) {
       await sendExpoPush(db, config, memberIds, { title: address, body: "New message" });
     }
   }
+}
+
+/** Tells these members, whose preferences allow it, that they have a new notification. */
+export async function notifyMembers(
+  env: Env,
+  db: Db,
+  input: { orgId: string; threadId: string; memberIds: string[]; kind: NotificationKind },
+) {
+  if (input.memberIds.length === 0) return;
+  const accepting = await membersAccepting(db, input.memberIds, input.kind, "realtime");
+  if (accepting.length === 0) return;
+  const stub = env.REALTIME.get(env.REALTIME.idFromName(input.orgId));
+  await stub.broadcast(accepting, {
+    type: "notification",
+    threadId: input.threadId,
+    kind: input.kind,
+  });
+}
+
+/** Tells everyone who can see the inbox that a note was added. */
+export async function announceNote(
+  env: Env,
+  db: Db,
+  note: { orgId: string; mailboxId: string; threadId: string; noteId: string },
+) {
+  const audience = await mailboxAudience(db, [note.mailboxId]);
+  if (audience.length === 0) return;
+  const stub = env.REALTIME.get(env.REALTIME.idFromName(note.orgId));
+  await stub.broadcast(
+    audience.map((row) => row.memberId),
+    {
+      type: "note.created",
+      mailboxId: note.mailboxId,
+      threadId: note.threadId,
+      noteId: note.noteId,
+    },
+  );
 }
 
 /** Tells each member whose action failed for good, on their org's realtime object. */

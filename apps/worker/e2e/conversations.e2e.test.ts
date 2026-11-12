@@ -681,7 +681,7 @@ describe("notes and notifications", () => {
     );
 
     // Only the author edits or deletes a note; deleting takes its timeline event with it.
-    const patch = await api(`/notes/${note.id}`, beaCookie, {
+    const patch = await api(`/threads/${asked.threadId}/notes/${note.id}`, beaCookie, {
       method: "PATCH",
       body: JSON.stringify({ body: "hijacked" }),
     });
@@ -690,7 +690,13 @@ describe("notes and notifications", () => {
     expect((state as unknown as { notes: { body: string }[] }).notes.map((n) => n.body)).toEqual([
       "@Bea can you check the CSV path? cc @Carl",
     ]);
-    expect((await api(`/notes/${note.id}`, desk.anaCookie, { method: "DELETE" })).status).toBe(204);
+    expect(
+      (
+        await api(`/threads/${asked.threadId}/notes/${note.id}`, desk.anaCookie, {
+          method: "DELETE",
+        })
+      ).status,
+    ).toBe(204);
     state = await conversation(asked.threadId, desk.anaCookie);
     expect(state.events.some((e) => e.kind === "note")).toBe(false);
 

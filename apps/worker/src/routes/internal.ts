@@ -15,7 +15,7 @@ import { openDb } from "../db.ts";
 import { loadConfig } from "../env.ts";
 import { pingMailService } from "../mail-service.ts";
 import type { AiJob } from "../queue.ts";
-import { fanOut, notifyFailedActions } from "../realtime.ts";
+import { fanOut, notifyFailedActions, notifyMembers } from "../realtime.ts";
 
 export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   const config = loadConfig(c.env);
@@ -75,16 +75,27 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     // The helpdesk status rule, once per message and in order (ADR 0021): a customer message
     // reopens, our own reply goes pending. A failure answers 500, so the mail service retries.
     let queuedActions = 0;
+    // A replayed event (the mail service retries until we answer) is fanned out again, which is
+    // harmless, but pushes only for mail seen here for the first time.
+    const fresh = new Set<string>();
     for (const event of created) {
       const applied = await applyInboundMessage(db, {
         messageId: event.messageId,
         folderRole: event.folderRole,
       });
-      if (applied.applied) queuedActions += applied.queuedActions;
+      if (applied.applied || applied.fresh) fresh.add(event.mailboxId);
+      if (!applied.applied) continue;
+      queuedActions += applied.queuedActions;
+      await notifyMembers(c.env, db, {
+        orgId: applied.conversation.orgId,
+        threadId: applied.conversation.id,
+        memberIds: applied.notified,
+        kind: "customer_reply",
+      });
     }
     if (queuedActions > 0)
       c.executionCtx.waitUntil(pingMailService({ config, log, requestId: c.var.requestId }));
-    if (created.length) await fanOut(c.env, db, config, changedThreads(created), { push: true });
+    if (created.length) await fanOut(c.env, db, config, changedThreads(created), { push: fresh });
     await notifyFailedActions(c.env, failed);
   } finally {
     c.executionCtx.waitUntil(close());

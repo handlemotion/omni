@@ -2,22 +2,25 @@
 // request puts the cache back exactly as it was.
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
 import { filterOf, keys } from "./query-keys.ts";
-import type { Thread, ThreadFilter, ThreadPage, ThreadSummary } from "./types.ts";
+import type { ConversationPage, Thread, ThreadFilter, ThreadPage, ThreadSummary } from "./types.ts";
 
 type ThreadPages = InfiniteData<ThreadPage, string | null>;
+type ConversationPages = InfiniteData<ConversationPage, string | null>;
 export type Snapshot = [QueryKey, unknown][];
 
 /**
  * Cancels in-flight thread fetches (so they cannot overwrite the edit) and records the lists
- * and the thread as they are now.
+ * (mail and helpdesk) and the thread as they are now.
  */
 export async function snapshotThread(client: QueryClient, threadId: string): Promise<Snapshot> {
   await Promise.all([
     client.cancelQueries({ queryKey: keys.threadLists() }),
+    client.cancelQueries({ queryKey: keys.conversationLists() }),
     client.cancelQueries({ queryKey: keys.thread(threadId) }),
   ]);
   return [
     ...client.getQueriesData({ queryKey: keys.threadLists() }),
+    ...client.getQueriesData({ queryKey: keys.conversationLists() }),
     [keys.thread(threadId), client.getQueryData(keys.thread(threadId))],
   ];
 }
@@ -26,7 +29,10 @@ export function restore(client: QueryClient, snapshot: Snapshot | undefined) {
   for (const [key, data] of snapshot ?? []) client.setQueryData(key, data);
 }
 
-/** Applies a patch to the thread in every cached list and in its detail. */
+/**
+ * Applies a patch to the thread in every cached list and in its detail. A helpdesk row takes
+ * only the fields it has (read state, say), not mail-only ones like `done`.
+ */
 export function patchThread(
   client: QueryClient,
   threadId: string,
@@ -34,6 +40,19 @@ export function patchThread(
 ) {
   client.setQueriesData<ThreadPages>({ queryKey: keys.threadLists() }, (data) =>
     mapRows(data, (row) => (row.id === threadId ? { ...row, ...patch } : row)),
+  );
+  client.setQueriesData<ConversationPages>({ queryKey: keys.conversationLists() }, (data) =>
+    data
+      ? {
+          ...data,
+          pages: data.pages.map((page) => ({
+            ...page,
+            conversations: page.conversations.map((row) =>
+              row.id === threadId ? { ...row, ...shared(row, patch) } : row,
+            ),
+          })),
+        }
+      : data,
   );
   client.setQueryData<Thread>(keys.thread(threadId), (thread) =>
     thread ? { ...thread, ...patch } : thread,
@@ -65,6 +84,11 @@ export function invalidateThread(client: QueryClient, threadId: string) {
     client.invalidateQueries({ queryKey: keys.counts() }),
     client.invalidateQueries({ queryKey: keys.thread(threadId) }),
   ]);
+}
+
+/** The part of `patch` whose fields `row` has. */
+function shared<T extends object>(row: T, patch: object): Partial<T> {
+  return Object.fromEntries(Object.entries(patch).filter(([key]) => key in row)) as Partial<T>;
 }
 
 function mapPages(data: ThreadPages | undefined, fn: (page: ThreadPage) => ThreadPage) {

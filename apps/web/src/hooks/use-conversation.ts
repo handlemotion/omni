@@ -19,6 +19,7 @@ import {
   createTagMutation,
   deleteTagMutation,
   inverseOf,
+  memberInInbox,
   tagsQuery,
   updateTagMutation,
   type ConversationChange,
@@ -75,14 +76,6 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   low: "Low",
 };
 
-/** Your member in the inbox's workspace, from its cached assignee list (lists span workspaces). */
-function memberIn(client: QueryClient, mailboxId: string | undefined, email: string | undefined) {
-  if (!mailboxId || !email) return undefined;
-  return client
-    .getQueryData<{ assignees: Assignee[] }>(keys.assignees(mailboxId))
-    ?.assignees.find((a) => a.email === email)?.memberId;
-}
-
 /** What a change did, for the undo toast and the screen reader. */
 function describe(change: ConversationChange, client: QueryClient, mailboxId?: string) {
   const assignee = (memberId: string | null) =>
@@ -123,7 +116,7 @@ function useChange() {
     options: { tag?: Tag; undo?: boolean; mailboxId?: string } = {},
   ) => {
     const before = cachedState(client, threadId);
-    const me = memberIn(client, options.mailboxId ?? before?.mailboxId, email);
+    const me = memberInInbox(client, options.mailboxId ?? before?.mailboxId, email);
     mutation.mutate({ key: idempotencyKey(), threadId, change, tag: options.tag, me });
     const inverse = before && options.undo !== false ? inverseOf(before, change) : null;
     if (!inverse) return;
@@ -173,7 +166,11 @@ export function useClaim() {
     ...rest,
     mutate: ({ threadId, mailboxId }: { threadId: string; mailboxId: string }) =>
       // Your member, for the optimistic avatar; the server assigns whoever asks anyway.
-      run(threadId, { type: "claim", memberId: memberIn(client, mailboxId, email) }, { mailboxId }),
+      run(
+        threadId,
+        { type: "claim", memberId: memberInInbox(client, mailboxId, email) },
+        { mailboxId },
+      ),
   };
 }
 
@@ -231,5 +228,5 @@ export function useConversationChanges() {
   const { run, ...rest } = useChange();
   const client = useQueryClient();
   const email = useSession().data?.user.email;
-  return { ...rest, run, me: (mailboxId: string) => memberIn(client, mailboxId, email) };
+  return { ...rest, run, me: (mailboxId: string) => memberInInbox(client, mailboxId, email) };
 }

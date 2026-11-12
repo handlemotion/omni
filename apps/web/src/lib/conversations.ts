@@ -12,6 +12,7 @@ import {
 import { api, ApiError, call } from "./api.ts";
 import { conversationFilterOf, keys } from "./query-keys.ts";
 import type {
+  Assignee,
   Conversation,
   ConversationFilter,
   ConversationPage,
@@ -392,4 +393,19 @@ export function cachedState(
     }
   }
   return undefined;
+}
+
+/**
+ * Your member in the inbox's workspace, from its cached assignee list (lists span workspaces,
+ * so the session alone does not say which member you are there). `undefined` until it loads.
+ */
+export function memberInInbox(
+  client: QueryClient,
+  mailboxId: string | undefined,
+  email: string | undefined,
+) {
+  if (!mailboxId || !email) return undefined;
+  return client
+    .getQueryData<{ assignees: Assignee[] }>(keys.assignees(mailboxId))
+    ?.assignees.find((a) => a.email === email)?.memberId;
 }
