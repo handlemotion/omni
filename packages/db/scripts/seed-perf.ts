@@ -245,6 +245,30 @@ await step(
 `,
 );
 
+await step(
+  "helpdesk state",
+  `
+  select setseed(0.52);
+  -- Shared inboxes as a support team leaves them: most conversations resolved, a working set
+  -- open or pending, a few snoozed; half assigned to someone who can see the inbox; open ones
+  -- carry SLA due times around now.
+  with picked as (
+    select t.id, random() as r,
+      (select a.member_id from mailbox_access a where a.mailbox_id = t.mailbox_id
+        order by random() + length(t.id) * 0 limit 1) as assignee
+    from threads t join mailboxes m on m.id = t.mailbox_id where m.kind = 'shared'
+  )
+  update threads t set
+    status = case when p.r < 0.15 then 'open' when p.r < 0.22 then 'pending'
+      when p.r < 0.25 then 'snoozed' else 'resolved' end::conversation_status,
+    snoozed_until = case when p.r >= 0.22 and p.r < 0.25 then now() + interval '1 day' end,
+    resolved_at = case when p.r >= 0.25 then t.last_message_at end,
+    assignee_member_id = case when (p.r * 1000)::int % 2 = 0 then p.assignee end,
+    first_response_due_at = case when p.r < 0.15 then now() + (p.r * 40 - 3) * interval '1 hour' end
+  from picked p where p.id = t.id;
+`,
+);
+
 await step("cleanup", "drop table seed_mailboxes, seed_members, seed_threads, seed_messages");
 await step("vacuum analyze", "vacuum analyze");
 

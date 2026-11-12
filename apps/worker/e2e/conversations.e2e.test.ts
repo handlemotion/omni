@@ -2,7 +2,7 @@
 // status rule on ingest, resolve filing the mail through the outbox, and the snooze clock.
 import { randomUUID } from "node:crypto";
 import { addLocation, schema, upsertFolder } from "@omni/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
   createMailbox,
@@ -478,4 +478,105 @@ test("the minute cron wakes a snooze that is over, and only that one", async () 
     ["snoozed", desk.ana.id],
     ["open", null],
   ]);
+});
+
+describe("views and counts", () => {
+  type Page = {
+    conversations: { id: string; tags: { id: string }[] }[];
+    nextCursor: string | null;
+  };
+
+  async function view(cookie: string, mailboxId: string, query: string) {
+    const ids: string[] = [];
+    let cursor: string | null = null;
+    // Pages of two, so a keyset bug drops or repeats a row.
+    do {
+      const response = await api(
+        `/conversations?mailboxId=${mailboxId}&limit=2&${query}${cursor ? `&cursor=${cursor}` : ""}`,
+        cookie,
+      );
+      expect(response.status).toBe(200);
+      const page = (await response.json()) as Page;
+      ids.push(...page.conversations.map((c) => c.id));
+      cursor = page.nextCursor;
+    } while (cursor);
+    return ids;
+  }
+
+  test("each view holds exactly its conversations, pages without gaps, and counts agree", async () => {
+    const { db } = database;
+    const desk = await supportDesk("views");
+    const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000);
+    const seed = async (n: number) =>
+      (
+        await seedMessage(db, desk.inbox, {
+          subject: `Case ${n}`,
+          fromAddress: `c${n}@client.test`,
+          uid: n,
+          sentAt: at(100 - n),
+        })
+      ).threadId;
+    // Newest last: c1 is the oldest.
+    const [c1, c2, c3, c4, c5, c6, c7] = await Promise.all([1, 2, 3, 4, 5, 6, 7].map(seed));
+
+    await post(`/threads/${c2}/claim`, desk.anaCookie);
+    await put(`/threads/${c3}/assignee`, desk.anaCookie, { memberId: desk.bea.id });
+    await post(`/threads/${c4}/claim`, desk.anaCookie);
+    await db.update(schema.threads).set({ status: "pending" }).where(eq(schema.threads.id, c4!));
+    await post(`/threads/${c5}/snooze`, desk.anaCookie, {
+      until: new Date(Date.now() + 3_600_000).toISOString(),
+    });
+    await post(`/threads/${c6}/resolve`, desk.anaCookie);
+    // SLA: c7 is overdue, c1 due in 10 minutes, c3 due tomorrow (not at risk). Postgres keeps
+    // microseconds that a JS Date drops; a cursor built from a Date repeats the boundary row.
+    await db
+      .update(schema.threads)
+      .set({ firstResponseDueAt: sql`now() - interval '5 minutes 0.000123 seconds'` })
+      .where(eq(schema.threads.id, c7!));
+    await db
+      .update(schema.threads)
+      .set({ nextResponseDueAt: sql`now() + interval '10 minutes 0.000456 seconds'` })
+      .where(eq(schema.threads.id, c1!));
+    await db
+      .update(schema.threads)
+      .set({ resolutionDueAt: at(-24 * 60) })
+      .where(eq(schema.threads.id, c3!));
+    const { tag } = (await (
+      await post(`/mailboxes/${desk.inbox.id}/tags`, desk.anaCookie, { name: "VIP" })
+    ).json()) as { tag: { id: string } };
+    await post(`/threads/${c1}/tags`, desk.anaCookie, { tagId: tag.id });
+    await post(`/threads/${c6}/tags`, desk.anaCookie, { tagId: tag.id });
+
+    const box = desk.inbox.id;
+    const expected = {
+      unassigned: [c7, c1],
+      mine: [c4, c2],
+      open: [c7, c3, c2, c1],
+      pending: [c4],
+      snoozed: [c5],
+      resolved: [c6],
+      sla_at_risk: [c7, c1],
+    };
+    for (const [name, ids] of Object.entries(expected)) {
+      expect([name, await view(desk.anaCookie, box, `view=${name}`)]).toEqual([name, ids]);
+    }
+    expect(await view(desk.anaCookie, box, `view=all&tagId=${tag.id}`)).toEqual([c6, c1]);
+    expect(await view(desk.anaCookie, box, `view=open&tagId=${tag.id}`)).toEqual([c1]);
+    // Carl cannot see the inbox: every view is empty for him.
+    expect(await view(desk.carlCookie, box, "view=open")).toEqual([]);
+
+    const counts = (await (
+      await api(`/conversations/counts?mailboxId=${box}`, desk.anaCookie)
+    ).json()) as {
+      counts: { mailboxId: string; views: Record<string, number>; tags: Record<string, number> }[];
+    };
+    expect(counts.counts).toEqual([
+      {
+        orgId: desk.org.id,
+        mailboxId: box,
+        views: { unassigned: 2, mine: 2, open: 4, pending: 1, snoozed: 1, sla_at_risk: 2 },
+        tags: { [tag.id]: 1 },
+      },
+    ]);
+  });
 });

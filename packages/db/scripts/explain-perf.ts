@@ -114,6 +114,14 @@ const inboxUids = (
     order by imap_uid desc limit 50`
 ).map((r) => r.uid);
 
+// The busiest shared inbox, for the helpdesk views.
+const desk = await one(
+  raw<{ id: string }[]>`
+    select m.id from mailboxes m join threads t on t.mailbox_id = m.id
+    join mailbox_access a on a.mailbox_id = m.id and a.member_id = ${memberAll}
+    where m.kind = 'shared' group by m.id order by count(*) desc limit 1`,
+);
+
 const all = forMember(db, memberAll);
 const few = forMember(db, memberFew);
 // The web app reads through `forUser` (every workspace the person belongs to, ADR 0014).
@@ -134,6 +142,18 @@ const cases: Case[] = [
     run: () => all.listThreads({ view: "all", mailboxId: box.id }),
   },
   { name: "counts (12 boxes)", run: () => all.counts() },
+  ...(["unassigned", "mine", "open", "pending", "resolved", "sla_at_risk"] as const).map(
+    (view) => ({
+      name: `listConversations ${view}`,
+      run: () => all.listConversations({ mailboxId: desk.id, view }),
+    }),
+  ),
+  { name: "conversationCounts (all inboxes)", run: () => all.conversationCounts() },
+  {
+    name: "conversationCounts one inbox",
+    run: () => all.conversationCounts({ mailboxId: desk.id }),
+  },
+  { name: "getConversation", run: () => all.getConversation(typical.id) },
   { name: "user: listThreads inbox", run: () => user.listThreads() },
   { name: "user: listThreads done", run: () => user.listThreads({ view: "done" }) },
   { name: "user: listThreads page 41", run: () => user.listThreads({ before: deepCursor }) },

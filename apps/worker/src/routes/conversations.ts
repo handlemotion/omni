@@ -4,6 +4,7 @@
 // transaction and queues the IMAP filing (archive on resolve, back to INBOX on reopen).
 import {
   applyConversationChange,
+  CONVERSATION_VIEWS,
   createTag,
   deleteTag,
   forMember,
@@ -23,6 +24,35 @@ import { zValidator } from "../validator.ts";
 
 const idempotencyHeader = z.object({
   "idempotency-key": z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, "8-128 URL-safe characters"),
+});
+
+const cursorParam = z
+  .string()
+  .transform((value, ctx) => {
+    try {
+      const json = JSON.parse(atob(value.replaceAll("-", "+").replaceAll("_", "/")));
+      const parsed = z.object({ t: z.iso.datetime(), id: z.string().min(1) }).parse(json);
+      return { at: parsed.t, id: parsed.id };
+    } catch {
+      ctx.addIssue({ code: "custom", message: "invalid cursor" });
+      return z.NEVER;
+    }
+  })
+  .optional();
+
+function encodeCursor(at: Date | string, id: string) {
+  return btoa(JSON.stringify({ t: typeof at === "string" ? at : at.toISOString(), id }))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
+}
+
+const listQuery = z.object({
+  mailboxId: z.string().min(1),
+  view: z.enum(CONVERSATION_VIEWS).default("open"),
+  tagId: z.string().min(1).optional(),
+  cursor: cursorParam,
+  limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
 const snoozeBody = z.object({ until: z.iso.datetime({ offset: true }) });
@@ -81,6 +111,33 @@ async function applyChange(c: Context<AppEnv>, threadId: string, change: Convers
 const writeGuards = [limitPerMember("actions"), zValidator("header", idempotencyHeader)] as const;
 
 export const conversations = new Hono<AppEnv>()
+  /**
+   * One shared inbox's conversations in a helpdesk view (`unassigned`, `mine`, `open`, `pending`,
+   * `snoozed`, `resolved`, `sla_at_risk`, `all`), optionally only those tagged `tagId`. Newest
+   * first; `sla_at_risk` soonest due first. `nextCursor` is null on the last page.
+   */
+  .get("/conversations", zValidator("query", listQuery), async (c) => {
+    const { cursor, ...query } = c.req.valid("query");
+    const rows = await forMember(c.var.db, c.var.member.id).listConversations({
+      ...query,
+      after: cursor,
+    });
+    const last = rows.at(-1);
+    const nextCursor =
+      last && rows.length === query.limit ? encodeCursor(last.pageAt, last.id) : null;
+    return c.json({ conversations: rows.map(({ pageAt: _pageAt, ...row }) => row), nextCursor });
+  })
+
+  /** Per shared inbox: each view's count (not `resolved`) and open or pending ones per tag. */
+  .get(
+    "/conversations/counts",
+    zValidator("query", z.object({ mailboxId: z.string().min(1).optional() })),
+    async (c) =>
+      c.json({
+        counts: await forMember(c.var.db, c.var.member.id).conversationCounts(c.req.valid("query")),
+      }),
+  )
+
   /** Status, assignee, priority, SLA due times, tags and the timeline events, oldest first. */
   .get("/threads/:id/conversation", async (c) => {
     const conversation = await forMember(c.var.db, c.var.member.id).getConversation(
