@@ -1210,4 +1210,97 @@ describe("bulk actions and auto-assign", () => {
       (await put(`/mailboxes/${inbox.id}/auto-assign`, beaCookie, { enabled: false })).status,
     ).toBe(403);
   });
+  test("the inbox report counts new conversations and times first responses and resolutions", async () => {
+    const { db } = database;
+    const inbox = await createMailbox(db, desk.org.id, "report@bulk.test");
+    await grant(db, desk.org.id, inbox.id, desk.ana.id);
+    await grant(db, desk.org.id, inbox.id, desk.bea.id);
+    const t0 = Date.now() - 5 * 3_600_000;
+    const at = (minutes: number) => new Date(t0 + minutes * 60_000);
+    let uid = 0;
+    const deliver = async (
+      from: string,
+      sentAt: Date,
+      threadId?: string,
+      folder: "INBOX" | "Sent" = "INBOX",
+    ) => {
+      const message = await seedMessage(db, inbox, {
+        subject: "Report",
+        fromAddress: from,
+        uid: ++uid,
+        sentAt,
+        threadId,
+        folder,
+      });
+      await postMailEvents(worker, {
+        events: [
+          {
+            type: "message.created",
+            orgId: desk.org.id,
+            mailboxId: inbox.id,
+            threadId: message.threadId,
+            messageId: message.messageId,
+            folderRole: folder === "Sent" ? "sent" : "inbox",
+          },
+        ],
+      });
+      return message.threadId;
+    };
+    // Answered in 10 minutes, then resolved; answered in 30; never answered, tagged, Bea's.
+    const c1 = await deliver("a@client.test", at(0));
+    await deliver(inbox.address, at(10), c1, "Sent");
+    const c2 = await deliver("b@client.test", at(60));
+    await deliver(inbox.address, at(90), c2, "Sent");
+    const c3 = await deliver("c@client.test", at(120));
+    // A conversation that started 40 days ago is not new this week, though it has new mail.
+    const old = await deliver("d@client.test", new Date(Date.now() - 40 * 86_400_000));
+    await deliver("d@client.test", at(180), old);
+    // Its first reply, indexed only now, belongs to 40 days ago, not to this report.
+    await deliver(inbox.address, new Date(Date.now() - 40 * 86_400_000 + 300_000), old, "Sent");
+
+    const tag = (await (
+      await post(`/mailboxes/${inbox.id}/tags`, desk.anaCookie, { name: "Billing" })
+    ).json()) as { tag: { id: string } };
+    await post(`/threads/${c3}/tags`, desk.anaCookie, { tagId: tag.tag.id });
+    await put(`/threads/${c3}/assignee`, desk.anaCookie, { memberId: desk.bea.id });
+    await post(`/threads/${c1}/resolve`, desk.anaCookie);
+    // Mail we sent first, from an alias, then resolved: not a new conversation, no timing sample.
+    const outbound = await deliver("sales@alias.test", at(200), undefined, "Sent");
+    await post(`/threads/${outbound}/resolve`, desk.anaCookie);
+
+    const from = new Date(Date.now() - 86_400_000).toISOString();
+    const response = await api(
+      `/mailboxes/${inbox.id}/report?from=${encodeURIComponent(from)}`,
+      desk.anaCookie,
+    );
+    expect(response.status).toBe(200);
+    const report = (await response.json()) as {
+      created: unknown;
+      firstResponse: unknown;
+      resolved: { count: number; median: number; p90: number; byMember: unknown };
+    };
+    expect(report.created).toEqual({
+      count: 3,
+      byAssignee: [
+        { memberId: null, count: 2 },
+        { memberId: desk.bea.id, count: 1 },
+      ],
+      byTag: [{ tagId: tag.tag.id, count: 1 }],
+    });
+    // 600 s and 1800 s: median 1200, p90 interpolated to 1680.
+    expect(report.firstResponse).toEqual({ count: 2, median: 1200, p90: 1680 });
+    expect(report.resolved.count).toBe(1);
+    expect(report.resolved.byMember).toEqual([{ memberId: desk.ana.id, count: 2 }]);
+    // Resolved just now, five hours after the customer wrote.
+    expect(Math.abs(report.resolved.median - 5 * 3600)).toBeLessThan(120);
+
+    expect(
+      (
+        await api(
+          `/mailboxes/${inbox.id}/report?from=2026-01-01T00:00:00Z&to=2026-12-31T00:00:00Z`,
+          desk.anaCookie,
+        )
+      ).status,
+    ).toBe(400);
+  });
 });

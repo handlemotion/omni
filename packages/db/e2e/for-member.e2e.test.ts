@@ -130,6 +130,10 @@ describe("forMember isolation", () => {
     });
     expect(await asAlice.slaSettings(billingThread!.mailboxId)).toBeNull();
     expect(await forMember(db, carol).slaSettings(aliceThread!.mailboxId)).toBeNull();
+    const year = { from: new Date("2026-01-01T00:00:00Z"), to: new Date("2027-01-01T00:00:00Z") };
+    expect((await asAlice.inboxReport(aliceThread!.mailboxId, year))?.created.count).toBe(1);
+    expect(await asAlice.inboxReport(billingThread!.mailboxId, year)).toBeNull();
+    expect(await forMember(db, carol).inboxReport(aliceThread!.mailboxId, year)).toBeNull();
     expect(await forMember(db, carol).threadAudience(hello.threadId)).toBeNull();
     expect(
       (await asAlice.listConversations({ mailboxId: aliceThread!.mailboxId, view: "all" })).map(

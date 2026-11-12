@@ -139,6 +139,23 @@ const bulkBody = z.object({
   change: bulkChange,
 });
 const autoAssignBody = z.object({ enabled: z.boolean() });
+const DAY = 86_400_000;
+/** A report covers at most this many days. */
+const REPORT_MAX_DAYS = 92;
+const reportQuery = z
+  .object({
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
+  })
+  .transform(({ from, to }, ctx) => {
+    const end = to ? new Date(to) : new Date();
+    const start = from ? new Date(from) : new Date(end.getTime() - 30 * DAY);
+    if (start >= end || end.getTime() - start.getTime() > REPORT_MAX_DAYS * DAY) {
+      ctx.addIssue({ code: "custom", message: `from before to, at most ${REPORT_MAX_DAYS} days` });
+      return z.NEVER;
+    }
+    return { from: start, to: end };
+  });
 
 function domainChange(change: z.infer<typeof bulkChange>, memberId: string): ConversationChange {
   switch (change.type) {
@@ -516,6 +533,18 @@ export const conversations = new Hono<AppEnv>()
     );
     if (!ok) notFound();
     return c.json({ ok: true as const });
+  })
+
+  /**
+   * The inbox's report for `[from, to)` (default: the last 30 days): new conversations by
+   * assignee and tag, first response and resolution times (count, median and p90 in seconds),
+   * and who resolved them.
+   */
+  .get("/mailboxes/:id/report", zValidator("query", reportQuery), async (c) => {
+    const range = c.req.valid("query");
+    const report = await forMember(c.var.db, c.var.member.id).inboxReport(c.req.param("id"), range);
+    if (!report) notFound();
+    return c.json({ from: range.from.toISOString(), to: range.to.toISOString(), ...report });
   })
 
   .get("/mailboxes/:id/tags", async (c) => {
