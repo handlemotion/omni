@@ -4,6 +4,7 @@
 // Licensed for closed-source use only: never publish this package's glyphs in public code.
 
 export { IconArrowLeft } from "central-icons-outlined/IconArrowLeft";
+export { IconArrowRotateClockwise } from "central-icons-outlined/IconArrowRotateClockwise";
 export { IconArrowUpRight } from "central-icons-outlined/IconArrowUpRight";
 export { IconCheckmark1 as IconCheck } from "central-icons-outlined/IconCheckmark1";
 export { IconChevronDownMedium as IconChevronDown } from "central-icons-outlined/IconChevronDownMedium";

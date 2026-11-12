@@ -73,8 +73,14 @@ function Line(props: { label: string; children: ReactNode; trailing?: ReactNode 
     <div className="flex min-h-6 items-center gap-3">
       <dt className="w-12 shrink-0 text-xs/4 text-muted-foreground">{props.label}</dt>
       <dd className="flex min-w-0 flex-1 items-center justify-between gap-3">
-        <span className="min-w-0 flex-1 text-xs/4">{props.children}</span>
-        {props.trailing}
+        <span className="min-w-0 flex-1 text-end text-xs/4">{props.children}</span>
+        {/* A line without a button keeps its place (26px less the -6px pull), so every value's
+            right edge lines up; `null` means the content brings its own button. */}
+        {props.trailing === undefined ? (
+          <span aria-hidden className="w-5 shrink-0" />
+        ) : (
+          props.trailing
+        )}
       </dd>
     </div>
   );
@@ -197,13 +203,15 @@ export function DnsRecordsTable({
             >
               <dl className="-m-px flex flex-col gap-2 rounded-lg border border-border bg-background px-4 pt-2 pb-3 text-foreground">
                 <Line label="Type">
-                  <span className="font-semibold">{record.type}</span>
+                  <span>{record.type}</span>
                 </Line>
                 <Line label="Name" {...copyable(record, "name")} />
                 {/* A value that can't be shown takes the content and trailing place. */}
                 <Line
                   label="Value"
-                  {...(shown === undefined ? copyable(record, "value") : { children: shown })}
+                  {...(shown === undefined
+                    ? copyable(record, "value")
+                    : { children: shown, trailing: null })}
                 />
               </dl>
               <StatusBanner
