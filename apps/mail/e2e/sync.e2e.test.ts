@@ -1,7 +1,9 @@
 import { forMember, schema } from "@omni/db";
 import { createMember } from "@omni/db/testing";
 import { eq } from "drizzle-orm";
-import { readFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailboxConnection, type NewMessageEvent } from "../src/mailbox-connection.ts";
 import { PgMailStore } from "../src/pg-store.ts";
@@ -92,6 +94,93 @@ describe("sync into Postgres against GreenMail", () => {
     expect(Buffer.from((await objects.get(csv?.r2Key ?? "missing")) ?? []).toString()).toBe(
       "q,revenue\n1,100\n",
     );
+  });
+
+  it("streams a large message through temp files and stores what the in-memory path stores", async () => {
+    // A 300 KB attachment next to the cid image and HTML of the Q3 report.
+    const big = randomBytes(300 * 1024);
+    const raw = htmlWithAttachments().replace(
+      "--mixed--",
+      [
+        "--mixed",
+        "Content-Type: application/pdf",
+        "Content-Disposition: attachment; filename=scan.pdf",
+        "Content-Transfer-Encoding: base64",
+        "",
+        big.toString("base64").replace(/.{76}/g, "$&\r\n"),
+        "--mixed--",
+      ].join("\r\n"),
+    );
+    const viaMemory = await seedMailbox(db);
+    const viaFile = await seedMailbox(db);
+    for (const { box } of [viaMemory, viaFile]) {
+      await otherClient(box, (client) => client.append("INBOX", raw, []));
+    }
+    const spooled = () =>
+      readdir(tmpdir()).then((names) => names.filter((n) => n.startsWith("omni-")));
+    const before = await spooled();
+
+    await connect(viaMemory.box).start();
+    // The real store, noting which path each message came by.
+    const paths: string[] = [];
+    const noting = Object.create(store) as PgMailStore;
+    noting.storeMessage = (mailboxId, fetched) => {
+      paths.push(fetched.raw instanceof Uint8Array ? "memory" : "file");
+      return store.storeMessage(mailboxId, fetched);
+    };
+    const streaming = new MailboxConnection(viaFile.box, {
+      store: noting,
+      logger,
+      streamAboveBytes: 64 * 1024,
+    });
+    connections.push(streaming);
+    await streaming.start();
+
+    const read = async (key: string | null | undefined) =>
+      Buffer.from((await objects.get(key ?? "missing")) ?? []);
+    const [inMemory] = await stored(db, viaMemory.box.id, "INBOX");
+    const [streamed] = await stored(db, viaFile.box.id, "INBOX");
+    // The exact server bytes, and the same objects and rows either way.
+    expect((await read(streamed?.r2Key)).toString()).toBe((await read(inMemory?.r2Key)).toString());
+    expect(streamed?.r2Key?.split("/").at(-1)).toBe(inMemory?.r2Key?.split("/").at(-1));
+    expect((await read(streamed?.htmlR2Key)).toString()).toBe(
+      (await read(inMemory?.htmlR2Key)).toString(),
+    );
+    expect(streamed?.cleanText).toBe(inMemory?.cleanText);
+    const files = async (messageId: string | undefined) =>
+      (
+        await db
+          .select()
+          .from(schema.attachments)
+          .where(eq(schema.attachments.messageId, messageId ?? ""))
+      )
+        .map((f) => ({
+          ...f,
+          id: "",
+          orgId: "",
+          messageId: "",
+          createdAt: null,
+          hash: f.r2Key.split("/").at(-1),
+          r2Key: "",
+        }))
+        .toSorted((a, b) => (a.filename ?? "").localeCompare(b.filename ?? ""));
+    const streamedFiles = await files(streamed?.messageId);
+    expect(streamedFiles).toEqual(await files(inMemory?.messageId));
+    expect(streamedFiles.map((f) => [f.filename, f.size])).toEqual([
+      ["logo.png", 16],
+      ["report.csv", 16],
+      ["scan.pdf", big.length],
+    ]);
+    const pdf = (
+      await db
+        .select()
+        .from(schema.attachments)
+        .where(eq(schema.attachments.messageId, streamed?.messageId ?? ""))
+    ).find((f) => f.filename === "scan.pdf");
+    expect((await read(pdf?.r2Key)).equals(big)).toBe(true);
+    expect(paths).toEqual(["file"]);
+    // Every temp file is gone.
+    expect(await spooled()).toEqual(before);
   });
 
   it("stores a forward's original and marks an out-of-office reply as automated", async () => {

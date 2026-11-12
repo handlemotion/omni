@@ -4,6 +4,8 @@
 // Every method must be idempotent: the engine may repeat any call after a crash or a reconnect,
 // and the IMAP server stays the source of truth (a full re-sync must converge).
 
+import type { SpooledFile } from "./spool.ts";
+
 export type FolderRole = "inbox" | "sent" | "archive" | "trash" | "drafts" | "junk" | "other";
 
 export interface FolderInfo {
@@ -23,8 +25,12 @@ export interface SyncPosition {
 export interface FetchedMessage {
   folder: string;
   uid: number;
-  /** The exact RFC 5322 bytes from the server. Goes to R2 unchanged. */
-  raw: Uint8Array;
+  /**
+   * The exact RFC 5322 bytes from the server. Goes to R2 unchanged. A large message arrives
+   * spooled to a temp file instead (`spool.ts`); the store reads it from there and the caller
+   * removes the file afterwards.
+   */
+  raw: Uint8Array | SpooledFile;
   flags: string[];
   modseq: bigint | null;
   internalDate: Date | null;

@@ -1,8 +1,16 @@
 import { EventEmitter } from "node:events";
 import { Data, Deferred, Duration, Effect, Fiber, Schedule, Semaphore } from "effect";
-import { ImapFlow, type ListResponse } from "imapflow";
+import { type FetchMessageObject, ImapFlow, type ListResponse } from "imapflow";
 import type { Logger } from "./log.ts";
-import type { FlagChange, FolderInfo, FolderRole, MailStore, SyncPosition } from "./ports.ts";
+import type {
+  FetchedMessage,
+  FlagChange,
+  FolderInfo,
+  FolderRole,
+  MailStore,
+  SyncPosition,
+} from "./ports.ts";
+import { discard, isSpooled, spool } from "./spool.ts";
 import { backoff } from "./timing.ts";
 
 export interface ServerEndpoint {
@@ -94,6 +102,11 @@ export interface ConnectionOptions {
   batchSize?: number;
   /** A fetch batch also stops at this many bytes, so big messages come one at a time. */
   batchBytes?: number;
+  /**
+   * A message larger than this is streamed to a temp file and parsed from there, never held in
+   * memory: parsing costs several times a message's size, and the VM is small.
+   */
+  streamAboveBytes?: number;
   reconnectBaseMs?: number;
   reconnectMaxMs?: number;
   /**
@@ -170,6 +183,7 @@ export class MailboxConnection extends EventEmitter<Events> {
   private readonly log: Logger;
   private readonly batchSize: number;
   private readonly batchBytes: number;
+  private readonly streamAboveBytes: number;
   private readonly reconnectBaseMs: number;
   private readonly reconnectMaxMs: number;
   private readonly stableAfterMs: number;
@@ -199,6 +213,7 @@ export class MailboxConnection extends EventEmitter<Events> {
     this.log = options.logger.child({ mailboxId: mailbox.id });
     this.batchSize = options.batchSize ?? 50;
     this.batchBytes = options.batchBytes ?? 16 * 1024 * 1024;
+    this.streamAboveBytes = options.streamAboveBytes ?? 4 * 1024 * 1024;
     this.reconnectBaseMs = options.reconnectBaseMs ?? 1_000;
     this.reconnectMaxMs = options.reconnectMaxMs ?? 5 * 60_000;
     this.stableAfterMs = options.stableAfterMs ?? 60_000;
@@ -675,8 +690,38 @@ export class MailboxConnection extends EventEmitter<Events> {
       result.flagsChanged = flagChanges.length;
 
       let consecutiveFailures = 0;
-      for await (const batch of this.sizedBatches(client, added)) {
+      const store = async (fetched: FetchedMessage) => {
+        try {
+          const { created } = await this.store.storeMessage(mailboxId, fetched);
+          consecutiveFailures = 0;
+          if (created) {
+            result.added++;
+            this.emit("message", { mailboxId, folder: path, role, uid: fetched.uid });
+          }
+        } catch (error) {
+          // One unparseable or unstorable message must not block the folder. It stays out of the
+          // index, so the next sync's UID diff retries it. A run of failures means storage is
+          // down: give up on the folder rather than walking the whole mailbox.
+          result.failed++;
+          consecutiveFailures++;
+          this.log.warn("sync.message_failed", { folder: path, uid: fetched.uid, error });
+          if (consecutiveFailures >= MAX_CONSECUTIVE_STORE_FAILURES) throw error;
+        }
+      };
+      for await (const { uids: batch, large } of this.sizedBatches(client, added)) {
         this.throwIfStopped();
+        if (large) {
+          // One message too big to hold in memory: streamed to a temp file, never buffered.
+          const fetched = await this.fetchLarge(client, path, batch[0] ?? 0);
+          if (!fetched) continue;
+          try {
+            await store(fetched);
+          } finally {
+            if (isSpooled(fetched.raw)) await discard(fetched.raw.path);
+          }
+          this.throwIfStopped();
+          continue;
+        }
         for await (const msg of client.fetch(
           batch.join(","),
           {
@@ -691,30 +736,7 @@ export class MailboxConnection extends EventEmitter<Events> {
           // Finish the message in hand, then stop; the rest of the batch is fetched next start.
           if (this.stopped) continue;
           if (!msg.source) continue;
-          try {
-            const { created } = await this.store.storeMessage(mailboxId, {
-              folder: path,
-              uid: msg.uid,
-              raw: msg.source,
-              flags: sortedFlags(msg.flags),
-              modseq: msg.modseq ?? null,
-              internalDate: msg.internalDate ? new Date(msg.internalDate) : null,
-              ...(msg.threadId ? { providerThreadId: msg.threadId } : {}),
-            });
-            consecutiveFailures = 0;
-            if (created) {
-              result.added++;
-              this.emit("message", { mailboxId, folder: path, role, uid: msg.uid });
-            }
-          } catch (error) {
-            // One unparseable or unstorable message must not block the folder. It stays out of the
-            // index, so the next sync's UID diff retries it. A run of failures means storage is
-            // down: give up on the folder rather than walking the whole mailbox.
-            result.failed++;
-            consecutiveFailures++;
-            this.log.warn("sync.message_failed", { folder: path, uid: msg.uid, error });
-            if (consecutiveFailures >= MAX_CONSECUTIVE_STORE_FAILURES) throw error;
-          }
+          await store({ ...fetchedFields(path, msg), raw: msg.source });
         }
         this.throwIfStopped();
       }
@@ -742,9 +764,13 @@ export class MailboxConnection extends EventEmitter<Events> {
   /**
    * Splits `uids` (newest first) into fetch batches of at most `batchSize` messages and
    * `batchBytes` bytes, so memory stays bounded however big the mail is: a message larger than
-   * the byte budget is fetched on its own. Sizes come from one cheap RFC822.SIZE fetch per chunk.
+   * the byte budget is fetched on its own, and one above `streamAboveBytes` is marked `large`
+   * to be streamed. Sizes come from one cheap RFC822.SIZE fetch per chunk.
    */
-  private async *sizedBatches(client: ImapFlow, uids: number[]): AsyncGenerator<number[]> {
+  private async *sizedBatches(
+    client: ImapFlow,
+    uids: number[],
+  ): AsyncGenerator<{ uids: number[]; large: boolean }> {
     const SIZE_CHUNK = 500;
     let batch: number[] = [];
     let bytes = 0;
@@ -762,11 +788,15 @@ export class MailboxConnection extends EventEmitter<Events> {
         // Expunged since the UID search: nothing to fetch.
         if (!sizes.has(uid)) continue;
         const size = sizes.get(uid) ?? 0;
+        if (size > this.streamAboveBytes) {
+          yield { uids: [uid], large: true };
+          continue;
+        }
         if (
           batch.length > 0 &&
           (batch.length >= this.batchSize || bytes + size > this.batchBytes)
         ) {
-          yield batch;
+          yield { uids: batch, large: false };
           batch = [];
           bytes = 0;
         }
@@ -774,7 +804,32 @@ export class MailboxConnection extends EventEmitter<Events> {
         bytes += size;
       }
     }
-    if (batch.length > 0) yield batch;
+    if (batch.length > 0) yield { uids: batch, large: false };
+  }
+
+  /** A message's fields, then its bytes streamed to a temp file. Null if it was expunged. */
+  private async fetchLarge(
+    client: ImapFlow,
+    path: string,
+    uid: number,
+  ): Promise<FetchedMessage | null> {
+    const msg = await client.fetchOne(
+      String(uid),
+      {
+        uid: true,
+        flags: true,
+        internalDate: true,
+        ...(this.capabilities?.gmail ? { threadId: true } : {}),
+      },
+      { uid: true },
+    );
+    if (!msg) return null;
+    const download = await client.download(String(uid), undefined, {
+      uid: true,
+      chunkSize: 1024 * 1024,
+    });
+    if (!download.content) return null;
+    return { ...fetchedFields(path, msg), raw: await spool(download.content) };
   }
 }
 
@@ -795,6 +850,17 @@ function roleOf(folder: ListResponse, gmail: boolean): FolderRole {
   // Gmail archives by removing the Inbox label, which leaves the message in All Mail only.
   if (gmail && folder.specialUse === "\\All") return "archive";
   return (folder.specialUse && ROLE_BY_SPECIAL_USE[folder.specialUse]) || "other";
+}
+
+function fetchedFields(path: string, msg: FetchMessageObject): Omit<FetchedMessage, "raw"> {
+  return {
+    folder: path,
+    uid: msg.uid,
+    flags: sortedFlags(msg.flags),
+    modseq: msg.modseq ?? null,
+    internalDate: msg.internalDate ? new Date(msg.internalDate) : null,
+    ...(msg.threadId ? { providerThreadId: msg.threadId } : {}),
+  };
 }
 
 function sortedFlags(flags: Set<string> | undefined): string[] {

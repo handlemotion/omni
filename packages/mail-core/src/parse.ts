@@ -1,6 +1,14 @@
 import { Buffer } from "node:buffer";
-import type { AddressObject, EmailAddress, HeaderLines, ParsedMail } from "mailparser";
-import { simpleParser } from "mailparser";
+import { type Readable, Transform } from "node:stream";
+import type {
+  AddressObject,
+  AttachmentStream,
+  EmailAddress,
+  HeaderLines,
+  MessageText,
+  ParsedMail,
+} from "mailparser";
+import { MailParser, simpleParser } from "mailparser";
 import { AUTOMATED_HEADERS, type Automated, automatedKind, bouncedMessageId } from "./automated.ts";
 
 export interface Address {
@@ -107,7 +115,36 @@ export async function parseMessage(raw: Uint8Array | string): Promise<ParseResul
     mail = await simpleParser(topHeaders(source), PARSER_OPTIONS);
     bodySkipped = true;
   }
+  const message = await describe(mail, bodySkipped);
+  return {
+    message,
+    attachmentContents: mail.attachments.map((a) => new Uint8Array(a.content)),
+  };
+}
 
+/**
+ * `parseMessage` for a message too big to hold in memory: reads `open()` once (twice if its MIME
+ * structure breaks the parser's limits) and hands each attachment's decoded content to
+ * `saveAttachment` as a stream, in `message.attachments` order, without buffering it. The stream
+ * must be read to its end before the promise settles.
+ */
+export async function parseMessageStream(
+  open: () => Readable,
+  saveAttachment: (index: number, content: Readable) => Promise<void>,
+): Promise<{ message: ParsedMessage }> {
+  let mail: ParsedMail;
+  let bodySkipped = false;
+  try {
+    mail = await streamParser(open(), saveAttachment);
+  } catch (error) {
+    if ((error as { code?: unknown }).code !== "EMAXLEN") throw error;
+    mail = await simpleParser(topHeaders(await headBytes(open())), PARSER_OPTIONS);
+    bodySkipped = true;
+  }
+  return { message: await describe(mail, bodySkipped) };
+}
+
+async function describe(mail: ParsedMail, bodySkipped: boolean): Promise<ParsedMessage> {
   const headerId = firstMessageId(mail.messageId);
   const from = addresses(mail.from)[0] ?? null;
   const message: ParsedMessage = {
@@ -136,10 +173,114 @@ export async function parseMessage(raw: Uint8Array | string): Promise<ParseResul
   message.inReplyTo ??= message.automated?.bouncedMessageId ?? null;
   if (bodySkipped) message.bodySkipped = true;
 
-  return {
-    message: withoutNul(message),
-    attachmentContents: mail.attachments.map((a) => new Uint8Array(a.content)),
-  };
+  return withoutNul(message);
+}
+
+// Returned-message parts are read for bounce threading (`automated`); they are small.
+const KEEP_IN_MEMORY_MAX = 1024 * 1024;
+
+/**
+ * mailparser's `simpleParser`, except that attachment content goes to `save` as it is decoded
+ * instead of into a Buffer. Returned-message parts (bounces) are also kept, up to 1 MB, for
+ * `automated`. Attachment sizes are counted here: the decoder's own is set too late.
+ */
+function streamParser(
+  input: Readable,
+  save: (index: number, content: Readable) => Promise<void>,
+): Promise<ParsedMail> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      input.destroy();
+      parser.destroy();
+      reject(error);
+    };
+    const mail = { attachments: [] } as unknown as ParsedMail & Record<string, unknown>;
+    const parser = new MailParser(PARSER_OPTIONS);
+    parser.on("error", fail);
+    parser.on("headers", (headers) => {
+      mail.headers = headers;
+      mail.headerLines = (parser as unknown as { headerLines: HeaderLines }).headerLines;
+    });
+    let reading = false;
+    const read = (): void => {
+      reading = true;
+      const data = parser.read() as MessageText | AttachmentStream | null;
+      if (data === null) {
+        reading = false;
+        return;
+      }
+      if (data.type === "text") {
+        if (data.text !== undefined) mail.text = data.text;
+        if (data.html !== undefined) mail.html = data.html;
+        read();
+        return;
+      }
+      const attachment = data;
+      const index = mail.attachments.length;
+      const keep = RETURNED_PARTS.has(attachment.contentType.toLowerCase());
+      const kept: Buffer[] = [];
+      let size = 0;
+      const counted = new Transform({
+        transform(chunk: Buffer, _encoding, done) {
+          size += chunk.length;
+          if (keep && size <= KEEP_IN_MEMORY_MAX) kept.push(chunk);
+          done(null, chunk);
+        },
+      });
+      attachment.content.on("error", fail);
+      const saved = save(index, attachment.content.pipe(counted));
+      mail.attachments.push(attachment as unknown as ParsedMail["attachments"][number]);
+      saved.then(() => {
+        const entry = mail.attachments[index] as unknown as { content: Buffer; size: number };
+        entry.content = Buffer.concat(kept);
+        entry.size = size;
+        attachment.release?.();
+        read();
+      }, fail);
+    };
+    parser.on("readable", () => {
+      if (!reading) read();
+    });
+    parser.on("end", () => {
+      for (const key of [
+        "subject",
+        "references",
+        "date",
+        "to",
+        "from",
+        "cc",
+        "bcc",
+        "message-id",
+        "in-reply-to",
+        "reply-to",
+      ]) {
+        if (mail.headers?.has(key)) {
+          mail[key.replace(/-([a-z])/g, (_m, c: string) => c.toUpperCase())] =
+            mail.headers.get(key);
+        }
+      }
+      if (settled) return;
+      settled = true;
+      resolve(mail);
+    });
+    input.once("error", fail).pipe(parser);
+  });
+}
+
+/** The start of a stream, enough to hold the top-level header block. */
+async function headBytes(input: Readable): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let length = 0;
+  for await (const chunk of input) {
+    chunks.push(chunk as Buffer);
+    length += (chunk as Buffer).length;
+    if (length >= 4 * 1024 * 1024) break;
+  }
+  input.destroy();
+  return Buffer.concat(chunks);
 }
 
 /** Postgres text rejects U+0000, and mail carries it in subjects, bodies and filenames. */

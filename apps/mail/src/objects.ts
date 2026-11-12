@@ -2,9 +2,13 @@
 // S3 API (the local stack's gateway, MinIO, AWS) elsewhere. Keys are content hashes, so writing
 // the same object twice is harmless and a re-sync converges.
 import { AwsClient } from "aws4fetch";
+import { createReadStream } from "node:fs";
+import { Readable } from "node:stream";
 
 export interface ObjectStore {
   put(key: string, body: Uint8Array | string, contentType: string): Promise<void>;
+  /** `put` streamed from a file, for objects too big to hold in memory. */
+  putFile(key: string, file: { path: string; size: number }, contentType: string): Promise<void>;
   get(key: string): Promise<Uint8Array | null>;
 }
 
@@ -29,6 +33,14 @@ export function createS3Store(options: S3Options): ObjectStore {
   const base = `${options.endpoint.replace(/\/+$/, "")}/${encodeURIComponent(options.bucket)}`;
   const url = (key: string) => `${base}/${key.split("/").map(encodeURIComponent).join("/")}`;
 
+  const checked = async (key: string, response: Response) => {
+    if (!response.ok) {
+      // The S3 error document can echo the canonical request: keep only its start.
+      const detail = (await response.text()).slice(0, 200);
+      throw new Error(`object put ${key} failed: ${response.status} ${detail}`);
+    }
+  };
+
   return {
     async put(key, body, contentType) {
       const response = await client.fetch(url(key), {
@@ -36,11 +48,22 @@ export function createS3Store(options: S3Options): ObjectStore {
         body: typeof body === "string" ? body : new Uint8Array(body),
         headers: { "content-type": contentType },
       });
-      if (!response.ok) {
-        // The S3 error document can echo the canonical request: keep only its start.
-        const detail = (await response.text()).slice(0, 200);
-        throw new Error(`object put ${key} failed: ${response.status} ${detail}`);
-      }
+      await checked(key, response);
+    },
+    async putFile(key, file, contentType) {
+      // A signed hash of the body would mean reading the file twice; TLS already protects it,
+      // and the key is the content's own hash.
+      const response = await client.fetch(url(key), {
+        method: "PUT",
+        body: Readable.toWeb(createReadStream(file.path)) as ReadableStream<Uint8Array>,
+        headers: {
+          "content-type": contentType,
+          "content-length": String(file.size),
+          "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+        },
+        duplex: "half",
+      } as RequestInit);
+      await checked(key, response);
     },
     async get(key) {
       const response = await client.fetch(url(key));
