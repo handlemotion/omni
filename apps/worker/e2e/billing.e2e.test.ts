@@ -424,6 +424,12 @@ test("one free trial per account: the same person's next workspace pays, even af
     .update(schema.sessions)
     .set({ activeOrganizationId: second.id })
     .where(eq(schema.sessions.userId, userId));
+  // That write stands in for `set-active`, which also renews the session cookie cache: drop the
+  // cached copy so the next request reads the session as the database now has it.
+  first.cookie = first.cookie
+    .split("; ")
+    .filter((cookie) => !cookie.includes("session_data"))
+    .join("; ");
 
   const trial = () =>
     api(worker, "/billing/trial", first.cookie, {

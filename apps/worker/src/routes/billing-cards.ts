@@ -3,7 +3,6 @@
 // checkout and the portal; with billing off every route answers 404. Card numbers never reach
 // Omni: a card is added by a SetupIntent the browser confirms with Stripe.js, and Omni sees only
 // its brand, last four and expiry.
-import { zValidator } from "@hono/zod-validator";
 import { createStripeClient } from "@omni/auth";
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -14,6 +13,7 @@ import { z } from "zod";
 import { requireBilling } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { requireBillingManager, workspaceCustomer } from "./billing.ts";
+import { zValidator } from "../validator.ts";
 
 type Ctx = { var: AppEnv["Variables"] };
 

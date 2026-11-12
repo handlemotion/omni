@@ -3,7 +3,6 @@
 // invitations are Better Auth's too. Provider work (Purelymail, IMAP logins) and DNS lookups happen
 // only in the mail service, which the Worker asks over the signed channel; the Worker never holds
 // a mailbox credential.
-import { zValidator } from "@hono/zod-validator";
 import { mayCreateOrganization } from "@omni/auth";
 import {
   PROVISION_MAILBOX_PATH,
@@ -52,6 +51,7 @@ import {
 import { domainConnectUrl } from "../dns-check.ts";
 import { callMailService, MailServiceError } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
+import { zValidator } from "../validator.ts";
 
 const requireDomainAdmin = createMiddleware<AppEnv>(async (c, next) => {
   if (!(DOMAIN_ADMIN_ROLES as readonly string[]).includes(c.var.member.role)) {

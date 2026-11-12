@@ -1,6 +1,5 @@
 // The signed-in person's sign-in emails (ADR 0014): list, add (by a link mailed to the address),
 // verify, make primary, remove. Per user, not per member, so it works before any organization.
-import { zValidator } from "@hono/zod-validator";
 import {
   listSignInEmails,
   removeSignInEmail,
@@ -14,6 +13,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { resolveSession, systemMailSender, type AppEnv, type SessionUser } from "../context.ts";
 import { checkRateLimit, clientIp, tooManyRequests } from "../rate-limiter.ts";
+import { zValidator } from "../validator.ts";
 
 const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   const resolved = await resolveSession(c);

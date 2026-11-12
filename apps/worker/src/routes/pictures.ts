@@ -2,7 +2,6 @@
 // `organizations.logo`). The bytes live in MAIL_BUCKET under `pictures/`, keyed by owner and
 // content hash, and are served back through `/api/pictures/...` on our own origin: a new upload
 // is a new URL, so a served picture never changes and caches for a year.
-import { zValidator } from "@hono/zod-validator";
 import { setOrganizationLogo, setUserImage } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -11,6 +10,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { resolveSession, type AppEnv } from "../context.ts";
 import { imageHeaders } from "../image-proxy.ts";
+import { zValidator } from "../validator.ts";
 
 /** Largest picture accepted. */
 export const MAX_PICTURE_BYTES = 2 * 1024 * 1024;
@@ -60,9 +60,11 @@ const upload = [
     maxSize: MAX_PICTURE_BYTES + 64 * 1024,
     onError: (c) => c.json({ error: "the picture is larger than 2 MB" }, 413),
   }),
-  zValidator("form", z.object({ file: z.instanceof(File) }), (result, c) => {
-    if (!result.success) return c.json({ error: "send the picture as the form field `file`" }, 400);
-  }),
+  zValidator(
+    "form",
+    z.object({ file: z.instanceof(File) }),
+    "send the picture as the form field `file`",
+  ),
 ] as const;
 
 /** Checks the upload, stores it, and returns its URL. */

@@ -115,7 +115,10 @@ test("lookalike names, claims past the cap and checks past the rate limit are re
   // A Cyrillic "а" in "pаypal": it reads as a name some other workspace may own.
   expect(await api(owner.jar, "POST", "/onboarding/domains", { domain: "pаypal.com" })).toEqual({
     status: 400,
-    body: { error: "that domain name mixes alphabets, so it could pass for another name" },
+    body: {
+      error: "that domain name mixes alphabets, so it could pass for another name",
+      requestId: expect.any(String),
+    },
   });
 
   // Five pending claims at once, then no more until one finishes or expires.

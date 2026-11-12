@@ -1,14 +1,14 @@
 // What sanitized mail HTML loads: remote images through the proxy, inline (cid:) images and
 // attachments by content hash, and the HTML document itself. All need a signed-in member; mail
 // objects are served only when `forMember` (or its member-scoped helpers) can see them.
-import { zValidator } from "@hono/zod-validator";
-import { findMemberAttachmentByHash, forMember } from "@omni/db";
+import { findMemberAttachmentByHash, findMemberMessageHtml } from "@omni/db";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { imageHeaders, isProxiableImageType, proxyImage } from "../image-proxy.ts";
 import { checkRateLimit, tooManyRequests } from "../rate-limiter.ts";
+import { zValidator } from "../validator.ts";
 
 function notFound(): never {
   throw new HTTPException(404, { message: "not found" });
@@ -61,10 +61,14 @@ export const assets = new Hono<AppEnv>()
 
   /** The sanitized HTML of one message, for a sandboxed iframe. No script can run in it. */
   .get("/threads/:id/messages/:messageId/html", async (c) => {
-    const thread = await forMember(c.var.db, c.var.member.id).getThread(c.req.param("id"));
-    const message = thread?.messages.find((m) => m.id === c.req.param("messageId"));
-    if (!message?.htmlR2Key) notFound();
-    const object = await c.env.MAIL_BUCKET.get(message.htmlR2Key);
+    const htmlR2Key = await findMemberMessageHtml(
+      c.var.db,
+      c.var.member.id,
+      c.req.param("id"),
+      c.req.param("messageId"),
+    );
+    if (!htmlR2Key) notFound();
+    const object = await c.env.MAIL_BUCKET.get(htmlR2Key);
     if (!object) notFound();
     const frameAncestors = ["'self'", ...c.var.config.auth.trustedOrigins].join(" ");
     return new Response(object.body, {

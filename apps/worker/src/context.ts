@@ -1,5 +1,5 @@
 import { createAuth, type Auth, type InvitationMessage } from "@omni/auth";
-import { schema, type Db } from "@omni/db";
+import { forUser, schema, type Db } from "@omni/db";
 import { and, asc, eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
@@ -75,19 +75,39 @@ export interface SessionUser {
 }
 
 /**
- * The session's user and their member in the active org (or the user's first org), or null when
- * signed out. `member` is null for a user who belongs to no organization yet.
+ * The session's user and their member, or null when signed out. `member` is null for a user who
+ * belongs to no organization yet. With `threadId` (thread routes, ADR 0014) it is the user's member
+ * in that thread's org when one of their members can see it, so a thread opened from the
+ * cross-workspace list reads and changes as that member without switching the active org;
+ * otherwise, and without `threadId`, it is the member in the active org (or the user's first org).
+ * Both lookups run in one round trip.
  */
-export async function resolveSession(c: {
-  req: { raw: Request };
-  var: { auth: Auth; db: Db };
-}): Promise<{ user: SessionUser; member: Member | null } | null> {
-  const session = await c.var.auth.api.getSession({ headers: c.req.raw.headers });
+export async function resolveSession(
+  c: {
+    req: { raw: Request };
+    var: { auth: Auth; db: Db };
+    header: (name: string, value: string, options?: { append?: boolean }) => void;
+  },
+  threadId?: string,
+): Promise<{ user: SessionUser; member: Member | null } | null> {
+  const { headers, response: session } = await c.var.auth.api.getSession({
+    headers: c.req.raw.headers,
+    returnHeaders: true,
+  });
+  // The session cookie cache (packages/auth) is renewed by Set-Cookie. Pass it on, or once the
+  // cached cookie expires every request reads the session from the database again.
+  for (const cookie of headers.getSetCookie()) c.header("set-cookie", cookie, { append: true });
   if (!session) return null;
   const activeOrg = (session.session as { activeOrganizationId?: string | null })
     .activeOrganizationId;
-  const member = await findMember(c.var.db, session.user.id, activeOrg ?? undefined);
-  return { user: { id: session.user.id, email: session.user.email }, member };
+  const [active, ofThread] = await Promise.all([
+    findMember(c.var.db, session.user.id, activeOrg ?? undefined),
+    threadId ? forUser(c.var.db, session.user.id).memberFor(threadId) : null,
+  ]);
+  return {
+    user: { id: session.user.id, email: session.user.email },
+    member: ofThread ?? active,
+  };
 }
 
 /** `userId`'s member in `orgId` (without one, their oldest membership), or null. */
@@ -111,16 +131,28 @@ export async function findMember(db: Db, userId: string, orgId?: string): Promis
   return member ?? null;
 }
 
+function memberMiddleware(threadParam?: string) {
+  return createMiddleware<AppEnv>(async (c, next) => {
+    // Already resolved by `requireThreadMember` on this request: no second lookup.
+    if (c.get("member")) return next();
+    const resolved = await resolveSession(c, threadParam ? c.req.param(threadParam) : undefined);
+    if (!resolved) throw new HTTPException(401, { message: "sign in first" });
+    if (!resolved.member)
+      throw new HTTPException(403, { message: "not a member of any organization" });
+    c.set("user", resolved.user);
+    c.set("member", resolved.member);
+    await next();
+  });
+}
+
 /** Resolves the session to a member of its active org (or the user's first org). 401 without one. */
-export const requireMember = createMiddleware<AppEnv>(async (c, next) => {
-  const resolved = await resolveSession(c);
-  if (!resolved) throw new HTTPException(401, { message: "sign in first" });
-  if (!resolved.member)
-    throw new HTTPException(403, { message: "not a member of any organization" });
-  c.set("user", resolved.user);
-  c.set("member", resolved.member);
-  await next();
-});
+export const requireMember = memberMiddleware();
+
+/**
+ * `requireMember` for `/threads/:id/*`: the user's member who can see thread `:id` (ADR 0014),
+ * else the active member, and the route answers 404 for a thread none of them can see.
+ */
+export const requireThreadMember = memberMiddleware("id");
 
 /**
  * Auth and notice mail (magic links, invitations, domain notices) goes out through Cloudflare Email

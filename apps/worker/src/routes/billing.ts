@@ -1,7 +1,6 @@
 // The workspace's plan (ADR 0015): what it is, this month's AI triage against the allowance,
 // and the two ways out to Stripe. Checkout and the portal go through Better Auth's Stripe plugin,
 // always for the member's active workspace; its own /api/auth/subscription/* POSTs are closed.
-import { zValidator } from "@hono/zod-validator";
 import { createStripeClient, mayManageBilling, PLAN_NAME } from "@omni/auth";
 import { claimTrial, createStripeSubscription, schema, trialUnavailable } from "@omni/db";
 import { and, eq, isNull } from "drizzle-orm";
@@ -11,6 +10,7 @@ import { z } from "zod";
 import { subscriptionFields } from "../billing-reconcile.ts";
 import { requireBilling, workspaceBilling } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
+import { zValidator } from "../validator.ts";
 
 /** A path in the web app (`/onboarding`), never another origin (`//evil.example`). */
 const appPath = z

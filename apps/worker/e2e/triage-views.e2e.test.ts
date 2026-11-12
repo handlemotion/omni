@@ -220,6 +220,11 @@ test("triage actions need an idempotency key and a thread the member can see", a
       ...(json ? { body: JSON.stringify(json) } : {}),
     });
     expect(unkeyed.status).toBe(400);
+    // The API's one error shape, with a message the app can show (not a raw Zod error object).
+    expect(await unkeyed.json()).toEqual({
+      error: expect.stringContaining("idempotency-key"),
+      requestId: unkeyed.headers.get("x-request-id"),
+    });
   }
   expect(await view(outsider, "all")).toEqual([]);
   expect(

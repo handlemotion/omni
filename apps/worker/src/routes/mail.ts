@@ -1,7 +1,6 @@
 // Member-facing mail routes. Reads go only through `forMember` and the member-scoped helpers in
 // `@omni/db`; changes that must reach IMAP/SMTP are written to the outbox and the mail service
 // is pinged. The Worker never holds mail credentials.
-import { zValidator } from "@hono/zod-validator";
 import {
   enqueueAction,
   forMember,
@@ -24,6 +23,7 @@ import { pingMailService } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { smartSearch } from "../search.ts";
 import { attachmentResponse } from "./assets.ts";
+import { zValidator } from "../validator.ts";
 
 const cursorSchema = z.object({ t: z.iso.datetime(), id: z.string().min(1) });
 

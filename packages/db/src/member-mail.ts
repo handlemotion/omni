@@ -152,3 +152,27 @@ export async function findMemberAttachmentByHash(db: Db, memberId: string, sha25
     .limit(1);
   return row ?? null;
 }
+
+/**
+ * Where one message's sanitized HTML is stored (`messages.html_r2_key`), if it is in `threadId`
+ * and the member can see it. One indexed read, not the whole thread.
+ */
+export async function findMemberMessageHtml(
+  db: Db,
+  memberId: string,
+  threadId: string,
+  messageId: string,
+) {
+  const [row] = await db
+    .select({ htmlR2Key: messages.htmlR2Key })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.id, messageId),
+        eq(messages.threadId, threadId),
+        exists(grantFor(db, memberId, messages.mailboxId, messages.orgId)),
+      ),
+    )
+    .limit(1);
+  return row?.htmlR2Key ?? null;
+}

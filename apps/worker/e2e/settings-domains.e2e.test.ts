@@ -113,11 +113,17 @@ test("a domain another workspace verified, or a name under it, cannot be added o
   const b = await stack.signedInOwner();
   expect(await api(b.jar, "POST", "/onboarding/domains", { domain: a.domain })).toEqual({
     status: 409,
-    body: { error: `${a.domain} is already set up by another workspace` },
+    body: {
+      error: `${a.domain} is already set up by another workspace`,
+      requestId: expect.any(String),
+    },
   });
   expect(await api(b.jar, "POST", "/onboarding/domains", { domain: `mail.${a.domain}` })).toEqual({
     status: 409,
-    body: { error: `mail.${a.domain} is under ${a.domain}, which another workspace set up` },
+    body: {
+      error: `mail.${a.domain} is under ${a.domain}, which another workspace set up`,
+      requestId: expect.any(String),
+    },
   });
   expect((await api(b.jar, "GET", "/onboarding")).body.domains).toEqual([]);
   const locks = await stack.database.db
@@ -134,11 +140,11 @@ test("a plain member can neither add nor remove a domain", async () => {
   const member = await teammate(a.orgId, "member");
   expect(await api(member.jar, "POST", "/onboarding/domains", { domain: newDomain() })).toEqual({
     status: 403,
-    body: { error: "only owners and admins can set up mail" },
+    body: { error: "only owners and admins can set up mail", requestId: expect.any(String) },
   });
   expect(await api(member.jar, "POST", `/onboarding/domains/${a.domainId}/release`)).toEqual({
     status: 403,
-    body: { error: "only owners and admins can set up mail" },
+    body: { error: "only owners and admins can set up mail", requestId: expect.any(String) },
   });
   const claims = await stack.database.db
     .select({ domain: schema.domainClaims.domain, status: schema.domainClaims.status })
@@ -189,11 +195,14 @@ test("removing: an admin withdraws a pending claim, a verified domain stays whil
   // A verified domain: not by an admin, and not by an owner while a mailbox is on it.
   expect(await api(admin.jar, "POST", `/onboarding/domains/${a.domainId}/release`)).toEqual({
     status: 403,
-    body: { error: "only owners can release or move a domain" },
+    body: { error: "only owners can release or move a domain", requestId: expect.any(String) },
   });
   expect(await api(a.jar, "POST", `/onboarding/domains/${a.domainId}/release`)).toEqual({
     status: 409,
-    body: { error: `${a.domain} still has mailboxes in this workspace` },
+    body: {
+      error: `${a.domain} still has mailboxes in this workspace`,
+      requestId: expect.any(String),
+    },
   });
   const [lock] = await db
     .select({ orgId: schema.mailDomains.orgId })

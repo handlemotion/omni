@@ -13,6 +13,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
 import { claimInvitationsForSignInEmails, resolveSignInEmails } from "./sign-in-emails.ts";
+import { refreshSessionCacheOnOrgChange } from "./session-cache.ts";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { multiSession } from "better-auth/plugins/multi-session";
 import { organization } from "better-auth/plugins/organization";
@@ -351,7 +352,14 @@ export function createAuth(env: AuthEnv) {
       ? { google: { ...env.google, prompt: "select_account" } }
       : undefined,
     user: { modelName: "users" },
-    session: { modelName: "sessions" },
+    session: {
+      modelName: "sessions",
+      // Every API request reads the session; the signed cookie answers without the two queries
+      // (session, user). The cost: a session revoked elsewhere (sign out a device, sign out
+      // others) keeps working on that device for up to `maxAge`, so keep it short. Membership is
+      // still read from the database per request, so removing a member takes effect at once.
+      cookieCache: { enabled: true, maxAge: 60 },
+    },
     account: {
       modelName: "accounts",
       // One person, one user (ADR 0014): a Google sign-in joins the user who has that address,
@@ -486,6 +494,8 @@ export function createAuth(env: AuthEnv) {
       }),
       // Several accounts signed in on one device; switch with `multiSession.setActive`.
       multiSession(),
+      // Keeps the session cookie cache's active organization in step with the database.
+      refreshSessionCacheOnOrgChange(),
       // An invitation to any of your verified sign-in emails is yours to accept (ADR 0014).
       claimInvitationsForSignInEmails(env.db),
       ...(env.billing ? [billingPlugin(env, env.billing)] : []),
