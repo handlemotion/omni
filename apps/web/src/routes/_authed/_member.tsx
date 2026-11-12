@@ -3,7 +3,11 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
-import { SidebarInset, SidebarProvider } from "../../components/ui/sidebar.tsx";
+import {
+  ResizableSidebarProvider,
+  SidebarResizeGrip,
+} from "../../components/shell/sidebar-resize.tsx";
+import { SidebarInset } from "../../components/ui/sidebar.tsx";
 import { toggleSettings, useSettingsDialog } from "../../hooks/use-settings-dialog.ts";
 import { useShortcut } from "../../hooks/use-shortcuts.ts";
 import { useRealtimeConnection } from "../../hooks/use-realtime.ts";
@@ -41,7 +45,7 @@ function Shell() {
   return (
     // While settings is open the whole app recedes under it: 100% to 95% and fading, as settings
     // settles from 105% to 100% on top (a parallax stack). Same length and curve as the dialog.
-    <SidebarProvider
+    <ResizableSidebarProvider
       className={
         "origin-center transition-[scale,opacity] duration-300 ease-out motion-reduce:transition-none " +
         (settings.isOpen ? "scale-95 opacity-40" : "")
@@ -49,13 +53,14 @@ function Shell() {
     >
       <AppSidebar />
       <SidebarInset>
+        <SidebarResizeGrip />
         <ListSweepProvider>
           <Outlet />
         </ListSweepProvider>
       </SidebarInset>
       <KeyboardShortcuts />
       <LazySettingsDialog />
-    </SidebarProvider>
+    </ResizableSidebarProvider>
   );
 }
 

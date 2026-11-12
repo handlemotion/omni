@@ -2,6 +2,7 @@
 // thin as the type beside them. Each export keeps the name its call sites use; size and colour
 // come from the caller's classes, as before.
 import {
+  Archive,
   ArrowLeft,
   ArrowUpRight,
   Check,
@@ -23,6 +24,10 @@ import {
   LogOut,
   Mail,
   Mailbox,
+  MailOpen,
+  Maximize2,
+  Minimize2,
+  Paperclip,
   Pencil,
   Plus,
   Send,
@@ -51,6 +56,7 @@ function thin(Icon: LucideIcon, name: string) {
   return Thin;
 }
 
+export const IconArchive = thin(Archive, "IconArchive");
 export const IconArrowLeft = thin(ArrowLeft, "IconArrowLeft");
 export const IconArrowUpRight = thin(ArrowUpRight, "IconArrowUpRight");
 export const IconCheck = thin(Check, "IconCheck");
@@ -72,6 +78,10 @@ export const IconLogOut = thin(LogOut, "IconLogOut");
 export const IconList = thin(List, "IconList");
 export const IconMail = thin(Mail, "IconMail");
 export const IconMailbox = thin(Mailbox, "IconMailbox");
+export const IconMailOpen = thin(MailOpen, "IconMailOpen");
+export const IconMaximize = thin(Maximize2, "IconMaximize");
+export const IconMinimize = thin(Minimize2, "IconMinimize");
+export const IconPaperclip = thin(Paperclip, "IconPaperclip");
 export const IconPencil = thin(Pencil, "IconPencil");
 export const IconPlus = thin(Plus, "IconPlus");
 export const IconSend = thin(Send, "IconSend");
