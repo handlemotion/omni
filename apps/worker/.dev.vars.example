@@ -18,8 +18,9 @@ APP_NAME=Omni
 # BETTER_AUTH_URL (the Worker serves the web app on the same origin). Locally, Vite's origin.
 WEB_APP_URL=http://localhost:5173
 # Optional. Google OAuth client ("Web application" type, Google Cloud console). Set both to show
-# "Sign in with Google"; leave both empty to hide it. Authorized redirect URI:
-# <BETTER_AUTH_URL>/api/auth/callback/google.
+# "Sign in with Google" and let members connect a Gmail account; leave both empty to hide both.
+# Authorized redirect URIs: <BETTER_AUTH_URL>/api/auth/callback/google (sign-in) and
+# <BETTER_AUTH_URL>/api/connect/google/callback (connecting Gmail).
 GOOGLE_CLIENT_ID=
 # Secret.
 GOOGLE_CLIENT_SECRET=

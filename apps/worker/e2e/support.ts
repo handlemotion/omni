@@ -54,7 +54,10 @@ export async function createTestDatabase() {
 export type TestDb = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 
 /** Records every request and checks its signature with the real verifier from `@omni/crypto`. */
-export async function startMailServiceEndpoint() {
+export async function startMailServiceEndpoint(
+  /** The answer to a verified request; 202 with no body when absent. */
+  respond?: (request: { path: string; body: string }) => { status: number; json: unknown },
+) {
   const requests: { method: string; path: string; body: string; verified: VerifyResult }[] = [];
   const waiters: (() => void)[] = [];
   const server = createServer(async (req: IncomingMessage, res) => {
@@ -74,7 +77,12 @@ export async function startMailServiceEndpoint() {
       headers,
     });
     requests.push({ method: req.method ?? "GET", path, body, verified });
-    res.writeHead(verified.ok ? 202 : 401).end();
+    const answer = verified.ok && respond ? respond({ path, body }) : null;
+    if (answer) {
+      res
+        .writeHead(answer.status, { "content-type": "application/json" })
+        .end(JSON.stringify(answer.json));
+    } else res.writeHead(verified.ok ? 202 : 401).end();
     waiters.splice(0).forEach((wake) => wake());
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

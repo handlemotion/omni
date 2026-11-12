@@ -49,7 +49,7 @@ Filled in per unit: see each unit's `.env.example`.
 | `AUTH_TRUSTED_ORIGINS` | Worker (auth)                   | no       | Comma-separated web/app origins allowed to call auth.                   |
 | `AUTH_PASSKEY_RP_ID`   | Worker (auth)                   | no       | WebAuthn relying party ID; defaults to the `BETTER_AUTH_URL` host.      |
 | `APP_NAME`             | Worker (auth)                   | no       | Shown in passkey prompts; defaults to `Omni`.                           |
-| `GOOGLE_CLIENT_ID`     | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on sign-in with Google.              |
+| `GOOGLE_CLIENT_ID`     | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on Google sign-in and Gmail connect. |
 | `GOOGLE_CLIENT_SECRET` | Worker (auth)                   | no       | Secret. Set together with `GOOGLE_CLIENT_ID`, or neither.               |
 | `SIGN_UP`              | Worker (auth)                   | no       | `open` (default) or `invitation`: who may sign up (ADR 0018).           |
 | `PURELYMAIL_API_TOKEN` | mail service                    | no       | Secret. Lets onboarding create domains, users and app passwords.        |
@@ -335,6 +335,19 @@ sent back to `/login?error=SIGN_UP_REQUIRES_INVITATION`.
 A Google account whose email matches an existing user signs in as that user only once that
 user's email is verified (any magic-link sign-in verifies it); until then the callback returns
 `?error=account_not_linked`.
+
+#### Connect Gmail
+
+The same OAuth client lets a member connect their own Gmail account as a personal inbox. Add a
+second authorized redirect URI, `<BETTER_AUTH_URL>/api/connect/google/callback`. The consent screen asks for `https://mail.google.com/` (IMAP and SMTP
+with XOAUTH2), which Google treats as a restricted scope, so a public install needs Google's
+verification. The web app sends the member to `GET /api/connect/google/start`; the Worker
+redirects to Google with PKCE, and on the callback hands the one-time code, signed, to the mail
+service, which exchanges it and keeps the refresh token. The Worker never holds a Google token.
+The browser lands on `<WEB_APP_URL>/settings/accounts?google=connected&mailboxId=…`, or
+`?google=error&reason=expired|denied|failed|in_use`. `GET /api/connect/google` says whether
+Google is configured and lists the connected accounts; `DELETE /api/connect/google/:mailboxId`
+disconnects one.
 
 #### Rate limits
 
