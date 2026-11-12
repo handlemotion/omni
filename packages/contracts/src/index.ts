@@ -48,9 +48,26 @@ export const actionFailedEventSchema = z.object({
   requestId: z.string().nullable().optional(),
 });
 
+/** Thread ids one `messages.pruned` event carries at most; the mail service splits the rest. */
+export const MAX_PRUNED_THREADS_PER_EVENT = 500;
+
+/**
+ * Messages deleted on the server were removed from the index (ADR 0013). `threadIds` are the
+ * threads that lost messages; any of them may be gone too, if it was left empty. The Worker
+ * refreshes those threads for open apps and re-runs triage and summary on the ones that remain,
+ * whose latest message may have changed. At least once; both are idempotent.
+ */
+export const messagesPrunedEventSchema = z.object({
+  type: z.literal("messages.pruned"),
+  orgId: z.string().min(1),
+  mailboxId: z.string().min(1),
+  threadIds: z.array(z.string().min(1)).min(1).max(MAX_PRUNED_THREADS_PER_EVENT),
+});
+
 export const mailEventSchema = z.discriminatedUnion("type", [
   messageCreatedEventSchema,
   actionFailedEventSchema,
+  messagesPrunedEventSchema,
 ]);
 
 export const MAX_EVENTS_PER_REQUEST = 100;

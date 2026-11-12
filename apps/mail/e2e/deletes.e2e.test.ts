@@ -5,7 +5,7 @@ import { schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
-import { PgMailStore } from "../src/pg-store.ts";
+import { PgMailStore, type PrunedThreads } from "../src/pg-store.ts";
 import { createTestDatabase, messageRows, seedMailbox, type TestDb } from "./support/db.ts";
 import { deliver, logger, otherClient } from "./support/greenmail.ts";
 import { createTestBucket, links } from "./support/objects.ts";
@@ -16,12 +16,13 @@ let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
 let store: PgMailStore;
 let connections: MailboxConnection[] = [];
+const pruned: PrunedThreads[] = [];
 
 beforeAll(async () => {
   database = await createTestDatabase();
   db = database.db;
   const { objects } = await createTestBucket();
-  store = new PgMailStore({ db, objects, links });
+  store = new PgMailStore({ db, objects, links, onPruned: (event) => pruned.push(event) });
 });
 
 afterAll(async () => {
@@ -99,6 +100,26 @@ it.for(["personal", "shared"] as const)(
     expect(gone).toBeUndefined();
   },
 );
+
+it("deleting the latest reply in another app reports its thread, so the Worker re-summarizes", async () => {
+  const { box, connection } = await connected("shared");
+  const parent = `<order.${box.id}@outside.test>`;
+  await arrive(connection, [
+    [box.address, "Order 7", { messageId: parent }],
+    [box.address, "Re: Order 7 cancel it", { inReplyTo: parent }],
+  ]);
+  const thread = await threadOf(box.id, "Order 7");
+
+  await inOtherApp(connection, "cancel it", null);
+  await connection.syncAll();
+  await connection.syncAll();
+
+  expect(await subjects(box.id)).toEqual(["Order 7"]);
+  // The summary still describes the deleted reply until the Worker hears about it.
+  expect(pruned.filter((p) => p.mailboxId === box.id)).toEqual([
+    { orgId: thread!.orgId, mailboxId: box.id, threadIds: [thread!.id] },
+  ]);
+});
 
 it("a thread moved to Trash in another app leaves the inbox and keeps its messages", async () => {
   const { box, connection } = await connected("shared");

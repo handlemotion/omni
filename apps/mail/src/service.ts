@@ -7,6 +7,7 @@ import {
   pendingNotifications,
   setMailboxStatus,
 } from "@omni/db";
+import { MAX_PRUNED_THREADS_PER_EVENT } from "@omni/contracts";
 import { sql } from "drizzle-orm";
 import { Effect, Fiber } from "effect";
 import type { Hono } from "hono";
@@ -102,6 +103,14 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     db,
     onIngested: ({ folder: _folder, ...message }) =>
       notifier.push({ type: "message.created", ...message }),
+    // Not swept like `message.created`: lost in a crash, the threads only keep a stale summary
+    // until their next message.
+    onPruned: ({ threadIds, ...pruned }) => {
+      for (let i = 0; i < threadIds.length; i += MAX_PRUNED_THREADS_PER_EVENT) {
+        const chunk = threadIds.slice(i, i + MAX_PRUNED_THREADS_PER_EVENT);
+        notifier.push({ type: "messages.pruned", ...pruned, threadIds: chunk });
+      }
+    },
     objects,
     links: { imageProxyUrl: config.IMAGE_PROXY_URL, attachmentUrl: config.ATTACHMENT_URL },
   });

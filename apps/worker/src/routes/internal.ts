@@ -67,7 +67,10 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
       actionRequestId: event.requestId ?? null,
     });
   }
-  if (jobs.length) await c.env.AI_QUEUE.sendBatch(jobs.map((body) => ({ body })));
+  // A Queue takes at most 100 messages per `sendBatch`; one prune can name 500 threads.
+  for (let i = 0; i < jobs.length; i += QUEUE_BATCH_MAX) {
+    await c.env.AI_QUEUE.sendBatch(jobs.slice(i, i + QUEUE_BATCH_MAX).map((body) => ({ body })));
+  }
 
   const { db, close } = openDb(c.env);
   try {
@@ -105,12 +108,17 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     if (queuedActions > 0)
       c.executionCtx.waitUntil(pingMailService({ config, log, requestId: c.var.requestId }));
     if (created.length) await fanOut(c.env, db, config, changedThreads(created), { push: fresh });
+    // Deleted mail: open apps refetch those threads (some are gone); no push for a removal.
+    const pruned = events.filter((e) => e.type === "messages.pruned");
+    if (pruned.length) await fanOut(c.env, db, config, prunedThreads(pruned));
     await notifyFailedActions(c.env, failed);
   } finally {
     c.executionCtx.waitUntil(close());
   }
   return c.json({ ok: true, jobs: jobs.length }, 202);
 });
+
+const QUEUE_BATCH_MAX = 100;
 
 const envelope = z.object({
   events: z
@@ -130,19 +138,34 @@ function changedThreads(events: Extract<MailEvent, { type: "message.created" }>[
   return byMailbox;
 }
 
-/** One AI job per thread that got a new message; flag changes need no AI. */
+function prunedThreads(events: Extract<MailEvent, { type: "messages.pruned" }>[]) {
+  const byMailbox = new Map<string, Set<string>>();
+  for (const event of events) {
+    const threads = byMailbox.get(event.mailboxId) ?? new Set();
+    for (const threadId of event.threadIds) threads.add(threadId);
+    byMailbox.set(event.mailboxId, threads);
+  }
+  return byMailbox;
+}
+
+/**
+ * One AI job per thread that got a new message or lost one (its latest message may differ now);
+ * flag changes need no AI. A job for a thread that is gone ends as `missing`.
+ */
 function aiJobsFor(events: MailEvent[], requestId: string): AiJob[] {
   const threads = new Map<string, AiJob>();
-  for (const event of events) {
-    if (event.type !== "message.created") continue;
-    threads.set(event.threadId, {
+  const add = (event: { orgId: string; mailboxId: string }, threadId: string) =>
+    threads.set(threadId, {
       kind: "thread",
-      threadId: event.threadId,
+      threadId,
       mailboxId: event.mailboxId,
       orgId: event.orgId,
       jobId: crypto.randomUUID(),
       requestId,
     });
+  for (const event of events) {
+    if (event.type === "message.created") add(event, event.threadId);
+    if (event.type === "messages.pruned") for (const id of event.threadIds) add(event, id);
   }
   return [...threads.values()];
 }

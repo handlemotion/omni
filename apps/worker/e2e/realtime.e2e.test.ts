@@ -194,6 +194,42 @@ test("a send that failed for good is told to the member who sent it, and nobody 
   beaSocket.socket.close();
 });
 
+test("mail deleted on the server refreshes its threads for open apps and re-runs their AI", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "initech");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@initech.test");
+  const box = await createMailbox(db, org.id, "help@initech.test");
+  await grant(db, org.id, box.id, ana.id);
+  const kept = await seedMessage(db, box, { subject: "Kept", fromAddress: "x@c.test", uid: 1 });
+  const anaSocket = await connect(await signIn(worker, db, "ana@initech.test"));
+
+  // One thread survives with fewer messages; the others were emptied and deleted. A big purge
+  // names more threads than one Queue `sendBatch` takes (100).
+  const gone = Array.from({ length: 149 }, (_, i) => `deleted-thread-${i}`);
+  const response = await postMailEvents(worker, {
+    events: [
+      {
+        type: "messages.pruned",
+        orgId: org.id,
+        mailboxId: box.id,
+        threadIds: [kept.threadId, ...gone],
+      },
+    ],
+  });
+
+  expect(response.status).toBe(202);
+  // A summary of the thread may quote a deleted message: every thread gets an AI job, and the
+  // ones that are gone end as `missing` in the consumer.
+  expect(await response.json()).toEqual({ ok: true, jobs: 150 });
+  const threadIds = [kept.threadId, ...gone];
+  expect(await anaSocket.next(2)).toEqual([
+    { type: "changed", mailboxId: box.id, threadIds },
+    { type: "thread.changed", mailboxId: box.id, threadIds },
+  ]);
+  anaSocket.socket.close();
+});
+
 test("a page on a foreign origin cannot open the member's socket with their cookie", async () => {
   const { db } = database;
   const org = await createOrg(db, "origins");

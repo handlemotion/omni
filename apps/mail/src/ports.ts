@@ -68,7 +68,7 @@ export interface MailStore {
   pruneMessages(
     mailboxId: string,
     messageIds: string[],
-  ): Promise<{ messages: number; threads: number }>;
+  ): Promise<{ messages: number; threads: number; threadIds: string[] }>;
 }
 
 // Outbox (`mail_actions`). UIDs mean nothing without their folder's UIDVALIDITY, so every action

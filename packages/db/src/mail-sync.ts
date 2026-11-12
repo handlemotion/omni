@@ -467,14 +467,15 @@ export async function orphanedMessages(db: Db, mailboxId: string): Promise<strin
 /**
  * Deletes messages that were deleted on the server: of `messageIds`, those that still have no IMAP
  * copy. A thread left with no messages goes too (its per-member state and AI output cascade); a
- * thread that keeps some takes its last message time from what is left. The caller decides when a
+ * thread that keeps some takes its last message time from what is left. `threadIds` are every
+ * thread that lost a message, deleted or not. The caller decides when a
  * missing copy means deleted rather than mid-move (see `MailboxConnection.syncAll`).
  */
 export async function pruneMessages(
   db: Db,
   input: { mailboxId: string; messageIds: string[] },
-): Promise<{ messages: number; threads: number }> {
-  if (input.messageIds.length === 0) return { messages: 0, threads: 0 };
+): Promise<{ messages: number; threads: number; threadIds: string[] }> {
+  if (input.messageIds.length === 0) return { messages: 0, threads: 0, threadIds: [] };
   // One jsonb parameter, not one per id: a deleted folder can orphan more ids than Postgres binds.
   const anyOf = (ids: string[]) =>
     sql`any(array(select jsonb_array_elements_text(${JSON.stringify(ids)}::text::jsonb)))`;
@@ -490,7 +491,7 @@ export async function pruneMessages(
       )
       .returning({ threadId: messages.threadId });
     const threadIds = [...new Set(removed.map((row) => row.threadId))];
-    if (threadIds.length === 0) return { messages: 0, threads: 0 };
+    if (threadIds.length === 0) return { messages: 0, threads: 0, threadIds };
     const emptied = await tx
       .delete(threads)
       .where(
@@ -507,7 +508,7 @@ export async function pruneMessages(
         updatedAt: new Date(),
       })
       .where(sql`${threads.id} = ${anyOf(threadIds)}`);
-    return { messages: removed.length, threads: emptied.length };
+    return { messages: removed.length, threads: emptied.length, threadIds };
   });
 }
 

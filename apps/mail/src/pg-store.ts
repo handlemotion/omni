@@ -95,6 +95,15 @@ export interface PgMailStoreOptions {
   links: ContentLinks;
   /** Called once per new message row, after it is committed. Must not throw. */
   onIngested?: (message: IngestedMessage) => void;
+  /** Called after a prune removed messages, with every thread that lost one. Must not throw. */
+  onPruned?: (pruned: PrunedThreads) => void;
+}
+
+/** Threads that lost messages deleted on the server; some may be gone (see `pruneMessages`). */
+export interface PrunedThreads {
+  orgId: string;
+  mailboxId: string;
+  threadIds: string[];
 }
 
 export class PgMailStore implements MailStore {
@@ -102,6 +111,7 @@ export class PgMailStore implements MailStore {
   private readonly objects: ObjectStore;
   private readonly links: ContentLinks;
   private readonly onIngested: (message: IngestedMessage) => void;
+  private readonly onPruned: (pruned: PrunedThreads) => void;
   private readonly mailboxes = new Map<string, MailboxRow>();
   /** The tail of each mailbox's thread-and-insert chain (see `oneAtATime`). */
   private readonly inserting = new Map<string, Promise<void>>();
@@ -111,6 +121,7 @@ export class PgMailStore implements MailStore {
     this.objects = options.objects;
     this.links = options.links;
     this.onIngested = options.onIngested ?? (() => {});
+    this.onPruned = options.onPruned ?? (() => {});
   }
 
   async saveFolders(mailboxId: string, folders: FolderInfo[]): Promise<void> {
@@ -244,8 +255,13 @@ export class PgMailStore implements MailStore {
     return orphanedMessages(this.db, mailboxId);
   }
 
-  pruneMessages(mailboxId: string, messageIds: string[]) {
-    return pruneMessages(this.db, { mailboxId, messageIds });
+  async pruneMessages(mailboxId: string, messageIds: string[]) {
+    const pruned = await pruneMessages(this.db, { mailboxId, messageIds });
+    if (pruned.threadIds.length > 0) {
+      const { orgId } = await this.mailbox(mailboxId);
+      this.onPruned({ orgId, mailboxId, threadIds: pruned.threadIds });
+    }
+    return pruned;
   }
 
   private async insert(
