@@ -1,6 +1,7 @@
 import { forMember, schema } from "@omni/db";
 import { createMember } from "@omni/db/testing";
 import { eq } from "drizzle-orm";
+import { readFile } from "node:fs/promises";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailboxConnection, type NewMessageEvent } from "../src/mailbox-connection.ts";
 import { PgMailStore } from "../src/pg-store.ts";
@@ -80,11 +81,41 @@ describe("sync into Postgres against GreenMail", () => {
       .where(eq(schema.attachments.messageId, message?.messageId ?? ""));
     expect(files.map((f) => f.filename).toSorted()).toEqual(["logo.png", "report.csv"]);
     const logo = files.find((f) => f.filename === "logo.png");
+    // The reader shows the cid image in the body and only the CSV as a chip, and offers to load
+    // the one blocked remote image.
+    expect(logo).toMatchObject({ inline: true, contentId: "logo@q3" });
+    expect(files.find((f) => f.filename === "report.csv")?.inline).toBe(false);
+    const [row] = await messageRows(db, box.id);
+    expect(row?.remoteImageCount).toBe(1);
     expect(html).toContain(`src="/api/attachments/${logo?.r2Key.split("/").at(-1)}"`);
     const csv = files.find((f) => f.filename === "report.csv");
     expect(Buffer.from((await objects.get(csv?.r2Key ?? "missing")) ?? []).toString()).toBe(
       "q,revenue\n1,100\n",
     );
+  });
+
+  it("stores a forward's original and marks an out-of-office reply as automated", async () => {
+    const { box } = await seedMailbox(db);
+    const fixture = (name: string) =>
+      readFile(new URL(`../../../fixtures/eml/${name}`, import.meta.url));
+    await otherClient(box, async (client) => {
+      await client.append("INBOX", await fixture("gmail-forward.eml"), []);
+      await client.append("INBOX", await fixture("auto-reply-outlook-out-of-office.eml"), []);
+    });
+    await deliver(box.address, "a person writing");
+
+    await connect(box).start();
+
+    const rows = await messageRows(db, box.id);
+    const bySubject = (prefix: string) => rows.find((m) => m.subject.startsWith(prefix));
+    expect(bySubject("Fwd: Invoice")?.forwarded).toMatchObject({
+      from: expect.stringContaining("billing@northwind.example.net"),
+      subject: "Invoice INV-2026-0412 from Northwind Hosting",
+      text: expect.stringContaining("is due on November 3, 2026"),
+    });
+    // An auto-reply must not reopen a conversation or start an SLA; a person's mail must.
+    expect(bySubject("Automatic reply")?.automated).toBe(true);
+    expect(bySubject("a person writing")).toMatchObject({ automated: false, forwarded: null });
   });
 
   it("joins a reply to its thread by In-Reply-To, and a new subject starts a new thread", async () => {

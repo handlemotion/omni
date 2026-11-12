@@ -22,6 +22,19 @@ import {
 import { uuidv7 } from "uuidv7";
 import { members, organizations, teams } from "./auth.ts";
 
+/**
+ * A forwarded message as `@omni/mail-core/clean` `cleanMessage` extracts it. Declared here, not
+ * imported: the web app type-checks against this schema and must not pull in the Node-only parser.
+ */
+export interface ForwardedMessage {
+  from: string | null;
+  date: string | null;
+  subject: string | null;
+  to: string | null;
+  /** The forwarded body, unstripped: it renders as a quoted card. */
+  text: string;
+}
+
 // Text ids holding a UUIDv7: time-ordered (index friendly) and generated in the app, so a row's
 // id is known before the insert and can double as an idempotency handle.
 const id = () =>
@@ -546,6 +559,8 @@ export const messages = pgTable(
     cleanText: text("clean_text").notNull().default(""),
     /** Remote images the sanitizer replaced; the reader offers to load them. */
     remoteImageCount: integer("remote_image_count").notNull().default(0),
+    /** The message it forwards, when it is a forward (`@omni/mail-core` `cleanMessage`). */
+    forwarded: jsonb("forwarded").$type<ForwardedMessage>(),
     /**
      * Set when the mail service stores the row; cleared once the Worker accepts its
      * `message.created`. A sweep re-sends what is still set after a crash or Worker outage.

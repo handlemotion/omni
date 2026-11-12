@@ -275,23 +275,25 @@ export class PgMailStore implements MailStore {
     );
 
     let htmlR2Key: string | null = null;
+    let remoteImageCount = 0;
     if (message.html !== null) {
       const byCid = new Map(
         files.filter((f) => f.meta.contentId).map((f) => [f.meta.contentId as string, f.hash]),
       );
-      const { html } = sanitizeHtml(message.html, {
+      const sanitized = sanitizeHtml(message.html, {
         proxyUrl: (src) => `${this.links.imageProxyUrl}?url=${encodeURIComponent(src)}`,
         cidUrl: (cid) => {
           const hash = byCid.get(cid);
           return hash ? `${this.links.attachmentUrl}/${hash}` : null;
         },
       });
+      remoteImageCount = sanitized.remoteImageCount;
       htmlR2Key = `${prefix}/html/${sha256(fetched.raw)}.html`;
-      await this.objects.put(htmlR2Key, html, "text/html; charset=utf-8");
+      await this.objects.put(htmlR2Key, sanitized.html, "text/html; charset=utf-8");
     }
 
     const sentAt = message.sentAt ?? fetched.internalDate ?? new Date();
-    const { cleanText } = cleanMessage(message);
+    const { cleanText, forwarded } = cleanMessage(message);
     // One insert per mailbox at a time: an outbox send and an IMAP sync running together would
     // otherwise both miss each other's row when matching a thread, and split one conversation.
     return this.oneAtATime(mailboxId, async () => {
@@ -316,6 +318,10 @@ export class PgMailStore implements MailStore {
         r2Key,
         htmlR2Key,
         cleanText,
+        forwarded,
+        remoteImageCount,
+        // Bounces and auto-replies never reopen a conversation or start an SLA (ADR 0021).
+        automated: parsed.message.automated !== null,
         // Cleared once the Worker accepts `message.created`; until then the sweep re-sends it.
         notifyPending: true,
         attachments: files.map((f) => ({
@@ -323,6 +329,8 @@ export class PgMailStore implements MailStore {
           mimeType: f.meta.mimeType,
           size: f.meta.size,
           r2Key: f.key,
+          inline: f.meta.inline,
+          contentId: f.meta.contentId,
         })),
       });
     });
