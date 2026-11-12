@@ -1,8 +1,23 @@
+import type { HelpdeskRealtimeEvent, MailActionKind } from "@omni/contracts";
 import type { Realtime as RealtimeObject } from "@omni/worker";
 
-/** What the Worker's realtime Durable Object broadcasts, typed from its `broadcast`. */
-export type RealtimeEvent = Parameters<RealtimeObject["broadcast"]>[1];
+/**
+ * What the Worker's realtime Durable Object broadcasts: the events typed from its `broadcast`,
+ * plus the helpdesk events from `@omni/contracts` (ADR 0021).
+ */
+export type RealtimeEvent = Parameters<RealtimeObject["broadcast"]>[1] | HelpdeskRealtimeEvent;
 export type RealtimeStatus = "connecting" | "open" | "closed";
+
+/**
+ * What an app sends on the socket. `presence`: this member is viewing or replying in a
+ * conversation, or `left` it; the Durable Object adds the member and mailbox and tells the
+ * inbox's other members (ADR 0021).
+ */
+export type RealtimeClientMessage = {
+  type: "presence";
+  threadId: string;
+  state: "viewing" | "replying" | "left";
+};
 
 export interface RealtimeOptions {
   /** The Worker's origin; the socket is `/api/realtime` on it. */
@@ -41,11 +56,13 @@ export interface Realtime {
    * reconnects now; an open one is pinged and dropped if it does not answer in time.
    */
   wake(): void;
+  /** Sends on the open socket. False when none is open: nothing is queued. */
+  send(message: RealtimeClientMessage): boolean;
 }
 
 /**
  * Keeps one realtime socket open, reconnecting with jittered exponential backoff, and hands
- * each `changed` event to `onEvent`. Messages it does not know are ignored, so the Worker can
+ * each event it knows to `onEvent`. Messages it does not know are ignored, so the Worker can
  * add event types without breaking older apps.
  */
 export function connectRealtime(options: RealtimeOptions): Realtime {
@@ -143,6 +160,15 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
       current?.close(1000);
       if (current) options.onStatus?.("closed", { reconnected: dropped });
     },
+    send(message) {
+      if (!probe || !socket) return false;
+      try {
+        socket.send(JSON.stringify(message));
+        return true;
+      } catch {
+        return false;
+      }
+    },
     wake() {
       if (stopped) return;
       if (socket) return probe?.();
@@ -181,6 +207,69 @@ function parseEvent(data: string): RealtimeEvent | undefined {
   }
   if (event.type === "domain" && typeof event.domainId === "string") {
     return { type: "domain", domainId: event.domainId };
+  }
+  return parseHelpdeskEvent(value as Record<string, unknown>);
+}
+
+// Checked by hand rather than with the contracts' zod schemas: this runs in the web app's entry
+// chunk, which stays free of full zod. Each event is rebuilt from the fields it declares.
+const PRESENCE_STATES = new Set(["viewing", "replying", "left"]);
+const SLA_TARGETS = new Set(["first_response", "next_response", "resolution"]);
+// A record, so a new action kind in the contracts is a type error here until it is listed.
+const ACTION_KINDS: Record<MailActionKind, true> = {
+  send: true,
+  archive: true,
+  move: true,
+  mark_read: true,
+  mark_unread: true,
+  trash: true,
+  spam: true,
+  not_spam: true,
+};
+
+const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0;
+
+function parseHelpdeskEvent(event: Record<string, unknown>): HelpdeskRealtimeEvent | undefined {
+  const { mailboxId, threadId } = event;
+  if (!isId(mailboxId)) return undefined;
+  switch (event.type) {
+    case "thread.changed": {
+      const { threadIds } = event;
+      if (!Array.isArray(threadIds) || !threadIds.length || !threadIds.every(isId)) return;
+      return { type: "thread.changed", mailboxId, threadIds };
+    }
+    case "note.created":
+      if (!isId(threadId) || !isId(event.noteId)) return;
+      return { type: "note.created", mailboxId, threadId, noteId: event.noteId };
+    case "presence": {
+      const { memberId, state } = event;
+      if (!isId(threadId) || !isId(memberId) || !PRESENCE_STATES.has(state as string)) return;
+      return {
+        type: "presence",
+        mailboxId,
+        threadId,
+        memberId,
+        state: state as "viewing" | "replying" | "left",
+      };
+    }
+    case "action.succeeded": {
+      const { actionId, kind } = event;
+      if (!isId(actionId) || typeof kind !== "string" || !Object.hasOwn(ACTION_KINDS, kind)) return;
+      return { type: "action.succeeded", mailboxId, actionId, kind: kind as MailActionKind };
+    }
+    case "sla.at_risk":
+    case "sla.breached": {
+      const { target, dueAt } = event;
+      if (!isId(threadId) || !SLA_TARGETS.has(target as string)) return;
+      if (typeof dueAt !== "string" || Number.isNaN(Date.parse(dueAt))) return;
+      return {
+        type: event.type,
+        mailboxId,
+        threadId,
+        target: target as "first_response" | "next_response" | "resolution",
+        dueAt,
+      };
+    }
   }
   return undefined;
 }

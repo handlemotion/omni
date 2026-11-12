@@ -1,10 +1,17 @@
 // Live updates: one websocket per workspace the user belongs to (the Durable Object is per org,
 // and lists span every workspace, ADR 0014), turned into cache invalidations. Events say what changed, not its contents, so this marks
 // those queries stale and TanStack Query refetches only the ones on screen.
-import { connectRealtime, type RealtimeEvent, type RealtimeStatus } from "@omni/client";
+import {
+  connectRealtime,
+  type Realtime,
+  type RealtimeClientMessage,
+  type RealtimeEvent,
+  type RealtimeStatus,
+} from "@omni/client";
 import type { QueryClient } from "@tanstack/react-query";
 import { onWake, reportAnswer } from "./connectivity.ts";
 import { addFailure, allPending, failPendingByAction } from "./pending.ts";
+import { applyPresence, clearPresence } from "./presence.ts";
 import { actionQuery } from "./mail-queries.ts";
 import { filterOf, keys } from "./query-keys.ts";
 
@@ -12,6 +19,9 @@ import { filterOf, keys } from "./query-keys.ts";
 const FLUSH_MS = 150;
 
 let status: RealtimeStatus = "closed";
+/** The open sockets by org, so a message about a conversation goes to its workspace. */
+let sockets = new Map<string, Realtime>();
+const openListeners = new Set<(orgId: string) => void>();
 const listeners = new Set<() => void>();
 
 function setStatus(next: RealtimeStatus) {
@@ -60,30 +70,56 @@ export function startRealtime(
     void client.invalidateQueries({ queryKey: keys.searches() });
   };
 
-  const onEvent = (event: RealtimeEvent) => {
-    if (event.type === "changed") {
-      changedMailboxes.add(event.mailboxId);
-      for (const id of event.threadIds) changedThreads.add(id);
-      timer ??= setTimeout(flush, FLUSH_MS);
-      return;
+  const changed = (mailboxId: string, threadIds: readonly string[]) => {
+    changedMailboxes.add(mailboxId);
+    for (const id of threadIds) changedThreads.add(id);
+    timer ??= setTimeout(flush, FLUSH_MS);
+  };
+
+  const onEvent = (orgId: string, event: RealtimeEvent) => {
+    switch (event.type) {
+      // New mail, or the conversation's status, assignee, priority, tags or snooze changed.
+      case "changed":
+      case "thread.changed":
+        return changed(event.mailboxId, event.threadIds);
+      // A note is part of the thread's timeline (its queries sit under `keys.thread`).
+      case "note.created":
+        return changed(event.mailboxId, [event.threadId]);
+      // The thread's due times and the inbox's "SLA at risk" view and count moved.
+      case "sla.at_risk":
+      case "sla.breached":
+        return changed(event.mailboxId, [event.threadId]);
+      case "presence":
+        return applyPresence(orgId, event);
+      case "action.succeeded": {
+        // A reply went out: refetch its thread now rather than waiting for the sync's event.
+        const pending = allPending(client).find((p) => p.actionId === event.actionId);
+        if (pending) changed(event.mailboxId, [pending.threadId]);
+        return;
+      }
+      case "action":
+        if (event.status === "failed")
+          onActionFailed(client, event.actionId, undefined, event.error);
+        return;
+      // A domain's DNS was checked again (the DNS page's auto-check): refetch its verdicts.
+      case "domain":
+        return void client.invalidateQueries({ queryKey: keys.onboarding() });
     }
-    if (event.type === "action" && event.status === "failed") {
-      onActionFailed(client, event.actionId, undefined, event.error);
-    }
-    // A domain's DNS was checked again (the DNS page's auto-check): refetch its verdicts.
-    if (event.type === "domain") void client.invalidateQueries({ queryKey: keys.onboarding() });
   };
 
   const connect = (orgId: string) =>
     connectRealtime({
       baseUrl: window.location.origin,
       orgId,
-      onEvent,
+      onEvent: (event) => onEvent(orgId, event),
       onStatus: (next, { reconnected }) => onStatus(orgId, next, reconnected),
     });
   const onStatus = (orgId: string, next: RealtimeStatus, reconnected: boolean) => {
     if (orgId === activeOrgId) setStatus(next);
+    // Teammates' `left` may be lost while the socket is down; they reappear on their next repeat.
+    if (next === "closed") clearPresence(orgId);
     if (next !== "open") return;
+    for (const listener of openListeners) listener(orgId);
     // The Worker answered. Going online resumes paused mutations and refetches stale queries.
     reportAnswer();
     // Events sent while the socket was down are gone: mark all mail stale. Only queries on
@@ -95,17 +131,33 @@ export function startRealtime(
       void recheckPendingSends(client);
     }
   };
-  const connections = [...new Set([activeOrgId, ...orgIds])].map(connect);
+  const connections = new Map(
+    [...new Set([activeOrgId, ...orgIds])].map((id) => [id, connect(id)]),
+  );
+  sockets = connections;
   const stopWaking = onWake(() => {
-    for (const connection of connections) connection.wake();
+    for (const connection of connections.values()) connection.wake();
   });
 
   return () => {
     clearTimeout(timer);
     stopWaking();
-    for (const connection of connections) connection.close();
+    if (sockets === connections) sockets = new Map();
+    for (const connection of connections.values()) connection.close();
+    clearPresence();
     setStatus("closed");
   };
+}
+
+/** Sends on the workspace's socket. False when it is not open (the message is dropped). */
+export function sendRealtime(orgId: string, message: RealtimeClientMessage): boolean {
+  return sockets.get(orgId)?.send(message) ?? false;
+}
+
+/** Calls `listener(orgId)` whenever a workspace's socket opens, including after a reconnect. */
+export function onRealtimeOpen(listener: (orgId: string) => void): () => void {
+  openListeners.add(listener);
+  return () => openListeners.delete(listener);
 }
 
 function onActionFailed(

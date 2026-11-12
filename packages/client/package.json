@@ -16,6 +16,7 @@
     "hono": "^4.13.14"
   },
   "devDependencies": {
+    "@omni/contracts": "workspace:*",
     "@omni/db": "workspace:*",
     "@omni/worker": "workspace:*",
     "drizzle-orm": "^0.45.4"

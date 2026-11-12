@@ -26,6 +26,16 @@ export const SHORTCUTS = {
   defer: { label: "Defer to Queue", group: "Threads", keys: [["h"]], command: true },
   read: { label: "Mark read or unread", group: "Threads", keys: [["u"]], command: true },
   close: { label: "Close thread", group: "Threads", keys: [["Escape"]], command: true },
+  // Helpdesk conversations (shared inboxes). Resolve and snooze take the keys of done and defer,
+  // which they replace there: a screen binds one or the other, and the key runs whichever is bound.
+  reply: { label: "Reply", group: "Threads", keys: [["r"]], command: true },
+  note: { label: "Add internal note", group: "Threads", keys: [["n"]], command: true },
+  assignToMe: { label: "Assign to me", group: "Threads", keys: [["i"]], command: true },
+  resolve: { label: "Resolve or reopen", group: "Threads", keys: [["e"]], command: true },
+  snooze: { label: "Snooze", group: "Threads", keys: [["h"]], command: true },
+  // A chord, so it works while typing in the composer, where the picker is used.
+  cannedReply: { label: "Insert canned reply", group: "Threads", keys: [["Mod+/"]], command: true },
+  undo: { label: "Undo", group: "General", keys: [["z"]], command: true },
   goInbox: { label: "Inbox", group: "Go to", keys: [["g", "i"]], command: true },
   goQueue: { label: "Queue", group: "Go to", keys: [["g", "q"]], command: true },
   goAll: { label: "All mail", group: "Go to", keys: [["g", "a"]], command: true },
@@ -62,31 +72,34 @@ export function eventKey(event: KeyboardEvent): string | null {
 const SEQUENCE_MS = 1000;
 
 /**
- * Feeds keys in, gets shortcut ids out. `pending` means the key starts a sequence: swallow it
- * and wait for the next one.
+ * Feeds keys in, gets shortcut ids out: every id the keys complete, in table order (a key can
+ * mean done on one screen and resolve on another; the caller runs the one that is bound).
+ * `pending` means the key starts a sequence: swallow it and wait for the next one.
  */
 export function createMatcher() {
   let prefix: string[] = [];
   let at = 0;
-  return (key: string, now = Date.now()): ShortcutId | "pending" | null => {
+  return (key: string, now = Date.now()): ShortcutId[] | "pending" | null => {
     const held = now - at <= SEQUENCE_MS ? prefix : [];
     // A key that ends no sequence may still start one ("g" after a stray "g").
     const found = (held.length ? find([...held, key]) : null) ?? find([key]);
     prefix = found?.pending ?? [];
     at = now;
-    return found ? (found.id ?? "pending") : null;
+    return found ? (found.ids ?? "pending") : null;
   };
 }
 
-function find(typed: string[]): { id?: ShortcutId; pending?: string[] } | null {
+function find(typed: string[]): { ids?: ShortcutId[]; pending?: string[] } | null {
+  const ids: ShortcutId[] = [];
   let pending = false;
   for (const id of SHORTCUT_IDS) {
     for (const sequence of SHORTCUTS[id].keys) {
       if (sequence.length < typed.length || !typed.every((k, i) => sequence[i] === k)) continue;
-      if (sequence.length === typed.length) return { id };
-      pending = true;
+      if (sequence.length === typed.length) ids.push(id);
+      else pending = true;
     }
   }
+  if (ids.length) return { ids };
   return pending ? { pending: typed } : null;
 }
 

@@ -4,7 +4,7 @@
 import * as z from "zod/mini";
 // `z.catch`, renamed: a parsing fallback, not a promise handler.
 import { catch as fallback } from "zod/mini";
-import { LANES } from "./types.ts";
+import { HELPDESK_VIEWS, LANES } from "./types.ts";
 
 const optional = <T extends z.ZodMiniType>(schema: T) => fallback(z.optional(schema), undefined);
 const optionalId = optional(z.string().check(z.minLength(1)));
@@ -22,6 +22,10 @@ export const loginSearch = z.object({
 export const inboxSearch = z.object({
   mailbox: optionalId,
   lane: optional(z.enum(LANES)),
+  /** A shared inbox's helpdesk view (with `mailbox`): Unassigned, Mine, Open, … (ADR 0021). */
+  view: optional(z.enum(HELPDESK_VIEWS)),
+  /** Only conversations with this tag (a `tags.id` of the inbox). */
+  tag: optionalId,
 });
 
 export const listSearch = z.object({ mailbox: optionalId });

@@ -43,20 +43,20 @@ Components use `hooks/` only. `lib/` is how the hooks work.
 
 ## Path map
 
-| Path                         | Search params                 | Loader                                      |
-| ---------------------------- | ----------------------------- | ------------------------------------------- |
-| `/`                          |                               | redirect to `/inbox`                        |
-| `/login`                     | `redirect?`, `error?`         | signed-in members are sent on to `redirect` |
-| `/invite/$invitationId`      |                               | the invitation (any signed-in user)         |
-| `/onboarding`                |                               | setup status (may create, or finishing one) |
-| `/inbox`, `/inbox/$threadId` | `mailbox?`, `lane?`           | first page of the list; the thread          |
-| `/queue`, `/queue/$id`       | `mailbox?`                    | same, queue (deferred) view                 |
-| `/done`, `/done/$id`         | `mailbox?`                    | same, done view                             |
-| `/archive`, `/archive/$id`   | `mailbox?`                    | same, archive view                          |
-| `/all`, `/all/$id`           | `mailbox?`                    | same, all mail                              |
-| `/search`, `/search/$id`     | `q`, `mailbox?`               | results for `q`; the thread                 |
-| `/compose`                   | `mailbox?`, `to?`, `subject?` | (mailboxes come from the shell)             |
-| `/settings`                  |                               | opens the settings dialog (⌘. anywhere)     |
+| Path                         | Search params                        | Loader                                      |
+| ---------------------------- | ------------------------------------ | ------------------------------------------- |
+| `/`                          |                                      | redirect to `/inbox`                        |
+| `/login`                     | `redirect?`, `error?`                | signed-in members are sent on to `redirect` |
+| `/invite/$invitationId`      |                                      | the invitation (any signed-in user)         |
+| `/onboarding`                |                                      | setup status (may create, or finishing one) |
+| `/inbox`, `/inbox/$threadId` | `mailbox?`, `lane?`, `view?`, `tag?` | first page of the list; the thread          |
+| `/queue`, `/queue/$id`       | `mailbox?`                           | same, queue (deferred) view                 |
+| `/done`, `/done/$id`         | `mailbox?`                           | same, done view                             |
+| `/archive`, `/archive/$id`   | `mailbox?`                           | same, archive view                          |
+| `/all`, `/all/$id`           | `mailbox?`                           | same, all mail                              |
+| `/search`, `/search/$id`     | `q`, `mailbox?`                      | results for `q`; the thread                 |
+| `/compose`                   | `mailbox?`, `to?`, `subject?`        | (mailboxes come from the shell)             |
+| `/settings`                  |                                      | opens the settings dialog (⌘. anywhere)     |
 
 Guards: `_authed` needs a user, `_authed/_member` needs a member of the active organization and
 loads mailboxes and counts for the shell. A user with no organization goes to `/onboarding` if
@@ -85,7 +85,15 @@ The socket reconnects with jittered exponential backoff (0.5 s up to 30 s), and 
 browser comes online, the tab becomes visible again, or the API answers again after a failure.
 After a reconnect every mail query is marked stale: the ones on screen refetch (joining any fetch
 already running), the rest when next shown, and queued sends are checked against the outbox.
-`useRealtimeStatus()` exposes `connecting | open | closed`.
+`useRealtimeStatus()` exposes `connecting | open | closed`. Helpdesk events (ADR 0021): `thread.changed`,
+`note.created` and `sla.*` mark the thread and its mailbox's lists stale like `changed`;
+`action.succeeded` for a pending reply refetches its thread; `presence` fills `lib/presence.ts`,
+whose entries expire after 70 s unless repeated (`useReportPresence` repeats every 30 s, again
+on reconnect, and says `left` on unmount). A dropped socket clears presence.
+
+**Undo.** An action that can be reversed calls `offerUndo(label, inverse)` with the inverse built
+from the state before it. One offer stands at a time for 8 s; `useUndo()` gives the toast its
+`offer` and binds `z`. The list's done and defer offer it already.
 
 **Offline.** `lib/connectivity.ts` drives TanStack Query's `onlineManager`: offline when the
 browser says so or a request got no answer at all, online again when the API answers (any
@@ -145,6 +153,8 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 | `useRealtimeConnection(memberId)`, `useRealtimeStatus()`                                                                                           | the socket                                    |
 | `useConnectivity()`                                                                                                                                | `{ online, queued }`                          |
 | `useShortcut(id, run, enabled?)`, `runShortcut(id)`, `useAvailableShortcuts()`, `announce(text)`                                                   | keyboard shortcuts (`hooks/use-shortcuts.ts`) |
+| `usePresence(threadId)`, `useReportPresence(thread, state)`                                                                                        | who is viewing or replying; say you are       |
+| `useUndo()`, `offerUndo(label, undo)`                                                                                                              | `{ offer, undo, dismiss }` for the undo toast |
 | `useThreadListShortcuts({ … })`                                                                                                                    | the list keys: j/k, o, x, e, h, u, Esc        |
 
 Message HTML goes in a sandboxed iframe: `messageHtmlUrl(threadId, messageId)`; attachments:

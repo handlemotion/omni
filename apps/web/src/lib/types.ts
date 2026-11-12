@@ -51,3 +51,18 @@ export interface ThreadFilter {
   mailbox?: string | undefined;
   lane?: Lane | undefined;
 }
+
+/**
+ * A shared inbox's helpdesk views (ADR 0021), in navigation order. `mine` is assigned to you;
+ * `sla_at_risk` is open with a due time near or past.
+ */
+export const HELPDESK_VIEWS = [
+  "unassigned",
+  "mine",
+  "open",
+  "pending",
+  "snoozed",
+  "resolved",
+  "sla_at_risk",
+] as const;
+export type HelpdeskView = (typeof HELPDESK_VIEWS)[number];

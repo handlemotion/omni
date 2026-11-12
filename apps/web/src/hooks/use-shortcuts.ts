@@ -77,9 +77,9 @@ export function useShortcutListener() {
       const chord = key.startsWith("Mod+");
       if (!chord && (target?.closest(EDITABLE) || target?.closest(OWN_KEYS))) return;
       if (focused && NATIVE.has(key)) return;
-      const id = match(key);
-      if (id === "pending") event.preventDefault();
-      else if (id && runShortcut(id)) event.preventDefault();
+      const ids = match(key);
+      if (ids === "pending") event.preventDefault();
+      else if (ids?.some((id) => runShortcut(id))) event.preventDefault();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);

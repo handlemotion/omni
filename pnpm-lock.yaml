@@ -521,6 +521,9 @@ importers:
         specifier: ^4.13.14
         version: 4.13.14
     devDependencies:
+      '@omni/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@omni/db':
         specifier: workspace:*
         version: link:../db
