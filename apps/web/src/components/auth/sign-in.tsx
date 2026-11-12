@@ -2,7 +2,7 @@ import { Google } from "@ridemountainpig/svgl-react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { IconRedirectArrow } from "@/components/icons";
-import { IconKey } from "@/components/icons/lucide";
+import { IconKey } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";

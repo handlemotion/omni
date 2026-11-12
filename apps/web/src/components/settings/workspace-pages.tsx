@@ -11,7 +11,7 @@ import {
   IconTrash,
   IconUserCog,
   IconUserMinus,
-} from "@/components/icons/lucide";
+} from "@/components/icons/central";
 import { cn } from "cn";
 import { type CSSProperties, useState } from "react";
 import { Label } from "@/components/ui/field";

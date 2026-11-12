@@ -1,6 +1,6 @@
 import { useContext, useState, type ReactNode } from "react";
 import { FieldErrorContext } from "react-aria-components/FieldError";
-import { IconCircleAlert } from "@/components/icons/lucide";
+import { IconCircleAlert } from "@/components/icons/central";
 
 /**
  * An error that opens under its control instead of appearing all at once (chowmein's sign-in

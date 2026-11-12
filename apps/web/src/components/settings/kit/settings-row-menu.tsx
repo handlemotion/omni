@@ -1,4 +1,4 @@
-import { IconEllipsis } from "@/components/icons/lucide";
+import { IconEllipsis } from "@/components/icons/central";
 import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";

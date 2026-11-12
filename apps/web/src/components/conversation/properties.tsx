@@ -10,7 +10,7 @@ import {
   IconTag,
   IconTriangleAlert,
   IconUserRound,
-} from "@/components/icons/lucide";
+} from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";

@@ -1,4 +1,4 @@
-import { IconPlus } from "@/components/icons/lucide";
+import { IconPlus } from "@/components/icons/central";
 import { cn } from "cn";
 import { Button } from "react-aria-components/Button";
 import {

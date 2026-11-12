@@ -1,7 +1,7 @@
 // The addresses this person signs in with (ADR 0014), on the settings kit: one row per address,
 // the primary one badged; a row's menu makes another primary or stops signing in with it (asked
 // first); "Add an email" opens a form over settings that mails a confirmation link.
-import { IconMail, IconStar, IconTrash } from "@/components/icons/lucide";
+import { IconMail, IconStar, IconTrash } from "@/components/icons/central";
 import { useState } from "react";
 import { Skeleton } from "skullet/react";
 import { Badge } from "@/components/ui/badge";

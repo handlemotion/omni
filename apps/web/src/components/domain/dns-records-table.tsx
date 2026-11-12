@@ -21,7 +21,7 @@ import {
   IconClock3,
   IconCopy,
   IconTriangleAlert,
-} from "@/components/icons/lucide";
+} from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import {

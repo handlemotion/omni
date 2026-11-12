@@ -8,7 +8,7 @@ import {
   IconMailOpen,
   IconMaximize,
   IconMinimize,
-} from "@/components/icons/lucide";
+} from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { ShowMore } from "@/components/ui/show-more";

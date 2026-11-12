@@ -1,5 +1,5 @@
 import { FileTrigger } from "react-aria-components/FileTrigger";
-import { IconCircleX, IconPaperclip } from "@/components/icons/lucide";
+import { IconCircleX, IconPaperclip } from "@/components/icons/central";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ComposerFile } from "@/hooks/use-compose.ts";

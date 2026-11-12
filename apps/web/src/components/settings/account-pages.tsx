@@ -8,7 +8,7 @@ import {
   IconSmartphone,
   IconTablet,
   IconTrash,
-} from "@/components/icons/lucide";
+} from "@/components/icons/central";
 import { Fragment, useEffect, useState } from "react";
 import { Skeleton } from "skullet/react";
 import { IconCircleDashed } from "@/components/icons/sidebar";

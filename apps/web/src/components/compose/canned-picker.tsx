@@ -1,4 +1,4 @@
-import { IconList } from "@/components/icons/lucide";
+import { IconList } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";

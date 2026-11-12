@@ -11,7 +11,7 @@ import {
   IconChevronsUpDown,
   IconLogOut,
   IconPlus,
-} from "@/components/icons/lucide";
+} from "@/components/icons/central";
 import { IconChevronRight } from "@/components/icons/sidebar";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";

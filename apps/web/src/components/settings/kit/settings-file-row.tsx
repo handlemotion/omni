@@ -1,4 +1,4 @@
-import { IconUpload } from "@/components/icons/lucide";
+import { IconUpload } from "@/components/icons/central";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { FileTrigger } from "react-aria-components/FileTrigger";

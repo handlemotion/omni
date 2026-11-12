@@ -5,7 +5,7 @@
 //   (ADR 0008).
 // A teammate's personal inbox is on People (owners and admins): whether it exists and syncs,
 // never its mail (ADR 0017). Its create dialog is `NewMailboxDialog`, here.
-import { IconPlus, IconUserMinus } from "@/components/icons/lucide";
+import { IconPlus, IconUserMinus } from "@/components/icons/central";
 import { lazy, useState } from "react";
 import { Skeleton, SkeletonSuspense } from "skullet/react";
 import { Badge } from "@/components/ui/badge";

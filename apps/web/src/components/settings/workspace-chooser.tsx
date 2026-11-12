@@ -3,7 +3,7 @@
 // workspace you belong to, a check on the active one. Choosing another switches to it: settings
 // act on the active workspace (ADR 0014). An owner or admin of a workspace still being set up
 // goes to onboarding instead, as from the mailbox switcher (ADR 0009).
-import { IconCheck, IconChevronsUpDown } from "@/components/icons/lucide";
+import { IconCheck, IconChevronsUpDown } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";

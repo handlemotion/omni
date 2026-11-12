@@ -5,7 +5,7 @@
 // primitives.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DropZone } from "react-aria-components/DropZone";
-import { IconSend } from "@/components/icons/lucide";
+import { IconSend } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

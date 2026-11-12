@@ -6,7 +6,7 @@
 // - Tags: the inbox's labels for conversations.
 // Everyone on the inbox reads these; owners and admins change assignment, targets and hours (the
 // API answers 403 otherwise). Anyone on the inbox manages its tags.
-import { IconPencil, IconTrash } from "@/components/icons/lucide";
+import { IconPencil, IconTrash } from "@/components/icons/central";
 import { parseTime, Time } from "@internationalized/date";
 import { useMemo, useState } from "react";
 import { Skeleton } from "skullet/react";

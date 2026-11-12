@@ -4,7 +4,7 @@
 // Stripe through `/api/billing/cards` and `/api/billing/invoices`); members see those two sections
 // say they're for owners and admins. A workspace always has a plan
 // (setup starts its trial), so there is no "no plan" page; one that ended can subscribe again.
-import { IconPlus } from "@/components/icons/lucide";
+import { IconPlus } from "@/components/icons/central";
 import {
   ArrowDownTrayIcon,
   ArrowTopRightOnSquareIcon,

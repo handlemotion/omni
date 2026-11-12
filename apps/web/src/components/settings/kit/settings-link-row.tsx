@@ -1,4 +1,4 @@
-import { IconArrowUpRight, IconChevronRight } from "@/components/icons/lucide";
+import { IconArrowUpRight, IconChevronRight } from "@/components/icons/central";
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Button } from "react-aria-components/Button";

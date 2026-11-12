@@ -1,4 +1,4 @@
-import { IconPaperclip } from "@/components/icons/lucide";
+import { IconPaperclip } from "@/components/icons/central";
 import { buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
 import type { Message } from "@/lib/types.ts";

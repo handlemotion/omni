@@ -1,0 +1,56 @@
+// The app's glyphs: Central Icons (round outlined, radius 3, stroke 1.5). Each export keeps the
+// name its call sites use, so swapping a glyph is a one-line change here; size and colour come from
+// the caller's classes. Decorative by default (aria-hidden): name the control around it instead.
+// Licensed for closed-source use only: never publish this package's glyphs in public code.
+
+export { IconArrowLeft } from "central-icons-outlined/IconArrowLeft";
+export { IconArrowUpRight } from "central-icons-outlined/IconArrowUpRight";
+export { IconCheckmark1 as IconCheck } from "central-icons-outlined/IconCheckmark1";
+export { IconChevronDownMedium as IconChevronDown } from "central-icons-outlined/IconChevronDownMedium";
+export { IconChevronRightMedium as IconChevronRight } from "central-icons-outlined/IconChevronRightMedium";
+export { IconChevronGrabberVertical as IconChevronsUpDown } from "central-icons-outlined/IconChevronGrabberVertical";
+export { IconExclamationCircle as IconCircleAlert } from "central-icons-outlined/IconExclamationCircle";
+export { IconCircleCheck } from "central-icons-outlined/IconCircleCheck";
+export { IconQuestionmarkCircle as IconCircleHelp } from "central-icons-outlined/IconQuestionmarkCircle";
+export { IconCircleX } from "central-icons-outlined/IconCircleX";
+export { IconClock3OClock as IconClock3 } from "central-icons-outlined/IconClock3OClock";
+export { IconSquareBehindSquare1 as IconCopy } from "central-icons-outlined/IconSquareBehindSquare1";
+export { IconCreditCard1 as IconCreditCard } from "central-icons-outlined/IconCreditCard1";
+export { IconDotGrid1x3Horizontal as IconEllipsis } from "central-icons-outlined/IconDotGrid1x3Horizontal";
+export { IconGlobe } from "central-icons-outlined/IconGlobe";
+export { IconInboxEmpty as IconInbox } from "central-icons-outlined/IconInboxEmpty";
+export { IconCircleInfo as IconInfo } from "central-icons-outlined/IconCircleInfo";
+export { IconKey1 as IconKey } from "central-icons-outlined/IconKey1";
+export { IconKeyboard } from "central-icons-outlined/IconKeyboard";
+export { IconMacbook as IconLaptop } from "central-icons-outlined/IconMacbook";
+export { IconListBullets as IconList } from "central-icons-outlined/IconListBullets";
+export { IconArrowBoxLeft as IconLogOut } from "central-icons-outlined/IconArrowBoxLeft";
+export { IconEmail1 as IconMail } from "central-icons-outlined/IconEmail1";
+export { IconMailbox } from "central-icons-outlined/IconMailbox";
+export { IconPencil } from "central-icons-outlined/IconPencil";
+export { IconPlusMedium as IconPlus } from "central-icons-outlined/IconPlusMedium";
+export { IconPaperPlane as IconSend } from "central-icons-outlined/IconPaperPlane";
+export { IconSettingsGear2 as IconSettings } from "central-icons-outlined/IconSettingsGear2";
+export { IconShield } from "central-icons-outlined/IconShield";
+export { IconPhone as IconSmartphone } from "central-icons-outlined/IconPhone";
+export { IconStar } from "central-icons-outlined/IconStar";
+export { IconTablet } from "central-icons-outlined/IconTablet";
+export { IconTrashCanSimple as IconTrash } from "central-icons-outlined/IconTrashCanSimple";
+export { IconExclamationTriangle as IconTriangleAlert } from "central-icons-outlined/IconExclamationTriangle";
+export { IconArrowOutOfBox as IconUpload } from "central-icons-outlined/IconArrowOutOfBox";
+export { IconPeopleCircle as IconUserCog } from "central-icons-outlined/IconPeopleCircle";
+export { IconUserRemove as IconUserMinus } from "central-icons-outlined/IconUserRemove";
+export { IconUserDuo as IconUsers } from "central-icons-outlined/IconUserDuo";
+export { IconGroup1 as IconUsersRound } from "central-icons-outlined/IconGroup1";
+export { IconArchive } from "central-icons-outlined/IconArchive";
+export { IconCirclePlaceholderOn as IconCircle } from "central-icons-outlined/IconCirclePlaceholderOn";
+export { IconCircleDashed } from "central-icons-outlined/IconCircleDashed";
+export { IconEmail2Check as IconMailOpen } from "central-icons-outlined/IconEmail2Check";
+export { IconExpand45 as IconMaximize } from "central-icons-outlined/IconExpand45";
+export { IconMinimize45 as IconMinimize } from "central-icons-outlined/IconMinimize45";
+export { IconPaperclip1 as IconPaperclip } from "central-icons-outlined/IconPaperclip1";
+export { IconSpeedHigh as IconSignalHigh } from "central-icons-outlined/IconSpeedHigh";
+export { IconSpeedMiddle as IconSignalMedium } from "central-icons-outlined/IconSpeedMiddle";
+export { IconSpeedLow as IconSignalLow } from "central-icons-outlined/IconSpeedLow";
+export { IconTag } from "central-icons-outlined/IconTag";
+export { IconUser as IconUserRound } from "central-icons-outlined/IconUser";

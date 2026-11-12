@@ -4,7 +4,7 @@
 //
 // Geometry: a section's title sits on the rows' text axis (16px in). It gets 32px from the group
 // above and 8px to its own, so it reads as the label of what follows.
-import { IconInfo } from "@/components/icons/lucide";
+import { IconInfo } from "@/components/icons/central";
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";

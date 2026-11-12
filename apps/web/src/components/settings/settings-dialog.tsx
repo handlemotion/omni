@@ -18,7 +18,7 @@ import {
   IconShield,
   IconUsers,
   IconUsersRound,
-} from "@/components/icons/lucide";
+} from "@/components/icons/central";
 import { cn } from "cn";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type ComponentType, type CSSProperties, type ReactNode, useMemo, useState } from "react";
@@ -68,7 +68,7 @@ interface PageDefinition {
   render: () => ReactNode;
 }
 
-/** A Lucide icon (round, outlined, stroke 1.5) at the nav's 15px icon size. */
+/** A Central icon (round outlined, stroke 1.5) at the nav's 15px icon size. */
 const glyph = (Icon: ComponentType<{ className?: string }>) => <Icon className="size-icon" />;
 
 function useAccountPages(): PageDefinition[] {

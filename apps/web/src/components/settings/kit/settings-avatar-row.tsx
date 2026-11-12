@@ -1,4 +1,4 @@
-import { IconTrash, IconUpload } from "@/components/icons/lucide";
+import { IconTrash, IconUpload } from "@/components/icons/central";
 import { useRef, type ReactNode } from "react";
 import { Button as AvatarButton } from "react-aria-components/Button";
 import { FileTrigger } from "react-aria-components/FileTrigger";

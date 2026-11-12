@@ -11,7 +11,7 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
 | Tokens             | `apps/web/src/styles.css`. Raw values in `:root`, exposed to Tailwind as semantic classes in `@theme inline`.                       |
 | Primitives         | `apps/web/src/components/ui/`: Intent UI components (React Aria + Tailwind), adapted to our tokens. Added with the shadcn CLI.      |
 | Icons              | `apps/web/src/components/icons/`: the app's own marks from Figma (the sign-in arrow, the dashed log out), nothing else.             |
-| Icon set           | Lucide (ISC licence; round outlined, stroke 1.5), minimal glyphs: `@/components/icons/lucide`, `Icon<Name>`.                        |
+| Icon set           | Central Icons (round outlined, radius 3, stroke 1.5), minimal glyphs: `@/components/icons/central`, `Icon<Name>`.                   |
 | Feature components | `apps/web/src/components/<feature>/` (for example `auth/`): compositions of primitives. Routes render these and stay thin.          |
 | Registry config    | `apps/web/components.json`. Add a primitive with `npx shadcn@latest add @intentui/<name>` from `apps/web`.                          |
 
@@ -38,9 +38,11 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
   one. Pick the size the frame shows; don't resize a control with classes.
 - **Destructive actions.** `<Button intent="danger">`: filled red with a darker edge. Use it only
   for actions that delete or can't be undone, and say what happens on the button itself.
-- **Icons come from Lucide.** Every icon is a Lucide glyph exported from
-  `@/components/icons/lucide` (add one there if it's missing). Never draw an icon inline, paste
-  SVG paths, or add a one-off icon file; when a glyph looks wrong, pick another Lucide glyph.
+- **Icons come from Central Icons.** Every icon is a Central glyph exported from
+  `@/components/icons/central` under our own `Icon<Name>` (add one there if it's missing). Never
+  draw an icon inline, paste SVG paths, or add a one-off icon file; when a glyph looks wrong, pick
+  another Central glyph. Central's licence forbids sharing its glyphs publicly, so Omni's web app
+  stays closed source.
 - **Menus.** Every menu item leads with an icon (14px, muted, the label after it); a menu
   without icons is not allowed. A person, workspace or mailbox leads with its avatar instead.
   `SettingsRowMenu` requires an `icon` per item, so a missing one fails the type check.
