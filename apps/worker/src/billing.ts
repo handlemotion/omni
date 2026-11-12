@@ -120,6 +120,10 @@ export const READ_ONLY_ALLOWED = [
   // Inside the member API: `requireWritableWorkspace` lets these through.
   { path: "/api/billing", reason: "checkout and the portal are how a workspace becomes paid" },
   { path: "/api/mailboxes/:id/members", reason: "who can see a mailbox is access, not mail" },
+  {
+    path: "/api/push-tokens",
+    reason: "a person's phone, not the workspace: signing out must stop pushes",
+  },
   // Mounted ahead of the member API in app.ts, so the gate never runs for them.
   { path: "/api/auth", reason: "sign-in, invitations, organizations and Stripe's webhook" },
   { path: "/api/onboarding", reason: "workspace setup: domains and mailboxes" },

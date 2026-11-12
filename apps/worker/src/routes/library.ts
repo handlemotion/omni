@@ -1,5 +1,5 @@
 // What agents reuse when they write (ADR 0021): signatures and canned replies, an inbox's or
-// their own, and the customers they write to.
+// their own, the customers they write to, and each member's own settings and phones.
 import {
   createCannedReply,
   customerProfile,
@@ -8,7 +8,12 @@ import {
   getCannedReply,
   listCannedReplies,
   searchCustomers,
+  memberSettings,
   memberSignatures,
+  NOTIFICATION_KINDS,
+  registerPushToken,
+  unregisterPushToken,
+  updateMemberSettings,
   setSignature,
   templateContext,
   updateCannedReply,
@@ -198,4 +203,50 @@ export const library = new Hono<AppEnv>()
     const profile = await customerProfile(c.var.db, c.var.member.id, c.req.param("id"));
     if (!profile) notFound();
     return c.json(profile);
+  })
+
+  /** The member's settings, every default filled in. */
+  .get("/preferences", async (c) => c.json(await memberSettings(c.var.db, c.var.member.id)))
+
+  /** Changes what the body names; a notification kind merges channel by channel. */
+  .patch(
+    "/preferences",
+    zValidator(
+      "json",
+      z.object({
+        notifications: z
+          .partialRecord(
+            z.enum(NOTIFICATION_KINDS),
+            z.object({ realtime: z.boolean(), desktop: z.boolean(), push: z.boolean() }).partial(),
+          )
+          .optional(),
+        theme: z.enum(["system", "light", "dark"]).optional(),
+        /** 0 sends at once; up to 30 seconds. */
+        undoSendSeconds: z.number().int().min(0).max(30).optional(),
+      }),
+    ),
+    async (c) => c.json(await updateMemberSettings(c.var.db, c.var.member.id, c.req.valid("json"))),
+  )
+
+  /** Registers this phone's Expo push token for the member (moving it from anyone before). */
+  .post(
+    "/push-tokens",
+    zValidator(
+      "json",
+      z.object({
+        expoToken: z.string().regex(/^(Exponent|Expo)PushToken\[[^\]]+\]$/, "an Expo push token"),
+        device: z.string().trim().max(200).nullable().default(null),
+      }),
+    ),
+    async (c) => {
+      await registerPushToken(c.var.db, c.var.member, c.req.valid("json"));
+      return c.body(null, 204);
+    },
+  )
+
+  /** Signing out on a phone: its token stops getting this member's pushes. */
+  .delete("/push-tokens/:token", async (c) => {
+    const removed = await unregisterPushToken(c.var.db, c.var.member.id, c.req.param("token"));
+    if (!removed) notFound();
+    return c.body(null, 204);
   });
