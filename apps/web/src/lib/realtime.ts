@@ -22,6 +22,8 @@ let status: RealtimeStatus = "closed";
 /** The open sockets by org, so a message about a conversation goes to its workspace. */
 let sockets = new Map<string, Realtime>();
 const openListeners = new Set<(orgId: string) => void>();
+type MergedEvent = Extract<RealtimeEvent, { type: "merged" }>;
+const mergeListeners = new Set<(event: MergedEvent) => void>();
 const listeners = new Set<() => void>();
 
 function setStatus(next: RealtimeStatus) {
@@ -97,6 +99,11 @@ export function startRealtime(
       case "sla.at_risk":
       case "sla.breached":
         return changed(event.mailboxId, [event.threadId]);
+      // Threads became one: readers of the absorbed ones follow before their queries refetch
+      // (and 404), then every one of them refetches.
+      case "merged":
+        for (const listener of mergeListeners) listener(event);
+        return changed(event.mailboxId, [event.intoThreadId, ...event.fromThreadIds]);
       case "presence":
         return applyPresence(orgId, event);
       // You were assigned, mentioned, or a customer replied: refetch your notifications.
@@ -165,6 +172,12 @@ export function startRealtime(
 /** Sends on the workspace's socket. False when it is not open (the message is dropped). */
 export function sendRealtime(orgId: string, message: RealtimeClientMessage): boolean {
   return sockets.get(orgId)?.send(message) ?? false;
+}
+
+/** Calls `listener(event)` when threads are merged, before their queries refetch. */
+export function onThreadsMerged(listener: (event: MergedEvent) => void): () => void {
+  mergeListeners.add(listener);
+  return () => mergeListeners.delete(listener);
 }
 
 /** Calls `listener(orgId)` whenever a workspace's socket opens, including after a reconnect. */

@@ -5,13 +5,11 @@
 // primitives.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DropZone } from "react-aria-components/DropZone";
-import { IconSend } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { appToast } from "@/components/ui/toast";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useCancelSend,
   useComposeReply,
@@ -28,7 +26,9 @@ import {
 import type { Message, Thread } from "@/lib/types.ts";
 import { CannedPicker } from "./canned-picker.tsx";
 import { AttachButton, ComposerFiles } from "./composer-files.tsx";
+import { NoteComposer } from "./note-composer.tsx";
 import { RecipientField } from "./recipient-field.tsx";
+import { Toolbar } from "./toolbar.tsx";
 import { offerUndoSend } from "./undo-send.ts";
 
 /** The RFC 3676 signature separator, so mail clients can fold it. */
@@ -43,8 +43,6 @@ function hasWords(text: string, signature: string | null) {
   const own = signature ? text.replace(`${SIG_SEPARATOR}${signature}`, "") : text;
   return own.trim().length > 0;
 }
-
-const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 const asDraftAddresses = (list: string[]) => list.map((address) => ({ name: null, address }));
 type DraftFile = { uploadId: string } | { attachmentId: string };
@@ -107,21 +105,44 @@ function replyRecipients(message: Message | undefined): string[] {
   return message.fromMe ? message.to.map((a) => a.address) : [message.fromAddress];
 }
 
-type Mode = "reply" | "forward";
+type Mode = "reply" | "forward" | "note";
 
 /**
- * Reply or forward under the open conversation. Replies go from the inbox's address with your
- * name; they show in the thread at once and can be undone while they wait in the outbox.
+ * Reply or forward under the open conversation, or on a shared inbox an internal note. Replies go
+ * from the inbox's address with your name; they show in the thread at once and can be undone
+ * while they wait in the outbox.
  */
-export function ReplyComposer({ thread }: { thread: Thread }) {
-  const [mode, setMode] = useState<Mode>("reply");
+export function ReplyComposer({ thread, shared = false }: { thread: Thread; shared?: boolean }) {
+  const [picked, setMode] = useState<Mode>("reply");
+  // Note is for shared inboxes only: a personal thread opened next in the same list replies.
+  const mode = picked === "note" && !shared ? "reply" : picked;
+  const toggle = <ModeToggle mode={mode} setMode={setMode} note={shared} />;
   // A fresh composer per mode: its own recipients, body and draft.
+  if (mode === "note") return <NoteComposer key={thread.id} thread={thread} toggle={toggle} />;
+  return <ModeComposer key={`${thread.id}:${mode}`} thread={thread} mode={mode} toggle={toggle} />;
+}
+
+/** Reply, Forward and (shared inboxes) Note: which composer shows. */
+function ModeToggle(props: { mode: Mode; setMode: (mode: Mode) => void; note: boolean }) {
   return (
-    <ModeComposer key={`${thread.id}:${mode}`} thread={thread} mode={mode} setMode={setMode} />
+    <ToggleGroup
+      size="sm"
+      aria-label="Reply, forward or note"
+      selectedKeys={[props.mode]}
+      disallowEmptySelection
+      onSelectionChange={(keys) => {
+        const next = [...keys][0] as Mode | undefined;
+        if (next && next !== props.mode) props.setMode(next);
+      }}
+    >
+      <ToggleGroupItem id="reply">Reply</ToggleGroupItem>
+      <ToggleGroupItem id="forward">Forward</ToggleGroupItem>
+      {props.note && <ToggleGroupItem id="note">Note</ToggleGroupItem>}
+    </ToggleGroup>
   );
 }
 
-function ModeComposer(props: { thread: Thread; mode: Mode; setMode: (mode: Mode) => void }) {
+function ModeComposer(props: { thread: Thread; mode: Exclude<Mode, "note">; toggle: ReactNode }) {
   const { thread, mode } = props;
   const latest = thread.messages.at(-1);
   const { signature, isLoading: signatureLoading } = useSignature(thread.mailboxId);
@@ -323,19 +344,7 @@ function ModeComposer(props: { thread: Thread; mode: Mode; setMode: (mode: Mode)
   return (
     <ComposerFrame onFiles={files.add}>
       <div className="flex items-center justify-between gap-2">
-        <ToggleGroup
-          size="sm"
-          aria-label="Reply or forward"
-          selectedKeys={[mode]}
-          disallowEmptySelection
-          onSelectionChange={(keys) => {
-            const next = [...keys][0] as Mode | undefined;
-            if (next && next !== mode) props.setMode(next);
-          }}
-        >
-          <ToggleGroupItem id="reply">Reply</ToggleGroupItem>
-          <ToggleGroupItem id="forward">Forward</ToggleGroupItem>
-        </ToggleGroup>
+        {props.toggle}
         <span className="min-w-0 truncate text-sm text-muted-foreground">
           From {thread.mailboxAddress}
         </span>
@@ -638,31 +647,5 @@ function Body(props: {
       }}
       className="max-h-96 min-h-24 resize-none py-1 sm:py-1"
     />
-  );
-}
-
-function Toolbar(props: {
-  start: ReactNode;
-  canSend: boolean;
-  isPending: boolean;
-  onSend: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-1">{props.start}</div>
-      <TooltipTrigger delay={400}>
-        <Button
-          size="sm"
-          isDisabled={!props.canSend}
-          isPending={props.isPending}
-          onPress={props.onSend}
-          aria-keyshortcuts={isMac ? "Meta+Enter" : "Control+Enter"}
-        >
-          <IconSend />
-          Send
-        </Button>
-        <Tooltip>{isMac ? "Send ⌘↵" : "Send Ctrl+Enter"}</Tooltip>
-      </TooltipTrigger>
-    </div>
   );
 }

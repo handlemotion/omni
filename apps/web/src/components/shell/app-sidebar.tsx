@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HelpdeskViews } from "./helpdesk-nav";
 import { MailboxSwitcher, mailboxName } from "./mailbox-switcher";
+import { Notifications } from "./notifications";
 import {
   Sidebar,
   SidebarContent,
@@ -135,9 +136,12 @@ export function AppSidebar() {
           </Button>
         </div>
         <OfflineBadge />
-        <Button intent="plain" size="sq-xs" aria-label="Help">
-          <IconHelp />
-        </Button>
+        <div className="flex items-center gap-0.5">
+          <Notifications />
+          <Button intent="plain" size="sq-xs" aria-label="Help">
+            <IconHelp />
+          </Button>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

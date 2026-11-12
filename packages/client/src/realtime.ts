@@ -224,6 +224,16 @@ function parseEvent(data: string): RealtimeEvent | undefined {
   ) {
     return { type: "action", actionId: event.actionId, status: "failed", error: event.error };
   }
+  if (
+    event.type === "merged" &&
+    isId(event.mailboxId) &&
+    isId(event.intoThreadId) &&
+    Array.isArray(event.fromThreadIds) &&
+    event.fromThreadIds.every(isId)
+  ) {
+    const { mailboxId, intoThreadId, fromThreadIds } = event;
+    return { type: "merged", mailboxId, intoThreadId, fromThreadIds };
+  }
   if (event.type === "domain" && typeof event.domainId === "string") {
     return { type: "domain", domainId: event.domainId };
   }

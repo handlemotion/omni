@@ -58,6 +58,12 @@ function morning(days: number) {
 /** Days until next Monday (a full week on a Monday). */
 const untilMonday = () => (8 - new Date().getDay()) % 7 || 7;
 
+/** The snooze choices, in the status menu and the reader's Snooze. */
+export const SNOOZES = [
+  { label: "Snooze until tomorrow", until: () => morning(1) },
+  { label: "Snooze until Monday", until: () => morning(untilMonday()) },
+];
+
 /**
  * A shared inbox's conversation state, at the left of the reader's toolbar: status, assignee,
  * priority and tags, each a menu. Every change shows at once and offers undo.
@@ -83,9 +89,9 @@ export function Properties({ thread }: { thread: Thread }) {
   return (
     // Pulled left by the buttons' own inset (10px, or 6.5px once they are icon squares), so the
     // first icon starts at the column's edge. The cap keeps its right edge 8px clear of the
-    // toolbar's actions (162px, out of the flow): the column is centred, so its left edge sits
+    // toolbar's actions (130px, out of the flow): the column is centred, so its left edge sits
     // at (toolbar - column) / 2 + 10px. Long names and tags truncate instead of sliding under.
-    <div className="-ms-2.5 flex max-w-[calc(50cqw+min(50cqw,24rem)-11.25rem)] min-w-0 items-center gap-1 @max-[34rem]:-ms-[6.5px]">
+    <div className="-ms-2.5 flex max-w-[calc(50cqw+min(50cqw,24rem)-9.25rem)] min-w-0 items-center gap-1 @max-[34rem]:-ms-[6.5px]">
       <MenuTrigger>
         <Button
           intent="ghost"
@@ -109,16 +115,14 @@ export function Properties({ thread }: { thread: Thread }) {
             />
           )}
           <MenuSeparator />
-          <Item
-            icon={IconClock3}
-            label="Snooze until tomorrow"
-            onAction={() => snooze.mutate({ threadId, until: morning(1) })}
-          />
-          <Item
-            icon={IconClock3}
-            label="Snooze until Monday"
-            onAction={() => snooze.mutate({ threadId, until: morning(untilMonday()) })}
-          />
+          {SNOOZES.map(({ label, until }) => (
+            <Item
+              key={label}
+              icon={IconClock3}
+              label={label}
+              onAction={() => snooze.mutate({ threadId, until: until() })}
+            />
+          ))}
         </Menu>
       </MenuTrigger>
 

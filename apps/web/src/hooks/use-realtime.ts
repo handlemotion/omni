@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useSyncExternalStore } from "react";
-import { realtimeStatus, startRealtime } from "../lib/realtime.ts";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { onThreadsMerged, realtimeStatus, startRealtime } from "../lib/realtime.ts";
 import { useWorkspaces } from "./use-workspaces.ts";
 
 /**
@@ -26,4 +26,20 @@ export function useRealtimeConnection(
 /** `connecting`, `open` or `closed`: for a "reconnecting…" indicator. */
 export function useRealtimeStatus() {
   return useSyncExternalStore(realtimeStatus.subscribe, realtimeStatus.get, realtimeStatus.get);
+}
+
+/**
+ * Calls `follow(intoThreadId)` when the thread `threadId` is merged into another (its messages
+ * and helpdesk state moved there), so a reader showing it can move to the survivor.
+ */
+export function useFollowMerge(threadId: string, follow: (intoThreadId: string) => void) {
+  const latest = useRef(follow);
+  latest.current = follow;
+  useEffect(
+    () =>
+      onThreadsMerged((event) => {
+        if (event.fromThreadIds.includes(threadId)) latest.current(event.intoThreadId);
+      }),
+    [threadId],
+  );
 }

@@ -55,3 +55,6 @@ export { IconSpeedMiddle as IconSignalMedium } from "central-icons-outlined/Icon
 export { IconSpeedLow as IconSignalLow } from "central-icons-outlined/IconSpeedLow";
 export { IconTag } from "central-icons-outlined/IconTag";
 export { IconUser as IconUserRound } from "central-icons-outlined/IconUser";
+export { IconLock } from "central-icons-outlined/IconLock";
+export { IconBell } from "central-icons-outlined/IconBell";
+export { IconNoteText as IconNote } from "central-icons-outlined/IconNoteText";
