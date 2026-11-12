@@ -1,8 +1,11 @@
-import { createFileRoute, Outlet, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Navigate, Outlet, useRouter } from "@tanstack/react-router";
 import { conversationsQuery } from "../../../lib/conversations.ts";
 import { threadsQuery } from "../../../lib/mail-queries.ts";
 import { inboxSearch } from "../../../lib/search-params.ts";
+import { ConversationList } from "../../../components/inbox/conversation-list.tsx";
 import { ThreadList } from "../../../components/inbox/thread-list.tsx";
+import { DEFAULT_VIEW } from "../../../components/shell/helpdesk-nav.tsx";
+import { useMailboxes } from "../../../hooks/use-mail.ts";
 
 export const Route = createFileRoute("/_authed/_member/inbox")({
   validateSearch: inboxSearch,
@@ -24,13 +27,30 @@ const LANE_TITLES: Partial<Record<string, string>> = {
 function Inbox() {
   const search = Route.useSearch();
   const router = useRouter();
+  const href = (threadId: string) =>
+    router.buildLocation({ to: "/inbox/$threadId", params: { threadId }, search }).href;
+  const shared = useMailboxes().data?.some(
+    (box) => box.id === search.mailbox && box.kind === "shared",
+  );
+  // A shared inbox is a helpdesk queue: it opens on a view, and lists conversations.
+  if (shared && !search.view) {
+    return <Navigate to="." search={{ ...search, view: DEFAULT_VIEW }} replace />;
+  }
+  if (search.mailbox && search.view) {
+    return (
+      <ConversationList
+        filter={{ mailbox: search.mailbox, view: search.view, tag: search.tag }}
+        href={href}
+      >
+        <Outlet />
+      </ConversationList>
+    );
+  }
   return (
     <ThreadList
       title={(search.lane && LANE_TITLES[search.lane]) || "Inbox"}
       filter={{ view: "inbox", mailbox: search.mailbox, lane: search.lane }}
-      href={(threadId) =>
-        router.buildLocation({ to: "/inbox/$threadId", params: { threadId }, search }).href
-      }
+      href={href}
     >
       <Outlet />
     </ThreadList>

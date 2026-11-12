@@ -18,7 +18,8 @@ import {
 } from "@/components/icons/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MailboxSwitcher } from "./mailbox-switcher";
+import { HelpdeskViews } from "./helpdesk-nav";
+import { MailboxSwitcher, mailboxName } from "./mailbox-switcher";
 import {
   Sidebar,
   SidebarContent,
@@ -33,6 +34,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
+import { useMember } from "@/hooks/use-session.ts";
+import { useWorkspaces } from "@/hooks/use-workspaces.ts";
 import { openSettings } from "@/hooks/use-settings-dialog.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 
@@ -73,6 +76,7 @@ const folders: NavItem[] = [
 // Figma: Omni, sidebar (node 1:3).
 export function AppSidebar() {
   const router = useRouter();
+  const { shown, shared, you } = useNavMailboxes();
   return (
     <Sidebar>
       <SidebarHeader>
@@ -101,10 +105,20 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* The first group needs no heading: it's what the app opens to. */}
+        {/* The first group needs no heading: it's what the app opens to. A shared inbox opens
+            to its helpdesk views; all mailboxes (or a personal one) to mail, then each shared
+            inbox's views under its name. */}
         <SidebarSection>
-          <Items items={mail} />
+          {shown?.kind === "shared" ? (
+            <HelpdeskViews mailboxId={shown.id} />
+          ) : (
+            <Items items={mail} />
+          )}
         </SidebarSection>
+        {!shown &&
+          shared.map((box) => (
+            <HelpdeskViews key={box.id} mailboxId={box.id} heading={mailboxName(box, you)} />
+          ))}
         <Group label="Folders" items={folders} />
       </SidebarContent>
 
@@ -129,6 +143,22 @@ export function AppSidebar() {
   );
 }
 
+/**
+ * The mailbox the switcher shows (none: all of them), and the active workspace's shared inboxes.
+ * Only the active workspace: a shared inbox elsewhere opens through the switcher, which switches.
+ */
+function useNavMailboxes() {
+  const { user, member } = useMember();
+  const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
+  const boxes =
+    useWorkspaces().data?.workspaces.find((w) => w.id === member.orgId)?.mailboxes ?? [];
+  return {
+    shown: boxes.find((box) => box.id === mailbox),
+    shared: boxes.filter((box) => box.kind === "shared"),
+    you: user.name,
+  };
+}
+
 function Group({ label, items }: { label: string; items: NavItem[] }) {
   return (
     <SidebarDisclosure defaultExpanded>
@@ -142,9 +172,11 @@ function Group({ label, items }: { label: string; items: NavItem[] }) {
 
 function Items({ items }: { items: NavItem[] }) {
   const { pathname } = useLocation();
-  const { lane } = useSearch({ strict: false }) as { lane?: string };
+  const { lane, view } = useSearch({ strict: false }) as { lane?: string; view?: string };
   const isCurrent = ({ current }: NavItem) =>
     !!current &&
+    // A helpdesk view lives under /inbox too; its own row is the current one.
+    !view &&
     (current.exact ? pathname === current.path : pathname.startsWith(current.path)) &&
     lane === current.lane;
 

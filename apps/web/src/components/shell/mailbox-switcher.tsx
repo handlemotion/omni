@@ -41,7 +41,7 @@ interface Face {
 }
 
 /** What a mailbox is called: you, for your personal one; its local part for a shared one. */
-function mailboxName(mailbox: WorkspaceMailbox, you: string) {
+export function mailboxName(mailbox: WorkspaceMailbox, you: string) {
   if (mailbox.kind === "personal") return you;
   const local = mailbox.address.split("@")[0] ?? mailbox.address;
   return local.charAt(0).toUpperCase() + local.slice(1);

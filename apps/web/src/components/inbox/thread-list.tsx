@@ -5,6 +5,7 @@ import type { Selection } from "react-aria-components";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
 import { ListLayout, Virtualizer } from "react-aria-components/Virtualizer";
+import { ConversationMeta, type ConversationRowInfo } from "@/components/inbox/conversation-meta";
 import { ListSweepSlot } from "@/components/inbox/list-sweep";
 import { SearchPopover } from "@/components/search/search-popover";
 import { buttonStyles } from "@/components/ui/button";
@@ -22,7 +23,13 @@ import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
 import { useWorkspaceNames } from "@/hooks/use-workspaces.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { senderLabel } from "@/lib/threads.ts";
-import type { ThreadFilter, ThreadSummary, ThreadView } from "@/lib/types.ts";
+import type {
+  ConversationFilter,
+  ConversationSummary,
+  ThreadFilter,
+  ThreadSummary,
+  ThreadView,
+} from "@/lib/types.ts";
 
 // The list beside an open thread: wide enough for a sender, subject and preview line.
 const LIST_WIDTH = 440;
@@ -38,6 +45,8 @@ export interface ListRow {
   unread: boolean;
   /** The workspace it belongs to, when the list spans more than one. */
   workspace?: string | undefined;
+  /** A helpdesk conversation's status, assignee, SLA and the rest, shown after the subject. */
+  conversation?: ConversationRowInfo | undefined;
 }
 
 interface ListProps {
@@ -98,6 +107,10 @@ export function List(
     isLoadingMore?: boolean;
     /** The list keys (j/k, x, e, ...), for lists of threads. */
     shortcuts?: ShortcutsSource;
+    /** Shown in place of the caption while rows are selected: what to do with them. */
+    bulkActions?: (selection: { ids: string[]; clear: () => void }) => ReactNode;
+    /** Shown in place of the rows when there are none (or they failed to load). */
+    empty?: ReactNode;
   },
 ) {
   const threads = props.rows;
@@ -166,29 +179,40 @@ export function List(
             >
               <Checkbox />
             </CheckboxField>
-            {/* 1px down: the caption's ink centers on the checkbox's, not its line box. */}
-            <span className="translate-y-px text-xs text-subtle-foreground">
-              {props.caption ?? "Most recent"}
-            </span>
+            {count > 0 && props.bulkActions ? (
+              props.bulkActions({
+                ids: selected === "all" ? threads.map((t) => t.id) : [...selected].map(String),
+                clear: () => setSelected(new Set()),
+              })
+            ) : (
+              // 1px down: the caption's ink centers on the checkbox's, not its line box.
+              <span className="translate-y-px text-xs text-subtle-foreground">
+                {props.caption ?? "Most recent"}
+              </span>
+            )}
           </div>
 
           {/* Only the rows on screen are in the DOM, so thousands of threads scroll like fifty.
               The list is its own scroll container; rows keep the frame's fixed height. The
               wrapper holds the fluid hover highlight, which sits under the rows and follows the
               list's scroll. The slot puts them inside smart search's sweep. */}
-          <ListSweepSlot>
-            <RowHover>
-              <Rows
-                label={props.title}
-                rows={threads}
-                href={props.href}
-                selected={selected}
-                onSelectionChange={setSelected}
-                loadMore={props.loadMore}
-                isLoadingMore={props.isLoadingMore}
-              />
-            </RowHover>
-          </ListSweepSlot>
+          {props.empty && !threads.length ? (
+            props.empty
+          ) : (
+            <ListSweepSlot>
+              <RowHover>
+                <Rows
+                  label={props.title}
+                  rows={threads}
+                  href={props.href}
+                  selected={selected}
+                  onSelectionChange={setSelected}
+                  loadMore={props.loadMore}
+                  isLoadingMore={props.isLoadingMore}
+                />
+              </RowHover>
+            </ListSweepSlot>
+          )}
         </section>
         {/* Always the same wrapper, so full screen doesn't remount the thread (or its scroll). */}
         {props.children && (
@@ -262,7 +286,7 @@ function RowHover({ children }: { children: ReactNode }) {
     highlightedSelector: "[data-focus-visible]",
   });
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col" {...hover.containerProps}>
+    <div className="@container relative flex min-h-0 flex-1 flex-col" {...hover.containerProps}>
       <FluidHoverHighlight {...hover.highlightProps} />
       {children}
     </div>
@@ -277,6 +301,8 @@ interface ShortcutsSource {
   view: ThreadView;
   threads: ThreadSummary[];
   loadMore?: (() => void) | undefined;
+  /** A helpdesk list: e, h and i resolve, snooze and assign instead of done and defer. */
+  helpdesk?: { filter: ConversationFilter; conversations: ConversationSummary[] } | undefined;
 }
 
 /** Binds the list keys while mounted; a component so `List` can use them only for threads. */
@@ -328,6 +354,7 @@ function ThreadRow({ thread, href }: { thread: ListRow; href: string }) {
           {thread.workspace}
         </span>
       )}
+      {thread.conversation && <ConversationMeta info={thread.conversation} />}
     </GridListItem>
   );
 }
