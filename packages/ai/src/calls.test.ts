@@ -87,6 +87,39 @@ describe("triage", () => {
   });
 });
 
+describe("helpdesk triage on Claude", () => {
+  const support: TriageInput = {
+    ...thread,
+    helpdesk: {
+      tags: [
+        { id: "t1", name: "Billing" },
+        { id: "t2", name: "Bug" },
+      ],
+    },
+  };
+
+  it("maps tag names back to ids and offers only the inbox's tags", async () => {
+    const { client, requests } = reply(
+      '{"bucket":"needs_reply","confidence":0.9,"priority":"high","tags":["Billing"]}',
+    );
+    const result = await triage(client, support);
+    expect(result.helpdesk).toEqual({ priority: "high", tagIds: ["t1"] });
+    expect(requests[0]?.messages[0]?.content).toContain("- Bug");
+  });
+
+  it("treats a tag outside the inbox's list as invalid output, not a new tag", async () => {
+    const { client } = reply(
+      '{"bucket":"needs_reply","confidence":0.9,"priority":"high","tags":["Refunds"]}',
+    );
+    expect(await triage(client, support)).toMatchObject({ source: "fallback", confidence: 0 });
+  });
+
+  it("keeps noise at low priority whatever the model says", async () => {
+    const { client } = reply('{"bucket":"noise","confidence":0.97,"priority":"urgent","tags":[]}');
+    expect((await triage(client, support)).helpdesk?.priority).toBe("low");
+  });
+});
+
 describe("summarize", () => {
   const input = { subject: "Contract renewal", messages: [{ from: "Ana", text: "Confirm?" }] };
 

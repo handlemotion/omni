@@ -1,0 +1,66 @@
+// Helpdesk triage: what a customer's message on a shared inbox adds to the bucket. Jev supplies the
+// judgments (`PRIORITY_QUESTIONS`, one `tagQuestion` per tag); this file decides the priority and
+// which tags fit. Claude answers the same two things directly in its structured output.
+
+import { read } from "./decide.ts";
+import {
+  MAX_SUGGESTED_TAGS,
+  MAX_TAG_QUESTIONS,
+  NOUL_YES,
+  PRIORITY_JUDGMENTS,
+  tagQuestion,
+  type NoulQuestion,
+  type PriorityJudgment,
+} from "./questions.ts";
+import type { Bucket, HelpdeskTag, Priority } from "./types.ts";
+
+export type PriorityJudgments = Record<PriorityJudgment, number>;
+
+/**
+ * First match wins. Only a settled yes raises the priority: a judgment between the bands leaves
+ * the conversation at `normal`, where an agent sees it in the order it arrived. A message that
+ * asks nothing of the team (`fyi`, `noise`) is `low` whatever else it says.
+ */
+export const PRIORITY_TABLE: ReadonlyArray<{
+  when: (yes: (j: PriorityJudgment) => boolean, bucket: Bucket) => boolean;
+  priority: Priority;
+}> = [
+  { when: (_, bucket) => bucket === "fyi" || bucket === "noise", priority: "low" },
+  { when: (yes) => yes("sender_blocked") && yes("time_sensitive"), priority: "urgent" },
+  {
+    when: (yes) =>
+      yes("sender_blocked") ||
+      yes("time_sensitive") ||
+      yes("money_at_stake") ||
+      yes("sender_upset"),
+    priority: "high",
+  },
+  { when: () => true, priority: "normal" },
+];
+
+export function decidePriority(judgments: PriorityJudgments, bucket: Bucket): Priority {
+  const yes = (j: PriorityJudgment) => read(judgments[j]) === "yes";
+  return PRIORITY_TABLE.find((row) => row.when(yes, bucket))?.priority ?? "normal";
+}
+
+/** The tags Jev is asked about: the inbox's first `MAX_TAG_QUESTIONS`, keyed `tag_<index>`. */
+export function tagQuestions(tags: readonly HelpdeskTag[]) {
+  const asked = tags.slice(0, MAX_TAG_QUESTIONS);
+  const questions: Record<string, NoulQuestion> = {};
+  asked.forEach((tag, i) => {
+    questions[`tag_${i}`] = tagQuestion(tag.name);
+  });
+  return { asked, questions };
+}
+
+/** Tags whose Noul reads yes, most likely first, at most `MAX_SUGGESTED_TAGS`. */
+export function pickTags(asked: readonly HelpdeskTag[], nouls: readonly number[]): string[] {
+  return asked
+    .map((tag, i) => ({ id: tag.id, p: nouls[i] ?? 0 }))
+    .filter((t) => t.p >= NOUL_YES)
+    .sort((a, b) => b.p - a.p)
+    .slice(0, MAX_SUGGESTED_TAGS)
+    .map((t) => t.id);
+}
+
+export { PRIORITY_JUDGMENTS };

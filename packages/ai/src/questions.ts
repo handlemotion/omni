@@ -147,3 +147,69 @@ export const RELEVANCE_CRITERIA = {
 
 /** Token budget for each candidate's `excerpt`. */
 export const SEARCH_EXCERPT_TOKENS = 300;
+
+// Helpdesk: asked beside the triage questions, in the same request, when the latest message on a
+// shared inbox came from a customer. The judgments below feed `PRIORITY_TABLE` in `helpdesk.ts`;
+// each of the inbox's tags is one more Noul (`tagQuestion`). The bucket questions above stay as
+// they are, so a shared inbox's noise is the same noise a personal inbox sees.
+
+export const PRIORITY_QUESTIONS = {
+  sender_blocked: {
+    type: "noul",
+    instructions:
+      "Does the sender of `latest_message` say they are unable to use the product or service right now?",
+    criteria: {
+      true: "They report an outage, an error that stops them, being locked out of their account, or an order or payment that will not go through.",
+      false:
+        "They ask a question, request a change, or describe a problem they can work around for now.",
+    },
+  },
+  time_sensitive: {
+    type: "noul",
+    instructions: "Does `latest_message` say something has to happen within the next day or two?",
+    criteria: {
+      true: "It names a deadline today or tomorrow, an event about to start, or says the matter is urgent.",
+      false: "It names no deadline, or one that is a week or more away.",
+    },
+  },
+  money_at_stake: {
+    type: "noul",
+    instructions:
+      "Is `latest_message` about a charge, payment, or refund that the sender says is wrong or missing?",
+    criteria: {
+      true: "A double or unexpected charge, a refund they are waiting for, or a payment that failed.",
+      false: "A question about prices or plans, or an invoice they only want a copy of.",
+    },
+  },
+  sender_upset: {
+    type: "noul",
+    instructions: "Does the sender of `latest_message` sound frustrated or angry?",
+    criteria: {
+      true: "They complain about the service, say they have asked before, or threaten to leave.",
+      false: "They write in a neutral or friendly tone, even when reporting a problem.",
+    },
+  },
+} as const satisfies Record<string, NoulQuestion>;
+
+export type PriorityJudgment = keyof typeof PRIORITY_QUESTIONS;
+export const PRIORITY_JUDGMENTS = Object.keys(PRIORITY_QUESTIONS) as PriorityJudgment[];
+
+/** At most this many of an inbox's tags are asked about; the rest are left to people. */
+export const MAX_TAG_QUESTIONS = 25;
+/** At most this many tags are added to one conversation, most likely first. */
+export const MAX_SUGGESTED_TAGS = 3;
+
+/**
+ * One Noul per tag. The tag's name rides in the question, so no question has to look a tag up in a
+ * shared list; question ids (`tag_0`, `tag_1`, ...) are never sent to the model.
+ */
+export function tagQuestion(name: string): NoulQuestion {
+  return {
+    type: "noul",
+    instructions: `Does the tag "${name}" describe what \`latest_message\` is about?`,
+    criteria: {
+      true: `A support agent sorting this message would file it under "${name}".`,
+      false: `The message is about something else, or only mentions "${name}" in passing.`,
+    },
+  };
+}

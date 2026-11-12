@@ -2,6 +2,7 @@
 // the system prompt says so, and nothing inside the block can close it early or fake a field.
 
 import { estimateTokens, truncateToTokens } from "./policy.ts";
+import { MAX_TAG_QUESTIONS } from "./questions.ts";
 import type { SummarizeInput, TriageInput } from "./types.ts";
 
 export const DATA_TAG = "email_data";
@@ -29,6 +30,13 @@ List-Unsubscribe, List-Id, Precedence: bulk and Auto-Submitted suggest automated
 
 confidence is your probability from 0 to 1 that the bucket is right. Use lower values when the thread is ambiguous.`;
 
+/** The triage prompt for a customer's message on a shared support inbox. */
+export const HELPDESK_TRIAGE_SYSTEM = `${TRIAGE_SYSTEM}
+
+This inbox is a shared support inbox worked by a team; "the reader" is that team. Also judge:
+- priority: urgent when the customer cannot use the product or service and it must be fixed within a day or two; high when they are blocked, face a near deadline, report a wrong or missing charge or refund, or are frustrated or angry; low when the message asks nothing of the team; otherwise normal.
+- tags: the inbox's tags, listed after the email, that describe what the message is about. Pick at most three, only from that list, and none when none fits.`;
+
 export const SUMMARY_SYSTEM = `You write the one-line brief shown at the top of an email thread.
 
 ${UNTRUSTED_RULES}
@@ -48,6 +56,11 @@ export function escapeUntrusted(text: string): string {
 /** Header-like fields stay on one line so they can't forge another field. */
 function field(text: string): string {
   return escapeUntrusted(text).replace(/\s+/g, " ").trim().slice(0, 300);
+}
+
+/** A tag's name as the model sees it and answers with: one line, escaped. */
+export function tagLabel(name: string): string {
+  return field(name);
 }
 
 function block(lines: string[]): string {
@@ -75,7 +88,10 @@ export function triagePrompt(input: TriageInput, maxInputTokens: number): string
     "Latest message:",
     escapeUntrusted(truncateToTokens(input.latestText, maxInputTokens)),
   );
-  return `Classify this email thread.\n\n${block(lines)}`;
+  const prompt = `Classify this email thread.\n\n${block(lines)}`;
+  if (!input.helpdesk || input.latestFromUs) return prompt;
+  const tags = input.helpdesk.tags.slice(0, MAX_TAG_QUESTIONS).map((t) => `- ${tagLabel(t.name)}`);
+  return `${prompt}\n\nThe inbox's tags:\n${tags.length ? tags.join("\n") : "(none)"}`;
 }
 
 export function summaryPrompt(input: SummarizeInput, maxInputTokens: number): string {

@@ -20,8 +20,15 @@ export {
   type Judgments,
   type SentJudgments,
 } from "./decide.ts";
+export {
+  decidePriority,
+  pickTags,
+  PRIORITY_TABLE,
+  tagQuestions,
+  type PriorityJudgments,
+} from "./helpdesk.ts";
 export { triageInputFor, type ThreadMessage } from "./input.ts";
-export { JEV_MODEL } from "./questions.ts";
+export { JEV_MODEL, MAX_SUGGESTED_TAGS, MAX_TAG_QUESTIONS } from "./questions.ts";
 export {
   describeDate,
   jevSearchRequest,
@@ -45,8 +52,12 @@ export {
 export {
   AI_MODEL,
   BUCKETS,
+  PRIORITIES,
   type Bucket,
   type CallOptions,
+  type HelpdeskTag,
+  type HelpdeskTriage,
+  type Priority,
   type ListSignals,
   type ModelClient,
   type SummarizeInput,
@@ -56,3 +67,12 @@ export {
   type TriageSource,
   type Usage,
 } from "./types.ts";
+export {
+  DEFAULT_REPLY_INPUT_TOKENS,
+  MAX_CANNED_REPLIES,
+  REPLY_MODEL,
+  suggestReply,
+  type ReplyClient,
+  type SuggestedReply,
+  type SuggestReplyInput,
+} from "./reply.ts";

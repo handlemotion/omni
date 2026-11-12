@@ -5,6 +5,16 @@ export const AI_MODEL = "claude-haiku-5-5";
 export const BUCKETS = ["needs_reply", "waiting_on_them", "fyi", "noise"] as const;
 export type Bucket = (typeof BUCKETS)[number];
 
+/** A shared conversation's priority; the same values as `threads.priority`. */
+export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
+export type Priority = (typeof PRIORITIES)[number];
+
+/** One of the inbox's tags, as triage may suggest it. */
+export interface HelpdeskTag {
+  id: string;
+  name: string;
+}
+
 /** The Worker passes a real `Anthropic` instance; only `messages` is used. */
 export type ModelClient = Pick<Anthropic, "messages">;
 
@@ -41,6 +51,18 @@ export interface TriageInput {
    * the Claude prompt ignores them.
    */
   earlierMessages?: ReadonlyArray<{ from: string; fromUs: boolean; text: string }>;
+  /**
+   * Set for a shared inbox (ADR 0021): triage then also judges priority and which of `tags` fit.
+   * Ignored when the latest message is our own: priority and tags describe what a customer asked.
+   */
+  helpdesk?: { tags: readonly HelpdeskTag[] };
+}
+
+/** What helpdesk triage adds to the bucket. */
+export interface HelpdeskTriage {
+  priority: Priority;
+  /** Ids from the input's `helpdesk.tags`, most likely first. */
+  tagIds: string[];
 }
 
 export type TriageSource = "rule" | "ai" | "fallback";
@@ -58,6 +80,11 @@ export interface TriageResult {
   usage: Usage;
   /** The versioned model that answered, when a model was called. Log it beside the result. */
   model?: string;
+  /**
+   * Present when the input asked for it (`helpdesk`, latest message from a customer) and a model
+   * answered. Absent on rule results and fallbacks: nothing to set, so nothing is changed.
+   */
+  helpdesk?: HelpdeskTriage;
 }
 
 export interface SummarizeInput {

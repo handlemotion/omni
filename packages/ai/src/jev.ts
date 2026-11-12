@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { decide, decideSent, type Decision } from "./decide.ts";
+import { decidePriority, pickTags, tagQuestions, type PriorityJudgments } from "./helpdesk.ts";
 import { truncateToTokens } from "./policy.ts";
 import {
   JEV_EARLIER_MESSAGE_TOKENS,
@@ -11,6 +12,8 @@ import {
   JEV_LATEST_MESSAGE_TOKENS,
   JEV_MODEL,
   JUDGMENTS,
+  PRIORITY_JUDGMENTS,
+  PRIORITY_QUESTIONS,
   READER_NOTE,
   SENT_JUDGMENTS,
   SENT_NOTE,
@@ -112,11 +115,21 @@ export function sentState(input: TriageInput) {
   };
 }
 
-/** The exact body sent to `POST /v1/systemone`. Exported so callers can log or replay it. */
+/**
+ * The exact body sent to `POST /v1/systemone`. Exported so callers can log or replay it. A
+ * customer's message on a shared inbox adds the priority and tag questions to the same request:
+ * same state, read and paid for once.
+ */
 export function jevTriageRequest(input: TriageInput, model = JEV_MODEL) {
-  return input.latestFromUs
-    ? { model, state: sentState(input), questions: SENT_QUESTIONS }
-    : { model, state: triageState(input), questions: TRIAGE_QUESTIONS };
+  if (input.latestFromUs) return { model, state: sentState(input), questions: SENT_QUESTIONS };
+  const questions = input.helpdesk
+    ? {
+        ...TRIAGE_QUESTIONS,
+        ...PRIORITY_QUESTIONS,
+        ...tagQuestions(input.helpdesk.tags).questions,
+      }
+    : TRIAGE_QUESTIONS;
+  return { model, state: triageState(input), questions };
 }
 
 export const NoulAnswer = z.object({ type: z.literal("noul"), noul: z.number().min(0).max(1) });
@@ -167,11 +180,23 @@ export async function triageWithJev(client: JevClient, input: TriageInput): Prom
   const { bucket, confidence }: Decision = input.latestFromUs
     ? decideSent(nouls(SENT_JUDGMENTS) as Parameters<typeof decideSent>[0])
     : decide(nouls(JUDGMENTS) as Parameters<typeof decide>[0]);
-  return {
+  const result: TriageResult = {
     bucket,
     confidence,
     source: "ai",
     usage: { tokensIn: response.usage.input_tokens, tokensOut: response.usage.output_tokens },
     model: response.model,
   };
+  if (input.helpdesk && !input.latestFromUs) {
+    const { asked } = tagQuestions(input.helpdesk.tags);
+    const tagNouls = nouls(asked.map((_, i) => `tag_${i}`));
+    result.helpdesk = {
+      priority: decidePriority(nouls(PRIORITY_JUDGMENTS) as PriorityJudgments, bucket),
+      tagIds: pickTags(
+        asked,
+        asked.map((_, i) => tagNouls[`tag_${i}`] ?? 0),
+      ),
+    };
+  }
+  return result;
 }

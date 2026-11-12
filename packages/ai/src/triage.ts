@@ -2,10 +2,12 @@ import { z } from "zod";
 import { createJevClient, triageWithJev, type JevClient } from "./jev.ts";
 import { callStructured } from "./model.ts";
 import { triageByRule } from "./policy.ts";
-import { TRIAGE_SYSTEM, triagePrompt } from "./prompt.ts";
+import { HELPDESK_TRIAGE_SYSTEM, TRIAGE_SYSTEM, triagePrompt, tagLabel } from "./prompt.ts";
+import { MAX_SUGGESTED_TAGS, MAX_TAG_QUESTIONS } from "./questions.ts";
 import {
   AI_MODEL,
   BUCKETS,
+  PRIORITIES,
   type CallOptions,
   type ModelClient,
   type TriageInput,
@@ -73,10 +75,15 @@ async function triageWithClaude(
   input: TriageInput,
   options: CallOptions,
 ): Promise<TriageResult> {
+  const model = options.model ?? AI_MODEL;
+  const user = triagePrompt(input, options.maxInputTokens ?? DEFAULT_TRIAGE_INPUT_TOKENS);
+  if (input.helpdesk && !input.latestFromUs) {
+    return triageHelpdeskWithClaude(client, input.helpdesk.tags, model, user);
+  }
   const result = await callStructured(client, {
-    model: options.model ?? AI_MODEL,
+    model,
     system: TRIAGE_SYSTEM,
-    user: triagePrompt(input, options.maxInputTokens ?? DEFAULT_TRIAGE_INPUT_TOKENS),
+    user,
     schema: input.latestFromUs ? SentOutput : TriageOutput,
     // Room for adaptive thinking ahead of a ~20-token answer.
     maxTokens: 1_024,
@@ -85,3 +92,42 @@ async function triageWithClaude(
   if (!result.ok) return { bucket: "fyi", confidence: 0, source: "fallback", usage: result.usage };
   return { ...result.data, source: "ai", usage: result.usage };
 }
+
+/**
+ * A customer's message on a shared inbox: the bucket plus priority and tags in one call. Tags are
+ * an enum of the inbox's own names, so the model cannot invent one; each maps back to its id.
+ */
+async function triageHelpdeskWithClaude(
+  client: ModelClient,
+  tags: TriageInputTags,
+  model: string,
+  user: string,
+): Promise<TriageResult> {
+  const byLabel = new Map(tags.slice(0, MAX_TAG_QUESTIONS).map((t) => [tagLabel(t.name), t.id]));
+  const labels = [...byLabel.keys()];
+  const schema = TriageOutput.extend({
+    priority: z.enum(PRIORITIES),
+    tags: labels.length
+      ? z.array(z.enum(labels as [string, ...string[]])).max(MAX_SUGGESTED_TAGS)
+      : z.array(z.string()).max(0),
+  });
+  const result = await callStructured(client, {
+    model,
+    system: HELPDESK_TRIAGE_SYSTEM,
+    user,
+    schema,
+    maxTokens: 1_024,
+  });
+  if (!result.ok) return { bucket: "fyi", confidence: 0, source: "fallback", usage: result.usage };
+  const { bucket, confidence, priority } = result.data;
+  const tagIds = [...new Set(result.data.tags.map((label) => byLabel.get(label)!))];
+  return {
+    bucket,
+    confidence,
+    source: "ai",
+    usage: result.usage,
+    helpdesk: { priority: bucket === "fyi" || bucket === "noise" ? "low" : priority, tagIds },
+  };
+}
+
+type TriageInputTags = NonNullable<TriageInput["helpdesk"]>["tags"];
