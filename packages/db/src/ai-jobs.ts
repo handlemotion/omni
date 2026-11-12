@@ -102,17 +102,27 @@ export async function saveTriage(
 
 /**
  * Stores the summary (null when there is nothing to say, e.g. noise) and marks `messageId` as
- * covered, which is what makes a redelivered job a no-op.
+ * covered, which is what makes a redelivered job a no-op. Writes nothing (returns false) when the
+ * thread no longer holds `messageCount` messages: mail was merged in or pruned while the model
+ * ran, so the summary covers a conversation that no longer exists, and the job queued for that
+ * change writes the right one.
  */
 export async function saveSummary(
   db: Db,
   threadId: string,
-  input: { summary: string | null; messageId: string },
+  input: { summary: string | null; messageId: string; messageCount: number },
 ) {
-  await db
+  const rows = await db
     .update(threads)
     .set({ summary: input.summary, summaryMessageId: input.messageId, updatedAt: new Date() })
-    .where(eq(threads.id, threadId));
+    .where(
+      and(
+        eq(threads.id, threadId),
+        sql`(select count(*) from ${messages} where ${messages.threadId} = ${threadId}) = ${input.messageCount}`,
+      ),
+    )
+    .returning({ id: threads.id });
+  return rows.length > 0;
 }
 
 /** Today's spend for the org (UTC day). */

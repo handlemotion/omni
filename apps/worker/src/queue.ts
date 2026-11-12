@@ -101,6 +101,8 @@ export async function consumeDeadLetters(batch: MessageBatch<AiJob>, env: Env) {
 
 /**
  * `superseded`: a newer message arrived mid-job; that message's own job files the thread.
+ * `changed`: mail was merged in or pruned while the model ran, so the summary was dropped; the job
+ *   runs again on the thread as it is now.
  * `triage_paused`: the workspace used its monthly allowance; the thread records until when.
  * `billing_inactive`: no plan in good standing, so no AI at all (ADR 0015).
  */
@@ -111,6 +113,7 @@ export type AiJobOutcome =
   | "done_already"
   | "no_model"
   | "superseded"
+  | "changed"
   | "triaged"
   | "summarized";
 
@@ -149,6 +152,11 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
           await fanOut(env, db, config, new Map([[mailboxId, new Set([threadId])]]));
         }
         log.info("ai.job", { threadId: job.threadId, outcome, durationMs: Date.now() - started });
+        // Nothing else is sure to queue a job for a prune, so this one reads the thread again.
+        if (outcome === "changed") {
+          message.retry({ delaySeconds: 5 });
+          continue;
+        }
         message.ack();
       } catch (error) {
         const fields = {
@@ -242,8 +250,12 @@ export async function runAiJob(
 
   // Noise never gets a summary, so the job is complete.
   if (bucket === "noise") {
-    await saveSummary(db, thread.id, { summary: null, messageId: latest.id });
-    return "triaged";
+    const saved = await saveSummary(db, thread.id, {
+      summary: null,
+      messageId: latest.id,
+      messageCount: thread.messages.length,
+    });
+    return saved ? "triaged" : "changed";
   }
   if (!summaryEnabled) return nothingNew;
   if (!(await inGoodStanding(db, config, thread.orgId))) return nothingNew;
@@ -263,6 +275,10 @@ export async function runAiJob(
     })),
   });
   await addAiUsage(db, thread.orgId, day, summary.usage);
-  await saveSummary(db, thread.id, { summary: summary.summary, messageId: latest.id });
-  return "summarized";
+  const saved = await saveSummary(db, thread.id, {
+    summary: summary.summary,
+    messageId: latest.id,
+    messageCount: thread.messages.length,
+  });
+  return saved ? "summarized" : "changed";
 }

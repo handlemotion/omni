@@ -1,5 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
+import { saveSummary } from "../src/ai-jobs.ts";
 import { createDb } from "../src/client.ts";
 import { rescheduleAction, setLocationFlags } from "../src/mail-sync.ts";
 import {
@@ -237,4 +238,52 @@ test("setLocationFlags rewrites the named folder's copies and leaves the same UI
   for (const untouched of [at(1, 1), at(1, 2), at(2, 1), at(2, 2)]) {
     expect(untouched).toMatchObject({ flags: [], modseq: null });
   }
+});
+
+describe("saveSummary", () => {
+  test("a summary of fewer messages than the thread now holds is not saved", async () => {
+    const threadId = await createThread(db, {
+      orgId: org.id,
+      mailboxId: mailbox.id,
+      subjectKey: "summary",
+      lastMessageAt: new Date("2026-10-01T00:00:00Z"),
+    });
+    const message = (n: number) =>
+      upsertMessage(db, {
+        orgId: org.id,
+        mailboxId: mailbox.id,
+        threadId,
+        folderId: null,
+        imapUid: null,
+        messageIdHeader: `<summary-${n}@example.test>`,
+        inReplyTo: null,
+        references: [],
+        subject: "Refund",
+        fromName: null,
+        fromAddress: "customer@example.test",
+        to: [],
+        cc: [],
+        sentAt: new Date(`2026-10-0${n}T00:00:00Z`),
+        r2Key: `raw/summary-${n}.eml`,
+        htmlR2Key: null,
+        cleanText: `part ${n}`,
+      });
+    const latest = await message(2);
+    // The job read one message; then an older half of the conversation was merged in.
+    await message(1);
+
+    const saved = await saveSummary(db, threadId, {
+      summary: "Only the second half",
+      messageId: latest.id,
+      messageCount: 1,
+    });
+
+    expect(saved).toBe(false);
+    const [thread] = await db.select().from(threads).where(eq(threads.id, threadId));
+    expect(thread).toMatchObject({ summary: null, summaryMessageId: null });
+    // The job queued for the merge read both and saves.
+    expect(
+      await saveSummary(db, threadId, { summary: "Both", messageId: latest.id, messageCount: 2 }),
+    ).toBe(true);
+  });
 });
