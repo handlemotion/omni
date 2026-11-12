@@ -57,6 +57,7 @@ export interface ImapSession {
   client: ImapFlow;
   capabilities: Capabilities;
   folder(role: FolderRole): FolderInfo | undefined;
+  folders(): FolderInfo[];
   /** The folder for `role`, created at `path` when the server has none. */
   ensureFolder(role: FolderRole, path: string): Promise<FolderInfo>;
   syncFolder(path: string): Promise<FolderSyncResult>;
@@ -282,6 +283,7 @@ export class MailboxConnection extends EventEmitter<Events> {
         client,
         capabilities: this.capabilities as Capabilities,
         folder: (role) => this.folders.find((f) => f.role === role),
+        folders: () => this.folders,
         ensureFolder: (role, path) => this.ensureFolder(role, path),
         syncFolder: (path) => this.syncFolderNow(path),
       });

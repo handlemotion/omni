@@ -1,3 +1,5 @@
+import { schema } from "@omni/db";
+import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
 import { deterministicMessageId, OutboxExecutor } from "../src/outbox.ts";
@@ -30,6 +32,7 @@ async function setup(kind: "personal" | "shared" = "personal") {
   const executor = new OutboxExecutor({
     actions,
     logger,
+    store,
     connection: (id) => (id === box.id ? connection : undefined),
   });
   return { seeded, box, store, actions, connection, executor };
@@ -163,6 +166,86 @@ describe("OutboxExecutor against GreenMail", () => {
     expect(archived.map((r) => r.subject)).toEqual(["to archive"]);
     // Same row, now located in Archive: a move is not a new message.
     expect(archived[0]?.messageId).toBe(message.messageId);
+  });
+
+  it("a reply shows in its thread once SMTP accepts it, before the mailbox can file it in Sent", async () => {
+    const { seeded, box, connection, executor } = await setup("shared");
+    const parent = `<question.${box.id}@outside.test>`;
+    await deliver(box.address, "Where is my order?", { messageId: parent });
+    await connection.start();
+    const [question] = await stored(db, box.id, "INBOX");
+    await connection.stop();
+
+    // The mailbox is reconnecting: SMTP still works, the Sent append has to wait.
+    const reply = await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `idem-early-${box.id}`,
+      payload: {
+        from: box.address,
+        to: ["customer@outside.test"],
+        subject: "Re: Where is my order?",
+        text: "On its way.",
+        inReplyTo: parent,
+        references: [parent],
+        messageId: `<reply.${box.id}@omni.test>`,
+      },
+    });
+    await executor.drain();
+    expect((await actionRow(db, reply.id)).status).toBe("pending");
+    const early = (await messageRows(db, box.id)).find((m) => m.subject.startsWith("Re:"));
+    expect(early).toMatchObject({ threadId: question?.threadId, folderId: null });
+    // A full sync while the send waits does not take the reply for a deleted message.
+    await connection.start();
+    await connection.syncAll();
+    expect(await messageRows(db, box.id)).toHaveLength(2);
+
+    await db
+      .update(schema.mailActions)
+      .set({ runAfter: new Date() })
+      .where(eq(schema.mailActions.id, reply.id));
+    await executor.drain();
+    expect((await actionRow(db, reply.id)).status).toBe("done");
+    // The Sent copy became the same row's location: one row, one notification.
+    const [filed] = await stored(db, box.id, "Sent");
+    expect(filed?.messageId).toBe(early?.id);
+    expect(await messageRows(db, box.id)).toHaveLength(2);
+  });
+
+  it("archiving a conversation leaves our reply in Sent", async () => {
+    const { seeded, box, store, connection, executor } = await setup("shared");
+    await deliver(box.address, "Refund please");
+    await connection.start();
+    const [inbound] = await stored(db, box.id, "INBOX");
+    await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `idem-refund-${box.id}`,
+      payload: {
+        from: box.address,
+        to: ["customer@outside.test"],
+        subject: "Re: Refund please",
+        text: "Done.",
+      },
+    });
+    await executor.drain();
+    const [sent] = await stored(db, box.id, "Sent");
+    if (!inbound || !sent) throw new Error("not synced");
+
+    // What the Worker's archive route writes: one action per folder holding a copy.
+    for (const [folder, uid] of [
+      ["INBOX", inbound.uid],
+      ["Sent", sent.uid],
+    ] as const) {
+      const position = await store.getSyncPosition(box.id, folder);
+      await enqueue(db, seeded, {
+        kind: "archive",
+        idempotencyKey: `idem-archive-${folder}-${box.id}`,
+        payload: { folder, uidValidity: position!.uidValidity.toString(), uids: [uid] },
+      });
+    }
+    await executor.drain();
+
+    expect((await stored(db, box.id, "Archive")).map((r) => r.subject)).toEqual(["Refund please"]);
+    expect((await stored(db, box.id, "Sent")).map((r) => r.subject)).toEqual(["Re: Refund please"]);
   });
 
   it("refuses to touch UIDs whose folder UIDVALIDITY changed", async () => {

@@ -51,6 +51,11 @@ export interface MailStore {
   removeMessages(mailboxId: string, folder: string, uids: number[]): Promise<void>;
   /** UIDVALIDITY changed: forget every message and the sync position of this folder. */
   resetFolder(mailboxId: string, folder: string): Promise<void>;
+  /**
+   * Index a message we just sent, before its Sent copy exists, so the reply shows in its thread
+   * at once. The Sent copy found later by `storeMessage` becomes its location. Idempotent.
+   */
+  storeSent(mailboxId: string, raw: Uint8Array): Promise<void>;
   /** Ids of stored messages with no copy left in any folder (deleted, or mid-move). */
   orphanedMessages(mailboxId: string): Promise<string[]>;
   /**

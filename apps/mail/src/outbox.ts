@@ -9,7 +9,7 @@ import {
   type MailboxConnection,
   MailboxUnavailableError,
 } from "./mailbox-connection.ts";
-import type { ActionSource, MailAction, MessageTarget, SendPayload } from "./ports.ts";
+import type { ActionSource, MailAction, MailStore, MessageTarget, SendPayload } from "./ports.ts";
 import { backoffDelay } from "./timing.ts";
 
 /** Retrying cannot help: bad payload, or the folder's UIDVALIDITY moved under the action. */
@@ -28,6 +28,8 @@ export interface OutboxOptions {
   actions: ActionSource;
   logger: Logger;
   connection(mailboxId: string): MailboxConnection | undefined;
+  /** Indexes a sent message once SMTP accepts it, before its Sent copy exists. */
+  store?: Pick<MailStore, "storeSent">;
   maxAttempts?: number;
   retryBaseMs?: number;
   retryMaxMs?: number;
@@ -42,8 +44,8 @@ export interface OutboxOptions {
  * has a Message-ID derived from its idempotency key, and we look for it in Sent before sending.
  */
 export class OutboxExecutor {
-  private readonly options: Required<Omit<OutboxOptions, "connection">> &
-    Pick<OutboxOptions, "connection">;
+  private readonly options: Required<Omit<OutboxOptions, "connection" | "store">> &
+    Pick<OutboxOptions, "connection" | "store">;
   private draining: Promise<number> | null = null;
   private drainAgain = false;
   private stopped = false;
@@ -56,6 +58,7 @@ export class OutboxExecutor {
 
   constructor(options: OutboxOptions) {
     this.options = {
+      store: undefined,
       maxAttempts: 8,
       retryBaseMs: 5_000,
       retryMaxMs: 30 * 60_000,
@@ -175,6 +178,10 @@ export class OutboxExecutor {
         return this.send(connection, action);
       case "archive":
         return connection.run(async (session) => {
+          // Our own replies stay in Sent and junk stays in Junk: archiving a conversation files
+          // what arrived in the inbox, not every copy of it.
+          const role = session.folders().find((f) => f.path === action.payload.folder)?.role;
+          if (role === "sent" || role === "junk") return;
           const archive = await session.ensureFolder("archive", "Archive");
           await move(session, action.payload, archive.path);
         });
@@ -225,6 +232,12 @@ export class OutboxExecutor {
       await persistAccepted(() => this.options.actions.markSmtpAccepted(action.id));
       this.accepted.delete(action.id);
     }
+
+    // The reply shows in its thread now, not after the Sent append (which waits for the mailbox
+    // to be ready). Best effort: the Sent copy indexes it anyway.
+    await this.options.store?.storeSent(mailbox.id, raw).catch((error: unknown) => {
+      this.options.logger.warn("outbox.sent_not_indexed", { actionId: action.id, error });
+    });
 
     await connection.run(async (session) => {
       const sent = await session.ensureFolder("sent", "Sent");

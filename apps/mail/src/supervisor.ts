@@ -46,6 +46,7 @@ export class Supervisor {
     this.outbox = new OutboxExecutor({
       actions: options.actions,
       logger: options.logger,
+      store: options.store,
       connection: (id) => this.connections.get(id),
     });
   }
