@@ -10,6 +10,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { MAIL_PING_PATH } from "@omni/contracts";
+import { getFolderPosition, schema } from "@omni/db";
+import { eq } from "drizzle-orm";
 import { parseKeyring, signRequest } from "@omni/crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { serve } from "@hono/node-server";
@@ -146,6 +148,101 @@ describe.runIf(requested)("Gmail itself", () => {
       60_000,
     );
     expect(arrived.cleanText).toContain("to myself, through Gmail");
+  });
+
+  it("syncs Gmail's system folders only, follows its threads and archives into All Mail", async () => {
+    const seeded = await seedGoogle(refreshToken);
+    const mailboxId = seeded.box.id;
+    await start();
+    await waitFor(async () => (await mailboxStatus(db, mailboxId)) === "active", 60_000);
+
+    // Labels, Starred and Important are views of All Mail: not synced (ADR 0023).
+    const folders = await db
+      .select({ path: schema.mailboxFolders.path, role: schema.mailboxFolders.role })
+      .from(schema.mailboxFolders)
+      .where(eq(schema.mailboxFolders.mailboxId, mailboxId));
+    expect(folders.map((f) => f.role).toSorted()).toEqual(
+      ["archive", "drafts", "inbox", "junk", "sent", "trash"].toSorted(),
+    );
+    const pathOf = (role: string) => folders.find((f) => f.role === role)?.path ?? "";
+
+    const ping = async () =>
+      fetch(`${serviceUrl}${MAIL_PING_PATH}`, {
+        method: "POST",
+        headers: await signRequest({
+          secret,
+          method: "POST",
+          path: MAIL_PING_PATH,
+          nonce: randomUUID(),
+        }),
+      });
+    const subject = `omni gmail thread ${randomUUID()}`;
+    const first = await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `gmail-thread-1-${mailboxId}`,
+      payload: { from: address, to: [address], subject, text: "first" },
+    });
+    await ping();
+    await waitFor(async () => (await actionRow(db, first.id)).status === "done", 60_000);
+    const inbound = await waitFor(
+      async () => (await stored(db, mailboxId, "INBOX")).find((r) => r.subject === subject),
+      60_000,
+    );
+    const reply = await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `gmail-thread-2-${mailboxId}`,
+      payload: {
+        from: address,
+        to: [address],
+        subject: `Re: ${subject}`,
+        text: "second",
+        inReplyTo: inbound.messageIdHeader,
+        references: [inbound.messageIdHeader],
+      },
+    });
+    await ping();
+    await waitFor(async () => (await actionRow(db, reply.id)).status === "done", 60_000);
+    const replyRow = await waitFor(
+      async () =>
+        (await stored(db, mailboxId, "INBOX")).find((r) => r.subject === `Re: ${subject}`),
+      60_000,
+    );
+
+    // One Omni thread, carrying Gmail's X-GM-THRID.
+    expect(replyRow.threadId).toBe(inbound.threadId);
+    const [thread] = await db
+      .select({ providerThreadId: schema.threads.providerThreadId })
+      .from(schema.threads)
+      .where(eq(schema.threads.id, inbound.threadId));
+    expect(thread?.providerThreadId).toMatch(/^\d+$/);
+
+    // Gmail filed each send in Sent itself; Omni appended no second copy.
+    await service?.supervisor.connection(mailboxId)?.syncFolder(pathOf("sent"));
+    const sentCopies = (await stored(db, mailboxId, pathOf("sent"))).filter((r) =>
+      r.subject?.endsWith(subject),
+    );
+    expect(sentCopies).toHaveLength(2);
+
+    // Archive takes the Inbox label off: the message stays only in All Mail.
+    const position = await getFolderPosition(db, mailboxId, "INBOX");
+    const archive = await enqueue(db, seeded, {
+      kind: "archive",
+      idempotencyKey: `gmail-archive-${mailboxId}`,
+      payload: {
+        folder: "INBOX",
+        uidValidity: String(position?.uidvalidity),
+        uids: [inbound.uid],
+      },
+    });
+    await ping();
+    await waitFor(async () => (await actionRow(db, archive.id)).status === "done", 60_000);
+    expect((await stored(db, mailboxId, "INBOX")).some((r) => r.subject === subject)).toBe(false);
+    await service?.supervisor.connection(mailboxId)?.syncFolder(pathOf("archive"));
+    expect(
+      (await stored(db, mailboxId, pathOf("archive"))).some(
+        (r) => r.messageId === inbound.messageId,
+      ),
+    ).toBe(true);
   });
 
   it("puts the mailbox in error when Google refuses the refresh token", async () => {

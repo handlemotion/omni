@@ -1,6 +1,6 @@
 // System writers for the mail service. They are not member-scoped: only trusted background code
 // calls them, never a route handling a member's request. Each one is idempotent.
-import { and, desc, eq, inArray, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import type { ActionPayload, MailActionKind } from "@omni/contracts";
 import { attachments, mailActions, mailboxFolders, messages, threads } from "./schema/index.ts";
@@ -16,10 +16,40 @@ type NewAttachment = Omit<
 
 export async function createThread(
   db: Db,
-  input: Pick<typeof threads.$inferInsert, "orgId" | "mailboxId" | "subjectKey" | "lastMessageAt">,
+  input: Pick<
+    typeof threads.$inferInsert,
+    "orgId" | "mailboxId" | "subjectKey" | "lastMessageAt" | "providerThreadId"
+  >,
 ) {
   const [row] = await db.insert(threads).values(input).returning({ id: threads.id });
   return row!.id;
+}
+
+/** The thread for a provider thread id (Gmail's X-GM-THRID) in the mailbox, if one exists. */
+export async function findThreadByProviderId(db: Db, mailboxId: string, providerThreadId: string) {
+  const [row] = await db
+    .select({ id: threads.id })
+    .from(threads)
+    .where(and(eq(threads.mailboxId, mailboxId), eq(threads.providerThreadId, providerThreadId)));
+  return row?.id ?? null;
+}
+
+/**
+ * Gives a thread that has no provider thread id this one. False when it already has another: the
+ * provider keeps them apart, so the message belongs in a thread of its own.
+ */
+export async function claimProviderThread(db: Db, threadId: string, providerThreadId: string) {
+  const rows = await db
+    .update(threads)
+    .set({ providerThreadId })
+    .where(
+      and(
+        eq(threads.id, threadId),
+        or(isNull(threads.providerThreadId), eq(threads.providerThreadId, providerThreadId)),
+      ),
+    )
+    .returning({ id: threads.id });
+  return rows.length > 0;
 }
 
 /** Thread holding any of these Message-IDs in the mailbox, for In-Reply-To/References joins. */

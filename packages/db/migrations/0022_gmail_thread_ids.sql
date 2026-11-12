@@ -1,0 +1,2 @@
+ALTER TABLE "threads" ADD COLUMN "provider_thread_id" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "threads_mailbox_provider_thread_unique" ON "threads" USING btree ("mailbox_id","provider_thread_id") WHERE "threads"."provider_thread_id" is not null;

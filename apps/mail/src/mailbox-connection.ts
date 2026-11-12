@@ -52,6 +52,8 @@ export interface Capabilities {
   condstore: boolean;
   uidplus: boolean;
   move: boolean;
+  /** Gmail (`X-GM-EXT-1`): system folders only, All Mail is the archive, X-GM-THRID threads. */
+  gmail: boolean;
   /** Every capability the server advertised, logged on connect to show what a host supports. */
   all: string[];
 }
@@ -556,16 +558,20 @@ export class MailboxConnection extends EventEmitter<Events> {
 
   private async discoverFolders(): Promise<void> {
     const listed = await this.requireClient().list();
+    const gmail = this.capabilities?.gmail === true;
     const taken = new Set<FolderRole>();
     this.folders = listed
       .filter((f) => !f.flags.has("\\Noselect") && !f.flags.has("\\NonExistent"))
       .map((f) => {
         // One folder per role; a second "Sent Messages" next to "Sent" is just another folder.
-        let role = roleOf(f);
+        let role = roleOf(f, gmail);
         if (role !== "other" && taken.has(role)) role = "other";
         taken.add(role);
         return { path: f.path, role };
-      });
+      })
+      // Gmail's labels (and Starred, Important) are views of All Mail: syncing them only adds
+      // copies of messages All Mail already has (ADR 0023).
+      .filter((f) => !gmail || f.role !== "other");
     await this.store.saveFolders(this.mailbox.id, this.folders);
   }
 
@@ -673,7 +679,13 @@ export class MailboxConnection extends EventEmitter<Events> {
         this.throwIfStopped();
         for await (const msg of client.fetch(
           batch.join(","),
-          { uid: true, flags: true, source: true, internalDate: true },
+          {
+            uid: true,
+            flags: true,
+            source: true,
+            internalDate: true,
+            ...(this.capabilities?.gmail ? { threadId: true } : {}),
+          },
           { uid: true },
         )) {
           // Finish the message in hand, then stop; the rest of the batch is fetched next start.
@@ -687,6 +699,7 @@ export class MailboxConnection extends EventEmitter<Events> {
               flags: sortedFlags(msg.flags),
               modseq: msg.modseq ?? null,
               internalDate: msg.internalDate ? new Date(msg.internalDate) : null,
+              ...(msg.threadId ? { providerThreadId: msg.threadId } : {}),
             });
             consecutiveFailures = 0;
             if (created) {
@@ -772,12 +785,15 @@ function detectCapabilities(client: ImapFlow): Capabilities {
     condstore: client.enabled.has("CONDSTORE") || has("CONDSTORE"),
     uidplus: has("UIDPLUS"),
     move: has("MOVE"),
+    gmail: has("X-GM-EXT-1"),
     all: [...client.capabilities.keys()].toSorted(),
   };
 }
 
-function roleOf(folder: ListResponse): FolderRole {
+function roleOf(folder: ListResponse, gmail: boolean): FolderRole {
   if (folder.path.toUpperCase() === "INBOX") return "inbox";
+  // Gmail archives by removing the Inbox label, which leaves the message in All Mail only.
+  if (gmail && folder.specialUse === "\\All") return "archive";
   return (folder.specialUse && ROLE_BY_SPECIAL_USE[folder.specialUse]) || "other";
 }
 

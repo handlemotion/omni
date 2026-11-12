@@ -390,6 +390,11 @@ export const threads = pgTable(
      * allowance (ADR 0015): when the allowance resets. Cleared by the next triage.
      */
     triagePausedUntil: timestamptz("triage_paused_until"),
+    /**
+     * The provider's own thread id, when it has one: Gmail's X-GM-THRID (ADR 0023). Messages with
+     * one join its thread, so a conversation is the same one the provider shows.
+     */
+    providerThreadId: text("provider_thread_id"),
     // Helpdesk conversation state (ADR 0021): shared by everyone who can see the inbox. Read
     // state stays per member in `thread_state`. Personal mailboxes ignore these columns.
     status: conversationStatus("status").notNull().default("open"),
@@ -491,6 +496,10 @@ export const threads = pgTable(
     index("threads_assignee_member_id_idx")
       .on(t.assigneeMemberId)
       .where(sql`${t.assigneeMemberId} is not null`),
+    // Every Gmail message looks its thread up by X-GM-THRID; one Omni thread per Gmail thread.
+    uniqueIndex("threads_mailbox_provider_thread_unique")
+      .on(t.mailboxId, t.providerThreadId)
+      .where(sql`${t.providerThreadId} is not null`),
   ],
 );
 

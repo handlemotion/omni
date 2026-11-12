@@ -192,9 +192,10 @@ export class OutboxExecutor {
       case "archive":
         return connection.run(async (session) => {
           // Our own replies stay in Sent and junk stays in Junk: archiving a conversation files
-          // what arrived in the inbox, not every copy of it.
+          // what arrived in the inbox, not every copy of it. A copy already in the archive (every
+          // Gmail message has one in All Mail) is where it should be.
           const role = session.folders().find((f) => f.path === action.payload.folder)?.role;
-          if (role === "sent" || role === "junk") return;
+          if (role === "sent" || role === "junk" || role === "archive") return;
           const archive = await session.ensureFolder("archive", "Archive");
           await move(session, action.payload, archive.path);
         });
@@ -302,6 +303,11 @@ export class OutboxExecutor {
 
     await connection.run(async (session) => {
       const sent = await session.ensureFolder("sent", "Sent");
+      // Gmail files every SMTP submission in Sent itself (ADR 0023); appending would add a copy.
+      if (session.capabilities.gmail) {
+        await session.syncFolder(sent.path);
+        return;
+      }
       // Already filed by an earlier attempt that died before `complete`, or by a server that files
       // SMTP submissions itself: the deterministic Message-ID finds it either way.
       if ((await findByMessageId(session, sent.path, messageId)) !== null) return;

@@ -28,6 +28,8 @@ export interface FetchedMessage {
   flags: string[];
   modseq: bigint | null;
   internalDate: Date | null;
+  /** Gmail's X-GM-THRID: the message joins that thread (ADR 0023). Absent elsewhere. */
+  providerThreadId?: string;
 }
 
 export interface FlagChange {
