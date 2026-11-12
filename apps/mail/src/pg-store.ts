@@ -284,6 +284,8 @@ export class PgMailStore implements MailStore {
         r2Key,
         htmlR2Key,
         cleanText,
+        // Cleared once the Worker accepts `message.created`; until then the sweep re-sends it.
+        notifyPending: true,
         attachments: files.map((f) => ({
           filename: f.meta.filename ?? "attachment",
           mimeType: f.meta.mimeType,

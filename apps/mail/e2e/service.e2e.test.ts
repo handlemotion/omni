@@ -50,6 +50,9 @@ let workerUrl: string;
 /** Events the Worker accepted, in order. */
 let received: MailEvent[] = [];
 let workerRejected = 0;
+/** While true the Worker answers 503, as during a deploy or an outage. */
+let workerDown = false;
+let workerUnavailable = 0;
 
 let service: MailService | null = null;
 let http: ReturnType<typeof serve> | null = null;
@@ -60,6 +63,11 @@ beforeAll(async () => {
   db = database.db;
   bucket = await createTestBucket();
   worker = createServer(async (req, res) => {
+    if (workerDown) {
+      workerUnavailable++;
+      res.writeHead(503).end();
+      return;
+    }
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk as Buffer);
     const body = Buffer.concat(chunks).toString();
@@ -91,6 +99,8 @@ afterAll(async () => {
 beforeEach(() => {
   received = [];
   workerRejected = 0;
+  workerDown = false;
+  workerUnavailable = 0;
 });
 
 afterEach(async () => {
@@ -218,6 +228,39 @@ describe("mail service end to end", () => {
       "before restart 2",
       "while down",
     ]);
+  });
+
+  it("never loses new mail's event: a Worker outage and a restart still deliver it once", async () => {
+    const { box, orgId } = await seedConnectable();
+    workerDown = true;
+    await startMailService();
+    await connected(box.id);
+
+    await deliver(box.address, "during the outage");
+    const [row] = await waitFor(async () => {
+      const rows = await stored(db, box.id, "INBOX");
+      return rows.length > 0 && rows;
+    });
+    await waitFor(() => workerUnavailable > 0);
+    // The process goes away before the Worker ever accepted the event.
+    await stopService();
+    expect(received).toEqual([]);
+
+    workerDown = false;
+    await startMailService();
+    await waitFor(() => received.length > 0);
+    expect(received).toEqual([
+      {
+        type: "message.created",
+        orgId,
+        mailboxId: box.id,
+        threadId: row?.threadId,
+        messageId: row?.messageId,
+        folderRole: "inbox",
+      },
+    ]);
+    // Accepted, so the next start sends nothing again.
+    await waitFor(async () => (await messageRows(db, box.id))[0]?.notifyPending === false);
   });
 
   it("rejects forged, expired and replayed pings; a valid ping runs the outbox", async () => {

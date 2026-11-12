@@ -47,6 +47,8 @@ const schema = z.object({
     .positive()
     .default(5 * 60_000),
   OUTBOX_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
+  /** How often `message.created` events the Worker never accepted are sent again. */
+  NOTIFY_SWEEP_MS: z.coerce.number().int().positive().default(60_000),
   MAILBOX_CONCURRENCY: z.coerce.number().int().positive().default(4),
   /**
    * Optional Purelymail admin API token. Set: onboarding adds domains, users and app passwords

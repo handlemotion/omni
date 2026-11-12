@@ -495,6 +495,38 @@ export async function pruneMessages(
   });
 }
 
+/**
+ * Messages whose `message.created` the Worker has not accepted yet (`notify_pending`), oldest
+ * first: the mail service died or the Worker was down before delivery. Re-sending is safe; the
+ * Worker dedupes by message id.
+ */
+export async function pendingNotifications(db: Db, limit: number) {
+  const rows = await db
+    .select({
+      orgId: messages.orgId,
+      mailboxId: messages.mailboxId,
+      threadId: messages.threadId,
+      messageId: messages.id,
+      role: mailboxFolders.role,
+    })
+    .from(messages)
+    .leftJoin(mailboxFolders, eq(mailboxFolders.id, messages.folderId))
+    .where(eq(messages.notifyPending, true))
+    .orderBy(messages.id)
+    .limit(limit);
+  // No folder yet: a reply indexed when SMTP accepted it (its Sent copy is not filed yet).
+  return rows.map(({ role, ...row }) => ({ ...row, folderRole: role ?? ("sent" as const) }));
+}
+
+/** The Worker accepted `message.created` for these messages. */
+export async function markNotified(db: Db, messageIds: string[]) {
+  if (messageIds.length === 0) return;
+  await db
+    .update(messages)
+    .set({ notifyPending: false })
+    .where(and(inArray(messages.id, messageIds), eq(messages.notifyPending, true)));
+}
+
 /** Marks the folder for a full re-sync: no sync position and no stored copies. */
 export async function resetFolder(db: Db, mailboxId: string, path: string) {
   await removeLocations(db, { mailboxId, path });

@@ -1,7 +1,8 @@
 // Tells the Worker about newly indexed mail (`POST /internal/mail-events`, HMAC-signed) so it can
-// queue AI jobs and notify open apps. Events are batched and retried with backoff; delivery is
-// at least once, and the Worker dedupes by message id. Events still queued when the process
-// dies are lost: the Worker's triage sweep is the backstop for those.
+// queue AI jobs, apply the helpdesk status rules and notify open apps. Events are batched and
+// retried with backoff; delivery is at least once, and the Worker dedupes by message id.
+// `message.created` is durable: each new row is flagged `notify_pending` until the Worker accepts
+// its event (`onDelivered`), and `sweep` re-sends whatever a crash or a Worker outage left behind.
 import { randomUUID } from "node:crypto";
 import { MAIL_EVENTS_PATH, type MailEvent, MAX_EVENTS_PER_REQUEST } from "@omni/contracts";
 import { signRequest } from "@omni/crypto";
@@ -16,12 +17,17 @@ export interface NotifierOptions {
   batchDelayMs?: number;
   retryBaseMs?: number;
   retryMaxMs?: number;
-  /** After this many failed attempts a batch is dropped and logged. */
+  /** After this many failed attempts a batch is dropped and logged (the sweep sends it again). */
   maxAttempts?: number;
+  /** The Worker accepted these events. Must not throw. */
+  onDelivered?: (events: MailEvent[]) => Promise<void>;
 }
 
 export class WorkerNotifier {
-  private readonly options: Required<NotifierOptions>;
+  private readonly options: Required<Omit<NotifierOptions, "onDelivered">> &
+    Pick<NotifierOptions, "onDelivered">;
+  /** `message.created` ids queued or in flight, so a sweep never sends one twice at once. */
+  private readonly pending = new Set<string>();
   private readonly url: string;
   private queue: MailEvent[] = [];
   private timer: NodeJS.Timeout | null = null;
@@ -42,6 +48,10 @@ export class WorkerNotifier {
 
   push(event: MailEvent): void {
     if (this.stopped) return;
+    if (event.type === "message.created") {
+      if (this.pending.has(event.messageId)) return;
+      this.pending.add(event.messageId);
+    }
     this.queue.push(event);
     this.timer ??= setTimeout(() => {
       this.timer = null;
@@ -54,7 +64,13 @@ export class WorkerNotifier {
     this.flushing ??= (async () => {
       while (this.queue.length > 0) {
         const batch = this.queue.splice(0, MAX_EVENTS_PER_REQUEST);
-        await this.deliver(batch);
+        try {
+          if (await this.deliver(batch)) await this.options.onDelivered?.(batch);
+        } finally {
+          for (const event of batch) {
+            if (event.type === "message.created") this.pending.delete(event.messageId);
+          }
+        }
       }
     })().finally(() => {
       this.flushing = null;
@@ -71,7 +87,8 @@ export class WorkerNotifier {
     await this.flush().catch(() => {});
   }
 
-  private async deliver(events: MailEvent[]): Promise<void> {
+  /** True once the Worker accepted the batch; false when it was dropped. */
+  private async deliver(events: MailEvent[]): Promise<boolean> {
     const body = JSON.stringify({ events });
     const log = this.options.logger;
     for (let attempt = 1; ; attempt++) {
@@ -88,12 +105,12 @@ export class WorkerNotifier {
           headers: { ...headers, "content-type": "application/json" },
           body,
         });
-        if (response.ok) return;
+        if (response.ok) return true;
         throw new Error(`worker answered ${response.status}`);
       } catch (error) {
         if (this.stopped || attempt >= this.options.maxAttempts) {
           log.error("notify.dropped", { events: events.length, attempt, error });
-          return;
+          return false;
         }
         const retryInMs = Math.round(
           backoffDelay(attempt, this.options.retryBaseMs, this.options.retryMaxMs),
