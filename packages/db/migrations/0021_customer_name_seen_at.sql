@@ -1,0 +1,1 @@
+ALTER TABLE "customers" ADD COLUMN "name_seen_at" timestamp with time zone;

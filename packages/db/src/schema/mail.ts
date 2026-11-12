@@ -1090,6 +1090,8 @@ export const customers = pgTable(
     /** Normalized: lowercase. */
     address: text("address").notNull(),
     name: text("name"),
+    /** When the message that gave `name` was sent: a later name wins, whatever order mail is indexed in. */
+    nameSeenAt: timestamptz("name_seen_at"),
     /** The address's domain, unless it is a webmail one; the company is guessed from it. */
     domain: text("domain"),
     company: text("company"),

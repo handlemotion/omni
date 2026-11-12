@@ -1,11 +1,13 @@
 // What agents reuse when they write (ADR 0021): signatures and canned replies, an inbox's or
-// their own.
+// their own, and the customers they write to.
 import {
   createCannedReply,
+  customerProfile,
   deleteCannedReply,
   deleteSignature,
   getCannedReply,
   listCannedReplies,
+  searchCustomers,
   memberSignatures,
   setSignature,
   templateContext,
@@ -173,4 +175,27 @@ export const library = new Hono<AppEnv>()
         addTagIds: reply.addTagIds,
       });
     },
-  );
+  )
+
+  /** Recipient autocomplete: customers of conversations the member can see, by address or name. */
+  .get(
+    "/customers",
+    zValidator(
+      "query",
+      z.object({
+        q: z.string().trim().min(1).max(200),
+        limit: z.coerce.number().int().min(1).max(25).default(10),
+      }),
+    ),
+    async (c) => {
+      const { q, limit } = c.req.valid("query");
+      return c.json({ customers: await searchCustomers(c.var.db, c.var.member.id, q, limit) });
+    },
+  )
+
+  /** The customer sidebar: profile and past conversations across the inboxes the member sees. */
+  .get("/customers/:id", async (c) => {
+    const profile = await customerProfile(c.var.db, c.var.member.id, c.req.param("id"));
+    if (!profile) notFound();
+    return c.json(profile);
+  });

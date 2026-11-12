@@ -2,6 +2,7 @@
 // compose, library, customers, drafts and preferences. Each one checks the member's grant on the
 // row's mailbox in the row's org (`grantFor`), so a teammate without the inbox and a member of
 // another org holding a forged grant must both find nothing.
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
   createUpload,
@@ -19,6 +20,8 @@ import {
   templateContext,
   updateCannedReply,
 } from "../src/library.ts";
+import { customerProfile, searchCustomers } from "../src/customers.ts";
+import { customers, threads } from "../src/schema/index.ts";
 import { createThread } from "../src/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
 
@@ -115,6 +118,29 @@ describe("canned replies", () => {
       expect(
         await createCannedReply(db, outsider, { ...fields, title: "x", mailboxId: supportId }),
       ).toEqual({ error: "not_found" });
+    }
+  });
+});
+
+describe("customers", () => {
+  test("a customer is found only through a conversation the member can see", async () => {
+    const [customer] = await db
+      .insert(customers)
+      .values({ orgId: orgAId, address: "luis@client.test", name: "Luis" })
+      .returning();
+    const threadId = await createThread(db, {
+      orgId: orgAId,
+      mailboxId: supportId,
+      subjectKey: "luis",
+      lastMessageAt: new Date(),
+    });
+    await db.update(threads).set({ customerId: customer!.id }).where(eq(threads.id, threadId));
+
+    expect((await searchCustomers(db, ana, "lu")).map((c) => c.id)).toEqual([customer!.id]);
+    expect((await customerProfile(db, ana, customer!.id))?.address).toBe("luis@client.test");
+    for (const outsider of [bo, cy]) {
+      expect(await searchCustomers(db, outsider, "lu")).toEqual([]);
+      expect(await customerProfile(db, outsider, customer!.id)).toBeNull();
     }
   });
 });
