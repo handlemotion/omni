@@ -124,6 +124,8 @@ export const conversationEventKind = pgEnum("conversation_event_kind", [
   "first_response",
   "sla_at_risk",
   "sla_breached",
+  /** Another thread was merged into this one: `{ fromThreadId }`. */
+  "merged",
 ]);
 export const notificationKind = pgEnum("notification_kind", [
   "assigned",

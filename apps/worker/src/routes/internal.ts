@@ -15,7 +15,7 @@ import { openDb } from "../db.ts";
 import { loadConfig } from "../env.ts";
 import { pingMailService } from "../mail-service.ts";
 import type { AiJob } from "../queue.ts";
-import { fanOut, notifyFailedActions, notifyMembers } from "../realtime.ts";
+import { announceMerges, fanOut, notifyFailedActions, notifyMembers } from "../realtime.ts";
 
 export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   const config = loadConfig(c.env);
@@ -111,6 +111,12 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     // Deleted mail: open apps refetch those threads (some are gone); no push for a removal.
     const pruned = events.filter((e) => e.type === "messages.pruned");
     if (pruned.length) await fanOut(c.env, db, config, prunedThreads(pruned));
+    // Merged threads: the survivor and the ids that are gone refresh, and readers follow.
+    const merged = events.filter((e) => e.type === "threads.merged");
+    if (merged.length) {
+      await fanOut(c.env, db, config, mergedThreads(merged));
+      await announceMerges(c.env, db, merged);
+    }
     await notifyFailedActions(c.env, failed);
   } finally {
     c.executionCtx.waitUntil(close());
@@ -148,6 +154,16 @@ function prunedThreads(events: Extract<MailEvent, { type: "messages.pruned" }>[]
   return byMailbox;
 }
 
+function mergedThreads(events: Extract<MailEvent, { type: "threads.merged" }>[]) {
+  const byMailbox = new Map<string, Set<string>>();
+  for (const event of events) {
+    const threads = byMailbox.get(event.mailboxId) ?? new Set();
+    for (const threadId of [event.intoThreadId, ...event.fromThreadIds]) threads.add(threadId);
+    byMailbox.set(event.mailboxId, threads);
+  }
+  return byMailbox;
+}
+
 /**
  * One AI job per thread that got a new message or lost one (its latest message may differ now);
  * flag changes need no AI. A job for a thread that is gone ends as `missing`.
@@ -166,6 +182,8 @@ function aiJobsFor(events: MailEvent[], requestId: string): AiJob[] {
   for (const event of events) {
     if (event.type === "message.created") add(event, event.threadId);
     if (event.type === "messages.pruned") for (const id of event.threadIds) add(event, id);
+    // The survivor's summary was cleared; the job writes one for the whole conversation.
+    if (event.type === "threads.merged") add(event, event.intoThreadId);
   }
   return [...threads.values()];
 }

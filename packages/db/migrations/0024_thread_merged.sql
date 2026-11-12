@@ -1,0 +1,1 @@
+ALTER TYPE "public"."conversation_event_kind" ADD VALUE 'merged';

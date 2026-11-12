@@ -222,6 +222,24 @@ export async function threadReferencing(db: Db, mailboxId: string, messageIds: s
 }
 
 /**
+ * Threads holding a stored reply to `messageId` (it names it in In-Reply-To or References). More
+ * than one, or one besides the thread the message joins, means the conversation was split while
+ * this message was missing, and those threads merge (`mergeThreads`).
+ */
+export async function threadsReplyingTo(db: Db, mailboxId: string, messageId: string) {
+  const rows = await db
+    .selectDistinct({ threadId: messages.threadId })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.mailboxId, mailboxId),
+        sql`(${messages.inReplyTo} = ${messageId} or ${messages.references} @> array[${messageId}]::text[])`,
+      ),
+    );
+  return rows.map((row) => row.threadId);
+}
+
+/**
  * Recent threads with this subject key and every address on their messages, for subject
  * threading. `since` bounds the scan; the threading rule applies its own window on top.
  */

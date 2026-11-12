@@ -230,6 +230,45 @@ test("mail deleted on the server refreshes its threads for open apps and re-runs
   anaSocket.socket.close();
 });
 
+test("merged threads refresh both ids, tell readers where to go and re-summarize the survivor", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "hooli");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@hooli.test");
+  const box = await createMailbox(db, org.id, "help@hooli.test");
+  await grant(db, org.id, box.id, ana.id);
+  const kept = await seedMessage(db, box, { subject: "Refund", fromAddress: "x@c.test", uid: 1 });
+  const anaSocket = await connect(await signIn(worker, db, "ana@hooli.test"));
+
+  const response = await postMailEvents(worker, {
+    events: [
+      {
+        type: "threads.merged",
+        orgId: org.id,
+        mailboxId: box.id,
+        intoThreadId: kept.threadId,
+        fromThreadIds: ["merged-thread"],
+      },
+    ],
+  });
+
+  expect(response.status).toBe(202);
+  // Only the survivor needs a new summary; the merged id is gone.
+  expect(await response.json()).toEqual({ ok: true, jobs: 1 });
+  const threadIds = [kept.threadId, "merged-thread"];
+  expect(await anaSocket.next(3)).toEqual([
+    { type: "changed", mailboxId: box.id, threadIds },
+    { type: "thread.changed", mailboxId: box.id, threadIds },
+    {
+      type: "merged",
+      mailboxId: box.id,
+      intoThreadId: kept.threadId,
+      fromThreadIds: ["merged-thread"],
+    },
+  ]);
+  anaSocket.socket.close();
+});
+
 test("a page on a foreign origin cannot open the member's socket with their cookie", async () => {
   const { db } = database;
   const org = await createOrg(db, "origins");

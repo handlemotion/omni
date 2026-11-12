@@ -16,6 +16,7 @@ export {
 } from "./for-member.ts";
 export * from "./writers.ts";
 export * from "./mail-sync.ts";
+export * from "./thread-merge.ts";
 export * as schema from "./schema/index.ts";
 export * from "./system.ts";
 export * from "./member-mail.ts";

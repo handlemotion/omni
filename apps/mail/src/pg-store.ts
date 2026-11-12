@@ -36,8 +36,11 @@ import {
   setLocationFlags,
   subjectThreadCandidates,
   threadReferencing,
+  threadsReplyingTo,
+  mergeThreads,
   threadsByMessageIds,
   upsertMessage,
+  type MergedThreads,
 } from "@omni/db";
 import { decideThread, normalizeSubject, type ParsedMessage, parseMessage } from "@omni/mail-core";
 import { cleanMessage, sanitizeHtml } from "@omni/mail-core/clean";
@@ -97,6 +100,8 @@ export interface PgMailStoreOptions {
   onIngested?: (message: IngestedMessage) => void;
   /** Called after a prune removed messages, with every thread that lost one. Must not throw. */
   onPruned?: (pruned: PrunedThreads) => void;
+  /** Called after threads were merged into one (see `mergeThreads`). Must not throw. */
+  onMerged?: (merged: { orgId: string; mailboxId: string } & MergedThreads) => void;
 }
 
 /** Threads that lost messages deleted on the server; some may be gone (see `pruneMessages`). */
@@ -112,6 +117,7 @@ export class PgMailStore implements MailStore {
   private readonly links: ContentLinks;
   private readonly onIngested: (message: IngestedMessage) => void;
   private readonly onPruned: (pruned: PrunedThreads) => void;
+  private readonly onMerged: NonNullable<PgMailStoreOptions["onMerged"]>;
   private readonly mailboxes = new Map<string, MailboxRow>();
   /** The tail of each mailbox's thread-and-insert chain (see `oneAtATime`). */
   private readonly inserting = new Map<string, Promise<void>>();
@@ -122,6 +128,7 @@ export class PgMailStore implements MailStore {
     this.links = options.links;
     this.onIngested = options.onIngested ?? (() => {});
     this.onPruned = options.onPruned ?? (() => {});
+    this.onMerged = options.onMerged ?? (() => {});
   }
 
   async saveFolders(mailboxId: string, folders: FolderInfo[]): Promise<void> {
@@ -420,6 +427,22 @@ export class PgMailStore implements MailStore {
       { ...message, sentAt },
       { knownMessageIds, candidates, selfAddresses: [mailbox.address], relatedThreadId },
     );
+    if (decision.kind === "headers" && !providerThreadId) {
+      // A reply stored before this message started its own thread: this message links it to
+      // the thread it joins, so the two are one conversation again.
+      const linked = new Set([
+        decision.threadId,
+        ...knownMessageIds.values(),
+        ...(await threadsReplyingTo(this.db, mailboxId, message.messageId)),
+      ]);
+      if (linked.size > 1) {
+        const merged = await mergeThreads(this.db, { mailboxId, threadIds: [...linked] });
+        if (merged.fromThreadIds.length > 0) {
+          this.onMerged({ orgId: mailbox.orgId, mailboxId, ...merged });
+        }
+        return merged.intoThreadId;
+      }
+    }
     if (decision.kind !== "new") {
       // A thread started before Gmail's id was known (our own send, indexed before its Sent copy)
       // takes this id; one that already belongs to another Gmail thread is not this conversation.

@@ -18,6 +18,8 @@ export const MEMBER_HEADER = "x-omni-member-id";
 
 export type RealtimeEvent =
   | { type: "changed"; mailboxId: string; threadIds: string[] }
+  /** These threads are now one: a reader showing a `fromThreadIds` thread moves to `intoThreadId`. */
+  | { type: "merged"; mailboxId: string; intoThreadId: string; fromThreadIds: string[] }
   /** An outbox action this member asked for failed for good (e.g. a send). */
   | { type: "action"; actionId: string; status: "failed"; error: string }
   /** A domain's DNS was checked again (ADR 0011): refetch the onboarding status. */
@@ -261,6 +263,25 @@ export async function fanOut(
     for (const { address, memberIds } of offlineByMailbox.values()) {
       await sendExpoPush(db, config, memberIds, { title: address, body: "New message" });
     }
+  }
+}
+
+/** Tells everyone who can see the mailbox that threads were merged, so readers can follow. */
+export async function announceMerges(
+  env: Env,
+  db: Db,
+  merges: { mailboxId: string; intoThreadId: string; fromThreadIds: string[] }[],
+) {
+  const audience = await mailboxAudience(db, [...new Set(merges.map((m) => m.mailboxId))]);
+  for (const { mailboxId, intoThreadId, fromThreadIds } of merges) {
+    const rows = audience.filter((row) => row.mailboxId === mailboxId);
+    const first = rows[0];
+    if (!first) continue;
+    const stub = env.REALTIME.get(env.REALTIME.idFromName(first.orgId));
+    await stub.broadcast(
+      rows.map((row) => row.memberId),
+      { type: "merged", mailboxId, intoThreadId, fromThreadIds },
+    );
   }
 }
 

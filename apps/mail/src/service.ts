@@ -111,6 +111,8 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
         notifier.push({ type: "messages.pruned", ...pruned, threadIds: chunk });
       }
     },
+    // Not swept either: lost, open apps show the merged threads until their next refresh.
+    onMerged: (merged) => notifier.push({ type: "threads.merged", ...merged }),
     objects,
     links: { imageProxyUrl: config.IMAGE_PROXY_URL, attachmentUrl: config.ATTACHMENT_URL },
   });

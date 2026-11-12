@@ -149,6 +149,79 @@ describe("sync into Postgres against GreenMail", () => {
     expect(byId.get("<lunch-2@outside.test>")?.cleanText).toBe("Sure, noon.");
   });
 
+  it("merges a reply's early thread into its conversation once the missing parent arrives", async () => {
+    const { box, orgId, ownerId } = await seedMailbox(db);
+    const merges: unknown[] = [];
+    const merging = new PgMailStore({ db, objects, links, onMerged: (m) => merges.push(m) });
+    const connection = new MailboxConnection(box, { store: merging, logger, batchSize: 2 });
+    connections.push(connection);
+    await connection.start();
+    const arrive = async (subject: string, reply: Parameters<typeof deliver>[2]) => {
+      const seen = new Promise((resolve) => connection.once("message", resolve));
+      await deliver(box.address, subject, reply);
+      await seen;
+    };
+    const threadOf = async (header: string) =>
+      (await stored(db, box.id, "INBOX")).find((m) => m.messageIdHeader === header)?.threadId;
+
+    // A, then C replying to B, which has not arrived (its References skip A): two threads.
+    await arrive("Refund", { messageId: "<a@outside.test>" });
+    await arrive("Re: Refund", {
+      messageId: "<c@outside.test>",
+      inReplyTo: "<b@outside.test>",
+      references: ["<b@outside.test>"],
+    });
+    const first = await threadOf("<a@outside.test>");
+    const second = await threadOf("<c@outside.test>");
+    expect(first && second && first !== second).toBe(true);
+    // Helpdesk state on both halves: the first was resolved, the second assigned with a note.
+    await db
+      .update(schema.threads)
+      .set({ status: "resolved", resolvedAt: new Date() })
+      .where(eq(schema.threads.id, first ?? ""));
+    await db
+      .update(schema.threads)
+      .set({ assigneeMemberId: ownerId, priority: "high" })
+      .where(eq(schema.threads.id, second ?? ""));
+    await db.insert(schema.notes).values({
+      orgId,
+      mailboxId: box.id,
+      threadId: second ?? "",
+      authorMemberId: ownerId,
+      body: "customer called",
+    });
+
+    // B links them: it replies to A, and C replies to B.
+    await arrive("Re: Refund", { messageId: "<b@outside.test>", inReplyTo: "<a@outside.test>" });
+
+    for (const header of ["<a@outside.test>", "<b@outside.test>", "<c@outside.test>"]) {
+      expect(await threadOf(header)).toBe(first);
+    }
+    const remaining = await db
+      .select()
+      .from(schema.threads)
+      .where(eq(schema.threads.mailboxId, box.id));
+    expect(remaining.map((t) => t.id)).toEqual([first]);
+    expect(remaining[0]).toMatchObject({
+      status: "open",
+      resolvedAt: null,
+      assigneeMemberId: ownerId,
+      priority: "high",
+    });
+    const notes = await db.select().from(schema.notes).where(eq(schema.notes.mailboxId, box.id));
+    expect(notes.map((n) => [n.threadId, n.body])).toEqual([[first, "customer called"]]);
+    const events = await db
+      .select()
+      .from(schema.conversationEvents)
+      .where(eq(schema.conversationEvents.threadId, first ?? ""));
+    expect(events.filter((e) => e.kind === "merged").map((e) => e.data)).toEqual([
+      { fromThreadId: second },
+    ]);
+    expect(merges).toEqual([
+      { orgId, mailboxId: box.id, intoThreadId: first, fromThreadIds: [second] },
+    ]);
+  });
+
   it("a reply over SMTP brings a done thread back to the inbox of the member who marked it", async () => {
     const { box, orgId, ownerId } = await seedMailbox(db, { kind: "shared" });
     const teammate = await createMember(db, orgId, "teammate");

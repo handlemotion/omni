@@ -64,10 +64,24 @@ export const messagesPrunedEventSchema = z.object({
   threadIds: z.array(z.string().min(1)).min(1).max(MAX_PRUNED_THREADS_PER_EVENT),
 });
 
+/**
+ * Threads that turned out to be one conversation were merged: `fromThreadIds` are gone and their
+ * messages and helpdesk state are on `intoThreadId`. The Worker refreshes all of them for open
+ * apps, so a reader showing a merged thread can move to the survivor. At least once; idempotent.
+ */
+export const threadsMergedEventSchema = z.object({
+  type: z.literal("threads.merged"),
+  orgId: z.string().min(1),
+  mailboxId: z.string().min(1),
+  intoThreadId: z.string().min(1),
+  fromThreadIds: z.array(z.string().min(1)).min(1),
+});
+
 export const mailEventSchema = z.discriminatedUnion("type", [
   messageCreatedEventSchema,
   actionFailedEventSchema,
   messagesPrunedEventSchema,
+  threadsMergedEventSchema,
 ]);
 
 export const MAX_EVENTS_PER_REQUEST = 100;
