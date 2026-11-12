@@ -169,10 +169,13 @@ Several agents may work in this repository at once.
 - Before each push run `pnpm check`, `pnpm check-types`, and the tests your change touches: the
   affected unit suites and the e2e files that cover it (one file, or `-t` one test). Batch fixes
   into one push; CI minutes cost money.
-- **CI runs the heavy suites.** The full `pnpm test:e2e` (5-10 minutes) is the `Checks` job's
-  work: push and read its result. Locally, keep every command scoped to your change and short;
-  narrow a slow one (one package, one file, one test) or leave it to CI. Chasing a flake means
-  looping the one failing test, not the suite.
+- **CI is a light check; the e2e that covers your change is yours to run.** `Checks` (required)
+  runs format, lint, policies, gitleaks, types, unit tests and only the `@omni/db` e2e suite.
+  Worker, mail, web and client e2e run nightly on `main` in the `Full` workflow, or on a PR when
+  you add the `full-e2e` label (do that for risky cross-cutting changes). So run the e2e files
+  your change touches locally before pushing, scoped and short (one package, one file, one
+  test). Chasing a flake means looping the one failing test, not the suite. Only PRs into `main`
+  run CI: a stacked layer runs once it is retargeted to `main` and pushed.
 - Deploys happen when `main` changes: Cloudflare Workers Builds ships the Worker, Fly's GitHub
   deploy the mail service, and `.github/workflows/production.yml` migrates and syncs Worker
   secrets (ADR 0019). Never `wrangler deploy` or `flyctl deploy` from a laptop for production.

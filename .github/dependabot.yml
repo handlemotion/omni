@@ -13,8 +13,9 @@ updates:
 
   - package-ecosystem: npm
     directory: "/"
+    # Monthly: each update PR costs a CI run. Security updates still open as soon as they exist.
     schedule:
-      interval: weekly
+      interval: monthly
     # Matches minimumReleaseAge (1 day) in pnpm-workspace.yaml, so pnpm can install what we propose.
     cooldown:
       default-days: 1

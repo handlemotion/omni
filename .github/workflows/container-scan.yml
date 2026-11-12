@@ -1,18 +1,12 @@
 name: Container scan
 
-# Builds the mail service image and scans it with Grype. Runs when anything that lands in the
-# image changes, on main, and weekly so new advisories against old images still surface.
+# Builds the mail service image and scans it with Grype. Weekly, so new advisories against the
+# shipped image surface; on a pull request only when the Dockerfile itself changes; or by hand.
 on:
   pull_request:
     paths:
-      - apps/mail/**
-      - packages/**
-      - package.json
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
+      - apps/mail/Dockerfile
       - .github/workflows/container-scan.yml
-  push:
-    branches: [main]
   schedule:
     - cron: "41 6 * * 1"
   workflow_dispatch:

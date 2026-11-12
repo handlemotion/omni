@@ -1,0 +1,94 @@
+name: Full
+
+# The heavy suites the light `Checks` (ci.yml) leaves out: every e2e suite against the full local
+# stack (Postgres, GreenMail, the S3 stand-in, the built Worker), types, unit tests, and a gitleaks
+# scan of all history. Not a required status.
+#
+# - Nightly on main, skipped when main has no new commit in the last day.
+# - By hand: Actions > Full > Run workflow, on any branch.
+# - On a pull request, by adding the `full-e2e` label (remove and re-add it to run again).
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: full-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GITLEAKS_VERSION: 8.30.1
+  GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+
+jobs:
+  full:
+    name: Full
+    if: github.event_name != 'pull_request' || github.event.label.name == 'full-e2e'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:54329/omni
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Skip when main is idle
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          run=true
+          if [ "$EVENT" = "schedule" ]; then
+            age=$(( $(date +%s) - $(git log -1 --format=%ct) ))
+            if [ "$age" -gt 90000 ]; then run=false; fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "Run: $run"
+
+      # Started now, without waiting, so the stack boots while dependencies install.
+      - name: Start the local stack
+        if: steps.scope.outputs.run == 'true'
+        run: docker compose up -d
+
+      - name: Secret scan of all history (gitleaks)
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --no-banner --redact --exit-code 1 \
+            --config .github/gitleaks.toml .
+
+      - if: steps.scope.outputs.run == 'true'
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - if: steps.scope.outputs.run == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - if: steps.scope.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Types
+        if: steps.scope.outputs.run == 'true'
+        run: pnpm check-types
+
+      - name: Unit tests
+        if: steps.scope.outputs.run == 'true'
+        run: pnpm test:all
+
+      - name: E2E tests
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          docker compose up -d --wait
+          pnpm test:e2e
