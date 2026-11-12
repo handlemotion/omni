@@ -1,10 +1,58 @@
 // Helpdesk conversations on shared inboxes (ADR 0021): reading a conversation's state and
 // changing it. Every change is one shared value (status, assignee, priority, a tag) for everyone
 // who sees the inbox; the Worker writes its timeline event and fans the change out over realtime.
-import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
+import {
+  infiniteQueryOptions,
+  mutationOptions,
+  queryOptions,
+  type InfiniteData,
+  type QueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 import { api, ApiError, call } from "./api.ts";
-import { keys } from "./query-keys.ts";
-import type { Conversation, Priority } from "./types.ts";
+import { conversationFilterOf, keys } from "./query-keys.ts";
+import type {
+  Conversation,
+  ConversationFilter,
+  ConversationPage,
+  ConversationSummary,
+  Priority,
+} from "./types.ts";
+
+/** Rows per page of a helpdesk list. */
+export const CONVERSATION_PAGE_SIZE = 50;
+
+/** One helpdesk list, paged by an opaque cursor kept in the cache. `sla_at_risk` is soonest due first. */
+export const conversationsQuery = (filter: ConversationFilter) =>
+  infiniteQueryOptions({
+    queryKey: keys.conversations(filter),
+    queryFn: ({ pageParam, signal }) =>
+      call(
+        api.conversations.$get(
+          {
+            query: {
+              mailboxId: filter.mailbox,
+              view: filter.view,
+              ...(filter.tag ? { tagId: filter.tag } : {}),
+              ...(pageParam ? { cursor: pageParam } : {}),
+              limit: String(CONVERSATION_PAGE_SIZE),
+            },
+          },
+          { init: { signal } },
+        ),
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.nextCursor,
+  });
+
+/** Every shared inbox's view and tag counts, for the navigation's badges. */
+export const conversationCountsQuery = () =>
+  queryOptions({
+    queryKey: keys.conversationCounts(),
+    queryFn: ({ signal }) =>
+      call(api.conversations.counts.$get({ query: {} }, { init: { signal } })),
+    select: (data) => data.counts,
+  });
 
 export const conversationQuery = (threadId: string) =>
   queryOptions({
@@ -49,6 +97,8 @@ export interface ChangeVariables {
   key: string;
   threadId: string;
   change: ConversationChange;
+  /** Your member in the inbox's workspace, when known: decides whether a row stays in Mine. */
+  me?: string | undefined;
 }
 
 const retry = (failureCount: number, error: Error) =>
@@ -81,16 +131,83 @@ function request({ threadId, change, key }: ChangeVariables) {
   }
 }
 
+/** The shared state a change touches; a conversation and a list row both carry it. */
+export type ConversationState = Pick<
+  Conversation,
+  "status" | "snoozedUntil" | "resolvedAt" | "assigneeMemberId" | "priority" | "tags"
+>;
+
+/** Matches `SLA_AT_RISK_MINUTES` in `@omni/db`: "at risk" is due within this or past. */
+const SLA_AT_RISK_MS = 30 * 60_000;
+
+/**
+ * Whether a row in this state belongs in the list, by the same rules as the server's views.
+ * `me` is your member in the inbox's workspace; without it `mine` is unknown (`undefined`),
+ * and an unknown row stays until the refetch decides.
+ */
+export function inView(
+  row: ConversationState & { slaDueAt: string | null },
+  filter: ConversationFilter,
+  me: string | undefined,
+): boolean | undefined {
+  if (filter.tag && !row.tags.some((t) => t.id === filter.tag)) return false;
+  switch (filter.view) {
+    case "unassigned":
+      return row.status === "open" && row.assigneeMemberId === null;
+    case "mine":
+      if (row.status !== "open" && row.status !== "pending") return false;
+      return me === undefined ? undefined : row.assigneeMemberId === me;
+    case "open":
+    case "pending":
+    case "snoozed":
+    case "resolved":
+      return row.status === filter.view;
+    case "sla_at_risk":
+      if (row.status !== "open") return false;
+      return row.slaDueAt !== null && Date.parse(row.slaDueAt) <= Date.now() + SLA_AT_RISK_MS;
+    case "all":
+      return true;
+  }
+}
+
+type ConversationPages = InfiniteData<ConversationPage, string | null>;
+
+/** Applies the change to the row in every cached helpdesk list, and drops it where it no longer belongs. */
+function patchLists(
+  client: QueryClient,
+  { threadId, change, tag, me }: ChangeVariables & { tag?: Conversation["tags"][number] },
+) {
+  for (const query of client.getQueryCache().findAll({ queryKey: keys.conversationLists() })) {
+    const filter = conversationFilterOf(query.queryKey);
+    if (!filter) continue;
+    client.setQueryData<ConversationPages>(query.queryKey, (data) =>
+      data
+        ? {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              conversations: page.conversations.flatMap((row): ConversationSummary[] => {
+                if (row.id !== threadId) return [row];
+                const next = applyChange(row, change, tag);
+                return inView(next, filter, me) === false ? [] : [next];
+              }),
+            })),
+          }
+        : data,
+    );
+  }
+}
+
 /**
  * What the conversation looks like right after `change`, as the server will compute it. Tags
  * need the tag itself (`tag`), which only the caller has: without it an added tag shows on the
  * refetch.
  */
-export function applyChange(
-  conversation: Conversation,
+export function applyChange<T extends ConversationState>(
+  conversation: T,
   change: ConversationChange,
   tag?: Conversation["tags"][number],
-): Conversation {
+): T {
   const now = new Date().toISOString();
   switch (change.type) {
     case "resolve":
@@ -120,7 +237,7 @@ export function applyChange(
  * the inverse of resolve and snooze, so a pending conversation comes back open.
  */
 export function inverseOf(
-  before: Conversation,
+  before: ConversationState,
   change: ConversationChange,
 ): ConversationChange | null {
   switch (change.type) {
@@ -170,15 +287,24 @@ export const conversationChangeMutation = (client: QueryClient) =>
     scope,
     mutationFn: (vars: ChangeVariables & { tag?: Conversation["tags"][number] }) =>
       call(request(vars)),
-    onMutate: async ({ threadId, change, tag }) => {
+    onMutate: async (vars) => {
+      const { threadId, change, tag } = vars;
       const key = keys.conversation(threadId);
-      await client.cancelQueries({ queryKey: key });
+      await Promise.all([
+        client.cancelQueries({ queryKey: key }),
+        client.cancelQueries({ queryKey: keys.conversationLists() }),
+      ]);
+      const snapshot: [QueryKey, unknown][] = [
+        [key, client.getQueryData(key)],
+        ...client.getQueriesData({ queryKey: keys.conversationLists() }),
+      ];
       const before = client.getQueryData<Conversation>(key);
       if (before) client.setQueryData(key, applyChange(before, change, tag));
-      return { before };
+      patchLists(client, vars);
+      return { snapshot };
     },
-    onError: (_error, { threadId }, context) => {
-      if (context?.before) client.setQueryData(keys.conversation(threadId), context.before);
+    onError: (_error, _vars, context) => {
+      for (const [key, data] of context?.snapshot ?? []) client.setQueryData(key, data);
     },
     onSuccess: ({ conversation }, { threadId }) => {
       // The server's values (due times, resolvedAt) over the guess; tags and events refetch.
@@ -188,6 +314,8 @@ export const conversationChangeMutation = (client: QueryClient) =>
     },
     onSettled: (_data, _error, { threadId }) => {
       void client.invalidateQueries({ queryKey: keys.thread(threadId) });
+      void client.invalidateQueries({ queryKey: keys.conversationLists() });
+      void client.invalidateQueries({ queryKey: keys.conversationCounts() });
       void client.invalidateQueries({ queryKey: keys.threadLists() });
       void client.invalidateQueries({ queryKey: keys.counts() });
     },
@@ -237,9 +365,31 @@ export const deleteTagMutation = (client: QueryClient) =>
     onSettled: (_data, _error, { mailboxId }) => {
       void client.invalidateQueries({ queryKey: keys.tags(mailboxId) });
       void client.invalidateQueries({ queryKey: keys.mail(), predicate: isConversation });
-      void client.invalidateQueries({ queryKey: keys.threadLists() });
+      void client.invalidateQueries({ queryKey: keys.conversationLists() });
+      void client.invalidateQueries({ queryKey: keys.conversationCounts() });
     },
   });
 
 const isConversation = (query: { queryKey: readonly unknown[] }) =>
   query.queryKey.at(-1) === "conversation";
+
+/**
+ * The conversation's shared state as the screen shows it: its detail if loaded, else its row in
+ * any cached helpdesk list (acting from the list never loads the detail).
+ */
+export function cachedState(
+  client: QueryClient,
+  threadId: string,
+): (ConversationState & { mailboxId: string }) | undefined {
+  const detail = client.getQueryData<Conversation>(keys.conversation(threadId));
+  if (detail) return detail;
+  for (const [, data] of client.getQueriesData<ConversationPages>({
+    queryKey: keys.conversationLists(),
+  })) {
+    for (const page of data?.pages ?? []) {
+      const row = page.conversations.find((r) => r.id === threadId);
+      if (row) return row;
+    }
+  }
+  return undefined;
+}

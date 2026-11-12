@@ -1,11 +1,21 @@
 // Helpdesk conversations on shared inboxes: state, tags, assignees, and the changes to them.
 // Every change shows at once, rolls back if the request fails, and offers its inverse as undo
 // (`useUndo()` shows it; `z` runs it).
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
+import { useMemo } from "react";
 import {
   assigneesQuery,
+  cachedState,
   conversationChangeMutation,
+  conversationCountsQuery,
   conversationQuery,
+  conversationsQuery,
   createTagMutation,
   deleteTagMutation,
   inverseOf,
@@ -16,7 +26,7 @@ import {
 import { idempotencyKey } from "../lib/api.ts";
 import { keys } from "../lib/query-keys.ts";
 import { offerUndo } from "../lib/undo.ts";
-import type { Assignee, Conversation, Priority, Tag } from "../lib/types.ts";
+import type { Assignee, ConversationFilter, Priority, Tag } from "../lib/types.ts";
 import { useSession } from "./use-session.ts";
 
 /**
@@ -25,6 +35,27 @@ import { useSession } from "./use-session.ts";
  */
 export function useConversation(threadId: string, options: { enabled?: boolean } = {}) {
   return useQuery({ ...conversationQuery(threadId), enabled: options.enabled ?? true });
+}
+
+/**
+ * One helpdesk list: `{ mailbox, view, tag? }`. `conversations` is every loaded page flattened
+ * (rows carry status, assignee, priority, tags and `slaDueAt`); call `fetchNextPage` near the end.
+ */
+export function useConversations(filter: ConversationFilter) {
+  const query = useInfiniteQuery(conversationsQuery(filter));
+  const conversations = useMemo(
+    () => query.data?.pages.flatMap((page) => page.conversations) ?? [],
+    [query.data],
+  );
+  return { ...query, conversations };
+}
+
+/**
+ * Per shared inbox: `{ orgId, mailboxId, views: { unassigned, mine, open, … }, tags: { [tagId]: n } }`,
+ * for the navigation's counts. Refetches whenever a conversation changes.
+ */
+export function useConversationCounts() {
+  return useQuery(conversationCountsQuery());
 }
 
 /** The inbox's tags, by name. */
@@ -43,6 +74,14 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   normal: "Normal",
   low: "Low",
 };
+
+/** Your member in the inbox's workspace, from its cached assignee list (lists span workspaces). */
+function memberIn(client: QueryClient, mailboxId: string | undefined, email: string | undefined) {
+  if (!mailboxId || !email) return undefined;
+  return client
+    .getQueryData<{ assignees: Assignee[] }>(keys.assignees(mailboxId))
+    ?.assignees.find((a) => a.email === email)?.memberId;
+}
 
 /** What a change did, for the undo toast and the screen reader. */
 function describe(change: ConversationChange, client: QueryClient, mailboxId?: string) {
@@ -76,20 +115,22 @@ function describe(change: ConversationChange, client: QueryClient, mailboxId?: s
  */
 function useChange() {
   const client = useQueryClient();
+  const email = useSession().data?.user.email;
   const mutation = useMutation(conversationChangeMutation(client));
   const run = (
     threadId: string,
     change: ConversationChange,
-    options: { tag?: Tag; undo?: boolean } = {},
+    options: { tag?: Tag; undo?: boolean; mailboxId?: string } = {},
   ) => {
-    const before = client.getQueryData<Conversation>(keys.conversation(threadId));
-    mutation.mutate({ key: idempotencyKey(), threadId, change, tag: options.tag });
+    const before = cachedState(client, threadId);
+    const me = memberIn(client, options.mailboxId ?? before?.mailboxId, email);
+    mutation.mutate({ key: idempotencyKey(), threadId, change, tag: options.tag, me });
     const inverse = before && options.undo !== false ? inverseOf(before, change) : null;
     if (!inverse) return;
     const tag =
       inverse.type === "tag" ? before?.tags.find((t) => t.id === inverse.tagId) : undefined;
     offerUndo(describe(change, client, before?.mailboxId), () =>
-      mutation.mutate({ key: idempotencyKey(), threadId, change: inverse, tag }),
+      mutation.mutate({ key: idempotencyKey(), threadId, change: inverse, tag, me }),
     );
   };
   return { ...mutation, run };
@@ -130,13 +171,9 @@ export function useClaim() {
   const email = useSession().data?.user.email;
   return {
     ...rest,
-    mutate: ({ threadId, mailboxId }: { threadId: string; mailboxId: string }) => {
-      // Your member in the inbox's workspace, for the optimistic avatar; the server knows anyway.
-      const me = client
-        .getQueryData<{ assignees: Assignee[] }>(keys.assignees(mailboxId))
-        ?.assignees.find((a) => a.email === email)?.memberId;
-      run(threadId, { type: "claim", memberId: me });
-    },
+    mutate: ({ threadId, mailboxId }: { threadId: string; mailboxId: string }) =>
+      // Your member, for the optimistic avatar; the server assigns whoever asks anyway.
+      run(threadId, { type: "claim", memberId: memberIn(client, mailboxId, email) }, { mailboxId }),
   };
 }
 
@@ -183,4 +220,16 @@ export function useUpdateTag() {
 /** `mutate({ mailboxId, tagId })`: deletes it and takes it off every conversation. */
 export function useDeleteTag() {
   return useMutation(deleteTagMutation(useQueryClient()));
+}
+
+/**
+ * For lists acting on many rows at once: `run(threadId, change, { undo: false })` applies one
+ * change with no undo of its own (the caller offers one for the batch, from `inverseOf`), and
+ * `me` is your member in that inbox's workspace when its assignees are cached.
+ */
+export function useConversationChanges() {
+  const { run, ...rest } = useChange();
+  const client = useQueryClient();
+  const email = useSession().data?.user.email;
+  return { ...rest, run, me: (mailboxId: string) => memberIn(client, mailboxId, email) };
 }

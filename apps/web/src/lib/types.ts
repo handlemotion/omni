@@ -52,10 +52,14 @@ export interface ThreadFilter {
   lane?: Lane | undefined;
 }
 
+type ConversationListQuery = InferRequestType<Api["conversations"]["$get"]>["query"];
+
 /**
- * A shared inbox's helpdesk views (ADR 0021), in navigation order. `mine` is assigned to you;
- * `sla_at_risk` is open with a due time near or past.
+ * A shared inbox's helpdesk views (ADR 0021), in navigation order. `mine` is open or pending
+ * and assigned to you; `sla_at_risk` is open with a due time near or past, soonest first; `all`
+ * is every conversation (for a tag on its own).
  */
+export type HelpdeskView = NonNullable<ConversationListQuery["view"]>;
 export const HELPDESK_VIEWS = [
   "unassigned",
   "mine",
@@ -64,8 +68,27 @@ export const HELPDESK_VIEWS = [
   "snoozed",
   "resolved",
   "sla_at_risk",
-] as const;
-export type HelpdeskView = (typeof HELPDESK_VIEWS)[number];
+  "all",
+] as const satisfies readonly HelpdeskView[];
+export type HelpdeskViewsListed = NoneMissing<
+  Exclude<HelpdeskView, (typeof HELPDESK_VIEWS)[number]>
+>;
+
+/** What a helpdesk list shows: one shared inbox's view, optionally one tag. */
+export interface ConversationFilter {
+  mailbox: string;
+  view: HelpdeskView;
+  tag?: string | undefined;
+}
+
+export type ConversationPage = InferResponseType<Api["conversations"]["$get"], 200>;
+/** A row of a helpdesk list: a thread list row plus its tags and SLA due time. */
+export type ConversationSummary = ConversationPage["conversations"][number];
+/** Per shared inbox: `views` counts (not `resolved`) and open or pending ones per tag. */
+export type ConversationCounts = InferResponseType<
+  Api["conversations"]["counts"]["$get"],
+  200
+>["counts"];
 
 /** A helpdesk conversation: status, assignee, priority, due times, tags and timeline events. */
 export type Conversation = InferResponseType<Api["threads"][":id"]["conversation"]["$get"], 200>;

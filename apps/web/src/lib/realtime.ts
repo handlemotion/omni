@@ -13,7 +13,7 @@ import { onWake, reportAnswer } from "./connectivity.ts";
 import { addFailure, allPending, failPendingByAction } from "./pending.ts";
 import { applyPresence, clearPresence } from "./presence.ts";
 import { actionQuery } from "./mail-queries.ts";
-import { filterOf, keys } from "./query-keys.ts";
+import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
 
 /** Bursts of new mail (an import, a busy thread) collapse into one refetch per window. */
 const FLUSH_MS = 150;
@@ -68,6 +68,14 @@ export function startRealtime(
     });
     void client.invalidateQueries({ queryKey: keys.counts() });
     void client.invalidateQueries({ queryKey: keys.searches() });
+    void client.invalidateQueries({
+      queryKey: keys.conversationLists(),
+      predicate: (query) => {
+        const mailbox = conversationFilterOf(query.queryKey)?.mailbox;
+        return !mailbox || mailboxes.has(mailbox);
+      },
+    });
+    void client.invalidateQueries({ queryKey: keys.conversationCounts() });
   };
 
   const changed = (mailboxId: string, threadIds: readonly string[]) => {

@@ -97,6 +97,13 @@ if the request fails, take the server's values on success, and refetch the threa
 counts when they settle. Each offers its inverse as undo (resolve and snooze undo to reopen, so a
 pending conversation comes back open).
 
+**Helpdesk lists.** `useConversations({ mailbox, view, tag? })` is one inbox's view, paged by the
+server's cursor; `/inbox?mailbox=…&view=…` loads it in the route loader. A change patches the row
+in every cached list at once and drops it from lists it no longer fits (`inView` mirrors the
+server's view rules; Mine needs your member, read from the inbox's cached assignees, and stays
+put until the refetch when unknown). Undo works from a list row without the detail loaded.
+Realtime refetches the lists of the inbox that changed and `useConversationCounts()`.
+
 **Undo.** An action that can be reversed calls `offerUndo(label, inverse)` with the inverse built
 from the state before it. One offer stands at a time for 8 s; `useUndo()` gives the toast its
 `offer` and binds `z`. The list's done and defer offer it already.
@@ -134,37 +141,39 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 
 ## Hooks
 
-| Hook                                                                                                                                               | Returns / takes                               |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `useSession()`                                                                                                                                     | `{ user, session, member } \| null`           |
-| `useMember()`                                                                                                                                      | `{ user, member }` (member routes only)       |
-| `useSignInMagicLink()`                                                                                                                             | `mutate({ email, redirect? })`                |
-| `useSignInPasskey()`                                                                                                                               | `mutate()`                                    |
-| `useSignOut()`                                                                                                                                     | `mutate()`                                    |
-| `useOrganizations()`, `useSetActiveOrganization()`                                                                                                 | list; `mutate(organizationId)`                |
-| `useInvitation(id)`, `useAcceptInvitation()`, `useRejectInvitation()`                                                                              | invitation; `mutate(id)`                      |
-| `useMembers()`, `useInvitations()`, `useInviteMember()`, `useCancelInvitation()`, `useRemoveMember()`, `useUpdateMemberRole()`                     | organization admin                            |
-| `usePasskeys()`, `useAddPasskey()`, `useDeletePasskey()`                                                                                           | passkeys                                      |
-| `useOnboarding()`, `useCreateWorkspace()`, `useAddDomain()`, `useCheckDomain()`, `useCreateMailboxes()`, `useFinishSetup()`, `useOnboardingExit()` | workspace setup (`hooks/use-onboarding.ts`)   |
-| `useWorkspaces()`, `useOpenWorkspace()`, `useOpenMailbox()`                                                                                        | switcher (`hooks/use-workspaces.ts`)          |
-| `useMailboxes()`, `useCounts()`                                                                                                                    | sidebar data                                  |
-| `useThreads({ view, mailbox?, lane? })`                                                                                                            | `{ threads, fetchNextPage, hasNextPage, … }`  |
-| `useThread(id)`, `useSuspenseThread(id)`                                                                                                           | `{ thread, pending, … }`                      |
-| `useSearch(q, mailbox?)`                                                                                                                           | results                                       |
-| `usePrefetchThread()`                                                                                                                              | `(threadId) => void`                          |
-| `useMarkRead()`, `useDefer()`, `useMarkDone()`, `useMarkUndone()`, `useArchive()`, `useMove()`                                                     | `mutate({ threadId, … })`                     |
-| `useMarkReadOnOpen(thread)`                                                                                                                        | marks an opened unread thread read, once      |
-| `useSendReply()`, `useSend()`                                                                                                                      | `mutate({ … })`                               |
-| `useDiscardPending()`, `useActionFailures()`                                                                                                       | failed sends and actions                      |
-| `useRealtimeConnection(memberId)`, `useRealtimeStatus()`                                                                                           | the socket                                    |
-| `useConnectivity()`                                                                                                                                | `{ online, queued }`                          |
-| `useShortcut(id, run, enabled?)`, `runShortcut(id)`, `useAvailableShortcuts()`, `announce(text)`                                                   | keyboard shortcuts (`hooks/use-shortcuts.ts`) |
-| `useConversation(threadId)`, `useTags(mailboxId)`, `useAssignees(mailboxId)`                                                                       | helpdesk state, the inbox's tags and agents   |
-| `useResolve()`, `useReopen()`, `useSnooze()`, `useClaim()`, `useAssign()`, `useSetPriority()`, `useToggleTag()`                                    | `mutate({ threadId, … })`, with undo          |
-| `useCreateTag()`, `useUpdateTag()`, `useDeleteTag()`                                                                                               | an inbox's tags (settings)                    |
-| `usePresence(threadId)`, `useReportPresence(thread, state)`                                                                                        | who is viewing or replying; say you are       |
-| `useUndo()`, `offerUndo(label, undo)`                                                                                                              | `{ offer, undo, dismiss }` for the undo toast |
-| `useThreadListShortcuts({ … })`                                                                                                                    | the list keys: j/k, o, x, e, h, u, Esc        |
+| Hook                                                                                                                                               | Returns / takes                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `useSession()`                                                                                                                                     | `{ user, session, member } \| null`                                  |
+| `useMember()`                                                                                                                                      | `{ user, member }` (member routes only)                              |
+| `useSignInMagicLink()`                                                                                                                             | `mutate({ email, redirect? })`                                       |
+| `useSignInPasskey()`                                                                                                                               | `mutate()`                                                           |
+| `useSignOut()`                                                                                                                                     | `mutate()`                                                           |
+| `useOrganizations()`, `useSetActiveOrganization()`                                                                                                 | list; `mutate(organizationId)`                                       |
+| `useInvitation(id)`, `useAcceptInvitation()`, `useRejectInvitation()`                                                                              | invitation; `mutate(id)`                                             |
+| `useMembers()`, `useInvitations()`, `useInviteMember()`, `useCancelInvitation()`, `useRemoveMember()`, `useUpdateMemberRole()`                     | organization admin                                                   |
+| `usePasskeys()`, `useAddPasskey()`, `useDeletePasskey()`                                                                                           | passkeys                                                             |
+| `useOnboarding()`, `useCreateWorkspace()`, `useAddDomain()`, `useCheckDomain()`, `useCreateMailboxes()`, `useFinishSetup()`, `useOnboardingExit()` | workspace setup (`hooks/use-onboarding.ts`)                          |
+| `useWorkspaces()`, `useOpenWorkspace()`, `useOpenMailbox()`                                                                                        | switcher (`hooks/use-workspaces.ts`)                                 |
+| `useMailboxes()`, `useCounts()`                                                                                                                    | sidebar data                                                         |
+| `useThreads({ view, mailbox?, lane? })`                                                                                                            | `{ threads, fetchNextPage, hasNextPage, … }`                         |
+| `useThread(id)`, `useSuspenseThread(id)`                                                                                                           | `{ thread, pending, … }`                                             |
+| `useSearch(q, mailbox?)`                                                                                                                           | results                                                              |
+| `usePrefetchThread()`                                                                                                                              | `(threadId) => void`                                                 |
+| `useMarkRead()`, `useDefer()`, `useMarkDone()`, `useMarkUndone()`, `useArchive()`, `useMove()`                                                     | `mutate({ threadId, … })`                                            |
+| `useMarkReadOnOpen(thread)`                                                                                                                        | marks an opened unread thread read, once                             |
+| `useSendReply()`, `useSend()`                                                                                                                      | `mutate({ … })`                                                      |
+| `useDiscardPending()`, `useActionFailures()`                                                                                                       | failed sends and actions                                             |
+| `useRealtimeConnection(memberId)`, `useRealtimeStatus()`                                                                                           | the socket                                                           |
+| `useConnectivity()`                                                                                                                                | `{ online, queued }`                                                 |
+| `useShortcut(id, run, enabled?)`, `runShortcut(id)`, `useAvailableShortcuts()`, `announce(text)`                                                   | keyboard shortcuts (`hooks/use-shortcuts.ts`)                        |
+| `useConversation(threadId)`, `useTags(mailboxId)`, `useAssignees(mailboxId)`                                                                       | helpdesk state, the inbox's tags and agents                          |
+| `useResolve()`, `useReopen()`, `useSnooze()`, `useClaim()`, `useAssign()`, `useSetPriority()`, `useToggleTag()`                                    | `mutate({ threadId, … })`, with undo                                 |
+| `useCreateTag()`, `useUpdateTag()`, `useDeleteTag()`                                                                                               | an inbox's tags (settings)                                           |
+| `usePresence(threadId)`, `useReportPresence(thread, state)`                                                                                        | who is viewing or replying; say you are                              |
+| `useUndo()`, `offerUndo(label, undo)`                                                                                                              | `{ offer, undo, dismiss }` for the undo toast                        |
+| `useThreadListShortcuts({ … })`                                                                                                                    | the list keys: j/k, o, x, e, h, u, Esc                               |
+| `useConversations(filter)`, `useConversationCounts()`                                                                                              | helpdesk lists (`conversations`, paging) and the navigation's counts |
+| `useThreadListShortcuts({ …, helpdesk: { filter, conversations } })`                                                                               | on a helpdesk list e/h/i resolve, snooze, assign to me (batch undo)  |
 
 Message HTML goes in a sandboxed iframe: `messageHtmlUrl(threadId, messageId)`; attachments:
 `attachmentUrl(threadId, attachmentId)` (`lib/urls.ts`).
