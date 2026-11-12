@@ -13,6 +13,7 @@
     "./dns-diagnostics": "./src/dns-diagnostics.ts",
     "./conversation-status": "./src/conversation-status.ts",
     "./compose": "./src/compose.ts",
+    "./templates": "./src/templates.ts",
     "./business-hours": "./src/business-hours.ts"
   },
   "scripts": {

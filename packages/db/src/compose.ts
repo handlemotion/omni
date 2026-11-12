@@ -45,7 +45,12 @@ export async function memberMailbox(db: Db, memberId: string, mailboxId: string)
 /** The member's name and their org's, for the From display name. */
 export async function senderIdentity(db: Db, memberId: string) {
   const [row] = await db
-    .select({ name: users.name, email: users.email, orgName: organizations.name })
+    .select({
+      name: users.name,
+      email: users.email,
+      orgId: organizations.id,
+      orgName: organizations.name,
+    })
     .from(members)
     .innerJoin(users, eq(users.id, members.userId))
     .innerJoin(organizations, eq(organizations.id, members.organizationId))

@@ -11,6 +11,15 @@ import {
   memberUpload,
   setSignature,
 } from "../src/compose.ts";
+import {
+  createCannedReply,
+  deleteCannedReply,
+  getCannedReply,
+  listCannedReplies,
+  templateContext,
+  updateCannedReply,
+} from "../src/library.ts";
+import { createThread } from "../src/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();
@@ -67,5 +76,45 @@ describe("compose", () => {
     }
     expect((await memberSignatures(db, ana, supportId))?.inbox?.bodyText).toBe("Acme");
     expect(await deleteUnsentUpload(db, ana, upload.id)).toBe("k");
+  });
+});
+
+describe("canned replies", () => {
+  test("an inbox's replies and a member's own are reachable only by those allowed", async () => {
+    const fields = { bodyText: "Hi", bodyHtml: null, setStatus: null, addTagIds: [] };
+    const shared = await createCannedReply(db, ana, {
+      ...fields,
+      title: "Refund",
+      mailboxId: supportId,
+    });
+    const own = await createCannedReply(db, ana, { ...fields, title: "Mine", mailboxId: null });
+    if (!shared.reply || !own.reply) throw new Error("create failed");
+    const ids = [shared.reply.id, own.reply.id];
+    const threadId = await createThread(db, {
+      orgId: orgAId,
+      mailboxId: supportId,
+      subjectKey: "refund",
+      lastMessageAt: new Date(),
+    });
+
+    expect(
+      (await listCannedReplies(db, ana, { mailboxId: supportId })).map((r) => r.title),
+    ).toEqual(["Mine", "Refund"]);
+    expect((await templateContext(db, ana, threadId))?.inboxAddress).toBe("support@content-a.test");
+
+    for (const outsider of [bo, cy]) {
+      expect(await listCannedReplies(db, outsider, { mailboxId: supportId })).toEqual([]);
+      for (const id of ids) {
+        expect(await getCannedReply(db, outsider, id)).toBeNull();
+        expect(await updateCannedReply(db, outsider, id, { title: "x" })).toEqual({
+          error: "not_found",
+        });
+        expect(await deleteCannedReply(db, outsider, id)).toBe(false);
+      }
+      expect(await templateContext(db, outsider, threadId)).toBeNull();
+      expect(
+        await createCannedReply(db, outsider, { ...fields, title: "x", mailboxId: supportId }),
+      ).toEqual({ error: "not_found" });
+    }
   });
 });
