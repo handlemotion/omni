@@ -10,6 +10,7 @@ import { loadConfig } from "./env.ts";
 import { alertSlas, wakeSnoozed } from "./sla.ts";
 import { createLogger } from "./log.ts";
 import { consumeQueue, type AiJob } from "./queue.ts";
+import { cleanupExpiredUploads } from "./uploads.ts";
 
 export type { AppType } from "./app.ts";
 export { DomainWatch } from "./domain-watch.ts";
@@ -67,11 +68,15 @@ async function scheduledMinute(env: Env) {
 }
 
 /**
- * The daily cron: billing reconcile and the abandoned sign-up sweep. Each runs even if the other
+ * The daily cron: billing reconcile, the abandoned sign-up sweep and expired uploads. Each runs even if the other
  * fails; the run still fails so the error is visible.
  */
 async function scheduledDaily(env: Env) {
-  const results = await Promise.allSettled([scheduledReconcile(env), scheduledPrune(env)]);
+  const results = await Promise.allSettled([
+    scheduledReconcile(env),
+    scheduledPrune(env),
+    cleanupExpiredUploads(env),
+  ]);
   const failed = results.find((r) => r.status === "rejected");
   if (failed) throw failed.reason;
 }

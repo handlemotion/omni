@@ -15,7 +15,8 @@ import {
   threads,
 } from "./schema/index.ts";
 
-function grantFor(db: Db, memberId: string, mailboxId: AnyColumn, orgId: AnyColumn) {
+/** `exists` subquery: `memberId` has a grant on the row's mailbox, in the row's org. */
+export function grantFor(db: Db, memberId: string, mailboxId: AnyColumn, orgId: AnyColumn) {
   return db
     .select({ one: sql`1` })
     .from(mailboxAccess)

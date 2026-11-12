@@ -88,6 +88,15 @@ const configSchema = z
     DOMAIN_CONNECT_KEY_HOST: optionalText,
     /** PKCS#8 PEM private key that signs apply URLs. Needs DOMAIN_CONNECT_KEY_HOST. */
     DOMAIN_CONNECT_PRIVATE_KEY: optionalText,
+    /** Largest file one upload may stage for a send, in bytes. 25 MB by default (Gmail's limit). */
+    // Empty (as `.dev.vars.example` ships it) means the default, not 0.
+    UPLOAD_MAX_BYTES: optionalText.pipe(
+      z.coerce
+        .number<string | undefined>()
+        .int()
+        .positive()
+        .default(25 * 1024 * 1024),
+    ),
     /** Optional: required only if the Expo project enforces push security. */
     EXPO_ACCESS_TOKEN: optionalText,
     // Rate limits (see rate-limiter.ts). Defaults leave room for real use; tighten per deploy.

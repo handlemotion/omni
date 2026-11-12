@@ -13,7 +13,6 @@ import {
   type MailActionRequest,
   type MemberQueries,
 } from "@omni/db";
-import type { SendPayload } from "@omni/contracts";
 import { addedParticipants, messageDisplay } from "@omni/mail-core/display";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -83,50 +82,33 @@ const doneBody = z.object({ through: z.iso.datetime() });
 
 const deferBody = z.object({ until: z.iso.datetime() });
 
-const address = z.email();
-const sendBody = z.object({
-  mailboxId: z.string().min(1),
-  to: z.array(address).min(1).max(100),
-  cc: z.array(address).max(100).optional(),
-  bcc: z.array(address).max(100).optional(),
-  subject: z.string().max(998),
-  text: z.string().max(1_000_000),
-  html: z.string().max(2_000_000).optional(),
-});
-
-const replyBody = z.object({
-  text: z.string().min(1).max(1_000_000),
-  html: z.string().max(2_000_000).optional(),
-  replyAll: z.boolean().default(false),
-});
-
 const moveBody = z.object({ destination: z.string().min(1).max(1000) });
 
-const idempotencyHeader = z.object({
+export const idempotencyHeader = z.object({
   "idempotency-key": z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, "8-128 URL-safe characters"),
 });
 
 /** Outbox keys are namespaced by member so one member's key can never reach another's action. */
-function outboxKey(c: Context<AppEnv>, key: string, ...parts: string[]) {
+export function outboxKey(c: Context<AppEnv>, key: string, ...parts: string[]) {
   return [c.var.member.id, key, ...parts].join(":");
 }
 
-function notFound(): never {
+export function notFound(): never {
   throw new HTTPException(404, { message: "not found" });
 }
 
-function pingLater(c: Context<AppEnv>) {
+export function pingLater(c: Context<AppEnv>) {
   c.executionCtx.waitUntil(pingMailService(c.var));
 }
 
 /** Where an action runs: the mailbox it acts on and that mailbox's org. */
-interface ActionMailbox {
+export interface ActionMailbox {
   orgId: string;
   mailboxId: string;
 }
 
 /** Queues one action for this member's request. A repeated idempotency key returns the first. */
-function enqueue(
+export function enqueue(
   c: Context<AppEnv>,
   mailbox: ActionMailbox,
   request: MailActionRequest,
@@ -146,7 +128,7 @@ function enqueue(
  * Queues actions that each target one folder's copies, keyed by kind and folder so a retry under
  * the same idempotency key queues nothing new, and pings the mail service when any was queued.
  */
-async function enqueuePerFolder(
+export async function enqueuePerFolder(
   c: Context<AppEnv>,
   mailbox: ActionMailbox,
   key: string,
@@ -179,24 +161,6 @@ function threadResponse(thread: NonNullable<Awaited<ReturnType<MemberQueries["ge
       attachments: attachments.map(({ r2Key: _key, ...file }) => file),
     })),
   };
-}
-
-/**
- * A retried request finds the action it already wrote, so it answers with that send's
- * Message-ID, not the fresh one it just made. The thread's message carries the same id once
- * the mail service files the Sent copy.
- */
-function sendResponse(action: { id: string; payload: Record<string, unknown> }) {
-  return {
-    actionId: action.id,
-    messageIdHeader: (action.payload as SendPayload).messageId ?? null,
-  };
-}
-
-/** Chosen here so send and reply can return it before the mail goes out. */
-function newMessageId(address: string) {
-  const domain = address.slice(address.lastIndexOf("@") + 1);
-  return `<${crypto.randomUUID()}@${domain}>`;
 }
 
 export const mail = new Hono<AppEnv>()
@@ -401,83 +365,5 @@ export const mail = new Hono<AppEnv>()
           })),
       );
       return c.json({ actionIds });
-    },
-  )
-
-  .post(
-    "/send",
-    limitPerMember("send"),
-    zValidator("header", idempotencyHeader),
-    zValidator("json", sendBody),
-    async (c) => {
-      const key = c.req.valid("header")["idempotency-key"];
-      const { mailboxId, ...message } = c.req.valid("json");
-      const mailboxes = await listMemberMailboxes(c.var.db, c.var.member.id);
-      const mailbox = mailboxes.find((m) => m.id === mailboxId);
-      if (!mailbox) notFound();
-      const action = await enqueue(
-        c,
-        { orgId: mailbox.orgId, mailboxId: mailbox.id },
-        {
-          kind: "send",
-          payload: { from: mailbox.address, ...message, messageId: newMessageId(mailbox.address) },
-        },
-        outboxKey(c, key, "send"),
-      );
-      pingLater(c);
-      return c.json(sendResponse(action), 202);
-    },
-  )
-
-  /** Replies to the latest message, with In-Reply-To and References so it threads everywhere. */
-  .post(
-    "/threads/:id/reply",
-    limitPerMember("send"),
-    zValidator("header", idempotencyHeader),
-    zValidator("json", replyBody),
-    async (c) => {
-      const key = c.req.valid("header")["idempotency-key"];
-      const { text, html, replyAll } = c.req.valid("json");
-      const threadId = c.req.param("id");
-      const [thread, found] = await Promise.all([
-        forMember(c.var.db, c.var.member.id).getThread(threadId),
-        threadActionTargets(c.var.db, c.var.member.id, threadId),
-      ]);
-      const latest = thread?.messages.at(-1);
-      if (!thread || !found || !latest) notFound();
-
-      const self = found.mailboxAddress.toLowerCase();
-      const isSelf = (a: string) => a.toLowerCase() === self;
-      // Replying after our own message continues to the same people.
-      const fromUs = isSelf(latest.fromAddress);
-      const to = fromUs ? latest.to.map((a) => a.address) : [latest.fromAddress];
-      const cc = replyAll
-        ? [...(fromUs ? [] : latest.to), ...latest.cc]
-            .map((a) => a.address)
-            .filter((a) => !isSelf(a) && !to.includes(a))
-        : [];
-      const subject = /^re:/i.test(latest.subject) ? latest.subject : `Re: ${latest.subject}`;
-
-      const action = await enqueue(
-        c,
-        found,
-        {
-          kind: "send",
-          payload: {
-            from: found.mailboxAddress,
-            to,
-            ...(cc.length ? { cc } : {}),
-            subject,
-            text,
-            ...(html ? { html } : {}),
-            inReplyTo: latest.messageIdHeader,
-            references: [...latest.references, latest.messageIdHeader],
-            messageId: newMessageId(found.mailboxAddress),
-          },
-        },
-        outboxKey(c, key, "send"),
-      );
-      pingLater(c);
-      return c.json(sendResponse(action), 202);
     },
   );

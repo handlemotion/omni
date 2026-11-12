@@ -250,9 +250,15 @@ describe("outbox", () => {
       .select()
       .from(schema.mailActions)
       .where(eq(schema.mailActions.id, actionId));
+    const second = await db
+      .select({ id: schema.messages.id })
+      .from(schema.messages)
+      .where(eq(schema.messages.messageIdHeader, "<second@client.test>"));
     expect(action?.payload).toEqual({
       messageId: messageIdHeader,
       from: "hello@hooli.test",
+      fromName: "ana@hooli.test from hooli",
+      inReplyToMessageId: second[0]!.id,
       to: ["luis@client.test"],
       cc: ["marta@client.test"],
       subject: "Re: Partnership",

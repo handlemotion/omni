@@ -31,5 +31,6 @@ export * from "./pictures.ts";
 export * from "./billing.ts";
 export * from "./sign-in-emails.ts";
 export * from "./abandoned-sign-ups.ts";
+export * from "./compose.ts";
 export * from "./conversations.ts";
 export * from "./sla.ts";

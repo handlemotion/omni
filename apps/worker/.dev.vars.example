@@ -39,6 +39,9 @@ MAIL_SERVICE_HMAC_SECRET=
 # (its domain onboarded there; `wrangler dev` only simulates it). Leave empty to disable email sign-in.
 SYSTEM_MAIL_FROM=
 
+# Optional. Largest file one upload may stage for a send, in bytes. Empty: 26214400 (25 MB).
+UPLOAD_MAX_BYTES=
+
 # --- AI ---
 # Secret. Summaries, and triage when TYPESAFE_API_KEY is empty. With neither key, threads stay
 # unsorted (only a wordless reply from you files itself, as FYI).

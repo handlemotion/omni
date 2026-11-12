@@ -78,6 +78,9 @@ export const messageTargetSchema = z.object({
  * message in the same mailbox (`attachments.id`), which is how forward keeps the originals. The
  * mail service streams each from R2 into the MIME.
  */
+/** The most files one sent message may carry. */
+export const MAX_SEND_ATTACHMENTS = 50;
+
 export const sendAttachmentSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("upload"), uploadId: z.string().min(1) }),
   z.object({ kind: z.literal("attachment"), attachmentId: z.string().min(1) }),
@@ -103,7 +106,7 @@ export const sendPayloadSchema = z.object({
    * thread as soon as SMTP accepts it. Reply headers still come from `inReplyTo`/`references`.
    */
   inReplyToMessageId: z.string().min(1).optional(),
-  attachments: z.array(sendAttachmentSchema).max(50).optional(),
+  attachments: z.array(sendAttachmentSchema).max(MAX_SEND_ATTACHMENTS).optional(),
   /**
    * Message-ID to send with, in `<id@host>` form, chosen by the Worker so the app knows it before
    * the mail goes out. Absent: the mail service derives one from the idempotency key.

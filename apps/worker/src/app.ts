@@ -23,6 +23,8 @@ import { billing } from "./routes/billing.ts";
 import { billingCards } from "./routes/billing-cards.ts";
 import { conversations } from "./routes/conversations.ts";
 import { stripeWebhook } from "./routes/stripe-webhook.ts";
+import { compose } from "./routes/compose.ts";
+import { library } from "./routes/library.ts";
 import { mail } from "./routes/mail.ts";
 import { mailboxMembers } from "./routes/mailbox-members.ts";
 import { onboarding } from "./routes/onboarding.ts";
@@ -108,6 +110,8 @@ const api = new Hono<AppEnv>()
     return stub.fetch(new Request(c.req.raw, { headers }));
   })
   .route("/", mail)
+  .route("/", compose)
+  .route("/", library)
   .route("/", conversations)
   .route("/", mailboxMembers)
   .route("/workspace", workspaceLogo)
