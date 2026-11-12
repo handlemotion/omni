@@ -79,6 +79,8 @@ UID-list diffs and polling. On every connect it logs the server's capabilities
 | `OUTBOX_INTERVAL_MS`       | no       | `30000`            | Outbox poll interval when no ping arrives.                      |
 | `MAILBOX_CONCURRENCY`      | no       | `4`                | Mailboxes connecting or syncing at once.                        |
 | `PURELYMAIL_API_TOKEN`     | no       |                    | Purelymail admin API token. Unset: onboarding uses IMAP logins. |
+| `GOOGLE_CLIENT_ID`         | no       |                    | Google OAuth client. With the secret, Gmail accounts connect.   |
+| `GOOGLE_CLIENT_SECRET`     | no       |                    | Secret. Set both or neither; one alone stops the service.       |
 | `SENTRY_DSN`               | no       |                    | Sentry DSN. Unset keeps error reporting off.                    |
 | `SENTRY_ENVIRONMENT`       | no       | `production`       | Sentry environment tag.                                         |
 | `DNS_RESOLVERS`            | no       | system resolvers   | `ip` or `ip:port` list used to find a domain's nameservers.     |
@@ -96,7 +98,7 @@ mailboxes added later.
 The Worker and the mail service call each other over HMAC-signed HTTP (`@omni/crypto`, 60 s
 window). The Worker pings `POST /ping` after writing to the outbox or adding a mailbox, and calls
 `POST /provision/domain`, `POST /provision/mailbox` and `POST /dns/lookup` during onboarding
-(ADR 0007, ADR 0010); the mail
+(ADR 0007, ADR 0010), and `POST /google/connect` with a Google authorization code (ADR 0023); the mail
 service posts batches of `message.created` events to the Worker after indexing new mail. Paths
 and bodies are defined once in `packages/contracts`.
 
@@ -218,6 +220,28 @@ changed on the server). A shared inbox gets a team with the owner on it; owners 
 and remove its members through `PUT`/`DELETE /api/mailboxes/<id>/members/<member id>` (ADR
 0008). Upgrading an install whose shared inboxes predate teams: run
 `pnpm --filter @omni/db mailbox-teams:backfill` once after `db:migrate` (safe to repeat).
+
+#### Connecting a Gmail account (ADR 0023)
+
+Optional. A person's own Gmail connects over IMAP and SMTP with OAuth (XOAUTH2); Gmail has no app
+password flow Omni uses. In the Google Cloud console, on the OAuth client the Worker signs in with
+(or a new "Web application" client): add the scope `https://mail.google.com/` to the consent
+screen, add the people who will connect as test users while the app is unverified (Google caps
+an unverified app with this restricted scope at 100 users; going past that needs Google's
+verification and a CASA assessment), and set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on
+the mail service. Only the mail service exchanges codes and holds the tokens: the refresh token is
+encrypted with `MAIL_CREDENTIALS_KEY` like an app password. A person who revokes Omni's access in
+their Google account sees the mailbox in `error` until they connect it again.
+
+From the command line, with the service running and `MAIL_SERVICE_URL` set, add
+`http://localhost:8790/callback` as an authorized redirect URI and run:
+
+```bash
+pnpm --filter @omni/mail google:connect --org <org id> --owner you@example.com
+```
+
+It prints Google's consent URL, catches the redirect on port 8790 (`--port` changes it) and hands
+the code to the service, which connects the account as a personal mailbox.
 
 Run from source: `pnpm --filter @omni/mail start` reads `apps/mail/.env`. Variables already set
 in the environment win over the file.

@@ -35,9 +35,12 @@ export async function mailboxesOf(db: TestDb, orgId: string) {
 /** A GreenMail mailbox with its `mailboxes` row and an owner. */
 export async function seedMailbox(
   db: TestDb,
-  options: { kind?: MailboxConfig["kind"]; credentialsEnc?: string } = {},
+  options: { kind?: MailboxConfig["kind"]; credentialsEnc?: string; address?: string } = {},
 ) {
-  const box = mailbox(options.kind);
+  const fresh = mailbox(options.kind);
+  const box = options.address
+    ? { ...fresh, address: options.address, user: options.address }
+    : fresh;
   const org = await createOrg(db, `org-${box.id.slice(0, 8)}`);
   const owner = await createMember(db, org.id, "owner");
   const config: MailboxConfig = { ...box, orgId: org.id };

@@ -24,7 +24,14 @@ import {
   stored,
   type TestDb,
 } from "./support/db.ts";
-import { deliver, logger, mailbox, otherClient, waitFor } from "./support/greenmail.ts";
+import {
+  deliver,
+  GREENMAIL_PASSWORD,
+  logger,
+  mailbox,
+  otherClient,
+  waitFor,
+} from "./support/greenmail.ts";
 import { createTestBucket, links } from "./support/objects.ts";
 import { type FaultyLink, faultyLink } from "./support/proxy.ts";
 
@@ -183,7 +190,7 @@ describe("mail service under faults", () => {
     // GreenMail here accepts any password (auth is disabled in compose.yml), so the rejection is
     // ImapFlow's own for an empty password: the same `authenticationFailed` error a server NO gives.
     const connection = connect(
-      { ...box, pass: "" },
+      { ...box, auth: { kind: "password", pass: "" } },
       { reconnectBaseMs: 50, reconnectMaxMs: 200, maxAuthFailures: 3 },
     );
     let authFailed = 0;
@@ -359,7 +366,7 @@ describe("the service process, stopped and killed mid-import", () => {
       box.id,
       await sealCredentials(parseKeyring(keyringSecret), box.id, {
         user: box.user,
-        pass: box.pass,
+        pass: GREENMAIL_PASSWORD,
         imap: viaRelays.imap,
         smtp: viaRelays.smtp,
       }),
@@ -427,7 +434,7 @@ describe("the service process, stopped and killed mid-import", () => {
       box.id,
       await sealCredentials(parseKeyring(keyringSecret), box.id, {
         user: box.user,
-        pass: box.pass,
+        pass: GREENMAIL_PASSWORD,
         imap: box.imap,
         smtp: box.smtp,
       }),

@@ -10,7 +10,7 @@ import { MAIL_PING_PATH } from "@omni/contracts";
 import { parseKeyring, signRequest } from "@omni/crypto";
 import { createDb, findMailboxByAddress, findMemberByEmail, saveMailbox } from "@omni/db";
 import { z } from "zod";
-import { type MailboxCredentials, sealCredentials } from "../credentials.ts";
+import { type PasswordCredentials, sealCredentials } from "../credentials.ts";
 import type { ServerEndpoint } from "../mailbox-connection.ts";
 import { createPurelymailClient, PURELYMAIL_SERVERS } from "../providers/purelymail.ts";
 import { verifyImapLogin } from "../verify-login.ts";
@@ -62,7 +62,7 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8").trim();
 }
 
-async function verifyLogin(credentials: MailboxCredentials): Promise<void> {
+async function verifyLogin(credentials: PasswordCredentials): Promise<void> {
   const refused = await verifyImapLogin(credentials);
   if (refused) fail(refused);
 }
@@ -126,7 +126,7 @@ if (values["create-app-password"]) {
   if (!pass) fail("no app password on stdin");
 }
 
-const credentials: MailboxCredentials = { user: values.user ?? address, pass, imap, smtp };
+const credentials: PasswordCredentials = { user: values.user ?? address, pass, imap, smtp };
 if (!values["no-verify"]) await verifyLogin(credentials);
 
 const { db, close } = createDb(config.data.DATABASE_URL, { onnotice: () => {} });

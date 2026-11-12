@@ -1,5 +1,5 @@
-// Bundles the service into dist/main.js and the CLIs into dist/mailbox-add.js and
-// dist/dead-letters.js. Workspace packages (@omni/*) ship as TypeScript source,
+// Bundles the service into dist/main.js and the CLIs into dist/mailbox-add.js,
+// dist/dead-letters.js and dist/google-connect.js. Workspace packages (@omni/*) ship as TypeScript source,
 // so they are bundled in; every npm import stays external and resolves from the flat
 // node_modules that `pnpm deploy --prod` (hoisted) writes in the image.
 import { build } from "esbuild";
@@ -9,6 +9,7 @@ await build({
     main: "src/main.ts",
     "mailbox-add": "src/cli/mailbox-add.ts",
     "dead-letters": "src/cli/dead-letters.ts",
+    "google-connect": "src/cli/google-connect.ts",
   },
   outdir: "dist",
   bundle: true,

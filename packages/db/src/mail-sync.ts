@@ -744,3 +744,12 @@ export async function saveMailbox(
     return row!.id;
   });
 }
+
+/** Members holding an owner grant on the mailbox. */
+export async function mailboxOwnerIds(db: Db, mailboxId: string): Promise<string[]> {
+  const rows = await db
+    .select({ memberId: mailboxAccess.memberId })
+    .from(mailboxAccess)
+    .where(and(eq(mailboxAccess.mailboxId, mailboxId), eq(mailboxAccess.role, "owner")));
+  return rows.map((row) => row.memberId);
+}

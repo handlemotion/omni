@@ -11,13 +11,14 @@ import { sql } from "drizzle-orm";
 import { Effect, Fiber } from "effect";
 import type { Hono } from "hono";
 import type { Config } from "./config.ts";
-import { openCredentials } from "./credentials.ts";
+import { mailboxAuth, openCredentials } from "./credentials.ts";
 import { createDnsLookup } from "./dns.ts";
 import { createApp, hmacVerifier } from "./http.ts";
 import type { Logger } from "./log.ts";
 import { WorkerNotifier } from "./notify.ts";
 import { createS3Store } from "./objects.ts";
 import { PgActionSource, PgMailStore, PgSendFiles } from "./pg-store.ts";
+import { connectGoogle, createGoogleOAuth } from "./providers/gmail.ts";
 import { createPurelymailClient } from "./providers/purelymail.ts";
 import { createProvisioner } from "./provisioning.ts";
 import { Supervisor } from "./supervisor.ts";
@@ -48,6 +49,8 @@ export type ServiceConfig = Pick<
       | "DNS_NAMESERVER_PORT"
       | "DNS_TIMEOUT_MS"
       | "NOTIFY_SWEEP_MS"
+      | "GOOGLE_CLIENT_ID"
+      | "GOOGLE_CLIENT_SECRET"
     >
   >;
 
@@ -61,6 +64,13 @@ export interface MailService {
 
 export async function startService(config: ServiceConfig, log: Logger): Promise<MailService> {
   const { db, close } = createDb(config.DATABASE_URL);
+  const google =
+    config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
+      ? createGoogleOAuth({
+          clientId: config.GOOGLE_CLIENT_ID,
+          clientSecret: config.GOOGLE_CLIENT_SECRET,
+        })
+      : undefined;
   const notifier = new WorkerNotifier({
     workerUrl: config.WORKER_URL,
     secret: config.MAIL_SERVICE_HMAC_SECRET,
@@ -123,12 +133,14 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
       if (stopping) return;
       if (supervisor.has(row.id)) continue;
       let credentials;
+      let auth;
       try {
         credentials = await openCredentials(
           config.MAIL_CREDENTIALS_KEY,
           row.id,
           row.credentialsEnc,
         );
+        auth = mailboxAuth(credentials, google);
       } catch (error) {
         log.error("mailbox.credentials_unreadable", { mailboxId: row.id, error });
         await setMailboxStatus(db, row.id, "error");
@@ -139,14 +151,18 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
         orgId: row.orgId,
         address: row.address,
         kind: row.kind,
-        ...credentials,
+        user: credentials.user,
+        auth,
+        imap: credentials.imap,
+        smtp: credentials.smtp,
       });
       const setStatus = (status: "active" | "error") =>
         setMailboxStatus(db, row.id, status).catch((error: unknown) =>
           log.warn("mailbox.status_failed", { mailboxId: row.id, error }),
         );
       connection.on("connected", () => void setStatus("active"));
-      // Shows the app a mailbox whose app password was revoked; retrying continues.
+      // Shows the app a mailbox whose app password or Google access was revoked; retrying
+      // continues until the connection gives up.
       connection.on("auth_failed", () => void setStatus("error"));
     }
   }
@@ -166,6 +182,12 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     return reconciling;
   }
 
+  /** Connects a mailbox with its stored credentials, replacing a connection it already has. */
+  const reconnect = async (mailboxId: string) => {
+    if (supervisor.has(mailboxId)) await supervisor.remove(mailboxId);
+    await reconcileMailboxes();
+  };
+
   supervisor.start();
   await sweepNotifications().catch((error: unknown) => log.error("notify.sweep_failed", { error }));
   const sweepLoop = every(config.NOTIFY_SWEEP_MS ?? 60_000, () =>
@@ -184,16 +206,28 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     purelymail: config.PURELYMAIL_API_TOKEN
       ? createPurelymailClient(config.PURELYMAIL_API_TOKEN)
       : undefined,
-    connect: async (mailboxId) => {
-      if (supervisor.has(mailboxId)) await supervisor.remove(mailboxId);
-      await reconcileMailboxes();
-    },
+    connect: reconnect,
     logger: log,
   });
 
   const httpLog = log.child({ component: "http" });
   const app = createApp({
     provisioner,
+    ...(google
+      ? {
+          connectGoogle: (input) =>
+            connectGoogle(
+              {
+                db,
+                keyring: config.MAIL_CREDENTIALS_KEY,
+                oauth: google,
+                connect: reconnect,
+                logger: log,
+              },
+              input,
+            ),
+        }
+      : {}),
     log: httpLog,
     dns: createDnsLookup({
       resolvers: config.DNS_RESOLVERS ?? [],

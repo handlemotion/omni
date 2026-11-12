@@ -59,6 +59,18 @@ const schema = z.object({
     .optional()
     .transform((value) => value || undefined),
   /**
+   * Optional Google OAuth client (ADR 0023). Both set: people can connect a Gmail account, and
+   * this service exchanges and refreshes its tokens. The Worker's sign-in client works.
+   */
+  GOOGLE_CLIENT_ID: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
+  GOOGLE_CLIENT_SECRET: z
+    .string()
+    .optional()
+    .transform((value) => value || undefined),
+  /**
    * Recursive resolvers used to find a domain's nameservers, comma-separated `ip` or `ip:port`.
    * Empty: the system's. Verification then asks those nameservers directly (ADR 0010).
    */
@@ -79,7 +91,12 @@ const schema = z.object({
 export type Config = z.infer<typeof schema>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const parsed = schema.safeParse(env);
+  const parsed = schema
+    .refine((config) => !config.GOOGLE_CLIENT_ID === !config.GOOGLE_CLIENT_SECRET, {
+      message: "set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET together, or neither",
+      path: ["GOOGLE_CLIENT_SECRET"],
+    })
+    .safeParse(env);
   if (!parsed.success) {
     // Names only: values may be secrets.
     const problems = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);

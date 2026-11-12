@@ -137,9 +137,9 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
     .select({ enc: schema.mailboxes.credentialsEnc })
     .from(schema.mailboxes)
     .where(eq(schema.mailboxes.id, mailboxId));
-  expect((await openCredentials(stack.keyring, mailboxId, stored!.enc)).pass).toBe(
-    "app-password-2",
-  );
+  expect(await openCredentials(stack.keyring, mailboxId, stored!.enc)).toMatchObject({
+    pass: "app-password-2",
+  });
   await waitFor(async () => {
     const [row] = await db
       .select({ status: schema.mailboxes.status })

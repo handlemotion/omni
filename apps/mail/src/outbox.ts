@@ -5,6 +5,7 @@ import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import type { Logger } from "./log.ts";
 import {
   type ImapSession,
+  loginFor,
   type MailboxConfig,
   type MailboxConnection,
   MailboxUnavailableError,
@@ -368,11 +369,20 @@ function composeMessage(
 }
 
 async function smtpSend(mailbox: MailboxConfig, payload: SendPayload, raw: Buffer): Promise<void> {
+  const { auth } = mailbox;
+  const login = await loginFor(mailbox).catch((error: unknown) => {
+    // A revoked Google grant will not come back on a retry; the mailbox shows it needs reconnecting.
+    if (auth.kind === "oauth2" && auth.token.isRevoked(error)) {
+      throw new PermanentActionError("the Google account's access was revoked: reconnect it");
+    }
+    throw error;
+  });
   const transport = createTransport({
     host: mailbox.smtp.host,
     port: mailbox.smtp.port,
     secure: mailbox.smtp.secure,
-    auth: { user: mailbox.user, pass: mailbox.pass },
+    // Nodemailer's XOAUTH2 with a token we minted; it never refreshes on its own.
+    auth: "accessToken" in login ? { type: "OAuth2", ...login } : login,
     // Well inside the claim lease (5 min): a send still hanging when the lease ran out could be
     // claimed and sent again by another process.
     connectionTimeout: 30_000,
@@ -387,6 +397,12 @@ async function smtpSend(mailbox: MailboxConfig, payload: SendPayload, raw: Buffe
       },
       raw,
     });
+  } catch (error) {
+    // The token was refused (revoked or expired early): the retry mints a new one.
+    if (auth.kind === "oauth2" && (error as { code?: string }).code === "EAUTH") {
+      auth.token.invalidate();
+    }
+    throw error;
   } finally {
     transport.close();
   }

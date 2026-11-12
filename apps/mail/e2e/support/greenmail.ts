@@ -11,6 +11,9 @@ const host = process.env.GREENMAIL_HOST ?? "localhost";
 const imapPort = Number(process.env.GREENMAIL_IMAP_PORT ?? 3143);
 const smtpPort = Number(process.env.GREENMAIL_SMTP_PORT ?? 3025);
 
+/** Any password logs in (auth is disabled); XOAUTH2 accepts any token the same way. */
+export const GREENMAIL_PASSWORD = "unused";
+
 export const logger = createLogger(process.env.E2E_LOG_LEVEL === "debug" ? "debug" : "error");
 
 /** A fresh address per test, so folders and UIDs never leak between tests. */
@@ -22,7 +25,7 @@ export function mailbox(kind: MailboxConfig["kind"] = "personal"): MailboxConfig
     address,
     kind,
     user: address,
-    pass: "unused",
+    auth: { kind: "password", pass: GREENMAIL_PASSWORD },
     imap: { host, port: imapPort, secure: false },
     smtp: { host, port: smtpPort, secure: false },
   };
@@ -60,7 +63,7 @@ export async function otherClient<T>(
     host,
     port: imapPort,
     secure: false,
-    auth: { user: box.user, pass: box.pass },
+    auth: { user: box.user, pass: GREENMAIL_PASSWORD },
     logger: false,
   });
   await client.connect();

@@ -12,7 +12,20 @@ export interface ServerEndpoint {
   secure: boolean;
 }
 
-/** A mailbox with its decrypted app password. Lives only inside the mail service. */
+/** Mints OAuth2 access tokens for one mailbox (XOAUTH2). */
+export interface TokenSource {
+  /** A token valid for at least the next few minutes. */
+  get(): Promise<string>;
+  /** The server refused the last token: the next `get` mints a new one. */
+  invalidate(): void;
+  /** `get` failed because the grant is gone: retrying cannot help, the person must reconnect. */
+  isRevoked(error: unknown): boolean;
+}
+
+/** How a mailbox logs in to IMAP and SMTP. */
+export type MailAuth = { kind: "password"; pass: string } | { kind: "oauth2"; token: TokenSource };
+
+/** A mailbox with its decrypted login. Lives only inside the mail service. */
 export interface MailboxConfig {
   id: string;
   orgId: string;
@@ -20,9 +33,18 @@ export interface MailboxConfig {
   /** Shared mailboxes keep read state per person in Postgres; we never touch their `\Seen`. */
   kind: "personal" | "shared";
   user: string;
-  pass: string;
+  auth: MailAuth;
   imap: ServerEndpoint;
   smtp: ServerEndpoint;
+}
+
+/** ImapFlow's and Nodemailer's `auth` for this mailbox, with a fresh token for OAuth2. */
+export async function loginFor(
+  mailbox: Pick<MailboxConfig, "user" | "auth">,
+): Promise<{ user: string; pass: string } | { user: string; accessToken: string }> {
+  return mailbox.auth.kind === "password"
+    ? { user: mailbox.user, pass: mailbox.auth.pass }
+    : { user: mailbox.user, accessToken: await mailbox.auth.token.get() };
 }
 
 export interface Capabilities {
@@ -343,6 +365,8 @@ export class MailboxConnection extends EventEmitter<Events> {
       Effect.tapError((error) =>
         Effect.sync(() => {
           if (!(error instanceof ImapAuthFailed)) return;
+          // The token may have been revoked or rotated under us: mint a new one next attempt.
+          if (this.mailbox.auth.kind === "oauth2") this.mailbox.auth.token.invalidate();
           this.authFailures++;
           this.emit("auth_failed");
         }),
@@ -370,8 +394,16 @@ export class MailboxConnection extends EventEmitter<Events> {
    */
   private session(): Effect.Effect<void, SessionError> {
     return Effect.gen({ self: this }, function* () {
+      // A revoked Google grant is a rejected login; a token endpoint outage is a failed connect.
+      const login = yield* Effect.tryPromise({
+        try: () => loginFor(this.mailbox),
+        catch: (cause) =>
+          this.mailbox.auth.kind === "oauth2" && this.mailbox.auth.token.isRevoked(cause)
+            ? new ImapAuthFailed({ cause })
+            : new ImapConnectFailed({ cause }),
+      });
       const client = yield* Effect.acquireRelease(
-        Effect.sync(() => this.createClient()),
+        Effect.sync(() => this.createClient(login)),
         (created) => this.release(created),
       );
       const closed = Deferred.makeUnsafe<void>();
@@ -418,13 +450,13 @@ export class MailboxConnection extends EventEmitter<Events> {
     }).pipe(Effect.scoped);
   }
 
-  private createClient(): ImapFlow {
-    const { imap, user, pass } = this.mailbox;
+  private createClient(auth: Awaited<ReturnType<typeof loginFor>>): ImapFlow {
+    const { imap } = this.mailbox;
     const client = new ImapFlow({
       host: imap.host,
       port: imap.port,
       secure: imap.secure,
-      auth: { user, pass },
+      auth,
       logger: false,
       clientInfo: { name: "omni" },
       // Start IDLE soon after our own commands finish, and restart it before NATs drop it.
