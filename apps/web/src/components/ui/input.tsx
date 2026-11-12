@@ -11,8 +11,10 @@ export interface InputProps extends Omit<InputPrimitiveProps, "size"> {
   ref?: React.RefObject<HTMLInputElement | null>;
   /** md is 32px, lg is 36px. */
   size?: "sm" | "md" | "lg";
+  /** No border or fill: a field inside a card that already frames it (the composer). */
+  plain?: boolean;
 }
-export function Input({ className, ref, size = "md", ...props }: InputProps) {
+export function Input({ className, ref, size = "md", plain = false, ...props }: InputProps) {
   return (
     <span data-slot="control" className="relative block w-full">
       <InputPrimitive
@@ -22,9 +24,13 @@ export function Input({ className, ref, size = "md", ...props }: InputProps) {
           "relative block w-full appearance-none rounded-lg bg-(--control-bg,var(--color-background))",
           { sm: "h-7 px-2", md: "h-8 px-2", lg: "h-10 px-3" }[size],
           "text-sm text-foreground placeholder:text-subtle-foreground",
-          "border border-input enabled:hover:border-muted-foreground/30",
-          "outline-hidden focus:border-ring/70 focus:enabled:hover:border-ring/80",
-          "invalid:border-danger-subtle-foreground/70 focus:invalid:border-danger-subtle-foreground/70 invalid:enabled:hover:border-danger-subtle-foreground/80 focus:invalid:enabled:hover:border-danger-subtle-foreground/80",
+          plain
+            ? "border-0 bg-transparent px-0 outline-hidden"
+            : [
+                "border border-input enabled:hover:border-muted-foreground/30",
+                "outline-hidden focus:border-ring/70 focus:enabled:hover:border-ring/80",
+                "invalid:border-danger-subtle-foreground/70 focus:invalid:border-danger-subtle-foreground/70 invalid:enabled:hover:border-danger-subtle-foreground/80 focus:invalid:enabled:hover:border-danger-subtle-foreground/80",
+              ],
           "[&::-ms-reveal]:hidden [&::-webkit-search-cancel-button]:hidden",
           "disabled:bg-secondary in-disabled:bg-secondary forced-colors:in-disabled:text-[GrayText]",
           "dark:scheme-dark",

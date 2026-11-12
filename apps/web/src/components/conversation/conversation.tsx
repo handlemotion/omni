@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { ShowMore } from "@/components/ui/show-more";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useMailboxes, useThread } from "@/hooks/use-mail.ts";
@@ -23,10 +22,10 @@ import {
   useMarkRead,
   useMarkReadOnOpen,
   useMarkUndone,
-  useSendReply,
 } from "@/hooks/use-mail-actions.ts";
 import { DEFER_MS, isDeferred } from "@/lib/threads.ts";
 import type { Message, Thread } from "@/lib/types.ts";
+import { ReplyComposer } from "../compose/composer.tsx";
 import { AddedLine, MessageItem, PendingItem } from "./message.tsx";
 import { Properties } from "./properties.tsx";
 
@@ -78,7 +77,7 @@ export function Conversation({ threadId }: { threadId: string }) {
           {pending.map((send) => (
             <PendingItem key={send.key} send={send} />
           ))}
-          <Reply threadId={threadId} />
+          <ReplyComposer thread={thread} />
           <div ref={end} />
         </div>
       </div>
@@ -189,42 +188,5 @@ function Action(props: { label: string; onPress: () => void; children: ReactNode
       </Button>
       <Tooltip>{props.label}</Tooltip>
     </TooltipTrigger>
-  );
-}
-
-/** A plain reply until the composer lands. Cmd/Ctrl+Enter sends. */
-function Reply({ threadId }: { threadId: string }) {
-  const reply = useSendReply();
-  const [text, setText] = useState("");
-  const send = () => {
-    if (!text.trim()) return;
-    reply.mutate({ threadId, text });
-    setText("");
-  };
-  return (
-    <form
-      className="flex flex-col items-end gap-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        send();
-      }}
-    >
-      <Textarea
-        aria-label="Reply"
-        placeholder="Reply…"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault();
-            send();
-          }
-        }}
-        className="max-h-80 resize-none"
-      />
-      <Button type="submit" isDisabled={!text.trim()}>
-        Send
-      </Button>
-    </form>
   );
 }

@@ -95,6 +95,15 @@ export const keys = {
   search: (q: string, mailbox?: string) =>
     [...mail, "search", { q, ...(mailbox ? { mailbox } : {}) }] as const,
   action: (id: string) => [...mail, "action", id] as const,
+  /** An inbox's signature and the member's own on it. */
+  signatures: (mailboxId: string) => [...mail, "signatures", mailboxId] as const,
+  /** An inbox's canned replies with the member's own. */
+  cannedReplies: (mailboxId: string) => [...mail, "canned-replies", mailboxId] as const,
+  customerSearch: (q: string) => [...mail, "customers", { q }] as const,
+  /** Shared drafts: one conversation's, or an inbox's new mail. */
+  draftLists: () => [...mail, "drafts"] as const,
+  drafts: (where: { threadId: string } | { mailboxId: string }) =>
+    [...mail, "drafts", where] as const,
 
   /** App-only state, never fetched (`query-client.ts` keeps it forever). */
   local: () => local,

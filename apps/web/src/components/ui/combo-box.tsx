@@ -51,12 +51,12 @@ export function ComboBoxContent<T extends object>({
 }: ComboBoxListProps<T>) {
   return (
     <Popover
+      {...popover}
       placement={popover?.placement ?? "bottom"}
       className={cx(
         "min-w-(--trigger-width) overflow-hidden *:data-[slot=popover-inner]:overflow-hidden",
         popover?.className,
       )}
-      {...popover}
     >
       <ListBox
         layout="stack"

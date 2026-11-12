@@ -257,7 +257,7 @@ test("replies written offline go out once each, in order, when the connection is
   await page.getByRole("status").filter({ hasText: "Offline" }).waitFor();
   const reply = async (text: string) => {
     await page.locator("textarea").fill(text);
-    await page.getByRole("button", { name: "Send" }).click();
+    await page.getByRole("button", { name: "Send", exact: true }).click();
   };
   await reply("First, offline.");
   await reply("Second, offline.");
