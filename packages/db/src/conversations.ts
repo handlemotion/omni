@@ -12,7 +12,7 @@ import {
   type ConversationEvent,
   type ConversationState,
 } from "@omni/mail-core/conversation-status";
-import { and, asc, eq, exists, gt, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
 import {
@@ -26,6 +26,8 @@ import {
   members,
   messageLocations,
   messages,
+  notes,
+  notifications,
   tags,
   threadTags,
   threads,
@@ -70,6 +72,8 @@ export type ChangeResult =
       conversation: ConversationRow;
       /** Outbox rows written (archive on resolve, back to INBOX on reopen): ping the mail service. */
       queuedActions: number;
+      /** Members who got a new notification: tell them in realtime. */
+      notified: string[];
     }
   | { ok: false; reason: ChangeFailure };
 
@@ -166,6 +170,46 @@ async function writeEvents(
     )
     .onConflictDoNothing()
     .returning({ id: conversationEvents.id, kind: conversationEvents.kind });
+}
+
+type NotificationKind = (typeof notifications.$inferInsert)["kind"];
+
+/**
+ * Notifies members about this conversation, once per `dedupeKey` per member (a job that runs
+ * twice notifies once). Returns the members who got a new notification.
+ */
+async function notify(
+  tx: Tx,
+  row: ConversationRow,
+  input: {
+    memberIds: string[];
+    kind: NotificationKind;
+    actorMemberId: string | null;
+    dedupeKey: string;
+    noteId?: string;
+    data?: Record<string, unknown>;
+  },
+) {
+  const memberIds = [...new Set(input.memberIds)].filter((m) => m !== input.actorMemberId);
+  if (memberIds.length === 0) return [];
+  const rows = await tx
+    .insert(notifications)
+    .values(
+      memberIds.map((memberId) => ({
+        id: uuidv7(),
+        orgId: row.orgId,
+        memberId,
+        kind: input.kind,
+        threadId: row.id,
+        noteId: input.noteId ?? null,
+        actorMemberId: input.actorMemberId,
+        data: { mailboxId: row.mailboxId, ...input.data },
+        dedupeKey: input.dedupeKey,
+      })),
+    )
+    .onConflictDoNothing()
+    .returning({ memberId: notifications.memberId });
+  return rows.map((r) => r.memberId);
 }
 
 /** Every IMAP copy of the thread's messages, grouped by folder, as outbox targets. */
@@ -286,6 +330,8 @@ interface Applied {
   row: ConversationRow;
   changed: boolean;
   queuedActions: number;
+  /** Members who got a new notification from this change. */
+  notified?: string[];
 }
 
 /**
@@ -386,10 +432,24 @@ async function assign(
     .update(threads)
     .set({ assigneeMemberId: memberId, updatedAt: now })
     .where(eq(threads.id, row.id));
-  await writeEvents(tx, row, actorMemberId, [
+  const [event] = await writeEvents(tx, row, actorMemberId, [
     { kind: "assigned", data: { from: row.assigneeMemberId, to: memberId, ...data }, dedupeKey },
   ]);
-  return { row: { ...row, assigneeMemberId: memberId }, changed: true, queuedActions: 0 };
+  const notified =
+    memberId && event
+      ? await notify(tx, row, {
+          memberIds: [memberId],
+          kind: "assigned",
+          actorMemberId,
+          dedupeKey: `assigned:${event.id}`,
+        })
+      : [];
+  return {
+    row: { ...row, assigneeMemberId: memberId },
+    changed: true,
+    queuedActions: 0,
+    notified,
+  };
 }
 
 /**
@@ -428,7 +488,9 @@ export async function applyConversationChange(
         .where(
           and(eq(conversationEvents.threadId, row.id), eq(conversationEvents.dedupeKey, dedupeKey)),
         );
-      if (seen) return { ok: true, changed: false, conversation: row, queuedActions: 0 };
+      if (seen) {
+        return { ok: true, changed: false, conversation: row, queuedActions: 0, notified: [] };
+      }
     }
 
     let applied: Applied;
@@ -524,6 +586,7 @@ export async function applyConversationChange(
       changed: applied.changed,
       conversation: applied.row,
       queuedActions: applied.queuedActions,
+      notified: applied.notified ?? [],
     };
   });
 }
@@ -553,6 +616,7 @@ export async function applyAgentReply(
       changed: status.changed || claimed.changed || responded.changed,
       conversation: responded.row,
       queuedActions: status.queuedActions,
+      notified: [],
     };
   });
 }
@@ -587,6 +651,8 @@ export type InboundResult =
       changed: boolean;
       conversation: ConversationRow;
       queuedActions: number;
+      /** Members who got a new notification: tell them in realtime. */
+      notified: string[];
     };
 
 /**
@@ -633,7 +699,25 @@ export async function applyInboundMessage(
         null,
         { data: { messageId: input.messageId } },
       );
-      return { applied: true, direction: "customer", ...applied, conversation: applied.row };
+      // The assignee hears when their customer writes back (not for an auto-reply).
+      const notified =
+        applied.row.assigneeMemberId && !message.automated
+          ? await notify(tx, applied.row, {
+              memberIds: [applied.row.assigneeMemberId],
+              kind: "customer_reply",
+              actorMemberId: null,
+              dedupeKey: `customer_reply:${input.messageId}`,
+              data: { messageId: input.messageId },
+            })
+          : [];
+      return {
+        applied: true,
+        direction: "customer",
+        changed: applied.changed,
+        conversation: applied.row,
+        queuedActions: applied.queuedActions,
+        notified,
+      };
     }
 
     const [newer] = await tx
@@ -678,6 +762,7 @@ export async function applyInboundMessage(
       changed: status.changed || responded.changed,
       conversation: responded.row,
       queuedActions: status.queuedActions,
+      notified: [],
     };
   });
 }
@@ -778,4 +863,149 @@ export async function deleteTag(db: Executor, memberId: string, mailboxId: strin
     .where(and(eq(tags.id, tagId), eq(tags.mailboxId, mailboxId)))
     .returning({ id: tags.id });
   return rows.length > 0;
+}
+
+// Internal notes (ADR 0021): in the timeline, never sent, never on IMAP. @mentions notify.
+
+export const NOTE_MAX_LENGTH = 20_000;
+
+/**
+ * Adds a note as `memberId`, who must see the conversation. Mentions of members who cannot see
+ * the inbox are dropped (they could not open it); each one left is notified once.
+ */
+export async function createNote(
+  db: Executor,
+  input: { threadId: string; memberId: string; body: string; mentions: string[] },
+) {
+  return db.transaction(async (tx) => {
+    const locked = await lockConversation(tx, input.threadId, input.memberId);
+    if (!locked) return { ok: false as const, reason: "not_found" as const };
+    const { kind, ...row } = locked;
+    if (kind !== "shared") return { ok: false as const, reason: "personal_mailbox" as const };
+    const wanted = [...new Set(input.mentions)];
+    const allowed = wanted.length
+      ? (
+          await tx
+            .select({ id: mailboxAccess.memberId })
+            .from(mailboxAccess)
+            .innerJoin(members, eq(members.id, mailboxAccess.memberId))
+            .where(
+              and(
+                eq(mailboxAccess.mailboxId, row.mailboxId),
+                eq(members.organizationId, row.orgId),
+                inArray(mailboxAccess.memberId, wanted),
+              ),
+            )
+        ).map((m) => m.id)
+      : [];
+    const mentions = wanted.filter((m) => allowed.includes(m));
+    const [note] = await tx
+      .insert(notes)
+      .values({
+        id: uuidv7(),
+        orgId: row.orgId,
+        mailboxId: row.mailboxId,
+        threadId: row.id,
+        authorMemberId: input.memberId,
+        body: input.body,
+        mentions,
+      })
+      .returning();
+    await writeEvents(tx, row, input.memberId, [{ kind: "note", data: { noteId: note!.id } }]);
+    const notified = await notify(tx, row, {
+      memberIds: mentions,
+      kind: "mention",
+      actorMemberId: input.memberId,
+      dedupeKey: `mention:${note!.id}`,
+      noteId: note!.id,
+    });
+    return { ok: true as const, note: note!, conversation: row, notified };
+  });
+}
+
+/**
+ * Edits the body of the author's own note. New mentions in the edit are not notified again: an
+ * edit is a correction, not a new note. Null when it is not their note or they lost access.
+ */
+export async function updateNote(
+  db: Executor,
+  input: { noteId: string; memberId: string; body: string },
+) {
+  const [row] = await db
+    .update(notes)
+    .set({ body: input.body, updatedAt: new Date() })
+    .where(
+      and(
+        eq(notes.id, input.noteId),
+        eq(notes.authorMemberId, input.memberId),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(mailboxAccess)
+            .where(
+              and(
+                eq(mailboxAccess.mailboxId, notes.mailboxId),
+                eq(mailboxAccess.memberId, input.memberId),
+              ),
+            ),
+        ),
+      ),
+    )
+    .returning();
+  return row ?? null;
+}
+
+/** Deletes the author's own note (its timeline event and notifications go with it). */
+export async function deleteNote(db: Executor, input: { noteId: string; memberId: string }) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .delete(notes)
+      .where(
+        and(
+          eq(notes.id, input.noteId),
+          eq(notes.authorMemberId, input.memberId),
+          exists(
+            tx
+              .select({ one: sql`1` })
+              .from(mailboxAccess)
+              .where(
+                and(
+                  eq(mailboxAccess.mailboxId, notes.mailboxId),
+                  eq(mailboxAccess.memberId, input.memberId),
+                ),
+              ),
+          ),
+        ),
+      )
+      .returning({ id: notes.id, threadId: notes.threadId, mailboxId: notes.mailboxId });
+    if (!row) return null;
+    await tx
+      .delete(conversationEvents)
+      .where(
+        and(
+          eq(conversationEvents.threadId, row.threadId),
+          eq(conversationEvents.kind, "note"),
+          sql`${conversationEvents.data}->>'noteId' = ${row.id}`,
+        ),
+      );
+    return row;
+  });
+}
+
+// Notifications: a member's own.
+
+/** Marks the member's notifications read: these ids, or all of them. Returns how many changed. */
+export async function markNotificationsRead(db: Executor, memberId: string, ids: string[] | "all") {
+  const rows = await db
+    .update(notifications)
+    .set({ readAt: new Date() })
+    .where(
+      and(
+        eq(notifications.memberId, memberId),
+        isNull(notifications.readAt),
+        ids === "all" ? undefined : inArray(notifications.id, ids),
+      ),
+    )
+    .returning({ id: notifications.id });
+  return rows.length;
 }

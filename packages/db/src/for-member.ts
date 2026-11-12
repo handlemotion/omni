@@ -8,6 +8,8 @@ import {
   mailboxes,
   members,
   messages,
+  notes,
+  notifications,
   slaDueAt,
   tags,
   threadState,
@@ -536,7 +538,7 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
      * times, its tags, and its timeline events oldest first. Null when no grantee can see it.
      */
     async getConversation(threadId: string) {
-      const [[conversation], tagRows, events] = await Promise.all([
+      const [[conversation], tagRows, events, noteRows] = await Promise.all([
         db
           .select({
             id: threads.id,
@@ -583,10 +585,25 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
           .innerJoin(...threadOrg)
           .where(eq(conversationEvents.threadId, threadId))
           .orderBy(conversationEvents.createdAt, conversationEvents.id),
+        db
+          .select({
+            id: notes.id,
+            authorMemberId: notes.authorMemberId,
+            body: notes.body,
+            mentions: notes.mentions,
+            createdAt: notes.createdAt,
+            updatedAt: notes.updatedAt,
+          })
+          .from(notes)
+          .innerJoin(threads, eq(threads.id, notes.threadId))
+          .innerJoin(...threadGrant)
+          .innerJoin(...threadOrg)
+          .where(eq(notes.threadId, threadId))
+          .orderBy(notes.createdAt, notes.id),
       ]);
       if (!conversation) return null;
       // A user's grants can show a thread through one member only (one per org), so no duplicates.
-      return { ...conversation, tags: tagRows, events };
+      return { ...conversation, tags: tagRows, events, notes: noteRows };
     },
 
     /** A shared or personal inbox's tags by name. Null when no grantee can see the inbox. */
@@ -641,6 +658,60 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
       return (
         rows as unknown as { memberId: string; name: string; email: string; image: string | null }[]
       ).map((r) => ({ memberId: r.memberId, name: r.name, email: r.email, image: r.image }));
+    },
+
+    /**
+     * The grantee's notifications, newest first, one keyset page; only those about conversations
+     * they can still see. `unread` counts all their unread ones.
+     */
+    async listNotifications(
+      options: { unreadOnly?: boolean; before?: ConversationCursor; limit?: number } = {},
+    ) {
+      const { unreadOnly = false, before, limit = 50 } = options;
+      const visible = and(
+        isGrantee(notifications.memberId),
+        eq(mailboxAccess.memberId, notifications.memberId),
+      );
+      const [rows, [unread]] = await Promise.all([
+        db
+          .select({
+            id: notifications.id,
+            kind: notifications.kind,
+            threadId: notifications.threadId,
+            mailboxId: threads.mailboxId,
+            noteId: notifications.noteId,
+            actorMemberId: notifications.actorMemberId,
+            data: notifications.data,
+            readAt: notifications.readAt,
+            createdAt: notifications.createdAt,
+            /** This row's keyset `at` (see `ConversationCursor`). */
+            pageAt: sql<string>`to_char(${notifications.createdAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+            subject: sql<string>`coalesce((select m.subject from ${messages} m where m.thread_id = ${threads.id} order by m.sent_at desc, m.id desc limit 1), '')`,
+          })
+          .from(notifications)
+          .innerJoin(threads, eq(threads.id, notifications.threadId))
+          .innerJoin(...threadGrant)
+          .innerJoin(...threadOrg)
+          .where(
+            and(
+              visible,
+              unreadOnly ? sql`${notifications.readAt} is null` : undefined,
+              before
+                ? sql`(${notifications.createdAt}, ${notifications.id}) < (${before.at}::timestamptz, ${before.id})`
+                : undefined,
+            ),
+          )
+          .orderBy(desc(notifications.createdAt), desc(notifications.id))
+          .limit(limit),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(notifications)
+          .innerJoin(threads, eq(threads.id, notifications.threadId))
+          .innerJoin(...threadGrant)
+          .innerJoin(...threadOrg)
+          .where(and(visible, sql`${notifications.readAt} is null`)),
+      ]);
+      return { notifications: rows, unread: unread?.count ?? 0 };
     },
 
     async getThread(threadId: string) {

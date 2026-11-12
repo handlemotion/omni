@@ -5,8 +5,13 @@
 import {
   applyConversationChange,
   CONVERSATION_VIEWS,
+  createNote,
   createTag,
+  deleteNote,
   deleteTag,
+  markNotificationsRead,
+  NOTE_MAX_LENGTH,
+  updateNote,
   forMember,
   PRIORITIES,
   updateTag,
@@ -40,8 +45,8 @@ const cursorParam = z
   })
   .optional();
 
-function encodeCursor(at: Date | string, id: string) {
-  return btoa(JSON.stringify({ t: typeof at === "string" ? at : at.toISOString(), id }))
+function encodeCursor(at: string, id: string) {
+  return btoa(JSON.stringify({ t: at, id }))
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replace(/=+$/, "");
@@ -54,6 +59,19 @@ const listQuery = z.object({
   cursor: cursorParam,
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
+
+const noteBody = z.object({
+  body: z.string().trim().min(1).max(NOTE_MAX_LENGTH),
+  /** `members.id` of everyone @mentioned; the client resolves names from `/assignees`. */
+  mentions: z.array(z.string().min(1)).max(50).default([]),
+});
+const notePatchBody = z.object({ body: z.string().trim().min(1).max(NOTE_MAX_LENGTH) });
+const notificationsQuery = z.object({
+  unread: z.enum(["true", "false"]).default("false"),
+  cursor: cursorParam,
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+const readBody = z.object({ ids: z.array(z.string().min(1)).min(1).max(500).optional() });
 
 const snoozeBody = z.object({ until: z.iso.datetime({ offset: true }) });
 const assigneeBody = z.object({ memberId: z.string().min(1).nullable() });
@@ -186,6 +204,77 @@ export const conversations = new Hono<AppEnv>()
   .delete("/threads/:id/tags/:tagId", ...writeGuards, (c) =>
     applyChange(c, c.req.param("id"), { type: "tag", tagId: c.req.param("tagId"), add: false }),
   )
+
+  /** An internal note in the timeline; never sent. Each @mentioned teammate is notified. */
+  .post(
+    "/threads/:id/notes",
+    limitPerMember("actions"),
+    zValidator("json", noteBody),
+    async (c) => {
+      const result = await createNote(c.var.db, {
+        threadId: c.req.param("id"),
+        memberId: c.var.member.id,
+        ...c.req.valid("json"),
+      });
+      if (!result.ok) {
+        const [status, message] = failures[result.reason];
+        throw new HTTPException(status, { message });
+      }
+      const { mailboxId, id } = result.conversation;
+      c.executionCtx.waitUntil(
+        fanOut(c.env, c.var.db, c.var.config, new Map([[mailboxId, new Set([id])]])),
+      );
+      return c.json({ note: result.note, notified: result.notified }, 201);
+    },
+  )
+
+  /** The author edits their own note. */
+  .patch("/notes/:id", zValidator("json", notePatchBody), async (c) => {
+    const note = await updateNote(c.var.db, {
+      noteId: c.req.param("id"),
+      memberId: c.var.member.id,
+      body: c.req.valid("json").body,
+    });
+    if (!note) notFound();
+    return c.json({ note });
+  })
+
+  /** The author deletes their own note. */
+  .delete("/notes/:id", async (c) => {
+    const note = await deleteNote(c.var.db, {
+      noteId: c.req.param("id"),
+      memberId: c.var.member.id,
+    });
+    if (!note) notFound();
+    c.executionCtx.waitUntil(
+      fanOut(c.env, c.var.db, c.var.config, new Map([[note.mailboxId, new Set([note.threadId])]])),
+    );
+    return c.body(null, 204);
+  })
+
+  /** The member's notifications, newest first, and how many are unread. */
+  .get("/notifications", zValidator("query", notificationsQuery), async (c) => {
+    const { unread, cursor, limit } = c.req.valid("query");
+    const page = await forMember(c.var.db, c.var.member.id).listNotifications({
+      unreadOnly: unread === "true",
+      before: cursor,
+      limit,
+    });
+    const last = page.notifications.at(-1);
+    return c.json({
+      unread: page.unread,
+      notifications: page.notifications.map(({ pageAt: _pageAt, ...row }) => row),
+      nextCursor:
+        last && page.notifications.length === limit ? encodeCursor(last.pageAt, last.id) : null,
+    });
+  })
+
+  /** Marks these notifications read, or every one without `ids`. */
+  .post("/notifications/read", zValidator("json", readBody), async (c) => {
+    const { ids } = c.req.valid("json");
+    const marked = await markNotificationsRead(c.var.db, c.var.member.id, ids ?? "all");
+    return c.json({ marked });
+  })
 
   /** Who conversations in this inbox can be assigned to. */
   .get("/mailboxes/:id/assignees", async (c) => {

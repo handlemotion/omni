@@ -580,3 +580,131 @@ describe("views and counts", () => {
     ]);
   });
 });
+
+describe("notes and notifications", () => {
+  type Notifications = {
+    notifications: { id: string; kind: string; threadId: string; noteId: string | null }[];
+    unread: number;
+  };
+
+  test("mentions, assignment and customer replies notify the right teammate once, and only while they can see it", async () => {
+    const { db } = database;
+    const desk = await supportDesk("notes");
+    const beaCookie = await signIn(worker, db, "bea@notes.test");
+    const asked = await seedMessage(db, desk.inbox, {
+      subject: "Broken export",
+      fromAddress: "luis@client.test",
+      uid: 1,
+      sentAt: new Date(Date.now() - 60_000),
+    });
+
+    // Carl cannot see the inbox: his mention is dropped, Ana's own mention notifies nobody.
+    const created = await post(`/threads/${asked.threadId}/notes`, desk.anaCookie, {
+      body: "@Bea can you check the CSV path? cc @Carl",
+      mentions: [desk.bea.id, desk.carl.id, desk.ana.id],
+    });
+    expect(created.status).toBe(201);
+    const { note } = (await created.json()) as { note: { id: string; mentions: string[] } };
+    expect(note.mentions).toEqual([desk.bea.id, desk.ana.id]);
+    expect(
+      (await post(`/threads/${asked.threadId}/notes`, desk.carlCookie, { body: "x" })).status,
+    ).toBe(404);
+
+    // Claiming notifies nobody; handing it to Bea notifies Bea.
+    await post(`/threads/${asked.threadId}/claim`, desk.anaCookie);
+    await put(`/threads/${asked.threadId}/assignee`, desk.anaCookie, { memberId: desk.bea.id });
+
+    // Luis writes back on Bea's conversation; the event is delivered twice.
+    const back = await seedMessage(db, desk.inbox, {
+      subject: "Re: Broken export",
+      fromAddress: "luis@client.test",
+      uid: 2,
+      threadId: asked.threadId,
+    });
+    const event = {
+      events: [
+        {
+          type: "message.created" as const,
+          orgId: desk.org.id,
+          mailboxId: desk.inbox.id,
+          threadId: asked.threadId,
+          messageId: back.messageId,
+          folderRole: "inbox" as const,
+        },
+      ],
+    };
+    await postMailEvents(worker, event);
+    await postMailEvents(worker, event);
+
+    const bea = (await (await api("/notifications", beaCookie)).json()) as Notifications;
+    expect(bea.notifications.map((n) => [n.kind, n.threadId, n.noteId])).toEqual([
+      ["customer_reply", asked.threadId, null],
+      ["assigned", asked.threadId, null],
+      ["mention", asked.threadId, note.id],
+    ]);
+    expect(bea.unread).toBe(3);
+    // One per page walks the same list, even for notifications inside one millisecond: the
+    // cursor keeps Postgres's microseconds, where a JS Date would skip the older ones.
+    for (const [i, n] of bea.notifications.entries()) {
+      await db
+        .update(schema.notifications)
+        .set({
+          createdAt: sql`date_trunc('milliseconds', now()) + make_interval(secs => ${(3 - i) * 0.0001})`,
+        })
+        .where(eq(schema.notifications.id, n.id));
+    }
+    const paged: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const page = (await (
+        await api(`/notifications?limit=1${cursor ? `&cursor=${cursor}` : ""}`, beaCookie)
+      ).json()) as Notifications & { nextCursor: string | null };
+      paged.push(...page.notifications.map((n) => n.id));
+      cursor = page.nextCursor;
+    } while (cursor && paged.length < 10);
+    const whole = (await (await api("/notifications", beaCookie)).json()) as Notifications;
+    expect(paged).toEqual(whole.notifications.map((n) => n.id));
+    expect(paged).toHaveLength(3);
+    const ana = (await (await api("/notifications", desk.anaCookie)).json()) as Notifications;
+    expect(ana.notifications).toEqual([]);
+    const carl = (await (await api("/notifications", desk.carlCookie)).json()) as Notifications;
+    expect(carl.notifications).toEqual([]);
+
+    // Read one, then all.
+    await post("/notifications/read", beaCookie, { ids: [bea.notifications[0]!.id] });
+    expect(
+      ((await (await api("/notifications?unread=true", beaCookie)).json()) as Notifications).unread,
+    ).toBe(2);
+    await post("/notifications/read", beaCookie, {});
+    expect(((await (await api("/notifications", beaCookie)).json()) as Notifications).unread).toBe(
+      0,
+    );
+
+    // Only the author edits or deletes a note; deleting takes its timeline event with it.
+    const patch = await api(`/notes/${note.id}`, beaCookie, {
+      method: "PATCH",
+      body: JSON.stringify({ body: "hijacked" }),
+    });
+    expect(patch.status).toBe(404);
+    let state = await conversation(asked.threadId, desk.anaCookie);
+    expect((state as unknown as { notes: { body: string }[] }).notes.map((n) => n.body)).toEqual([
+      "@Bea can you check the CSV path? cc @Carl",
+    ]);
+    expect((await api(`/notes/${note.id}`, desk.anaCookie, { method: "DELETE" })).status).toBe(204);
+    state = await conversation(asked.threadId, desk.anaCookie);
+    expect(state.events.some((e) => e.kind === "note")).toBe(false);
+
+    // Bea leaves the inbox: its notifications go with her access.
+    await db
+      .delete(schema.mailboxAccess)
+      .where(
+        and(
+          eq(schema.mailboxAccess.mailboxId, desk.inbox.id),
+          eq(schema.mailboxAccess.memberId, desk.bea.id),
+        ),
+      );
+    expect(
+      ((await (await api("/notifications", beaCookie)).json()) as Notifications).notifications,
+    ).toEqual([]);
+  });
+});

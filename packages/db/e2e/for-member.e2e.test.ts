@@ -17,6 +17,7 @@ import {
   mailboxes as schemaMailboxes,
   mailDomains,
   members,
+  notifications,
   threadState,
   threads,
 } from "../src/schema/index.ts";
@@ -147,6 +148,14 @@ describe("forMember isolation", () => {
     expect(await asCarol.listTags(helloBox)).toBeNull();
     expect(await asCarol.mailboxAssignees(helloBox)).toBeNull();
     expect(await asCarol.listConversations({ mailboxId: helloBox, view: "all" })).toEqual([]);
+    // A notification row for Carol about hello@ (as a buggy writer might leave) stays hidden.
+    await db.insert(notifications).values({
+      orgId: orgBId,
+      memberId: carol,
+      kind: "mention",
+      threadId: hello.threadId,
+    });
+    expect((await asCarol.listNotifications()).notifications).toEqual([]);
     expect((await asCarol.conversationCounts()).map((c) => c.mailboxId)).toEqual([opsBoxId]);
     // Nor is she listed as someone hello@ can be assigned to: her grant crosses orgs.
     expect((await forMember(db, alice).mailboxAssignees(helloBox))?.map((m) => m.memberId)).toEqual(
