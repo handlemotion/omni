@@ -140,7 +140,7 @@ function Actions({ thread }: { thread: Thread }) {
   return (
     // pb-0.5 lifts the icons 1px, in line with the list's header row beside it; pe-1.5
     // matches the 28px buttons' inset from the top.
-    <div className="flex h-10.5 shrink-0 items-center gap-1 border-b ps-1.5 pe-1.5 pb-0.5">
+    <div className="@container flex h-10.5 shrink-0 items-center gap-1 border-b ps-1.5 pe-1.5 pb-0.5">
       {shared && <Properties thread={thread} />}
       <span className="flex-1" />
       <Action label="Archive" onPress={() => archive.mutate({ threadId })}>
