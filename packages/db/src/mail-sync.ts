@@ -448,13 +448,16 @@ export async function pruneMessages(
   input: { mailboxId: string; messageIds: string[] },
 ): Promise<{ messages: number; threads: number }> {
   if (input.messageIds.length === 0) return { messages: 0, threads: 0 };
+  // One jsonb parameter, not one per id: a deleted folder can orphan more ids than Postgres binds.
+  const anyOf = (ids: string[]) =>
+    sql`any(array(select jsonb_array_elements_text(${JSON.stringify(ids)}::text::jsonb)))`;
   return db.transaction(async (tx) => {
     const removed = await tx
       .delete(messages)
       .where(
         and(
           eq(messages.mailboxId, input.mailboxId),
-          inArray(messages.id, input.messageIds),
+          sql`${messages.id} = ${anyOf(input.messageIds)}`,
           sql`not exists (select 1 from ${messageLocations} l where l.message_id = ${messages.id})`,
         ),
       )
@@ -465,7 +468,7 @@ export async function pruneMessages(
       .delete(threads)
       .where(
         and(
-          inArray(threads.id, threadIds),
+          sql`${threads.id} = ${anyOf(threadIds)}`,
           sql`not exists (select 1 from ${messages} m where m.thread_id = ${threads.id})`,
         ),
       )
@@ -476,7 +479,7 @@ export async function pruneMessages(
         lastMessageAt: sql`(select max(m.sent_at) from ${messages} m where m.thread_id = ${threads.id})`,
         updatedAt: new Date(),
       })
-      .where(inArray(threads.id, threadIds));
+      .where(sql`${threads.id} = ${anyOf(threadIds)}`);
     return { messages: removed.length, threads: emptied.length };
   });
 }
