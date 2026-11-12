@@ -21,10 +21,11 @@ const FORWARD_MARKER = /^(?:-{3,}\s*forwarded message\s*-{3,}|begin forwarded me
 // Outlook (desktop and web) quotes with a header block instead of ">" lines:
 //   From: Ana <ana@example.com>
 //   Sent: Tuesday, October 28, 2026 10:14 AM
-// Bold markers survive from HTML-to-text ("*From:*"). Localized labels for the common locales.
+// Bold markers survive from HTML-to-text ("*From:*"). Localized labels for the common locales;
+// some take two words: Spanish "Enviado el:", Brazilian Portuguese "Enviado em:".
 const OUTLOOK_FROM = /^\s*\*?(?:from|de|von|van|da|från|fra|od)\s*:\*?\s*\S/i;
 const OUTLOOK_SENT =
-  /^\s*\*?(?:sent|date|enviado|fecha|gesendet|datum|envoyé|verzonden|inviato|data|skickat|sendt|wysłano)\s*:\*?\s*\S/i;
+  /^\s*\*?(?:sent|date|enviad[oa](?:\s+e[lm])?|fecha|gesendet|datum|envoyé|verzonden|inviato|data|skickat|sendt|wysłano)\s*:\*?\s*\S/i;
 const OUTLOOK_LOOKAHEAD = 3;
 // Lines Outlook puts right above that block.
 const OUTLOOK_SEPARATOR = /^\s*(?:_{10,}|-{3,}\s*original message\s*-{3,})\s*$/i;

@@ -1,0 +1,35 @@
+From: =?UTF-8?Q?Ainhoa_Etxeberria_=28Gesti=C3=B3n=2C_Pagos=29?= <ainhoa@kafetegia.example.eus>
+To: =?ISO-8859-1?Q?Atenci=F3n_al_cliente?= <support@example.com>
+Subject: =?UTF-8?B?UmU6IEZhY3R1cmEgbsK6IDIwMjYvMTE4IOI=?=
+ =?UTF-8?B?gJQgY29icm8gZHVwbGljYWRvIPCfkrM=?=
+Date: Wed, 11 Nov 2026 09:05:00 +0100
+Message-ID: <8c1e5a3f-2d7b-4e9c-b6a1-4f0d8e2c7a53@kafetegia.example.eus>
+In-Reply-To: <1d7b3f9e-6a2c-4e8d-a5b1-9c3e7f2d0a64@example.com>
+References: <1d7b3f9e-6a2c-4e8d-a5b1-9c3e7f2d0a64@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="------------0Kb7Tq2Zr9Xw4Ls1Mv8Pd3Fe"
+User-Agent: Mozilla Thunderbird
+
+This is a multi-part message in MIME format.
+--------------0Kb7Tq2Zr9Xw4Ls1Mv8Pd3Fe
+Content-Type: text/plain; charset=UTF-8; format=flowed
+Content-Transfer-Encoding: 8bit
+
+Hola,
+
+Os han cobrado dos veces la factura de octubre. Adjunto el extracto.
+
+Ainhoa
+
+--------------0Kb7Tq2Zr9Xw4Ls1Mv8Pd3Fe
+Content-Type: application/pdf;
+ name*0*=UTF-8''extracto%20bancario%20octubre%20%E2%80%94%20Caja%20Laboral;
+ name*1*=.pdf
+Content-Disposition: attachment;
+ filename*0*=UTF-8''extracto%20bancario%20octubre%20%E2%80%94%20Caja%20Laboral;
+ filename*1*=.pdf
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKJSBleHRyYWN0bwo=
+
+--------------0Kb7Tq2Zr9Xw4Ls1Mv8Pd3Fe--

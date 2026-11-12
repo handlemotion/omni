@@ -1,0 +1,31 @@
+Return-path: <>
+Envelope-to: support@example.com
+From: Mail Delivery System <Mailer-Daemon@relay.hostingsur.example.net>
+To: support@example.com
+Subject: Mail delivery failed: returning message to sender
+Message-Id: <E1vKq3T-0004Zb-2m@relay.hostingsur.example.net>
+Date: Tue, 10 Nov 2026 08:14:09 +0100
+X-Failed-Recipients: pedidos@distribucionesalba.example.es
+Auto-Submitted: auto-replied
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+
+This message was created automatically by mail delivery software.
+
+A message that you sent could not be delivered to one or more of its
+recipients. This is a permanent error. The following address(es) failed:
+
+  pedidos@distribucionesalba.example.es
+    host mx.distribucionesalba.example.es [198.51.100.40]
+    SMTP error from remote mail server after RCPT TO:<pedidos@distribucionesalba.example.es>:
+    552 5.2.2 Mailbox full
+
+------ This is a copy of the message, including all the headers. ------
+
+From: Support <support@example.com>
+To: pedidos@distribucionesalba.example.es
+Subject: Re: [#2097] Delivery window for order 5531
+Message-ID: <b6d2e8f4-1a3c-4b7e-9f5d-2c8a6e4b0d19@example.com>
+Date: Tue, 10 Nov 2026 08:14:05 +0100
+
+Hi, the order ships Thursday.

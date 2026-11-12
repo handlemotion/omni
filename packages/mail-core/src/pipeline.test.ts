@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { BLOCKED_SRC_ATTR, cleanMessage, isLongForm, sanitizeHtml } from "./html.ts";
 import { parseMessage } from "./parse.ts";
+import { normalizeSubject } from "./thread.ts";
 
 const read = (name: string) =>
   readFileSync(new URL(`../../../fixtures/eml/${name}`, import.meta.url));
@@ -18,15 +19,26 @@ const sanitizeOptions = {
 
 const FIXTURES = [
   "apple-mail-reply.eml",
+  "auto-reply-gmail-vacation.eml",
+  "auto-reply-legacy-headers.eml",
+  "auto-reply-outlook-out-of-office.eml",
+  "bounce-dsn-postfix.eml",
+  "bounce-exim-plain.eml",
+  "calendar-invite-outlook.eml",
   "cc-added-mid-thread.eml",
+  "encoded-word-headers.eml",
   "gmail-forward.eml",
   "gmail-reply.eml",
+  "gmail-reply-html-only.eml",
+  "ios-mail-reply.eml",
   "multipart-attachments.eml",
   "newsletter-html-only.eml",
   "no-message-id.eml",
   "non-utf8-windows-1252.eml",
   "outlook-desktop-reply.eml",
+  "outlook-desktop-reply-spanish.eml",
   "outlook-forward.eml",
+  "outlook-mobile-reply.eml",
   "outlook-web-reply-html-only.eml",
   "phishing-spoofed-sender.eml",
 ];
@@ -52,6 +64,32 @@ describe("clean_text", () => {
       "Hola Sam,\n\nConfirmo la reunión de mañana a las 10:00. El presupuesto es de 1.200 € más IVA.\n\nUn saludo,\nIñigo",
     ],
     ["no-message-id.eml", "The window moves to Saturday 06:00 UTC. Nothing else changes."],
+    // Outlook for iOS: signature link, then a "From: … Sent: …" block under a rule.
+    ["outlook-mobile-reply.eml", "Cleared the cache and it shows euros now. Thank you!"],
+    // Spanish Outlook labels the date "Enviado el:"; the whole history leaked into the reply.
+    [
+      "outlook-desktop-reply-spanish.eml",
+      "Buenos días,\n\nYa está añadido el registro SPF y desde esta mañana llegan bien.\n\nUn saludo,\nJosé María",
+    ],
+    // iOS Mail quotes its own "On … at 5:45 PM, … wrote:" line, with a narrow no-break space.
+    [
+      "ios-mail-reply.eml",
+      "Yes, please use the new address from next month on. The VAT number stays the same.",
+    ],
+    // Gmail with no text part, a signature above the quote, and a Spanish attribution line.
+    [
+      "gmail-reply-html-only.eml",
+      "Hola,\n\nLo he vuelto a exportar y la columna sigue sin salir. Es el informe de octubre.\n\nGracias",
+    ],
+    // An out-of-office has no history to cut; stripping must leave all of it.
+    [
+      "auto-reply-outlook-out-of-office.eml",
+      "I am out of the office until November 16 with limited access to email. For urgent matters, contact operations@logisticanord.example.net.\n\nMarc",
+    ],
+    [
+      "encoded-word-headers.eml",
+      "Hola,\n\nOs han cobrado dos veces la factura de octubre. Adjunto el extracto.\n\nAinhoa",
+    ],
   ])("%s keeps only the new content", async (name, expected) => {
     const result = cleanMessage(await parse(name));
     expect(result).toEqual({ cleanText: expected, forwarded: null });
@@ -59,14 +97,18 @@ describe("clean_text", () => {
 
   // The text part is what we normally strip; these prove the HTML-only path cuts the same
   // quoted history when a client sends no text part.
-  test.each(["gmail-reply.eml", "outlook-desktop-reply.eml", "apple-mail-reply.eml"])(
-    "%s: HTML-only stripping agrees with the text part",
-    async (name) => {
-      const message = await parse(name);
-      const fromHtml = cleanMessage({ ...message, text: null }).cleanText;
-      expect(words(fromHtml)).toBe(words(cleanMessage(message).cleanText));
-    },
-  );
+  test.each([
+    "gmail-reply.eml",
+    "outlook-desktop-reply.eml",
+    "outlook-desktop-reply-spanish.eml",
+    "outlook-mobile-reply.eml",
+    "ios-mail-reply.eml",
+    "apple-mail-reply.eml",
+  ])("%s: HTML-only stripping agrees with the text part", async (name) => {
+    const message = await parse(name);
+    const fromHtml = cleanMessage({ ...message, text: null }).cleanText;
+    expect(words(fromHtml)).toBe(words(cleanMessage(message).cleanText));
+  });
 
   test("a Gmail forward keeps the note and returns the forwarded message as a card", async () => {
     const message = await parse("gmail-forward.eml");
@@ -110,6 +152,34 @@ describe("parseMessage", () => {
       name: "Iñigo Ibáñez",
       address: "inigo@talleresbilbao.example.net",
     });
+  });
+
+  test("decodes encoded words split mid-character, and RFC 2231 filenames", async () => {
+    // The subject's two B-encoded words split the bytes of "—"; decoding each word on its own
+    // leaves replacement characters. The From name carries a comma inside an encoded word.
+    const message = await parse("encoded-word-headers.eml");
+    expect(message.subject).toBe("Re: Factura nº 2026/118 — cobro duplicado 💳");
+    expect(normalizeSubject(message.subject)).toBe("factura nº 2026/118 — cobro duplicado 💳");
+    expect(message.from).toEqual({
+      name: "Ainhoa Etxeberria (Gestión, Pagos)",
+      address: "ainhoa@kafetegia.example.eus",
+    });
+    expect(message.to).toEqual([{ name: "Atención al cliente", address: "support@example.com" }]);
+    expect(message.attachments.map((a) => a.filename)).toEqual([
+      "extracto bancario octubre — Caja Laboral.pdf",
+    ]);
+  });
+
+  test("an Outlook invite keeps its note as the body and the calendar as an attachment", async () => {
+    const message = await parse("calendar-invite-outlook.eml");
+    expect(cleanMessage(message).cleanText).toMatch(
+      /^Queremos revisar la configuración de los recordatorios por SMS antes del lanzamiento\./,
+    );
+    expect(message.attachments).toEqual([
+      expect.objectContaining({ mimeType: "text/calendar", inline: false }),
+    ]);
+    // A person sent it: Outlook's X-Auto-Response-Suppress must not mark it automated.
+    expect(message.automated).toBeNull();
   });
 
   test("reads reply headers in order", async () => {

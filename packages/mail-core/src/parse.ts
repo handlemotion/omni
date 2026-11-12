@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import type { AddressObject, EmailAddress, HeaderLines, ParsedMail } from "mailparser";
 import { simpleParser } from "mailparser";
+import { AUTOMATED_HEADERS, type Automated, automatedKind, bouncedMessageId } from "./automated.ts";
 
 export interface Address {
   name: string;
@@ -46,6 +47,11 @@ export interface ParsedMessage {
   /** In `<id@host>` form. Synthesized from a header hash when the message has none. */
   messageId: string;
   messageIdSynthesized: boolean;
+  /**
+   * The In-Reply-To header. A bounce without one gets the Message-ID of the message it
+   * returns, as Gmail's own bounces carry: it is stored, so threading converges whichever
+   * of the two syncs first.
+   */
   inReplyTo: string | null;
   /** Oldest first, as in the header. */
   references: string[];
@@ -59,6 +65,8 @@ export interface ParsedMessage {
   html: string | null;
   attachments: AttachmentMeta[];
   signals: TriageSignals;
+  /** Set when a machine sent it (bounce, auto-reply, system notice): see `automatedKind`. */
+  automated: Automated | null;
   /**
    * Set when the MIME structure broke the parser's limits (over 1 MB of headers in one part,
    * or over 1,000 parts). Only the top-level headers were read; there is no body or attachment.
@@ -123,7 +131,9 @@ export async function parseMessage(raw: Uint8Array | string): Promise<ParseResul
       inline: a.contentDisposition === "inline" || (a.related === true && a.cid !== undefined),
     })),
     signals: { ...signals(mail.headerLines), displayNameSpoof: displayNameSpoof(from) },
+    automated: automated(mail, from),
   };
+  message.inReplyTo ??= message.automated?.bouncedMessageId ?? null;
   if (bodySkipped) message.bodySkipped = true;
 
   return {
@@ -161,7 +171,7 @@ const TOP_HEADERS = new Set([
   "list-unsubscribe",
   "list-unsubscribe-post",
   "precedence",
-  "auto-submitted",
+  ...AUTOMATED_HEADERS,
 ]);
 const MAX_TOP_HEADER = 16 * 1024;
 
@@ -277,6 +287,19 @@ function signals(lines: HeaderLines): Omit<TriageSignals, "displayNameSpoof"> {
     precedence: header(lines, "precedence")?.toLowerCase() ?? null,
     autoSubmitted: header(lines, "auto-submitted")?.toLowerCase() ?? null,
   };
+}
+
+// Parts that carry a returned message's headers, as named by RFC 3462.
+const RETURNED_PARTS = new Set(["text/rfc822-headers", "message/rfc822"]);
+
+function automated(mail: ParsedMail, from: Address | null): Automated | null {
+  const kind = automatedKind((key) => header(mail.headerLines, key), from?.address ?? null);
+  if (kind === null) return null;
+  if (kind !== "bounce") return { kind, bouncedMessageId: null };
+  const returned = mail.attachments
+    .filter((a) => RETURNED_PARTS.has(a.contentType.toLowerCase()))
+    .map((a) => a.content.toString("latin1"));
+  return { kind, bouncedMessageId: bouncedMessageId([...returned, mail.text ?? ""]) };
 }
 
 // The spec keys messages on (mailbox, Message-ID), so a missing one is replaced by a hash

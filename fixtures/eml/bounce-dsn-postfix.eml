@@ -1,0 +1,59 @@
+Return-Path: <>
+Date: Mon, 9 Nov 2026 12:30:44 +0000 (UTC)
+From: MAILER-DAEMON@mx1.example.com (Mail Delivery System)
+Subject: Undelivered Mail Returned to Sender
+To: support@example.com
+Auto-Submitted: auto-replied
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status;
+	boundary="7A41C2E3B0.1794229844/mx1.example.com"
+Content-Transfer-Encoding: 8bit
+Message-Id: <20261109123044.9F2D1C3B07@mx1.example.com>
+
+This is a MIME-encapsulated message.
+
+--7A41C2E3B0.1794229844/mx1.example.com
+Content-Description: Notification
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+This is the mail system at host mx1.example.com.
+
+I'm sorry to have to inform you that your message could not
+be delivered to one or more recipients. It's attached below.
+
+<oriol@talleresgrau.example.net>: host mx.talleresgrau.example.net[203.0.113.25]
+    said: 550 5.1.1 <oriol@talleresgrau.example.net>: Recipient address
+    rejected: User unknown in virtual mailbox table (in reply to RCPT TO
+    command)
+
+--7A41C2E3B0.1794229844/mx1.example.com
+Content-Description: Delivery report
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mx1.example.com
+X-Postfix-Queue-ID: 7A41C2E3B0
+X-Postfix-Sender: rfc822; support@example.com
+Arrival-Date: Mon,  9 Nov 2026 12:30:41 +0000 (UTC)
+
+Final-Recipient: rfc822; oriol@talleresgrau.example.net
+Original-Recipient: rfc822;oriol@talleresgrau.example.net
+Action: failed
+Status: 5.1.1
+Remote-MTA: dns; mx.talleresgrau.example.net
+Diagnostic-Code: smtp; 550 5.1.1 <oriol@talleresgrau.example.net>: Recipient
+    address rejected: User unknown in virtual mailbox table
+
+--7A41C2E3B0.1794229844/mx1.example.com
+Content-Description: Undelivered Message Headers
+Content-Type: text/rfc822-headers
+Content-Transfer-Encoding: 8bit
+
+From: Support <support@example.com>
+To: Oriol Grau <oriol@talleresgrau.example.net>
+Subject: Re: [#2093] Quote for 40 seats
+Date: Mon, 9 Nov 2026 12:30:40 +0000
+Message-ID: <3a9f1c7e-5b2d-4e8a-9c6f-0d4b2e8a1c37@example.com>
+In-Reply-To: <CAK2mWq8Zt5Yc1Lp9Rv3Hx7Nb0Df4Gj6Ks@mail.example.net>
+
+--7A41C2E3B0.1794229844/mx1.example.com--
