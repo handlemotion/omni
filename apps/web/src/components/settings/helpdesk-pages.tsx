@@ -62,12 +62,6 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   low: "Low",
 };
 
-/** What a shared inbox is called in a list: its local part, capitalised. */
-function inboxName(address: string) {
-  const local = address.split("@")[0] ?? address;
-  return local.charAt(0).toUpperCase() + local.slice(1);
-}
-
 /** The shared inboxes the signed-in member is on, in the active workspace. */
 function useSharedInboxes() {
   const { member } = useMember();
@@ -107,7 +101,8 @@ export function HelpdeskPage() {
               value={inbox.id}
               options={inboxes.map((candidate) => ({
                 value: candidate.id,
-                label: inboxName(candidate.address),
+                // The full address: two domains can share a local part ("support").
+                label: candidate.address,
               }))}
               onValueChange={setChosen}
             />
@@ -487,7 +482,6 @@ const WEEK = [
 /** "Mon–Fri 9:00–17:00", "Always", or each distinct day listed. */
 function hoursSummary(hours: BusinessHours | null) {
   if (!hours) return "Always";
-  if (hours.windows.length === 0) return "Never";
   // Days that share hours read as one run: "Mon–Fri 9:00–17:00 · Sat 10:00–14:00".
   const runs: { from: string; to: string; span: string }[] = [];
   for (const { day, short } of WEEK) {
@@ -564,7 +558,9 @@ function HoursDialog(props: {
     start: fromTime(days[day]!.start, false),
     end: fromTime(days[day]!.end, true),
   }));
-  const invalid = windows.some((w) => w.start >= w.end);
+  // No open day isn't "never open": the SLA math counts every minute for an empty schedule
+  // (`addBusinessMinutes`), so ask for a day or around the clock instead.
+  const invalid = windows.length === 0 || windows.some((w) => w.start >= w.end);
   const options = {
     onSuccess: props.onClose,
     onError: (error: Error) => appToast.error(error.message || "The hours were not saved."),
