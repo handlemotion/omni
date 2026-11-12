@@ -11,6 +11,7 @@ export const SETTINGS_PAGES = [
   "people",
   "inboxes",
   "shared",
+  "helpdesk",
   "billing",
 ] as const;
 

@@ -7,6 +7,7 @@
 // group labels, the search field on top), set at the right of the left 35%; the page is a 640px
 // column in the right 65%, its title 17px. The page body is transitive's settings kit (`./kit`).
 import {
+  IconClock3,
   IconCreditCard,
   IconInbox,
   IconKeyboard,
@@ -52,6 +53,7 @@ import { BillingPage } from "./billing-page";
 import { SettingsPageHeader } from "./kit/settings-layout";
 import { SettingsConfirmDialog } from "./kit/settings-stacked-dialog";
 import { WorkspaceChooser } from "./workspace-chooser";
+import { HelpdeskPage } from "./helpdesk-pages";
 import { InboxesPage, SharedMailboxesPage } from "./mailbox-pages";
 import { GeneralPage, PeoplePage } from "./workspace-pages";
 
@@ -147,6 +149,24 @@ const WORKSPACE_PAGES: PageDefinition[] = [
     icon: glyph(IconMailbox),
     terms: ["shared mailboxes", "access", "who can see", "team", "add mailbox", "hello"],
     render: () => <SharedMailboxesPage />,
+  },
+  {
+    id: "helpdesk",
+    title: "Helpdesk",
+    icon: glyph(IconClock3),
+    terms: [
+      "sla",
+      "response targets",
+      "first reply",
+      "resolution",
+      "business hours",
+      "time zone",
+      "auto-assign",
+      "round robin",
+      "assignment",
+      "tags",
+    ],
+    render: () => <HelpdeskPage />,
   },
   {
     id: "billing",
