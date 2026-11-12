@@ -7,6 +7,7 @@ export const SETTINGS_PAGES = [
   "profile",
   "security",
   "shortcuts",
+  "notifications",
   "general",
   "people",
   "inboxes",

@@ -11,6 +11,7 @@ import {
   IconCreditCard,
   IconInbox,
   IconKeyboard,
+  IconMail,
   IconLaptop,
   IconMailbox,
   IconSettings,
@@ -54,6 +55,7 @@ import { SettingsPageHeader } from "./kit/settings-layout";
 import { SettingsConfirmDialog } from "./kit/settings-stacked-dialog";
 import { WorkspaceChooser } from "./workspace-chooser";
 import { HelpdeskPage } from "./helpdesk-pages";
+import { NotificationsPage } from "./notification-pages";
 import { InboxesPage, SharedMailboxesPage } from "./mailbox-pages";
 import { GeneralPage, PeoplePage } from "./workspace-pages";
 
@@ -96,6 +98,13 @@ function useAccountPages(): PageDefinition[] {
         icon: glyph(IconShield),
         terms: ["passkeys", "sign in", "fingerprint", "face", "devices", "sessions", "sign out"],
         render: () => <SecurityPage />,
+      },
+      {
+        id: "notifications",
+        title: "Notifications",
+        icon: glyph(IconMail),
+        terms: ["desktop", "alerts", "assigned", "mentions", "customer replies", "due", "overdue"],
+        render: () => <NotificationsPage />,
       },
       {
         id: "shortcuts",

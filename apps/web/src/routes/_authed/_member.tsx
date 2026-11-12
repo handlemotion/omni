@@ -10,6 +10,7 @@ import {
 import { SidebarInset } from "../../components/ui/sidebar.tsx";
 import { toggleSettings, useSettingsDialog } from "../../hooks/use-settings-dialog.ts";
 import { useShortcut } from "../../hooks/use-shortcuts.ts";
+import { useDesktopNotifications } from "../../hooks/use-desktop-notifications.ts";
 import { useRealtimeConnection } from "../../hooks/use-realtime.ts";
 import { billingQuery } from "../../lib/billing.ts";
 import { requireMember } from "../../lib/guards.ts";
@@ -41,6 +42,7 @@ export const Route = createFileRoute("/_authed/_member")({
 function Shell() {
   const { member } = Route.useRouteContext();
   useRealtimeConnection(member.orgId, { memberId: member.id, everyWorkspace: true });
+  useDesktopNotifications();
   const settings = useSettingsDialog();
   return (
     // While settings is open the whole app recedes under it: 100% to 95% and fading, as settings
