@@ -67,7 +67,9 @@ export function Conversation({ threadId }: { threadId: string }) {
   return (
     <section aria-label="Conversation" className="flex min-w-0 flex-1 flex-col">
       <Actions thread={thread} />
-      <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
+      {/* The divider from the list runs beside the messages only; the toolbar row stays open,
+          continuing the list's header row. */}
+      <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto border-s">
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-6">
           <div className="flex flex-col gap-2">
             <Heading level={2}>{subject || "(no subject)"}</Heading>
@@ -138,44 +140,50 @@ function Actions({ thread }: { thread: Thread }) {
   const shared = useMailboxes().data?.find((m) => m.id === thread.mailboxId)?.kind === "shared";
 
   return (
-    // pb-0.5 lifts the icons 1px, in line with the list's header row beside it; pe-1.5
+    // pb-0.5 lifts the icons 1px, in line with the list's header row beside it; end-1.5
     // matches the 28px buttons' inset from the top.
-    <div className="@container flex h-10.5 shrink-0 items-center gap-1 border-b ps-1.5 pe-1.5 pb-0.5">
-      {shared && <Properties thread={thread} />}
-      <span className="flex-1" />
-      <Action label="Archive" onPress={() => archive.mutate({ threadId })}>
-        <IconArchive />
-      </Action>
-      <Action
-        label={thread.done ? "Not done" : "Done"}
-        onPress={() =>
-          thread.done
-            ? markUndone.mutate({ threadId })
-            : markDone.mutate({ threadId, through: thread.lastMessageAt })
-        }
-      >
-        {thread.done ? <IconInbox /> : <IconCheck />}
-      </Action>
-      <Action
-        label={deferred ? "Back to inbox" : "Defer a day"}
-        onPress={() =>
-          defer.mutate({
-            threadId,
-            until: deferred ? null : new Date(Date.now() + DEFER_MS),
-          })
-        }
-      >
-        {deferred ? <IconInbox /> : <IconClock3 />}
-      </Action>
-      <Action
-        label={thread.read ? "Mark unread" : "Mark read"}
-        onPress={() => markRead.mutate({ threadId, read: !thread.read })}
-      >
-        {thread.read ? <IconMail /> : <IconMailOpen />}
-      </Action>
-      <Action label={fullScreen ? "Side by side" : "Full screen"} onPress={toggleFullScreen}>
-        {fullScreen ? <IconMinimize /> : <IconMaximize />}
-      </Action>
+    <div className="@container relative flex h-10.5 shrink-0 items-center border-s border-b border-s-transparent pb-0.5">
+      {/* The same column as the messages (a clear 1px edge stands in for their divider), so the
+          controls' icons start where the subject does. The actions keep the far right. */}
+      <div className="mx-auto flex w-full max-w-3xl min-w-0 px-5">
+        {shared && <Properties thread={thread} />}
+      </div>
+      {/* Out of the flow, so the column above centers on the same width as the messages. */}
+      <div className="absolute inset-y-0 end-1.5 flex items-center gap-1 pb-0.5">
+        <Action label="Archive" onPress={() => archive.mutate({ threadId })}>
+          <IconArchive />
+        </Action>
+        <Action
+          label={thread.done ? "Not done" : "Done"}
+          onPress={() =>
+            thread.done
+              ? markUndone.mutate({ threadId })
+              : markDone.mutate({ threadId, through: thread.lastMessageAt })
+          }
+        >
+          {thread.done ? <IconInbox /> : <IconCheck />}
+        </Action>
+        <Action
+          label={deferred ? "Back to inbox" : "Defer a day"}
+          onPress={() =>
+            defer.mutate({
+              threadId,
+              until: deferred ? null : new Date(Date.now() + DEFER_MS),
+            })
+          }
+        >
+          {deferred ? <IconInbox /> : <IconClock3 />}
+        </Action>
+        <Action
+          label={thread.read ? "Mark unread" : "Mark read"}
+          onPress={() => markRead.mutate({ threadId, read: !thread.read })}
+        >
+          {thread.read ? <IconMail /> : <IconMailOpen />}
+        </Action>
+        <Action label={fullScreen ? "Side by side" : "Full screen"} onPress={toggleFullScreen}>
+          {fullScreen ? <IconMinimize /> : <IconMaximize />}
+        </Action>
+      </div>
     </div>
   );
 }
