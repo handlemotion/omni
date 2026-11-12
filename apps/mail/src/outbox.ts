@@ -201,6 +201,26 @@ export class OutboxExecutor {
         return connection.run((session) =>
           move(session, action.payload, action.payload.destination),
         );
+      case "trash":
+        return connection.run(async (session) => {
+          const trash = await session.ensureFolder("trash", "Trash");
+          if (action.payload.folder === trash.path) return;
+          await move(session, action.payload, trash.path);
+        });
+      case "spam":
+        return connection.run(async (session) => {
+          const junk = await session.ensureFolder("junk", "Junk");
+          if (action.payload.folder === junk.path) return;
+          await move(session, action.payload, junk.path);
+        });
+      case "not_spam":
+        return connection.run(async (session) => {
+          const inbox = session.folder("inbox");
+          if (!inbox) throw new Error("mailbox has no INBOX");
+          // Only what sits in Junk goes back; a copy elsewhere is already where it belongs.
+          if (session.folder("junk")?.path !== action.payload.folder) return;
+          await move(session, action.payload, inbox.path);
+        });
       case "mark_read":
       case "mark_unread":
         // Shared mailboxes: read state is per person and lives only in Postgres.

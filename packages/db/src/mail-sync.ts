@@ -72,15 +72,29 @@ export async function replaceFolders(
 ) {
   const { orgId, mailboxId, folders } = input;
   await db.transaction(async (tx) => {
+    // Folders that are new or changed role. A role change moves threads in or out of the inbox
+    // (Junk stored as `other`, later detected as `junk`), so their messages are reconciled below.
+    const changed: string[] = [];
     for (const folder of folders) {
-      await tx
+      const rows = await tx
         .insert(mailboxFolders)
         .values({ orgId, mailboxId, path: folder.path, role: folder.role })
         .onConflictDoUpdate({
           target: [mailboxFolders.mailboxId, mailboxFolders.path],
           set: { role: folder.role, updatedAt: new Date() },
           setWhere: ne(mailboxFolders.role, folder.role),
-        });
+        })
+        .returning({ id: mailboxFolders.id });
+      changed.push(...rows.map((row) => row.id));
+    }
+    if (changed.length > 0) {
+      await reconcileThreads(
+        tx,
+        sql`select message_id from ${messageLocations} where folder_id in (${sql.join(
+          changed.map((id) => sql`${id}`),
+          sql`, `,
+        )})`,
+      );
     }
     const keep = folders.map((f) => f.path);
     await tx
@@ -393,8 +407,8 @@ export async function removeLocations(
  * are flagged, so that state set in Omni, in Apple Mail, or by a full re-sync all end up the same
  * (spec, "Sync rules"):
  *
- * - Archived: a copy in INBOX means not archived; otherwise a copy in the archive or trash folder
- *   means archived (out of the inbox: deleted in a mail app is not still waiting for an answer).
+ * - Archived: a copy in INBOX means not archived; otherwise a copy in the archive, trash or junk
+ *   folder means archived (out of the inbox: deleted or junked mail is not waiting for an answer).
  *   A thread with none of these (Sent only, another folder, or mid-move) keeps its state.
  * - Read, on personal mailboxes only: read when every copy has `\Seen`, for every member with
  *   access. Shared mailboxes keep read per person in Postgres and never look at `\Seen`.
@@ -403,7 +417,7 @@ async function reconcileThreads(db: Pick<Db, "execute">, messageIds: SQL) {
   const summary = sql`
     select m.thread_id,
       bool_or(f.role = 'inbox') as in_inbox,
-      bool_or(f.role in ('archive', 'trash')) as filed,
+      bool_or(f.role in ('archive', 'trash', 'junk')) as filed,
       bool_and(${"\\Seen"}::text = any(l.flags)) as seen
     from ${messages} m
     join ${messageLocations} l on l.message_id = m.id

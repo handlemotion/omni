@@ -2,7 +2,7 @@
 // deleted on the server goes from Postgres with its thread once a full sync finds it nowhere; a
 // message moved to Trash leaves the inbox; a move another app made is never mistaken for a delete.
 import { schema } from "@omni/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
 import { PgMailStore } from "../src/pg-store.ts";
@@ -10,7 +10,7 @@ import { createTestDatabase, messageRows, seedMailbox, type TestDb } from "./sup
 import { deliver, logger, otherClient } from "./support/greenmail.ts";
 import { createTestBucket, links } from "./support/objects.ts";
 
-const { threads } = schema;
+const { mailboxFolders, threads } = schema;
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
@@ -111,6 +111,25 @@ it("a thread moved to Trash in another app leaves the inbox and keeps its messag
 
   expect(await subjects(box.id)).toEqual(["Spammy offer"]);
   expect((await threadOf(box.id, "Spammy offer"))?.archived).toBe(true);
+});
+
+it("a thread in Junk leaves the inbox once a re-sync first detects Junk as junk", async () => {
+  // Junk was stored with role `other` before junk was a role. Detecting it later must move the
+  // threads already filed there out of the inbox, not only mail that arrives after.
+  const { box, connection } = await connected("shared");
+  await arrive(connection, [[box.address, "Cheap watches"]]);
+  await inOtherApp(connection, "Cheap watches", "Junk");
+  await connection.syncAll();
+  const junk = and(eq(mailboxFolders.mailboxId, box.id), eq(mailboxFolders.path, "Junk"));
+  await db.update(mailboxFolders).set({ role: "other" }).where(junk);
+  const thread = await threadOf(box.id, "Cheap watches");
+  await db.update(threads).set({ archived: false }).where(eq(threads.id, thread!.id));
+
+  await connection.syncAll();
+
+  const [folder] = await db.select().from(mailboxFolders).where(junk);
+  expect(folder?.role).toBe("junk");
+  expect((await threadOf(box.id, "Cheap watches"))?.archived).toBe(true);
 });
 
 it("a move seen from INBOX before its destination is synced keeps the same message row", async () => {

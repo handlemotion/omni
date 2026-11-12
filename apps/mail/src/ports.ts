@@ -82,7 +82,10 @@ export type MailAction =
   | ActionBase<"archive", MessageTarget>
   | ActionBase<"move", MessageTarget & { destination: string }>
   | ActionBase<"mark_read", MessageTarget>
-  | ActionBase<"mark_unread", MessageTarget>;
+  | ActionBase<"mark_unread", MessageTarget>
+  | ActionBase<"trash", MessageTarget>
+  | ActionBase<"spam", MessageTarget>
+  | ActionBase<"not_spam", MessageTarget>;
 
 interface ActionBase<K extends string, P> {
   id: string;

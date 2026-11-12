@@ -364,6 +364,51 @@ describe("OutboxExecutor against GreenMail", () => {
     expect(delivered).toBe(0);
   });
 
+  it("spam moves a conversation to Junk and out of the inbox; not spam and trash follow", async () => {
+    const { seeded, box, store, connection, executor } = await setup("shared");
+    await deliver(box.address, "Win a prize");
+    await connection.start();
+    const thread = async () => {
+      const [row] = await messageRows(db, box.id);
+      const [t] = await db
+        .select()
+        .from(schema.threads)
+        .where(eq(schema.threads.id, row!.threadId));
+      return t!;
+    };
+    const run = async (kind: "spam" | "not_spam" | "trash", folder: string) => {
+      const [copy] = await stored(db, box.id, folder);
+      const position = await store.getSyncPosition(box.id, folder);
+      const row = await enqueue(db, seeded, {
+        kind,
+        idempotencyKey: `idem-${kind}-${box.id}`,
+        payload: { folder, uidValidity: position!.uidValidity.toString(), uids: [copy!.uid] },
+      });
+      await executor.drain();
+      expect((await actionRow(db, row.id)).status).toBe("done");
+    };
+
+    await run("spam", "INBOX");
+    expect(await stored(db, box.id, "INBOX")).toHaveLength(0);
+    expect((await stored(db, box.id, "Junk")).map((r) => r.subject)).toEqual(["Win a prize"]);
+    const [junk] = await db
+      .select({ role: schema.mailboxFolders.role })
+      .from(schema.mailboxFolders)
+      .where(eq(schema.mailboxFolders.path, "Junk"));
+    expect(junk?.role).toBe("junk");
+    expect((await thread()).archived).toBe(true);
+
+    await run("not_spam", "Junk");
+    expect((await stored(db, box.id, "INBOX")).map((r) => r.subject)).toEqual(["Win a prize"]);
+    expect((await thread()).archived).toBe(false);
+
+    await run("trash", "INBOX");
+    expect((await stored(db, box.id, "Trash")).map((r) => r.subject)).toEqual(["Win a prize"]);
+    expect((await thread()).archived).toBe(true);
+    // One row throughout: moves are never new messages.
+    expect(await messageRows(db, box.id)).toHaveLength(1);
+  });
+
   it("a send SMTP already accepted is done, not failed, when its upload is gone by the retry", async () => {
     const { seeded, box, actions, connection, executor } = await setup();
     await connection.start();

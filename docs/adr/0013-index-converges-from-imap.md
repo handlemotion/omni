@@ -57,7 +57,7 @@ folder) forever, and a thread moved to Trash stayed in the Inbox. For the helpde
 ghost conversations nobody can answer.
 
 - **Trash means out of the inbox.** A copy in the trash folder counts like one in the archive
-  folder: with no INBOX copy, the thread is archived. Junk joins it once that folder role exists.
+  folder: with no INBOX copy, the thread is archived. So does a copy in the junk folder.
 - **Gone everywhere means deleted.** A move shows up as a removal before the destination folder
   is synced, so a missing copy alone proves nothing. A message with no copy when a full sync pass
   (`syncAll`) begins, and still none after every folder synced without a failure, is deleted, and

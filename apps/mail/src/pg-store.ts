@@ -55,11 +55,9 @@ import type {
 } from "./ports.ts";
 import { MissingFileError } from "./ports.ts";
 
-/** The schema's folder roles; drafts and junk are just folders to the index. */
+/** The schema stores every role the engine detects. */
 type StoredRole = (typeof schema.mailboxFolders.$inferSelect)["role"];
-const STORED_ROLES = new Set<FolderRole>(["inbox", "sent", "archive", "trash"]);
-const storedRole = (role: FolderRole): StoredRole =>
-  STORED_ROLES.has(role) ? (role as StoredRole) : "other";
+const storedRole = (role: FolderRole): StoredRole => role;
 
 /** Subject threading only looks this far back; `decideThread` applies the exact window. */
 const SUBJECT_LOOKBACK_MS = 31 * 24 * 60 * 60 * 1000;
