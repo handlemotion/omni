@@ -239,7 +239,11 @@ describe("outbox", () => {
         body: JSON.stringify({ text: "Sounds good.", replyAll: true }),
       });
       expect(reply.status).toBe(202);
-      return (await reply.json()) as { actionId: string; messageIdHeader: string };
+      const { actionId, messageIdHeader } = (await reply.json()) as {
+        actionId: string;
+        messageIdHeader: string;
+      };
+      return { actionId, messageIdHeader };
     };
     const { actionId, messageIdHeader } = await sendReply();
     // The app shows the pending message under this id; a retry must not hand out another.

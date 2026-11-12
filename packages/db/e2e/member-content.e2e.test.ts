@@ -21,8 +21,17 @@ import {
   updateCannedReply,
 } from "../src/library.ts";
 import { customerProfile, searchCustomers } from "../src/customers.ts";
+import {
+  cancelSend,
+  createDraft,
+  deleteDraft,
+  getDraft,
+  listDrafts,
+  memberSendByKey,
+  saveDraft,
+} from "../src/drafts.ts";
 import { customers, threads } from "../src/schema/index.ts";
-import { createThread } from "../src/writers.ts";
+import { createThread, enqueueAction } from "../src/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();
@@ -142,5 +151,36 @@ describe("customers", () => {
       expect(await searchCustomers(db, outsider, "lu")).toEqual([]);
       expect(await customerProfile(db, outsider, customer!.id)).toBeNull();
     }
+  });
+});
+
+describe("drafts and sends", () => {
+  test("a shared draft and a held send are reachable only by those allowed", async () => {
+    const draft = await createDraft(db, ana, { mailboxId: supportId, kind: "new", bodyText: "Hi" });
+    if (!draft) throw new Error("create failed");
+    expect(await createDraft(db, bo, { mailboxId: supportId, kind: "new" })).toBeNull();
+    expect(await createDraft(db, cy, { mailboxId: supportId, kind: "new" })).toBeNull();
+    const send = await enqueueAction(db, {
+      orgId: orgAId,
+      mailboxId: supportId,
+      memberId: ana,
+      idempotencyKey: `content-send-${crypto.randomUUID()}`,
+      kind: "send",
+      payload: { from: "support@content-a.test", to: ["x@y.test"], subject: "s", text: "t" },
+    });
+
+    expect((await listDrafts(db, ana, { mailboxId: supportId })).map((d) => d.id)).toEqual([
+      draft.id,
+    ]);
+    for (const outsider of [bo, cy]) {
+      expect(await listDrafts(db, outsider, { mailboxId: supportId })).toEqual([]);
+      expect(await getDraft(db, outsider, draft.id)).toBeNull();
+      expect(await saveDraft(db, outsider, draft.id, draft.version, { bodyText: "x" })).toBeNull();
+      expect(await deleteDraft(db, outsider, draft.id)).toBe(false);
+      expect(await memberSendByKey(db, outsider, send.idempotencyKey)).toBeNull();
+      expect(await cancelSend(db, outsider, send.id)).toBeNull();
+    }
+    expect((await getDraft(db, ana, draft.id))?.bodyText).toBe("Hi");
+    expect((await memberSendByKey(db, ana, send.idempotencyKey))?.id).toBe(send.id);
   });
 });

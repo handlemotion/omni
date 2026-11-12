@@ -6,9 +6,10 @@ import { and, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from "drizzl
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
 import { grantFor } from "./member-mail.ts";
-import { enqueueAction, type NewMailAction } from "./writers.ts";
+import type { NewMailAction } from "./writers.ts";
 import {
   attachments,
+  drafts,
   mailActions,
   mailboxAccess,
   mailboxes,
@@ -158,18 +159,52 @@ async function invalidSendAttachments(
 /**
  * Queues a send and takes its uploads in one transaction: the uploads are checked and locked,
  * the outbox row is written, and the uploads are marked used before anything else can delete or
- * expire them. Returns the files the mailbox may not carry instead (nothing is written), or the
- * action; a repeated idempotency key returns the first row, as `enqueueAction` does.
+ * expire them. The row waits `delaySeconds` (the undo window) before the mail service may claim
+ * it. With `draftId`, the draft is deleted in the same transaction, so two people sending one
+ * shared draft at once queue one email: the second finds it gone (`draft_gone`).
+ *
+ * Returns the files the mailbox may not carry instead (nothing is written), or the action. A
+ * repeated idempotency key returns the first row, as `enqueueAction` does, even once the draft
+ * it consumed is gone.
  */
 export async function enqueueSendWithAttachments(
   db: Db,
   input: NewMailAction & { kind: "send" },
   requested: SendAttachment[],
-): Promise<{ invalid: SendAttachment[] } | { action: typeof mailActions.$inferSelect }> {
+  options: { delaySeconds?: number; draftId?: string } = {},
+): Promise<
+  { invalid: SendAttachment[] } | { draftGone: true } | { action: typeof mailActions.$inferSelect }
+> {
+  const { delaySeconds = 0, draftId } = options;
   return db.transaction(async (tx) => {
+    const [earlier] = await tx
+      .select()
+      .from(mailActions)
+      .where(eq(mailActions.idempotencyKey, input.idempotencyKey));
+    if (earlier) return { action: earlier };
     const invalid = await invalidSendAttachments(tx, input.mailboxId, requested);
     if (invalid.length) return { invalid };
-    const action = await enqueueAction(tx, input);
+    if (draftId) {
+      // Waits on a concurrent send of the same draft, then finds it deleted.
+      const [taken] = await tx
+        .delete(drafts)
+        .where(and(eq(drafts.id, draftId), eq(drafts.mailboxId, input.mailboxId)))
+        .returning({ id: drafts.id });
+      if (!taken) return { draftGone: true as const };
+    }
+    const [created] = await tx
+      .insert(mailActions)
+      .values({ ...input, runAfter: sql`now() + make_interval(secs => ${delaySeconds})` })
+      .onConflictDoNothing({ target: mailActions.idempotencyKey })
+      .returning();
+    // A retry of the same request racing this one queued it first: answer with that row.
+    if (!created) {
+      const [existing] = await tx
+        .select()
+        .from(mailActions)
+        .where(eq(mailActions.idempotencyKey, input.idempotencyKey));
+      return { action: existing! };
+    }
     const uploadIds = uploadIdsOf(requested);
     if (uploadIds.length) {
       await tx
@@ -177,7 +212,7 @@ export async function enqueueSendWithAttachments(
         .set({ usedAt: sql`now()` })
         .where(and(inArray(uploads.id, uploadIds), isNull(uploads.usedAt)));
     }
-    return { action };
+    return { action: created };
   });
 }
 

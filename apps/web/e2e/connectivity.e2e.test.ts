@@ -188,6 +188,10 @@ test("replies written offline go out once each, in order, when the connection is
   const org = await createOrg(db, "offline");
   await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
   const ana = await createMember(db, org.id, "ana@offline.test");
+  // No undo window: the outbox below must be able to claim the replies right away.
+  await db
+    .insert(schema.memberPreferences)
+    .values({ memberId: ana.id, orgId: org.id, undoSendSeconds: 0 });
   // A real GreenMail mailbox, synced by the real mail service.
   const box = { ...mailbox(), orgId: org.id };
   await db.insert(schema.mailboxes).values({
