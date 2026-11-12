@@ -336,7 +336,8 @@ export async function setLocationFlags(
  * Forgets copies expunged or moved out of a folder (all of them when `uids` is omitted, for a
  * UIDVALIDITY reset). A message whose current location was one of them points at another copy,
  * or at nothing until a sync finds it again. Message rows stay: a move is seen as a removal here
- * before the copy shows up in the destination, and re-creating the row would re-triage it.
+ * before the copy shows up in the destination, and re-creating the row would re-triage it. A row
+ * that a full sync still finds nowhere is deleted by `pruneMessages`.
  */
 export async function removeLocations(
   db: Db,
@@ -390,8 +391,9 @@ export async function removeLocations(
  * are flagged, so that state set in Omni, in Apple Mail, or by a full re-sync all end up the same
  * (spec, "Sync rules"):
  *
- * - Archived: a copy in INBOX means not archived; otherwise a copy in the archive folder means
- *   archived. A thread with neither (Sent only, another folder, or mid-move) keeps its state.
+ * - Archived: a copy in INBOX means not archived; otherwise a copy in the archive or trash folder
+ *   means archived (out of the inbox: deleted in a mail app is not still waiting for an answer).
+ *   A thread with none of these (Sent only, another folder, or mid-move) keeps its state.
  * - Read, on personal mailboxes only: read when every copy has `\Seen`, for every member with
  *   access. Shared mailboxes keep read per person in Postgres and never look at `\Seen`.
  */
@@ -399,7 +401,7 @@ async function reconcileThreads(db: Pick<Db, "execute">, messageIds: SQL) {
   const summary = sql`
     select m.thread_id,
       bool_or(f.role = 'inbox') as in_inbox,
-      bool_or(f.role = 'archive') as in_archive,
+      bool_or(f.role in ('archive', 'trash')) as filed,
       bool_and(${"\\Seen"}::text = any(l.flags)) as seen
     from ${messages} m
     join ${messageLocations} l on l.message_id = m.id
@@ -409,7 +411,7 @@ async function reconcileThreads(db: Pick<Db, "execute">, messageIds: SQL) {
   await db.execute(sql`
     update ${threads} t set archived = not s.in_inbox, updated_at = now()
     from (${summary}) s
-    where t.id = s.thread_id and (s.in_inbox or s.in_archive) and t.archived = s.in_inbox`);
+    where t.id = s.thread_id and (s.in_inbox or s.filed) and t.archived = s.in_inbox`);
   await db.execute(sql`
     insert into ${threadState} (org_id, thread_id, member_id, read)
     select t.org_id, t.id, a.member_id, s.seen
@@ -419,6 +421,64 @@ async function reconcileThreads(db: Pick<Db, "execute">, messageIds: SQL) {
     join ${mailboxAccess} a on a.mailbox_id = t.mailbox_id
     on conflict (thread_id, member_id) do update set read = excluded.read, updated_at = now()
     where ${threadState}.read is distinct from excluded.read`);
+}
+
+/** Messages of the mailbox with no IMAP copy left in any stored folder. */
+export async function orphanedMessages(db: Db, mailboxId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.mailboxId, mailboxId),
+        sql`not exists (select 1 from ${messageLocations} l where l.message_id = ${messages.id})`,
+      ),
+    );
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Deletes messages that were deleted on the server: of `messageIds`, those that still have no IMAP
+ * copy. A thread left with no messages goes too (its per-member state and AI output cascade); a
+ * thread that keeps some takes its last message time from what is left. The caller decides when a
+ * missing copy means deleted rather than mid-move (see `MailboxConnection.syncAll`).
+ */
+export async function pruneMessages(
+  db: Db,
+  input: { mailboxId: string; messageIds: string[] },
+): Promise<{ messages: number; threads: number }> {
+  if (input.messageIds.length === 0) return { messages: 0, threads: 0 };
+  return db.transaction(async (tx) => {
+    const removed = await tx
+      .delete(messages)
+      .where(
+        and(
+          eq(messages.mailboxId, input.mailboxId),
+          inArray(messages.id, input.messageIds),
+          sql`not exists (select 1 from ${messageLocations} l where l.message_id = ${messages.id})`,
+        ),
+      )
+      .returning({ threadId: messages.threadId });
+    const threadIds = [...new Set(removed.map((row) => row.threadId))];
+    if (threadIds.length === 0) return { messages: 0, threads: 0 };
+    const emptied = await tx
+      .delete(threads)
+      .where(
+        and(
+          inArray(threads.id, threadIds),
+          sql`not exists (select 1 from ${messages} m where m.thread_id = ${threads.id})`,
+        ),
+      )
+      .returning({ id: threads.id });
+    await tx
+      .update(threads)
+      .set({
+        lastMessageAt: sql`(select max(m.sent_at) from ${messages} m where m.thread_id = ${threads.id})`,
+        updatedAt: new Date(),
+      })
+      .where(inArray(threads.id, threadIds));
+    return { messages: removed.length, threads: emptied.length };
+  });
 }
 
 /** Marks the folder for a full re-sync: no sync position and no stored copies. */

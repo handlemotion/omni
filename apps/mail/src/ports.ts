@@ -51,6 +51,15 @@ export interface MailStore {
   removeMessages(mailboxId: string, folder: string, uids: number[]): Promise<void>;
   /** UIDVALIDITY changed: forget every message and the sync position of this folder. */
   resetFolder(mailboxId: string, folder: string): Promise<void>;
+  /** Ids of stored messages with no copy left in any folder (deleted, or mid-move). */
+  orphanedMessages(mailboxId: string): Promise<string[]>;
+  /**
+   * Delete those of `messageIds` that still have no copy, and threads left empty. Returns counts.
+   */
+  pruneMessages(
+    mailboxId: string,
+    messageIds: string[],
+  ): Promise<{ messages: number; threads: number }>;
 }
 
 // Outbox (`mail_actions`). UIDs mean nothing without their folder's UIDVALIDITY, so every action

@@ -224,22 +224,36 @@ export class MailboxConnection extends EventEmitter<Events> {
    * Re-discovers folders and syncs all of them, INBOX last so IDLE resumes there. A folder that
    * fails is logged and skipped, so one bad folder never blocks the rest. A call while one is
    * queued or running joins it rather than queueing another full pass.
+   *
+   * A message deleted on the server leaves its row with no copy. So does a move, until the
+   * destination folder is synced, so a missing copy alone proves nothing. A message that had no
+   * copy when this pass began, and still has none after every folder synced cleanly, is gone
+   * everywhere: the pass ends by deleting it (and a thread left empty).
    */
   syncAll(): Promise<FolderSyncResult[]> {
     this.syncingAll ??= this.enqueue(async () => {
       try {
+        const orphans = await this.store.orphanedMessages(this.mailbox.id);
         await this.discoverFolders();
         const results: FolderSyncResult[] = [];
+        let clean = true;
         const inbox = this.inbox();
         const ordered = [...this.folders.filter((f) => f !== inbox), ...(inbox ? [inbox] : [])];
         for (const folder of ordered) {
           try {
-            results.push(await this.syncFolderNow(folder.path));
+            const result = await this.syncFolderNow(folder.path);
+            if (result.failed > 0) clean = false;
+            results.push(result);
           } catch (error) {
             // The connection itself is gone: the reconnect resyncs everything.
             if (error instanceof StoppedError || !this.connected) throw error;
+            clean = false;
             this.log.warn("sync.folder_failed", { folder: folder.path, error });
           }
+        }
+        if (clean && orphans.length > 0) {
+          const pruned = await this.store.pruneMessages(this.mailbox.id, orphans);
+          if (pruned.messages > 0) this.log.info("sync.pruned", pruned);
         }
         return results;
       } finally {

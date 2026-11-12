@@ -19,6 +19,8 @@ import {
   getFolderPosition,
   hasLocation,
   markActionSmtpAccepted,
+  orphanedMessages,
+  pruneMessages,
   removeLocations,
   replaceFolders,
   rescheduleAction,
@@ -183,6 +185,14 @@ export class PgMailStore implements MailStore {
 
   async resetFolder(mailboxId: string, folder: string): Promise<void> {
     await resetFolder(this.db, mailboxId, folder);
+  }
+
+  orphanedMessages(mailboxId: string): Promise<string[]> {
+    return orphanedMessages(this.db, mailboxId);
+  }
+
+  pruneMessages(mailboxId: string, messageIds: string[]) {
+    return pruneMessages(this.db, { mailboxId, messageIds });
   }
 
   private async insert(

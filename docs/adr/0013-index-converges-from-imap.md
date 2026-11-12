@@ -49,3 +49,19 @@ the row at once, the outbox changes IMAP, and the sync that follows agrees with 
   shared read state have no copy on the server.
 - Changes picked up from IMAP do not yet push a realtime event, so an open app shows a read or
   archive made in Apple Mail on its next refetch (window focus, the 30 s stale time).
+
+## Amendment (2026-11-12): deletes converge too
+
+The rules above never removed anything: a message deleted in another app kept its row (with no
+folder) forever, and a thread moved to Trash stayed in the Inbox. For the helpdesk that means
+ghost conversations nobody can answer.
+
+- **Trash means out of the inbox.** A copy in the trash folder counts like one in the archive
+  folder: with no INBOX copy, the thread is archived. Junk joins it once that folder role exists.
+- **Gone everywhere means deleted.** A move shows up as a removal before the destination folder
+  is synced, so a missing copy alone proves nothing. A message with no copy when a full sync pass
+  (`syncAll`) begins, and still none after every folder synced without a failure, is deleted, and
+  a thread left with no messages goes with it (`pruneMessages`). A delete in Apple Mail leaves
+  Omni within two periodic passes (10 minutes by default).
+- Raw mail, HTML and attachment objects stay in R2; keys are content hashes another message may
+  share.
