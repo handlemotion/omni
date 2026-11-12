@@ -3,6 +3,7 @@ import {
   type AnyPgColumn,
   bigint,
   boolean,
+  check,
   customType,
   date,
   foreignKey,
@@ -57,7 +58,15 @@ export const mailboxKind = pgEnum("mailbox_kind", ["personal", "shared"]);
 // `imap` is any standards-based host with no provider API; `purelymail` adds its optional admin API.
 export const mailProvider = pgEnum("mail_provider", ["purelymail", "gmail", "microsoft", "imap"]);
 export const mailboxStatus = pgEnum("mailbox_status", ["pending", "active", "error", "disabled"]);
-export const folderRole = pgEnum("folder_role", ["inbox", "sent", "archive", "trash", "other"]);
+export const folderRole = pgEnum("folder_role", [
+  "inbox",
+  "sent",
+  "archive",
+  "trash",
+  "other",
+  "junk",
+  "drafts",
+]);
 export const mailboxAccessRole = pgEnum("mailbox_access_role", ["owner", "member"]);
 export const triageBucket = pgEnum("triage_bucket", [
   "needs_reply",
@@ -72,7 +81,47 @@ export const mailActionKind = pgEnum("mail_action_kind", [
   "move",
   "mark_read",
   "mark_unread",
+  "trash",
+  "spam",
+  "not_spam",
 ]);
+/**
+ * A shared conversation's status (ADR 0021): `open` waits on the team, `pending` on the customer,
+ * `snoozed` until `snoozed_until`, `resolved` is filed. Transitions: `@omni/mail-core/conversation-status`.
+ */
+export const conversationStatus = pgEnum("conversation_status", [
+  "open",
+  "pending",
+  "snoozed",
+  "resolved",
+]);
+export const conversationPriority = pgEnum("conversation_priority", [
+  "low",
+  "normal",
+  "high",
+  "urgent",
+]);
+export const conversationEventKind = pgEnum("conversation_event_kind", [
+  "status",
+  "assigned",
+  "priority",
+  "tag_added",
+  "tag_removed",
+  "note",
+  "first_response",
+  "sla_at_risk",
+  "sla_breached",
+]);
+export const notificationKind = pgEnum("notification_kind", [
+  "assigned",
+  "mention",
+  "customer_reply",
+  "sla_at_risk",
+  "sla_breached",
+]);
+export const draftKind = pgEnum("draft_kind", ["new", "reply", "forward"]);
+export const theme = pgEnum("theme", ["system", "light", "dark"]);
+
 export const mailActionStatus = pgEnum("mail_action_status", [
   "pending",
   "running",
@@ -335,6 +384,23 @@ export const threads = pgTable(
      * allowance (ADR 0015): when the allowance resets. Cleared by the next triage.
      */
     triagePausedUntil: timestamptz("triage_paused_until"),
+    // Helpdesk conversation state (ADR 0021): shared by everyone who can see the inbox. Read
+    // state stays per member in `thread_state`. Personal mailboxes ignore these columns.
+    status: conversationStatus("status").notNull().default("open"),
+    assigneeMemberId: text("assignee_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    priority: conversationPriority("priority").notNull().default("normal"),
+    /** Set while `status` is `snoozed`: when it opens again. */
+    snoozedUntil: timestamptz("snoozed_until"),
+    customerId: text("customer_id").references((): AnyPgColumn => customers.id, {
+      onDelete: "set null",
+    }),
+    firstResponseDueAt: timestamptz("first_response_due_at"),
+    nextResponseDueAt: timestamptz("next_response_due_at"),
+    resolutionDueAt: timestamptz("resolution_due_at"),
+    firstRespondedAt: timestamptz("first_responded_at"),
+    resolvedAt: timestamptz("resolved_at"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -380,8 +446,52 @@ export const threads = pgTable(
     index("threads_summary_message_id_idx")
       .on(t.summaryMessageId)
       .where(sql`${t.summaryMessageId} is not null`),
+    // Helpdesk views page one inbox at a time in the same keyset order as the lists above:
+    // Open, Pending, Snoozed, Resolved by status; Mine and Unassigned (null) by assignee.
+    index("threads_mailbox_status_page_idx").on(
+      t.mailboxId,
+      t.status,
+      t.lastMessageAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
+    index("threads_mailbox_assignee_page_idx").on(
+      t.mailboxId,
+      t.assigneeMemberId,
+      t.status,
+      t.lastMessageAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
+    // SLA clocks run while a conversation is open. The per-inbox "SLA at risk" view and the
+    // per-minute cron both read the soonest due time.
+    index("threads_mailbox_sla_due_idx")
+      .on(t.mailboxId, slaDueAt(t))
+      .where(sql`${t.status} = 'open'`),
+    index("threads_sla_due_idx")
+      .on(slaDueAt(t))
+      .where(sql`${t.status} = 'open'`),
+    // The snooze cron wakes conversations whose time has come.
+    index("threads_snoozed_until_idx")
+      .on(t.snoozedUntil)
+      .where(sql`${t.status} = 'snoozed'`),
+    index("threads_customer_idx").on(t.customerId, t.lastMessageAt.desc().nullsFirst()),
+    // Deleting a member sets this to null; index it so that is not a scan.
+    index("threads_assignee_member_id_idx")
+      .on(t.assigneeMemberId)
+      .where(sql`${t.assigneeMemberId} is not null`),
   ],
 );
+
+/**
+ * The soonest SLA due time of a conversation, null when none is set. Queries filter and order by
+ * this exact expression so the `*_sla_due_idx` indexes serve them.
+ */
+export function slaDueAt(t: {
+  firstResponseDueAt: AnyPgColumn;
+  nextResponseDueAt: AnyPgColumn;
+  resolutionDueAt: AnyPgColumn;
+}): SQL {
+  return sql`least(${t.firstResponseDueAt}, ${t.nextResponseDueAt}, ${t.resolutionDueAt})`;
+}
 
 export const messages = pgTable(
   "messages",
@@ -412,6 +522,14 @@ export const messages = pgTable(
     /** Sanitized HTML body in R2; the only HTML ever sent to an app. Null for text-only mail. */
     htmlR2Key: text("html_r2_key"),
     cleanText: text("clean_text").notNull().default(""),
+    /** Remote images the sanitizer replaced; the reader offers to load them. */
+    remoteImageCount: integer("remote_image_count").notNull().default(0),
+    /**
+     * Set when the mail service stores the row; cleared once the Worker accepts its
+     * `message.created`. A sweep re-sends what is still set after a crash or Worker outage.
+     * Defaults false so existing rows are never re-notified.
+     */
+    notifyPending: boolean("notify_pending").notNull().default(false),
     searchVector: tsvector("search_vector")
       .notNull()
       .generatedAlwaysAs(
@@ -437,6 +555,9 @@ export const messages = pgTable(
     index("messages_mailbox_id_in_reply_to_idx").on(t.mailboxId, t.inReplyTo),
     index("messages_references_idx").using("gin", t.references),
     // Search walks each mailbox newest first when a term is common, instead of ranking every hit.
+    index("messages_notify_pending_idx")
+      .on(t.mailboxId)
+      .where(sql`${t.notifyPending}`),
     index("messages_mailbox_id_sent_at_idx").on(
       t.mailboxId,
       t.sentAt.desc().nullsFirst(),
@@ -494,6 +615,10 @@ export const attachments = pgTable(
     mimeType: text("mime_type").notNull(),
     size: integer("size").notNull(),
     r2Key: text("r2_key").notNull(),
+    /** Shown inside the body (`cid:` image), not as a chip. */
+    inline: boolean("inline").notNull().default(false),
+    /** The part's Content-ID without angle brackets, for `cid:` references. */
+    contentId: text("content_id"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -701,3 +826,417 @@ export const trialClaims = pgTable("trial_claims", {
   userId: text("user_id").notNull().unique(),
   createdAt: createdAt(),
 });
+
+// Helpdesk (ADR 0021). Postgres holds the workflow; IMAP stays the source of truth for mail, so
+// none of these rows is derived from a mailbox sync, and a full re-sync leaves them alone.
+
+/** One file on a draft: exactly one of the two ids. */
+export interface DraftAttachment {
+  /** A file uploaded for this draft (`uploads.id`). */
+  uploadId?: string;
+  /** An attachment of a stored message, forwarded by reference (`attachments.id`). */
+  attachmentId?: string;
+}
+
+/**
+ * Who did what to a conversation, oldest first. Append-only, written in the same transaction as
+ * the change it records; it drives the timeline, notifications and reports.
+ */
+export const conversationEvents = pgTable(
+  "conversation_events",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    mailboxId: text("mailbox_id").notNull(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    /** Null for the system (ingest, SLA cron, AI triage). */
+    actorMemberId: text("actor_member_id").references(() => members.id, { onDelete: "set null" }),
+    kind: conversationEventKind("kind").notNull(),
+    /** Before and after, by kind: `{ from, to }` for status, priority and assignee. */
+    data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+    /**
+     * Set for events a job may emit twice (SLA at risk and breached: the target and due time).
+     * Unique per conversation, so a second run inserts nothing.
+     */
+    dedupeKey: text("dedupe_key"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "conversation_events_mailbox_org_fk",
+      columns: [t.mailboxId, t.orgId],
+      foreignColumns: [mailboxes.id, mailboxes.orgId],
+    }).onDelete("cascade"),
+    index("conversation_events_thread_idx").on(t.threadId, t.createdAt),
+    index("conversation_events_mailbox_report_idx").on(t.mailboxId, t.kind, t.createdAt),
+    uniqueIndex("conversation_events_dedupe_unique")
+      .on(t.threadId, t.dedupeKey)
+      .where(sql`${t.dedupeKey} is not null`),
+  ],
+);
+
+/** Internal notes in a conversation's timeline. Never sent and never written to IMAP. */
+export const notes = pgTable(
+  "notes",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    mailboxId: text("mailbox_id").notNull(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    authorMemberId: text("author_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    body: text("body").notNull(),
+    /** Members @mentioned in the body (`members.id`). */
+    mentions: text("mentions")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "notes_mailbox_org_fk",
+      columns: [t.mailboxId, t.orgId],
+      foreignColumns: [mailboxes.id, mailboxes.orgId],
+    }).onDelete("cascade"),
+    index("notes_thread_idx").on(t.threadId, t.createdAt),
+  ],
+);
+
+/** An inbox's tag list. Names are unique per inbox, ignoring case. */
+export const tags = pgTable(
+  "tags",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    mailboxId: text("mailbox_id").notNull(),
+    name: text("name").notNull(),
+    /** A token name from the design system, not a hex value. */
+    color: text("color"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "tags_mailbox_org_fk",
+      columns: [t.mailboxId, t.orgId],
+      foreignColumns: [mailboxes.id, mailboxes.orgId],
+    }).onDelete("cascade"),
+    uniqueIndex("tags_mailbox_name_unique").on(t.mailboxId, sql`lower(${t.name})`),
+  ],
+);
+
+export const threadTags = pgTable(
+  "thread_tags",
+  {
+    orgId: orgId(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    tagId: text("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+    /** Null when AI triage or a canned reply added it. */
+    addedByMemberId: text("added_by_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.threadId, t.tagId] }),
+    // The "by tag" view starts from the tag.
+    index("thread_tags_tag_idx").on(t.tagId, t.threadId),
+  ],
+);
+
+/**
+ * Reply templates with `{{customer.first_name}}`-style variables. An inbox's (`mailbox_id`) or one
+ * member's own (`owner_member_id`), never both. Using one can also set status and add tags.
+ */
+export const cannedReplies = pgTable(
+  "canned_replies",
+  {
+    id: id(),
+    orgId: orgId(),
+    mailboxId: text("mailbox_id"),
+    ownerMemberId: text("owner_member_id").references(() => members.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    bodyText: text("body_text").notNull(),
+    bodyHtml: text("body_html"),
+    setStatus: conversationStatus("set_status"),
+    addTagIds: text("add_tag_ids")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    createdByMemberId: text("created_by_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "canned_replies_mailbox_org_fk",
+      columns: [t.mailboxId, t.orgId],
+      foreignColumns: [mailboxes.id, mailboxes.orgId],
+    }).onDelete("cascade"),
+    check(
+      "canned_replies_one_owner",
+      sql`(${t.mailboxId} is null) <> (${t.ownerMemberId} is null)`,
+    ),
+    index("canned_replies_mailbox_idx").on(t.mailboxId),
+    index("canned_replies_owner_idx").on(t.ownerMemberId),
+  ],
+);
+
+/**
+ * An inbox's response targets for one priority, in minutes. A null target is not tracked. With
+ * `business_hours_only`, time outside the inbox's `business_hours` does not count.
+ */
+export const slaPolicies = pgTable(
+  "sla_policies",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    mailboxId: text("mailbox_id").notNull(),
+    priority: conversationPriority("priority").notNull(),
+    firstResponseMinutes: integer("first_response_minutes"),
+    nextResponseMinutes: integer("next_response_minutes"),
+    resolutionMinutes: integer("resolution_minutes"),
+    businessHoursOnly: boolean("business_hours_only").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "sla_policies_mailbox_org_fk",
+      columns: [t.mailboxId, t.orgId],
+      foreignColumns: [mailboxes.id, mailboxes.orgId],
+    }).onDelete("cascade"),
+    unique("sla_policies_mailbox_priority_unique").on(t.mailboxId, t.priority),
+  ],
+);
+
+/** One weekly opening window: `day` 0 is Sunday; times are `HH:MM` in the inbox's zone. */
+export interface BusinessHoursWindow {
+  day: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  start: string;
+  end: string;
+}
+
+/** When an inbox is staffed. One row per inbox; none means always open. */
+export const businessHours = pgTable(
+  "business_hours",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    mailboxId: text("mailbox_id").notNull(),
+    /** IANA zone, e.g. `America/Mexico_City`. */
+    timezone: text("timezone").notNull(),
+    windows: jsonb("windows").$type<BusinessHoursWindow[]>().notNull().default([]),
+    /** Closed all day, as `YYYY-MM-DD` in the inbox's zone. */
+    holidays: date("holidays", { mode: "string" })
+      .array()
+      .notNull()
+      .default(sql`'{}'::date[]`),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "business_hours_mailbox_org_fk",
+      columns: [t.mailboxId, t.orgId],
+      foreignColumns: [mailboxes.id, mailboxes.orgId],
+    }).onDelete("cascade"),
+    unique("business_hours_mailbox_unique").on(t.mailboxId),
+  ],
+);
+
+/** The people who write to an org's inboxes, keyed by address. Filled on ingest. */
+export const customers = pgTable(
+  "customers",
+  {
+    id: id(),
+    orgId: orgId(),
+    /** Normalized: lowercase. */
+    address: text("address").notNull(),
+    name: text("name"),
+    /** The address's domain, unless it is a webmail one; the company is guessed from it. */
+    domain: text("domain"),
+    company: text("company"),
+    firstSeenAt: timestamptz("first_seen_at").notNull().defaultNow(),
+    lastSeenAt: timestamptz("last_seen_at").notNull().defaultNow(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("customers_org_address_unique").on(t.orgId, t.address),
+    index("customers_org_domain_idx").on(t.orgId, t.domain),
+  ],
+);
+
+/**
+ * A file a member uploaded to R2 to attach to a send. Unsent uploads are deleted after
+ * `expires_at`; `used_at` marks one a send took, which the cleanup leaves alone.
+ */
+export const uploads = pgTable(
+  "uploads",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    mailboxId: text("mailbox_id").notNull(),
+    memberId: text("member_id").references(() => members.id, { onDelete: "set null" }),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    size: integer("size").notNull(),
+    r2Key: text("r2_key").notNull(),
+    expiresAt: timestamptz("expires_at").notNull(),
+    usedAt: timestamptz("used_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "uploads_mailbox_org_fk",
+      columns: [t.mailboxId, t.orgId],
+      foreignColumns: [mailboxes.id, mailboxes.orgId],
+    }).onDelete("cascade"),
+    index("uploads_expiry_idx")
+      .on(t.expiresAt)
+      .where(sql`${t.usedAt} is null`),
+  ],
+);
+
+/**
+ * Unsent mail, shared with everyone who can see the inbox. Postgres only: never mirrored to the
+ * IMAP Drafts folder. `version` goes up on each save, so a stale autosave cannot overwrite a
+ * teammate's newer one.
+ */
+export const drafts = pgTable(
+  "drafts",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    mailboxId: text("mailbox_id").notNull(),
+    /** Null for a new conversation. */
+    threadId: text("thread_id").references(() => threads.id, { onDelete: "cascade" }),
+    kind: draftKind("kind").notNull(),
+    /** The message replied to or forwarded. */
+    sourceMessageId: text("source_message_id").references(() => messages.id, {
+      onDelete: "set null",
+    }),
+    authorMemberId: text("author_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    updatedByMemberId: text("updated_by_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    to: jsonb("to").$type<Address[]>().notNull().default([]),
+    cc: jsonb("cc").$type<Address[]>().notNull().default([]),
+    bcc: jsonb("bcc").$type<Address[]>().notNull().default([]),
+    subject: text("subject").notNull().default(""),
+    bodyText: text("body_text").notNull().default(""),
+    bodyHtml: text("body_html"),
+    attachments: jsonb("attachments").$type<DraftAttachment[]>().notNull().default([]),
+    version: integer("version").notNull().default(1),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "drafts_mailbox_org_fk",
+      columns: [t.mailboxId, t.orgId],
+      foreignColumns: [mailboxes.id, mailboxes.orgId],
+    }).onDelete("cascade"),
+    index("drafts_thread_idx").on(t.threadId),
+    index("drafts_mailbox_idx").on(t.mailboxId, t.updatedAt.desc().nullsFirst()),
+  ],
+);
+
+/** An inbox's signature (`member_id` null), or one member's own on that inbox. */
+export const signatures = pgTable(
+  "signatures",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    mailboxId: text("mailbox_id").notNull(),
+    memberId: text("member_id").references(() => members.id, { onDelete: "cascade" }),
+    bodyText: text("body_text").notNull(),
+    bodyHtml: text("body_html"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: "signatures_mailbox_org_fk",
+      columns: [t.mailboxId, t.orgId],
+      foreignColumns: [mailboxes.id, mailboxes.orgId],
+    }).onDelete("cascade"),
+    unique("signatures_mailbox_member_unique").on(t.mailboxId, t.memberId).nullsNotDistinct(),
+  ],
+);
+
+/** Where one notification kind reaches a member. */
+export interface NotificationChannels {
+  realtime: boolean;
+  desktop: boolean;
+  push: boolean;
+}
+
+/** A member's settings. No row means every default. */
+export const memberPreferences = pgTable("member_preferences", {
+  memberId: text("member_id")
+    .primaryKey()
+    .references(() => members.id, { onDelete: "cascade" }),
+  orgId: orgId(),
+  /** Per notification kind; a kind left out uses the default (all channels on). */
+  notifications: jsonb("notifications")
+    .$type<Partial<Record<(typeof notificationKind.enumValues)[number], NotificationChannels>>>()
+    .notNull()
+    .default({}),
+  theme: theme("theme").notNull().default("system"),
+  /** How long a send can be undone (Rodrigo, Nov 12: 5 seconds by default). 0 sends at once. */
+  undoSendSeconds: integer("undo_send_seconds").notNull().default(5),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+/**
+ * Something a member should know about: assigned to them, mentioned, their customer replied, an
+ * SLA at risk. `dedupe_key` makes a job that runs twice notify once.
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: id(),
+    orgId: orgId(),
+    memberId: memberId(),
+    kind: notificationKind("kind").notNull(),
+    threadId: text("thread_id").references(() => threads.id, { onDelete: "cascade" }),
+    noteId: text("note_id").references(() => notes.id, { onDelete: "cascade" }),
+    actorMemberId: text("actor_member_id").references(() => members.id, { onDelete: "set null" }),
+    data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+    dedupeKey: text("dedupe_key"),
+    readAt: timestamptz("read_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("notifications_member_idx").on(
+      t.memberId,
+      t.createdAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
+    index("notifications_member_unread_idx")
+      .on(t.memberId)
+      .where(sql`${t.readAt} is null`),
+    uniqueIndex("notifications_member_dedupe_unique")
+      .on(t.memberId, t.dedupeKey)
+      .where(sql`${t.dedupeKey} is not null`),
+    index("notifications_thread_idx").on(t.threadId),
+  ],
+);

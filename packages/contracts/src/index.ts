@@ -8,7 +8,15 @@ export const MAIL_PING_PATH = "/ping";
 /** Mail service → Worker: new mail was indexed. JSON `MailEventsBody`. Any 2xx accepts. */
 export const MAIL_EVENTS_PATH = "/internal/mail-events";
 
-export const folderRoleSchema = z.enum(["inbox", "sent", "archive", "trash", "other"]);
+export const folderRoleSchema = z.enum([
+  "inbox",
+  "sent",
+  "archive",
+  "trash",
+  "other",
+  "junk",
+  "drafts",
+]);
 
 /**
  * A message row was created (never for a second copy of a known message). Delivery is at least
@@ -65,8 +73,21 @@ export const messageTargetSchema = z.object({
   uids: z.array(z.number().int().positive()).min(1),
 });
 
+/**
+ * A file to attach to a send: one uploaded for it (`uploads.id`), or an attachment of a stored
+ * message in the same mailbox (`attachments.id`), which is how forward keeps the originals. The
+ * mail service streams each from R2 into the MIME.
+ */
+export const sendAttachmentSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("upload"), uploadId: z.string().min(1) }),
+  z.object({ kind: z.literal("attachment"), attachmentId: z.string().min(1) }),
+]);
+
 export const sendPayloadSchema = z.object({
+  /** The address sent from: on a shared inbox, the inbox's address. */
   from: z.string().min(1),
+  /** Display name on From: on a shared inbox, the agent's name (`Ana from Acme`). */
+  fromName: z.string().min(1).optional(),
   to: z.array(z.string().min(1)).min(1),
   cc: z.array(z.string().min(1)).optional(),
   bcc: z.array(z.string().min(1)).optional(),
@@ -77,6 +98,12 @@ export const sendPayloadSchema = z.object({
   inReplyTo: z.string().optional(),
   /** Full References chain of the reply, oldest first. */
   references: z.array(z.string()).optional(),
+  /**
+   * `messages.id` of the message replied to or forwarded, so the sent copy is stored in its
+   * thread as soon as SMTP accepts it. Reply headers still come from `inReplyTo`/`references`.
+   */
+  inReplyToMessageId: z.string().min(1).optional(),
+  attachments: z.array(sendAttachmentSchema).max(50).optional(),
   /**
    * Message-ID to send with, in `<id@host>` form, chosen by the Worker so the app knows it before
    * the mail goes out. Absent: the mail service derives one from the idempotency key.
@@ -93,12 +120,84 @@ export const actionPayloadSchemas = {
   move: messageTargetSchema.extend({ destination: z.string().min(1) }),
   mark_read: messageTargetSchema,
   mark_unread: messageTargetSchema,
+  /** Move to the mailbox's trash folder (`folder_role` trash). */
+  trash: messageTargetSchema,
+  /** Move to the junk folder (`folder_role` junk). */
+  spam: messageTargetSchema,
+  /** Move from junk back to INBOX. */
+  not_spam: messageTargetSchema,
 } as const;
 
 export type MailActionKind = keyof typeof actionPayloadSchemas;
 export type MessageTarget = z.infer<typeof messageTargetSchema>;
 export type SendPayload = z.infer<typeof sendPayloadSchema>;
+export type SendAttachment = z.infer<typeof sendAttachmentSchema>;
 export type ActionPayload<K extends MailActionKind> = z.infer<(typeof actionPayloadSchemas)[K]>;
+
+// Helpdesk realtime events (ADR 0021): Worker → apps over the realtime socket, alongside the
+// Worker's existing `changed`/`action`/`mailbox`/`domain` events. They carry ids, never mail
+// content: a client refetches what it shows. Apps ignore types they do not know.
+
+const realtimeBase = { mailboxId: z.string().min(1) };
+
+/** Conversation state changed: status, assignee, priority, tags, snooze, or a new message. */
+export const threadChangedRealtimeSchema = z.object({
+  type: z.literal("thread.changed"),
+  ...realtimeBase,
+  threadIds: z.array(z.string().min(1)).min(1),
+});
+
+export const noteCreatedRealtimeSchema = z.object({
+  type: z.literal("note.created"),
+  ...realtimeBase,
+  threadId: z.string().min(1),
+  noteId: z.string().min(1),
+});
+
+/** Who is looking at or replying in a conversation. `left` clears them. */
+export const presenceRealtimeSchema = z.object({
+  type: z.literal("presence"),
+  ...realtimeBase,
+  threadId: z.string().min(1),
+  memberId: z.string().min(1),
+  state: z.enum(["viewing", "replying", "left"]),
+});
+
+/** An outbox action finished: a send went out, or a move landed on IMAP. */
+export const actionSucceededRealtimeSchema = z.object({
+  type: z.literal("action.succeeded"),
+  ...realtimeBase,
+  actionId: z.string().min(1),
+  kind: z.enum(Object.keys(actionPayloadSchemas) as [MailActionKind, ...MailActionKind[]]),
+});
+
+export const slaTargetSchema = z.enum(["first_response", "next_response", "resolution"]);
+
+const slaRealtime = {
+  ...realtimeBase,
+  threadId: z.string().min(1),
+  target: slaTargetSchema,
+  /** ISO 8601. */
+  dueAt: z.iso.datetime({ offset: true }),
+};
+
+export const slaAtRiskRealtimeSchema = z.object({ type: z.literal("sla.at_risk"), ...slaRealtime });
+export const slaBreachedRealtimeSchema = z.object({
+  type: z.literal("sla.breached"),
+  ...slaRealtime,
+});
+
+export const helpdeskRealtimeEventSchema = z.discriminatedUnion("type", [
+  threadChangedRealtimeSchema,
+  noteCreatedRealtimeSchema,
+  presenceRealtimeSchema,
+  actionSucceededRealtimeSchema,
+  slaAtRiskRealtimeSchema,
+  slaBreachedRealtimeSchema,
+]);
+
+export type HelpdeskRealtimeEvent = z.infer<typeof helpdeskRealtimeEventSchema>;
+export type SlaTarget = z.infer<typeof slaTargetSchema>;
 
 // Onboarding: provisioning domains and mailboxes. Worker → mail service, signed like the ping
 // (with a nonce), JSON in and out. Only the mail service holds the Purelymail token and mailbox

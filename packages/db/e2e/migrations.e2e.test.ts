@@ -53,6 +53,20 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "user_emails",
       "users",
       "verifications",
+      // Helpdesk (ADR 0021).
+      "business_hours",
+      "canned_replies",
+      "conversation_events",
+      "customers",
+      "drafts",
+      "member_preferences",
+      "notes",
+      "notifications",
+      "signatures",
+      "sla_policies",
+      "tags",
+      "thread_tags",
+      "uploads",
     ].toSorted(),
   );
 });
