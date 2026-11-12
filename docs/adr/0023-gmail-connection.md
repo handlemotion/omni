@@ -20,15 +20,22 @@ The spec once planned EmailEngine for this; its license costs more than the rest
    access token instead of a password. No Gmail API client, no second sync engine.
 2. **The Worker never holds a Gmail token.** The Worker runs the OAuth redirect (it owns the web
    origin and the session) and forwards the authorization code, HMAC-signed, to the mail service's
-   `POST /google/connect` (`@omni/contracts`). The mail service exchanges it, keeps the refresh
+   `POST /connect/google` (`@omni/contracts`). The mail service exchanges it, keeps the refresh
    token encrypted in `mailboxes.credentials_enc` with `MAIL_CREDENTIALS_KEY` (the same envelope as
    app passwords, now a union of password and Google logins) and mints access tokens itself. The
    Worker's request asks for `openid email https://mail.google.com/` with `access_type=offline` and
-   `prompt=consent`, and should use PKCE; the mail service refuses a grant without the Gmail scope,
+   `prompt=consent`, with PKCE (the verifier is required); the mail service refuses a grant without the Gmail scope,
    without a refresh token, or for an address Google has not verified.
 3. **A Google account is a personal mailbox, provider `gmail`.** It needs no domain claim: Google
    vouched for the address, and only its owner could consent. Connecting the same account again
-   replaces its tokens; an address that is already a non-Gmail mailbox in the workspace is refused.
+   replaces its tokens. Refused with 409: an address that is already a non-Gmail mailbox in the
+   workspace, a Google account another member connected, and a Google account connected in another
+   workspace (two copies would each archive and delete without seeing the other's changes).
+   **Disconnecting** (`POST /connect/google/disconnect`, owner only) disables the mailbox, stops its
+   connection, revokes the grant at Google and deletes the mailbox with everything indexed from it;
+   Gmail still holds the mail. A revoke Google does not take is logged and does not block it:
+   deleting Omni's only copy of the token is what matters. Raw messages and attachments in object
+   storage are content-addressed and stay until a sweep removes unreferenced objects.
 4. **Tokens.** Access tokens live in memory, refreshed when less than five minutes remain, one
    refresh shared by every caller. The token from the code exchange is stored with the refresh
    token, so the first connect needs no refresh. A rejected login or SMTP `EAUTH` drops the cached
@@ -47,6 +54,8 @@ The spec once planned EmailEngine for this; its license costs more than the rest
    removes the Inbox label. Gmail files SMTP submissions in Sent itself, so Omni does not append a
    second copy. Threads follow Gmail's `X-GM-THRID`, so a conversation in Omni is the conversation
    in Gmail; the subject and References heuristics apply only to mail that has no Gmail thread id.
+   A message Omni indexed before its Gmail copy arrived (its own send) gets the id when the copy
+   syncs: its thread takes it, or the message moves to the thread that already has it.
 
 ## Consequences
 

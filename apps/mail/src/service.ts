@@ -18,7 +18,7 @@ import type { Logger } from "./log.ts";
 import { WorkerNotifier } from "./notify.ts";
 import { createS3Store } from "./objects.ts";
 import { PgActionSource, PgMailStore, PgSendFiles } from "./pg-store.ts";
-import { connectGoogle, createGoogleOAuth } from "./providers/gmail.ts";
+import { connectGoogle, createGoogleOAuth, disconnectGoogle } from "./providers/gmail.ts";
 import { createPurelymailClient } from "./providers/purelymail.ts";
 import { createProvisioner } from "./provisioning.ts";
 import { Supervisor } from "./supervisor.ts";
@@ -228,6 +228,18 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
             ),
         }
       : {}),
+    // Works without the OAuth client too: revoking needs none, and a self-hoster who removed it
+    // can still let people disconnect.
+    disconnectGoogle: (input) =>
+      disconnectGoogle(
+        {
+          db,
+          keyring: config.MAIL_CREDENTIALS_KEY,
+          stop: (mailboxId) => supervisor.retire(mailboxId),
+          logger: log,
+        },
+        input,
+      ),
     log: httpLog,
     dns: createDnsLookup({
       resolvers: config.DNS_RESOLVERS ?? [],

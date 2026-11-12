@@ -98,7 +98,8 @@ mailboxes added later.
 The Worker and the mail service call each other over HMAC-signed HTTP (`@omni/crypto`, 60 s
 window). The Worker pings `POST /ping` after writing to the outbox or adding a mailbox, and calls
 `POST /provision/domain`, `POST /provision/mailbox` and `POST /dns/lookup` during onboarding
-(ADR 0007, ADR 0010), and `POST /google/connect` with a Google authorization code (ADR 0023); the mail
+(ADR 0007, ADR 0010), and `POST /connect/google` and `POST /connect/google/disconnect` to connect
+and disconnect a Google account (ADR 0023); the mail
 service posts batches of `message.created` events to the Worker after indexing new mail. Paths
 and bodies are defined once in `packages/contracts`.
 

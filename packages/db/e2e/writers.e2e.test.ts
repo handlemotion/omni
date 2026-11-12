@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
 import { saveSummary } from "../src/ai-jobs.ts";
 import { createDb } from "../src/client.ts";
-import { rescheduleAction, setLocationFlags } from "../src/mail-sync.ts";
+import { moveMessageToThread, rescheduleAction, setLocationFlags } from "../src/mail-sync.ts";
 import {
   attachments,
   mailActions,
@@ -238,6 +238,48 @@ test("setLocationFlags rewrites the named folder's copies and leaves the same UI
   for (const untouched of [at(1, 1), at(1, 2), at(2, 1), at(2, 2)]) {
     expect(untouched).toMatchObject({ flags: [], modseq: null });
   }
+});
+
+describe("moveMessageToThread", () => {
+  test("Gmail regrouping a message moves it, drops the thread it emptied, and dates the new one", async () => {
+    const thread = (subjectKey: string, at: string) =>
+      createThread(db, {
+        orgId: org.id,
+        mailboxId: mailbox.id,
+        subjectKey,
+        lastMessageAt: new Date(at),
+      });
+    const ours = await thread("quote", "2026-10-01T00:00:00Z");
+    const gmails = await thread("quote v2", "2026-09-01T00:00:00Z");
+    const sentAt = new Date("2026-10-02T09:00:00Z");
+    const { id } = await upsertMessage(db, {
+      orgId: org.id,
+      mailboxId: mailbox.id,
+      threadId: ours,
+      folderId: null,
+      imapUid: null,
+      messageIdHeader: "<moved-1@example.test>",
+      inReplyTo: null,
+      references: [],
+      subject: "Quote v2",
+      fromName: null,
+      fromAddress: "inbox@writers.test",
+      to: [],
+      cc: [],
+      sentAt,
+      r2Key: "raw/moved-1.eml",
+      htmlR2Key: null,
+      cleanText: "",
+    });
+
+    await moveMessageToThread(db, { mailboxId: mailbox.id, messageId: id, threadId: gmails });
+
+    const [message] = await db.select().from(messages).where(eq(messages.id, id));
+    expect(message?.threadId).toBe(gmails);
+    expect(await db.select().from(threads).where(eq(threads.id, ours))).toEqual([]);
+    const [joined] = await db.select().from(threads).where(eq(threads.id, gmails));
+    expect(joined?.lastMessageAt.toISOString()).toBe(sentAt.toISOString());
+  });
 });
 
 describe("saveSummary", () => {

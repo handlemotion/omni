@@ -8,8 +8,10 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { schema } from "@omni/db";
+import { createMember } from "@omni/db/testing";
 import { eq } from "drizzle-orm";
 import {
+  GOOGLE_DISCONNECT_PATH,
   MAIL_EVENTS_PATH,
   MAIL_PING_PATH,
   type MailEvent,
@@ -549,5 +551,64 @@ describe("a Google account (ADR 0023)", () => {
       return (await client.search({ subject: "sent with a token" }, { uid: true })) || [];
     });
     expect(delivered).toHaveLength(1);
+  });
+
+  it("disconnects only for its owner: syncing stops, the mailbox and its mail are gone, a retry is fine", async () => {
+    const seeded = await seedMailbox(db);
+    const { box, orgId, ownerId } = seeded;
+    await db
+      .update(schema.mailboxes)
+      .set({ provider: "gmail" })
+      .where(eq(schema.mailboxes.id, box.id));
+    await setCredentials(
+      db,
+      box.id,
+      await sealCredentials(keyring, box.id, {
+        oauth: "google",
+        user: box.user,
+        // Not a grant Google issued: revoking it is refused, which must not block disconnecting.
+        refreshToken: `1//e2e-${randomUUID()}`,
+        accessToken: `ya29.e2e-${randomUUID()}`,
+        accessTokenExpiresAt: Date.now() + 60 * 60_000,
+        imap: box.imap,
+        smtp: box.smtp,
+      }),
+    );
+    const service = await startMailService({
+      GOOGLE_CLIENT_ID: "e2e.apps.googleusercontent.com",
+      GOOGLE_CLIENT_SECRET: "e2e-secret",
+    });
+    await connected(box.id);
+    await deliver(box.address, "before disconnecting");
+    await waitFor(async () => (await stored(db, box.id, "INBOX")).length > 0);
+
+    const disconnect = async (memberId: string) => {
+      const body = JSON.stringify({ orgId, memberId, mailboxId: box.id });
+      const headers = await signRequest({
+        secret,
+        method: "POST",
+        path: GOOGLE_DISCONNECT_PATH,
+        body,
+        nonce: randomUUID(),
+      });
+      const response = await fetch(`${serviceUrl}${GOOGLE_DISCONNECT_PATH}`, {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body,
+      });
+      return { status: response.status, json: (await response.json()) as unknown };
+    };
+
+    // A teammate in the same workspace cannot cut someone's personal Gmail.
+    const teammate = await createMember(db, orgId, "teammate");
+    expect((await disconnect(teammate.id)).status).toBe(404);
+    expect(await mailboxStatus(db, box.id)).toBe("active");
+
+    expect(await disconnect(ownerId)).toEqual({ status: 200, json: { mailboxId: box.id } });
+    expect(service.supervisor.has(box.id)).toBe(false);
+    expect(await mailboxStatus(db, box.id)).toBeUndefined();
+    expect(await messageRows(db, box.id)).toEqual([]);
+    // The Worker retries on a timeout; the second call finds nothing left to do.
+    expect(await disconnect(ownerId)).toEqual({ status: 200, json: { mailboxId: box.id } });
   });
 });

@@ -118,6 +118,15 @@ export class Supervisor {
     await connection?.stop();
   }
 
+  /**
+   * Removes the mailbox and waits for outbox work already running, so a send that started before
+   * finishes (or fails) before the caller deletes the mailbox's rows or revokes its credentials.
+   */
+  async retire(mailboxId: string): Promise<void> {
+    await this.remove(mailboxId);
+    await Promise.all(this.inFlight);
+  }
+
   /** Runs the outbox now. The HTTP ping lands here. */
   async ping(): Promise<void> {
     if (!this.running) return;

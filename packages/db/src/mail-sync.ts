@@ -753,3 +753,81 @@ export async function mailboxOwnerIds(db: Db, mailboxId: string): Promise<string
     .where(and(eq(mailboxAccess.mailboxId, mailboxId), eq(mailboxAccess.role, "owner")));
   return rows.map((row) => row.memberId);
 }
+
+/** Gmail mailboxes at `address` in any workspace: one Google account syncs into one place. */
+export function findGmailMailboxes(db: Db, address: string) {
+  return db
+    .select({ id: mailboxes.id, orgId: mailboxes.orgId })
+    .from(mailboxes)
+    .where(and(eq(mailboxes.provider, "gmail"), eq(mailboxes.address, address)));
+}
+
+/** A mailbox with what disconnecting it needs, scoped to its org; null when it is not there. */
+export async function findOrgMailboxById(db: Db, orgId: string, mailboxId: string) {
+  const [row] = await db
+    .select({
+      id: mailboxes.id,
+      kind: mailboxes.kind,
+      provider: mailboxes.provider,
+      credentialsEnc: mailboxes.credentialsEnc,
+    })
+    .from(mailboxes)
+    .where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.id, mailboxId)));
+  return row ?? null;
+}
+
+/**
+ * Deletes a mailbox and, through cascades, everything indexed from it (threads, messages,
+ * folders, grants, notes). Postgres is only an index of the provider's mail, so nothing is lost
+ * that the provider does not still hold. Idempotent.
+ */
+export async function deleteMailbox(db: Db, mailboxId: string) {
+  await db.delete(mailboxes).where(eq(mailboxes.id, mailboxId));
+}
+
+/**
+ * Files a stored message under another thread (the provider grouped it elsewhere). The thread it
+ * leaves is deleted when that left it empty, else its `last_message_at` is recomputed; the one it
+ * joins moves forward to the message when it is newer.
+ */
+export async function moveMessageToThread(
+  db: Db,
+  input: { mailboxId: string; messageId: string; threadId: string },
+) {
+  await db.transaction(async (tx) => {
+    const [moved] = await tx
+      .select({ from: messages.threadId, sentAt: messages.sentAt })
+      .from(messages)
+      .where(and(eq(messages.mailboxId, input.mailboxId), eq(messages.id, input.messageId)));
+    if (!moved || moved.from === input.threadId) return;
+    await tx
+      .update(messages)
+      .set({ threadId: input.threadId, updatedAt: new Date() })
+      .where(eq(messages.id, input.messageId));
+    await tx
+      .update(threads)
+      .set({
+        lastMessageAt: sql`greatest(${threads.lastMessageAt}, ${moved.sentAt.toISOString()}::timestamptz)`,
+        updatedAt: new Date(),
+      })
+      .where(eq(threads.id, input.threadId));
+    const [emptied] = await tx
+      .delete(threads)
+      .where(
+        and(
+          eq(threads.id, moved.from),
+          sql`not exists (select 1 from ${messages} m where m.thread_id = ${threads.id})`,
+        ),
+      )
+      .returning({ id: threads.id });
+    if (!emptied) {
+      await tx
+        .update(threads)
+        .set({
+          lastMessageAt: sql`(select max(m.sent_at) from ${messages} m where m.thread_id = ${threads.id})`,
+          updatedAt: new Date(),
+        })
+        .where(eq(threads.id, moved.from));
+    }
+  });
+}

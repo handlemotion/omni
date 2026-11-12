@@ -4,12 +4,26 @@
 // IMAP and SMTP. Endpoints follow Google's OAuth 2.0 web-server flow
 // (https://developers.google.com/identity/protocols/oauth2/web-server).
 import { randomUUIDv7 } from "node:crypto";
-import type { GoogleConnectBody, GoogleConnectResult } from "@omni/contracts";
+import type {
+  GoogleConnectBody,
+  GoogleConnectResult,
+  GoogleDisconnectBody,
+  googleDisconnectResultSchema,
+} from "@omni/contracts";
 import type { Keyring } from "@omni/crypto";
-import { type Db, findOrgMailbox, mailboxOwnerIds, saveMailbox } from "@omni/db";
+import {
+  type Db,
+  deleteMailbox,
+  findGmailMailboxes,
+  findOrgMailbox,
+  findOrgMailboxById,
+  mailboxOwnerIds,
+  saveMailbox,
+  setMailboxStatus,
+} from "@omni/db";
 import { z } from "zod";
 import type { GoogleCredentials } from "../credentials.ts";
-import { sealCredentials } from "../credentials.ts";
+import { openCredentials, sealCredentials } from "../credentials.ts";
 import type { Logger } from "../log.ts";
 import type { ServerEndpoint, TokenSource } from "../mailbox-connection.ts";
 import { ProvisionError } from "../provisioning.ts";
@@ -161,19 +175,25 @@ export function createGoogleOAuth(
       return { value: data.access_token, expiresAt: Date.now() + data.expires_in * 1000 };
     },
 
-    async revoke(value) {
-      const response = await fetchImpl(REVOKE_URL, {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ token: value }),
-        signal: AbortSignal.timeout(20_000),
-      });
-      // 400 invalid_token: already revoked or expired, which is the state we wanted.
-      if (!response.ok && response.status !== 400) {
-        throw new GoogleOAuthError(`http_${response.status}`, "revoke failed");
-      }
-    },
+    revoke: (value) => revokeGoogleToken(value, fetchImpl),
   };
+}
+
+/**
+ * Revokes a token at Google, and with it the whole grant (a refresh token's access tokens too).
+ * Needs no client credentials, so a mailbox can be disconnected after the client was removed.
+ */
+export async function revokeGoogleToken(value: string, fetchImpl: typeof fetch = fetch) {
+  const response = await fetchImpl(REVOKE_URL, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token: value }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  // 400 invalid_token: already revoked or expired, which is the state we wanted.
+  if (!response.ok && response.status !== 400) {
+    throw new GoogleOAuthError(`http_${response.status}`, "revoke failed");
+  }
 }
 
 /**
@@ -233,15 +253,15 @@ export async function connectGoogle(
     if (error instanceof ProvisionError) throw error;
     // A used, expired or mistyped code: the person starts again from the Connect button.
     if (error instanceof GoogleGrantRevoked) {
-      throw new ProvisionError(422, "Google refused the sign-in code: connect again");
+      throw new ProvisionError(400, "Google refused the sign-in code: connect again");
     }
     logger.warn("google.exchange_failed", { error });
     throw new ProvisionError(502, "Google could not be reached: try again");
   }
 
-  // One save per account at a time: two consent flows finishing together would otherwise both
-  // see no mailbox and race on (org, address), and the loser's code is already spent.
-  const key = `${input.orgId}\n${grant.email}`;
+  // One save per Google account at a time, across workspaces: two consent flows finishing together
+  // would otherwise both pass the "connected elsewhere" check, or race on (org, address).
+  const key = grant.email;
   const previous = saving.get(key) ?? Promise.resolve();
   const run = previous.catch(() => {}).then(() => save(deps, input, grant));
   saving.set(key, run);
@@ -252,7 +272,7 @@ export async function connectGoogle(
   }
 }
 
-/** Saves in flight per (org, address). This service runs as one machine (ADR 0004). */
+/** Saves in flight per Google account. This service runs as one machine (ADR 0004). */
 const saving = new Map<string, Promise<GoogleConnectResult>>();
 
 async function save(
@@ -262,6 +282,12 @@ async function save(
 ): Promise<GoogleConnectResult> {
   const { db, keyring, logger } = deps;
   const address = grant.email;
+  // One Google account syncs into one workspace: two would each archive, delete and send as the
+  // same person without seeing the other's changes until the next sync.
+  const elsewhere = await findGmailMailboxes(db, address);
+  if (elsewhere.some((row) => row.orgId !== input.orgId)) {
+    throw new ProvisionError(409, `${address} is connected in another workspace`);
+  }
   const existing = await findOrgMailbox(db, input.orgId, address);
   if (existing && existing.provider !== "gmail") {
     throw new ProvisionError(409, `${address} is already a mailbox in this workspace`);
@@ -301,6 +327,48 @@ async function save(
 
 /** The scopes as Google's authorization URL wants them. */
 export const GOOGLE_SCOPE_PARAM = GOOGLE_MAIL_SCOPES.join(" ");
+
+/**
+ * Disconnects a member's Google account: Omni stops syncing it, revokes the grant at Google and
+ * deletes the mailbox with everything indexed from it (Gmail still holds the mail). Only the
+ * mailbox's owner can, and a mailbox already gone answers as disconnected, so a retry is safe.
+ */
+export async function disconnectGoogle(
+  deps: {
+    db: Db;
+    keyring: Keyring;
+    /** Stops the mailbox's connection and waits for outbox work already running on it. */
+    stop(mailboxId: string): Promise<void>;
+    logger: Logger;
+  },
+  input: GoogleDisconnectBody,
+): Promise<z.infer<typeof googleDisconnectResultSchema>> {
+  const { db, logger } = deps;
+  const mailbox = await findOrgMailboxById(db, input.orgId, input.mailboxId);
+  if (!mailbox) return { mailboxId: input.mailboxId };
+  const owners = await mailboxOwnerIds(db, mailbox.id);
+  if (
+    mailbox.provider !== "gmail" ||
+    mailbox.kind !== "personal" ||
+    !owners.includes(input.memberId)
+  ) {
+    throw new ProvisionError(404, "No such Google account");
+  }
+  // Disabled first, so a reconcile running now does not connect it again.
+  await setMailboxStatus(db, mailbox.id, "disabled");
+  await deps.stop(mailbox.id);
+  try {
+    const credentials = await openCredentials(deps.keyring, mailbox.id, mailbox.credentialsEnc);
+    if ("oauth" in credentials) await revokeGoogleToken(credentials.refreshToken);
+  } catch (error) {
+    // Deleting the only copy of the token is what protects the account; a revoke Google did not
+    // take leaves a grant nobody holds, which the person can also remove in their Google account.
+    logger.warn("google.revoke_failed", { mailboxId: mailbox.id, error });
+  }
+  await deleteMailbox(db, mailbox.id);
+  logger.info("google.disconnected", { orgId: input.orgId, mailboxId: mailbox.id });
+  return { mailboxId: mailbox.id };
+}
 
 function decodeJwtPayload(jwt: string): unknown {
   const payload = jwt.split(".")[1];

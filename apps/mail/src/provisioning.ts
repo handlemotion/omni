@@ -26,8 +26,8 @@ import { verifyImapLogin } from "./verify-login.ts";
 /** A refusal the Worker passes on to the member, with the status to use. */
 export class ProvisionError extends Error {
   override name = "ProvisionError";
-  readonly status: 400 | 409 | 422 | 502;
-  constructor(status: 400 | 409 | 422 | 502, message: string) {
+  readonly status: 400 | 404 | 409 | 422 | 502;
+  constructor(status: 400 | 404 | 409 | 422 | 502, message: string) {
     super(message);
     this.status = status;
   }

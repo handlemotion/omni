@@ -22,6 +22,7 @@ import {
   hasLocation,
   markActionSmtpAccepted,
   messageThread,
+  moveMessageToThread,
   nextActionDue,
   sendAttachmentFiles,
   orphanedMessages,
@@ -161,6 +162,17 @@ export class PgMailStore implements MailStore {
       const result = await this.insert(mailboxId, mailbox, folder.id, fetched, parsed);
       stored = { id: result.id, threadId: result.threadId };
       inserted = result.inserted;
+    } else if (fetched.providerThreadId) {
+      // Indexed before Gmail's copy arrived (our own send, stored as SMTP accepted it): the
+      // message's thread takes Gmail's id, or the message moves to the thread that has it.
+      const providerThreadId = fetched.providerThreadId;
+      const found = stored;
+      await this.oneAtATime(mailboxId, () =>
+        this.followProviderThread(mailboxId, mailbox, found, providerThreadId, {
+          subjectKey: normalizeSubject(message.subject),
+          lastMessageAt: message.sentAt ?? fetched.internalDate ?? new Date(),
+        }),
+      );
     }
 
     const created = await addLocation(this.db, {
@@ -314,6 +326,27 @@ export class PgMailStore implements MailStore {
         })),
       });
     });
+  }
+
+  private async followProviderThread(
+    mailboxId: string,
+    mailbox: MailboxRow,
+    stored: { id: string; threadId: string },
+    providerThreadId: string,
+    fresh: { subjectKey: string; lastMessageAt: Date },
+  ) {
+    const known = await findThreadByProviderId(this.db, mailboxId, providerThreadId);
+    if (known === stored.threadId) return;
+    if (!known && (await claimProviderThread(this.db, stored.threadId, providerThreadId))) return;
+    const threadId =
+      known ??
+      (await createThread(this.db, {
+        orgId: mailbox.orgId,
+        mailboxId,
+        ...fresh,
+        providerThreadId,
+      }));
+    await moveMessageToThread(this.db, { mailboxId, messageId: stored.id, threadId });
   }
 
   private oneAtATime<T>(mailboxId: string, task: () => Promise<T>): Promise<T> {
