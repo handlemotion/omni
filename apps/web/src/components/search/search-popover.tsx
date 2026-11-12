@@ -103,7 +103,7 @@ export function SearchPopover() {
         ref={triggerRef}
         onPress={open}
         aria-label="Search"
-        className="flex h-8 w-60 cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 pe-1.25 text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70"
+        className="flex h-7 w-60 cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 pe-0.75 text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70"
       >
         <IconSearch className="text-muted-foreground" />
         <span className="flex-1 text-start">Search</span>

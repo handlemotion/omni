@@ -296,7 +296,7 @@ export function SharedMailboxesPage() {
                 description={canManage ? undefined : "An owner or admin can add you to one."}
                 action={
                   canAdd && (
-                    <Button size="xs" intent="outline" onPress={() => setAdding(true)}>
+                    <Button size="sm" intent="outline" onPress={() => setAdding(true)}>
                       <IconPlus data-slot="icon" />
                       Add a shared mailbox
                     </Button>
@@ -382,7 +382,7 @@ function MailboxAccessDialog(props: {
               action={
                 canManage &&
                 addable.length > 0 && (
-                  <Button size="xs" intent="outline" onPress={() => setDialog({ kind: "add" })}>
+                  <Button size="sm" intent="outline" onPress={() => setDialog({ kind: "add" })}>
                     <IconPlus data-slot="icon" />
                     Add a person
                   </Button>

@@ -42,41 +42,35 @@ export const buttonStyles = tv({
       // press are a quiet 4% wash of the foreground (as on secondary), not a grey fill.
       outline:
         "shadow-(--shadow-button) border-border [--btn-bg:var(--color-background)] [--btn-foreground:var(--color-black)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:color-mix(in_oklab,var(--color-foreground)_4%,var(--color-background))] [--btn-ring:var(--color-ring)]/20",
+      // Plain until hovered, then a borderless grey backdrop: toolbars of icon actions.
+      ghost:
+        "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-accent)] [--btn-ring:var(--color-ring)]/20",
       plain:
         "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:transparent] [--btn-ring:var(--color-ring)]/20",
     },
-    // Icons grow with the button, so a glyph's ink balances the 13px label beside it: 14px at
-    // xs (28px), 16px at md (32px), 17px at lg (36px).
+    // The control scale: sm 28px, md 32px, lg 40px. Icons grow with the button, so a glyph's ink
+    // balances the 13px label beside it: 14px at sm, 16px at md, 18px at lg.
     size: {
-      xs: ["h-7 gap-x-2.5 px-2 text-sm", "*:[svg]:size-3.5", "*:data-[slot=loader]:size-3.5"],
-      sm: [
-        "min-h-9 gap-x-1.5 px-3 py-[calc(--spacing(2)-1px)] sm:min-h-8 sm:px-[calc(--spacing(3)-1px)] sm:py-[calc(--spacing(1.5)-1px)] sm:text-sm/5",
-        "*:[svg]:size-4.5 sm:*:[svg]:size-4",
-        "*:data-[slot=loader]:size-4.5 sm:*:data-[slot=loader]:size-4",
-      ],
-      md: ["h-8 gap-x-2.5 px-2 text-sm", "*:[svg]:size-4", "*:data-[slot=loader]:size-4"],
-      lg: ["h-9 gap-x-2.5 px-2.5 text-sm", "*:[svg]:size-4.25", "*:data-[slot=loader]:size-4.25"],
+      sm: ["h-7 gap-x-2 px-2.5 text-sm", "*:[svg]:size-3.5", "*:data-[slot=loader]:size-3.5"],
+      md: ["h-8 gap-x-2.5 px-2.5 text-sm", "*:[svg]:size-4", "*:data-[slot=loader]:size-4"],
+      lg: ["h-10 gap-x-2.5 px-3 text-sm", "*:[svg]:size-4.5", "*:data-[slot=loader]:size-4.5"],
       "sq-xs": [
         "touch-target size-6.5 shrink-0",
         "*:[svg]:size-icon",
         "*:data-[slot=loader]:size-icon",
       ],
+      // Icon-only squares on the same scale: 28, 32 and 40px.
       "sq-sm": [
-        "touch-target size-10 shrink-0 sm:size-8",
-        "*:[svg]:size-4.5 sm:*:[svg]:size-4",
-        "*:data-[slot=loader]:size-4.5 sm:*:data-[slot=loader]:size-4",
+        "touch-target size-7 shrink-0",
+        "*:[svg]:size-icon",
+        "*:data-[slot=loader]:size-icon",
       ],
-      "sq-md": [
-        "touch-target size-11 shrink-0 sm:size-9",
-        "*:[svg]:size-5 sm:*:[svg]:size-4.5",
-        "*:data-[slot=loader]:size-5 sm:*:data-[slot=loader]:size-4.5",
-      ],
+      "sq-md": ["touch-target size-8 shrink-0", "*:[svg]:size-4", "*:data-[slot=loader]:size-4"],
       "sq-lg": [
-        "touch-target size-12 shrink-0 sm:size-10",
-        "*:[svg]:size-6 sm:*:[svg]:size-5",
-        "*:data-[slot=loader]:size-6 sm:*:data-[slot=loader]:size-5",
+        "touch-target size-10 shrink-0",
+        "*:[svg]:size-4.5",
+        "*:data-[slot=loader]:size-4.5",
       ],
-      // An action tucked inside a field, e.g. the submit arrow at the end of an input.
       inset: "size-4.5 shrink-0 border-0",
     },
 

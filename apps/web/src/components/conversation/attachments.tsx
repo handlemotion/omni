@@ -35,7 +35,7 @@ export function AttachmentChips({
             href={attachmentUrl(threadId, file.id)}
             target="_blank"
             rel="noreferrer"
-            className={buttonStyles({ intent: "outline", size: "xs", className: "max-w-64" })}
+            className={buttonStyles({ intent: "outline", size: "sm", className: "max-w-64" })}
           >
             <IconPaperclip />
             <span className="truncate">{file.filename || "Attachment"}</span>

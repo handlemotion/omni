@@ -129,8 +129,8 @@ export function List(
           listHidden={hideList}
         />
       )}
-      {/* 8px on the right, the same as the controls' inset from the top. */}
-      <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2">
+      {/* 10px on the right, the same as the 28px controls' inset from the top. */}
+      <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2.5">
         {/* 1px down: centers the title's capitals on the sidebar header's icons. */}
         <Heading className="translate-y-px">
           {props.title}
@@ -141,7 +141,7 @@ export function List(
           <Link
             href="/compose"
             aria-keyshortcuts={ariaKeyShortcuts("compose")}
-            className={buttonStyles({ intent: "primary" })}
+            className={buttonStyles({ intent: "primary", size: "sm" })}
           >
             <PencilSquareIcon />
             Compose
@@ -155,7 +155,9 @@ export function List(
           style={split ? { width: listWidth.width } : undefined}
           className={`flex min-w-0 flex-col ${split ? "flex-none" : "flex-1"} ${hideList ? "hidden" : ""}`}
         >
-          <div className="flex h-10.5 items-center gap-2 border-b px-5">
+          {/* pb-0.5 lifts the row 1px: under the borderless header the true middle reads low.
+              The reader's toolbar beside it does the same, so the two stay on one line. */}
+          <div className="flex h-10.5 items-center gap-2 border-b px-5 pb-0.5">
             <CheckboxField
               aria-label="Select all"
               isSelected={threads.length > 0 && count === threads.length}
@@ -164,7 +166,10 @@ export function List(
             >
               <Checkbox />
             </CheckboxField>
-            <span className="text-xs text-subtle-foreground">{props.caption ?? "Most recent"}</span>
+            {/* 1px down: the caption's ink centers on the checkbox's, not its line box. */}
+            <span className="translate-y-px text-xs text-subtle-foreground">
+              {props.caption ?? "Most recent"}
+            </span>
           </div>
 
           {/* Only the rows on screen are in the DOM, so thousands of threads scroll like fifty.

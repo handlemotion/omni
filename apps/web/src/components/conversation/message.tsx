@@ -57,7 +57,7 @@ export function MessageItem({ threadId, message }: { threadId: string; message: 
   const toggle = message.hasHtml && (
     <Button
       intent="plain"
-      size="xs"
+      size="sm"
       // Its label lines up with the text of the bubble or card above it.
       className={`text-muted-foreground ${mine ? "me-1" : card ? "-ms-2" : "ms-1"}`}
       onPress={() => setFull((open) => !open)}

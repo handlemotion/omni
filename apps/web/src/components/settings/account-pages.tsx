@@ -337,7 +337,7 @@ export function SecurityPage() {
                 title="No passkeys yet"
                 action={
                   <Button
-                    size="xs"
+                    size="sm"
                     intent="outline"
                     isPending={addPasskey.isPending}
                     onPress={addOne}

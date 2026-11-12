@@ -254,7 +254,7 @@ function DomainsSection() {
             <SettingsEmptyState
               title="No domains yet"
               action={
-                <Button size="xs" intent="outline" onPress={() => setDialog({ kind: "add" })}>
+                <Button size="sm" intent="outline" onPress={() => setDialog({ kind: "add" })}>
                   <IconPlus data-slot="icon" />
                   Add a domain
                 </Button>

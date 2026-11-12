@@ -203,7 +203,7 @@ function StepList(props: {
             <li key={p}>
               <Button
                 intent="plain"
-                size="xs"
+                size="sm"
                 className="w-full justify-start gap-2.5 px-1.5 text-start"
                 isDisabled={!current && !props.reachable(p)}
                 aria-current={current ? "step" : undefined}

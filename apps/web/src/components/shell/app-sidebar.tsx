@@ -112,7 +112,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-0.5">
           <Button
             intent="plain"
-            size="xs"
+            size="sm"
             aria-keyshortcuts={ariaKeyShortcuts("settings")}
             onPress={() => openSettings()}
           >

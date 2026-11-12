@@ -460,7 +460,7 @@ function CardsSection({ billing }: { billing: EnabledBilling | undefined }) {
               title="No saved cards"
               action={
                 <Button
-                  size="xs"
+                  size="sm"
                   intent="outline"
                   isPending={!state.addCard && (portal.isPending || portal.isSuccess)}
                   onPress={() => addCard(state.addCard)}

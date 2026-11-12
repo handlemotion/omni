@@ -137,7 +137,9 @@ function Actions({ thread }: { thread: Thread }) {
   const [fullScreen, toggleFullScreen] = useFullScreen();
 
   return (
-    <div className="flex h-10.5 shrink-0 items-center justify-end gap-1 border-b pe-2">
+    // pb-0.5 lifts the icons 1px, in line with the list's header row beside it; pe-1.5
+    // matches the 28px buttons' inset from the top.
+    <div className="flex h-10.5 shrink-0 items-center justify-end gap-1 border-b pe-1.5 pb-0.5">
       <Action label="Archive" onPress={() => archive.mutate({ threadId })}>
         <IconArchive />
       </Action>
@@ -178,7 +180,7 @@ function Actions({ thread }: { thread: Thread }) {
 function Action(props: { label: string; onPress: () => void; children: ReactNode }) {
   return (
     <TooltipTrigger delay={400}>
-      <Button intent="plain" size="sq-xs" aria-label={props.label} onPress={props.onPress}>
+      <Button intent="ghost" size="sq-sm" aria-label={props.label} onPress={props.onPress}>
         {props.children}
       </Button>
       <Tooltip>{props.label}</Tooltip>
