@@ -152,7 +152,11 @@ describe("explicit actions", () => {
     expect(thread!.archived).toBe(true);
     await mailService.waitFor(1);
 
-    // The mail service filed it: the copy now lives in Archive.
+    // The mail service filed it: the archive ran and the copy now lives in Archive.
+    await db
+      .update(schema.mailActions)
+      .set({ status: "done" })
+      .where(eq(schema.mailActions.mailboxId, desk.inbox.id));
     await db
       .delete(schema.messageLocations)
       .where(eq(schema.messageLocations.messageId, asked.messageId));
@@ -244,6 +248,54 @@ describe("explicit actions", () => {
     });
     expect(await removed.json()).toMatchObject({ changed: true });
     expect((await conversation(threadId, desk.anaCookie)).tags).toEqual([]);
+  });
+
+  test("undoing a resolve before the archive runs cancels it, so the mail never leaves INBOX", async () => {
+    const { db } = database;
+    const desk = await supportDesk("undo");
+    const { threadId } = await seedMessage(db, desk.inbox, {
+      subject: "Undo me",
+      fromAddress: "x@client.test",
+      uid: 1,
+    });
+    await post(`/threads/${threadId}/resolve`, desk.anaCookie);
+    const [archive] = await db
+      .select({ runAfter: schema.mailActions.runAfter })
+      .from(schema.mailActions)
+      .where(eq(schema.mailActions.mailboxId, desk.inbox.id));
+    // Not claimable yet: the undo window is still open.
+    expect(archive!.runAfter.getTime()).toBeGreaterThan(Date.now());
+
+    await post(`/threads/${threadId}/reopen`, desk.anaCookie);
+    expect(await queued(db, desk.inbox.id)).toEqual([]);
+    const [thread] = await db
+      .select({ archived: schema.threads.archived, status: schema.threads.status })
+      .from(schema.threads)
+      .where(eq(schema.threads.id, threadId));
+    expect(thread).toEqual({ archived: false, status: "open" });
+  });
+
+  test("a retried request does not undo a teammate's change made in between", async () => {
+    const { db } = database;
+    const desk = await supportDesk("retry");
+    const beaCookie = await signIn(worker, db, "bea@retry.test");
+    const { threadId } = await seedMessage(db, desk.inbox, {
+      subject: "Retry",
+      fromAddress: "x@client.test",
+      uid: 1,
+    });
+    const key = { "idempotency-key": `assign-${randomUUID()}` };
+    const assignToAna = () =>
+      api(`/threads/${threadId}/assignee`, desk.anaCookie, {
+        method: "PUT",
+        headers: key,
+        body: JSON.stringify({ memberId: desk.ana.id }),
+      });
+    expect(await (await assignToAna()).json()).toMatchObject({ changed: true });
+    await put(`/threads/${threadId}/assignee`, beaCookie, { memberId: desk.bea.id });
+    // Ana's client retries after a timeout: Bea keeps it.
+    expect(await (await assignToAna()).json()).toMatchObject({ changed: false });
+    expect((await conversation(threadId, desk.anaCookie)).assigneeMemberId).toBe(desk.bea.id);
   });
 
   test("a personal mailbox has no conversation workflow", async () => {
@@ -346,7 +398,7 @@ describe("ingest", () => {
     ]);
   });
 
-  test("a Sent copy indexed after the customer already answered does not make it pending", async () => {
+  test("a Sent copy indexed after the customer already answered does not make it pending, but counts as the first response", async () => {
     const { db } = database;
     const desk = await supportDesk("late-sent");
     const t0 = Date.now() - 60_000;
@@ -373,7 +425,10 @@ describe("ingest", () => {
     });
     await created(desk, asked.threadId, answer.messageId);
     await created(desk, asked.threadId, reply.messageId, "sent");
-    expect((await conversation(asked.threadId, desk.anaCookie)).status).toBe("open");
+    const state = await conversation(asked.threadId, desk.anaCookie);
+    expect(state.status).toBe("open");
+    // It still answered the first question.
+    expect(state.firstRespondedAt).toBe(new Date(t0 + 1_000).toISOString());
   });
 });
 

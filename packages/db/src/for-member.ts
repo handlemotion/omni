@@ -13,6 +13,7 @@ import {
   threadTags,
   threads,
   triageBucket,
+  users,
 } from "./schema/index.ts";
 
 /** Triage at or above this confidence files itself; below it lands in the Unsure lane. */
@@ -394,6 +395,60 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
       if (!conversation) return null;
       // A user's grants can show a thread through one member only (one per org), so no duplicates.
       return { ...conversation, tags: tagRows, events };
+    },
+
+    /** A shared or personal inbox's tags by name. Null when no grantee can see the inbox. */
+    async listTags(mailboxId: string) {
+      const [mailboxGrant, mailboxOrg] = access(mailboxes.id, mailboxes.orgId);
+      const [[visible], rows] = await Promise.all([
+        db
+          .select({ id: mailboxes.id })
+          .from(mailboxes)
+          .innerJoin(...mailboxGrant)
+          .innerJoin(...mailboxOrg)
+          .where(eq(mailboxes.id, mailboxId))
+          .limit(1),
+        db
+          .select({ id: tags.id, name: tags.name, color: tags.color })
+          .from(tags)
+          .innerJoin(mailboxes, eq(mailboxes.id, tags.mailboxId))
+          .innerJoin(...mailboxGrant)
+          .innerJoin(...mailboxOrg)
+          .where(eq(tags.mailboxId, mailboxId))
+          .orderBy(sql`lower(${tags.name})`, tags.id),
+      ]);
+      return visible ? rows : null;
+    },
+
+    /**
+     * Who a conversation in this inbox can be assigned to: every member of the inbox's org who
+     * can see it, by name. Null when no grantee can see the inbox.
+     */
+    async mailboxAssignees(mailboxId: string) {
+      const [mailboxGrant, mailboxOrg] = access(mailboxes.id, mailboxes.orgId);
+      const [[visible], rows] = await Promise.all([
+        db
+          .select({ id: mailboxes.id })
+          .from(mailboxes)
+          .innerJoin(...mailboxGrant)
+          .innerJoin(...mailboxOrg)
+          .where(eq(mailboxes.id, mailboxId))
+          .limit(1),
+        db.execute(sql`
+          select am.id as "memberId", u.name, u.email, u.image
+          from ${mailboxes} mb
+          join ${mailboxAccess} ga on ga.mailbox_id = mb.id and ${isGrantee(sql`ga.member_id`)}
+          join ${members} gm on gm.id = ga.member_id and gm.organization_id = mb.org_id
+          join ${mailboxAccess} aa on aa.mailbox_id = mb.id
+          join ${members} am on am.id = aa.member_id and am.organization_id = mb.org_id
+          join ${users} u on u.id = am.user_id
+          where mb.id = ${mailboxId}
+          order by u.name, am.id`),
+      ]);
+      if (!visible) return null;
+      return (
+        rows as unknown as { memberId: string; name: string; email: string; image: string | null }[]
+      ).map((r) => ({ memberId: r.memberId, name: r.name, email: r.email, image: r.image }));
     },
 
     async getThread(threadId: string) {

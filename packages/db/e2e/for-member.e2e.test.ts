@@ -105,6 +105,16 @@ describe("forMember isolation", () => {
     expect(await asAlice.getThread(ops.threadId)).toBeNull();
     expect((await asAlice.getConversation(hello.threadId))?.status).toBe("open");
     expect(await asAlice.getConversation(billing.threadId)).toBeNull();
+    const [aliceThread, billingThread] = await Promise.all([
+      asAlice.getThread(hello.threadId),
+      forMember(db, bob).getThread(billing.threadId),
+    ]);
+    expect(await asAlice.listTags(aliceThread!.mailboxId)).toEqual([]);
+    expect(await asAlice.listTags(billingThread!.mailboxId)).toBeNull();
+    expect(
+      (await asAlice.mailboxAssignees(aliceThread!.mailboxId))?.map((m) => m.memberId),
+    ).toEqual([alice]);
+    expect(await asAlice.mailboxAssignees(billingThread!.mailboxId)).toBeNull();
     expect(await asAlice.search("flamingo")).toEqual([]);
     expect(await asAlice.search("albatross")).toEqual([]);
 
@@ -122,6 +132,13 @@ describe("forMember isolation", () => {
     expect(await asCarol.search("pelican")).toEqual([]);
     expect(await asCarol.setThreadState(hello.threadId, { read: true })).toBeNull();
     expect(await asCarol.getConversation(hello.threadId)).toBeNull();
+    const helloBox = (await forMember(db, alice).getThread(hello.threadId))!.mailboxId;
+    expect(await asCarol.listTags(helloBox)).toBeNull();
+    expect(await asCarol.mailboxAssignees(helloBox)).toBeNull();
+    // Nor is she listed as someone hello@ can be assigned to: her grant crosses orgs.
+    expect((await forMember(db, alice).mailboxAssignees(helloBox))?.map((m) => m.memberId)).toEqual(
+      [alice],
+    );
     expect(
       await applyConversationChange(db, {
         threadId: hello.threadId,

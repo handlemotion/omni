@@ -7,8 +7,6 @@ import {
   createTag,
   deleteTag,
   forMember,
-  listTags,
-  mailboxAssignees,
   PRIORITIES,
   updateTag,
   type ChangeResult,
@@ -55,8 +53,8 @@ function notFound(): never {
 
 /**
  * Applies `change` as this member, then tells the inbox's members and the mail service. A retry
- * changes nothing (each change sets an absolute value, and filing is keyed by the transition),
- * so the idempotency key only has to be well formed.
+ * under the same Idempotency-Key changes nothing once the first attempt did, so it cannot undo a
+ * teammate's change made in between.
  */
 async function applyChange(c: Context<AppEnv>, threadId: string, change: ConversationChange) {
   const result: ChangeResult = await applyConversationChange(c.var.db, {
@@ -64,6 +62,7 @@ async function applyChange(c: Context<AppEnv>, threadId: string, change: Convers
     actorMemberId: c.var.member.id,
     change,
     requestId: c.var.requestId,
+    idempotencyKey: c.req.header("idempotency-key"),
   });
   if (!result.ok) {
     const [status, message] = failures[result.reason];
@@ -133,13 +132,15 @@ export const conversations = new Hono<AppEnv>()
 
   /** Who conversations in this inbox can be assigned to. */
   .get("/mailboxes/:id/assignees", async (c) => {
-    const assignees = await mailboxAssignees(c.var.db, c.var.member.id, c.req.param("id"));
+    const assignees = await forMember(c.var.db, c.var.member.id).mailboxAssignees(
+      c.req.param("id"),
+    );
     if (!assignees) notFound();
     return c.json({ assignees });
   })
 
   .get("/mailboxes/:id/tags", async (c) => {
-    const tags = await listTags(c.var.db, c.var.member.id, c.req.param("id"));
+    const tags = await forMember(c.var.db, c.var.member.id).listTags(c.req.param("id"));
     if (!tags) notFound();
     return c.json({ tags });
   })
