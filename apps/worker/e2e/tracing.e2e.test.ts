@@ -137,6 +137,8 @@ async function setUpMember() {
     const [row] = await db.select().from(schema.threads).where(eq(schema.threads.mailboxId, id));
     return row;
   });
+  // The first full pass runs behind readiness; let it finish so it cannot undo a test's edits.
+  await waitUntil(() => mailLog.some((l) => l.event === "sync.all_done" && l.mailboxId === id));
   return {
     orgId: org.id,
     mailboxId: id,

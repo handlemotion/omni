@@ -93,7 +93,7 @@ export interface ConnectionOptions {
 
 type Events = {
   message: [NewMessageEvent];
-  /** Logged in and the first full sync finished: outbox actions run from here on. */
+  /** Logged in and INBOX synced: outbox actions run from here on, other folders sync next. */
   connected: [Capabilities];
   disconnected: [];
   /** The server rejected the credentials. Retried at the backoff ceiling, up to `maxAuthFailures`. */
@@ -187,7 +187,7 @@ export class MailboxConnection extends EventEmitter<Events> {
     return this.client?.usable === true;
   }
 
-  /** Connected and past the first full sync. */
+  /** Connected and past the first INBOX sync. */
   get isReady(): boolean {
     return this.ready && this.connected;
   }
@@ -232,17 +232,21 @@ export class MailboxConnection extends EventEmitter<Events> {
    * everywhere: the pass ends by deleting it (and a thread left empty).
    */
   syncAll(): Promise<FolderSyncResult[]> {
-    this.syncingAll ??= this.enqueue(async () => {
+    // Each folder is its own queue task, so an outbox action waits for one folder, not the pass.
+    this.syncingAll ??= (async () => {
       try {
-        const orphans = await this.store.orphanedMessages(this.mailbox.id);
-        await this.discoverFolders();
+        const { orphans, ordered } = await this.enqueue(async () => {
+          const orphans = await this.store.orphanedMessages(this.mailbox.id);
+          await this.discoverFolders();
+          const inbox = this.inbox();
+          const ordered = [...this.folders.filter((f) => f !== inbox), ...(inbox ? [inbox] : [])];
+          return { orphans, ordered };
+        });
         const results: FolderSyncResult[] = [];
         let clean = true;
-        const inbox = this.inbox();
-        const ordered = [...this.folders.filter((f) => f !== inbox), ...(inbox ? [inbox] : [])];
         for (const folder of ordered) {
           try {
-            const result = await this.syncFolderNow(folder.path);
+            const result = await this.enqueue(() => this.syncFolderNow(folder.path));
             if (result.failed > 0) clean = false;
             results.push(result);
           } catch (error) {
@@ -253,14 +257,17 @@ export class MailboxConnection extends EventEmitter<Events> {
           }
         }
         if (clean && orphans.length > 0) {
-          const pruned = await this.store.pruneMessages(this.mailbox.id, orphans);
+          const pruned = await this.enqueue(() =>
+            this.store.pruneMessages(this.mailbox.id, orphans),
+          );
           if (pruned.messages > 0) this.log.info("sync.pruned", pruned);
         }
+        this.log.info("sync.all_done", { folders: results.length, clean });
         return results;
       } finally {
         this.syncingAll = null;
       }
-    });
+    })();
     return this.syncingAll;
   }
 
@@ -386,6 +393,19 @@ export class MailboxConnection extends EventEmitter<Events> {
       this.emit("connected", this.capabilities as Capabilities);
       this.log.info("imap.connected");
       this.started?.resolve();
+      // INBOX is in; every other folder follows behind whatever the app asks for first. The
+      // import takes a `gate` permit like a connect does, so a fleet reconnecting at once imports
+      // `concurrency` archives at a time, not all of them.
+      void Effect.runPromise(
+        Semaphore.withPermit(
+          this.gate,
+          Effect.promise(() =>
+            this.syncAll().catch((error: unknown) => {
+              if (!this.stopped && this.connected) this.log.warn("sync.all_failed", { error });
+            }),
+          ),
+        ),
+      );
 
       yield* Deferred.await(closed);
       if (this.client === client) this.client = null;
@@ -421,14 +441,21 @@ export class MailboxConnection extends EventEmitter<Events> {
     return client;
   }
 
-  /** Logs in and runs the first full sync. Throws when either fails or the socket closes. */
+  /**
+   * Logs in and syncs INBOX, which is all a person needs to start working; `session` syncs the
+   * other folders once the connection is ready. Throws when either fails or the socket closes.
+   */
   private async connect(client: ImapFlow): Promise<void> {
     try {
       await client.connect();
       this.client = client;
       this.capabilities = detectCapabilities(client);
       this.log.info("imap.capabilities", { ...this.capabilities });
-      await this.syncAll();
+      await this.enqueue(async () => {
+        await this.discoverFolders();
+        const inbox = this.inbox();
+        if (inbox) await this.syncFolderNow(inbox.path);
+      });
       if (!client.usable) throw new Error("connection closed during the first sync");
     } catch (error) {
       if (this.client === client) this.client = null;
@@ -575,9 +602,15 @@ export class MailboxConnection extends EventEmitter<Events> {
         return result;
       }
 
-      // The UID list is cheap and is the only way to see expunges without QRESYNC.
-      const serverUids =
-        box.exists === 0 ? [] : (await client.search({ all: true }, { uid: true })) || [];
+      // The UID list is the only way to see expunges without QRESYNC. CONDSTORE can skip it when
+      // nothing was appended (same UIDNEXT) and the count still matches: only flags changed.
+      const sameUids =
+        useCondstore && box.uidNext === position.uidNext && box.exists === index.size;
+      const serverUids = sameUids
+        ? [...index.keys()]
+        : box.exists === 0
+          ? []
+          : (await client.search({ all: true }, { uid: true })) || [];
       const onServer = new Set(serverUids);
       const removed = [...index.keys()].filter((uid) => !onServer.has(uid));
       const added = serverUids.filter((uid) => !index.has(uid)).toSorted((a, b) => b - a);
@@ -641,10 +674,11 @@ export class MailboxConnection extends EventEmitter<Events> {
         this.throwIfStopped();
       }
 
+      // A message that failed to store keeps the old UIDNEXT, so the next sync diffs UIDs again.
       const next: SyncPosition = {
         uidValidity: box.uidValidity,
         highestModseq: serverModseq,
-        uidNext: box.uidNext,
+        uidNext: result.failed > 0 ? position.uidNext : box.uidNext,
       };
       await this.store.saveSyncPosition(mailboxId, path, next);
       if (result.added || result.removed || result.flagsChanged || result.reset || result.failed) {

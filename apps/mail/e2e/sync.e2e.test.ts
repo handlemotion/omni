@@ -191,6 +191,25 @@ describe("sync into Postgres against GreenMail", () => {
     expect(order.at(-1)).toBe(1);
   });
 
+  it("is ready as soon as INBOX is in, before a large archive imports", async () => {
+    const { box } = await seedMailbox(db);
+    await otherClient(box, async (client) => {
+      await client.mailboxCreate("Archive");
+      for (let i = 0; i < 6; i++) await client.append("Archive", raw({ subject: `old ${i}` }), []);
+      await client.append("INBOX", raw({ subject: "new question" }), []);
+    });
+
+    const connection = connect(box);
+    const order: string[] = [];
+    connection.on("message", (event) => order.push(event.folder));
+    connection.on("connected", () => order.push("ready"));
+    await connection.start();
+    await connection.syncAll();
+
+    // Before, the whole mailbox imported first, INBOX last: a big archive kept the inbox empty.
+    expect(order).toEqual(["INBOX", "ready", ...Array<string>(6).fill("Archive")]);
+  });
+
   it("stores a message filed in two folders once, and later syncs fetch neither copy", async () => {
     const { box } = await seedMailbox(db);
     const note = raw({ subject: "note to self", id: "<self-note@omni.test>" });
@@ -202,6 +221,8 @@ describe("sync into Postgres against GreenMail", () => {
 
     const connection = connect(box);
     await connection.start();
+    // Ready means INBOX is in; the first full pass, which brings Notes, is still running.
+    await connection.syncAll();
     let refetched = 0;
     connection.on("message", () => refetched++);
     await connection.syncAll();
@@ -222,6 +243,7 @@ describe("sync into Postgres against GreenMail", () => {
 
     const connection = connect(box);
     await connection.start();
+    await connection.syncAll();
     const [before] = await stored(db, box.id, "Projects");
     expect(before?.flags).toEqual([]);
 
@@ -250,6 +272,7 @@ describe("sync into Postgres against GreenMail", () => {
 
     const connection = connect(box);
     await connection.start();
+    await connection.syncAll();
     expect(await stored(db, box.id, "Receipts")).toHaveLength(2);
     const oldValidity = (await store.getSyncPosition(box.id, "Receipts"))?.uidValidity;
 
