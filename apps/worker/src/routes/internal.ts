@@ -92,6 +92,14 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
         memberIds: applied.notified,
         kind: "customer_reply",
       });
+      if (applied.autoAssigned) {
+        await notifyMembers(c.env, db, {
+          orgId: applied.conversation.orgId,
+          threadId: applied.conversation.id,
+          memberIds: [applied.autoAssigned],
+          kind: "assigned",
+        });
+      }
     }
     if (queuedActions > 0)
       c.executionCtx.waitUntil(pingMailService({ config, log, requestId: c.var.requestId }));

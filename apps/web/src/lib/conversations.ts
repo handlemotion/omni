@@ -322,6 +322,102 @@ export const conversationChangeMutation = (client: QueryClient) =>
     },
   });
 
+/** Most conversations one bulk request takes (the Worker's cap); `useBulkChange` splits bigger batches. */
+export const BULK_MAX = 100;
+
+export interface BulkVariables {
+  key: string;
+  /** Up to `BULK_MAX`. */
+  threadIds: string[];
+  change: ConversationChange;
+  tag?: Conversation["tags"][number] | undefined;
+  me?: string | undefined;
+}
+
+type ListSnapshot = [QueryKey, ConversationPages | undefined][];
+
+/**
+ * Rows the server refused (gone, not yours to see, a personal mailbox) go back to how they were;
+ * the rest keep their change. A refused row the change had dropped from a list comes back in place.
+ */
+function restoreRows(
+  client: QueryClient,
+  failed: Set<string>,
+  details: Map<string, Conversation | undefined>,
+  lists: ListSnapshot,
+) {
+  for (const id of failed) client.setQueryData(keys.conversation(id), details.get(id));
+  for (const [key, old] of lists) {
+    client.setQueryData<ConversationPages>(key, (current) => {
+      if (!old || !current) return current;
+      const now = new Map(current.pages.flatMap((p) => p.conversations).map((r) => [r.id, r]));
+      return {
+        ...old,
+        pages: old.pages.map((page) => ({
+          ...page,
+          conversations: page.conversations.flatMap((row) => {
+            if (failed.has(row.id)) return [row];
+            const kept = now.get(row.id);
+            return kept ? [kept] : [];
+          }),
+        })),
+      };
+    });
+  }
+}
+
+/**
+ * One change to many conversations in one request (`POST /conversations/bulk`). Every row shows
+ * the change at once; the server applies each on its own and answers per row, so only the rows it
+ * refused roll back. A retry reuses the key, and the server skips the rows it already changed.
+ */
+export const bulkChangeMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationKey: [...keys.mail(), "conversation", "bulk"],
+    retry,
+    scope,
+    mutationFn: ({ key, threadIds, change }: BulkVariables) =>
+      call(
+        api.conversations.bulk.$post({
+          header: { "idempotency-key": key },
+          // The server claims for whoever asks; `memberId` only drives the optimistic update.
+          json: { threadIds, change: change.type === "claim" ? { type: "claim" } : change },
+        }),
+      ),
+    onMutate: async (vars) => {
+      await Promise.all([
+        ...vars.threadIds.map((id) => client.cancelQueries({ queryKey: keys.conversation(id) })),
+        client.cancelQueries({ queryKey: keys.conversationLists() }),
+      ]);
+      const details = new Map<string, Conversation | undefined>();
+      const lists: ListSnapshot = client.getQueriesData<ConversationPages>({
+        queryKey: keys.conversationLists(),
+      });
+      for (const threadId of vars.threadIds) {
+        const key = keys.conversation(threadId);
+        const before = client.getQueryData<Conversation>(key);
+        details.set(threadId, before);
+        if (before) client.setQueryData(key, applyChange(before, vars.change, vars.tag));
+        patchLists(client, { ...vars, threadId });
+      }
+      return { details, lists };
+    },
+    onError: (_error, vars, context) => {
+      if (context) restoreRows(client, new Set(vars.threadIds), context.details, context.lists);
+    },
+    onSuccess: ({ results }, _vars, context) => {
+      const failed = new Set(results.filter((r) => !r.ok).map((r) => r.threadId));
+      if (failed.size && context) restoreRows(client, failed, context.details, context.lists);
+    },
+    onSettled: (_data, _error, { threadIds }) => {
+      for (const id of threadIds) void client.invalidateQueries({ queryKey: keys.thread(id) });
+      void client.invalidateQueries({ queryKey: keys.conversationLists() });
+      void client.invalidateQueries({ queryKey: keys.conversationCounts() });
+      void client.invalidateQueries({ queryKey: keys.threadLists() });
+      void client.invalidateQueries({ queryKey: keys.counts() });
+    },
+  });
+
 /** Creates a tag on the inbox; a name that exists (ignoring case) answers that tag. */
 export const createTagMutation = (client: QueryClient) =>
   mutationOptions({

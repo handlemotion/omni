@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { request } from "node:http";
 import { schema } from "@omni/db";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
   createMailbox,
@@ -351,6 +352,24 @@ test("notes and assignments notify teammates live, as their preferences allow", 
   ]);
   expect(bea.received.filter((e) => e.type === "thread.changed")).toHaveLength(3);
   expect(carl.received).toEqual([]);
+
+  // Deleting the note withdraws Bea's mention: gone from her list, and her app hears it live.
+  const mentionsOf = () =>
+    db
+      .select({ id: schema.notifications.id })
+      .from(schema.notifications)
+      .where(eq(schema.notifications.noteId, note.id));
+  expect(await mentionsOf()).toHaveLength(1);
+  const seen = bea.received.length;
+  expect(
+    (await api(`/threads/${desk.threadId}/notes/${note.id}`, "DELETE", undefined)).status,
+  ).toBe(204);
+  await bea.next(seen + 3);
+  await quiet();
+  expect(bea.received.slice(seen).filter((e) => e.type === "notification.removed")).toEqual([
+    { type: "notification.removed", threadId: desk.threadId },
+  ]);
+  expect(await mentionsOf()).toEqual([]);
   bea.socket.close();
   carl.socket.close();
 });

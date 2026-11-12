@@ -122,6 +122,14 @@ describe("forMember isolation", () => {
       memberIds: [alice],
     });
     expect(await asAlice.threadAudience(billing.threadId)).toBeNull();
+    // SLA settings: the inbox's own, and none of another inbox's or org's.
+    expect(await asAlice.slaSettings(aliceThread!.mailboxId)).toEqual({
+      policies: [],
+      businessHours: null,
+      autoAssign: false,
+    });
+    expect(await asAlice.slaSettings(billingThread!.mailboxId)).toBeNull();
+    expect(await forMember(db, carol).slaSettings(aliceThread!.mailboxId)).toBeNull();
     expect(await forMember(db, carol).threadAudience(hello.threadId)).toBeNull();
     expect(
       (await asAlice.listConversations({ mailboxId: aliceThread!.mailboxId, view: "all" })).map(

@@ -4,7 +4,7 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, type RefObject } from "react";
 import type { Selection } from "react-aria-components";
-import { applyChange, inView, inverseOf, type ConversationChange } from "../lib/conversations.ts";
+import { applyChange, inView, type ConversationChange } from "../lib/conversations.ts";
 import { DEFER_MS, isDeferred, leavesView } from "../lib/threads.ts";
 import type {
   ConversationFilter,
@@ -13,11 +13,17 @@ import type {
   ThreadView,
 } from "../lib/types.ts";
 import { offerUndo } from "../lib/undo.ts";
-import { useConversationChanges } from "./use-conversation.ts";
+import { useBulkChange } from "./use-conversation.ts";
 import { usePrefetchThread } from "./use-mail.ts";
 import { useDefer, useMarkDone, useMarkRead, useMarkUndone } from "./use-mail-actions.ts";
 import { announce, useShortcut } from "./use-shortcuts.ts";
 import { useUndo } from "./use-undo.ts";
+
+/** A per-row action as an action on a list of rows. */
+const each =
+  <T>(run: (t: T) => void) =>
+  (list: T[]) =>
+    list.forEach(run);
 
 const plural = (n: number) => (n === 1 ? "Thread" : `${n} threads`);
 
@@ -127,10 +133,10 @@ export function useThreadListShortcuts(options: {
    */
   const act = <T extends ThreadSummary | ConversationSummary>(
     list: T[],
-    run: (t: T) => void,
+    run: (list: T[]) => void,
     leaves: (t: T) => boolean,
     said: (n: number) => string,
-    inverse?: (t: T) => void,
+    inverse?: (list: T[]) => void,
   ) => {
     if (!list.length) return;
     const gone = new Set(list.filter(leaves).map((t) => t.id));
@@ -139,10 +145,10 @@ export function useThreadListShortcuts(options: {
     const neighbour =
       ids.slice(at + 1).find(stays) ?? ids.slice(0, Math.max(at, 0)).findLast(stays);
     const hadFocus = !!listRef.current?.contains(document.activeElement);
-    list.forEach(run);
+    run(list);
     setSelected(new Set());
     announce(said(list.length));
-    if (inverse) offerUndo(said(list.length), () => list.forEach(inverse));
+    if (inverse) offerUndo(said(list.length), () => inverse(list));
     const current = cursor();
     if (current && gone.has(current) && neighbour) {
       cursorRef.current = neighbour;
@@ -174,29 +180,26 @@ export function useThreadListShortcuts(options: {
   /** Plain thread rows under the cursor or selected (none on a helpdesk list). */
   const threadTargets = () => (helpdesk ? [] : (targets() as ThreadSummary[]));
 
-  const changes = useConversationChanges();
+  const bulk = useBulkChange();
   /**
-   * One conversation change on each target, with one undo for the batch that puts every row back
-   * as it was. A row leaves the list when its new state no longer fits the view (unknown: stays).
+   * One conversation change on every target in one bulk request, with one undo for the batch that
+   * puts every row back as it was. A row leaves the list when its new state no longer fits the
+   * view (unknown: stays).
    */
-  const change = (
-    make: (t: ConversationSummary) => ConversationChange,
-    said: (n: number) => string,
-  ) => {
+  const change = (made: ConversationChange, said: (n: number) => string) => {
     if (!helpdesk) return;
     const { filter } = helpdesk;
-    const me = changes.me(filter.mailbox);
+    const me = bulk.me(filter.mailbox);
     act(
       targets() as ConversationSummary[],
-      (t) => changes.run(t.id, make(t), { undo: false, mailboxId: filter.mailbox }),
-      (t) => inView(applyChange(t, make(t)), filter, me) === false,
+      (list) =>
+        bulk.run(
+          list.map((t) => t.id),
+          made,
+          { mailboxId: filter.mailbox, undo: said(list.length) },
+        ),
+      (t) => inView(applyChange(t, made), filter, me) === false,
       said,
-      (t) => {
-        const inverse = inverseOf(t, make(t));
-        const tag =
-          inverse?.type === "tag" ? t.tags.find((x) => x.id === inverse.tagId) : undefined;
-        if (inverse) changes.run(t.id, inverse, { undo: false, tag, mailboxId: filter.mailbox });
-      },
     );
   };
 
@@ -209,7 +212,7 @@ export function useThreadListShortcuts(options: {
     () => {
       const back = (targets() as ConversationSummary[]).every((t) => t.status === "resolved");
       change(
-        () => (back ? { type: "reopen" } : { type: "resolve" }),
+        back ? { type: "reopen" } : { type: "resolve" },
         (n) => `${conversationsLabel(n)} ${back ? "reopened" : "resolved"}`,
       );
     },
@@ -221,7 +224,7 @@ export function useThreadListShortcuts(options: {
       const back = (targets() as ConversationSummary[]).every((t) => t.status === "snoozed");
       const until = new Date(Date.now() + DEFER_MS).toISOString();
       change(
-        () => (back ? { type: "reopen" } : { type: "snooze", until }),
+        back ? { type: "reopen" } : { type: "snooze", until },
         (n) => `${conversationsLabel(n)} ${back ? "reopened" : "snoozed until tomorrow"}`,
       );
     },
@@ -230,11 +233,8 @@ export function useThreadListShortcuts(options: {
   useShortcut(
     "assignToMe",
     () => {
-      const me = helpdesk && changes.me(helpdesk.filter.mailbox);
-      change(
-        () => ({ type: "claim", memberId: me }),
-        (n) => `${conversationsLabel(n)} assigned to you`,
-      );
+      const me = helpdesk && bulk.me(helpdesk.filter.mailbox);
+      change({ type: "claim", memberId: me }, (n) => `${conversationsLabel(n)} assigned to you`);
     },
     conversations,
   );
@@ -267,13 +267,14 @@ export function useThreadListShortcuts(options: {
       const undo = list.every((t) => t.done);
       act(
         list,
-        (t) =>
+        each((t) =>
           undo
             ? markUndone.mutate({ threadId: t.id })
             : markDone.mutate({ threadId: t.id, through: t.lastMessageAt }),
+        ),
         () => leavesView(undo ? "undone" : "done", view),
         (n) => `${plural(n)} ${undo ? "back in the Inbox" : "marked done"}`,
-        restore(undo ? "undone" : "done"),
+        each(restore(undo ? "undone" : "done")),
       );
     },
     plain,
@@ -286,10 +287,10 @@ export function useThreadListShortcuts(options: {
       const until = back ? null : new Date(Date.now() + DEFER_MS);
       act(
         list,
-        (t) => defer.mutate({ threadId: t.id, until }),
+        each((t) => defer.mutate({ threadId: t.id, until })),
         () => leavesView(back ? "undefer" : "defer", view),
         (n) => `${plural(n)} ${back ? "back in the Inbox" : "deferred until tomorrow"}`,
-        restore(back ? "undefer" : "defer"),
+        each(restore(back ? "undefer" : "defer")),
       );
     },
     plain,
@@ -301,7 +302,7 @@ export function useThreadListShortcuts(options: {
       const read = list.some((t) => t.unread);
       act(
         list,
-        (t) => markRead.mutate({ threadId: t.id, read }),
+        each((t: ThreadSummary | ConversationSummary) => markRead.mutate({ threadId: t.id, read })),
         () => false,
         (n) => `${plural(n)} marked ${read ? "read" : "unread"}`,
       );

@@ -7,24 +7,30 @@ import {
   CONVERSATION_VIEWS,
   createNote,
   createTag,
+  deleteBusinessHours,
   deleteNote,
+  deleteSlaPolicy,
   deleteTag,
   markNotificationsRead,
   NOTE_MAX_LENGTH,
   updateNote,
   forMember,
   PRIORITIES,
+  putBusinessHours,
+  putSlaPolicy,
+  setAutoAssign,
   updateTag,
   type ChangeResult,
   type ConversationChange,
 } from "@omni/db";
+import { isTimeZone, type BusinessHoursWindow } from "@omni/mail-core/business-hours";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
-import { announceNote, fanOut, notifyMembers } from "../realtime.ts";
+import { announceNote, fanOut, notifyMembers, withdrawNotifications } from "../realtime.ts";
 import { zValidator } from "../validator.ts";
 
 const idempotencyHeader = z.object({
@@ -86,6 +92,72 @@ const newTagBody = z.object({ name: z.string().trim().min(1).max(64), color: tag
 const tagPatchBody = z
   .object({ name: z.string().trim().min(1).max(64).optional(), color: tagColor.optional() })
   .refine((patch) => patch.name !== undefined || patch.color !== undefined, "nothing to change");
+
+/** A target in minutes, up to a year; null leaves it untracked. */
+const targetMinutes = z.number().int().min(1).max(525_600).nullable();
+const slaPolicyBody = z.object({
+  firstResponseMinutes: targetMinutes,
+  nextResponseMinutes: targetMinutes,
+  resolutionMinutes: targetMinutes,
+  businessHoursOnly: z.boolean().default(true),
+});
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^24:00$/, "HH:MM");
+const businessHoursBody = z.object({
+  timezone: z.string().refine(isTimeZone, "an IANA time zone, e.g. America/Mexico_City"),
+  windows: z
+    .array(
+      z
+        .object({
+          /** 0 is Sunday. */
+          day: z
+            .number()
+            .int()
+            .min(0)
+            .max(6)
+            .transform((d) => d as BusinessHoursWindow["day"]),
+          start: clockTime,
+          end: clockTime,
+        })
+        .refine((w) => w.start < w.end, "end after start"),
+    )
+    .max(70),
+  holidays: z.array(z.iso.date()).max(400).default([]),
+});
+
+/** One change for many conversations; `claim` assigns each to the member asking. */
+const bulkChange = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("resolve") }),
+  z.object({ type: z.literal("reopen") }),
+  z.object({ type: z.literal("snooze"), until: z.iso.datetime({ offset: true }) }),
+  z.object({ type: z.literal("claim") }),
+  z.object({ type: z.literal("assign"), memberId: z.string().min(1).nullable() }),
+  z.object({ type: z.literal("priority"), priority: z.enum(PRIORITIES) }),
+  z.object({ type: z.literal("tag"), tagId: z.string().min(1), add: z.boolean() }),
+]);
+const bulkBody = z.object({
+  threadIds: z.array(z.string().min(1)).min(1).max(100),
+  change: bulkChange,
+});
+const autoAssignBody = z.object({ enabled: z.boolean() });
+
+function domainChange(change: z.infer<typeof bulkChange>, memberId: string): ConversationChange {
+  switch (change.type) {
+    case "snooze":
+      return { type: "snooze", until: new Date(change.until) };
+    case "claim":
+      return { type: "assign", memberId };
+    default:
+      return change;
+  }
+}
+
+/** Owners and admins change inbox settings. Better Auth stores several roles as a comma list. */
+function requireManager(c: Context<AppEnv>) {
+  const { role } = c.var.member;
+  if (!role.split(",").some((r) => r.trim() === "owner" || r.trim() === "admin")) {
+    throw new HTTPException(403, { message: "only owners and admins change inbox settings" });
+  }
+}
 
 const failures = {
   not_found: [404, "not found"],
@@ -164,6 +236,55 @@ export const conversations = new Hono<AppEnv>()
         counts: await forMember(c.var.db, c.var.member.id).conversationCounts(c.req.valid("query")),
       }),
   )
+
+  /**
+   * Applies one change to up to 100 conversations, each on its own (one failing does not stop the
+   * rest), and answers each one's result in order. A retry under the same Idempotency-Key changes
+   * nothing that the first attempt already changed.
+   */
+  .post("/conversations/bulk", ...writeGuards, zValidator("json", bulkBody), async (c) => {
+    const { threadIds, change } = c.req.valid("json");
+    const key = c.req.header("idempotency-key")!;
+    const memberId = c.var.member.id;
+    const results: (
+      | { threadId: string; ok: true; changed: boolean }
+      | { threadId: string; ok: false; error: string }
+    )[] = [];
+    const changed = new Map<string, Set<string>>();
+    const assigned: { orgId: string; threadId: string; memberIds: string[] }[] = [];
+    let queuedActions = 0;
+    for (const threadId of new Set(threadIds)) {
+      const result = await applyConversationChange(c.var.db, {
+        threadId,
+        actorMemberId: memberId,
+        change: domainChange(change, memberId),
+        requestId: c.var.requestId,
+        // Per conversation, so a retry skips exactly the ones already done.
+        idempotencyKey: `${key}:${threadId}`,
+      });
+      if (!result.ok) {
+        results.push({ threadId, ok: false, error: failures[result.reason][1] });
+        continue;
+      }
+      results.push({ threadId, ok: true, changed: result.changed });
+      if (!result.changed) continue;
+      const { mailboxId, id, orgId } = result.conversation;
+      changed.set(mailboxId, (changed.get(mailboxId) ?? new Set()).add(id));
+      queuedActions += result.queuedActions;
+      if (result.notified.length)
+        assigned.push({ orgId, threadId: id, memberIds: result.notified });
+    }
+    if (queuedActions > 0) c.executionCtx.waitUntil(pingMailService(c.var));
+    if (changed.size) {
+      c.executionCtx.waitUntil(
+        Promise.all([
+          fanOut(c.env, c.var.db, c.var.config, changed),
+          ...assigned.map((a) => notifyMembers(c.env, c.var.db, { ...a, kind: "assigned" })),
+        ]),
+      );
+    }
+    return c.json({ results });
+  })
 
   /** Status, assignee, priority, SLA due times, tags and the timeline events, oldest first. */
   .get("/threads/:id/conversation", async (c) => {
@@ -273,7 +394,20 @@ export const conversations = new Hono<AppEnv>()
     });
     if (!note) notFound();
     c.executionCtx.waitUntil(
-      fanOut(c.env, c.var.db, c.var.config, new Map([[note.mailboxId, new Set([note.threadId])]])),
+      Promise.all([
+        fanOut(
+          c.env,
+          c.var.db,
+          c.var.config,
+          new Map([[note.mailboxId, new Set([note.threadId])]]),
+        ),
+        // Its mention notifications went with it: the mentioned refetch theirs.
+        withdrawNotifications(c.env, {
+          orgId: note.orgId,
+          threadId: note.threadId,
+          memberIds: note.mentions.filter((m) => m !== c.var.member.id),
+        }),
+      ]),
     );
     return c.body(null, 204);
   })
@@ -309,6 +443,79 @@ export const conversations = new Hono<AppEnv>()
     );
     if (!assignees) notFound();
     return c.json({ assignees });
+  })
+
+  /** The inbox's SLA targets per priority and its business hours (null: always open). */
+  .get("/mailboxes/:id/sla", async (c) => {
+    const settings = await forMember(c.var.db, c.var.member.id).slaSettings(c.req.param("id"));
+    if (!settings) notFound();
+    return c.json(settings);
+  })
+
+  /**
+   * Sets the inbox's targets for one priority. Open conversations' due times move to match; an
+   * alert already sent for the old due time is not sent again for it.
+   */
+  .put("/mailboxes/:id/sla/:priority", zValidator("json", slaPolicyBody), async (c) => {
+    requireManager(c);
+    const priority = z.enum(PRIORITIES).safeParse(c.req.param("priority"));
+    if (!priority.success) notFound();
+    const ok = await putSlaPolicy(
+      c.var.db,
+      c.var.member.orgId,
+      c.req.param("id"),
+      priority.data,
+      c.req.valid("json"),
+    );
+    if (!ok) notFound();
+    return c.json({ ok: true as const });
+  })
+
+  /** Stops tracking SLAs for one priority. */
+  .delete("/mailboxes/:id/sla/:priority", async (c) => {
+    requireManager(c);
+    const priority = z.enum(PRIORITIES).safeParse(c.req.param("priority"));
+    if (!priority.success) notFound();
+    if (!(await deleteSlaPolicy(c.var.db, c.var.member.orgId, c.req.param("id"), priority.data))) {
+      notFound();
+    }
+    return c.body(null, 204);
+  })
+
+  /** When the inbox is staffed; SLA targets with `businessHoursOnly` count only these hours. */
+  .put("/mailboxes/:id/business-hours", zValidator("json", businessHoursBody), async (c) => {
+    requireManager(c);
+    const ok = await putBusinessHours(
+      c.var.db,
+      c.var.member.orgId,
+      c.req.param("id"),
+      c.req.valid("json"),
+    );
+    if (!ok) notFound();
+    return c.json({ ok: true as const });
+  })
+
+  /** Back to always open. */
+  .delete("/mailboxes/:id/business-hours", async (c) => {
+    requireManager(c);
+    if (!(await deleteBusinessHours(c.var.db, c.var.member.orgId, c.req.param("id")))) notFound();
+    return c.body(null, 204);
+  })
+
+  /**
+   * Round-robin auto-assign for the inbox: each new conversation from a customer goes to the next
+   * member who can see it, in turn.
+   */
+  .put("/mailboxes/:id/auto-assign", zValidator("json", autoAssignBody), async (c) => {
+    requireManager(c);
+    const ok = await setAutoAssign(
+      c.var.db,
+      c.var.member.orgId,
+      c.req.param("id"),
+      c.req.valid("json").enabled,
+    );
+    if (!ok) notFound();
+    return c.json({ ok: true as const });
   })
 
   .get("/mailboxes/:id/tags", async (c) => {

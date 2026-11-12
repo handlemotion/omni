@@ -2,6 +2,7 @@ import { and, desc, eq, getTableColumns, sql, type AnyColumn, type SQL } from "d
 import type { Db } from "./client.ts";
 import {
   attachments,
+  businessHours,
   conversationEvents,
   mailActions,
   mailboxAccess,
@@ -11,6 +12,7 @@ import {
   notes,
   notifications,
   slaDueAt,
+  slaPolicies,
   tags,
   threadState,
   threadTags,
@@ -651,6 +653,52 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         )
         .where(eq(mailboxAccess.mailboxId, thread.mailboxId));
       return { mailboxId: thread.mailboxId, memberIds: rows.map((r) => r.memberId) };
+    },
+
+    /**
+     * A shared inbox's SLA targets per priority, its business hours (null: always open) and
+     * whether it auto-assigns. Null when no grantee can see the inbox.
+     */
+    async slaSettings(mailboxId: string) {
+      const [mailboxGrant, mailboxOrg] = access(mailboxes.id, mailboxes.orgId);
+      const visible = and(eq(mailboxes.id, mailboxId), eq(mailboxes.kind, "shared"));
+      const [[mailbox], policies, [hours]] = await Promise.all([
+        db
+          .select({ id: mailboxes.id, autoAssign: mailboxes.autoAssign })
+          .from(mailboxes)
+          .innerJoin(...mailboxGrant)
+          .innerJoin(...mailboxOrg)
+          .where(visible)
+          .limit(1),
+        db
+          .select({
+            priority: slaPolicies.priority,
+            firstResponseMinutes: slaPolicies.firstResponseMinutes,
+            nextResponseMinutes: slaPolicies.nextResponseMinutes,
+            resolutionMinutes: slaPolicies.resolutionMinutes,
+            businessHoursOnly: slaPolicies.businessHoursOnly,
+          })
+          .from(slaPolicies)
+          .innerJoin(mailboxes, eq(mailboxes.id, slaPolicies.mailboxId))
+          .innerJoin(...mailboxGrant)
+          .innerJoin(...mailboxOrg)
+          .where(visible)
+          .orderBy(slaPolicies.priority),
+        db
+          .select({
+            timezone: businessHours.timezone,
+            windows: businessHours.windows,
+            holidays: businessHours.holidays,
+          })
+          .from(businessHours)
+          .innerJoin(mailboxes, eq(mailboxes.id, businessHours.mailboxId))
+          .innerJoin(...mailboxGrant)
+          .innerJoin(...mailboxOrg)
+          .where(visible)
+          .limit(1),
+      ]);
+      if (!mailbox) return null;
+      return { policies, businessHours: hours ?? null, autoAssign: mailbox.autoAssign };
     },
 
     /**

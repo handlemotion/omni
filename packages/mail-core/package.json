@@ -11,7 +11,8 @@
     "./domains": "./src/domains.ts",
     "./telemetry": "./src/telemetry.ts",
     "./dns-diagnostics": "./src/dns-diagnostics.ts",
-    "./conversation-status": "./src/conversation-status.ts"
+    "./conversation-status": "./src/conversation-status.ts",
+    "./business-hours": "./src/business-hours.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

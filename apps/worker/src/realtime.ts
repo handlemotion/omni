@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import type { HelpdeskRealtimeEvent } from "@omni/contracts";
+import type { HelpdeskRealtimeEvent, SlaTarget } from "@omni/contracts";
 import {
   forMember,
   mailboxAudience,
@@ -23,7 +23,12 @@ export type RealtimeEvent =
   /** A domain's DNS was checked again (ADR 0011): refetch the onboarding status. */
   | { type: "domain"; domainId: string }
   /** This member got a new notification (`GET /api/notifications` has it). */
-  | { type: "notification"; threadId: string; kind: NotificationKind };
+  | { type: "notification"; threadId: string; kind: NotificationKind }
+  /**
+   * Notifications this member had were withdrawn (the note that mentioned them was deleted):
+   * refetch `GET /api/notifications`. Never shown as a new notification.
+   */
+  | { type: "notification.removed"; threadId: string };
 
 type OutboundEvent = RealtimeEvent | HelpdeskRealtimeEvent;
 
@@ -276,6 +281,16 @@ export async function notifyMembers(
   });
 }
 
+/** Tells these members that notifications they had about the thread are gone. */
+export async function withdrawNotifications(
+  env: Env,
+  input: { orgId: string; threadId: string; memberIds: string[] },
+) {
+  if (input.memberIds.length === 0) return;
+  const stub = env.REALTIME.get(env.REALTIME.idFromName(input.orgId));
+  await stub.broadcast(input.memberIds, { type: "notification.removed", threadId: input.threadId });
+}
+
 /** Tells everyone who can see the inbox that a note was added. */
 export async function announceNote(
   env: Env,
@@ -292,6 +307,34 @@ export async function announceNote(
       mailboxId: note.mailboxId,
       threadId: note.threadId,
       noteId: note.noteId,
+    },
+  );
+}
+
+/** Tells everyone who can see the inbox that a conversation's SLA is at risk or breached. */
+export async function announceSla(
+  env: Env,
+  db: Db,
+  alert: {
+    orgId: string;
+    mailboxId: string;
+    threadId: string;
+    target: SlaTarget;
+    kind: "sla_at_risk" | "sla_breached";
+    dueAt: Date;
+  },
+) {
+  const audience = await mailboxAudience(db, [alert.mailboxId]);
+  if (audience.length === 0) return;
+  const stub = env.REALTIME.get(env.REALTIME.idFromName(alert.orgId));
+  await stub.broadcast(
+    audience.map((row) => row.memberId),
+    {
+      type: alert.kind === "sla_at_risk" ? "sla.at_risk" : "sla.breached",
+      mailboxId: alert.mailboxId,
+      threadId: alert.threadId,
+      target: alert.target,
+      dueAt: alert.dueAt.toISOString(),
     },
   );
 }

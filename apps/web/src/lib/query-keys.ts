@@ -7,7 +7,7 @@
 //   ├─ mail ─ mailboxes · workspace-mailboxes · mailbox-members(id) · counts · threads(filter)
 //   │        · thread(id) ─ conversation · search(q) · action(id) · tags(mailbox)
 //   │        · assignees(mailbox) · conversations(filter) · conversation-counts
-//   │        · notifications ─ { unread }
+//   │        · notifications ─ { unread } · sla(mailbox)
 //   └─ local ─ pending(threadId) · failures       (client-only state, never fetched)
 //
 // Switching organization or account clears the whole cache (see `session.ts`), so keys do not
@@ -83,6 +83,8 @@ export const keys = {
     ] as const,
   /** Every shared inbox's view and tag counts, for the navigation. */
   conversationCounts: () => [...mail, "conversation-counts"] as const,
+  /** A shared inbox's SLA targets, business hours and auto-assign. */
+  sla: (mailboxId: string) => [...mail, "sla", mailboxId] as const,
   /** Who a shared inbox's conversations can be assigned to. */
   assignees: (mailboxId: string) => [...mail, "assignees", mailboxId] as const,
   /** Your notifications: every list (all, unread only). Under `mail`, so a reconnect refetches them. */

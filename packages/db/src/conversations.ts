@@ -12,9 +12,23 @@ import {
   type ConversationEvent,
   type ConversationState,
 } from "@omni/mail-core/conversation-status";
-import { and, asc, eq, exists, gt, inArray, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  exists,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  sql,
+} from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
+import { setSlaClocks } from "./sla.ts";
 import {
   conversationEvents,
   conversationPriority,
@@ -91,6 +105,8 @@ const conversationColumns = {
   firstResponseDueAt: threads.firstResponseDueAt,
   nextResponseDueAt: threads.nextResponseDueAt,
   resolutionDueAt: threads.resolutionDueAt,
+  responseClockAt: threads.responseClockAt,
+  resolutionClockAt: threads.resolutionClockAt,
   customerId: threads.customerId,
 };
 
@@ -107,6 +123,8 @@ export type ConversationRow = {
   firstResponseDueAt: Date | null;
   nextResponseDueAt: Date | null;
   resolutionDueAt: Date | null;
+  responseClockAt: Date | null;
+  resolutionClockAt: Date | null;
   customerId: string | null;
 };
 
@@ -381,6 +399,11 @@ async function applyStatus(
   if (!written) return { row, changed: false, queuedActions: 0 };
   let queuedActions = 0;
   if (updated.status === "resolved" && row.status !== "resolved") {
+    // Resolved: nobody is waiting on us any more (ADR 0023).
+    Object.assign(
+      updated,
+      await setSlaClocks(tx, updated, { responseClockAt: null, resolutionClockAt: null }),
+    );
     queuedActions = await fileMail(
       tx,
       updated,
@@ -545,7 +568,12 @@ export async function applyConversationChange(
             dedupeKey,
           },
         ]);
-        applied = { row: { ...row, priority: change.priority }, changed: true, queuedActions: 0 };
+        // The new priority's targets apply to the clocks already running.
+        applied = {
+          row: await setSlaClocks(tx, { ...row, priority: change.priority }),
+          changed: true,
+          queuedActions: 0,
+        };
         break;
       case "tag": {
         const [tag] = await tx
@@ -612,10 +640,11 @@ export async function applyAgentReply(
       ? { row: status.row, changed: false }
       : await assign(tx, status.row, input.memberId, input.memberId, now, { cause: "first_reply" });
     const responded = await recordFirstResponse(tx, claimed.row, input.memberId, now);
+    const answered = await setSlaClocks(tx, responded.row, { responseClockAt: null });
     return {
       ok: true,
       changed: status.changed || claimed.changed || responded.changed,
-      conversation: responded.row,
+      conversation: answered,
       queuedActions: status.queuedActions,
       notified: [],
     };
@@ -655,7 +684,50 @@ export type InboundResult =
       queuedActions: number;
       /** Members who got a new notification: tell them in realtime. */
       notified: string[];
+      /** The member auto-assign handed it to (notified as `assigned`), if any. */
+      autoAssigned: string | null;
     };
+
+/**
+ * The inbox's next member in turn, by member id after the last one handed a conversation, among
+ * those who can see the inbox. Null when the inbox does not auto-assign or nobody sees it. The
+ * mailbox row lock makes concurrent ingests take turns instead of picking the same member.
+ */
+async function nextInTurn(tx: Tx, row: ConversationRow) {
+  // Most inboxes don't auto-assign: read the flag before taking any lock.
+  const [flag] = await tx
+    .select({ on: mailboxes.autoAssign })
+    .from(mailboxes)
+    .where(eq(mailboxes.id, row.mailboxId));
+  if (!flag?.on) return null;
+  // "No key update" serializes turns without blocking the key-share locks that inserts referencing
+  // the inbox (messages, events) take, so concurrent ingests cannot deadlock on it.
+  const [inbox] = await tx
+    .select({ on: mailboxes.autoAssign, last: mailboxes.autoAssignLastMemberId })
+    .from(mailboxes)
+    .where(eq(mailboxes.id, row.mailboxId))
+    .for("no key update");
+  if (!inbox?.on) return null;
+  const team = (
+    await tx
+      .select({ id: mailboxAccess.memberId })
+      .from(mailboxAccess)
+      .innerJoin(
+        members,
+        and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, row.orgId)),
+      )
+      .where(eq(mailboxAccess.mailboxId, row.mailboxId))
+      .orderBy(asc(mailboxAccess.memberId))
+  ).map((m) => m.id);
+  if (team.length === 0) return null;
+  const last = inbox.last;
+  const next = (last !== null && team.find((id) => id > last)) || team[0]!;
+  await tx
+    .update(mailboxes)
+    .set({ autoAssignLastMemberId: next })
+    .where(eq(mailboxes.id, row.mailboxId));
+  return next;
+}
 
 /**
  * The `message.created` ingest for one message: a customer's message reopens the conversation
@@ -684,7 +756,7 @@ export async function applyInboundMessage(
     const locked = await lockConversation(tx, message.threadId, null);
     if (!locked || locked.kind !== "shared") return { applied: false, fresh: true };
     const [mailbox] = await tx
-      .select({ address: mailboxes.address })
+      .select({ address: mailboxes.address, createdAt: mailboxes.createdAt })
       .from(mailboxes)
       .where(eq(mailboxes.id, locked.mailboxId));
     const { kind: _kind, ...row } = locked;
@@ -701,9 +773,31 @@ export async function applyInboundMessage(
         null,
         { data: { messageId: input.messageId } },
       );
+      // The customer is waiting from when they wrote (never later than now). Mail sent before the
+      // inbox was connected is history: a first sync must not start, and breach, every clock, nor
+      // hand the backlog out.
+      const live =
+        !message.automated && mailbox !== undefined && message.sentAt >= mailbox.createdAt;
+      let autoAssigned: string | null = null;
+      if (live && applied.row.status === "open" && !applied.row.assigneeMemberId) {
+        const next = await nextInTurn(tx, applied.row);
+        if (next) {
+          const handed = await assign(tx, applied.row, next, null, now, { cause: "auto_assign" });
+          applied.row = handed.row;
+          if (handed.changed) autoAssigned = next;
+        }
+      }
+      if (live) {
+        const since = message.sentAt > now ? now : message.sentAt;
+        applied.row = await setSlaClocks(tx, applied.row, {
+          responseClockAt: applied.row.responseClockAt ?? since,
+          resolutionClockAt: applied.row.resolutionClockAt ?? since,
+        });
+      }
       // The assignee hears when their customer writes back (not for an auto-reply).
       const notified =
-        applied.row.assigneeMemberId && !message.automated
+        // (Not when it was just handed to them: they hear `assigned` instead.)
+        applied.row.assigneeMemberId && !message.automated && !autoAssigned
           ? await notify(tx, applied.row, {
               memberIds: [applied.row.assigneeMemberId],
               kind: "customer_reply",
@@ -719,6 +813,7 @@ export async function applyInboundMessage(
         conversation: applied.row,
         queuedActions: applied.queuedActions,
         notified,
+        autoAssigned,
       };
     }
 
@@ -758,13 +853,40 @@ export async function applyInboundMessage(
           messageId: input.messageId,
         })
       : { row: status.row, changed: false };
+    // Our reply stops the response clock. A late Sent copy answers only what came before it: the
+    // customer has been waiting since their first counted message after it.
+    const clock = responded.row.responseClockAt;
+    let responseClockAt: Date | null = null;
+    if (newer && clock && clock >= message.sentAt) responseClockAt = clock;
+    else if (newer && mailbox) {
+      const [waiting] = await tx
+        .select({ sentAt: messages.sentAt })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.threadId, row.id),
+            gt(messages.sentAt, message.sentAt),
+            gte(messages.sentAt, mailbox.createdAt),
+            eq(messages.automated, false),
+            ne(sql`lower(${messages.fromAddress})`, mailbox.address.toLowerCase()),
+          ),
+        )
+        .orderBy(asc(messages.sentAt))
+        .limit(1);
+      if (waiting) responseClockAt = waiting.sentAt > now ? now : waiting.sentAt;
+    }
+    const answered =
+      responseClockAt?.getTime() === clock?.getTime()
+        ? responded.row
+        : await setSlaClocks(tx, responded.row, { responseClockAt });
     return {
       applied: true,
       direction: "agent",
       changed: status.changed || responded.changed,
-      conversation: responded.row,
+      conversation: answered,
       queuedActions: status.queuedActions,
       notified: [],
+      autoAssigned: null,
     };
   });
 }
@@ -777,6 +899,34 @@ export async function dueSnoozes(db: Executor, now: Date, limit = 500) {
     .where(and(eq(threads.status, "snoozed"), lte(threads.snoozedUntil, now)))
     .orderBy(asc(threads.snoozedUntil))
     .limit(limit);
+}
+
+/**
+ * Turns round-robin auto-assign on or off for a shared inbox of the org. False when there is no
+ * such inbox. Turning it on starts with whoever comes first; turning it off forgets the turn.
+ */
+export async function setAutoAssign(db: Executor, orgId: string, mailboxId: string, on: boolean) {
+  const rows = await db
+    .update(mailboxes)
+    .set({ autoAssign: on, autoAssignLastMemberId: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(mailboxes.id, mailboxId),
+        eq(mailboxes.orgId, orgId),
+        eq(mailboxes.kind, "shared"),
+        // Already in that state: keep the turn.
+        ne(mailboxes.autoAssign, on),
+      ),
+    )
+    .returning({ id: mailboxes.id });
+  if (rows.length) return true;
+  const [exists] = await db
+    .select({ id: mailboxes.id })
+    .from(mailboxes)
+    .where(
+      and(eq(mailboxes.id, mailboxId), eq(mailboxes.orgId, orgId), eq(mailboxes.kind, "shared")),
+    );
+  return exists !== undefined;
 }
 
 // Tags: an inbox's list, managed by anyone who can see the inbox.
@@ -984,7 +1134,13 @@ export async function deleteNote(
           ),
         ),
       )
-      .returning({ id: notes.id, threadId: notes.threadId, mailboxId: notes.mailboxId });
+      .returning({
+        id: notes.id,
+        threadId: notes.threadId,
+        mailboxId: notes.mailboxId,
+        orgId: notes.orgId,
+        mentions: notes.mentions,
+      });
     if (!row) return null;
     await tx
       .delete(conversationEvents)

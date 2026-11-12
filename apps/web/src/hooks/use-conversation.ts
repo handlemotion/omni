@@ -11,6 +11,8 @@ import {
 import { useMemo } from "react";
 import {
   assigneesQuery,
+  BULK_MAX,
+  bulkChangeMutation,
   cachedState,
   conversationChangeMutation,
   conversationCountsQuery,
@@ -27,8 +29,10 @@ import {
 import { idempotencyKey } from "../lib/api.ts";
 import { keys } from "../lib/query-keys.ts";
 import { offerUndo } from "../lib/undo.ts";
-import type { Assignee, ConversationFilter, Priority, Tag } from "../lib/types.ts";
+import type { Assignee, Conversation, ConversationFilter, Priority, Tag } from "../lib/types.ts";
 import { useSession } from "./use-session.ts";
+
+type ConversationTag = Conversation["tags"][number];
 
 /**
  * Status, assignee, priority, SLA due times, tags and timeline events of a conversation, or
@@ -229,4 +233,73 @@ export function useConversationChanges() {
   const client = useQueryClient();
   const email = useSession().data?.user.email;
   return { ...rest, run, me: (mailboxId: string) => memberInInbox(client, mailboxId, email) };
+}
+
+/**
+ * The list's bulk actions and shortcuts: `run(threadIds, change, { mailboxId, tag?, undo? })`
+ * applies one change to every conversation in one request per 100 (`POST /conversations/bulk`).
+ * Rows change at once; rows the server refuses roll back on their own. Unless `undo` is `false`,
+ * one undo puts every row back as it was (`undo` is its label; default describes the change).
+ * Pass the whole `tag` when adding one so it shows before the server answers.
+ */
+export function useBulkChange() {
+  const client = useQueryClient();
+  const email = useSession().data?.user.email;
+  const mutation = useMutation(bulkChangeMutation(client));
+  const send = (
+    threadIds: string[],
+    change: ConversationChange,
+    mailboxId: string,
+    tag?: ConversationTag,
+  ) => {
+    const me = memberInInbox(client, mailboxId, email);
+    for (let at = 0; at < threadIds.length; at += BULK_MAX) {
+      mutation.mutate({
+        key: idempotencyKey(),
+        threadIds: threadIds.slice(at, at + BULK_MAX),
+        change,
+        tag,
+        me,
+      });
+    }
+  };
+  const run = (
+    threadIds: string[],
+    requested: ConversationChange,
+    options: { mailboxId: string; tag?: ConversationTag | undefined; undo?: string | false },
+  ) => {
+    const ids = [...new Set(threadIds)];
+    if (!ids.length) return;
+    const { mailboxId, tag } = options;
+    const change: ConversationChange =
+      requested.type === "claim"
+        ? { type: "claim", memberId: memberInInbox(client, mailboxId, email) }
+        : requested;
+    const before = ids.map((id) => [id, cachedState(client, id)] as const);
+    send(ids, change, mailboxId, tag);
+    if (options.undo === false) return;
+    // Rows were in different states, so the undo is one bulk request per distinct inverse.
+    const inverses = new Map<
+      string,
+      { change: ConversationChange; tag?: ConversationTag | undefined; ids: string[] }
+    >();
+    for (const [id, state] of before) {
+      const inverse = state && inverseOf(state, change);
+      if (!inverse) continue;
+      const group = JSON.stringify(inverse);
+      const entry = inverses.get(group) ?? {
+        change: inverse,
+        tag: inverse.type === "tag" ? state.tags.find((t) => t.id === inverse.tagId) : undefined,
+        ids: [],
+      };
+      entry.ids.push(id);
+      inverses.set(group, entry);
+    }
+    if (!inverses.size) return;
+    offerUndo(options.undo ?? describe(change, client, mailboxId), () => {
+      for (const inverse of inverses.values())
+        send(inverse.ids, inverse.change, mailboxId, inverse.tag);
+    });
+  };
+  return { ...mutation, run, me: (mailboxId: string) => memberInInbox(client, mailboxId, email) };
 }
