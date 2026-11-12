@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
 import { deterministicMessageId, OutboxExecutor } from "../src/outbox.ts";
-import { PgActionSource, PgMailStore } from "../src/pg-store.ts";
+import { PgActionSource, PgMailStore, PgSendFiles } from "../src/pg-store.ts";
 import {
   actionRow,
   asClaimed,
@@ -33,6 +33,7 @@ async function setup(kind: "personal" | "shared" = "personal") {
     actions,
     logger,
     store,
+    files: new PgSendFiles({ db, objects }),
     connection: (id) => (id === box.id ? connection : undefined),
   });
   return { seeded, box, store, actions, connection, executor };
@@ -246,6 +247,149 @@ describe("OutboxExecutor against GreenMail", () => {
 
     expect((await stored(db, box.id, "Archive")).map((r) => r.subject)).toEqual(["Refund please"]);
     expect((await stored(db, box.id, "Sent")).map((r) => r.subject)).toEqual(["Re: Refund please"]);
+  });
+
+  it("forwards with the original's attachment plus an upload, From the agent, sent once", async () => {
+    const { seeded, box, connection, executor } = await setup("shared");
+    const original = [
+      "From: customer@outside.test",
+      `To: ${box.address}`,
+      "Subject: Broken invoice",
+      `Message-ID: <invoice.${box.id}@outside.test>`,
+      "MIME-Version: 1.0",
+      'Content-Type: multipart/mixed; boundary="b"',
+      "",
+      "--b",
+      "Content-Type: text/plain",
+      "",
+      "See attached.",
+      "--b",
+      'Content-Type: application/pdf; name="invoice.pdf"',
+      'Content-Disposition: attachment; filename="invoice.pdf"',
+      "Content-Transfer-Encoding: base64",
+      "",
+      Buffer.from("%PDF original invoice").toString("base64"),
+      "--b--",
+      "",
+    ].join("\r\n");
+    await otherClient(box, (client) => client.append("INBOX", original, []));
+    await connection.start();
+    const [message] = await messageRows(db, box.id);
+    const [attachment] = await db
+      .select()
+      .from(schema.attachments)
+      .where(eq(schema.attachments.messageId, message!.id));
+    // What `POST /api/uploads` leaves behind: the object and its row.
+    const uploadKey = `${seeded.orgId}/${box.id}/uploads/screenshot`;
+    await objects.put(uploadKey, "PNG screenshot bytes", "image/png");
+    const [upload] = await db
+      .insert(schema.uploads)
+      .values({
+        orgId: seeded.orgId,
+        mailboxId: box.id,
+        filename: "screenshot.png",
+        mimeType: "image/png",
+        size: 20,
+        r2Key: uploadKey,
+        expiresAt: new Date(Date.now() + 3600_000),
+      })
+      .returning();
+
+    const recipient = mailbox();
+    const row = await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `idem-forward-${box.id}`,
+      payload: {
+        from: box.address,
+        fromName: "Ana from Acme",
+        to: [recipient.address],
+        subject: "Fwd: Broken invoice",
+        text: "Billing, can you look at this?",
+        inReplyToMessageId: message!.id,
+        attachments: [
+          { kind: "attachment", attachmentId: attachment!.id },
+          { kind: "upload", uploadId: upload!.id },
+        ],
+        messageId: `<forward.${box.id}@omni.test>`,
+      },
+    });
+    const [claimed] = await new PgActionSource({ db }).claim(1);
+    await executor.execute(claimed!);
+    // Crashed before `complete`: the retry must not send again.
+    await executor.execute(await asClaimed(db, row.id));
+    expect((await actionRow(db, row.id)).status).toBe("done");
+
+    const received = await otherClient(recipient, async (client) => {
+      const lock = await client.getMailboxLock("INBOX");
+      try {
+        return await client.fetchAll("1:*", { source: true });
+      } finally {
+        lock.release();
+      }
+    });
+    expect(received).toHaveLength(1);
+    const raw = received[0]?.source?.toString() ?? "";
+    expect(raw).toContain(`From: Ana from Acme <${box.address}>`);
+    expect(raw).toContain("Content-Type: application/pdf; name=invoice.pdf");
+    expect(raw).toContain(Buffer.from("%PDF original invoice").toString("base64"));
+    expect(raw).toContain("Content-Type: image/png; name=screenshot.png");
+    expect(raw).toContain(Buffer.from("PNG screenshot bytes").toString("base64"));
+    // Filed with the conversation it forwards, though a forward carries no reply headers.
+    const forward = (await messageRows(db, box.id)).find((m) => m.subject.startsWith("Fwd:"));
+    expect(forward?.threadId).toBe(message!.threadId);
+  });
+
+  it("fails a send whose upload is gone without sending anything", async () => {
+    const { seeded, box, connection, executor } = await setup();
+    await connection.start();
+    const recipient = mailbox();
+    const row = await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `idem-missing-${box.id}`,
+      payload: {
+        from: box.address,
+        to: [recipient.address],
+        subject: "with a lost file",
+        text: "see attached",
+        attachments: [{ kind: "upload", uploadId: "upload-that-never-existed" }],
+      },
+    });
+    await executor.drain();
+
+    expect(await actionRow(db, row.id)).toMatchObject({ status: "failed", smtpAcceptedAt: null });
+    const delivered = await otherClient(recipient, async (client) => {
+      const status = await client.status("INBOX", { messages: true });
+      return status ? status.messages : -1;
+    });
+    expect(delivered).toBe(0);
+  });
+
+  it("a send SMTP already accepted is done, not failed, when its upload is gone by the retry", async () => {
+    const { seeded, box, actions, connection, executor } = await setup();
+    await connection.start();
+    const recipient = mailbox();
+    const row = await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `idem-accepted-missing-${box.id}`,
+      payload: {
+        from: box.address,
+        to: [recipient.address],
+        subject: "delivered, then its file was deleted",
+        text: "see attached",
+        attachments: [{ kind: "upload", uploadId: "upload-deleted-after-send" }],
+      },
+    });
+    // SMTP accepted it, the attempt died before filing, and the upload was deleted since.
+    await actions.claim(1);
+    await actions.markSmtpAccepted(row.id);
+    await executor.execute(await asClaimed(db, row.id));
+
+    expect((await actionRow(db, row.id)).status).toBe("done");
+    const resent = await otherClient(recipient, async (client) => {
+      const status = await client.status("INBOX", { messages: true });
+      return status ? status.messages : -1;
+    });
+    expect(resent).toBe(0);
   });
 
   it("refuses to touch UIDs whose folder UIDVALIDITY changed", async () => {

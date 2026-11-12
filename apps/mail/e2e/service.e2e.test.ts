@@ -7,6 +7,8 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
+import { schema } from "@omni/db";
+import { eq } from "drizzle-orm";
 import {
   MAIL_EVENTS_PATH,
   MAIL_PING_PATH,
@@ -261,6 +263,38 @@ describe("mail service end to end", () => {
     ]);
     // Accepted, so the next start sends nothing again.
     await waitFor(async () => (await messageRows(db, box.id))[0]?.notifyPending === false);
+  });
+
+  it("a send held for undo leaves when its window ends, not at the next poll", async () => {
+    const seeded = await seedConnectable();
+    const { box } = seeded;
+    const recipient = mailbox();
+    await startMailService();
+    await connected(box.id);
+
+    // The Worker queues it with a 2 s undo window and pings at once (the poll here is an hour).
+    const action = await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `undo-send-${box.id}`,
+      payload: { from: box.address, to: [recipient.address], subject: "after undo", text: "hi" },
+    });
+    await db
+      .update(schema.mailActions)
+      .set({ runAfter: new Date(Date.now() + 2_000) })
+      .where(eq(schema.mailActions.id, action.id));
+    const queuedAt = Date.now();
+    const valid = await signRequest({
+      secret,
+      method: "POST",
+      path: MAIL_PING_PATH,
+      nonce: randomUUID(),
+    });
+    expect((await ping({ headers: valid })).status).toBe(202);
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    expect((await actionRow(db, action.id)).status).toBe("pending");
+
+    await waitFor(async () => (await actionRow(db, action.id)).status === "done", 10_000);
+    expect(Date.now() - queuedAt).toBeLessThan(6_000);
   });
 
   it("rejects forged, expired and replayed pings; a valid ping runs the outbox", async () => {

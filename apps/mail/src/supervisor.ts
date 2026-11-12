@@ -6,12 +6,14 @@ import {
   type NewMessageEvent,
 } from "./mailbox-connection.ts";
 import { OutboxExecutor } from "./outbox.ts";
-import type { ActionSource, MailStore } from "./ports.ts";
+import type { ActionSource, MailStore, SendFiles } from "./ports.ts";
 import { every } from "./timing.ts";
 
 export interface SupervisorOptions {
   store: MailStore;
   actions: ActionSource;
+  /** Reads send attachments from the object store. */
+  files?: SendFiles;
   logger: Logger;
   /** Non-inbox folders are synced on this interval; INBOX is live through IDLE. */
   syncIntervalMs?: number;
@@ -36,6 +38,8 @@ export class Supervisor {
   private running = false;
   private stopping = false;
   private readonly inFlight = new Set<Promise<void>>();
+  /** Wakes the outbox when the next pending action is due (an undo-send window ends). */
+  private dueTimer: NodeJS.Timeout | null = null;
 
   constructor(options: SupervisorOptions) {
     this.options = options;
@@ -47,6 +51,7 @@ export class Supervisor {
       actions: options.actions,
       logger: options.logger,
       store: options.store,
+      files: options.files,
       connection: (id) => this.connections.get(id),
     });
   }
@@ -126,6 +131,29 @@ export class Supervisor {
     } finally {
       this.inFlight.delete(drain);
     }
+    await this.wakeWhenDue();
+  }
+
+  /**
+   * A send queued with an undo window is not due when the Worker pings. Without this it would
+   * wait for the next poll (30 s); with it, it leaves when the window ends. Beyond the poll
+   * interval the poll covers it.
+   */
+  private async wakeWhenDue(): Promise<void> {
+    if (!this.running) return;
+    const due = await this.options.actions.nextDueAt().catch((error: unknown) => {
+      this.log.warn("outbox.next_due_failed", { error });
+      return null;
+    });
+    if (this.dueTimer) clearTimeout(this.dueTimer);
+    this.dueTimer = null;
+    if (!due || !this.running) return;
+    const delay = Math.max(0, due.getTime() - Date.now()) + 50;
+    if (delay > (this.options.outboxIntervalMs ?? 30_000)) return;
+    this.dueTimer = setTimeout(() => {
+      this.dueTimer = null;
+      void this.ping();
+    }, delay);
   }
 
   async syncAll(): Promise<void> {
@@ -148,6 +176,8 @@ export class Supervisor {
   async stop(): Promise<void> {
     this.running = false;
     this.stopping = true;
+    if (this.dueTimer) clearTimeout(this.dueTimer);
+    this.dueTimer = null;
     const loops = this.loops;
     this.loops = [];
     await Effect.runPromise(Effect.forEach(loops, Fiber.interrupt, { discard: true }));

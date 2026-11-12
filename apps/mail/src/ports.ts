@@ -54,8 +54,10 @@ export interface MailStore {
   /**
    * Index a message we just sent, before its Sent copy exists, so the reply shows in its thread
    * at once. The Sent copy found later by `storeMessage` becomes its location. Idempotent.
+   * `threadOf` (a `messages.id`) files it with that message, for a forward that has no reply
+   * headers; otherwise it threads like any message.
    */
-  storeSent(mailboxId: string, raw: Uint8Array): Promise<void>;
+  storeSent(mailboxId: string, raw: Uint8Array, options?: { threadOf?: string }): Promise<void>;
   /** Ids of stored messages with no copy left in any folder (deleted, or mid-move). */
   orphanedMessages(mailboxId: string): Promise<string[]>;
   /**
@@ -72,8 +74,8 @@ export interface MailStore {
 // wrong message.
 
 // Payload shapes live in `@omni/contracts`, shared with the Worker that writes them.
-export type { MessageTarget, SendPayload } from "@omni/contracts";
-import type { MessageTarget, SendPayload } from "@omni/contracts";
+export type { MessageTarget, SendAttachment, SendPayload } from "@omni/contracts";
+import type { MessageTarget, SendAttachment, SendPayload } from "@omni/contracts";
 
 export type MailAction =
   | ActionBase<"send", SendPayload>
@@ -115,4 +117,25 @@ export interface ActionSource {
    * left DNS (ADR 0010). Sends wait, attempts not counted, until it is back.
    */
   sendingPaused(address: string): Promise<boolean>;
+  /** When the next pending action becomes due, or null: an undo-send window ending. */
+  nextDueAt(): Promise<Date | null>;
+}
+
+/** A file to attach to a send, read from the object store. */
+export interface SendFile {
+  filename: string;
+  contentType: string;
+  content: Uint8Array;
+}
+
+export interface SendFiles {
+  /**
+   * The send's attachments, in order. Each must belong to `mailboxId`; throws `MissingFileError`
+   * when one is gone, since retrying cannot bring it back.
+   */
+  resolve(mailboxId: string, refs: SendAttachment[]): Promise<SendFile[]>;
+}
+
+export class MissingFileError extends Error {
+  override name = "MissingFileError";
 }

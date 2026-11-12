@@ -17,7 +17,7 @@ import { createApp, hmacVerifier } from "./http.ts";
 import type { Logger } from "./log.ts";
 import { WorkerNotifier } from "./notify.ts";
 import { createS3Store } from "./objects.ts";
-import { PgActionSource, PgMailStore } from "./pg-store.ts";
+import { PgActionSource, PgMailStore, PgSendFiles } from "./pg-store.ts";
 import { createPurelymailClient } from "./providers/purelymail.ts";
 import { createProvisioner } from "./provisioning.ts";
 import { Supervisor } from "./supervisor.ts";
@@ -81,21 +81,23 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     if (rows.length > 0) log.info("notify.sweep", { pending: rows.length });
     for (const row of rows) notifier.push({ type: "message.created", ...row });
   };
+  const objects = createS3Store({
+    endpoint: config.S3_ENDPOINT,
+    bucket: config.S3_BUCKET,
+    accessKeyId: config.S3_ACCESS_KEY_ID,
+    secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+    region: config.S3_REGION,
+  });
   const store = new PgMailStore({
     db,
     onIngested: ({ folder: _folder, ...message }) =>
       notifier.push({ type: "message.created", ...message }),
-    objects: createS3Store({
-      endpoint: config.S3_ENDPOINT,
-      bucket: config.S3_BUCKET,
-      accessKeyId: config.S3_ACCESS_KEY_ID,
-      secretAccessKey: config.S3_SECRET_ACCESS_KEY,
-      region: config.S3_REGION,
-    }),
+    objects,
     links: { imageProxyUrl: config.IMAGE_PROXY_URL, attachmentUrl: config.ATTACHMENT_URL },
   });
   const supervisor = new Supervisor({
     store,
+    files: new PgSendFiles({ db, objects }),
     actions: new PgActionSource({
       db,
       onFailed: (action) => notifier.push({ type: "action.failed", ...action }),

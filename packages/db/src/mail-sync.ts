@@ -10,6 +10,8 @@ import {
   mailboxes,
   mailboxFolders,
   members,
+  attachments,
+  uploads,
   messageLocations,
   messages,
   threadState,
@@ -525,6 +527,66 @@ export async function markNotified(db: Db, messageIds: string[]) {
     .update(messages)
     .set({ notifyPending: false })
     .where(and(inArray(messages.id, messageIds), eq(messages.notifyPending, true)));
+}
+
+/**
+ * The files a send attaches, in the order given: uploads made for it and attachments of stored
+ * messages (forward), each only if it belongs to `mailboxId`. A missing one is left out; the
+ * caller compares counts.
+ */
+export async function sendAttachmentFiles(
+  db: Db,
+  mailboxId: string,
+  refs: ({ kind: "upload"; uploadId: string } | { kind: "attachment"; attachmentId: string })[],
+) {
+  const uploadIds = refs.flatMap((r) => (r.kind === "upload" ? [r.uploadId] : []));
+  const attachmentIds = refs.flatMap((r) => (r.kind === "attachment" ? [r.attachmentId] : []));
+  const fromUploads = uploadIds.length
+    ? await db
+        .select({
+          id: uploads.id,
+          filename: uploads.filename,
+          mimeType: uploads.mimeType,
+          r2Key: uploads.r2Key,
+        })
+        .from(uploads)
+        .where(and(eq(uploads.mailboxId, mailboxId), inArray(uploads.id, uploadIds)))
+    : [];
+  const fromMessages = attachmentIds.length
+    ? await db
+        .select({
+          id: attachments.id,
+          filename: attachments.filename,
+          mimeType: attachments.mimeType,
+          r2Key: attachments.r2Key,
+        })
+        .from(attachments)
+        .innerJoin(messages, eq(messages.id, attachments.messageId))
+        .where(and(eq(messages.mailboxId, mailboxId), inArray(attachments.id, attachmentIds)))
+    : [];
+  const byId = new Map([...fromUploads, ...fromMessages].map((f) => [f.id, f]));
+  return refs.flatMap((r) => {
+    const file = byId.get(r.kind === "upload" ? r.uploadId : r.attachmentId);
+    return file ? [{ filename: file.filename, mimeType: file.mimeType, r2Key: file.r2Key }] : [];
+  });
+}
+
+/** Thread of a stored message in this mailbox, for filing a forward with what it forwards. */
+export async function messageThread(db: Db, mailboxId: string, messageId: string) {
+  const [row] = await db
+    .select({ threadId: messages.threadId })
+    .from(messages)
+    .where(and(eq(messages.mailboxId, mailboxId), eq(messages.id, messageId)));
+  return row?.threadId ?? null;
+}
+
+/** When the next pending outbox action is due (an undo-send window ends), or null. */
+export async function nextActionDue(db: Db): Promise<Date | null> {
+  const [row] = await db
+    .select({ at: sql<Date | null>`min(${mailActions.runAfter})` })
+    .from(mailActions)
+    .where(eq(mailActions.status, "pending"));
+  return row?.at ? new Date(row.at) : null;
 }
 
 /** Marks the folder for a full re-sync: no sync position and no stored copies. */

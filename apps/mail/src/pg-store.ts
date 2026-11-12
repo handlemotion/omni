@@ -19,6 +19,9 @@ import {
   getFolderPosition,
   hasLocation,
   markActionSmtpAccepted,
+  messageThread,
+  nextActionDue,
+  sendAttachmentFiles,
   orphanedMessages,
   pruneMessages,
   removeLocations,
@@ -45,8 +48,12 @@ import type {
   FolderRole,
   MailAction,
   MailStore,
+  SendAttachment,
+  SendFile,
+  SendFiles,
   SyncPosition,
 } from "./ports.ts";
+import { MissingFileError } from "./ports.ts";
 
 /** The schema's folder roles; drafts and junk are just folders to the index. */
 type StoredRole = (typeof schema.mailboxFolders.$inferSelect)["role"];
@@ -178,16 +185,24 @@ export class PgMailStore implements MailStore {
     return { created };
   }
 
-  async storeSent(mailboxId: string, raw: Uint8Array): Promise<void> {
+  async storeSent(
+    mailboxId: string,
+    raw: Uint8Array,
+    options: { threadOf?: string } = {},
+  ): Promise<void> {
     const mailbox = await this.mailbox(mailboxId);
     const parsed = await parseMessage(raw);
     if (await findMessageByHeader(this.db, mailboxId, parsed.message.messageId)) return;
+    const threadId = options.threadOf
+      ? await messageThread(this.db, mailboxId, options.threadOf)
+      : null;
     const result = await this.insert(
       mailboxId,
       mailbox,
       null,
       { raw, uid: null, internalDate: null },
       parsed,
+      threadId,
     );
     if (result.inserted) {
       this.onIngested({
@@ -227,6 +242,7 @@ export class PgMailStore implements MailStore {
     folderId: string | null,
     fetched: Pick<FetchedMessage, "raw" | "internalDate"> & { uid: number | null },
     parsed: Awaited<ReturnType<typeof parseMessage>>,
+    knownThreadId: string | null = null,
   ) {
     const { message, attachmentContents } = parsed;
     // Objects first: a row never points at an object that is not there.
@@ -265,7 +281,8 @@ export class PgMailStore implements MailStore {
     // One insert per mailbox at a time: an outbox send and an IMAP sync running together would
     // otherwise both miss each other's row when matching a thread, and split one conversation.
     return this.oneAtATime(mailboxId, async () => {
-      const threadId = await this.assignThread(mailboxId, mailbox, message, sentAt);
+      const threadId =
+        knownThreadId ?? (await this.assignThread(mailboxId, mailbox, message, sentAt));
       return upsertMessage(this.db, {
         orgId: mailbox.orgId,
         mailboxId,
@@ -427,8 +444,36 @@ export class PgActionSource implements ActionSource {
     await deferAction(this.db, actionId, retryAt);
   }
 
+  nextDueAt(): Promise<Date | null> {
+    return nextActionDue(this.db);
+  }
+
   sendingPaused(address: string): Promise<boolean> {
     return sendingPaused(this.db, address.slice(address.lastIndexOf("@") + 1).toLowerCase());
+  }
+}
+
+/** Send attachments from Postgres rows and the object store. */
+export class PgSendFiles implements SendFiles {
+  private readonly options: { db: Db; objects: ObjectStore };
+
+  constructor(options: { db: Db; objects: ObjectStore }) {
+    this.options = options;
+  }
+
+  async resolve(mailboxId: string, refs: SendAttachment[]): Promise<SendFile[]> {
+    if (refs.length === 0) return [];
+    const rows = await sendAttachmentFiles(this.options.db, mailboxId, refs);
+    if (rows.length !== refs.length) {
+      throw new MissingFileError(`${refs.length - rows.length} attachment(s) not found`);
+    }
+    return Promise.all(
+      rows.map(async (row) => {
+        const content = await this.options.objects.get(row.r2Key);
+        if (!content) throw new MissingFileError(`attachment object ${row.r2Key} is gone`);
+        return { filename: row.filename, contentType: row.mimeType, content };
+      }),
+    );
   }
 }
 
