@@ -2,12 +2,15 @@ import { and, desc, eq, getTableColumns, sql, type AnyColumn, type SQL } from "d
 import type { Db } from "./client.ts";
 import {
   attachments,
+  conversationEvents,
   mailActions,
   mailboxAccess,
   mailboxes,
   members,
   messages,
+  tags,
   threadState,
+  threadTags,
   threads,
   triageBucket,
 } from "./schema/index.ts";
@@ -333,6 +336,64 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         .innerJoin(...actionOrg)
         .where(and(eq(mailActions.id, actionId), eq(mailActions.memberId, mailboxAccess.memberId)));
       return row ?? null;
+    },
+
+    /**
+     * A shared conversation's workflow state (ADR 0021): status, assignee, priority, SLA due
+     * times, its tags, and its timeline events oldest first. Null when no grantee can see it.
+     */
+    async getConversation(threadId: string) {
+      const [[conversation], tagRows, events] = await Promise.all([
+        db
+          .select({
+            id: threads.id,
+            orgId: threads.orgId,
+            mailboxId: threads.mailboxId,
+            mailboxKind: mailboxes.kind,
+            status: threads.status,
+            assigneeMemberId: threads.assigneeMemberId,
+            priority: threads.priority,
+            snoozedUntil: threads.snoozedUntil,
+            resolvedAt: threads.resolvedAt,
+            customerId: threads.customerId,
+            firstRespondedAt: threads.firstRespondedAt,
+            firstResponseDueAt: threads.firstResponseDueAt,
+            nextResponseDueAt: threads.nextResponseDueAt,
+            resolutionDueAt: threads.resolutionDueAt,
+          })
+          .from(threads)
+          .innerJoin(...threadGrant)
+          .innerJoin(...threadOrg)
+          .innerJoin(mailboxes, eq(mailboxes.id, threads.mailboxId))
+          .where(eq(threads.id, threadId))
+          .limit(1),
+        db
+          .select({ id: tags.id, name: tags.name, color: tags.color })
+          .from(threadTags)
+          .innerJoin(tags, eq(tags.id, threadTags.tagId))
+          .innerJoin(threads, eq(threads.id, threadTags.threadId))
+          .innerJoin(...threadGrant)
+          .innerJoin(...threadOrg)
+          .where(eq(threadTags.threadId, threadId))
+          .orderBy(sql`lower(${tags.name})`),
+        db
+          .select({
+            id: conversationEvents.id,
+            kind: conversationEvents.kind,
+            actorMemberId: conversationEvents.actorMemberId,
+            data: conversationEvents.data,
+            createdAt: conversationEvents.createdAt,
+          })
+          .from(conversationEvents)
+          .innerJoin(threads, eq(threads.id, conversationEvents.threadId))
+          .innerJoin(...threadGrant)
+          .innerJoin(...threadOrg)
+          .where(eq(conversationEvents.threadId, threadId))
+          .orderBy(conversationEvents.createdAt, conversationEvents.id),
+      ]);
+      if (!conversation) return null;
+      // A user's grants can show a thread through one member only (one per org), so no duplicates.
+      return { ...conversation, tags: tagRows, events };
     },
 
     async getThread(threadId: string) {

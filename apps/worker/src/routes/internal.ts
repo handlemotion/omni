@@ -7,11 +7,13 @@ import {
   mailEventSchema,
   type MailEvent,
 } from "@omni/contracts";
+import { applyInboundMessage } from "@omni/db";
 import { z } from "zod";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 import { openDb } from "../db.ts";
 import { loadConfig } from "../env.ts";
+import { pingMailService } from "../mail-service.ts";
 import type { AiJob } from "../queue.ts";
 import { fanOut, notifyFailedActions } from "../realtime.ts";
 
@@ -70,6 +72,18 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   const { db, close } = openDb(c.env);
   try {
     const created = events.filter((e) => e.type === "message.created");
+    // The helpdesk status rule, once per message and in order (ADR 0021): a customer message
+    // reopens, our own reply goes pending. A failure answers 500, so the mail service retries.
+    let queuedActions = 0;
+    for (const event of created) {
+      const applied = await applyInboundMessage(db, {
+        messageId: event.messageId,
+        folderRole: event.folderRole,
+      });
+      if (applied.applied) queuedActions += applied.queuedActions;
+    }
+    if (queuedActions > 0)
+      c.executionCtx.waitUntil(pingMailService({ config, log, requestId: c.var.requestId }));
     if (created.length) await fanOut(c.env, db, config, changedThreads(created), { push: true });
     await notifyFailedActions(c.env, failed);
   } finally {

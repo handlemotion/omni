@@ -547,6 +547,9 @@ importers:
       '@omni/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@omni/mail-core':
+        specifier: workspace:*
+        version: link:../mail-core
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@cloudflare/workers-types@5.20261030.1)(@opentelemetry/api@1.10.0)(kysely@0.29.7)(postgres@4.0.0)

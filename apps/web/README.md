@@ -91,6 +91,12 @@ already running), the rest when next shown, and queued sends are checked against
 whose entries expire after 70 s unless repeated (`useReportPresence` repeats every 30 s, again
 on reconnect, and says `left` on unmount). A dropped socket clears presence.
 
+**Conversations** (shared inboxes, ADR 0021). `useConversation` is under the thread's key, so
+anything that refetches the thread refetches it. The change hooks patch it at once, put it back
+if the request fails, take the server's values on success, and refetch the thread, lists and
+counts when they settle. Each offers its inverse as undo (resolve and snooze undo to reopen, so a
+pending conversation comes back open).
+
 **Undo.** An action that can be reversed calls `offerUndo(label, inverse)` with the inverse built
 from the state before it. One offer stands at a time for 8 s; `useUndo()` gives the toast its
 `offer` and binds `z`. The list's done and defer offer it already.
@@ -153,6 +159,9 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 | `useRealtimeConnection(memberId)`, `useRealtimeStatus()`                                                                                           | the socket                                    |
 | `useConnectivity()`                                                                                                                                | `{ online, queued }`                          |
 | `useShortcut(id, run, enabled?)`, `runShortcut(id)`, `useAvailableShortcuts()`, `announce(text)`                                                   | keyboard shortcuts (`hooks/use-shortcuts.ts`) |
+| `useConversation(threadId)`, `useTags(mailboxId)`, `useAssignees(mailboxId)`                                                                       | helpdesk state, the inbox's tags and agents   |
+| `useResolve()`, `useReopen()`, `useSnooze()`, `useClaim()`, `useAssign()`, `useSetPriority()`, `useToggleTag()`                                    | `mutate({ threadId, … })`, with undo          |
+| `useCreateTag()`, `useUpdateTag()`, `useDeleteTag()`                                                                                               | an inbox's tags (settings)                    |
 | `usePresence(threadId)`, `useReportPresence(thread, state)`                                                                                        | who is viewing or replying; say you are       |
 | `useUndo()`, `offerUndo(label, undo)`                                                                                                              | `{ offer, undo, dismiss }` for the undo toast |
 | `useThreadListShortcuts({ … })`                                                                                                                    | the list keys: j/k, o, x, e, h, u, Esc        |

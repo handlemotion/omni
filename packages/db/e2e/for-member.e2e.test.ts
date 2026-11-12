@@ -11,6 +11,7 @@ import {
   releaseDomain,
   transferDomain,
 } from "../src/domains.ts";
+import { applyConversationChange } from "../src/conversations.ts";
 import { forMember, forUser } from "../src/for-member.ts";
 import {
   mailboxes as schemaMailboxes,
@@ -102,6 +103,8 @@ describe("forMember isolation", () => {
     ]);
     expect(await asAlice.getThread(billing.threadId)).toBeNull();
     expect(await asAlice.getThread(ops.threadId)).toBeNull();
+    expect((await asAlice.getConversation(hello.threadId))?.status).toBe("open");
+    expect(await asAlice.getConversation(billing.threadId)).toBeNull();
     expect(await asAlice.search("flamingo")).toEqual([]);
     expect(await asAlice.search("albatross")).toEqual([]);
 
@@ -118,6 +121,14 @@ describe("forMember isolation", () => {
     expect(await asCarol.getThread(hello.threadId)).toBeNull();
     expect(await asCarol.search("pelican")).toEqual([]);
     expect(await asCarol.setThreadState(hello.threadId, { read: true })).toBeNull();
+    expect(await asCarol.getConversation(hello.threadId)).toBeNull();
+    expect(
+      await applyConversationChange(db, {
+        threadId: hello.threadId,
+        actorMemberId: carol,
+        change: { type: "resolve" },
+      }),
+    ).toEqual({ ok: false, reason: "not_found" });
   });
 
   test("the workspace switcher lists only the user's orgs and the mailboxes granted to them there", async () => {

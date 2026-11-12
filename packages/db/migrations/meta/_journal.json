@@ -127,6 +127,13 @@
       "when": 1794498680067,
       "tag": "0017_helpdesk_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794499715982,
+      "tag": "0018_message_workflow",
+      "breakpoints": true
     }
   ]
 }

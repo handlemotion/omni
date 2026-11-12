@@ -530,6 +530,16 @@ export const messages = pgTable(
      * Defaults false so existing rows are never re-notified.
      */
     notifyPending: boolean("notify_pending").notNull().default(false),
+    /**
+     * A machine sent it (bounce, auto-reply, out of office: `@omni/mail-core` `automatedKind`).
+     * The helpdesk never reopens a conversation or starts an SLA on one.
+     */
+    automated: boolean("automated").notNull().default(false),
+    /**
+     * When the Worker applied this message to its conversation (status rule, first response,
+     * SLA). Claimed once, so a redelivered `message.created` cannot apply an old message again.
+     */
+    workflowAppliedAt: timestamptz("workflow_applied_at"),
     searchVector: tsvector("search_vector")
       .notNull()
       .generatedAlwaysAs(

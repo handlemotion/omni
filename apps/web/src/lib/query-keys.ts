@@ -5,7 +5,8 @@
 //   ├─ org ─ organizations · members · invitations · invitation(id) · passkeys · onboarding
 //   │        · workspaces · billing · billing-cards · billing-invoices
 //   ├─ mail ─ mailboxes · workspace-mailboxes · mailbox-members(id) · counts · threads(filter)
-//   │        · thread(id) · search(q) · action(id)
+//   │        · thread(id) ─ conversation · search(q) · action(id) · tags(mailbox)
+//   │        · assignees(mailbox)
 //   └─ local ─ pending(threadId) · failures       (client-only state, never fetched)
 //
 // Switching organization or account clears the whole cache (see `session.ts`), so keys do not
@@ -60,6 +61,15 @@ export const keys = {
   threadLists: () => [...mail, "threads"] as const,
   threads: (filter: ThreadFilter) => [...mail, "threads", normalize(filter)] as const,
   thread: (id: string) => [...mail, "thread", id] as const,
+  /**
+   * A helpdesk conversation's status, assignee, priority, tags and events. Under `thread(id)`, so
+   * whatever refetches the thread (realtime, an action) refetches this too.
+   */
+  conversation: (threadId: string) => [...mail, "thread", threadId, "conversation"] as const,
+  /** A shared inbox's tags. */
+  tags: (mailboxId: string) => [...mail, "tags", mailboxId] as const,
+  /** Who a shared inbox's conversations can be assigned to. */
+  assignees: (mailboxId: string) => [...mail, "assignees", mailboxId] as const,
   searches: () => [...mail, "search"] as const,
   search: (q: string, mailbox?: string) =>
     [...mail, "search", { q, ...(mailbox ? { mailbox } : {}) }] as const,

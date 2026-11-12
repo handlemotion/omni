@@ -1,7 +1,7 @@
 // Names the app uses for API shapes. Every type comes from the Worker's routes through
 // `@omni/client`; nothing here redefines a response by hand.
 import type { Api } from "@omni/client";
-import type { InferRequestType } from "hono/client";
+import type { InferRequestType, InferResponseType } from "hono/client";
 
 export type {
   DnsRecord,
@@ -66,3 +66,14 @@ export const HELPDESK_VIEWS = [
   "sla_at_risk",
 ] as const;
 export type HelpdeskView = (typeof HELPDESK_VIEWS)[number];
+
+/** A helpdesk conversation: status, assignee, priority, due times, tags and timeline events. */
+export type Conversation = InferResponseType<Api["threads"][":id"]["conversation"]["$get"], 200>;
+export type ConversationStatus = Conversation["status"];
+export type Priority = Conversation["priority"];
+export type ConversationEvent = Conversation["events"][number];
+export type Tag = InferResponseType<Api["mailboxes"][":id"]["tags"]["$get"], 200>["tags"][number];
+export type Assignee = InferResponseType<
+  Api["mailboxes"][":id"]["assignees"]["$get"],
+  200
+>["assignees"][number];
