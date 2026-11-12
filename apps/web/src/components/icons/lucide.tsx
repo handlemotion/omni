@@ -46,6 +46,13 @@ import {
   CircleHelp,
   Clock3,
   TriangleAlert,
+  Circle,
+  CircleDashed,
+  SignalHigh,
+  SignalMedium,
+  SignalLow,
+  Tag,
+  UserRound,
   type LucideIcon,
   type LucideProps,
 } from "lucide-react";
@@ -100,3 +107,10 @@ export const IconCircleCheck = thin(CircleCheck, "IconCircleCheck");
 export const IconCircleHelp = thin(CircleHelp, "IconCircleHelp");
 export const IconClock3 = thin(Clock3, "IconClock3");
 export const IconTriangleAlert = thin(TriangleAlert, "IconTriangleAlert");
+export const IconCircle = thin(Circle, "IconCircle");
+export const IconCircleDashed = thin(CircleDashed, "IconCircleDashed");
+export const IconSignalHigh = thin(SignalHigh, "IconSignalHigh");
+export const IconSignalMedium = thin(SignalMedium, "IconSignalMedium");
+export const IconSignalLow = thin(SignalLow, "IconSignalLow");
+export const IconTag = thin(Tag, "IconTag");
+export const IconUserRound = thin(UserRound, "IconUserRound");

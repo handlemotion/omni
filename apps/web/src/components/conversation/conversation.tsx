@@ -15,7 +15,7 @@ import { ShowMore } from "@/components/ui/show-more";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
-import { useThread } from "@/hooks/use-mail.ts";
+import { useMailboxes, useThread } from "@/hooks/use-mail.ts";
 import {
   useArchive,
   useDefer,
@@ -28,6 +28,7 @@ import {
 import { DEFER_MS, isDeferred } from "@/lib/threads.ts";
 import type { Message, Thread } from "@/lib/types.ts";
 import { AddedLine, MessageItem, PendingItem } from "./message.tsx";
+import { Properties } from "./properties.tsx";
 
 /** Past this many messages, the middle of a thread folds behind one button. */
 const FOLD_OVER = 12;
@@ -135,11 +136,14 @@ function Actions({ thread }: { thread: Thread }) {
   const markUndone = useMarkUndone();
   const deferred = isDeferred(thread.deferredUntil);
   const [fullScreen, toggleFullScreen] = useFullScreen();
+  const shared = useMailboxes().data?.find((m) => m.id === thread.mailboxId)?.kind === "shared";
 
   return (
     // pb-0.5 lifts the icons 1px, in line with the list's header row beside it; pe-1.5
     // matches the 28px buttons' inset from the top.
-    <div className="flex h-10.5 shrink-0 items-center justify-end gap-1 border-b pe-1.5 pb-0.5">
+    <div className="flex h-10.5 shrink-0 items-center gap-1 border-b ps-1.5 pe-1.5 pb-0.5">
+      {shared && <Properties thread={thread} />}
+      <span className="flex-1" />
       <Action label="Archive" onPress={() => archive.mutate({ threadId })}>
         <IconArchive />
       </Action>
