@@ -592,7 +592,9 @@ function Recipients(props: {
   onChange: (next: Partial<{ to: string[]; cc: string[]; bcc: string[] }>) => void;
 }) {
   return (
-    <div className="flex flex-col border-b pb-1">
+    // 13px of ink from the chips to the divider, as from the tabs to the chips and from the
+    // divider to the body's first line (the body is pulled up 4px past its line leading).
+    <div className="flex flex-col border-b pb-2">
       <RecipientField
         label="To"
         value={props.to}
@@ -645,7 +647,7 @@ function Body(props: {
           props.onSend();
         }
       }}
-      className="max-h-96 min-h-24 resize-none py-1 sm:py-1"
+      className="-mt-1 max-h-96 min-h-24 resize-none pt-0 pb-1 sm:pt-0 sm:pb-1"
     />
   );
 }

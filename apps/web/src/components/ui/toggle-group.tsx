@@ -99,11 +99,8 @@ const toggleGroupItemStyles = tv({
         "*:[svg]:-mx-px *:[svg]:size-3.5 sm:*:[svg]:size-3",
         "*:data-[slot=loader]:-mx-px *:data-[slot=loader]:size-3.5 sm:*:data-[slot=loader]:size-3",
       ],
-      sm: [
-        "min-h-9 gap-x-1.5 px-3 py-1.5 sm:min-h-8 sm:px-2.5 sm:py-1.5 sm:text-sm/5",
-        "*:[svg]:size-4.5 sm:*:[svg]:size-4",
-        "*:data-[slot=loader]:size-4.5 sm:*:data-[slot=loader]:size-4",
-      ],
+      // 24px items + 2px gutters: a 28px control, the buttons' sm.
+      sm: ["h-6 gap-x-1.5 px-2.5 text-sm", "*:[svg]:size-3.5", "*:data-[slot=loader]:size-3.5"],
       md: [
         "min-h-10 gap-x-2 px-3.5 py-2 sm:min-h-9 sm:px-3 sm:py-1.5 sm:text-sm/6",
         "*:[svg]:size-5 sm:*:[svg]:size-4",
