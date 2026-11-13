@@ -72,7 +72,9 @@ export interface MailService {
 }
 
 export async function startService(config: ServiceConfig, log: Logger): Promise<MailService> {
-  const { db, close } = createDb(config.DATABASE_URL);
+  // A fixed share of the database's connection budget, next to Hyperdrive's origin limit
+  // (docs/self-hosting.md, "Connection budget"); postgres-js would otherwise open up to 10.
+  const { db, close } = createDb(config.DATABASE_URL, { max: 5 });
   const google =
     config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
       ? createGoogleOAuth({
