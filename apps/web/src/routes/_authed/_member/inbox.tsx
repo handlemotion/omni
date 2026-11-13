@@ -11,10 +11,11 @@ export const Route = createFileRoute("/_authed/_member/inbox")({
   validateSearch: inboxSearch,
   loaderDeps: ({ search: { mailbox, lane, view, tag } }) => ({ mailbox, lane, view, tag }),
   // A shared inbox's helpdesk view (`?mailbox=…&view=…`) lists conversations; the rest, threads.
+  // Not awaited, like every list and thread: the screen opens at once and its rows follow.
   loader: ({ context, deps: { mailbox, lane, view, tag } }) =>
-    mailbox && view
-      ? context.queryClient.ensureInfiniteQueryData(conversationsQuery({ mailbox, view, tag }))
-      : context.queryClient.ensureInfiniteQueryData(threadsQuery({ view: "inbox", mailbox, lane })),
+    void (mailbox && view
+      ? context.queryClient.prefetchInfiniteQuery(conversationsQuery({ mailbox, view, tag }))
+      : context.queryClient.prefetchInfiniteQuery(threadsQuery({ view: "inbox", mailbox, lane }))),
   component: Inbox,
 });
 

@@ -2,6 +2,7 @@
 // Any change of identity clears the whole cache and reloads the routes, so no data from one
 // member or organization is ever shown to another.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
+import { dropStartupResponses } from "./startup-fetch.ts";
 import { api, ApiError, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import type { Member } from "./types.ts";
@@ -65,6 +66,7 @@ interface Reloadable {
  * In-flight queries are aborted first so a late answer cannot land in the new cache.
  */
 export async function resetSession(client: QueryClient, router: Reloadable) {
+  dropStartupResponses();
   await client.cancelQueries();
   client.clear();
   await router.invalidate();

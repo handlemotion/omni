@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-query";
 import { api, ApiError, call } from "./api.ts";
 import { removeFromLists } from "./cache.ts";
+import { FIRST_PAGE_SIZE, OLDER_PAGE_SIZE } from "./mail-queries.ts";
 import { conversationFilterOf, keys } from "./query-keys.ts";
 import type {
   Assignee,
@@ -20,9 +21,6 @@ import type {
   ConversationSummary,
   Priority,
 } from "./types.ts";
-
-/** Rows per page of a helpdesk list. */
-export const CONVERSATION_PAGE_SIZE = 50;
 
 /** One helpdesk list, paged by an opaque cursor kept in the cache. `sla_at_risk` is soonest due first. */
 export const conversationsQuery = (filter: ConversationFilter) =>
@@ -37,7 +35,7 @@ export const conversationsQuery = (filter: ConversationFilter) =>
               view: filter.view,
               ...(filter.tag ? { tagId: filter.tag } : {}),
               ...(pageParam ? { cursor: pageParam } : {}),
-              limit: String(CONVERSATION_PAGE_SIZE),
+              limit: String(pageParam ? OLDER_PAGE_SIZE : FIRST_PAGE_SIZE),
             },
           },
           { init: { signal } },

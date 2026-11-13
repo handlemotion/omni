@@ -7,7 +7,7 @@ export const Route = createFileRoute("/_authed/_member/later")({
   validateSearch: listSearch,
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) =>
-    context.queryClient.ensureInfiniteQueryData(threadsQuery({ view: "later", ...deps })),
+    void context.queryClient.prefetchInfiniteQuery(threadsQuery({ view: "later", ...deps })),
   component: Later,
 });
 

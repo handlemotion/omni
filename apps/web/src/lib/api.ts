@@ -3,15 +3,22 @@
 import { createApi, createAuth } from "@omni/client";
 import { DetailedError, parseResponse, type ClientResponse } from "hono/client";
 import { reportAnswer, reportNoAnswer } from "./connectivity.ts";
+import { takeStartupResponse } from "./startup-fetch.ts";
 import { tracedFetch } from "./telemetry.ts";
 
 const origin = window.location.origin;
 
 /** Typed Hono RPC calls: `api.threads.$get({ query })`. Prefer `call()` to unwrap them. */
-export const api = createApi({ baseUrl: origin, fetch: tracedFetch });
+export const api = createApi({
+  baseUrl: origin,
+  fetch: (input, init) => takeStartupResponse(input, init) ?? tracedFetch(input, init),
+});
 
 /** Better Auth's client: magic link, passkeys, organizations. */
-export const auth = createAuth({ baseUrl: origin });
+export const auth = createAuth({
+  baseUrl: origin,
+  fetch: (input, init) => takeStartupResponse(input, init) ?? fetch(input, init),
+});
 
 /** A failed API call. `status` 0 means the request never got an answer (offline, aborted). */
 export class ApiError extends Error {

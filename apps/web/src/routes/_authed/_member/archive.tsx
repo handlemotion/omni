@@ -7,7 +7,7 @@ export const Route = createFileRoute("/_authed/_member/archive")({
   validateSearch: listSearch,
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) =>
-    context.queryClient.ensureInfiniteQueryData(threadsQuery({ view: "archive", ...deps })),
+    void context.queryClient.prefetchInfiniteQuery(threadsQuery({ view: "archive", ...deps })),
   component: Archive,
 });
 

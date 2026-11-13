@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Skeleton, SkeletonBox } from "skullet/react";
 import {
   IconArchive,
   IconCheck,
@@ -49,7 +50,7 @@ const KEEP_LAST = 8;
  * oldest first, ending at the newest with the reply box under it.
  */
 export function Conversation({ threadId }: { threadId: string }) {
-  const { thread, pending } = useThread(threadId);
+  const { thread, pending, error } = useThread(threadId);
   useMarkReadOnOpen(thread);
   const shared = useAllMailboxes().data?.find((m) => m.id === thread?.mailboxId)?.kind === "shared";
   // Notes and activity: shared inboxes only (a personal thread has no helpdesk state).
@@ -87,11 +88,16 @@ export function Conversation({ threadId }: { threadId: string }) {
     if (el) atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
-  if (!thread) return null; // The route loader fetched it.
+  // The screen opens before the thread arrives (the route doesn't wait): a skeleton of it until
+  // then, which skullet holds back 150 ms, so a thread warmed by hovering its row never shows one.
+  // A thread that failed to load (gone, no access, retries spent) goes to the route's error
+  // screen, as it did when the loader waited for it, rather than a skeleton that never ends.
+  if (error && !thread) throw error;
+  if (!thread) return <ConversationSkeleton />;
   const subject = thread.messages.at(-1)?.subject || thread.messages[0]?.subject || "";
 
   return (
-    <section aria-label="Conversation" className="flex min-w-0 flex-1 flex-col">
+    <section aria-label="Conversation" className={SECTION}>
       <Actions thread={thread} shared={shared} />
       {/* The divider from the list runs beside the messages only; the toolbar row stays open,
           continuing the list's header row. */}
@@ -102,11 +108,11 @@ export function Conversation({ threadId }: { threadId: string }) {
           ref={scroller}
           onScroll={onScroll}
           // Full screen, the sidebar's own edge is the only line: a second beside it doubles up.
-          className={`flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none ${fullScreen ? "" : "border-s"}`}
+          className={`${SCROLLER} overflow-y-auto overscroll-none ${fullScreen ? "" : "border-s"}`}
         >
           {/* Grows to fill a short thread, so the composer still floats at the bottom. The bottom
               padding clears the fade, so the newest message ends above it. */}
-          <div className="mx-auto flex w-full max-w-3xl grow flex-col gap-6 px-5 pt-6 pb-10">
+          <div className={COLUMN}>
             <div className="flex flex-col gap-2">
               <Heading level={2}>{subject || "(no subject)"}</Heading>
               {/* What the conversation is (status, owner, priority, tags) sits with its title. */}
@@ -144,6 +150,61 @@ export function Conversation({ threadId }: { threadId: string }) {
         </div>
       </ComposerProvider>
     </section>
+  );
+}
+
+// The reader's layout, shared by the conversation and its skeleton so the two line up.
+const SECTION = "flex min-w-0 flex-1 flex-col";
+const SCROLLER = "flex min-h-0 flex-1 flex-col";
+const COLUMN = "mx-auto flex w-full max-w-3xl grow flex-col gap-6 px-5 pt-6 pb-10";
+
+/**
+ * The thread while it loads: the toolbar, a subject and a few messages, drawn from skullet's
+ * boxes in the reader's own layout. Not measured from sample messages, which cost every open.
+ */
+function ConversationSkeleton() {
+  return (
+    <section aria-label="Conversation" className={SECTION}>
+      <Skeleton
+        loading
+        label="Loading conversation"
+        className={SECTION}
+        skeleton={
+          <>
+            {/* The toolbar's actions: 28px buttons with 16px icons, as `Actions` lays them out. */}
+            <div className="flex h-10.5 shrink-0 items-center justify-end gap-3 border-s border-b border-s-transparent pe-3 pb-0.5">
+              {[0, 1, 2, 3].map((i) => (
+                <SkeletonBox key={i} width={16} height={16} radius={4} />
+              ))}
+            </div>
+            <div className={`${SCROLLER} overflow-hidden border-s`}>
+              <div className={COLUMN}>
+                <SkeletonBox width="45%" height={20} />
+                <MessageBones width="55%" />
+                <MessageBones width="25%" ours />
+                <MessageBones width="40%" />
+              </div>
+            </div>
+          </>
+        }
+      >
+        {null}
+      </Skeleton>
+    </section>
+  );
+}
+
+/** A message as a bubble: the sender's line over it, on the left (or yours, on the right). */
+function MessageBones({ width, ours = false }: { width: string; ours?: boolean }) {
+  return (
+    <div className={`flex flex-col gap-3 ${ours ? "items-end" : "items-start"}`}>
+      <div className="flex items-center gap-2">
+        {!ours && <SkeletonBox width={18} height={18} radius={4} />}
+        <SkeletonBox width={56} height={10} />
+        <SkeletonBox width={72} height={10} />
+      </div>
+      <SkeletonBox width={width} height={36} radius={12} />
+    </div>
   );
 }
 

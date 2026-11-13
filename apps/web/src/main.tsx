@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createQueryClient } from "./lib/query-client.ts";
 import { resetSession } from "./lib/session.ts";
+import { dropStartupResponses } from "./lib/startup-fetch.ts";
 import { initErrorReporting } from "./lib/telemetry.ts";
 import { createAppRouter } from "./router.ts";
 import "./styles.css";
@@ -20,6 +21,19 @@ const queryClient = createQueryClient(() => {
   });
 });
 const router = createAppRouter(queryClient);
+
+// The landing screen's code starts loading now, beside the session check its guards wait on,
+// rather than once they pass. `/` redirects to the inbox.
+const landing = window.location.pathname === "/" ? "/inbox" : window.location.pathname;
+for (const route of router.getMatchedRoutes(landing)[0]) {
+  router.loadRouteChunk(route)?.catch(() => {}); // The navigation retries and reports it.
+}
+// By the first screen's arrival its requests have all gone out: preloads left over are for a
+// screen nobody opened (a sign-in page, a redirect) and must not answer later requests.
+const stopDropping = router.subscribe("onResolved", () => {
+  stopDropping();
+  dropStartupResponses();
+});
 
 const root = document.getElementById("root");
 if (!root) throw new Error("index.html has no #root");

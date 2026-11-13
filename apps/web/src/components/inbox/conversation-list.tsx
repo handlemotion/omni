@@ -80,6 +80,7 @@ export function ConversationList(props: {
       title={title}
       href={props.href}
       rows={rows}
+      loading={query.isPending}
       caption={filter.view === "sla_at_risk" ? "Soonest due" : undefined}
       shortcuts={{ view: "inbox", threads: [], loadMore, helpdesk: { filter, conversations } }}
       loadMore={loadMore}

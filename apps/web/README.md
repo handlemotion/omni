@@ -25,6 +25,8 @@ machine's Chrome.
 `pnpm bench` (stack up, `perf:seed` run, `DATABASE_URL` set) measures startup, switching lists,
 opening a thread, loading older mail and scrolling in that Chromium against the 200k-message seed,
 with the CPU slowed 4x (`scripts/bench.ts`). Run it before and after a performance change.
+`BENCH_LATENCY=80` adds a round trip to every request; `BENCH_H2=1` serves the app over HTTP/2 as
+production does (`wrangler dev` alone is HTTP/1.1, which queues the scripts six at a time).
 
 ## Layout
 
@@ -72,8 +74,16 @@ own route types, so a changed route is a type error here). `call()` unwraps a re
 `ApiError { status, message }`.
 
 **Queries.** `lib/mail-queries.ts`, `lib/org-queries.ts` and `lib/session.ts` define each query
-once with `queryOptions`. Route loaders `ensureQueryData` them (so a route renders with data, and
-hovering a link preloads it); hooks subscribe to the same keys. Keys live in `lib/query-keys.ts`.
+once with `queryOptions`. Route loaders start them (hovering a link preloads it); hooks subscribe
+to the same keys. Keys live in `lib/query-keys.ts`. Lists and threads open at once: their loaders
+don't wait, and the screen draws a `skullet` skeleton until the data is there (held back 150 ms,
+so a quick load never shows it). Every screen's code loads once the app is idle
+(`usePreloadScreens`), so a first visit doesn't wait on a download either.
+
+**Startup.** `index.html` preloads what every signed-in screen asks for first (session, shell
+data, the Inbox's first page) so it loads beside the scripts; `lib/startup-fetch.ts` hands each
+answer to the first request for it, and drops what is left once the first screen has loaded or
+the session changes.
 
 **Freshness.** Mail is kept current by realtime, not polling. `staleTime` is 30 s, which only
 bounds how long a missed event can leave something old. Window focus refetches stale queries.

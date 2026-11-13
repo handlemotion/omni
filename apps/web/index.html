@@ -8,6 +8,35 @@
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#fdfdfd" />
+    <!-- Startup: what every signed-in screen asks for first starts with the page, alongside the
+         scripts, instead of after them (a round trip or two saved). The app's own `fetch` takes
+         these answers (same URL and credentials mode); signed out they are quick 401s. -->
+    <link rel="preload" as="fetch" crossorigin="use-credentials" href="/api/auth/get-session" />
+    <link rel="preload" as="fetch" crossorigin="use-credentials" href="/api/me" />
+    <link rel="preload" as="fetch" crossorigin="use-credentials" href="/api/mailboxes" />
+    <link rel="preload" as="fetch" crossorigin="use-credentials" href="/api/mailboxes?scope=all" />
+    <link rel="preload" as="fetch" crossorigin="use-credentials" href="/api/counts?scope=all" />
+    <link
+      rel="preload"
+      as="fetch"
+      crossorigin="use-credentials"
+      href="/api/workspaces?include=personal"
+    />
+    <!-- The Inbox's first page: where `/` and almost every visit land. Elsewhere it goes unused. -->
+    <link
+      rel="preload"
+      as="fetch"
+      crossorigin="use-credentials"
+      href="/api/threads?scope=all&view=inbox&limit=50"
+    />
+    <!-- The text face, so the first render already uses it (no swap and re-layout after). -->
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      crossorigin
+      href="./node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2"
+    />
   </head>
   <body>
     <div id="root"></div>

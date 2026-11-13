@@ -77,11 +77,12 @@ export function ComboBoxContent<T extends object>({
 export function ComboBoxInput(props: InputProps) {
   const context = useSlottedContext(ComboBoxContext)!;
   return (
-    <span
-      data-slot="control"
-      className="relative isolate block has-[[data-slot=icon]:last-child]:[&_input]:pe-10"
-    >
-      <Input {...props} placeholder={props?.placeholder} />
+    <span data-slot="control" className="group/combo-input relative isolate block">
+      <Input
+        {...props}
+        placeholder={props?.placeholder}
+        className={cx("group-has-[[data-slot=icon]:last-child]/combo-input:pe-10", props.className)}
+      />
       <Button className="absolute end-0 top-0 grid h-full w-11 cursor-default place-content-center sm:w-9">
         {!context?.inputValue && (
           <ChevronUpDownIcon

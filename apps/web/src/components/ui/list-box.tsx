@@ -46,8 +46,8 @@ export function ListBoxItem<T extends object>({
           ...renderProps,
           className: twJoin(
             "group not-has-[[slot=description]]:items-start",
-            "has-data-[slot=drag-icon]:*:[[slot=label]]:col-start-3",
-            "has-data-[slot=drag-icon]:*:[svg]:col-start-2",
+            "[&>[data-slot=drag-icon]~[slot=label]]:col-start-3",
+            "[&>[data-slot=drag-icon]~svg]:col-start-2",
             "href" in props ? "cursor-pointer" : "cursor-default",
             className,
           ),

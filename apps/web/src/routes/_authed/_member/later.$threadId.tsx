@@ -4,7 +4,7 @@ import { Conversation } from "../../../components/conversation/conversation.tsx"
 
 export const Route = createFileRoute("/_authed/_member/later/$threadId")({
   loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(threadQuery(params.threadId)),
+    void context.queryClient.prefetchQuery(threadQuery(params.threadId)),
   component: function LaterThread() {
     return <Conversation threadId={Route.useParams().threadId} />;
   },

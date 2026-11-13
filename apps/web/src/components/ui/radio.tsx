@@ -19,7 +19,7 @@ export function RadioGroup({ className, ...props }: RadioGroupProps) {
       {...props}
       data-slot="control"
       className={cx(
-        "space-y-3 has-[[slot=description]]:not-has-[[slot=errorMessage]]:space-y-6",
+        "flex flex-col gap-3 has-[[slot=description]]:not-has-[[slot=errorMessage]]:gap-6",
         className,
       )}
     />

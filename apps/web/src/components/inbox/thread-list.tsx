@@ -4,6 +4,7 @@ import type { Selection } from "react-aria-components";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
 import { ListLayout, Virtualizer } from "react-aria-components/Virtualizer";
+import { Skeleton, SkeletonBox } from "skullet/react";
 import { ConversationMeta, type ConversationRowInfo } from "@/components/inbox/conversation-meta";
 import { ListSweepSlot } from "@/components/inbox/list-sweep";
 import { OpenListContext } from "@/components/inbox/open-list";
@@ -66,8 +67,16 @@ interface ListProps {
 
 /** One view's threads (inbox, later, all mail...), loading more as it scrolls. */
 export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
-  const { threads, hasNextPage, fetchNextPage, isFetchingNextPage, isError, isSuccess, refetch } =
-    useThreads(props.filter);
+  const {
+    threads,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+    isPending,
+    isError,
+    isSuccess,
+    refetch,
+  } = useThreads(props.filter);
   const unread = useUnreadCount(props.filter);
   const names = useWorkspaceNames(props.filter.mailbox);
   // Stable rows, so the virtualized list's row cache survives renders that don't change them.
@@ -95,6 +104,7 @@ export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
         ) : undefined)
       }
       rows={rows}
+      loading={isPending}
       count={unread}
       shortcuts={{ view: props.filter.view, threads, loadMore }}
       loadMore={loadMore}
@@ -143,6 +153,12 @@ const toRow = (thread: ThreadSummary, workspace?: string): ListRow => ({
 export function List(
   props: ListProps & {
     rows: ListRow[];
+    /**
+     * The rows are on their way: a skeleton stands in. Screens open before their data (route
+     * loaders don't wait), and skullet holds the skeleton back 150 ms, so a quick load never
+     * shows it.
+     */
+    loading?: boolean;
     /** Shown in brand blue after the title (unread threads), when above zero. */
     count?: number;
     /** What the bar above the rows says about their order or scope. */
@@ -267,7 +283,16 @@ export function List(
               The list is its own scroll container; rows keep the frame's fixed height. The
               wrapper holds the fluid hover highlight, which sits under the rows and follows the
               list's scroll. The slot puts them inside smart search's sweep. */}
-          {props.empty && !threads.length ? (
+          {props.loading ? (
+            <Skeleton
+              loading
+              label={`Loading ${props.title}`}
+              skeleton={<RowBones />}
+              className="min-h-0 flex-1 overflow-hidden"
+            >
+              {null}
+            </Skeleton>
+          ) : props.empty && !threads.length ? (
             props.empty
           ) : (
             <ListSweepSlot>
@@ -354,8 +379,13 @@ const Rows = memo(function Rows(props: {
             />
           )}
         </Collection>
-        {/* Asks for the next page as the end of the list nears. */}
-        <GridListLoadMoreItem onLoadMore={props.loadMore} isLoading={props.isLoadingMore} />
+        {/* Asks for the next page three screens before the end (React Aria's default is one),
+            so older mail is usually there by the time the reader scrolls to it. */}
+        <GridListLoadMoreItem
+          onLoadMore={props.loadMore}
+          isLoading={props.isLoadingMore}
+          scrollOffset={3}
+        />
       </GridList>
     </Virtualizer>
   );
@@ -455,6 +485,26 @@ function ThreadRow({
       {thread.conversation && <ConversationMeta info={thread.conversation} />}
     </GridListItem>
   );
+}
+
+/**
+ * The list while its rows load, drawn from skullet's boxes on the row's own grid (avatar,
+ * sender, subject; the checkbox column stays empty), enough rows to fill the list. Not measured
+ * from sample rows: measuring ran on every list switch, a quarter of its time, though the
+ * skeleton is held back 150 ms and usually never shows. Each box costs a style read too.
+ */
+function RowBones() {
+  return Array.from({ length: 16 }, (_, i) => (
+    <div key={i} className="flex h-13.25 items-center gap-4 border-b ps-13.25 pe-5">
+      <SkeletonBox width={28} height={28} radius="var(--radius-sm)" />
+      <span className="ms-4 w-[min(--spacing(68),30%)] shrink-0">
+        <SkeletonBox width={`${45 + ((i * 17) % 30)}%`} height={10} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <SkeletonBox width={`${55 + ((i * 23) % 35)}%`} height={10} />
+      </span>
+    </div>
+  ));
 }
 
 /** Unread threads in the inbox (or one lane of it), across the filtered mailbox(es). */

@@ -6,7 +6,12 @@ import { prunePending } from "./pending.ts";
 import { keys } from "./query-keys.ts";
 import type { ThreadFilter } from "./types.ts";
 
-const THREAD_PAGE_SIZE = 50;
+/**
+ * A list's first page is what the screen opens with: small, so it comes back quickly. Older
+ * pages are as large as the API allows, so scrolling deep takes half the round trips.
+ */
+export const FIRST_PAGE_SIZE = 50;
+export const OLDER_PAGE_SIZE = 100;
 
 export const mailboxesQuery = () =>
   queryOptions({
@@ -60,7 +65,7 @@ export const threadsQuery = (filter: ThreadFilter) =>
               ...(filter.mailbox ? { mailboxId: filter.mailbox } : {}),
               ...(filter.lane ? { lane: filter.lane } : {}),
               ...(pageParam ? { cursor: pageParam } : {}),
-              limit: String(THREAD_PAGE_SIZE),
+              limit: String(pageParam ? OLDER_PAGE_SIZE : FIRST_PAGE_SIZE),
             },
           },
           { init: { signal } },

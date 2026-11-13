@@ -7,7 +7,7 @@ export const Route = createFileRoute("/_authed/_member/all")({
   validateSearch: listSearch,
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) =>
-    context.queryClient.ensureInfiniteQueryData(threadsQuery({ view: "all", ...deps })),
+    void context.queryClient.prefetchInfiniteQuery(threadsQuery({ view: "all", ...deps })),
   component: AllMail,
 });
 

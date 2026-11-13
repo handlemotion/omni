@@ -22,7 +22,7 @@ export function CheckboxGroup({ className, ...props }: CheckboxGroupProps) {
       {...props}
       data-slot="control"
       className={cx(
-        "space-y-3 has-[[slot=description]]:not-has-[[slot=errorMessage]]:space-y-6 **:[[slot=description]]:block",
+        "flex flex-col gap-3 has-[[slot=description]]:not-has-[[slot=errorMessage]]:gap-6 **:[[slot=description]]:block",
         className,
       )}
     />
