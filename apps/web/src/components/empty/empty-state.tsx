@@ -1,0 +1,45 @@
+// Every empty state, as dorks draws them (handlemotion/dorks, apps/web/src/components/EmptyState):
+// a Hairline figure (`@lucasmarkes/hairline`), an isometric line drawing of an object holding
+// nothing, then one or two lines of text and the actions. The figures answer the pointer, follow
+// the theme on their own and rest still under reduced motion.
+import type { ReactNode } from "react";
+import { Drawer, Plug } from "@lucasmarkes/hairline/react";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+
+/** The figures in use. Add one here before using a new one. */
+const FIGURES = { drawer: Drawer, plug: Plug };
+
+/**
+ * Top to bottom: the figure (208px, 20px above the text), a title, a description only when it
+ * helps, then, 24px below, the actions as small buttons.
+ */
+export function EmptyState(props: {
+  figure: keyof typeof FIGURES;
+  title: string;
+  description?: string;
+  children?: ReactNode;
+}) {
+  const Figure = FIGURES[props.figure];
+  return (
+    // A little above the true middle, where an empty page reads as centered.
+    <Empty className="gap-6 p-8 pb-24">
+      <EmptyHeader className="gap-1">
+        <EmptyMedia className="mb-5 w-52 [&_svg]:pointer-events-auto">
+          <Figure aria-hidden className="w-full" />
+        </EmptyMedia>
+        <EmptyTitle>{props.title}</EmptyTitle>
+        {props.description && <EmptyDescription>{props.description}</EmptyDescription>}
+      </EmptyHeader>
+      {props.children && (
+        <EmptyContent className="flex-row justify-center gap-2">{props.children}</EmptyContent>
+      )}
+    </Empty>
+  );
+}

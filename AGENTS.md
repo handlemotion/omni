@@ -27,6 +27,10 @@ extends this file and wins where they differ. Explicit user instructions overrid
 - Any UI or design work: read `DESIGN.md` first, every time. It routes to the tokens, the
   component folders, and the Figma file, and its rules (components only, semantic classes,
   `skullet` for loading states) apply to every screen.
+- **Hard ban on inline context text.** No explanatory sentences, notices, hints, helper lines,
+  subtitles or descriptions in the UI unless the Figma frame or the user asks for that exact
+  text. A label, a title and the control are enough; when something seems to need explaining,
+  ask instead of adding copy.
 - Boundaries are hard:
   - Only `apps/mail` holds mail passwords, the credential key, and the Purelymail API token.
     The Worker never talks to Purelymail.

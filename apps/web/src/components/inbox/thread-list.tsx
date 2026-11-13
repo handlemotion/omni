@@ -55,6 +55,8 @@ interface ListProps {
   href: (threadId: string) => string;
   /** The open thread, beside the list. */
   children?: ReactNode;
+  /** Shown in place of the rows when there are none. */
+  empty?: ReactNode;
 }
 
 /** One view's threads (inbox, queue, all mail...), loading more as it scrolls. */
@@ -215,8 +217,9 @@ export function List(
             </ListSweepSlot>
           )}
         </section>
-        {/* Always the same wrapper, so full screen doesn't remount the thread (or its scroll). */}
-        {props.children && (
+        {/* Only with a thread open: closed, the list takes the full width. The same wrapper in
+            and out of full screen, so toggling it doesn't remount the thread (or its scroll). */}
+        {props.children && threadId && (
           <div className="relative flex min-w-0 flex-1">
             {split && (
               <ResizeGrip
@@ -256,7 +259,9 @@ const Rows = memo(function Rows(props: {
         aria-label={props.label}
         // Transparent: the list is positioned, so its own fill would paint over the
         // highlight. The page behind it is already the background.
-        className="min-h-0 flex-1 overflow-y-auto bg-transparent"
+        // The virtualizer gives its sizer and row wrappers no width here (its measured width is
+        // NaN), so each row would shrink to its content; they take the list's width instead.
+        className="min-h-0 flex-1 overflow-y-auto bg-transparent *:w-full *:*:w-full"
         // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
         disallowTypeAhead
         selectionMode="multiple"

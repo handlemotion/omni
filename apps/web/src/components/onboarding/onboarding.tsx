@@ -544,7 +544,7 @@ function ConnectInboxForm(props: {
   return (
     <PageForm
       title="Connect your inbox"
-      description="Sign in with your team's Google accounts and their mail opens in Omni, ready to read and answer."
+      description="Sign in with Google and your Gmail opens in Omni, ready to read and answer."
       submit="Continue"
       problem={props.problem}
       onSubmit={() =>
@@ -604,7 +604,7 @@ function DomainEntryForm(props: { host?: "gmail"; onDone: () => void }) {
       title={atGoogle ? "Your company's domain" : "Use your own domain"}
       description={
         atGoogle
-          ? "The domain your team's Google accounts are on. Their mail stays at Google."
+          ? undefined
           : "Add the domain your team gets mail on. Your mail keeps flowing as it does today."
       }
       submit="Continue"

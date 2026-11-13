@@ -91,6 +91,16 @@ test("someone in no company lands in their Personal space's inbox, not in compan
   expect(new URL(page.url()).pathname).toBe("/inbox");
 });
 
+// Catches: a new Personal space showing an empty list with no way to bring mail in.
+test("an empty Personal space offers to connect Google or set up a company", async () => {
+  const page = await signedIn(`empty-${Date.now()}@gmail.test`, "/inbox");
+  await page.getByText("No accounts yet").waitFor({ timeout: 15_000 });
+  // Google is not set up on this install: setting up a company is the one way on.
+  expect(await page.getByRole("button", { name: "Connect Google" }).count()).toBe(0);
+  await page.getByRole("button", { name: "Set up a company" }).click();
+  await page.waitForURL((url) => url.pathname === "/onboarding");
+});
+
 // Catches: a Personal space offering team, shared-inbox and helpdesk settings it can never use.
 test("a Personal space's settings leave out the company pages; a company's keep them", async () => {
   const personal = await signedIn(`me-${Date.now()}@gmail.test`, "/settings");
@@ -168,6 +178,27 @@ test("compose defaults to the active workspace's address, and still offers the o
   await expect
     .poll(() => from.getByRole("radio", { checked: true }).textContent())
     .toBe("zzz@company.test");
+});
+
+// Catches: offering company setup to someone who cannot create one (a sign-in scoped to a
+// company), whose button would only bounce them back.
+test("the empty state offers company setup only to someone who can create a company", async () => {
+  const email = `scoped-${Date.now()}@empty-co.test`;
+  const company = await createOrgWithOwner(db, {
+    name: "Empty Co",
+    slug: `empty-co-${Date.now()}`,
+    ownerEmail: email,
+  });
+  await db
+    .insert(schema.mailDomains)
+    .values({ orgId: company.orgId, domain: "empty-co.test", provider: "imap" });
+  await db
+    .insert(schema.orgSetup)
+    .values({ orgId: company.orgId, step: "complete" })
+    .onConflictDoUpdate({ target: schema.orgSetup.orgId, set: { step: "complete" } });
+  const page = await signedIn(email, "/inbox");
+  await page.getByText("No accounts yet").waitFor({ timeout: 15_000 });
+  expect(await page.getByRole("button", { name: "Set up a company" }).count()).toBe(0);
 });
 
 async function freePort() {
