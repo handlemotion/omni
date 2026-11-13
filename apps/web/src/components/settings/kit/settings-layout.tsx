@@ -8,7 +8,7 @@ import { IconInfo } from "@/components/icons/central";
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { Button } from "react-aria-components/Button";
+import { Button } from "@ui-sdk/react/button";
 import { SettingsIllustration } from "./settings-illustrations";
 
 /** The anchor of a section, from its title; settings search names sections by it. */

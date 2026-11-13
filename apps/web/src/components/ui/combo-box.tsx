@@ -19,7 +19,7 @@ import { fieldStyles } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { cx } from "@/lib/primitive";
 import { DropdownDescription, DropdownItem, DropdownLabel, DropdownSection } from "./dropdown";
-import { Popover } from "./popover";
+import { AriaPopover as Popover } from "./aria-popover";
 
 export interface ComboBoxProps<
   T extends object,

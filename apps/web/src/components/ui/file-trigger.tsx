@@ -1,61 +1,60 @@
-import { CameraIcon, FolderIcon, PaperClipIcon } from "@heroicons/react/24/outline";
-import {
-  FileTrigger as FileTriggerPrimitive,
-  type FileTriggerProps as FileTriggerPrimitiveProps,
-} from "react-aria-components/FileTrigger";
-import type { VariantProps } from "tailwind-variants";
-import { Button, type buttonStyles } from "./button";
-import { Loader } from "./loader";
+import { useRef, type ReactNode } from "react";
 
-export interface FileTriggerProps
-  extends FileTriggerPrimitiveProps, VariantProps<typeof buttonStyles> {
-  isDisabled?: boolean;
-  isPending?: boolean;
-  ref?: React.RefObject<HTMLInputElement>;
-  className?: string;
+export interface FileTriggerProps {
+  allowsMultiple?: boolean;
+  /** MIME types or extensions, as the input's `accept`. */
+  acceptedFileTypes?: string[];
+  acceptDirectory?: boolean;
+  /** Opens the camera on phones: "user" (front) or "environment" (back). */
+  defaultCamera?: "user" | "environment";
+  onSelect?: (files: FileList | null) => void;
+  /** The control that opens the picker: a button. Without one, open it through `ref`. */
+  children?: ReactNode;
+  ref?: React.Ref<HTMLInputElement>;
 }
 
+/**
+ * Opens the file picker from whatever button it wraps. A press on that button (click, Enter or
+ * Space all fire `click`) bubbles here and clicks a hidden file input, so the button keeps its
+ * own name and role and the input never takes focus.
+ */
 export function FileTrigger({
-  intent = "outline",
-  size = "md",
-  isCircle = false,
+  allowsMultiple,
+  acceptedFileTypes,
+  acceptDirectory,
+  defaultCamera,
+  onSelect,
+  children,
   ref,
-  className,
-  ...props
 }: FileTriggerProps) {
+  const input = useRef<HTMLInputElement>(null);
   return (
-    <FileTriggerPrimitive ref={ref} {...props}>
-      <Button
-        className={className}
-        isDisabled={props.isDisabled}
-        intent={intent}
-        size={size}
-        isCircle={isCircle}
-      >
-        {!props.isPending ? (
-          props.defaultCamera ? (
-            <CameraIcon />
-          ) : props.acceptDirectory ? (
-            <FolderIcon />
-          ) : (
-            <PaperClipIcon />
-          )
-        ) : (
-          <Loader />
-        )}
-        {props.children ? (
-          props.children
-        ) : (
-          <>
-            {props.allowsMultiple
-              ? "Browse a files"
-              : props.acceptDirectory
-                ? "Browse"
-                : "Browse a file"}
-            ...
-          </>
-        )}
-      </Button>
-    </FileTriggerPrimitive>
+    <span
+      className="contents"
+      onClick={(event) => {
+        if (event.target !== input.current) input.current?.click();
+      }}
+    >
+      {children}
+      <input
+        ref={(node) => {
+          input.current = node;
+          if (typeof ref === "function") ref(node);
+          else if (ref) ref.current = node;
+        }}
+        type="file"
+        hidden
+        tabIndex={-1}
+        multiple={allowsMultiple}
+        accept={acceptedFileTypes?.join(",")}
+        capture={defaultCamera}
+        {...(acceptDirectory ? { webkitdirectory: "" } : {})}
+        onChange={(event) => {
+          onSelect?.(event.target.files);
+          // Picking the same file again still fires `change`.
+          event.target.value = "";
+        }}
+      />
+    </span>
   );
 }

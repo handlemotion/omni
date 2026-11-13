@@ -5,10 +5,10 @@ import { Autocomplete, useFilter } from "react-aria-components/Autocomplete";
 import { ListBox } from "react-aria-components/ListBox";
 import { Select, type SelectProps, SelectValue } from "react-aria-components/Select";
 import { cx } from "@/lib/primitive";
-import { Button } from "./button";
+import { AriaButton as Button } from "./aria-button";
 import { fieldStyles } from "./field";
 import { ListBoxItem } from "./list-box";
-import { Popover } from "./popover";
+import { AriaPopover as Popover } from "./aria-popover";
 import { SearchField, SearchInput } from "./search-field";
 import { Tag, TagGroup, TagList } from "./tag-group";
 

@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { IconArrowUp } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Input, InputGroup } from "@/components/ui/input";
-import { Popover } from "@/components/ui/popover";
+import { AriaPopover as Popover } from "@/components/ui/aria-popover";
 import { appToast } from "@/components/ui/toast";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAddNote } from "@/hooks/use-notes.ts";

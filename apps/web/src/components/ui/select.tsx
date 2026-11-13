@@ -17,7 +17,7 @@ import {
   DropdownSeparator,
 } from "./dropdown";
 import { fieldStyles } from "./field";
-import { Popover } from "./popover";
+import { AriaPopover as Popover } from "./aria-popover";
 
 export interface SelectProps<
   T extends object,

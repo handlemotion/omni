@@ -1,55 +1,107 @@
 import { CheckIcon, ChevronRightIcon } from "@heroicons/react/20/solid";
-import { Collection } from "react-aria-components/Collection";
-import { composeRenderProps } from "react-aria-components/composeRenderProps";
-import { Header } from "react-aria-components/Header";
-import type {
-  MenuItemProps as MenuItemPrimitiveProps,
-  MenuProps as MenuPrimitiveProps,
-  MenuSectionProps as MenuSectionPrimitiveProps,
-} from "react-aria-components/Menu";
 import {
-  Menu as MenuPrimitive,
+  Menu as MenuRoot,
+  MenuCheckboxItem,
+  MenuContent,
+  MenuGroup,
+  MenuGroupLabel,
   MenuItem as MenuItemPrimitive,
-  MenuSection as MenuSectionPrimitive,
+  MenuItemIndicator,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuSeparator as MenuSeparatorPrimitive,
+  MenuSub,
+  MenuSubContent,
+  MenuSubTrigger,
   MenuTrigger as MenuTriggerPrimitive,
-  SubmenuTrigger,
-} from "react-aria-components/Menu";
+} from "@ui-sdk/react/menu";
 import { cn } from "cn";
+import {
+  Children,
+  createContext,
+  isValidElement,
+  useContext,
+  useRef,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { tv, type VariantProps } from "tailwind-variants";
-import { cx } from "@/lib/primitive";
 import {
   DropdownDescription,
   dropdownItemStyles,
   DropdownKeyboard,
   DropdownLabel,
   dropdownSectionStyles,
-  DropdownSeparator,
 } from "./dropdown";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { FluidHoverHighlight } from "./fluid-hover-highlight";
-import { Popover, type PopoverProps } from "./popover";
+import { toSideAlign, type Placement } from "./placement";
+import { popupSurface } from "./popover";
 
-export const MenuTrigger = MenuTriggerPrimitive;
-export const MenuSubMenu = SubmenuTrigger;
+// Menus on UI SDK's menu, keeping React Aria's shape so call sites read the same:
+//   <MenuTrigger><Button/><Menu onAction selectionMode selectedKeys>{items}</Menu></MenuTrigger>
+// Plain items are `menuitem`s; `selectionMode="single"` makes them `menuitemradio`s in one group,
+// `"multiple"` makes them `menuitemcheckbox`es that keep the menu open.
 
-export interface MenuProps<T> extends MenuPrimitiveProps<T>, Pick<PopoverProps, "placement"> {
+type Key = string;
+
+interface MenuState {
+  selectionMode: "none" | "single" | "multiple";
+  selected: Set<Key>;
+  onAction?: (key: Key) => void;
+  onSelectionChange?: (keys: Set<Key>) => void;
+  /** Per-item `onAction`s, for radio items, which UI SDK reports through their group. */
+  actions: Map<Key, () => void>;
+}
+
+const MenuStateContext = createContext<MenuState>({
+  selectionMode: "none",
+  selected: new Set(),
+  actions: new Map(),
+});
+/** Inside a `MenuSubMenu`, a `<Menu>` is that submenu's content. */
+const SubmenuContext = createContext(false);
+
+export interface MenuTriggerProps {
+  isOpen?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** The trigger element first, then its `<Menu>`. */
+  children: ReactNode;
+}
+
+/**
+ * The first child becomes the trigger through `render`, so it must forward its props and ref to
+ * its DOM element (our `Button` and `TooltipTrigger` do).
+ */
+export function MenuTrigger({ isOpen, defaultOpen, onOpenChange, children }: MenuTriggerProps) {
+  const [trigger, ...rest] = Children.toArray(children);
+  return (
+    <MenuRoot
+      open={isOpen}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange && ((open) => onOpenChange(open))}
+    >
+      <MenuTriggerPrimitive render={trigger as ReactElement<Record<string, unknown>>} />
+      {rest}
+    </MenuRoot>
+  );
+}
+
+export interface MenuProps<T> {
+  placement?: Placement;
+  popover?: { className?: string; offset?: number; placement?: Placement };
   className?: string;
-  popover?: Pick<
-    PopoverProps,
-    | "arrow"
-    | "className"
-    | "placement"
-    | "offset"
-    | "crossOffset"
-    | "arrowBoundaryOffset"
-    | "triggerRef"
-    | "isOpen"
-    | "onOpenChange"
-    | "shouldFlip"
-    | "isNonModal"
-    | "trigger"
-    | "getTargetRect"
-  >;
+  "aria-label"?: string;
+  /** With a function as children, renders one item per entry (keyed by its `id`). */
+  items?: Iterable<T>;
+  children?: ReactNode | ((item: T) => ReactNode);
+  onAction?: (key: Key) => void;
+  selectionMode?: "none" | "single" | "multiple";
+  selectedKeys?: Iterable<Key>;
+  onSelectionChange?: (keys: Set<Key>) => void;
+  /** Shown in place of the items when there are none. */
+  renderEmptyState?: () => ReactNode;
 }
 
 export const menuStyles = tv({
@@ -58,7 +110,7 @@ export const menuStyles = tv({
   base: "grid max-h-[inherit] grid-cols-[auto_minmax(0,1fr)] gap-y-0 overflow-x-hidden overflow-y-auto overscroll-contain p-1 outline-hidden [&>[data-slot=menu-section]+[data-slot=menu-section]:not([class*='mt-']):not([class*='my-'])]:mt-3",
 });
 
-/** Every row React Aria renders in a menu, submenu triggers included. */
+/** Every row a menu renders, submenu triggers included. */
 const MENU_ITEM_SELECTOR = "[role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox']";
 
 /**
@@ -69,104 +121,234 @@ const MENU_ITEM_SELECTOR = "[role='menuitem'], [role='menuitemradio'], [role='me
  */
 const MENU_WIDTH = "w-max min-w-33 max-w-60";
 
-export function Menu<T extends object>({ className, placement, popover, ...props }: MenuProps<T>) {
-  // One highlight springs between the rows (transitive's fluid hover). React Aria marks the row
-  // it highlights (pointer or keys) with `data-focused`; an open submenu's trigger stays lit
+/** A group around items that keeps them on the menu's grid. */
+const ON_GRID = "col-span-full grid grid-cols-subgrid";
+
+export function Menu<T extends { id?: Key }>({
+  className,
+  placement,
+  popover,
+  items,
+  children,
+  onAction,
+  selectionMode = "none",
+  selectedKeys,
+  onSelectionChange,
+  renderEmptyState,
+  ...props
+}: MenuProps<T>) {
+  const nested = useContext(SubmenuContext);
+  const actions = useRef(new Map<Key, () => void>()).current;
+  const selected = new Set(selectedKeys ?? []);
+  // One highlight springs between the rows (transitive's fluid hover). UI SDK marks the row it
+  // highlights (pointer or keys) with `data-highlighted`; an open submenu's trigger stays lit
   // while the pointer is in the submenu.
   const hover = useFluidHoverList({
     itemSelector: MENU_ITEM_SELECTOR,
-    highlightedSelector: "[data-focused]",
+    highlightedSelector: "[data-highlighted]",
     heldSelector: "[data-open]",
   });
+  const rows =
+    typeof children === "function"
+      ? [...(items ?? [])].map((item, i) => (
+          <MenuKey key={item.id ?? i}>{(children as (item: T) => ReactNode)(item)}</MenuKey>
+        ))
+      : children;
+  const empty = Children.count(rows) === 0;
+  const Content = nested ? MenuSubContent : MenuContent;
   return (
-    <Popover
-      className={cx(MENU_WIDTH, "*:data-[slot=popover-inner]:overflow-hidden", popover?.className)}
-      placement={placement}
-      {...popover}
+    <MenuStateContext.Provider
+      value={{ selectionMode, selected, onAction, onSelectionChange, actions }}
     >
-      <div className="relative flex max-h-[inherit] min-h-0 flex-col" {...hover.containerProps}>
-        <FluidHoverHighlight
-          {...hover.highlightProps}
-          className={
-            hover.activeElement?.dataset.intent === "danger" ? "bg-danger-subtle" : "bg-accent"
-          }
-        />
-        <MenuPrimitive data-slot="menu-content" className={menuStyles({ className })} {...props} />
-      </div>
-    </Popover>
+      <Content
+        {...(nested ? {} : toSideAlign(popover?.placement ?? placement ?? "bottom start"))}
+        sideOffset={popover?.offset ?? 8}
+        collisionPadding={16}
+        className={cn(MENU_WIDTH, popupSurface, "overflow-hidden", popover?.className)}
+        aria-label={props["aria-label"]}
+      >
+        <div className="relative flex max-h-[inherit] min-h-0 flex-col" {...hover.containerProps}>
+          <FluidHoverHighlight
+            {...hover.highlightProps}
+            className={
+              hover.activeElement?.dataset.intent === "danger" ? "bg-danger-subtle" : "bg-accent"
+            }
+          />
+          <div data-slot="menu-list" className={menuStyles({ className })}>
+            {empty && renderEmptyState ? (
+              <div className="col-span-full">{renderEmptyState()}</div>
+            ) : selectionMode === "single" ? (
+              <MenuRadioGroup
+                className={ON_GRID}
+                value={[...selected][0] ?? null}
+                onValueChange={(key) => {
+                  onSelectionChange?.(new Set([key]));
+                  actions.get(key)?.();
+                }}
+              >
+                {rows}
+              </MenuRadioGroup>
+            ) : (
+              rows
+            )}
+          </div>
+        </div>
+      </Content>
+    </MenuStateContext.Provider>
   );
 }
 
-export interface MenuItemProps
-  extends MenuItemPrimitiveProps, VariantProps<typeof dropdownItemStyles> {}
+function MenuKey({ children }: { children: ReactNode }) {
+  return children;
+}
+
+export interface MenuItemProps extends VariantProps<typeof dropdownItemStyles> {
+  /** Identifies the item to the menu's `onAction` and selection. */
+  id?: Key;
+  /** The text typeahead matches, when the content isn't plain text. */
+  textValue?: string;
+  onAction?: () => void;
+  isDisabled?: boolean;
+  className?: string;
+  children?: ReactNode;
+}
 
 /** 32px after the label (36px to the menu's edge with its padding): see `MENU_WIDTH`. */
 const ITEM_END = "pe-8";
 
-export function MenuItem({ className, intent, children, ...props }: MenuItemProps) {
-  const textValue = props.textValue || (typeof children === "string" ? children : undefined);
+export function MenuItem({
+  className,
+  intent,
+  children,
+  id,
+  textValue,
+  onAction,
+  isDisabled,
+}: MenuItemProps) {
+  const menu = useContext(MenuStateContext);
+  const key = id ?? textValue ?? "";
+  const label = textValue || (typeof children === "string" ? children : undefined);
+  const content = (
+    <>
+      {typeof children === "string" ? <MenuLabel>{children}</MenuLabel> : children}
+      {menu.selectionMode !== "none" && (
+        // At the row's end, inside its 32px end padding, centred on the first line.
+        <MenuItemIndicator
+          render={
+            <CheckIcon
+              data-slot="check-indicator"
+              className="absolute end-2.5 top-3.75 size-3.5 -translate-y-1/2 text-foreground"
+            />
+          }
+        />
+      )}
+    </>
+  );
+  const shared = {
+    label,
+    disabled: isDisabled,
+    "data-intent": intent,
+    // The fluid hover highlight is the row's fill; the row paints none of its own.
+    className: (state: { highlighted: boolean; disabled: boolean; checked?: boolean }) =>
+      dropdownItemStyles({
+        intent,
+        isFocused: state.highlighted,
+        isDisabled: state.disabled,
+        isSelected: state.checked,
+        className: cn(
+          "bg-transparent focus:bg-transparent hover:bg-transparent",
+          ITEM_END,
+          className,
+        ),
+      }),
+  };
+
+  if (menu.selectionMode === "single") {
+    if (onAction) menu.actions.set(key, onAction);
+    else menu.actions.set(key, () => menu.onAction?.(key));
+    return (
+      <MenuRadioItem value={key} closeOnSelect {...shared}>
+        {content}
+      </MenuRadioItem>
+    );
+  }
+  if (menu.selectionMode === "multiple") {
+    return (
+      <MenuCheckboxItem
+        value={key}
+        checked={menu.selected.has(key)}
+        closeOnSelect={false}
+        onCheckedChange={(checked) => {
+          const next = new Set(menu.selected);
+          if (checked) next.add(key);
+          else next.delete(key);
+          menu.onSelectionChange?.(next);
+          onAction?.();
+        }}
+        {...shared}
+      >
+        {content}
+      </MenuCheckboxItem>
+    );
+  }
   return (
     <MenuItemPrimitive
-      data-slot="menu-item"
-      data-intent={intent}
-      className={composeRenderProps(className, (className, { hasSubmenu, ...renderProps }) =>
-        dropdownItemStyles({
-          ...renderProps,
-          intent,
-          className: hasSubmenu
-            ? cn(
-                intent === "danger" && "open:bg-danger-subtle open:text-danger-subtle-foreground",
-                intent === "warning" &&
-                  "open:bg-warning-subtle open:text-warning-subtle-foreground",
-                intent === undefined &&
-                  "open:text-accent-foreground open:*:[.text-muted-foreground]:text-accent-foreground open:*:[svg]:text-accent-foreground",
-                // The fluid hover highlight is the row's fill; the row paints none of its own.
-                "bg-transparent focus:bg-transparent hover:bg-transparent",
-                ITEM_END,
-                className,
-              )
-            : cn("bg-transparent focus:bg-transparent hover:bg-transparent", ITEM_END, className),
-        }),
-      )}
-      textValue={textValue}
-      {...props}
+      value={key}
+      destructive={intent === "danger"}
+      onSelect={() => {
+        onAction?.();
+        menu.onAction?.(key);
+      }}
+      {...shared}
     >
-      {(values) => (
-        <>
-          {values.isSelected && ["single", "multiple"].includes(values.selectionMode) && (
-            <CheckIcon />
-          )}
-
-          {typeof children === "function" ? (
-            children(values)
-          ) : typeof children === "string" ? (
-            <MenuLabel>{children}</MenuLabel>
-          ) : (
-            children
-          )}
-
-          {values.hasSubmenu && (
-            <ChevronRightIcon
-              data-slot="chevron"
-              className="absolute end-0 size-4 -translate-y-1/2"
-              style={{
-                top: "calc(var(--spacing) * 3)",
-              }}
-            />
-          )}
-        </>
-      )}
+      {content}
     </MenuItemPrimitive>
   );
 }
 
-export interface MenuHeaderProps extends React.ComponentProps<typeof Header> {
+export interface MenuSubMenuProps {
+  /** A `MenuItem` (the row that opens it) first, then its `<Menu>`. */
+  children: ReactNode;
+  delay?: number;
+}
+
+export function MenuSubMenu({ children, delay }: MenuSubMenuProps) {
+  const [item, ...rest] = Children.toArray(children);
+  const row = isValidElement<MenuItemProps>(item) ? item.props : {};
+  return (
+    <MenuSub delay={delay}>
+      <MenuSubTrigger
+        disabled={row.isDisabled}
+        className={dropdownItemStyles({
+          intent: row.intent,
+          className: cn(
+            "bg-transparent focus:bg-transparent hover:bg-transparent",
+            "data-open:text-accent-foreground data-open:*:[.text-muted-foreground]:text-accent-foreground data-open:*:[svg]:text-accent-foreground",
+            ITEM_END,
+            row.className,
+          ),
+        })}
+      >
+        {row.children}
+        <ChevronRightIcon
+          data-slot="chevron"
+          aria-hidden
+          className="absolute end-0 size-4 -translate-y-1/2"
+          style={{ top: "calc(var(--spacing) * 3)" }}
+        />
+      </MenuSubTrigger>
+      <SubmenuContext.Provider value={true}>{rest}</SubmenuContext.Provider>
+    </MenuSub>
+  );
+}
+
+export interface MenuHeaderProps extends React.ComponentProps<"div"> {
   separator?: boolean;
 }
 
 export function MenuHeader({ className, separator = false, ...props }: MenuHeaderProps) {
   return (
-    <Header
+    <div
       className={cn(
         "col-span-full px-2.5 py-2 text-base sm:text-sm",
         separator && "-mx-1 border-b sm:px-3 sm:pb-2.5",
@@ -179,41 +361,30 @@ export function MenuHeader({ className, separator = false, ...props }: MenuHeade
 
 const { section, header } = dropdownSectionStyles();
 
-export interface MenuSectionProps<T> extends MenuSectionPrimitiveProps<T> {
-  ref?: React.Ref<HTMLDivElement>;
+export interface MenuSectionProps {
   label?: string;
   /** Spacing and alignment for the label, which belongs to the rows below it. */
   labelClassName?: string;
+  className?: string;
+  children?: ReactNode;
 }
 
-export function MenuSection<T extends object>({
-  className,
-  labelClassName,
-  children,
-  ref,
-  ...props
-}: MenuSectionProps<T>) {
+export function MenuSection({ className, labelClassName, label, children }: MenuSectionProps) {
   return (
-    <MenuSectionPrimitive
-      data-slot="menu-section"
-      ref={ref}
-      className={section({ className })}
-      {...props}
-    >
-      {"label" in props && (
-        <Header className={header({ className: labelClassName })}>{props.label}</Header>
+    <MenuGroup data-slot="menu-section" className={section({ className })}>
+      {label && (
+        <MenuGroupLabel className={header({ className: labelClassName })}>{label}</MenuGroupLabel>
       )}
-      <Collection items={props.items}>{children}</Collection>
-    </MenuSectionPrimitive>
+      {children}
+    </MenuGroup>
   );
 }
 
 /** Runs edge to edge: `-mx-1` cancels the menu's 4px padding (`menuStyles`). */
-export function MenuSeparator({
-  className,
-  ...props
-}: React.ComponentProps<typeof DropdownSeparator>) {
-  return <DropdownSeparator className={cn("-mx-1", className)} {...props} />;
+export function MenuSeparator({ className }: { className?: string }) {
+  return (
+    <MenuSeparatorPrimitive className={cn("col-span-full -mx-1 my-1 h-px bg-border", className)} />
+  );
 }
 export const MenuShortcut = DropdownKeyboard;
 /** A row's label: one line, truncated once the menu reaches its max width. */

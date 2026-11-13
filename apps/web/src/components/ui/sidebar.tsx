@@ -32,7 +32,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { cx } from "@/lib/primitive";
 import { FluidHoverHighlight } from "./fluid-hover-highlight";
-import { Button } from "./button";
+import { AriaButton as Button } from "./aria-button";
 import { Link } from "./link";
 import { TooltipTrigger, Tooltip } from "./tooltip";
 

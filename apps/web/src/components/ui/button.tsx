@@ -1,7 +1,4 @@
-import {
-  Button as ButtonPrimitive,
-  type ButtonProps as ButtonPrimitiveProps,
-} from "react-aria-components/Button";
+import { Button as ButtonPrimitive } from "@ui-sdk/react/button";
 import { tv, type VariantProps } from "tailwind-variants";
 import { Children, isValidElement } from "react";
 import { cx } from "@/lib/primitive";
@@ -10,7 +7,7 @@ import { Loader } from "./loader";
 export const buttonStyles = tv({
   base: [
     "[--btn-border:var(--color-foreground)]/15 [--btn-icon-active:var(--btn-foreground)] [--btn-outline:var(--btn-bg)] [--btn-radius:calc(var(--radius-lg)-1px)] [--btn-ring:var(--btn-bg)]/20",
-    "bg-(--btn-bg) text-(--btn-foreground) outline-(--btn-outline) ring-(--btn-ring) hover:bg-(--btn-overlay) pressed:bg-(--btn-overlay)",
+    "bg-(--btn-bg) text-(--btn-foreground) outline-(--btn-outline) ring-(--btn-ring) hover:bg-(--btn-overlay) active:bg-(--btn-overlay) pressed:bg-(--btn-overlay)",
     "relative isolate inline-flex items-center justify-center border border-(--btn-border) hover:no-underline",
     // Tactile press: a short squeeze a quick second press retargets. Driven by native `:active`
     // (shadcn's press), not React Aria's `pressed`, so it never waits on a React render. Off on
@@ -18,7 +15,7 @@ export const buttonStyles = tv({
     // pending, and under reduced motion.
     "transition-[scale,background-color] duration-150 ease-out motion-safe:[&:active]:not-aria-[haspopup]:scale-97 disabled:[&:active]:scale-100 pending:[&:active]:scale-100",
     "focus:outline-0 focus-visible:outline focus-visible:outline-offset-2 focus-visible:ring-2 focus-visible:ring-offset-3 focus-visible:ring-offset-background",
-    "forced-colors:[--btn-icon:ButtonText] forced-colors:hover:[--btn-icon:ButtonText] *:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-(--btn-icon) hover:*:[svg]:text-(--btn-icon-active) pressed:*:[svg]:text-(--btn-icon-active) focus-visible:*:[svg]:text-(--btn-icon-active)/80",
+    "forced-colors:[--btn-icon:ButtonText] forced-colors:hover:[--btn-icon:ButtonText] *:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-(--btn-icon) hover:*:[svg]:text-(--btn-icon-active) active:*:[svg]:text-(--btn-icon-active) pressed:*:[svg]:text-(--btn-icon-active) focus-visible:*:[svg]:text-(--btn-icon-active)/80",
     "*:data-[slot=loader]:-mx-0.5 *:data-[slot=loader]:shrink-0 *:data-[slot=loader]:self-center *:data-[slot=loader]:text-(--btn-icon)",
     "pending:opacity-50 disabled:opacity-50 disabled:forced-colors:text-[GrayText]",
     "*:data-[slot=color-swatch]:-mx-0.5 *:data-[slot=color-swatch]:shrink-0 *:data-[slot=color-swatch]:self-center *:data-[slot=color-swatch]:[--size:--spacing(5)]",
@@ -87,8 +84,23 @@ export const buttonStyles = tv({
   },
 });
 
-export interface ButtonProps extends ButtonPrimitiveProps, VariantProps<typeof buttonStyles> {
+type ButtonPrimitiveProps = React.ComponentProps<typeof ButtonPrimitive>;
+
+export interface ButtonProps
+  extends
+    Omit<ButtonPrimitiveProps, "onClick" | "disabled" | "children" | "className">,
+    VariantProps<typeof buttonStyles> {
   ref?: React.Ref<HTMLButtonElement>;
+  className?: string;
+  children?: React.ReactNode;
+  /** Runs on click, Enter or Space. */
+  onPress?: () => unknown;
+  isDisabled?: boolean;
+  /**
+   * An action in progress that the caller tracks (a mutation's `isPending`). The button stays
+   * focusable, reports `aria-busy` and `aria-disabled`, and ignores presses until it settles.
+   */
+  isPending?: boolean;
 }
 
 export function Button({
@@ -98,19 +110,24 @@ export function Button({
   isCircle,
   ref,
   children,
+  onPress,
+  isDisabled,
+  isPending = false,
   ...props
 }: ButtonProps) {
   return (
     <ButtonPrimitive
       ref={ref}
       data-inset={size === "inset" || undefined}
+      data-pending={isPending || undefined}
+      aria-busy={isPending || undefined}
+      disabled={isDisabled || isPending}
+      focusableWhenDisabled={isPending || props.focusableWhenDisabled}
+      onClick={onPress ? () => onPress() : undefined}
       {...props}
       className={cx(buttonStyles({ intent, size, isCircle }), className)}
     >
-      {(values) => {
-        const content = typeof children === "function" ? children(values) : children;
-        return values.isPending ? <Pending>{content}</Pending> : content;
-      }}
+      {isPending ? <Pending>{children}</Pending> : children}
     </ButtonPrimitive>
   );
 }
@@ -119,7 +136,7 @@ export function Button({
  * Loading: the button dims like a disabled one (`pending:opacity-50`). The first icon is swapped
  * for a spinner in the same place; a button with no icon shimmers its text instead.
  */
-function Pending({ children }: { children: React.ReactNode }) {
+export function Pending({ children }: { children: React.ReactNode }) {
   const items = Children.toArray(children);
   const icon = items.findIndex((item) => isValidElement(item));
   if (icon === -1) return <span className="shimmer">{children}</span>;

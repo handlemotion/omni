@@ -1,75 +1,105 @@
 "use client";
 
 import {
-  OverlayArrow,
-  Popover as PopoverPrimitive,
-  type PopoverProps as PopoverPrimitiveProps,
-} from "react-aria-components/Popover";
-import { cx } from "@/lib/primitive";
-import {
-  DialogBody,
-  DialogClose,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "./dialog";
+  Popover as PopoverRoot,
+  PopoverArrow,
+  PopoverContent,
+  PopoverTrigger as PopoverTriggerPrimitive,
+  createPopoverController,
+} from "@ui-sdk/react/popover";
+import { Children, type ReactElement, type ReactNode } from "react";
+import { cn } from "cn";
+import { toSideAlign, type Placement } from "./placement";
 
-export const PopoverTrigger = DialogTrigger;
+/** The raised surface every popup shares: popovers, menus. */
+export const popupSurface = cn(
+  "max-h-[calc(var(--available-height)-16px)] min-w-(--anchor-width) max-w-xs origin-(--transform-origin)",
+  "rounded-(--popover-radius) border border-border bg-overlay text-overlay-foreground shadow-(--shadow-overlay) outline-hidden [--popover-radius:var(--radius-lg)] sm:text-sm",
+  "dark:ring-border dark:backdrop-saturate-200 forced-colors:bg-[Canvas]",
+  // Grows from its trigger: 150ms in from scale .97 with a fade, out faster (120ms).
+  // Reduced motion keeps only the fade.
+  "transition-[opacity,scale] duration-150 ease-out data-ending-style:duration-120",
+  "data-starting-style:scale-97 data-starting-style:opacity-0 data-ending-style:scale-97 data-ending-style:opacity-0",
+  "motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100",
+);
 
-export const PopoverTitle = DialogTitle;
-export const PopoverHeader = DialogHeader;
-export const PopoverBody = DialogBody;
-export const PopoverFooter = DialogFooter;
+/** A popover opened from code (a menu item, a shortcut) instead of a trigger: pass it a controller. */
+export { PopoverRoot, createPopoverController };
 
-export interface PopoverProps extends PopoverPrimitiveProps {
-  arrow?: boolean;
-  ref?: React.Ref<HTMLDivElement>;
+export interface PopoverTriggerProps {
+  isOpen?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** The trigger element first, then its `<Popover>`. */
+  children: ReactNode;
 }
 
-export function Popover({ children, arrow = false, className, ref, ...props }: PopoverProps) {
-  const offset = props.offset ?? (arrow ? 12 : 8);
+/**
+ * Keeps React Aria's shape (`<PopoverTrigger><Button/><Popover/></PopoverTrigger>`) on UI SDK's
+ * parts: the first child becomes the trigger through `render`, so it must forward its props and
+ * ref to its DOM element.
+ */
+export function PopoverTrigger({
+  isOpen,
+  defaultOpen,
+  onOpenChange,
+  children,
+}: PopoverTriggerProps) {
+  const [trigger, ...rest] = Children.toArray(children);
   return (
-    <PopoverPrimitive
-      ref={ref}
-      offset={offset}
-      className={cx(
-        "[--visual-viewport-vertical-padding:16px] sm:[--visual-viewport-vertical-padding:32px]",
-        "max-h-[calc(var(--visual-viewport-height)-var(--visual-viewport-vertical-padding)*2)]",
-        "group/popover min-w-(--trigger-width) max-w-xs origin-(--trigger-anchor-point) rounded-(--popover-radius) bg-overlay text-overlay-foreground border border-border shadow-(--shadow-overlay) outline-hidden [--gutter:--spacing(6)] [--popover-radius:var(--radius-lg)] sm:text-sm dark:ring-border dark:backdrop-saturate-200 **:[[role=dialog]]:[--gutter:--spacing(6)]",
-        // Grows from its trigger: 150ms in from scale .97 with a fade, out faster (120ms).
-        // Reduced motion keeps only the fade.
-        "entering:animate-in entering:fade-in entering:zoom-in-97 entering:duration-150 entering:ease-out",
-        "exiting:animate-out exiting:fade-out exiting:zoom-out-97 exiting:duration-120 exiting:ease-out",
-        "motion-reduce:entering:zoom-in-100 motion-reduce:exiting:zoom-out-100",
-        "forced-colors:bg-[Canvas]",
-        className,
-      )}
-      {...props}
+    <PopoverRoot
+      open={isOpen}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange && ((open) => onOpenChange(open))}
     >
-      {(values) => (
-        <>
-          {arrow && (
-            <OverlayArrow className="group">
-              <svg
-                width={12}
-                height={12}
-                viewBox="0 0 12 12"
-                className="block fill-overlay stroke-border group-placement-bottom:rotate-180 group-placement-left:-rotate-90 group-placement-right:rotate-90 forced-colors:fill-[Canvas] forced-colors:stroke-[ButtonBorder]"
-              >
-                <path d="M0 0 L6 6 L12 0" />
-              </svg>
-            </OverlayArrow>
-          )}
-          <div data-slot="popover-inner" className="max-h-[inherit] overflow-y-auto flex flex-col">
-            {typeof children === "function" ? children(values) : children}
-          </div>
-        </>
-      )}
-    </PopoverPrimitive>
+      <PopoverTriggerPrimitive render={trigger as ReactElement<Record<string, unknown>>} />
+      {rest}
+    </PopoverRoot>
   );
 }
 
-export const PopoverClose = DialogClose;
-export const PopoverDescription = DialogDescription;
+export interface PopoverProps {
+  placement?: Placement;
+  /** Gap to the trigger, in pixels. */
+  offset?: number;
+  arrow?: boolean;
+  className?: string;
+  /** Names the popover when it has no `PopoverTitle`. */
+  "aria-label"?: string;
+  children?: ReactNode;
+}
+
+/** The popover's content, inside a `PopoverTrigger`. It is a non-modal dialog. */
+export function Popover({
+  placement = "bottom",
+  offset,
+  arrow = false,
+  className,
+  children,
+  ...props
+}: PopoverProps) {
+  return (
+    <PopoverContent
+      {...toSideAlign(placement)}
+      sideOffset={offset ?? (arrow ? 12 : 8)}
+      collisionPadding={16}
+      className={cn("group/popover flex flex-col", popupSurface, className)}
+      {...props}
+    >
+      {arrow && (
+        <PopoverArrow className="group-data-[side=top]/popover:top-full group-data-[side=bottom]/popover:bottom-full group-data-[side=left]/popover:left-full group-data-[side=right]/popover:right-full">
+          <svg
+            width={12}
+            height={12}
+            viewBox="0 0 12 12"
+            aria-hidden
+            className="block fill-overlay stroke-border group-data-[side=bottom]/popover:rotate-180 group-data-[side=left]/popover:-rotate-90 group-data-[side=right]/popover:rotate-90 forced-colors:fill-[Canvas] forced-colors:stroke-[ButtonBorder]"
+          >
+            <path d="M0 0 L6 6 L12 0" />
+          </svg>
+        </PopoverArrow>
+      )}
+      {children}
+    </PopoverContent>
+  );
+}

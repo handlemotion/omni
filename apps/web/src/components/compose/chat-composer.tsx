@@ -9,7 +9,7 @@ import { IconArrowUp, IconAt, IconReply, IconX } from "@/components/icons/centra
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ListBox, ListBoxItem } from "@/components/ui/list-box";
-import { Popover } from "@/components/ui/popover";
+import { AriaPopover as Popover } from "@/components/ui/aria-popover";
 import { Textarea } from "@/components/ui/textarea";
 import { appToast } from "@/components/ui/toast";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";

@@ -3,7 +3,7 @@ import useEmblaCarousel, { type UseEmblaCarouselType } from "embla-carousel-reac
 import { createContext, use, useCallback, useEffect, useState } from "react";
 import { cn } from "cn";
 import { cx } from "@/lib/primitive";
-import { Button, type ButtonProps } from "./button";
+import { AriaButton as Button, type AriaButtonProps as ButtonProps } from "./aria-button";
 
 export type CarouselApi = UseEmblaCarouselType[1];
 export type UseCarouselParameters = Parameters<typeof useEmblaCarousel>;

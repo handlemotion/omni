@@ -1,5 +1,8 @@
 import { PreviewTrigger as PreviewTriggerPrimitive } from "react-aria-components/PreviewTrigger";
-import { Popover, type PopoverProps } from "@/components/ui/popover";
+import {
+  AriaPopover as Popover,
+  type AriaPopoverProps as PopoverProps,
+} from "@/components/ui/aria-popover";
 import { cx } from "@/lib/primitive";
 
 export const PreviewTrigger = PreviewTriggerPrimitive;

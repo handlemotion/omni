@@ -3,7 +3,6 @@
 // Picking one marks it read and opens its conversation in the inbox's list.
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
-import { Dialog } from "react-aria-components/Dialog";
 import { IconBell } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { ListBox, ListBoxItem } from "@/components/ui/list-box";
@@ -54,56 +53,58 @@ export function Notifications() {
         </Button>
         <Tooltip>Notifications</Tooltip>
       </TooltipTrigger>
-      <Popover placement="top end" className="w-80 max-w-[calc(100vw-2rem)]">
-        <Dialog aria-label="Notifications" className="flex max-h-[28rem] flex-col outline-hidden">
-          <header className="flex items-center justify-between gap-2 border-b px-3 py-2">
-            <span className="text-sm">Notifications</span>
+      <Popover
+        placement="top end"
+        aria-label="Notifications"
+        className="max-h-[28rem] w-80 max-w-[calc(100vw-2rem)]"
+      >
+        <header className="flex items-center justify-between gap-2 border-b px-3 py-2">
+          <span className="text-sm">Notifications</span>
+          <Button
+            intent="plain"
+            size="sm"
+            isDisabled={unread === 0}
+            onPress={() => markRead.mutate({})}
+            className="-me-2"
+          >
+            Mark all read
+          </Button>
+        </header>
+        {notifications.length === 0 ? (
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+            Nothing yet. You'll hear here when you're assigned or mentioned.
+          </p>
+        ) : (
+          <ListBox
+            aria-label="Notifications"
+            items={notifications}
+            selectionMode="none"
+            onAction={(key) => {
+              const n = notifications.find((x) => x.id === key);
+              if (n) openOne(n);
+            }}
+            className="max-h-none min-h-0 flex-1 rounded-none border-0"
+          >
+            {(n) => (
+              <ListBoxItem id={n.id} textValue={n.subject || "(no subject)"}>
+                <Row notification={n} />
+              </ListBoxItem>
+            )}
+          </ListBox>
+        )}
+        {hasNextPage && (
+          <div className="border-t p-1">
             <Button
               intent="plain"
               size="sm"
-              isDisabled={unread === 0}
-              onPress={() => markRead.mutate({})}
-              className="-me-2"
+              className="w-full"
+              isPending={isFetchingNextPage}
+              onPress={() => void fetchNextPage()}
             >
-              Mark all read
+              Show older
             </Button>
-          </header>
-          {notifications.length === 0 ? (
-            <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-              Nothing yet. You'll hear here when you're assigned or mentioned.
-            </p>
-          ) : (
-            <ListBox
-              aria-label="Notifications"
-              items={notifications}
-              selectionMode="none"
-              onAction={(key) => {
-                const n = notifications.find((x) => x.id === key);
-                if (n) openOne(n);
-              }}
-              className="max-h-none min-h-0 flex-1 rounded-none border-0"
-            >
-              {(n) => (
-                <ListBoxItem id={n.id} textValue={n.subject || "(no subject)"}>
-                  <Row notification={n} />
-                </ListBoxItem>
-              )}
-            </ListBox>
-          )}
-          {hasNextPage && (
-            <div className="border-t p-1">
-              <Button
-                intent="plain"
-                size="sm"
-                className="w-full"
-                isPending={isFetchingNextPage}
-                onPress={() => void fetchNextPage()}
-              >
-                Show older
-              </Button>
-            </div>
-          )}
-        </Dialog>
+          </div>
+        )}
       </Popover>
     </PopoverTrigger>
   );

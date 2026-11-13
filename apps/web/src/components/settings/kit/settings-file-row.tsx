@@ -1,7 +1,7 @@
 import { IconUpload } from "@/components/icons/central";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { FileTrigger } from "react-aria-components/FileTrigger";
+import { FileTrigger } from "@/components/ui/file-trigger";
 import { SettingsRow, type SettingsRowIcon } from "./settings-row";
 
 /** A file picked with a button; the chosen file's name shows before it. */

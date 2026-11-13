@@ -5,7 +5,7 @@ import { twJoin, cn } from "cn";
 import { Link, type LinkProps } from "@/components/ui/link";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cx } from "@/lib/primitive";
-import { Button, type ButtonProps } from "./button";
+import { AriaButton as Button, type AriaButtonProps as ButtonProps } from "./aria-button";
 import { Separator } from "./separator";
 import { Sheet, SheetBody, SheetTrigger } from "./sheet";
 

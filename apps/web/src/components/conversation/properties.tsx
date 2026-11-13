@@ -214,7 +214,7 @@ export function Properties({ thread }: { thread: Thread }) {
           // The new selection, compared with what is applied now: a per-item handler would keep
           // the `applied` set from when React Aria first rendered that item.
           onSelectionChange={(keys) => {
-            const next = keys === "all" ? new Set(tags.map((t) => t.id)) : keys;
+            const next = keys;
             for (const tag of tags) {
               if (next.has(tag.id) !== applied.has(tag.id)) {
                 toggleTag.mutate({ threadId, tag, add: next.has(tag.id) });

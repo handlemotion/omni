@@ -6,8 +6,12 @@ packages:
 minimumReleaseAge: 1440
 # glimm 0.4.0 (GlimmScope for the smart-search sweep) was taken on its release day by choice.
 # Only this exact version is exempt; drop the entry once it is a day old.
+# UI SDK 0.1.0-beta.1 (the React Aria to UI SDK accessibility swap) was taken on its release
+# day; Rodrigo approved it on 2026-11-13. Drop these entries once they are a day old.
 minimumReleaseAgeExclude:
   - glimm@0.4.0
+  - "@ui-sdk/core@0.1.0-beta.1"
+  - "@ui-sdk/react@0.1.0-beta.1"
 
 allowBuilds:
   # Central Icons: its only script is a license-key check at install. Skipped, as in transitive.

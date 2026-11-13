@@ -1,7 +1,7 @@
 import { IconTrash, IconUpload } from "@/components/icons/central";
 import { useRef, type ReactNode } from "react";
-import { Button as AvatarButton } from "react-aria-components/Button";
-import { FileTrigger } from "react-aria-components/FileTrigger";
+import { Button as AvatarButton } from "@ui-sdk/react/button";
+import { FileTrigger } from "@/components/ui/file-trigger";
 import { Loader } from "@/components/ui/loader";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { SettingsRow } from "./settings-row";
@@ -58,7 +58,7 @@ export function SettingsAvatarRow({
               <AvatarButton
                 aria-label={`Change ${noun}`}
                 className={avatarButtonClassName}
-                isDisabled={busy}
+                disabled={busy}
               >
                 {avatar}
               </AvatarButton>
@@ -82,8 +82,8 @@ export function SettingsAvatarRow({
             <AvatarButton
               aria-label={`Upload ${noun}`}
               className={avatarButtonClassName}
-              isDisabled={busy}
-              onPress={() => input.current?.click()}
+              disabled={busy}
+              onClick={() => input.current?.click()}
             >
               {avatar}
             </AvatarButton>

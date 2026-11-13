@@ -1,4 +1,4 @@
-import { FileTrigger } from "react-aria-components/FileTrigger";
+import { FileTrigger } from "@/components/ui/file-trigger";
 import { IconCircleX, IconPaperclip } from "@/components/icons/central";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";

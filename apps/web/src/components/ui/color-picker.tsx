@@ -9,7 +9,7 @@ import {
   ColorPickerStateContext,
 } from "react-aria-components/ColorPicker";
 import { cn } from "cn";
-import { Button } from "./button";
+import { AriaButton as Button } from "./aria-button";
 import { fieldStyles } from "./field";
 
 export interface ColorPickerProps extends ColorPickerPrimitiveProps {

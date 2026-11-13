@@ -1,5 +1,5 @@
 import { ArrowPathIcon } from "@heroicons/react/20/solid";
-import { Button } from "react-aria-components/Button";
+import { Button } from "@ui-sdk/react/button";
 import { cn } from "cn";
 import { Loader } from "./loader";
 import { Tooltip, TooltipTrigger } from "./tooltip";
@@ -32,8 +32,10 @@ export function RenewField(props: {
     <TooltipTrigger delay={300}>
       <Button
         aria-label={props.tooltip}
-        isPending={props.isPending}
-        onPress={props.onPress}
+        aria-busy={props.isPending || undefined}
+        disabled={props.isPending}
+        focusableWhenDisabled
+        onClick={props.onPress}
         className={cn(WELL, "group/renew cursor-pointer", props.className)}
       >
         {props.label && <span className={LABEL}>{props.label}</span>}

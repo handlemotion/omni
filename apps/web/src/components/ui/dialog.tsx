@@ -13,7 +13,7 @@ import {
 } from "react-aria-components/Dialog";
 import { Heading, type HeadingProps } from "react-aria-components/Heading";
 import { Modal, ModalOverlay, type ModalOverlayProps } from "react-aria-components/Modal";
-import { Button, type ButtonProps } from "./button";
+import { AriaButton as Button, type AriaButtonProps as ButtonProps } from "./aria-button";
 
 export const DialogTrigger = DialogTriggerPrimitive;
 

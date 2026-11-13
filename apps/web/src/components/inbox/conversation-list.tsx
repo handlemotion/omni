@@ -1,8 +1,7 @@
 // A shared inbox's helpdesk list (one view: Unassigned, Mine, Open, ...): the thread list's rows
 // with each conversation's status, tags, priority, SLA clock and assignee, a bar for acting on
 // the selected rows, and the empty and failed states.
-import { useMemo, type ReactNode } from "react";
-import { Dialog } from "react-aria-components/Dialog";
+import { useMemo, useRef, type ReactNode } from "react";
 import { getLocalTimeZone, today } from "@internationalized/date";
 import type { DateValue } from "react-aria-components/Calendar";
 import {
@@ -16,15 +15,8 @@ import { IconClock } from "@/components/icons/sidebar";
 import { viewLabel } from "@/components/shell/helpdesk-nav";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Menu,
-  MenuItem,
-  MenuLabel,
-  MenuSeparator,
-  MenuSubMenu,
-  MenuTrigger,
-} from "@/components/ui/menu";
-import { Popover } from "@/components/ui/popover";
+import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
+import { createPopoverController, Popover, PopoverRoot } from "@/components/ui/popover";
 import {
   useAssignees,
   useConversationChanges,
@@ -192,8 +184,14 @@ function BulkActions(props: {
   };
   const snooze = (until: Date) =>
     apply(() => ({ type: "snooze", until: until.toISOString() }), `${plural(rows.length)} snoozed`);
-  const pickDay = (day: DateValue) =>
+  // "Pick a date" closes the menu and opens the calendar under the Snooze button: a calendar is
+  // not a menu item, so it lives in its own popover instead of a submenu.
+  const pickDate = useMemo(() => createPopoverController(), []);
+  const snoozeButton = useRef<HTMLButtonElement>(null);
+  const pickDay = (day: DateValue) => {
+    pickDate.close();
     snooze(new Date(day.year, day.month - 1, day.day, 8, 0, 0, 0));
+  };
 
   return (
     <div className="flex items-center gap-1">
@@ -209,7 +207,7 @@ function BulkActions(props: {
         {resolved ? "Reopen" : "Resolve"}
       </Button>
       <MenuTrigger>
-        <Button intent="plain" size="sm">
+        <Button ref={snoozeButton} intent="plain" size="sm">
           <IconClock />
           Snooze
         </Button>
@@ -225,23 +223,24 @@ function BulkActions(props: {
             </MenuItem>
           ))}
           <MenuSeparator />
-          <MenuSubMenu>
-            <MenuItem textValue="Pick a date">
-              <IconClock3 data-slot="icon" />
-              <MenuLabel>Pick a date</MenuLabel>
-            </MenuItem>
-            <Popover placement="end top" className="p-2">
-              <Dialog aria-label="Snooze until" className="outline-hidden">
-                <Calendar
-                  aria-label="Snooze until"
-                  minValue={today(getLocalTimeZone()).add({ days: 1 })}
-                  onChange={pickDay}
-                />
-              </Dialog>
-            </Popover>
-          </MenuSubMenu>
+          <MenuItem
+            textValue="Pick a date"
+            onAction={() => void pickDate.open({ anchor: snoozeButton.current ?? undefined })}
+          >
+            <IconClock3 data-slot="icon" />
+            <MenuLabel>Pick a date</MenuLabel>
+          </MenuItem>
         </Menu>
       </MenuTrigger>
+      <PopoverRoot controller={pickDate}>
+        <Popover placement="bottom start" aria-label="Snooze until" className="p-2">
+          <Calendar
+            aria-label="Snooze until"
+            minValue={today(getLocalTimeZone()).add({ days: 1 })}
+            onChange={pickDay}
+          />
+        </Popover>
+      </PopoverRoot>
       {tags.length > 0 && (
         <MenuTrigger>
           <Button intent="plain" size="sm">

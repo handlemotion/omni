@@ -18,7 +18,7 @@ import { DateInput } from "./date-field";
 import { fieldStyles } from "./field";
 import { InputGroup } from "./input";
 import { Dialog } from "./dialog";
-import { Popover } from "./popover";
+import { AriaPopover as Popover } from "./aria-popover";
 import { RangeCalendar } from "./range-calendar";
 
 export interface DatePickerProps<T extends DateValue> extends DatePickerPrimitiveProps<T> {
