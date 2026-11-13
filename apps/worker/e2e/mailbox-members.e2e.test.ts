@@ -174,6 +174,9 @@ test("adding a member shows the shared mailbox in their threads, removing hides 
   expect(await grants(w.support.id)).toEqual([w.ana.id, w.bea.id].toSorted());
   expect(await listed(w.bea.cookie, w.support.id)).toEqual([w.ana.id, w.bea.id].toSorted());
 
+  // Support is not Bea's only inbox, so she can come off it (ADR 0026).
+  const other = await createMailbox(database.db, w.org.id, "other@access.test", "shared");
+  await grant(database.db, w.org.id, other.id, w.bea.id);
   for (let i = 0; i < 2; i++)
     expect((await remove(w.ana.cookie, w.support.id, w.bea.id)).status).toBe(200);
   expect(await threadIds(w.bea.cookie)).toEqual([]);
@@ -291,6 +294,13 @@ test("backfill gives an existing shared mailbox a team from its grants, and a se
   const anaCookie = await signIn(worker, db, "ana@legacy.test");
   const beaCookie = await signIn(worker, db, "bea@legacy.test");
   expect(await threadIds(beaCookie)).toEqual([thread.threadId]);
+  // Not Bea's only inbox, so she can come off it (ADR 0026).
+  await grant(
+    db,
+    org.id,
+    (await createMailbox(db, org.id, "other@legacy.test", "shared")).id,
+    bea.id,
+  );
   expect((await remove(anaCookie, hello.id, bea.id)).status).toBe(200);
   expect(await threadIds(beaCookie)).toEqual([]);
 });

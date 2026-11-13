@@ -26,18 +26,18 @@ Owners and admins of a **company** workspace only; members get 403, a Personal s
 here returns mail or adds a grant on someone else's personal inbox: the privacy line of ADR 0017
 stays in the API.
 
-| Route                                                  | Does                                                                                                   |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `GET /workspace/members`                               | Members with role and `inboxes: [{ id, address, provider, status, syncedAt }]`. One call for People.   |
-| `GET /workspace/members/:memberId/inboxes`             | The same list for one person.                                                                          |
-| `POST /workspace/members/:memberId/inboxes`            | Issue a personal inbox: `{ address, password? }` (password only on `imap` domains). Always `personal`. |
-| `GET /workspace/inboxes`                               | Every mailbox (today's `/workspace/mailboxes`, renamed), plus `orphaned: true` when owner left.        |
-| `DELETE /workspace/inboxes/:id`                        | Disconnect any provider. Purelymail: revoke the app password, keep the user and mail (as today).       |
-| `POST /workspace/inboxes/:id/owner`                    | Give an orphaned inbox to a member: `{ memberId }`. See decision 3.                                    |
-| `POST /workspace/inboxes/:id/shared`                   | Turn an orphaned inbox into a shared one: `{ memberIds[] }`. See decision 3.                           |
-| `POST /workspace/shared-inboxes`                       | Create a shared inbox: `{ address, password?, memberIds[] }`. Always `shared`, team seeded.            |
-| `GET /workspace/shared-inboxes/:id/people`             | Who sees it (today's `GET /mailboxes/:id/members`).                                                    |
-| `PUT/DELETE /workspace/shared-inboxes/:id/people/:mid` | Add or remove someone (today's routes, same semantics: absolute state, no idempotency key).            |
+| Route                                                  | Does                                                                                                         |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `GET /workspace/members`                               | Members with role and `inboxes: [{ id, address, provider, status, syncedAt }]`. One call for People.         |
+| `GET /workspace/members/:memberId/inboxes`             | The same list for one person.                                                                                |
+| `POST /workspace/members/:memberId/inboxes`            | Issue a personal inbox: `{ domainId, localPart, login? }` (login only on `imap` domains). Always `personal`. |
+| `GET /workspace/inboxes`                               | Every mailbox (today's `/workspace/mailboxes`, renamed), plus `orphaned: true` when owner left.              |
+| `DELETE /workspace/inboxes/:id`                        | Disconnect any provider. Purelymail: revoke the app password, keep the user and mail (as today).             |
+| `POST /workspace/inboxes/:id/owner`                    | Give an orphaned inbox to a member: `{ memberId }`. See decision 3.                                          |
+| `POST /workspace/inboxes/:id/shared`                   | Turn an orphaned inbox into a shared one: `{ memberIds[] }`. See decision 3.                                 |
+| `POST /workspace/shared-inboxes`                       | Create a shared inbox: `{ domainId, localPart, login?, memberIds[] }`. Always `shared`, team seeded.         |
+| `GET /workspace/shared-inboxes/:id/people`             | Who sees it (today's `GET /mailboxes/:id/members`).                                                          |
+| `PUT/DELETE /workspace/shared-inboxes/:id/people/:mid` | Add or remove someone (today's routes, same semantics: absolute state, no idempotency key).                  |
 
 Every write is idempotent on its natural key (org, address) or sets an absolute state, as now.
 The handlers reuse what exists: `orgMember`, `mailboxAtAddress`, `addMailboxMember`,

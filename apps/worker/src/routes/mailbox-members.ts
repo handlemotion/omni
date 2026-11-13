@@ -8,7 +8,6 @@ import {
   listWorkspaceMailboxes,
   removeMailboxMember,
   type MailboxMembersActor,
-  type MailboxMembershipResult,
 } from "@omni/db";
 import { HOSTED_DISCONNECT_PATH, hostedDisconnectResultSchema } from "@omni/contracts";
 import { Hono, type Context } from "hono";
@@ -16,11 +15,7 @@ import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../context.ts";
 import { callMailService, MailServiceError } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
-
-/** Better Auth stores several roles as a comma list. */
-function canManage(role: string) {
-  return role.split(",").some((r) => r.trim() === "owner" || r.trim() === "admin");
-}
+import { answerMembership, canManage, keepLastInbox } from "./workspace-admin.ts";
 
 function actor(c: Context<AppEnv>): MailboxMembersActor {
   const { id, orgId, role } = c.var.member;
@@ -33,14 +28,6 @@ function requireManager(c: Context<AppEnv>) {
     throw new HTTPException(403, { message: "only owners and admins manage mailbox members" });
   }
   return who;
-}
-
-function answer(c: Context<AppEnv>, result: MailboxMembershipResult) {
-  if (result === "mailbox_not_found") throw new HTTPException(404, { message: "not found" });
-  if (result === "member_not_found") {
-    throw new HTTPException(404, { message: "no such member in this organization" });
-  }
-  return c.json({ ok: true as const });
 }
 
 export const mailboxMembers = new Hono<AppEnv>()
@@ -64,16 +51,20 @@ export const mailboxMembers = new Hono<AppEnv>()
   /** Grants access. Idempotent: adding a member already on the list changes nothing. */
   .put("/mailboxes/:id/members/:memberId", async (c) => {
     const who = requireManager(c);
-    return answer(
+    return answerMembership(
       c,
       await addMailboxMember(c.var.db, who, c.req.param("id"), c.req.param("memberId")),
     );
   })
 
-  /** Revokes access. Idempotent: removing a member not on the list changes nothing. */
+  /**
+   * Revokes access, unless it is the only inbox they can open (ADR 0026). Idempotent: removing
+   * a member not on the list changes nothing.
+   */
   .delete("/mailboxes/:id/members/:memberId", async (c) => {
     const who = requireManager(c);
-    return answer(
+    await keepLastInbox(c, c.req.param("id"), c.req.param("memberId"));
+    return answerMembership(
       c,
       await removeMailboxMember(c.var.db, who, c.req.param("id"), c.req.param("memberId")),
     );

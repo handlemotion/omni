@@ -31,6 +31,7 @@ export * from "./placement.ts";
 export * from "./domains.ts";
 export * from "./mailbox-teams.ts";
 export * from "./workspace-mailboxes.ts";
+export * from "./workspace-members.ts";
 export * from "./workspaces.ts";
 export * from "./dead-letters.ts";
 export type { DomainCheck, DomainRecordDiagnostic, MailDomainRecord } from "./schema/mail.ts";

@@ -101,7 +101,12 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
   handle = getRequestListener(service.app.fetch);
 
   /** A same-origin JSON call from the web app. */
-  async function api(jar: CookieJar, method: "GET" | "POST", path: string, body?: unknown) {
+  async function api(
+    jar: CookieJar,
+    method: "GET" | "POST" | "PUT" | "DELETE",
+    path: string,
+    body?: unknown,
+  ) {
     const headers = { cookie: jar.header, origin: WEB_ORIGIN, "content-type": "application/json" };
     const response = await fetch(
       new URL(`/api${path}`, worker.url),

@@ -4,11 +4,6 @@
 // only in the mail service, which the Worker asks over the signed channel; the Worker never holds
 // a mailbox credential.
 import { mayCreateOrganization } from "@omni/auth";
-import {
-  PROVISION_MAILBOX_PATH,
-  provisionMailboxResultSchema,
-  type ProvisionMailboxBody,
-} from "@omni/contracts";
 import { newChallenge } from "@omni/crypto";
 import {
   advanceOrgSetup,
@@ -17,7 +12,6 @@ import {
   listDomainAudit,
   listMemberDomains,
   listMemberMailboxes,
-  mailboxAtAddress,
   orgMember,
   orgSetupStep,
   releaseDomain,
@@ -29,7 +23,7 @@ import {
   withdrawClaim,
   workspaceKind,
 } from "@omni/db";
-import { mailboxAddress, parseDomain } from "@omni/mail-core/domains";
+import { parseDomain } from "@omni/mail-core/domains";
 import { eq } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
@@ -50,7 +44,7 @@ import {
   withCheck,
 } from "../domains.ts";
 import { domainConnectUrl } from "../dns-check.ts";
-import { callMailService, MailServiceError } from "../mail-service.ts";
+import { mailboxPlacement, provisionMailbox } from "../provision-mailbox.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
 
@@ -68,13 +62,6 @@ const requireOwner = createMiddleware<AppEnv>(async (c, next) => {
   }
   await next();
 });
-
-function fromMailService(error: unknown): never {
-  if (error instanceof MailServiceError) {
-    throw new HTTPException(error.status, { message: error.message });
-  }
-  throw error;
-}
 
 function deps(c: Context<AppEnv>): DomainDeps {
   return {
@@ -121,38 +108,13 @@ async function domainStep<V extends { verified: boolean }>(c: Context<AppEnv>, v
   return view;
 }
 
-const server = z.object({
-  host: z.string().trim().min(1).max(253),
-  port: z.number().int().positive().max(65_535),
-});
-
-const mailboxBody = z.object({
-  domainId: z.string().min(1),
-  /** "rodrigo", or a full address on the domain. */
-  localPart: z.string().trim().min(1).max(320),
+const mailboxBody = mailboxPlacement.extend({
   /**
    * A member of this workspace to make it a personal inbox for: they get the owner grant, the
    * creator gets none. Without it the creator's own address is their personal inbox and any
    * other address is shared.
    */
   forMemberId: z.string().min(1).optional(),
-  /** Only for an `imap` domain: an existing login on its mail host. */
-  login: z
-    .object({
-      /** Defaults to the address. */
-      user: z.string().trim().min(1).max(320).optional(),
-      password: z.string().min(1).max(1024),
-      imap: server,
-      smtp: server,
-    })
-    .optional(),
-});
-
-/** 993 and 465 speak TLS from the first byte; any other port upgrades with STARTTLS if offered. */
-const endpoint = (s: z.infer<typeof server>) => ({
-  host: s.host,
-  port: s.port,
-  secure: s.port === 993 || s.port === 465,
 });
 
 export const onboarding = new Hono<AppEnv>()
@@ -418,94 +380,21 @@ export const onboarding = new Hono<AppEnv>()
     limitPerMember("provision"),
     zValidator("json", mailboxBody),
     async (c) => {
-      const { db, member, user } = c.var;
-      const body = c.req.valid("json");
-      const setup = await findMemberDomain(db, member.id, body.domainId);
-      if (!setup) throw new HTTPException(404, { message: "no such domain" });
-      const domain = setup.lock;
-      if (!domain) {
-        throw new HTTPException(409, {
-          message: `${setup.claim!.domain} is not verified yet: add its _omni-challenge record and check again`,
-        });
-      }
-      const address = mailboxAddress(body.localPart, domain.domain);
-      if (!address) {
-        throw new HTTPException(400, {
-          message: `use letters, digits, dots, dashes or underscores for a mailbox on ${domain.domain}`,
-        });
-      }
-
-      let login: ProvisionMailboxBody["login"];
-      if (domain.provider === "purelymail") {
-        if (body.login)
-          throw new HTTPException(400, { message: "This mailbox takes no password." });
-        if (!domain.addedAt) {
-          throw new HTTPException(409, {
-            message: `Finish the DNS records for ${domain.domain} first.`,
-          });
-        }
-        login = { provider: "purelymail" };
-      } else if (domain.provider === "imap") {
-        if (!body.login) {
-          throw new HTTPException(400, {
-            message: `Enter the password for ${address}.`,
-          });
-        }
-        // Passed through to the mail service, which checks and encrypts it. Never stored or
-        // logged here (ADR 0007).
-        login = {
-          provider: "imap",
-          user: body.login.user ?? address,
-          pass: body.login.password,
-          imap: endpoint(body.login.imap),
-          smtp: endpoint(body.login.smtp),
-        };
-      } else {
-        throw new HTTPException(409, { message: `${domain.provider} is not supported yet` });
-      }
-
-      // For a teammate, named: their personal inbox, whatever its address. Otherwise the
-      // creator's own address is their personal inbox; the rest (hello@, a teammate's before
-      // they join) are shared, so read state stays per person (spec, sync rules).
-      let owner = member.id;
-      let kind: ProvisionMailboxBody["kind"] =
-        address === user.email.toLowerCase() ? "personal" : "shared";
-      if (body.forMemberId) {
-        const teammate = await orgMember(db, member.orgId, body.forMemberId);
+      const { db, member } = c.var;
+      const { forMemberId, ...placement } = c.req.valid("json");
+      // For a teammate, named: their personal inbox, whatever its address (ADR 0017).
+      let target: Parameters<typeof provisionMailbox>[2] = {
+        kind: "by-address",
+        ownerMemberId: member.id,
+      };
+      if (forMemberId) {
+        const teammate = await orgMember(db, member.orgId, forMemberId);
         if (!teammate) {
           throw new HTTPException(404, { message: "no such member in this workspace" });
         }
-        owner = teammate.id;
-        kind = "personal";
+        target = { kind: "personal", ownerMemberId: teammate.id };
       }
-      // Provisioning an address again replaces its login and keeps its grants, so it must not
-      // change whose it is: a personal inbox never becomes shared or someone else's, and a
-      // shared one never becomes a personal inbox its team could still read.
-      const existing = await mailboxAtAddress(db, member.orgId, address);
-      if (
-        existing &&
-        (existing.kind !== kind || (kind === "personal" && !existing.memberIds.includes(owner)))
-      ) {
-        throw new HTTPException(409, {
-          message:
-            existing.kind === "personal"
-              ? `${address} is already someone's personal inbox`
-              : `${address} is already a shared mailbox`,
-        });
-      }
-
-      const result = await callMailService(
-        c.var,
-        PROVISION_MAILBOX_PATH,
-        {
-          orgId: member.orgId,
-          address,
-          kind,
-          ownerMemberId: owner,
-          login,
-        } satisfies ProvisionMailboxBody,
-        provisionMailboxResultSchema,
-      ).catch(fromMailService);
+      const result = await provisionMailbox(c, placement, target);
       await advanceOrgSetup(db, member.orgId, "mailboxes_created");
       return c.json(result);
     },
