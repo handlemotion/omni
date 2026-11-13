@@ -98,6 +98,12 @@ test("an inbox made with an invitation waits unowned, and becomes theirs when th
 
 test("an invitation must give an inbox; shared ones are joined on accepting", async () => {
   const owner = await stack.workspaceWithDomain();
+  // On its own mail host, with no shared inbox yet, there is nothing to give with an invitation:
+  // people get theirs after joining. Bug caught: a workspace that can never invite anyone.
+  const early = await api(owner.jar, "POST", "/workspace/invitations", {
+    email: `early-${tag()}@x.test`,
+  });
+  expect(early.status).toBe(200);
   const ana = await createMember(stack.database.db, owner.orgId, `ana-${tag()}@x.test`);
   const support = await api(owner.jar, "POST", "/workspace/shared-inboxes", {
     ...placement(owner.domainId, `support${tag()}`),
@@ -105,7 +111,8 @@ test("an invitation must give an inbox; shared ones are joined on accepting", as
   });
   const supportId = support.body.mailboxId as string;
 
-  // Bug caught: a new member who can open nothing.
+  // With a shared inbox to give, an invitation must give one. Bug caught: a new member who can
+  // open nothing.
   const bare = await api(owner.jar, "POST", "/workspace/invitations", {
     email: `bare-${tag()}@x.test`,
   });

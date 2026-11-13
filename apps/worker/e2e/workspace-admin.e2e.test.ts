@@ -182,6 +182,12 @@ test("a shared inbox is seen by exactly the people named, and nobody loses their
   expect((people.body.people as { memberId: string }[]).map((p) => p.memberId).toSorted()).toEqual(
     [ana.id, ben.id].toSorted(),
   );
+  // Anyone on it sees who else is; changing that stays with owners and admins.
+  const seen = await api(ana.jar, "GET", `/workspace/shared-inboxes/${supportId}/people`);
+  expect(seen.status).toBe(200);
+  expect(
+    (await api(ana.jar, "PUT", `/workspace/shared-inboxes/${supportId}/people/${ana.id}`)).status,
+  ).toBe(403);
   const inboxes = await api(jar, "GET", "/workspace/inboxes");
   expect(inboxes.body.inboxes).toMatchObject([{ id: supportId, kind: "shared", orphaned: false }]);
 

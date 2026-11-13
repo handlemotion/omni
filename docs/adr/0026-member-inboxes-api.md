@@ -91,7 +91,10 @@ owners and admins. No mail content. This is what makes "admins can't read it" ch
 Decided 2026-11-13. In a company, every member can open at least one inbox: their own, or a shared
 one. Personal is not required.
 
-- **Inviting** needs `inbox` (decision 2) or at least one shared inbox. Without either, 422.
+- **Inviting** needs `inbox` (decision 2) or at least one shared inbox. Without either, 422, but
+  only when the workspace could give one: it has a shared inbox, or a domain on Omni's host. A
+  company whose mail stays at Google or on its own host has neither until people connect their
+  own after joining (ADR 0024), so its invitations need none.
 - **Taking away the last one** is refused with 409: removing someone from their only shared
   inbox, or disconnecting their only personal inbox while they have no shared one. Removing the
   member from the company is always allowed.

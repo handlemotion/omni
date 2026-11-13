@@ -18,7 +18,7 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
-import { logInboxAction, requireCompanyManager } from "../inbox-admin.ts";
+import { canManage, logInboxAction, requireCompanyManager } from "../inbox-admin.ts";
 import { mailboxPlacement, provisionMailbox } from "../provision-mailbox.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
@@ -68,7 +68,6 @@ export const workspaceAdmin = new Hono<AppEnv>()
   .use("/workspace/members", requireCompanyManager)
   .use("/workspace/inboxes", requireCompanyManager)
   .use("/workspace/shared-inboxes", requireCompanyManager)
-  .use("/workspace/shared-inboxes/*", requireCompanyManager)
 
   /** Every member, oldest first, with the inboxes each can open. One call for People. */
   .get("/workspace/members", async (c) =>
@@ -153,15 +152,20 @@ export const workspaceAdmin = new Hono<AppEnv>()
     },
   )
 
-  /** Who sees a shared inbox, oldest first. 404 for a personal one. */
+  /**
+   * Who sees a shared inbox, oldest first: for owners and admins, and for anyone on it (as the
+   * route it replaces allowed). 404 for a personal one, or one the caller cannot see.
+   */
   .get("/workspace/shared-inboxes/:id/people", async (c) => {
-    const people = await listMailboxMembers(c.var.db, manager(c), c.req.param("id"));
+    const { id, orgId, role } = c.var.member;
+    const actor = { memberId: id, orgId, manage: canManage(role) };
+    const people = await listMailboxMembers(c.var.db, actor, c.req.param("id"));
     if (!people) throw new HTTPException(404, { message: "not found" });
     return c.json({ people });
   })
 
   /** Adds someone. Idempotent: adding someone already on it changes nothing. */
-  .put("/workspace/shared-inboxes/:id/people/:memberId", async (c) =>
+  .put("/workspace/shared-inboxes/:id/people/:memberId", requireCompanyManager, async (c) =>
     answerMembership(
       c,
       await addMailboxMember(c.var.db, manager(c), c.req.param("id"), c.req.param("memberId")),
@@ -169,7 +173,7 @@ export const workspaceAdmin = new Hono<AppEnv>()
   )
 
   /** Removes someone, unless it is the only inbox they can open. Idempotent otherwise. */
-  .delete("/workspace/shared-inboxes/:id/people/:memberId", async (c) => {
+  .delete("/workspace/shared-inboxes/:id/people/:memberId", requireCompanyManager, async (c) => {
     const mailboxId = c.req.param("id");
     const memberId = c.req.param("memberId");
     await keepLastInbox(c, mailboxId, memberId);

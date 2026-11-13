@@ -3,8 +3,13 @@
 // invitation names one or the other. The invitation itself is Better Auth's, so its own accept,
 // reject and list endpoints keep working.
 import { APIError } from "better-auth/api";
-import { ensureMailboxTeam, listWorkspaceMailboxes, reserveInvitationInbox } from "@omni/db";
-import { Hono } from "hono";
+import {
+  ensureMailboxTeam,
+  listMemberDomains,
+  listWorkspaceMailboxes,
+  reserveInvitationInbox,
+} from "@omni/db";
+import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
@@ -23,11 +28,24 @@ const invitationBody = z.object({
   sharedInboxIds: z.array(z.string().min(1)).max(100).default([]),
 });
 
+/**
+ * Whether this workspace can give a new member an inbox with the invitation: a shared inbox to
+ * put them on, or a domain on Omni's host to make theirs on. A company whose mail stays at Google,
+ * or on its own mail host, has neither until its people connect their own (ADR 0024), so its
+ * invitations need no inbox.
+ */
+async function canGiveInbox(c: Context<AppEnv>, shared: unknown[]) {
+  if (shared.length > 0) return true;
+  const domains = await listMemberDomains(c.var.db, c.var.member.id);
+  return domains.some((d) => d.lock?.provider === "purelymail" && d.lock.addedAt);
+}
+
 export const workspaceInvitations = new Hono<AppEnv>()
   .use("/workspace/invitations", requireCompanyManager)
 
   /**
-   * Invites `email` with an inbox. 422 without `inbox` or `sharedInboxIds`; 404 for a shared inbox
+   * Invites `email` with an inbox. 422 without `inbox` or `sharedInboxIds` when the workspace
+   * could give one; 404 for a shared inbox
    * that is not this workspace's; 409 when the address is already someone's. A retry reuses the
    * inbox made the first time (it waits, unowned, until someone accepts).
    */
@@ -38,15 +56,14 @@ export const workspaceInvitations = new Hono<AppEnv>()
     async (c) => {
       const { db, member } = c.var;
       const body = c.req.valid("json");
-      if (!body.inbox && body.sharedInboxIds.length === 0) {
+      const shared = (await listWorkspaceMailboxes(db, member.orgId)).filter(
+        (m) => m.kind === "shared",
+      );
+      if (!body.inbox && body.sharedInboxIds.length === 0 && (await canGiveInbox(c, shared))) {
         throw new HTTPException(422, {
           message: "give them an inbox: their own, or a shared one to be on",
         });
       }
-
-      const shared = (await listWorkspaceMailboxes(db, member.orgId)).filter(
-        (m) => m.kind === "shared",
-      );
       const teamIds: string[] = [];
       for (const id of new Set(body.sharedInboxIds)) {
         if (!shared.some((m) => m.id === id)) {
