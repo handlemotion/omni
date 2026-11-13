@@ -4,7 +4,7 @@
 // pages only a company has.
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { createOrgWithOwner, schema } from "@omni/db";
+import { acceptJoinRequest, createOrgWithOwner, schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
@@ -202,6 +202,37 @@ test("the empty state offers company setup only to someone who can create a comp
   const page = await signedIn(email, "/inbox");
   await page.getByText("No accounts yet").waitFor({ timeout: 15_000 });
   expect(await page.getByRole("button", { name: "Set up a company" }).count()).toBe(0);
+});
+
+// Catches: a work-address sign-in by someone outside the company bouncing back to sign-in.
+test("signing in with a company's address as an outsider opens a join screen to ask", async () => {
+  const tag = Date.now();
+  const company = await createOrgWithOwner(db, {
+    name: "Join Co",
+    slug: `join-co-${tag}`,
+    ownerEmail: `owner-${tag}@owners.test`,
+  });
+  await db
+    .insert(schema.mailDomains)
+    .values({ orgId: company.orgId, domain: `join-${tag}.test`, provider: "imap" });
+  const page = await signedIn(`ana@join-${tag}.test`, "/inbox");
+  await page.getByRole("heading", { name: "Join Join Co" }).waitFor({ timeout: 15_000 });
+  expect(new URL(page.url()).pathname).toBe("/join");
+  await page.getByRole("button", { name: "Ask to join" }).click();
+  const requested = page.getByRole("button", { name: "Requested" });
+  await requested.waitFor();
+  expect(await requested.isDisabled()).toBe(true);
+
+  // Accepted: the page notices on its next check and opens the inbox, as the company's member.
+  const [request] = await db
+    .select({ id: schema.joinRequests.id })
+    .from(schema.joinRequests)
+    .where(eq(schema.joinRequests.orgId, company.orgId));
+  expect(await acceptJoinRequest(db, { orgId: company.orgId, requestId: request!.id })).toEqual(
+    expect.any(String),
+  );
+  await page.waitForURL((url) => url.pathname === "/inbox", { timeout: 30_000 });
+  await page.getByRole("button", { name: /^Switch mailbox/ }).waitFor();
 });
 
 async function freePort() {

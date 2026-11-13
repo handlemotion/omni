@@ -41,11 +41,14 @@ export const keys = {
   signInMethods: () => [...root, "sign-in-methods"] as const,
   /** The addresses this person signs in with (ADR 0014). */
   signInEmails: () => [...root, "sign-in-emails"] as const,
+  /** The company a scoped sign-in may ask to join (ADR 0024). */
+  join: () => [...root, "join"] as const,
 
   org: () => org,
   organizations: () => [...org, "organizations"] as const,
   members: () => [...org, "members"] as const,
   invitations: () => [...org, "invitations"] as const,
+  joinRequests: () => [...org, "join-requests"] as const,
   invitation: (id: string) => [...org, "invitation", id] as const,
   passkeys: () => [...org, "passkeys"] as const,
   billing: () => [...org, "billing"] as const,

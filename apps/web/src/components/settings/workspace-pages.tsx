@@ -57,6 +57,7 @@ import {
   NewMailboxDialog,
   useMailboxDomains,
 } from "./mailbox-pages";
+import { JoinRequestsSection } from "./join-requests-section";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import {
   SettingsEmptyState,
@@ -622,6 +623,8 @@ export function PeoplePage() {
           )}
         </Skeleton>
       </SettingsSection>
+
+      <JoinRequestsSection canManage={canManage} />
 
       <SettingsSection title="Invited">
         <Skeleton id="settings-invitations" data={pending} sample={[]} label="Loading invitations">

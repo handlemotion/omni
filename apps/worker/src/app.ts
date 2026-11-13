@@ -34,6 +34,7 @@ import { mailboxMembers } from "./routes/mailbox-members.ts";
 import { onboarding } from "./routes/onboarding.ts";
 import { account as accountPicture, pictures, workspaceLogo } from "./routes/pictures.ts";
 import { workspaces } from "./routes/workspaces.ts";
+import { join } from "./routes/join.ts";
 import { limitAuth } from "./rate-limiter.ts";
 import { securityHeaders } from "./security-headers.ts";
 
@@ -148,6 +149,7 @@ export const app = new Hono<AppEnv>()
   // Before `api`: these work for a user who has no organization yet.
   .route("/api/onboarding", onboarding)
   .route("/api/workspaces", workspaces)
+  .route("/api/join", join)
   .route("/api/account", account)
   // Your picture lives beside your sign-in emails under /api/account.
   .route("/api/account", accountPicture)

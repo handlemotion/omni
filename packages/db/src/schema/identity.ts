@@ -57,3 +57,25 @@ export const sessionScopes = pgTable("session_scopes", {
     .references(() => organizations.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Someone who signed in with an address on a company's claimed domain but is not its member
+ * asked to join it (ADR 0024 decision 3). Owners and admins accept, which adds them as a member,
+ * or decline; either way the row goes. One request per person per company.
+ */
+export const joinRequests = pgTable(
+  "join_requests",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("join_requests_org_user_key").on(table.orgId, table.userId)],
+);

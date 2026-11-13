@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from "./routes/index";
 import { Route as AuthedRouteImport } from "./routes/_authed";
 import { Route as LoginRouteImport } from "./routes/login";
 import { Route as AuthedMemberRouteImport } from "./routes/_authed/_member";
+import { Route as AuthedJoinRouteImport } from "./routes/_authed/join";
 import { Route as AuthedOnboardingRouteImport } from "./routes/_authed/onboarding";
 import { Route as AuthedMemberAllRouteImport } from "./routes/_authed/_member/all";
 import { Route as AuthedMemberArchiveRouteImport } from "./routes/_authed/_member/archive";
@@ -49,6 +50,11 @@ const LoginRoute = LoginRouteImport.update({
 } as any);
 const AuthedMemberRoute = AuthedMemberRouteImport.update({
   id: "/_member",
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedJoinRoute = AuthedJoinRouteImport.update({
+  id: "/join",
+  path: "/join",
   getParentRoute: () => AuthedRoute,
 } as any);
 const AuthedOnboardingRoute = AuthedOnboardingRouteImport.update({
@@ -160,6 +166,7 @@ const AuthedSettingsEmailsVerifyRoute =
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/login": typeof LoginRoute;
+  "/join": typeof AuthedJoinRoute;
   "/onboarding": typeof AuthedOnboardingRoute;
   "/all": typeof AuthedMemberAllRouteWithChildren;
   "/archive": typeof AuthedMemberArchiveRouteWithChildren;
@@ -183,6 +190,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/login": typeof LoginRoute;
+  "/join": typeof AuthedJoinRoute;
   "/onboarding": typeof AuthedOnboardingRoute;
   "/all": typeof AuthedMemberAllRouteWithChildren;
   "/archive": typeof AuthedMemberArchiveRouteWithChildren;
@@ -209,6 +217,7 @@ export interface FileRoutesById {
   "/_authed": typeof AuthedRouteWithChildren;
   "/login": typeof LoginRoute;
   "/_authed/_member": typeof AuthedMemberRouteWithChildren;
+  "/_authed/join": typeof AuthedJoinRoute;
   "/_authed/onboarding": typeof AuthedOnboardingRoute;
   "/_authed/_member/all": typeof AuthedMemberAllRouteWithChildren;
   "/_authed/_member/archive": typeof AuthedMemberArchiveRouteWithChildren;
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
   fullPaths:
     | "/"
     | "/login"
+    | "/join"
     | "/onboarding"
     | "/all"
     | "/archive"
@@ -257,6 +267,7 @@ export interface FileRouteTypes {
   to:
     | "/"
     | "/login"
+    | "/join"
     | "/onboarding"
     | "/all"
     | "/archive"
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | "/_authed"
     | "/login"
     | "/_authed/_member"
+    | "/_authed/join"
     | "/_authed/onboarding"
     | "/_authed/_member/all"
     | "/_authed/_member/archive"
@@ -337,6 +349,13 @@ declare module "@tanstack/react-router" {
       path: "";
       fullPath: "/";
       preLoaderRoute: typeof AuthedMemberRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    "/_authed/join": {
+      id: "/_authed/join";
+      path: "/join";
+      fullPath: "/join";
+      preLoaderRoute: typeof AuthedJoinRouteImport;
       parentRoute: typeof AuthedRoute;
     };
     "/_authed/onboarding": {
@@ -574,6 +593,7 @@ const AuthedMemberRouteWithChildren = AuthedMemberRoute._addFileChildren(
 
 interface AuthedRouteChildren {
   AuthedMemberRoute: typeof AuthedMemberRouteWithChildren;
+  AuthedJoinRoute: typeof AuthedJoinRoute;
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute;
   AuthedInviteInvitationIdRoute: typeof AuthedInviteInvitationIdRoute;
   AuthedSettingsEmailsVerifyRoute: typeof AuthedSettingsEmailsVerifyRoute;
@@ -581,6 +601,7 @@ interface AuthedRouteChildren {
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMemberRoute: AuthedMemberRouteWithChildren,
+  AuthedJoinRoute: AuthedJoinRoute,
   AuthedOnboardingRoute: AuthedOnboardingRoute,
   AuthedInviteInvitationIdRoute: AuthedInviteInvitationIdRoute,
   AuthedSettingsEmailsVerifyRoute: AuthedSettingsEmailsVerifyRoute,

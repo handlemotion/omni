@@ -2,6 +2,7 @@
 // navigating between signed-in routes costs no request.
 import type { QueryClient } from "@tanstack/react-query";
 import { redirect, type ParsedLocation } from "@tanstack/react-router";
+import { joinQuery } from "./join.ts";
 import { needsSetup, onboardingQuery } from "./onboarding.ts";
 import { safeRedirect, sessionQuery } from "./session.ts";
 
@@ -20,7 +21,13 @@ export async function requireUser(client: QueryClient, location: ParsedLocation)
  */
 export async function requireMember(client: QueryClient, location: ParsedLocation) {
   const session = await requireUser(client, location);
-  if (!session.member) throw redirect({ to: "/login", search: { redirect: location.href } });
+  // No member: a sign-in with a company's address whose person is not its member asks to join
+  // it (ADR 0024); anything else signs in again.
+  if (!session.member) {
+    const company = await client.ensureQueryData(joinQuery()).catch(() => null);
+    if (company) throw redirect({ to: "/join" });
+    throw redirect({ to: "/login", search: { redirect: location.href } });
+  }
   if (needsSetup(session.member) && !isSettings(location.pathname)) {
     throw redirect({ to: "/onboarding" });
   }

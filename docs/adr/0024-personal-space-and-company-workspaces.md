@@ -101,6 +101,11 @@ means unscoped):
   another organization in any organization request, or create or delete one. Deleting a company
   ends the sessions scoped to it first, and a session missing from the database is signed out,
   never unscoped.
+- **Someone outside the company** who signs in with an address on its claimed domain reaches
+  nothing in it, and still not their Personal space (a company admin could otherwise recreate a
+  former member's address and read their private mail). They land on a join screen instead: they
+  can ask to join (`join_requests`, one per person per company), and the company's owners hear of
+  it and accept, which adds them as a member, or decline.
 - Better Auth's multi-session stays what ADR 0014 made it: separate identities on one device.
   It is not how one person reaches their own workspaces.
 

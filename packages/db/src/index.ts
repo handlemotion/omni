@@ -26,6 +26,7 @@ export * from "./ai-jobs.ts";
 export * from "./orgs.ts";
 export * from "./personal-space.ts";
 export * from "./session-scopes.ts";
+export * from "./join-requests.ts";
 export * from "./placement.ts";
 export * from "./domains.ts";
 export * from "./mailbox-teams.ts";

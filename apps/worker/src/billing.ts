@@ -134,6 +134,7 @@ export const READ_ONLY_ALLOWED = [
   { path: "/api/auth", reason: "sign-in, invitations, organizations and Stripe's webhook" },
   { path: "/api/onboarding", reason: "workspace setup: domains and mailboxes" },
   { path: "/api/workspaces", reason: "which workspaces the user belongs to" },
+  { path: "/api/join", reason: "asking to join a company, and the answer: membership, not mail" },
   { path: "/api/account", reason: "the person's own sign-in emails, not the workspace" },
 ] as const satisfies readonly { path: string; reason: string }[];
 

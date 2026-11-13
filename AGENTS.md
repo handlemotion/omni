@@ -198,8 +198,10 @@ Several agents may work in this repository at once.
 ## Infrastructure
 
 - Cloudflare account **Handle** (`473fbe436e39d8f3d33b6bb09afd3dd7`) owns `omnidirectional.app`
-  and every Worker, R2 bucket, Queue, and Hyperdrive config. Use the `cf` CLI for inspection;
-  `wrangler` for local dev and type generation.
+  and every Worker, R2 bucket, Queue, and Hyperdrive config. Use the `cf` CLI (Cloudflare's CLI,
+  not `wrangler`) for inspecting and changing account resources, DNS records included, with the
+  token from `doppler run -p omni -c prd_github -- cf ...`; `wrangler` only for local dev and type
+  generation.
 - Mail service runs on Fly.io, org `handlemotion` (ADR 0004). PlanetScale Postgres is the database.
 - Research libraries from primary sources first (Context7, Firecrawl developer index, docs).
 
