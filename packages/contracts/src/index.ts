@@ -90,12 +90,26 @@ export const threadsDiscardedEventSchema = z.object({
   threadIds: z.array(z.string().min(1)).min(1).max(MAX_PRUNED_THREADS_PER_EVENT),
 });
 
+/**
+ * Threads whose state changed in another mail app: a message was read, flagged, archived or moved
+ * there, and the index followed (ADR 0013). Sent only when a thread's derived state actually
+ * changed, so no new mail and nothing for AI. The Worker refreshes those threads for open apps.
+ * At least once; idempotent.
+ */
+export const threadsChangedEventSchema = z.object({
+  type: z.literal("threads.changed"),
+  orgId: z.string().min(1),
+  mailboxId: z.string().min(1),
+  threadIds: z.array(z.string().min(1)).min(1).max(MAX_PRUNED_THREADS_PER_EVENT),
+});
+
 export const mailEventSchema = z.discriminatedUnion("type", [
   messageCreatedEventSchema,
   actionFailedEventSchema,
   messagesPrunedEventSchema,
   threadsMergedEventSchema,
   threadsDiscardedEventSchema,
+  threadsChangedEventSchema,
 ]);
 
 export const MAX_EVENTS_PER_REQUEST = 100;

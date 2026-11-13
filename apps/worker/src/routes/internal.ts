@@ -110,7 +110,10 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     if (created.length) await fanOut(c.env, db, config, changedThreads(created), { push: fresh });
     // Deleted mail: open apps refetch those threads (some are gone); no push for a removal.
     const pruned = events.filter((e) => e.type === "messages.pruned");
-    if (pruned.length) await fanOut(c.env, db, config, prunedThreads(pruned));
+    if (pruned.length) await fanOut(c.env, db, config, listedThreads(pruned));
+    // Read, flagged, archived or moved in another mail app: open apps refetch; no push, no AI.
+    const changed = events.filter((e) => e.type === "threads.changed");
+    if (changed.length) await fanOut(c.env, db, config, listedThreads(changed));
     // Merged threads: the survivor and the ids that are gone refresh, and readers follow.
     const merged = events.filter((e) => e.type === "threads.merged");
     if (merged.length) {
@@ -162,7 +165,9 @@ function changedThreads(events: Extract<MailEvent, { type: "message.created" }>[
   return byMailbox;
 }
 
-function prunedThreads(events: Extract<MailEvent, { type: "messages.pruned" }>[]) {
+function listedThreads(
+  events: Extract<MailEvent, { type: "messages.pruned" | "threads.changed" }>[],
+) {
   const byMailbox = new Map<string, Set<string>>();
   for (const event of events) {
     const threads = byMailbox.get(event.mailboxId) ?? new Set();

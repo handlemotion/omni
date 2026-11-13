@@ -230,6 +230,33 @@ test("mail deleted on the server refreshes its threads for open apps and re-runs
   anaSocket.socket.close();
 });
 
+test("a thread read or archived in another mail app refreshes open apps without AI", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "umbrella");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@umbrella.test");
+  const box = await createMailbox(db, org.id, "help@umbrella.test");
+  await grant(db, org.id, box.id, ana.id);
+  const thread = await seedMessage(db, box, { subject: "Read", fromAddress: "x@c.test", uid: 1 });
+  const anaSocket = await connect(await signIn(worker, db, "ana@umbrella.test"));
+
+  const response = await postMailEvents(worker, {
+    events: [
+      { type: "threads.changed", orgId: org.id, mailboxId: box.id, threadIds: [thread.threadId] },
+    ],
+  });
+
+  // A flag change carries no new text: re-running triage on it would only spend tokens.
+  expect(response.status).toBe(202);
+  expect(await response.json()).toEqual({ ok: true, jobs: 0 });
+  const threadIds = [thread.threadId];
+  expect(await anaSocket.next(2)).toEqual([
+    { type: "changed", mailboxId: box.id, threadIds },
+    { type: "thread.changed", mailboxId: box.id, threadIds },
+  ]);
+  anaSocket.socket.close();
+});
+
 test("merged threads refresh both ids, tell readers where to go and re-summarize the survivor", async () => {
   const { db } = database;
   const org = await createOrg(db, "hooli");
