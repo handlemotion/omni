@@ -7,6 +7,7 @@ import { ensurePersonalSpace } from "./personal-space.ts";
 import {
   drafts,
   mailActions,
+  mailboxAccess,
   mailboxes,
   mailboxFolders,
   mailDomains,
@@ -60,9 +61,12 @@ export interface MisplacedMailbox {
 }
 
 /**
- * Personal-space mailboxes that belong to a company now (ADR 0024 decision 2): their domain, or a
- * parent of it, is locked by a company their owner is a member of. The closest lock wins. A
- * mailbox whose owner is not a member there stays until they join.
+ * Mailboxes in the wrong workspace (ADR 0024 decision 2), both ways:
+ * - Personal-space mailboxes that belong to a company now: their domain, or a parent of it, is
+ *   locked by a company their owner is a member of. The closest lock wins. A mailbox whose owner
+ *   is not a member there stays until they join.
+ * - A company's Gmail account on an address no company has locked: its owner's Personal space.
+ *   An owner who has no Personal space yet gets one at their next sign-in, and it moves then.
  */
 export async function listMisplacedMailboxes(db: Db): Promise<MisplacedMailbox[]> {
   // The closest company lock on each Personal-space mailbox's domain first, then the owner's
@@ -85,7 +89,28 @@ export async function listMisplacedMailboxes(db: Db): Promise<MisplacedMailbox[]
     from closest c
     join ${mailboxes} m on m.id = c.mailbox_id
     join ${personalSpaces} ps on ps.org_id = m.org_id
-    join ${members} cm on cm.organization_id = c.org_id and cm.user_id = ps.user_id`)) as unknown as {
+    join ${members} cm on cm.organization_id = c.org_id and cm.user_id = ps.user_id
+    union all
+    -- A company's Gmail account whose address no company has locked (gmail.com, an unclaimed
+    -- domain) is its owner's own: it goes to their Personal space (ADR 0024 step 3). Gmail only:
+    -- an IMAP mailbox added by the CLI may have no claimed domain and still be the company's.
+    select m.id, m.org_id, m.address, m.provider, m.credentials_enc,
+      ps.org_id as target_org_id, pm.id as target_member_id
+    from ${mailboxes} m
+    join ${mailboxAccess} a on a.mailbox_id = m.id and a.role = 'owner'
+    join ${members} om on om.id = a.member_id and om.organization_id = m.org_id
+    join ${personalSpaces} ps on ps.user_id = om.user_id
+    join ${members} pm on pm.organization_id = ps.org_id and pm.user_id = om.user_id
+    where m.kind = 'personal' and m.provider = 'gmail' and m.status <> 'disabled'
+      and not exists (select 1 from ${personalSpaces} p3 where p3.org_id = m.org_id)
+      and not exists (
+        select 1 from ${mailDomains} d
+        where (
+          lower(split_part(m.address, '@', 2)) = d.domain
+          or lower(split_part(m.address, '@', 2)) like '%.' || d.domain
+        )
+        and not exists (select 1 from ${personalSpaces} p4 where p4.org_id = d.org_id)
+      )`)) as unknown as {
     id: string;
     org_id: string;
     address: string;

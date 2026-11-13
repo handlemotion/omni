@@ -137,3 +137,49 @@ test("a copy has finished its first sync only when every folder completed an imp
   await position(archive!.id, 900);
   expect(await firstSyncDone(db, box.id)).toBe(true);
 });
+
+// Catches: a company keeping someone's personal Gmail (ADR 0024 step 3), or the backfill pulling
+// out a mailbox that is the company's: on its locked domain, or an IMAP mailbox with no claim.
+test("a company's Gmail on an address no company locked goes to its owner's Personal space", async () => {
+  const { db } = database;
+  const tag = randomUUID().slice(0, 8);
+  const company = await createOrg(db, `co-${tag}`);
+  await db
+    .insert(mailDomains)
+    .values({ orgId: company.id, domain: `${tag}.test`, provider: "imap" });
+  const owner = await createMember(db, company.id, "owner");
+  const space = await createOrg(db, `personal-${tag}`);
+  await db.insert(personalSpaces).values({ orgId: space.id, userId: owner.userId });
+  const [personalMember] = await db
+    .insert(members)
+    .values({
+      id: randomUUID(),
+      organizationId: space.id,
+      userId: owner.userId,
+      createdAt: new Date(),
+    })
+    .returning();
+  const box = async (address: string, provider: "gmail" | "imap") => {
+    const [row] = await db
+      .insert(mailboxes)
+      .values({ orgId: company.id, address, kind: "personal", provider, credentialsEnc: "x" })
+      .returning();
+    await db
+      .insert(mailboxAccess)
+      .values({ orgId: company.id, mailboxId: row!.id, memberId: owner.id, role: "owner" });
+    return row!;
+  };
+  const gmail = await box(`me-${tag}@gmail.test`, "gmail");
+  const work = await box(`me@${tag}.test`, "gmail");
+  const cli = await box(`ops-${tag}@unclaimed-${tag}.test`, "imap");
+
+  const misplaced = await listMisplacedMailboxes(db);
+  expect(misplaced.find((m) => m.id === gmail.id)).toMatchObject({
+    orgId: company.id,
+    targetOrgId: space.id,
+    targetMemberId: personalMember!.id,
+  });
+  // Its domain is the company's own, and an IMAP mailbox is left alone.
+  expect(misplaced.map((m) => m.id)).not.toContain(work.id);
+  expect(misplaced.map((m) => m.id)).not.toContain(cli.id);
+});
