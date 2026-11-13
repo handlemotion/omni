@@ -2,7 +2,7 @@
 // window, and Expo push tokens. No preferences row means every default.
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
-import type { NotificationKind } from "./conversations.ts";
+import type { NotificationKind } from "./conversation-core.ts";
 import {
   memberPreferences,
   members,
