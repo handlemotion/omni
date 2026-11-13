@@ -40,6 +40,7 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "organizations",
       "passkeys",
       "pending_mail_events",
+      "personal_spaces",
       "push_tokens",
       "sessions",
       "stripe_events",

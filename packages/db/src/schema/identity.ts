@@ -4,7 +4,7 @@
 import { sql } from "drizzle-orm";
 import { index, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
-import { users } from "./auth.ts";
+import { organizations, users } from "./auth.ts";
 
 export const userEmails = pgTable(
   "user_emails",
@@ -26,3 +26,19 @@ export const userEmails = pgTable(
     index("user_emails_user_id_idx").on(table.userId),
   ],
 );
+
+/**
+ * Which organization is a person's Personal space (ADR 0024): one per person, holding the mail
+ * accounts they connect themselves. Kept here, not as a column on Better Auth's `organizations`,
+ * so the auth schema is unchanged. An organization with no row is a company.
+ */
+export const personalSpaces = pgTable("personal_spaces", {
+  orgId: text("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
