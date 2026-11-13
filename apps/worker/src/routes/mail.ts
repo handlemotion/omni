@@ -64,8 +64,12 @@ const listQuery = z.object({
   scope: scopeParam,
   mailboxId: z.string().min(1).optional(),
   lane: z.enum(LANES).optional(),
-  /** `inbox`, `queue` (deferred), `done`, `archive` or `all`; see `ThreadView` in `@omni/db`. */
-  view: z.enum(THREAD_VIEWS).default("inbox"),
+  /** `inbox`, `later`, `done`, `archive` or `all`; see `ThreadView` in `@omni/db`. */
+  view: z
+    .enum([...THREAD_VIEWS, "queue"])
+    // Deprecated: `queue` is Later's old name, still sent by tabs open from before ADR 0027.
+    .transform((view) => (view === "queue" ? "later" : view))
+    .default("inbox"),
   cursor: cursorParam,
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
@@ -283,10 +287,10 @@ export const mail = new Hono<AppEnv>()
     },
   )
 
-  // Done and defer are this member's triage state (ADR 0007): Postgres only, nothing for the
-  // outbox, so another member of a shared mailbox is unaffected. Each request sets absolute
-  // values, so a retry under the same idempotency key writes the same row. Done and deferred
-  // exclude each other: marking one clears the other.
+  // Done and Later are this member's triage state (ADR 0007, ADR 0027): Postgres only, nothing
+  // for the outbox, so another member of a shared mailbox is unaffected. Each request sets
+  // absolute values, so a retry under the same idempotency key writes the same row. Done and
+  // Later exclude each other: marking one clears the other.
 
   /**
    * Done through `through` (capped at the newest message). Answers `done: false` when a message
@@ -300,7 +304,7 @@ export const mail = new Hono<AppEnv>()
       const { through } = c.req.valid("json");
       const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
         doneThrough: new Date(through),
-        deferredUntil: null,
+        later: false,
       });
       if (!state) notFound();
       return c.json({ state });
@@ -316,7 +320,26 @@ export const mail = new Hono<AppEnv>()
     return c.json({ state });
   })
 
-  /** Into the Queue until `until`; back in the Inbox by itself once it passes. */
+  /** Into Later: out of the Inbox until the member moves it back (or marks it done). */
+  .post("/threads/:id/later", zValidator("header", idempotencyHeader), async (c) => {
+    const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
+      later: true,
+      doneThrough: null,
+    });
+    if (!state) notFound();
+    return c.json({ state });
+  })
+
+  /** Out of Later: back in the Inbox. */
+  .delete("/threads/:id/later", zValidator("header", idempotencyHeader), async (c) => {
+    const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
+      later: false,
+    });
+    if (!state) notFound();
+    return c.json({ state });
+  })
+
+  /** Deprecated (ADR 0027): the timed deferral, for tabs open from before Later. */
   .post(
     "/threads/:id/defer",
     zValidator("header", idempotencyHeader),
@@ -332,7 +355,7 @@ export const mail = new Hono<AppEnv>()
     },
   )
 
-  /** Out of the Queue now: back in the Inbox. */
+  /** Deprecated (ADR 0027): out of Later, for tabs open from before it. */
   .delete("/threads/:id/defer", zValidator("header", idempotencyHeader), async (c) => {
     const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
       deferredUntil: null,

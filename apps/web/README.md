@@ -50,7 +50,7 @@ Components use `hooks/` only. `lib/` is how the hooks work.
 | `/invite/$invitationId`      |                                      | the invitation (any signed-in user)         |
 | `/onboarding`                |                                      | setup status (may create, or finishing one) |
 | `/inbox`, `/inbox/$threadId` | `mailbox?`, `lane?`, `view?`, `tag?` | first page of the list; the thread          |
-| `/queue`, `/queue/$id`       | `mailbox?`                           | same, queue (deferred) view                 |
+| `/later`, `/later/$id`       | `mailbox?`                           | same, Later view                            |
 | `/done`, `/done/$id`         | `mailbox?`                           | same, done view                             |
 | `/archive`, `/archive/$id`   | `mailbox?`                           | same, archive view                          |
 | `/all`, `/all/$id`           | `mailbox?`                           | same, all mail                              |
@@ -106,7 +106,7 @@ Realtime refetches the lists of the inbox that changed and `useConversationCount
 
 **Undo.** An action that can be reversed calls `offerUndo(label, inverse)` with the inverse built
 from the state before it. One offer stands at a time for 8 s; `useUndo()` gives the toast its
-`offer` and binds `z`. The list's done and defer offer it already.
+`offer` and binds `z`. The list's done and later offer it already.
 
 **Offline.** `lib/connectivity.ts` drives TanStack Query's `onlineManager`: offline when the
 browser says so or a request got no answer at all, online again when the API answers (any
@@ -116,10 +116,11 @@ one at a time in the order they were made (one mutation `scope`), with the idemp
 started with. `useConnectivity()` gives `{ online, queued }`; the sidebar shows a small badge
 while offline. Queued actions live in memory: closing the tab while offline drops them.
 
-**Optimistic updates.** Archive, read/unread, defer and done change every cached list and the
+**Optimistic updates.** Archive, read/unread, later and done change every cached list and the
 thread at once (`lib/cache.ts`), then roll back if the request fails. Move just refetches.
 
-**Done and defer** are yours alone, even on a shared mailbox (ADR 0007). Pass the thread's
+**Done and Later** are yours alone, even on a shared mailbox (ADR 0007, ADR 0027). Later has no
+time: a thread stays there until moved back (`useMoveToLater().mutate({ threadId, later })`). Pass the thread's
 `lastMessageAt` as `through` when marking done: a newer message brings the thread back to the
 Inbox, and one that arrived after the screen was drawn keeps it there.
 
@@ -159,7 +160,7 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 | `useThread(id)`, `useSuspenseThread(id)`                                                                                                           | `{ thread, pending, … }`                                                                         |
 | `useSearch(q, mailbox?)`                                                                                                                           | results                                                                                          |
 | `usePrefetchThread()`                                                                                                                              | `(threadId) => void`                                                                             |
-| `useMarkRead()`, `useDefer()`, `useMarkDone()`, `useMarkUndone()`, `useArchive()`, `useMove()`                                                     | `mutate({ threadId, … })`                                                                        |
+| `useMarkRead()`, `useMoveToLater()`, `useMarkDone()`, `useMarkUndone()`, `useArchive()`, `useMove()`                                               | `mutate({ threadId, … })`                                                                        |
 | `useMarkReadOnOpen(thread)`                                                                                                                        | marks an opened unread thread read, once                                                         |
 | `useSendReply()`, `useSend()`                                                                                                                      | `mutate({ … })`                                                                                  |
 | `useDiscardPending()`, `useActionFailures()`                                                                                                       | failed sends and actions                                                                         |

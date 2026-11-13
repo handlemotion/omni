@@ -23,13 +23,12 @@ import { useAllMailboxes, useThread } from "@/hooks/use-mail.ts";
 import { useFollowMerge } from "@/hooks/use-realtime.ts";
 import {
   useArchive,
-  useDefer,
   useMarkDone,
   useMarkRead,
   useMarkReadOnOpen,
   useMarkUndone,
+  useMoveToLater,
 } from "@/hooks/use-mail-actions.ts";
-import { DEFER_MS, isDeferred } from "@/lib/threads.ts";
 import type { Conversation as HelpdeskState, Message, Thread } from "@/lib/types.ts";
 import { ReplyComposer } from "../compose/composer.tsx";
 import { ComposerProvider } from "../compose/composer-state.tsx";
@@ -230,7 +229,7 @@ function Entry({ children }: { children: ReactNode }) {
 
 /**
  * The actions at the right of the bar over the conversation. A shared inbox's conversation is
- * resolved or snoozed for the whole team; a personal thread keeps archive, done and defer
+ * resolved or snoozed for the whole team; a personal thread keeps archive, done and later
  * (ADR 0007). Read state and full screen in both.
  */
 function Actions({ thread, shared }: { thread: Thread; shared: boolean }) {
@@ -312,14 +311,13 @@ function HelpdeskActions({ threadId }: { threadId: string }) {
   );
 }
 
-/** A personal thread's own actions (ADR 0007): archive, done, defer a day. */
+/** A personal thread's own actions (ADR 0007, ADR 0027): archive, done, later. */
 function MailActions({ thread }: { thread: Thread }) {
   const threadId = thread.id;
   const archive = useArchive();
-  const defer = useDefer();
+  const moveToLater = useMoveToLater();
   const markDone = useMarkDone();
   const markUndone = useMarkUndone();
-  const deferred = isDeferred(thread.deferredUntil);
   return (
     <>
       <Action label="Archive" onPress={() => archive.mutate({ threadId })}>
@@ -336,15 +334,10 @@ function MailActions({ thread }: { thread: Thread }) {
         {thread.done ? <IconInbox /> : <IconCheck />}
       </Action>
       <Action
-        label={deferred ? "Back to inbox" : "Defer a day"}
-        onPress={() =>
-          defer.mutate({
-            threadId,
-            until: deferred ? null : new Date(Date.now() + DEFER_MS),
-          })
-        }
+        label={thread.later ? "Back to inbox" : "Later"}
+        onPress={() => moveToLater.mutate({ threadId, later: !thread.later })}
       >
-        {deferred ? <IconInbox /> : <IconClock3 />}
+        {thread.later ? <IconInbox /> : <IconClock3 />}
       </Action>
     </>
   );

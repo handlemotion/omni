@@ -148,8 +148,8 @@ export function MailboxSwitcher() {
   // With no mailbox yet the cluster keeps its three discs, blank, so All keeps its mark.
   const clusterFaces = faces.length > 0 ? faces : BLANK_FACES;
 
-  // The trigger shares the header with three buttons, leaving its label 65px: "All mailboxes"
-  // (99px) would clip, so it says "All" beside the cluster, and a personal mailbox shows the
+  // The trigger shares the header with four buttons: "All mailboxes" (99px) would clip, so it
+  // says "All" beside the cluster, and a personal mailbox shows the
   // first name. The menu rows and the trigger's accessible name keep the full names.
   const triggerName = shown ? mailboxName(shown, you) : "All mailboxes";
   const triggerLabel = shown
@@ -188,8 +188,9 @@ export function MailboxSwitcher() {
         // Hover, pressed and open share one fill. React Aria keeps the trigger pressed while its
         // menu is open, so the fill is set through the button's own variables. The lead is the
         // nav icons' 15px box, 8px in, with the label 10px after: the avatar's centre and the
-        // label line up with the nav rows below.
-        className="group/trigger h-7 min-w-0 flex-1 justify-start gap-2.5 rounded-sm px-2 [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]"
+        // label line up with the nav rows below. It hugs its label (truncating only when the
+        // header runs out of room).
+        className="group/trigger h-7 min-w-0 justify-start gap-2.5 rounded-sm px-2 [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]"
       >
         <span className="grid size-icon shrink-0 place-items-center">
           {pending ? (

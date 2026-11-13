@@ -3,7 +3,7 @@
 // nothing, then one or two lines of text and the actions. The figures answer the pointer, follow
 // the theme on their own and rest still under reduced motion.
 import type { ReactNode } from "react";
-import { Drawer, Plug } from "@lucasmarkes/hairline/react";
+import { Cabinet, Drawer, Loupe, Plug } from "@lucasmarkes/hairline/react";
 import {
   Empty,
   EmptyContent,
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/empty";
 
 /** The figures in use. Add one here before using a new one. */
-const FIGURES = { drawer: Drawer, plug: Plug };
+const FIGURES = { cabinet: Cabinet, drawer: Drawer, loupe: Loupe, plug: Plug };
 
 /**
  * Top to bottom: the figure (208px, 20px above the text), a title, a description only when it

@@ -134,7 +134,7 @@ const cases: Case[] = [
   { name: "listThreads inbox (2 boxes)", run: () => few.listThreads() },
   { name: "listThreads inbox one mailbox", run: () => all.listThreads({ mailboxId: box.id }) },
   { name: "listThreads archive (all mail)", run: () => all.listThreads({ view: "archive" }) },
-  { name: "listThreads queue", run: () => all.listThreads({ view: "queue" }) },
+  { name: "listThreads queue", run: () => all.listThreads({ view: "later" }) },
   { name: "listThreads done", run: () => all.listThreads({ view: "done" }) },
   { name: "listThreads all", run: () => all.listThreads({ view: "all" }) },
   {
@@ -157,7 +157,7 @@ const cases: Case[] = [
   { name: "user: listThreads inbox", run: () => user.listThreads() },
   { name: "user: listThreads done", run: () => user.listThreads({ view: "done" }) },
   { name: "user: listThreads page 41", run: () => user.listThreads({ before: deepCursor }) },
-  { name: "user: listThreads queue", run: () => user.listThreads({ view: "queue" }) },
+  { name: "user: listThreads queue", run: () => user.listThreads({ view: "later" }) },
   { name: "user: listThreads all", run: () => user.listThreads({ view: "all" }) },
   {
     name: "user: lane needs_reply",
@@ -197,7 +197,7 @@ const cases: Case[] = [
     run: (tx) =>
       forMember(tx, memberAll).setThreadState(typical.id, {
         doneThrough: new Date(),
-        deferredUntil: null,
+        later: false,
       }),
   },
   { name: "listMemberMailboxes", run: () => listMemberMailboxes(db, memberAll) },

@@ -227,7 +227,7 @@ test("sidebar links keep the mailbox the switcher shows", async () => {
   await page.getByRole("menuitem", { name: /hello@beta-keep/ }).click();
   await page.waitForURL((url) => url.searchParams.get("mailbox") === boxes.hello.id);
   for (const [name, path] of [
-    ["Queue", "/queue"],
+    ["Later", "/later"],
     ["All mail", "/all"],
     ["Inbox", "/inbox"],
   ] as const) {
@@ -236,6 +236,24 @@ test("sidebar links keep the mailbox the switcher shows", async () => {
     expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.hello.id);
     await page.getByRole("button", { name: /^Switch mailbox, currently Hello/ }).waitFor();
   }
+});
+
+// Catches: switching mailbox (or back to All) throwing the person back to the Inbox.
+test("switching mailbox keeps the list on screen", async () => {
+  const { email, boxes } = await ana("stay");
+  const page = await openSwitcher(email);
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: "Later", exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/later");
+  await page.getByRole("button", { name: /^Switch mailbox/ }).click();
+  await page.getByRole("menuitem", { name: /hello@beta-stay/ }).click();
+  await page.waitForURL((url) => url.searchParams.get("mailbox") === boxes.hello.id);
+  expect(new URL(page.url()).pathname).toBe("/later");
+
+  await page.getByRole("button", { name: /^Switch mailbox/ }).click();
+  await page.getByRole("menuitem", { name: /All mailboxes/ }).click();
+  await page.waitForURL((url) => !url.searchParams.has("mailbox"));
+  expect(new URL(page.url()).pathname).toBe("/later");
 });
 
 async function freePort() {

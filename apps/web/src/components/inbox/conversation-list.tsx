@@ -30,7 +30,8 @@ import { senderLabel } from "@/lib/threads.ts";
 import type { ConversationFilter, ConversationSummary } from "@/lib/types.ts";
 import { offerUndo } from "@/lib/undo.ts";
 import type { ConversationRowInfo } from "./conversation-meta";
-import { List, type ListRow } from "./thread-list";
+import { EmptyState } from "@/components/empty/empty-state";
+import { List, ListFailed, type ListRow } from "./thread-list";
 
 /** Views whose rows can be in more than one status, so each row says which. */
 const MIXED = new Set<ConversationFilter["view"]>(["mine", "all"]);
@@ -92,16 +93,9 @@ export function ConversationList(props: {
       )}
       empty={
         query.isError ? (
-          <Empty
-            text="These conversations could not be loaded."
-            action={
-              <Button intent="secondary" size="sm" onPress={() => void query.refetch()}>
-                Try again
-              </Button>
-            }
-          />
+          <ListFailed retry={() => void query.refetch()} />
         ) : query.isSuccess ? (
-          <Empty text={EMPTY_TEXT[filter.view]} />
+          <EmptyState figure="drawer" title={EMPTY_TEXT[filter.view]} />
         ) : undefined
       }
     >
@@ -111,25 +105,15 @@ export function ConversationList(props: {
 }
 
 const EMPTY_TEXT: Record<ConversationFilter["view"], string> = {
-  unassigned: "Nothing waiting for an owner.",
-  mine: "Nothing assigned to you.",
-  open: "No open conversations.",
-  pending: "Nothing waiting on a customer.",
-  snoozed: "Nothing snoozed.",
-  resolved: "Nothing resolved yet.",
-  sla_at_risk: "No SLA due soon.",
-  all: "No conversations.",
+  unassigned: "Nothing waiting for an owner",
+  mine: "Nothing assigned to you",
+  open: "No open conversations",
+  pending: "Nothing waiting on a customer",
+  snoozed: "Nothing snoozed",
+  resolved: "Nothing resolved yet",
+  sla_at_risk: "No SLA due soon",
+  all: "No conversations",
 };
-
-function Empty(props: { text: string; action?: ReactNode }) {
-  return (
-    // A little above the true middle, where an empty page reads as centered.
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 pb-16">
-      <p className="text-sm text-muted-foreground">{props.text}</p>
-      {props.action}
-    </div>
-  );
-}
 
 /** Tomorrow and next Monday at 8:00, and later today (3 hours on): where a snooze usually goes. */
 function snoozePresets(now = new Date()) {

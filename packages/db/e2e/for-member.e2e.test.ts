@@ -221,9 +221,14 @@ describe("forMember isolation", () => {
 
     const asBob = forMember(db, bob);
     await asBob.setThreadState(billing.threadId, { read: true });
-    await asBob.setThreadState(billing.threadId, { deferredUntil: new Date("2027-01-01Z") });
-    const [thread] = await asBob.listThreads({ view: "queue" });
-    expect(thread).toMatchObject({ read: true, deferredUntil: new Date("2027-01-01Z") });
+    await asBob.setThreadState(billing.threadId, { later: true });
+    const [thread] = await asBob.listThreads({ view: "later" });
+    // Tabs open from before Later read `deferredUntil`: Later must show there as deferred.
+    expect(thread).toMatchObject({
+      read: true,
+      later: true,
+      deferredUntil: new Date("9999-12-31T00:00:00Z"),
+    });
 
     // Done through a time later than the thread's newest message is capped at that message, and
     // Alice cannot mark Bob's thread done.
@@ -392,7 +397,7 @@ describe("forUser across workspaces", () => {
   });
 });
 
-test("a deferral hides the thread from the member's inbox until its time, and only theirs", async () => {
+test("Later hides the thread from the member's inbox, only theirs, until they move it back", async () => {
   const org = await createOrg(db, "snooze-org");
   const dana = (await createMember(db, org.id, "dana")).id;
   const erin = (await createMember(db, org.id, "erin")).id;
@@ -400,24 +405,20 @@ test("a deferral hides the thread from the member's inbox until its time, and on
   await grant(db, org.id, shared.id, dana);
   await grant(db, org.id, shared.id, erin);
   const { threadId } = await seedThread(org.id, shared.id, "heron");
-  const ids = async (member: string, view: "inbox" | "queue") =>
+  const ids = async (member: string, view: "inbox" | "later") =>
     (await forMember(db, member).listThreads({ view })).map((t) => t.id);
 
-  await forMember(db, dana).setThreadState(threadId, {
-    deferredUntil: new Date(Date.now() + 3_600_000),
-  });
+  // Into Later for Dana only, with no time attached: it stays until she moves it back.
+  await forMember(db, dana).setThreadState(threadId, { later: true });
   expect(await ids(dana, "inbox")).toEqual([]);
-  expect(await ids(dana, "queue")).toEqual([threadId]);
+  expect(await ids(dana, "later")).toEqual([threadId]);
   expect(await ids(erin, "inbox")).toEqual([threadId]);
-  expect(await forMember(db, dana).counts()).toMatchObject([{ inbox: 0, unread: 0, queue: 1 }]);
-  expect(await forMember(db, erin).counts()).toMatchObject([{ inbox: 1, unread: 1, queue: 0 }]);
+  expect(await forMember(db, dana).counts()).toMatchObject([{ inbox: 0, unread: 0, later: 1 }]);
+  expect(await forMember(db, erin).counts()).toMatchObject([{ inbox: 1, unread: 1, later: 0 }]);
 
-  // The time passes: back in the inbox with nothing left to do.
-  await forMember(db, dana).setThreadState(threadId, {
-    deferredUntil: new Date(Date.now() - 1_000),
-  });
+  await forMember(db, dana).setThreadState(threadId, { later: false });
   expect(await ids(dana, "inbox")).toEqual([threadId]);
-  expect(await ids(dana, "queue")).toEqual([]);
+  expect(await ids(dana, "later")).toEqual([]);
 });
 
 test("a list row summarizes the thread: latest message, senders once each, count, attachments", async () => {

@@ -20,14 +20,14 @@ import { Route as AuthedMemberArchiveRouteImport } from "./routes/_authed/_membe
 import { Route as AuthedMemberComposeRouteImport } from "./routes/_authed/_member/compose";
 import { Route as AuthedMemberDoneRouteImport } from "./routes/_authed/_member/done";
 import { Route as AuthedMemberInboxRouteImport } from "./routes/_authed/_member/inbox";
-import { Route as AuthedMemberQueueRouteImport } from "./routes/_authed/_member/queue";
+import { Route as AuthedMemberLaterRouteImport } from "./routes/_authed/_member/later";
 import { Route as AuthedMemberSearchRouteImport } from "./routes/_authed/_member/search";
 import { Route as AuthedInviteInvitationIdRouteImport } from "./routes/_authed/invite.$invitationId";
 import { Route as AuthedMemberAllThreadIdRouteImport } from "./routes/_authed/_member/all.$threadId";
 import { Route as AuthedMemberArchiveThreadIdRouteImport } from "./routes/_authed/_member/archive.$threadId";
 import { Route as AuthedMemberDoneThreadIdRouteImport } from "./routes/_authed/_member/done.$threadId";
 import { Route as AuthedMemberInboxThreadIdRouteImport } from "./routes/_authed/_member/inbox.$threadId";
-import { Route as AuthedMemberQueueThreadIdRouteImport } from "./routes/_authed/_member/queue.$threadId";
+import { Route as AuthedMemberLaterThreadIdRouteImport } from "./routes/_authed/_member/later.$threadId";
 import { Route as AuthedMemberSearchThreadIdRouteImport } from "./routes/_authed/_member/search.$threadId";
 import { Route as AuthedMemberSettingsIndexRouteImport } from "./routes/_authed/_member/settings/index";
 import { Route as AuthedMemberSettingsAccountsRouteImport } from "./routes/_authed/_member/settings/accounts";
@@ -87,9 +87,9 @@ const AuthedMemberInboxRoute = AuthedMemberInboxRouteImport.update({
   path: "/inbox",
   getParentRoute: () => AuthedMemberRoute,
 } as any);
-const AuthedMemberQueueRoute = AuthedMemberQueueRouteImport.update({
-  id: "/queue",
-  path: "/queue",
+const AuthedMemberLaterRoute = AuthedMemberLaterRouteImport.update({
+  id: "/later",
+  path: "/later",
   getParentRoute: () => AuthedMemberRoute,
 } as any);
 const AuthedMemberSearchRoute = AuthedMemberSearchRouteImport.update({
@@ -126,11 +126,11 @@ const AuthedMemberInboxThreadIdRoute =
     path: "/$threadId",
     getParentRoute: () => AuthedMemberInboxRoute,
   } as any);
-const AuthedMemberQueueThreadIdRoute =
-  AuthedMemberQueueThreadIdRouteImport.update({
+const AuthedMemberLaterThreadIdRoute =
+  AuthedMemberLaterThreadIdRouteImport.update({
     id: "/$threadId",
     path: "/$threadId",
-    getParentRoute: () => AuthedMemberQueueRoute,
+    getParentRoute: () => AuthedMemberLaterRoute,
   } as any);
 const AuthedMemberSearchThreadIdRoute =
   AuthedMemberSearchThreadIdRouteImport.update({
@@ -173,14 +173,14 @@ export interface FileRoutesByFullPath {
   "/compose": typeof AuthedMemberComposeRoute;
   "/done": typeof AuthedMemberDoneRouteWithChildren;
   "/inbox": typeof AuthedMemberInboxRouteWithChildren;
-  "/queue": typeof AuthedMemberQueueRouteWithChildren;
+  "/later": typeof AuthedMemberLaterRouteWithChildren;
   "/search": typeof AuthedMemberSearchRouteWithChildren;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
   "/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
   "/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
-  "/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
+  "/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
   "/settings/accounts": typeof AuthedMemberSettingsAccountsRoute;
   "/settings/billing": typeof AuthedMemberSettingsBillingRoute;
@@ -197,14 +197,14 @@ export interface FileRoutesByTo {
   "/compose": typeof AuthedMemberComposeRoute;
   "/done": typeof AuthedMemberDoneRouteWithChildren;
   "/inbox": typeof AuthedMemberInboxRouteWithChildren;
-  "/queue": typeof AuthedMemberQueueRouteWithChildren;
+  "/later": typeof AuthedMemberLaterRouteWithChildren;
   "/search": typeof AuthedMemberSearchRouteWithChildren;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
   "/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
   "/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
-  "/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
+  "/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
   "/settings/accounts": typeof AuthedMemberSettingsAccountsRoute;
   "/settings/billing": typeof AuthedMemberSettingsBillingRoute;
@@ -224,14 +224,14 @@ export interface FileRoutesById {
   "/_authed/_member/compose": typeof AuthedMemberComposeRoute;
   "/_authed/_member/done": typeof AuthedMemberDoneRouteWithChildren;
   "/_authed/_member/inbox": typeof AuthedMemberInboxRouteWithChildren;
-  "/_authed/_member/queue": typeof AuthedMemberQueueRouteWithChildren;
+  "/_authed/_member/later": typeof AuthedMemberLaterRouteWithChildren;
   "/_authed/_member/search": typeof AuthedMemberSearchRouteWithChildren;
   "/_authed/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/_authed/_member/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
   "/_authed/_member/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/_authed/_member/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
   "/_authed/_member/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
-  "/_authed/_member/queue/$threadId": typeof AuthedMemberQueueThreadIdRoute;
+  "/_authed/_member/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
   "/_authed/_member/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
   "/_authed/_member/settings/accounts": typeof AuthedMemberSettingsAccountsRoute;
   "/_authed/_member/settings/billing": typeof AuthedMemberSettingsBillingRoute;
@@ -250,14 +250,14 @@ export interface FileRouteTypes {
     | "/compose"
     | "/done"
     | "/inbox"
-    | "/queue"
+    | "/later"
     | "/search"
     | "/invite/$invitationId"
     | "/all/$threadId"
     | "/archive/$threadId"
     | "/done/$threadId"
     | "/inbox/$threadId"
-    | "/queue/$threadId"
+    | "/later/$threadId"
     | "/search/$threadId"
     | "/settings/accounts"
     | "/settings/billing"
@@ -274,14 +274,14 @@ export interface FileRouteTypes {
     | "/compose"
     | "/done"
     | "/inbox"
-    | "/queue"
+    | "/later"
     | "/search"
     | "/invite/$invitationId"
     | "/all/$threadId"
     | "/archive/$threadId"
     | "/done/$threadId"
     | "/inbox/$threadId"
-    | "/queue/$threadId"
+    | "/later/$threadId"
     | "/search/$threadId"
     | "/settings/accounts"
     | "/settings/billing"
@@ -300,14 +300,14 @@ export interface FileRouteTypes {
     | "/_authed/_member/compose"
     | "/_authed/_member/done"
     | "/_authed/_member/inbox"
-    | "/_authed/_member/queue"
+    | "/_authed/_member/later"
     | "/_authed/_member/search"
     | "/_authed/invite/$invitationId"
     | "/_authed/_member/all/$threadId"
     | "/_authed/_member/archive/$threadId"
     | "/_authed/_member/done/$threadId"
     | "/_authed/_member/inbox/$threadId"
-    | "/_authed/_member/queue/$threadId"
+    | "/_authed/_member/later/$threadId"
     | "/_authed/_member/search/$threadId"
     | "/_authed/_member/settings/accounts"
     | "/_authed/_member/settings/billing"
@@ -400,11 +400,11 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedMemberInboxRouteImport;
       parentRoute: typeof AuthedMemberRoute;
     };
-    "/_authed/_member/queue": {
-      id: "/_authed/_member/queue";
-      path: "/queue";
-      fullPath: "/queue";
-      preLoaderRoute: typeof AuthedMemberQueueRouteImport;
+    "/_authed/_member/later": {
+      id: "/_authed/_member/later";
+      path: "/later";
+      fullPath: "/later";
+      preLoaderRoute: typeof AuthedMemberLaterRouteImport;
       parentRoute: typeof AuthedMemberRoute;
     };
     "/_authed/_member/search": {
@@ -449,12 +449,12 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedMemberInboxThreadIdRouteImport;
       parentRoute: typeof AuthedMemberInboxRoute;
     };
-    "/_authed/_member/queue/$threadId": {
-      id: "/_authed/_member/queue/$threadId";
+    "/_authed/_member/later/$threadId": {
+      id: "/_authed/_member/later/$threadId";
       path: "/$threadId";
-      fullPath: "/queue/$threadId";
-      preLoaderRoute: typeof AuthedMemberQueueThreadIdRouteImport;
-      parentRoute: typeof AuthedMemberQueueRoute;
+      fullPath: "/later/$threadId";
+      preLoaderRoute: typeof AuthedMemberLaterThreadIdRouteImport;
+      parentRoute: typeof AuthedMemberLaterRoute;
     };
     "/_authed/_member/search/$threadId": {
       id: "/_authed/_member/search/$threadId";
@@ -539,16 +539,16 @@ const AuthedMemberInboxRouteChildren: AuthedMemberInboxRouteChildren = {
 const AuthedMemberInboxRouteWithChildren =
   AuthedMemberInboxRoute._addFileChildren(AuthedMemberInboxRouteChildren);
 
-interface AuthedMemberQueueRouteChildren {
-  AuthedMemberQueueThreadIdRoute: typeof AuthedMemberQueueThreadIdRoute;
+interface AuthedMemberLaterRouteChildren {
+  AuthedMemberLaterThreadIdRoute: typeof AuthedMemberLaterThreadIdRoute;
 }
 
-const AuthedMemberQueueRouteChildren: AuthedMemberQueueRouteChildren = {
-  AuthedMemberQueueThreadIdRoute: AuthedMemberQueueThreadIdRoute,
+const AuthedMemberLaterRouteChildren: AuthedMemberLaterRouteChildren = {
+  AuthedMemberLaterThreadIdRoute: AuthedMemberLaterThreadIdRoute,
 };
 
-const AuthedMemberQueueRouteWithChildren =
-  AuthedMemberQueueRoute._addFileChildren(AuthedMemberQueueRouteChildren);
+const AuthedMemberLaterRouteWithChildren =
+  AuthedMemberLaterRoute._addFileChildren(AuthedMemberLaterRouteChildren);
 
 interface AuthedMemberSearchRouteChildren {
   AuthedMemberSearchThreadIdRoute: typeof AuthedMemberSearchThreadIdRoute;
@@ -567,7 +567,7 @@ interface AuthedMemberRouteChildren {
   AuthedMemberComposeRoute: typeof AuthedMemberComposeRoute;
   AuthedMemberDoneRoute: typeof AuthedMemberDoneRouteWithChildren;
   AuthedMemberInboxRoute: typeof AuthedMemberInboxRouteWithChildren;
-  AuthedMemberQueueRoute: typeof AuthedMemberQueueRouteWithChildren;
+  AuthedMemberLaterRoute: typeof AuthedMemberLaterRouteWithChildren;
   AuthedMemberSearchRoute: typeof AuthedMemberSearchRouteWithChildren;
   AuthedMemberSettingsAccountsRoute: typeof AuthedMemberSettingsAccountsRoute;
   AuthedMemberSettingsBillingRoute: typeof AuthedMemberSettingsBillingRoute;
@@ -580,7 +580,7 @@ const AuthedMemberRouteChildren: AuthedMemberRouteChildren = {
   AuthedMemberComposeRoute: AuthedMemberComposeRoute,
   AuthedMemberDoneRoute: AuthedMemberDoneRouteWithChildren,
   AuthedMemberInboxRoute: AuthedMemberInboxRouteWithChildren,
-  AuthedMemberQueueRoute: AuthedMemberQueueRouteWithChildren,
+  AuthedMemberLaterRoute: AuthedMemberLaterRouteWithChildren,
   AuthedMemberSearchRoute: AuthedMemberSearchRouteWithChildren,
   AuthedMemberSettingsAccountsRoute: AuthedMemberSettingsAccountsRoute,
   AuthedMemberSettingsBillingRoute: AuthedMemberSettingsBillingRoute,

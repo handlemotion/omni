@@ -29,7 +29,7 @@ const retry = (failureCount: number, error: Error) =>
 
 /**
  * Every mail action shares one scope, so they run one at a time in the order they were made:
- * queued offline, "defer" then "done" still lands in that order when they flush.
+ * queued offline, "later" then "done" still lands in that order when they flush.
  *
  * Their callbacks start refetches but never return them. A returned promise keeps the action
  * pending, and with it every action queued behind it, until the refetch ends. A refetch paused
@@ -63,30 +63,21 @@ export const markReadMutation = (client: QueryClient) =>
     onSettled: () => void client.invalidateQueries({ queryKey: keys.counts() }),
   });
 
-/** Into the Queue until `until`; `until: null` puts it back in the Inbox now. Clears done. */
-export const deferMutation = (client: QueryClient) =>
+/** `later: true` moves it into Later (clears done); `false` puts it back in the Inbox. */
+export const laterMutation = (client: QueryClient) =>
   mutationOptions({
-    mutationKey: [...keys.mail(), "defer"],
+    mutationKey: [...keys.mail(), "later"],
     retry,
     scope,
-    mutationFn: ({ threadId, until, key }: Keyed & { threadId: string; until: Date | null }) =>
-      until
-        ? call(
-            api.threads[":id"].defer.$post({
-              param: { id: threadId },
-              header: header(key),
-              json: { until: until.toISOString() },
-            }),
-          )
-        : call(api.threads[":id"].defer.$delete({ param: { id: threadId }, header: header(key) })),
-    onMutate: async ({ threadId, until }) => {
+    mutationFn: ({ threadId, later, key }: Keyed & { threadId: string; later: boolean }) => {
+      const route = api.threads[":id"].later;
+      const request = { param: { id: threadId }, header: header(key) };
+      return call(later ? route.$post(request) : route.$delete(request));
+    },
+    onMutate: async ({ threadId, later }) => {
       const snapshot = await snapshotThread(client, threadId);
-      const deferred = until !== null && until.getTime() > Date.now();
-      patchThread(client, threadId, {
-        deferredUntil: until ? until.toISOString() : null,
-        ...(until ? { done: false } : {}),
-      });
-      removeFromLists(client, threadId, (f) => leavesView(deferred ? "defer" : "undefer", f.view));
+      patchThread(client, threadId, { later, ...(later ? { done: false } : {}) });
+      removeFromLists(client, threadId, (f) => leavesView(later ? "later" : "unlater", f.view));
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),
@@ -94,7 +85,7 @@ export const deferMutation = (client: QueryClient) =>
   });
 
 /**
- * Done through `through`: the thread's `lastMessageAt` as shown. Leaves the Inbox and Queue for
+ * Done through `through`: the thread's `lastMessageAt` as shown. Leaves the Inbox and Later for
  * this member only. A newer message brings it back; if one arrived after `through`, the server
  * answers `done: false` and the refetch puts the thread back.
  */
@@ -113,7 +104,7 @@ export const doneMutation = (client: QueryClient) =>
       ),
     onMutate: async ({ threadId }) => {
       const snapshot = await snapshotThread(client, threadId);
-      patchThread(client, threadId, { done: true, deferredUntil: null });
+      patchThread(client, threadId, { done: true, later: false });
       removeFromLists(client, threadId, (f) => leavesView("done", f.view));
       return { snapshot };
     },

@@ -23,10 +23,10 @@ export const SHORTCUTS = {
   open: { label: "Open thread", group: "Threads", keys: [["o"], ["Enter"]] },
   select: { label: "Select thread", group: "Threads", keys: [["x"]] },
   done: { label: "Mark done", group: "Threads", keys: [["e"]], command: true },
-  defer: { label: "Defer to Queue", group: "Threads", keys: [["h"]], command: true },
+  later: { label: "Move to Later", group: "Threads", keys: [["h"]], command: true },
   read: { label: "Mark read or unread", group: "Threads", keys: [["u"]], command: true },
   close: { label: "Close thread", group: "Threads", keys: [["Escape"]], command: true },
-  // Helpdesk conversations (shared inboxes). Resolve and snooze take the keys of done and defer,
+  // Helpdesk conversations (shared inboxes). Resolve and snooze take the keys of done and later,
   // which they replace there: a screen binds one or the other, and the key runs whichever is bound.
   reply: { label: "Reply", group: "Threads", keys: [["r"]], command: true },
   note: { label: "Add internal note", group: "Threads", keys: [["n"]], command: true },
@@ -37,7 +37,7 @@ export const SHORTCUTS = {
   cannedReply: { label: "Insert canned reply", group: "Threads", keys: [["Mod+/"]], command: true },
   undo: { label: "Undo", group: "General", keys: [["z"]], command: true },
   goInbox: { label: "Inbox", group: "Go to", keys: [["g", "i"]], command: true },
-  goQueue: { label: "Queue", group: "Go to", keys: [["g", "q"]], command: true },
+  goLater: { label: "Later", group: "Go to", keys: [["g", "l"]], command: true },
   goAll: { label: "All mail", group: "Go to", keys: [["g", "a"]], command: true },
   compose: { label: "Compose", group: "General", keys: [["c"]], command: true },
   // Bound by the title-bar search popover, which listens for them itself; listed here so `?`

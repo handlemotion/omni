@@ -38,7 +38,7 @@ interface Command {
 const COMMANDS: Command[] = [
   { id: "compose", title: "Compose", icon: <IconWrite />, href: "/compose" },
   { id: "inbox", title: "Inbox", icon: <IconInbox />, href: "/inbox" },
-  { id: "queue", title: "Queue", icon: <IconClock />, href: "/queue" },
+  { id: "later", title: "Later", icon: <IconClock />, href: "/later" },
   {
     id: "needs-reply",
     title: "Needs reply",

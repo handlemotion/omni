@@ -11,7 +11,7 @@
 //
 // - startup: a new browser profile opens /inbox until the first row shows; JS and CSS bytes.
 // - startup (cached): the same, with the HTTP cache from the first load.
-// - switch: sidebar link to the next list's first row (Queue, All mail, Needs reply, Inbox).
+// - switch: sidebar link to the next list's first row (Later, All mail, Needs reply, Inbox).
 // - open: a click on a row to its thread on screen.
 // - older: scrolling to the end of the list until 10 more pages (500 threads) have loaded, and
 //   the time per page early and late (a cost that grows with the loaded list shows here).
@@ -131,7 +131,7 @@ for (let run = 0; run < RUNS; run++) {
 
   // Screens: each sidebar link until its list's first row (a new list, not the old one).
   for (const [label, path] of [
-    ["Queue", "/queue"],
+    ["Later", "/later"],
     ["All mail", "/all"],
     ["Needs reply", "/inbox?lane=needs_reply"],
     ["Inbox", "/inbox"],

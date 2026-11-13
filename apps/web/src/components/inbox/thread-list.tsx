@@ -9,6 +9,7 @@ import { ListSweepSlot } from "@/components/inbox/list-sweep";
 import { OpenListContext } from "@/components/inbox/open-list";
 import { SearchPopover } from "@/components/search/search-popover";
 import { ComposePane } from "@/components/compose/compose-pane";
+import { EmptyState } from "@/components/empty/empty-state";
 import { IconPencil } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -63,9 +64,10 @@ interface ListProps {
   empty?: ReactNode;
 }
 
-/** One view's threads (inbox, queue, all mail...), loading more as it scrolls. */
+/** One view's threads (inbox, later, all mail...), loading more as it scrolls. */
 export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
-  const { threads, hasNextPage, fetchNextPage, isFetchingNextPage } = useThreads(props.filter);
+  const { threads, hasNextPage, fetchNextPage, isFetchingNextPage, isError, isSuccess, refetch } =
+    useThreads(props.filter);
   const unread = useUnreadCount(props.filter);
   const names = useWorkspaceNames(props.filter.mailbox);
   // Stable rows, so the virtualized list's row cache survives renders that don't change them.
@@ -81,12 +83,49 @@ export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
   return (
     <List
       {...props}
+      empty={
+        props.empty ??
+        (isError ? (
+          <ListFailed retry={() => void refetch()} />
+        ) : isSuccess ? (
+          <EmptyState
+            figure={props.filter.view === "archive" ? "cabinet" : "drawer"}
+            title={emptyTitle(props.filter)}
+          />
+        ) : undefined)
+      }
       rows={rows}
       count={unread}
       shortcuts={{ view: props.filter.view, threads, loadMore }}
       loadMore={loadMore}
       isLoadingMore={isFetchingNextPage}
     />
+  );
+}
+
+/** What an empty list is called: by its lane in the Inbox, else by its view. */
+function emptyTitle(filter: ThreadFilter) {
+  if (filter.view === "inbox" && filter.lane === "needs_reply") return "Nothing needs a reply";
+  if (filter.view === "inbox" && filter.lane === "waiting_on_them") return "Not waiting on anyone";
+  return EMPTY_TITLES[filter.view ?? "inbox"];
+}
+
+const EMPTY_TITLES: Record<ThreadView, string> = {
+  inbox: "Inbox zero",
+  later: "Nothing for later",
+  done: "Nothing done yet",
+  archive: "Nothing archived",
+  all: "No mail yet",
+};
+
+/** A list that failed to load, with the way to try again. */
+export function ListFailed(props: { retry: () => void }) {
+  return (
+    <EmptyState figure="plug" title="This list didn't load">
+      <Button size="sm" intent="outline" onPress={props.retry}>
+        Try again
+      </Button>
+    </EmptyState>
   );
 }
 
@@ -374,13 +413,15 @@ function ThreadRow({
       id={thread.id}
       href={href}
       textValue={`${sender} ${thread.subject}`}
-      // The open thread's row keeps the accent fill, the same grey as the sidebar's current item.
-      className={`gap-4 border-b px-5 py-3 ${isCurrent ? "bg-accent" : ""}`}
+      // The open thread's row keeps the accent fill, the same grey as the sidebar's current item;
+      // a checked row takes the brand tint, like your own messages. The checkbox and the avatar
+      // multiply, so their edge and fill still show on the hover highlight or the tint.
+      className={`gap-4 border-b px-5 py-3 selected:bg-primary-subtle **:data-[slot=indicator]:mix-blend-multiply ${isCurrent ? "bg-accent" : ""}`}
     >
       <Avatar
         isSquare
         initials={sender.slice(0, 1).toUpperCase()}
-        className="shrink-0 bg-accent text-foreground outline-0 [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(7)]"
+        className="shrink-0 bg-accent text-foreground outline-0 mix-blend-multiply [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(7)]"
       />
       {/* 16px gap plus 16px margin: the frame's 32px between avatar and sender. The sender
           column narrows with the list beside an open thread, so the subject keeps room. */}

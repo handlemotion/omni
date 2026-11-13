@@ -1,5 +1,5 @@
-// Inbox, Queue, Done and All mail over the real API: per-member state on a shared mailbox, the
-// done watermark, and a deferral that runs out on its own (ADR 0007).
+// Inbox, Later, Done and All mail over the real API: per-member state on a shared mailbox, the
+// done watermark, and Later, which holds a thread until the member moves it back (ADR 0007, ADR 0027).
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -46,7 +46,7 @@ function api(path: string, cookie: string, init: RequestInit = {}) {
   });
 }
 
-type Row = { id: string; done: boolean; deferredUntil: string | null };
+type Row = { id: string; done: boolean; later: boolean };
 
 async function view(cookie: string, name: string) {
   const response = await api(`/threads?view=${name}`, cookie);
@@ -56,9 +56,9 @@ async function view(cookie: string, name: string) {
 
 async function counts(cookie: string) {
   const body = (await (await api("/counts", cookie)).json()) as {
-    counts: { inbox: number; queue: number }[];
+    counts: { inbox: number; later: number }[];
   };
-  return body.counts.map(({ inbox, queue }) => ({ inbox, queue }));
+  return body.counts.map(({ inbox, later }) => ({ inbox, later }));
 }
 
 async function action(cookie: string, method: string, path: string, json?: unknown) {
@@ -96,51 +96,50 @@ async function sharedInbox(slug: string) {
   };
 }
 
-test("defer moves a thread from Inbox to Queue for that member, and it comes back when the time passes", async () => {
-  const { threadId, ana, bea } = await sharedInbox("defer");
+test("Later takes a thread out of that member's Inbox with no time attached, until they move it back", async () => {
+  const { threadId, ana, bea } = await sharedInbox("later");
   expect(await view(ana, "inbox")).toEqual([threadId]);
 
-  const until = new Date(Date.now() + 2_000);
-  const deferred = await action(ana, "POST", `/threads/${threadId}/defer`, {
-    until: until.toISOString(),
-  });
-  expect(deferred).toMatchObject({ status: 200, body: { state: { done: false } } });
+  const moved = await action(ana, "POST", `/threads/${threadId}/later`);
+  expect(moved).toMatchObject({ status: 200, body: { state: { done: false, later: true } } });
+  // Tabs open from before Later read `deferredUntil` and must see the thread as deferred.
+  const row = (await (await api("/threads?view=later", ana)).json()) as {
+    threads: { deferredUntil: string | null }[];
+  };
+  expect(row.threads[0]?.deferredUntil).toBe("9999-12-31T00:00:00.000Z");
   expect(await view(ana, "inbox")).toEqual([]);
+  expect(await view(ana, "later")).toEqual([threadId]);
+  // A tab open from before the rename still asks for `queue`, and gets Later.
   expect(await view(ana, "queue")).toEqual([threadId]);
-  expect(await counts(ana)).toEqual([{ inbox: 0, queue: 1 }]);
-  // Bea shares the mailbox, not Ana's queue.
+  expect(await counts(ana)).toEqual([{ inbox: 0, later: 1 }]);
+  // Bea shares the mailbox, not Ana's Later.
   expect(await view(bea, "inbox")).toEqual([threadId]);
-  expect(await view(bea, "queue")).toEqual([]);
+  expect(await view(bea, "later")).toEqual([]);
 
-  // No job runs: the clock passing `until` is what returns it.
-  const deadline = Date.now() + 10_000;
-  while ((await view(ana, "inbox")).length === 0 && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  expect(Date.now()).toBeGreaterThanOrEqual(until.getTime());
+  const back = await action(ana, "DELETE", `/threads/${threadId}/later`);
+  expect(back).toMatchObject({ status: 200, body: { state: { later: false } } });
   expect(await view(ana, "inbox")).toEqual([threadId]);
-  expect(await view(ana, "queue")).toEqual([]);
-  expect(await counts(ana)).toEqual([{ inbox: 1, queue: 0 }]);
+  expect(await view(ana, "later")).toEqual([]);
+  expect(await counts(ana)).toEqual([{ inbox: 1, later: 0 }]);
 });
 
-test("done leaves Inbox and Queue but stays in All mail, for the member who marked it only", async () => {
+test("done leaves Inbox and Later but stays in All mail, for the member who marked it only", async () => {
   const { threadId, sentAt, ana, bea, anaId } = await sharedInbox("done");
-  const later = new Date(Date.now() + 3_600_000).toISOString();
-  await action(ana, "POST", `/threads/${threadId}/defer`, { until: later });
-  expect(await view(ana, "queue")).toEqual([threadId]);
+  await action(ana, "POST", `/threads/${threadId}/later`);
+  expect(await view(ana, "later")).toEqual([threadId]);
 
   const done = await action(ana, "POST", `/threads/${threadId}/done`, {
     through: sentAt.toISOString(),
   });
   expect(done).toMatchObject({
     status: 200,
-    body: { state: { done: true, deferredUntil: null } },
+    body: { state: { done: true, later: false } },
   });
   expect(await view(ana, "inbox")).toEqual([]);
-  expect(await view(ana, "queue")).toEqual([]);
+  expect(await view(ana, "later")).toEqual([]);
   expect(await view(ana, "done")).toEqual([threadId]);
   expect(await view(ana, "all")).toEqual([threadId]);
-  expect(await counts(ana)).toEqual([{ inbox: 0, queue: 0 }]);
+  expect(await counts(ana)).toEqual([{ inbox: 0, later: 0 }]);
 
   // Bea's view of the same shared thread is untouched, and nothing went to the outbox: done is
   // not an IMAP move.
@@ -210,8 +209,8 @@ test("triage actions need an idempotency key and a thread the member can see", a
   for (const [method, path, json] of [
     ["POST", `/threads/${threadId}/done`, { through: sentAt.toISOString() }],
     ["DELETE", `/threads/${threadId}/done`, undefined],
-    ["POST", `/threads/${threadId}/defer`, { until: new Date().toISOString() }],
-    ["DELETE", `/threads/${threadId}/defer`, undefined],
+    ["POST", `/threads/${threadId}/later`, undefined],
+    ["DELETE", `/threads/${threadId}/later`, undefined],
   ] as const) {
     expect((await action(outsider, method, path, json)).status).toBe(404);
     const unkeyed = await fetch(new URL(`/api${path}`, worker.url), {

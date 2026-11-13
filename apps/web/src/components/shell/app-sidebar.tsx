@@ -1,5 +1,7 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRouter, useSearch } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { IconArrowRotateClockwise } from "@/components/icons/central";
 import {
   IconBubble,
   IconBubbleAnnotation,
@@ -38,6 +40,7 @@ import { useConnectivity } from "@/hooks/use-connectivity.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
 import { openSettings } from "@/hooks/use-settings-dialog.ts";
+import { keys } from "@/lib/query-keys.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 
 /** A nav row. No `href`: the frame shows it, but the app has no view for it yet. */
@@ -51,7 +54,7 @@ interface NavItem {
 
 const mail: NavItem[] = [
   { label: "Inbox", icon: <IconInbox />, href: "/inbox", current: { path: "/inbox" } },
-  { label: "Queue", icon: <IconClock />, href: "/queue", current: { path: "/queue" } },
+  { label: "Later", icon: <IconClock />, href: "/later", current: { path: "/later" } },
   {
     label: "Needs reply",
     icon: <IconBubble />,
@@ -78,9 +81,12 @@ const folders: NavItem[] = [
 export function AppSidebar() {
   const router = useRouter();
   const shown = useShownMailbox();
+  // The links carry the URL's mailbox as it is, not the one found in the workspace list: right
+  // after a switch that list is still loading, and a link built from it would drop the mailbox.
+  const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
   return (
     <Sidebar>
-      <SidebarHeader>
+      <SidebarHeader className="justify-between">
         <MailboxSwitcher />
         <div className="flex items-center gap-0.5">
           <Button
@@ -99,6 +105,7 @@ export function AppSidebar() {
           >
             <IconChevronRight />
           </Button>
+          <ReloadButton />
           <SidebarTrigger intent="ghost" size="sq-xs">
             <IconSidebar />
           </SidebarTrigger>
@@ -110,10 +117,10 @@ export function AppSidebar() {
             mailbox the switcher shows; a shared inbox adds its Mine. Every row
             keeps the switcher's choice: a link never changes which mailbox is shown. */}
         <SidebarSection>
-          <Items items={mail} mailbox={shown?.id} />
+          <Items items={mail} mailbox={mailbox} />
           {shown?.kind === "shared" && <HelpdeskItems mailboxId={shown.id} />}
         </SidebarSection>
-        <Group label="Folders" items={folders} mailbox={shown?.id} />
+        <Group label="Folders" items={folders} mailbox={mailbox} />
       </SidebarContent>
 
       <SidebarFooter className="justify-between">
@@ -137,6 +144,33 @@ export function AppSidebar() {
         </div>
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+/** Fetches everything on screen again: the lists, the open thread, the counts. */
+function ReloadButton() {
+  const client = useQueryClient();
+  const [pending, setPending] = useState(false);
+  return (
+    <Button
+      intent="ghost"
+      size="sq-xs"
+      aria-label="Reload"
+      isPending={pending}
+      onPress={() => {
+        setPending(true);
+        // Server data only: client-only state (pending and failed sends) has nothing to fetch,
+        // and refetching it would clear it.
+        void client
+          .refetchQueries({
+            type: "active",
+            predicate: (query) => query.queryKey[1] !== keys.local()[1],
+          })
+          .finally(() => setPending(false));
+      }}
+    >
+      <IconArrowRotateClockwise className="size-icon" />
+    </Button>
   );
 }
 

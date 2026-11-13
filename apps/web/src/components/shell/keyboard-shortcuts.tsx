@@ -22,7 +22,7 @@ export function KeyboardShortcuts() {
   useShortcutListener();
   useShortcut("compose", openCompose);
   useShortcut("goInbox", () => void navigate({ to: "/inbox" }));
-  useShortcut("goQueue", () => void navigate({ to: "/queue" }));
+  useShortcut("goLater", () => void navigate({ to: "/later" }));
   useShortcut("goAll", () => void navigate({ to: "/all" }));
   useShortcut("help", () => setHelp(true));
 

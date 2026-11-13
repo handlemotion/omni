@@ -32,17 +32,17 @@ export type Lane = (typeof triageBucket.enumValues)[number] | "unsure";
 export const LANES = [...triageBucket.enumValues, "unsure"] as const satisfies readonly Lane[];
 
 /**
- * Per-member triage views (ADR 0007). A thread is *done* for a member while its
- * `last_message_at` is at or before their `done_through`, and *deferred* while their
- * `snoozed_until` is in the future; done wins over deferred.
+ * Per-member triage views (ADR 0007, Later: ADR 0027). A thread is *done* for a member while its
+ * `last_message_at` is at or before their `done_through`, and in *Later* while their
+ * `snoozed_until` is in the future (`infinity` once moved there); done wins over Later.
  *
- * - `inbox`: not archived, not done, not deferred. What still needs attention.
- * - `queue`: not archived, deferred, not done. Back in the inbox by itself when the time passes.
+ * - `inbox`: not archived, not done, not in Later. What still needs attention.
+ * - `later`: not archived, in Later, not done. Stays until the member moves it back or done.
  * - `done`: done, archived or not.
  * - `archive`: archived (moved out of INBOX on the server; shared by everyone on the mailbox).
  * - `all`: every thread the member can see, whatever its state.
  */
-export const THREAD_VIEWS = ["inbox", "queue", "done", "archive", "all"] as const;
+export const THREAD_VIEWS = ["inbox", "later", "done", "archive", "all"] as const;
 export type ThreadView = (typeof THREAD_VIEWS)[number];
 
 /**
@@ -181,7 +181,7 @@ export function forMember(db: Db, memberId: string) {
 /**
  * The same reads across every organization `userId` belongs to (ADR 0014): the union of what
  * each of their members can see. Each row keeps its `org_id`, and per-member state (read, done,
- * deferred) is the state of the member whose grant shows the row. The grant and org checks are
+ * Later) is the state of the member whose grant shows the row. The grant and org checks are
  * the ones `forMember` runs, so a user sees exactly what their members can, and nothing else.
  * With `scopeOrgId` (a session opened with a company's address, ADR 0024), only their member in
  * that organization counts.
@@ -212,10 +212,17 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
   const [threadGrant, threadOrg] = access(threads.mailboxId, threads.orgId);
   const [messageGrant, messageOrg] = access(messages.mailboxId, messages.orgId);
 
+  // Deprecated (ADR 0027): the old field, for tabs open from before Later. Later's `infinity`
+  // reads back as a far-future time, which those tabs show as deferred.
+  const legacyDeferredUntil =
+    sql<Date | null>`case when ${threadState.snoozedUntil} = 'infinity' then '9999-12-31T00:00:00Z'::timestamptz else ${threadState.snoozedUntil} end`.mapWith(
+      threadState.snoozedUntil,
+    );
   const threadFields = {
     ...getTableColumns(threads),
     read: sql<boolean>`coalesce(${threadState.read}, false)`.as("read"),
-    deferredUntil: threadState.snoozedUntil,
+    later: sql<boolean>`coalesce(${threadState.snoozedUntil} > now(), false)`.as("later"),
+    deferredUntil: legacyDeferredUntil.as("deferred_until"),
     done: sql<boolean>`coalesce(${threads.lastMessageAt} <= ${threadState.doneThrough}, false)`.as(
       "done",
     ),
@@ -232,12 +239,12 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
   const state = (filter: SQL) =>
     sql`exists (select 1 from ${threadState} s where s.thread_id = ${threads.id} and s.member_id = ${mailboxAccess.memberId} and (${filter}))`;
   const doneRule = sql`${threads.lastMessageAt} <= s.done_through`;
-  const deferredRule = sql`s.snoozed_until > now()`;
+  const laterRule = sql`s.snoozed_until > now()`;
   const viewFilters: Record<ThreadView, SQL[]> = {
-    inbox: [eq(threads.archived, false), sql`not ${state(sql`${doneRule} or ${deferredRule}`)}`],
-    queue: [
+    inbox: [eq(threads.archived, false), sql`not ${state(sql`${doneRule} or ${laterRule}`)}`],
+    later: [
       eq(threads.archived, false),
-      state(sql`${deferredRule} and not coalesce(${doneRule}, false)`),
+      state(sql`${laterRule} and not coalesce(${doneRule}, false)`),
     ],
     // Not `exists`: Postgres plans that as a join against every one of the member's state rows,
     // per mailbox (perf:explain: 250 ms). A scalar subquery on the primary key is checked per
@@ -469,15 +476,15 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
     },
 
     /**
-     * Thread counts per granted mailbox, for the sidebar: inbox (unread too), queue, and each
+     * Thread counts per granted mailbox, for the sidebar: inbox (unread too), later, and each
      * lane within the inbox. The same rules as `listThreads`.
      */
     async counts() {
       // This member's state row is joined already; no per-thread lookup.
       const done = sql`coalesce(${threads.lastMessageAt} <= ${threadState.doneThrough}, false)`;
-      const deferred = sql`coalesce(${threadState.snoozedUntil} > now(), false)`;
-      const queue = sql`(${deferred} and not ${done})`;
-      const inbox = sql`not (${deferred} or ${done})`;
+      const inLater = sql`coalesce(${threadState.snoozedUntil} > now(), false)`;
+      const later = sql`(${inLater} and not ${done})`;
+      const inbox = sql`not (${inLater} or ${done})`;
       const unread = sql`coalesce(${threadState.read}, false) = false`;
       const count = (filter: SQL) => sql<number>`(count(*) filter (where ${filter}))::int`;
       const rows = await db
@@ -486,7 +493,7 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
           mailboxId: threads.mailboxId,
           inbox: count(inbox),
           unread: count(and(inbox, unread)!),
-          queue: count(queue),
+          later: count(later),
           lanes: sql<Record<Lane, number>>`jsonb_build_object(${sql.join(
             LANES.map((lane) => sql`${lane}::text, ${count(and(inbox, laneFilter(lane))!)}`),
             sql`, `,
@@ -1112,21 +1119,31 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
     },
 
     /**
-     * Upserts this member's state. Omitted fields keep their value; `null` clears one.
+     * Upserts this member's state. Omitted fields keep their value; `null` clears one. `later`
+     * moves the thread into Later (`snoozed_until = infinity`) or out of it. `deferredUntil`
+     * serves only the deprecated `/defer` route, kept for tabs open from before Later.
      * `doneThrough` is capped at the thread's `last_message_at`, so it never covers a message
      * that has not arrived yet. Returns the row and whether the thread is done now, or null when
      * the member cannot see the thread.
      */
     async setThreadState(
       threadId: string,
-      patch: { read?: boolean; deferredUntil?: Date | null; doneThrough?: Date | null },
+      patch: {
+        read?: boolean;
+        later?: boolean;
+        deferredUntil?: Date | null;
+        doneThrough?: Date | null;
+      },
     ) {
       const iso = (date: Date | null | undefined) => date?.toISOString() ?? null;
+      const snoozedUntil =
+        patch.later !== undefined ? (patch.later ? "infinity" : null) : iso(patch.deferredUntil);
+      const setsSnooze = patch.later !== undefined || patch.deferredUntil !== undefined;
       const set: Partial<Record<"read" | "snoozedUntil" | "doneThrough" | "updatedAt", SQL>> = {
         updatedAt: sql`now()`,
       };
       if (patch.read !== undefined) set.read = sql`excluded.read`;
-      if (patch.deferredUntil !== undefined) set.snoozedUntil = sql`excluded.snoozed_until`;
+      if (setsSnooze) set.snoozedUntil = sql`excluded.snoozed_until`;
       if (patch.doneThrough !== undefined) set.doneThrough = sql`excluded.done_through`;
 
       const [row] = await db
@@ -1138,7 +1155,7 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
               threadId: threads.id,
               memberId: mailboxAccess.memberId,
               read: sql`${patch.read ?? false}::boolean`.as("read"),
-              snoozedUntil: sql`${iso(patch.deferredUntil)}::timestamptz`.as("snoozed_until"),
+              snoozedUntil: sql`${snoozedUntil}::timestamptz`.as("snoozed_until"),
               // Not `least(null, x)`: Postgres skips nulls there, which would mark it done.
               doneThrough: (patch.doneThrough
                 ? sql`least(${iso(patch.doneThrough)}::timestamptz, ${threads.lastMessageAt})`
@@ -1154,7 +1171,8 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         .onConflictDoUpdate({ target: [threadState.threadId, threadState.memberId], set })
         .returning({
           read: threadState.read,
-          deferredUntil: threadState.snoozedUntil,
+          later: sql<boolean>`coalesce(${threadState.snoozedUntil} > now(), false)`,
+          deferredUntil: legacyDeferredUntil,
           doneThrough: threadState.doneThrough,
           done: sql<boolean>`coalesce((select ${threads.lastMessageAt} from ${threads} where ${threads.id} = ${threadState.threadId}) <= ${threadState.doneThrough}, false)`,
         });

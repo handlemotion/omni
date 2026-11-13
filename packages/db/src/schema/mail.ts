@@ -719,7 +719,10 @@ export const threadState = pgTable(
       .references(() => threads.id, { onDelete: "cascade" }),
     memberId: memberId(),
     read: boolean("read").notNull().default(false),
-    /** Deferred (the Queue) until this time; back in the Inbox once it passes. */
+    /**
+     * Set while the thread is in the member's Later: `infinity` (ADR 0027). Rows from when Later
+     * was a timed deferral hold a time and leave Later once it passes.
+     */
     snoozedUntil: timestamptz("snoozed_until"),
     /**
      * Done, up to the thread's `last_message_at` as the member saw it. The thread is done while
@@ -731,7 +734,7 @@ export const threadState = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.threadId, t.memberId] }),
-    // The Queue checks each candidate thread against the member's deferred rows. Those are a
+    // Later checks each candidate thread against the member's Later rows. Those are a
     // sliver of `thread_state`, so probing this instead of the primary key reads a few pages and
     // answers from the index alone (perf:explain: 41k buffers down to 8k). The two trailing
     // columns are only there for that; Drizzle has no `include`.

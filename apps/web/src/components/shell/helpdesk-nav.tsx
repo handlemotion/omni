@@ -1,7 +1,7 @@
 // A shared inbox's helpdesk views (ADR 0021). The sidebar shows only the one mail's own rows
-// don't already cover, Mine, in the same group as Inbox and Queue, for the shared inbox the
+// don't already cover, Mine, in the same group as Inbox and Later, for the shared inbox the
 // mailbox switcher shows. Unassigned mail is everyone's, so it's the Inbox; Open, Pending,
-// Snoozed and Resolved are Inbox, Awaiting reply, Queue and All mail.
+// Snoozed and Resolved are Inbox, Awaiting reply, Later and All mail.
 import { useLocation, useSearch } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { IconCircleCheck, IconUserCog } from "@/components/icons/central";

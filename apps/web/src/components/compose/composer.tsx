@@ -601,7 +601,7 @@ function NewMessage(props: {
           if (next.bcc) setBcc(next.bcc);
         }}
       />
-      <div className="flex min-h-11 items-center border-b px-3">
+      <div data-composer-head className="flex min-h-11 items-center border-b px-3">
         <Input
           plain
           size="sm"
@@ -639,7 +639,7 @@ function FromRow(props: {
 }) {
   const address = props.mailboxes.find((m) => m.id === props.value)?.address;
   return (
-    <div className="flex min-h-11 items-center gap-2.5 border-b px-3 py-1">
+    <div data-composer-head className="flex min-h-11 items-center gap-2.5 border-b px-3 py-1">
       <span className="w-8 shrink-0 text-sm text-muted-foreground">From</span>
       {props.mailboxes.length > 1 ? (
         <MenuTrigger>
@@ -692,9 +692,28 @@ function ComposerFrame(props: { onFiles: (files: File[]) => void; children: Reac
         ].join(" ")
       }
     >
-      {props.children}
+      {/* A press anywhere below the header that isn't on a control writes: it focuses the body,
+          not only a press on its text. */}
+      <div className="contents" onMouseDown={focusBody} onClick={focusBody}>
+        {props.children}
+      </div>
     </DropZone>
   );
+}
+
+const CONTROLS =
+  "button, a, input, textarea, select, [role=button], [role=combobox], [role=option], [data-composer-head]";
+
+function focusBody(event: React.MouseEvent<HTMLElement>) {
+  if (event.button !== 0 || (event.target as HTMLElement).closest(CONTROLS)) return;
+  const body = event.currentTarget.querySelector<HTMLTextAreaElement>("[data-composer-body]");
+  if (!body || body.readOnly) return;
+  // The mouse press would move focus away, and the drop zone around it would focus its own
+  // hidden button on click: neither gets the event. Then the caret goes at the end.
+  event.stopPropagation();
+  event.preventDefault();
+  body.focus();
+  body.setSelectionRange(body.value.length, body.value.length);
 }
 
 function Recipients(props: {
@@ -710,7 +729,7 @@ function Recipients(props: {
   onChange: (next: Partial<{ to: string[]; cc: string[]; bcc: string[] }>) => void;
 }) {
   return (
-    <div className="flex flex-col">
+    <div data-composer-head className="flex flex-col">
       <RecipientField
         label="To"
         value={props.to}
@@ -777,8 +796,9 @@ function Body(props: {
           props.onSend();
         }
       }}
-      // Write's first line sits as far under the divider as the chips sit over it (measured).
-      className="max-h-[min(24rem,30vh)] min-h-24 resize-none px-3 pt-0.5 pb-1 sm:px-3 sm:pt-0.5 sm:pb-1"
+      data-composer-body
+      // 12px under the divider, the same as its 12px sides, so Write doesn't crowd the line.
+      className="max-h-[min(24rem,30vh)] min-h-24 resize-none px-3 pt-3 pb-1 sm:px-3 sm:pt-3 sm:pb-1"
     />
   );
 }

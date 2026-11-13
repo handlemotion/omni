@@ -5,7 +5,7 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, type RefObject } from "react";
 import type { Selection } from "react-aria-components";
 import { applyChange, inView, type ConversationChange } from "../lib/conversations.ts";
-import { DEFER_MS, isDeferred, leavesView } from "../lib/threads.ts";
+import { leavesView } from "../lib/threads.ts";
 import type {
   ConversationFilter,
   ConversationSummary,
@@ -15,7 +15,7 @@ import type {
 import { offerUndo } from "../lib/undo.ts";
 import { useBulkChange } from "./use-conversation.ts";
 import { usePrefetchThread } from "./use-mail.ts";
-import { useDefer, useMarkDone, useMarkRead, useMarkUndone } from "./use-mail-actions.ts";
+import { useMarkDone, useMarkRead, useMarkUndone, useMoveToLater } from "./use-mail-actions.ts";
 import { announce, useShortcut } from "./use-shortcuts.ts";
 import { useUndo } from "./use-undo.ts";
 
@@ -27,12 +27,15 @@ const each =
 
 const plural = (n: number) => (n === 1 ? "Thread" : `${n} threads`);
 
+/** How long `h` snoozes a helpdesk conversation for the team: a day. */
+const SNOOZE_MS = 24 * 60 * 60 * 1000;
+
 export function useThreadListShortcuts(options: {
   view: ThreadView;
   threads: ThreadSummary[];
   /**
    * A helpdesk list (`useConversations(filter)`): pass its filter and rows here, and `e`, `h`
-   * and `i` resolve, snooze and assign to you instead of done and defer. `threads` is ignored.
+   * and `i` resolve, snooze and assign to you instead of done and later. `threads` is ignored.
    */
   helpdesk?: { filter: ConversationFilter; conversations: ConversationSummary[] } | undefined;
   /** The open thread, if any. */
@@ -55,7 +58,7 @@ export function useThreadListShortcuts(options: {
   const markRead = useMarkRead();
   const markDone = useMarkDone();
   const markUndone = useMarkUndone();
-  const defer = useDefer();
+  const moveToLater = useMoveToLater();
   const prefetch = usePrefetchThread();
   // Binds `z` to the standing undo offer wherever the list is, toast or not.
   useUndo();
@@ -162,18 +165,18 @@ export function useThreadListShortcuts(options: {
 
   /**
    * Undo: puts each thread back as it was before `applied`, from its own row as it was (a
-   * selection can mix done, deferred and plain threads). Done clears a deferral and defer clears
-   * done on the server, so the earlier state is set again rather than the action reversed.
+   * selection can mix done, Later and plain threads). Done clears Later and Later clears done on
+   * the server, so the earlier state is set again rather than the action reversed.
    */
-  const restore = (applied: "done" | "undone" | "defer" | "undefer") => (t: ThreadSummary) => {
+  const restore = (applied: "done" | "undone" | "later" | "unlater") => (t: ThreadSummary) => {
     if (t.done) {
       if (applied !== "done") markDone.mutate({ threadId: t.id, through: t.lastMessageAt });
-    } else if (isDeferred(t.deferredUntil)) {
-      defer.mutate({ threadId: t.id, until: new Date(t.deferredUntil as string) });
+    } else if (t.later) {
+      moveToLater.mutate({ threadId: t.id, later: true });
     } else if (applied === "done") {
       markUndone.mutate({ threadId: t.id });
-    } else if (applied === "defer") {
-      defer.mutate({ threadId: t.id, until: null });
+    } else if (applied === "later") {
+      moveToLater.mutate({ threadId: t.id, later: false });
     }
   };
 
@@ -222,7 +225,7 @@ export function useThreadListShortcuts(options: {
     "snooze",
     () => {
       const back = (targets() as ConversationSummary[]).every((t) => t.status === "snoozed");
-      const until = new Date(Date.now() + DEFER_MS).toISOString();
+      const until = new Date(Date.now() + SNOOZE_MS).toISOString();
       change(
         back ? { type: "reopen" } : { type: "snooze", until },
         (n) => `${conversationsLabel(n)} ${back ? "reopened" : "snoozed until tomorrow"}`,
@@ -280,17 +283,16 @@ export function useThreadListShortcuts(options: {
     plain,
   );
   useShortcut(
-    "defer",
+    "later",
     () => {
       const list = threadTargets();
-      const back = list.every((t) => isDeferred(t.deferredUntil));
-      const until = back ? null : new Date(Date.now() + DEFER_MS);
+      const back = list.every((t) => t.later);
       act(
         list,
-        each((t) => defer.mutate({ threadId: t.id, until })),
-        () => leavesView(back ? "undefer" : "defer", view),
-        (n) => `${plural(n)} ${back ? "back in the Inbox" : "deferred until tomorrow"}`,
-        each(restore(back ? "undefer" : "defer")),
+        each((t) => moveToLater.mutate({ threadId: t.id, later: !back })),
+        () => leavesView(back ? "unlater" : "later", view),
+        (n) => `${plural(n)} ${back ? "back in the Inbox" : "moved to Later"}`,
+        each(restore(back ? "unlater" : "later")),
       );
     },
     plain,

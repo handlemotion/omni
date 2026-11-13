@@ -28,10 +28,10 @@ type ThreadListQuery = InferRequestType<Api["threads"]["$get"]>["query"];
 /** Triage lane filter. `unsure` is AI triage below the auto-file confidence. */
 export type Lane = NonNullable<ThreadListQuery["lane"]>;
 /**
- * Which threads a list shows: `inbox` (not done, not deferred), `queue` (deferred), `done`,
- * `archive`, or `all` (ADR 0007).
+ * Which threads a list shows: `inbox` (not done, not in Later), `later`, `done`, `archive`, or
+ * `all` (ADR 0007, ADR 0027). Not `queue`: the API still takes Later's old name from old tabs.
  */
-export type ThreadView = NonNullable<ThreadListQuery["view"]>;
+export type ThreadView = Exclude<NonNullable<ThreadListQuery["view"]>, "queue">;
 
 export const LANES = [
   "needs_reply",

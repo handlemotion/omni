@@ -1,6 +1,6 @@
 # 0007: Done and defer are per-member state, separate from archive
 
-Date: 2026-11-03 · Status: accepted
+Date: 2026-11-03 · Status: accepted · The Queue and timed defer are replaced by Later (ADR 0027)
 
 ## Context
 

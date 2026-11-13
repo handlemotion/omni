@@ -5,8 +5,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import {
   archiveMutation,
-  deferMutation,
   doneMutation,
+  laterMutation,
   markReadMutation,
   moveMutation,
   replyMutation,
@@ -22,9 +22,9 @@ export function useMarkRead() {
   return useKeyedMutation(markReadMutation(useQueryClient()));
 }
 
-/** `mutate({ threadId, until })` puts it in your Queue; `until: null` brings it back now. */
-export function useDefer() {
-  return useKeyedMutation(deferMutation(useQueryClient()));
+/** `mutate({ threadId, later: true })` moves it into your Later; `false` brings it back. */
+export function useMoveToLater() {
+  return useKeyedMutation(laterMutation(useQueryClient()));
 }
 
 /**
