@@ -4,10 +4,12 @@ import {
   createDb,
   listServiceMailboxes,
   markNotified,
+  deletePendingMailEvents,
+  pendingMailEventRows,
   pendingNotifications,
   setMailboxStatus,
 } from "@omni/db";
-import { MAX_PRUNED_THREADS_PER_EVENT } from "@omni/contracts";
+import { MAX_PRUNED_THREADS_PER_EVENT, mailEventSchema } from "@omni/contracts";
 import { sql } from "drizzle-orm";
 import { Effect, Fiber } from "effect";
 import type { Hono } from "hono";
@@ -76,7 +78,13 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     workerUrl: config.WORKER_URL,
     secret: config.MAIL_SERVICE_HMAC_SECRET,
     logger: log,
-    onDelivered: async (events) => {
+    onDelivered: async (delivered) => {
+      const pendingIds = delivered.flatMap((d) => (d.pendingId ? [d.pendingId] : []));
+      // Left in place, the sweep sends them again: at least once, and every receiver is idempotent.
+      await deletePendingMailEvents(db, pendingIds).catch((error: unknown) =>
+        log.warn("notify.pending_delete_failed", { events: pendingIds.length, error }),
+      );
+      const events = delivered.map((d) => d.event);
       const ids = events.flatMap((e) => (e.type === "message.created" ? [e.messageId] : []));
       // Left pending, the sweep sends them again (at least once). The Worker does not dedupe
       // yet, so a failed write here can repeat a push for that message; rare, and better than
@@ -86,11 +94,48 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
       );
     },
   });
-  /** Re-sends `message.created` for rows the Worker never accepted (crash, Worker outage). */
+  /**
+   * Sends what the Worker has not accepted yet: `message.created` for new rows, and the events sync
+   * queued in `pending_mail_events` with the change they report (merge, prune, failed action).
+   */
   const sweepNotifications = async () => {
     const rows = await pendingNotifications(db, 500);
     if (rows.length > 0) log.info("notify.sweep", { pending: rows.length });
     for (const row of rows) notifier.push({ type: "message.created", ...row });
+    await sweepPendingEvents();
+  };
+  const sweepPendingEvents = async () => {
+    const queued = await pendingMailEventRows(db, 500);
+    const unreadable: string[] = [];
+    for (const row of queued) {
+      const parsed = mailEventSchema.safeParse(row.event);
+      if (parsed.success) notifier.push(parsed.data, row.id);
+      else unreadable.push(row.id);
+    }
+    if (unreadable.length > 0) {
+      // Never accepted by any Worker: retrying would block nothing but would log forever.
+      log.error("notify.pending_unreadable", { events: unreadable.length });
+      await deletePendingMailEvents(db, unreadable);
+    }
+  };
+  /** Delivers queued events now rather than at the next sweep. Concurrent calls share one run. */
+  let delivering: Promise<void> | null = null;
+  let deliverAgain = false;
+  const deliverPending = () => {
+    if (delivering) {
+      deliverAgain = true;
+      return;
+    }
+    delivering = (async () => {
+      do {
+        deliverAgain = false;
+        await sweepPendingEvents();
+      } while (deliverAgain);
+    })()
+      .catch((error: unknown) => log.warn("notify.pending_failed", { error }))
+      .finally(() => {
+        delivering = null;
+      });
   };
   const objects = createS3Store({
     endpoint: config.S3_ENDPOINT,
@@ -103,17 +148,10 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     db,
     onIngested: ({ folder: _folder, ...message }) =>
       notifier.push({ type: "message.created", ...message }),
-    // Not swept like `message.created`: lost in a crash, the threads only keep a stale summary
-    // until their next message.
-    onPruned: ({ threadIds, ...pruned }) => {
-      for (let i = 0; i < threadIds.length; i += MAX_PRUNED_THREADS_PER_EVENT) {
-        const chunk = threadIds.slice(i, i + MAX_PRUNED_THREADS_PER_EVENT);
-        notifier.push({ type: "messages.pruned", ...pruned, threadIds: chunk });
-      }
-    },
-    // Not swept either: lost, open apps show the merged threads until their next refresh.
-    onMerged: (merged) => notifier.push({ type: "threads.merged", ...merged }),
-    // Not swept either: the next full sync finds the same conversations again.
+    // Pruning and merging queue their events in `pending_mail_events`; send them now.
+    onPruned: deliverPending,
+    onMerged: deliverPending,
+    // Not queued: the next full sync finds the same conversations again.
     onDiscarded: ({ threadIds, ...discarded }) => {
       for (let i = 0; i < threadIds.length; i += MAX_PRUNED_THREADS_PER_EVENT) {
         const chunk = threadIds.slice(i, i + MAX_PRUNED_THREADS_PER_EVENT);
@@ -128,7 +166,7 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     files: new PgSendFiles({ db, objects }),
     actions: new PgActionSource({
       db,
-      onFailed: (action) => notifier.push({ type: "action.failed", ...action }),
+      onFailed: deliverPending,
     }),
     logger: log,
     syncIntervalMs: config.SYNC_INTERVAL_MS,

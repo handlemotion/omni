@@ -275,6 +275,52 @@ describe("mail service end to end", () => {
     await waitFor(async () => (await messageRows(db, box.id))[0]?.notifyPending === false);
   });
 
+  it("never loses a failed action's event: a Worker outage and a restart still deliver it once", async () => {
+    const seeded = await seedConnectable();
+    const { box } = seeded;
+    workerDown = true;
+    await startMailService();
+    await connected(box.id);
+
+    // Its folder was reset since the app saw it: it fails for good on the first attempt.
+    const stale = await enqueue(db, seeded, {
+      kind: "move",
+      idempotencyKey: `stale-move-outage-${box.id}`,
+      payload: { folder: "INBOX", uidValidity: "1", uids: [1], destination: "Archive" },
+    });
+    await service?.supervisor.ping();
+    expect((await actionRow(db, stale.id)).status).toBe("failed");
+    await waitFor(() => workerUnavailable > 0);
+    // The process goes away before the Worker ever accepted the event.
+    await stopService();
+    expect(received).toEqual([]);
+
+    workerDown = false;
+    await startMailService();
+    await waitFor(() => received.length > 0);
+    expect(received).toEqual([
+      {
+        type: "action.failed",
+        orgId: seeded.orgId,
+        mailboxId: box.id,
+        actionId: stale.id,
+        memberId: seeded.ownerId,
+        error: expect.stringContaining("UIDVALIDITY"),
+        requestId: null,
+      },
+    ]);
+    // Accepted, so nothing is left to send again.
+    await waitFor(
+      async () =>
+        (
+          await db
+            .select()
+            .from(schema.pendingMailEvents)
+            .where(eq(schema.pendingMailEvents.mailboxId, box.id))
+        ).length === 0,
+    );
+  });
+
   it("a send held for undo leaves when its window ends, not at the next poll", async () => {
     const seeded = await seedConnectable();
     const { box } = seeded;

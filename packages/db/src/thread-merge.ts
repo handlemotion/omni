@@ -6,6 +6,7 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
+import { queueMailEvents } from "./pending-mail-events.ts";
 import { assignments, conversationEvents, threads } from "./schema/index.ts";
 
 type Thread = typeof threads.$inferSelect;
@@ -170,6 +171,17 @@ export async function mergeThreads(
         data: { fromThreadId: row.id },
       })),
     );
+    // Open apps showing a merged thread move to the survivor; queued with the merge, so a crash
+    // cannot leave them holding a thread that no longer exists.
+    await queueMailEvents(tx, [
+      {
+        type: "threads.merged",
+        orgId: survivor.orgId,
+        mailboxId: survivor.mailboxId,
+        intoThreadId: into,
+        fromThreadIds: fromIds,
+      },
+    ]);
     return { intoThreadId: into, fromThreadIds: fromIds };
   });
 }

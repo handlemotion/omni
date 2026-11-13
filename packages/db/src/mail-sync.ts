@@ -2,7 +2,9 @@
 // outbox bookkeeping. Like `writers.ts`, only trusted background code calls these, and each one
 // is idempotent so a repeated sync step converges.
 import { and, desc, eq, gte, inArray, ne, notInArray, type SQL, sql } from "drizzle-orm";
+import { MAX_PRUNED_THREADS_PER_EVENT } from "@omni/contracts";
 import type { Db } from "./client.ts";
+import { queueMailEvents } from "./pending-mail-events.ts";
 import { ensureMailboxTeam, syncMailboxAccess } from "./mailbox-teams.ts";
 import {
   mailActions,
@@ -507,9 +509,10 @@ export async function pruneMessages(
           sql`not exists (select 1 from ${messageLocations} l where l.message_id = ${messages.id})`,
         ),
       )
-      .returning({ threadId: messages.threadId });
+      .returning({ orgId: messages.orgId, threadId: messages.threadId });
     const threadIds = [...new Set(removed.map((row) => row.threadId))];
-    if (threadIds.length === 0) return { messages: 0, threads: 0, threadIds };
+    const orgId = removed[0]?.orgId;
+    if (threadIds.length === 0 || !orgId) return { messages: 0, threads: 0, threadIds };
     const emptied = await tx
       .delete(threads)
       .where(
@@ -526,6 +529,16 @@ export async function pruneMessages(
         updatedAt: new Date(),
       })
       .where(sql`${threads.id} = ${anyOf(threadIds)}`);
+    // Queued with the delete, so open apps drop these threads even if the service dies next.
+    await queueMailEvents(
+      tx,
+      chunks(threadIds, MAX_PRUNED_THREADS_PER_EVENT).map((chunk) => ({
+        type: "messages.pruned" as const,
+        orgId,
+        mailboxId: input.mailboxId,
+        threadIds: chunk,
+      })),
+    );
     return { messages: removed.length, threads: emptied.length, threadIds };
   });
 }
@@ -644,26 +657,43 @@ export async function markActionSmtpAccepted(db: Db, id: string) {
  * `retryAt` is null. The caller (the mail service's outbox) owns the backoff policy.
  */
 export async function rescheduleAction(db: Db, id: string, error: string, retryAt: Date | null) {
-  const rows = await db
-    .update(mailActions)
-    .set({
-      status: retryAt ? "pending" : "failed",
-      runAfter: retryAt ?? sql`${mailActions.runAfter}`,
-      lastError: error,
-      lockedAt: null,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(mailActions.id, id), eq(mailActions.status, "running")))
-    .returning({
-      id: mailActions.id,
-      orgId: mailActions.orgId,
-      mailboxId: mailActions.mailboxId,
-      memberId: mailActions.memberId,
-      status: mailActions.status,
-      requestId: mailActions.requestId,
-    });
-  return rows[0] ?? null;
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(mailActions)
+      .set({
+        status: retryAt ? "pending" : "failed",
+        runAfter: retryAt ?? sql`${mailActions.runAfter}`,
+        lastError: error,
+        lockedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(mailActions.id, id), eq(mailActions.status, "running")))
+      .returning({
+        id: mailActions.id,
+        orgId: mailActions.orgId,
+        mailboxId: mailActions.mailboxId,
+        memberId: mailActions.memberId,
+        status: mailActions.status,
+        requestId: mailActions.requestId,
+      });
+    // The member who asked learns it failed; queued with the status, so it is never lost.
+    if (row?.status === "failed") {
+      await queueMailEvents(tx, [
+        {
+          type: "action.failed",
+          orgId: row.orgId,
+          mailboxId: row.mailboxId,
+          actionId: row.id,
+          memberId: row.memberId,
+          error,
+          requestId: row.requestId,
+        },
+      ]);
+    }
+    return row ?? null;
+  });
 }
+
 /**
  * Hands a claimed action back without counting its attempt: the mailbox was not ready, which says
  * nothing about the action. No-op unless it is still `running` (the lease may have moved on).
@@ -849,4 +879,10 @@ export async function moveMessageToThread(
         .where(eq(threads.id, moved.from));
     }
   });
+}
+
+function chunks<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
 }

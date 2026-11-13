@@ -9,6 +9,18 @@ import { signRequest } from "@omni/crypto";
 import type { Logger } from "./log.ts";
 import { backoffDelay } from "./timing.ts";
 
+/** An event on its way, with the `pending_mail_events` row that keeps it when it has one. */
+export interface QueuedEvent {
+  event: MailEvent;
+  pendingId?: string;
+}
+
+/** What makes a queued event durable: its row id, or its message for `message.created`. */
+function durableKey({ event, pendingId }: QueuedEvent): string | null {
+  if (pendingId) return `pending:${pendingId}`;
+  return event.type === "message.created" ? `message:${event.messageId}` : null;
+}
+
 export interface NotifierOptions {
   workerUrl: string;
   secret: string;
@@ -20,16 +32,19 @@ export interface NotifierOptions {
   /** After this many failed attempts a batch is dropped and logged (the sweep sends it again). */
   maxAttempts?: number;
   /** The Worker accepted these events. Must not throw. */
-  onDelivered?: (events: MailEvent[]) => Promise<void>;
+  onDelivered?: (events: QueuedEvent[]) => Promise<void>;
 }
 
 export class WorkerNotifier {
   private readonly options: Required<Omit<NotifierOptions, "onDelivered">> &
     Pick<NotifierOptions, "onDelivered">;
-  /** `message.created` ids queued or in flight, so a sweep never sends one twice at once. */
+  /**
+   * Durable events queued or in flight, by message id (`message.created`) or `pending_mail_events`
+   * id, so a sweep never sends one twice at once.
+   */
   private readonly pending = new Set<string>();
   private readonly url: string;
-  private queue: MailEvent[] = [];
+  private queue: QueuedEvent[] = [];
   private timer: NodeJS.Timeout | null = null;
   private flushing: Promise<void> | null = null;
   private stopped = false;
@@ -46,13 +61,15 @@ export class WorkerNotifier {
     this.url = new URL(MAIL_EVENTS_PATH, options.workerUrl).toString();
   }
 
-  push(event: MailEvent): void {
+  /** `pendingId`: the event's `pending_mail_events` row, deleted once the Worker accepts it. */
+  push(event: MailEvent, pendingId?: string): void {
     if (this.stopped) return;
-    if (event.type === "message.created") {
-      if (this.pending.has(event.messageId)) return;
-      this.pending.add(event.messageId);
+    const key = durableKey({ event, pendingId });
+    if (key) {
+      if (this.pending.has(key)) return;
+      this.pending.add(key);
     }
-    this.queue.push(event);
+    this.queue.push(pendingId ? { event, pendingId } : { event });
     this.timer ??= setTimeout(() => {
       this.timer = null;
       void this.flush();
@@ -65,10 +82,13 @@ export class WorkerNotifier {
       while (this.queue.length > 0) {
         const batch = this.queue.splice(0, MAX_EVENTS_PER_REQUEST);
         try {
-          if (await this.deliver(batch)) await this.options.onDelivered?.(batch);
+          if (await this.deliver(batch.map((queued) => queued.event))) {
+            await this.options.onDelivered?.(batch);
+          }
         } finally {
-          for (const event of batch) {
-            if (event.type === "message.created") this.pending.delete(event.messageId);
+          for (const queued of batch) {
+            const key = durableKey(queued);
+            if (key) this.pending.delete(key);
           }
         }
       }

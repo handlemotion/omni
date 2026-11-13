@@ -309,6 +309,20 @@ describe("sync into Postgres against GreenMail", () => {
     expect(merges).toEqual([
       { orgId, mailboxId: box.id, intoThreadId: first, fromThreadIds: [second] },
     ]);
+    // Queued with the merge, so apps hear about it even if the service dies before delivering.
+    const queued = await db
+      .select({ event: schema.pendingMailEvents.event })
+      .from(schema.pendingMailEvents)
+      .where(eq(schema.pendingMailEvents.mailboxId, box.id));
+    expect(queued.map((row) => row.event)).toEqual([
+      {
+        type: "threads.merged",
+        orgId,
+        mailboxId: box.id,
+        intoThreadId: first,
+        fromThreadIds: [second],
+      },
+    ]);
   });
 
   it("a reply over SMTP brings a done thread back to the inbox of the member who marked it", async () => {

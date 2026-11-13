@@ -119,6 +119,14 @@ it("deleting the latest reply in another app reports its thread, so the Worker r
   expect(pruned.filter((p) => p.mailboxId === box.id)).toEqual([
     { orgId: thread!.orgId, mailboxId: box.id, threadIds: [thread!.id] },
   ]);
+  // Queued with the delete, so the event survives a crash before delivery.
+  const queued = await db
+    .select({ event: schema.pendingMailEvents.event })
+    .from(schema.pendingMailEvents)
+    .where(eq(schema.pendingMailEvents.mailboxId, box.id));
+  expect(queued.map((row) => row.event)).toEqual([
+    { type: "messages.pruned", orgId: thread!.orgId, mailboxId: box.id, threadIds: [thread!.id] },
+  ]);
 });
 
 it("a thread moved to Trash in another app leaves the inbox and keeps its messages", async () => {
