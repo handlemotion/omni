@@ -438,6 +438,23 @@ export const googleDisconnectBodySchema = z.object({
 
 export const googleDisconnectResultSchema = z.object({ mailboxId: z.string().min(1) });
 
+// Removing an Omni-hosted mailbox (ADR 0007). Disconnect only: the mail service stops syncing,
+// revokes the app password Omni holds and forgets the mailbox; the user at the host and all its
+// mail stay, so adding the same address again reconnects it. The Worker checks that the member is
+// an owner or admin. 404 when the org has no such hosted mailbox.
+
+export const HOSTED_DISCONNECT_PATH = "/hosting/mailbox/disconnect";
+
+/** Idempotent: a mailbox already gone answers with its id. */
+export const hostedDisconnectBodySchema = z.object({
+  orgId: z.string().min(1),
+  mailboxId: z.string().min(1),
+});
+
+export const hostedDisconnectResultSchema = z.object({ mailboxId: z.string().min(1) });
+
+export type HostedDisconnectBody = z.infer<typeof hostedDisconnectBodySchema>;
+
 export type GoogleConnectBody = z.infer<typeof googleConnectBodySchema>;
 export type GoogleConnectResult = z.infer<typeof googleConnectResultSchema>;
 export type GoogleDisconnectBody = z.infer<typeof googleDisconnectBodySchema>;

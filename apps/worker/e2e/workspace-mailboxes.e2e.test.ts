@@ -208,3 +208,41 @@ test("an inbox made for a teammate is theirs alone, and stays theirs", async () 
   );
   expect(byMember.status).toBe(403);
 });
+
+test("owners and admins disconnect a hosted mailbox; members and other kinds get refused", async () => {
+  const { db } = stack.database;
+  const owner = await stack.workspaceWithDomain();
+  const { orgId, domain, domainId, jar } = owner;
+  const ben = await teammate(orgId, `ben@${domain}`, "member");
+  const hosted = await api(jar, "POST", "/onboarding/mailboxes", imapMailbox(domainId, "support"));
+  const plain = await api(jar, "POST", "/onboarding/mailboxes", imapMailbox(domainId, "plain"));
+  const hostedId = hosted.body.mailboxId as string;
+  // This stack has no host API, so the mailbox is hosted in name only: there is nothing to revoke,
+  // and the Worker, the signed call and the mail service's own checks are what this covers.
+  await db
+    .update(schema.mailboxes)
+    .set({ provider: "purelymail" })
+    .where(eq(schema.mailboxes.id, hostedId));
+
+  const remove = (who: CookieJar, mailboxId: string) =>
+    fetch(new URL(`/api/workspace/mailboxes/${mailboxId}/hosted`, stack.worker.url), {
+      method: "DELETE",
+      headers: { cookie: who.header, origin: "http://localhost:5173" },
+    });
+  const exists = async (mailboxId: string) =>
+    (await db.select().from(schema.mailboxes).where(eq(schema.mailboxes.id, mailboxId))).length;
+
+  expect((await remove(ben.jar, hostedId)).status).toBe(403);
+  // Not hosted: disconnecting must never forget an IMAP or Gmail mailbox through this route.
+  expect((await remove(jar, plain.body.mailboxId as string)).status).toBe(404);
+  // Another workspace's owner can't reach it either; the org comes from the session.
+  const other = await stack.workspaceWithDomain();
+  expect((await remove(other.jar, hostedId)).status).toBe(204);
+  expect(await exists(hostedId)).toBe(1);
+
+  expect((await remove(jar, hostedId)).status).toBe(204);
+  expect(await exists(hostedId)).toBe(0);
+  expect(await exists(plain.body.mailboxId as string)).toBe(1);
+  // Idempotent: a retry of a disconnect that already happened succeeds.
+  expect((await remove(jar, hostedId)).status).toBe(204);
+});

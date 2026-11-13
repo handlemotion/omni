@@ -23,6 +23,7 @@ import { createS3Store } from "./objects.ts";
 import { PgActionSource, PgMailStore, PgSendFiles } from "./pg-store.ts";
 import { connectGoogle, createGoogleOAuth, disconnectGoogle } from "./providers/gmail.ts";
 import { createCreditWatch } from "./hosting/credit-watch.ts";
+import { disconnectHostedMailbox } from "./hosting/disconnect.ts";
 import { createPurelymailHost } from "./hosting/purelymail-host.ts";
 import { createLoginRotation } from "./hosting/rotate-login.ts";
 import { createPurelymailClient } from "./providers/purelymail.ts";
@@ -323,6 +324,18 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
         {
           db,
           keyring: config.MAIL_CREDENTIALS_KEY,
+          stop: (mailboxId) => supervisor.retire(mailboxId),
+          logger: log,
+        },
+        input,
+      ),
+    // Works without a host too: a hosted mailbox can still be forgotten, with nothing to revoke.
+    disconnectHosted: (input) =>
+      disconnectHostedMailbox(
+        {
+          db,
+          keyring: config.MAIL_CREDENTIALS_KEY,
+          ...(host ? { host } : {}),
           stop: (mailboxId) => supervisor.retire(mailboxId),
           logger: log,
         },

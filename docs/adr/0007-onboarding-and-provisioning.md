@@ -120,3 +120,12 @@ domain has symbolic subaddressing on, which refuses usernames with `.`, `-`, `_`
 (`invalidUserName`). Omni now turns that setting off on domains it adds, and refuses such names
 with a reason (422) on domains that keep it on. IMAP and SMTP ports are closed in cloud agent
 sessions, so the sync and send tests run from a developer machine. Names and subaddressing: ADR 0025.
+
+## Removing a hosted mailbox
+
+Decided 2026-11-13: removing an Omni-hosted mailbox disconnects it and keeps the mail. Owners and
+admins call `DELETE /api/workspace/mailboxes/:id/hosted`. The mail service stops syncing, revokes
+the app password Omni holds and deletes its own index of the mailbox. The Purelymail user and
+every message stay, so adding the same address again reconnects it with a new app password.
+Omni never deletes a user at Purelymail: that deletes the mail, and Purelymail bills per account,
+not per user, so it would save nothing.

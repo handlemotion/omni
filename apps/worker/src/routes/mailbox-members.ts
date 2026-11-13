@@ -10,9 +10,12 @@ import {
   type MailboxMembersActor,
   type MailboxMembershipResult,
 } from "@omni/db";
+import { HOSTED_DISCONNECT_PATH, hostedDisconnectResultSchema } from "@omni/contracts";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../context.ts";
+import { callMailService, MailServiceError } from "../mail-service.ts";
+import { limitPerMember } from "../rate-limiter.ts";
 
 /** Better Auth stores several roles as a comma list. */
 function canManage(role: string) {
@@ -74,4 +77,31 @@ export const mailboxMembers = new Hono<AppEnv>()
       c,
       await removeMailboxMember(c.var.db, who, c.req.param("id"), c.req.param("memberId")),
     );
+  })
+
+  /**
+   * Removes an Omni-hosted mailbox from the workspace, for owners and admins: no longer synced,
+   * its app password revoked. The mailbox and its mail stay at the host; adding the address
+   * again reconnects it. 404 for any other kind of mailbox.
+   */
+  .delete("/workspace/mailboxes/:id/hosted", limitPerMember("provision"), async (c) => {
+    requireManager(c);
+    const mailboxId = c.req.param("id");
+    const mailboxes = await listWorkspaceMailboxes(c.var.db, c.var.member.orgId);
+    const mailbox = mailboxes.find((m) => m.id === mailboxId);
+    // Gone already: the disconnect it was asked for has happened.
+    if (!mailbox) return c.body(null, 204);
+    if (mailbox.provider !== "purelymail") throw new HTTPException(404, { message: "not found" });
+    try {
+      await callMailService(
+        c.var,
+        HOSTED_DISCONNECT_PATH,
+        { orgId: c.var.member.orgId, mailboxId },
+        hostedDisconnectResultSchema,
+      );
+    } catch (failure) {
+      if (!(failure instanceof MailServiceError)) throw failure;
+      return c.json({ error: failure.message, requestId: c.var.requestId }, failure.status);
+    }
+    return c.body(null, 204);
   });

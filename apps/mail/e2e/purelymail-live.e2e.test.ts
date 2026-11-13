@@ -14,6 +14,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { serve } from "@hono/node-server";
 import {
+  HOSTED_DISCONNECT_PATH,
   MAIL_PING_PATH,
   PROVISION_DOMAIN_PATH,
   PROVISION_MAILBOX_PATH,
@@ -249,6 +250,32 @@ describe.runIf(requested)("Purelymail itself", () => {
     expect(refused.json.error).toMatch(/Use only letters and digits/);
     expect(await purelymail.listUsers()).not.toContain(address);
   });
+
+  it("disconnects a hosted mailbox: its app password is revoked, the user and mail stay", async () => {
+    const owner = await claimTestDomain();
+    const address = testAddress();
+    created.push(address);
+    const { json } = await call<ProvisionMailboxResult>(PROVISION_MAILBOX_PATH, {
+      orgId: owner.orgId,
+      address,
+      kind: "shared",
+      ownerMemberId: owner.memberId,
+      login: { provider: "purelymail" },
+    });
+    const { pass } = await loginOf(json.mailboxId);
+
+    const gone = await call<{ mailboxId: string }>(HOSTED_DISCONNECT_PATH, {
+      orgId: owner.orgId,
+      mailboxId: json.mailboxId,
+    });
+    expect(gone).toMatchObject({ status: 200, json: { mailboxId: json.mailboxId } });
+    expect(await mailboxStatus(db, json.mailboxId)).toBeUndefined();
+    // Purelymail refuses to delete an app password it no longer has.
+    await expect(purelymail.deleteAppPassword(address, pass)).rejects.toThrow(
+      /deleteAppPassword failed/,
+    );
+    expect(await purelymail.listUsers()).toContain(address);
+  }, 120_000);
 
   /** A new hosted mailbox on the test domain, synced and active. */
   async function activeHostedMailbox() {
