@@ -33,7 +33,9 @@ going through `forMember` / `forUser`: a Personal space is an organization, not 
 - **Personal space**: one per person, created with the user and never deleted on its own. It
   holds the person's **cluster**: the mail accounts they connect themselves (a personal Gmail).
   It has exactly one member, its owner. It refuses invitations, teams, shared mailboxes and domain
-  claims. It is **free**: every billing check passes for it, and it is never read-only.
+  claims. It is **free**: every billing check passes for it, and it is never read-only. It can
+  never start a plan; one it somehow has can still be managed in the portal, so it can be
+  cancelled.
 - **Company workspace**: what ADR 0008 calls a workspace. It owns its domains (ADR 0010), its
   work mailboxes, its shared inboxes and the helpdesk. It must claim at least one domain before it
   has mail; a company with no domain is out of scope for now. People join only by invitation.
@@ -54,6 +56,19 @@ in members' Personal spaces move to the company. They are moved by reconnecting 
 syncing again, not by rewriting rows: the provider holds the mail and a re-sync converges
 (ADR 0013). A mailbox whose owner is not a member of the company stays where it is until they
 join.
+
+A re-sync alone is not a complete move: read, deferred and done exist only in Omni (ADR 0013).
+So a move goes in steps, each one safe to repeat:
+
+1. The company gets its own copy, which syncs while the old copy keeps running.
+2. Once the copy has finished its first sync, each thread's state is carried to the matching
+   thread in the copy, matched by the provider's thread id or a shared Message-ID.
+3. Only then is the old copy deleted.
+
+A mailbox with drafts or unsent actions waits until they are sent or discarded, since both live
+only in Postgres. The company's existing mailbox at that address is reused only if it is a
+personal inbox the same person owns; a shared inbox is never taken over. The nearest lock decides
+(`team.acme.com` over `acme.com`).
 
 **Existing Gmail accounts inside companies move the same way:** a backfill reconnects each
 `provider = gmail` personal mailbox whose domain the company has not claimed into its owner's
@@ -77,6 +92,12 @@ A session records which key opened it, as `sessions.scope_org_id` (null means un
 - **Leaving a company** removes the member, so that company's work address opens nothing, and
   the person loses access to the work mailbox, which the company keeps. Their Personal space is
   untouched.
+- **A scoped session cannot widen itself.** It cannot add a sign-in method (an extra email, a
+  passkey, a linked Google account, a changed primary); each would let whoever holds the company
+  address sign in unscoped later. Adding one takes an unscoped session. It also cannot name
+  another organization in any organization request, or create or delete one. Deleting a company
+  ends the sessions scoped to it first, and a session missing from the database is signed out,
+  never unscoped.
 - Better Auth's multi-session stays what ADR 0014 made it: separate identities on one device.
   It is not how one person reaches their own workspaces.
 

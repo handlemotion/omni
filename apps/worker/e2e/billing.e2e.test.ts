@@ -529,4 +529,22 @@ test("a Personal space is free: no plan, no trial, no checkout, and writable", a
     await db.select().from(schema.trialClaims).where(eq(schema.trialClaims.userId, user!.id)),
   ).toEqual([]);
   expect(await subscriptionRows(space!.orgId)).toEqual([]);
+
+  // With no plan there is nothing to manage; one that exists anyway can still be managed (and
+  // cancelled) through the portal, while starting another stays refused.
+  const portal = () =>
+    api(worker, "/billing/portal", cookie, {
+      method: "POST",
+      body: JSON.stringify({ returnPath: "/settings" }),
+    });
+  expect((await portal()).status).toBe(403);
+  await db
+    .insert(schema.subscriptions)
+    .values({ id: randomUUID(), plan: PLAN_NAME, orgId: space!.orgId, status: "active" });
+  expect((await portal()).status).not.toBe(403);
+  const again = await api(worker, "/billing/checkout", cookie, {
+    method: "POST",
+    body: JSON.stringify({ interval: "month", returnPath: "/settings" }),
+  });
+  expect(again.status).toBe(403);
 });

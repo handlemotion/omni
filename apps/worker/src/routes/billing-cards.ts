@@ -37,7 +37,7 @@ async function storedCustomer(c: Ctx) {
 /** Billing on and the caller an owner or admin, else 404 / 403 before any Stripe call. */
 async function manage(c: Ctx) {
   const plans = requireBilling(c.var.config);
-  await requireBillingManager(c);
+  await requireBillingManager(c, "manage");
   return { plans, stripe: createStripeClient(plans.secretKey) };
 }
 

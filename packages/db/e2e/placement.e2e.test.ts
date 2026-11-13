@@ -4,10 +4,11 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { hasUnsyncedWork, listMisplacedMailboxes } from "../src/placement.ts";
+import { firstSyncDone, hasUnsyncedWork, listMisplacedMailboxes } from "../src/placement.ts";
 import {
   drafts,
   mailActions,
+  mailboxFolders,
   mailboxAccess,
   mailboxes,
   mailDomains,
@@ -100,4 +101,39 @@ test("a draft or an unfinished action keeps a mailbox busy; a finished action do
   expect(await hasUnsyncedWork(db, box.id)).toBe(false);
   await action("pending");
   expect(await hasUnsyncedWork(db, box.id)).toBe(true);
+});
+
+// Catches: a move deleting the old copy while the new one is still importing. A folder's first
+// position (UIDNEXT 0) is saved, with `synced_at`, before any message is imported.
+test("a copy has finished its first sync only when every folder completed an import", async () => {
+  const { db } = database;
+  const { box } = await personalMailbox(`dee-${randomUUID().slice(0, 8)}@gmail.test`);
+  expect(await firstSyncDone(db, box.id)).toBe(false);
+  const folder = (path: string) =>
+    db
+      .insert(mailboxFolders)
+      .values({
+        orgId: box.orgId,
+        mailboxId: box.id,
+        path,
+        role: path === "INBOX" ? "inbox" : "other",
+      })
+      .returning();
+  const [inbox] = await folder("INBOX");
+  const [archive] = await folder("[Gmail]/All Mail");
+  const position = (id: string, uidnext: number) =>
+    db
+      .update(mailboxFolders)
+      .set({ uidvalidity: 1, uidnext, syncedAt: new Date() })
+      .where(eq(mailboxFolders.id, id));
+
+  // Both folders started (position saved, `synced_at` set), nothing imported yet.
+  await position(inbox!.id, 0);
+  await position(archive!.id, 0);
+  expect(await firstSyncDone(db, box.id)).toBe(false);
+  // INBOX done, All Mail still importing.
+  await position(inbox!.id, 42);
+  expect(await firstSyncDone(db, box.id)).toBe(false);
+  await position(archive!.id, 900);
+  expect(await firstSyncDone(db, box.id)).toBe(true);
 });

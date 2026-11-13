@@ -8,6 +8,7 @@ import {
   schema,
   trialUnavailable,
   workspaceKind,
+  workspaceSubscription,
 } from "@omni/db";
 import { and, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
@@ -117,10 +118,21 @@ async function planPrice(
   }
 }
 
-export async function requireBillingManager(c: { var: AppEnv["Variables"] }) {
-  // A Personal space is free (ADR 0024): no trial, checkout or portal for it.
+/**
+ * Owners and admins only. A Personal space is free (ADR 0024): it may never start a plan
+ * (`subscribe`), and may manage one (`manage`: the portal, cards) only if it somehow has one,
+ * so it can always be cancelled.
+ */
+export async function requireBillingManager(
+  c: { var: AppEnv["Variables"] },
+  purpose: "subscribe" | "manage" = "subscribe",
+) {
   if ((await workspaceKind(c.var.db, c.var.member.orgId)) === "personal") {
-    throw new HTTPException(403, { message: "a Personal space is free; it has no plan" });
+    const existing =
+      purpose === "manage" ? await workspaceSubscription(c.var.db, c.var.member.orgId) : null;
+    if (!existing) {
+      throw new HTTPException(403, { message: "a Personal space is free; it has no plan" });
+    }
   }
   if (!(await mayManageBilling(c.var.db, c.var.user.id, c.var.member.orgId))) {
     throw new HTTPException(403, { message: "only owners and admins manage billing" });
@@ -290,7 +302,7 @@ export const billing = new Hono<AppEnv>()
   /** Opens the Stripe customer portal: payment method, interval, invoices, cancel. */
   .post("/billing/portal", zValidator("json", portalBody), async (c) => {
     requireBilling(c.var.config);
-    await requireBillingManager(c);
+    await requireBillingManager(c, "manage");
     const portal = await c.var.auth.api.createBillingPortal({
       headers: c.req.raw.headers,
       body: {

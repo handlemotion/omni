@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { schema } from "@omni/db";
 import { createMember, createOrg } from "@omni/db/testing";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { ImapFlow } from "imapflow";
 import {
   GOOGLE_DISCONNECT_PATH,
@@ -738,7 +738,7 @@ describe("a mailbox finds its home (ADR 0024)", () => {
     return { ...seeded, userId: owner!.userId };
   }
 
-  it("moves a member's mailbox into the company that locks its domain, and syncs it there again", async () => {
+  it("moves a member's mailbox into the company that locks its domain, state and all", async () => {
     const domain = `home-${randomUUID().slice(0, 8)}.omni.test`;
     const ana = await personalMailbox(`ana@${domain}`);
     // Bea is not a member of the company: her mailbox on the same domain stays in her space.
@@ -747,6 +747,24 @@ describe("a mailbox finds its home (ADR 0024)", () => {
     await connected(ana.box.id);
     await deliver(ana.box.address, "before the claim");
     await waitFor(async () => (await stored(db, ana.box.id, "INBOX")).length > 0);
+    // Read and done exist only in Omni (ADR 0013): Ana read and filed this thread.
+    const [oldThread] = await db
+      .select({ id: schema.threads.id, lastMessageAt: schema.threads.lastMessageAt })
+      .from(schema.threads)
+      .where(eq(schema.threads.mailboxId, ana.box.id));
+    await db
+      .insert(schema.threadState)
+      .values({
+        orgId: ana.orgId,
+        threadId: oldThread!.id,
+        memberId: ana.ownerId,
+        read: true,
+        doneThrough: oldThread!.lastMessageAt,
+      })
+      .onConflictDoUpdate({
+        target: [schema.threadState.threadId, schema.threadState.memberId],
+        set: { read: true, doneThrough: oldThread!.lastMessageAt },
+      });
 
     const company = await createOrg(db, `acme-${randomUUID().slice(0, 8)}`);
     const [member] = await db
@@ -762,18 +780,30 @@ describe("a mailbox finds its home (ADR 0024)", () => {
     await db.insert(schema.mailDomains).values({ orgId: company.id, domain, provider: "imap" });
     await running.reconcileMailboxes();
 
-    // The old copy and its mail are gone; the company has the mailbox, owned by Ana's member there.
-    expect(await mailboxStatus(db, ana.box.id)).toBeUndefined();
-    expect(await messageRows(db, ana.box.id)).toEqual([]);
-    expect(running.supervisor.has(ana.box.id)).toBe(false);
+    // First the company gets its own copy, owned by Ana's member there, while the old one runs on.
     const [moved] = await mailboxesOf(db, company.id);
     expect(moved).toMatchObject({ address: ana.box.address, kind: "personal" });
     expect((await accessRows(db, moved!.id)).map((row) => [row.memberId, row.role])).toEqual([
       [member!.id, "owner"],
     ]);
+    expect(await mailboxStatus(db, ana.box.id)).toBe("active");
     // Its login came along, re-sealed for the new id: it connects and indexes the mail again.
     await connected(moved!.id);
     await waitFor(async () => (await stored(db, moved!.id, "INBOX")).length > 0);
+
+    // Once the copy has synced, the state goes over and the old copy and its mail are gone.
+    await running.reconcileMailboxes();
+    expect(await mailboxStatus(db, ana.box.id)).toBeUndefined();
+    expect(await messageRows(db, ana.box.id)).toEqual([]);
+    expect(running.supervisor.has(ana.box.id)).toBe(false);
+    const carried = await db
+      .select({ read: schema.threadState.read, done: schema.threadState.doneThrough })
+      .from(schema.threadState)
+      .innerJoin(schema.threads, eq(schema.threads.id, schema.threadState.threadId))
+      .where(
+        and(eq(schema.threads.mailboxId, moved!.id), eq(schema.threadState.memberId, member!.id)),
+      );
+    expect(carried).toEqual([{ read: true, done: oldThread!.lastMessageAt }]);
 
     // A second run finds nothing to move.
     await running.reconcileMailboxes();
@@ -830,8 +860,13 @@ describe("a mailbox finds its home (ADR 0024)", () => {
       (await mailboxesOf(db, company.id)).map((row) => [row.address, row.kind, row.credentialsEnc]),
     ).toEqual([[team.box.address, "shared", "x"]]);
 
-    // Once the draft is gone, the next run moves Cara.
+    // Once the draft is gone, Cara moves: a copy first, then the old one once the copy synced.
     await db.delete(schema.drafts).where(eq(schema.drafts.id, draft!.id));
+    await running.reconcileMailboxes();
+    const copy = (await mailboxesOf(db, company.id)).find(
+      (row) => row.address === cara.box.address,
+    );
+    await connected(copy!.id);
     await running.reconcileMailboxes();
     expect(await mailboxStatus(db, cara.box.id)).toBeUndefined();
     expect((await mailboxesOf(db, company.id)).map((row) => row.address).sort()).toEqual(

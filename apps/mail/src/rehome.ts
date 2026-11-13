@@ -2,14 +2,17 @@
 // domain, a member's mailbox on it in their Personal space becomes that company's. The move is a
 // reconnect, not a row rewrite: the same login is saved in the company under a new id, and the old
 // copy with everything indexed from it is deleted. The provider holds the mail, and the new copy
-// syncs it again (ADR 0013). Each run converges: a move cut short is finished by the next run,
-// which finds the company copy already there and reuses it.
+// syncs it again (ADR 0013); read, deferred and done exist only in Omni, so they are carried to
+// the new copy's threads once it has synced, before the old copy goes. Each run moves a mailbox
+// one step (copy, wait for its sync, carry state and delete), so a move cut short resumes.
 import { randomUUIDv7 } from "node:crypto";
 import type { Keyring } from "@omni/crypto";
 import {
   type Db,
   deleteMailbox,
+  carryThreadState,
   findOrgMailbox,
+  firstSyncDone,
   hasUnsyncedWork,
   listMisplacedMailboxes,
   mailboxOwnerIds,
@@ -67,24 +70,43 @@ async function rehome(deps: RehomeDeps, mailbox: MisplacedMailbox): Promise<bool
       return false;
     }
   }
-  const credentials = await openCredentials(keyring, mailbox.id, mailbox.credentialsEnc);
-  const id = existing?.id ?? randomUUIDv7();
-  await saveMailbox(db, {
-    id,
-    orgId: mailbox.targetOrgId,
-    address: mailbox.address,
-    kind: "personal",
-    provider: mailbox.provider,
-    credentialsEnc: await sealCredentials(keyring, id, credentials),
-    ownerMemberId: mailbox.targetMemberId,
+  if (!existing) {
+    // First the company gets its own copy, which connects and syncs while the old one keeps
+    // running. The old copy goes only once the new one holds everything and the state is over.
+    const credentials = await openCredentials(keyring, mailbox.id, mailbox.credentialsEnc);
+    const id = randomUUIDv7();
+    await saveMailbox(db, {
+      id,
+      orgId: mailbox.targetOrgId,
+      address: mailbox.address,
+      kind: "personal",
+      provider: mailbox.provider,
+      credentialsEnc: await sealCredentials(keyring, id, credentials),
+      ownerMemberId: mailbox.targetMemberId,
+    });
+    logger.info("mailbox.rehome_copying", { from: mailbox.id, to: id });
+    return false;
+  }
+  if (!(await firstSyncDone(db, existing.id))) {
+    logger.info("mailbox.rehome_deferred", { mailboxId: mailbox.id, reason: "copy_syncing" });
+    return false;
+  }
+  // Read, deferred and done exist only in Omni (ADR 0013): carried to the new copy's threads
+  // before the old copy, and its state, are deleted.
+  const carried = await carryThreadState(db, {
+    fromMailboxId: mailbox.id,
+    toMailboxId: existing.id,
+    toOrgId: mailbox.targetOrgId,
+    toMemberId: mailbox.targetMemberId,
   });
   await deps.stop(mailbox.id);
   await deleteMailbox(db, mailbox.id);
   logger.info("mailbox.rehomed", {
     from: mailbox.id,
-    to: id,
+    to: existing.id,
     fromOrgId: mailbox.orgId,
     toOrgId: mailbox.targetOrgId,
+    carried,
   });
   return true;
 }

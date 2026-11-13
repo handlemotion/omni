@@ -8,9 +8,13 @@ import {
   drafts,
   mailActions,
   mailboxes,
+  mailboxFolders,
   mailDomains,
   members,
+  messages,
   personalSpaces,
+  threads,
+  threadState,
 } from "./schema/index.ts";
 import { companyForAddress } from "./session-scopes.ts";
 
@@ -115,4 +119,55 @@ export async function hasUnsyncedWork(db: Db, mailboxId: string): Promise<boolea
       )
     ) as busy`)) as unknown as { busy: boolean }[];
   return row?.busy ?? false;
+}
+
+/**
+ * Whether every folder of `mailboxId` has finished importing at least once, and it has at least
+ * one. `synced_at` is not enough: a folder's first position (UIDNEXT 0) is saved before anything
+ * is imported, and a failed import keeps it. Only a completed import stores the server's UIDNEXT,
+ * which is at least 1 even for an empty folder.
+ */
+export async function firstSyncDone(db: Db, mailboxId: string): Promise<boolean> {
+  const [row] = (await db.execute(sql`
+    select exists (select 1 from ${mailboxFolders} f where f.mailbox_id = ${mailboxId})
+      and not exists (
+        select 1 from ${mailboxFolders} f
+        where f.mailbox_id = ${mailboxId} and coalesce(f.uidnext, 0) = 0
+      ) as done`)) as unknown as { done: boolean }[];
+  return row?.done ?? false;
+}
+
+/**
+ * Copies Omni-only thread state (read, deferred, done; ADR 0013 keeps it nowhere else) from one
+ * copy of a mailbox to another, for `toMemberId`. A thread matches by the provider's thread id
+ * or by a message both copies hold. Merged into whatever the new copy's sync already wrote: read
+ * if either says so, the later done mark, the new copy's deferral if it has one. Merging is
+ * idempotent, so a run that repeats changes nothing. Answers how many threads it touched.
+ */
+export async function carryThreadState(
+  db: Db,
+  input: { fromMailboxId: string; toMailboxId: string; toOrgId: string; toMemberId: string },
+): Promise<number> {
+  const rows = (await db.execute(sql`
+    insert into ${threadState} (org_id, thread_id, member_id, read, snoozed_until, done_through)
+    select distinct on (nt.id)
+      ${input.toOrgId}, nt.id, ${input.toMemberId}, s.read, s.snoozed_until, s.done_through
+    from ${threadState} s
+    join ${threads} ot on ot.id = s.thread_id and ot.mailbox_id = ${input.fromMailboxId}
+    join ${threads} nt on nt.mailbox_id = ${input.toMailboxId} and (
+      (ot.provider_thread_id is not null and nt.provider_thread_id = ot.provider_thread_id)
+      or exists (
+        select 1 from ${messages} om
+        join ${messages} nm
+          on nm.message_id_header = om.message_id_header and nm.mailbox_id = ${input.toMailboxId}
+        where om.thread_id = ot.id and nm.thread_id = nt.id
+      )
+    )
+    order by nt.id, s.updated_at desc
+    on conflict (thread_id, member_id) do update set
+      read = ${threadState}.read or excluded.read,
+      done_through = greatest(${threadState}.done_through, excluded.done_through),
+      snoozed_until = coalesce(${threadState}.snoozed_until, excluded.snoozed_until)
+    returning thread_id`)) as unknown as { thread_id: string }[];
+  return rows.length;
 }
