@@ -13,19 +13,14 @@ export async function requireUser(client: QueryClient, location: ParsedLocation)
 }
 
 /**
- * Signed in and a member of the active organization. A user with no organization goes to
- * onboarding when this deployment lets them create one (always with open sign-up, ADR 0018),
- * otherwise back to sign-in with `no_organization` (they need an invitation). An owner or admin whose
- * workspace's setup is unfinished goes to onboarding, which resumes at the saved step; settings
- * stay reachable (to switch workspace or account, or sign out).
+ * Signed in and a member of the active organization: everyone is, at least of their Personal
+ * space (ADR 0024). An owner or admin whose workspace's setup is unfinished goes to onboarding,
+ * which resumes at the saved step; settings stay reachable (to switch workspace or account, or
+ * sign out).
  */
 export async function requireMember(client: QueryClient, location: ParsedLocation) {
   const session = await requireUser(client, location);
-  if (!session.member) {
-    const status = await client.ensureQueryData(onboardingQuery());
-    if (status.canCreateOrganization) throw redirect({ to: "/onboarding" });
-    throw redirect({ to: "/login", search: { error: "no_organization" } });
-  }
+  if (!session.member) throw redirect({ to: "/login", search: { redirect: location.href } });
   if (needsSetup(session.member) && !isSettings(location.pathname)) {
     throw redirect({ to: "/onboarding" });
   }
@@ -36,14 +31,13 @@ const isSettings = (pathname: string) =>
   pathname === "/settings" || pathname.startsWith("/settings/");
 
 /**
- * Onboarding is for someone who may create a workspace, or who is finishing the active one.
- * Everyone else goes where they belong.
+ * Onboarding is for someone who may create a company, or who is finishing the active one.
+ * Everyone else goes to their inbox.
  */
 export async function requireOnboarding(client: QueryClient) {
   const status = await client.ensureQueryData(onboardingQuery());
   if (status.canCreateOrganization || needsSetup(status.organization)) return status;
-  if (status.organization) throw redirect({ to: "/inbox" });
-  throw redirect({ to: "/login", search: { error: "no_organization" } });
+  throw redirect({ to: "/inbox" });
 }
 
 /** Sends a signed-in member away from the sign-in page. */

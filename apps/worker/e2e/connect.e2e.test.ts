@@ -106,11 +106,8 @@ function api(path: string, cookie: string, init: RequestInit = {}) {
 }
 
 /** Starts the flow: Google's consent URL and the flow cookie the browser now holds. */
-async function start(session: string, from?: "onboarding", place?: "address") {
-  const query = new URLSearchParams({
-    ...(from ? { return: from } : {}),
-    ...(place ? { place } : {}),
-  }).toString();
+async function start(session: string, from?: "onboarding") {
+  const query = new URLSearchParams(from ? { return: from } : {}).toString();
   const response = await api(`/connect/google/start${query ? `?${query}` : ""}`, session);
   expect(response.status).toBe(302);
   const consent = new URL(response.headers.get("location")!);
@@ -306,23 +303,14 @@ describe("disconnecting a Google account", () => {
 });
 
 describe("where a connected account goes (ADR 0024)", () => {
-  test("by address only when asked: a gmail.com account lands in Personal, not the open workspace", async () => {
+  // Catches: an account joining whichever workspace is open instead of the one its address picks.
+  test("a gmail.com account lands in Personal, not the open workspace", async () => {
     const eve = await signedInMember("eve@place.test");
     const users = await database.db
       .select({ userId: schema.members.userId })
       .from(schema.members)
       .where(eq(schema.members.id, eve.member.id));
     const userId = users[0]!.userId;
-
-    // Today's clients: no `place`, so no `userId`; the account joins the open workspace as before.
-    const plain = await start(eve.session);
-    const before = mailService.requests.length;
-    await callback(`${eve.session}; ${plain.flow}`, {
-      code: "google-code",
-      state: plain.consent.searchParams.get("state")!,
-    });
-    const [old] = (await mailService.waitFor(before + 1)).slice(before);
-    expect(JSON.parse(old!.body)).not.toHaveProperty("userId");
 
     const setupStep = async () =>
       (
@@ -331,10 +319,9 @@ describe("where a connected account goes (ADR 0024)", () => {
           .from(schema.orgSetup)
           .where(eq(schema.orgSetup.orgId, eve.org.id))
       )[0]?.step;
+    // The Worker sends who is connecting, and the account lands in Personal.
+    const placed = await start(eve.session);
     const stepBefore = await setupStep();
-
-    // `place=address`: the Worker sends who is connecting, and the account lands in Personal.
-    const placed = await start(eve.session, undefined, "address");
     const at = mailService.requests.length;
     const landed = await callback(`${eve.session}; ${placed.flow}`, {
       code: "personal-code",

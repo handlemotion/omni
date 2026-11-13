@@ -27,7 +27,9 @@ organization, ADR 0008), and that causes four problems:
 
 ### 1. Two kinds of workspace
 
-`organizations.kind` is `personal` or `company`. Every table keeps `org_id`, and every read keeps
+A workspace is a Personal space when a `personal_spaces` row names it (one per user), and a
+company otherwise. It lives in our own table, not in a column on Better Auth's `organizations`,
+so the auth schema and our deploys stay independent. Every table keeps `org_id`, and every read keeps
 going through `forMember` / `forUser`: a Personal space is an organization, not a special case.
 
 - **Personal space**: one per person, created with the user and never deleted on its own. It
@@ -76,7 +78,8 @@ Personal space.
 
 ### 3. A login opens only the workspace it belongs to
 
-A session records which key opened it, as `sessions.scope_org_id` (null means unscoped):
+A session records which key opened it, as a `session_scopes` row naming the company (no row
+means unscoped):
 
 | Signed in with                                                                             | Session scope | Opens                                       |
 | ------------------------------------------------------------------------------------------ | ------------- | ------------------------------------------- |
@@ -130,9 +133,9 @@ and land in the company.
 
 ## Rollout (expand, then contract)
 
-1. Add `organizations.kind` (default `company`), a unique personal-owner column, and
-   `sessions.scope_org_id` (nullable). Create Personal spaces for new users and backfill existing
-   ones. Personal spaces refuse invitations, teams, shared mailboxes and domains.
+1. Add the `personal_spaces` (organization, unique user) and `session_scopes` (session, company)
+   tables. Create Personal spaces for new users; an existing user gets theirs at their next
+   sign-in. Personal spaces refuse invitations, teams, shared mailboxes and domains.
 2. Sessions record their scope at sign-in; `forUser` and the active-workspace switch enforce it.
 3. Connect and provisioning route by address; a lock moves mailboxes; the Gmail backfill runs.
 4. The API exposes `kind` on workspaces, and compose can send from any address the session can
@@ -140,7 +143,8 @@ and land in the company.
 5. Web (Rodrigo): every user has a space, so the no-workspace state and forced company
    onboarding go; the switcher shows Everything / Personal / each company, and focusing an account
    or a workspace filters instead of switching; Personal hides company settings.
-6. Contract, once production no longer needs it: remove the "create a workspace first" paths.
+6. Contract, once production no longer needs it: remove the "create a workspace first" paths,
+   and connect every Google account by its address (no "join the open workspace" mode).
 
 Forwarding for shared inboxes (decision 4) is its own layer, and needs Omni's receiving domain
 first.

@@ -87,10 +87,6 @@ export const connect = new Hono<AppEnv>()
     const state = randomToken(24);
     const verifier = randomToken(48);
     const back: Return = c.req.query("return") === "onboarding" ? "onboarding" : "settings";
-    // `?place=address`: the account goes where its address belongs, the company that locked its
-    // domain or the person's Personal space (ADR 0024). Without it, it joins this workspace, as
-    // clients from before ADR 0024 expect.
-    const byAddress = c.req.query("place") === "address";
     // Pin setup where it stands before the mail service saves a mailbox: a workspace with a
     // mailbox and no setup row reads as finished (`orgSetupStep`), which would skip the rest of
     // setup. An org that already has a mailbox keeps the step it reads as now.
@@ -98,7 +94,7 @@ export const connect = new Hono<AppEnv>()
     await setSignedCookie(
       c,
       COOKIE,
-      JSON.stringify({ state, verifier, memberId: c.var.member.id, back, byAddress }),
+      JSON.stringify({ state, verifier, memberId: c.var.member.id, back }),
       c.var.config.auth.secret,
       {
         path: COOKIE_PATH,
@@ -139,7 +135,6 @@ export const connect = new Hono<AppEnv>()
       verifier?: string;
       memberId?: string;
       back?: Return;
-      byAddress?: boolean;
     } = {};
     try {
       flow = raw ? (JSON.parse(raw) as typeof flow) : {};
@@ -164,12 +159,10 @@ export const connect = new Hono<AppEnv>()
         {
           orgId: c.var.member.orgId,
           memberId: c.var.member.id,
-          ...(flow.byAddress
-            ? {
-                userId: c.var.user.id,
-                ...(c.var.user.scopeOrgId ? { scopeOrgId: c.var.user.scopeOrgId } : {}),
-              }
-            : {}),
+          // Who is connecting: the account goes where its address belongs, the company that
+          // locked its domain or their Personal space (ADR 0024), within the session's scope.
+          userId: c.var.user.id,
+          ...(c.var.user.scopeOrgId ? { scopeOrgId: c.var.user.scopeOrgId } : {}),
           code,
           codeVerifier: flow.verifier,
           redirectUri: redirectUri(c),
