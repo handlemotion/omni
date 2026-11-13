@@ -20,7 +20,6 @@ import {
   putSlaPolicy,
   setAutoAssign,
   updateTag,
-  type ChangeResult,
   type ConversationChange,
 } from "@omni/db";
 import { isTimeZone, type BusinessHoursWindow } from "@omni/mail-core/business-hours";
@@ -32,6 +31,7 @@ import { pingMailService } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { announceNote, fanOut, notifyMembers, withdrawNotifications } from "../realtime.ts";
 import { zValidator } from "../validator.ts";
+import { applyChange, claimPrecondition, failures } from "./conversation-change.ts";
 
 const idempotencyHeader = z.object({
   "idempotency-key": z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, "8-128 URL-safe characters"),
@@ -176,52 +176,8 @@ function requireManager(c: Context<AppEnv>) {
   }
 }
 
-const failures = {
-  not_found: [404, "not found"],
-  personal_mailbox: [409, "conversation actions are for shared inboxes"],
-  not_assignable: [422, "that member cannot see this inbox"],
-  unknown_tag: [422, "that tag is not one of this inbox's"],
-  invalid_snooze: [422, "snooze until a time in the future"],
-} as const;
-
 function notFound(): never {
   throw new HTTPException(404, { message: "not found" });
-}
-
-/**
- * Applies `change` as this member, then tells the inbox's members and the mail service. A retry
- * under the same Idempotency-Key changes nothing once the first attempt did, so it cannot undo a
- * teammate's change made in between.
- */
-async function applyChange(c: Context<AppEnv>, threadId: string, change: ConversationChange) {
-  const result: ChangeResult = await applyConversationChange(c.var.db, {
-    threadId,
-    actorMemberId: c.var.member.id,
-    change,
-    requestId: c.var.requestId,
-    idempotencyKey: c.req.header("idempotency-key"),
-  });
-  if (!result.ok) {
-    const [status, message] = failures[result.reason];
-    throw new HTTPException(status, { message });
-  }
-  if (result.queuedActions > 0) c.executionCtx.waitUntil(pingMailService(c.var));
-  if (result.changed) {
-    const { mailboxId, id, orgId } = result.conversation;
-    c.executionCtx.waitUntil(
-      Promise.all([
-        fanOut(c.env, c.var.db, c.var.config, new Map([[mailboxId, new Set([id])]])),
-        // Only an assignment notifies from here.
-        notifyMembers(c.env, c.var.db, {
-          orgId,
-          threadId: id,
-          memberIds: result.notified,
-          kind: "assigned",
-        }),
-      ]),
-    );
-  }
-  return c.json({ conversation: result.conversation, changed: result.changed });
 }
 
 const writeGuards = [limitPerMember("actions"), zValidator("header", idempotencyHeader)] as const;
@@ -330,10 +286,15 @@ export const conversations = new Hono<AppEnv>()
     }),
   )
 
-  /** Assign to the member asking. */
-  .post("/threads/:id/claim", ...writeGuards, (c) =>
-    applyChange(c, c.req.param("id"), { type: "assign", memberId: c.var.member.id }),
-  )
+  /** Assign to the member asking; with `expectedAssignee`, only if no one else got there first. */
+  .post("/threads/:id/claim", ...writeGuards, async (c) => {
+    const { expectedAssignee } = await claimPrecondition(c);
+    return applyChange(c, c.req.param("id"), {
+      type: "assign",
+      memberId: c.var.member.id,
+      ...(expectedAssignee !== undefined ? { expectedAssignee } : {}),
+    });
+  })
 
   /** Assign to any member who can see the inbox, or `null` to unassign. */
   .put("/threads/:id/assignee", ...writeGuards, zValidator("json", assigneeBody), (c) =>

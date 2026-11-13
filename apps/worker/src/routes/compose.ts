@@ -32,6 +32,7 @@ import type { AppEnv } from "../context.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
 import { fanOut } from "../realtime.ts";
+import { assertLatest, basedOnMessageId, StaleThread } from "./reply-precondition.ts";
 import { attachmentResponse } from "./assets.ts";
 import { idempotencyHeader, notFound, outboxKey, pingLater, type ActionMailbox } from "./mail.ts";
 
@@ -59,6 +60,7 @@ const replyBody = z.object({
   replyAll: z.boolean().default(false),
   /** The message replied to (`messages.id`); the thread's latest when absent. */
   messageId: z.string().min(1).optional(),
+  basedOnMessageId,
   /** Recipients the composer edited; absent means the reply (or reply-all) defaults. */
   to: recipients.min(1).optional(),
   cc: recipients.optional(),
@@ -69,6 +71,7 @@ const replyBody = z.object({
 const forwardBodySchema = z.object({
   /** The message forwarded (`messages.id`); the thread's latest when absent. */
   messageId: z.string().min(1).optional(),
+  basedOnMessageId,
   to: recipients.min(1),
   cc: recipients.optional(),
   bcc: recipients.optional(),
@@ -187,17 +190,47 @@ function optionalList(name: "cc" | "bcc", list: string[] | undefined) {
   return list?.length ? { [name]: list } : {};
 }
 
-/** The thread with the chosen message (or its latest), and where its actions run. */
-async function threadMessage(c: Context<AppEnv>, threadId: string, messageId?: string) {
+/**
+ * The thread with the chosen message (or its latest), and where its actions run. Throws
+ * `StaleThread` when the composer's `basedOnMessageId` is no longer the latest.
+ */
+async function threadMessage(
+  c: Context<AppEnv>,
+  threadId: string,
+  body: { messageId?: string; basedOnMessageId?: string },
+) {
   const [thread, found] = await Promise.all([
     forMember(c.var.db, c.var.member.id).getThread(threadId),
     threadActionTargets(c.var.db, c.var.member.id, threadId),
   ]);
-  const message = messageId
-    ? thread?.messages.find((m) => m.id === messageId)
+  const message = body.messageId
+    ? thread?.messages.find((m) => m.id === body.messageId)
     : thread?.messages.at(-1);
   if (!thread || !found || !message) notFound();
+  assertLatest(thread.messages, body.basedOnMessageId);
   return { found, message };
+}
+
+/**
+ * Runs a reply or forward. A newer message answers 409 with it, unless this is a retry of a send
+ * already queued under the same Idempotency-Key: that one answers its send, as any retry does.
+ */
+async function sendUnlessStale(
+  c: Context<AppEnv>,
+  key: string,
+  send: () => Promise<Parameters<typeof sendResponse>[0]>,
+) {
+  try {
+    return c.json(sendResponse(await send()), 202);
+  } catch (error) {
+    if (!(error instanceof StaleThread)) throw error;
+    const earlier = await memberSendByKey(c.var.db, c.var.member.id, outboxKey(c, key, "send"));
+    if (earlier) return c.json(sendResponse(earlier), 202);
+    return c.json(
+      { error: error.message, messages: error.messages, requestId: c.var.requestId },
+      409,
+    );
+  }
 }
 
 type SendBody = z.output<typeof sendBody>;
@@ -225,7 +258,7 @@ async function sendReply(
   key: string,
   draftId?: string,
 ) {
-  const { found, message } = await threadMessage(c, threadId, body.messageId);
+  const { found, message } = await threadMessage(c, threadId, body);
   const self = found.mailboxAddress.toLowerCase();
   const isSelf = (a: string) => a.toLowerCase() === self;
   // Replying to our own message continues to the same people.
@@ -269,7 +302,7 @@ async function sendForward(
   key: string,
   draftId?: string,
 ) {
-  const { found, message } = await threadMessage(c, threadId, body.messageId);
+  const { found, message } = await threadMessage(c, threadId, body);
   const kept: SendAttachment[] = body.includeAttachments
     ? message.attachments
         .filter((a) => !a.inline)
@@ -443,21 +476,19 @@ export const compose = new Hono<AppEnv>()
   /**
    * Replies to `messageId` (default: the latest message) with In-Reply-To and References so it
    * threads everywhere. Recipients default to the sender (reply) or everyone on it (reply all);
-   * `to`, `cc` and `bcc` replace them when the composer changed them.
+   * `to`, `cc` and `bcc` replace them when the composer changed them. 409 with `messages` when
+   * the thread has messages newer than `basedOnMessageId`.
    */
   .post(
     "/threads/:id/reply",
     limitPerMember("send"),
     zValidator("header", idempotencyHeader),
     zValidator("json", replyBody),
-    async (c) => {
-      const action = await sendReply(
-        c,
-        c.req.param("id"),
-        c.req.valid("json"),
-        c.req.valid("header")["idempotency-key"],
+    (c) => {
+      const key = c.req.valid("header")["idempotency-key"];
+      return sendUnlessStale(c, key, () =>
+        sendReply(c, c.req.param("id"), c.req.valid("json"), key),
       );
-      return c.json(sendResponse(action), 202);
     },
   )
 
@@ -465,20 +496,18 @@ export const compose = new Hono<AppEnv>()
    * Forwards `messageId` (default: the latest message) with what the agent wrote above it and,
    * unless `includeAttachments` is false, its files by reference: the mail service copies them
    * from R2, nothing is uploaded again. Threads with the original in Omni, not for the recipient.
+   * 409 with `messages` when the thread has messages newer than `basedOnMessageId`.
    */
   .post(
     "/threads/:id/forward",
     limitPerMember("send"),
     zValidator("header", idempotencyHeader),
     zValidator("json", forwardBodySchema),
-    async (c) => {
-      const action = await sendForward(
-        c,
-        c.req.param("id"),
-        c.req.valid("json"),
-        c.req.valid("header")["idempotency-key"],
+    (c) => {
+      const key = c.req.valid("header")["idempotency-key"];
+      return sendUnlessStale(c, key, () =>
+        sendForward(c, c.req.param("id"), c.req.valid("json"), key),
       );
-      return c.json(sendResponse(action), 202);
     },
   )
 

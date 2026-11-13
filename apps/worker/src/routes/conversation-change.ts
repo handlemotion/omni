@@ -1,0 +1,93 @@
+// One helpdesk change through `applyConversationChange`, answered and announced the same way by
+// every route that makes one, and the claim's optional precondition.
+import { applyConversationChange, type ChangeResult, type ConversationChange } from "@omni/db";
+import type { Context } from "hono";
+import { HTTPException } from "hono/http-exception";
+import { z } from "zod";
+import type { AppEnv } from "../context.ts";
+import { pingMailService } from "../mail-service.ts";
+import { fanOut, notifyMembers } from "../realtime.ts";
+
+const claimBody = z.object({
+  /**
+   * Who the conversation was assigned to when the member chose to claim it (`members.id`, or
+   * `null` for unassigned). If a teammate changed that first, the claim answers 409 with the
+   * conversation as it is now instead of taking it from them. Absent claims unconditionally.
+   */
+  expectedAssignee: z.string().min(1).nullable().optional(),
+});
+
+/**
+ * The claim's optional JSON body. Read by hand rather than with `zValidator("json")` so the typed
+ * client keeps calling claim without a body: older web builds send none, and that means `{}`.
+ */
+export async function claimPrecondition(c: Context<AppEnv>) {
+  const text = await c.req.text();
+  if (!text.trim()) return {};
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new HTTPException(400, { message: "Malformed JSON in request body" });
+  }
+  const parsed = claimBody.safeParse(json);
+  if (!parsed.success) {
+    throw new HTTPException(400, { message: "invalid json: expectedAssignee: member id or null" });
+  }
+  return parsed.data;
+}
+
+export const failures = {
+  not_found: [404, "not found"],
+  personal_mailbox: [409, "conversation actions are for shared inboxes"],
+  not_assignable: [422, "that member cannot see this inbox"],
+  unknown_tag: [422, "that tag is not one of this inbox's"],
+  invalid_snooze: [422, "snooze until a time in the future"],
+  assignee_changed: [409, "a teammate assigned this conversation first"],
+} as const;
+
+/**
+ * Applies `change` as this member, then tells the inbox's members and the mail service. A retry
+ * under the same Idempotency-Key changes nothing once the first attempt did, so it cannot undo a
+ * teammate's change made in between.
+ */
+export async function applyChange(
+  c: Context<AppEnv>,
+  threadId: string,
+  change: ConversationChange,
+) {
+  const result: ChangeResult = await applyConversationChange(c.var.db, {
+    threadId,
+    actorMemberId: c.var.member.id,
+    change,
+    requestId: c.var.requestId,
+    idempotencyKey: c.req.header("idempotency-key"),
+  });
+  if (!result.ok) {
+    const [status, message] = failures[result.reason];
+    if (result.reason === "assignee_changed" && result.conversation) {
+      return c.json(
+        { error: message, conversation: result.conversation, requestId: c.var.requestId },
+        409,
+      );
+    }
+    throw new HTTPException(status, { message });
+  }
+  if (result.queuedActions > 0) c.executionCtx.waitUntil(pingMailService(c.var));
+  if (result.changed) {
+    const { mailboxId, id, orgId } = result.conversation;
+    c.executionCtx.waitUntil(
+      Promise.all([
+        fanOut(c.env, c.var.db, c.var.config, new Map([[mailboxId, new Set([id])]])),
+        // Only an assignment notifies from here.
+        notifyMembers(c.env, c.var.db, {
+          orgId,
+          threadId: id,
+          memberIds: result.notified,
+          kind: "assigned",
+        }),
+      ]),
+    );
+  }
+  return c.json({ conversation: result.conversation, changed: result.changed });
+}

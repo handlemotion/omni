@@ -252,6 +252,78 @@ describe("replies and forwards", () => {
     expect(((await retried.json()) as { actionId: string }).actionId).toBe(actionId);
   });
 
+  test("a reply written before the customer's follow-up is held back with it, never sent over it", async () => {
+    const { db } = database;
+    const { inbox, ana } = await team("stale-reply");
+    const asked = await seedMessage(db, inbox, {
+      subject: "Cancel my plan",
+      fromAddress: "luis@client.test",
+      to: [inbox.address],
+      uid: 1,
+      sentAt: new Date("2026-11-01T10:00:00Z"),
+    });
+    // Ana opened the thread on Luis's first message; while she typed, he wrote again.
+    const followUp = await seedMessage(db, inbox, {
+      subject: "Re: Cancel my plan",
+      fromAddress: "luis@client.test",
+      to: [inbox.address],
+      uid: 2,
+      threadId: asked.threadId,
+      sentAt: new Date("2026-11-01T10:05:00Z"),
+    });
+
+    const stale = await post(`/threads/${asked.threadId}/reply`, ana.cookie, "stale-reply-1", {
+      text: "Cancelled.",
+      basedOnMessageId: asked.messageId,
+    });
+    expect(stale.status).toBe(409);
+    const conflict = (await stale.json()) as { messages: { id: string }[] };
+    expect(conflict.messages.map((m) => m.id)).toEqual([followUp.messageId]);
+    const forward = await post(`/threads/${asked.threadId}/forward`, ana.cookie, "stale-fwd-1", {
+      to: ["billing@stale-reply.test"],
+      basedOnMessageId: asked.messageId,
+    });
+    expect(forward.status).toBe(409);
+    // Nothing was queued, and the conversation was not touched as if she had answered.
+    const outbox = () =>
+      db
+        .select({ id: schema.mailActions.id })
+        .from(schema.mailActions)
+        .where(eq(schema.mailActions.mailboxId, inbox.id));
+    expect(await outbox()).toEqual([]);
+    const [untouched] = await db
+      .select()
+      .from(schema.threads)
+      .where(eq(schema.threads.id, asked.threadId));
+    expect(untouched).toMatchObject({ assigneeMemberId: null, firstRespondedAt: null });
+
+    // Having read the follow-up, she sends.
+    const sent = await post(`/threads/${asked.threadId}/reply`, ana.cookie, "stale-reply-2", {
+      text: "Cancelled, and no charge this month.",
+      basedOnMessageId: followUp.messageId,
+    });
+    expect(sent.status).toBe(202);
+    const { actionId } = (await sent.json()) as { actionId: string };
+
+    // Her response was lost and Luis wrote a third time: the retry answers the send already
+    // queued, not 409, so the app cannot offer to send it twice.
+    await seedMessage(db, inbox, {
+      subject: "Re: Cancel my plan",
+      fromAddress: "luis@client.test",
+      to: [inbox.address],
+      uid: 3,
+      threadId: asked.threadId,
+      sentAt: new Date("2026-11-01T10:09:00Z"),
+    });
+    const retried = await post(`/threads/${asked.threadId}/reply`, ana.cookie, "stale-reply-2", {
+      text: "Cancelled, and no charge this month.",
+      basedOnMessageId: followUp.messageId,
+    });
+    expect(retried.status).toBe(202);
+    expect(((await retried.json()) as { actionId: string }).actionId).toBe(actionId);
+    expect(await outbox()).toEqual([{ id: actionId }]);
+  });
+
   test("an upload left unsent past its expiry cannot be sent", async () => {
     const { db } = database;
     const { inbox, ana } = await team("expired");

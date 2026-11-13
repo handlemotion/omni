@@ -359,6 +359,13 @@ export async function applyConversationChange(
         applied = await applyStatus(tx, row, change, now, actorMemberId);
         break;
       case "assign":
+        if (
+          change.expectedAssignee !== undefined &&
+          row.assigneeMemberId !== change.expectedAssignee &&
+          row.assigneeMemberId !== change.memberId
+        ) {
+          return { ok: false, reason: "assignee_changed", conversation: row };
+        }
         if (change.memberId && !(await canSee(tx, change.memberId, row.mailboxId, row.orgId))) {
           return { ok: false, reason: "not_assignable" };
         }

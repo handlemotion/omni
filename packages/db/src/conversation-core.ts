@@ -32,8 +32,12 @@ export type ConversationChange =
   | { type: "snooze"; until: Date }
   /** The snooze cron: wakes it only if its current snooze is over. */
   | { type: "snooze_expired" }
-  /** `null` unassigns. The assignee must be able to see the inbox. */
-  | { type: "assign"; memberId: string | null }
+  /**
+   * `null` unassigns. The assignee must be able to see the inbox. With `expectedAssignee`
+   * (a member id, or `null` for unassigned) it changes nothing unless the conversation is still
+   * assigned that way when locked, so two teammates claiming at once cannot both win.
+   */
+  | { type: "assign"; memberId: string | null; expectedAssignee?: string | null }
   /** `source: "ai"` marks a change triage made, so a member's later correction can be learned from. */
   | { type: "priority"; priority: Priority; source?: "ai" }
   | { type: "tag"; tagId: string; add: boolean; source?: "ai" };
@@ -47,7 +51,9 @@ export type ChangeFailure =
   /** The tag is not one of this inbox's. */
   | "unknown_tag"
   /** A snooze to a time already past. */
-  | "invalid_snooze";
+  | "invalid_snooze"
+  /** `expectedAssignee` no longer holds: someone else assigned it first. */
+  | "assignee_changed";
 
 export type ChangeResult =
   | {
@@ -59,7 +65,12 @@ export type ChangeResult =
       /** Members who got a new notification: tell them in realtime. */
       notified: string[];
     }
-  | { ok: false; reason: ChangeFailure };
+  | {
+      ok: false;
+      reason: ChangeFailure;
+      /** With `assignee_changed`: the conversation as it is, so the caller can show who has it. */
+      conversation?: ConversationRow;
+    };
 
 export const conversationColumns = {
   id: threads.id,
