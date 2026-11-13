@@ -208,6 +208,8 @@ export async function claimDomain(
   deps: DomainDeps,
   member: { id: string; orgId: string },
   domain: string,
+  /** `gmail`: the domain's mail stays at Google (ADR 0024); only its ownership is proven. */
+  host?: "gmail",
 ) {
   const { db } = deps;
   const conflict = await conflictingLock(db, member.orgId, domain);
@@ -221,12 +223,15 @@ export async function claimDomain(
   }
   // The provider's records first: a failure here must not leave a claim whose one-time
   // challenge value was never shown.
-  const provision = await callMailService(
-    deps,
-    PROVISION_DOMAIN_PATH,
-    { domain, add: false },
-    provisionDomainResultSchema,
-  ).catch(fromMailService);
+  const provision =
+    host === "gmail"
+      ? { provider: "gmail" as const }
+      : await callMailService(
+          deps,
+          PROVISION_DOMAIN_PATH,
+          { domain, add: false },
+          provisionDomainResultSchema,
+        ).catch(fromMailService);
   const challenge = await newChallenge();
   const opened = await openClaim(db, {
     orgId: member.orgId,
@@ -328,7 +333,21 @@ export async function checkDomain(
     }
   }
 
-  // Only a locked domain reaches the provider.
+  return addAtProvider(deps, claim, lock!);
+}
+
+/**
+ * Adds a locked domain at the mail host and saves its records. A domain whose mail stays at
+ * Google never reaches the mail host: there is nothing to add or check.
+ */
+async function addAtProvider(
+  deps: DomainDeps,
+  claim: DomainClaim | null,
+  lock: MailDomain,
+): Promise<{ setup: DomainSetup; addError?: string }> {
+  if (lock.provider === "gmail") return { setup: { claim, lock } as DomainSetup };
+  const { db } = deps;
+  const domain = lock.domain;
   const provision = await callMailService(
     deps,
     PROVISION_DOMAIN_PATH,
@@ -337,7 +356,7 @@ export async function checkDomain(
   ).catch(fromMailService);
   const records = provision.provider === "purelymail" ? provision.records : [];
   const saved = await saveMailDomain(db, {
-    orgId: lock!.orgId,
+    orgId: lock.orgId,
     domain,
     provider: provision.provider,
     dnsRecords: records,
@@ -347,7 +366,7 @@ export async function checkDomain(
   });
   if (!saved) throw new DomainError(409, `${domain} is no longer set up by this workspace`);
   return {
-    setup: { claim, lock: saved },
+    setup: { claim, lock: saved } as DomainSetup,
     addError: provision.provider === "purelymail" ? provision.addError : undefined,
   };
 }

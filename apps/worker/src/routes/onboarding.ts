@@ -223,13 +223,21 @@ export const onboarding = new Hono<AppEnv>()
     "/domains",
     requireMember,
     requireDomainAdmin,
-    zValidator("json", z.object({ domain: z.string().min(1).max(300) })),
+    zValidator(
+      "json",
+      z.object({
+        domain: z.string().min(1).max(300),
+        // `gmail`: the mail stays at Google; the company's Gmail accounts connect into it.
+        host: z.literal("gmail").optional(),
+      }),
+    ),
     async (c) => {
       await limit(c, c.env.DOMAIN_ADD_LIMITER, "domains added");
-      const parsed = parseDomain(c.req.valid("json").domain);
+      const body = c.req.valid("json");
+      const parsed = parseDomain(body.domain);
       if ("error" in parsed) throw new HTTPException(400, { message: parsed.error });
       const { claim, challengeValue } = await domainCall(() =>
-        claimDomain(deps(c), c.var.member, parsed.domain),
+        claimDomain(deps(c), c.var.member, parsed.domain, body.host),
       );
       const setup = (await findMemberDomain(c.var.db, c.var.member.id, claim.id)) ?? {
         claim,

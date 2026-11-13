@@ -173,7 +173,7 @@ export async function startWorkerWithNetwork(options: WorkerOptions & { port?: n
         k,
         { type: "plain_text" as const, value },
       ]),
-      ...Object.entries(workerSecrets).map(([k, value]) => [
+      ...Object.entries({ ...workerSecrets, ...options.secrets }).map(([k, value]) => [
         k,
         { type: "secret_text" as const, value },
       ]),

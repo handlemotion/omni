@@ -115,6 +115,12 @@ which needs the company's SPF and DKIM records for Omni's sending host, and no M
 Signing up creates the user and their Personal space together, with setup complete, so no user
 is ever without a workspace. Creating a company is an optional step, not the way in.
 
+Company setup claims the company's domain before it connects any Google account, because an
+account goes where its address belongs: connected first, it would open in its owner's Personal
+space. A domain whose mail stays at Google is claimed with its ownership record alone (provider
+`gmail`: no mail records, never added at the mail host); its accounts then connect one by one
+and land in the company.
+
 ## Departures
 
 - **ADR 0014's "any verified address signs in" stays,** but what a sign-in opens now depends on

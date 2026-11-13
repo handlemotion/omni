@@ -140,11 +140,17 @@ function useOwnMailboxes() {
   return mailboxes.data?.filter((mailbox) => mailbox.orgId === member.orgId);
 }
 
-/** Domains a new mailbox can go on: verified here, and accepted by the provider. */
+/**
+ * Domains a new mailbox can go on: verified here, and accepted by the provider. Not a domain
+ * whose mail stays at Google: its accounts connect from Google instead (ADR 0024).
+ */
 export function useMailboxDomains() {
   const onboarding = useOnboarding();
   return onboarding.data?.domains.filter(
-    (domain) => domain.status === "verified" && (domain.provider === "imap" || domain.added),
+    (domain) =>
+      domain.status === "verified" &&
+      domain.provider !== "gmail" &&
+      (domain.provider === "imap" || domain.added),
   );
 }
 

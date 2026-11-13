@@ -19,10 +19,9 @@ export type GoogleReturn = "onboarding" | "settings";
 export function startGoogleConnect(from: GoogleReturn) {
   const url = new URL("/api/connect/google/start", window.location.origin);
   if (from === "onboarding") url.searchParams.set("return", "onboarding");
-  // From Settings the account goes where its address belongs (ADR 0024): the company that claimed
-  // its domain, or the Personal space. Setup's inbox step still connects into the company it sets
-  // up until that step is redesigned.
-  else url.searchParams.set("place", "address");
+  // The account goes where its address belongs (ADR 0024): the company that claimed its domain,
+  // or the Personal space. Setup claims the company's domain before it connects anyone.
+  url.searchParams.set("place", "address");
   window.location.assign(url.toString());
 }
 

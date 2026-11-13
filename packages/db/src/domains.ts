@@ -219,7 +219,9 @@ export async function lockClaim(db: Db, claim: DomainClaim, now = new Date()): P
       const conflict = await conflictingLock(tx as unknown as Db, claim.orgId, claim.domain);
       if (conflict) return { ok: false, reason: "taken", by: conflict.domain };
 
-      const imap = claim.provider === "imap";
+      // The mail host already serves the domain: its own IMAP host (ADR 0007), or Google, where
+      // the company's Gmail accounts connect one by one (ADR 0024).
+      const imap = claim.provider === "imap" || claim.provider === "gmail";
       const [inserted] = await tx
         .insert(mailDomains)
         .values({

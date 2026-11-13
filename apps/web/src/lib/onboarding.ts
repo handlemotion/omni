@@ -185,7 +185,13 @@ function storeDomain(client: QueryClient, domain: OnboardingDomain) {
 /** `mutate(domain)`: claims it and returns the DNS records to add, each checked. */
 export const addDomainMutation = (client: QueryClient) =>
   mutationOptions({
-    mutationFn: (domain: string) => call(api.onboarding.domains.$post({ json: { domain } })),
+    /** A domain, or `{ domain, host: "gmail" }` for one whose mail stays at Google (ADR 0024). */
+    mutationFn: (input: string | { domain: string; host: "gmail" }) =>
+      call(
+        api.onboarding.domains.$post({
+          json: typeof input === "string" ? { domain: input } : input,
+        }),
+      ),
     onSuccess: (domain) => storeDomain(client, domain),
   });
 

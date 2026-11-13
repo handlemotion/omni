@@ -23,11 +23,13 @@ import { lookupDns, type DomainDeps } from "./domains.ts";
 
 /**
  * Our Domain Connect templates (docs/domain-connect/): `mail` carries Purelymail's records with
- * the challenge, `verify` the challenge alone (a domain that stays on its own mail host).
+ * the challenge, `verify` the challenge alone (a domain that stays on its own mail host, or at
+ * Google).
  */
 export const DOMAIN_CONNECT_SERVICES: Partial<Record<MailProvider, "mail" | "verify">> = {
   purelymail: "mail",
   imap: "verify",
+  gmail: "verify",
 };
 
 type MailProvider = (typeof schema.mailProvider.enumValues)[number];

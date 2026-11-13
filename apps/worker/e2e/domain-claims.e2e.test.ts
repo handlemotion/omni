@@ -3,7 +3,7 @@
 // real sends through GreenMail, and hand-overs between workspaces. Real Worker, real mail service,
 // Postgres; nothing mocked.
 import { randomUUID } from "node:crypto";
-import { enqueueAction, schema } from "@omni/db";
+import { enqueueAction, placeForAddress, schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { ImapFlow } from "imapflow";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -108,6 +108,39 @@ test("a domain locks to the first workspace whose own challenge shows up in the 
     "domain.claimed",
     "domain.verified",
   ]);
+});
+
+// Catches: a company whose mail stays at Google never owning its domain, so the Gmail accounts it
+// connects in setup go to each person's Personal space instead (ADR 0024).
+test("a domain whose mail stays at Google locks on its challenge alone; its addresses are the company's", async () => {
+  const owner = await stack.signedInOwner();
+  const domain = `gws-${randomUUID().slice(0, 8)}.test`;
+  stack.dns.addZone(domain);
+  const added = await api(owner.jar, "POST", "/onboarding/domains", { domain, host: "gmail" });
+  expect(added).toMatchObject({
+    status: 200,
+    body: { domain, provider: "gmail", status: "pending", verified: false },
+  });
+  // Only Omni's challenge: the mail records stay Google's.
+  expect(added.body).toMatchObject({ records: [], challenge: { type: "TXT" } });
+
+  stack.publishChallenge(added.body);
+  expect((await check(owner.jar, added.body.id as string)).body).toMatchObject({
+    status: "verified",
+    provider: "gmail",
+    added: true,
+    verified: true,
+  });
+  // The re-check keeps it at Google.
+  await runScheduledRecheck();
+  const [lock] = await stack.database.db
+    .select({ provider: schema.mailDomains.provider, orgId: schema.mailDomains.orgId })
+    .from(schema.mailDomains)
+    .where(eq(schema.mailDomains.domain, domain));
+  expect(lock).toEqual({ provider: "gmail", orgId: owner.orgId });
+  expect(
+    await placeForAddress(stack.database.db, { userId: owner.userId, address: `ana@${domain}` }),
+  ).toMatchObject({ ok: true, orgId: owner.orgId, kind: "company" });
 });
 
 test("lookalike names, claims past the cap and checks past the rate limit are refused", async () => {
