@@ -17,6 +17,7 @@ import {
   findMailbox,
   findMessageByHeader,
   findThreadByProviderId,
+  discardedConversations,
   folderLocations,
   getFolderPosition,
   hasLocation,
@@ -110,6 +111,8 @@ export interface PgMailStoreOptions {
   onPruned?: (pruned: PrunedThreads) => void;
   /** Called after threads were merged into one (see `mergeThreads`). Must not throw. */
   onMerged?: (merged: { orgId: string; mailboxId: string } & MergedThreads) => void;
+  /** Called with shared conversations found discarded in another mail app. Must not throw. */
+  onDiscarded?: (discarded: PrunedThreads) => void;
 }
 
 /** Threads that lost messages deleted on the server; some may be gone (see `pruneMessages`). */
@@ -126,6 +129,7 @@ export class PgMailStore implements MailStore {
   private readonly onIngested: (message: IngestedMessage) => void;
   private readonly onPruned: (pruned: PrunedThreads) => void;
   private readonly onMerged: NonNullable<PgMailStoreOptions["onMerged"]>;
+  private readonly onDiscarded: (discarded: PrunedThreads) => void;
   private readonly mailboxes = new Map<string, MailboxRow>();
   /** The tail of each mailbox's thread-and-insert chain (see `oneAtATime`). */
   private readonly inserting = new Map<string, Promise<void>>();
@@ -137,6 +141,7 @@ export class PgMailStore implements MailStore {
     this.onIngested = options.onIngested ?? (() => {});
     this.onPruned = options.onPruned ?? (() => {});
     this.onMerged = options.onMerged ?? (() => {});
+    this.onDiscarded = options.onDiscarded ?? (() => {});
   }
 
   async saveFolders(mailboxId: string, folders: FolderInfo[]): Promise<void> {
@@ -266,6 +271,15 @@ export class PgMailStore implements MailStore {
         folderRole: "sent",
       });
     }
+  }
+
+  async reportDiscarded(mailboxId: string): Promise<number> {
+    const threadIds = await discardedConversations(this.db, mailboxId);
+    if (threadIds.length > 0) {
+      const { orgId } = await this.mailbox(mailboxId);
+      this.onDiscarded({ orgId, mailboxId, threadIds });
+    }
+    return threadIds.length;
   }
 
   async applyFlags(mailboxId: string, folder: string, changes: FlagChange[]): Promise<void> {

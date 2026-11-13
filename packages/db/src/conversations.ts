@@ -891,6 +891,66 @@ export async function applyInboundMessage(
   });
 }
 
+/**
+ * The `discarded` test for the thread `t` (a `threads` alias in the enclosing query): an open,
+ * pending or snoozed shared conversation whose mail was all deleted or junked in another mail app
+ * (Apple Mail's delete moves to Trash). None of its messages has a copy in INBOX or the archive,
+ * one has a copy in Trash or Junk, and that copy arrived after a teammate last changed its
+ * status, so a teammate who reopens it in Omni afterwards keeps it open. Status changes Omni made
+ * itself (a customer reply that went straight to Junk reopening it) do not count. Our replies in Sent do
+ * not count either way. A new message from the customer lands in INBOX and fails the test.
+ */
+const discarded = sql`t.status <> 'resolved'
+  and exists (
+    select 1 from ${messages} m
+    join ${messageLocations} l on l.message_id = m.id
+    join ${mailboxFolders} f on f.id = l.folder_id
+    where m.thread_id = t.id and f.role in ('trash', 'junk')
+      and l.created_at > coalesce((
+        select max(e.created_at) from ${conversationEvents} e
+        where e.thread_id = t.id and e.kind = 'status' and e.actor_member_id is not null),
+        '-infinity'::timestamptz))
+  and not exists (
+    select 1 from ${messages} m
+    join ${messageLocations} l on l.message_id = m.id
+    join ${mailboxFolders} f on f.id = l.folder_id
+    where m.thread_id = t.id and f.role in ('inbox', 'archive'))`;
+
+/** Shared conversations of the mailbox that were discarded in another mail app (see above). */
+export async function discardedConversations(db: Executor, mailboxId: string): Promise<string[]> {
+  const rows = (await db.execute(sql`
+    select t.id from ${threads} t
+    join ${mailboxes} mb on mb.id = t.mailbox_id and mb.kind = 'shared'
+    where t.mailbox_id = ${mailboxId} and ${discarded}
+    order by t.id`)) as unknown as { id: string }[]; // postgres-js: the rows themselves
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Resolves a conversation discarded in another mail app, checking again under the row lock (a
+ * teammate may have reopened it since the mail service looked). Nothing moves on IMAP: its mail
+ * is already out of INBOX, so the resolve's archive step finds nothing to file. Idempotent.
+ */
+export async function resolveDiscarded(
+  db: Executor,
+  input: { threadId: string; now?: Date },
+): Promise<{ changed: boolean; conversation: ConversationRow | null }> {
+  const now = input.now ?? new Date();
+  return db.transaction(async (tx) => {
+    const locked = await lockConversation(tx, input.threadId, null);
+    if (!locked || locked.kind !== "shared") return { changed: false, conversation: null };
+    const { kind: _kind, ...row } = locked;
+    const still = (await tx.execute(
+      sql`select 1 from ${threads} t where t.id = ${row.id} and ${discarded}`,
+    )) as unknown as unknown[];
+    if (still.length === 0) return { changed: false, conversation: row };
+    const applied = await applyStatus(tx, row, { type: "resolve" }, now, null, {
+      data: { reason: "discarded_elsewhere" },
+    });
+    return { changed: applied.changed, conversation: applied.row };
+  });
+}
+
 /** Snoozed conversations whose time has come, oldest first, for the snooze cron. */
 export async function dueSnoozes(db: Executor, now: Date, limit = 500) {
   return db

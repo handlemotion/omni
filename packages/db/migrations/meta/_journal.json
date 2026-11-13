@@ -176,6 +176,13 @@
       "when": 1794517601065,
       "tag": "0024_thread_merged",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794528891660,
+      "tag": "0025_message_sender",
+      "breakpoints": true
     }
   ]
 }

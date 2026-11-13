@@ -301,6 +301,12 @@ export class MailboxConnection extends EventEmitter<Events> {
           );
           if (pruned.messages > 0) this.log.info("sync.pruned", pruned);
         }
+        // Every folder's copies are known now: a conversation deleted in another mail app is
+        // only in Trash. Not on a partial pass, which may not have seen INBOX or the archive.
+        if (clean) {
+          const discarded = await this.store.reportDiscarded(this.mailbox.id);
+          if (discarded > 0) this.log.info("sync.discarded", { threads: discarded });
+        }
         this.log.info("sync.all_done", { folders: results.length, clean });
         return results;
       } finally {

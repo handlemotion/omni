@@ -99,10 +99,10 @@ function originalFiles(message: Message | undefined): ComposerFile[] {
     }));
 }
 
-/** Who a plain reply goes to: the sender, or for our own last message, whoever we wrote to. */
+/** Who a plain reply goes to: the sender, or for our (or a teammate's) last message, whoever we wrote to. */
 function replyRecipients(message: Message | undefined): string[] {
   if (!message) return [];
-  return message.fromMe ? message.to.map((a) => a.address) : [message.fromAddress];
+  return message.fromTeam ? message.to.map((a) => a.address) : [message.fromAddress];
 }
 
 type Mode = "reply" | "forward" | "note";

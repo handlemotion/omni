@@ -317,10 +317,13 @@ test("a thread reads as chat: who wrote it, bubble or card, who was added, no st
     `/threads/${first.threadId}`,
     cookie,
   );
+  // The reply came from the shared address but not from Ana in Omni (no `sent_by_member_id`, as
+  // when another mail app sent it): the team's, not hers.
   expect(thread.messages).toMatchObject([
-    { fromMe: false, display: "card", hasHtml: true, addedParticipants: [] },
+    { fromTeam: false, fromMe: false, display: "card", hasHtml: true, addedParticipants: [] },
     {
-      fromMe: true,
+      fromTeam: true,
+      fromMe: false,
       display: "bubble",
       hasHtml: false,
       addedParticipants: [{ address: "marta@client.test" }],

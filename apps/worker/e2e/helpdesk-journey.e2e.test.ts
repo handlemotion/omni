@@ -266,6 +266,23 @@ test("a customer's mail goes from Unassigned to resolved and archived, with note
   expect(afterReply.events.filter((e) => e.kind === "first_response")).toHaveLength(1);
   expect(await inView("pending")).toBe(true);
 
+  // The reply records who sent it: Ana's reads as hers, Bea sees it as the team's (grey, right).
+  const replyFor = async (cookie: string) => {
+    const thread = await call(cookie, "GET", `/threads/${threadId}`);
+    const messages = (thread.body as unknown as { messages: ReplyView[] }).messages;
+    return messages.find((m) => m.messageIdHeader === replyMessageId);
+  };
+  expect(await replyFor(ana)).toMatchObject({
+    sentByMemberId: anaId,
+    fromMe: true,
+    fromTeam: true,
+  });
+  expect(await replyFor(beaCookie)).toMatchObject({
+    sentByMemberId: anaId,
+    fromMe: false,
+    fromTeam: true,
+  });
+
   // 6. The customer answers: it reopens.
   await deliver({
     from: `Luis Ortega <${customer}>`,
@@ -382,6 +399,91 @@ test("a conversation deleted in another mail app leaves the helpdesk", async () 
     expect([view, page.body.conversations.map((c: { id: string }) => c.id)]).toEqual([view, []]);
   }
 });
+
+test("a conversation moved to Trash in another mail app is resolved, and a reopen sticks", async () => {
+  const { db } = stack.database;
+  const owner = await stack.workspaceWithDomain();
+  const support = `support@${owner.domain}`;
+  const created = await stack.api(owner.jar, "POST", "/onboarding/mailboxes", {
+    domainId: owner.domainId,
+    localPart: "support",
+    login: {
+      password: "app-password",
+      imap: { host: greenmail.host, port: greenmail.imapPort },
+      smtp: { host: greenmail.host, port: greenmail.smtpPort },
+    },
+  });
+  const mailboxId = created.body.mailboxId as string;
+  await waitFor(async () => {
+    const [row] = await db
+      .select({ status: schema.mailboxes.status })
+      .from(schema.mailboxes)
+      .where(eq(schema.mailboxes.id, mailboxId));
+    return row?.status === "active";
+  });
+  const ana = owner.jar.header;
+  const subject = `Win a cruise ${randomUUID().slice(0, 6)}`;
+  await deliver({ from: "promo@outside.test", to: support, subject, text: "Click here." });
+  const ids = async (view: string) =>
+    (
+      await call(ana, "GET", `/conversations?mailboxId=${mailboxId}&view=${view}`)
+    ).body.conversations.map((c: { id: string }) => c.id);
+  const threadId = await waitFor(async () => {
+    const view = await call(ana, "GET", `/conversations?mailboxId=${mailboxId}&view=open`);
+    return view.body.conversations?.find((c: { subject: string }) => c.subject === subject)?.id as
+      | string
+      | undefined;
+  });
+  const conversation = async () =>
+    (await call(ana, "GET", `/threads/${threadId}/conversation`)).body as unknown as {
+      status: string;
+      events: { kind: string; actorMemberId: string | null; data: Record<string, unknown> }[];
+    };
+
+  // Apple Mail's delete: move to Trash (and expunge from INBOX).
+  await mailApp(support, async (client) => {
+    await client.mailboxCreate("Trash").catch(() => {});
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      const uids = (await client.search({ subject }, { uid: true })) || [];
+      expect(uids).toHaveLength(1);
+      await client.messageMove(uids, "Trash", { uid: true });
+    } finally {
+      lock.release();
+    }
+  });
+  await stack.service.supervisor.syncAll();
+  await stack.service.supervisor.syncAll();
+
+  // Resolved by Omni, with a line that says why; it leaves Open and Unassigned.
+  await waitFor(async () => (await conversation()).status === "resolved");
+  expect((await conversation()).events.filter((e) => e.kind === "status")).toEqual([
+    expect.objectContaining({
+      actorMemberId: null,
+      data: expect.objectContaining({ to: "resolved", reason: "discarded_elsewhere" }),
+    }),
+  ]);
+  for (const view of ["open", "unassigned"]) {
+    expect([view, await ids(view)]).toEqual([view, expect.not.arrayContaining([threadId])]);
+  }
+  // Nothing moved on the server: the mail stays in Trash.
+  expect(await folderSubjects(support, "Trash")).toContain(subject);
+
+  // A teammate reopens it in Omni: later syncs leave it open (no resolve loop).
+  expect((await call(ana, "POST", `/threads/${threadId}/reopen`)).status).toBe(200);
+  await stack.service.supervisor.syncAll();
+  await stack.service.supervisor.syncAll();
+  expect((await conversation()).status).toBe("open");
+  expect(await ids("open")).toContain(threadId);
+});
+
+/** A message as `GET /threads/:id` answers, the fields the sender check reads. */
+interface ReplyView {
+  messageIdHeader: string;
+  sentByMemberId: string | null;
+  fromMe: boolean;
+  fromTeam: boolean;
+}
 
 function s3() {
   return createS3Store({

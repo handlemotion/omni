@@ -144,22 +144,34 @@ export async function enqueuePerFolder(
 }
 
 /**
- * The thread as both views read it: chat mode uses `cleanText`, `fromMe`, `display` and
- * `addedParticipants`; email mode uses `hasHtml` and the HTML route. Storage keys stay inside.
+ * The thread as both views read it: chat mode uses `cleanText`, `fromMe`, `fromTeam`, `display`
+ * and `addedParticipants`; email mode uses `hasHtml` and the HTML route. Storage keys stay inside.
+ *
+ * `fromTeam`: sent from this mailbox's address. `fromMe`: sent by the reader. On a personal
+ * mailbox the two are the same; on a shared inbox only the replies the reader sent from Omni are
+ * theirs (`sentByMemberId`), and a teammate's (or one sent from another mail app) is the team's.
  */
-function threadResponse(thread: NonNullable<Awaited<ReturnType<MemberQueries["getThread"]>>>) {
+function threadResponse(
+  thread: NonNullable<Awaited<ReturnType<MemberQueries["getThread"]>>>,
+  memberId: string,
+) {
   const self = thread.mailboxAddress.toLowerCase();
   const added = addedParticipants(thread.messages);
   return {
     ...thread,
-    messages: thread.messages.map(({ r2Key: _raw, htmlR2Key, attachments, ...message }, i) => ({
-      ...message,
-      fromMe: message.fromAddress.toLowerCase() === self,
-      display: messageDisplay(message.cleanText),
-      hasHtml: htmlR2Key !== null,
-      addedParticipants: added[i] ?? [],
-      attachments: attachments.map(({ r2Key: _key, ...file }) => file),
-    })),
+    messages: thread.messages.map(({ r2Key: _raw, htmlR2Key, attachments, ...message }, i) => {
+      const fromTeam = message.fromAddress.toLowerCase() === self;
+      return {
+        ...message,
+        fromTeam,
+        fromMe:
+          fromTeam && (thread.mailboxKind === "personal" || message.sentByMemberId === memberId),
+        display: messageDisplay(message.cleanText),
+        hasHtml: htmlR2Key !== null,
+        addedParticipants: added[i] ?? [],
+        attachments: attachments.map(({ r2Key: _key, ...file }) => file),
+      };
+    }),
   };
 }
 
@@ -184,7 +196,7 @@ export const mail = new Hono<AppEnv>()
   .get("/threads/:id", async (c) => {
     const thread = await forMember(c.var.db, c.var.member.id).getThread(c.req.param("id"));
     if (!thread) notFound();
-    return c.json(threadResponse(thread));
+    return c.json(threadResponse(thread, c.var.member.id));
   })
 
   /** Per mailbox: inbox and unread inbox threads, queued threads, and inbox threads per lane. */

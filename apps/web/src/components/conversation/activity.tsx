@@ -78,6 +78,8 @@ function useDescribe(mailboxId: string) {
         if (cause === "snooze_expired") return "Back from snooze";
         // A reply moves it to Pending each time: the reply itself says so.
         if (cause === "agent_reply") return null;
+        if (data.reason === "discarded_elsewhere")
+          return "Resolved: moved to Trash or Junk in another mail app";
         const who = actor ?? "Omni";
         if (data.to === "resolved") return `${who} resolved this`;
         if (data.to === "snoozed") {

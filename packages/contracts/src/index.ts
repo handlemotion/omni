@@ -77,11 +77,25 @@ export const threadsMergedEventSchema = z.object({
   fromThreadIds: z.array(z.string().min(1)).min(1),
 });
 
+/**
+ * Shared conversations whose mail was all moved to Trash or Junk in another mail app (Apple
+ * Mail's delete), found at the end of a full sync. The Worker resolves each one that still
+ * qualifies (`resolveDiscarded`) and refreshes open apps. Sent again by every full sync until
+ * resolved, so a lost event only delays it; idempotent.
+ */
+export const threadsDiscardedEventSchema = z.object({
+  type: z.literal("threads.discarded"),
+  orgId: z.string().min(1),
+  mailboxId: z.string().min(1),
+  threadIds: z.array(z.string().min(1)).min(1).max(MAX_PRUNED_THREADS_PER_EVENT),
+});
+
 export const mailEventSchema = z.discriminatedUnion("type", [
   messageCreatedEventSchema,
   actionFailedEventSchema,
   messagesPrunedEventSchema,
   threadsMergedEventSchema,
+  threadsDiscardedEventSchema,
 ]);
 
 export const MAX_EVENTS_PER_REQUEST = 100;

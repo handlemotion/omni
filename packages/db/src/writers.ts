@@ -74,10 +74,19 @@ export async function upsertMessage(db: Db, input: NewMessage & { attachments?: 
   return db.transaction(async (tx) => {
     const [row] = await tx
       .insert(messages)
-      .values(message)
+      .values({
+        ...message,
+        // Our own send: the teammate who queued it. Read from the outbox rather than passed in,
+        // so the Sent copy found by a sync (or a full re-sync) records it as well.
+        sentByMemberId: sql`(select ${mailActions.memberId} from ${mailActions}
+          where ${mailActions.mailboxId} = ${message.mailboxId} and ${mailActions.kind} = 'send'
+            and ${mailActions.payload} ->> 'messageId' = ${message.messageIdHeader}
+          limit 1)`,
+      })
       .onConflictDoUpdate({
         target: [messages.mailboxId, messages.messageIdHeader],
         set: {
+          sentByMemberId: sql`coalesce(${messages.sentByMemberId}, excluded.sent_by_member_id)`,
           folderId: sql`coalesce(excluded.folder_id, ${messages.folderId})`,
           imapUid: sql`coalesce(excluded.imap_uid, ${messages.imapUid})`,
           r2Key: sql`coalesce(excluded.r2_key, ${messages.r2Key})`,

@@ -113,6 +113,13 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     },
     // Not swept either: lost, open apps show the merged threads until their next refresh.
     onMerged: (merged) => notifier.push({ type: "threads.merged", ...merged }),
+    // Not swept either: the next full sync finds the same conversations again.
+    onDiscarded: ({ threadIds, ...discarded }) => {
+      for (let i = 0; i < threadIds.length; i += MAX_PRUNED_THREADS_PER_EVENT) {
+        const chunk = threadIds.slice(i, i + MAX_PRUNED_THREADS_PER_EVENT);
+        notifier.push({ type: "threads.discarded", ...discarded, threadIds: chunk });
+      }
+    },
     objects,
     links: { imageProxyUrl: config.IMAGE_PROXY_URL, attachmentUrl: config.ATTACHMENT_URL },
   });

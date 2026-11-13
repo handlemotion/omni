@@ -894,7 +894,11 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
       // One round trip: the three reads are independent and each carries the access check.
       const [[thread], rows, files] = await Promise.all([
         db
-          .select({ ...threadFields, mailboxAddress: mailboxes.address })
+          .select({
+            ...threadFields,
+            mailboxAddress: mailboxes.address,
+            mailboxKind: mailboxes.kind,
+          })
           .from(threads)
           .innerJoin(...threadGrant)
           .innerJoin(...threadOrg)

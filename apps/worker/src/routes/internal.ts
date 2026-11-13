@@ -7,7 +7,7 @@ import {
   mailEventSchema,
   type MailEvent,
 } from "@omni/contracts";
-import { applyInboundMessage, recordCustomer } from "@omni/db";
+import { applyInboundMessage, recordCustomer, resolveDiscarded } from "@omni/db";
 import { z } from "zod";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
@@ -116,6 +116,24 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     if (merged.length) {
       await fanOut(c.env, db, config, mergedThreads(merged));
       await announceMerges(c.env, db, merged);
+    }
+    // Deleted or junked in another mail app: resolve what still qualifies, then refresh.
+    const discarded = events.filter((e) => e.type === "threads.discarded");
+    if (discarded.length) {
+      const resolved = new Map<string, Set<string>>();
+      for (const event of discarded) {
+        for (const threadId of event.threadIds) {
+          const result = await resolveDiscarded(db, { threadId });
+          if (!result.changed) continue;
+          const threads = resolved.get(event.mailboxId) ?? new Set();
+          threads.add(threadId);
+          resolved.set(event.mailboxId, threads);
+        }
+      }
+      log.info("threads.discarded", {
+        resolved: [...resolved.values()].reduce((n, t) => n + t.size, 0),
+      });
+      if (resolved.size) await fanOut(c.env, db, config, resolved);
     }
     await notifyFailedActions(c.env, failed);
   } finally {

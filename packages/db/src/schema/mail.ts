@@ -579,6 +579,14 @@ export const messages = pgTable(
      * SLA). Claimed once, so a redelivered `message.created` cannot apply an old message again.
      */
     workflowAppliedAt: timestamptz("workflow_applied_at"),
+    /**
+     * The teammate whose send this is: the member on the outbox `send` action with this
+     * Message-ID. Null for mail from anyone else, a send from another mail app, or after the
+     * member is removed. Lets a shared inbox tell your replies from a teammate's.
+     */
+    sentByMemberId: text("sent_by_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
     searchVector: tsvector("search_vector")
       .notNull()
       .generatedAlwaysAs(
@@ -753,6 +761,10 @@ export const mailActions = pgTable(
     index("mail_actions_claim_idx")
       .on(t.runAfter)
       .where(sql`${t.status} in ('pending', 'running')`),
+    // Indexing a sent message finds the send (and who asked for it) by its Message-ID.
+    index("mail_actions_send_message_id_idx")
+      .on(t.mailboxId, sql`(${t.payload} ->> 'messageId')`)
+      .where(sql`${t.kind} = 'send'`),
   ],
 );
 

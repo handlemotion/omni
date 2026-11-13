@@ -75,6 +75,11 @@ export interface MailStore {
     mailboxId: string,
     messageIds: string[],
   ): Promise<{ messages: number; threads: number; threadIds: string[] }>;
+  /**
+   * After a full sync: report shared conversations whose mail is all in Trash or Junk, so the
+   * Worker resolves them. Returns how many it reported.
+   */
+  reportDiscarded(mailboxId: string): Promise<number>;
 }
 
 // Outbox (`mail_actions`). UIDs mean nothing without their folder's UIDVALIDITY, so every action
