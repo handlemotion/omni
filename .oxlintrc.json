@@ -52,7 +52,6 @@
     },
     {
       "files": [
-        "apps/mail/src/mailbox-connection.ts",
         "apps/web/src/components/conversation/activity.tsx",
         "apps/web/src/components/inbox/thread-list.tsx",
         "apps/web/src/components/settings/account-pages.tsx",
@@ -76,11 +75,7 @@
       }
     },
     {
-      "files": [
-        "apps/mail/src/mailbox-connection.ts",
-        "apps/worker/src/routes/internal.ts",
-        "packages/mail-core/src/sanitize.test.ts"
-      ],
+      "files": ["apps/worker/src/routes/internal.ts", "packages/mail-core/src/sanitize.test.ts"],
       "rules": {
         "max-depth": "off"
       }

@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { Data, Deferred, Duration, Effect, Fiber, Schedule, Semaphore } from "effect";
-import { type FetchMessageObject, ImapFlow, type ListResponse } from "imapflow";
+import { type FetchMessageObject, ImapFlow, type ListResponse, type MailboxObject } from "imapflow";
+import { type FolderSyncPlan, planFolderSync } from "@omni/mail-core/folder-sync";
 import type { Logger } from "./log.ts";
 import type {
   FetchedMessage,
@@ -611,8 +612,6 @@ export class MailboxConnection extends EventEmitter<Events> {
    */
   private async syncFolderNow(path: string): Promise<FolderSyncResult> {
     const client = this.requireClient();
-    const mailboxId = this.mailbox.id;
-    const role = this.folders.find((f) => f.path === path)?.role ?? "other";
     this.throwIfStopped();
     const lock = await client.getMailboxLock(path);
     try {
@@ -627,139 +626,200 @@ export class MailboxConnection extends EventEmitter<Events> {
         reset: false,
         mode: "uid-diff",
       };
-
-      let position = await this.store.getSyncPosition(mailboxId, path);
-      if (position && position.uidValidity !== box.uidValidity) {
-        this.log.warn("sync.uidvalidity_changed", {
-          folder: path,
-          was: position.uidValidity,
-          now: box.uidValidity,
-        });
-        await this.store.resetFolder(mailboxId, path);
-        position = null;
-        result.reset = true;
-      }
-      if (!position) {
-        // Record UIDVALIDITY before importing, so a crash mid-import still detects a reset later.
-        position = { uidValidity: box.uidValidity, highestModseq: null, uidNext: 0 };
-        await this.store.saveSyncPosition(mailboxId, path, position);
-      }
-
+      const position = await this.startPosition(path, box, result);
       const serverModseq =
         this.capabilities?.condstore && !box.noModseq ? (box.highestModseq ?? null) : null;
-      const index = await this.store.folderIndex(mailboxId, path);
-      const useCondstore = serverModseq !== null && position.highestModseq !== null;
-      if (useCondstore) result.mode = "condstore";
+      const index = await this.store.folderIndex(this.mailbox.id, path);
+      const plan = planFolderSync(
+        position,
+        { uidNext: box.uidNext, exists: box.exists, highestModseq: serverModseq },
+        index.size,
+      );
+      result.mode = plan.mode;
+      if (plan.mode === "unchanged") return result;
 
-      if (
-        useCondstore &&
-        serverModseq === position.highestModseq &&
-        box.uidNext === position.uidNext &&
-        box.exists === index.size
-      ) {
-        result.mode = "unchanged";
-        return result;
-      }
-
-      // The UID list is the only way to see expunges without QRESYNC. CONDSTORE can skip it when
-      // nothing was appended (same UIDNEXT) and the count still matches: only flags changed.
-      const sameUids =
-        useCondstore && box.uidNext === position.uidNext && box.exists === index.size;
-      const serverUids = sameUids
-        ? [...index.keys()]
-        : box.exists === 0
-          ? []
-          : (await client.search({ all: true }, { uid: true })) || [];
-      const onServer = new Set(serverUids);
-      const removed = [...index.keys()].filter((uid) => !onServer.has(uid));
-      const added = serverUids.filter((uid) => !index.has(uid)).toSorted((a, b) => b - a);
-
-      const flagChanges: FlagChange[] = [];
-      if (box.exists > 0 && index.size > 0) {
-        const changedSince = useCondstore ? (position.highestModseq as bigint) : undefined;
-        for await (const msg of client.fetch(
-          "1:*",
-          { uid: true, flags: true },
-          { uid: true, changedSince },
-        )) {
-          const known = index.get(msg.uid);
-          const flags = sortedFlags(msg.flags);
-          if (known && !sameFlags(known, flags)) {
-            flagChanges.push({ uid: msg.uid, flags, modseq: msg.modseq ?? null });
-          }
-        }
-      }
-
-      if (removed.length > 0) await this.store.removeMessages(mailboxId, path, removed);
-      if (flagChanges.length > 0) await this.store.applyFlags(mailboxId, path, flagChanges);
-      result.removed = removed.length;
-      result.flagsChanged = flagChanges.length;
-
-      let consecutiveFailures = 0;
-      const store = async (fetched: FetchedMessage) => {
-        try {
-          const { created } = await this.store.storeMessage(mailboxId, fetched);
-          consecutiveFailures = 0;
-          if (created) {
-            result.added++;
-            this.emit("message", { mailboxId, folder: path, role, uid: fetched.uid });
-          }
-        } catch (error) {
-          // One unparseable or unstorable message must not block the folder. It stays out of the
-          // index, so the next sync's UID diff retries it. A run of failures means storage is
-          // down: give up on the folder rather than walking the whole mailbox.
-          result.failed++;
-          consecutiveFailures++;
-          this.log.warn("sync.message_failed", { folder: path, uid: fetched.uid, error });
-          if (consecutiveFailures >= MAX_CONSECUTIVE_STORE_FAILURES) throw error;
-        }
-      };
-      for await (const { uids: batch, large } of this.sizedBatches(client, added)) {
-        this.throwIfStopped();
-        if (large) {
-          // One message too big to hold in memory: streamed to a temp file, never buffered.
-          const fetched = await this.fetchLarge(client, path, batch[0] ?? 0);
-          if (!fetched) continue;
-          try {
-            await store(fetched);
-          } finally {
-            if (isSpooled(fetched.raw)) await discard(fetched.raw.path);
-          }
-          this.throwIfStopped();
-          continue;
-        }
-        for await (const msg of client.fetch(
-          batch.join(","),
-          {
-            uid: true,
-            flags: true,
-            source: true,
-            internalDate: true,
-            ...(this.capabilities?.gmail ? { threadId: true } : {}),
-          },
-          { uid: true },
-        )) {
-          // Finish the message in hand, then stop; the rest of the batch is fetched next start.
-          if (this.stopped) continue;
-          if (!msg.source) continue;
-          await store({ ...fetchedFields(path, msg), raw: msg.source });
-        }
-        this.throwIfStopped();
-      }
+      const serverUids = await this.listServerUids(client, box, plan, index);
+      const added = await this.applyServerChanges(client, path, box, plan, index, serverUids);
+      result.removed = added.removed;
+      result.flagsChanged = added.flagsChanged;
+      await this.importMessages(client, path, added.uids, result);
 
       // A message that failed to store keeps the old UIDNEXT, so the next sync diffs UIDs again.
-      const next: SyncPosition = {
+      await this.store.saveSyncPosition(this.mailbox.id, path, {
         uidValidity: box.uidValidity,
         highestModseq: serverModseq,
         uidNext: result.failed > 0 ? position.uidNext : box.uidNext,
-      };
-      await this.store.saveSyncPosition(mailboxId, path, next);
+      });
       if (result.added || result.removed || result.flagsChanged || result.reset || result.failed) {
         this.log.info("sync.folder", { ...result });
       }
       return result;
     } finally {
       lock.release();
+    }
+  }
+
+  /**
+   * The folder's stored position, reset when the server's UIDVALIDITY changed. A new position
+   * is saved before anything is imported, so a crash mid-import still detects a later reset.
+   */
+  private async startPosition(
+    path: string,
+    box: MailboxObject,
+    result: FolderSyncResult,
+  ): Promise<SyncPosition> {
+    const mailboxId = this.mailbox.id;
+    const stored = await this.store.getSyncPosition(mailboxId, path);
+    if (stored && stored.uidValidity === box.uidValidity) return stored;
+    if (stored) {
+      this.log.warn("sync.uidvalidity_changed", {
+        folder: path,
+        was: stored.uidValidity,
+        now: box.uidValidity,
+      });
+      await this.store.resetFolder(mailboxId, path);
+      result.reset = true;
+    }
+    const position = { uidValidity: box.uidValidity, highestModseq: null, uidNext: 0 };
+    await this.store.saveSyncPosition(mailboxId, path, position);
+    return position;
+  }
+
+  /** Every UID in the folder; the stored index stands in when the plan says nothing moved. */
+  private async listServerUids(
+    client: ImapFlow,
+    box: MailboxObject,
+    plan: ChangedPlan,
+    index: Map<number, string[]>,
+  ): Promise<number[]> {
+    if (!plan.listUids) return [...index.keys()];
+    if (box.exists === 0) return [];
+    return (await client.search({ all: true }, { uid: true })) || [];
+  }
+
+  /**
+   * Drops expunged messages and applies flag changes. Returns the counts and the UIDs still to
+   * import, newest first.
+   */
+  private async applyServerChanges(
+    client: ImapFlow,
+    path: string,
+    box: MailboxObject,
+    plan: ChangedPlan,
+    index: Map<number, string[]>,
+    serverUids: number[],
+  ) {
+    const mailboxId = this.mailbox.id;
+    const onServer = new Set(serverUids);
+    const removed = [...index.keys()].filter((uid) => !onServer.has(uid));
+    const flagChanges =
+      box.exists > 0 && index.size > 0
+        ? await this.changedFlags(client, index, plan.changedSince)
+        : [];
+    if (removed.length > 0) await this.store.removeMessages(mailboxId, path, removed);
+    if (flagChanges.length > 0) await this.store.applyFlags(mailboxId, path, flagChanges);
+    return {
+      removed: removed.length,
+      flagsChanged: flagChanges.length,
+      uids: serverUids.filter((uid) => !index.has(uid)).toSorted((a, b) => b - a),
+    };
+  }
+
+  /** Stored messages whose flags differ on the server (only those changed since, with CONDSTORE). */
+  private async changedFlags(
+    client: ImapFlow,
+    index: Map<number, string[]>,
+    changedSince: bigint | undefined,
+  ): Promise<FlagChange[]> {
+    const changes: FlagChange[] = [];
+    for await (const msg of client.fetch(
+      "1:*",
+      { uid: true, flags: true },
+      { uid: true, changedSince },
+    )) {
+      const known = index.get(msg.uid);
+      const flags = sortedFlags(msg.flags);
+      if (known && !sameFlags(known, flags)) {
+        changes.push({ uid: msg.uid, flags, modseq: msg.modseq ?? null });
+      }
+    }
+    return changes;
+  }
+
+  /** Fetches and stores `uids` (newest first) in bounded batches, counting into `result`. */
+  private async importMessages(
+    client: ImapFlow,
+    path: string,
+    uids: number[],
+    result: FolderSyncResult,
+  ): Promise<void> {
+    const store = this.messageStorer(path, result);
+    for await (const { uids: batch, large } of this.sizedBatches(client, uids)) {
+      this.throwIfStopped();
+      if (large) await this.importLarge(client, path, batch[0] ?? 0, store);
+      else await this.importBatch(client, path, batch, store);
+      this.throwIfStopped();
+    }
+  }
+
+  /**
+   * Stores one fetched message. One unparseable or unstorable message must not block the
+   * folder: it stays out of the index, so the next sync's UID diff retries it. A run of
+   * failures means storage is down, so the folder gives up rather than walking the mailbox.
+   */
+  private messageStorer(path: string, result: FolderSyncResult) {
+    const mailboxId = this.mailbox.id;
+    const role = this.folders.find((f) => f.path === path)?.role ?? "other";
+    let consecutiveFailures = 0;
+    return async (fetched: FetchedMessage) => {
+      try {
+        const { created } = await this.store.storeMessage(mailboxId, fetched);
+        consecutiveFailures = 0;
+        if (!created) return;
+        result.added++;
+        this.emit("message", { mailboxId, folder: path, role, uid: fetched.uid });
+      } catch (error) {
+        result.failed++;
+        consecutiveFailures++;
+        this.log.warn("sync.message_failed", { folder: path, uid: fetched.uid, error });
+        if (consecutiveFailures >= MAX_CONSECUTIVE_STORE_FAILURES) throw error;
+      }
+    };
+  }
+
+  /** One message too big to hold in memory: streamed to a temp file, never buffered. */
+  private async importLarge(
+    client: ImapFlow,
+    path: string,
+    uid: number,
+    store: (fetched: FetchedMessage) => Promise<void>,
+  ): Promise<void> {
+    const fetched = await this.fetchLarge(client, path, uid);
+    if (!fetched) return;
+    try {
+      await store(fetched);
+    } finally {
+      if (isSpooled(fetched.raw)) await discard(fetched.raw.path);
+    }
+  }
+
+  private async importBatch(
+    client: ImapFlow,
+    path: string,
+    batch: number[],
+    store: (fetched: FetchedMessage) => Promise<void>,
+  ): Promise<void> {
+    const query = {
+      uid: true,
+      flags: true,
+      source: true,
+      internalDate: true,
+      ...(this.capabilities?.gmail ? { threadId: true } : {}),
+    };
+    for await (const msg of client.fetch(batch.join(","), query, { uid: true })) {
+      // Finish the message in hand, then stop; the rest of the batch is fetched next start.
+      if (this.stopped || !msg.source) continue;
+      await store({ ...fetchedFields(path, msg), raw: msg.source });
     }
   }
 
@@ -876,3 +936,5 @@ function sortedFlags(flags: Set<string> | undefined): string[] {
 function sameFlags(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((flag, i) => flag === b[i]);
 }
+
+type ChangedPlan = Exclude<FolderSyncPlan, { mode: "unchanged" }>;
