@@ -9,6 +9,7 @@ import {
   parseDomain,
   purelymailDnsRecords,
   purelymailDomainState,
+  purelymailUsernameProblem,
 } from "./domains.ts";
 
 const fixture = (name: string) =>
@@ -148,6 +149,7 @@ describe("purelymailDomainState", () => {
     expect(purelymailDomainState(result, "acme.com")).toEqual({
       added: true,
       checks: { ownership: true, mx: true, spf: true, dkim: false, dmarc: false },
+      symbolicSubaddressing: true,
     });
     expect(purelymailDomainState(result, "mail.example.org").checks.dkim).toBe(true);
   });
@@ -164,5 +166,17 @@ describe("purelymailDomainState", () => {
     expect(() =>
       purelymailDomainState({ domains: [{ name: "acme.com", dnsSummary: {} }] }, "acme.com"),
     ).toThrow(/passesMx/);
+  });
+});
+
+describe("purelymailUsernameProblem", () => {
+  // Onboarding accepts first.last and support-team; with symbolic subaddressing on, Purelymail
+  // refuses them, and the member saw a bare 502 from the provider instead of a reason.
+  test("refuses names with a symbol only where the domain reads symbols as tags", () => {
+    for (const address of ["first.last@acme.com", "support-team@acme.com", "a_b@acme.com"]) {
+      expect(purelymailUsernameProblem(address, true)).toMatch(/Use only letters and digits/);
+      expect(purelymailUsernameProblem(address, false)).toBeNull();
+    }
+    expect(purelymailUsernameProblem("hello2@acme.com", true)).toBeNull();
   });
 });

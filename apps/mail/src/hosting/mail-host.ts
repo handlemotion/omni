@@ -29,7 +29,15 @@ export interface MailHost {
   issueLogin(address: string): Promise<PasswordCredentials>;
 }
 
-/** The host refused or could not be reached. `message` is safe to show the member. */
+/**
+ * The host refused or could not be reached. `message` is safe to show the member. `status` 422:
+ * the request itself is wrong (fix the input); 502: the host failed or is unreachable.
+ */
 export class MailHostError extends Error {
   override name = "MailHostError";
+  readonly status: 422 | 502;
+  constructor(message: string, status: 422 | 502 = 502) {
+    super(message);
+    this.status = status;
+  }
 }

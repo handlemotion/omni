@@ -214,6 +214,11 @@ export interface PurelymailDomainState {
   /** On the account: the ownership record was found when it was added. */
   added: boolean;
   checks: Record<DnsCheck, boolean>;
+  /**
+   * The domain reads `.`, `-`, `_` and `+` in a name as the start of a tag (Purelymail's default
+   * for a new domain), so it refuses usernames that contain one. False when not on the account.
+   */
+  symbolicSubaddressing: boolean;
 }
 
 /**
@@ -231,6 +236,7 @@ export function purelymailDomainState(result: unknown, domain: string): Purelyma
     return {
       added: false,
       checks: { ownership: false, mx: false, spf: false, dkim: false, dmarc: false },
+      symbolicSubaddressing: false,
     };
   }
   const summary = entry.dnsSummary;
@@ -239,16 +245,36 @@ export function purelymailDomainState(result: unknown, domain: string): Purelyma
     if (typeof value !== "boolean") throw new TypeError(`listDomains: dnsSummary.${name} missing`);
     return value;
   };
-  return {
-    added: true,
-    checks: {
-      ownership: true,
-      mx: flag("passesMx"),
-      spf: flag("passesSpf"),
-      dkim: flag("passesDkim"),
-      dmarc: flag("passesDmarc"),
-    },
+  const checks = {
+    ownership: true,
+    mx: flag("passesMx"),
+    spf: flag("passesSpf"),
+    dkim: flag("passesDkim"),
+    dmarc: flag("passesDmarc"),
   };
+  const symbolic = (entry as { symbolicSubaddressing?: unknown }).symbolicSubaddressing;
+  if (typeof symbolic !== "boolean") {
+    throw new TypeError("listDomains: symbolicSubaddressing missing");
+  }
+  return { added: true, checks, symbolicSubaddressing: symbolic };
+}
+
+/**
+ * Why Purelymail would refuse `address` as a new user, or null. With symbolic subaddressing on,
+ * it refuses any name with a symbol (verified live 2026-11-13: `.`, `-`, `_` and `+` all answer
+ * `invalidUserName`), because mail to `first.last@` would route to `firstlast@`.
+ */
+export function purelymailUsernameProblem(
+  address: string,
+  symbolicSubaddressing: boolean,
+): string | null {
+  const at = address.lastIndexOf("@");
+  const local = address.slice(0, at);
+  if (!symbolicSubaddressing || /^[a-z0-9]+$/.test(local)) return null;
+  return (
+    `${address.slice(at + 1)} treats ".", "-" and "_" in a name as the start of a tag, so ` +
+    `"${local}" cannot be its own mailbox there. Use only letters and digits.`
+  );
 }
 
 /** Each record with the result of its check. */

@@ -2,7 +2,12 @@
 // per login. Checks `listDomains` and `listUser` before adding, because Purelymail does not document
 // its error codes.
 import { randomBytes } from "node:crypto";
-import { purelymailDnsRecords, purelymailDomainState, withChecks } from "@omni/mail-core/domains";
+import {
+  purelymailDnsRecords,
+  purelymailDomainState,
+  purelymailUsernameProblem,
+  withChecks,
+} from "@omni/mail-core/domains";
 import type { Logger } from "../log.ts";
 import {
   type PurelymailClient,
@@ -18,10 +23,10 @@ export function createPurelymailHost(client: PurelymailClient, logger: Logger): 
       return await task();
     } catch (error) {
       logger.warn("provision.purelymail_failed", { error });
+      if (!(error instanceof PurelymailError)) throw new MailHostError("Purelymail is unreachable");
       throw new MailHostError(
-        error instanceof PurelymailError
-          ? `Purelymail: ${error.detail}`
-          : "Purelymail is unreachable",
+        `Purelymail: ${error.detail}`,
+        error.code === "invalidUserName" ? 422 : 502,
       );
     }
   }
@@ -38,6 +43,10 @@ export function createPurelymailHost(client: PurelymailClient, logger: Logger): 
       try {
         await client.addDomain(name);
         logger.info("provision.domain_added", { domain: name });
+        // Purelymail turns symbolic subaddressing on for a new domain, which refuses names like
+        // first.last@. Omni turns it off on domains it adds; domains already on the account keep
+        // their setting, and `issueLogin` refuses such names there with a reason.
+        await call(() => client.setSymbolicSubaddressing(name, false));
       } catch (error) {
         if (!(error instanceof PurelymailError)) {
           throw new MailHostError("Purelymail is unreachable");
@@ -61,6 +70,11 @@ export function createPurelymailHost(client: PurelymailClient, logger: Logger): 
     const at = address.lastIndexOf("@");
     const users = await call(() => client.listUsers());
     if (!users.includes(address)) {
+      // Refuse a name the domain cannot hold with a reason the member can act on, before asking.
+      const domainName = address.slice(at + 1);
+      const state = purelymailDomainState(await call(() => client.listDomains()), domainName);
+      const problem = purelymailUsernameProblem(address, state.symbolicSubaddressing);
+      if (problem) throw new MailHostError(problem, 422);
       // Omni never knows or keeps a mailbox's real password: this one is thrown away, and the
       // person sets their own through Purelymail when they want Apple Mail as a fallback.
       await call(() =>

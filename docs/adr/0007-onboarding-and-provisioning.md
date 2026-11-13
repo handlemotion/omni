@@ -109,3 +109,14 @@ client's calls (`getOwnershipCode`, `addDomain`, `updateDomainSettings`, `listDo
 `listUser`, `createUser`, `createAppPassword`) have not been run against the live API. Purelymail
 does not document its error codes, so the code avoids depending on them: it checks `listDomains`
 and `listUser` before adding.
+
+Update 2026-11-13: `apps/mail/e2e/purelymail-live.e2e.test.ts` now runs the hosted path against
+the production Purelymail account, confined to the test domain `e2e.omnidirectional.app`, when
+asked for (`PURELYMAIL_E2E=1`, never in CI). It provisions a mailbox through the signed route,
+syncs and sends through Purelymail, checks a retry issues no second app password, and checks a
+revoked app password puts the mailbox in `error`; every user it creates is deleted. What it found:
+Purelymail answers refusals with HTTP 200 and `{ "type": "error", code, message }`, and a new
+domain has symbolic subaddressing on, which refuses usernames with `.`, `-`, `_` or `+`
+(`invalidUserName`). Omni now turns that setting off on domains it adds, and refuses such names
+with a reason (422) on domains that keep it on. IMAP and SMTP ports are closed in cloud agent
+sessions, so the sync and send tests run from a developer machine.

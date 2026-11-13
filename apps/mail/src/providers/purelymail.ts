@@ -15,9 +15,12 @@ export class PurelymailError extends Error {
   override name = "PurelymailError";
   /** Purelymail's own explanation, safe to show (it never contains the token). */
   readonly detail: string;
+  /** Purelymail's error code, such as `invalidUserName`; mostly `internalError`. */
+  readonly code: string;
   constructor(method: string, status: number, code: string, detail: string) {
     super(`${method} failed (${status}): ${code} ${detail}`.trim());
     this.detail = detail || code;
+    this.code = code;
   }
 }
 
@@ -30,6 +33,11 @@ export interface PurelymailClient {
   addDomain(domainName: string): Promise<void>;
   /** Asks Purelymail to look at the domain's DNS again now. */
   recheckDns(domainName: string): Promise<void>;
+  /**
+   * Turns symbolic subaddressing on or off. Off, names like `first.last` and `support-team` can be
+   * mailboxes; `name+tag@` no longer reaches `name@`.
+   */
+  setSymbolicSubaddressing(domainName: string, enabled: boolean): Promise<void>;
   /** Every user on the account, as full addresses (up to 1000, per the API). */
   listUsers(): Promise<string[]>;
   createUser(input: { userName: string; domainName: string; password: string }): Promise<void>;
@@ -55,7 +63,8 @@ export function createPurelymailClient(token: string, fetchImpl = fetch): Purely
       message?: string;
     } | null;
     if (!response.ok || !json || json.result === undefined) {
-      // The error body carries a code and a message, never the token.
+      // Refusals come back as HTTP 200 with `{ type: "error", code, message }` and no `result`
+      // (seen live 2026-11-13). The body never carries the token.
       throw new PurelymailError(
         method,
         response.status,
@@ -78,6 +87,9 @@ export function createPurelymailClient(token: string, fetchImpl = fetch): Purely
     },
     async recheckDns(domainName) {
       await call("updateDomainSettings", { name: domainName, recheckDns: true });
+    },
+    async setSymbolicSubaddressing(domainName, enabled) {
+      await call("updateDomainSettings", { name: domainName, symbolicSubaddressing: enabled });
     },
     async listUsers() {
       const { users } = await call<{ users?: unknown }>("listUser", {});

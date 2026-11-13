@@ -7,7 +7,7 @@
 //     DATABASE_URL=postgres://postgres:postgres@localhost:54329/omni \
 //     pnpm --filter @omni/mail test:e2e purelymail-live
 //
-// Every user it creates is named `omni-e2e-<random>` and deleted at the end, with its app passwords.
+// Every user it creates is named `omnie2e<random>` and deleted at the end, with its app passwords.
 // It sends one message from a test user to itself.
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
@@ -132,8 +132,10 @@ describe.runIf(requested)("Purelymail itself", () => {
     await fetch(`${serviceUrl}${MAIL_PING_PATH}`, { method: "POST", headers });
   }
 
-  /** An org that holds the test domain as Purelymail accepted it, as after onboarding. */
+  /** The org that holds the test domain as Purelymail accepted it, as after onboarding. */
+  let claimed: Awaited<ReturnType<typeof seedOwner>> | undefined;
   async function claimTestDomain() {
+    if (claimed) return claimed;
     const owner = await seedOwner(db);
     await db.insert(schema.mailDomains).values({
       orgId: owner.orgId,
@@ -141,7 +143,16 @@ describe.runIf(requested)("Purelymail itself", () => {
       provider: "purelymail",
       addedAt: new Date(),
     });
+    claimed = owner;
     return owner;
+  }
+
+  /**
+   * A fresh test user's address. Letters and digits only: with symbolic subaddressing on (the
+   * default for a new Purelymail domain) a name with `-`, `.`, `_` or `+` is refused.
+   */
+  function testAddress() {
+    return `omnie2e${randomBytes(4).toString("hex")}@${domain}`;
   }
 
   /** The stored login of a mailbox, as only this service can read it. */
@@ -172,7 +183,7 @@ describe.runIf(requested)("Purelymail itself", () => {
 
   it("creates a hosted mailbox that syncs and sends, and never issues a second login", async () => {
     const owner = await claimTestDomain();
-    const address = `omni-e2e-${randomBytes(4).toString("hex")}@${domain}`;
+    const address = testAddress();
     created.push(address);
     const body = {
       orgId: owner.orgId,
@@ -211,11 +222,28 @@ describe.runIf(requested)("Purelymail itself", () => {
       90_000,
     );
     expect(arrived.cleanText).toContain("to myself, on hosted mail");
+  }, 240_000);
+
+  // The test domain keeps Purelymail's default (symbolic subaddressing on), like any domain that
+  // was on the account before Omni turned it off for domains it adds.
+  it("refuses a name with a symbol on such a domain, with a reason and no user created", async () => {
+    const owner = await claimTestDomain();
+    const address = `omnie2e.${randomBytes(4).toString("hex")}@${domain}`;
+    const refused = await call<{ error: string }>(PROVISION_MAILBOX_PATH, {
+      orgId: owner.orgId,
+      address,
+      kind: "shared",
+      ownerMemberId: owner.memberId,
+      login: { provider: "purelymail" },
+    });
+    expect(refused.status).toBe(422);
+    expect(refused.json.error).toMatch(/Use only letters and digits/);
+    expect(await purelymail.listUsers()).not.toContain(address);
   });
 
   it("puts a hosted mailbox in error once its app password is revoked", async () => {
     const owner = await claimTestDomain();
-    const address = `omni-e2e-${randomBytes(4).toString("hex")}@${domain}`;
+    const address = testAddress();
     created.push(address);
     const { json } = await call<ProvisionMailboxResult>(PROVISION_MAILBOX_PATH, {
       orgId: owner.orgId,
@@ -233,5 +261,5 @@ describe.runIf(requested)("Purelymail itself", () => {
     await service.reconcileMailboxes();
     await waitFor(async () => (await mailboxStatus(db, mailboxId)) === "error", 60_000);
     expect(service.supervisor.connection(mailboxId)?.connected).toBe(false);
-  });
+  }, 240_000);
 });

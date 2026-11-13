@@ -53,12 +53,12 @@ export function createProvisioner(deps: {
   // passwords. This service runs as one machine (ADR 0004); the natural keys cover the rest.
   const running = new Map<string, Promise<ProvisionMailboxResult>>();
 
-  /** The host's answer; a refusal or an outage becomes a 502 that says which. */
+  /** The host's answer; a bad request becomes a 422, a host failure or outage a 502. */
   async function hosted<T>(task: () => Promise<T>): Promise<T> {
     try {
       return await task();
     } catch (error) {
-      if (error instanceof MailHostError) throw new ProvisionError(502, error.message);
+      if (error instanceof MailHostError) throw new ProvisionError(error.status, error.message);
       throw error;
     }
   }
