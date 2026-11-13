@@ -31,6 +31,9 @@ const ROW_CONTENT = "col-span-full flex min-w-0 items-center gap-3";
  *  24px under the group above, 16px over its own rows. Aligned with the avatars. */
 const GROUP_LABEL = "px-2.25 pt-4 pb-2 text-xs/4 sm:px-2.25 sm:pt-4 sm:pb-2 sm:text-xs/4";
 
+/** Three blank discs: the cluster's shape before any mailbox has a face. */
+const BLANK_FACES: Face[] = ["a", "b", "c"].map((key) => ({ key, name: "", image: null }));
+
 const failed = () => appToast.error("The mailbox could not be opened. Try again.");
 
 /** A mailbox as the switcher shows it: who it is and their picture, if any. */
@@ -142,6 +145,8 @@ export function MailboxSwitcher() {
   const shown = active?.mailboxes.find((box) => box.id === current);
   const pending = openWorkspace.isPending || openMailbox.isPending;
   const faces = all.flatMap((workspace) => workspace.mailboxes.map(face));
+  // With no mailbox yet the cluster keeps its three discs, blank, so All keeps its mark.
+  const clusterFaces = faces.length > 0 ? faces : BLANK_FACES;
 
   // The trigger shares the header with three buttons, leaving its label 65px: "All mailboxes"
   // (99px) would clip, so it says "All" beside the cluster, and a personal mailbox shows the
@@ -200,7 +205,7 @@ export function MailboxSwitcher() {
             // specks, so the discs are plain (pictures still show).
             <span className="-m-[2.5px]">
               <Cluster
-                faces={faces}
+                faces={clusterFaces}
                 size={20}
                 plain
                 ring="bg-sidebar group-hover/trigger:bg-accent group-aria-expanded/trigger:bg-accent"
@@ -231,7 +236,7 @@ export function MailboxSwitcher() {
           <RowBody
             lead={
               <Cluster
-                faces={faces}
+                faces={clusterFaces}
                 size={32}
                 // The ring is the fill behind the row: the menu's, or the hover highlight's.
                 ring="bg-overlay in-data-fluid-hover-active:bg-accent"

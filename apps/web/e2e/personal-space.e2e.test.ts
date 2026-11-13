@@ -95,6 +95,9 @@ test("someone in no company lands in their Personal space's inbox, not in compan
 test("an empty Personal space offers to connect Google or set up a company", async () => {
   const page = await signedIn(`empty-${Date.now()}@gmail.test`, "/inbox");
   await page.getByText("No accounts yet").waitFor({ timeout: 15_000 });
+  // The switcher's All mark keeps its three discs with no mailbox to draw them from.
+  const trigger = page.getByRole("button", { name: /^Switch mailbox/ });
+  expect(await trigger.locator("[data-slot=avatar]").count()).toBe(3);
   // Google is not set up on this install: setting up a company is the one way on.
   expect(await page.getByRole("button", { name: "Connect Google" }).count()).toBe(0);
   await page.getByRole("button", { name: "Set up a company" }).click();
