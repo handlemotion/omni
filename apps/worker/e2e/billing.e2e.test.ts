@@ -495,3 +495,38 @@ test("with no Stripe configuration there is no billing: no webhook, no limits, a
   );
   expect(webhook.status).toBe(404);
 }, 60_000);
+
+// Catches: a Personal space (ADR 0024) shown as read-only, or one that spends its owner's
+// account-wide trial or buys a plan, when it is free.
+test("a Personal space is free: no plan, no trial, no checkout, and writable", async () => {
+  const { db } = database;
+  const email = `personal-${randomUUID().slice(0, 8)}@omni.test`;
+  let cookie = await signIn(worker, db, email);
+  const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email));
+  const [space] = await db
+    .select({ orgId: schema.personalSpaces.orgId })
+    .from(schema.personalSpaces)
+    .where(eq(schema.personalSpaces.userId, user!.id));
+  // Stands in for `set-active`; drop the cached session so the next request reads it.
+  await db
+    .update(schema.sessions)
+    .set({ activeOrganizationId: space!.orgId })
+    .where(eq(schema.sessions.userId, user!.id));
+  cookie = cookie
+    .split("; ")
+    .filter((c) => !c.includes("session_data"))
+    .join("; ");
+
+  expect(await billing(cookie)).toMatchObject({ enabled: false });
+  for (const path of ["/billing/trial", "/billing/checkout"]) {
+    const response = await api(worker, path, cookie, {
+      method: "POST",
+      body: JSON.stringify({ interval: "month", returnPath: "/settings" }),
+    });
+    expect(response.status).toBe(403);
+  }
+  expect(
+    await db.select().from(schema.trialClaims).where(eq(schema.trialClaims.userId, user!.id)),
+  ).toEqual([]);
+  expect(await subscriptionRows(space!.orgId)).toEqual([]);
+});

@@ -52,7 +52,8 @@ export async function workspaceBilling(
   now = new Date(),
 ): Promise<WorkspaceBilling> {
   const billing = config.auth.billing;
-  if (!billing) return { enabled: false };
+  // A Personal space is free (ADR 0024): billing does not apply to it.
+  if (!billing || (await workspaceKind(db, orgId)) === "personal") return { enabled: false };
   const subscription = await workspaceSubscription(db, orgId);
   const paid = subscription !== null && isPaid(subscription.status);
   const window = paid ? period(subscription, now) : null;

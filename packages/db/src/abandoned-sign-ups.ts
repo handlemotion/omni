@@ -6,9 +6,9 @@
 import { and, asc, eq, gt, gte, inArray, lt, notExists, or, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { isCompany } from "./personal-space.ts";
-import { invitations, members, sessions, users } from "./schema/auth.ts";
+import { invitations, members, organizations, sessions, users } from "./schema/auth.ts";
 import { mailboxes } from "./schema/mail.ts";
-import { userEmails } from "./schema/identity.ts";
+import { personalSpaces, userEmails } from "./schema/identity.ts";
 
 /** How long an account with no workspace may sit unused before it is deleted. */
 export const ABANDONED_SIGN_UP_DAYS = 30;
@@ -90,8 +90,27 @@ export async function deleteAbandonedSignUps(
     .limit(limit)
     .for("update", { skipLocked: true });
 
-  return db
-    .delete(users)
-    .where(inArray(users.id, abandoned))
-    .returning({ id: users.id, image: users.image });
+  return db.transaction(async (tx) => {
+    const ids = (
+      await tx.select({ id: users.id }).from(users).where(inArray(users.id, abandoned))
+    ).map((row) => row.id);
+    if (ids.length === 0) return [];
+    // Their empty Personal spaces (ADR 0024) go with them: the user's delete cascades only to
+    // the `personal_spaces` row, which would leave the organization behind, owned by nobody.
+    await tx
+      .delete(organizations)
+      .where(
+        inArray(
+          organizations.id,
+          tx
+            .select({ id: personalSpaces.orgId })
+            .from(personalSpaces)
+            .where(inArray(personalSpaces.userId, ids)),
+        ),
+      );
+    return tx
+      .delete(users)
+      .where(inArray(users.id, ids))
+      .returning({ id: users.id, image: users.image });
+  });
 }

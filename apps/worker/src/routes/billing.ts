@@ -2,7 +2,13 @@
 // and the two ways out to Stripe. Checkout and the portal go through Better Auth's Stripe plugin,
 // always for the member's active workspace; its own /api/auth/subscription/* POSTs are closed.
 import { createStripeClient, mayManageBilling, PLAN_NAME } from "@omni/auth";
-import { claimTrial, createStripeSubscription, schema, trialUnavailable } from "@omni/db";
+import {
+  claimTrial,
+  createStripeSubscription,
+  schema,
+  trialUnavailable,
+  workspaceKind,
+} from "@omni/db";
 import { and, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -112,6 +118,10 @@ async function planPrice(
 }
 
 export async function requireBillingManager(c: { var: AppEnv["Variables"] }) {
+  // A Personal space is free (ADR 0024): no trial, checkout or portal for it.
+  if ((await workspaceKind(c.var.db, c.var.member.orgId)) === "personal") {
+    throw new HTTPException(403, { message: "a Personal space is free; it has no plan" });
+  }
   if (!(await mayManageBilling(c.var.db, c.var.user.id, c.var.member.orgId))) {
     throw new HTTPException(403, { message: "only owners and admins manage billing" });
   }

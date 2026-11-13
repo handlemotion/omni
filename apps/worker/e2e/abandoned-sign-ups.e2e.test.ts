@@ -1,10 +1,11 @@
 // The daily sweep of abandoned sign-ups, run through the real Worker's cron against Postgres and
 // its local R2 bucket: who is deleted, who must never be, and that the picture goes too.
 import { randomUUID } from "node:crypto";
-import { schema } from "@omni/db";
+import { ensurePersonalSpace, schema } from "@omni/db";
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
+  createMailbox,
   createMember,
   createOrg,
   createTestDatabase,
@@ -166,4 +167,24 @@ test("the daily cron deletes only accounts with no workspace, no way into one, a
   // A second run changes nothing.
   await runDaily();
   expect(await remaining(everyone)).toEqual(left);
+});
+
+// Catches: an abandoned account's Personal space (ADR 0024) left behind owned by nobody, or a
+// Personal space that holds mail counted as abandoned.
+test("an abandoned account's empty Personal space goes with it; one holding mail keeps its owner", async () => {
+  const { db } = database;
+  const gone = await signUp("personal-gone", 45);
+  const goneSpace = await ensurePersonalSpace(db, gone.id);
+  const kept = await signUp("personal-kept", 45);
+  const keptSpace = await ensurePersonalSpace(db, kept.id);
+  await createMailbox(db, keptSpace, `kept-${kept.id}@gmail.test`, "personal");
+
+  await runDaily();
+
+  expect(await remaining([gone.id, kept.id])).toEqual(new Set([kept.id]));
+  const spaces = await db
+    .select({ id: schema.organizations.id })
+    .from(schema.organizations)
+    .where(inArray(schema.organizations.id, [goneSpace, keptSpace]));
+  expect(spaces).toEqual([{ id: keptSpace }]);
 });
