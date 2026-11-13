@@ -117,9 +117,12 @@ describe("mail_actions outbox", () => {
     const total = 60;
     for (let i = 0; i < total; i++) await enqueue(`concurrent-${i}`);
 
-    // Separate connection pools, so the claims really race inside Postgres.
+    // Separate connection pools, so the claims really race inside Postgres. Each pool connects
+    // before the race: pools connect lazily, and on a loaded machine the first one used to drain
+    // every row before the others had a connection, so only one worker got work.
     const workers = Array.from({ length: 6 }, () => createDb(url, { max: 2 }));
     try {
+      await Promise.all(workers.map(({ db: worker }) => worker.execute(sql`select 1`)));
       const claimed = await Promise.all(
         workers.map(async ({ db: worker }) => {
           const ids: string[] = [];
