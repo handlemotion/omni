@@ -18,7 +18,7 @@ import { Heading } from "react-aria-components/Heading";
 import { useLocale } from "react-aria-components/I18nProvider";
 import { cn } from "cn";
 import { AriaButton as Button } from "./aria-button";
-import { Select, SelectContent, SelectItem, SelectLabel, SelectTrigger } from "./select";
+import { Select, SelectContent, SelectItem, SelectLabel, SelectTrigger } from "./aria-select";
 
 export interface CalendarProps<T extends DateValue> extends CalendarPrimitiveProps<T> {
   className?: string;

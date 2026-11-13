@@ -1,138 +1,231 @@
-import { ChevronUpDownIcon } from "@heroicons/react/20/solid";
-import { Button } from "react-aria-components/Button";
-import { ListBox, type ListBoxProps } from "react-aria-components/ListBox";
-import type { PopoverProps } from "react-aria-components/Popover";
+"use client";
+
+import { CheckIcon, ChevronUpDownIcon } from "@heroicons/react/20/solid";
+import { Field } from "@ui-sdk/react/field";
 import {
   Select as SelectPrimitive,
-  type SelectProps as SelectPrimitiveProps,
+  SelectContent as SelectContentPrimitive,
+  SelectItem as SelectItemPrimitive,
+  SelectItemIndicator,
+  SelectTrigger as SelectTriggerPrimitive,
   SelectValue,
-} from "react-aria-components/Select";
-import { twJoin } from "cn";
-import { cx } from "@/lib/primitive";
+} from "@ui-sdk/react/select";
 import {
-  DropdownDescription,
-  DropdownItem,
-  DropdownLabel,
-  DropdownSection,
-  DropdownSeparator,
-} from "./dropdown";
+  Children,
+  createContext,
+  isValidElement,
+  use,
+  type ReactElement,
+  type ReactNode,
+} from "react";
+import { cn, twJoin } from "cn";
+import { dropdownItemStyles, ItemLabel } from "./dropdown";
 import { fieldStyles } from "./field";
-import { AriaPopover as Popover } from "./aria-popover";
+import { toSideAlign, type Placement } from "./placement";
+import { popupSurface } from "./popover";
 
-export interface SelectProps<
-  T extends object,
-  M extends "single" | "multiple" = "single",
-> extends SelectPrimitiveProps<T, M> {
-  items?: Iterable<T, M>;
+type Key = string | number;
+
+/** What the trigger needs from the root: its name and id when there's no visible label. */
+const SelectTriggerContext = createContext<{ "aria-label"?: string; id?: string }>({});
+
+export interface SelectProps {
+  value?: Key | null;
+  defaultValue?: Key | null;
+  onChange?: (value: string | null) => void;
+  placeholder?: string;
+  isDisabled?: boolean;
+  isRequired?: boolean;
+  name?: string;
+  "aria-label"?: string;
+  /** The trigger's id, for a label elsewhere that points at it. */
+  id?: string;
+  className?: string;
+  /** A `Label`, a `SelectTrigger` and a `SelectContent`. */
+  children?: ReactNode;
 }
 
-export function Select<T extends object, M extends "single" | "multiple" = "single">({
+/**
+ * React Aria's `Select` shape on UI SDK's select: `<Select value onChange><Label/><SelectTrigger/>
+ * <SelectContent items>{(item) => <SelectItem id textValue/>}</SelectContent></Select>`. It sits
+ * in a UI SDK Field, so the `Label` inside names the trigger.
+ */
+export function Select({
+  value,
+  defaultValue,
+  onChange,
+  placeholder,
+  isDisabled,
+  isRequired,
+  name,
+  "aria-label": ariaLabel,
+  id,
   className,
-  ...props
-}: SelectProps<T, M>) {
+  children,
+}: SelectProps) {
   return (
-    <SelectPrimitive
-      data-slot="control"
-      className={cx(fieldStyles({ className: "group/select" }), className)}
-      {...props}
-    />
+    <Field disabled={isDisabled} className={cn(fieldStyles(), className)}>
+      <SelectPrimitive<string>
+        items={itemsOf(children)}
+        value={value === undefined ? undefined : value === null ? null : String(value)}
+        defaultValue={
+          defaultValue === undefined
+            ? undefined
+            : defaultValue === null
+              ? null
+              : String(defaultValue)
+        }
+        onValueChange={onChange && ((next) => onChange(next))}
+        placeholder={placeholder}
+        required={isRequired}
+        name={name}
+      >
+        <SelectTriggerContext value={{ "aria-label": ariaLabel, id }}>
+          {children}
+        </SelectTriggerContext>
+      </SelectPrimitive>
+    </Field>
   );
 }
 
-export interface SelectListProps<T extends object> extends Omit<
-  ListBoxProps<T>,
-  "layout" | "orientation"
-> {
+/**
+ * The items' values and labels, read from the `SelectContent` child, so the trigger can show the
+ * chosen label before the list has ever opened.
+ */
+function itemsOf(children: ReactNode) {
+  const content = Children.toArray(children).find(
+    (child): child is ReactElement<SelectContentProps<object>> =>
+      isValidElement(child) && child.type === SelectContent,
+  );
+  if (!content?.props.items || typeof content.props.children !== "function") return undefined;
+  const render = content.props.children;
+  return [...content.props.items].flatMap((item) => {
+    const row = render(item);
+    if (!isValidElement<SelectItemProps>(row) || row.props.id === undefined) return [];
+    const label =
+      row.props.textValue ?? (typeof row.props.children === "string" ? row.props.children : "");
+    return [{ value: String(row.props.id), label, disabled: row.props.isDisabled }];
+  });
+}
+
+export interface SelectTriggerProps {
+  prefix?: ReactNode;
+  className?: string;
+  /** Replaces the chosen value and chevron. */
+  children?: ReactNode;
+}
+
+/** The `md` control size, like `Input` and `Button`: 32px tall, 8px in. */
+export function SelectTrigger({ children, className, prefix }: SelectTriggerProps) {
+  const own = use(SelectTriggerContext);
+  return (
+    <SelectTriggerPrimitive
+      {...own}
+      className={cn(
+        "group/select-trigger flex h-8 w-full min-w-0 cursor-default items-center gap-x-2 rounded-lg border border-input bg-(--control-bg,var(--color-background)) px-2 text-start text-sm text-foreground outline-hidden dark:shadow-none",
+        "focus-visible:border-ring/70 enabled:hover:border-muted-foreground/30 data-open:border-ring/70",
+        "data-invalid:border-danger-subtle-foreground/70",
+        "disabled:bg-muted disabled:opacity-50 forced-colors:disabled:border-[GrayText] forced-colors:disabled:text-[GrayText]",
+        "dark:scheme-dark",
+        className,
+      )}
+    >
+      {prefix && <span className="text-muted-foreground">{prefix}</span>}
+      {children ?? (
+        <>
+          <SelectValue
+            className={twJoin(
+              "truncate text-start data-placeholder:text-muted-foreground sm:text-sm/6",
+              "*:[svg]:size-5 sm:*:[svg]:size-4",
+            )}
+          />
+          <ChevronUpDownIcon
+            data-slot="chevron"
+            aria-hidden
+            className="ms-auto -me-1 size-5 shrink-0 text-muted-foreground sm:size-4"
+          />
+        </>
+      )}
+    </SelectTriggerPrimitive>
+  );
+}
+
+export interface SelectContentProps<T extends object> {
   items?: Iterable<T>;
-  popover?: Omit<PopoverProps, "children">;
+  /** One `SelectItem` per item. */
+  children: ((item: T) => ReactNode) | ReactNode;
+  popover?: { placement?: Placement; className?: string };
+  className?: string;
 }
 
 export function SelectContent<T extends object>({
   items,
-  className,
+  children,
   popover,
-  ...props
-}: SelectListProps<T>) {
+  className,
+}: SelectContentProps<T>) {
+  const { side, align } = toSideAlign(popover?.placement ?? "bottom");
   return (
-    <Popover
-      placement={popover?.placement ?? "bottom"}
-      className={cx(
-        "min-w-(--trigger-width) overflow-hidden *:data-[slot=popover-inner]:overflow-hidden",
+    <SelectContentPrimitive
+      side={side}
+      align={align}
+      sideOffset={4}
+      className={cn(
+        popupSurface,
+        "grid w-max max-w-80 min-w-(--anchor-width) grid-cols-[auto_1fr] gap-y-1 overflow-y-auto p-1",
         popover?.className,
+        className,
       )}
-      {...popover}
     >
-      <ListBox
-        layout="stack"
-        orientation="vertical"
-        className={cx(
-          "grid max-h-[inherit] w-full grid-cols-[auto_1fr] flex-col gap-y-1 overflow-y-auto p-1 outline-hidden *:[[role='group']+[role=group]]:mt-4 *:[[role='group']+[role=separator]]:mt-1",
-          className,
-        )}
-        items={items}
-        {...props}
-      />
-    </Popover>
+      {typeof children === "function"
+        ? items &&
+          [...items].map((item, i) => <ItemKey key={keyOf(item, i)}>{children(item)}</ItemKey>)
+        : children}
+    </SelectContentPrimitive>
   );
 }
 
-export interface SelectTriggerProps extends React.ComponentProps<typeof Button> {
-  prefix?: React.ReactNode;
+function keyOf(item: object, index: number): Key {
+  const record = item as { id?: Key; value?: Key };
+  return record.id ?? record.value ?? index;
+}
+
+function ItemKey({ children }: { children: ReactNode }) {
+  return children;
+}
+
+export interface SelectItemProps {
+  id?: Key;
+  textValue?: string;
+  isDisabled?: boolean;
   className?: string;
+  children?: ReactNode;
 }
 
-/** The `md` control size, like `Input` and `Button`: 32px tall, 8px in. */
-export function SelectTrigger({ children, className, ...props }: SelectTriggerProps) {
+export function SelectItem({ id, textValue, isDisabled, className, children }: SelectItemProps) {
   return (
-    <span data-slot="control" className="relative block w-full">
-      <Button
-        className={cx(
-          "group/select-trigger flex w-full min-w-0 cursor-default items-center gap-x-2 rounded-lg border border-input bg-(--control-bg,var(--color-background)) h-8 px-2 text-start text-sm text-foreground outline-hidden *:text-sm dark:shadow-none",
-          "focus:border-ring/70 focus:enabled:hover:border-ring/80",
-          "enabled:hover:border-muted-foreground/30",
-          "group-open/select:border-ring/70 ",
-          "group-open/select:invalid:border-danger-subtle-foreground/70 group-invalid/select:border-danger-subtle-foreground/70 group-invalid/select:enabled:hover:border-danger-subtle-foreground/80 group-focus/select:group-invalid/select:border-danger-subtle-foreground/70 group-focus/select:group-invalid/select:enabled:hover:border-danger-subtle-foreground/80",
-          "forced-colors:[--btn-icon:ButtonText] forced-colors:hover:[--btn-icon:ButtonText] *:[svg]:size-5 *:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-(--btn-icon) pressed:*:[svg]:text-(--btn-icon-active) focus-visible:*:[svg]:text-(--btn-icon-active)/80 enabled:hover:*:[svg]:text-(--btn-icon-active)/90 sm:*:[svg]:size-4",
-          "*:data-[slot=loader]:size-5 *:data-[slot=loader]:shrink-0 *:data-[slot=loader]:self-center *:data-[slot=loader]:text-(--btn-icon) sm:*:data-[slot=loader]:size-4",
-          "forced-colors:group-focus/select:border-[Highlight] forced-colors:group-invalid/select:border-[Mark] forced-colors:group-focus/select:group-invalid/select:border-[Mark]",
-          "group-disabled/select:bg-muted group-disabled/select:opacity-50 forced-colors:group-disabled/select:border-[GrayText] forced-colors:group-disabled/select:text-[GrayText]",
-          "in-disabled:bg-muted in-disabled:opacity-50 forced-colors:in-disabled:border-[GrayText] forced-colors:in-disabled:text-[GrayText]",
-          "dark:scheme-dark",
+    <SelectItemPrimitive<string>
+      value={String(id ?? textValue ?? "")}
+      label={textValue}
+      disabled={isDisabled}
+      className={(state) =>
+        dropdownItemStyles({
+          isFocused: state.highlighted,
+          isDisabled: state.disabled,
+          isSelected: state.selected,
           className,
-        )}
-      >
-        {(values) => (
-          <>
-            {props.prefix && <span className="text-muted-foreground">{props.prefix}</span>}
-            {typeof children === "function" ? children(values) : children}
-
-            {!children && (
-              <>
-                <SelectValue
-                  data-slot="select-value"
-                  className={twJoin([
-                    "truncate text-start data-placeholder:text-muted-foreground sm:text-sm/6 **:[[slot=description]]:hidden",
-                    "has-data-[slot=avatar]:grid has-data-[slot=avatar]:grid-cols-[1fr_auto] has-data-[slot=avatar]:items-center has-data-[slot=avatar]:gap-x-2",
-                    "has-[svg]:grid has-[svg]:grid-cols-[1fr_auto] has-[svg]:items-center has-[svg]:gap-x-2",
-                    "*:[svg]:size-5 sm:*:[svg]:size-4",
-                    "*:mt-0 *:data-[slot=avatar]:[--avatar-size:--spacing(5)] sm:*:data-[slot=avatar]:[--avatar-size:--spacing(4.5)]",
-                  ])}
-                />
-                <ChevronUpDownIcon
-                  data-slot="chevron"
-                  className="ms-auto -me-1 size-5 shrink-0 text-muted-foreground sm:size-4"
-                />
-              </>
-            )}
-          </>
-        )}
-      </Button>
-    </span>
+        })
+      }
+    >
+      {typeof children === "string" ? <ItemLabel>{children}</ItemLabel> : children}
+      <SelectItemIndicator
+        render={
+          <CheckIcon
+            data-slot="check-indicator"
+            className="absolute end-2.5 top-1/2 size-3.5 -translate-y-1/2 text-foreground"
+          />
+        }
+      />
+    </SelectItemPrimitive>
   );
 }
-
-export const SelectSection = DropdownSection;
-export const SelectSeparator = DropdownSeparator;
-export const SelectLabel = DropdownLabel;
-export const SelectDescription = DropdownDescription;
-export const SelectItem = DropdownItem;

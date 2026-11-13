@@ -184,3 +184,28 @@ export function DropdownKeyboard({ className, ...props }: React.ComponentProps<t
  * Note: This is not exposed component, but it's used in other components to render dropdowns.
  * @internal
  */
+
+/**
+ * The row label and description for UI SDK menus and selects: plain spans with the same `slot`
+ * styling hooks. React Aria's `Text` would look up its slot in whatever React Aria context is
+ * around (a dialog's has only `description`) and throw.
+ */
+export function ItemLabel({ className, ...props }: React.ComponentProps<"span">) {
+  return (
+    <span
+      slot="label"
+      className={cn("col-start-2 min-w-0 truncate [&:has(+svg)]:pe-6", className)}
+      {...props}
+    />
+  );
+}
+
+export function ItemDescription({ className, ...props }: React.ComponentProps<"span">) {
+  return (
+    <span
+      slot="description"
+      className={cn("col-start-2 font-normal text-muted-foreground text-sm", className)}
+      {...props}
+    />
+  );
+}

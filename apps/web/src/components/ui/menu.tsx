@@ -27,11 +27,11 @@ import {
 } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 import {
-  DropdownDescription,
   dropdownItemStyles,
   DropdownKeyboard,
-  DropdownLabel,
   dropdownSectionStyles,
+  ItemDescription,
+  ItemLabel,
 } from "./dropdown";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { FluidHoverHighlight } from "./fluid-hover-highlight";
@@ -388,7 +388,7 @@ export function MenuSeparator({ className }: { className?: string }) {
 }
 export const MenuShortcut = DropdownKeyboard;
 /** A row's label: one line, truncated once the menu reaches its max width. */
-export function MenuLabel({ className, ...props }: React.ComponentProps<typeof DropdownLabel>) {
-  return <DropdownLabel className={cn("truncate", className)} {...props} />;
+export function MenuLabel({ className, ...props }: React.ComponentProps<typeof ItemLabel>) {
+  return <ItemLabel className={cn("truncate", className)} {...props} />;
 }
-export const MenuDescription = DropdownDescription;
+export const MenuDescription = ItemDescription;
