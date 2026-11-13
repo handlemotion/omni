@@ -7,6 +7,9 @@ import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
 import { fanOut, notifyMembers } from "../realtime.ts";
+import { optionalJsonBody } from "../validator.ts";
+
+export const expectedAssignee = z.string().min(1).nullable().optional();
 
 const claimBody = z.object({
   /**
@@ -14,28 +17,11 @@ const claimBody = z.object({
    * `null` for unassigned). If a teammate changed that first, the claim answers 409 with the
    * conversation as it is now instead of taking it from them. Absent claims unconditionally.
    */
-  expectedAssignee: z.string().min(1).nullable().optional(),
+  expectedAssignee,
 });
 
-/**
- * The claim's optional JSON body. Read by hand rather than with `zValidator("json")` so the typed
- * client keeps calling claim without a body: older web builds send none, and that means `{}`.
- */
-export async function claimPrecondition(c: Context<AppEnv>) {
-  const text = await c.req.text();
-  if (!text.trim()) return {};
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw new HTTPException(400, { message: "Malformed JSON in request body" });
-  }
-  const parsed = claimBody.safeParse(json);
-  if (!parsed.success) {
-    throw new HTTPException(400, { message: "invalid json: expectedAssignee: member id or null" });
-  }
-  return parsed.data;
-}
+/** The claim's optional precondition; older web builds send no body, which means `{}`. */
+export const claimPrecondition = (c: Context<AppEnv>) => optionalJsonBody(c, claimBody);
 
 export const failures = {
   not_found: [404, "not found"],

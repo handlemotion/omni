@@ -30,7 +30,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { limitPerMember } from "../rate-limiter.ts";
-import { zValidator } from "../validator.ts";
+import { optionalJsonBody, zValidator } from "../validator.ts";
 import { fanOut } from "../realtime.ts";
 import { assertLatest, basedOnMessageId, StaleThread } from "./reply-precondition.ts";
 import { attachmentResponse } from "./assets.ts";
@@ -380,6 +380,82 @@ function toSendAttachments(list: { uploadId?: string; attachmentId?: string }[])
 
 const addresses = (list: { address: string }[]) => list.map((a) => a.address);
 
+/** A draft send's optional body; absent sends as before. */
+const draftSendBody = z.object({ basedOnMessageId });
+
+/** A draft sent the way its kind sends (new mail, reply or forward); the send deletes it. */
+async function sendDraft(
+  c: Context<AppEnv>,
+  draft: NonNullable<Awaited<ReturnType<typeof getDraft>>>,
+  key: string,
+  basedOnMessageId: string | undefined,
+) {
+  const content = {
+    cc: addresses(draft.cc),
+    bcc: addresses(draft.bcc),
+    attachments: toSendAttachments(draft.attachments),
+  };
+  if (draft.kind !== "new" && !draft.threadId) notFound();
+  if (draft.kind !== "reply" && draft.to.length === 0) {
+    throw new HTTPException(400, { message: "add a recipient" });
+  }
+  if (draft.kind === "reply" && !draft.bodyText.trim()) {
+    throw new HTTPException(400, { message: "the reply is empty" });
+  }
+  const html = draft.bodyHtml ?? undefined;
+  return draft.kind === "new"
+    ? await sendNew(
+        c,
+        {
+          mailboxId: draft.mailboxId,
+          to: addresses(draft.to),
+          subject: draft.subject,
+          text: draft.bodyText,
+          ...(html ? { html } : {}),
+          ...content,
+        },
+        key,
+        draft.id,
+      )
+    : draft.kind === "reply"
+      ? await sendReply(
+          c,
+          draft.threadId!,
+          {
+            text: draft.bodyText,
+            ...(html ? { html } : {}),
+            replyAll: false,
+            ...(draft.sourceMessageId ? { messageId: draft.sourceMessageId } : {}),
+            basedOnMessageId,
+            // An untouched reply draft keeps the default recipient; CC added to it stays.
+            ...(draft.to.length ? { to: addresses(draft.to), cc: content.cc } : {}),
+            ...(!draft.to.length && content.cc.length ? { cc: content.cc } : {}),
+            bcc: content.bcc,
+            attachments: content.attachments,
+          },
+          key,
+          draft.id,
+        )
+      : await sendForward(
+          c,
+          draft.threadId!,
+          {
+            ...(draft.sourceMessageId ? { messageId: draft.sourceMessageId } : {}),
+            basedOnMessageId,
+            to: addresses(draft.to),
+            cc: content.cc,
+            bcc: content.bcc,
+            text: draft.bodyText,
+            ...(html ? { html } : {}),
+            // The draft already lists the original's files the agent kept.
+            includeAttachments: false,
+            attachments: content.attachments,
+          },
+          key,
+          draft.id,
+        );
+}
+
 export const compose = new Hono<AppEnv>()
   /**
    * Stages a file for a send: the raw request body (with its `content-type` and a
@@ -593,7 +669,8 @@ export const compose = new Hono<AppEnv>()
 
   /**
    * Sends a draft the way its kind sends (new mail, reply or forward), then deletes it. A retry
-   * under the same idempotency key answers the send it already made.
+   * under the same idempotency key answers the send it already made. A reply or forward draft
+   * with `basedOnMessageId` answers 409 with `messages` like `/threads/:id/reply`; the draft stays.
    */
   .post(
     "/drafts/:id/send",
@@ -607,70 +684,8 @@ export const compose = new Hono<AppEnv>()
         if (!earlier) notFound();
         return c.json(sendResponse(earlier), 202);
       }
-      const content = {
-        cc: addresses(draft.cc),
-        bcc: addresses(draft.bcc),
-        attachments: toSendAttachments(draft.attachments),
-      };
-      if (draft.kind !== "new" && !draft.threadId) notFound();
-      if (draft.kind !== "reply" && draft.to.length === 0) {
-        throw new HTTPException(400, { message: "add a recipient" });
-      }
-      if (draft.kind === "reply" && !draft.bodyText.trim()) {
-        throw new HTTPException(400, { message: "the reply is empty" });
-      }
-      const html = draft.bodyHtml ?? undefined;
-      const action =
-        draft.kind === "new"
-          ? await sendNew(
-              c,
-              {
-                mailboxId: draft.mailboxId,
-                to: addresses(draft.to),
-                subject: draft.subject,
-                text: draft.bodyText,
-                ...(html ? { html } : {}),
-                ...content,
-              },
-              key,
-              draft.id,
-            )
-          : draft.kind === "reply"
-            ? await sendReply(
-                c,
-                draft.threadId!,
-                {
-                  text: draft.bodyText,
-                  ...(html ? { html } : {}),
-                  replyAll: false,
-                  ...(draft.sourceMessageId ? { messageId: draft.sourceMessageId } : {}),
-                  // An untouched reply draft keeps the default recipient; CC added to it stays.
-                  ...(draft.to.length ? { to: addresses(draft.to), cc: content.cc } : {}),
-                  ...(!draft.to.length && content.cc.length ? { cc: content.cc } : {}),
-                  bcc: content.bcc,
-                  attachments: content.attachments,
-                },
-                key,
-                draft.id,
-              )
-            : await sendForward(
-                c,
-                draft.threadId!,
-                {
-                  ...(draft.sourceMessageId ? { messageId: draft.sourceMessageId } : {}),
-                  to: addresses(draft.to),
-                  cc: content.cc,
-                  bcc: content.bcc,
-                  text: draft.bodyText,
-                  ...(html ? { html } : {}),
-                  // The draft already lists the original's files the agent kept.
-                  includeAttachments: false,
-                  attachments: content.attachments,
-                },
-                key,
-                draft.id,
-              );
-      // The draft went with the send, in its transaction.
-      return c.json(sendResponse(action), 202);
+      const { basedOnMessageId } = await optionalJsonBody(c, draftSendBody);
+      // The draft goes with the send, in its transaction.
+      return sendUnlessStale(c, key, () => sendDraft(c, draft, key, basedOnMessageId));
     },
   );

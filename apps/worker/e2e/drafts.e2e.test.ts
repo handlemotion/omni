@@ -251,6 +251,46 @@ describe("drafts", () => {
     expect(sends).toHaveLength(1);
   });
 
+  test("a reply draft written before the customer's follow-up stays a draft instead of sending", async () => {
+    const { db } = database;
+    const { inbox, thread, ana } = await team("stale-draft");
+    const created = await api(
+      "/drafts",
+      ana.cookie,
+      json("POST", { mailboxId: inbox.id, kind: "reply", threadId: thread.threadId }),
+    );
+    const draft = (await created.json()) as Draft;
+    await api(`/drafts/${draft.id}`, ana.cookie, json("PUT", { version: 1, bodyText: "Fixed." }));
+    const followUp = await seedMessage(db, inbox, {
+      subject: "Re: Broken invoice",
+      fromAddress: "luis@client.test",
+      to: [inbox.address],
+      uid: 2,
+      threadId: thread.threadId,
+    });
+
+    const stale = await api(`/drafts/${draft.id}/send`, ana.cookie, {
+      ...json("POST", { basedOnMessageId: thread.messageId }),
+      key: "stale-draft-1",
+    });
+    expect(stale.status).toBe(409);
+    expect(
+      ((await stale.json()) as { messages: { id: string }[] }).messages.map((m) => m.id),
+    ).toEqual([followUp.messageId]);
+    // Nothing went out, and the draft is still there to finish.
+    const sends = () =>
+      db.select().from(schema.mailActions).where(eq(schema.mailActions.mailboxId, inbox.id));
+    expect(await sends()).toEqual([]);
+    expect((await api(`/drafts/${draft.id}`, ana.cookie)).status).toBe(200);
+
+    const sent = await api(`/drafts/${draft.id}/send`, ana.cookie, {
+      ...json("POST", { basedOnMessageId: followUp.messageId }),
+      key: "stale-draft-2",
+    });
+    expect(sent.status).toBe(202);
+    expect(await sends()).toHaveLength(1);
+  });
+
   test("a forward draft starts with the original's files, and sends what the agent kept", async () => {
     const { db } = database;
     const { org, inbox, thread, ana } = await team("fwddraft");

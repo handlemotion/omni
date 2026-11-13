@@ -1185,6 +1185,37 @@ describe("bulk actions and auto-assign", () => {
     expect((await bulk({ threadIds: [], change: { type: "resolve" } })).status).toBe(400);
   });
 
+  test("two teammates bulk-claiming overlapping unassigned conversations never take one from the other", async () => {
+    const { db } = database;
+    const [a, b, c] = await Promise.all(
+      [11, 12, 13].map((uid) =>
+        seedMessage(db, desk.inbox, { subject: `Race ${uid}`, fromAddress: "c@client.test", uid }),
+      ),
+    );
+    const claim = (cookie: string, threadIds: string[]) =>
+      api("/conversations/bulk", cookie, {
+        method: "POST",
+        body: JSON.stringify({ threadIds, change: { type: "claim", expectedAssignee: null } }),
+      });
+    // Both selected everything unassigned; their selections overlap on b.
+    const [ana, bea] = await Promise.all([
+      claim(desk.anaCookie, [a!.threadId, b!.threadId]),
+      claim(beaCookie, [b!.threadId, c!.threadId]),
+    ]);
+    type Results = { results: { threadId: string; ok: boolean; error?: string }[] };
+    const results = [
+      ...((await ana.json()) as Results).results,
+      ...((await bea.json()) as Results).results,
+    ];
+    const forB = results.filter((r) => r.threadId === b!.threadId);
+    expect(forB.map((r) => r.ok).toSorted()).toEqual([false, true]);
+    expect(forB.find((r) => !r.ok)?.error).toBe("a teammate assigned this conversation first");
+    expect((await conversation(a!.threadId, desk.anaCookie)).assigneeMemberId).toBe(desk.ana.id);
+    expect((await conversation(c!.threadId, desk.anaCookie)).assigneeMemberId).toBe(desk.bea.id);
+    const events = (await conversation(b!.threadId, desk.anaCookie)).events;
+    expect(events.filter((e) => e.kind === "assigned")).toHaveLength(1);
+  });
+
   test("auto-assign hands new conversations out in turn, never history or auto-replies", async () => {
     const { db } = database;
     const inbox = await createMailbox(db, desk.org.id, "help@bulk.test");

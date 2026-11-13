@@ -31,7 +31,12 @@ import { pingMailService } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { announceNote, fanOut, notifyMembers, withdrawNotifications } from "../realtime.ts";
 import { zValidator } from "../validator.ts";
-import { applyChange, claimPrecondition, failures } from "./conversation-change.ts";
+import {
+  applyChange,
+  claimPrecondition,
+  expectedAssignee,
+  failures,
+} from "./conversation-change.ts";
 
 const idempotencyHeader = z.object({
   "idempotency-key": z.string().regex(/^[A-Za-z0-9_.:-]{8,128}$/, "8-128 URL-safe characters"),
@@ -129,7 +134,8 @@ const bulkChange = z.discriminatedUnion("type", [
   z.object({ type: z.literal("resolve") }),
   z.object({ type: z.literal("reopen") }),
   z.object({ type: z.literal("snooze"), until: z.iso.datetime({ offset: true }) }),
-  z.object({ type: z.literal("claim") }),
+  /** With `expectedAssignee`, each is claimed only if still assigned that way (see claim). */
+  z.object({ type: z.literal("claim"), expectedAssignee: expectedAssignee }),
   z.object({ type: z.literal("assign"), memberId: z.string().min(1).nullable() }),
   z.object({ type: z.literal("priority"), priority: z.enum(PRIORITIES) }),
   z.object({ type: z.literal("tag"), tagId: z.string().min(1), add: z.boolean() }),
@@ -162,7 +168,9 @@ function domainChange(change: z.infer<typeof bulkChange>, memberId: string): Con
     case "snooze":
       return { type: "snooze", until: new Date(change.until) };
     case "claim":
-      return { type: "assign", memberId };
+      return change.expectedAssignee === undefined
+        ? { type: "assign", memberId }
+        : { type: "assign", memberId, expectedAssignee: change.expectedAssignee };
     default:
       return change;
   }
