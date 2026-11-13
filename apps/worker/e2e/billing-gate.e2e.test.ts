@@ -104,6 +104,12 @@ test("every write route is gated for an unpaid workspace unless the allowlist na
     allowed: false,
     gated: true,
   });
+  // Inviting stays open (ADR 0015), now that invitations go through the Worker (ADR 0026).
+  expect(answers).toContainEqual({
+    route: "POST /api/workspace/invitations/:id/resend",
+    allowed: true,
+    gated: false,
+  });
   expect(answers).toContainEqual({
     route: "POST /api/billing/portal",
     allowed: true,

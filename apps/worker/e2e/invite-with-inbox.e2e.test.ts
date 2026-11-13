@@ -143,6 +143,26 @@ test("an invitation must give an inbox; shared ones are joined on accepting", as
   });
   expect(direct.status).toBe(404);
 
+  // A tab from before still resends through Better Auth, but only an invitation already pending
+  // here; a "resend" to anyone else would be a new invitation around the inbox rule.
+  const laterEmail = `later-${tag()}@x.test`;
+  await api(owner.jar, "POST", "/workspace/invitations", {
+    email: laterEmail,
+    sharedInboxIds: [supportId],
+  });
+  const oldResend = await authPost(stack.worker, owner.jar, "/organization/invite-member", {
+    email: laterEmail,
+    role: "member",
+    resend: true,
+  });
+  expect(oldResend.status).toBe(200);
+  const sneaky = await authPost(stack.worker, owner.jar, "/organization/invite-member", {
+    email: `sneaky-${tag()}@x.test`,
+    role: "member",
+    resend: true,
+  });
+  expect(sneaky.status).toBe(404);
+
   // Resending goes through the Worker too, and keeps the shared inbox.
   const pending = await api(owner.jar, "POST", "/workspace/invitations", {
     email: `later-${tag()}@x.test`,

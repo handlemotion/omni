@@ -53,7 +53,13 @@ export const removeMemberMutation = (client: QueryClient) =>
   mutationOptions({
     mutationFn: (memberIdOrEmail: string) =>
       authCall(auth.organization.removeMember({ memberIdOrEmail })),
-    onSettled: () => client.invalidateQueries({ queryKey: keys.members() }),
+    // Their inboxes stay with the workspace, unassigned (ADR 0026): refresh that list too.
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: keys.members() }),
+        client.invalidateQueries({ queryKey: keys.workspaceMembers() }),
+        client.invalidateQueries({ queryKey: keys.workspaceMailboxes() }),
+      ]),
   });
 
 export const updateMemberRoleMutation = (client: QueryClient) =>

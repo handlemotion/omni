@@ -1,8 +1,9 @@
 import * as Sentry from "@sentry/cloudflare";
 import { withSignInRequest } from "@omni/auth";
 import { REQUEST_ID_HEADER as SIGNED_REQUEST_ID_HEADER } from "@omni/crypto";
-import { orgSetupStep } from "@omni/db";
-import { Hono } from "hono";
+import { orgSetupStep, schema } from "@omni/db";
+import { and, eq, sql } from "drizzle-orm";
+import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { routePath } from "hono/route";
@@ -13,6 +14,7 @@ import {
   requireMailboxMember,
   requireMember,
   requireThreadMember,
+  resolveSession,
   type AppEnv,
 } from "./context.ts";
 import type { Config } from "./env.ts";
@@ -132,6 +134,28 @@ const api = new Hono<AppEnv>()
   .route("/", billing)
   .route("/", billingCards);
 
+/** A resend, from the old web app, of an invitation already pending in the session's workspace. */
+async function isPendingResend(c: Context<AppEnv>) {
+  const body = (await c.req.raw
+    .clone()
+    .json()
+    .catch(() => null)) as { email?: unknown; resend?: unknown; organizationId?: unknown } | null;
+  if (body?.resend !== true || typeof body.email !== "string") return false;
+  const orgId = (await resolveSession(c))?.member?.orgId;
+  if (!orgId || (body.organizationId !== undefined && body.organizationId !== orgId)) return false;
+  const [pending] = await c.var.db
+    .select({ id: schema.invitations.id })
+    .from(schema.invitations)
+    .where(
+      and(
+        eq(schema.invitations.organizationId, orgId),
+        eq(schema.invitations.status, "pending"),
+        eq(sql`lower(${schema.invitations.email})`, body.email.toLowerCase()),
+      ),
+    );
+  return pending !== undefined;
+}
+
 export const app = new Hono<AppEnv>()
   .use(trace)
   .use(securityHeaders)
@@ -146,10 +170,14 @@ export const app = new Hono<AppEnv>()
   // Checkout and the portal go through /api/billing, which pins them to the active workspace.
   // The plugin's own POSTs would also let a person subscribe for themselves, so they are closed.
   .post("/api/auth/subscription/*", (c) => c.json({ error: "use /api/billing" }, 404))
-  // Invitations carry the new member's inbox, so they go through the Worker (ADR 0026).
-  .post("/api/auth/organization/invite-member", (c) =>
-    c.json({ error: "use /api/workspace/invitations" }, 404),
-  )
+  // Invitations carry the new member's inbox, so they go through the Worker (ADR 0026). Tabs
+  // loaded before that still resend here: a resend of an invitation already pending in the
+  // session's workspace passes; anything else would skip the inbox rule. Remove once those tabs
+  // have reloaded.
+  .post("/api/auth/organization/invite-member", limitAuth, async (c) => {
+    if (await isPendingResend(c)) return withSignInRequest(() => c.var.auth.handler(c.req.raw));
+    return c.json({ error: "use /api/workspace/invitations" }, 404);
+  })
   .on(["GET", "POST"], "/api/auth/*", limitAuth, (c) =>
     // Each auth request records the address it signs in with, to scope its session (ADR 0024).
     withSignInRequest(() => c.var.auth.handler(c.req.raw)),

@@ -1129,9 +1129,14 @@ function InviteForm(props: {
   const invite = useInviteWithInbox();
   // On a domain on Omni's host, each teammate gets their own inbox at the name they're invited
   // with (ADR 0026); elsewhere they connect theirs after joining.
-  const hosted = useOnboarding().data?.domains.find(
+  const setup = useOnboarding().data;
+  const hosted = setup?.domains.find(
     (d) => d.provider === "purelymail" && d.status === "verified" && d.added,
   );
+  // Otherwise the shared inboxes set up here are the team's, and an invitation needs one.
+  const sharedInboxIds = hosted
+    ? []
+    : (setup?.mailboxes ?? []).filter((m) => m.kind === "shared").map((m) => m.id);
   // Three fields to start: most teams invite a few people at once.
   const [emails, setEmails] = useState(["", "", ""]);
   const [sending, setSending] = useState(false);
@@ -1152,6 +1157,7 @@ function InviteForm(props: {
         await invite.mutateAsync({
           email,
           ...(hosted && localPart ? { inbox: { domainId: hosted.id, localPart } } : {}),
+          sharedInboxIds,
         });
         setEmails((list) => {
           const rest = list.filter((e) => e.trim() !== email);

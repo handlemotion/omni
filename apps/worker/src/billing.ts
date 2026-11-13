@@ -125,7 +125,11 @@ export async function inGoodStanding(db: Db, config: Config, orgId: string) {
 export const READ_ONLY_ALLOWED = [
   // Inside the member API: `requireWritableWorkspace` lets these through.
   { path: "/api/billing", reason: "checkout and the portal are how a workspace becomes paid" },
-  { path: "/api/mailboxes/:id/members", reason: "who can see a mailbox is access, not mail" },
+  // The workspace inbox API (ADR 0026): who has which inbox, and inviting people with one.
+  { path: "/api/workspace/members", reason: "giving a member an inbox is setup, not mail" },
+  { path: "/api/workspace/shared-inboxes", reason: "who can see a mailbox is access, not mail" },
+  { path: "/api/workspace/inboxes", reason: "who owns a former member's inbox is access" },
+  { path: "/api/workspace/invitations", reason: "invitations stay open so an owner can fix it" },
   {
     path: "/api/push-tokens",
     reason: "a person's phone, not the workspace: signing out must stop pushes",
