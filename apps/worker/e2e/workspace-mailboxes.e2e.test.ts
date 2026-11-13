@@ -1,5 +1,5 @@
 // Every mailbox of a workspace for its owners and admins, and creating a teammate's personal inbox
-// after setup (ADR 0017), on the onboarding stack: real Worker, real mail service, GreenMail and
+// after setup (ADR 0017, through the routes of ADR 0026), on the onboarding stack: real Worker, real mail service, GreenMail and
 // Postgres. Seeing that a teammate's inbox exists must never be a way into its mail.
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -16,11 +16,10 @@ afterAll(() => stack?.stop());
 const api: OnboardingStack["api"] = (...args) => stack.api(...args);
 
 /** An existing login on the mail host (GreenMail takes any password). */
-function imapMailbox(domainId: string, localPart: string, forMemberId?: string) {
+function imapMailbox(domainId: string, localPart: string) {
   return {
     domainId,
     localPart,
-    ...(forMemberId ? { forMemberId } : {}),
     login: {
       password: "app-password",
       imap: { host: greenmail.host, port: greenmail.imapPort },
@@ -62,20 +61,20 @@ test("owners and admins see every mailbox with its owner; members get 403; no ma
   const mine = await api(
     jar,
     "POST",
-    "/onboarding/mailboxes",
-    imapMailbox(domainId, "owner", ownerMemberId),
+    `/workspace/members/${ownerMemberId}/inboxes`,
+    imapMailbox(domainId, "owner"),
   );
   const hello = await api(jar, "POST", "/onboarding/mailboxes", imapMailbox(domainId, "hello"));
   const bens = await api(
     jar,
     "POST",
-    "/onboarding/mailboxes",
-    imapMailbox(domainId, "ben", ben.id),
+    `/workspace/members/${ben.id}/inboxes`,
+    imapMailbox(domainId, "ben"),
   );
   for (const created of [mine, hello, bens]) expect(created.status).toBe(200);
   const helloId = hello.body.mailboxId as string;
   const added = await fetch(
-    new URL(`/api/mailboxes/${helloId}/members/${ana.id}`, stack.worker.url),
+    new URL(`/api/workspace/shared-inboxes/${helloId}/people/${ana.id}`, stack.worker.url),
     {
       method: "PUT",
       headers: { cookie: jar.header, origin: "http://localhost:5173" },
@@ -114,17 +113,18 @@ test("owners and admins see every mailbox with its owner; members get 403; no ma
   // Bug caught: the listing filtered by the caller's grants (an admin would not see Ben's
   // inbox) or naming the wrong owner (the creator instead of Ben).
   for (const manager of [jar, ana.jar]) {
-    const listed = await api(manager, "GET", "/workspace/mailboxes");
+    const listed = await api(manager, "GET", "/workspace/inboxes");
     expect(listed.status).toBe(200);
-    expect(listed.body.mailboxes).toMatchObject(expected);
-    expect(listed.body.mailboxes).toHaveLength(3);
+    expect(listed.body.inboxes).toMatchObject(expected);
+    expect(listed.body.inboxes).toHaveLength(3);
     // Bug caught: a listing that carries mail or the sealed login along with the mailbox.
-    for (const mailbox of listed.body.mailboxes as Record<string, unknown>[]) {
+    for (const mailbox of listed.body.inboxes as Record<string, unknown>[]) {
       expect(Object.keys(mailbox).toSorted()).toEqual([
         "address",
         "createdAt",
         "id",
         "kind",
+        "orphaned",
         "owner",
         "people",
         "provider",
@@ -138,7 +138,7 @@ test("owners and admins see every mailbox with its owner; members get 403; no ma
   }
 
   // Bug caught: a plain member listing the whole workspace, other people's inboxes included.
-  const refused = await api(ben.jar, "GET", "/workspace/mailboxes");
+  const refused = await api(ben.jar, "GET", "/workspace/inboxes");
   expect(refused.status).toBe(403);
   expect(JSON.stringify(refused.body)).not.toContain(`owner@${domain}`);
 });
@@ -147,10 +147,16 @@ test("an inbox made for a teammate is theirs alone, and stays theirs", async () 
   const owner = await stack.workspaceWithDomain();
   const { orgId, domain, domainId, jar } = owner;
   const cy = await teammate(orgId, `cy@elsewhere.test`, "member");
-  const ownerMemberId = (await api(jar, "GET", "/me")).body.id as string;
+  const issue = (memberId: string, localPart: string) =>
+    api(jar, "POST", `/workspace/members/${memberId}/inboxes`, imapMailbox(domainId, localPart));
+  const shared = (localPart: string) =>
+    api(jar, "POST", "/workspace/shared-inboxes", {
+      ...imapMailbox(domainId, localPart),
+      memberIds: [cy.id],
+    });
 
   // Cy signs in with another address; their inbox here is at the workspace's domain.
-  const made = await api(jar, "POST", "/onboarding/mailboxes", imapMailbox(domainId, "cy", cy.id));
+  const made = await issue(cy.id, "cy");
   expect(made).toMatchObject({ status: 200, body: { address: `cy@${domain}`, created: true } });
   const mailboxId = made.body.mailboxId as string;
   const [row] = await stack.database.db
@@ -164,52 +170,17 @@ test("an inbox made for a teammate is theirs alone, and stays theirs", async () 
   expect(await visibleIds(cy.jar)).toContain(mailboxId);
   expect(await visibleIds(jar)).not.toContain(mailboxId);
 
-  // Bug caught: provisioning the address again as a shared mailbox, or for someone else, which
-  // would keep Cy's grant and add the creator's, turning Cy's inbox into one they can read.
-  const asShared = await api(jar, "POST", "/onboarding/mailboxes", imapMailbox(domainId, "cy"));
-  expect(asShared.status).toBe(409);
-  const asMine = await api(
-    jar,
-    "POST",
-    "/onboarding/mailboxes",
-    imapMailbox(domainId, "cy", ownerMemberId),
-  );
-  expect(asMine.status).toBe(409);
+  // Bug caught: provisioning the address again as a shared mailbox, which would keep Cy's grant
+  // and add a team, turning Cy's inbox into one others can read.
+  expect((await shared("cy")).status).toBe(409);
   expect(await grantsOn(mailboxId)).toEqual([{ memberId: cy.id, role: "owner" }]);
 
   // A shared mailbox can't be turned into someone's personal inbox its team could still read.
-  const hello = await api(jar, "POST", "/onboarding/mailboxes", imapMailbox(domainId, "hello"));
-  expect(hello.status).toBe(200);
-  const helloForCy = await api(
-    jar,
-    "POST",
-    "/onboarding/mailboxes",
-    imapMailbox(domainId, "hello", cy.id),
-  );
-  expect(helloForCy.status).toBe(409);
-
-  // Bug caught: making an inbox for a member of another workspace.
-  const other = await stack.workspaceWithDomain();
-  const stranger = (await api(other.jar, "GET", "/me")).body.id as string;
-  const crossed = await api(
-    jar,
-    "POST",
-    "/onboarding/mailboxes",
-    imapMailbox(domainId, "stranger", stranger),
-  );
-  expect(crossed.status).toBe(404);
-
-  // Bug caught: a plain member making inboxes (only owners and admins provision).
-  const byMember = await api(
-    cy.jar,
-    "POST",
-    "/onboarding/mailboxes",
-    imapMailbox(domainId, "cy2", cy.id),
-  );
-  expect(byMember.status).toBe(403);
+  expect((await shared("hello")).status).toBe(200);
+  expect((await issue(cy.id, "hello")).status).toBe(409);
 });
 
-test("owners and admins disconnect a hosted mailbox; members and other kinds get refused", async () => {
+test("owners and admins remove a hosted mailbox; members and other workspaces cannot", async () => {
   const { db } = stack.database;
   const owner = await stack.workspaceWithDomain();
   const { orgId, domain, domainId, jar } = owner;
@@ -225,7 +196,7 @@ test("owners and admins disconnect a hosted mailbox; members and other kinds get
     .where(eq(schema.mailboxes.id, hostedId));
 
   const remove = (who: CookieJar, mailboxId: string) =>
-    fetch(new URL(`/api/workspace/mailboxes/${mailboxId}/hosted`, stack.worker.url), {
+    fetch(new URL(`/api/workspace/inboxes/${mailboxId}`, stack.worker.url), {
       method: "DELETE",
       headers: { cookie: who.header, origin: "http://localhost:5173" },
     });
@@ -233,8 +204,6 @@ test("owners and admins disconnect a hosted mailbox; members and other kinds get
     (await db.select().from(schema.mailboxes).where(eq(schema.mailboxes.id, mailboxId))).length;
 
   expect((await remove(ben.jar, hostedId)).status).toBe(403);
-  // Not hosted: disconnecting must never forget an IMAP or Gmail mailbox through this route.
-  expect((await remove(jar, plain.body.mailboxId as string)).status).toBe(404);
   // Another workspace's owner can't reach it either; the org comes from the session.
   const other = await stack.workspaceWithDomain();
   expect((await remove(other.jar, hostedId)).status).toBe(204);
@@ -243,6 +212,6 @@ test("owners and admins disconnect a hosted mailbox; members and other kinds get
   expect((await remove(jar, hostedId)).status).toBe(204);
   expect(await exists(hostedId)).toBe(0);
   expect(await exists(plain.body.mailboxId as string)).toBe(1);
-  // Idempotent: a retry of a disconnect that already happened succeeds.
+  // Idempotent: a retry of a removal that already happened succeeds.
   expect((await remove(jar, hostedId)).status).toBe(204);
 });

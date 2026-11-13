@@ -269,11 +269,6 @@ test("a scoped session cannot reach another company through Better Auth by id, s
   // Ana owns Beta, so without the scope each of these would work.
   const refused = [
     await authPost(worker, jar, "/organization/set-active", { organizationSlug: beta!.slug }),
-    await authPost(worker, jar, "/organization/invite-member", {
-      email: `intruder-${randomUUID()}@evil.test`,
-      role: "admin",
-      organizationId: a.beta.orgId,
-    }),
     await authPost(worker, jar, "/organization/delete", { organizationId: a.beta.orgId }),
     await authPost(worker, jar, "/organization/delete", { organizationId: a.acme.orgId }),
     await auth(`/organization/get-full-organization?organizationId=${a.beta.orgId}`),

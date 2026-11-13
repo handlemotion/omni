@@ -64,15 +64,15 @@ async function mailboxIds(cookie: string) {
 }
 
 const put = (cookie: string, mailboxId: string, memberId: string) =>
-  api(`/mailboxes/${mailboxId}/members/${memberId}`, cookie, { method: "PUT" });
+  api(`/workspace/shared-inboxes/${mailboxId}/people/${memberId}`, cookie, { method: "PUT" });
 const remove = (cookie: string, mailboxId: string, memberId: string) =>
-  api(`/mailboxes/${mailboxId}/members/${memberId}`, cookie, { method: "DELETE" });
+  api(`/workspace/shared-inboxes/${mailboxId}/people/${memberId}`, cookie, { method: "DELETE" });
 
 async function listed(cookie: string, mailboxId: string) {
-  const response = await api(`/mailboxes/${mailboxId}/members`, cookie);
+  const response = await api(`/workspace/shared-inboxes/${mailboxId}/people`, cookie);
   if (response.status !== 200) return response.status;
-  const body = (await response.json()) as { members: { memberId: string }[] };
-  return body.members.map((m) => m.memberId).toSorted();
+  const body = (await response.json()) as { people: { memberId: string }[] };
+  return body.people.map((m) => m.memberId).toSorted();
 }
 
 async function team(mailboxId: string) {

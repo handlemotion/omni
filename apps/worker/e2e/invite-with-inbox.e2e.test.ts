@@ -136,6 +136,28 @@ test("an invitation must give an inbox; shared ones are joined on accepting", as
   expect((await grantsOn(supportId)).toSorted()).toEqual([ana.id, bo.id].toSorted());
   expect(await visibleIds(bo.jar)).toContain(supportId);
 
+  // Bug caught: an invitation around the inbox rule through Better Auth's own endpoint.
+  const direct = await authPost(stack.worker, owner.jar, "/organization/invite-member", {
+    email: `direct-${tag()}@x.test`,
+    role: "member",
+  });
+  expect(direct.status).toBe(404);
+
+  // Resending goes through the Worker too, and keeps the shared inbox.
+  const pending = await api(owner.jar, "POST", "/workspace/invitations", {
+    email: `later-${tag()}@x.test`,
+    sharedInboxIds: [supportId],
+  });
+  const pendingId = (pending.body.invitation as { id: string }).id;
+  expect((await api(owner.jar, "POST", `/workspace/invitations/${pendingId}/resend`)).status).toBe(
+    200,
+  );
+  const [resent] = await stack.database.db
+    .select({ teamId: schema.invitations.teamId })
+    .from(schema.invitations)
+    .where(eq(schema.invitations.id, pendingId));
+  expect(resent?.teamId).toBeTruthy();
+
   // Bug caught: a plain member inviting people.
   const boInvites = await api(bo.jar, "POST", "/workspace/invitations", {
     email: `x-${tag()}@x.test`,

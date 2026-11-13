@@ -17,6 +17,7 @@ import {
   authPost,
   CookieJar,
   createTestDatabase,
+  invite,
   signIn,
   startMailServiceEndpoint,
   startWorker,
@@ -164,12 +165,9 @@ test("a Personal space refuses invitations, members, teams and being deleted", a
   });
   expect(active.status).toBe(200);
 
+  // Invitations go through the Worker (ADR 0026), which has no such thing for a Personal space.
+  expect((await invite(worker, jar, { email: "friend@personal.test" })).status).toBe(404);
   const refusals = [
-    await authPost(worker, jar, "/organization/invite-member", {
-      email: "friend@personal.test",
-      role: "member",
-      organizationId: spaceId,
-    }),
     await authPost(worker, jar, "/organization/create-team", {
       name: "support",
       organizationId: spaceId,

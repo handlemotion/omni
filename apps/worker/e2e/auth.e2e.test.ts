@@ -12,6 +12,7 @@ import {
   signIn,
   startWorker,
   SYSTEM_MAIL_FROM,
+  invite as sendInvite,
   WEB_ORIGIN,
   workerEvents,
 } from "./support.ts";
@@ -112,14 +113,11 @@ async function signedInOwner(slug: string) {
   return { ...owner, jar };
 }
 
-/** Invites into the owner's active org, with no `organizationId`, as the web app does. */
+/** Invites into the owner's active org, as the web app does (ADR 0026). */
 async function invite(owner: { jar: CookieJar }, email: string, on: Worker = worker) {
-  const response = await authPost(on, owner.jar, "/organization/invite-member", {
-    email,
-    role: "member",
-  });
+  const response = await sendInvite(on, owner.jar, { email, role: "member" });
   expect(response.status).toBe(200);
-  return ((await response.json()) as { id: string }).id;
+  return ((await response.json()) as { invitation: { id: string } }).invitation.id;
 }
 
 test("a brand-new email with no invitation signs up by magic link and has no workspace yet", async () => {

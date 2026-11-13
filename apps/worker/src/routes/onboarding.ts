@@ -12,7 +12,6 @@ import {
   listDomainAudit,
   listMemberDomains,
   listMemberMailboxes,
-  orgMember,
   orgSetupStep,
   releaseDomain,
   roleInOrg,
@@ -107,15 +106,6 @@ async function domainStep<V extends { verified: boolean }>(c: Context<AppEnv>, v
   await advanceDomainStep(c.var.db, c.var.member.orgId, view);
   return view;
 }
-
-const mailboxBody = mailboxPlacement.extend({
-  /**
-   * A member of this workspace to make it a personal inbox for: they get the owner grant, the
-   * creator gets none. Without it the creator's own address is their personal inbox and any
-   * other address is shared.
-   */
-  forMemberId: z.string().min(1).optional(),
-});
 
 export const onboarding = new Hono<AppEnv>()
   /**
@@ -368,32 +358,22 @@ export const onboarding = new Hono<AppEnv>()
     },
   )
   /**
-   * Creates one mailbox on a domain of the active org and starts syncing it, during setup or
-   * later from settings. The creator gets an owner grant, or with `forMemberId` that teammate
-   * does (their personal inbox; ADR 0017). Idempotent per address: a repeat returns the same
-   * mailbox. 409 when the address is a mailbox of another kind or owner.
+   * Creates one mailbox on a domain of the active org during setup and starts syncing it. The
+   * creator gets an owner grant. Idempotent per address: a repeat returns the same mailbox. 409
+   * when the address is a mailbox of another kind or owner.
    */
   .post(
     "/mailboxes",
     requireMember,
     requireDomainAdmin,
     limitPerMember("provision"),
-    zValidator("json", mailboxBody),
+    zValidator("json", mailboxPlacement),
     async (c) => {
       const { db, member } = c.var;
-      const { forMemberId, ...placement } = c.req.valid("json");
-      // For a teammate, named: their personal inbox, whatever its address (ADR 0017).
-      let target: Parameters<typeof provisionMailbox>[2] = {
-        kind: "by-address",
-        ownerMemberId: member.id,
-      };
-      if (forMemberId) {
-        const teammate = await orgMember(db, member.orgId, forMemberId);
-        if (!teammate) {
-          throw new HTTPException(404, { message: "no such member in this workspace" });
-        }
-        target = { kind: "personal", ownerMemberId: teammate.id };
-      }
+      const placement = c.req.valid("json");
+      // The creator's own address is their personal inbox; the rest are shared (ADR 0007). A
+      // teammate's inbox is `POST /api/workspace/members/:id/inboxes` (ADR 0026).
+      const target = { kind: "by-address" as const, ownerMemberId: member.id };
       const result = await provisionMailbox(c, placement, target);
       await advanceOrgSetup(db, member.orgId, "mailboxes_created");
       return c.json(result);

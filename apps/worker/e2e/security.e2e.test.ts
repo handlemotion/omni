@@ -15,6 +15,7 @@ import {
   createOrg,
   createTestDatabase,
   grant,
+  invite,
   seedMessage,
   sentMail,
   signIn,
@@ -260,18 +261,19 @@ describe("rate limits", () => {
     const { db } = database;
     const slug = `inv-${randomUUID().slice(0, 8)}`;
     const owner = await createOrgWithOwner(db, { name: slug, slug, ownerEmail: `o@${slug}.test` });
-    await createMailbox(db, owner.orgId, SYSTEM_MAIL_FROM);
+    const shared = await createMailbox(db, owner.orgId, SYSTEM_MAIL_FROM);
     const jar = new CookieJar();
     await signIn(limited, db, `o@${slug}.test`, jar);
 
-    const invite = (n: number) =>
-      authPost(limited, jar, "/organization/invite-member", {
+    const send = (n: number) =>
+      invite(limited, jar, {
         email: `guest${n}@${slug}.test`,
         role: "member",
+        sharedInboxIds: [shared.id],
       });
-    expect((await invite(1)).status).toBe(200);
-    expect((await invite(2)).status).toBe(200);
-    expect((await invite(3)).status).toBe(429);
+    expect((await send(1)).status).toBe(200);
+    expect((await send(2)).status).toBe(200);
+    expect((await send(3)).status).toBe(429);
     const invitations = await db
       .select()
       .from(schema.invitations)

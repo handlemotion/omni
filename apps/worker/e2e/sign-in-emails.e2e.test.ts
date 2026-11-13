@@ -16,6 +16,7 @@ import {
   createMailbox,
   createTestDatabase,
   grant,
+  invite,
   sentMail,
   signIn,
   startMailServiceEndpoint,
@@ -118,7 +119,7 @@ async function owner(slug: string) {
   await grant(db, created.orgId, shared.id, created.memberId);
   const jar = new CookieJar();
   await signIn(worker, db, `${slug}@gmail.test`, jar);
-  return { ...created, email: `${slug}@gmail.test`, jar };
+  return { ...created, email: `${slug}@gmail.test`, jar, sharedInboxIds: [shared.id] };
 }
 
 /** Asks for `email` to be added and returns the token from the mailed link. */
@@ -161,9 +162,10 @@ test("Google and a magic link to the same verified address are one user, whichev
 
   // Google first (invited, so sign-up is allowed), then a magic link: the same user.
   const host = await owner("host");
-  const invited = await authPost(worker, host.jar, "/organization/invite-member", {
+  const invited = await invite(worker, host.jar, {
     email: "bea@gmail.test",
     role: "member",
+    sharedInboxIds: host.sharedInboxIds,
   });
   expect(invited.status).toBe(200);
   const first = await googleSignIn({ sub: "google-bea", email: "bea@gmail.test", verified: true });
@@ -202,9 +204,10 @@ test("an unverified address never links: not Google's, and not a local user who 
   expect(row!.emailVerified).toBe(false);
 
   // An invited address Google does not vouch for cannot sign up.
-  await authPost(worker, cy.jar, "/organization/invite-member", {
+  await invite(worker, cy.jar, {
     email: "eve@gmail.test",
     role: "member",
+    sharedInboxIds: cy.sharedInboxIds,
   });
   const signUp = await googleSignIn({
     sub: "google-eve",
@@ -332,12 +335,15 @@ test("an invitation to a second address joins the existing user", async () => {
   await addAddress(jo.jar, "jo.personal@gmail.test");
 
   const kai = await owner("kai");
-  const invited = await authPost(worker, kai.jar, "/organization/invite-member", {
+  const invited = await invite(worker, kai.jar, {
     email: "jo.personal@gmail.test",
     role: "member",
+    sharedInboxIds: kai.sharedInboxIds,
   });
   expect(invited.status).toBe(200);
-  const { id: invitationId } = (await invited.json()) as { id: string };
+  const {
+    invitation: { id: invitationId },
+  } = (await invited.json()) as { invitation: { id: string } };
 
   // Jo opens the invitation mail and signs in with the invited address.
   const jar = new CookieJar();
@@ -364,9 +370,10 @@ test("an invitation to a second address joins the existing user", async () => {
   expect(await usersWithEmail("jo.personal@gmail.test")).toEqual([]);
 
   // Someone else cannot take an invitation addressed to Jo's second address.
-  const again = await authPost(worker, kai.jar, "/organization/invite-member", {
+  const again = await invite(worker, kai.jar, {
     email: "jo.personal@gmail.test",
     role: "member",
+    sharedInboxIds: kai.sharedInboxIds,
   });
   // Jo is a member now, through that address.
   expect(again.status).toBe(400);

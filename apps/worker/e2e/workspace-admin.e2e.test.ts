@@ -194,8 +194,6 @@ test("a shared inbox is seen by exactly the people named, and nobody loses their
   // Support is the only inbox Ben can open. Bug caught: leaving a member with nothing to read.
   const removeBen = `/workspace/shared-inboxes/${supportId}/people/${ben.id}`;
   expect((await api(jar, "DELETE", removeBen)).status).toBe(409);
-  // The older route keeps the same rule.
-  expect((await api(jar, "DELETE", `/mailboxes/${supportId}/members/${ben.id}`)).status).toBe(409);
   expect(await grantsOn(supportId)).toContain(ben.id);
 
   // With a second inbox, Ben can come off support.

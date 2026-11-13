@@ -15,7 +15,7 @@ import {
   startOnboardingStack,
   waitFor,
 } from "./onboarding-stack.ts";
-import { authPost, CookieJar, createMember, signIn } from "./support.ts";
+import { authPost, CookieJar, createMember, invite, signIn } from "./support.ts";
 
 let stack: OnboardingStack;
 beforeAll(async () => {
@@ -148,10 +148,12 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
     return row?.status === "active";
   });
 
-  // The invite step: the existing Better Auth endpoint, into the new workspace.
-  const invited = await authPost(stack.worker, jar, "/organization/invite-member", {
+  // The invite step, into the new workspace (ADR 0026).
+  // hello@ is shared, so the invitation puts them on it (ADR 0026).
+  const invited = await invite(stack.worker, jar, {
     email: `ana@${domain}`,
     role: "member",
+    sharedInboxIds: [mailboxId],
   });
   expect(invited.status).toBe(200);
   const invitations = await db
@@ -347,13 +349,20 @@ test("setup is saved per workspace, resumes at its step, and never goes backward
   // Retries of earlier steps (a double submit, a back button, a DNS recheck) keep the step.
   await api(owner.jar, "POST", "/onboarding/domains", { domain });
   await api(owner.jar, "POST", `/onboarding/domains/${domainId}/check`);
-  await api(owner.jar, "POST", "/onboarding/mailboxes", imapMailbox(domainId, "hello"));
+  const hello = await api(
+    owner.jar,
+    "POST",
+    "/onboarding/mailboxes",
+    imapMailbox(domainId, "hello"),
+  );
   expect(await setupStep(owner.jar)).toBe("mailboxes_created");
 
   // Inviting someone is the invite step; finishing completes setup, and repeating it is harmless.
-  const invited = await authPost(stack.worker, owner.jar, "/organization/invite-member", {
+  // hello@ is shared, so the invitation puts them on it (ADR 0026).
+  const invited = await invite(stack.worker, owner.jar, {
     email: `ana@${domain}`,
     role: "member",
+    sharedInboxIds: [hello.body.mailboxId as string],
   });
   expect(invited.status).toBe(200);
   expect(await setupStep(owner.jar)).toBe("invites_sent");
@@ -370,7 +379,7 @@ test("setup is saved per workspace, resumes at its step, and never goes backward
 
 test("an invitation sent before any mailbox exists does not skip setup steps", async () => {
   const { jar } = await workspaceWithDomain();
-  const invited = await authPost(stack.worker, jar, "/organization/invite-member", {
+  const invited = await invite(stack.worker, jar, {
     email: `early-${randomUUID().slice(0, 8)}@elsewhere.test`,
     role: "member",
   });

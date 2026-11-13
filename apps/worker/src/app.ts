@@ -30,7 +30,6 @@ import { connect } from "./routes/connect.ts";
 import { folders } from "./routes/folders.ts";
 import { library } from "./routes/library.ts";
 import { mail } from "./routes/mail.ts";
-import { mailboxMembers } from "./routes/mailbox-members.ts";
 import { workspaceAdmin } from "./routes/workspace-admin.ts";
 import { workspaceInboxes } from "./routes/workspace-inboxes.ts";
 import { workspaceInvitations } from "./routes/workspace-invitations.ts";
@@ -125,7 +124,6 @@ const api = new Hono<AppEnv>()
   .route("/connect", connect)
   .route("/", library)
   .route("/", conversations)
-  .route("/", mailboxMembers)
   .route("/", workspaceAdmin)
   .route("/", workspaceInboxes)
   .route("/", workspaceInvitations)
@@ -148,6 +146,10 @@ export const app = new Hono<AppEnv>()
   // Checkout and the portal go through /api/billing, which pins them to the active workspace.
   // The plugin's own POSTs would also let a person subscribe for themselves, so they are closed.
   .post("/api/auth/subscription/*", (c) => c.json({ error: "use /api/billing" }, 404))
+  // Invitations carry the new member's inbox, so they go through the Worker (ADR 0026).
+  .post("/api/auth/organization/invite-member", (c) =>
+    c.json({ error: "use /api/workspace/invitations" }, 404),
+  )
   .on(["GET", "POST"], "/api/auth/*", limitAuth, (c) =>
     // Each auth request records the address it signs in with, to scope its session (ADR 0024).
     withSignInRequest(() => c.var.auth.handler(c.req.raw)),

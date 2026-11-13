@@ -105,11 +105,17 @@ one. Personal is not required.
 ## Rollout (expand, then contract)
 
 1. Add the new routes beside the old ones; old routes call the same functions.
-2. Add `invitation_inboxes` and `workspace_events` (additive schema).
-3. Web moves to the new routes (Rodrigo): People uses `GET /workspace/members`; "Add inbox" is
-   always in the row menu; orphaned inboxes show on Inboxes with give to, make shared and remove.
+2. Add `invitation_inboxes` (additive schema). Inbox actions are recorded in the existing
+   `audit_events` table, so `workspace_events` was not needed.
+3. Web moves to the new routes: People uses `GET /workspace/members`; "Create inbox" is always in
+   a manager's row menu; inboxes former members left show under Unassigned on People, with give
+   to, make shared and remove; inviting (settings and onboarding) and resending go through the
+   Worker.
 4. Contract once no client calls them: `forMemberId` on onboarding, `/workspace/mailboxes`,
-   `/workspace/mailboxes/:id/hosted`, `/mailboxes/:id/members*`.
+   `/workspace/mailboxes/:id/hosted` and `/mailboxes/:id/members*` are removed, and Better Auth's
+   own `POST /api/auth/organization/invite-member` answers 404, so no invitation skips the inbox
+   rule. A pending invitation is sent again with `POST /workspace/invitations/:id/resend`. Both
+   invitation routes keep the per-inviter `RATE_LIMIT_INVITE`.
 
 ## Proof
 

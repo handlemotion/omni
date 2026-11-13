@@ -268,6 +268,19 @@ export async function authPost(worker: Worker, jar: CookieJar, path: string, bod
   );
 }
 
+/** An invitation into the jar's active workspace, the way the web app sends one (ADR 0026). */
+export async function invite(
+  worker: Worker,
+  jar: CookieJar,
+  body: { email: string; role?: "member" | "admin"; sharedInboxIds?: string[] },
+) {
+  return fetch(new URL("/api/workspace/invitations", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: WEB_ORIGIN, cookie: jar.header },
+    body: JSON.stringify(body),
+  });
+}
+
 /**
  * The real magic-link flow: request a link, read it from the outbox, open it. Returns the cookie.
  * With `jar`, the link is opened in that browser (so its other sessions stay signed in).

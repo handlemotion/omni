@@ -671,20 +671,16 @@ export function PeoplePage() {
                                 icon: IconSend,
                                 label: "Resend invitation",
                                 onAction: () => {
-                                  const role = invitation.role === "admin" ? "admin" : "member";
-                                  resend.mutate(
-                                    { email: invitation.email, role },
-                                    {
-                                      onSuccess: () =>
-                                        appToast.success(
-                                          `Invitation sent again to ${invitation.email}`,
-                                        ),
-                                      onError: (error) =>
-                                        appToast.error(
-                                          error.message || "The invitation was not sent again.",
-                                        ),
-                                    },
-                                  );
+                                  resend.mutate(invitation.id, {
+                                    onSuccess: () =>
+                                      appToast.success(
+                                        `Invitation sent again to ${invitation.email}`,
+                                      ),
+                                    onError: (error) =>
+                                      appToast.error(
+                                        error.message || "The invitation was not sent again.",
+                                      ),
+                                  });
                                 },
                               },
                               {

@@ -1,6 +1,6 @@
 // Organizations, members, invitations and passkeys, all through Better Auth's client.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
-import { auth } from "./api.ts";
+import { api, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import { authCall } from "./session.ts";
 
@@ -83,11 +83,11 @@ export const renamePasskeyMutation = (client: QueryClient) =>
     onSettled: () => client.invalidateQueries({ queryKey: keys.passkeys() }),
   });
 
-/** `mutate({ email, role })` sends a pending invitation's email again. */
+/** `mutate(invitationId)` sends a pending invitation's email again (through the Worker). */
 export const resendInvitationMutation = (client: QueryClient) =>
   mutationOptions({
-    mutationFn: ({ email, role }: { email: string; role: Role }) =>
-      authCall(auth.organization.inviteMember({ email, role, resend: true })),
+    mutationFn: (invitationId: string) =>
+      call(api.workspace.invitations[":id"].resend.$post({ param: { id: invitationId } })),
     onSettled: () => client.invalidateQueries({ queryKey: keys.invitations() }),
   });
 

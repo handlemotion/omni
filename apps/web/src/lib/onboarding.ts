@@ -282,8 +282,6 @@ export interface NewMailbox {
   localPart: string;
   /** Only on a domain whose provider is `imap`: the mailbox's existing password. */
   password?: string;
-  /** A teammate whose personal inbox this is (settings); they own it, the creator doesn't. */
-  forMemberId?: string;
 }
 
 /**
@@ -305,7 +303,6 @@ export const createMailboxesMutation = (client: QueryClient) =>
               json: {
                 domainId: input.domainId,
                 localPart: mailbox.localPart,
-                ...(mailbox.forMemberId ? { forMemberId: mailbox.forMemberId } : {}),
                 ...(input.servers && mailbox.password
                   ? { login: { password: mailbox.password, ...input.servers } }
                   : {}),
