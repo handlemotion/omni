@@ -5,7 +5,9 @@
 // invitation sent later lets the person sign up again.
 import { and, asc, eq, gt, gte, inArray, lt, notExists, or, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
+import { isCompany } from "./personal-space.ts";
 import { invitations, members, sessions, users } from "./schema/auth.ts";
+import { mailboxes } from "./schema/mail.ts";
 import { userEmails } from "./schema/identity.ts";
 
 /** How long an account with no workspace may sit unused before it is deleted. */
@@ -34,11 +36,20 @@ export async function deleteAbandonedSignUps(
     .where(
       and(
         lt(users.createdAt, idleSince),
+        // A Personal space (ADR 0024) alone is not a workspace until it holds a mailbox.
         notExists(
           db
             .select({ one: sql`1` })
             .from(members)
-            .where(eq(members.userId, users.id)),
+            .where(
+              and(
+                eq(members.userId, users.id),
+                or(
+                  isCompany(db, members.organizationId),
+                  sql`exists (select 1 from ${mailboxes} mb where mb.org_id = ${members.organizationId})`,
+                ),
+              ),
+            ),
         ),
         notExists(
           db

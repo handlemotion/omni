@@ -4,6 +4,7 @@ import type { Db } from "@omni/db";
 import {
   advanceOrgSetup,
   findEmailOwner,
+  isCompany,
   schema,
   syncTeamMailboxAccess,
   teamMailbox,
@@ -13,6 +14,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
 import { resolveSignInEmails, signInEmails } from "./sign-in-emails.ts";
+import { ensurePersonalSpaceQuietly, personalSpaceHooks } from "./personal-space.ts";
 import { refreshSessionCacheOnOrgChange } from "./session-cache.ts";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { multiSession } from "better-auth/plugins/multi-session";
@@ -313,7 +315,14 @@ export async function mayCreateOrganization(db: Db, userId: string, policy: Sign
   const [owned] = await db
     .select({ id: schema.members.id })
     .from(schema.members)
-    .where(and(eq(schema.members.userId, userId), eq(schema.members.role, "owner")))
+    .where(
+      and(
+        eq(schema.members.userId, userId),
+        eq(schema.members.role, "owner"),
+        // Everyone owns their Personal space (ADR 0024); only owning a company counts.
+        isCompany(db, schema.members.organizationId),
+      ),
+    )
     .limit(1);
   return owned !== undefined;
 }
@@ -407,17 +416,30 @@ export function createAuth(env: AuthEnv) {
               });
             }
           },
+          // Every person has a Personal space from the start (ADR 0024).
+          after: async (user) => {
+            await ensurePersonalSpaceQuietly(env.db, user.id);
+          },
         },
       },
       session: {
         create: {
           // A new session starts in the user's oldest org, the same default `requireMember`
           // uses, so Better Auth's organization endpoints and our API agree from the first call.
+          // A Personal space is never the default yet (ADR 0024, rollout step 1): a person with no
+          // company still starts with none, so today's clients send them to onboarding as before.
+          // Signing in also gives a person from before ADR 0024 their Personal space.
           before: async (session) => {
+            await ensurePersonalSpaceQuietly(env.db, session.userId);
             const [member] = await env.db
               .select({ orgId: schema.members.organizationId })
               .from(schema.members)
-              .where(eq(schema.members.userId, session.userId))
+              .where(
+                and(
+                  eq(schema.members.userId, session.userId),
+                  isCompany(env.db, schema.members.organizationId),
+                ),
+              )
               .orderBy(asc(schema.members.createdAt))
               .limit(1);
             return { data: { ...session, activeOrganizationId: member?.orgId ?? null } };
@@ -460,6 +482,7 @@ export function createAuth(env: AuthEnv) {
         // and `mailbox_access` is derived from its members. No default team per organization.
         teams: { enabled: true, defaultTeam: { enabled: false } },
         organizationHooks: {
+          ...personalSpaceHooks(env.db),
           // The invite step of onboarding, but only once the org has mailboxes: an invitation
           // sent from settings mid-setup must not skip the domain and mailbox steps.
           afterCreateInvitation: async ({ invitation }) => {

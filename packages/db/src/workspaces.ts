@@ -2,6 +2,7 @@
 // user belongs to, with its setup step and the mailboxes that user's member there can open.
 import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import type { Db } from "./client.ts";
+import { isCompany } from "./personal-space.ts";
 import {
   mailboxAccess,
   mailboxes,
@@ -64,6 +65,8 @@ export interface Workspace {
   name: string;
   slug: string;
   logo: string | null;
+  /** `personal` (the user's own, ADR 0024) or `company`. */
+  kind: "personal" | "company";
   /** This user's role in it. */
   role: string;
   setup: SetupStep;
@@ -74,9 +77,14 @@ export interface Workspace {
 /**
  * Every organization `userId` belongs to, oldest membership first, each with its setup step and
  * the mailboxes their member there can access (personal first, then by address). A mailbox
- * shows only through a grant to a member of the mailbox's own org.
+ * shows only through a grant to a member of the mailbox's own org. The user's Personal space is
+ * left out unless `includePersonal`: clients from before ADR 0024 would show it as a company.
  */
-export async function listUserWorkspaces(db: Db, userId: string): Promise<Workspace[]> {
+export async function listUserWorkspaces(
+  db: Db,
+  userId: string,
+  options: { includePersonal?: boolean } = {},
+): Promise<Workspace[]> {
   const [orgs, boxes] = await Promise.all([
     db
       .select({
@@ -84,13 +92,21 @@ export async function listUserWorkspaces(db: Db, userId: string): Promise<Worksp
         name: organizations.name,
         slug: organizations.slug,
         logo: organizations.logo,
+        kind: sql<
+          Workspace["kind"]
+        >`case when ${isCompany(db, organizations.id)} then 'company' else 'personal' end`,
         role: members.role,
         setup: sql<SetupStep>`coalesce(${orgSetup.step}, ${stepWithoutRow(sql`${organizations.id}`)})`,
       })
       .from(members)
       .innerJoin(organizations, eq(organizations.id, members.organizationId))
       .leftJoin(orgSetup, eq(orgSetup.orgId, organizations.id))
-      .where(eq(members.userId, userId))
+      .where(
+        and(
+          eq(members.userId, userId),
+          options.includePersonal ? undefined : isCompany(db, organizations.id),
+        ),
+      )
       .orderBy(asc(members.createdAt), asc(organizations.id)),
     db
       .select({

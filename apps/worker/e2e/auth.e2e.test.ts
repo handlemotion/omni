@@ -143,15 +143,23 @@ test("a brand-new email with no invitation signs up by magic link and has no wor
   expect(opened.headers.get("location")).not.toContain("error=");
   expect(jar.header).toContain("session_token");
 
-  // One user, proven by the link, in no workspace: the app sends them to create one.
+  // One user, proven by the link, in no company (only their Personal space, ADR 0024): the app
+  // sends them to create one.
   const users = await database.db
     .select()
     .from(schema.users)
     .where(eq(schema.users.email, "newcomer@open.test"));
   expect(users).toEqual([expect.objectContaining({ emailVerified: true })]);
   expect(
-    await database.db.select().from(schema.members).where(eq(schema.members.userId, users[0]!.id)),
-  ).toEqual([]);
+    await database.db
+      .select({ role: schema.members.role, personalOf: schema.personalSpaces.userId })
+      .from(schema.members)
+      .leftJoin(
+        schema.personalSpaces,
+        eq(schema.personalSpaces.orgId, schema.members.organizationId),
+      )
+      .where(eq(schema.members.userId, users[0]!.id)),
+  ).toEqual([{ role: "owner", personalOf: users[0]!.id }]);
   expect((await me(jar)).status).toBe(403);
   const onboarding = await fetch(new URL("/api/onboarding", worker.url), {
     headers: { cookie: jar.header },

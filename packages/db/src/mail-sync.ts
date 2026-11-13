@@ -6,6 +6,7 @@ import { MAX_PRUNED_THREADS_PER_EVENT } from "@omni/contracts";
 import type { Db } from "./client.ts";
 import { queueMailEvents } from "./pending-mail-events.ts";
 import { ensureMailboxTeam, syncMailboxAccess } from "./mailbox-teams.ts";
+import { assertCompany } from "./personal-space.ts";
 import {
   mailActions,
   mailboxAccess,
@@ -751,6 +752,8 @@ export async function saveMailbox(
   },
 ) {
   return db.transaction(async (tx) => {
+    // Shared mailboxes are a company's (ADR 0024).
+    if (input.kind === "shared") await assertCompany(tx, input.orgId, "a shared mailbox");
     const [row] = await tx
       .insert(mailboxes)
       .values({

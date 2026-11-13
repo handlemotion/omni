@@ -349,11 +349,18 @@ test("an invitation to a second address joins the existing user", async () => {
   });
   expect(accepted.status).toBe(200);
 
+  // Jo's companies are their own and Kai's; their one other membership is their Personal space
+  // (ADR 0024).
   const memberships = await database.db
-    .select({ orgId: schema.members.organizationId })
+    .select({ orgId: schema.members.organizationId, personalOf: schema.personalSpaces.userId })
     .from(schema.members)
+    .leftJoin(schema.personalSpaces, eq(schema.personalSpaces.orgId, schema.members.organizationId))
     .where(eq(schema.members.userId, jo.userId));
-  expect(memberships.map((m) => m.orgId).toSorted()).toEqual([jo.orgId, kai.orgId].toSorted());
+  const companies = memberships.filter((m) => m.personalOf === null).map((m) => m.orgId);
+  expect(companies.toSorted()).toEqual([jo.orgId, kai.orgId].toSorted());
+  expect(memberships.filter((m) => m.personalOf !== null)).toEqual([
+    { orgId: expect.any(String), personalOf: jo.userId },
+  ]);
   expect(await usersWithEmail("jo.personal@gmail.test")).toEqual([]);
 
   // Someone else cannot take an invitation addressed to Jo's second address.

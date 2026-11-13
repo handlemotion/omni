@@ -1,5 +1,5 @@
 import { createAuth, type Auth, type InvitationMessage } from "@omni/auth";
-import { forUser, schema, type Db } from "@omni/db";
+import { forUser, isCompany, schema, type Db } from "@omni/db";
 import { and, asc, eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
@@ -110,7 +110,10 @@ export async function resolveSession(
   };
 }
 
-/** `userId`'s member in `orgId` (without one, their oldest membership), or null. */
+/**
+ * `userId`'s member in `orgId`, or null. Without `orgId`, their oldest company membership: a
+ * Personal space is never the default until clients know it (ADR 0024, rollout step 1).
+ */
 export async function findMember(db: Db, userId: string, orgId?: string): Promise<Member | null> {
   const [member] = await db
     .select({
@@ -123,7 +126,9 @@ export async function findMember(db: Db, userId: string, orgId?: string): Promis
     .where(
       and(
         eq(schema.members.userId, userId),
-        orgId ? eq(schema.members.organizationId, orgId) : undefined,
+        orgId
+          ? eq(schema.members.organizationId, orgId)
+          : isCompany(db, schema.members.organizationId),
       ),
     )
     .orderBy(asc(schema.members.createdAt))

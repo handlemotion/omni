@@ -17,6 +17,7 @@ import {
   TransactionRollbackError,
 } from "drizzle-orm";
 import type { Db } from "./client.ts";
+import { assertCompany, workspaceKind } from "./personal-space.ts";
 import {
   auditEvents,
   type DomainCheck,
@@ -108,6 +109,8 @@ export async function openClaim(
 ): Promise<{ claim: DomainClaim; created: boolean } | { error: "cap" }> {
   const now = input.now ?? new Date();
   return db.transaction(async (tx) => {
+    // Domains belong to companies (ADR 0024).
+    await assertCompany(tx, input.orgId, "a domain");
     await tx.execute(advisoryLock(`claims:${input.orgId}`));
     const [existing] = await tx
       .select()
@@ -342,7 +345,9 @@ async function mailboxesOn(db: Db, orgId: string, domain: string) {
   return rows.length;
 }
 
-export type HandOverResult = { ok: true } | { ok: false; reason: "not_locked" | "has_mailboxes" };
+export type HandOverResult =
+  | { ok: true }
+  | { ok: false; reason: "not_locked" | "has_mailboxes" | "personal_space" };
 
 /**
  * Gives up `orgId`'s lock on `domain`: anyone can claim it again. Refused while the org has
@@ -406,6 +411,10 @@ export async function transferDomain(
 ): Promise<HandOverResult> {
   const now = input.now ?? new Date();
   return db.transaction(async (tx) => {
+    // Domains belong to companies (ADR 0024).
+    if ((await workspaceKind(tx, input.toOrgId)) === "personal") {
+      return { ok: false, reason: "personal_space" } as const;
+    }
     if ((await mailboxesOn(tx as unknown as Db, input.fromOrgId, input.domain)) > 0) {
       return { ok: false, reason: "has_mailboxes" } as const;
     }

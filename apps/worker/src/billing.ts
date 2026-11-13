@@ -5,6 +5,7 @@ import {
   claimTriage,
   isPaid,
   triageUsageCount,
+  workspaceKind,
   workspaceSubscription,
   type Db,
   type WorkspaceSubscription,
@@ -106,6 +107,8 @@ export async function gateTriage(
 /** A subscription in good standing (or billing off): the workspace may write and use AI. */
 export async function inGoodStanding(db: Db, config: Config, orgId: string) {
   if (!config.auth.billing) return true;
+  // A Personal space is free (ADR 0024).
+  if ((await workspaceKind(db, orgId)) === "personal") return true;
   const subscription = await workspaceSubscription(db, orgId);
   return subscription !== null && isPaid(subscription.status);
 }

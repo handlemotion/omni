@@ -519,11 +519,12 @@ export const onboarding = new Hono<AppEnv>()
     return c.json({ setup: await advanceOrgSetup(db, member.orgId, "complete") });
   });
 
-function handOverRefusal(reason: "not_locked" | "has_mailboxes", domain: string) {
-  return new HTTPException(409, {
-    message:
-      reason === "has_mailboxes"
-        ? `${domain} still has mailboxes in this workspace`
-        : `${domain} is not set up by this workspace`,
-  });
+const HAND_OVER_REFUSALS = {
+  has_mailboxes: "still has mailboxes in this workspace",
+  not_locked: "is not set up by this workspace",
+  personal_space: "cannot move to a Personal space",
+} as const;
+
+function handOverRefusal(reason: keyof typeof HAND_OVER_REFUSALS, domain: string) {
+  return new HTTPException(409, { message: `${domain} ${HAND_OVER_REFUSALS[reason]}` });
 }

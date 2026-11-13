@@ -12,6 +12,9 @@ export const workspaces = new Hono<AppEnv>().get("/", async (c) => {
   return c.json({
     /** The session's active organization (what `/api/me` answers for), or null with none. */
     activeOrganizationId: resolved.member?.orgId ?? null,
-    workspaces: await listUserWorkspaces(c.var.db, resolved.user.id),
+    // `?include=personal` adds the user's Personal space (ADR 0024); older clients never ask.
+    workspaces: await listUserWorkspaces(c.var.db, resolved.user.id, {
+      includePersonal: c.req.query("include") === "personal",
+    }),
   });
 });
