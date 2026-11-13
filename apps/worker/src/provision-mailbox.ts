@@ -112,7 +112,8 @@ function loginFor(
 export async function provisionMailbox(
   c: Context<AppEnv>,
   placement: MailboxPlacement,
-  target: { kind: ProvisionMailboxBody["kind"] | "by-address"; ownerMemberId: string },
+  /** `ownerMemberId` null: a personal inbox waiting for an invitee, with no grant yet. */
+  target: { kind: ProvisionMailboxBody["kind"] | "by-address"; ownerMemberId: string | null },
 ) {
   const { db, member, user } = c.var;
   const { domain, address } = await resolveAddress(c, placement);
@@ -129,7 +130,10 @@ export async function provisionMailbox(
   if (
     existing &&
     (existing.kind !== kind ||
-      (kind === "personal" && !existing.memberIds.includes(target.ownerMemberId)))
+      (kind === "personal" &&
+        (target.ownerMemberId === null
+          ? existing.memberIds.length > 0
+          : !existing.memberIds.includes(target.ownerMemberId))))
   ) {
     throw new HTTPException(409, {
       message:

@@ -27,7 +27,7 @@ export function logInboxAction(
   c: Context<AppEnv>,
   action: InboxAuditAction,
   address: string,
-  data: { mailboxId: string; memberIds?: string[] },
+  data: { mailboxId: string; memberIds?: string[]; invitationId?: string },
 ) {
   return recordInboxEvent(c.var.db, {
     orgId: c.var.member.orgId,

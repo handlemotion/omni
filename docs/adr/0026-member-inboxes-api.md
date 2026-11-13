@@ -47,13 +47,18 @@ drop the sealed credential, delete the index), since the Worker never holds cred
 
 ### 2. An invitation can carry an inbox
 
-`POST /workspace/invitations` (wrapping Better Auth's `createInvitation`) takes an optional
-`inbox: { address }` on a Purelymail domain, plus optional shared inbox ids (Better Auth teams,
-which invitations already support). The address is reserved in `invitation_inboxes
-(org_id, invitation_id, address)`, refused if taken. `afterAcceptInvitation` issues it through the
-same path as decision 1; it is safe to run twice. A cancelled or expired invitation frees it.
-`imap` and `gmail` domains cannot be pre-issued (Omni has no password or the person must connect
-their own account), so those still need decision 1 after joining.
+`POST /workspace/invitations` (wrapping Better Auth's `createInvitation`) takes `email`, `role`,
+an optional `inbox: { domainId, localPart, login? }` and optional `sharedInboxIds` (their Better
+Auth teams, which invitations already support).
+
+The inbox is made at invite time, through the same path as decision 1, but with no owner: the
+mail service saves it without a grant (`ownerMemberId: null`, personal only). It is orphaned, so
+nobody can open it and it does not sync, and it is linked in `invitation_inboxes (org_id,
+invitation_id, mailbox_id)`. That also reserves the address: issuing it to anyone else is a 409.
+`afterAcceptInvitation` gives it to the new member (decision 3's give, safe to run twice). An
+invitation that is cancelled or expires leaves the inbox orphaned, for an owner or admin to give,
+share or remove like any other. On an `imap` domain the inviter types its login, as when issuing;
+a `gmail` domain cannot be pre-issued (the person connects their own account after joining).
 
 ### 3. Offboarding keeps the inbox with the company, unread
 

@@ -772,9 +772,13 @@ export async function saveMailbox(
     kind: (typeof mailboxes.$inferSelect)["kind"];
     provider: (typeof mailboxes.$inferSelect)["provider"];
     credentialsEnc: string;
-    ownerMemberId: string;
+    /** Null only for a personal inbox waiting for an invitee (ADR 0026): no grant yet. */
+    ownerMemberId: string | null;
   },
 ) {
+  if (input.ownerMemberId === null && input.kind !== "personal") {
+    throw new Error("a shared mailbox needs someone on it");
+  }
   return db.transaction(async (tx) => {
     // Shared mailboxes are a company's (ADR 0024).
     if (input.kind === "shared") await assertCompany(tx, input.orgId, "a shared mailbox");
@@ -799,18 +803,20 @@ export async function saveMailbox(
         },
       })
       .returning({ id: mailboxes.id });
-    await tx
-      .insert(mailboxAccess)
-      .values({
-        orgId: input.orgId,
-        mailboxId: row!.id,
-        memberId: input.ownerMemberId,
-        role: "owner",
-      })
-      .onConflictDoUpdate({
-        target: [mailboxAccess.mailboxId, mailboxAccess.memberId],
-        set: { role: "owner" },
-      });
+    if (input.ownerMemberId !== null) {
+      await tx
+        .insert(mailboxAccess)
+        .values({
+          orgId: input.orgId,
+          mailboxId: row!.id,
+          memberId: input.ownerMemberId,
+          role: "owner",
+        })
+        .onConflictDoUpdate({
+          target: [mailboxAccess.mailboxId, mailboxAccess.memberId],
+          set: { role: "owner" },
+        });
+    }
     // A shared mailbox's team is its access list (ADR 0008). A new one is seeded with the owner
     // grant above; for one that already has a team, the team decides and the sync wins.
     if (input.kind === "shared") {

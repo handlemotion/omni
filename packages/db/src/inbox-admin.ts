@@ -6,7 +6,13 @@ import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { recordAudit } from "./domains.ts";
 import { addTeamMembers, ensureMailboxTeam, syncMailboxAccess } from "./mailbox-teams.ts";
-import { auditEvents, mailboxAccess, mailboxes, members } from "./schema/index.ts";
+import {
+  auditEvents,
+  invitationInboxes,
+  mailboxAccess,
+  mailboxes,
+  members,
+} from "./schema/index.ts";
 
 export type InboxAuditAction =
   | "inbox.issued"
@@ -25,7 +31,7 @@ export function recordInboxEvent(
     actorMemberId: string;
     action: InboxAuditAction;
     address: string;
-    data: { mailboxId: string; memberIds?: string[] };
+    data: { mailboxId: string; memberIds?: string[]; invitationId?: string };
   },
 ) {
   const { address, ...rest } = input;
@@ -155,4 +161,44 @@ export async function shareOrphanedInbox(
   if (teamId) await addTeamMembers(db, teamId, orgId, memberIds);
   await syncMailboxAccess(db, mailboxId);
   return converted;
+}
+
+/** Links an inbox made with an invitation to it, so accepting gives it to the new member. */
+export async function reserveInvitationInbox(
+  db: Db,
+  input: { orgId: string; invitationId: string; mailboxId: string },
+) {
+  await db.insert(invitationInboxes).values(input).onConflictDoNothing();
+}
+
+/**
+ * Gives the new member the inboxes made with their invitation (ADR 0026), and records it. Safe to
+ * run twice: giving an inbox to its owner again changes nothing. An inbox someone else was given
+ * in the meantime stays theirs.
+ */
+export async function claimInvitationInboxes(
+  db: Db,
+  input: { orgId: string; invitationId: string; memberId: string },
+) {
+  const rows = await db
+    .select({ mailboxId: invitationInboxes.mailboxId })
+    .from(invitationInboxes)
+    .where(
+      and(
+        eq(invitationInboxes.invitationId, input.invitationId),
+        eq(invitationInboxes.orgId, input.orgId),
+      ),
+    );
+  for (const { mailboxId } of rows) {
+    const { result, address } = await giveOrphanedInbox(db, input.orgId, mailboxId, input.memberId);
+    if (result === "ok" && address) {
+      await recordInboxEvent(db, {
+        orgId: input.orgId,
+        actorMemberId: input.memberId,
+        action: "inbox.given",
+        address,
+        data: { mailboxId, memberIds: [input.memberId], invitationId: input.invitationId },
+      });
+    }
+  }
 }

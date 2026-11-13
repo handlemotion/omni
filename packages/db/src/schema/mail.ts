@@ -20,7 +20,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
-import { members, organizations, teams } from "./auth.ts";
+import { invitations, members, organizations, teams } from "./auth.ts";
 
 /**
  * A forwarded message as `@omni/mail-core/clean` `cleanMessage` extracts it. Declared here, not
@@ -332,6 +332,31 @@ export const auditEvents = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("audit_events_org_subject_idx").on(t.orgId, t.subject, t.createdAt)],
+);
+
+/**
+ * A personal inbox made with an invitation, waiting for the person to accept (ADR 0026). It sits
+ * orphaned (no grant, not synced) until then; accepting gives it to the new member. Gone with the
+ * invitation or the mailbox.
+ */
+export const invitationInboxes = pgTable(
+  "invitation_inboxes",
+  {
+    orgId: orgId(),
+    invitationId: text("invitation_id")
+      .notNull()
+      .references(() => invitations.id, { onDelete: "cascade" }),
+    mailboxId: text("mailbox_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.invitationId, t.mailboxId] }),
+    foreignKey({
+      name: "invitation_inboxes_mailbox_org_fk",
+      columns: [t.mailboxId, t.orgId],
+      foreignColumns: [mailboxes.id, mailboxes.orgId],
+    }).onDelete("cascade"),
+  ],
 );
 
 export const mailboxFolders = pgTable(

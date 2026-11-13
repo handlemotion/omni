@@ -6,6 +6,7 @@ import {
   findEmailOwner,
   isCompany,
   schema,
+  claimInvitationInboxes,
   syncTeamMailboxAccess,
   teamMailbox,
 } from "@omni/db";
@@ -532,9 +533,15 @@ export function createAuth(env: AuthEnv) {
           afterAddTeamMember: ({ team }) => syncTeamMailboxAccess(env.db, team.id),
           afterRemoveTeamMember: ({ team }) => syncTeamMailboxAccess(env.db, team.id),
           // An invitation can name teams; accepting it adds the user to them without the hook above.
-          afterAcceptInvitation: async ({ invitation }) => {
+          // It can also carry a personal inbox, waiting with no owner; it is theirs now (ADR 0026).
+          afterAcceptInvitation: async ({ invitation, member }) => {
             const teamIds = (invitation as { teamId?: string | null }).teamId?.split(",") ?? [];
             for (const teamId of teamIds) await syncTeamMailboxAccess(env.db, teamId);
+            await claimInvitationInboxes(env.db, {
+              orgId: invitation.organizationId,
+              invitationId: invitation.id,
+              memberId: member.id,
+            });
           },
           beforeDeleteTeam: async ({ team }) => {
             if (await teamMailbox(env.db, team.id)) {

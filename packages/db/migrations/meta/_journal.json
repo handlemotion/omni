@@ -211,6 +211,13 @@
       "when": 1794597540240,
       "tag": "0029_slippery_gideon",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794603910799,
+      "tag": "0030_spooky_clea",
+      "breakpoints": true
     }
   ]
 }

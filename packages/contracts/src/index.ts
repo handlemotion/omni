@@ -319,8 +319,11 @@ export const provisionMailboxBodySchema = z.object({
   /** Already normalized, on a domain the org has claimed. */
   address: z.string().min(3),
   kind: z.enum(["personal", "shared"]),
-  /** Gets an owner grant in `mailbox_access`. */
-  ownerMemberId: z.string().min(1),
+  /**
+   * Gets an owner grant in `mailbox_access`. Null only for a personal inbox made with an
+   * invitation (ADR 0026): it waits with no owner until the person accepts.
+   */
+  ownerMemberId: z.string().min(1).nullable(),
   login: z.discriminatedUnion("provider", [
     /** The mail service creates the user and an app password. */
     z.object({ provider: z.literal("purelymail") }),
