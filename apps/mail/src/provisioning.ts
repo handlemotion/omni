@@ -1,11 +1,11 @@
-// Onboarding's provider work (ADR 0007): add a domain at the provider and read back its DNS
-// checks, and create a mailbox (a Purelymail user plus an app password, or an existing IMAP
-// login), store it encrypted and start syncing it. The Worker decides who may ask; this module
-// re-checks the domain claim before it touches the provider.
+// Onboarding's provider work (ADR 0007): add a domain at the mail host and read back its DNS
+// checks, and create a mailbox (a login issued by the host, or an existing IMAP login), store it
+// encrypted and start syncing it. The Worker decides who may ask; `planMailboxProvision` re-checks
+// the domain claim before anything touches the host. Host specifics live in `hosting/`.
 //
 // Idempotent on natural keys: the domain name, and (org, address) for a mailbox. Running a call
 // twice adds nothing at the provider the first run already added.
-import { randomBytes, randomUUIDv7 } from "node:crypto";
+import { randomUUIDv7 } from "node:crypto";
 import type {
   ProvisionDomainResult,
   ProvisionMailboxBody,
@@ -13,14 +13,12 @@ import type {
 } from "@omni/contracts";
 import type { Keyring } from "@omni/crypto";
 import { type Db, findOrgDomain, findOrgMailbox, saveMailbox } from "@omni/db";
-import { purelymailDnsRecords, purelymailDomainState, withChecks } from "@omni/mail-core/domains";
+import { planMailboxProvision } from "@omni/mail-core/mailbox-provisioning";
 import { type PasswordCredentials, openCredentials, sealCredentials } from "./credentials.ts";
+import { type MailHost, MailHostError } from "./hosting/mail-host.ts";
+import { createPurelymailHost } from "./hosting/purelymail-host.ts";
 import type { Logger } from "./log.ts";
-import {
-  type PurelymailClient,
-  PurelymailError,
-  PURELYMAIL_SERVERS,
-} from "./providers/purelymail.ts";
+import type { PurelymailClient } from "./providers/purelymail.ts";
 import { verifyImapLogin } from "./verify-login.ts";
 
 /** A refusal the Worker passes on to the member, with the status to use. */
@@ -48,23 +46,20 @@ export function createProvisioner(deps: {
   connect(mailboxId: string): Promise<void>;
   logger: Logger;
 }): Provisioner {
-  const { db, keyring, purelymail, logger } = deps;
+  const { db, keyring, logger } = deps;
+  const host: MailHost | undefined =
+    deps.purelymail && createPurelymailHost(deps.purelymail, logger);
   // One provisioning run per address at a time, so a double submit cannot create two app
   // passwords. This service runs as one machine (ADR 0004); the natural keys cover the rest.
   const running = new Map<string, Promise<ProvisionMailboxResult>>();
 
-  /** Purelymail's answer, or a 502 that says which call failed and why. */
-  async function provider<T>(task: () => Promise<T>): Promise<T> {
+  /** The host's answer; a refusal or an outage becomes a 502 that says which. */
+  async function hosted<T>(task: () => Promise<T>): Promise<T> {
     try {
       return await task();
     } catch (error) {
-      logger.warn("provision.purelymail_failed", { error });
-      throw new ProvisionError(
-        502,
-        error instanceof PurelymailError
-          ? `Purelymail: ${error.detail}`
-          : "Purelymail is unreachable",
-      );
+      if (error instanceof MailHostError) throw new ProvisionError(502, error.message);
+      throw error;
     }
   }
 
@@ -72,93 +67,41 @@ export function createProvisioner(deps: {
     name: string,
     options: { add?: boolean } = {},
   ): Promise<ProvisionDomainResult> {
-    if (!purelymail) return { provider: "imap" };
-    const records = purelymailDnsRecords(name, await provider(() => purelymail.getOwnershipCode()));
-    let state = purelymailDomainState(await provider(() => purelymail.listDomains()), name);
-    if (options.add === false) {
-      return {
-        provider: "purelymail",
-        added: state.added,
-        records: withChecks(records, state.checks),
-      };
-    }
-    let addError: string | undefined;
-    if (!state.added) {
-      // Purelymail adds a domain only once its ownership record is in DNS. Until then this fails,
-      // and the member sees the records to add and Purelymail's reason.
-      try {
-        await purelymail.addDomain(name);
-        logger.info("provision.domain_added", { domain: name });
-      } catch (error) {
-        if (!(error instanceof PurelymailError))
-          throw new ProvisionError(502, "Purelymail is unreachable");
-        addError = error.detail;
-      }
-    } else {
-      await provider(() => purelymail.recheckDns(name));
-    }
-    if (addError === undefined) {
-      state = purelymailDomainState(await provider(() => purelymail.listDomains()), name);
-    }
-    return {
-      provider: "purelymail",
-      added: state.added,
-      records: withChecks(records, state.checks),
-      ...(addError !== undefined ? { addError } : {}),
-    };
+    if (!host) return { provider: "imap" };
+    const state = await hosted(() => host.domain(name, { add: options.add !== false }));
+    return { provider: host.provider, ...state };
   }
 
   async function createMailbox(input: ProvisionMailboxBody): Promise<ProvisionMailboxResult> {
     const { orgId, address } = input;
     const domainName = address.slice(address.lastIndexOf("@") + 1);
-    const claim = await findOrgDomain(db, orgId, domainName);
-    if (!claim) throw new ProvisionError(409, `${domainName} is not set up for this workspace`);
-    if (claim.provider !== input.login.provider) {
-      throw new ProvisionError(409, `${domainName} is set up for ${claim.provider}`);
-    }
+    const existing = await findOrgMailbox(db, orgId, address);
+    const plan = planMailboxProvision({
+      domain: domainName,
+      provider: input.login.provider,
+      claim: await findOrgDomain(db, orgId, domainName),
+      hostConfigured: host !== undefined,
+      existing,
+    });
+    if (plan.kind === "refuse") throw new ProvisionError(409, plan.message);
+    if (plan.kind === "reuse") return { mailboxId: plan.mailboxId, address, created: false };
 
     let credentials: PasswordCredentials;
-    let mailboxId: string;
     if (input.login.provider === "purelymail") {
-      if (!purelymail) throw new ProvisionError(409, "Purelymail is not configured here");
-      if (!claim.addedAt) {
-        throw new ProvisionError(
-          409,
-          `${domainName} is not on Purelymail yet: add its ownership record`,
-        );
-      }
-      const existing = await findOrgMailbox(db, orgId, address);
-      // Already provisioned: a second app password would only be one more secret to revoke.
-      if (existing?.provider === "purelymail") {
-        return { mailboxId: existing.id, address, created: false };
-      }
-      const users = await provider(() => purelymail.listUsers());
-      if (!users.includes(address)) {
-        // Omni never knows or keeps a mailbox's real password: this one is thrown away, and the
-        // person sets their own through Purelymail when they want Apple Mail as a fallback.
-        await provider(() =>
-          purelymail.createUser({
-            userName: address.slice(0, address.lastIndexOf("@")),
-            domainName,
-            password: randomBytes(32).toString("base64url"),
-          }),
-        );
-        logger.info("provision.user_created", { orgId, address });
-      }
-      const pass = await provider(() => purelymail.createAppPassword(address, "Omni"));
-      credentials = { user: address, pass, ...PURELYMAIL_SERVERS };
-      mailboxId = existing?.id ?? randomUUIDv7();
+      // The plan refuses a hosted mailbox when no host is configured.
+      if (!host) throw new ProvisionError(409, "Purelymail is not configured here");
+      credentials = await hosted(() => host.issueLogin(address));
+      logger.info("provision.login_issued", { orgId, address });
     } else {
       const { user, pass, imap, smtp } = input.login;
       credentials = { user, pass, imap, smtp };
-      const existing = await findOrgMailbox(db, orgId, address);
-      if (existing?.provider === "imap" && (await sameLogin(existing, credentials))) {
+      if (existing && plan.sameLoginCheck && (await sameLogin(existing, credentials))) {
         return { mailboxId: existing.id, address, created: false };
       }
       const refused = await verifyImapLogin(credentials);
       if (refused) throw new ProvisionError(422, refused);
-      mailboxId = existing?.id ?? randomUUIDv7();
     }
+    const mailboxId = plan.mailboxId ?? randomUUIDv7();
 
     await saveMailbox(db, {
       id: mailboxId,

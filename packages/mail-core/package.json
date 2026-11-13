@@ -15,7 +15,8 @@
     "./compose": "./src/compose.ts",
     "./templates": "./src/templates.ts",
     "./business-hours": "./src/business-hours.ts",
-    "./folder-sync": "./src/folder-sync.ts"
+    "./folder-sync": "./src/folder-sync.ts",
+    "./mailbox-provisioning": "./src/mailbox-provisioning.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

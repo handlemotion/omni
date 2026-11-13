@@ -35,6 +35,10 @@ export interface PurelymailClient {
   createUser(input: { userName: string; domainName: string; password: string }): Promise<void>;
   /** A new app password for `userHandle` (`user@domain`). Shown once; store it encrypted. */
   createAppPassword(userHandle: string, name: string): Promise<string>;
+  /** Revokes one app password of `userHandle`; it stops working for IMAP and SMTP at once. */
+  deleteAppPassword(userHandle: string, appPassword: string): Promise<void>;
+  /** Deletes the user and all of its mail. Irreversible. */
+  deleteUser(userHandle: string): Promise<void>;
 }
 
 export function createPurelymailClient(token: string, fetchImpl = fetch): PurelymailClient {
@@ -98,6 +102,12 @@ export function createPurelymailClient(token: string, fetchImpl = fetch): Purely
         throw new PurelymailError("createAppPassword", 200, "empty", "no password returned");
       }
       return result.appPassword;
+    },
+    async deleteAppPassword(userHandle, appPassword) {
+      await call("deleteAppPassword", { userName: userHandle, appPassword });
+    },
+    async deleteUser(userHandle) {
+      await call("deleteUser", { userName: userHandle });
     },
   };
 }
