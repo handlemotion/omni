@@ -167,7 +167,7 @@ afterAll(async () => {
 });
 
 /** A paid workspace with a live GreenMail inbox, its owner signed in. */
-async function setUpWorkspace() {
+async function setUpWorkspace(options: { personal?: boolean } = {}) {
   const { db } = database;
   const address = `reader-${randomUUID().slice(0, 8)}@omni.test`;
   const org = await createOrg(db, "allowance");
@@ -177,6 +177,9 @@ async function setUpWorkspace() {
     .set({ stripeCustomerId: customer })
     .where(eq(schema.organizations.id, org.id));
   const member = await createMember(db, org.id, address);
+  if (options.personal) {
+    await db.insert(schema.personalSpaces).values({ orgId: org.id, userId: member.userId });
+  }
   const id = randomUUID();
   await db.insert(schema.mailboxes).values({
     id,
@@ -406,3 +409,16 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   expect(jev.hits).toContain("receipt-1");
   expect(await billing(reader.cookie)).toMatchObject({ triage: { used: 1, pausedUntil: null } });
 }, 120_000);
+
+// Catches: a Personal space (ADR 0024) left without AI triage, or counted against an allowance,
+// because it has no plan while billing is on. It is free and keeps triage.
+test("a Personal space is triaged with billing on and no plan, and nothing is counted", async () => {
+  const reader = await setUpWorkspace({ personal: true });
+  const request = await arrives("triage-inbound-request.eml", reader);
+  const triaged = await waitUntil(async () => {
+    const thread = await threadRow(request.threadId);
+    return thread.triageMessageId === request.id && thread;
+  });
+  expect(triaged).toMatchObject({ triageSource: "ai", triagePausedUntil: null });
+  expect(await usageRows(reader.orgId)).toEqual([]);
+});

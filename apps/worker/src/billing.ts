@@ -91,6 +91,8 @@ export async function gateTriage(
 ): Promise<TriageGate> {
   const billing = config.auth.billing;
   if (!billing) return { run: true };
+  // A Personal space is free and keeps AI triage, with no plan and no allowance (ADR 0024).
+  if ((await workspaceKind(db, input.orgId)) === "personal") return { run: true };
   const subscription = await workspaceSubscription(db, input.orgId);
   const window = subscription && isPaid(subscription.status) ? period(subscription, now) : null;
   if (!window) return { run: false, reason: "billing_inactive" };
