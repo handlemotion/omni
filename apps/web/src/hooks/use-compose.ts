@@ -211,8 +211,14 @@ export function useDraft(
     ...draftsQuery(where.threadId ? { threadId: where.threadId } : { mailboxId: where.mailboxId }),
     enabled: options.enabled !== false,
   });
+  // A forward of a named message resumes only that message's draft, never another forward's.
   const existing = list.data?.find(
-    (d) => d.kind === where.kind && (where.kind === "new" ? !d.threadId : true),
+    (d) =>
+      d.kind === where.kind &&
+      (where.kind === "new" ? !d.threadId : true) &&
+      (where.kind === "forward" && where.sourceMessageId
+        ? d.sourceMessageId === where.sourceMessageId
+        : true),
   );
   const state = useRef<{ id?: string; version?: number; creating?: Promise<Draft | undefined> }>(
     {},

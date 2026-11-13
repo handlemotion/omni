@@ -5,10 +5,20 @@
 // primitives.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DropZone } from "react-aria-components/DropZone";
+import {
+  IconChevronDown,
+  IconForward,
+  IconGlobe,
+  IconLock,
+  IconReply,
+  IconX,
+} from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { appToast } from "@/components/ui/toast";
+import { Menu, MenuDescription, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   useCancelSend,
@@ -26,7 +36,8 @@ import {
 import type { Message, Thread } from "@/lib/types.ts";
 import { CannedPicker } from "./canned-picker.tsx";
 import { AttachButton, ComposerFiles } from "./composer-files.tsx";
-import { NoteComposer } from "./note-composer.tsx";
+import { ChatComposer } from "./chat-composer.tsx";
+import { useComposerState, type ComposerMode } from "./composer-state.tsx";
 import { RecipientField } from "./recipient-field.tsx";
 import { Toolbar } from "./toolbar.tsx";
 import { offerUndoSend } from "./undo-send.ts";
@@ -99,50 +110,139 @@ function originalFiles(message: Message | undefined): ComposerFile[] {
     }));
 }
 
-/** Who a plain reply goes to: the sender, or for our (or a teammate's) last message, whoever we wrote to. */
+/** Who the server replies to by default: the sender, or for our (or a teammate's) last message, whoever we wrote to. */
 function replyRecipients(message: Message | undefined): string[] {
   if (!message) return [];
   return message.fromTeam ? message.to.map((a) => a.address) : [message.fromAddress];
 }
 
-type Mode = "reply" | "forward" | "note";
-
 /**
- * Reply or forward under the open conversation, or on a shared inbox an internal note. Replies go
- * from the inbox's address with your name; they show in the thread at once and can be undone
- * while they wait in the outbox.
+ * Who a reply starts addressed to: everyone outside the team on the thread (each sender, and
+ * whoever was in To or Cc), the latest sender first. Teammates add more by hand.
  */
-export function ReplyComposer({ thread, shared = false }: { thread: Thread; shared?: boolean }) {
-  const [picked, setMode] = useState<Mode>("reply");
-  // Note is for shared inboxes only: a personal thread opened next in the same list replies.
-  const mode = picked === "note" && !shared ? "reply" : picked;
-  const toggle = <ModeToggle mode={mode} setMode={setMode} note={shared} />;
-  // A fresh composer per mode: its own recipients, body and draft.
-  if (mode === "note") return <NoteComposer key={thread.id} thread={thread} toggle={toggle} />;
-  return <ModeComposer key={`${thread.id}:${mode}`} thread={thread} mode={mode} toggle={toggle} />;
+function customerRecipients(messages: Message[], inbox: string): string[] {
+  const ours = new Set([inbox.toLowerCase()]);
+  for (const m of messages) if (m.fromTeam) ours.add(m.fromAddress.toLowerCase());
+  const seen = new Map<string, string>();
+  const add = (address: string) => {
+    const key = address.toLowerCase();
+    if (!ours.has(key) && !seen.has(key)) seen.set(key, address);
+  };
+  for (const m of messages.toReversed()) {
+    if (!m.fromTeam) add(m.fromAddress);
+    for (const a of [...m.to, ...m.cc]) add(a.address);
+  }
+  return [...seen.values()];
 }
 
-/** Reply, Forward and (shared inboxes) Note: which composer shows. */
-function ModeToggle(props: { mode: Mode; setMode: (mode: Mode) => void; note: boolean }) {
+type Mode = "reply" | "forward";
+
+/**
+ * The composer pinned under the open conversation. On a shared inbox a quiet line above it says
+ * who will see what you write, and switches it: Public is an email to the customer (or a
+ * forward, picked from a message's menu), Hidden is an internal note only the team sees. A
+ * personal thread is always Public. Replies go from the inbox's address with your name; they
+ * show in the thread at once and can be undone while they wait in the outbox.
+ */
+export function ReplyComposer({ thread }: { thread: Thread }) {
+  const state = useComposerState();
+  const hidden = state.mode === "hidden";
   return (
-    <ToggleGroup
-      size="sm"
-      aria-label="Reply, forward or note"
-      selectedKeys={[props.mode]}
-      disallowEmptySelection
-      onSelectionChange={(keys) => {
-        const next = [...keys][0] as Mode | undefined;
-        if (next && next !== props.mode) props.setMode(next);
-      }}
-    >
-      <ToggleGroupItem id="reply">Reply</ToggleGroupItem>
-      <ToggleGroupItem id="forward">Forward</ToggleGroupItem>
-      {props.note && <ToggleGroupItem id="note">Note</ToggleGroupItem>}
-    </ToggleGroup>
+    <div className="flex flex-col gap-2">
+      {state.chat && <Visibility />}
+      {/* Kept mounted while Public shows, so a half-written note waits there. */}
+      {state.chat && (
+        <div hidden={!hidden}>
+          <ChatComposer key={thread.id} thread={thread} active={hidden} />
+        </div>
+      )}
+      {!hidden && (
+        // A fresh composer per reply or forwarded message: its own recipients, body and draft.
+        <ModeComposer
+          key={`${thread.id}:${state.forwardId ?? "reply"}`}
+          thread={thread}
+          mode={state.forwardId ? "forward" : "reply"}
+          sourceId={state.forwardId}
+          onStopForward={state.stopForward}
+        />
+      )}
+    </div>
   );
 }
 
-function ModeComposer(props: { thread: Thread; mode: Exclude<Mode, "note">; toggle: ReactNode }) {
+const VISIBILITY = {
+  public: {
+    icon: IconGlobe,
+    label: "Public",
+    says: "Everyone in To gets this by email",
+    short: "Email the customer",
+  },
+  hidden: {
+    icon: IconLock,
+    label: "Hidden",
+    says: "Only your team sees this",
+    short: "Only your team sees it",
+  },
+} as const;
+
+/**
+ * Who sees what you write, and the menu that changes it: one line above the composer, like a
+ * breadcrumb, instead of tabs. The words say the consequence, so a hidden note never reads as
+ * mail and a public reply never reads as a note.
+ */
+function Visibility() {
+  const { mode, setMode } = useComposerState();
+  const current = VISIBILITY[mode];
+  return (
+    // The switch on the left, what it means at the far right, like the card's Reply and From row.
+    <div className="flex min-w-0 items-center justify-between gap-2 text-sm text-muted-foreground">
+      <MenuTrigger>
+        <Button
+          intent="ghost"
+          size="sm"
+          aria-label={`Visibility: ${current.label}`}
+          // Its icon on the same line as the card's Reply icon below: 13px in (12px padding and
+          // the 1px border), 5px of margin plus the button's 8px inset.
+          className="ms-[5px] px-2 text-foreground"
+        >
+          <current.icon />
+          {current.label}
+          <IconChevronDown className="text-muted-foreground" />
+        </Button>
+        <Menu
+          placement="top start"
+          selectionMode="single"
+          selectedKeys={[mode]}
+          onSelectionChange={(keys) => {
+            const next = [...keys][0] as ComposerMode | undefined;
+            if (next) setMode(next);
+          }}
+        >
+          {(["public", "hidden"] as const).map((id) => {
+            const option = VISIBILITY[id];
+            return (
+              <MenuItem key={id} id={id} textValue={option.label}>
+                <option.icon data-slot="icon" />
+                <MenuLabel>{option.label}</MenuLabel>
+                <MenuDescription>{option.short}</MenuDescription>
+              </MenuItem>
+            );
+          })}
+        </Menu>
+      </MenuTrigger>
+      {/* 13px in from the right, ending where From does in the card below. */}
+      <span className="min-w-0 truncate pe-[13px]">{current.says}</span>
+    </div>
+  );
+}
+
+function ModeComposer(props: {
+  thread: Thread;
+  mode: Mode;
+  /** The message to forward; a reply answers the latest. */
+  sourceId: string | undefined;
+  onStopForward: () => void;
+}) {
   const { thread, mode } = props;
   const latest = thread.messages.at(-1);
   const { signature, isLoading: signatureLoading } = useSignature(thread.mailboxId);
@@ -152,14 +252,15 @@ function ModeComposer(props: { thread: Thread; mode: Exclude<Mode, "note">; togg
   const cancelSend = useCancelSend();
   const render = useRenderCannedReply(thread.id);
 
-  const defaultTo = mode === "reply" ? replyRecipients(latest) : [];
+  const defaultTo =
+    mode === "reply" ? customerRecipients(thread.messages, thread.mailboxAddress) : [];
   const [to, setTo] = useState<string[]>(defaultTo);
   const [cc, setCc] = useState<string[]>([]);
   const [bcc, setBcc] = useState<string[]>([]);
   const [text, setText] = useState("");
   const [showCopies, setShowCopies] = useState(false);
   // The message replied to or forwarded: the latest, or the one a resumed draft was written for.
-  const [sourceId, setSourceId] = useState(latest?.id);
+  const [sourceId, setSourceId] = useState(props.sourceId ?? latest?.id);
   const source = thread.messages.find((m) => m.id === sourceId) ?? latest;
   // Read only until the draft and signature are in, so they can't replace what was typed.
   const [ready, setReady] = useState(false);
@@ -240,8 +341,12 @@ function ModeComposer(props: { thread: Thread; mode: Exclude<Mode, "note">; togg
     if (!canSend) return;
     const before = { text, to, cc, bcc, files: files.files };
     const attachments = files.attachments;
+    // Sent explicitly unless they are exactly whom the server would reply to on its own.
     const recipientsChanged =
-      mode === "forward" || to.join() !== defaultTo.join() || cc.length > 0 || bcc.length > 0;
+      mode === "forward" ||
+      to.join() !== replyRecipients(latest).join() ||
+      cc.length > 0 ||
+      bcc.length > 0;
     const restore = () => {
       // Something new was written since: keep it, and hand back the stopped one on the clipboard.
       if (hasWords(current.current, signature)) {
@@ -343,8 +448,15 @@ function ModeComposer(props: { thread: Thread; mode: Exclude<Mode, "note">; togg
 
   return (
     <ComposerFrame onFiles={files.add}>
-      <div className="flex items-center justify-between gap-2">
-        {props.toggle}
+      <div className="flex min-h-7 items-center justify-between gap-2">
+        {mode === "forward" ? (
+          <ForwardLabel message={source} onStop={props.onStopForward} />
+        ) : (
+          <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+            <IconReply aria-hidden className="size-3.5 shrink-0" />
+            <span className="truncate">Reply</span>
+          </span>
+        )}
         <span className="min-w-0 truncate text-sm text-muted-foreground">
           From {thread.mailboxAddress}
         </span>
@@ -647,7 +759,34 @@ function Body(props: {
           props.onSend();
         }
       }}
-      className="-mt-1 max-h-96 min-h-24 resize-none pt-0 pb-1 sm:pt-0 sm:pb-1"
+      className="-mt-1 max-h-[min(24rem,30vh)] min-h-24 resize-none pt-0 pb-1 sm:pt-0 sm:pb-1"
     />
+  );
+}
+
+/** "Forward Carla's message" with an X back to replying. */
+function ForwardLabel({ message, onStop }: { message: Message | undefined; onStop: () => void }) {
+  const from = !message
+    ? "a"
+    : message.fromMe
+      ? "your"
+      : `${message.fromName || message.fromAddress}'s`;
+  return (
+    <span className="-me-1 flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+      <IconForward aria-hidden className="size-3.5 shrink-0" />
+      <span className="ms-1 truncate">Forward {from} message</span>
+      <TooltipTrigger delay={400}>
+        <Button
+          intent="ghost"
+          size="sq-xs"
+          aria-label="Reply instead"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+          onPress={onStop}
+        >
+          <IconX />
+        </Button>
+        <Tooltip>Reply instead</Tooltip>
+      </TooltipTrigger>
+    </span>
   );
 }

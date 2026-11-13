@@ -58,3 +58,8 @@ export { IconUser as IconUserRound } from "central-icons-outlined/IconUser";
 export { IconLock } from "central-icons-outlined/IconLock";
 export { IconBell } from "central-icons-outlined/IconBell";
 export { IconNoteText as IconNote } from "central-icons-outlined/IconNoteText";
+export { IconArrowUp } from "central-icons-outlined/IconArrowUp";
+export { IconAt } from "central-icons-outlined/IconAt";
+export { IconArrowShareLeft as IconReply } from "central-icons-outlined/IconArrowShareLeft";
+export { IconArrowShareRight as IconForward } from "central-icons-outlined/IconArrowShareRight";
+export { IconCrossSmall as IconX } from "central-icons-outlined/IconCrossSmall";

@@ -299,3 +299,10 @@ html .setup-toaster [data-sonner-toast][data-styled="true"] [data-description] {
   line-height: 20px;
   color: color-mix(in oklab, var(--primary-foreground) 85%, transparent);
 }
+
+/* The passage a chat reply answers stays marked while its reply box has focus (the real
+   selection clears then). The browser's own selection colour, so it reads as still selected. */
+::highlight(omni-reply) {
+  background-color: Highlight;
+  color: HighlightText;
+}

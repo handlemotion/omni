@@ -32,6 +32,8 @@ import {
 import { DEFER_MS, isDeferred } from "@/lib/threads.ts";
 import type { Conversation as HelpdeskState, Message, Thread } from "@/lib/types.ts";
 import { ReplyComposer } from "../compose/composer.tsx";
+import { ComposerProvider } from "../compose/composer-state.tsx";
+import { SelectionReply } from "../compose/selection-reply.tsx";
 import { EventLine, NoteItem, useEventLines } from "./activity.tsx";
 import { AddedLine, MessageItem, PendingItem } from "./message.tsx";
 import { Properties, SNOOZES } from "./properties.tsx";
@@ -91,32 +93,43 @@ export function Conversation({ threadId }: { threadId: string }) {
       <Actions thread={thread} shared={shared} />
       {/* The divider from the list runs beside the messages only; the toolbar row stays open,
           continuing the list's header row. */}
-      <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto border-s">
-        <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-6">
-          <div className="flex flex-col gap-2">
-            <Heading level={2}>{subject || "(no subject)"}</Heading>
-            {/* What the conversation is (status, owner, priority, tags) sits with its title. */}
-            {shared && (
-              <div className="mt-2">
-                <Properties thread={thread} />
-              </div>
-            )}
-            {thread.summary && <p className="text-sm/6 text-muted-foreground">{thread.summary}</p>}
+      {/* Per conversation: the timeline's menus and selections steer the composer under it. */}
+      <ComposerProvider key={threadId} chat={shared}>
+        <SelectionReply threadId={threadId} />
+        <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto border-s">
+          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-6">
+            <div className="flex flex-col gap-2">
+              <Heading level={2}>{subject || "(no subject)"}</Heading>
+              {/* What the conversation is (status, owner, priority, tags) sits with its title. */}
+              {shared && (
+                <div className="mt-2">
+                  <Properties thread={thread} />
+                </div>
+              )}
+              {thread.summary && (
+                <p className="text-sm/6 text-muted-foreground">{thread.summary}</p>
+              )}
+            </div>
+            <Timeline
+              key={threadId}
+              threadId={threadId}
+              mailboxId={thread.mailboxId}
+              messages={thread.messages}
+              helpdesk={shared ? helpdesk : undefined}
+            />
+            {pending.map((send) => (
+              <PendingItem key={send.key} send={send} />
+            ))}
+            <div ref={end} />
           </div>
-          <Timeline
-            key={threadId}
-            threadId={threadId}
-            mailboxId={thread.mailboxId}
-            messages={thread.messages}
-            helpdesk={shared ? helpdesk : undefined}
-          />
-          {pending.map((send) => (
-            <PendingItem key={send.key} send={send} />
-          ))}
-          <ReplyComposer thread={thread} shared={shared} />
-          <div ref={end} />
         </div>
-      </div>
+        {/* Pinned under the messages, in their column; they scroll behind it. */}
+        <div className="shrink-0 border-s">
+          <div className="mx-auto max-w-3xl px-5 pt-2 pb-4">
+            <ReplyComposer thread={thread} />
+          </div>
+        </div>
+      </ComposerProvider>
     </section>
   );
 }
