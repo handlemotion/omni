@@ -1,11 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { Command, defaultFilter } from "cmdk";
-import { motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion, type Transition } from "motion/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { Button } from "react-aria-components/Button";
-import { Popover } from "react-aria-components/Popover";
+import { Dialog } from "react-aria-components/Dialog";
+import { Modal, ModalOverlay } from "react-aria-components/Modal";
 import {
   IconBubble,
   IconBubbleAnnotation,
@@ -55,26 +55,38 @@ const COMMANDS: Command[] = [
   { id: "settings", title: "Settings", icon: <IconSettings />, href: "/settings" },
 ];
 
-// The panel grows out of the field: it's anchored to the field's top-right corner, so the closed
-// state is the panel clipped to the field's 240×32 rectangle at that corner.
-const FIELD = { width: 240, height: 32, radius: 6 };
-const clip = {
-  closed: `inset(0px 0px calc(100% - ${FIELD.height}px) calc(100% - ${FIELD.width}px) round ${FIELD.radius}px)`,
-  // Open, the clip reaches past the sides and bottom so the bottom drop shadow shows.
-  open: "inset(0px -12px -16px -12px round 8px)",
+// One box, two sizes: the field itself grows into the panel and shrinks back into the field. Its
+// search row is the field closed and the panel's top bar open, so nothing swaps or fades in from
+// elsewhere. Sizes are the field (`h-7 w-60 rounded-lg`, `ps-2 pe-0.75 gap-2`, 15px icon) and the
+// panel (`w-100 rounded-xl`, a 44px `ps-4.5 pe-3 gap-2.5` bar over the fixed-height list).
+// The box is pinned to the field's top-right corner, so it grows left and down.
+const SIZE = {
+  closed: { width: 240, height: 28, borderRadius: 6 },
+  open: { width: 400, height: 338, borderRadius: 8 },
 };
+const BAR = {
+  closed: { height: 26, paddingInlineStart: 8, paddingInlineEnd: 3, columnGap: 8 },
+  open: { height: 44, paddingInlineStart: 18, paddingInlineEnd: 12, columnGap: 10 },
+};
+const ICON = { closed: { width: 15, height: 15 }, open: { width: 16, height: 16 } };
 // The strong ease-out (tactile-design), the same curve as `--ease-out`.
 const ease = [0.23, 1, 0.32, 1] as const;
 
 type Phase = "closed" | "open" | "closing";
+type Anchor = { top: number; right: number };
 
-/** The closed state is a 32px field in the title bar. */
+/** The closed state is the 28px field in the title bar. */
 export function SearchPopover() {
   const [phase, setPhase] = useState<Phase>("closed");
+  const [anchor, setAnchor] = useState<Anchor>({ top: 0, right: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
-  // Reduced motion: no growing out of the field; the panel crossfades in place instead.
+  // Reduced motion: no growing; the box takes its open size at once and crossfades.
   const reduceMotion = useReducedMotion();
-  const open = () => setPhase("open");
+  const open = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) setAnchor({ top: rect.top, right: window.innerWidth - rect.right });
+    setPhase("open");
+  };
   const close = () => setPhase((p) => (p === "closed" ? p : "closing"));
 
   // "/" (outside text fields) and ⌘K / Ctrl+K open it from anywhere.
@@ -96,59 +108,58 @@ export function SearchPopover() {
   }, []);
 
   const isOpen = phase === "open";
+  const state = isOpen ? "open" : "closed";
+  const transition = { duration: reduceMotion ? 0 : 0.24, ease };
 
   return (
     <>
+      {/* While the box is up it sits exactly over the field, so the field steps aside: the same
+          frame the box goes, the field is back, pixel for pixel where the box ended. */}
       <Button
         ref={triggerRef}
         onPress={open}
         aria-label="Search"
-        className="flex h-7 w-60 cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 pe-0.75 text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70"
+        className={`flex h-7 w-60 cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 pe-0.75 text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70 ${phase === "closed" ? "" : "invisible"}`}
       >
         <IconSearch className="text-muted-foreground" />
         <span className="flex-1 text-start">Search</span>
         <Keyboard>/</Keyboard>
       </Button>
-      {phase !== "closed" &&
-        createPortal(
-          <motion.div
-            aria-hidden
-            className="fixed inset-0 z-40 bg-foreground/10"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: isOpen ? 1 : 0 }}
-            transition={{ duration: 0.2, ease }}
-          />,
-          document.body,
-        )}
-      <Popover
-        triggerRef={triggerRef}
+      <ModalOverlay
         isOpen={phase !== "closed"}
         onOpenChange={(next) => (next ? open() : close())}
-        placement="bottom end"
-        // Opens over the field itself: its top edge sits where the field's top edge is.
-        offset={-FIELD.height}
-        className="z-50 outline-hidden"
+        isDismissable
+        className="fixed inset-0 z-40"
       >
         <motion.div
-          className="w-100 overflow-hidden rounded-xl border border-border bg-background shadow-(--shadow-overlay)"
-          initial={reduceMotion ? { clipPath: clip.open, opacity: 0 } : { clipPath: clip.closed }}
-          animate={
-            reduceMotion
-              ? { opacity: isOpen ? 1 : 0 }
-              : { clipPath: isOpen ? clip.open : clip.closed }
-          }
-          transition={{ duration: reduceMotion ? 0.15 : 0.24, ease }}
-          onAnimationComplete={() => phase === "closing" && setPhase("closed")}
-        >
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: isOpen ? 1 : 0 }}
-            transition={{ duration: isOpen ? 0.18 : 0.1, delay: isOpen ? 0.06 : 0, ease }}
-          >
-            <SearchPanel onClose={close} />
-          </motion.div>
-        </motion.div>
-      </Popover>
+          aria-hidden
+          className="absolute inset-0 bg-foreground/10"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: isOpen ? 1 : 0 }}
+          transition={{ duration: 0.2, ease }}
+        />
+        <Modal className="outline-hidden">
+          <Dialog aria-label="Search" className="outline-hidden">
+            <motion.div
+              // `overflow-clip`, not hidden: a hidden box can still be scrolled, and cmdk scrolling
+              // the selected row into view pushed the search row up out of the small box.
+              className="fixed flex flex-col overflow-clip border border-input bg-background transition-shadow duration-200 data-[open=true]:shadow-(--shadow-overlay)"
+              data-open={isOpen}
+              style={anchor}
+              initial={reduceMotion ? { ...SIZE.open, opacity: 0 } : SIZE.closed}
+              animate={reduceMotion ? { ...SIZE.open, opacity: isOpen ? 1 : 0 } : SIZE[state]}
+              transition={reduceMotion ? { duration: 0.15, ease } : transition}
+              onAnimationComplete={() => phase === "closing" && setPhase("closed")}
+            >
+              <SearchPanel
+                state={reduceMotion ? "open" : state}
+                transition={transition}
+                onClose={close}
+              />
+            </motion.div>
+          </Dialog>
+        </Modal>
+      </ModalOverlay>
     </>
   );
 }
@@ -163,7 +174,15 @@ const SMART = "smart-search";
 const filter = (value: string, search: string, keywords?: string[]) =>
   value === SMART ? 1 : defaultFilter("", search, keywords);
 
-function SearchPanel({ onClose }: { onClose: () => void }) {
+function SearchPanel({
+  state,
+  transition,
+  onClose,
+}: {
+  state: "open" | "closed";
+  transition: Transition;
+  onClose: () => void;
+}) {
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -194,17 +213,44 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <Command label="Search" loop filter={filter} className="outline-hidden">
-      <div className="flex h-11 items-center gap-2.5 border-b border-border ps-4.5 pe-3">
-        <IconSearch className="size-4 shrink-0 text-muted-foreground" />
+      {/* The field's own row, grown into the top bar. Its rule shows only once there's a list
+          under it. */}
+      <motion.div
+        className="flex shrink-0 items-center border-b border-transparent data-[open=true]:border-border"
+        data-open={state === "open"}
+        initial={BAR.closed}
+        animate={BAR[state]}
+        transition={transition}
+      >
+        <motion.span
+          className="flex shrink-0 text-muted-foreground *:size-full"
+          initial={ICON.closed}
+          animate={ICON[state]}
+          transition={transition}
+        >
+          <IconSearch />
+        </motion.span>
         <Command.Input
           autoFocus
           value={q}
           onValueChange={setQ}
-          placeholder="Search mail or jump to…"
+          placeholder="Search"
           className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-hidden placeholder:text-subtle-foreground"
         />
-        <Keyboard>Esc</Keyboard>
-      </div>
+        {/* The key hint turns from the field's "/" into "Esc" in one spot. */}
+        <span className="grid *:col-start-1 *:row-start-1 *:justify-self-end">
+          <motion.span animate={{ opacity: state === "open" ? 0 : 1 }} transition={transition}>
+            <Keyboard>/</Keyboard>
+          </motion.span>
+          <motion.span
+            initial={{ opacity: 0 }}
+            animate={{ opacity: state === "open" ? 1 : 0 }}
+            transition={transition}
+          >
+            <Keyboard>Esc</Keyboard>
+          </motion.span>
+        </span>
+      </motion.div>
 
       <Command.List className={`${LIST_HEIGHT} overflow-y-auto p-1.5 outline-hidden`}>
         {query && (
