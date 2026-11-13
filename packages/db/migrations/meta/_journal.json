@@ -183,6 +183,13 @@
       "when": 1794528891660,
       "tag": "0025_message_sender",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794543318253,
+      "tag": "0026_pending_mail_events",
+      "breakpoints": true
     }
   ]
 }
