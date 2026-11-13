@@ -37,7 +37,6 @@ import { challengePasses, recordPasses, rememberedChallenge } from "@/lib/onboar
 import {
   useCancelInvitation,
   useInvitations,
-  useInviteMember,
   useMembers,
   useRemoveMember,
   useChangeWorkspaceHandle,
@@ -45,11 +44,11 @@ import {
   useResendInvitation,
   useUpdateMemberRole,
 } from "@/hooks/use-organization.ts";
-import { useWorkspaceMailboxes } from "@/hooks/use-mailbox-members.ts";
+import { useWorkspaceMembers } from "@/hooks/use-workspace-admin.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useRemoveWorkspaceLogo, useUploadWorkspaceLogo } from "@/hooks/use-pictures.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
-import type { OnboardingDomain, OrgMailbox, Workspace } from "@/lib/types.ts";
+import type { OnboardingDomain, Workspace, WorkspaceMember } from "@/lib/types.ts";
 import { NameInputRow, PersonAvatar } from "./account-pages";
 import {
   type InboxOwner,
@@ -57,7 +56,9 @@ import {
   NewMailboxDialog,
   useMailboxDomains,
 } from "./mailbox-pages";
+import { InviteDialog } from "./invite-dialog";
 import { JoinRequestsSection } from "./join-requests-section";
+import { UnassignedInboxesSection } from "./unassigned-inboxes";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import {
   SettingsEmptyState,
@@ -473,7 +474,7 @@ function DomainRecordsDialog(props: { domain: OnboardingDomain; onClose: () => v
   );
 }
 
-type Role = "member" | "admin";
+export type Role = "member" | "admin";
 
 const ROLE_OPTIONS: { label: string; value: Role }[] = [
   { label: "Member", value: "member" },
@@ -494,23 +495,102 @@ type PeopleDialog =
   | { kind: "inbox"; person: InboxOwner };
 
 /**
- * A person's personal inbox as their People row says it: its address, then its state when it
- * isn't syncing normally. Text in the description, so the row stays as tall as the others.
+ * The inboxes a person can open as their People row says it: their own first, then the shared
+ * ones they are on, then the state of their own when it isn't syncing normally. Text in the
+ * description, so the row stays as tall as the others.
  */
-function InboxDescription({ inboxes }: { inboxes: OrgMailbox[] }) {
-  const [first] = inboxes;
+function InboxDescription({ person }: { person: WorkspaceMember }) {
+  const addresses = [...person.inboxes, ...person.sharedInboxes].map((inbox) => inbox.address);
+  const [first] = addresses;
   if (!first) return "No inbox";
-  const status = MAILBOX_STATUS[first.status];
+  const status = person.inboxes[0] && MAILBOX_STATUS[person.inboxes[0].status];
   return (
     <>
-      {first.address}
-      {inboxes.length > 1 && ` and ${inboxes.length - 1} more`}
+      {first}
+      {addresses.length > 1 && ` and ${addresses.length - 1} more`}
       {status && (
         <span className={cn(status.intent === "danger" && "text-danger-subtle-foreground")}>
           {` · ${status.label}`}
         </span>
       )}
     </>
+  );
+}
+
+type MemberRow = NonNullable<ReturnType<typeof useMembers>["data"]>["members"][number];
+
+/** A person's row menu on People: their inbox for managers, and role and removal for others. */
+function memberMenu(
+  person: MemberRow,
+  name: string,
+  can: { inbox: boolean; manage: boolean; self: boolean; open: (dialog: PeopleDialog) => void },
+) {
+  const inbox = {
+    icon: IconInbox,
+    label: "Create inbox",
+    onAction: () =>
+      can.open({
+        kind: "inbox",
+        person: { id: person.id, name, email: person.user.email, isYou: can.self },
+      }),
+  };
+  const role = {
+    icon: IconUserCog,
+    label: "Change role",
+    onAction: () =>
+      can.open({
+        kind: "role",
+        memberId: person.id,
+        name,
+        role: person.role.includes("admin") ? "admin" : "member",
+      }),
+  };
+  const remove = {
+    icon: IconUserMinus,
+    label: "Remove from workspace",
+    danger: true,
+    onAction: () => can.open({ kind: "remove", memberId: person.id, name }),
+  };
+  return [...(can.inbox ? [inbox] : []), ...(can.manage ? [role, remove] : [])];
+}
+
+/** One member on People, with the inboxes they can open when the viewer manages them. */
+function PersonRow(props: {
+  person: MemberRow;
+  self: boolean;
+  inboxes: WorkspaceMember | undefined;
+  canManage: boolean;
+  canCreateInbox: boolean;
+  open: (dialog: PeopleDialog) => void;
+}) {
+  const { person, self, inboxes } = props;
+  const name = person.user.name || person.user.email;
+  const editable = props.canManage && !self && !person.role.includes("owner");
+  const items = memberMenu(person, name, {
+    inbox: props.canCreateInbox,
+    manage: editable,
+    self,
+    open: props.open,
+  });
+  return (
+    <SettingsRow
+      avatar={<PersonAvatar name={name} image={person.user.image} />}
+      label={name}
+      hint={self ? "you" : undefined}
+      description={
+        inboxes ? (
+          <InboxDescription person={inboxes} />
+        ) : person.user.name ? (
+          person.user.email
+        ) : undefined
+      }
+      control={
+        <>
+          <RoleBadge role={person.role} />
+          {items.length > 0 && <SettingsRowMenu label={`Actions for ${name}`} items={items} />}
+        </>
+      }
+    />
   );
 }
 
@@ -522,15 +602,15 @@ export function PeoplePage() {
   const cancel = useCancelInvitation();
   const resend = useResendInvitation();
   const canManage = isManager(me.role);
-  // Owners and admins see whose personal inbox exists; the list is theirs only (ADR 0017).
-  const workspaceMailboxes = useWorkspaceMailboxes(canManage);
+  // Owners and admins see which inboxes each person can open, and the ones former members left;
+  // the lists are theirs only (ADR 0017, ADR 0026).
+  const team = useWorkspaceMembers(canManage);
   const domains = useMailboxDomains();
   const pending = invitations.data?.filter((invitation) => invitation.status === "pending");
   const [dialog, setDialog] = useState<PeopleDialog | null>(null);
   const close = () => setDialog(null);
-  const personal = workspaceMailboxes.data?.mailboxes.filter((m) => m.kind === "personal");
   // Members alone for everyone else; for owners and admins, members once their inboxes load too.
-  const rows = canManage && !personal ? undefined : members.data?.members;
+  const rows = canManage && !team.data ? undefined : members.data?.members;
   const canCreateInbox = canManage && !!domains && domains.length > 0;
 
   return (
@@ -545,80 +625,23 @@ export function PeoplePage() {
                   onPress={() => setDialog({ kind: "invite" })}
                 />
               )}
-              {list.map((person) => {
-                const name = person.user.name || person.user.email;
-                const self = person.id === me.id;
-                const editable = canManage && !self && !person.role.includes("owner");
-                const inboxes = personal?.filter((m) => m.owner?.memberId === person.id);
-                const items = [
-                  ...(canCreateInbox && inboxes?.length === 0
-                    ? [
-                        {
-                          icon: IconInbox,
-                          label: "Create inbox",
-                          onAction: () =>
-                            setDialog({
-                              kind: "inbox",
-                              person: {
-                                id: person.id,
-                                name,
-                                email: person.user.email,
-                                isYou: self,
-                              },
-                            }),
-                        },
-                      ]
-                    : []),
-                  ...(editable
-                    ? [
-                        {
-                          icon: IconUserCog,
-                          label: "Change role",
-                          onAction: () =>
-                            setDialog({
-                              kind: "role",
-                              memberId: person.id,
-                              name,
-                              role: person.role.includes("admin") ? "admin" : "member",
-                            }),
-                        },
-                        {
-                          icon: IconUserMinus,
-                          label: "Remove from workspace",
-                          danger: true,
-                          onAction: () => setDialog({ kind: "remove", memberId: person.id, name }),
-                        },
-                      ]
-                    : []),
-                ];
-                return (
-                  <SettingsRow
-                    key={person.id}
-                    avatar={<PersonAvatar name={name} image={person.user.image} />}
-                    label={name}
-                    hint={self ? "you" : undefined}
-                    description={
-                      inboxes ? (
-                        <InboxDescription inboxes={inboxes} />
-                      ) : person.user.name ? (
-                        person.user.email
-                      ) : undefined
-                    }
-                    control={
-                      <>
-                        <RoleBadge role={person.role} />
-                        {items.length > 0 && (
-                          <SettingsRowMenu label={`Actions for ${name}`} items={items} />
-                        )}
-                      </>
-                    }
-                  />
-                );
-              })}
+              {list.map((person) => (
+                <PersonRow
+                  key={person.id}
+                  person={person}
+                  self={person.id === me.id}
+                  inboxes={team.data?.members.find((m) => m.id === person.id)}
+                  canManage={canManage}
+                  canCreateInbox={canCreateInbox}
+                  open={setDialog}
+                />
+              ))}
             </SettingsGroup>
           )}
         </Skeleton>
       </SettingsSection>
+
+      {canManage && <UnassignedInboxesSection />}
 
       <JoinRequestsSection canManage={canManage} />
 
@@ -727,7 +750,7 @@ export function PeoplePage() {
   );
 }
 
-function RoleSelect({ value, onChange }: { value: Role; onChange: (role: Role) => void }) {
+export function RoleSelect({ value, onChange }: { value: Role; onChange: (role: Role) => void }) {
   return (
     <Select
       value={value}
@@ -746,44 +769,6 @@ function RoleSelect({ value, onChange }: { value: Role; onChange: (role: Role) =
         )}
       </SelectContent>
     </Select>
-  );
-}
-
-function InviteDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const invite = useInviteMember();
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<Role>("member");
-  const address = email.trim();
-  return (
-    <SettingsFormDialog
-      isOpen={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      title="Invite member"
-      description="They get an email with a link to join this workspace."
-      action="Invite"
-      disabled={!address}
-      saving={invite.isPending}
-      onSubmit={() =>
-        invite.mutate(
-          { email: address, role },
-          {
-            onSuccess: () => {
-              setEmail("");
-              setRole("member");
-              onClose();
-              appToast.success(`Invitation sent to ${address}`);
-            },
-            onError: (error) => appToast.error(error.message || "The invitation was not sent."),
-          },
-        )
-      }
-    >
-      <TextField type="email" isRequired autoFocus value={email} onChange={setEmail}>
-        <Label>Email</Label>
-        <Input placeholder="name@company.com" autoComplete="off" />
-      </TextField>
-      <RoleSelect value={role} onChange={setRole} />
-    </SettingsFormDialog>
   );
 }
 

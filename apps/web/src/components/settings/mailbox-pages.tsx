@@ -23,7 +23,8 @@ import {
   useRemoveMailboxMember,
   useWorkspaceMailboxes,
 } from "@/hooks/use-mailbox-members.ts";
-import { useCreateMailboxes, useOnboarding } from "@/hooks/use-onboarding.ts";
+import { useOnboarding } from "@/hooks/use-onboarding.ts";
+import { useCreateSharedInbox, useIssueInbox } from "@/hooks/use-workspace-admin.ts";
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { parseServer } from "@/lib/onboarding.ts";
@@ -120,6 +121,7 @@ const SAMPLE_ORG_MAILBOXES = SAMPLE_ADDRESSES.map((address, i) => ({
   syncedAt: null,
   people: 2,
   owner: null,
+  orphaned: false,
 })) as OrgMailbox[];
 const SAMPLE_PEOPLE = ["Sample person", "Another person", "Third person"].map((name, i) => ({
   id: `sample-${i}`,
@@ -278,7 +280,7 @@ export function SharedMailboxesPage() {
   const [adding, setAdding] = useState(false);
   // Owners and admins see every shared mailbox; members, the ones they are on.
   const shared: SharedRow[] | undefined = canManage
-    ? all.data?.mailboxes.filter((mailbox) => mailbox.kind === "shared")
+    ? all.data?.inboxes.filter((mailbox) => mailbox.kind === "shared")
     : mine?.filter((mailbox) => mailbox.kind === "shared");
   const open = shared?.find((mailbox) => mailbox.id === openId);
   const canAdd = canManage && !!domains && domains.length > 0;
@@ -488,7 +490,7 @@ function AddAccessDialog(props: {
   );
 }
 
-function PersonSelect(props: {
+export function PersonSelect(props: {
   people: { id: string; name: string }[];
   value: string | null;
   onChange: (id: string | null) => void;
@@ -536,7 +538,10 @@ export function NewMailboxDialog(props: {
   onClose: () => void;
 }) {
   const { person } = props;
-  const create = useCreateMailboxes();
+  const { member } = useMember();
+  const issue = useIssueInbox();
+  const createShared = useCreateSharedInbox();
+  const create = person ? issue : createShared;
   const signInDomain = person?.email.split("@")[1]?.toLowerCase();
   const [domainId, setDomainId] = useState(
     (props.domains.find((d) => d.domain.toLowerCase() === signInDomain) ?? props.domains[0]!).id,
@@ -568,36 +573,32 @@ export function NewMailboxDialog(props: {
       action={person ? "Create" : "Add"}
       disabled={!ready}
       saving={create.isPending}
-      onSubmit={() =>
-        create.mutate(
-          {
-            domainId: domain.id,
-            mailboxes: [
-              {
-                localPart: localPart.trim(),
-                ...(ownHost ? { password } : {}),
-                ...(person ? { forMemberId: person.id } : {}),
-              },
-            ],
-            ...(servers?.imap && servers.smtp
-              ? { servers: { imap: servers.imap, smtp: servers.smtp } }
-              : {}),
+      onSubmit={() => {
+        const placement = {
+          domainId: domain.id,
+          localPart: localPart.trim(),
+          ...(ownHost && servers?.imap && servers.smtp
+            ? { password, servers: { imap: servers.imap, smtp: servers.smtp } }
+            : {}),
+        };
+        const done = {
+          onSuccess: (made: { address: string }) => {
+            props.onClose();
+            appToast.success(
+              !person
+                ? `Added ${made.address}`
+                : person.isYou
+                  ? `Created ${made.address}`
+                  : `Created ${made.address} for ${person.name}`,
+            );
           },
-          {
-            onSuccess: ([made]) => {
-              props.onClose();
-              appToast.success(
-                !person
-                  ? `Added ${made?.address}`
-                  : person.isYou
-                    ? `Created ${made?.address}`
-                    : `Created ${made?.address} for ${person.name}`,
-              );
-            },
-            onError: (error) => appToast.error(error.message || "The mailbox was not created."),
-          },
-        )
-      }
+          onError: (error: Error) =>
+            appToast.error(error.message || "The mailbox was not created."),
+        };
+        // A shared one starts with you on it; you choose who else sees it next.
+        if (person) issue.mutate({ ...placement, memberId: person.id }, done);
+        else createShared.mutate({ ...placement, memberIds: [member.id] }, done);
+      }}
     >
       {props.domains.length > 1 && (
         <Select value={domainId} onChange={(next) => next && setDomainId(String(next))}>

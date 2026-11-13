@@ -10,17 +10,18 @@ import { keys } from "./query-keys.ts";
  * count, personal ones with their owner, each with its sync health. Never their mail. 403 for
  * anyone else, so only managers' screens ask.
  */
-export const workspaceMailboxesQuery = () =>
-  queryOptions({
-    queryKey: keys.workspaceMailboxes(),
-    queryFn: ({ signal }) => call(api.workspace.mailboxes.$get(undefined, { init: { signal } })),
-  });
+export { workspaceInboxesQuery as workspaceMailboxesQuery } from "./workspace-admin.ts";
 
 export const mailboxMembersQuery = (mailboxId: string) =>
   queryOptions({
     queryKey: keys.mailboxMembers(mailboxId),
     queryFn: ({ signal }) =>
-      call(api.mailboxes[":id"].members.$get({ param: { id: mailboxId } }, { init: { signal } })),
+      call(
+        api.workspace["shared-inboxes"][":id"].people.$get(
+          { param: { id: mailboxId } },
+          { init: { signal } },
+        ),
+      ).then(({ people }) => ({ members: people })),
   });
 
 export interface MailboxMemberChange {
@@ -35,6 +36,7 @@ export interface MailboxMemberChange {
 const settle = (client: QueryClient, mailboxId: string) =>
   Promise.all([
     client.invalidateQueries({ queryKey: keys.mailboxMembers(mailboxId) }),
+    client.invalidateQueries({ queryKey: keys.workspaceMembers() }),
     client.invalidateQueries({ queryKey: keys.mail() }),
   ]);
 
@@ -42,7 +44,11 @@ const settle = (client: QueryClient, mailboxId: string) =>
 export const addMailboxMemberMutation = (client: QueryClient) =>
   mutationOptions({
     mutationFn: ({ mailboxId, memberId }: MailboxMemberChange) =>
-      call(api.mailboxes[":id"].members[":memberId"].$put({ param: { id: mailboxId, memberId } })),
+      call(
+        api.workspace["shared-inboxes"][":id"].people[":memberId"].$put({
+          param: { id: mailboxId, memberId },
+        }),
+      ),
     onSettled: (_data, _error, { mailboxId }) => settle(client, mailboxId),
   });
 
@@ -50,7 +56,9 @@ export const removeMailboxMemberMutation = (client: QueryClient) =>
   mutationOptions({
     mutationFn: ({ mailboxId, memberId }: MailboxMemberChange) =>
       call(
-        api.mailboxes[":id"].members[":memberId"].$delete({ param: { id: mailboxId, memberId } }),
+        api.workspace["shared-inboxes"][":id"].people[":memberId"].$delete({
+          param: { id: mailboxId, memberId },
+        }),
       ),
     onSettled: (_data, _error, { mailboxId }) => settle(client, mailboxId),
   });

@@ -5,7 +5,6 @@ import {
   cancelInvitationMutation,
   deletePasskeyMutation,
   invitationsQuery,
-  inviteMemberMutation,
   membersQuery,
   passkeysQuery,
   removeMemberMutation,
@@ -25,10 +24,6 @@ export function useInvitations() {
 }
 
 /** `mutate({ email, role? })` emails an invitation to `/invite/<id>`. */
-export function useInviteMember() {
-  return useMutation(inviteMemberMutation(useQueryClient()));
-}
-
 /** `mutate(invitationId)`. */
 export function useCancelInvitation() {
   return useMutation(cancelInvitationMutation(useQueryClient()));

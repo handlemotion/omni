@@ -47,12 +47,18 @@ export type Workspaces = InferResponseType<Api["workspaces"]["$get"], 200>;
 export type Workspace = Workspaces["workspaces"][number];
 export type WorkspaceMailbox = Workspace["mailboxes"][number];
 /**
- * One mailbox of the active workspace as owners and admins see it (`GET /api/workspace/mailboxes`):
- * its health, a personal one's owner, a shared one's head count. No mail.
+ * One mailbox of the active workspace as owners and admins see it (`GET /api/workspace/inboxes`):
+ * its health, a personal one's owner, a shared one's head count, and `orphaned` when its owner
+ * left. No mail.
  */
 export type OrgMailbox = InferResponseType<
-  Api["workspace"]["mailboxes"]["$get"],
+  Api["workspace"]["inboxes"]["$get"],
   200
->["mailboxes"][number];
+>["inboxes"][number];
+/** A member of the active workspace with the inboxes they can open (`GET /api/workspace/members`). */
+export type WorkspaceMember = InferResponseType<
+  Api["workspace"]["members"]["$get"],
+  200
+>["members"][number];
 /** `created → domain_added → dns_verified → mailboxes_created → invites_sent → complete`. */
 export type SetupStep = Workspace["setup"];

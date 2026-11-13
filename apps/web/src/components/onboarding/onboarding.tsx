@@ -46,7 +46,7 @@ import {
   useGoogleAccounts,
   useGoogleReturn,
 } from "@/hooks/use-google-connection";
-import { useInviteMember } from "@/hooks/use-organization";
+import { useInviteWithInbox } from "@/hooks/use-workspace-admin";
 import { formatPrice, type Interval } from "@/lib/billing";
 import { googleErrorText, type GoogleOutcome } from "@/lib/google-connection";
 import {
@@ -1117,7 +1117,8 @@ function PlanForm(props: { finishing: boolean; finishProblem: string | null; onD
 }
 
 /**
- * Invites each address into the new workspace (the existing invitation flow), or skips. On the
+ * Invites each address into the new workspace, each with their own inbox on a domain on Omni's
+ * host, or skips. On the
  * last step (no plan to pick), setup finishes and the inbox opens.
  */
 function InviteForm(props: {
@@ -1125,7 +1126,12 @@ function InviteForm(props: {
   finishProblem: string | null;
   onDone: () => void;
 }) {
-  const inviteMember = useInviteMember();
+  const invite = useInviteWithInbox();
+  // On a domain on Omni's host, each teammate gets their own inbox at the name they're invited
+  // with (ADR 0026); elsewhere they connect theirs after joining.
+  const hosted = useOnboarding().data?.domains.find(
+    (d) => d.provider === "purelymail" && d.status === "verified" && d.added,
+  );
   // Three fields to start: most teams invite a few people at once.
   const [emails, setEmails] = useState(["", "", ""]);
   const [sending, setSending] = useState(false);
@@ -1142,7 +1148,11 @@ function InviteForm(props: {
     try {
       // Each address leaves the list once invited, so a retry after an error sends only the rest.
       for (const email of emails.map((e) => e.trim()).filter(Boolean)) {
-        await inviteMember.mutateAsync({ email });
+        const localPart = email.split("@")[0] ?? "";
+        await invite.mutateAsync({
+          email,
+          ...(hosted && localPart ? { inbox: { domainId: hosted.id, localPart } } : {}),
+        });
         setEmails((list) => {
           const rest = list.filter((e) => e.trim() !== email);
           return rest.length > 0 ? rest : [""];

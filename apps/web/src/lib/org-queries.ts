@@ -42,13 +42,6 @@ export const passkeysQuery = () =>
     queryFn: ({ signal }) => authCall(auth.passkey.listUserPasskeys({ fetchOptions: { signal } })),
   });
 
-export const inviteMemberMutation = (client: QueryClient) =>
-  mutationOptions({
-    mutationFn: ({ email, role = "member" }: { email: string; role?: Role }) =>
-      authCall(auth.organization.inviteMember({ email, role })),
-    onSettled: () => client.invalidateQueries({ queryKey: keys.invitations() }),
-  });
-
 export const cancelInvitationMutation = (client: QueryClient) =>
   mutationOptions({
     mutationFn: (invitationId: string) =>

@@ -68,6 +68,8 @@ export const keys = {
   googleAccounts: () => [...mail, "google-accounts"] as const,
   /** Every mailbox of the workspace, without its mail (owners and admins). */
   workspaceMailboxes: () => [...mail, "workspace-mailboxes"] as const,
+  /** Every member with the inboxes each can open (owners and admins). */
+  workspaceMembers: () => [...mail, "workspace-members"] as const,
   mailboxMembers: (mailboxId: string) => [...mail, "mailbox-members", mailboxId] as const,
   counts: () => [...mail, "counts"] as const,
   threadLists: () => [...mail, "threads"] as const,

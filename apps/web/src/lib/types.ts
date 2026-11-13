@@ -20,6 +20,7 @@ export type {
   SetupStep,
   Workspace,
   WorkspaceMailbox,
+  WorkspaceMember,
   Workspaces,
 } from "@omni/client";
 
