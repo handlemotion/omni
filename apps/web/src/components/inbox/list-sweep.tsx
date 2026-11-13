@@ -57,6 +57,10 @@ export function ListSweepProvider({ children }: { children: ReactNode }) {
           direction="ttb"
           palette={BAND}
           curve={0.12}
+          // Off: on HTML-in-Canvas (Chrome 157+) the rows would be drawn through a WebGL canvas,
+          // which paints them black once the list changes width (a thread opening beside it).
+          // The plain sweep over the rows stays.
+          pageEffect={false}
           style={{ position: "absolute", inset: `0 -${FEATHER}px` }}
         >
           {/* Filled: the sweep reveals by wiping away a frozen copy of the old rows, which has to

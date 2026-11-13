@@ -261,7 +261,7 @@ const Rows = memo(function Rows(props: {
         // highlight. The page behind it is already the background.
         // The virtualizer gives its sizer and row wrappers no width here (its measured width is
         // NaN), so each row would shrink to its content; they take the list's width instead.
-        className="min-h-0 flex-1 overflow-y-auto bg-transparent *:w-full *:*:w-full"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-none bg-transparent *:w-full *:*:w-full"
         // Letters are shortcuts here (j, k, x, e, ...), not type-to-find.
         disallowTypeAhead
         selectionMode="multiple"

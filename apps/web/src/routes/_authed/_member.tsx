@@ -50,6 +50,9 @@ function Shell() {
     // settles from 105% to 100% on top (a parallax stack). Same length and curve as the dialog.
     <ResizableSidebarProvider
       className={
+        // The page itself never scrolls: it is the window's size, and the list and the open
+        // thread scroll on their own inside it.
+        "h-svh overflow-hidden " +
         "origin-center transition-[scale,opacity] duration-300 ease-out motion-reduce:transition-none " +
         (settings.isOpen ? "scale-95 opacity-40" : "")
       }

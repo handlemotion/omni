@@ -198,6 +198,15 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
+    /* No rubber-band bounce: the app's panes scroll, the page stays put. */
+    overscroll-behavior: none;
+  }
+  /* No visible scrollbars anywhere; every pane still scrolls by wheel, touch and keys. */
+  * {
+    scrollbar-width: none;
+  }
+  ::-webkit-scrollbar {
+    display: none;
   }
   body {
     background-color: var(--background);

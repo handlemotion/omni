@@ -66,19 +66,20 @@ export function Conversation({ threadId }: { threadId: string }) {
         replace: true,
       } as never),
   );
-  const end = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   // Whether the reader sat at the bottom before this render: new mail follows them only then.
   const atBottom = useRef(true);
 
+  // To the very end, so the newest message sits above the composer floating over it.
+  const toEnd = () => scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   // A conversation opens at its newest message, like a chat.
   useLayoutEffect(() => {
     atBottom.current = true;
-    end.current?.scrollIntoView({ block: "end" });
+    toEnd();
   }, [threadId]);
   // A new message or reply keeps the newest in view, unless they scrolled up to read.
   useLayoutEffect(() => {
-    if (atBottom.current) end.current?.scrollIntoView({ block: "end" });
+    if (atBottom.current) toEnd();
   }, [thread?.messages.length, pending.length, helpdesk?.notes.length]);
   const onScroll = () => {
     const el = scroller.current;
@@ -96,8 +97,14 @@ export function Conversation({ threadId }: { threadId: string }) {
       {/* Per conversation: the timeline's menus and selections steer the composer under it. */}
       <ComposerProvider key={threadId} chat={shared}>
         <SelectionReply threadId={threadId} />
-        <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto border-s">
-          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-6">
+        <div
+          ref={scroller}
+          onScroll={onScroll}
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none border-s"
+        >
+          {/* Grows to fill a short thread, so the composer still floats at the bottom. The bottom
+              padding clears the fade, so the newest message ends above it. */}
+          <div className="mx-auto flex w-full max-w-3xl grow flex-col gap-6 px-5 pt-6 pb-10">
             <div className="flex flex-col gap-2">
               <Heading level={2}>{subject || "(no subject)"}</Heading>
               {/* What the conversation is (status, owner, priority, tags) sits with its title. */}
@@ -120,13 +127,17 @@ export function Conversation({ threadId }: { threadId: string }) {
             {pending.map((send) => (
               <PendingItem key={send.key} send={send} />
             ))}
-            <div ref={end} />
           </div>
-        </div>
-        {/* Pinned under the messages, in their column; they scroll behind it. */}
-        <div className="shrink-0 border-s">
-          <div className="mx-auto max-w-3xl px-5 pt-2 pb-4">
-            <ReplyComposer thread={thread} />
+          {/* Floats 16px off the bottom, in the messages' column; they scroll behind it and fade
+              out as they reach it. */}
+          <div className="sticky bottom-0 mx-auto w-full max-w-3xl shrink-0 px-5 pb-4">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 bg-linear-to-b from-transparent to-background to-[2.5rem]"
+            />
+            <div className="relative">
+              <ReplyComposer thread={thread} />
+            </div>
           </div>
         </div>
       </ComposerProvider>
