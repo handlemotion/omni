@@ -178,7 +178,13 @@ function threadResponse(
 }
 
 export const mail = new Hono<AppEnv>()
+  // `?scope=all`: every mailbox the user can open, in every workspace their session reaches
+  // (ADR 0024), each with its `orgId`; the default is the active workspace's, as before.
   .get("/mailboxes", async (c) => {
+    if (c.req.query("scope") === "all") {
+      const reader = forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId);
+      return c.json({ mailboxes: await reader.listMailboxes() });
+    }
     return c.json({ mailboxes: await listMemberMailboxes(c.var.db, c.var.member.id) });
   })
 

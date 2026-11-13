@@ -14,6 +14,7 @@ import {
 import { applyConversationChange } from "../src/conversations.ts";
 import { forMember, forUser } from "../src/for-member.ts";
 import {
+  drafts as schemaDrafts,
   mailboxes as schemaMailboxes,
   mailDomains,
   members,
@@ -741,4 +742,33 @@ test("google accounts: only personal Gmail the grantees can see, scoped sessions
   expect(ids(await forUser(db, dan.userId, company.id).googleAccounts())).toEqual([work.id]);
   expect(ids(await forMember(db, dan.id).googleAccounts())).toEqual([mine.id]);
   expect(ids(await forUser(db, eve.userId).googleAccounts())).toEqual([evesBox.id]);
+
+  // The same boundary for where a user may send from (ADR 0024 step 4).
+  expect(ids(await forUser(db, dan.userId).listMailboxes())).toEqual(
+    [mine.id, work.id, sharedBox.id].sort(),
+  );
+  expect(ids(await forUser(db, dan.userId, company.id).listMailboxes())).toEqual(
+    [work.id, sharedBox.id].sort(),
+  );
+  expect(await forUser(db, dan.userId).memberForMailbox(work.id)).toMatchObject({
+    id: danAtCompany!.id,
+    orgId: company.id,
+  });
+  expect(await forUser(db, dan.userId).memberForMailbox(evesBox.id)).toBeNull();
+  expect(await forUser(db, dan.userId, company.id).memberForMailbox(mine.id)).toBeNull();
+
+  // A draft names its mailbox: it leads to the grantee who can open that mailbox, or to nobody.
+  const draftIn = async (mailboxId: string, orgId: string) => {
+    const [row] = await db
+      .insert(schemaDrafts)
+      .values({ orgId, mailboxId, kind: "new" })
+      .returning();
+    return row!.id;
+  };
+  expect(
+    await forUser(db, dan.userId).memberForResource("draft", await draftIn(work.id, company.id)),
+  ).toMatchObject({ id: danAtCompany!.id });
+  const evesDraft = await draftIn(evesBox.id, company.id);
+  expect(await forUser(db, dan.userId).memberForResource("draft", evesDraft)).toBeNull();
+  expect(await forUser(db, dan.userId).memberForResource("action", "no-such-action")).toBeNull();
 });

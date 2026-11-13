@@ -10,6 +10,7 @@ import { requireWritableWorkspace } from "./billing.ts";
 import {
   findMember,
   requestScope,
+  requireMailboxMember,
   requireMember,
   requireThreadMember,
   type AppEnv,
@@ -77,6 +78,8 @@ const api = new Hono<AppEnv>()
   // Thread routes (mail and assets) act as the user's member in the thread's org (ADR 0014).
   .use("/threads/:id/*", requireThreadMember)
   .use(requireMember)
+  // A request naming a mailbox acts as the user's member who can open it (ADR 0024).
+  .use(requireMailboxMember)
   // Deny by default: every write below needs a plan in good standing unless `READ_ONLY_ALLOWED`
   // (billing.ts) names it. After `requireThreadMember`, so a thread write checks the thread's org.
   .use(requireWritableWorkspace)

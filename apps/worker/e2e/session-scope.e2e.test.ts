@@ -47,6 +47,7 @@ afterAll(async () => {
 
 // Loose on purpose: each test reads the few fields it checks.
 type Body = Record<string, unknown> & {
+  mailboxes: { id: string; orgId: string }[];
   threads: { orgId: string }[];
   counts: { orgId: string }[];
   workspaces: { id: string }[];
@@ -308,4 +309,104 @@ test("deleting the company a session is scoped to ends that session", async () =
   expect((await api(scoped, "/me")).status).toBe(401);
   expect((await api(scoped, "/threads?scope=all")).status).toBe(401);
   expect((await api(full, "/me")).status).toBe(200);
+});
+
+// Step 4 (ADR 0024): write from any address you can open, in its own workspace.
+test("a full session lists and sends from every workspace's mailboxes; a scoped one only its company's", async () => {
+  const { db } = database;
+  const a = await ana();
+  const send = (jar: CookieJar, mailboxId: string, key: string) =>
+    api(jar, "/send", {
+      method: "POST",
+      headers: { "idempotency-key": key },
+      body: JSON.stringify({
+        mailboxId,
+        to: ["client@example.test"],
+        subject: "Hi",
+        text: "Hello",
+      }),
+    });
+  const boxOf = async (orgId: string) =>
+    (
+      await db
+        .select({ id: schema.mailboxes.id })
+        .from(schema.mailboxes)
+        .where(eq(schema.mailboxes.orgId, orgId))
+    )[0]!.id;
+  const acmeBox = await boxOf(a.acme.orgId);
+  const betaBox = await boxOf(a.beta.orgId);
+
+  const full = await signedIn(a.personal);
+  const listed = await api(full, "/mailboxes?scope=all");
+  expect(new Set((listed.body.mailboxes as { orgId: string }[]).map((m) => m.orgId))).toEqual(
+    new Set([a.acme.orgId, a.beta.orgId, a.spaceId]),
+  );
+  // Acme is the active workspace; sending from Beta's mailbox runs as her member in Beta.
+  expect((await api(full, "/me")).body).toMatchObject({ orgId: a.acme.orgId });
+  const sent = await send(full, betaBox, `beta-${randomUUID()}`);
+  expect(sent.status).toBe(202);
+  const [action] = await db
+    .select({ orgId: schema.mailActions.orgId, memberId: schema.mailActions.memberId })
+    .from(schema.mailActions)
+    .where(eq(schema.mailActions.mailboxId, betaBox));
+  expect(action).toEqual({ orgId: a.beta.orgId, memberId: a.beta.memberId });
+
+  // A work-address session lists only Acme's, and cannot send from Beta's.
+  const scoped = await signedIn(a.work);
+  const scopedList = await api(scoped, "/mailboxes?scope=all");
+  expect((scopedList.body.mailboxes as { id: string }[]).map((m) => m.id)).toEqual([acmeBox]);
+  expect((await send(scoped, betaBox, `scoped-${randomUUID()}`)).status).toBe(404);
+  expect(
+    await db.select().from(schema.mailActions).where(eq(schema.mailActions.mailboxId, betaBox)),
+  ).toHaveLength(1);
+  expect((await send(scoped, acmeBox, `acme-${randomUUID()}`)).status).toBe(202);
+});
+
+test("a draft and a send in another workspace can be saved, sent and undone from the active one", async () => {
+  const a = await ana();
+  const [betaBox] = await database.db
+    .select({ id: schema.mailboxes.id })
+    .from(schema.mailboxes)
+    .where(eq(schema.mailboxes.orgId, a.beta.orgId));
+  const full = await signedIn(a.personal);
+  expect((await api(full, "/me")).body).toMatchObject({ orgId: a.acme.orgId });
+
+  const draft = async () => {
+    const created = await api(full, "/drafts", {
+      method: "POST",
+      body: JSON.stringify({ mailboxId: betaBox!.id, kind: "new" }),
+    });
+    expect(created.status).toBe(201);
+    return created.body as unknown as { id: string; version: number };
+  };
+  // Started in Beta while Acme is active, then autosaved and sent by its id alone.
+  const first = await draft();
+  const saved = await api(full, `/drafts/${first.id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      version: first.version,
+      to: [{ name: null, address: "client@example.test" }],
+      subject: "Hi",
+      bodyText: "Hello",
+    }),
+  });
+  expect(saved.status).toBe(200);
+  const sent = await api(full, `/drafts/${first.id}/send`, {
+    method: "POST",
+    headers: { "idempotency-key": `draft-${randomUUID()}` },
+  });
+  expect(sent.status).toBe(202);
+  // Undone inside its window, also by its id alone.
+  const actionId = (sent.body as unknown as { actionId: string }).actionId;
+  const undone = await api(full, `/actions/${actionId}/cancel`, { method: "POST" });
+  expect(undone).toMatchObject({ status: 200, body: { cancelled: true } });
+
+  // A session scoped to Acme cannot reach a Beta draft by its id.
+  const second = await draft();
+  const scoped = await signedIn(a.work);
+  const refused = await api(scoped, `/drafts/${second.id}`, {
+    method: "PUT",
+    body: JSON.stringify({ version: second.version, subject: "taken over" }),
+  });
+  expect(refused.status).toBe(404);
 });

@@ -4,6 +4,7 @@ import {
   attachments,
   businessHours,
   conversationEvents,
+  drafts,
   mailActions,
   mailboxAccess,
   mailboxFolders,
@@ -504,6 +505,57 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
      * The grantee member who can see `threadId` (with a user, their member in the thread's org),
      * or null. Thread routes act as this member.
      */
+    /** The grantee whose grant shows `mailboxId` (ADR 0024: write from any address you can open). */
+    async memberForMailbox(mailboxId: string) {
+      const [grant, org] = access(mailboxes.id, mailboxes.orgId);
+      const [row] = await db
+        .select({
+          id: members.id,
+          orgId: members.organizationId,
+          userId: members.userId,
+          role: members.role,
+        })
+        .from(mailboxes)
+        .innerJoin(...grant)
+        .innerJoin(...org)
+        .where(eq(mailboxes.id, mailboxId))
+        .limit(1);
+      return row ?? null;
+    },
+
+    /**
+     * The grantee whose grant shows the mailbox a draft or an outbox action belongs to, so a
+     * draft started or a send queued in another workspace can be saved, sent or undone from any
+     * workspace (ADR 0024). Null when no grantee can open it.
+     */
+    async memberForResource(kind: "draft" | "action", id: string) {
+      const table = kind === "draft" ? drafts : mailActions;
+      const [row] = await db
+        .select({ mailboxId: table.mailboxId })
+        .from(table)
+        .where(eq(table.id, id));
+      return row ? this.memberForMailbox(row.mailboxId) : null;
+    },
+
+    /** Every mailbox the grantees can open, with its workspace: where they can send from. */
+    async listMailboxes() {
+      const [grant, org] = access(mailboxes.id, mailboxes.orgId);
+      return db
+        .select({
+          id: mailboxes.id,
+          orgId: mailboxes.orgId,
+          address: mailboxes.address,
+          kind: mailboxes.kind,
+          provider: mailboxes.provider,
+          status: mailboxes.status,
+          role: mailboxAccess.role,
+        })
+        .from(mailboxes)
+        .innerJoin(...grant)
+        .innerJoin(...org)
+        .orderBy(mailboxes.address);
+    },
+
     async memberFor(threadId: string) {
       const [row] = await db
         .select({
