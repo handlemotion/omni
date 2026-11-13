@@ -17,7 +17,9 @@ import {
   findGmailMailboxes,
   findOrgMailbox,
   findOrgMailboxById,
+  listUserGoogleAccounts,
   mailboxOwnerIds,
+  placeForAddress,
   saveMailbox,
   setMailboxStatus,
 } from "@omni/db";
@@ -282,6 +284,7 @@ async function save(
 ): Promise<GoogleConnectResult> {
   const { db, keyring, logger } = deps;
   const address = grant.email;
+  input = await placeByAddress(db, input, address);
   // One Google account syncs into one workspace: two would each archive, delete and send as the
   // same person without seeing the other's changes until the next sync.
   const elsewhere = await findGmailMailboxes(db, address);
@@ -322,7 +325,32 @@ async function save(
   void deps
     .connect(mailboxId)
     .catch((error: unknown) => logger.error("mailbox.connect_failed", { mailboxId, error }));
-  return { mailboxId, address, created: !existing };
+  return { mailboxId, address, created: !existing, orgId: input.orgId };
+}
+
+const PLACEMENT_REFUSALS = {
+  not_a_member: "belongs to a workspace you are not a member of",
+  outside_scope: "belongs elsewhere: sign in another way to connect it",
+} as const;
+
+/**
+ * With `userId`, where the account goes is decided by its address (ADR 0024): the company that
+ * locked its domain, if the person is a member there, else their Personal space. Without it, the
+ * caller's `orgId` and `memberId` stand, as before.
+ */
+async function placeByAddress(
+  db: Db,
+  input: GoogleConnectBody,
+  address: string,
+): Promise<GoogleConnectBody> {
+  if (!input.userId) return input;
+  const place = await placeForAddress(db, {
+    userId: input.userId,
+    address,
+    scopeOrgId: input.scopeOrgId,
+  });
+  if (!place.ok) throw new ProvisionError(409, `${address} ${PLACEMENT_REFUSALS[place.reason]}`);
+  return { ...input, orgId: place.orgId, memberId: place.memberId };
 }
 
 /** The scopes as Google's authorization URL wants them. */
@@ -344,6 +372,14 @@ export async function disconnectGoogle(
   input: GoogleDisconnectBody,
 ): Promise<z.infer<typeof googleDisconnectResultSchema>> {
   const { db, logger } = deps;
+  if (input.userId) {
+    // The person's own account, in whichever workspace it lives (ADR 0024).
+    const owned = (await listUserGoogleAccounts(db, input.userId)).find(
+      (account) => account.id === input.mailboxId,
+    );
+    if (!owned) return { mailboxId: input.mailboxId };
+    input = { ...input, orgId: owned.orgId, memberId: owned.memberId };
+  }
   const mailbox = await findOrgMailboxById(db, input.orgId, input.mailboxId);
   if (!mailbox) return { mailboxId: input.mailboxId };
   const owners = await mailboxOwnerIds(db, mailbox.id);

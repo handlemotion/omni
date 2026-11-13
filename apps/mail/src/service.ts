@@ -29,6 +29,7 @@ import { createLoginRotation } from "./hosting/rotate-login.ts";
 import { createPurelymailClient } from "./providers/purelymail.ts";
 import { createProvisioner } from "./provisioning.ts";
 import { Supervisor } from "./supervisor.ts";
+import { rehomeMailboxes } from "./rehome.ts";
 import { every } from "./timing.ts";
 
 export type ServiceConfig = Pick<
@@ -199,6 +200,14 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
   let stopping = false;
   async function reconcileOnce() {
     if (stopping) return;
+    // Mailboxes whose address a company has since locked move there first (ADR 0024), so the
+    // list below connects them where they now live.
+    await rehomeMailboxes({
+      db,
+      keyring: config.MAIL_CREDENTIALS_KEY,
+      stop: (mailboxId) => supervisor.retire(mailboxId),
+      logger: log,
+    });
     const rows = await listServiceMailboxes(db);
     const wanted = new Set(rows.map((row) => row.id));
     for (const id of supervisor.mailboxIds()) {

@@ -8,7 +8,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { schema } from "@omni/db";
-import { createMember } from "@omni/db/testing";
+import { createMember, createOrg } from "@omni/db/testing";
 import { eq } from "drizzle-orm";
 import type { ImapFlow } from "imapflow";
 import {
@@ -712,5 +712,72 @@ describe("a Google account (ADR 0023)", () => {
     expect(await messageRows(db, box.id)).toEqual([]);
     // The Worker retries on a timeout; the second call finds nothing left to do.
     expect(await disconnect(ownerId)).toEqual({ status: 200, json: { mailboxId: box.id } });
+  });
+});
+
+describe("a mailbox finds its home (ADR 0024)", () => {
+  /** A connectable GreenMail mailbox at `address`, in a Personal space of its own owner. */
+  async function personalMailbox(address: string) {
+    const seeded = await seedMailbox(db, { address });
+    const { box } = seeded;
+    await setCredentials(
+      db,
+      box.id,
+      await sealCredentials(keyring, box.id, {
+        user: box.user,
+        pass: GREENMAIL_PASSWORD,
+        imap: box.imap,
+        smtp: box.smtp,
+      }),
+    );
+    const [owner] = await db
+      .select({ userId: schema.members.userId })
+      .from(schema.members)
+      .where(eq(schema.members.id, seeded.ownerId));
+    await db.insert(schema.personalSpaces).values({ orgId: seeded.orgId, userId: owner!.userId });
+    return { ...seeded, userId: owner!.userId };
+  }
+
+  it("moves a member's mailbox into the company that locks its domain, and syncs it there again", async () => {
+    const domain = `home-${randomUUID().slice(0, 8)}.omni.test`;
+    const ana = await personalMailbox(`ana@${domain}`);
+    // Bea is not a member of the company: her mailbox on the same domain stays in her space.
+    const bea = await personalMailbox(`bea@${domain}`);
+    const running = await startMailService();
+    await connected(ana.box.id);
+    await deliver(ana.box.address, "before the claim");
+    await waitFor(async () => (await stored(db, ana.box.id, "INBOX")).length > 0);
+
+    const company = await createOrg(db, `acme-${randomUUID().slice(0, 8)}`);
+    const [member] = await db
+      .insert(schema.members)
+      .values({
+        id: randomUUID(),
+        organizationId: company.id,
+        userId: ana.userId,
+        role: "member",
+        createdAt: new Date(),
+      })
+      .returning();
+    await db.insert(schema.mailDomains).values({ orgId: company.id, domain, provider: "imap" });
+    await running.reconcileMailboxes();
+
+    // The old copy and its mail are gone; the company has the mailbox, owned by Ana's member there.
+    expect(await mailboxStatus(db, ana.box.id)).toBeUndefined();
+    expect(await messageRows(db, ana.box.id)).toEqual([]);
+    expect(running.supervisor.has(ana.box.id)).toBe(false);
+    const [moved] = await mailboxesOf(db, company.id);
+    expect(moved).toMatchObject({ address: ana.box.address, kind: "personal" });
+    expect((await accessRows(db, moved!.id)).map((row) => [row.memberId, row.role])).toEqual([
+      [member!.id, "owner"],
+    ]);
+    // Its login came along, re-sealed for the new id: it connects and indexes the mail again.
+    await connected(moved!.id);
+    await waitFor(async () => (await stored(db, moved!.id, "INBOX")).length > 0);
+
+    // A second run finds nothing to move.
+    await running.reconcileMailboxes();
+    expect(await mailboxesOf(db, company.id)).toHaveLength(1);
+    expect((await mailboxesOf(db, bea.orgId)).map((row) => row.id)).toEqual([bea.box.id]);
   });
 });

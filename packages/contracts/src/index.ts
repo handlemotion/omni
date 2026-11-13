@@ -413,6 +413,14 @@ export const googleConnectBodySchema = z.object({
   orgId: z.string().min(1),
   /** Gets an owner grant on the mailbox. */
   memberId: z.string().min(1),
+  /**
+   * With it, the account goes where its address belongs (ADR 0024): the company that locked its
+   * domain, if this person is a member there, else their Personal space. `orgId` and `memberId`
+   * are then ignored. Without it, the account goes to `orgId` as before.
+   */
+  userId: z.string().min(1).optional(),
+  /** A session scoped to one company (ADR 0024) may connect only into it. */
+  scopeOrgId: z.string().min(1).optional(),
   /** Google's one-time authorization code. Never logged. */
   code: z.string().min(1),
   /** PKCE verifier for the code (RFC 7636). Never logged. */
@@ -427,6 +435,8 @@ export const googleConnectResultSchema = z.object({
   address: z.string(),
   /** False when an existing mailbox was reconnected (new refresh token). */
   created: z.boolean(),
+  /** The workspace it landed in. Absent from mail services before ADR 0024. */
+  orgId: z.string().optional(),
 });
 
 /** Revoke the token at Google, forget it, and stop syncing. Idempotent. */
@@ -434,6 +444,11 @@ export const googleDisconnectBodySchema = z.object({
   orgId: z.string().min(1),
   memberId: z.string().min(1),
   mailboxId: z.string().min(1),
+  /**
+   * With it, the owner is this person's member in the mailbox's own workspace, wherever that is
+   * (ADR 0024); `orgId` and `memberId` are then ignored.
+   */
+  userId: z.string().min(1).optional(),
 });
 
 export const googleDisconnectResultSchema = z.object({ mailboxId: z.string().min(1) });

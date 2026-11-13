@@ -1,7 +1,7 @@
 // Connecting a Gmail account over the real Worker: the consent redirect carries PKCE and a state
 // bound to this browser and member, and only a matching callback reaches the mail service, signed,
 // with the code and the verifier. The Worker never sees a Google token.
-import { schema } from "@omni/db";
+import { placeForAddress, schema } from "@omni/db";
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -34,7 +34,36 @@ beforeAll(async () => {
         json: { mailboxId: (JSON.parse(body) as { mailboxId: string }).mailboxId },
       };
     }
-    const { code, orgId, memberId } = JSON.parse(body) as Record<string, string>;
+    const { code, orgId, memberId, userId } = JSON.parse(body) as Record<string, string>;
+    if (code === "personal-code") {
+      // As the real mail service does with `userId` (ADR 0024): a gmail.com address has no
+      // company, so it goes to the person's Personal space.
+      const place = await placeForAddress(database.db, {
+        userId: userId!,
+        address: "me@gmail.com",
+      });
+      if (!place.ok) return { status: 409, json: { error: place.reason } };
+      const mailbox = await createMailbox(
+        database.db,
+        place.orgId,
+        `${userId}@gmail.com`,
+        "personal",
+      );
+      await database.db
+        .update(schema.mailboxes)
+        .set({ provider: "gmail" })
+        .where(eq(schema.mailboxes.id, mailbox.id));
+      await grant(database.db, place.orgId, mailbox.id, place.memberId);
+      return {
+        status: 200,
+        json: {
+          mailboxId: mailbox.id,
+          address: mailbox.address,
+          created: true,
+          orgId: place.orgId,
+        },
+      };
+    }
     if (code === "saving-code") {
       // As the real mail service does: the Gmail mailbox exists before the Worker hears back.
       const mailbox = await createMailbox(database.db, orgId!, `${orgId}@gmail.com`, "personal");
@@ -77,8 +106,12 @@ function api(path: string, cookie: string, init: RequestInit = {}) {
 }
 
 /** Starts the flow: Google's consent URL and the flow cookie the browser now holds. */
-async function start(session: string, from?: "onboarding") {
-  const response = await api(`/connect/google/start${from ? `?return=${from}` : ""}`, session);
+async function start(session: string, from?: "onboarding", place?: "address") {
+  const query = new URLSearchParams({
+    ...(from ? { return: from } : {}),
+    ...(place ? { place } : {}),
+  }).toString();
+  const response = await api(`/connect/google/start${query ? `?${query}` : ""}`, session);
   expect(response.status).toBe(302);
   const consent = new URL(response.headers.get("location")!);
   const flow = response.headers
@@ -262,10 +295,115 @@ describe("disconnecting a Google account", () => {
     const [sent] = (await mailService.waitFor(before + 1)).slice(before);
     expect(sent!.path).toBe("/connect/google/disconnect");
     expect(sent!.verified.ok).toBe(true);
+    // `userId` lets the mail service find the account wherever it lives (ADR 0024).
     expect(JSON.parse(sent!.body)).toEqual({
       orgId: dan.org.id,
       memberId: dan.member.id,
       mailboxId: gmail.id,
+      userId: dan.member.userId,
     });
+  });
+});
+
+describe("where a connected account goes (ADR 0024)", () => {
+  test("by address only when asked: a gmail.com account lands in Personal, not the open workspace", async () => {
+    const eve = await signedInMember("eve@place.test");
+    const users = await database.db
+      .select({ userId: schema.members.userId })
+      .from(schema.members)
+      .where(eq(schema.members.id, eve.member.id));
+    const userId = users[0]!.userId;
+
+    // Today's clients: no `place`, so no `userId`; the account joins the open workspace as before.
+    const plain = await start(eve.session);
+    const before = mailService.requests.length;
+    await callback(`${eve.session}; ${plain.flow}`, {
+      code: "google-code",
+      state: plain.consent.searchParams.get("state")!,
+    });
+    const [old] = (await mailService.waitFor(before + 1)).slice(before);
+    expect(JSON.parse(old!.body)).not.toHaveProperty("userId");
+
+    const setupStep = async () =>
+      (
+        await database.db
+          .select({ step: schema.orgSetup.step })
+          .from(schema.orgSetup)
+          .where(eq(schema.orgSetup.orgId, eve.org.id))
+      )[0]?.step;
+    const stepBefore = await setupStep();
+
+    // `place=address`: the Worker sends who is connecting, and the account lands in Personal.
+    const placed = await start(eve.session, undefined, "address");
+    const at = mailService.requests.length;
+    const landed = await callback(`${eve.session}; ${placed.flow}`, {
+      code: "personal-code",
+      state: placed.consent.searchParams.get("state")!,
+    });
+    const [sent] = (await mailService.waitFor(at + 1)).slice(at);
+    expect(JSON.parse(sent!.body)).toMatchObject({
+      userId,
+      orgId: eve.org.id,
+      memberId: eve.member.id,
+    });
+    expect(JSON.parse(sent!.body)).not.toHaveProperty("scopeOrgId");
+    const [space] = await database.db
+      .select({ orgId: schema.personalSpaces.orgId })
+      .from(schema.personalSpaces)
+      .where(eq(schema.personalSpaces.userId, userId));
+    expect(Object.fromEntries(landed.searchParams)).toMatchObject({
+      google: "connected",
+      workspaceId: space!.orgId,
+    });
+    // It did not land here, so this workspace's setup did not move.
+    expect(await setupStep()).toBe(stepBefore);
+
+    // Settings lists it from the open workspace, and disconnecting it says whose it is.
+    const listed = await api("/connect/google", eve.session);
+    const accounts = ((await listed.json()) as { accounts: { mailboxId: string }[] }).accounts;
+    const mailboxId = new URL(landed).searchParams.get("mailboxId")!;
+    expect(accounts.map((a) => a.mailboxId)).toContain(mailboxId);
+    const disconnectAt = mailService.requests.length;
+    const removed = await api(`/connect/google/${mailboxId}`, eve.session, { method: "DELETE" });
+    expect(removed.status).toBe(204);
+    const [disconnect] = (await mailService.waitFor(disconnectAt + 1)).slice(disconnectAt);
+    expect(JSON.parse(disconnect!.body)).toMatchObject({ mailboxId, userId });
+  });
+
+  test("an address is placed in the company that locked its domain, if the person is its member", async () => {
+    const { db } = database;
+    const fay = await signedInMember("fay@place.test");
+    const [row] = await db
+      .select({ userId: schema.members.userId })
+      .from(schema.members)
+      .where(eq(schema.members.id, fay.member.id));
+    const userId = row!.userId;
+    const locked = `fay-${fay.org.id.slice(0, 8)}.test`;
+    await db
+      .insert(schema.mailDomains)
+      .values({ orgId: fay.org.id, domain: locked, provider: "imap" });
+    const other = await createOrg(db, "other");
+    const otherDomain = `other-${other.id.slice(0, 8)}.test`;
+    await db
+      .insert(schema.mailDomains)
+      .values({ orgId: other.id, domain: otherDomain, provider: "imap" });
+
+    expect(await placeForAddress(db, { userId, address: `fay@${locked}` })).toEqual({
+      ok: true,
+      orgId: fay.org.id,
+      memberId: fay.member.id,
+      kind: "company",
+    });
+    expect(await placeForAddress(db, { userId, address: `fay@${otherDomain}` })).toMatchObject({
+      ok: false,
+      reason: "not_a_member",
+      orgId: other.id,
+    });
+    const personal = await placeForAddress(db, { userId, address: "fay@gmail.com" });
+    expect(personal).toMatchObject({ ok: true, kind: "personal" });
+    // A session scoped to Fay's company cannot put anything in her Personal space.
+    expect(
+      await placeForAddress(db, { userId, address: "fay@gmail.com", scopeOrgId: fay.org.id }),
+    ).toMatchObject({ ok: false, reason: "outside_scope" });
   });
 });

@@ -8,7 +8,7 @@ import {
   googleConnectResultSchema,
   googleDisconnectResultSchema,
 } from "@omni/contracts";
-import { advanceOrgSetup, listMemberMailboxes } from "@omni/db";
+import { advanceOrgSetup, listUserGoogleAccounts } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import type { AppEnv } from "../context.ts";
@@ -54,12 +54,12 @@ async function challengeFor(verifier: string) {
   return toBase64Url(new Uint8Array(digest));
 }
 
-/** The member's personal Gmail mailboxes. */
-async function googleMailboxes(c: Context<AppEnv>) {
-  const mailboxes = await listMemberMailboxes(c.var.db, c.var.member.id);
-  return mailboxes.filter(
-    (m) => m.provider === "gmail" && m.kind === "personal" && m.orgId === c.var.member.orgId,
-  );
+/**
+ * The person's Google accounts, in every workspace they connected one to (ADR 0024), or only in
+ * the company a scoped session reaches.
+ */
+function googleMailboxes(c: Context<AppEnv>) {
+  return listUserGoogleAccounts(c.var.db, c.var.user.id, c.var.user.scopeOrgId);
 }
 
 export const connect = new Hono<AppEnv>()
@@ -87,6 +87,10 @@ export const connect = new Hono<AppEnv>()
     const state = randomToken(24);
     const verifier = randomToken(48);
     const back: Return = c.req.query("return") === "onboarding" ? "onboarding" : "settings";
+    // `?place=address`: the account goes where its address belongs, the company that locked its
+    // domain or the person's Personal space (ADR 0024). Without it, it joins this workspace, as
+    // clients from before ADR 0024 expect.
+    const byAddress = c.req.query("place") === "address";
     // Pin setup where it stands before the mail service saves a mailbox: a workspace with a
     // mailbox and no setup row reads as finished (`orgSetupStep`), which would skip the rest of
     // setup. An org that already has a mailbox keeps the step it reads as now.
@@ -94,7 +98,7 @@ export const connect = new Hono<AppEnv>()
     await setSignedCookie(
       c,
       COOKIE,
-      JSON.stringify({ state, verifier, memberId: c.var.member.id, back }),
+      JSON.stringify({ state, verifier, memberId: c.var.member.id, back, byAddress }),
       c.var.config.auth.secret,
       {
         path: COOKIE_PATH,
@@ -130,7 +134,13 @@ export const connect = new Hono<AppEnv>()
   .get("/google/callback", limitPerMember("provision"), async (c) => {
     const raw = await getSignedCookie(c, c.var.config.auth.secret, COOKIE);
     deleteCookie(c, COOKIE, { path: COOKIE_PATH });
-    let flow: { state?: string; verifier?: string; memberId?: string; back?: Return } = {};
+    let flow: {
+      state?: string;
+      verifier?: string;
+      memberId?: string;
+      back?: Return;
+      byAddress?: boolean;
+    } = {};
     try {
       flow = raw ? (JSON.parse(raw) as typeof flow) : {};
     } catch {
@@ -154,15 +164,29 @@ export const connect = new Hono<AppEnv>()
         {
           orgId: c.var.member.orgId,
           memberId: c.var.member.id,
+          ...(flow.byAddress
+            ? {
+                userId: c.var.user.id,
+                ...(c.var.user.scopeOrgId ? { scopeOrgId: c.var.user.scopeOrgId } : {}),
+              }
+            : {}),
           code,
           codeVerifier: flow.verifier,
           redirectUri: redirectUri(c),
         },
         googleConnectResultSchema,
       );
-      // A connected Gmail is an inbox to read: workspace setup can finish now.
-      await advanceOrgSetup(c.var.db, c.var.member.orgId, "mailboxes_created");
-      return backToApp(c, back, { google: "connected", mailboxId: connected.mailboxId });
+      // A connected Gmail is an inbox to read: this workspace's setup can finish now, if that is
+      // where it landed.
+      const landed = connected.orgId ?? c.var.member.orgId;
+      if (landed === c.var.member.orgId) {
+        await advanceOrgSetup(c.var.db, c.var.member.orgId, "mailboxes_created");
+      }
+      return backToApp(c, back, {
+        google: "connected",
+        mailboxId: connected.mailboxId,
+        ...(connected.orgId ? { workspaceId: connected.orgId } : {}),
+      });
     } catch (failure) {
       if (!(failure instanceof MailServiceError)) throw failure;
       return backToApp(c, back, {
@@ -180,7 +204,7 @@ export const connect = new Hono<AppEnv>()
       await callMailService(
         c.var,
         GOOGLE_DISCONNECT_PATH,
-        { orgId: c.var.member.orgId, memberId: c.var.member.id, mailboxId },
+        { orgId: c.var.member.orgId, memberId: c.var.member.id, mailboxId, userId: c.var.user.id },
         googleDisconnectResultSchema,
       );
     } catch (failure) {
