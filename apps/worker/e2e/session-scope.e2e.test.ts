@@ -251,3 +251,61 @@ test("a lock on a parent domain covers its subdomains; free mail is never a comp
   expect(await companyForAddress(db, `ana@not${a.domain}`)).toBeNull();
   expect(await companyForAddress(db, a.personal)).toBeNull();
 });
+
+test("a scoped session cannot reach another company through Better Auth by id, slug or list", async () => {
+  const { db } = database;
+  const a = await ana();
+  const jar = await signedIn(a.work);
+  const [beta] = await db
+    .select({ slug: schema.organizations.slug })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, a.beta.orgId));
+  const auth = (path: string) =>
+    fetch(new URL(`/api/auth${path}`, worker.url), {
+      headers: { cookie: jar.header, origin: WEB_ORIGIN },
+    });
+
+  // Ana owns Beta, so without the scope each of these would work.
+  const refused = [
+    await authPost(worker, jar, "/organization/set-active", { organizationSlug: beta!.slug }),
+    await authPost(worker, jar, "/organization/invite-member", {
+      email: `intruder-${randomUUID()}@evil.test`,
+      role: "admin",
+      organizationId: a.beta.orgId,
+    }),
+    await authPost(worker, jar, "/organization/delete", { organizationId: a.beta.orgId }),
+    await authPost(worker, jar, "/organization/delete", { organizationId: a.acme.orgId }),
+    await auth(`/organization/get-full-organization?organizationId=${a.beta.orgId}`),
+    await auth(`/organization/list-members?organizationId=${a.beta.orgId}`),
+  ];
+  for (const response of refused) expect(response.status).toBe(403);
+  expect(
+    await db
+      .select()
+      .from(schema.invitations)
+      .where(eq(schema.invitations.organizationId, a.beta.orgId)),
+  ).toEqual([]);
+  expect((await api(jar, "/me")).body).toMatchObject({ orgId: a.acme.orgId });
+
+  // Its own company still works, and the list of workspaces shows only it.
+  expect((await auth(`/organization/list-members?organizationId=${a.acme.orgId}`)).status).toBe(
+    200,
+  );
+  const listed = (await (await auth("/organization/list")).json()) as { id: string }[];
+  expect(listed.map((org) => org.id)).toEqual([a.acme.orgId]);
+});
+
+test("deleting the company a session is scoped to ends that session", async () => {
+  const a = await ana();
+  const scoped = await signedIn(a.work);
+  const full = await signedIn(a.personal);
+  expect((await api(scoped, "/me")).status).toBe(200);
+  const deleted = await authPost(worker, full, "/organization/delete", {
+    organizationId: a.acme.orgId,
+  });
+  expect(deleted.status).toBe(200);
+  // Not reopened as an unscoped session onto Beta and Personal.
+  expect((await api(scoped, "/me")).status).toBe(401);
+  expect((await api(scoped, "/threads?scope=all")).status).toBe(401);
+  expect((await api(full, "/me")).status).toBe(200);
+});

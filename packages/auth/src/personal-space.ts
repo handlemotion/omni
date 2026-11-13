@@ -3,6 +3,7 @@
 // and shared mailboxes there itself.
 import { type Db, ensurePersonalSpace, workspaceKind } from "@omni/db";
 import { APIError } from "better-auth/api";
+import { endScopedSessions } from "./session-scope.ts";
 
 async function refuseInPersonalSpace(db: Db, orgId: string, what: string) {
   if ((await workspaceKind(db, orgId)) === "personal") {
@@ -29,6 +30,8 @@ export function personalSpaceHooks(db: Db) {
           message: "a Personal space is deleted with its person, not on its own",
         });
       }
+      // Sessions scoped to it end first, or they would outlive their scope unscoped (ADR 0024).
+      await endScopedSessions(db, organization.id);
     },
   };
 }

@@ -4,6 +4,7 @@
 import { desc, eq, or, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { isCompany } from "./personal-space.ts";
+import { sessions } from "./schema/auth.ts";
 import { sessionScopes } from "./schema/identity.ts";
 import { mailDomains } from "./schema/mail.ts";
 
@@ -42,11 +43,19 @@ export async function scopeSession(db: Db, sessionId: string, orgId: string) {
     .onConflictDoNothing({ target: sessionScopes.sessionId });
 }
 
-/** The organization `sessionId` is scoped to, or null when it is unscoped. */
-export async function sessionScope(db: Db, sessionId: string): Promise<string | null> {
+/**
+ * What `sessionId` may reach: `{ scopeOrgId }`, null when it is unscoped. Answers null for the
+ * whole result when the session no longer exists: Better Auth's signed cookie cache keeps a
+ * deleted session readable for a while, and with its scope row gone it would read as unscoped.
+ */
+export async function sessionAccess(
+  db: Db,
+  sessionId: string,
+): Promise<{ scopeOrgId: string | null } | null> {
   const [row] = await db
-    .select({ orgId: sessionScopes.orgId })
-    .from(sessionScopes)
-    .where(eq(sessionScopes.sessionId, sessionId));
-  return row?.orgId ?? null;
+    .select({ id: sessions.id, scopeOrgId: sessionScopes.orgId })
+    .from(sessions)
+    .leftJoin(sessionScopes, eq(sessionScopes.sessionId, sessions.id))
+    .where(eq(sessions.id, sessionId));
+  return row ? { scopeOrgId: row.scopeOrgId } : null;
 }

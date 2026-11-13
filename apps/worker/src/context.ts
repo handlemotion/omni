@@ -1,5 +1,5 @@
 import { createAuth, type Auth, type InvitationMessage } from "@omni/auth";
-import { forUser, isCompany, schema, sessionScope, type Db } from "@omni/db";
+import { forUser, isCompany, schema, sessionAccess, type Db } from "@omni/db";
 import { and, asc, eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
@@ -105,7 +105,10 @@ export async function resolveSession(
   if (!session) return null;
   const activeOrg = (session.session as { activeOrganizationId?: string | null })
     .activeOrganizationId;
-  const scopeOrgId = await sessionScope(c.var.db, session.session.id);
+  // A session deleted since its cookie was cached is signed out (ADR 0024).
+  const access = await sessionAccess(c.var.db, session.session.id);
+  if (!access) return null;
+  const { scopeOrgId } = access;
   const [active, ofThread] = await Promise.all([
     findMember(c.var.db, session.user.id, activeOrg ?? undefined, scopeOrgId),
     threadId ? forUser(c.var.db, session.user.id, scopeOrgId).memberFor(threadId) : null,
