@@ -59,7 +59,6 @@
         "apps/web/src/components/ui/avatar.tsx",
         "apps/web/src/components/ui/chart.tsx",
         "apps/web/src/lib/conversations.ts",
-        "apps/worker/src/domains.ts",
         "apps/worker/src/image-proxy.ts",
         "apps/worker/src/queue.ts",
         "apps/worker/src/realtime.ts",

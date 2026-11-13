@@ -20,6 +20,7 @@ import {
   type DomainClaim,
   type DomainSetup,
   listVerifiedLocks,
+  type MailDomain,
   lockClaim,
   openClaim,
   orgOwnerEmails,
@@ -73,6 +74,72 @@ export function advanceDomainStep(db: Db, orgId: string, view: { verified: boole
 }
 
 /**
+ * The two states a domain's setup can be in: `claimed` (waiting for its challenge, no lock yet) or
+ * `locked` to the org (with its claim, or without one for a legacy lock).
+ */
+type DomainPhase =
+  | { kind: "claimed"; claim: DomainClaim }
+  | { kind: "locked"; claim: DomainClaim | null; lock: MailDomain };
+
+function phaseOf(setup: DomainSetup): DomainPhase {
+  if (setup.claim === null) return { kind: "locked", claim: null, lock: setup.lock };
+  if (setup.lock) return { kind: "locked", claim: setup.claim, lock: setup.lock };
+  return { kind: "claimed", claim: setup.claim };
+}
+
+/** `pending` until the claim is locked, `expired` if it ran out first. */
+function domainStatus(phase: DomainPhase, now: Date): "pending" | "verified" | "expired" {
+  if (phase.kind === "locked") return "verified";
+  return phase.claim.expiresAt <= now ? "expired" : "pending";
+}
+
+/** Omni's ownership record. Its value is shown once, when it is made; null for legacy locks. */
+function challengeView(setup: DomainSetup, value: string | undefined) {
+  const { claim, lock } = setup;
+  if (!claim) return null;
+  return {
+    type: "TXT" as const,
+    name: challengeRecordName(claim.domain),
+    value: value ?? null,
+    verified: claim.status === "verified" && lock?.dnsLostAt == null,
+    /** Why it is not passing yet, as the domain's nameservers answered at the last check. */
+    diagnostic: claim.lastCheck?.challenge ?? null,
+  };
+}
+
+/** The provider's records, each with the last check's verdict. */
+function recordViews(setup: DomainSetup) {
+  const records = setup.lock?.dnsRecords ?? setup.claim?.dnsRecords ?? [];
+  const checked = setup.claim?.lastCheck?.records ?? [];
+  return records.map((record) => ({
+    ...record,
+    diagnostic: checked.find((d) => d.type === record.type && d.name === record.name) ?? null,
+  }));
+}
+
+/** Facts that come from the lock, or from the claim while there is no lock yet. */
+function phaseFacts(phase: DomainPhase) {
+  if (phase.kind === "locked") {
+    const { claim, lock } = phase;
+    return {
+      id: claim?.id ?? lock.id,
+      domain: lock.domain,
+      provider: lock.provider,
+      checkedAt: lock.checkedAt,
+      expiresAt: null,
+    };
+  }
+  const { claim } = phase;
+  return {
+    id: claim.id,
+    domain: claim.domain,
+    provider: claim.provider,
+    checkedAt: claim.checkedAt,
+    expiresAt: claim.expiresAt.toISOString(),
+  };
+}
+
+/**
  * What the onboarding screen shows for a domain, with the last check's verdict on each record.
  * `challengeValue` (and the one-click URL that carries it) only right after the value is made.
  */
@@ -85,36 +152,20 @@ export function domainView(
     now?: Date;
   } = {},
 ) {
-  const { claim, lock } = setup;
-  const now = options.now ?? new Date();
-  const domain = (claim?.domain ?? lock?.domain)!;
-  const status = lock ? "verified" : claim!.expiresAt <= now ? "expired" : "pending";
-  const check = claim?.lastCheck ?? null;
-  const diagnosticOf = (type: string, name: string) =>
-    check?.records.find((d) => d.type === type && d.name === name) ?? null;
+  const { lock } = setup;
+  const phase = phaseOf(setup);
+  const facts = phaseFacts(phase);
+  const check = setup.claim?.lastCheck ?? null;
   return {
     /** The claim's id; the lock shares it. A legacy lock (no claim) has only its own. */
-    id: (claim?.id ?? lock?.id)!,
-    domain,
+    id: facts.id,
+    domain: facts.domain,
     /** `pending`: waiting for the challenge. `verified`: locked to this workspace. */
-    status: status as "pending" | "verified" | "expired",
+    status: domainStatus(phase, options.now ?? new Date()),
     /** `purelymail`: records to add below. `imap`: mailboxes are existing logins on your host. */
-    provider: (lock?.provider ?? claim?.provider)!,
-    /** Omni's ownership record. Its value is shown once, when it is made; null for legacy locks. */
-    challenge: claim
-      ? {
-          type: "TXT" as const,
-          name: challengeRecordName(domain),
-          value: options.challengeValue ?? null,
-          verified: claim.status === "verified" && lock?.dnsLostAt == null,
-          /** Why it is not passing yet, as the domain's nameservers answered at the last check. */
-          diagnostic: check?.challenge ?? null,
-        }
-      : null,
-    records: (lock?.dnsRecords ?? claim?.dnsRecords ?? []).map((record) => ({
-      ...record,
-      diagnostic: diagnosticOf(record.type, record.name),
-    })),
+    provider: facts.provider,
+    challenge: challengeView(setup, options.challengeValue),
+    records: recordViews(setup),
     /** Who serves the domain's DNS, with where to add records there, when it is a host we know. */
     dnsHost: check?.host ?? null,
     /**
@@ -130,9 +181,9 @@ export function domainView(
     verified: lock?.verifiedAt != null,
     /** The challenge left DNS: sending from the domain is paused until it is back. */
     dnsLost: lock?.dnsLostAt != null,
-    checkedAt: (lock?.checkedAt ?? claim?.checkedAt)?.toISOString() ?? null,
+    checkedAt: facts.checkedAt?.toISOString() ?? null,
     /** When a pending claim stops waiting. */
-    expiresAt: lock ? null : (claim?.expiresAt.toISOString() ?? null),
+    expiresAt: facts.expiresAt,
     /** Why the provider would not add it yet, in its words (usually: no ownership record). */
     ...(options.addError ? { addError: options.addError } : {}),
   };

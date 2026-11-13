@@ -56,12 +56,13 @@ export type MailDomain = {
 export type DomainClaim = typeof domainClaims.$inferSelect;
 
 /** A domain as onboarding sees it: the org's claim on it, its lock, or both. */
-export interface DomainSetup {
-  /** Null for a domain locked before claims existed (ADR 0010: those keep their lock). */
-  claim: DomainClaim | null;
-  /** Null until the claim's challenge verified. */
-  lock: MailDomain | null;
-}
+/**
+ * A domain's setup always has a claim, a lock, or both: a claim with no lock is waiting for its
+ * challenge, and a lock with no claim predates claims (ADR 0010: those keep their lock).
+ */
+export type DomainSetup =
+  | { claim: DomainClaim; lock: MailDomain | null }
+  | { claim: null; lock: MailDomain };
 
 /** Postgres advisory locks key on a bigint; `hashtext` folds the text into one. */
 const advisoryLock = (key: string) => sql`select pg_advisory_xact_lock(hashtext(${key}))`;
