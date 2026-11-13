@@ -8,6 +8,7 @@
 // column in the right 65%, its title 17px. The page body is transitive's settings kit (`./kit`).
 import {
   IconClock3,
+  IconMailOpen,
   IconCreditCard,
   IconInbox,
   IconKeyboard,
@@ -56,6 +57,7 @@ import { SettingsConfirmDialog } from "./kit/settings-stacked-dialog";
 import { WorkspaceChooser } from "./workspace-chooser";
 import { HelpdeskPage } from "./helpdesk-pages";
 import { NotificationsPage } from "./notification-pages";
+import { ConnectedAccountsPage } from "./connected-accounts-page";
 import { InboxesPage, SharedMailboxesPage } from "./mailbox-pages";
 import { GeneralPage, PeoplePage } from "./workspace-pages";
 
@@ -105,6 +107,13 @@ function useAccountPages(): PageDefinition[] {
         icon: glyph(IconMail),
         terms: ["desktop", "alerts", "assigned", "mentions", "customer replies", "due", "overdue"],
         render: () => <NotificationsPage />,
+      },
+      {
+        id: "accounts",
+        title: "Connected accounts",
+        icon: glyph(IconMailOpen),
+        terms: ["google", "gmail", "connect", "disconnect", "oauth", "personal inbox"],
+        render: () => <ConnectedAccountsPage />,
       },
       {
         id: "shortcuts",
@@ -196,7 +205,7 @@ function useWorkspacePages() {
 }
 
 /** The paths that only open settings: closing it there returns to the inbox. */
-const SETTINGS_PATHS = new Set(["/settings", "/settings/billing"]);
+const SETTINGS_PATHS = new Set(["/settings", "/settings/billing", "/settings/accounts"]);
 
 function matches(page: Pick<PageDefinition, "title" | "terms">, query: string) {
   const q = query.trim().toLowerCase();

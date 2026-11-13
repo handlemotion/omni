@@ -8,7 +8,7 @@ import {
   googleConnectResultSchema,
   googleDisconnectResultSchema,
 } from "@omni/contracts";
-import { listMemberMailboxes } from "@omni/db";
+import { advanceOrgSetup, listMemberMailboxes } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import type { AppEnv } from "../context.ts";
@@ -34,9 +34,13 @@ function redirectUri(c: Context<AppEnv>) {
   return new URL(`${COOKIE_PATH}/callback`, c.var.config.auth.baseURL).toString();
 }
 
-/** Where the browser lands afterwards: the web app's settings, with the outcome. */
-function backToApp(c: Context<AppEnv>, outcome: Record<string, string>) {
-  const url = new URL("/settings/accounts", c.var.config.auth.webAppURL);
+/** Where a flow can return to: onboarding's inbox step, or Settings, Connected accounts. */
+const RETURNS = { onboarding: "/onboarding", settings: "/settings/accounts" } as const;
+type Return = keyof typeof RETURNS;
+
+/** Where the browser lands afterwards: the page that started the flow, with the outcome. */
+function backToApp(c: Context<AppEnv>, back: Return, outcome: Record<string, string>) {
+  const url = new URL(RETURNS[back], c.var.config.auth.webAppURL);
   for (const [key, value] of Object.entries(outcome)) url.searchParams.set(key, value);
   return c.redirect(url.toString(), 302);
 }
@@ -74,6 +78,7 @@ export const connect = new Hono<AppEnv>()
   /**
    * Starts the consent flow: a top-level navigation here redirects to Google. The state and PKCE
    * verifier ride a short-lived signed cookie, bound to this member, scoped to these routes.
+   * `?return=onboarding` brings the browser back to setup instead of Settings.
    */
   .get("/google/start", limitPerMember("provision"), async (c) => {
     const google = c.var.config.auth.google;
@@ -81,10 +86,15 @@ export const connect = new Hono<AppEnv>()
       return c.json({ error: "Google is not configured", requestId: c.var.requestId }, 404);
     const state = randomToken(24);
     const verifier = randomToken(48);
+    const back: Return = c.req.query("return") === "onboarding" ? "onboarding" : "settings";
+    // Pin setup where it stands before the mail service saves a mailbox: a workspace with a
+    // mailbox and no setup row reads as finished (`orgSetupStep`), which would skip the rest of
+    // setup. An org that already has a mailbox keeps the step it reads as now.
+    await advanceOrgSetup(c.var.db, c.var.member.orgId, "created");
     await setSignedCookie(
       c,
       COOKIE,
-      JSON.stringify({ state, verifier, memberId: c.var.member.id }),
+      JSON.stringify({ state, verifier, memberId: c.var.member.id, back }),
       c.var.config.auth.secret,
       {
         path: COOKIE_PATH,
@@ -120,18 +130,19 @@ export const connect = new Hono<AppEnv>()
   .get("/google/callback", limitPerMember("provision"), async (c) => {
     const raw = await getSignedCookie(c, c.var.config.auth.secret, COOKIE);
     deleteCookie(c, COOKIE, { path: COOKIE_PATH });
-    let flow: { state?: string; verifier?: string; memberId?: string } = {};
+    let flow: { state?: string; verifier?: string; memberId?: string; back?: Return } = {};
     try {
       flow = raw ? (JSON.parse(raw) as typeof flow) : {};
     } catch {
       flow = {};
     }
     const { code, state, error } = c.req.query();
+    const back: Return = flow.back === "onboarding" ? "onboarding" : "settings";
     if (!flow.state || !state || flow.state !== state || flow.memberId !== c.var.member.id) {
-      return backToApp(c, { google: "error", reason: "expired" });
+      return backToApp(c, back, { google: "error", reason: "expired" });
     }
     if (error || !code || !flow.verifier) {
-      return backToApp(c, {
+      return backToApp(c, back, {
         google: "error",
         reason: error === "access_denied" ? "denied" : "failed",
       });
@@ -149,10 +160,12 @@ export const connect = new Hono<AppEnv>()
         },
         googleConnectResultSchema,
       );
-      return backToApp(c, { google: "connected", mailboxId: connected.mailboxId });
+      // A connected Gmail is an inbox to read: workspace setup can finish now.
+      await advanceOrgSetup(c.var.db, c.var.member.orgId, "mailboxes_created");
+      return backToApp(c, back, { google: "connected", mailboxId: connected.mailboxId });
     } catch (failure) {
       if (!(failure instanceof MailServiceError)) throw failure;
-      return backToApp(c, {
+      return backToApp(c, back, {
         google: "error",
         reason: failure.status === 409 ? "in_use" : "failed",
       });

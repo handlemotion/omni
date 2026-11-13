@@ -1,4 +1,4 @@
-import { Cloudflare } from "@ridemountainpig/svgl-react";
+import { Cloudflare, Google } from "@ridemountainpig/svgl-react";
 import { useNavigate } from "@tanstack/react-router";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Key } from "react-aria-components";
@@ -7,8 +7,10 @@ import { Skeleton } from "skullet/react";
 import {
   IconArrowLeft,
   IconArrowRotateClockwise,
+  IconCheck,
   IconChevronsUpDown,
   IconLogOut,
+  IconMail,
   IconPlus,
 } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
@@ -25,9 +27,8 @@ import type {
 } from "@/components/domain/domain-registry-utils";
 import { Text, TextLink } from "@/components/ui/text";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { FieldRevealedError, SlotError } from "@/components/ui/revealed-error";
 import { TextField } from "@/components/ui/text-field";
-import { appToast } from "@/components/ui/toast";
+import { setupToast } from "@/components/ui/toast";
 import {
   useAddDomain,
   useCheckDomain,
@@ -39,8 +40,14 @@ import {
   useRotateChallenge,
 } from "@/hooks/use-onboarding";
 import { useBilling, useStartCheckout, useStartTrial } from "@/hooks/use-billing";
+import {
+  useConnectGoogle,
+  useGoogleAccounts,
+  useGoogleReturn,
+} from "@/hooks/use-google-connection";
 import { useInviteMember } from "@/hooks/use-organization";
 import { formatPrice, type Interval } from "@/lib/billing";
+import { googleErrorText, type GoogleOutcome } from "@/lib/google-connection";
 import {
   needsSetup,
   onboardingPages,
@@ -57,81 +64,114 @@ import {
 } from "@/lib/onboarding";
 import { useRealtimeConnection } from "@/hooks/use-realtime";
 import { useSession, useSignOut } from "@/hooks/use-session";
-import type { DnsRecord, OnboardingDomain } from "@/lib/types";
+import type { DnsRecord, Onboarding as OnboardingStatus, OnboardingDomain } from "@/lib/types";
 
-// Workspace setup in two long pages of sections, with the steps down a rail on the left (the
-// setup's title on top, the signed-in account at the bottom, with the way out). Nothing moves on by
-// itself: each page's primary button does, and a step already reached opens again.
+// Workspace setup in four short steps, one column each, the progress dots at the bottom:
 //
-// Each page calls the API (ADR 0007), which saves how far setup got; an unfinished workspace
-// resumes on the first step not done, with what it saved (name, domain, mailbox). The Workspace
-// page is the name and domain, then, on the same page once the domain is claimed, its DNS: Omni's
-// ownership record (ADR 0010), which locks the domain to the workspace, then the mail records.
-// Without Purelymail the domain stays on its mail host: it has no mail records, and the mailbox
-// asks for the host's servers and the mailbox's existing password. The Team page is the mailbox,
-// the plan where billing is on (ADR 0015), and the invitations.
+// 1. Welcome: the workspace's name, the only field.
+// 2. Connect your inbox: one "Connect Google" button, which leaves for Google's consent screen and
+//    comes back here connected. A quiet "Use your own domain instead" opens the domain path: the
+//    domain, its DNS (Omni's ownership record, ADR 0010, then the mail records), then a mailbox.
+//    A domain that stays on its own mail host has no mail records, and its mailbox asks for the
+//    host's servers and the mailbox's password.
+// 3. Invite your team: emails, or skip.
+// 4. Plan, only where billing is on (ADR 0015): start the trial, then the inbox opens.
+//
+// Each step calls the API (ADR 0007), which saves how far setup got; an unfinished workspace
+// resumes on the first step not done.
 
 export function Onboarding() {
   const status = useOnboarding();
+  // Google's way back to the inbox step, read once on this load.
+  const googleReturn = useGoogleReturn();
   // Decided once, from what the route loaded: finish the active workspace, or start a new one.
   const [resuming, setResuming] = useState(() => needsSetup(status.data?.organization));
-  // Only the workspace being set up: a new one has no domain until its first page claims it.
-  const domain = resuming ? status.data?.domains[0] : undefined;
+  // Only the workspace being set up: a new one has nothing saved until its first step.
+  const data = resuming ? status.data : undefined;
   const pages = onboardingPages(status.data);
-  const done = (p: OnboardingPage) => pageDone(p, status.data, domain);
-  const [page, setPage] = useState<OnboardingPage>(() =>
-    resuming && status.data ? resumePage(status.data, domain) : "Workspace",
-  );
+  const [page, setPage] = useState<OnboardingPage>(() => {
+    if (!resuming || !status.data) return "Workspace";
+    return googleReturn ? "Inbox" : resumePage(status.data);
+  });
   const index = pages.indexOf(page);
-  const next = (from: OnboardingPage) => setPage(pages[pages.indexOf(from) + 1] ?? "Team");
+  const finish = useFinish();
+  const next = (from: OnboardingPage) => {
+    const after = pages[pages.indexOf(from) + 1];
+    if (after) setPage(after);
+    else finish.run();
+  };
   // Back steps to the page before; the dots only show where setup is (dorks' onboarding).
   const previous = pages[index - 1];
   const back = previous ? () => setPage(previous) : undefined;
 
   return (
     <OnboardingPage pages={pages} current={page} onBack={back}>
-      {page === "Workspace" &&
-        (domain ? (
-          <DomainForm
-            workspace={status.data?.organization?.name ?? ""}
-            domain={domain}
-            organizationId={status.data?.organization?.id ?? ""}
-            onDone={() => next("Workspace")}
-          />
-        ) : (
-          // Claiming the domain keeps this page: its DNS opens under the fields.
-          <WorkspaceForm
-            existing={resuming ? status.data?.organization?.name : undefined}
-            onDone={() => setResuming(true)}
-          />
-        ))}
-      {page === "Mailbox" && domain && (
-        <MailboxesForm
-          domain={domain}
-          ownHost={domain.provider === "imap"}
-          created={status.data?.mailboxes ?? []}
-          onDone={() => next("Mailbox")}
+      {page === "Workspace" && (
+        <WorkspaceForm
+          existing={resuming ? status.data?.organization?.name : undefined}
+          onDone={() => {
+            setResuming(true);
+            next("Workspace");
+          }}
+        />
+      )}
+      {page === "Inbox" && (
+        <InboxStep data={data} googleReturn={googleReturn} onDone={() => next("Inbox")} />
+      )}
+      {page === "Team" && (
+        <InviteForm
+          finishing={finish.isPending}
+          finishProblem={finish.problem}
+          onDone={() => next("Team")}
         />
       )}
       {page === "Plan" &&
-        (done("Plan") ? (
+        (pageDone("Plan", data) ? (
           <PageForm
             title="Your plan is set"
             description="Change it any time in Settings, Billing."
-            submit="Continue"
-            onSubmit={() => next("Plan")}
+            submit="Finish setup"
+            isPending={finish.isPending}
+            problem={finish.problem}
+            onSubmit={finish.run}
           >
             {null}
           </PageForm>
         ) : (
-          <PlanForm onDone={() => next("Plan")} />
+          <PlanForm
+            finishing={finish.isPending}
+            finishProblem={finish.problem}
+            onDone={finish.run}
+          />
         ))}
-      {page === "Team" && <InviteForm domain={domain?.domain} />}
     </OnboardingPage>
   );
 }
 
+/** Marks setup complete and opens the inbox: the last step's button. */
+function useFinish() {
+  const navigate = useNavigate();
+  const finishSetup = useFinishSetup();
+  return {
+    run: () => finishSetup.mutate(undefined, { onSuccess: () => void navigate({ to: "/inbox" }) }),
+    isPending: finishSetup.isPending || finishSetup.isSuccess,
+    problem: finishSetup.error?.message ?? null,
+  };
+}
+
 const BackContext = createContext<(() => void) | undefined>(undefined);
+
+/**
+ * Validation and failures go to a toast (top centre during setup), never under a field, so
+ * nothing on the page shifts (dorks' onboarding). The buttons stay enabled: pressing one with
+ * something missing says what. The same message twice replaces itself instead of stacking.
+ */
+const notify = (message: string) => setupToast(message);
+
+/** Points Back somewhere else inside a step (the inbox step's own views), or hides it. */
+function WithBack(props: { onBack: (() => void) | undefined; children: ReactNode }) {
+  return <BackContext.Provider value={props.onBack}>{props.children}</BackContext.Provider>;
+}
 
 /**
  * The frame every page shares, after dorks' onboarding: no rail or app chrome, one column in the
@@ -147,7 +187,7 @@ function OnboardingPage(props: {
   const index = props.pages.indexOf(props.current);
   return (
     <div className="relative isolate flex min-h-dvh flex-col overflow-clip bg-background">
-      <div className="absolute top-4 right-4 md:top-6 md:right-6">
+      <div className="absolute top-4 left-4 md:top-6 md:left-6">
         <AccountSwitcher />
       </div>
       <BackContext.Provider value={props.onBack}>
@@ -208,7 +248,7 @@ function AccountSwitcher() {
         <span className="min-w-0 truncate">{name}</span>
         <IconChevronsUpDown className="size-3.5 shrink-0 text-subtle-foreground" />
       </Button>
-      <Menu placement="bottom end" popover={{ offset: 8 }}>
+      <Menu placement="bottom start" popover={{ offset: 8 }}>
         {exit.kind !== "sign-out" && (
           <MenuItem onAction={leave}>
             <IconArrowLeft data-slot="icon" />
@@ -235,6 +275,8 @@ function PageForm(props: {
   title: string;
   description?: ReactNode;
   submit: string;
+  /** A second action, an outline button beside the primary one. Back then moves under them. */
+  secondary?: ReactNode;
   isPending?: boolean;
   /** Why the last submit failed. */
   problem?: string | null;
@@ -242,6 +284,9 @@ function PageForm(props: {
   children: ReactNode;
 }) {
   const onBack = useContext(BackContext);
+  useEffect(() => {
+    if (props.problem) notify(props.problem);
+  }, [props.problem]);
   return (
     <form
       className="flex flex-col"
@@ -257,135 +302,222 @@ function PageForm(props: {
         </header>
         {props.children}
       </div>
-      {/* The 40px above the buttons holds the form's error: one line (12 + 16 + 12) appears without
-          moving anything; a longer one grows the gap. */}
-      <SlotError className="min-h-10 py-3 *:justify-center">{props.problem}</SlotError>
+      {/* 40px over the buttons. Errors are toasts (`notify`), so nothing here moves. */}
+      <div className="h-10" />
       <div className="flex items-center justify-center gap-2">
-        {onBack && (
+        {onBack && !props.secondary && (
           <Button intent="ghost" className="text-muted-foreground" onPress={onBack}>
             Back
           </Button>
         )}
+        {props.secondary}
         <Button type="submit" isPending={props.isPending}>
           {props.submit}
         </Button>
       </div>
+      {onBack && props.secondary && (
+        <div className="mt-4 flex justify-center">
+          <Button intent="ghost" className="text-muted-foreground" onPress={onBack}>
+            Back
+          </Button>
+        </div>
+      )}
     </form>
   );
 }
 
-/**
- * A part of a long page: a short heading, an optional line under it, an optional action that
- * spares the fields (one-click setup), then its fields. No rule between sections: the title
- * divides them, with more room above it than below.
- */
-function Section(props: {
-  className?: string;
-  title: string;
-  description?: ReactNode;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className={cn("flex flex-col gap-5", props.className)}>
-      <div className="flex flex-col gap-1">
-        <Heading level={2} className="text-sm">
-          {props.title}
-        </Heading>
-        {props.description && <Text>{props.description}</Text>}
-        {props.action && <div className="mt-3 flex">{props.action}</div>}
-      </div>
-      <div className="flex flex-col gap-6">{props.children}</div>
-    </section>
-  );
-}
-
-/** The workspace's name and domain; read-only once the domain is claimed. */
-function WorkspaceFields(props: {
-  name: string;
-  domain: string;
-  onName?: (name: string) => void;
-  onDomain?: (domain: string) => void;
-  nameSaved: boolean;
-  domainSaved: boolean;
-}) {
-  return (
-    <>
-      <TextField
-        value={props.name}
-        onChange={props.onName}
-        isRequired
-        isReadOnly={props.nameSaved}
-        autoFocus={!props.nameSaved}
-      >
-        <Label>Workspace name</Label>
-        <Input placeholder="Acme" />
-        <FieldRevealedError message="Enter a name for the workspace." />
-      </TextField>
-      <TextField
-        value={props.domain}
-        onChange={props.onDomain}
-        isRequired
-        isReadOnly={props.domainSaved}
-        autoFocus={props.nameSaved && !props.domainSaved}
-      >
-        <Label>Domain</Label>
-        <Input placeholder="acme.com" />
-        <FieldRevealedError message="Enter your domain, like acme.com." />
-      </TextField>
-    </>
-  );
-}
-
-// The first page is the welcome: it says what is being made, since nothing else on screen does.
-const WORKSPACE_TITLE = "Create your workspace";
-const WORKSPACE_DESCRIPTION =
-  "Name it and add the domain your team gets mail on. Your mail keeps flowing as it does today.";
-
-/**
- * Creates the workspace (unless it exists already), then claims its domain. The page stays: the
- * domain's DNS opens under the fields (`DomainForm`).
- */
+/** The workspace's name: the welcome page's only field. Read-only once the workspace exists. */
 function WorkspaceForm(props: { existing?: string; onDone: () => void }) {
   const createWorkspace = useCreateWorkspace();
-  const addDomain = useAddDomain();
   const [name, setName] = useState(props.existing ?? "");
-  const [domain, setDomain] = useState("");
-  // Set once the workspace exists, so a retry after a domain error does not create a second one.
-  const [created, setCreated] = useState(props.existing !== undefined);
+  const exists = props.existing !== undefined;
   const [problem, setProblem] = useState<string | null>(null);
-
-  async function submit() {
-    setProblem(null);
-    try {
-      if (!created) {
-        await createWorkspace.mutateAsync(name);
-        setCreated(true);
-      }
-      await addDomain.mutateAsync(domain);
-      props.onDone();
-    } catch (error) {
-      setProblem((error as Error).message);
-    }
-  }
 
   return (
     <PageForm
-      title={WORKSPACE_TITLE}
-      description={WORKSPACE_DESCRIPTION}
+      title="Welcome to Omni"
+      description="Create your workspace by giving it a name."
       submit="Continue"
-      isPending={createWorkspace.isPending || addDomain.isPending}
+      isPending={createWorkspace.isPending}
       problem={problem}
-      onSubmit={() => void submit()}
+      onSubmit={() => {
+        setProblem(null);
+        if (exists) return props.onDone();
+        if (!name.trim()) return notify("Enter a name for the workspace.");
+        createWorkspace.mutate(name, {
+          onSuccess: props.onDone,
+          onError: (error) => setProblem(error.message),
+        });
+      }}
     >
-      <WorkspaceFields
-        name={name}
-        domain={domain}
-        onName={setName}
-        onDomain={setDomain}
-        nameSaved={created}
-        domainSaved={false}
+      <TextField value={name} onChange={setName} isReadOnly={exists} autoFocus>
+        <Label>Workspace name</Label>
+        <Input placeholder="Acme" />
+      </TextField>
+    </PageForm>
+  );
+}
+
+/** Where the inbox step is: Google, or one of the own-domain path's three views. */
+type InboxView = "connect" | "domain" | "dns" | "mailbox";
+
+/**
+ * The inbox step. Connecting Google is the way through; "Use your own domain instead" opens the
+ * domain, its DNS and a mailbox, each a view of this one step, with Back walking them in reverse.
+ * Without a Google client on this install, the domain path is the step.
+ */
+function InboxStep(props: {
+  data: OnboardingStatus | undefined;
+  googleReturn: GoogleOutcome | null;
+  onDone: () => void;
+}) {
+  const google = useGoogleAccounts();
+  const stepBack = useContext(BackContext);
+  const domain = props.data?.domains[0];
+  const mailboxes = props.data?.mailboxes ?? [];
+  const [view, setView] = useState<InboxView>(() => {
+    if (mailboxes.length > 0 || props.googleReturn || !domain) return "connect";
+    return domainReady(domain) && domain.provider !== "imap" ? "mailbox" : "dns";
+  });
+  // No Google here: the domain path is all there is, and its first view goes back a step.
+  const googleOff = google.data?.available === false && mailboxes.length === 0;
+  const shown = view === "connect" && googleOff ? (domain ? "dns" : "domain") : view;
+  const toConnect = googleOff ? stepBack : () => setView("connect");
+
+  if (shown === "connect") {
+    return (
+      <ConnectInboxForm
+        mailboxes={mailboxes}
+        problem={
+          props.googleReturn?.kind === "error" ? googleErrorText(props.googleReturn.reason) : null
+        }
+        onOwnDomain={() => setView(domain ? "dns" : "domain")}
+        onDone={props.onDone}
       />
+    );
+  }
+  if (shown === "domain" || !domain) {
+    return (
+      <WithBack onBack={toConnect}>
+        <DomainEntryForm onDone={() => setView("dns")} />
+      </WithBack>
+    );
+  }
+  if (shown === "dns") {
+    return (
+      <WithBack onBack={toConnect}>
+        <DomainForm
+          domain={domain}
+          organizationId={props.data?.organization?.id ?? ""}
+          onDone={() => setView("mailbox")}
+        />
+      </WithBack>
+    );
+  }
+  return (
+    <WithBack onBack={() => setView("dns")}>
+      <MailboxesForm
+        domain={domain}
+        ownHost={domain.provider === "imap"}
+        created={mailboxes}
+        onDone={props.onDone}
+      />
+    </WithBack>
+  );
+}
+
+/**
+ * One "Connect Google" button, which leaves for Google and comes back here connected. Once an
+ * inbox exists, it is listed and Continue moves on. Personal Gmail only (ADR 0023): a shared
+ * support@ address goes through your own domain, so the copy doesn't promise one.
+ */
+function ConnectInboxForm(props: {
+  mailboxes: OnboardingStatus["mailboxes"];
+  problem: string | null;
+  onOwnDomain: () => void;
+  onDone: () => void;
+}) {
+  const connect = useConnectGoogle("onboarding");
+  // An island of rows (dorks' connect step): each inbox connected, then rows to add one, at least
+  // three rows in all and always one to add, so the card never changes shape as it fills.
+  const open = Math.max(1, 3 - props.mailboxes.length);
+  return (
+    <PageForm
+      title="Connect your inbox"
+      description="Sign in with Google and your Gmail opens in Omni, ready to read and answer."
+      submit="Continue"
+      problem={props.problem}
+      onSubmit={() =>
+        props.mailboxes.length > 0 ? props.onDone() : notify("Connect an inbox first.")
+      }
+      secondary={
+        <Button intent="outline" onPress={props.onOwnDomain}>
+          Use Omni instead
+        </Button>
+      }
+    >
+      <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border text-sm">
+        {props.mailboxes.map((m) => (
+          <li key={m.id} className="flex h-12 items-center gap-3 px-4">
+            {m.provider === "gmail" ? (
+              <Google aria-hidden className="size-4 shrink-0" />
+            ) : (
+              <IconMail aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            )}
+            <span className="min-w-0 flex-1 truncate">{m.address}</span>
+            <span className="flex items-center gap-1.5">
+              <IconCheck aria-hidden className="size-3.5" />
+              Connected
+            </span>
+          </li>
+        ))}
+        {Array.from({ length: open }, (_, i) => (
+          <li key={`add-${i}`}>
+            <button
+              type="button"
+              className="group/row flex h-12 w-full items-center gap-3 px-4 text-start outline-hidden focus-visible:bg-hover"
+              disabled={connect.isPending}
+              onClick={() => connect.mutate()}
+            >
+              {/* No provider's mark until one is connected: Google is the first of several. */}
+              <IconPlus aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate">Add account</span>
+              <span className="text-muted-foreground transition-colors group-hover/row:text-foreground">
+                {connect.isPending ? "Opening Google…" : "Connect"}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </PageForm>
+  );
+}
+
+/** The domain your team gets mail on. Claiming it opens its DNS. */
+function DomainEntryForm(props: { onDone: () => void }) {
+  const addDomain = useAddDomain();
+  const [domain, setDomain] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <PageForm
+      title="Use your own domain"
+      description="Add the domain your team gets mail on. Your mail keeps flowing as it does today."
+      submit="Continue"
+      isPending={addDomain.isPending}
+      problem={problem}
+      onSubmit={() => {
+        setProblem(null);
+        if (!domain.trim()) return notify("Enter your domain, like acme.com.");
+        addDomain.mutate(domain, {
+          onSuccess: props.onDone,
+          onError: (error) => setProblem(error.message),
+        });
+      }}
+    >
+      <TextField value={domain} onChange={setDomain} autoFocus>
+        <Label>Domain</Label>
+        <Input placeholder="acme.com" />
+      </TextField>
     </PageForm>
   );
 }
@@ -468,7 +600,6 @@ const domainReady = (d: OnboardingDomain) => ownershipReady(d) && mailRecordsRea
  * and moves on only when all pass.
  */
 function DomainForm(props: {
-  workspace: string;
   domain: OnboardingDomain;
   organizationId: string;
   onDone: () => void;
@@ -502,12 +633,9 @@ function DomainForm(props: {
         if (!group) return;
         const type = group.records[0]!.type;
         const why = groupProblems(fresh, group);
-        if (why.length > 0)
-          appToast.message(`${type} record isn't right yet`, { description: why.join(" ") });
+        if (why.length > 0) setupToast(`${type} record isn't right yet`, why.join(" "));
         else
-          appToast.message(`${type} record not found yet`, {
-            description: "Still checking. DNS can take a few minutes.",
-          });
+          setupToast(`${type} record not found yet`, "Still checking. DNS can take a few minutes.");
       },
       onError: (error) => setProblem(error.message),
     });
@@ -539,71 +667,61 @@ function DomainForm(props: {
 
   return (
     <PageForm
-      title={WORKSPACE_TITLE}
-      description={WORKSPACE_DESCRIPTION}
+      title={mailOpen ? "Add the mail records" : `Verify you own ${domain.domain}`}
+      description={
+        <>
+          Add {records.length === 1 ? "this record" : "each record"} at{" "}
+          {domain.dnsHost ? <DnsHostLink host={domain.dnsHost} /> : "your DNS host"}.
+          {!mailOpen && mailStage && " The mail records come next."}
+        </>
+      }
       submit="Continue"
       isPending={checkDomain.isPending}
       problem={problem}
       onSubmit={checkAndContinue}
     >
-      <WorkspaceFields name={props.workspace} domain={domain.domain} nameSaved domainSaved />
-      <Section
-        // 24px of the form's gap plus 16px: 40px over the title, 20px under its lines.
-        className="mt-4"
-        title={mailOpen ? "Add the mail records" : "Verify you own it"}
-        description={
-          <>
-            Add {records.length === 1 ? "this record" : "each record"} at{" "}
-            {domain.dnsHost ? <DnsHostLink host={domain.dnsHost} /> : "the registrar"}.
-            {!mailOpen && mailStage && " The mail records come next."}
-          </>
-        }
-        action={
-          domain.domainConnect &&
-          !domainReady(domain) && (
-            <Button
-              intent="outline"
-              isPending={rotateChallenge.isPending}
-              onPress={setUpAutomatically}
-            >
-              <ProviderLogo name={domain.domainConnect.providerName} />
-              Set up automatically with {domain.domainConnect.providerName}
-            </Button>
-          )
-        }
-      >
-        <DnsRecordsTable
-          {...tableData(records)}
-          renderValue={(record) => {
-            // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
-            // or replace; missing or wrong, the field makes a new one.
-            const shown = records.find((r) => r.challenge);
-            if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
-            return passes(shown) ? (
-              <span className="text-xs/4 text-foreground">In your DNS</span>
-            ) : (
-              // Styled like every other value, with its action where their copy button sits:
-              // the line's 12px gap, then a 26px icon button.
-              <span className="flex min-w-0 items-center justify-end gap-3">
-                <span className="text-xs/4 text-foreground">Hidden</span>
-                <TooltipTrigger delay={300}>
-                  <Button
-                    intent="plain"
-                    size="sq-xs"
-                    className="-my-px -me-1.5 text-muted-foreground *:[svg]:size-3.25 hover:text-foreground"
-                    aria-label="Make a new value. It replaces the old one."
-                    isPending={rotateChallenge.isPending}
-                    onPress={rotate}
-                  >
-                    <IconArrowRotateClockwise aria-hidden />
-                  </Button>
-                  <Tooltip arrow={false}>Make a new value. It replaces the old one.</Tooltip>
-                </TooltipTrigger>
-              </span>
-            );
-          }}
-        />
-      </Section>
+      {domain.domainConnect && !domainReady(domain) && (
+        <Button
+          intent="outline"
+          className="self-center"
+          isPending={rotateChallenge.isPending}
+          onPress={setUpAutomatically}
+        >
+          <ProviderLogo name={domain.domainConnect.providerName} />
+          Set up automatically with {domain.domainConnect.providerName}
+        </Button>
+      )}
+      <DnsRecordsTable
+        {...tableData(records)}
+        renderValue={(record) => {
+          // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
+          // or replace; missing or wrong, the field makes a new one.
+          const shown = records.find((r) => r.challenge);
+          if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
+          return passes(shown) ? (
+            <span className="text-xs/4 text-foreground">In your DNS</span>
+          ) : (
+            // Styled like every other value, with its action where their copy button sits:
+            // the line's 12px gap, then a 26px icon button.
+            <span className="flex min-w-0 items-center justify-end gap-3">
+              <span className="text-xs/4 text-foreground">Hidden</span>
+              <TooltipTrigger delay={300}>
+                <Button
+                  intent="plain"
+                  size="sq-xs"
+                  className="-my-px -me-1.5 text-muted-foreground *:[svg]:size-3.25 hover:text-foreground"
+                  aria-label="Make a new value. It replaces the old one."
+                  isPending={rotateChallenge.isPending}
+                  onPress={rotate}
+                >
+                  <IconArrowRotateClockwise aria-hidden />
+                </Button>
+                <Tooltip arrow={false}>Make a new value. It replaces the old one.</Tooltip>
+              </TooltipTrigger>
+            </span>
+          );
+        }}
+      />
     </PageForm>
   );
 }
@@ -734,9 +852,13 @@ function MailboxesForm(props: {
       onSubmit={() => {
         setProblem(null);
         if (saved) return props.onDone();
+        if (!name.trim()) return notify("Enter the mailbox's name.");
+        if (ask && !password) return notify(`Enter the password for ${name.trim()}${suffix}.`);
+        if (ask && !imap.trim()) return notify("Enter the IMAP server.");
+        if (ask && !smtp.trim()) return notify("Enter the SMTP server.");
         const servers = ask ? { imap: server(imap, 993), smtp: server(smtp, 465) } : null;
         if (servers && (!servers.imap || !servers.smtp))
-          return setProblem("Enter each server as host or host:port.");
+          return notify("Enter each server as host or host:port.");
         createMailboxes.mutate(
           {
             domainId: props.domain.id,
@@ -750,7 +872,7 @@ function MailboxesForm(props: {
       }}
     >
       <div className="flex flex-col gap-2">
-        <TextField value={name} onChange={setName} isReadOnly={!!saved} isRequired autoFocus>
+        <TextField value={name} onChange={setName} isReadOnly={!!saved} autoFocus>
           <Label>Address</Label>
           <InputGroup className="[--input-gutter-end:--spacing(4)]">
             <Input placeholder="name" />
@@ -758,38 +880,25 @@ function MailboxesForm(props: {
               {suffix}
             </span>
           </InputGroup>
-          <FieldRevealedError message="Enter the mailbox's name." />
         </TextField>
         {ask && (
-          <TextField
-            aria-label="Password"
-            type="password"
-            value={password}
-            onChange={setPassword}
-            isRequired
-          >
+          <TextField aria-label="Password" type="password" value={password} onChange={setPassword}>
             <Input
-              size="lg"
               placeholder="Password (an app password if your host has them)"
               autoComplete="off"
-            />
-            <FieldRevealedError
-              message={`Enter the password for ${name.trim() || "this mailbox"}${suffix}.`}
             />
           </TextField>
         )}
       </div>
       {ask && (
         <>
-          <TextField value={imap} onChange={setImap} isRequired>
+          <TextField value={imap} onChange={setImap}>
             <Label>IMAP server</Label>
             <Input placeholder={`imap.${props.domain.domain}:993`} />
-            <FieldRevealedError message="Enter the IMAP server." />
           </TextField>
-          <TextField value={smtp} onChange={setSmtp} isRequired>
+          <TextField value={smtp} onChange={setSmtp}>
             <Label>SMTP server</Label>
             <Input placeholder={`smtp.${props.domain.domain}:465`} />
-            <FieldRevealedError message="Enter the SMTP server." />
           </TextField>
         </>
       )}
@@ -838,7 +947,7 @@ const SAMPLE_CHOICES = [
  * has had its trial (or a deployment without one) pays on Stripe's page, which returns here.
  * Shown only while the workspace has no plan; the page is passed over otherwise.
  */
-function PlanForm(props: { onDone: () => void }) {
+function PlanForm(props: { finishing: boolean; finishProblem: string | null; onDone: () => void }) {
   const billing = useBilling();
   const startTrial = useStartTrial();
   const checkout = useStartCheckout();
@@ -857,8 +966,8 @@ function PlanForm(props: { onDone: () => void }) {
           : "One price for everyone, every inbox and every domain."
       }
       submit={trial ? "Start free trial" : "Continue to payment"}
-      isPending={startTrial.isPending || checkout.isPending}
-      problem={problem ?? (billing.error ? billing.error.message : null)}
+      isPending={startTrial.isPending || checkout.isPending || props.finishing}
+      problem={problem ?? props.finishProblem ?? (billing.error ? billing.error.message : null)}
       onSubmit={() => {
         setProblem(null);
         if (trial) startTrial.mutate(picked, { onSuccess: props.onDone, onError: fail });
@@ -897,20 +1006,27 @@ function PlanForm(props: { onDone: () => void }) {
 }
 
 /**
- * Invites each address into the new workspace (the existing invitation flow), marks setup
- * complete, then opens the inbox.
+ * Invites each address into the new workspace (the existing invitation flow), or skips. On the
+ * last step (no plan to pick), setup finishes and the inbox opens.
  */
-function InviteForm(props: { domain?: string }) {
-  const navigate = useNavigate();
+function InviteForm(props: {
+  finishing: boolean;
+  finishProblem: string | null;
+  onDone: () => void;
+}) {
   const inviteMember = useInviteMember();
-  const finishSetup = useFinishSetup();
   // Three fields to start: most teams invite a few people at once.
   const [emails, setEmails] = useState(["", "", ""]);
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const typed = emails.some((e) => e.trim());
 
   async function submit() {
     setProblem(null);
+    const wrong = emails
+      .map((e) => e.trim())
+      .find((e) => e && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    if (wrong) return notify(`${wrong} isn't an email address.`);
     setSending(true);
     try {
       // Each address leaves the list once invited, so a retry after an error sends only the rest.
@@ -921,8 +1037,7 @@ function InviteForm(props: { domain?: string }) {
           return rest.length > 0 ? rest : [""];
         });
       }
-      await finishSetup.mutateAsync();
-      await navigate({ to: "/inbox" });
+      props.onDone();
     } catch (error) {
       setProblem((error as Error).message);
     } finally {
@@ -934,28 +1049,30 @@ function InviteForm(props: { domain?: string }) {
     <PageForm
       title="Invite your team"
       description="Add teammates by email. They'll get an invite to join."
-      submit="Finish setup"
-      isPending={sending}
-      problem={problem}
+      submit={typed ? "Send invites" : "Skip"}
+      isPending={sending || props.finishing}
+      problem={problem ?? props.finishProblem}
       onSubmit={() => void submit()}
+      secondary={
+        <Button intent="outline" onPress={() => setEmails([...emails, ""])}>
+          Add another
+        </Button>
+      }
     >
       <InputList
         label="Emails"
         optional
         values={emails}
         onChange={setEmails}
-        addLabel="Add another"
         render={(value, set, i) => (
           <TextField
             aria-label={`Email ${i + 1}`}
-            type="email"
             value={value}
             onChange={set}
             // The first field on arrival; a field just added after that.
             autoFocus={emails.length <= 3 ? i === 0 : i === emails.length - 1}
           >
-            <Input placeholder={`teammate@${props.domain ?? "acme.com"}`} />
-            <FieldRevealedError message="Enter a valid email address." />
+            <Input placeholder="teammate@acme.com" />
           </TextField>
         )}
       />
@@ -963,13 +1080,12 @@ function InviteForm(props: { domain?: string }) {
   );
 }
 
-/** A labeled list of inputs that grows with "Add …". */
+/** A labeled list of inputs; the step's "Add another" button grows it. */
 function InputList(props: {
   label: string;
   optional?: boolean;
   values: string[];
   onChange: (values: string[]) => void;
-  addLabel: string;
   render: (value: string, set: (value: string) => void, index: number) => ReactNode;
 }) {
   const { values, onChange } = props;
@@ -986,14 +1102,6 @@ function InputList(props: {
           </div>
         ))}
       </div>
-      <Button
-        intent="outline"
-        className="mt-1 self-start"
-        onPress={() => onChange([...values, ""])}
-      >
-        <IconPlus />
-        {props.addLabel}
-      </Button>
     </div>
   );
 }

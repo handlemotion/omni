@@ -27,14 +27,23 @@ let worker: Awaited<ReturnType<typeof startWorker>>;
 
 beforeAll(async () => {
   database = await createTestDatabase();
-  mailService = await startMailServiceEndpoint(({ path, body }) => {
+  mailService = await startMailServiceEndpoint(async ({ path, body }) => {
     if (path === "/connect/google/disconnect") {
       return {
         status: 200,
         json: { mailboxId: (JSON.parse(body) as { mailboxId: string }).mailboxId },
       };
     }
-    const { code } = JSON.parse(body) as { code: string };
+    const { code, orgId, memberId } = JSON.parse(body) as Record<string, string>;
+    if (code === "saving-code") {
+      // As the real mail service does: the Gmail mailbox exists before the Worker hears back.
+      const mailbox = await createMailbox(database.db, orgId!, `${orgId}@gmail.com`, "personal");
+      await grant(database.db, orgId!, mailbox.id, memberId!);
+      return {
+        status: 200,
+        json: { mailboxId: mailbox.id, address: mailbox.address, created: true },
+      };
+    }
     if (code === "taken-code") {
       return { status: 409, json: { error: "That Google account is connected elsewhere." } };
     }
@@ -68,8 +77,8 @@ function api(path: string, cookie: string, init: RequestInit = {}) {
 }
 
 /** Starts the flow: Google's consent URL and the flow cookie the browser now holds. */
-async function start(session: string) {
-  const response = await api("/connect/google/start", session);
+async function start(session: string, from?: "onboarding") {
+  const response = await api(`/connect/google/start${from ? `?return=${from}` : ""}`, session);
   expect(response.status).toBe(302);
   const consent = new URL(response.headers.get("location")!);
   const flow = response.headers
@@ -180,6 +189,42 @@ describe("connecting a Google account", () => {
       state: second.consent.searchParams.get("state")!,
     });
     expect(Object.fromEntries(taken.searchParams)).toEqual({ google: "error", reason: "in_use" });
+  });
+
+  test("started in setup, it returns to setup, and only a connected account lets setup finish", async () => {
+    const dee = await signedInMember("dee@connect.test");
+    // Setting up a workspace is its owner's job.
+    await database.db
+      .update(schema.members)
+      .set({ role: "owner" })
+      .where(eq(schema.members.id, dee.member.id));
+    const setup = async () =>
+      (
+        (await (await api("/onboarding", dee.session)).json()) as {
+          organization: { setup: string };
+        }
+      ).organization.setup;
+
+    const first = await start(dee.session, "onboarding");
+    const taken = await callback(`${dee.session}; ${first.flow}`, {
+      code: "taken-code",
+      state: first.consent.searchParams.get("state")!,
+    });
+    expect(taken.origin + taken.pathname).toBe(`${WEB_ORIGIN}/onboarding`);
+    expect(taken.searchParams.get("reason")).toBe("in_use");
+    expect(await setup()).toBe("created");
+    expect((await api("/onboarding/complete", dee.session, { method: "POST" })).status).toBe(409);
+
+    const second = await start(dee.session, "onboarding");
+    const landed = await callback(`${dee.session}; ${second.flow}`, {
+      code: "saving-code",
+      state: second.consent.searchParams.get("state")!,
+    });
+    expect(landed.origin + landed.pathname).toBe(`${WEB_ORIGIN}/onboarding`);
+    expect(landed.searchParams.get("google")).toBe("connected");
+    // Still in setup (invitations and the plan come next), not taken for a finished workspace.
+    expect(await setup()).toBe("mailboxes_created");
+    expect((await api("/onboarding/complete", dee.session, { method: "POST" })).status).toBe(200);
   });
 });
 

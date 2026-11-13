@@ -247,3 +247,55 @@
     background-position: 0 0;
   }
 }
+
+/* Setup's toasts (dorks' onboarding): a brand-blue fill with white text, 8px corners, 12px padding
+   around a 16px icon and a 20px line, a small bare close at the right, no shadow. Only on the
+   setup toaster (`setupToast`); the app's own toasts keep their card. */
+html .setup-toaster [data-sonner-toast][data-styled="true"] {
+  padding: 8px 36px 8px 12px;
+  gap: 8px;
+  align-items: flex-start;
+  /* A solid edge in the page's own colour, so a toast stacked behind the front one stays its own card. */
+  border: 1px solid var(--background);
+  border-radius: 8px;
+  background: var(--primary-button);
+  color: var(--primary-foreground);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  box-shadow: none;
+}
+html .setup-toaster [data-sonner-toast][data-styled="true"] [data-icon] {
+  margin: 2px 0 0;
+  color: var(--primary-foreground);
+}
+html .setup-toaster [data-sonner-toast][data-styled="true"] [data-title] {
+  line-height: 20px;
+  font-weight: 400;
+}
+html .setup-toaster [data-sonner-toast][data-styled="true"] [data-close-button] {
+  transition: background-color 150ms ease-out;
+  top: 6px;
+  right: 6px;
+  left: auto;
+  width: 24px;
+  height: 24px;
+  transform: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in oklab, var(--primary-foreground) 80%, transparent);
+}
+html .setup-toaster [data-sonner-toast][data-styled="true"]:hover [data-close-button]:hover,
+html .setup-toaster [data-sonner-toast][data-styled="true"] [data-close-button]:focus-visible {
+  background: color-mix(in oklab, black 15%, var(--primary-button));
+  border: 0;
+  color: var(--primary-foreground);
+}
+html .setup-toaster [data-sonner-toast][data-styled="true"] [data-close-button] svg {
+  width: 12px;
+  height: 12px;
+}
+html .setup-toaster [data-sonner-toast][data-styled="true"] [data-description] {
+  line-height: 20px;
+  color: color-mix(in oklab, var(--primary-foreground) 85%, transparent);
+}

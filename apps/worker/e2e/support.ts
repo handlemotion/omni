@@ -56,7 +56,10 @@ export type TestDb = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 /** Records every request and checks its signature with the real verifier from `@omni/crypto`. */
 export async function startMailServiceEndpoint(
   /** The answer to a verified request; 202 with no body when absent. */
-  respond?: (request: { path: string; body: string }) => { status: number; json: unknown },
+  respond?: (request: {
+    path: string;
+    body: string;
+  }) => { status: number; json: unknown } | Promise<{ status: number; json: unknown }>,
 ) {
   const requests: { method: string; path: string; body: string; verified: VerifyResult }[] = [];
   const waiters: (() => void)[] = [];
@@ -77,7 +80,7 @@ export async function startMailServiceEndpoint(
       headers,
     });
     requests.push({ method: req.method ?? "GET", path, body, verified });
-    const answer = verified.ok && respond ? respond({ path, body }) : null;
+    const answer = verified.ok && respond ? await respond({ path, body }) : null;
     if (answer) {
       res
         .writeHead(answer.status, { "content-type": "application/json" })

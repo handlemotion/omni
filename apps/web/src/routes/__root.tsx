@@ -1,6 +1,7 @@
 import {
   createRootRouteWithContext,
   Outlet,
+  useLocation,
   useRouter,
   type NavigateOptions,
   type ToOptions,
@@ -24,10 +25,12 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function Root() {
   const router = useRouter();
+  // Setup's validation and failures toast at the bottom right, in dorks' blue.
+  const setup = useLocation({ select: (l) => l.pathname.startsWith("/onboarding") });
   return (
     <RouterProvider navigate={(href, options) => router.navigate({ ...options, href })}>
       <Outlet />
-      <Toaster />
+      <Toaster setup={setup} />
     </RouterProvider>
   );
 }
