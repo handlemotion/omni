@@ -40,11 +40,13 @@ What Better Auth 1.7 did before this change (read from its source and docs):
    hour. An address belongs to at most one person, primary or extra: adding one that another user
    has (verified or not) is refused, and verification takes an advisory lock on the address and
    rechecks before inserting.
-4. **Any verified address finds its person.** The Drizzle adapter Better Auth uses is wrapped
-   (`resolveSignInEmails` in `@omni/auth`): a `user` lookup by email that finds nothing falls
-   back to `user_emails`, inside transactions too. That one seam covers magic-link verify, the
-   Google callback, sign-up checks and "already a member" on invite. `maySignIn` (who gets a magic
-   link mailed) counts extra addresses too.
+4. **Any verified address finds its person.** Both of Better Auth's paths for "the user with
+   email X" resolve extra addresses through `findUserIdByExtraEmail`. Its internal adapter's
+   `findUserByEmail` (magic-link verify, the Google callback, sign-up checks) is wrapped by the
+   `signInEmails` plugin in `@omni/auth`: a miss asks again by the owner's primary address.
+   Better Auth's raw adapter (`resolveSignInEmails`) falls back to `user_emails` on a `findOne`
+   by email, inside transactions too, which covers the organization plugin's "already a member"
+   on invite. `maySignIn` (who gets a magic link mailed) counts extra addresses too.
 5. **Invitations to an extra address join the existing user.** Before Better Auth's
    `get-invitation`, `accept-invitation` and `reject-invitation`, a pending invitation addressed
    to one of the signed-in user's verified extra emails is readdressed to their primary. Only the
@@ -67,10 +69,16 @@ memberships. The two are independent and multi-session is unchanged.
 ## Departures
 
 - **`user_emails` has no `org_id`.** It is per person, like `users`, `accounts` and `passkeys`.
-- **The adapter wrapper depends on Better Auth looking users up through `findOne` with a single
-  `email` clause** (true across 1.7's routes and plugins). An upgrade that changes that shape would
-  silently stop resolving extra addresses; `apps/worker/e2e/sign-in-emails.e2e.test.ts` fails if
-  it does.
+- **The seams depend on two Better Auth surfaces, not on public API.** (1) The
+  `internalAdapter.findUserByEmail(email, options)` method on the auth context, which magic-link
+  verify, the OAuth callback and sign-up call. Since 1.7.21 it discards a `findOne` result whose
+  `email` differs from the one asked for, which broke the adapter-only seam. The plugin wraps it
+  from `init`. Better Auth rebuilds `context.internalAdapter` after every plugin's `init`, so the
+  plugin installs an accessor that wraps whatever adapter is assigned. (2) Raw `findOne` calls
+  on `user` with a single `email` clause, which the organization plugin's `findMemberByEmail`
+  still makes. An upgrade that renames the method, stops assigning the context property, or
+  changes the lookup shape would stop resolving extra addresses;
+  `apps/worker/e2e/sign-in-emails.e2e.test.ts` fails if it does.
 
 ## What is not exercised live
 

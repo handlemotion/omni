@@ -12,7 +12,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
-import { claimInvitationsForSignInEmails, resolveSignInEmails } from "./sign-in-emails.ts";
+import { resolveSignInEmails, signInEmails } from "./sign-in-emails.ts";
 import { refreshSessionCacheOnOrgChange } from "./session-cache.ts";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { multiSession } from "better-auth/plugins/multi-session";
@@ -496,8 +496,8 @@ export function createAuth(env: AuthEnv) {
       multiSession(),
       // Keeps the session cookie cache's active organization in step with the database.
       refreshSessionCacheOnOrgChange(),
-      // An invitation to any of your verified sign-in emails is yours to accept (ADR 0014).
-      claimInvitationsForSignInEmails(env.db),
+      // Any verified sign-in email signs you in, and an invitation to one is yours (ADR 0014).
+      signInEmails(env.db),
       ...(env.billing ? [billingPlugin(env, env.billing)] : []),
     ],
   });

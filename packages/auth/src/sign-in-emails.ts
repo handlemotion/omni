@@ -1,7 +1,13 @@
 // How Better Auth sees a person's extra sign-in emails (ADR 0014). Better Auth knows one address
-// per user (`users.email`); these two seams make every verified address mean the same user.
+// per user (`users.email`); these seams make every verified address mean the same user.
 import { findUserIdByExtraEmail, schema, type Db } from "@omni/db";
-import type { BetterAuthPlugin, DBAdapter, DBTransactionAdapter, Where } from "better-auth";
+import type {
+  AuthContext,
+  BetterAuthPlugin,
+  DBAdapter,
+  DBTransactionAdapter,
+  Where,
+} from "better-auth";
 import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import type { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { and, eq, sql } from "drizzle-orm";
@@ -19,10 +25,11 @@ function emailLookup(where: Where[] | undefined) {
 }
 
 /**
- * Every Better Auth lookup of a user by email (magic-link verify, the Google callback, "is this
- * person already a member" on invite) falls back to the verified extra addresses, so any of them
- * finds the same user. Transactions get the same wrapper, since Better Auth looks users up inside
- * them too.
+ * Every raw adapter lookup of a user by email (the organization plugin's "is this person already
+ * a member" on invite) falls back to the verified extra addresses, so any of them finds the same
+ * user. Transactions get the same wrapper, since Better Auth looks users up inside them too.
+ * `internalAdapter.findUserByEmail` discards a user whose `email` differs from the one asked for,
+ * so `withSignInEmails` below covers that path.
  */
 export function resolveSignInEmails(factory: AdapterFactory, db: Db): AdapterFactory {
   const withLookup = <A extends DBTransactionAdapter>(adapter: A): A => ({
@@ -42,6 +49,43 @@ export function resolveSignInEmails(factory: AdapterFactory, db: Db): AdapterFac
   return ((options) => wrap(factory(options))) as AdapterFactory;
 }
 
+type InternalAdapter = AuthContext["internalAdapter"];
+const WRAPPED = Symbol("omni-sign-in-emails");
+
+/**
+ * `findUserByEmail` (magic-link verify, the Google callback, sign-up checks) answers for a verified
+ * extra address with its owner, found by asking Better Auth again for that owner's primary. Asking
+ * by the primary keeps Better Auth's own result shape (accounts included) and its email check.
+ */
+function withSignInEmails(internal: InternalAdapter, db: Db): InternalAdapter {
+  if ((internal as { [WRAPPED]?: true })[WRAPPED]) return internal;
+  const findUserByEmail: InternalAdapter["findUserByEmail"] = async (email, options) => {
+    const found = await internal.findUserByEmail(email, options);
+    if (found) return found;
+    const userId = await findUserIdByExtraEmail(db, email);
+    const owner = userId ? await internal.findUserById(userId) : null;
+    return owner ? internal.findUserByEmail(owner.email, options) : null;
+  };
+  return Object.assign({ ...internal, findUserByEmail }, { [WRAPPED]: true as const });
+}
+
+/**
+ * Better Auth rebuilds `context.internalAdapter` after every plugin's `init` runs, so returning a
+ * replacement from `init` would be overwritten. An accessor instead wraps whatever adapter is
+ * assigned, now or later. Per-request context clones copy the accessor, so they share it.
+ */
+function resolveSignInEmailsInContext(context: AuthContext, db: Db) {
+  let current = withSignInEmails(context.internalAdapter, db);
+  Object.defineProperty(context, "internalAdapter", {
+    configurable: true,
+    enumerable: true,
+    get: () => current,
+    set: (next: InternalAdapter) => {
+      current = withSignInEmails(next, db);
+    },
+  });
+}
+
 const INVITATION_PATHS = new Set([
   "/organization/get-invitation",
   "/organization/accept-invitation",
@@ -49,14 +93,19 @@ const INVITATION_PATHS = new Set([
 ]);
 
 /**
- * Better Auth lets only the user whose `users.email` equals the invitation's address see, accept
- * or decline it. Before those calls, an invitation addressed to one of the signed-in user's
- * verified extra emails is readdressed to their primary, so it joins that user, not a new one.
- * Only the address's verified owner can trigger this, and it changes nothing else.
+ * The plugin half of ADR 0014. `init` makes `internalAdapter.findUserByEmail` resolve extra
+ * addresses. The hooks handle invitations: Better Auth lets only the user whose `users.email`
+ * equals the invitation's address see, accept or decline it. Before those calls, an invitation
+ * addressed to one of the signed-in user's verified extra emails is readdressed to their primary,
+ * so it joins that user, not a new one. Only the address's verified owner can trigger this, and
+ * it changes nothing else.
  */
-export function claimInvitationsForSignInEmails(db: Db) {
+export function signInEmails(db: Db) {
   return {
     id: "omni-sign-in-emails",
+    init: (context) => {
+      resolveSignInEmailsInContext(context, db);
+    },
     hooks: {
       before: [
         {
