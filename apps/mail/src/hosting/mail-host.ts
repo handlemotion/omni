@@ -23,10 +23,15 @@ export interface MailHost {
    */
   domain(name: string, options: { add: boolean }): Promise<HostedDomain>;
   /**
-   * A login for `address`, creating the mailbox at the host when it has none. Each call issues a
-   * new app password: call it only when no login for the address is stored.
+   * A login for `address`, creating the mailbox at the host when it has none (unless
+   * `createUser` is false: then a missing mailbox is a MailHostError). Each call issues a new app
+   * password: call it only when no working login for the address is stored.
    */
-  issueLogin(address: string): Promise<PasswordCredentials>;
+  issueLogin(address: string, options?: { createUser?: boolean }): Promise<PasswordCredentials>;
+  /** Revokes one login issued for `address`. Revoking one already gone is not an error. */
+  revokeLogin(address: string, pass: string): Promise<void>;
+  /** The prepaid credit left on the host account, in US dollars. */
+  credit(): Promise<number>;
 }
 
 /**

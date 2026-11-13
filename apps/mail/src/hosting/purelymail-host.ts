@@ -66,10 +66,12 @@ export function createPurelymailHost(client: PurelymailClient, logger: Logger): 
     };
   }
 
-  async function issueLogin(address: string) {
+  async function issueLogin(address: string, options: { createUser?: boolean } = {}) {
     const at = address.lastIndexOf("@");
-    const users = await call(() => client.listUsers());
-    if (!users.includes(address)) {
+    if (!(await call(() => client.hasUser(address)))) {
+      if (options.createUser === false) {
+        throw new MailHostError(`${address} is no longer on Purelymail`);
+      }
       // Refuse a name the domain cannot hold with a reason the member can act on, before asking.
       const domainName = address.slice(at + 1);
       const state = purelymailDomainState(await call(() => client.listDomains()), domainName);
@@ -90,5 +92,24 @@ export function createPurelymailHost(client: PurelymailClient, logger: Logger): 
     return { user: address, pass, ...PURELYMAIL_SERVERS };
   }
 
-  return { provider: "purelymail", domain, issueLogin };
+  async function revokeLogin(address: string, pass: string) {
+    try {
+      await client.deleteAppPassword(address, pass);
+    } catch (error) {
+      // Purelymail answers an unknown password or user with a refusal: it is gone either way.
+      if (error instanceof PurelymailError) {
+        logger.info("hosting.revoke_refused", { address, detail: error.detail });
+        return;
+      }
+      throw new MailHostError("Purelymail is unreachable");
+    }
+  }
+
+  return {
+    provider: "purelymail",
+    domain,
+    issueLogin,
+    revokeLogin,
+    credit: () => call(() => client.accountCredit()),
+  };
 }

@@ -181,6 +181,15 @@ describe.runIf(requested)("Purelymail itself", () => {
     expect(json.records.filter((r) => !r.verified)).toEqual([]);
   });
 
+  it("reports the account's credit state in /health", async () => {
+    // "unknown" means the credit call or its parsing failed; the real account is "ok" or "low".
+    const health = await waitFor(async () => {
+      const json = (await (await fetch(`${serviceUrl}/health`)).json()) as Record<string, unknown>;
+      return json.hostCredit === "unknown" ? undefined : json;
+    }, 30_000);
+    expect(["ok", "low"]).toContain(health.hostCredit);
+  });
+
   it("creates a hosted mailbox that syncs and sends, and never issues a second login", async () => {
     const owner = await claimTestDomain();
     const address = testAddress();
@@ -241,7 +250,8 @@ describe.runIf(requested)("Purelymail itself", () => {
     expect(await purelymail.listUsers()).not.toContain(address);
   });
 
-  it("puts a hosted mailbox in error once its app password is revoked", async () => {
+  /** A new hosted mailbox on the test domain, synced and active. */
+  async function activeHostedMailbox() {
     const owner = await claimTestDomain();
     const address = testAddress();
     created.push(address);
@@ -252,14 +262,35 @@ describe.runIf(requested)("Purelymail itself", () => {
       ownerMemberId: owner.memberId,
       login: { provider: "purelymail" },
     });
-    const mailboxId = json.mailboxId;
-    await waitFor(async () => (await mailboxStatus(db, mailboxId)) === "active", 60_000);
+    await waitFor(async () => (await mailboxStatus(db, json.mailboxId)) === "active", 60_000);
+    return { address, mailboxId: json.mailboxId };
+  }
 
-    await purelymail.deleteAppPassword(address, (await loginOf(mailboxId)).pass);
-    // A reconnect logs in again with the revoked password; today nothing mints a new one.
+  /** Drops the connection and lets the service connect again from the stored login. */
+  async function reconnect(mailboxId: string) {
     await service.supervisor.remove(mailboxId);
     await service.reconcileMailboxes();
+  }
+
+  it("heals a hosted mailbox whose app password was revoked with a new one", async () => {
+    const { address, mailboxId } = await activeHostedMailbox();
+    const revoked = (await loginOf(mailboxId)).pass;
+    await purelymail.deleteAppPassword(address, revoked);
+
+    await reconnect(mailboxId);
+    // The login fails, Omni mints a new app password, stores it and reconnects with it.
+    await waitFor(async () => (await loginOf(mailboxId)).pass !== revoked, 60_000);
+    await waitFor(async () => (await mailboxStatus(db, mailboxId)) === "active", 60_000);
+    expect(service.supervisor.connection(mailboxId)?.connected).toBe(true);
+  }, 240_000);
+
+  it("leaves a hosted mailbox in error when its user was deleted at Purelymail", async () => {
+    const { address, mailboxId } = await activeHostedMailbox();
+    await purelymail.deleteUser(address);
+
+    await reconnect(mailboxId);
     await waitFor(async () => (await mailboxStatus(db, mailboxId)) === "error", 60_000);
-    expect(service.supervisor.connection(mailboxId)?.connected).toBe(false);
+    // Healing replaces a lost password, never a mailbox someone deleted on purpose.
+    expect(await purelymail.listUsers()).not.toContain(address);
   }, 240_000);
 });

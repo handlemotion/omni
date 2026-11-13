@@ -10,6 +10,8 @@ export const PURELYMAIL_SERVERS: { imap: ServerEndpoint; smtp: ServerEndpoint } 
 };
 
 const API_BASE = "https://purelymail.com/api/v0";
+/** The most users `listUser` returns (per the published schema). */
+const LIST_USER_LIMIT = 1000;
 
 export class PurelymailError extends Error {
   override name = "PurelymailError";
@@ -40,6 +42,8 @@ export interface PurelymailClient {
   setSymbolicSubaddressing(domainName: string, enabled: boolean): Promise<void>;
   /** Every user on the account, as full addresses (up to 1000, per the API). */
   listUsers(): Promise<string[]>;
+  /** Whether `userHandle` (`user@domain`) is a user on the account, past the 1000 that list. */
+  hasUser(userHandle: string): Promise<boolean>;
   createUser(input: { userName: string; domainName: string; password: string }): Promise<void>;
   /** A new app password for `userHandle` (`user@domain`). Shown once; store it encrypted. */
   createAppPassword(userHandle: string, name: string): Promise<string>;
@@ -47,6 +51,8 @@ export interface PurelymailClient {
   deleteAppPassword(userHandle: string, appPassword: string): Promise<void>;
   /** Deletes the user and all of its mail. Irreversible. */
   deleteUser(userHandle: string): Promise<void>;
+  /** The account's prepaid credit in US dollars. Purelymail stops mail when it runs out. */
+  accountCredit(): Promise<number>;
 }
 
 export function createPurelymailClient(token: string, fetchImpl = fetch): PurelymailClient {
@@ -75,6 +81,12 @@ export function createPurelymailClient(token: string, fetchImpl = fetch): Purely
     return json.result;
   }
 
+  async function listUsers(): Promise<string[]> {
+    const { users } = await call<{ users?: unknown }>("listUser", {});
+    if (!Array.isArray(users)) throw new PurelymailError("listUser", 200, "shape", "no users");
+    return users.filter((u): u is string => typeof u === "string").map((u) => u.toLowerCase());
+  }
+
   return {
     async getOwnershipCode() {
       const { code } = await call<{ code?: string }>("getOwnershipCode", {});
@@ -91,10 +103,20 @@ export function createPurelymailClient(token: string, fetchImpl = fetch): Purely
     async setSymbolicSubaddressing(domainName, enabled) {
       await call("updateDomainSettings", { name: domainName, symbolicSubaddressing: enabled });
     },
-    async listUsers() {
-      const { users } = await call<{ users?: unknown }>("listUser", {});
-      if (!Array.isArray(users)) throw new PurelymailError("listUser", 200, "shape", "no users");
-      return users.filter((u): u is string => typeof u === "string").map((u) => u.toLowerCase());
+    listUsers,
+    async hasUser(userHandle) {
+      const users = await listUsers();
+      if (users.includes(userHandle.toLowerCase())) return true;
+      // `listUser` stops at 1000 users, so a shorter list is the whole account.
+      if (users.length < LIST_USER_LIMIT) return false;
+      try {
+        await call("getUser", { userName: userHandle });
+        return true;
+      } catch (error) {
+        // A missing user is `internalError` "Unknown user …" (seen live 2026-11-13).
+        if (error instanceof PurelymailError && /^Unknown user\b/.test(error.detail)) return false;
+        throw error;
+      }
     },
     async createUser({ userName, domainName, password }) {
       await call("createUser", {
@@ -120,6 +142,15 @@ export function createPurelymailClient(token: string, fetchImpl = fetch): Purely
     },
     async deleteUser(userHandle) {
       await call("deleteUser", { userName: userHandle });
+    },
+    async accountCredit() {
+      // A decimal string with many digits (seen live 2026-11-13), not a JSON number.
+      const { credit } = await call<{ credit?: unknown }>("checkAccountCredit", {});
+      const dollars = Number(credit);
+      if (typeof credit !== "string" || !Number.isFinite(dollars)) {
+        throw new PurelymailError("checkAccountCredit", 200, "shape", "no credit returned");
+      }
+      return dollars;
     },
   };
 }

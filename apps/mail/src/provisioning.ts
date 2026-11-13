@@ -16,9 +16,7 @@ import { type Db, findOrgDomain, findOrgMailbox, saveMailbox } from "@omni/db";
 import { planMailboxProvision } from "@omni/mail-core/mailbox-provisioning";
 import { type PasswordCredentials, openCredentials, sealCredentials } from "./credentials.ts";
 import { type MailHost, MailHostError } from "./hosting/mail-host.ts";
-import { createPurelymailHost } from "./hosting/purelymail-host.ts";
 import type { Logger } from "./log.ts";
-import type { PurelymailClient } from "./providers/purelymail.ts";
 import { verifyImapLogin } from "./verify-login.ts";
 
 /** A refusal the Worker passes on to the member, with the status to use. */
@@ -40,15 +38,14 @@ export interface Provisioner {
 export function createProvisioner(deps: {
   db: Db;
   keyring: Keyring;
-  /** Absent without PURELYMAIL_API_TOKEN: only existing IMAP logins can be added. */
-  purelymail?: PurelymailClient;
+  /** Absent without a host API (PURELYMAIL_API_TOKEN): only existing IMAP logins can be added. */
+  host?: MailHost;
   /** Connect the mailbox with its stored credentials, replacing a connection it already has. */
   connect(mailboxId: string): Promise<void>;
   logger: Logger;
 }): Provisioner {
   const { db, keyring, logger } = deps;
-  const host: MailHost | undefined =
-    deps.purelymail && createPurelymailHost(deps.purelymail, logger);
+  const { host } = deps;
   // One provisioning run per address at a time, so a double submit cannot create two app
   // passwords. This service runs as one machine (ADR 0004); the natural keys cover the rest.
   const running = new Map<string, Promise<ProvisionMailboxResult>>();

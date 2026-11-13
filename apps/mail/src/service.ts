@@ -22,6 +22,9 @@ import { WorkerNotifier } from "./notify.ts";
 import { createS3Store } from "./objects.ts";
 import { PgActionSource, PgMailStore, PgSendFiles } from "./pg-store.ts";
 import { connectGoogle, createGoogleOAuth, disconnectGoogle } from "./providers/gmail.ts";
+import { createCreditWatch } from "./hosting/credit-watch.ts";
+import { createPurelymailHost } from "./hosting/purelymail-host.ts";
+import { createLoginRotation } from "./hosting/rotate-login.ts";
 import { createPurelymailClient } from "./providers/purelymail.ts";
 import { createProvisioner } from "./provisioning.ts";
 import { Supervisor } from "./supervisor.ts";
@@ -48,6 +51,7 @@ export type ServiceConfig = Pick<
     Pick<
       Config,
       | "PURELYMAIL_API_TOKEN"
+      | "PURELYMAIL_CREDIT_WARN_USD"
       | "DNS_RESOLVERS"
       | "DNS_NAMESERVER_PORT"
       | "DNS_TIMEOUT_MS"
@@ -174,6 +178,19 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     concurrency: config.MAILBOX_CONCURRENCY,
   });
 
+  // The host Omni operates, when configured: provisions hosted mailboxes and heals their logins.
+  const host = config.PURELYMAIL_API_TOKEN
+    ? createPurelymailHost(createPurelymailClient(config.PURELYMAIL_API_TOKEN), log)
+    : undefined;
+  let rotateLogin: ReturnType<typeof createLoginRotation> | undefined;
+  const credit = host
+    ? createCreditWatch({
+        host,
+        warnBelowUsd: config.PURELYMAIL_CREDIT_WARN_USD ?? 5,
+        logger: log,
+      })
+    : undefined;
+
   // One reconcile at a time; a request during one runs once more after it.
   let reconciling: Promise<void> | null = null;
   let again = false;
@@ -219,7 +236,11 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
       connection.on("connected", () => void setStatus("active"));
       // Shows the app a mailbox whose app password or Google access was revoked; retrying
       // continues until the connection gives up.
-      connection.on("auth_failed", () => void setStatus("error"));
+      connection.on("auth_failed", () => {
+        void setStatus("error");
+        // A hosted login Omni can replace itself (plan H-4); others wait for their owner.
+        if (row.provider === "purelymail") void rotateLogin?.rotate(row);
+      });
     }
   }
   function reconcileMailboxes(): Promise<void> {
@@ -243,6 +264,15 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     if (supervisor.has(mailboxId)) await supervisor.remove(mailboxId);
     await reconcileMailboxes();
   };
+  if (host) {
+    rotateLogin = createLoginRotation({
+      db,
+      keyring: config.MAIL_CREDENTIALS_KEY,
+      host,
+      reconnect,
+      logger: log,
+    });
+  }
 
   supervisor.start();
   await sweepNotifications().catch((error: unknown) => log.error("notify.sweep_failed", { error }));
@@ -256,12 +286,14 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     ),
   );
 
+  // Credit moves slowly; hourly is plenty and costs one API call.
+  void credit?.check();
+  const creditLoop = credit ? every(60 * 60_000, () => credit.check()) : undefined;
+
   const provisioner = createProvisioner({
     db,
     keyring: config.MAIL_CREDENTIALS_KEY,
-    purelymail: config.PURELYMAIL_API_TOKEN
-      ? createPurelymailClient(config.PURELYMAIL_API_TOKEN)
-      : undefined,
+    ...(host ? { host } : {}),
     connect: reconnect,
     logger: log,
   });
@@ -326,6 +358,8 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
         mailboxes: supervisor.mailboxCount,
         connected: supervisor.connectedCount,
         ready: supervisor.readyCount,
+        // Only the state, never the amount: /health is public.
+        ...(credit ? { hostCredit: credit.state() } : {}),
       };
     },
   });
@@ -350,8 +384,10 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     reconcileMailboxes,
     stop: async () => {
       stopping = true;
+      rotateLogin?.stop();
       await Effect.runPromise(Fiber.interrupt(reconcileLoop));
       await Effect.runPromise(Fiber.interrupt(sweepLoop));
+      if (creditLoop) await Effect.runPromise(Fiber.interrupt(creditLoop));
       await reconciling?.catch(() => {});
       await supervisor.stop();
       await notifier.stop();

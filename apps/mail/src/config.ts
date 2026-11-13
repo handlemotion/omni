@@ -59,6 +59,11 @@ const schema = z.object({
     .optional()
     .transform((value) => value || undefined),
   /**
+   * With PURELYMAIL_API_TOKEN: below this prepaid credit (US dollars) the service logs
+   * `hosting.credit_low` and `/health` reports `hostCredit: "low"`. Purelymail stops mail at zero.
+   */
+  PURELYMAIL_CREDIT_WARN_USD: z.coerce.number().nonnegative().default(5),
+  /**
    * Optional Google OAuth client (ADR 0023). Both set: people can connect a Gmail account, and
    * this service exchanges and refreshes its tokens. The Worker's sign-in client works.
    */
