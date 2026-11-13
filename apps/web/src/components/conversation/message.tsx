@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { IconMail, IconNote } from "@/components/icons/central";
 import { MenuItem, MenuLabel } from "@/components/ui/menu";
@@ -52,10 +52,16 @@ export function AddedLine({ message }: { message: Message }) {
  * sender's HTML in a sandboxed frame, for when reply stripping got it wrong. A message with no
  * text of its own (an HTML-only mail the stripper emptied) opens that way.
  */
-export function MessageItem({ threadId, message }: { threadId: string; message: Message }) {
+export function MessageItem(props: {
+  threadId: string;
+  message: Message;
+  /** The thread's only message, shown as the page: a card without its edge. */
+  flat?: boolean | undefined;
+}) {
+  const { threadId, message } = props;
   const [full, setFull] = useState(opensFull(message));
   const sender = personName({ name: message.fromName, address: message.fromAddress });
-  const card = message.display === "card" || full;
+  const card = message.display === "card" || full || !!props.flat;
   // Right-hand side: anything this inbox sent. Blue only for the reader's own replies.
   const ours = message.fromTeam && !card;
 
@@ -70,39 +76,33 @@ export function MessageItem({ threadId, message }: { threadId: string; message: 
     </MenuItem>
   );
 
+  const menu = (
+    <MessageMenu
+      start={ours}
+      label="Message actions"
+      from={sender}
+      text={message.cleanText}
+      messageId={message.id}
+      extra={toggle}
+    />
+  );
+
   return (
     <article
       aria-label={`${message.fromMe ? "You" : sender}, ${messageTime(message.sentAt)}`}
-      className={`group/item flex flex-col gap-3 ${ours ? "items-end" : "items-start"}`}
+      // An email's body sits further under its larger header than a bubble under its name.
+      className={`group/item flex flex-col ${props.flat ? "gap-4" : "gap-3"} ${ours ? "items-end" : "items-start"}`}
     >
-      <header className="flex items-center gap-2">
-        {!message.fromMe && (
-          <Avatar
-            isSquare
-            size="xs"
-            initials={sender.slice(0, 1).toUpperCase()}
-            // 18px, as on notes: a step under xs, so the face sits with the 14px name.
-            className="bg-accent text-foreground outline-0 [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(4.5)]"
-          />
-        )}
-        <span className="text-sm">{message.fromMe ? "You" : sender}</span>
-        <time dateTime={message.sentAt} className="text-xs text-subtle-foreground tabular-nums">
-          {messageTime(message.sentAt)}
-        </time>
-        <MessageMenu
-          start={ours}
-          label="Message actions"
-          from={sender}
-          text={message.cleanText}
-          messageId={message.id}
-          extra={toggle}
-        />
-      </header>
+      {props.flat ? (
+        <EmailHeader message={message} sender={sender} menu={menu} />
+      ) : (
+        <ChatHeader message={message} sender={sender} menu={menu} />
+      )}
 
       {card ? (
         <div
           {...{ [REPLY_SOURCE]: sender }}
-          className="flex w-full flex-col gap-3 rounded-xl border bg-background p-4 shadow-(--shadow-raised)"
+          className={`flex w-full flex-col gap-3 bg-background ${props.flat ? "" : "rounded-xl border p-4 shadow-(--shadow-raised)"}`}
         >
           {!full && <Body loose text={message.cleanText} />}
           {full && <FullMessage threadId={threadId} messageId={message.id} />}
@@ -128,6 +128,58 @@ export function MessageItem({ threadId, message }: { threadId: string; message: 
         align={ours ? "end" : "start"}
       />
     </article>
+  );
+}
+
+/** A conversation message's line: a small face (not for yours), the name and the time. */
+function ChatHeader(props: { message: Message; sender: string; menu: ReactNode }) {
+  const { message, sender } = props;
+  return (
+    <header className="flex items-center gap-2">
+      {!message.fromMe && (
+        <Avatar
+          isSquare
+          size="xs"
+          initials={sender.slice(0, 1).toUpperCase()}
+          // 18px, as on notes: a step under xs, so the face sits with the 14px name.
+          className="bg-accent text-foreground outline-0 [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(4.5)]"
+        />
+      )}
+      <span className="text-sm">{message.fromMe ? "You" : sender}</span>
+      <time dateTime={message.sentAt} className="text-xs text-subtle-foreground tabular-nums">
+        {messageTime(message.sentAt)}
+      </time>
+      {props.menu}
+    </header>
+  );
+}
+
+/**
+ * A single email's sender, laid out like mail rather than chat: a larger face, the name over
+ * the address, and the time at the end of the line.
+ */
+function EmailHeader(props: { message: Message; sender: string; menu: ReactNode }) {
+  const { message, sender } = props;
+  const named = !!message.fromName && message.fromName !== message.fromAddress;
+  return (
+    <header className="flex w-full items-center gap-3">
+      <Avatar
+        isSquare
+        size="md"
+        initials={sender.slice(0, 1).toUpperCase()}
+        className="bg-accent text-foreground outline-0"
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm">{sender}</span>
+        {named && (
+          <span className="truncate text-xs text-muted-foreground">{message.fromAddress}</span>
+        )}
+      </div>
+      {props.menu}
+      <time dateTime={message.sentAt} className="text-xs text-subtle-foreground tabular-nums">
+        {messageTime(message.sentAt)}
+      </time>
+    </header>
   );
 }
 

@@ -22,8 +22,7 @@ export function useComposeMailboxes() {
 
 /**
  * New mail in the reading pane beside the list, laid out like an open conversation: the same
- * toolbar row (with close where the thread's actions sit), then the composer in the messages'
- * reading column.
+ * toolbar row (with close where the thread's actions sit), then the composer filling the rest.
  */
 export function ComposePane({ onClose }: { onClose: () => void }) {
   const mailboxes = useComposeMailboxes();
@@ -47,10 +46,9 @@ export function ComposePane({ onClose }: { onClose: () => void }) {
           </TooltipTrigger>
         </div>
       </div>
-      <div className={`min-h-0 flex-1 overflow-y-auto overscroll-none ${edge}`}>
-        <div className="mx-auto w-full max-w-3xl px-5 py-6">
-          <NewMessageComposer mailboxes={mailboxes} initial={{ mailboxId: mailbox }} />
-        </div>
+      {/* The composer is the pane itself: full width, no card, its tools at the bottom. */}
+      <div className={`flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none ${edge}`}>
+        <NewMessageComposer mailboxes={mailboxes} initial={{ mailboxId: mailbox }} />
       </div>
     </section>
   );

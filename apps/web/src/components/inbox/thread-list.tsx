@@ -193,8 +193,8 @@ export function List(
   // Beside an open thread the list keeps a width the person can drag; alone it fills the page.
   const split = detail && !hideList;
   const listWidth = useStoredWidth("omni:list-width", LIST_WIDTH, LIST_MIN, LIST_MAX);
-  // Until dragged, the thread takes its reading column's width (the messages' `max-w-3xl`, so its
-  // toolbar ends where the messages do) and the list the rest, down to its minimum.
+  // Until dragged, the thread takes a 672px reading pane (`w-2xl`) and the list the rest, down to
+  // its minimum.
   const hug = split && !listWidth.isSet;
   const [resizing, setResizing] = useState(false);
   // The rows behind the open thread, for its full-screen switcher.
@@ -314,7 +314,7 @@ export function List(
         {/* Only with a thread (or new mail) open: closed, the list takes the full width. The same
             wrapper in and out of full screen, so toggling it doesn't remount the thread. */}
         {detail && (props.children || composing) && (
-          <div className={`relative flex min-w-0 ${hug ? "w-3xl shrink" : "flex-1"}`}>
+          <div className={`relative flex min-w-0 ${hug ? "w-2xl shrink" : "flex-1"}`}>
             {split && (
               <ResizeGrip
                 label="Resize list"

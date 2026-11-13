@@ -8,8 +8,6 @@ import { DropZone } from "react-aria-components/DropZone";
 import {
   IconChevronDown,
   IconForward,
-  IconGlobe,
-  IconLock,
   IconMail,
   IconReply,
   IconX,
@@ -19,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { appToast } from "@/components/ui/toast";
-import { Menu, MenuDescription, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
+import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import {
   useCancelSend,
   useComposeReply,
@@ -37,9 +35,10 @@ import type { Message, Thread } from "@/lib/types.ts";
 import { CannedPicker } from "./canned-picker.tsx";
 import { AttachButton, ComposerFiles } from "./composer-files.tsx";
 import { ChatComposer } from "./chat-composer.tsx";
-import { useComposerState, type ComposerMode } from "./composer-state.tsx";
+import { useComposerState } from "./composer-state.tsx";
 import { RecipientField } from "./recipient-field.tsx";
 import { Toolbar } from "./toolbar.tsx";
+import { Visibility } from "./visibility.tsx";
 import { offerUndoSend } from "./undo-send.ts";
 
 /** The RFC 3676 signature separator, so mail clients can fold it. */
@@ -138,8 +137,8 @@ function customerRecipients(messages: Message[], inbox: string): string[] {
 type Mode = "reply" | "forward";
 
 /**
- * The composer pinned under the open conversation. On a shared inbox a switch above it picks
- * who will see what you write: Public is an email to the customer (or a
+ * The composer pinned under the open conversation. On a shared inbox a switch among its tools
+ * picks who will see what you write: Public is an email to the customer (or a
  * forward, picked from a message's menu), Hidden is an internal note only the team sees. A
  * personal thread is always Public. Replies go from the inbox's address with your name; they
  * show in the thread at once and can be undone while they wait in the outbox.
@@ -148,8 +147,11 @@ export function ReplyComposer({ thread }: { thread: Thread }) {
   const state = useComposerState();
   const hidden = state.mode === "hidden";
   return (
-    <div className="flex flex-col gap-2">
-      {state.chat && <Visibility />}
+    // The pane's bottom edge, full width: one composer whose mode switches in place. A hidden
+    // note's edge is dashed, like the notes it adds.
+    <div
+      className={`flex flex-col border-t ${hidden ? "border-dashed border-muted-foreground/60" : ""}`}
+    >
       {/* Kept mounted while Public shows, so a half-written note waits there. */}
       {state.chat && (
         <div hidden={!hidden}>
@@ -170,68 +172,6 @@ export function ReplyComposer({ thread }: { thread: Thread }) {
   );
 }
 
-const VISIBILITY = {
-  public: {
-    icon: IconGlobe,
-    label: "Public",
-    short: "Email the customer",
-  },
-  hidden: {
-    icon: IconLock,
-    label: "Hidden",
-    short: "Only your team sees it",
-  },
-} as const;
-
-/**
- * Who sees what you write, and the menu that changes it: one switch above the composer, like a
- * breadcrumb, instead of tabs. Each mode's menu item says its consequence, so a hidden note
- * never reads as mail and a public reply never reads as a note.
- */
-function Visibility() {
-  const { mode, setMode } = useComposerState();
-  const current = VISIBILITY[mode];
-  return (
-    // The switch on the left; what each mode means is in its menu.
-    <div className="flex min-w-0 items-center justify-between gap-2 text-sm text-muted-foreground">
-      <MenuTrigger>
-        <Button
-          intent="ghost"
-          size="sm"
-          aria-label={`Visibility: ${current.label}`}
-          // Its icon on the same line as the card's Reply icon below: 13px in (12px padding and
-          // the 1px border), 5px of margin plus the button's 8px inset.
-          className="ms-[5px] px-2 text-foreground"
-        >
-          <current.icon />
-          {current.label}
-          <IconChevronDown className="text-muted-foreground" />
-        </Button>
-        <Menu
-          placement="top start"
-          selectionMode="single"
-          selectedKeys={[mode]}
-          onSelectionChange={(keys) => {
-            const next = [...keys][0] as ComposerMode | undefined;
-            if (next) setMode(next);
-          }}
-        >
-          {(["public", "hidden"] as const).map((id) => {
-            const option = VISIBILITY[id];
-            return (
-              <MenuItem key={id} id={id} textValue={option.label}>
-                <option.icon data-slot="icon" />
-                <MenuLabel>{option.label}</MenuLabel>
-                <MenuDescription>{option.short}</MenuDescription>
-              </MenuItem>
-            );
-          })}
-        </Menu>
-      </MenuTrigger>
-    </div>
-  );
-}
-
 function ModeComposer(props: {
   thread: Thread;
   mode: Mode;
@@ -240,6 +180,7 @@ function ModeComposer(props: {
   onStopForward: () => void;
 }) {
   const { thread, mode } = props;
+  const { chat } = useComposerState();
   const latest = thread.messages.at(-1);
   const { signature, isLoading: signatureLoading } = useSignature(thread.mailboxId);
   const files = useComposerFiles(thread.mailboxId);
@@ -443,7 +384,7 @@ function ModeComposer(props: {
   };
 
   return (
-    <ComposerFrame onFiles={files.add}>
+    <ComposerFrame flat onFiles={files.add}>
       {/* One row: what this is (reply or forward), whom to, and from where. */}
       <Recipients
         lead={
@@ -483,6 +424,7 @@ function ModeComposer(props: {
         start={
           <>
             <AttachButton onFiles={files.add} />
+            {chat && <Visibility />}
             <CannedPicker mailboxId={thread.mailboxId} onPick={(r) => void insertCanned(r)} />
           </>
         }
@@ -573,7 +515,7 @@ function NewMessage(props: {
   };
 
   return (
-    <ComposerFrame onFiles={files.add}>
+    <ComposerFrame flat fill onFiles={files.add}>
       <FromRow
         mailboxes={props.mailboxes}
         value={mailboxId}
@@ -618,7 +560,7 @@ function NewMessage(props: {
         value={text}
         onChange={setText}
         onSend={send}
-        rows={10}
+        fill
       />
       <ComposerFiles files={files.files} onRemove={files.remove} />
       <Toolbar
@@ -672,8 +614,16 @@ function FromRow(props: {
   );
 }
 
-/** The card around a composer. Dropping files anywhere on it attaches them. */
-function ComposerFrame(props: { onFiles: (files: File[]) => void; children: ReactNode }) {
+/**
+ * What a composer sits in. Dropping files anywhere on it attaches them. `flat`: part of the
+ * pane, not a card in it (new mail, replies); `fill`: it takes the pane's spare height (new mail).
+ */
+function ComposerFrame(props: {
+  onFiles: (files: File[]) => void;
+  flat?: boolean | undefined;
+  fill?: boolean;
+  children: ReactNode;
+}) {
   return (
     <DropZone
       aria-label="Drop files to attach"
@@ -687,8 +637,11 @@ function ComposerFrame(props: { onFiles: (files: File[]) => void; children: Reac
       className={({ isDropTarget }) =>
         [
           // White, unpadded: each row keeps its own 12px sides, so dividers run the full width.
-          "flex flex-col rounded-xl border bg-background shadow-raised outline-hidden",
-          isDropTarget ? "border-ring" : "",
+          "flex flex-col bg-background outline-hidden",
+          props.flat ? "" : "rounded-xl border shadow-raised",
+          props.fill ? "min-h-0 flex-1" : "",
+          // Flat there is no border to light up, so a drop rings its inside edge.
+          isDropTarget ? (props.flat ? "ring-1 ring-ring ring-inset" : "border-ring") : "",
         ].join(" ")
       }
     >
@@ -779,6 +732,8 @@ function Body(props: {
   onSend: () => void;
   rows?: number;
   readOnly?: boolean;
+  /** Take the frame's spare height, so the tools sit at its bottom and writing room stays long. */
+  fill?: boolean;
 }) {
   return (
     <Textarea
@@ -798,7 +753,7 @@ function Body(props: {
       }}
       data-composer-body
       // 12px under the divider, the same as its 12px sides, so Write doesn't crowd the line.
-      className="max-h-[min(24rem,30vh)] min-h-24 resize-none px-3 pt-3 pb-1 sm:px-3 sm:pt-3 sm:pb-1"
+      className={`${props.fill ? "min-h-24 flex-1" : "max-h-[min(24rem,30vh)] min-h-24"} resize-none px-3 pt-3 pb-1 sm:px-3 sm:pt-3 sm:pb-1`}
     />
   );
 }

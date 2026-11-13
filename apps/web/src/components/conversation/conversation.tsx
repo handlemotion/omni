@@ -69,11 +69,14 @@ export function Conversation({ threadId }: { threadId: string }) {
   );
   const [fullScreen] = useFullScreen();
   const scroller = useRef<HTMLDivElement>(null);
+  const single = isSingleEmail(thread, pending.length, shared ? helpdesk : undefined);
   // Whether the reader sat at the bottom before this render: new mail follows them only then.
   const atBottom = useRef(true);
 
-  // To the very end, so the newest message sits above the composer floating over it.
-  const toEnd = () => scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
+  // To the very end, so the newest message sits just above the docked composer. A single
+  // email is a page, read from its top.
+  const toEnd = () =>
+    scroller.current?.scrollTo({ top: single ? 0 : scroller.current.scrollHeight });
   // A conversation opens at its newest message, like a chat.
   useLayoutEffect(() => {
     atBottom.current = true;
@@ -110,9 +113,8 @@ export function Conversation({ threadId }: { threadId: string }) {
           // Full screen, the sidebar's own edge is the only line: a second beside it doubles up.
           className={`${SCROLLER} overflow-y-auto overscroll-none ${fullScreen ? "" : "border-s"}`}
         >
-          {/* Grows to fill a short thread, so the composer still floats at the bottom. The bottom
-              padding clears the fade, so the newest message ends above it. */}
-          <div className={COLUMN}>
+          {/* Grows to fill a short thread, so the composer stays at the pane's bottom. */}
+          <div className={single ? PAGE : COLUMN}>
             <div className="flex flex-col gap-2">
               <Heading level={2}>{subject || "(no subject)"}</Heading>
               {/* What the conversation is (status, owner, priority, tags) sits with its title. */}
@@ -131,21 +133,15 @@ export function Conversation({ threadId }: { threadId: string }) {
               mailboxId={thread.mailboxId}
               messages={thread.messages}
               helpdesk={shared ? helpdesk : undefined}
+              flat={single}
             />
             {pending.map((send) => (
               <PendingItem key={send.key} send={send} />
             ))}
           </div>
-          {/* Floats 16px off the bottom, in the messages' column; they scroll behind it and fade
-              out as they reach it. */}
-          <div className="sticky bottom-0 mx-auto w-full max-w-3xl shrink-0 px-5 pb-4">
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 bg-linear-to-b from-transparent to-background to-[2.5rem]"
-            />
-            <div className="relative">
-              <ReplyComposer thread={thread} />
-            </div>
+          {/* The pane's bottom edge, full width; the messages scroll above it. */}
+          <div className="sticky bottom-0 w-full shrink-0 bg-background">
+            <ReplyComposer thread={thread} />
           </div>
         </div>
       </ComposerProvider>
@@ -153,10 +149,25 @@ export function Conversation({ threadId }: { threadId: string }) {
   );
 }
 
+/**
+ * A single email reads as the page: full width, no card, read from its top. A reply or a
+ * note makes it a conversation again.
+ */
+function isSingleEmail(
+  thread: Thread | undefined,
+  pending: number,
+  helpdesk: HelpdeskState | undefined,
+) {
+  return thread?.messages.length === 1 && !pending && !helpdesk?.notes.length;
+}
+
 // The reader's layout, shared by the conversation and its skeleton so the two line up.
 const SECTION = "flex min-w-0 flex-1 flex-col";
 const SCROLLER = "flex min-h-0 flex-1 flex-col";
-const COLUMN = "mx-auto flex w-full max-w-3xl grow flex-col gap-6 px-5 pt-6 pb-10";
+const COLUMN = "mx-auto flex w-full max-w-3xl grow flex-col gap-6 px-5 pt-6 pb-6";
+// A single email: the column without its width cap, and more room between its title (and
+// properties) and the sender.
+const PAGE = "flex w-full grow flex-col gap-8 px-5 pt-6 pb-6";
 
 /**
  * The thread while it loads: the toolbar, a subject and a few messages, drawn from skullet's
@@ -218,8 +229,9 @@ function Timeline(props: {
   mailboxId: string;
   messages: Message[];
   helpdesk: HelpdeskState | undefined;
+  flat?: boolean;
 }) {
-  const { threadId, mailboxId, messages, helpdesk } = props;
+  const { threadId, mailboxId, messages, helpdesk, flat } = props;
   const [unfolded, setUnfolded] = useState(false);
   const lines = useEventLines(mailboxId, helpdesk?.events ?? []);
   const entries: { at: string; key: string; node: ReactNode }[] = [
@@ -229,7 +241,7 @@ function Timeline(props: {
       node: (
         <>
           <AddedLine message={message} />
-          <MessageItem threadId={threadId} message={message} />
+          <MessageItem threadId={threadId} message={message} flat={flat} />
         </>
       ),
     })),
