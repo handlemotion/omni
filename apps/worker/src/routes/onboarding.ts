@@ -27,6 +27,7 @@ import {
   SETUP_STEPS,
   transferDomain,
   withdrawClaim,
+  workspaceKind,
 } from "@omni/db";
 import { mailboxAddress, parseDomain } from "@omni/mail-core/domains";
 import { eq } from "drizzle-orm";
@@ -169,7 +170,9 @@ export const onboarding = new Hono<AppEnv>()
       !user.scopeOrgId && (await mayCreateOrganization(db, user.id, config.auth.signUp));
     /** Billing is on for this deployment (ADR 0015): setup then has a plan step. */
     const billing = { enabled: config.auth.billing !== undefined };
-    if (!member) {
+    // Setup is a company's (ADR 0024): a Personal space has nothing to set up, so with it active
+    // the answer is the same as having no workspace yet, and setup creates a company.
+    if (!member || (await workspaceKind(db, member.orgId)) === "personal") {
       return c.json({
         canCreateOrganization,
         billing,

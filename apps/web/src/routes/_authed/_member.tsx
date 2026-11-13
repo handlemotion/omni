@@ -14,7 +14,7 @@ import { useDesktopNotifications } from "../../hooks/use-desktop-notifications.t
 import { useRealtimeConnection } from "../../hooks/use-realtime.ts";
 import { billingQuery } from "../../lib/billing.ts";
 import { requireMember } from "../../lib/guards.ts";
-import { countsQuery, mailboxesQuery } from "../../lib/mail-queries.ts";
+import { allMailboxesQuery, countsQuery, mailboxesQuery } from "../../lib/mail-queries.ts";
 import { workspacesQuery } from "../../lib/workspaces.ts";
 
 /**
@@ -32,6 +32,7 @@ export const Route = createFileRoute("/_authed/_member")({
     void context.queryClient.prefetchQuery(billingQuery());
     return Promise.all([
       context.queryClient.ensureQueryData(mailboxesQuery()),
+      context.queryClient.ensureQueryData(allMailboxesQuery()),
       context.queryClient.ensureQueryData(countsQuery()),
       context.queryClient.ensureQueryData(workspacesQuery()),
     ]);

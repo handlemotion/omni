@@ -123,14 +123,18 @@ test("a person from before Personal spaces gets theirs at their next sign-in", a
   expect(await personalSpaces(user!.id)).toHaveLength(1);
 });
 
-test("today's clients do not see it: no default workspace, and not listed unless asked", async () => {
+test("with no company the Personal space is the default; setup still creates a company", async () => {
   const { jar, spaceId } = await signedUp("hidden@personal.test");
-  // No company: the member API still answers as before, so the web app sends them to onboarding.
-  expect((await get(jar, "/me")).status).toBe(403);
-  expect((await get(jar, "/onboarding")).body).toMatchObject({ organization: null });
+  // No company: they work in their Personal space, and setup offers to create one.
+  expect((await get(jar, "/me")).body).toMatchObject({ orgId: spaceId, role: "owner" });
+  expect((await get(jar, "/onboarding")).body).toMatchObject({
+    canCreateOrganization: true,
+    organization: null,
+  });
 
+  // Listed only on request (`?include=personal`), as before.
   expect((await get(jar, "/workspaces")).body).toEqual({
-    activeOrganizationId: null,
+    activeOrganizationId: spaceId,
     scopedTo: null,
     workspaces: [],
   });

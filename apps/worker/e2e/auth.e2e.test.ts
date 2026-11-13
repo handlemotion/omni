@@ -160,7 +160,15 @@ test("a brand-new email with no invitation signs up by magic link and has no wor
       )
       .where(eq(schema.members.userId, users[0]!.id)),
   ).toEqual([{ role: "owner", personalOf: users[0]!.id }]);
-  expect((await me(jar)).status).toBe(403);
+  // With no company, they work in their Personal space; setup still offers to create a company.
+  const [space] = await database.db
+    .select({ orgId: schema.personalSpaces.orgId })
+    .from(schema.personalSpaces)
+    .where(eq(schema.personalSpaces.userId, users[0]!.id));
+  expect(await me(jar)).toMatchObject({
+    status: 200,
+    body: { orgId: space!.orgId, role: "owner" },
+  });
   const onboarding = await fetch(new URL("/api/onboarding", worker.url), {
     headers: { cookie: jar.header },
   });
@@ -202,7 +210,8 @@ test("invite, then a brand-new user signs in by magic link, accepts, and is a me
 
   const jar = new CookieJar();
   await signIn(worker, database.db, "new@invite.test", jar);
-  expect((await me(jar)).status).toBe(403);
+  // Before accepting, only their own Personal space (ADR 0024).
+  expect((await me(jar)).body).not.toMatchObject({ orgId: owner.orgId });
 
   const accepted = await authPost(worker, jar, "/organization/accept-invitation", { invitationId });
   expect(accepted.status).toBe(200);

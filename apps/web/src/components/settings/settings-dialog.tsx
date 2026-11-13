@@ -47,6 +47,7 @@ import {
   useSettingsDialog,
   type SettingsPageId,
 } from "@/hooks/use-settings-dialog.ts";
+import { useWorkspaces } from "@/hooks/use-workspaces.ts";
 import { useBilling } from "@/hooks/use-billing.ts";
 import { useShortcut } from "@/hooks/use-shortcuts.ts";
 import { SHORTCUT_IDS, SHORTCUTS } from "@/lib/shortcuts.ts";
@@ -195,12 +196,31 @@ const WORKSPACE_PAGES: PageDefinition[] = [
   },
 ];
 
-/** The workspace's pages; Billing only where the install bills (ADR 0015: it is optional). */
+/** Pages only a company has: a Personal space has no team, shared inboxes or plan (ADR 0024). */
+const COMPANY_PAGES = new Set(["people", "shared", "helpdesk", "billing"]);
+
+/**
+ * The workspace's pages; Billing only where the install bills (ADR 0015: it is optional), and
+ * none of the company pages in a Personal space.
+ */
 function useWorkspacePages() {
   const billed = useBilling().data?.enabled !== false;
+  const personal = usePersonalWorkspace();
   return useMemo(
-    () => (billed ? WORKSPACE_PAGES : WORKSPACE_PAGES.filter((p) => p.id !== "billing")),
-    [billed],
+    () =>
+      WORKSPACE_PAGES.filter(
+        (p) => (billed || p.id !== "billing") && !(personal && COMPANY_PAGES.has(p.id)),
+      ),
+    [billed, personal],
+  );
+}
+
+/** Whether the active workspace is the user's Personal space. */
+function usePersonalWorkspace() {
+  const workspaces = useWorkspaces().data;
+  return (
+    workspaces?.workspaces.find((w) => w.id === workspaces.activeOrganizationId)?.kind ===
+    "personal"
   );
 }
 
@@ -334,9 +354,12 @@ function SettingsBody({ page }: { page: SettingsPageId }) {
   const [query, setQuery] = useState("");
   const shownAccount = account.filter((p) => matches(p, query));
   const shownWorkspace = workspacePages.filter((p) => matches(p, query));
-  // All pages, so `/settings/billing` still shows its page on an install without billing; should
-  // the id match none, General shows.
-  const current = [...account, ...WORKSPACE_PAGES].find((p) => p.id === page) ?? WORKSPACE_PAGES[0];
+  // All pages, so `/settings/billing` still shows its page on an install without billing, but no
+  // company page in a Personal space (switching to it from People falls back); should the id
+  // match none, General shows.
+  const personal = usePersonalWorkspace();
+  const allowed = WORKSPACE_PAGES.filter((p) => !(personal && COMPANY_PAGES.has(p.id)));
+  const current = [...account, ...allowed].find((p) => p.id === page) ?? WORKSPACE_PAGES[0];
   // Two lists, one current page: each list marks it only when it's one of its own.
   const selectedIn = (pages: PageDefinition[]) =>
     current && pages.some((p) => p.id === current.id) ? [current.id] : [];

@@ -14,7 +14,9 @@ import type { Workspace } from "./types.ts";
 export const workspacesQuery = () =>
   queryOptions({
     queryKey: keys.workspaces(),
-    queryFn: ({ signal }) => call(api.workspaces.$get(undefined, { init: { signal } })),
+    // With the user's Personal space (ADR 0024), each workspace saying its `kind`.
+    queryFn: ({ signal }) =>
+      call(api.workspaces.$get({ query: { include: "personal" } }, { init: { signal } })),
   });
 
 /** A router: reruns loaders, and navigates. */

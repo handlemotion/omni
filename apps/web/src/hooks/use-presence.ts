@@ -2,7 +2,7 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { presenceStore, REPEAT_MS, type Presence } from "../lib/presence.ts";
 import { onRealtimeOpen, sendRealtime } from "../lib/realtime.ts";
-import { useMailboxes } from "./use-mail.ts";
+import { useAllMailboxes } from "./use-mail.ts";
 
 /**
  * Teammates viewing or replying in this conversation, oldest first. Includes your own member
@@ -25,7 +25,7 @@ export function useReportPresence(
   thread: { id: string; mailboxId: string } | undefined,
   state: "viewing" | "replying" | null,
 ) {
-  const orgId = useMailboxes().data?.find((m) => m.id === thread?.mailboxId)?.orgId;
+  const orgId = useAllMailboxes().data?.find((m) => m.id === thread?.mailboxId)?.orgId;
   const threadId = thread?.id;
   const latest = useRef(state);
   useEffect(() => {

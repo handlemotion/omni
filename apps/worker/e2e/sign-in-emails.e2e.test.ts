@@ -408,7 +408,8 @@ test("the primary can move to another verified address; the last verified addres
   expect(removed.status).toBe(200);
   const jar = new CookieJar();
   await signIn(worker, database.db, lea.email, jar);
-  expect(await me(jar)).toBeNull();
+  // A new person, in their own Personal space (ADR 0024), not Lea.
+  expect((await me(jar))?.userId).not.toBe(lea.userId);
   const session = (await (await api(jar, "/api/auth/get-session")).json()) as {
     user: { id: string };
   };

@@ -218,7 +218,8 @@ test("a brand-new sign-up with no invitation creates its own workspace through o
   const email = `founder-${randomUUID().slice(0, 8)}@solo.test`;
   const jar = new CookieJar();
   await signIn(stack.worker, stack.database.db, email, jar);
-  expect((await api(jar, "GET", "/me")).status).toBe(403);
+  // They start in their Personal space (ADR 0024); setup is for creating a company.
+  expect((await api(jar, "GET", "/me")).status).toBe(200);
   expect(await api(jar, "GET", "/onboarding")).toEqual({
     status: 200,
     body: {

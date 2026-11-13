@@ -19,7 +19,7 @@ import { ShowMore } from "@/components/ui/show-more";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useConversation, useReopen, useResolve, useSnooze } from "@/hooks/use-conversation.ts";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
-import { useMailboxes, useThread } from "@/hooks/use-mail.ts";
+import { useAllMailboxes, useThread } from "@/hooks/use-mail.ts";
 import { useFollowMerge } from "@/hooks/use-realtime.ts";
 import {
   useArchive,
@@ -51,7 +51,7 @@ const KEEP_LAST = 8;
 export function Conversation({ threadId }: { threadId: string }) {
   const { thread, pending } = useThread(threadId);
   useMarkReadOnOpen(thread);
-  const shared = useMailboxes().data?.find((m) => m.id === thread?.mailboxId)?.kind === "shared";
+  const shared = useAllMailboxes().data?.find((m) => m.id === thread?.mailboxId)?.kind === "shared";
   // Notes and activity: shared inboxes only (a personal thread has no helpdesk state).
   const { data: helpdesk } = useConversation(threadId, { enabled: shared });
   // Merged into another conversation: show that one, from the same list.

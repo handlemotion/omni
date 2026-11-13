@@ -442,9 +442,8 @@ export function createAuth(env: AuthEnv) {
         create: {
           // A new session starts in the user's oldest org, the same default `requireMember`
           // uses, so Better Auth's organization endpoints and our API agree from the first call.
-          // A Personal space is never the default yet (ADR 0024, rollout step 1): a person with no
-          // company still starts with none, so today's clients send them to onboarding as before.
-          // Signing in also gives a person from before ADR 0024 their Personal space.
+          // A person in no company starts in their Personal space (ADR 0024). Signing in also gives
+          // a person from before ADR 0024 their Personal space.
           // A session opened with a company's address starts, and stays, in that company.
           before: async (session) => {
             await ensurePersonalSpaceQuietly(env.db, session.userId);
@@ -461,16 +460,15 @@ export function createAuth(env: AuthEnv) {
                 );
               return { data: { ...session, activeOrganizationId: inScope?.orgId ?? null } };
             }
+            // The oldest company first; a person in none starts in their Personal space.
             const [member] = await env.db
               .select({ orgId: schema.members.organizationId })
               .from(schema.members)
-              .where(
-                and(
-                  eq(schema.members.userId, session.userId),
-                  isCompany(env.db, schema.members.organizationId),
-                ),
+              .where(eq(schema.members.userId, session.userId))
+              .orderBy(
+                sql`case when ${isCompany(env.db, schema.members.organizationId)} then 0 else 1 end`,
+                asc(schema.members.createdAt),
               )
-              .orderBy(asc(schema.members.createdAt))
               .limit(1);
             return { data: { ...session, activeOrganizationId: member?.orgId ?? null } };
           },

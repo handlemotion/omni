@@ -18,6 +18,20 @@ export const mailboxesQuery = () =>
   });
 
 /**
+ * Every mailbox the user can open, in every workspace their session reaches, each with its
+ * `orgId` (ADR 0024): what compose sends from, and how a thread from another workspace finds
+ * its mailbox. `mailboxesQuery` stays the active workspace's, for its settings.
+ */
+export const allMailboxesQuery = () =>
+  queryOptions({
+    queryKey: keys.allMailboxes(),
+    queryFn: ({ signal }) =>
+      call(api.mailboxes.$get({ query: { scope: "all" } }, { init: { signal } })),
+    select: (data) => data.mailboxes,
+    staleTime: 5 * 60_000,
+  });
+
+/**
  * Unread threads per mailbox and lane (inbox view), for badges, in every workspace the user
  * belongs to (each row carries its `orgId`).
  */

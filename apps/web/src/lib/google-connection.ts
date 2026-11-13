@@ -19,6 +19,10 @@ export type GoogleReturn = "onboarding" | "settings";
 export function startGoogleConnect(from: GoogleReturn) {
   const url = new URL("/api/connect/google/start", window.location.origin);
   if (from === "onboarding") url.searchParams.set("return", "onboarding");
+  // From Settings the account goes where its address belongs (ADR 0024): the company that claimed
+  // its domain, or the Personal space. Setup's inbox step still connects into the company it sets
+  // up until that step is redesigned.
+  else url.searchParams.set("place", "address");
   window.location.assign(url.toString());
 }
 
@@ -41,7 +45,7 @@ export function googleErrorText(reason: string): string {
     case "denied":
       return "Google wasn't given access. Try again and allow Omni to read and send mail.";
     case "in_use":
-      return "That Google account is already connected to another workspace.";
+      return "That Google account is already connected to another workspace, or its address belongs to a workspace you're not in.";
     case "expired":
       return "The sign-in took too long or was opened in another browser. Try again.";
     default:

@@ -1,6 +1,6 @@
 import { createAuth, type Auth, type InvitationMessage } from "@omni/auth";
 import { forUser, isCompany, schema, sessionAccess, type Db } from "@omni/db";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { openDb } from "./db.ts";
@@ -120,9 +120,9 @@ export async function resolveSession(
 }
 
 /**
- * `userId`'s member in `orgId`, or null. Without `orgId`, their oldest company membership: a
- * Personal space is never the default until clients know it (ADR 0024, rollout step 1). A session
- * scoped to a company (`scopeOrgId`) finds only its member there, whatever `orgId` asks for.
+ * `userId`'s member in `orgId`, or null. Without `orgId`, their oldest company membership, or their
+ * Personal space when they are in no company (ADR 0024). A session scoped to a company
+ * (`scopeOrgId`) finds only its member there, whatever `orgId` asks for.
  */
 export async function findMember(
   db: Db,
@@ -143,12 +143,14 @@ export async function findMember(
     .where(
       and(
         eq(schema.members.userId, userId),
-        orgId
-          ? eq(schema.members.organizationId, orgId)
-          : isCompany(db, schema.members.organizationId),
+        orgId ? eq(schema.members.organizationId, orgId) : undefined,
       ),
     )
-    .orderBy(asc(schema.members.createdAt))
+    // Without `orgId`: the oldest company, else the Personal space (ADR 0024).
+    .orderBy(
+      sql`case when ${isCompany(db, schema.members.organizationId)} then 0 else 1 end`,
+      asc(schema.members.createdAt),
+    )
     .limit(1);
   return member ?? null;
 }

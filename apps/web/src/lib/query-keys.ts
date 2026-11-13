@@ -4,7 +4,7 @@
 //   ├─ session · device-sessions · sessions · sign-in-methods · sign-in-emails
 //   ├─ org ─ organizations · members · invitations · invitation(id) · passkeys · onboarding
 //   │        · workspaces · billing · billing-cards · billing-invoices
-//   ├─ mail ─ mailboxes · google-accounts · workspace-mailboxes · mailbox-members(id) · counts · threads(filter)
+//   ├─ mail ─ mailboxes(·all) · google-accounts · workspace-mailboxes · mailbox-members(id) · counts · threads(filter)
 //   │        · thread(id) ─ conversation · search(q) · action(id) · tags(mailbox)
 //   │        · assignees(mailbox) · conversations(filter) · conversation-counts
 //   │        · notifications ─ { unread } · sla(mailbox)
@@ -59,6 +59,8 @@ export const keys = {
 
   mail: () => mail,
   mailboxes: () => [...mail, "mailboxes"] as const,
+  /** Every mailbox the user can open, in every workspace (ADR 0024): where they can send from. */
+  allMailboxes: () => [...mail, "mailboxes", "all"] as const,
   /** Whether Google can be connected here, and the member's connected Gmail accounts. */
   googleAccounts: () => [...mail, "google-accounts"] as const,
   /** Every mailbox of the workspace, without its mail (owners and admins). */

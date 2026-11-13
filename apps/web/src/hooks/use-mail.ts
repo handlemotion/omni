@@ -10,6 +10,7 @@ import {
 import { useCallback, useMemo } from "react";
 import {
   countsQuery,
+  allMailboxesQuery,
   mailboxesQuery,
   searchQuery,
   threadQuery,
@@ -22,6 +23,11 @@ import type { ThreadFilter } from "../lib/types.ts";
 /** Mailboxes the member can see. */
 export function useMailboxes() {
   return useQuery(mailboxesQuery());
+}
+
+/** Every mailbox the user can open, in every workspace (ADR 0024), each with its `orgId`. */
+export function useAllMailboxes() {
+  return useQuery(allMailboxesQuery());
 }
 
 /** Unread counts per mailbox and lane, for badges. Refetches whenever mail changes. */

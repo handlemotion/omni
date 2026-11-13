@@ -15,8 +15,16 @@ export function useRealtimeConnection(
 ) {
   const client = useQueryClient();
   const workspaces = useWorkspaces({ enabled: !!options.everyWorkspace }).data?.workspaces;
-  // A string, so a refetch that returns the same workspaces keeps the sockets.
-  const orgIds = (options.everyWorkspace && workspaces?.map((w) => w.id).join(",")) || "";
+  // A string, so a refetch that returns the same workspaces keeps the sockets. Only workspaces
+  // with a mailbox: one with none (a Personal space before anything is connected, ADR 0024) has
+  // nothing to announce. Connecting its first mailbox refetches the workspaces and opens it.
+  const orgIds =
+    (options.everyWorkspace &&
+      workspaces
+        ?.filter((w) => w.mailboxes.length > 0)
+        .map((w) => w.id)
+        .join(",")) ||
+    "";
   useEffect(
     () => startRealtime(client, orgIds ? orgIds.split(",") : [], orgId),
     [client, orgId, options.memberId, orgIds],
