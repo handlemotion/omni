@@ -12,7 +12,7 @@ import { cx } from "@/lib/primitive";
 import { DateInput as PrimitiveDateInput } from "./date-field";
 import { DatePickerOverlay } from "./date-picker";
 import { fieldStyles } from "./field";
-import { InputGroup } from "./input";
+import { AriaInputGroup as InputGroup } from "./aria-input";
 
 export interface DateRangePickerProps<
   T extends DateValue,

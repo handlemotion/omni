@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { ComboBox, ComboBoxContent, ComboBoxInput, ComboBoxItem } from "@/components/ui/combo-box";
 import { Label } from "@/components/ui/field";
+import { AriaInput } from "@/components/ui/aria-input";
 import { Input } from "@/components/ui/input";
 import { NumberField } from "@/components/ui/number-field";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -435,7 +436,7 @@ function TargetsDialog(props: {
             onChange={(amount) => setValues((v) => ({ ...v, [key]: { ...v[key], amount } }))}
           >
             <Label>{label}</Label>
-            <Input className="tabular-nums" placeholder="Not tracked" />
+            <AriaInput className="tabular-nums" placeholder="Not tracked" />
           </NumberField>
           <Select
             aria-label={`${label}, unit`}

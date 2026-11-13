@@ -9,7 +9,7 @@ import {
   ComboBoxItem,
   ComboBoxLabel,
 } from "@/components/ui/combo-box";
-import { Input } from "@/components/ui/input";
+import { AriaInput } from "@/components/ui/aria-input";
 import { Tag, TagGroup, TagList } from "@/components/ui/tag-group";
 import { useCustomerSearch, type CustomerMatch } from "@/hooks/use-compose.ts";
 
@@ -86,7 +86,7 @@ export function RecipientField(props: {
             }
           }}
         >
-          <Input
+          <AriaInput
             ref={input}
             plain
             size="sm"

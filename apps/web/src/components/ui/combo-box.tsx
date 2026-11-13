@@ -11,12 +11,12 @@ import {
   ComboBoxContext,
   ComboBoxValue as ComboBoxValuePrimitive,
 } from "react-aria-components/ComboBox";
-import type { InputProps } from "./input";
+import type { AriaInputProps as InputProps } from "./aria-input";
 import { ListBox, type ListBoxProps } from "react-aria-components/ListBox";
 import type { PopoverProps } from "react-aria-components/Popover";
 import { useSlottedContext } from "react-aria-components/slots";
 import { fieldStyles } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { AriaInput as Input } from "@/components/ui/aria-input";
 import { cx } from "@/lib/primitive";
 import { DropdownDescription, DropdownItem, DropdownLabel, DropdownSection } from "./dropdown";
 import { AriaPopover as Popover } from "./aria-popover";

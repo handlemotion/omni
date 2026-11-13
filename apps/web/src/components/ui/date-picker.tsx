@@ -16,7 +16,7 @@ import { cx } from "@/lib/primitive";
 import { Calendar } from "./calendar";
 import { DateInput } from "./date-field";
 import { fieldStyles } from "./field";
-import { InputGroup } from "./input";
+import { AriaInputGroup as InputGroup } from "./aria-input";
 import { Dialog } from "./dialog";
 import { AriaPopover as Popover } from "./aria-popover";
 import { RangeCalendar } from "./range-calendar";

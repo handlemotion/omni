@@ -1,40 +1,33 @@
 import { XMarkIcon } from "@heroicons/react/20/solid";
+import { InputClear } from "@ui-sdk/react/input";
 import { IconSearch } from "@/components/icons/sidebar";
-import { Button } from "react-aria-components/Button";
-import type { InputProps } from "./input";
-import {
-  SearchField as SearchFieldPrimitive,
-  type SearchFieldProps,
-} from "react-aria-components/SearchField";
-import { twJoin } from "cn";
-import { fieldStyles } from "@/components/ui/field";
-import { cx } from "@/lib/primitive";
-import { Input, InputGroup } from "./input";
+import { Input, InputGroup, type InputProps } from "./input";
+import { TextField, type TextFieldProps } from "./text-field";
 
-export function SearchField({ className, ...props }: SearchFieldProps) {
+/** A search box: `<SearchField value onChange><SearchInput /></SearchField>`. */
+export function SearchField({ className, ...props }: TextFieldProps) {
   return (
-    <SearchFieldPrimitive
-      data-slot="control"
+    <TextField
+      type="search"
       aria-label={props["aria-label"] ?? "Search"}
-      className={cx(fieldStyles({ className: "group/search-field" }), className)}
+      className={className}
       {...props}
     />
   );
 }
 
+/** The search icon, the input, and a clear button that shows while there's text. */
 export function SearchInput(props: InputProps) {
   return (
     <InputGroup className="[--input-gutter-end:--spacing(8)]">
       <IconSearch className="in-disabled:opacity-50" />
       <Input {...props} />
-      <Button
-        className={twJoin(
-          "touch-target grid place-content-center pressed:text-foreground text-muted-foreground hover:text-foreground group-empty/search-field:invisible",
-          "px-2",
-        )}
+      <InputClear
+        aria-label="Clear search"
+        className="touch-target grid place-content-center px-2 text-muted-foreground hover:text-foreground active:text-foreground"
       >
         <XMarkIcon className="size-3.5" />
-      </Button>
+      </InputClear>
     </InputGroup>
   );
 }
