@@ -119,4 +119,4 @@ Purelymail answers refusals with HTTP 200 and `{ "type": "error", code, message 
 domain has symbolic subaddressing on, which refuses usernames with `.`, `-`, `_` or `+`
 (`invalidUserName`). Omni now turns that setting off on domains it adds, and refuses such names
 with a reason (422) on domains that keep it on. IMAP and SMTP ports are closed in cloud agent
-sessions, so the sync and send tests run from a developer machine.
+sessions, so the sync and send tests run from a developer machine. Names and subaddressing: ADR 0025.
