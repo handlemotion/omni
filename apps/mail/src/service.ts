@@ -23,7 +23,7 @@ import { createS3Store } from "./objects.ts";
 import { PgActionSource, PgMailStore, PgSendFiles } from "./pg-store.ts";
 import { connectGoogle, createGoogleOAuth, disconnectGoogle } from "./providers/gmail.ts";
 import { createCreditWatch } from "./hosting/credit-watch.ts";
-import { disconnectHostedMailbox } from "./hosting/disconnect.ts";
+import { disconnectHostedMailbox, disconnectMailbox } from "./hosting/disconnect.ts";
 import { createPurelymailHost } from "./hosting/purelymail-host.ts";
 import { createLoginRotation } from "./hosting/rotate-login.ts";
 import { createPurelymailClient } from "./providers/purelymail.ts";
@@ -188,6 +188,13 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     ? createPurelymailHost(createPurelymailClient(config.PURELYMAIL_API_TOKEN), log)
     : undefined;
   let rotateLogin: ReturnType<typeof createLoginRotation> | undefined;
+  const disconnectDeps = {
+    db,
+    keyring: config.MAIL_CREDENTIALS_KEY,
+    ...(host ? { host } : {}),
+    stop: (mailboxId: string) => supervisor.retire(mailboxId),
+    logger: log,
+  };
   const credit = host
     ? createCreditWatch({
         host,
@@ -342,17 +349,8 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
         input,
       ),
     // Works without a host too: a hosted mailbox can still be forgotten, with nothing to revoke.
-    disconnectHosted: (input) =>
-      disconnectHostedMailbox(
-        {
-          db,
-          keyring: config.MAIL_CREDENTIALS_KEY,
-          ...(host ? { host } : {}),
-          stop: (mailboxId) => supervisor.retire(mailboxId),
-          logger: log,
-        },
-        input,
-      ),
+    disconnectHosted: (input) => disconnectHostedMailbox(disconnectDeps, input),
+    disconnectMailbox: (input) => disconnectMailbox(disconnectDeps, input),
     log: httpLog,
     dns: createDnsLookup({
       resolvers: config.DNS_RESOLVERS ?? [],

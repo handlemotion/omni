@@ -88,3 +88,23 @@ export async function hasSharedGrant(db: Db, orgId: string, mailboxId: string, m
     .where(and(eq(mailboxAccess.mailboxId, mailboxId), eq(mailboxAccess.memberId, memberId)));
   return row !== undefined;
 }
+
+/**
+ * The members of `orgId` for whom this mailbox is the only inbox they can open: removing the
+ * mailbox would leave them with none (ADR 0026).
+ */
+export async function membersStrandedWithout(db: Db, orgId: string, mailboxId: string) {
+  const holders = await db
+    .select({ memberId: mailboxAccess.memberId })
+    .from(mailboxAccess)
+    .innerJoin(
+      members,
+      and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, orgId)),
+    )
+    .where(eq(mailboxAccess.mailboxId, mailboxId));
+  const stranded: string[] = [];
+  for (const { memberId } of holders) {
+    if ((await memberInboxCount(db, orgId, memberId)) <= 1) stranded.push(memberId);
+  }
+  return stranded;
+}

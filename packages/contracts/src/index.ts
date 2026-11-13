@@ -470,6 +470,12 @@ export const hostedDisconnectResultSchema = z.object({ mailboxId: z.string().min
 
 export type HostedDisconnectBody = z.infer<typeof hostedDisconnectBodySchema>;
 
+/**
+ * Removing any mailbox of an org from Omni, whatever its provider (ADR 0026). Same body and
+ * answer as the hosted path; the Worker checks the member is an owner or admin.
+ */
+export const MAILBOX_DISCONNECT_PATH = "/mailbox/disconnect";
+
 export type GoogleConnectBody = z.infer<typeof googleConnectBodySchema>;
 export type GoogleConnectResult = z.infer<typeof googleConnectResultSchema>;
 export type GoogleDisconnectBody = z.infer<typeof googleDisconnectBodySchema>;

@@ -5,7 +5,7 @@
 //
 // Every function is idempotent and converges: `syncMailboxAccess` recomputes the grants from the
 // team, whatever ran before it, so a retry or a second run changes nothing.
-import { and, asc, eq, exists, isNull, notExists, sql } from "drizzle-orm";
+import { and, asc, eq, exists, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
 import { mailboxAccess, mailboxes, members, teamMembers, teams, users } from "./schema/index.ts";
@@ -64,6 +64,23 @@ async function addTeamUsers(db: Db, teamId: string, userIds: string[]) {
   );
   await db.insert(teamMembers).values(rows).onConflictDoNothing({
     target: teamMembers.membershipKey,
+  });
+}
+
+/** Puts the org's members `memberIds` on the team and recounts it. Idempotent. */
+export async function addTeamMembers(db: Db, teamId: string, orgId: string, memberIds: string[]) {
+  if (memberIds.length === 0) return;
+  await db.transaction(async (tx) => {
+    const rows = await tx
+      .select({ userId: members.userId })
+      .from(members)
+      .where(and(eq(members.organizationId, orgId), inArray(members.id, memberIds)));
+    await addTeamUsers(
+      tx,
+      teamId,
+      rows.map((row) => row.userId),
+    );
+    await recountTeam(tx, teamId);
   });
 }
 

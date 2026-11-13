@@ -11,33 +11,17 @@ import {
   memberInboxCount,
   orgMember,
   removeMailboxMember,
-  workspaceKind,
   type MailboxMembersActor,
   type MailboxMembershipResult,
 } from "@omni/db";
 import { Hono, type Context } from "hono";
-import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
+import { logInboxAction, requireCompanyManager } from "../inbox-admin.ts";
 import { mailboxPlacement, provisionMailbox } from "../provision-mailbox.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
-
-/** Better Auth stores several roles as a comma list. */
-export function canManage(role: string) {
-  return role.split(",").some((r) => r.trim() === "owner" || r.trim() === "admin");
-}
-
-const requireCompanyManager = createMiddleware<AppEnv>(async (c, next) => {
-  if (!canManage(c.var.member.role)) {
-    throw new HTTPException(403, { message: "only owners and admins manage inboxes" });
-  }
-  if ((await workspaceKind(c.var.db, c.var.member.orgId)) === "personal") {
-    throw new HTTPException(404, { message: "not found" });
-  }
-  await next();
-});
 
 function manager(c: Context<AppEnv>): MailboxMembersActor {
   const { id, orgId } = c.var.member;
@@ -112,6 +96,12 @@ export const workspaceAdmin = new Hono<AppEnv>()
         kind: "personal",
         ownerMemberId: member.id,
       });
+      if (result.created) {
+        await logInboxAction(c, "inbox.issued", result.address, {
+          mailboxId: result.mailboxId,
+          memberIds: [member.id],
+        });
+      }
       return c.json(result);
     },
   )
@@ -152,6 +142,12 @@ export const workspaceAdmin = new Hono<AppEnv>()
       });
       for (const id of rest) {
         await addMailboxMember(db, manager(c), result.mailboxId, id);
+      }
+      if (result.created) {
+        await logInboxAction(c, "shared_inbox.created", result.address, {
+          mailboxId: result.mailboxId,
+          memberIds: [first, ...rest],
+        });
       }
       return c.json(result);
     },

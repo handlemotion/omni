@@ -9,6 +9,7 @@ import {
   type GoogleDisconnectBody,
   googleDisconnectBodySchema,
   HOSTED_DISCONNECT_PATH,
+  MAILBOX_DISCONNECT_PATH,
   type HostedDisconnectBody,
   hostedDisconnectBodySchema,
   MAIL_PING_PATH,
@@ -93,6 +94,7 @@ export interface HttpDeps {
   disconnectGoogle?(input: GoogleDisconnectBody): Promise<{ mailboxId: string }>;
   /** Disconnects an Omni-hosted mailbox, keeping its mail at the host. Absent: 404. */
   disconnectHosted?(input: HostedDisconnectBody): Promise<{ mailboxId: string }>;
+  disconnectMailbox?(input: HostedDisconnectBody): Promise<{ mailboxId: string }>;
   /** Authoritative DNS lookups for domain verification. Absent: that route answers 404. */
   dns?: DnsLookup;
   onError?(error: unknown): void;
@@ -185,6 +187,16 @@ export function createApp(deps: HttpDeps): Hono {
     );
     if (body instanceof Response) return body;
     return answer(c, () => deps.disconnectHosted!(body));
+  });
+
+  app.post(MAILBOX_DISCONNECT_PATH, async (c) => {
+    const body = await signedBody(
+      c,
+      hostedDisconnectBodySchema,
+      deps.disconnectMailbox !== undefined,
+    );
+    if (body instanceof Response) return body;
+    return answer(c, () => deps.disconnectMailbox!(body));
   });
 
   app.post(DNS_LOOKUP_PATH, async (c) => {

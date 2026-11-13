@@ -17,6 +17,7 @@ import {
   TransactionRollbackError,
 } from "drizzle-orm";
 import type { Db } from "./client.ts";
+import type { InboxAuditAction } from "./inbox-admin.ts";
 import { assertCompany, workspaceKind } from "./personal-space.ts";
 import {
   auditEvents,
@@ -576,7 +577,7 @@ export async function recordAudit(
   input: {
     orgId: string;
     actorMemberId: string | null;
-    action: DomainAuditAction;
+    action: DomainAuditAction | InboxAuditAction;
     subject: string;
     data?: Record<string, unknown>;
   },
