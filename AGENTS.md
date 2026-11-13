@@ -129,6 +129,12 @@ Every change keeps that path working:
   against a shared or production database.
 - Additive schema may land before the code that uses it. Destructive schema (drop, rename,
   nullability tighten) lands only after production code stops using that shape.
+- Every change must work next to the previous version of everything it talks to. Migrations, the
+  Worker, the mail service and web clients deploy independently and in no fixed order, so a
+  merge to `main` briefly runs new code on the old schema, old code on the new schema, and an
+  old tab against the new API. Expand, then contract: add the new column, field, route or
+  message first and keep reading the old one; remove the old shape in a later PR, once nothing
+  in production writes or reads it. Never fix ordering with a deploy procedure.
 - Postgres is an index Purelymail can rebuild. Design every sync step so a full re-sync converges.
 
 ## Working style
@@ -137,6 +143,11 @@ Every change keeps that path working:
 - Read the relevant code and the spec section first; follow existing patterns.
 - Use maintained libraries for protocols, auth, and parsing (ImapFlow, Nodemailer, mailparser,
   Better Auth, DOMPurify). Write our own code only where the product differs.
+- Lint caps cyclomatic complexity at 20, nesting depth at 4, and a source file at 500 lines. Split
+  by concern, and model multi-step flows as an explicit state type plus a transition function
+  (like `mail-core/src/conversation-status.ts`) instead of growing flags and `if` chains. Files
+  that predate the caps are listed as debt in the `.oxlintrc.json` overrides: never add one, and
+  remove a file from its list when you bring it under the cap.
 - Make the simplest change that meets the ask. Pick the boring, standard path. No compatibility
   layers or fallbacks for code that has never shipped.
 - If the premise turns out wrong or the change keeps growing, stop and shrink the plan.

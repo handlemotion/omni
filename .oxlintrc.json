@@ -10,15 +10,110 @@
     "vitest/no-disabled-tests": "error",
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "warn",
-    "no-console": ["warn", { "allow": ["warn", "error"] }]
+    "no-console": [
+      "warn",
+      {
+        "allow": ["warn", "error"]
+      }
+    ],
+    "complexity": [
+      "error",
+      {
+        "max": 20
+      }
+    ],
+    "max-depth": [
+      "error",
+      {
+        "max": 4
+      }
+    ],
+    "max-lines": [
+      "error",
+      {
+        "max": 500,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ]
   },
   "overrides": [
     {
       "files": ["scripts/**", "apps/mail/src/main.ts"],
-      "rules": { "no-console": "off" }
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/e2e/**"],
+      "rules": {
+        "max-lines": "off"
+      }
+    },
+    {
+      "files": [
+        "apps/mail/src/mailbox-connection.ts",
+        "apps/web/src/components/conversation/activity.tsx",
+        "apps/web/src/components/inbox/thread-list.tsx",
+        "apps/web/src/components/settings/account-pages.tsx",
+        "apps/web/src/components/ui/avatar.tsx",
+        "apps/web/src/components/ui/chart.tsx",
+        "apps/web/src/lib/conversations.ts",
+        "apps/worker/src/domains.ts",
+        "apps/worker/src/image-proxy.ts",
+        "apps/worker/src/queue.ts",
+        "apps/worker/src/realtime.ts",
+        "apps/worker/src/routes/internal.ts",
+        "apps/worker/src/routes/library.ts",
+        "apps/worker/src/routes/stripe-webhook.ts",
+        "packages/client/src/realtime.ts",
+        "packages/db/src/conversations.ts",
+        "packages/mail-core/src/automated.ts",
+        "packages/mail-core/src/sanitize.test.ts",
+        "scripts/share.mjs"
+      ],
+      "rules": {
+        "complexity": "off"
+      }
+    },
+    {
+      "files": [
+        "apps/mail/src/mailbox-connection.ts",
+        "apps/worker/src/routes/internal.ts",
+        "packages/mail-core/src/sanitize.test.ts"
+      ],
+      "rules": {
+        "max-depth": "off"
+      }
+    },
+    {
+      "files": [
+        "apps/mail/src/mailbox-connection.ts",
+        "apps/mail/src/pg-store.ts",
+        "apps/web/src/components/compose/composer.tsx",
+        "apps/web/src/components/onboarding/onboarding.tsx",
+        "apps/web/src/components/settings/account-pages.tsx",
+        "apps/web/src/components/settings/billing-page.tsx",
+        "apps/web/src/components/settings/helpdesk-pages.tsx",
+        "apps/web/src/components/settings/mailbox-pages.tsx",
+        "apps/web/src/components/settings/workspace-pages.tsx",
+        "apps/web/src/components/ui/chart.tsx",
+        "apps/web/src/components/ui/sidebar.tsx",
+        "apps/web/src/components/ui/table.tsx",
+        "apps/worker/src/routes/compose.ts",
+        "packages/db/src/conversations.ts",
+        "packages/db/src/for-member.ts",
+        "packages/db/src/mail-sync.ts",
+        "packages/db/src/schema/mail.ts"
+      ],
+      "rules": {
+        "max-lines": "off"
+      }
     }
   ],
-  "env": { "builtin": true },
+  "env": {
+    "builtin": true
+  },
   "ignorePatterns": [
     "**/node_modules/**",
     "**/dist/**",
