@@ -4,7 +4,7 @@
 import { sql } from "drizzle-orm";
 import { index, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
-import { organizations, users } from "./auth.ts";
+import { organizations, sessions, users } from "./auth.ts";
 
 export const userEmails = pgTable(
   "user_emails",
@@ -40,5 +40,20 @@ export const personalSpaces = pgTable("personal_spaces", {
     .notNull()
     .unique()
     .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * A session opened with a company's address (ADR 0024 decision 3): it reaches only that company.
+ * A session with no row is unscoped (a passkey, or an address no company has claimed). Kept here,
+ * not as a column on Better Auth's `sessions`, so the auth schema is unchanged.
+ */
+export const sessionScopes = pgTable("session_scopes", {
+  sessionId: text("session_id")
+    .primaryKey()
+    .references(() => sessions.id, { onDelete: "cascade" }),
+  orgId: text("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
