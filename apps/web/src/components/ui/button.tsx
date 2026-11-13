@@ -51,6 +51,12 @@ export const buttonStyles = tv({
       sm: ["h-7 gap-x-2 px-2.5 text-sm", "*:[svg]:size-3.5", "*:data-[slot=loader]:size-3.5"],
       md: ["h-8 gap-x-2.5 px-2.5 text-sm", "*:[svg]:size-4", "*:data-[slot=loader]:size-4"],
       lg: ["h-10 gap-x-2.5 px-3 text-sm", "*:[svg]:size-4.5", "*:data-[slot=loader]:size-4.5"],
+      // 20px: a quiet action inside a line of text (a message's ⋯).
+      "sq-2xs": [
+        "touch-target size-5 shrink-0",
+        "*:[svg]:size-icon",
+        "*:data-[slot=loader]:size-icon",
+      ],
       "sq-xs": [
         "touch-target size-6.5 shrink-0",
         "*:[svg]:size-icon",
@@ -61,6 +67,12 @@ export const buttonStyles = tv({
         "touch-target size-7 shrink-0",
         "*:[svg]:size-icon",
         "*:data-[slot=loader]:size-icon",
+      ],
+      // A 28px square with a 17px glyph: the conversation toolbar.
+      "sq-sm-lg": [
+        "touch-target size-7 shrink-0",
+        "*:[svg]:size-icon-lg",
+        "*:data-[slot=loader]:size-icon-lg",
       ],
       "sq-md": ["touch-target size-8 shrink-0", "*:[svg]:size-4", "*:data-[slot=loader]:size-4"],
       "sq-lg": [
@@ -76,7 +88,10 @@ export const buttonStyles = tv({
       false: "rounded-lg",
     },
   },
-  compoundVariants: [{ size: "inset", isCircle: false, class: "rounded-sm" }],
+  compoundVariants: [
+    { size: "inset", isCircle: false, class: "rounded-sm" },
+    { size: "sq-2xs", isCircle: false, class: "rounded-sm" },
+  ],
   defaultVariants: {
     intent: "primary",
     size: "md",
@@ -114,7 +129,10 @@ export function Button({
   isDisabled,
   isPending = false,
   ...props
-}: ButtonProps) {
+}: ButtonProps & { onClick?: ButtonPrimitiveProps["onClick"] }) {
+  // A wrapping trigger (a tooltip's, a menu's) hands its own `onClick` in through `props`: run
+  // both, so wrapping a button never swallows its `onPress`.
+  const { onClick: forwardedClick, ...rest } = props;
   return (
     <ButtonPrimitive
       ref={ref}
@@ -123,8 +141,15 @@ export function Button({
       aria-busy={isPending || undefined}
       disabled={isDisabled || isPending}
       focusableWhenDisabled={isPending || props.focusableWhenDisabled}
-      onClick={onPress ? () => onPress() : undefined}
-      {...props}
+      {...rest}
+      onClick={
+        forwardedClick || onPress
+          ? (...args: Parameters<NonNullable<ButtonPrimitiveProps["onClick"]>>) => {
+              forwardedClick?.(...args);
+              onPress?.();
+            }
+          : undefined
+      }
       className={cx(buttonStyles({ intent, size, isCircle }), className)}
     >
       {isPending ? <Pending>{children}</Pending> : children}

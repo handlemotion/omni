@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { IconMail, IconNote } from "@/components/icons/central";
+import { MenuItem, MenuLabel } from "@/components/ui/menu";
 import type { PendingSend } from "@/lib/pending.ts";
 import type { Message } from "@/lib/types.ts";
 import { AttachmentChips } from "./attachments.tsx";
@@ -52,23 +53,21 @@ export function AddedLine({ message }: { message: Message }) {
  * text of its own (an HTML-only mail the stripper emptied) opens that way.
  */
 export function MessageItem({ threadId, message }: { threadId: string; message: Message }) {
-  const empty = !message.cleanText.trim();
-  const [full, setFull] = useState(empty && message.hasHtml);
+  const [full, setFull] = useState(opensFull(message));
   const sender = personName({ name: message.fromName, address: message.fromAddress });
   const card = message.display === "card" || full;
   // Right-hand side: anything this inbox sent. Blue only for the reader's own replies.
   const ours = message.fromTeam && !card;
 
+  // In the ⋯ menu: the sender's layout, or the text Omni drew from it.
   const toggle = message.hasHtml && (
-    <Button
-      intent="plain"
-      size="sm"
-      // Its label lines up with the text of the bubble or card above it.
-      className={`text-muted-foreground ${ours ? "me-1" : card ? "-ms-2" : "ms-1"}`}
-      onPress={() => setFull((open) => !open)}
+    <MenuItem
+      textValue={full ? "Show text" : "Show full message"}
+      onAction={() => setFull((open) => !open)}
     >
-      {full ? "Show less" : "Show full message"}
-    </Button>
+      {full ? <IconNote data-slot="icon" /> : <IconMail data-slot="icon" />}
+      <MenuLabel>{full ? "Show text" : "Show full message"}</MenuLabel>
+    </MenuItem>
   );
 
   return (
@@ -96,6 +95,7 @@ export function MessageItem({ threadId, message }: { threadId: string; message: 
           from={sender}
           text={message.cleanText}
           messageId={message.id}
+          extra={toggle}
         />
       </header>
 
@@ -106,7 +106,6 @@ export function MessageItem({ threadId, message }: { threadId: string; message: 
         >
           {!full && <Body loose text={message.cleanText} />}
           {full && <FullMessage threadId={threadId} messageId={message.id} />}
-          {toggle && <div className="-mb-2">{toggle}</div>}
         </div>
       ) : (
         <>
@@ -120,7 +119,6 @@ export function MessageItem({ threadId, message }: { threadId: string; message: 
           >
             <Body text={message.cleanText} />
           </div>
-          {toggle}
         </>
       )}
 
@@ -131,6 +129,18 @@ export function MessageItem({ threadId, message }: { threadId: string; message: 
       />
     </article>
   );
+}
+
+/**
+ * Opens as the sender laid it out: mail with no text of its own (an HTML-only mail the stripper
+ * emptied), and designed mail from outside (newsletters, receipts, alerts), which loads remote
+ * images or names them in its text version (`[image: Google]`). Person-to-person mail reads as
+ * text.
+ */
+function opensFull(message: Message) {
+  if (!message.hasHtml) return false;
+  if (!message.cleanText.trim()) return true;
+  return !message.fromTeam && (message.remoteImageCount > 0 || /\[image: /.test(message.cleanText));
 }
 
 /** A reply sent from here that has not come back as a message yet. */

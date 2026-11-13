@@ -27,12 +27,7 @@ export function ResizableSidebarProvider({
   return (
     <SidebarProvider
       style={{ "--sidebar-width": `${sidebar.width}px` } as React.CSSProperties}
-      className={`${className ?? ""} ${
-        // The sidebar eases its width when it opens and closes; a drag follows the pointer.
-        resizing
-          ? "cursor-ew-resize select-none **:data-[slot=sidebar-container]:transition-none **:data-[slot=sidebar-gap]:transition-none"
-          : ""
-      }`}
+      className={`${className ?? ""} ${resizing ? "cursor-ew-resize select-none" : ""}`}
     >
       <WidthContext value={{ ...sidebar, setResizing }}>{children}</WidthContext>
     </SidebarProvider>

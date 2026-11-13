@@ -138,8 +138,8 @@ function customerRecipients(messages: Message[], inbox: string): string[] {
 type Mode = "reply" | "forward";
 
 /**
- * The composer pinned under the open conversation. On a shared inbox a quiet line above it says
- * who will see what you write, and switches it: Public is an email to the customer (or a
+ * The composer pinned under the open conversation. On a shared inbox a switch above it picks
+ * who will see what you write: Public is an email to the customer (or a
  * forward, picked from a message's menu), Hidden is an internal note only the team sees. A
  * personal thread is always Public. Replies go from the inbox's address with your name; they
  * show in the thread at once and can be undone while they wait in the outbox.
@@ -174,27 +174,25 @@ const VISIBILITY = {
   public: {
     icon: IconGlobe,
     label: "Public",
-    says: "Everyone in To gets this by email",
     short: "Email the customer",
   },
   hidden: {
     icon: IconLock,
     label: "Hidden",
-    says: "Only your team sees this",
     short: "Only your team sees it",
   },
 } as const;
 
 /**
- * Who sees what you write, and the menu that changes it: one line above the composer, like a
- * breadcrumb, instead of tabs. The words say the consequence, so a hidden note never reads as
- * mail and a public reply never reads as a note.
+ * Who sees what you write, and the menu that changes it: one switch above the composer, like a
+ * breadcrumb, instead of tabs. Each mode's menu item says its consequence, so a hidden note
+ * never reads as mail and a public reply never reads as a note.
  */
 function Visibility() {
   const { mode, setMode } = useComposerState();
   const current = VISIBILITY[mode];
   return (
-    // The switch on the left, what it means at the far right, like the card's Reply and From row.
+    // The switch on the left; what each mode means is in its menu.
     <div className="flex min-w-0 items-center justify-between gap-2 text-sm text-muted-foreground">
       <MenuTrigger>
         <Button
@@ -230,8 +228,6 @@ function Visibility() {
           })}
         </Menu>
       </MenuTrigger>
-      {/* 13px in from the right, ending where From does in the card below. */}
-      <span className="min-w-0 truncate pe-[13px]">{current.says}</span>
     </div>
   );
 }

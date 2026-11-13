@@ -110,6 +110,8 @@
   --radius-xl: 8px;
 
   --spacing-icon: 15px;
+  /* The conversation toolbar's glyphs: 2px over the standard icon, in the same 28px button. */
+  --spacing-icon-lg: 17px;
   --spacing-sidebar: 240px;
 
   --color-background: var(--background);

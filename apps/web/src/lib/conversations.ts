@@ -10,6 +10,7 @@ import {
   type QueryKey,
 } from "@tanstack/react-query";
 import { api, ApiError, call } from "./api.ts";
+import { removeFromLists } from "./cache.ts";
 import { conversationFilterOf, keys } from "./query-keys.ts";
 import type {
   Assignee,
@@ -294,14 +295,18 @@ export const conversationChangeMutation = (client: QueryClient) =>
       await Promise.all([
         client.cancelQueries({ queryKey: key }),
         client.cancelQueries({ queryKey: keys.conversationLists() }),
+        client.cancelQueries({ queryKey: keys.threadLists() }),
       ]);
       const snapshot: [QueryKey, unknown][] = [
         [key, client.getQueryData(key)],
         ...client.getQueriesData({ queryKey: keys.conversationLists() }),
+        ...client.getQueriesData({ queryKey: keys.threadLists() }),
       ];
       const before = client.getQueryData<Conversation>(key);
       if (before) client.setQueryData(key, applyChange(before, change, tag));
       patchLists(client, vars);
+      // Resolving archives the thread (ADR 0021 §5): it leaves the mail inbox at once too.
+      if (change.type === "resolve") removeFromLists(client, threadId, (f) => f.view === "inbox");
       return { snapshot };
     },
     onError: (_error, _vars, context) => {

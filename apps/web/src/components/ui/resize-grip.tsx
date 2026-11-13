@@ -85,26 +85,27 @@ export function ResizeGrip({
 }
 
 /**
- * A column width remembered in this browser, clamped to `[min, max]`. Returns the width, a setter
- * that clamps and stores, and `reset` back to `initial`.
+ * A column width remembered in this browser, clamped to `[min, max]`. Returns the width (`initial`
+ * until the person sets one), whether they have (`isSet`), a setter that clamps and stores, and
+ * `reset`, which forgets theirs and goes back to `initial`.
  */
 export function useStoredWidth(key: string, initial: number, min: number, max: number) {
   const clamp = useCallback(
     (value: number) => Math.min(max, Math.max(min, Math.round(value))),
     [min, max],
   );
-  const [width, setWidth] = useState(() => {
+  const [stored, setStored] = useState<number | null>(() => {
     try {
-      const stored = Number(localStorage.getItem(key));
-      return stored ? clamp(stored) : initial;
+      const value = Number(localStorage.getItem(key));
+      return value ? clamp(value) : null;
     } catch {
-      return initial; // Storage unavailable (private mode).
+      return null; // Storage unavailable (private mode).
     }
   });
   const set = useCallback(
     (value: number) => {
       const next = clamp(value);
-      setWidth(next);
+      setStored(next);
       try {
         localStorage.setItem(key, String(next));
       } catch {
@@ -113,6 +114,13 @@ export function useStoredWidth(key: string, initial: number, min: number, max: n
     },
     [clamp, key],
   );
-  const reset = useCallback(() => set(initial), [set, initial]);
-  return { width, set, reset };
+  const reset = useCallback(() => {
+    setStored(null);
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Nothing stored to forget.
+    }
+  }, [key]);
+  return { width: stored ?? initial, isSet: stored !== null, set, reset };
 }

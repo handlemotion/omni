@@ -42,7 +42,7 @@ export function Notifications() {
   return (
     <PopoverTrigger isOpen={open} onOpenChange={setOpen}>
       <TooltipTrigger delay={400}>
-        <Button intent="plain" size="sq-xs" aria-label={label} className="relative">
+        <Button intent="ghost" size="sq-xs" aria-label={label} className="relative">
           <IconBell />
           {unread > 0 && (
             // Over the bell's top right, out of the flow so the footer doesn't shift.

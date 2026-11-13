@@ -32,9 +32,9 @@ export function MessageMenu(props: {
     <MenuTrigger>
       <Button
         intent="ghost"
-        size="sq-xs"
+        size="sq-2xs"
         aria-label={props.label}
-        className={`-my-1 ${props.start ? "order-first" : ""} opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100`}
+        className={`-my-0.5 ${props.start ? "order-first" : ""} opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100`}
       >
         <IconEllipsis />
       </Button>

@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   IconArchive,
@@ -37,6 +37,7 @@ import { SelectionReply } from "../compose/selection-reply.tsx";
 import { EventLine, NoteItem, useEventLines } from "./activity.tsx";
 import { AddedLine, MessageItem, PendingItem } from "./message.tsx";
 import { Properties, SNOOZES } from "./properties.tsx";
+import { ThreadSwitcher } from "./thread-switcher.tsx";
 
 /** Past this many messages, the middle of a thread folds behind one button. */
 const FOLD_OVER = 12;
@@ -203,11 +204,23 @@ function Timeline(props: {
   );
 }
 
+/** Back to the list: the thread route's parent, same search. */
+function useCloseThread() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return () => {
+    const path = location.pathname.slice(0, location.pathname.lastIndexOf("/"));
+    void navigate({ href: path + location.searchStr });
+  };
+}
+
 function Entry({ children }: { children: ReactNode }) {
   // Off-screen messages keep a guessed height instead of laying out; `auto` remembers the real
-  // one once seen, so scrolling back does not jump.
+  // one once seen, so scrolling back does not jump. `content-visibility` clips paint to the box,
+  // so 4px of padding (taken back by the margin) leaves room for the header's ⋯ button, which
+  // reaches above the article.
   return (
-    <div className="flex flex-col gap-3 [contain-intrinsic-size:auto_160px] [content-visibility:auto]">
+    <div className="-mt-1 flex flex-col gap-3 pt-1 [contain-intrinsic-size:auto_160px] [content-visibility:auto]">
       {children}
     </div>
   );
@@ -226,6 +239,13 @@ function Actions({ thread, shared }: { thread: Thread; shared: boolean }) {
     // pb-0.5 lifts the icons 1px, in line with the list's header row beside it; end-1.5
     // matches the 28px buttons' inset from the top.
     <div className="relative flex h-10.5 shrink-0 items-center border-s border-b border-s-transparent pb-0.5">
+      {/* Full screen hides the list: switch threads from here. 12px in, the label at 20px like
+          the list's rows. */}
+      {fullScreen && (
+        <div className="absolute inset-y-0 start-3 flex max-w-[40%] items-center pb-0.5">
+          <ThreadSwitcher threadId={thread.id} />
+        </div>
+      )}
       <div className="absolute inset-y-0 end-1.5 flex items-center gap-1 pb-0.5">
         {shared ? <HelpdeskActions threadId={thread.id} /> : <MailActions thread={thread} />}
         <Action
@@ -249,17 +269,23 @@ function HelpdeskActions({ threadId }: { threadId: string }) {
   const reopen = useReopen();
   const snooze = useSnooze();
   const resolved = conversation?.status === "resolved";
+  const close = useCloseThread();
   return (
     <>
       <Action
         label={resolved ? "Reopen" : "Resolve"}
-        onPress={() => (resolved ? reopen : resolve).mutate({ threadId })}
+        onPress={() => {
+          if (resolved) return reopen.mutate({ threadId });
+          // Done with it: it leaves the inbox, and the reader goes back to the list.
+          resolve.mutate({ threadId });
+          close();
+        }}
       >
         {resolved ? <IconCircle /> : <IconCircleCheck />}
       </Action>
       <MenuTrigger>
         <TooltipTrigger delay={400}>
-          <Button intent="ghost" size="sq-sm" aria-label="Snooze">
+          <Button intent="ghost" size="sq-sm-lg" aria-label="Snooze">
             <IconClock3 />
           </Button>
           <Tooltip>Snooze</Tooltip>
@@ -322,7 +348,7 @@ function MailActions({ thread }: { thread: Thread }) {
 function Action(props: { label: string; onPress: () => void; children: ReactNode }) {
   return (
     <TooltipTrigger delay={400}>
-      <Button intent="ghost" size="sq-sm" aria-label={props.label} onPress={props.onPress}>
+      <Button intent="ghost" size="sq-sm-lg" aria-label={props.label} onPress={props.onPress}>
         {props.children}
       </Button>
       <Tooltip>{props.label}</Tooltip>

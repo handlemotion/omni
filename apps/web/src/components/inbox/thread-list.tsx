@@ -7,6 +7,7 @@ import { GridListLoadMoreItem } from "react-aria-components/GridList";
 import { ListLayout, Virtualizer } from "react-aria-components/Virtualizer";
 import { ConversationMeta, type ConversationRowInfo } from "@/components/inbox/conversation-meta";
 import { ListSweepSlot } from "@/components/inbox/list-sweep";
+import { OpenListContext } from "@/components/inbox/open-list";
 import { SearchPopover } from "@/components/search/search-popover";
 import { buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
@@ -15,6 +16,8 @@ import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { IconSidebar } from "@/components/icons/sidebar";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
@@ -127,7 +130,15 @@ export function List(
   // Beside an open thread the list keeps a width the person can drag; alone it fills the page.
   const split = !!threadId && !hideList;
   const listWidth = useStoredWidth("omni:list-width", LIST_WIDTH, LIST_MIN, LIST_MAX);
+  // Until dragged, the thread takes its reading column's width (the messages' `max-w-3xl`, so its
+  // toolbar ends where the messages do) and the list the rest, down to its minimum.
+  const hug = split && !listWidth.isSet;
   const [resizing, setResizing] = useState(false);
+  // The rows behind the open thread, for its full-screen switcher.
+  const openList = useMemo(() => ({ rows: threads, href: props.href }), [threads, props.href]);
+  // Collapsed, the sidebar's own toggle is gone with it: the list's header offers it instead.
+  const sidebar = useSidebar();
+  const sidebarHidden = sidebar.isMobile || !sidebar.open;
 
   return (
     // Viewport height, so the virtualized list is its own scroll container however tall the
@@ -145,7 +156,14 @@ export function List(
         />
       )}
       {/* 10px on the right, the same as the 28px controls' inset from the top. */}
-      <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2.5">
+      <header
+        className={`flex h-12 shrink-0 items-center gap-2 pe-2.5 ${sidebarHidden ? "ps-2.5" : "ps-5"}`}
+      >
+        {sidebarHidden && (
+          <SidebarTrigger intent="ghost" size="sq-xs" aria-label="Open sidebar">
+            <IconSidebar />
+          </SidebarTrigger>
+        )}
         {/* 1px down: centers the title's capitals on the sidebar header's icons. */}
         <Heading className="translate-y-px">
           {props.title}
@@ -168,8 +186,8 @@ export function List(
       <div className={`flex min-h-0 flex-1 ${resizing ? "cursor-ew-resize select-none" : ""}`}>
         <section
           ref={listRef}
-          style={split ? { width: listWidth.width } : undefined}
-          className={`flex min-w-0 flex-col ${split ? "flex-none" : "flex-1"} ${hideList ? "hidden" : ""}`}
+          style={split && !hug ? { width: listWidth.width } : undefined}
+          className={`flex flex-col ${hug ? "min-w-80" : "min-w-0"} ${split && !hug ? "flex-none" : "flex-1"} ${hideList ? "hidden" : ""}`}
         >
           {/* pb-0.5 lifts the row 1px: under the borderless header the true middle reads low.
               The reader's toolbar beside it does the same, so the two stay on one line. */}
@@ -208,6 +226,7 @@ export function List(
                   label={props.title}
                   rows={threads}
                   href={props.href}
+                  current={threadId}
                   selected={selected}
                   onSelectionChange={setSelected}
                   loadMore={props.loadMore}
@@ -220,17 +239,17 @@ export function List(
         {/* Only with a thread open: closed, the list takes the full width. The same wrapper in
             and out of full screen, so toggling it doesn't remount the thread (or its scroll). */}
         {props.children && threadId && (
-          <div className="relative flex min-w-0 flex-1">
+          <div className={`relative flex min-w-0 ${hug ? "w-3xl shrink" : "flex-1"}`}>
             {split && (
               <ResizeGrip
                 label="Resize list"
-                width={() => listWidth.width}
+                width={() => listRef.current?.offsetWidth ?? listWidth.width}
                 onResize={listWidth.set}
                 onReset={listWidth.reset}
                 onResizingChange={setResizing}
               />
             )}
-            {props.children}
+            <OpenListContext value={openList}>{props.children}</OpenListContext>
           </div>
         )}
       </div>
@@ -248,6 +267,8 @@ const Rows = memo(function Rows(props: {
   label: string;
   rows: ListRow[];
   href: (threadId: string) => string;
+  /** The open thread, whose row is filled. */
+  current: string | undefined;
   selected: Selection;
   onSelectionChange: (keys: Selection) => void;
   loadMore?: (() => void) | undefined;
@@ -270,8 +291,14 @@ const Rows = memo(function Rows(props: {
         onSelectionChange={props.onSelectionChange}
       >
         {/* `items` lets React Aria cache rows by thread, so a scroll renders only new rows. */}
-        <Collection items={props.rows} dependencies={[props.href]}>
-          {(thread) => <ThreadRow thread={thread} href={props.href(thread.id)} />}
+        <Collection items={props.rows} dependencies={[props.href, props.current]}>
+          {(thread) => (
+            <ThreadRow
+              thread={thread}
+              href={props.href(thread.id)}
+              isCurrent={thread.id === props.current}
+            />
+          )}
         </Collection>
         {/* Asks for the next page as the end of the list nears. */}
         <GridListLoadMoreItem onLoadMore={props.loadMore} isLoading={props.isLoadingMore} />
@@ -317,14 +344,23 @@ function ListShortcuts(props: Parameters<typeof useThreadListShortcuts>[0]) {
   return null;
 }
 
-function ThreadRow({ thread, href }: { thread: ListRow; href: string }) {
+function ThreadRow({
+  thread,
+  href,
+  isCurrent,
+}: {
+  thread: ListRow;
+  href: string;
+  isCurrent: boolean;
+}) {
   const sender = thread.sender;
   return (
     <GridListItem
       id={thread.id}
       href={href}
       textValue={`${sender} ${thread.subject}`}
-      className="gap-4 border-b px-5 py-3"
+      // The open thread's row keeps the accent fill, the same grey as the sidebar's current item.
+      className={`gap-4 border-b px-5 py-3 ${isCurrent ? "bg-accent" : ""}`}
     >
       <Avatar
         isSquare

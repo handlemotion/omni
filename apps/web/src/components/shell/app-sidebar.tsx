@@ -84,7 +84,7 @@ export function AppSidebar() {
         <MailboxSwitcher />
         <div className="flex items-center gap-0.5">
           <Button
-            intent="plain"
+            intent="ghost"
             size="sq-xs"
             aria-label="Back"
             onPress={() => router.history.back()}
@@ -92,14 +92,14 @@ export function AppSidebar() {
             <IconChevronLeft />
           </Button>
           <Button
-            intent="plain"
+            intent="ghost"
             size="sq-xs"
             aria-label="Forward"
             onPress={() => router.history.forward()}
           >
             <IconChevronRight />
           </Button>
-          <SidebarTrigger size="sq-xs">
+          <SidebarTrigger intent="ghost" size="sq-xs">
             <IconSidebar />
           </SidebarTrigger>
         </div>
@@ -126,7 +126,7 @@ export function AppSidebar() {
       <SidebarFooter className="justify-between">
         <div className="flex items-center gap-0.5">
           <Button
-            intent="plain"
+            intent="ghost"
             size="sm"
             aria-keyshortcuts={ariaKeyShortcuts("settings")}
             onPress={() => openSettings()}
@@ -138,7 +138,7 @@ export function AppSidebar() {
         <OfflineBadge />
         <div className="flex items-center gap-0.5">
           <Notifications />
-          <Button intent="plain" size="sq-xs" aria-label="Help">
+          <Button intent="ghost" size="sq-xs" aria-label="Help">
             <IconHelp />
           </Button>
         </div>

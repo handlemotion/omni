@@ -252,7 +252,8 @@ export function Sidebar({
         className={cn([
           "w-(--sidebar-width) group-data-[collapsible=hidden]:w-0",
           "group-data-[side=right]:-rotate-180",
-          "relative h-svh bg-transparent transition-[width] duration-200 ease-linear",
+          // Opens and closes at once: no width or slide animation.
+          "relative h-svh bg-transparent",
           intent === "default" && "group-data-[collapsible=dock]:w-(--sidebar-width-dock)",
           intent === "float" &&
             "group-data-[collapsible=dock]:w-[calc(var(--sidebar-width-dock)+(--spacing(4)))]",
@@ -264,7 +265,6 @@ export function Sidebar({
         data-slot="sidebar-container"
         className={cn(
           "fixed inset-y-0 z-10 hidden w-(--sidebar-width) bg-sidebar not-has-data-[slot=sidebar-footer]:pb-2 md:flex",
-          "transition-[left,right,width] duration-200 ease-linear",
           side === "left" && "left-0 group-data-[collapsible=hidden]:-left-(--sidebar-width)",
           side === "right" && "right-0 group-data-[collapsible=hidden]:-right-(--sidebar-width)",
           intent === "float" &&
@@ -571,7 +571,8 @@ export function SidebarDisclosureTrigger({
             {state !== "collapsed" && (
               <IconChevronDownSmall
                 data-slot="chevron"
-                className="mt-0.5 transition-transform duration-200 group-not-aria-expanded/sidebar-disclosure-trigger:-rotate-90"
+                // Turns at once, as the group opens and closes at once.
+                className="mt-0.5 group-not-aria-expanded/sidebar-disclosure-trigger:-rotate-90"
               />
             )}
           </>
@@ -586,7 +587,8 @@ export function SidebarDisclosurePanel({ className, ...props }: DisclosurePanelP
     <DisclosurePanel
       data-slot="sidebar-disclosure-panel"
       className={cx(
-        "h-(--disclosure-panel-height) overflow-clip transition-[height] duration-200",
+        // Opens and closes at once: no height animation.
+        "h-(--disclosure-panel-height) overflow-clip",
         className,
       )}
       {...props}
