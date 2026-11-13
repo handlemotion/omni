@@ -4,7 +4,7 @@
 import { and, desc, eq, gte, inArray, ne, notInArray, type SQL, sql } from "drizzle-orm";
 import { MAX_PRUNED_THREADS_PER_EVENT } from "@omni/contracts";
 import type { Db } from "./client.ts";
-import { queueMailEvents } from "./pending-mail-events.ts";
+import { queueMailEvents, queueThreadsChanged } from "./pending-mail-events.ts";
 import { ensureMailboxTeam, syncMailboxAccess } from "./mailbox-teams.ts";
 import { assertCompany } from "./personal-space.ts";
 import {
@@ -306,6 +306,11 @@ export async function addLocation(
     messageId: string;
     flags: string[];
     modseq: bigint | null;
+    /**
+     * Queue `threads.changed` when the thread's state changes (a copy moved in another mail
+     * app). False for a message just indexed: `message.created` already refreshes its thread.
+     */
+    report?: boolean;
   },
 ) {
   return db.transaction(async (tx) => {
@@ -327,7 +332,7 @@ export async function addLocation(
       .update(messages)
       .set({ folderId: input.folderId, imapUid: input.uid, updatedAt: new Date() })
       .where(eq(messages.id, input.messageId));
-    await reconcileThreads(tx, sql`${input.messageId}`);
+    await reconcileThreads(tx, sql`${input.messageId}`, input.report ?? true);
     return true;
   });
 }
@@ -340,7 +345,7 @@ export async function setLocationFlags(
     changes: { uid: number; flags: string[]; modseq: bigint | null }[];
   },
 ) {
-  if (input.changes.length === 0) return;
+  if (input.changes.length === 0) return 0;
   // One statement for the whole batch: a CONDSTORE resync can report thousands of changes.
   const changes = JSON.stringify(
     input.changes.map((c) => ({
@@ -349,7 +354,7 @@ export async function setLocationFlags(
       modseq: c.modseq?.toString() ?? null,
     })),
   );
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     await tx.execute(sql`
       update ${messageLocations} l set
         flags = c.flags,
@@ -359,7 +364,7 @@ export async function setLocationFlags(
         jsonb_to_recordset(${changes}::text::jsonb) as c(uid bigint, flags text[], modseq bigint)
       where f.mailbox_id = ${input.mailboxId} and f.path = ${input.path}
         and l.folder_id = f.id and l.imap_uid = c.uid`);
-    await reconcileThreads(
+    return reconcileThreads(
       tx,
       sql`select l.message_id from ${messageLocations} l
         join ${mailboxFolders} f on f.id = l.folder_id,
@@ -381,9 +386,9 @@ export async function removeLocations(
   input: { mailboxId: string; path: string; uids?: number[] },
 ) {
   const folder = await findFolder(db, input.mailboxId, input.path);
-  if (!folder) return;
-  if (input.uids?.length === 0) return;
-  await db.transaction(async (tx) => {
+  if (!folder) return 0;
+  if (input.uids?.length === 0) return 0;
+  return db.transaction(async (tx) => {
     const removed = await tx
       .delete(messageLocations)
       .where(
@@ -393,7 +398,7 @@ export async function removeLocations(
         ),
       )
       .returning({ messageId: messageLocations.messageId });
-    if (removed.length === 0) return;
+    if (removed.length === 0) return 0;
     const ids = [...new Set(removed.map((r) => r.messageId))];
     await tx.execute(sql`
       update ${messages} m set
@@ -413,7 +418,7 @@ export async function removeLocations(
         )}) and m2.folder_id = ${folder.id}
       ) l
       where m.id = l.id`);
-    await reconcileThreads(
+    return reconcileThreads(
       tx,
       sql.join(
         ids.map((id) => sql`${id}`),
@@ -434,7 +439,11 @@ export async function removeLocations(
  * - Read, on personal mailboxes only: read when every copy has `\Seen`, for every member with
  *   access. Shared mailboxes keep read per person in Postgres and never look at `\Seen`.
  */
-async function reconcileThreads(db: Pick<Db, "execute">, messageIds: SQL) {
+async function reconcileThreads(
+  db: Pick<Db, "execute" | "insert" | "select">,
+  messageIds: SQL,
+  report = true,
+): Promise<number> {
   const summary = sql`
     select m.thread_id,
       bool_or(f.role = 'inbox') as in_inbox,
@@ -445,11 +454,12 @@ async function reconcileThreads(db: Pick<Db, "execute">, messageIds: SQL) {
     join ${mailboxFolders} f on f.id = l.folder_id
     where m.thread_id in (select thread_id from ${messages} where id in (${messageIds}))
     group by m.thread_id`;
-  await db.execute(sql`
+  const archived = await db.execute(sql`
     update ${threads} t set archived = not s.in_inbox, updated_at = now()
     from (${summary}) s
-    where t.id = s.thread_id and (s.in_inbox or s.filed) and t.archived = s.in_inbox`);
-  await db.execute(sql`
+    where t.id = s.thread_id and (s.in_inbox or s.filed) and t.archived = s.in_inbox
+    returning t.id`);
+  const read = await db.execute(sql`
     insert into ${threadState} (org_id, thread_id, member_id, read)
     select t.org_id, t.id, a.member_id, s.seen
     from (${summary}) s
@@ -457,7 +467,17 @@ async function reconcileThreads(db: Pick<Db, "execute">, messageIds: SQL) {
     join ${mailboxes} mb on mb.id = t.mailbox_id and mb.kind = 'personal'
     join ${mailboxAccess} a on a.mailbox_id = t.mailbox_id
     on conflict (thread_id, member_id) do update set read = excluded.read, updated_at = now()
-    where ${threadState}.read is distinct from excluded.read`);
+    where ${threadState}.read is distinct from excluded.read
+    returning thread_id as id, read, xmax = 0 as inserted`);
+  // postgres-js returns the rows themselves. A new row that says unread shows what no row did.
+  type ReadRow = { id: string; read: boolean; inserted: boolean };
+  const changed = [
+    ...(archived as unknown as { id: string }[]),
+    ...(read as unknown as ReadRow[]).filter((row) => row.read || !row.inserted),
+  ];
+  const threadIds = [...new Set(changed.map((row) => row.id))];
+  if (report) await queueThreadsChanged(db, threadIds);
+  return threadIds.length;
 }
 
 /**

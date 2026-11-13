@@ -156,6 +156,7 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     // Pruning and merging queue their events in `pending_mail_events`; send them now.
     onPruned: deliverPending,
     onMerged: deliverPending,
+    onChanged: deliverPending,
     // Not queued: the next full sync finds the same conversations again.
     onDiscarded: ({ threadIds, ...discarded }) => {
       for (let i = 0; i < threadIds.length; i += MAX_PRUNED_THREADS_PER_EVENT) {

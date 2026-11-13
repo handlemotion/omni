@@ -14,6 +14,9 @@ import type {
 import { discard, isSpooled, spool } from "./spool.ts";
 import { backoff } from "./timing.ts";
 
+/** Where mail moved out of INBOX lands; a copy there archives its thread (ADR 0013). */
+const FILED_ROLES = new Set<FolderRole>(["archive", "trash", "junk"]);
+
 export interface ServerEndpoint {
   host: string;
   port: number;
@@ -206,6 +209,7 @@ export class MailboxConnection extends EventEmitter<Events> {
   private started: PromiseWithResolvers<void> | null = null;
   private syncingAll: Promise<FolderSyncResult[]> | null = null;
   private inboxSyncQueued = false;
+  private filedSyncQueued = false;
 
   constructor(mailbox: MailboxConfig, options: ConnectionOptions) {
     super();
@@ -491,9 +495,17 @@ export class MailboxConnection extends EventEmitter<Events> {
       connectionTimeout: 60_000,
     });
     client.on("error", (error: Error) => this.log.warn("imap.error", { error }));
-    client.on("exists", (event: { path: string }) => {
-      if (event.path === this.inbox()?.path) this.requestInboxSync();
-    });
+    // New mail, and mail deleted, moved, read or flagged in another app while IDLE watches
+    // INBOX: catch up now rather than at the next poll. The sync finds what changed.
+    for (const name of ["exists", "expunge", "flags"] as const) {
+      client.on(name, (event: { path: string }) => {
+        if (event.path !== this.inbox()?.path) return;
+        this.requestInboxSync();
+        // Mail leaving INBOX was deleted or moved: the folders it lands in tell which, and
+        // whether the thread is archived now (ADR 0013).
+        if (name === "expunge") this.requestFiledSync();
+      });
+    }
     return client;
   }
 
@@ -566,6 +578,20 @@ export class MailboxConnection extends EventEmitter<Events> {
       return this.syncFolderNow(inbox.path);
     }).catch((error: unknown) => {
       if (!this.stopped) this.log.warn("sync.inbox_failed", { error });
+    });
+  }
+
+  /** Syncs the archive, trash and junk folders soon, once however many expunges asked for it. */
+  private requestFiledSync(): void {
+    if (this.filedSyncQueued) return;
+    this.filedSyncQueued = true;
+    this.enqueue(async () => {
+      this.filedSyncQueued = false;
+      for (const folder of this.folders) {
+        if (FILED_ROLES.has(folder.role)) await this.syncFolderNow(folder.path);
+      }
+    }).catch((error: unknown) => {
+      if (!this.stopped) this.log.warn("sync.filed_failed", { error });
     });
   }
 

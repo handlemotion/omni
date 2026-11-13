@@ -10,6 +10,7 @@ import { serve } from "@hono/node-server";
 import { schema } from "@omni/db";
 import { createMember } from "@omni/db/testing";
 import { eq } from "drizzle-orm";
+import type { ImapFlow } from "imapflow";
 import {
   GOOGLE_DISCONNECT_PATH,
   MAIL_EVENTS_PATH,
@@ -402,10 +403,16 @@ describe("mail service end to end", () => {
     const sent = await stored(db, box.id, "Sent");
     expect(sent.map((r) => r.messageIdHeader)).toEqual([messageId]);
     expect((await messageRows(db, box.id)).map((r) => r.messageIdHeader)).toEqual([messageId]);
-    await waitFor(() => received.length > 0);
-    expect(received).toEqual([
-      expect.objectContaining({ folderRole: "sent", messageId: sent[0]?.messageId }),
-    ]);
+    // Its Sent copy carries \\Seen, so the new thread now reads as read: open apps refresh it.
+    await waitFor(() => received.length >= 2);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(received).toHaveLength(2);
+    expect(received).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ folderRole: "sent", messageId: sent[0]?.messageId }),
+        expect.objectContaining({ type: "threads.changed", threadIds: [sent[0]?.threadId] }),
+      ]),
+    );
     const inRecipient = await otherClient(recipient, async (client) => {
       const status = await client.status("INBOX", { messages: true });
       return status ? status.messages : -1;
@@ -536,6 +543,55 @@ describe("what the app learns about its own actions", () => {
         requestId: null,
       },
     ]);
+  });
+});
+
+describe("what the app learns from other mail apps", () => {
+  it("shows mail read or archived in Apple Mail within seconds, not at the next poll", async () => {
+    const { box, orgId, ownerId } = await seedConnectable();
+    await otherClient(box, (client) => client.mailboxCreate("Archive").then(() => {}));
+    await startMailService();
+    await connected(box.id);
+    await deliver(box.address, "handled elsewhere");
+    const [row] = await waitFor(async () => {
+      const rows = await stored(db, box.id, "INBOX");
+      return rows.length > 0 && rows;
+    });
+    const threadId = row?.threadId ?? "missing";
+    await waitFor(() => received.length > 0);
+    received = [];
+    const changed = { type: "threads.changed", orgId, mailboxId: box.id, threadIds: [threadId] };
+    const inOtherApp = (task: (client: ImapFlow) => Promise<unknown>) =>
+      otherClient(box, async (client) => {
+        const lock = await client.getMailboxLock("INBOX");
+        try {
+          await task(client);
+        } finally {
+          lock.release();
+        }
+      });
+
+    // Read there: IDLE's FETCH brings the flag, and open apps hear about it. The poll is an
+    // hour away, so only the live path can pass within 5s.
+    await inOtherApp((client) => client.messageFlagsAdd("1:*", ["\\Seen"]));
+    await waitFor(() => received.length > 0, 5_000);
+    expect(received).toEqual([changed]);
+    const [state] = await db
+      .select({ read: schema.threadState.read })
+      .from(schema.threadState)
+      .where(eq(schema.threadState.memberId, ownerId));
+    expect(state?.read).toBe(true);
+
+    // Archived there: INBOX's EXPUNGE sends sync to Archive, where the copy now is.
+    received = [];
+    await inOtherApp((client) => client.messageMove("1:*", "Archive"));
+    await waitFor(() => received.length > 0, 5_000);
+    expect(received).toEqual([changed]);
+    const [thread] = await db
+      .select({ archived: schema.threads.archived })
+      .from(schema.threads)
+      .where(eq(schema.threads.id, threadId));
+    expect(thread?.archived).toBe(true);
   });
 });
 

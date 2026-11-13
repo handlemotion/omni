@@ -113,6 +113,11 @@ export interface PgMailStoreOptions {
   onMerged?: (merged: { orgId: string; mailboxId: string } & MergedThreads) => void;
   /** Called with shared conversations found discarded in another mail app. Must not throw. */
   onDiscarded?: (discarded: PrunedThreads) => void;
+  /**
+   * Called after a sync changed threads' archived or read state (another mail app moved or
+   * flagged mail) and queued `threads.changed` for them. Must not throw.
+   */
+  onChanged?: () => void;
 }
 
 /** Threads that lost messages deleted on the server; some may be gone (see `pruneMessages`). */
@@ -130,6 +135,7 @@ export class PgMailStore implements MailStore {
   private readonly onPruned: (pruned: PrunedThreads) => void;
   private readonly onMerged: NonNullable<PgMailStoreOptions["onMerged"]>;
   private readonly onDiscarded: (discarded: PrunedThreads) => void;
+  private readonly onChanged: () => void;
   private readonly mailboxes = new Map<string, MailboxRow>();
   /** The tail of each mailbox's thread-and-insert chain (see `oneAtATime`). */
   private readonly inserting = new Map<string, Promise<void>>();
@@ -142,6 +148,7 @@ export class PgMailStore implements MailStore {
     this.onPruned = options.onPruned ?? (() => {});
     this.onMerged = options.onMerged ?? (() => {});
     this.onDiscarded = options.onDiscarded ?? (() => {});
+    this.onChanged = options.onChanged ?? (() => {});
   }
 
   async saveFolders(mailboxId: string, folders: FolderInfo[]): Promise<void> {
@@ -228,7 +235,10 @@ export class PgMailStore implements MailStore {
       messageId: stored.id,
       flags: fetched.flags,
       modseq: fetched.modseq,
+      report: !inserted,
     });
+    // Another copy of a known message: a move in another mail app may have (un)archived it.
+    if (created && !inserted) this.onChanged();
     if (inserted) {
       this.onIngested({
         orgId: mailbox.orgId,
@@ -283,11 +293,13 @@ export class PgMailStore implements MailStore {
   }
 
   async applyFlags(mailboxId: string, folder: string, changes: FlagChange[]): Promise<void> {
-    await setLocationFlags(this.db, { mailboxId, path: folder, changes });
+    if ((await setLocationFlags(this.db, { mailboxId, path: folder, changes })) > 0) {
+      this.onChanged();
+    }
   }
 
   async removeMessages(mailboxId: string, folder: string, uids: number[]): Promise<void> {
-    await removeLocations(this.db, { mailboxId, path: folder, uids });
+    if ((await removeLocations(this.db, { mailboxId, path: folder, uids })) > 0) this.onChanged();
   }
 
   async resetFolder(mailboxId: string, folder: string): Promise<void> {
