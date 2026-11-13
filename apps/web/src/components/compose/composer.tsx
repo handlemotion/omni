@@ -10,6 +10,7 @@ import {
   IconForward,
   IconGlobe,
   IconLock,
+  IconMail,
   IconReply,
   IconX,
 } from "@/components/icons/central";
@@ -19,7 +20,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { appToast } from "@/components/ui/toast";
 import { Menu, MenuDescription, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   useCancelSend,
   useComposeReply,
@@ -444,20 +444,16 @@ function ModeComposer(props: {
 
   return (
     <ComposerFrame onFiles={files.add}>
-      <div className="flex min-h-7 items-center justify-between gap-2">
-        {mode === "forward" ? (
-          <ForwardLabel message={source} onStop={props.onStopForward} />
-        ) : (
-          <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-            <IconReply aria-hidden className="size-3.5 shrink-0" />
-            <span className="truncate">Reply</span>
-          </span>
-        )}
-        <span className="min-w-0 truncate text-sm text-muted-foreground">
-          From {thread.mailboxAddress}
-        </span>
-      </div>
+      {/* One row: what this is (reply or forward), whom to, and from where. */}
       <Recipients
+        lead={
+          mode === "forward" ? (
+            <ForwardMark message={source} onStop={props.onStopForward} />
+          ) : (
+            <IconReply aria-label="Reply" className="size-3.5" />
+          )
+        }
+        from={thread.mailboxAddress}
         to={to}
         cc={cc}
         bcc={bcc}
@@ -521,7 +517,6 @@ function NewMessage(props: {
   initial: { to?: string | undefined; subject?: string | undefined };
 }) {
   const [mailboxId, setMailboxId] = useState(props.mailboxId);
-  const from = props.mailboxes.find((m) => m.id === mailboxId);
   const { signature, isLoading: signatureLoading } = useSignature(mailboxId);
   const files = useComposerFiles(mailboxId);
   const sendNew = useSendNew();
@@ -579,24 +574,20 @@ function NewMessage(props: {
 
   return (
     <ComposerFrame onFiles={files.add}>
-      {props.mailboxes.length > 1 ? (
-        <FromPicker
-          mailboxes={props.mailboxes}
-          value={mailboxId}
-          onChange={(next) => {
-            // A staged file belongs to the mailbox it was uploaded for; another can't send it.
-            if (files.files.length) {
-              for (const file of files.files) files.remove(file.id);
-              appToast.message("Attachments removed", {
-                description: "Attach them again to send from this address.",
-              });
-            }
-            setMailboxId(next);
-          }}
-        />
-      ) : (
-        <span className="text-sm text-muted-foreground">From {from?.address}</span>
-      )}
+      <FromRow
+        mailboxes={props.mailboxes}
+        value={mailboxId}
+        onChange={(next) => {
+          // A staged file belongs to the mailbox it was uploaded for; another can't send it.
+          if (files.files.length) {
+            for (const file of files.files) files.remove(file.id);
+            appToast.message("Attachments removed", {
+              description: "Attach them again to send from this address.",
+            });
+          }
+          setMailboxId(next);
+        }}
+      />
       <Recipients
         to={to}
         cc={cc}
@@ -610,7 +601,7 @@ function NewMessage(props: {
           if (next.bcc) setBcc(next.bcc);
         }}
       />
-      <div className="flex min-h-8 items-center gap-2 border-b pb-1">
+      <div className="flex min-h-11 items-center border-b px-3">
         <Input
           plain
           size="sm"
@@ -640,29 +631,44 @@ function NewMessage(props: {
   );
 }
 
-function FromPicker(props: {
+/** New mail's From row, laid out like To: the address, and a menu to switch it when there are more. */
+function FromRow(props: {
   mailboxes: { id: string; address: string }[];
   value: string;
   onChange: (id: string) => void;
 }) {
+  const address = props.mailboxes.find((m) => m.id === props.value)?.address;
   return (
-    <ToggleGroup
-      size="sm"
-      aria-label="From"
-      selectedKeys={[props.value]}
-      disallowEmptySelection
-      onSelectionChange={(keys) => {
-        const next = [...keys][0];
-        if (typeof next === "string") props.onChange(next);
-      }}
-      className="max-w-full self-start overflow-x-auto"
-    >
-      {props.mailboxes.map((m) => (
-        <ToggleGroupItem key={m.id} id={m.id}>
-          {m.address}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
+    <div className="flex min-h-11 items-center gap-2.5 border-b px-3 py-1">
+      <span className="w-8 shrink-0 text-sm text-muted-foreground">From</span>
+      {props.mailboxes.length > 1 ? (
+        <MenuTrigger>
+          {/* -8px: the address starts where the To field's text does, not at the button's edge. */}
+          <Button intent="plain" size="sm" aria-label={`From ${address}`} className="-ms-2 min-w-0">
+            <span className="truncate">{address}</span>
+            <IconChevronDown className="text-muted-foreground" />
+          </Button>
+          <Menu
+            placement="bottom start"
+            selectionMode="single"
+            selectedKeys={[props.value]}
+            onSelectionChange={(keys) => {
+              const next = [...keys][0];
+              if (typeof next === "string") props.onChange(next);
+            }}
+          >
+            {props.mailboxes.map((m) => (
+              <MenuItem key={m.id} id={m.id} textValue={m.address}>
+                <IconMail data-slot="icon" />
+                <MenuLabel>{m.address}</MenuLabel>
+              </MenuItem>
+            ))}
+          </Menu>
+        </MenuTrigger>
+      ) : (
+        <span className="min-w-0 truncate text-sm">{address}</span>
+      )}
+    </div>
   );
 }
 
@@ -680,7 +686,8 @@ function ComposerFrame(props: { onFiles: (files: File[]) => void; children: Reac
       }}
       className={({ isDropTarget }) =>
         [
-          "flex flex-col gap-2 rounded-xl border bg-surface p-3 shadow-raised outline-hidden",
+          // White, unpadded: each row keeps its own 12px sides, so dividers run the full width.
+          "flex flex-col rounded-xl border bg-background shadow-raised outline-hidden",
           isDropTarget ? "border-ring" : "",
         ].join(" ")
       }
@@ -691,6 +698,9 @@ function ComposerFrame(props: { onFiles: (files: File[]) => void; children: Reac
 }
 
 function Recipients(props: {
+  lead?: ReactNode;
+  /** The sending address, at the end of the To line. */
+  from?: string | undefined;
   to: string[];
   cc: string[];
   bcc: string[];
@@ -700,20 +710,32 @@ function Recipients(props: {
   onChange: (next: Partial<{ to: string[]; cc: string[]; bcc: string[] }>) => void;
 }) {
   return (
-    // 13px of ink from the chips to the divider, as from the tabs to the chips and from the
-    // divider to the body's first line (the body is pulled up 4px past its line leading).
-    <div className="flex flex-col border-b pb-2">
+    <div className="flex flex-col">
       <RecipientField
         label="To"
         value={props.to}
         autoFocus={props.autoFocus}
+        lead={props.lead}
         onChange={(to) => props.onChange({ to })}
         end={
-          !props.showCopies && (
-            <Button intent="plain" size="sm" onPress={props.onShowCopies}>
-              Cc Bcc
-            </Button>
-          )
+          <span className="flex max-w-1/2 min-w-0 items-center gap-2">
+            {props.from && (
+              <span className="min-w-0 truncate text-sm text-muted-foreground">
+                From {props.from}
+              </span>
+            )}
+            {!props.showCopies && (
+              // -8px: the button's own padding; its ink ends 12px in, like the row's start.
+              <Button
+                intent="plain"
+                size="sm"
+                className="-me-2 shrink-0"
+                onPress={props.onShowCopies}
+              >
+                Cc Bcc
+              </Button>
+            )}
+          </span>
         }
       />
       {props.showCopies && (
@@ -755,34 +777,37 @@ function Body(props: {
           props.onSend();
         }
       }}
-      className="-mt-1 max-h-[min(24rem,30vh)] min-h-24 resize-none pt-0 pb-1 sm:pt-0 sm:pb-1"
+      // Write's first line sits as far under the divider as the chips sit over it (measured).
+      className="max-h-[min(24rem,30vh)] min-h-24 resize-none px-3 pt-0.5 pb-1 sm:px-3 sm:pt-0.5 sm:pb-1"
     />
   );
 }
 
-/** "Forward Carla's message" with an X back to replying. */
-function ForwardLabel({ message, onStop }: { message: Message | undefined; onStop: () => void }) {
+/**
+ * A forward's mark in the To line's label column: the forward arrow, which turns into an X on
+ * hover or focus, back to replying. Its tooltip says whose message goes.
+ */
+function ForwardMark({ message, onStop }: { message: Message | undefined; onStop: () => void }) {
   const from = !message
     ? "a"
     : message.fromMe
       ? "your"
       : `${message.fromName || message.fromAddress}'s`;
   return (
-    <span className="-me-1 flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
-      <IconForward aria-hidden className="size-3.5 shrink-0" />
-      <span className="ms-1 truncate">Forward {from} message</span>
-      <TooltipTrigger delay={400}>
-        <Button
-          intent="ghost"
-          size="sq-xs"
-          aria-label="Reply instead"
-          className="shrink-0 text-muted-foreground hover:text-foreground"
-          onPress={onStop}
-        >
-          <IconX />
-        </Button>
-        <Tooltip>Reply instead</Tooltip>
-      </TooltipTrigger>
-    </span>
+    <TooltipTrigger delay={400}>
+      <Button
+        intent="ghost"
+        size="sq-xs"
+        aria-label={`Forward ${from} message. Reply instead`}
+        // -5px each side: the 14px glyph sits 5px inside the 24px button; this puts it where
+        // Reply's sits, with the chips as close after it.
+        className="group -mx-[5px] text-muted-foreground hover:text-foreground"
+        onPress={onStop}
+      >
+        <IconForward className="group-hover:hidden group-focus-visible:hidden" />
+        <IconX className="hidden group-hover:block group-focus-visible:block" />
+      </Button>
+      <Tooltip>{`Forward ${from} message · Reply instead`}</Tooltip>
+    </TooltipTrigger>
   );
 }

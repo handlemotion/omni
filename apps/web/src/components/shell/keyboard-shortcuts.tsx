@@ -7,6 +7,7 @@ import {
   DescriptionTerm,
 } from "@/components/ui/description-list";
 import { Dialog, DialogBody, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import { useAnnouncement, useShortcut, useShortcutListener } from "@/hooks/use-shortcuts.ts";
 import { keyLabel, SHORTCUT_IDS, SHORTCUTS, type KeySequence } from "@/lib/shortcuts.ts";
 
@@ -17,8 +18,9 @@ import { keyLabel, SHORTCUT_IDS, SHORTCUTS, type KeySequence } from "@/lib/short
 export function KeyboardShortcuts() {
   const navigate = useNavigate();
   const [help, setHelp] = useState(false);
+  const openCompose = useOpenCompose();
   useShortcutListener();
-  useShortcut("compose", () => void navigate({ to: "/compose" }));
+  useShortcut("compose", openCompose);
   useShortcut("goInbox", () => void navigate({ to: "/inbox" }));
   useShortcut("goQueue", () => void navigate({ to: "/queue" }));
   useShortcut("goAll", () => void navigate({ to: "/all" }));

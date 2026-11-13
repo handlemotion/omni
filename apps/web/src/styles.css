@@ -178,16 +178,6 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-/* A toast's countdown bar empties over its duration. */
-@keyframes toast-countdown {
-  from {
-    transform: scaleX(1);
-  }
-  to {
-    transform: scaleX(0);
-  }
-}
-
 @layer base {
   *,
   ::after,

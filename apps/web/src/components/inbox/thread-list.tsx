@@ -1,6 +1,5 @@
-import { PencilSquareIcon } from "@heroicons/react/24/outline";
 import { useParams } from "@tanstack/react-router";
-import { memo, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Selection } from "react-aria-components";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
@@ -9,8 +8,9 @@ import { ConversationMeta, type ConversationRowInfo } from "@/components/inbox/c
 import { ListSweepSlot } from "@/components/inbox/list-sweep";
 import { OpenListContext } from "@/components/inbox/open-list";
 import { SearchPopover } from "@/components/search/search-popover";
-import { buttonStyles } from "@/components/ui/button";
-import { Link } from "@/components/ui/link";
+import { ComposePane } from "@/components/compose/compose-pane";
+import { IconPencil } from "@/components/icons/central";
+import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
@@ -20,6 +20,7 @@ import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { IconSidebar } from "@/components/icons/sidebar";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
+import { closeComposePane, useComposePane, useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useCounts, useThreads } from "@/hooks/use-mail.ts";
 import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
@@ -124,11 +125,18 @@ export function List(
   const count = selected === "all" ? threads.length : selected.size;
   const [fullScreen] = useFullScreen();
   const { threadId } = useParams({ strict: false });
-  // Full screen (toggled from the conversation's toolbar): an open thread takes the whole width.
-  const hideList = fullScreen && !!threadId;
+  // New mail opens in the reading pane, like a thread; a thread opening takes its place.
+  const [composing, closeCompose] = useComposePane();
+  const openCompose = useOpenCompose();
+  useEffect(() => {
+    if (threadId) closeComposePane();
+  }, [threadId]);
+  const detail = !!threadId || composing;
+  // Full screen (toggled from the conversation's toolbar): the open pane takes the whole width.
+  const hideList = fullScreen && detail;
   const listRef = useRef<HTMLElement>(null);
   // Beside an open thread the list keeps a width the person can drag; alone it fills the page.
-  const split = !!threadId && !hideList;
+  const split = detail && !hideList;
   const listWidth = useStoredWidth("omni:list-width", LIST_WIDTH, LIST_MIN, LIST_MAX);
   // Until dragged, the thread takes its reading column's width (the messages' `max-w-3xl`, so its
   // toolbar ends where the messages do) and the list the rest, down to its minimum.
@@ -164,22 +172,25 @@ export function List(
             <IconSidebar />
           </SidebarTrigger>
         )}
-        {/* 1px down: centers the title's capitals on the sidebar header's icons. */}
-        <Heading className="translate-y-px">
+        {/* 1px down: centers the title's capitals on the sidebar header's icons. Collapsed, the
+            title centres on the sidebar button beside it instead, so it stays put. */}
+        <Heading className={sidebarHidden ? "" : "translate-y-px"}>
           {props.title}
           {unread > 0 && <span className="ms-1 text-primary tabular-nums">{unread}</span>}
         </Heading>
         <div className="ms-auto flex items-center gap-2">
           <SearchPopover />
-          <Link
-            href="/compose"
+          <Button
+            intent="primary"
+            size="sm"
             aria-keyshortcuts={ariaKeyShortcuts("compose")}
             // 27px: a filled button reads 1px taller than the outlined search field beside it.
-            className={buttonStyles({ intent: "primary", size: "sm", className: "h-6.75" })}
+            className="h-6.75"
+            onPress={openCompose}
           >
-            <PencilSquareIcon />
+            <IconPencil />
             Compose
-          </Link>
+          </Button>
         </div>
       </header>
 
@@ -236,9 +247,9 @@ export function List(
             </ListSweepSlot>
           )}
         </section>
-        {/* Only with a thread open: closed, the list takes the full width. The same wrapper in
-            and out of full screen, so toggling it doesn't remount the thread (or its scroll). */}
-        {props.children && threadId && (
+        {/* Only with a thread (or new mail) open: closed, the list takes the full width. The same
+            wrapper in and out of full screen, so toggling it doesn't remount the thread. */}
+        {detail && (props.children || composing) && (
           <div className={`relative flex min-w-0 ${hug ? "w-3xl shrink" : "flex-1"}`}>
             {split && (
               <ResizeGrip
@@ -249,7 +260,11 @@ export function List(
                 onResizingChange={setResizing}
               />
             )}
-            <OpenListContext value={openList}>{props.children}</OpenListContext>
+            {threadId ? (
+              <OpenListContext value={openList}>{props.children}</OpenListContext>
+            ) : (
+              <ComposePane onClose={closeCompose} />
+            )}
           </div>
         )}
       </div>

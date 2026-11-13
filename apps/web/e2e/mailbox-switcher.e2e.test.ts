@@ -187,7 +187,7 @@ test("the list spans the page until a thread opens, and again once it closes", a
   await page.keyboard.press("Escape");
   const row = page.getByRole("row").filter({ hasText: "Hello from Beta" });
   await row.waitFor();
-  const compose = page.getByRole("link", { name: "Compose" });
+  const compose = page.getByRole("button", { name: "Compose" });
   const rightEdge = async (locator: typeof row) => {
     const box = await locator.boundingBox();
     return box ? box.x + box.width : 0;
@@ -208,6 +208,34 @@ test("the list spans the page until a thread opens, and again once it closes", a
   await expect
     .poll(async () => (await rightEdge(compose)) - (await rightEdge(row)))
     .toBeLessThan(24);
+  // New mail opens in the same pane, beside the list, and closes back to the full list.
+  await compose.click();
+  await page.getByRole("region", { name: "New message" }).waitFor();
+  await expect
+    .poll(async () => (await rightEdge(compose)) - (await rightEdge(row)))
+    .toBeGreaterThan(200);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect
+    .poll(async () => (await rightEdge(compose)) - (await rightEdge(row)))
+    .toBeLessThan(24);
+});
+
+// Catches: a sidebar link that drops (or swaps) the mailbox the switcher shows.
+test("sidebar links keep the mailbox the switcher shows", async () => {
+  const { email, boxes } = await ana("keep");
+  const page = await openSwitcher(email);
+  await page.getByRole("menuitem", { name: /hello@beta-keep/ }).click();
+  await page.waitForURL((url) => url.searchParams.get("mailbox") === boxes.hello.id);
+  for (const [name, path] of [
+    ["Queue", "/queue"],
+    ["All mail", "/all"],
+    ["Inbox", "/inbox"],
+  ] as const) {
+    await page.getByRole("link", { name, exact: true }).click();
+    await page.waitForURL((url) => url.pathname === path);
+    expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.hello.id);
+    await page.getByRole("button", { name: /^Switch mailbox, currently Hello/ }).waitFor();
+  }
 });
 
 async function freePort() {

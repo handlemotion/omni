@@ -1,6 +1,7 @@
-// A shared inbox's helpdesk views in the sidebar (ADR 0021): Unassigned, Mine, Open, Pending,
-// Snoozed, Resolved and SLA at risk, each with its count. The rows are the sidebar's own 32px
-// items (Figma node 1:3), so a view reads like Inbox or Queue does.
+// A shared inbox's helpdesk views (ADR 0021). The sidebar shows only the one mail's own rows
+// don't already cover, Mine, in the same group as Inbox and Queue, for the shared inbox the
+// mailbox switcher shows. Unassigned mail is everyone's, so it's the Inbox; Open, Pending,
+// Snoozed and Resolved are Inbox, Awaiting reply, Queue and All mail.
 import { useLocation, useSearch } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { IconCircleCheck, IconUserCog } from "@/components/icons/central";
@@ -11,15 +12,9 @@ import {
   IconInbox,
   IconWarning,
 } from "@/components/icons/sidebar";
-import {
-  SidebarDisclosure,
-  SidebarDisclosurePanel,
-  SidebarDisclosureTrigger,
-  SidebarItem,
-  SidebarLabel,
-} from "@/components/ui/sidebar";
+import { SidebarItem, SidebarLabel } from "@/components/ui/sidebar";
 import { useConversationCounts } from "@/hooks/use-conversation.ts";
-import type { ConversationCounts, HelpdeskView } from "@/lib/types.ts";
+import type { HelpdeskView } from "@/lib/types.ts";
 
 type NavView = Exclude<HelpdeskView, "all">;
 
@@ -37,47 +32,26 @@ export const VIEW_NAV: { view: NavView; label: string; icon: ReactNode }[] = [
 export const viewLabel = (view: HelpdeskView) =>
   VIEW_NAV.find((v) => v.view === view)?.label ?? "All conversations";
 
-/** Where a shared inbox opens when no view is chosen: everything still being worked on. */
-export const DEFAULT_VIEW: NavView = "open";
-
-/**
- * One shared inbox's views. `heading` puts them under a collapsible group named for the inbox
- * (when the sidebar lists several); without it they are the sidebar's first group.
- */
-export function HelpdeskViews(props: { mailboxId: string; heading?: string }) {
+/** The shared inbox's Mine row, with its count. */
+export function HelpdeskItems(props: { mailboxId: string }) {
   const counts = useConversationCounts().data?.find((c) => c.mailboxId === props.mailboxId);
-  const items = <ViewItems mailboxId={props.mailboxId} counts={counts} />;
-  if (!props.heading) return items;
-  return (
-    <SidebarDisclosure defaultExpanded>
-      <SidebarDisclosureTrigger>{props.heading}</SidebarDisclosureTrigger>
-      <SidebarDisclosurePanel>{items}</SidebarDisclosurePanel>
-    </SidebarDisclosure>
-  );
-}
-
-function ViewItems(props: { mailboxId: string; counts: ConversationCounts[number] | undefined }) {
   const { pathname } = useLocation();
   const search = useSearch({ strict: false }) as { mailbox?: string; view?: string; tag?: string };
   const here = pathname.startsWith("/inbox") && search.mailbox === props.mailboxId && !search.tag;
-  const shown = here ? (search.view ?? DEFAULT_VIEW) : undefined;
-  return VIEW_NAV.map(({ view, label, icon }) => {
-    // Resolved only grows, so the API doesn't count it; nothing to show there.
-    const count = view === "resolved" ? 0 : (props.counts?.views[view] ?? 0);
+  return VIEW_NAV.flatMap(({ view, label, icon }) => {
+    // The only view mail's own rows don't already cover.
+    if (view !== "mine") return [];
+    const count = counts?.views[view] ?? 0;
     return (
       <SidebarItem
         key={view}
         href={`/inbox?mailbox=${encodeURIComponent(props.mailboxId)}&view=${view}`}
-        isCurrent={shown === view}
+        isCurrent={here && search.view === view}
       >
         {icon}
         <SidebarLabel>{label}</SidebarLabel>
         {count > 0 && (
-          <span
-            className={`ms-auto text-xs tabular-nums ${view === "sla_at_risk" ? "text-danger-subtle-foreground" : "text-muted-foreground"}`}
-          >
-            {count}
-          </span>
+          <span className="ms-auto text-xs text-muted-foreground tabular-nums">{count}</span>
         )}
       </SidebarItem>
     );

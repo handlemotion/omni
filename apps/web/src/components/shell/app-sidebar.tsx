@@ -18,8 +18,8 @@ import {
 } from "@/components/icons/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { HelpdeskViews } from "./helpdesk-nav";
-import { MailboxSwitcher, mailboxName } from "./mailbox-switcher";
+import { HelpdeskItems } from "./helpdesk-nav";
+import { MailboxSwitcher } from "./mailbox-switcher";
 import { Notifications } from "./notifications";
 import {
   Sidebar,
@@ -77,7 +77,7 @@ const folders: NavItem[] = [
 // Figma: Omni, sidebar (node 1:3).
 export function AppSidebar() {
   const router = useRouter();
-  const { shown, shared, you } = useNavMailboxes();
+  const shown = useShownMailbox();
   return (
     <Sidebar>
       <SidebarHeader>
@@ -106,21 +106,14 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* The first group needs no heading: it's what the app opens to. A shared inbox opens
-            to its helpdesk views; all mailboxes (or a personal one) to mail, then each shared
-            inbox's views under its name. */}
+        {/* The first group needs no heading: it's what the app opens to. The same rows for every
+            mailbox the switcher shows; a shared inbox adds its Mine. Every row
+            keeps the switcher's choice: a link never changes which mailbox is shown. */}
         <SidebarSection>
-          {shown?.kind === "shared" ? (
-            <HelpdeskViews mailboxId={shown.id} />
-          ) : (
-            <Items items={mail} />
-          )}
+          <Items items={mail} mailbox={shown?.id} />
+          {shown?.kind === "shared" && <HelpdeskItems mailboxId={shown.id} />}
         </SidebarSection>
-        {!shown &&
-          shared.map((box) => (
-            <HelpdeskViews key={box.id} mailboxId={box.id} heading={mailboxName(box, you)} />
-          ))}
-        <Group label="Folders" items={folders} />
+        <Group label="Folders" items={folders} mailbox={shown?.id} />
       </SidebarContent>
 
       <SidebarFooter className="justify-between">
@@ -147,34 +140,33 @@ export function AppSidebar() {
   );
 }
 
-/**
- * The mailbox the switcher shows (none: all of them), and the active workspace's shared inboxes.
- * Only the active workspace: a shared inbox elsewhere opens through the switcher, which switches.
- */
-function useNavMailboxes() {
-  const { user, member } = useMember();
+/** The mailbox the switcher shows, in the active workspace (none: all of them). */
+function useShownMailbox() {
+  const { member } = useMember();
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
   const boxes =
     useWorkspaces().data?.workspaces.find((w) => w.id === member.orgId)?.mailboxes ?? [];
-  return {
-    shown: boxes.find((box) => box.id === mailbox),
-    shared: boxes.filter((box) => box.kind === "shared"),
-    you: user.name,
-  };
+  return boxes.find((box) => box.id === mailbox);
 }
 
-function Group({ label, items }: { label: string; items: NavItem[] }) {
+/** A nav link that keeps showing `mailbox`, the switcher's choice. */
+function withMailbox(href: string, mailbox: string | undefined) {
+  if (!mailbox) return href;
+  return `${href}${href.includes("?") ? "&" : "?"}mailbox=${encodeURIComponent(mailbox)}`;
+}
+
+function Group(props: { label: string; items: NavItem[]; mailbox: string | undefined }) {
   return (
     <SidebarDisclosure defaultExpanded>
-      <SidebarDisclosureTrigger>{label}</SidebarDisclosureTrigger>
+      <SidebarDisclosureTrigger>{props.label}</SidebarDisclosureTrigger>
       <SidebarDisclosurePanel>
-        <Items items={items} />
+        <Items items={props.items} mailbox={props.mailbox} />
       </SidebarDisclosurePanel>
     </SidebarDisclosure>
   );
 }
 
-function Items({ items }: { items: NavItem[] }) {
+function Items({ items, mailbox }: { items: NavItem[]; mailbox: string | undefined }) {
   const { pathname } = useLocation();
   const { lane, view } = useSearch({ strict: false }) as { lane?: string; view?: string };
   const isCurrent = ({ current }: NavItem) =>
@@ -185,7 +177,11 @@ function Items({ items }: { items: NavItem[] }) {
     lane === current.lane;
 
   return items.map((item) => (
-    <SidebarItem key={item.label} href={item.href} isCurrent={isCurrent(item)}>
+    <SidebarItem
+      key={item.label}
+      href={item.href && withMailbox(item.href, mailbox)}
+      isCurrent={isCurrent(item)}
+    >
       {item.icon}
       <SidebarLabel>{item.label}</SidebarLabel>
     </SidebarItem>

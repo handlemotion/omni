@@ -15,7 +15,7 @@ export function Toolbar(props: {
   label?: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex items-center justify-between gap-2 px-3 pb-3">
       <div className="flex items-center gap-1">{props.start}</div>
       <TooltipTrigger delay={400}>
         <Button

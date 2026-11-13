@@ -67,6 +67,7 @@ export function Conversation({ threadId }: { threadId: string }) {
         replace: true,
       } as never),
   );
+  const [fullScreen] = useFullScreen();
   const scroller = useRef<HTMLDivElement>(null);
   // Whether the reader sat at the bottom before this render: new mail follows them only then.
   const atBottom = useRef(true);
@@ -101,7 +102,8 @@ export function Conversation({ threadId }: { threadId: string }) {
         <div
           ref={scroller}
           onScroll={onScroll}
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none border-s"
+          // Full screen, the sidebar's own edge is the only line: a second beside it doubles up.
+          className={`flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none ${fullScreen ? "" : "border-s"}`}
         >
           {/* Grows to fill a short thread, so the composer still floats at the bottom. The bottom
               padding clears the fade, so the newest message ends above it. */}
@@ -238,7 +240,10 @@ function Actions({ thread, shared }: { thread: Thread; shared: boolean }) {
   return (
     // pb-0.5 lifts the icons 1px, in line with the list's header row beside it; end-1.5
     // matches the 28px buttons' inset from the top.
-    <div className="relative flex h-10.5 shrink-0 items-center border-s border-b border-s-transparent pb-0.5">
+    // Full screen, the bottom line runs straight into the sidebar's edge, with no notch.
+    <div
+      className={`relative flex h-10.5 shrink-0 items-center border-b pb-0.5 ${fullScreen ? "" : "border-s border-s-transparent"}`}
+    >
       {/* Full screen hides the list: switch threads from here. 12px in, the label at 20px like
           the list's rows. */}
       {fullScreen && (
