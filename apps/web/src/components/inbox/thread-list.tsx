@@ -154,7 +154,8 @@ export function List(
           <Link
             href="/compose"
             aria-keyshortcuts={ariaKeyShortcuts("compose")}
-            className={buttonStyles({ intent: "primary", size: "sm" })}
+            // 27px: a filled button reads 1px taller than the outlined search field beside it.
+            className={buttonStyles({ intent: "primary", size: "sm", className: "h-6.75" })}
           >
             <PencilSquareIcon />
             Compose

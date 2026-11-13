@@ -69,7 +69,7 @@ export function MessageItem({ threadId, message }: { threadId: string; message: 
   return (
     <article
       aria-label={`${message.fromMe ? "You" : sender}, ${messageTime(message.sentAt)}`}
-      className={`flex flex-col gap-2 ${mine ? "items-end" : "items-start"}`}
+      className={`flex flex-col gap-3 ${mine ? "items-end" : "items-start"}`}
     >
       <header className="flex items-center gap-2">
         {!message.fromMe && (

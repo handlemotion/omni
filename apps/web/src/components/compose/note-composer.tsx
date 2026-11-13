@@ -1,6 +1,6 @@
 // The composer's Note mode (shared inboxes, ADR 0021): an internal note for the team, never
-// sent. Typing `@` offers the inbox's teammates; each one picked is notified. Tinted like the
-// notes in the timeline, so it is never mistaken for a reply.
+// sent. Typing `@` offers the inbox's teammates; each one picked is notified. The same frame as
+// a reply; the Note segment and "Only your team sees notes" say which one this is.
 import { useRef, useState, type ReactNode } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { ListBox, ListBoxItem } from "@/components/ui/list-box";
@@ -96,7 +96,7 @@ export function NoteComposer({ thread, toggle }: { thread: Thread; toggle: React
   };
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border bg-warning-subtle p-3 shadow-raised">
+    <div className="flex flex-col gap-2 rounded-xl border bg-surface p-3 shadow-raised">
       <div className="flex items-center justify-between gap-2">
         {toggle}
         <span className="min-w-0 truncate text-sm text-muted-foreground">

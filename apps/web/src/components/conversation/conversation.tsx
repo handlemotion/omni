@@ -95,6 +95,12 @@ export function Conversation({ threadId }: { threadId: string }) {
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-6">
           <div className="flex flex-col gap-2">
             <Heading level={2}>{subject || "(no subject)"}</Heading>
+            {/* What the conversation is (status, owner, priority, tags) sits with its title. */}
+            {shared && (
+              <div className="mt-2">
+                <Properties thread={thread} />
+              </div>
+            )}
             {thread.summary && <p className="text-sm/6 text-muted-foreground">{thread.summary}</p>}
           </div>
           <Timeline
@@ -195,13 +201,7 @@ function Actions({ thread, shared }: { thread: Thread; shared: boolean }) {
   return (
     // pb-0.5 lifts the icons 1px, in line with the list's header row beside it; end-1.5
     // matches the 28px buttons' inset from the top.
-    <div className="@container relative flex h-10.5 shrink-0 items-center border-s border-b border-s-transparent pb-0.5">
-      {/* The same column as the messages (a clear 1px edge stands in for their divider), so the
-          controls' icons start where the subject does. The actions keep the far right. */}
-      <div className="mx-auto flex w-full max-w-3xl min-w-0 px-5">
-        {shared && <Properties thread={thread} />}
-      </div>
-      {/* Out of the flow, so the column above centers on the same width as the messages. */}
+    <div className="relative flex h-10.5 shrink-0 items-center border-s border-b border-s-transparent pb-0.5">
       <div className="absolute inset-y-0 end-1.5 flex items-center gap-1 pb-0.5">
         {shared ? <HelpdeskActions threadId={thread.id} /> : <MailActions thread={thread} />}
         <Action

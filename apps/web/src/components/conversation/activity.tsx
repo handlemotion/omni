@@ -151,7 +151,7 @@ export function EventLine(props: { event: ConversationEvent; text: string }) {
 }
 
 /**
- * An internal note: only the team sees it. Tinted so it never reads as mail, with the mentioned
+ * An internal note: only the team sees it. A bubble on the team's side, with the mentioned
  * teammates' names standing out. The author can edit or delete their own.
  */
 export function NoteItem(props: { threadId: string; mailboxId: string; note: Note }) {
@@ -165,12 +165,14 @@ export function NoteItem(props: { threadId: string; mailboxId: string; note: Not
   const edited = note.updatedAt !== note.createdAt;
 
   return (
+    // On the right with the replies, since the team wrote it: yours blue, a teammate's grey. The
+    // lock and "Internal note" tell it from a reply the customer got.
     <article
       aria-label={`Note from ${name}, ${messageTime(note.createdAt)}`}
-      className="flex flex-col gap-2"
+      className="flex flex-col items-end gap-3"
     >
       <header className="flex items-center gap-2">
-        <Face person={author} name={name} />
+        {!mine && <Face person={author} name={name} />}
         <span className="text-sm">{name}</span>
         <span className="flex items-center gap-1 text-xs text-subtle-foreground">
           <IconLock className="size-3" />
@@ -185,7 +187,9 @@ export function NoteItem(props: { threadId: string; mailboxId: string; note: Not
         )}
       </header>
       <div
-        className={`w-full rounded-xl bg-warning-subtle px-3 py-2 text-foreground ${pending ? "opacity-70" : ""}`}
+        className={`rounded-xl px-3 py-2 text-foreground ${editing ? "w-full" : "max-w-[80%]"} ${
+          mine ? "bg-primary-subtle" : "bg-accent"
+        } ${pending ? "opacity-70" : ""}`}
       >
         {editing ? (
           <EditNote threadId={props.threadId} note={note} onDone={() => setEditing(false)} />
