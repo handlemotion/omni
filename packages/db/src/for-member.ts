@@ -520,6 +520,27 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
       return row ?? null;
     },
 
+    /**
+     * The personal Google accounts the grantees can see, each with the grantee whose grant shows
+     * it and its own workspace (ADR 0024): what Settings lists and may disconnect.
+     */
+    async googleAccounts() {
+      const [grant, org] = access(mailboxes.id, mailboxes.orgId);
+      return db
+        .select({
+          id: mailboxes.id,
+          orgId: mailboxes.orgId,
+          address: mailboxes.address,
+          status: mailboxes.status,
+          memberId: mailboxAccess.memberId,
+        })
+        .from(mailboxes)
+        .innerJoin(...grant)
+        .innerJoin(...org)
+        .where(and(eq(mailboxes.provider, "gmail"), eq(mailboxes.kind, "personal")))
+        .orderBy(mailboxes.address);
+    },
+
     /** An outbox action this member asked for, on a mailbox they can still see. */
     async getAction(actionId: string) {
       const [actionGrant, actionOrg] = access(mailActions.mailboxId, mailActions.orgId);

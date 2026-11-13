@@ -693,3 +693,52 @@ test("pending claims are capped per org and an expired one can no longer lock", 
   // The expired claim renews with a new expiry, but only once there is room under the cap.
   expect(await open("stale.test")).toEqual({ error: "cap" });
 });
+
+// Catches: Settings listing (or letting someone disconnect) another person's Google account,
+// one shown through a grant that crosses orgs, a shared or non-Gmail mailbox, or one outside a
+// scoped session's company (ADR 0024).
+test("google accounts: only personal Gmail the grantees can see, scoped sessions only in scope", async () => {
+  const personal = await createOrg(db, `personal-${Date.now()}`);
+  const company = await createOrg(db, `company-${Date.now()}`);
+  const dan = await createMember(db, personal.id, "dan");
+  const [danAtCompany] = await db
+    .insert(members)
+    .values({
+      id: crypto.randomUUID(),
+      organizationId: company.id,
+      userId: dan.userId,
+      createdAt: new Date(),
+    })
+    .returning();
+  const eve = await createMember(db, company.id, "eve");
+  const gmail = async (
+    orgId: string,
+    address: string,
+    kind: "personal" | "shared" = "personal",
+  ) => {
+    const [row] = await db
+      .insert(schemaMailboxes)
+      .values({ orgId, address, kind, provider: "gmail", credentialsEnc: "x" })
+      .returning();
+    return row!;
+  };
+  const mine = await gmail(personal.id, "dan@gmail.test");
+  const work = await gmail(company.id, "dan@company.test");
+  const evesBox = await gmail(company.id, "eve@company.test");
+  const sharedBox = await gmail(company.id, "team@company.test", "shared");
+  await grant(db, personal.id, mine.id, dan.id);
+  await grant(db, company.id, work.id, danAtCompany!.id);
+  await grant(db, company.id, evesBox.id, eve.id);
+  await grant(db, company.id, sharedBox.id, danAtCompany!.id);
+  // A grant on Eve's mailbox to Dan's Personal-space member crosses orgs: it must open nothing.
+  await grant(db, company.id, evesBox.id, dan.id);
+
+  const ids = (rows: { id: string }[]) => rows.map((row) => row.id).sort();
+  expect(ids(await forUser(db, dan.userId).googleAccounts())).toEqual([mine.id, work.id].sort());
+  expect(await forUser(db, dan.userId).googleAccounts()).toContainEqual(
+    expect.objectContaining({ id: mine.id, orgId: personal.id, memberId: dan.id }),
+  );
+  expect(ids(await forUser(db, dan.userId, company.id).googleAccounts())).toEqual([work.id]);
+  expect(ids(await forMember(db, dan.id).googleAccounts())).toEqual([mine.id]);
+  expect(ids(await forUser(db, eve.userId).googleAccounts())).toEqual([evesBox.id]);
+});

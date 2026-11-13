@@ -8,7 +8,7 @@ import {
   googleConnectResultSchema,
   googleDisconnectResultSchema,
 } from "@omni/contracts";
-import { advanceOrgSetup, listUserGoogleAccounts } from "@omni/db";
+import { advanceOrgSetup, forUser } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import type { AppEnv } from "../context.ts";
@@ -59,7 +59,7 @@ async function challengeFor(verifier: string) {
  * the company a scoped session reaches.
  */
 function googleMailboxes(c: Context<AppEnv>) {
-  return listUserGoogleAccounts(c.var.db, c.var.user.id, c.var.user.scopeOrgId);
+  return forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId).googleAccounts();
 }
 
 export const connect = new Hono<AppEnv>()
@@ -199,12 +199,15 @@ export const connect = new Hono<AppEnv>()
   /** Disconnects one of the member's Google accounts: revoked at Google, no longer synced. */
   .delete("/google/:mailboxId", limitPerMember("provision"), async (c) => {
     const mailboxId = c.req.param("mailboxId");
-    if (!(await googleMailboxes(c)).some((m) => m.id === mailboxId)) notFound();
+    const account = (await googleMailboxes(c)).find((m) => m.id === mailboxId);
+    if (!account) notFound();
     try {
+      // The account's own workspace and member, so a mail service from before ADR 0024 (which
+      // ignores `userId`) finds it too.
       await callMailService(
         c.var,
         GOOGLE_DISCONNECT_PATH,
-        { orgId: c.var.member.orgId, memberId: c.var.member.id, mailboxId, userId: c.var.user.id },
+        { orgId: account.orgId, memberId: account.memberId, mailboxId, userId: c.var.user.id },
         googleDisconnectResultSchema,
       );
     } catch (failure) {

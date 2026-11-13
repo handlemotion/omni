@@ -10,6 +10,7 @@ import {
   type Db,
   deleteMailbox,
   findOrgMailbox,
+  hasUnsyncedWork,
   listMisplacedMailboxes,
   mailboxOwnerIds,
   type MisplacedMailbox,
@@ -41,12 +42,23 @@ export async function rehomeMailboxes(deps: RehomeDeps): Promise<number> {
 
 async function rehome(deps: RehomeDeps, mailbox: MisplacedMailbox): Promise<boolean> {
   const { db, keyring, logger } = deps;
+  // Drafts live only in Postgres, and an unsent action would be lost with the old copy: it moves
+  // on a later run, once they are sent or discarded.
+  if (await hasUnsyncedWork(db, mailbox.id)) {
+    logger.info("mailbox.rehome_deferred", { mailboxId: mailbox.id, reason: "unsynced_work" });
+    return false;
+  }
   const existing = await findOrgMailbox(db, mailbox.targetOrgId, mailbox.address);
-  // The company already has this address as something else, or as someone else's inbox: moving
-  // in would change whose it is (ADR 0017). Left where it is, for a person to sort out.
+  // The company already has this address as something else (a shared inbox, another provider)
+  // or as someone else's inbox: moving in would change whose it is (ADR 0017). Left where it
+  // is, for a person to sort out.
   if (existing) {
     const owners = await mailboxOwnerIds(db, existing.id);
-    if (existing.provider !== mailbox.provider || !owners.includes(mailbox.targetMemberId)) {
+    if (
+      existing.kind !== "personal" ||
+      existing.provider !== mailbox.provider ||
+      !owners.includes(mailbox.targetMemberId)
+    ) {
       logger.warn("mailbox.rehome_conflict", {
         mailboxId: mailbox.id,
         targetOrgId: mailbox.targetOrgId,

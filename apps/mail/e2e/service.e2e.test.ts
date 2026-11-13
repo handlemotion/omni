@@ -780,4 +780,62 @@ describe("a mailbox finds its home (ADR 0024)", () => {
     expect(await mailboxesOf(db, company.id)).toHaveLength(1);
     expect((await mailboxesOf(db, bea.orgId)).map((row) => row.id)).toEqual([bea.box.id]);
   });
+
+  it("waits while a draft is unsent, and never takes over a shared inbox at the same address", async () => {
+    const domain = `wait-${randomUUID().slice(0, 8)}.omni.test`;
+    const cara = await personalMailbox(`cara@${domain}`);
+    const team = await personalMailbox(`team@${domain}`);
+    const running = await startMailService();
+    await connected(cara.box.id);
+
+    const company = await createOrg(db, `wait-${randomUUID().slice(0, 8)}`);
+    const join = async (userId: string) => {
+      const [member] = await db
+        .insert(schema.members)
+        .values({
+          id: randomUUID(),
+          organizationId: company.id,
+          userId,
+          role: "member",
+          createdAt: new Date(),
+        })
+        .returning();
+      return member!;
+    };
+    await join(cara.userId);
+    const teamMember = await join(team.userId);
+    // The company already runs team@ as a shared inbox, with team's owner on it.
+    const [shared] = await db
+      .insert(schema.mailboxes)
+      .values({ orgId: company.id, address: team.box.address, kind: "shared", credentialsEnc: "x" })
+      .returning();
+    await db
+      .insert(schema.mailboxAccess)
+      .values({ orgId: company.id, mailboxId: shared!.id, memberId: teamMember.id, role: "owner" });
+    const [draft] = await db
+      .insert(schema.drafts)
+      .values({ orgId: cara.orgId, mailboxId: cara.box.id, kind: "new", subject: "not sent yet" })
+      .returning();
+    await db.insert(schema.mailDomains).values({ orgId: company.id, domain, provider: "imap" });
+
+    await running.reconcileMailboxes();
+    // Cara's draft would go with the old copy: she stays put, draft and all.
+    expect(await mailboxStatus(db, cara.box.id)).toBe("active");
+    expect(
+      await db.select().from(schema.drafts).where(eq(schema.drafts.id, draft!.id)),
+    ).toHaveLength(1);
+    // team@ stays in its Personal space, and the shared inbox keeps its kind and login.
+    expect((await mailboxesOf(db, team.orgId)).map((row) => row.id)).toEqual([team.box.id]);
+    expect(
+      (await mailboxesOf(db, company.id)).map((row) => [row.address, row.kind, row.credentialsEnc]),
+    ).toEqual([[team.box.address, "shared", "x"]]);
+
+    // Once the draft is gone, the next run moves Cara.
+    await db.delete(schema.drafts).where(eq(schema.drafts.id, draft!.id));
+    await running.reconcileMailboxes();
+    expect(await mailboxStatus(db, cara.box.id)).toBeUndefined();
+    expect((await mailboxesOf(db, company.id)).map((row) => row.address).sort()).toEqual(
+      [cara.box.address, team.box.address].sort(),
+    );
+  });
 });

@@ -524,6 +524,7 @@ export async function findOrgMailbox(db: Db, orgId: string, address: string) {
   const [row] = await db
     .select({
       id: mailboxes.id,
+      kind: mailboxes.kind,
       provider: mailboxes.provider,
       status: mailboxes.status,
       credentialsEnc: mailboxes.credentialsEnc,

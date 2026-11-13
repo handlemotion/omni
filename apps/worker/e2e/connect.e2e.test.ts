@@ -367,7 +367,17 @@ describe("where a connected account goes (ADR 0024)", () => {
     const removed = await api(`/connect/google/${mailboxId}`, eve.session, { method: "DELETE" });
     expect(removed.status).toBe(204);
     const [disconnect] = (await mailService.waitFor(disconnectAt + 1)).slice(disconnectAt);
-    expect(JSON.parse(disconnect!.body)).toMatchObject({ mailboxId, userId });
+    // The account's own workspace and member, so a mail service from before ADR 0024 finds it.
+    const [owner] = await database.db
+      .select({ id: schema.members.id })
+      .from(schema.members)
+      .where(eq(schema.members.organizationId, space!.orgId));
+    expect(JSON.parse(disconnect!.body)).toEqual({
+      mailboxId,
+      userId,
+      orgId: space!.orgId,
+      memberId: owner!.id,
+    });
   });
 
   test("an address is placed in the company that locked its domain, if the person is its member", async () => {

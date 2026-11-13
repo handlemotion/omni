@@ -1,10 +1,17 @@
 // Where a mailbox lives (ADR 0024 decision 2): its address decides, not the workspace that happens
 // to be open. An address on a company's locked domain belongs to that company; any other address
 // belongs to the connecting person's Personal space.
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { ensurePersonalSpace } from "./personal-space.ts";
-import { mailboxAccess, mailboxes, mailDomains, members, personalSpaces } from "./schema/index.ts";
+import {
+  drafts,
+  mailActions,
+  mailboxes,
+  mailDomains,
+  members,
+  personalSpaces,
+} from "./schema/index.ts";
 import { companyForAddress } from "./session-scopes.ts";
 
 export type Placement =
@@ -37,36 +44,6 @@ export async function placeForAddress(
   return { ok: true, orgId, memberId: member.id, kind: company ? "company" : "personal" };
 }
 
-/**
- * The Google accounts `userId` has a grant on, in every workspace, or only in `scopeOrgId` for a
- * scoped session: what Settings lists. Disconnecting one still needs its owner grant.
- */
-export async function listUserGoogleAccounts(db: Db, userId: string, scopeOrgId?: string | null) {
-  return db
-    .select({
-      id: mailboxes.id,
-      orgId: mailboxes.orgId,
-      address: mailboxes.address,
-      status: mailboxes.status,
-      memberId: members.id,
-    })
-    .from(mailboxes)
-    .innerJoin(mailboxAccess, eq(mailboxAccess.mailboxId, mailboxes.id))
-    .innerJoin(
-      members,
-      and(eq(members.id, mailboxAccess.memberId), eq(members.organizationId, mailboxes.orgId)),
-    )
-    .where(
-      and(
-        eq(members.userId, userId),
-        eq(mailboxes.provider, "gmail"),
-        eq(mailboxes.kind, "personal"),
-        scopeOrgId ? eq(mailboxes.orgId, scopeOrgId) : sql`true`,
-      ),
-    )
-    .orderBy(asc(mailboxes.address));
-}
-
 /** A mailbox in someone's Personal space whose address a company they belong to has since locked. */
 export interface MisplacedMailbox {
   id: string;
@@ -84,19 +61,27 @@ export interface MisplacedMailbox {
  * mailbox whose owner is not a member there stays until they join.
  */
 export async function listMisplacedMailboxes(db: Db): Promise<MisplacedMailbox[]> {
+  // The closest company lock on each Personal-space mailbox's domain first, then the owner's
+  // membership in that company: a member of a parent's company must not take a subdomain that
+  // another company locked.
   const rows = (await db.execute(sql`
-    select distinct on (m.id)
-      m.id, m.org_id, m.address, m.provider, m.credentials_enc,
-      d.org_id as target_org_id, cm.id as target_member_id
-    from ${mailboxes} m
+    with closest as (
+      select distinct on (m.id) m.id as mailbox_id, d.org_id
+      from ${mailboxes} m
+      join ${personalSpaces} ps on ps.org_id = m.org_id
+      join ${mailDomains} d
+        on lower(split_part(m.address, '@', 2)) = d.domain
+        or lower(split_part(m.address, '@', 2)) like '%.' || d.domain
+      where m.kind = 'personal' and m.status <> 'disabled'
+        and not exists (select 1 from ${personalSpaces} p2 where p2.org_id = d.org_id)
+      order by m.id, length(d.domain) desc
+    )
+    select m.id, m.org_id, m.address, m.provider, m.credentials_enc,
+      c.org_id as target_org_id, cm.id as target_member_id
+    from closest c
+    join ${mailboxes} m on m.id = c.mailbox_id
     join ${personalSpaces} ps on ps.org_id = m.org_id
-    join ${mailDomains} d
-      on lower(split_part(m.address, '@', 2)) = d.domain
-      or lower(split_part(m.address, '@', 2)) like '%.' || d.domain
-    join ${members} cm on cm.organization_id = d.org_id and cm.user_id = ps.user_id
-    where m.kind = 'personal' and m.status <> 'disabled'
-      and not exists (select 1 from ${personalSpaces} p2 where p2.org_id = d.org_id)
-    order by m.id, length(d.domain) desc`)) as unknown as {
+    join ${members} cm on cm.organization_id = c.org_id and cm.user_id = ps.user_id`)) as unknown as {
     id: string;
     org_id: string;
     address: string;
@@ -114,4 +99,20 @@ export async function listMisplacedMailboxes(db: Db): Promise<MisplacedMailbox[]
     targetOrgId: row.target_org_id,
     targetMemberId: row.target_member_id,
   }));
+}
+
+/**
+ * Whether `mailboxId` holds work only Postgres has: a draft (drafts are not mirrored to the
+ * provider) or an outbox action not finished yet. Moving it would delete them.
+ */
+export async function hasUnsyncedWork(db: Db, mailboxId: string): Promise<boolean> {
+  const [row] = (await db.execute(sql`
+    select (
+      exists (select 1 from ${drafts} d where d.mailbox_id = ${mailboxId})
+      or exists (
+        select 1 from ${mailActions} a
+        where a.mailbox_id = ${mailboxId} and a.status in ('pending', 'running')
+      )
+    ) as busy`)) as unknown as { busy: boolean }[];
+  return row?.busy ?? false;
 }

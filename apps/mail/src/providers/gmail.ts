@@ -17,7 +17,7 @@ import {
   findGmailMailboxes,
   findOrgMailbox,
   findOrgMailboxById,
-  listUserGoogleAccounts,
+  forUser,
   mailboxOwnerIds,
   placeForAddress,
   saveMailbox,
@@ -374,7 +374,7 @@ export async function disconnectGoogle(
   const { db, logger } = deps;
   if (input.userId) {
     // The person's own account, in whichever workspace it lives (ADR 0024).
-    const owned = (await listUserGoogleAccounts(db, input.userId)).find(
+    const owned = (await forUser(db, input.userId).googleAccounts()).find(
       (account) => account.id === input.mailboxId,
     );
     if (!owned) return { mailboxId: input.mailboxId };
