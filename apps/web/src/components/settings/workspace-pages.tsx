@@ -33,7 +33,7 @@ import {
   useRemoveDomain,
   useRotateChallenge,
 } from "@/hooks/use-onboarding.ts";
-import { rememberedChallenge } from "@/lib/onboarding.ts";
+import { challengePasses, recordPasses, rememberedChallenge } from "@/lib/onboarding.ts";
 import {
   useCancelInvitation,
   useInvitations,
@@ -49,7 +49,7 @@ import { useWorkspaceMailboxes } from "@/hooks/use-mailbox-members.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useRemoveWorkspaceLogo, useUploadWorkspaceLogo } from "@/hooks/use-pictures.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
-import type { DnsRecord, OnboardingDomain, OrgMailbox, Workspace } from "@/lib/types.ts";
+import type { OnboardingDomain, OrgMailbox, Workspace } from "@/lib/types.ts";
 import { NameInputRow, PersonAvatar } from "./account-pages";
 import {
   type InboxOwner,
@@ -213,7 +213,6 @@ export function GeneralPage() {
 }
 
 /** Passing: the provider saw it, or the domain's own nameservers already serve it. */
-const recordPasses = (record: DnsRecord) => record.verified || record.diagnostic?.status === "ok";
 
 /** A domain's state in one word, and the badge colour it reads in. */
 function domainState(domain: OnboardingDomain) {
@@ -403,10 +402,7 @@ function shownRecords(domain: OnboardingDomain): TableRecord[] {
           value: rememberedChallenge(domain) ?? "",
           purpose: "ownership",
           required: true,
-          status:
-            domain.challenge.verified || domain.challenge.diagnostic?.status === "ok"
-              ? "valid"
-              : "pending",
+          status: challengePasses(domain) ? "valid" : "pending",
         },
       ]
     : [];

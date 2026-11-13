@@ -42,27 +42,45 @@ export function onboardingExit(
 }
 
 /**
- * Every onboarding step, in order: the workspace's name, an inbox to read (a Google account, or
- * your own domain with its DNS and a mailbox), teammates (skippable), and the plan, only where
- * billing is on (ADR 0015). The plan comes last, so setup finishes the moment it starts.
+ * Every onboarding step, in one flat order that Back and Continue walk one step at a time: the
+ * workspace's name, its domain (and where its mail stays: Google, or Omni), the domain's DNS
+ * records, its inboxes (Google accounts, or mailboxes on the domain), teammates (skippable), and
+ * the plan, only where billing is on (ADR 0015). A company's mail needs its domain first
+ * (ADR 0024): an account lands where its address belongs. The plan comes last, so setup finishes
+ * the moment it starts.
  */
-export type OnboardingPage = "Workspace" | "Inbox" | "Team" | "Plan";
+export type OnboardingPage = "Workspace" | "Domain" | "Records" | "Inbox" | "Team" | "Plan";
 
 /** What each step is called (the progress dots' label). */
 export const PAGE_TITLES: Record<OnboardingPage, string> = {
   Workspace: "Create your workspace",
-  Inbox: "Connect your inbox",
+  Domain: "Your domain",
+  Records: "DNS records",
+  Inbox: "Inboxes",
   Team: "Invite your team",
   Plan: "Plan",
 };
 
 /** This setup's steps. */
 export function onboardingPages(data: Pick<Onboarding, "billing"> | undefined): OnboardingPage[] {
-  return ["Workspace", "Inbox", "Team", ...(data?.billing.enabled ? (["Plan"] as const) : [])];
+  return [
+    "Workspace",
+    "Domain",
+    "Records",
+    "Inbox",
+    "Team",
+    ...(data?.billing.enabled ? (["Plan"] as const) : []),
+  ];
 }
 
-const recordPasses = (r: OnboardingDomain["records"][number]) =>
-  r.verified || r.diagnostic?.status === "ok";
+/**
+ * A record passes when the domain's own nameservers serve it. Their answer, when there is one,
+ * wins over the provider's flag: Purelymail's stored verdict can say an SPF record is in place
+ * while public DNS holds only the old one.
+ */
+export const recordPasses = (
+  r: Pick<OnboardingDomain["records"][number], "verified" | "diagnostic">,
+) => (r.diagnostic ? r.diagnostic.status === "ok" : r.verified);
 
 /** Omni's ownership record and the provider's ownership records all pass. */
 export function ownershipReady(domain: OnboardingDomain): boolean {
@@ -77,12 +95,20 @@ export function mailRecordsReady(domain: OnboardingDomain): boolean {
   return domain.records.filter((r) => r.check !== "ownership").every(recordPasses);
 }
 
+/** Every record the domain's provider needs passes: it can take mail (or connect accounts). */
+export const domainReady = (domain: OnboardingDomain) =>
+  ownershipReady(domain) && mailRecordsReady(domain);
+
 /** Whether a step is done, from what is saved, never from the page someone is on. */
 export function pageDone(page: OnboardingPage, data: Onboarding | undefined): boolean {
   const org = data?.organization;
   switch (page) {
     case "Workspace":
       return !!org;
+    case "Domain":
+      return !!data?.domains.length;
+    case "Records":
+      return !!data?.domains.some(domainReady);
     case "Inbox":
       return !!data?.mailboxes.length;
     case "Team":

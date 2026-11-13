@@ -39,6 +39,8 @@
     "EXPO_PUSH_ENABLED": "false",
     // Billing (ADR 0015). Off unless the STRIPE_SECRET_KEY secret is set; then the monthly price
     // id and the allowance are required. Amounts live in Stripe; these are ids and numbers only.
+    // "off" turns billing off with the Stripe settings left in place.
+    "BILLING": "",
     "STRIPE_PRICE_MONTHLY": "",
     "STRIPE_PRICE_YEARLY": "",
     // Public: Stripe.js needs it to add a card in the Billing page. Empty: cards are added in the portal.

@@ -33,6 +33,7 @@ let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
 let worker: Awaited<ReturnType<typeof startWorker>>;
 let unbilled: Awaited<ReturnType<typeof startWorker>>;
+let switchedOff: Awaited<ReturnType<typeof startWorker>>;
 
 beforeAll(async () => {
   database = await createTestDatabase();
@@ -55,6 +56,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await worker?.server.close();
   await unbilled?.server.close();
+  await switchedOff?.server.close();
   await mailService?.close();
   await database?.teardown();
 });
@@ -462,8 +464,11 @@ test("one free trial per account: the same person's next workspace pays, even af
   expect(await taken.text()).toContain("this workspace has had its free trial");
 }, 60_000);
 
-test("with no Stripe configuration there is no billing: no webhook, no limits, all writable", async () => {
-  unbilled = await startWorker({ databaseUrl: database.url, mailServiceUrl: mailService.url });
+/**
+ * Checks there is no billing on `unbilled`: no plan in setup, no limits, no checkout, cards or
+ * webhook. Answers what `/api/billing` says, for the test to assert.
+ */
+async function withoutBilling(unbilled: Awaited<ReturnType<typeof startWorker>>) {
   const { db } = database;
   const org = await createOrg(db, "self-hosted");
   const email = `self-${randomUUID().slice(0, 8)}@omni.test`;
@@ -477,7 +482,7 @@ test("with no Stripe configuration there is no billing: no webhook, no limits, a
   });
   const cookie = await signIn(unbilled, db, email);
 
-  expect(await billing(cookie, unbilled)).toEqual({ enabled: false });
+  const answer = await billing(cookie, unbilled);
   // Setup has no plan page and nothing to pay.
   expect(await (await api(unbilled, "/onboarding", cookie)).json()).toMatchObject({
     billing: { enabled: false },
@@ -494,6 +499,30 @@ test("with no Stripe configuration there is no billing: no webhook, no limits, a
     stripeEvent("customer.subscription.created", {}, new Date()),
   );
   expect(webhook.status).toBe(404);
+  return answer;
+}
+
+test("with no Stripe configuration there is no billing: no webhook, no limits, all writable", async () => {
+  unbilled = await startWorker({ databaseUrl: database.url, mailServiceUrl: mailService.url });
+  expect(await withoutBilling(unbilled)).toEqual({ enabled: false });
+}, 60_000);
+
+// Catches: `BILLING=off` ignored while Stripe is configured (setup still asks for a trial), or
+// the Worker refusing to start over Stripe settings it should leave unchecked.
+test("BILLING=off turns billing off with every Stripe setting still in place", async () => {
+  switchedOff = await startWorker({
+    databaseUrl: database.url,
+    mailServiceUrl: mailService.url,
+    vars: {
+      BILLING: "off",
+      STRIPE_PRICE_MONTHLY: MONTHLY_PRICE,
+      STRIPE_PRICE_YEARLY: YEARLY_PRICE,
+      BILLING_TRIAL_DAYS: "14",
+      BILLING_TRIAGE_ALLOWANCE: "500",
+    },
+    secrets: BILLING_SECRETS,
+  });
+  expect(await withoutBilling(switchedOff)).toEqual({ enabled: false });
 }, 60_000);
 
 // Catches: a Personal space (ADR 0024) shown as read-only, or one that spends its owner's

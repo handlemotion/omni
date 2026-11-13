@@ -62,6 +62,8 @@ AI_DAILY_TOKEN_CAP=1000000
 # --- Billing (optional, ADR 0015; docs/self-hosting.md "Billing") ---
 # Leave STRIPE_SECRET_KEY empty for no billing: no plan, no limits. Set it (test mode, sk_test_...)
 # and the three marked "required" below must be set too, or the Worker will not start.
+# Optional. "off" turns billing off even with the Stripe settings below set (they stay unchecked).
+BILLING=
 # Secret. Stripe secret key.
 STRIPE_SECRET_KEY=
 # Secret, required. Signing secret of the webhook endpoint (locally: `stripe listen` prints it).

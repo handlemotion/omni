@@ -405,6 +405,7 @@ standing is read-only: its mail syncs and reads, but nothing is sent or changed.
 
 | Variable                   | Kind   | Required with billing | Notes                                                                                                          |
 | -------------------------- | ------ | --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `BILLING`                  | var    | no                    | `off` turns billing off with the Stripe settings left in place (and unchecked). Empty: on when the key is set. |
 | `STRIPE_SECRET_KEY`        | secret | turns it on           | Stripe secret key (`sk_test_…` in development).                                                                |
 | `STRIPE_WEBHOOK_SECRET`    | secret | yes                   | Signing secret of the webhook endpoint below (`whsec_…`).                                                      |
 | `STRIPE_PRICE_MONTHLY`     | var    | yes                   | Price id of the plan's monthly price. Amounts live in Stripe.                                                  |

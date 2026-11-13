@@ -71,6 +71,8 @@ const positiveInt = optionalText.pipe(wholeNumber.pipe(z.number().positive()).op
  * Amounts live in Stripe as prices; only their ids are config.
  */
 const billingFields = {
+  /** `off` turns billing off even with the Stripe settings below in place. */
+  BILLING: optionalText.pipe(z.enum(["off"]).optional()),
   STRIPE_SECRET_KEY: optionalText,
   STRIPE_WEBHOOK_SECRET: optionalText,
   /** Monthly price of the plan. */
@@ -123,6 +125,8 @@ export const authEnvSchema = z
     message: "set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET together, or neither",
   })
   .superRefine((env, ctx) => {
+    // Switched off: whatever Stripe settings remain are kept for later and not checked.
+    if (env.BILLING === "off") return;
     // Half a billing setup is a mistake, not "billing off": name what is missing.
     if (!env.STRIPE_SECRET_KEY) {
       const stray = [
@@ -177,7 +181,10 @@ export const authEnvSchema = z
         : undefined,
     signUp: env.SIGN_UP,
     billing:
-      env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && env.STRIPE_PRICE_MONTHLY
+      env.BILLING !== "off" &&
+      env.STRIPE_SECRET_KEY &&
+      env.STRIPE_WEBHOOK_SECRET &&
+      env.STRIPE_PRICE_MONTHLY
         ? {
             secretKey: env.STRIPE_SECRET_KEY,
             webhookSecret: env.STRIPE_WEBHOOK_SECRET,

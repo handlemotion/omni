@@ -70,48 +70,59 @@ async function signedIn(email: string, path: string): Promise<Page> {
   return page;
 }
 
-// Catches: setup leaving for Google before the company owns its domain, so every account it
-// connects opens in the person's Personal space and the company is left with none.
-test("adding a Google account in setup first claims the company's domain, mail staying at Google", async () => {
+const heading = (page: Page, name: string) => page.getByRole("heading", { name }).waitFor();
+
+/** The claims on `domain`, by provider. */
+const claims = (domain: string) =>
+  db
+    .select({ provider: schema.domainClaims.provider, status: schema.domainClaims.status })
+    .from(schema.domainClaims)
+    .where(eq(schema.domainClaims.domain, domain));
+
+// Catches: setup leaving for Google before the company owns its domain (every account would open
+// in its owner's Personal space), Back jumping to a step that wasn't the one before, and a domain
+// that can't be changed once entered.
+test("setup walks one step list: the domain first, Back one step at a time, the domain editable", async () => {
   const page = await signedIn(`founder-${Date.now()}@gmail.test`, "/onboarding");
   await page.getByLabel("Workspace name").fill("Acme");
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("heading", { name: "Connect your inbox" }).waitFor();
 
-  await page
-    .getByRole("button", { name: /Add account/ })
-    .first()
-    .click();
-  await page.getByRole("heading", { name: "Your company's domain" }).waitFor();
-  expect(new URL(page.url()).host).toBe(new URL(String(worker.url)).host);
-
-  const domain = `acme-${Date.now()}.test`;
-  await page.getByLabel("Domain").fill(domain);
+  // The domain comes before any account; at Google by default where Google is set up.
+  await heading(page, "Your company's domain");
+  await page.getByText("Google Workspace", { exact: true }).waitFor();
+  const first = `acme-${Date.now()}.test`;
+  await page.getByRole("textbox", { name: "Domain" }).fill(first);
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("heading", { name: `Verify you own ${domain}` }).waitFor();
-  const claims = await db
-    .select({ provider: schema.domainClaims.provider })
-    .from(schema.domainClaims)
-    .where(eq(schema.domainClaims.domain, domain));
-  expect(claims).toEqual([{ provider: "gmail" }]);
+  await heading(page, `Verify you own ${first}`);
+  expect(await claims(first)).toEqual([{ provider: "gmail", status: "pending" }]);
 
-  // Back on the inbox step, the row now returns to the domain's DNS until it verifies.
+  // Back is the step before, with what was entered: the domain, ready to change.
   await page.getByRole("button", { name: "Back" }).click();
-  await page
-    .getByRole("button", { name: /Add account/ })
-    .first()
-    .click();
-  await page.getByRole("heading", { name: `Verify you own ${domain}` }).waitFor();
+  await heading(page, "Your company's domain");
+  expect(await page.getByRole("textbox", { name: "Domain" }).inputValue()).toBe(first);
+  const second = `acme-two-${Date.now()}.test`;
+  await page.getByRole("textbox", { name: "Domain" }).fill(second);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await heading(page, `Verify you own ${second}`);
+  // The first claim, still waiting for DNS, gave way to the second.
+  expect(await claims(first)).toEqual([{ provider: "gmail", status: "released" }]);
+  expect(await claims(second)).toEqual([{ provider: "gmail", status: "pending" }]);
+
+  // Back twice is the workspace, never a step out of order.
+  await page.getByRole("button", { name: "Back" }).click();
+  await heading(page, "Your company's domain");
+  await page.getByRole("button", { name: "Back" }).click();
+  await heading(page, "Welcome to Omni");
+  expect(new URL(page.url()).host).toBe(new URL(String(worker.url)).host);
 });
 
-// Catches: a domain already claimed on the other path (mail moving to Omni) standing in for the
-// Google one, so the Google domain entered never opens its DNS.
-test("the Google path keeps its own domain beside one claimed for Omni", async () => {
+// Catches: switching a domain from Omni to Google leaving setup on the old domain's records.
+test("a domain claimed for Omni can be switched to Google from the domain step", async () => {
   const name = `Duo ${Date.now()}`;
   const page = await signedIn(`duo-${Date.now()}@gmail.test`, "/onboarding");
   await page.getByLabel("Workspace name").fill(name);
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("heading", { name: "Connect your inbox" }).waitFor();
+  await heading(page, "Your company's domain");
   const [org] = await db
     .select({ id: schema.organizations.id })
     .from(schema.organizations)
@@ -120,36 +131,27 @@ test("the Google path keeps its own domain beside one claimed for Omni", async (
     .select({ id: schema.members.id })
     .from(schema.members)
     .where(eq(schema.members.organizationId, org!.id));
-  const omni = `omni-${Date.now()}.test`;
+  const domain = `omni-${Date.now()}.test`;
   await openClaim(db, {
     orgId: org!.id,
-    domain: omni,
+    domain,
     memberId: owner!.id,
     challengeHash: "0".repeat(64),
     provider: "imap",
     dnsRecords: [],
   });
-  // Setup resumes where that path stopped: the Omni domain's DNS.
+
+  // Setup resumes on that domain's records; Back opens the domain step with it, at Omni.
   await page.reload();
-  await page.getByRole("heading", { name: `Verify you own ${omni}` }).waitFor();
+  await heading(page, `Verify you own ${domain}`);
   await page.getByRole("button", { name: "Back" }).click();
-
-  await page
-    .getByRole("button", { name: /Add account/ })
-    .first()
-    .click();
-  await page.getByRole("heading", { name: "Your company's domain" }).waitFor();
-  const google = `gws-${Date.now()}.test`;
-  await page.getByLabel("Domain").fill(google);
+  await heading(page, "Your company's domain");
+  expect(await page.getByRole("textbox", { name: "Domain" }).inputValue()).toBe(domain);
+  await page.getByText("Google Workspace", { exact: true }).click();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("heading", { name: `Verify you own ${google}` }).waitFor();
-
-  // And the Omni path still opens its own.
-  await page.getByRole("button", { name: "Back" }).click();
-  await page.getByRole("button", { name: "Use Omni instead" }).click();
-  const heading = page.getByRole("heading", { name: `Verify you own ${omni}` });
-  await heading.waitFor();
-  expect(await heading.isVisible()).toBe(true);
+  await heading(page, `Verify you own ${domain}`);
+  // The same domain's claim, now at Google.
+  expect(await claims(domain)).toEqual([{ provider: "gmail", status: "pending" }]);
 });
 
 async function freePort() {

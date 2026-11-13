@@ -37,6 +37,7 @@ import {
   useFinishSetup,
   useOnboarding,
   useOnboardingExit,
+  useRemoveDomain,
   useRotateChallenge,
 } from "@/hooks/use-onboarding";
 import { useBilling, useStartCheckout, useStartTrial } from "@/hooks/use-billing";
@@ -54,7 +55,8 @@ import {
   PAGE_TITLES,
   parseServer as server,
   challengePasses,
-  mailRecordsReady,
+  domainReady,
+  recordPasses,
   ownershipReady,
   pageDone,
   rememberedChallenge,
@@ -82,6 +84,7 @@ import type { DnsRecord, Onboarding as OnboardingStatus, OnboardingDomain } from
 
 export function Onboarding() {
   const status = useOnboarding();
+  const google = useGoogleAccounts();
   // Google's way back to the inbox step, read once on this load.
   const googleReturn = useGoogleReturn();
   // Decided once, from what the route loaded: finish the active workspace, or start a new one.
@@ -93,59 +96,120 @@ export function Onboarding() {
     if (!resuming || !status.data) return "Workspace";
     return googleReturn ? "Inbox" : resumePage(status.data);
   });
-  const index = pages.indexOf(page);
+  // The domain the Domain step chose, else the newest one: Records and Inboxes follow it.
+  const [domainId, setDomainId] = useState<string>();
+  const domains = data?.domains ?? [];
+  const domain = domains.find((d) => d.id === domainId) ?? domains.at(-1);
   const finish = useFinish();
-  const next = (from: OnboardingPage) => {
-    const after = pages[pages.indexOf(from) + 1];
+  // One flat list: Continue is the next step, Back the one before, nothing in between.
+  const index = pages.indexOf(page);
+  const next = () => {
+    const after = pages[index + 1];
     if (after) setPage(after);
     else finish.run();
   };
-  // Back steps to the page before; the dots only show where setup is (dorks' onboarding).
   const previous = pages[index - 1];
   const back = previous ? () => setPage(previous) : undefined;
+  const chooseDomain = (id: string) => {
+    setDomainId(id);
+    next();
+  };
 
   return (
     <OnboardingPage pages={pages} current={page} onBack={back}>
-      {page === "Workspace" && (
-        <WorkspaceForm
-          existing={resuming ? status.data?.organization?.name : undefined}
-          onDone={() => {
-            setResuming(true);
-            next("Workspace");
-          }}
+      <Step
+        page={page}
+        data={data}
+        domain={domain}
+        googleAvailable={google.data?.available === true}
+        googleReturn={googleReturn}
+        finish={finish}
+        workspaceName={resuming ? status.data?.organization?.name : undefined}
+        onWorkspace={() => {
+          setResuming(true);
+          next();
+        }}
+        onDomain={chooseDomain}
+        onDone={next}
+      />
+    </OnboardingPage>
+  );
+}
+
+/** One step's page; each one's Continue calls `onDone` (or its own `on…`), Back the frame's. */
+function Step(props: {
+  page: OnboardingPage;
+  data: OnboardingStatus | undefined;
+  domain: OnboardingDomain | undefined;
+  googleAvailable: boolean;
+  googleReturn: GoogleOutcome | null;
+  finish: ReturnType<typeof useFinish>;
+  workspaceName: string | undefined;
+  onWorkspace: () => void;
+  onDomain: (domainId: string) => void;
+  onDone: () => void;
+}) {
+  const { domain, finish } = props;
+  switch (props.page) {
+    case "Workspace":
+      return <WorkspaceForm existing={props.workspaceName} onDone={props.onWorkspace} />;
+    case "Domain":
+      return (
+        <DomainStep
+          key={domain?.id ?? "new"}
+          domain={domain}
+          googleAvailable={props.googleAvailable}
+          onDone={props.onDomain}
         />
-      )}
-      {page === "Inbox" && (
-        <InboxStep data={data} googleReturn={googleReturn} onDone={() => next("Inbox")} />
-      )}
-      {page === "Team" && (
+      );
+    case "Records":
+      // Reached only after a domain is chosen; a fresh load without one asks for it here.
+      return domain ? (
+        <DomainForm
+          domain={domain}
+          organizationId={props.data?.organization?.id ?? ""}
+          onDone={props.onDone}
+        />
+      ) : (
+        <DomainStep
+          domain={undefined}
+          googleAvailable={props.googleAvailable}
+          onDone={props.onDomain}
+        />
+      );
+    case "Inbox":
+      return (
+        <InboxStep
+          domain={domain}
+          mailboxes={props.data?.mailboxes ?? []}
+          googleReturn={props.googleReturn}
+          onDone={props.onDone}
+        />
+      );
+    case "Team":
+      return (
         <InviteForm
           finishing={finish.isPending}
           finishProblem={finish.problem}
-          onDone={() => next("Team")}
+          onDone={props.onDone}
         />
-      )}
-      {page === "Plan" &&
-        (pageDone("Plan", data) ? (
-          <PageForm
-            title="Your plan is set"
-            description="Change it any time in Settings, Billing."
-            submit="Finish setup"
-            isPending={finish.isPending}
-            problem={finish.problem}
-            onSubmit={finish.run}
-          >
-            {null}
-          </PageForm>
-        ) : (
-          <PlanForm
-            finishing={finish.isPending}
-            finishProblem={finish.problem}
-            onDone={finish.run}
-          />
-        ))}
-    </OnboardingPage>
-  );
+      );
+    case "Plan":
+      return pageDone("Plan", props.data) ? (
+        <PageForm
+          title="Your plan is set"
+          description="Change it any time in Settings, Billing."
+          submit="Finish setup"
+          isPending={finish.isPending}
+          problem={finish.problem}
+          onSubmit={finish.run}
+        >
+          {null}
+        </PageForm>
+      ) : (
+        <PlanForm finishing={finish.isPending} finishProblem={finish.problem} onDone={finish.run} />
+      );
+  }
 }
 
 /** Marks setup complete and opens the inbox: the last step's button. */
@@ -167,11 +231,6 @@ const BackContext = createContext<(() => void) | undefined>(undefined);
  * something missing says what. The same message twice replaces itself instead of stacking.
  */
 const notify = (message: string) => setupToast(message);
-
-/** Points Back somewhere else inside a step (the inbox step's own views), or hides it. */
-function WithBack(props: { onBack: (() => void) | undefined; children: ReactNode }) {
-  return <BackContext.Provider value={props.onBack}>{props.children}</BackContext.Provider>;
-}
 
 /**
  * The frame every page shares, after dorks' onboarding: no rail or app chrome, one column in the
@@ -358,146 +417,139 @@ function WorkspaceForm(props: { existing?: string; onDone: () => void }) {
   );
 }
 
-/** Where the inbox step is: Google, or one of the domain path's three views. */
-type InboxView = "connect" | "domain" | "dns" | "mailbox";
-
 /** The domain's mail stays where it is: its own IMAP host, or Google (no mail records here). */
 const keepsHost = (d: OnboardingDomain) => d.provider === "imap" || d.provider === "gmail";
 
-/**
- * The inbox step. A company's Google accounts land in it by their address (ADR 0024), so the
- * first account asks for the company's Google domain and its ownership record; then each "Add
- * account" row connects one. "Use Omni instead" opens the domain, its DNS and a mailbox. Each is
- * a view of this one step, with Back walking them in reverse. Without a Google client on this
- * install, the Omni path is the step.
- */
-function InboxStep(props: {
-  data: OnboardingStatus | undefined;
-  googleReturn: GoogleOutcome | null;
-  onDone: () => void;
-}) {
-  const mailboxes = props.data?.mailboxes ?? [];
-  const views = useInboxViews(props.data?.domains ?? [], mailboxes, props.googleReturn);
-  const { google } = views;
-  useGoogleElsewhere(props.googleReturn, mailboxes, google?.domain);
+/** Where a domain's mail is: at Google, or moving to Omni. */
+type Host = "google" | "omni";
 
-  if (views.shown === "connect") {
-    return (
-      <ConnectInboxForm
-        mailboxes={mailboxes}
-        // Accounts connect once the company's Google domain is its own; until then a row asks
-        // for it (or, half done, shows its DNS).
-        needsDomain={!(google && domainReady(google))}
-        problem={googleProblem(props.googleReturn)}
-        onDomain={() => views.openDomain("google")}
-        onOwnDomain={() => views.openDomain("omni")}
-        onDone={props.onDone}
-      />
-    );
-  }
+/** Lowercase, without a scheme, path or trailing dot: how the Worker stores a domain. */
+const plainDomain = (text: string) =>
+  text
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z]+:\/\//, "")
+    .replace(/\/.*$/, "")
+    .replace(/\.$/, "");
+
+/**
+ * The company's domain and where its mail is: at Google (its accounts connect one by one), or
+ * moving to Omni. Editable on every visit: a different domain, or a different choice for one not
+ * verified yet, replaces the claim; a verified one stays and the new one is added beside it.
+ */
+function DomainStep(props: {
+  domain: OnboardingDomain | undefined;
+  googleAvailable: boolean;
+  onDone: (domainId: string) => void;
+}) {
+  const addDomain = useAddDomain();
+  const removeDomain = useRemoveDomain();
+  const current = props.domain;
+  const [text, setText] = useState(current?.domain ?? "");
+  // Until chosen: the domain's own, else Google where it is set up (known once that loads).
+  const [chosen, setHost] = useState<Host>();
+  const host: Host =
+    chosen ??
+    (current
+      ? current.provider === "gmail"
+        ? "google"
+        : "omni"
+      : props.googleAvailable
+        ? "google"
+        : "omni");
+  const pending = addDomain.isPending || removeDomain.isPending;
+
+  const submit = async () => {
+    const name = plainDomain(text);
+    if (!name) return notify("Enter your domain, like acme.com.");
+    const currentHost: Host | undefined = current
+      ? current.provider === "gmail"
+        ? "google"
+        : "omni"
+      : undefined;
+    if (current && name === current.domain && host === currentHost) return props.onDone(current.id);
+    if (current && name === current.domain && current.status === "verified") {
+      return notify(
+        `${name} is already set up. Remove it in Settings to change where its mail is.`,
+      );
+    }
+    try {
+      // A claim still waiting for DNS goes, so setup follows the new answer.
+      if (current && current.status !== "verified") await removeDomain.mutateAsync(current.id);
+      const added = await addDomain.mutateAsync(
+        host === "google" ? { domain: name, host: "gmail" } : name,
+      );
+      props.onDone(added.id);
+    } catch (error) {
+      notify((error as Error).message || "The domain could not be added.");
+    }
+  };
+
   return (
-    <DomainPath
-      view={views.shown}
-      host={views.host}
-      domain={views.domain}
-      organizationId={props.data?.organization?.id ?? ""}
-      mailboxes={mailboxes}
-      setView={views.setView}
-      toConnect={views.toConnect}
-      onDone={props.onDone}
-    />
+    <PageForm
+      title="Your company's domain"
+      submit="Continue"
+      isPending={pending}
+      onSubmit={() => void submit()}
+    >
+      <TextField value={text} onChange={setText} autoFocus>
+        <Label>Domain</Label>
+        <Input placeholder="acme.com" />
+      </TextField>
+      {props.googleAvailable && (
+        <ChoiceBox
+          aria-label="Where its mail is"
+          selectionMode="single"
+          disallowEmptySelection
+          selectedKeys={[host]}
+          onSelectionChange={(keys) => {
+            const [key] = [...(keys as Set<Key>)];
+            if (key === "google" || key === "omni") setHost(key);
+          }}
+          items={[
+            { id: "google", label: "Google Workspace" },
+            { id: "omni", label: "Omni" },
+          ]}
+        >
+          {(item) => <ChoiceBoxItem id={item.id} label={item.label} />}
+        </ChoiceBox>
+      )}
+    </PageForm>
   );
 }
 
 const googleProblem = (outcome: GoogleOutcome | null) =>
   outcome?.kind === "error" ? googleErrorText(outcome.reason) : null;
 
-/** The inbox step's domain views: the path's domain, its DNS, then (moving to Omni) a mailbox. */
-function DomainPath(props: {
-  view: InboxView;
-  host: "gmail" | undefined;
+/**
+ * The domain's inboxes: at Google, its accounts connect one by one and land here by address
+ * (ADR 0024); moving to Omni (or on its own host), its mailboxes are created on the domain.
+ */
+function InboxStep(props: {
   domain: OnboardingDomain | undefined;
-  organizationId: string;
   mailboxes: OnboardingStatus["mailboxes"];
-  setView: (view: InboxView) => void;
-  toConnect: (() => void) | undefined;
+  googleReturn: GoogleOutcome | null;
   onDone: () => void;
 }) {
-  const { domain, setView } = props;
-  const atGoogle = domain?.provider === "gmail";
-  if (props.view === "domain" || !domain) {
+  const { domain } = props;
+  useGoogleElsewhere(props.googleReturn, props.mailboxes, domain?.domain);
+  if (domain && domain.provider !== "gmail") {
     return (
-      <WithBack onBack={props.toConnect}>
-        <DomainEntryForm host={props.host} onDone={() => setView("dns")} />
-      </WithBack>
-    );
-  }
-  if (props.view === "dns") {
-    return (
-      <WithBack onBack={props.toConnect}>
-        <DomainForm
-          domain={domain}
-          organizationId={props.organizationId}
-          // At Google, the domain is all this path needed: back to connecting its accounts.
-          onDone={() => setView(atGoogle ? "connect" : "mailbox")}
-        />
-      </WithBack>
-    );
-  }
-  return (
-    <WithBack onBack={() => setView("dns")}>
       <MailboxesForm
         domain={domain}
         ownHost={domain.provider === "imap"}
         created={props.mailboxes}
         onDone={props.onDone}
       />
-    </WithBack>
+    );
+  }
+  return (
+    <ConnectInboxForm
+      mailboxes={props.mailboxes}
+      problem={googleProblem(props.googleReturn)}
+      onDone={props.onDone}
+    />
   );
-}
-
-/**
- * The inbox step's view, and which domain path is open: the company's Google domain, or its mail
- * moving to Omni. Opening a path shows its DNS when its domain is already claimed.
- */
-function useInboxViews(
-  domains: OnboardingDomain[],
-  mailboxes: OnboardingStatus["mailboxes"],
-  googleReturn: GoogleOutcome | null,
-) {
-  const accounts = useGoogleAccounts();
-  const stepBack = useContext(BackContext);
-  // Each path keeps its own domain: one claimed at Google, one whose mail moves to Omni.
-  const google = domains.find((d) => d.provider === "gmail");
-  const omni = domains.find((d) => d.provider !== "gmail");
-  const [path, setPath] = useState<"google" | "omni">(() => (omni && !google ? "omni" : "google"));
-  const [view, setView] = useState<InboxView>(() =>
-    firstInboxView(google ?? omni, mailboxes.length > 0 || googleReturn !== null),
-  );
-  // No Google here: the Omni path is all there is, and its first view goes back a step.
-  const googleOff = accounts.data?.available === false && mailboxes.length === 0;
-  const domain = path === "google" && !googleOff ? google : omni;
-  const openDomain = (next: "google" | "omni") => {
-    setPath(next);
-    setView((next === "google" ? google : omni) ? "dns" : "domain");
-  };
-  const shown: InboxView = view === "connect" && googleOff ? (domain ? "dns" : "domain") : view;
-  return {
-    shown,
-    setView,
-    openDomain,
-    google,
-    domain,
-    host: path === "google" && !googleOff ? ("gmail" as const) : undefined,
-    toConnect: googleOff ? stepBack : () => setView("connect"),
-  };
-}
-
-/** Where the inbox step opens: connecting, or where the domain path stopped. */
-function firstInboxView(domain: OnboardingDomain | undefined, connected: boolean): InboxView {
-  if (connected || !domain) return "connect";
-  if (domain.provider === "gmail") return domainReady(domain) ? "connect" : "dns";
-  return domainReady(domain) && domain.provider !== "imap" ? "mailbox" : "dns";
 }
 
 /**
@@ -524,17 +576,13 @@ function useGoogleElsewhere(
 }
 
 /**
- * One "Connect Google" button, which leaves for Google and comes back here connected. Once an
- * inbox exists, it is listed and Continue moves on. Personal Gmail only (ADR 0023): a shared
- * support@ address goes through your own domain, so the copy doesn't promise one.
+ * The company's Google accounts, each connected with Google, then listed. Personal Gmail only
+ * (ADR 0023): a shared support@ address goes through your own domain, so the copy doesn't promise
+ * one.
  */
 function ConnectInboxForm(props: {
   mailboxes: OnboardingStatus["mailboxes"];
-  /** The company's Google domain is not its own yet: a row asks for it before connecting. */
-  needsDomain: boolean;
   problem: string | null;
-  onDomain: () => void;
-  onOwnDomain: () => void;
   onDone: () => void;
 }) {
   const connect = useConnectGoogle("onboarding");
@@ -549,11 +597,6 @@ function ConnectInboxForm(props: {
       problem={props.problem}
       onSubmit={() =>
         props.mailboxes.length > 0 ? props.onDone() : notify("Connect an inbox first.")
-      }
-      secondary={
-        <Button intent="outline" onPress={props.onOwnDomain}>
-          Use Omni instead
-        </Button>
       }
     >
       <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border text-sm">
@@ -577,7 +620,7 @@ function ConnectInboxForm(props: {
               type="button"
               className="group/row flex h-12 w-full items-center gap-3 px-4 text-start outline-hidden focus-visible:bg-hover"
               disabled={connect.isPending}
-              onClick={() => (props.needsDomain ? props.onDomain() : connect.mutate())}
+              onClick={() => connect.mutate()}
             >
               {/* No provider's mark until one is connected: Google is the first of several. */}
               <IconPlus aria-hidden className="size-4 shrink-0 text-muted-foreground" />
@@ -589,40 +632,6 @@ function ConnectInboxForm(props: {
           </li>
         ))}
       </ul>
-    </PageForm>
-  );
-}
-
-/** The domain your team gets mail on. Claiming it opens its DNS. */
-function DomainEntryForm(props: { host?: "gmail"; onDone: () => void }) {
-  const addDomain = useAddDomain();
-  const [domain, setDomain] = useState("");
-  const [problem, setProblem] = useState<string | null>(null);
-  const atGoogle = props.host === "gmail";
-  return (
-    <PageForm
-      title={atGoogle ? "Your company's domain" : "Use your own domain"}
-      description={
-        atGoogle
-          ? undefined
-          : "Add the domain your team gets mail on. Your mail keeps flowing as it does today."
-      }
-      submit="Continue"
-      isPending={addDomain.isPending}
-      problem={problem}
-      onSubmit={() => {
-        setProblem(null);
-        if (!domain.trim()) return notify("Enter your domain, like acme.com.");
-        addDomain.mutate(atGoogle ? { domain, host: "gmail" } : domain, {
-          onSuccess: props.onDone,
-          onError: (error) => setProblem(error.message),
-        });
-      }}
-    >
-      <TextField value={domain} onChange={setDomain} autoFocus>
-        <Label>Domain</Label>
-        <Input placeholder="acme.com" />
-      </TextField>
     </PageForm>
   );
 }
@@ -651,8 +660,8 @@ interface ShownRecord {
   diagnostic: Diagnostic | null;
 }
 
-/** Passing: the provider saw it, or the domain's own nameservers already serve it. */
-const passes = (r: ShownRecord) => r.verified || r.diagnostic?.status === "ok";
+/** Passing: the domain's own nameservers serve it (or, unchecked yet, the provider saw it). */
+const passes = (r: ShownRecord) => recordPasses(r);
 
 function shownRecords(domain: OnboardingDomain): ShownRecord[] {
   const challenge: ShownRecord[] = domain.challenge
@@ -694,9 +703,6 @@ function groupProblems(
       .map((r) => diagnosticText(r.diagnostic!)),
   ];
 }
-
-/** Both DNS stages pass: ownership, then the mail records (none on a domain's own host). */
-const domainReady = (d: OnboardingDomain) => ownershipReady(d) && mailRecordsReady(d);
 
 /**
  * The domain's DNS, one page in two stages: its ownership records, then the provider's mail
