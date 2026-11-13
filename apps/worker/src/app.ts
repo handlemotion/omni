@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/cloudflare";
+import { withSignInRequest } from "@omni/auth";
 import { REQUEST_ID_HEADER as SIGNED_REQUEST_ID_HEADER } from "@omni/crypto";
 import { orgSetupStep } from "@omni/db";
 import { Hono } from "hono";
@@ -102,7 +103,7 @@ const api = new Hono<AppEnv>()
     const org = c.req.query("org");
     const member =
       org && org !== c.var.member.orgId
-        ? await findMember(c.var.db, c.var.user.id, org)
+        ? await findMember(c.var.db, c.var.user.id, org, c.var.user.scopeOrgId)
         : c.var.member;
     if (!member) return c.json({ error: "not a member of that organization" }, 404);
     const { id, orgId } = member;
@@ -137,7 +138,10 @@ export const app = new Hono<AppEnv>()
   // Checkout and the portal go through /api/billing, which pins them to the active workspace.
   // The plugin's own POSTs would also let a person subscribe for themselves, so they are closed.
   .post("/api/auth/subscription/*", (c) => c.json({ error: "use /api/billing" }, 404))
-  .on(["GET", "POST"], "/api/auth/*", limitAuth, (c) => c.var.auth.handler(c.req.raw))
+  .on(["GET", "POST"], "/api/auth/*", limitAuth, (c) =>
+    // Each auth request records the address it signs in with, to scope its session (ADR 0024).
+    withSignInRequest(() => c.var.auth.handler(c.req.raw)),
+  )
   // Before `api`: these work for a user who has no organization yet.
   .route("/api/onboarding", onboarding)
   .route("/api/workspaces", workspaces)

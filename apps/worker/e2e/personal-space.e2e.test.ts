@@ -131,6 +131,7 @@ test("today's clients do not see it: no default workspace, and not listed unless
 
   expect((await get(jar, "/workspaces")).body).toEqual({
     activeOrganizationId: null,
+    scopedTo: null,
     workspaces: [],
   });
   const all = await get(jar, "/workspaces?include=personal");

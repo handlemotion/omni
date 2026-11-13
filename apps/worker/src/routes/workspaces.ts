@@ -13,8 +13,12 @@ export const workspaces = new Hono<AppEnv>().get("/", async (c) => {
     /** The session's active organization (what `/api/me` answers for), or null with none. */
     activeOrganizationId: resolved.member?.orgId ?? null,
     // `?include=personal` adds the user's Personal space (ADR 0024); older clients never ask.
-    workspaces: await listUserWorkspaces(c.var.db, resolved.user.id, {
-      includePersonal: c.req.query("include") === "personal",
-    }),
+    // A session opened with a company's address lists only that company (ADR 0024).
+    workspaces: (
+      await listUserWorkspaces(c.var.db, resolved.user.id, {
+        includePersonal: c.req.query("include") === "personal",
+      })
+    ).filter((workspace) => !resolved.user.scopeOrgId || workspace.id === resolved.user.scopeOrgId),
+    scopedTo: resolved.user.scopeOrgId,
   });
 });

@@ -18,6 +18,11 @@ import { zValidator } from "../validator.ts";
 const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   const resolved = await resolveSession(c);
   if (!resolved) throw new HTTPException(401, { message: "sign in first" });
+  // A session opened with a company's address may read its sign-in emails but not change them:
+  // a new one would be a lasting way in that is not scoped to that company (ADR 0024).
+  if (resolved.user.scopeOrgId && c.req.method !== "GET") {
+    throw new HTTPException(403, { message: "signed in with a work address: sign in another way" });
+  }
   c.set("user", resolved.user);
   await next();
 });

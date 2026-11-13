@@ -55,7 +55,9 @@ const scopeParam = z.enum(["workspace", "all"]).default("workspace");
 
 /** The read path for `scope`. */
 function reader(c: Context<AppEnv>, scope: z.infer<typeof scopeParam>) {
-  return scope === "all" ? forUser(c.var.db, c.var.user.id) : forMember(c.var.db, c.var.member.id);
+  return scope === "all"
+    ? forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId)
+    : forMember(c.var.db, c.var.member.id);
 }
 
 const listQuery = z.object({
@@ -209,7 +211,9 @@ export const mail = new Hono<AppEnv>()
    * user's members' actions: a reply sent from another workspace's thread is checked here too.
    */
   .get("/actions/:id", async (c) => {
-    const action = await forUser(c.var.db, c.var.user.id).getAction(c.req.param("id"));
+    const action = await forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId).getAction(
+      c.req.param("id"),
+    );
     if (!action) notFound();
     return c.json(action);
   })

@@ -15,6 +15,12 @@ import { APIError } from "better-auth/api";
 import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
 import { resolveSignInEmails, signInEmails } from "./sign-in-emails.ts";
 import { ensurePersonalSpaceQuietly, personalSpaceHooks } from "./personal-space.ts";
+import {
+  newSessionScope,
+  noteSignInAddress,
+  recordSessionScope,
+  sessionScopeGuard,
+} from "./session-scope.ts";
 import { refreshSessionCacheOnOrgChange } from "./session-cache.ts";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { multiSession } from "better-auth/plugins/multi-session";
@@ -358,7 +364,17 @@ export function createAuth(env: AuthEnv) {
     // A new Google user goes through the same `user.create` hook as a magic link (ADR 0018).
     // `select_account` lets one browser add a second Google account (multi-session).
     socialProviders: env.google
-      ? { google: { ...env.google, prompt: "select_account" } }
+      ? {
+          google: {
+            ...env.google,
+            prompt: "select_account",
+            // The Google address this sign-in proved, for the session's scope (ADR 0024).
+            mapProfileToUser: (profile) => {
+              if (profile.email_verified) noteSignInAddress(profile.email);
+              return {};
+            },
+          },
+        }
       : undefined,
     user: { modelName: "users" },
     session: {
@@ -429,8 +445,22 @@ export function createAuth(env: AuthEnv) {
           // A Personal space is never the default yet (ADR 0024, rollout step 1): a person with no
           // company still starts with none, so today's clients send them to onboarding as before.
           // Signing in also gives a person from before ADR 0024 their Personal space.
+          // A session opened with a company's address starts, and stays, in that company.
           before: async (session) => {
             await ensurePersonalSpaceQuietly(env.db, session.userId);
+            const scope = await newSessionScope(env.db);
+            if (scope) {
+              const [inScope] = await env.db
+                .select({ orgId: schema.members.organizationId })
+                .from(schema.members)
+                .where(
+                  and(
+                    eq(schema.members.userId, session.userId),
+                    eq(schema.members.organizationId, scope),
+                  ),
+                );
+              return { data: { ...session, activeOrganizationId: inScope?.orgId ?? null } };
+            }
             const [member] = await env.db
               .select({ orgId: schema.members.organizationId })
               .from(schema.members)
@@ -443,6 +473,9 @@ export function createAuth(env: AuthEnv) {
               .orderBy(asc(schema.members.createdAt))
               .limit(1);
             return { data: { ...session, activeOrganizationId: member?.orgId ?? null } };
+          },
+          after: async (session) => {
+            await recordSessionScope(env.db, session.id);
           },
         },
       },
@@ -521,9 +554,14 @@ export function createAuth(env: AuthEnv) {
       refreshSessionCacheOnOrgChange(),
       // Any verified sign-in email signs you in, and an invitation to one is yours (ADR 0014).
       signInEmails(env.db),
+      // A session opened with a company's address stays in that company (ADR 0024).
+      sessionScopeGuard(env.db),
       ...(env.billing ? [billingPlugin(env, env.billing)] : []),
     ],
   });
 }
 
 export type Auth = ReturnType<typeof createAuth>;
+
+/** Runs one auth request with its own sign-in store, so its session can be scoped (ADR 0024). */
+export { withSignInRequest } from "./session-scope.ts";

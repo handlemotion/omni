@@ -182,11 +182,15 @@ export function forMember(db: Db, memberId: string) {
  * each of their members can see. Each row keeps its `org_id`, and per-member state (read, done,
  * deferred) is the state of the member whose grant shows the row. The grant and org checks are
  * the ones `forMember` runs, so a user sees exactly what their members can, and nothing else.
+ * With `scopeOrgId` (a session opened with a company's address, ADR 0024), only their member in
+ * that organization counts.
  */
-export function forUser(db: Db, userId: string) {
+export function forUser(db: Db, userId: string, scopeOrgId?: string | null) {
+  const inScope = scopeOrgId ? sql` and um.organization_id = ${scopeOrgId}` : sql``;
   return mailQueries(
     db,
-    (grantee) => sql`${grantee} in (select um.id from ${members} um where um.user_id = ${userId})`,
+    (grantee) =>
+      sql`${grantee} in (select um.id from ${members} um where um.user_id = ${userId}${inScope})`,
   );
 }
 

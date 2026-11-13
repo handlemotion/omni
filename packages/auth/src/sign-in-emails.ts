@@ -1,5 +1,6 @@
 // How Better Auth sees a person's extra sign-in emails (ADR 0014). Better Auth knows one address
 // per user (`users.email`); these seams make every verified address mean the same user.
+import { noteSignInAddress } from "./session-scope.ts";
 import { findUserIdByExtraEmail, schema, type Db } from "@omni/db";
 import type {
   AuthContext,
@@ -60,6 +61,8 @@ const WRAPPED = Symbol("omni-sign-in-emails");
 function withSignInEmails(internal: InternalAdapter, db: Db): InternalAdapter {
   if ((internal as { [WRAPPED]?: true })[WRAPPED]) return internal;
   const findUserByEmail: InternalAdapter["findUserByEmail"] = async (email, options) => {
+    // The address a magic link (or a new Google account) signs in with (ADR 0024).
+    noteSignInAddress(email);
     const found = await internal.findUserByEmail(email, options);
     if (found) return found;
     const userId = await findUserIdByExtraEmail(db, email);

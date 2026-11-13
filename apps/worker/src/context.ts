@@ -1,5 +1,5 @@
 import { createAuth, type Auth, type InvitationMessage } from "@omni/auth";
-import { forUser, isCompany, schema, type Db } from "@omni/db";
+import { forUser, isCompany, schema, sessionScope, type Db } from "@omni/db";
 import { and, asc, eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
@@ -72,6 +72,11 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
 export interface SessionUser {
   id: string;
   email: string;
+  /**
+   * The one organization this session reaches when it was opened with a company's address
+   * (ADR 0024), or null when it reaches every workspace the user belongs to.
+   */
+  scopeOrgId: string | null;
 }
 
 /**
@@ -100,21 +105,30 @@ export async function resolveSession(
   if (!session) return null;
   const activeOrg = (session.session as { activeOrganizationId?: string | null })
     .activeOrganizationId;
+  const scopeOrgId = await sessionScope(c.var.db, session.session.id);
   const [active, ofThread] = await Promise.all([
-    findMember(c.var.db, session.user.id, activeOrg ?? undefined),
-    threadId ? forUser(c.var.db, session.user.id).memberFor(threadId) : null,
+    findMember(c.var.db, session.user.id, activeOrg ?? undefined, scopeOrgId),
+    threadId ? forUser(c.var.db, session.user.id, scopeOrgId).memberFor(threadId) : null,
   ]);
   return {
-    user: { id: session.user.id, email: session.user.email },
+    user: { id: session.user.id, email: session.user.email, scopeOrgId },
     member: ofThread ?? active,
   };
 }
 
 /**
  * `userId`'s member in `orgId`, or null. Without `orgId`, their oldest company membership: a
- * Personal space is never the default until clients know it (ADR 0024, rollout step 1).
+ * Personal space is never the default until clients know it (ADR 0024, rollout step 1). A session
+ * scoped to a company (`scopeOrgId`) finds only its member there, whatever `orgId` asks for.
  */
-export async function findMember(db: Db, userId: string, orgId?: string): Promise<Member | null> {
+export async function findMember(
+  db: Db,
+  userId: string,
+  orgId?: string,
+  scopeOrgId?: string | null,
+): Promise<Member | null> {
+  if (scopeOrgId && orgId && orgId !== scopeOrgId) return null;
+  if (scopeOrgId) orgId = scopeOrgId;
   const [member] = await db
     .select({
       id: schema.members.id,

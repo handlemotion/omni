@@ -400,8 +400,10 @@ test("the switcher lists only the user's workspaces and the mailboxes their memb
   await createMember(stack.database.db, a.orgId, plainEmail);
   const plainJar = new CookieJar();
   await signIn(stack.worker, stack.database.db, plainEmail, plainJar);
+  // Signed in with an address on A's locked domain, the session reaches A only (ADR 0024).
   expect((await api(plainJar, "GET", "/workspaces")).body).toEqual({
     activeOrganizationId: a.orgId,
+    scopedTo: a.orgId,
     workspaces: [expect.objectContaining({ id: a.orgId, role: "member", mailboxes: [] })],
   });
 
