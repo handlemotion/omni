@@ -1,4 +1,4 @@
-import { createAuth, type Auth, type InvitationMessage } from "@omni/auth";
+import { createAuth, usesOAuthProvider, type Auth, type InvitationMessage } from "@omni/auth";
 import { forUser, isCompany, schema, sessionAccess, type Db } from "@omni/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
@@ -42,6 +42,8 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
       db,
       ...config.auth,
       billingLog: (event, fields) => c.var.log.error(event, fields),
+      // Agents' OAuth only where it is used (ADR 0029): it costs a query each time it starts.
+      oauthProvider: usesOAuthProvider(new URL(c.req.url).pathname),
       sendMagicLink: async ({ email, url }) => {
         devLog(config, { kind: "magic-link", email, url });
         const appName = config.auth.appName;

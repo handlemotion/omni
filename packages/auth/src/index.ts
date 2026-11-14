@@ -16,6 +16,7 @@ import { APIError } from "better-auth/api";
 import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
 import { resolveSignInEmails, signInEmails } from "./sign-in-emails.ts";
 import { ensurePersonalSpaceQuietly, personalSpaceHooks } from "./personal-space.ts";
+import { mcpPlugins } from "./mcp.ts";
 import {
   newSessionScope,
   noteSignInAddress,
@@ -119,6 +120,11 @@ export const authEnvSchema = z
      * from the `org:create` CLI).
      */
     SIGN_UP: optionalText.pipe(z.enum(["open", "invitation"]).default("open")),
+    /**
+     * Hosts whose OAuth client metadata documents agents may sign in with (ADR 0029). Empty:
+     * Claude's and ChatGPT's (`claude.ai`, `chatgpt.com`).
+     */
+    MCP_CIMD_HOSTS: commaList,
     ...billingFields,
   })
   .refine((env) => !env.GOOGLE_CLIENT_ID === !env.GOOGLE_CLIENT_SECRET, {
@@ -181,6 +187,7 @@ export const authEnvSchema = z
         ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
         : undefined,
     signUp: env.SIGN_UP,
+    cimdHosts: env.MCP_CIMD_HOSTS,
     billing:
       env.BILLING !== "off" &&
       env.STRIPE_SECRET_KEY &&
@@ -292,7 +299,14 @@ function billingPlugin(env: AuthEnv, billing: BillingConfig) {
 export interface AuthEnv extends Partial<
   Pick<
     AuthConfig,
-    "trustedOrigins" | "passkeyRpId" | "appName" | "webAppURL" | "google" | "signUp" | "billing"
+    | "trustedOrigins"
+    | "passkeyRpId"
+    | "appName"
+    | "webAppURL"
+    | "google"
+    | "signUp"
+    | "billing"
+    | "cimdHosts"
   >
 > {
   db: Db;
@@ -306,6 +320,12 @@ export interface AuthEnv extends Partial<
   sendInvitation: InvitationSender;
   /** Error-level log for billing a person must act on (a canceled duplicate to refund). */
   billingLog?: BillingLog;
+  /**
+   * Whether this instance is an OAuth authorization server for agents (ADR 0029). Default on.
+   * The Worker turns it off for requests that never use it: the provider reads its resource row
+   * each time an instance starts, and the Worker starts one per request.
+   */
+  oauthProvider?: boolean;
 }
 
 /**
@@ -408,6 +428,8 @@ export function createAuth(env: AuthEnv) {
     },
     verification: { modelName: "verifications" },
     advanced: { database: { generateId: () => uuidv7() } },
+    // Browser sessions get no JWT: tokens are only for agents' OAuth grants (ADR 0029).
+    disabledPaths: ["/token"],
     // Off: its default store is per-process memory (per isolate on Workers) and it keys on
     // spoofable forwarding headers. The Worker rate-limits every auth route itself.
     rateLimit: { enabled: false },
@@ -568,6 +590,15 @@ export function createAuth(env: AuthEnv) {
       signInEmails(env.db),
       // A session opened with a company's address stays in that company (ADR 0024).
       sessionScopeGuard(env.db),
+      // People's own agents over MCP (ADR 0029).
+      ...(env.oauthProvider === false
+        ? []
+        : mcpPlugins({
+            db: env.db,
+            baseURL: env.baseURL,
+            webAppURL: env.webAppURL,
+            cimdHosts: env.cimdHosts,
+          })),
       ...(env.billing ? [billingPlugin(env, env.billing)] : []),
     ],
   });
@@ -577,3 +608,4 @@ export type Auth = ReturnType<typeof createAuth>;
 
 /** Runs one auth request with its own sign-in store, so its session can be scoped (ADR 0024). */
 export { withSignInRequest } from "./session-scope.ts";
+export * from "./mcp.ts";

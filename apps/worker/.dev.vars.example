@@ -29,6 +29,10 @@ GOOGLE_CLIENT_SECRET=
 # pending invitation, and only owners create workspaces; the first comes from
 # `pnpm --filter @omni/db org:create`).
 SIGN_UP=
+# Optional: hosts whose OAuth client metadata documents agents may connect with over MCP
+# (ADR 0029), comma separated. Empty: Claude's and ChatGPT's (claude.ai, chatgpt.com). Other
+# MCP clients register dynamically.
+MCP_CIMD_HOSTS=
 
 # --- Mail service ---
 # Base URL of apps/mail. The Worker pings it after writing to the outbox.

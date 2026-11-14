@@ -16,7 +16,7 @@ import {
   useSignInMethods,
   useSignInPasskey,
 } from "@/hooks/use-session.ts";
-import { safeRedirect } from "@/lib/session.ts";
+import { isServerPath, safeRedirect } from "@/lib/session.ts";
 
 // Figma: Omni, frame "/" (node 1:13).
 export function SignIn({ redirect }: { redirect?: string }) {
@@ -77,7 +77,11 @@ export function SignIn({ redirect }: { redirect?: string }) {
                 isPending={passkey.isPending}
                 onPress={() =>
                   passkey.mutate(undefined, {
-                    onSuccess: () => void router.history.push(safeRedirect(redirect)),
+                    onSuccess: () => {
+                      const to = safeRedirect(redirect);
+                      if (isServerPath(to)) window.location.assign(to);
+                      else router.history.push(to);
+                    },
                   })
                 }
               >

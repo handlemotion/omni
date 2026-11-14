@@ -4,7 +4,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { redirect, type ParsedLocation } from "@tanstack/react-router";
 import { joinQuery } from "./join.ts";
 import { needsSetup, onboardingQuery } from "./onboarding.ts";
-import { safeRedirect, sessionQuery } from "./session.ts";
+import { isServerPath, safeRedirect, sessionQuery } from "./session.ts";
 
 /** Signed in, member or not (the invitation page needs a user who may not have an org yet). */
 export async function requireUser(client: QueryClient, location: ParsedLocation) {
@@ -50,5 +50,7 @@ export async function requireOnboarding(client: QueryClient) {
 /** Sends a signed-in member away from the sign-in page. */
 export async function redirectIfMember(client: QueryClient, to: string | undefined) {
   const session = await client.ensureQueryData(sessionQuery());
-  if (session?.member) throw redirect({ href: safeRedirect(to) });
+  if (!session?.member) return;
+  const href = safeRedirect(to);
+  throw redirect({ href, reloadDocument: isServerPath(href) });
 }

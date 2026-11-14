@@ -52,6 +52,7 @@ Filled in per unit: see each unit's `.env.example`.
 | `GOOGLE_CLIENT_ID`     | Worker (auth)                   | no       | With `GOOGLE_CLIENT_SECRET`, turns on Google sign-in and Gmail connect. |
 | `GOOGLE_CLIENT_SECRET` | Worker (auth)                   | no       | Secret. Set together with `GOOGLE_CLIENT_ID`, or neither.               |
 | `SIGN_UP`              | Worker (auth)                   | no       | `open` (default) or `invitation`: who may sign up (ADR 0018).           |
+| `MCP_CIMD_HOSTS`       | Worker (auth)                   | no       | Hosts whose OAuth client metadata agents connect with (ADR 0029).       |
 | `PURELYMAIL_API_TOKEN` | mail service                    | no       | Secret. Lets onboarding create domains, users and app passwords.        |
 
 ### Mail service (`apps/mail`)
@@ -282,7 +283,8 @@ Expose `/ping` only to your Worker.
 One Cloudflare Worker serves the web app (`apps/web`), the API (`/api/*`), Better Auth
 (`/api/auth/*`), the AI queue consumer and realtime, all on one origin. Wrangler builds the web
 app before `dev` and `deploy` (`build` in `wrangler.jsonc`) and serves it as static assets; the
-Worker code runs first only for `/api/*`, `/health` and `/internal/*`, and any other unknown path
+Worker code runs first only for `/api/*`, `/health`, `/internal/*`, and `/mcp` and
+`/.well-known/*` (the MCP endpoint and its OAuth discovery, ADR 0029), and any other unknown path
 returns the app's `index.html` so deep links work. Its config is `apps/worker/wrangler.jsonc`;
 every name and id there is a neutral default to replace with your own.
 

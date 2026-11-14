@@ -16,7 +16,8 @@
   "assets": {
     "directory": "../web/dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/health", "/internal/*"],
+    // `/mcp` and `/.well-known/*`: the MCP endpoint and its OAuth discovery (ADR 0029).
+    "run_worker_first": ["/api/*", "/health", "/internal/*", "/mcp", "/.well-known/*"],
   },
   "vars": {
     // `test` only in the e2e suites; it unlocks test-only switches.

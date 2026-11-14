@@ -79,3 +79,16 @@ export const joinRequests = pgTable(
   },
   (table) => [uniqueIndex("join_requests_org_user_key").on(table.orgId, table.userId)],
 );
+
+/**
+ * The workspace a person picked on the MCP consent screen (ADR 0029), for this session's next
+ * OAuth grant: `org_id` null means every workspace. Read when the grant is made, then kept only
+ * until the session goes. Kept here, not on Better Auth's `sessions`, so its schema is unchanged.
+ */
+export const oauthWorkspaceChoices = pgTable("oauth_workspace_choices", {
+  sessionId: text("session_id")
+    .primaryKey()
+    .references(() => sessions.id, { onDelete: "cascade" }),
+  orgId: text("org_id").references(() => organizations.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

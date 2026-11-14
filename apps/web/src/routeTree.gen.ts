@@ -23,6 +23,7 @@ import { Route as AuthedMemberInboxRouteImport } from "./routes/_authed/_member/
 import { Route as AuthedMemberLaterRouteImport } from "./routes/_authed/_member/later";
 import { Route as AuthedMemberSearchRouteImport } from "./routes/_authed/_member/search";
 import { Route as AuthedInviteInvitationIdRouteImport } from "./routes/_authed/invite.$invitationId";
+import { Route as AuthedOauthConsentRouteImport } from "./routes/_authed/oauth/consent";
 import { Route as AuthedMemberAllThreadIdRouteImport } from "./routes/_authed/_member/all.$threadId";
 import { Route as AuthedMemberArchiveThreadIdRouteImport } from "./routes/_authed/_member/archive.$threadId";
 import { Route as AuthedMemberDoneThreadIdRouteImport } from "./routes/_authed/_member/done.$threadId";
@@ -103,6 +104,11 @@ const AuthedInviteInvitationIdRoute =
     path: "/invite/$invitationId",
     getParentRoute: () => AuthedRoute,
   } as any);
+const AuthedOauthConsentRoute = AuthedOauthConsentRouteImport.update({
+  id: "/oauth/consent",
+  path: "/oauth/consent",
+  getParentRoute: () => AuthedRoute,
+} as any);
 const AuthedMemberAllThreadIdRoute = AuthedMemberAllThreadIdRouteImport.update({
   id: "/$threadId",
   path: "/$threadId",
@@ -176,6 +182,7 @@ export interface FileRoutesByFullPath {
   "/later": typeof AuthedMemberLaterRouteWithChildren;
   "/search": typeof AuthedMemberSearchRouteWithChildren;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
+  "/oauth/consent": typeof AuthedOauthConsentRoute;
   "/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
   "/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
@@ -200,6 +207,7 @@ export interface FileRoutesByTo {
   "/later": typeof AuthedMemberLaterRouteWithChildren;
   "/search": typeof AuthedMemberSearchRouteWithChildren;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
+  "/oauth/consent": typeof AuthedOauthConsentRoute;
   "/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
   "/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
@@ -227,6 +235,7 @@ export interface FileRoutesById {
   "/_authed/_member/later": typeof AuthedMemberLaterRouteWithChildren;
   "/_authed/_member/search": typeof AuthedMemberSearchRouteWithChildren;
   "/_authed/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
+  "/_authed/oauth/consent": typeof AuthedOauthConsentRoute;
   "/_authed/_member/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
   "/_authed/_member/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/_authed/_member/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
@@ -253,6 +262,7 @@ export interface FileRouteTypes {
     | "/later"
     | "/search"
     | "/invite/$invitationId"
+    | "/oauth/consent"
     | "/all/$threadId"
     | "/archive/$threadId"
     | "/done/$threadId"
@@ -277,6 +287,7 @@ export interface FileRouteTypes {
     | "/later"
     | "/search"
     | "/invite/$invitationId"
+    | "/oauth/consent"
     | "/all/$threadId"
     | "/archive/$threadId"
     | "/done/$threadId"
@@ -303,6 +314,7 @@ export interface FileRouteTypes {
     | "/_authed/_member/later"
     | "/_authed/_member/search"
     | "/_authed/invite/$invitationId"
+    | "/_authed/oauth/consent"
     | "/_authed/_member/all/$threadId"
     | "/_authed/_member/archive/$threadId"
     | "/_authed/_member/done/$threadId"
@@ -419,6 +431,13 @@ declare module "@tanstack/react-router" {
       path: "/invite/$invitationId";
       fullPath: "/invite/$invitationId";
       preLoaderRoute: typeof AuthedInviteInvitationIdRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    "/_authed/oauth/consent": {
+      id: "/_authed/oauth/consent";
+      path: "/oauth/consent";
+      fullPath: "/oauth/consent";
+      preLoaderRoute: typeof AuthedOauthConsentRouteImport;
       parentRoute: typeof AuthedRoute;
     };
     "/_authed/_member/all/$threadId": {
@@ -596,6 +615,7 @@ interface AuthedRouteChildren {
   AuthedJoinRoute: typeof AuthedJoinRoute;
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute;
   AuthedInviteInvitationIdRoute: typeof AuthedInviteInvitationIdRoute;
+  AuthedOauthConsentRoute: typeof AuthedOauthConsentRoute;
   AuthedSettingsEmailsVerifyRoute: typeof AuthedSettingsEmailsVerifyRoute;
 }
 
@@ -604,6 +624,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedJoinRoute: AuthedJoinRoute,
   AuthedOnboardingRoute: AuthedOnboardingRoute,
   AuthedInviteInvitationIdRoute: AuthedInviteInvitationIdRoute,
+  AuthedOauthConsentRoute: AuthedOauthConsentRoute,
   AuthedSettingsEmailsVerifyRoute: AuthedSettingsEmailsVerifyRoute,
 };
 

@@ -43,6 +43,8 @@ export const keys = {
   signInEmails: () => [...root, "sign-in-emails"] as const,
   /** The company a scoped sign-in may ask to join (ADR 0024). */
   join: () => [...root, "join"] as const,
+  /** An agent asking to connect over OAuth (ADR 0029). */
+  oauthClients: () => [...root, "oauth-clients"] as const,
 
   org: () => org,
   organizations: () => [...org, "organizations"] as const,

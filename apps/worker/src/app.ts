@@ -39,6 +39,8 @@ import { onboarding } from "./routes/onboarding.ts";
 import { account as accountPicture, pictures, workspaceLogo } from "./routes/pictures.ts";
 import { workspaces } from "./routes/workspaces.ts";
 import { join } from "./routes/join.ts";
+import { mcp } from "./routes/mcp.ts";
+import { oauth } from "./routes/oauth.ts";
 import { limitAuth } from "./rate-limiter.ts";
 import { securityHeaders } from "./security-headers.ts";
 
@@ -162,6 +164,10 @@ export const app = new Hono<AppEnv>()
   .get("/health", (c) => c.json({ ok: true }))
   .route("/", internal)
   .use("/api/*", requestScope)
+  // People's own agents (ADR 0029): the MCP endpoint and its OAuth discovery documents.
+  .use("/mcp", requestScope)
+  .use("/.well-known/*", requestScope)
+  .route("/", mcp)
   /** Public: which sign-in buttons the login page shows. Google needs its OAuth client set. */
   .get("/api/sign-in-methods", (c) => c.json({ google: c.var.config.auth.google !== undefined }))
   // Stripe calls this, not a browser: no per-IP auth limit. It dedupes and orders events, then
@@ -186,6 +192,8 @@ export const app = new Hono<AppEnv>()
   .route("/api/onboarding", onboarding)
   .route("/api/workspaces", workspaces)
   .route("/api/join", join)
+  // An agent's sign-in: back to the request after login, and the consent screen's workspace.
+  .route("/api/oauth", oauth)
   .route("/api/account", account)
   // Your picture lives beside your sign-in emails under /api/account.
   .route("/api/account", accountPicture)
