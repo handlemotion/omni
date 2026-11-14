@@ -8,7 +8,7 @@
 BETTER_AUTH_SECRET=
 # Public origin of this Worker (serves /api/auth).
 BETTER_AUTH_URL=http://localhost:8787
-# Comma-separated web/app origins allowed to call auth endpoints.
+# Comma-separated web/app origins allowed to call auth endpoints. Add `omni://` for the iOS app.
 AUTH_TRUSTED_ORIGINS=http://localhost:5173
 # Optional. WebAuthn relying party ID; defaults to the BETTER_AUTH_URL host.
 AUTH_PASSKEY_RP_ID=

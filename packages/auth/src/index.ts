@@ -1,3 +1,4 @@
+import { expo } from "@better-auth/expo";
 import { passkey } from "@better-auth/passkey";
 import { stripe, type StripeOptions } from "@better-auth/stripe";
 import type { Db } from "@omni/db";
@@ -509,6 +510,10 @@ export function createAuth(env: AuthEnv) {
       },
     },
     plugins: [
+      // The iOS app: its requests carry `expo-origin` (native fetch sends no Origin), and a magic
+      // link or Google sign-in that ends on a trusted app scheme (`omni://`, listed in
+      // AUTH_TRUSTED_ORIGINS) gets the session cookie in that redirect, for the app to keep.
+      expo(),
       magicLink({
         // An email that may not sign in (`SIGN_UP=invitation`) gets the same 200 and no mail, so
         // the endpoint does not reveal who has an account. Either way the Worker limits links
