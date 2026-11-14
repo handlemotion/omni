@@ -9,6 +9,7 @@ import { ConversationMeta, type ConversationRowInfo } from "@/components/inbox/c
 import { ListSweepSlot } from "@/components/inbox/list-sweep";
 import { OpenListContext } from "@/components/inbox/open-list";
 import { EmptyState } from "@/components/empty/empty-state";
+import { ThreadListEmpty } from "@/components/inbox/list-empty";
 import { FloatingCompose } from "@/components/compose/floating-actions";
 import { useQueryClient } from "@tanstack/react-query";
 import { IconArrowRotateClockwise, IconMailOpen, IconPencil } from "@/components/icons/central";
@@ -101,10 +102,7 @@ export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
         (isError ? (
           <ListFailed retry={() => void refetch()} />
         ) : isSuccess ? (
-          <EmptyState
-            figure={props.filter.view === "archive" ? "cabinet" : "drawer"}
-            title={emptyTitle(props.filter)}
-          />
+          <ThreadListEmpty filter={props.filter} />
         ) : undefined)
       }
       rows={rows}
@@ -115,21 +113,6 @@ export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
     />
   );
 }
-
-/** What an empty list is called: by its lane in the Inbox, else by its view. */
-function emptyTitle(filter: ThreadFilter) {
-  if (filter.view === "inbox" && filter.lane === "needs_reply") return "Nothing needs a reply";
-  if (filter.view === "inbox" && filter.lane === "waiting_on_them") return "Not waiting on anyone";
-  return EMPTY_TITLES[filter.view ?? "inbox"];
-}
-
-const EMPTY_TITLES: Record<ThreadView, string> = {
-  inbox: "Inbox zero",
-  later: "Nothing for later",
-  done: "Nothing done yet",
-  archive: "Nothing archived",
-  all: "No mail yet",
-};
 
 /** A list that failed to load, with the way to try again. */
 export function ListFailed(props: { retry: () => void }) {

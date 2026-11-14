@@ -30,7 +30,7 @@ import { senderLabel } from "@/lib/threads.ts";
 import type { ConversationFilter, ConversationSummary } from "@/lib/types.ts";
 import { offerUndo } from "@/lib/undo.ts";
 import type { ConversationRowInfo } from "./conversation-meta";
-import { EmptyState } from "@/components/empty/empty-state";
+import { ConversationListEmpty } from "@/components/inbox/list-empty";
 import { List, ListFailed, type ListRow } from "./thread-list";
 
 /** Views whose rows can be in more than one status, so each row says which. */
@@ -96,7 +96,7 @@ export function ConversationList(props: {
         query.isError ? (
           <ListFailed retry={() => void query.refetch()} />
         ) : query.isSuccess ? (
-          <EmptyState figure="drawer" title={EMPTY_TEXT[filter.view]} />
+          <ConversationListEmpty filter={filter} />
         ) : undefined
       }
     >
@@ -104,17 +104,6 @@ export function ConversationList(props: {
     </List>
   );
 }
-
-const EMPTY_TEXT: Record<ConversationFilter["view"], string> = {
-  unassigned: "Nothing waiting for an owner",
-  mine: "Nothing assigned to you",
-  open: "No open conversations",
-  pending: "Nothing waiting on a customer",
-  snoozed: "Nothing snoozed",
-  resolved: "Nothing resolved yet",
-  sla_at_risk: "No SLA due soon",
-  all: "No conversations",
-};
 
 /** Tomorrow and next Monday at 8:00, and later today (3 hours on): where a snooze usually goes. */
 function snoozePresets(now = new Date()) {

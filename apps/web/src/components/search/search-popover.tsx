@@ -67,10 +67,18 @@ const SIZE = {
 // With no field on screen (a collapsed sidebar) the box opens centred, wider: a command bar.
 const CENTERED_WIDTH = 600;
 
+/** What search opens holding: the words already searched, and the mailbox they were scoped to. */
+export interface SearchSeed {
+  q: string;
+  mailbox?: string | undefined;
+}
 /** Whatever search is mounted opens itself; set while it is (the sidebar's). */
-let openMounted: (() => void) | undefined;
-/** Opens search from a control elsewhere (the list's search icon), as `/` does. */
-export const openSearch = () => openMounted?.();
+let openMounted: ((seed?: SearchSeed) => void) | undefined;
+/**
+ * Opens search from a control elsewhere (the list's search icon), as `/` does; with a `seed`, to
+ * edit that search (an empty result's Edit search).
+ */
+export const openSearch = (seed?: SearchSeed) => openMounted?.(seed);
 const BAR = {
   closed: { height: 26, paddingInlineStart: 8, paddingInlineEnd: 3, columnGap: 8 },
   open: { height: 44, paddingInlineStart: 18, paddingInlineEnd: 12, columnGap: 10 },
@@ -93,10 +101,12 @@ export function SearchPopover({ side = "end" }: { side?: "start" | "end" }) {
   // The field's own width: the closed box matches it, so the box grows out of the field.
   const [fieldWidth, setFieldWidth] = useState(SIZE.closed.width);
   const [openWidth, setOpenWidth] = useState(SIZE.open.width);
+  const [seed, setSeed] = useState<SearchSeed | undefined>();
   const triggerRef = useRef<HTMLButtonElement>(null);
   // Reduced motion: no growing; the box takes its open size at once and crossfades.
   const reduceMotion = useReducedMotion();
-  const open = () => {
+  const open = (next?: SearchSeed) => {
+    setSeed(next);
     const rect = triggerRef.current?.getBoundingClientRect();
     // The field can be out of view (a collapsed sidebar slides off screen; a hidden column has
     // no size) while `/` and ⌘K still open search: the box then opens centred near the
@@ -153,7 +163,7 @@ export function SearchPopover({ side = "end" }: { side?: "start" | "end" }) {
           frame the box goes, the field is back, pixel for pixel where the box ended. */}
       <Button
         ref={triggerRef}
-        onPress={open}
+        onPress={() => open()}
         aria-label="Search"
         data-search-field
         // In the sidebar, 2px at the end (not 3): the `/` centres on the toggle above it.
@@ -165,7 +175,7 @@ export function SearchPopover({ side = "end" }: { side?: "start" | "end" }) {
       </Button>
       <ModalOverlay
         isOpen={phase !== "closed"}
-        onOpenChange={(next) => (next ? open() : close())}
+        onOpenChange={(next) => (next ? open(seed) : close())}
         isDismissable
         className="fixed inset-0 z-40"
       >
@@ -199,6 +209,7 @@ export function SearchPopover({ side = "end" }: { side?: "start" | "end" }) {
                 state={reduceMotion ? "open" : state}
                 transition={transition}
                 onClose={close}
+                seed={seed}
               />
             </motion.div>
           </Dialog>
@@ -222,17 +233,21 @@ function SearchPanel({
   state,
   transition,
   onClose,
+  seed,
 }: {
   state: "open" | "closed";
   transition: Transition;
   onClose: () => void;
+  /** An earlier search to edit: its words fill the field, and it stays in its mailbox. */
+  seed?: SearchSeed | undefined;
 }) {
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
   const sweepList = useListSweep();
   const { threads } = useThreads({ view: "inbox" });
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(seed?.q ?? "");
+  const mailbox = seed?.mailbox;
   const [searching, setSearching] = useState(false);
   const query = q.trim();
 
@@ -246,13 +261,13 @@ function SearchPanel({
     if (!query || searching) return;
     setSearching(true);
     try {
-      await queryClient.fetchQuery(searchQuery(query));
+      await queryClient.fetchQuery(searchQuery(query, mailbox));
     } finally {
       setSearching(false);
     }
     // Together: the band slides down the list, under the popover while it closes.
     onClose();
-    sweepList(() => navigate({ to: "/search", search: { q: query } }));
+    sweepList(() => navigate({ to: "/search", search: { q: query, mailbox } }));
   };
 
   return (

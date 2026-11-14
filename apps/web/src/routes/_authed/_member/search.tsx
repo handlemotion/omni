@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, useRouter } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { EmptyState } from "../../../components/empty/empty-state.tsx";
+import { SearchEmpty } from "../../../components/inbox/list-empty.tsx";
 import { List, type ListRow } from "../../../components/inbox/thread-list.tsx";
 import { useSearch } from "../../../hooks/use-mail.ts";
 import { useWorkspaceNames } from "../../../hooks/use-workspaces.ts";
@@ -44,7 +44,7 @@ function Search() {
       rows={rows}
       // An empty `q` is never fetched (the query is disabled), so it never loads.
       loading={isPending && !!search.q.trim()}
-      empty={isSuccess ? <EmptyState figure="loupe" title="No matches" /> : undefined}
+      empty={isSuccess ? <SearchEmpty q={search.q} mailbox={search.mailbox} /> : undefined}
       href={(threadId) =>
         router.buildLocation({ to: "/search/$threadId", params: { threadId }, search }).href
       }
