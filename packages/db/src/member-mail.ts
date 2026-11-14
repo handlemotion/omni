@@ -2,7 +2,7 @@
 // query inner-joins `mailbox_access` for this member and `members` for the row's org, so a
 // missing grant or a grant that crosses orgs finds nothing.
 import type { MessageTarget } from "@omni/contracts";
-import { and, asc, eq, exists, isNotNull, sql, type AnyColumn } from "drizzle-orm";
+import { and, asc, desc, eq, exists, isNotNull, sql, type AnyColumn } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import {
   attachments,
@@ -13,6 +13,8 @@ import {
   members,
   messages,
   threads,
+  triageBucket,
+  triageFeedback,
 } from "./schema/index.ts";
 
 /** `exists` subquery: `memberId` has a grant on the row's mailbox, in the row's org. */
@@ -176,4 +178,70 @@ export async function findMemberMessageHtml(
     )
     .limit(1);
   return row?.htmlR2Key ?? null;
+}
+
+/**
+ * A person files a thread in `lane` (ADR 0029: an agent's `triage` does it for them): the triage
+ * becomes theirs (`triage_source = person`, which always files), describes the thread's latest
+ * message so a newer one re-triages it, and the re-sort is kept in `triage_feedback` to tune the
+ * model. Reaffirming the person's lane after new mail only moves the marker to that mail. Returns false when the member cannot
+ * see the thread.
+ */
+export async function resortThread(
+  db: Db,
+  memberId: string,
+  threadId: string,
+  lane: (typeof triageBucket.enumValues)[number],
+) {
+  return db.transaction(async (tx) => {
+    const [thread] = await tx
+      .select({
+        orgId: threads.orgId,
+        triage: threads.triage,
+        triageSource: threads.triageSource,
+        triageMessageId: threads.triageMessageId,
+      })
+      .from(threads)
+      .where(
+        and(
+          eq(threads.id, threadId),
+          exists(grantFor(db, memberId, threads.mailboxId, threads.orgId)),
+        ),
+      )
+      .for("update");
+    if (!thread) return false;
+    // Its own query: a correlated subquery in the select above would render `threads.id`
+    // unqualified, and inside the subquery that is the message's own id.
+    const [newest] = await tx
+      .select({ id: messages.id })
+      .from(messages)
+      .where(eq(messages.threadId, threadId))
+      .orderBy(desc(messages.sentAt), desc(messages.id))
+      .limit(1);
+    const latest = newest?.id ?? null;
+    const sameChoice = thread.triage === lane && thread.triageSource === "person";
+    // Already the person's choice for the latest message: nothing to do. The same lane after new
+    // mail still moves the marker, or that message's triage job would replace the choice.
+    if (sameChoice && thread.triageMessageId === latest) return true;
+    await tx
+      .update(threads)
+      .set({
+        triage: lane,
+        triageSource: "person",
+        triageConfidence: 1,
+        triageMessageId: latest,
+        updatedAt: new Date(),
+      })
+      .where(eq(threads.id, threadId));
+    // Feedback is a change of lane, not a reaffirmation.
+    if (sameChoice) return true;
+    await tx.insert(triageFeedback).values({
+      orgId: thread.orgId,
+      threadId,
+      memberId,
+      fromBucket: thread.triage,
+      toBucket: lane,
+    });
+    return true;
+  });
 }

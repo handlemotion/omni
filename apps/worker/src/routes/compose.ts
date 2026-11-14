@@ -24,7 +24,12 @@ import {
   uploadKey,
 } from "@omni/db";
 import { MAX_SEND_ATTACHMENTS, sendAttachmentSchema } from "@omni/contracts";
-import { forwardBody, forwardSubject, replySubject } from "@omni/mail-core/compose";
+import {
+  forwardBody,
+  forwardSubject,
+  replyRecipients,
+  replySubject,
+} from "@omni/mail-core/compose";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -263,16 +268,10 @@ async function sendReply(
   draftId?: string,
 ) {
   const { found, message } = await threadMessage(c, threadId, body);
-  const self = found.mailboxAddress.toLowerCase();
-  const isSelf = (a: string) => a.toLowerCase() === self;
   // Replying to our own message continues to the same people.
-  const fromUs = isSelf(message.fromAddress);
-  const defaultTo = fromUs ? message.to.map((a) => a.address) : [message.fromAddress];
-  const defaultCc = body.replyAll
-    ? [...(fromUs ? [] : message.to), ...message.cc]
-        .map((a) => a.address)
-        .filter((a) => !isSelf(a) && !defaultTo.includes(a))
-    : [];
+  const defaults = replyRecipients(message, found.mailboxAddress, body.replyAll);
+  const defaultTo = defaults.to;
+  const defaultCc = defaults.cc;
   const to = body.to ?? defaultTo;
   const cc = body.to || body.cc ? (body.cc ?? []) : defaultCc;
 

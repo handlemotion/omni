@@ -70,8 +70,9 @@ the shape in a few lines:
 Six tools: four reads, two writes. Each has a `title`, explicit `readOnlyHint`, `destructiveHint`,
 `idempotentHint` and `openWorldHint: false` annotations, an `inputSchema`, an `outputSchema`, and
 returns `structuredContent` plus the same JSON as a text block (MCP spec; ChatGPT requires it for
-`search`/`fetch`). `tools/list` lists only the tools the token's scopes allow (MCP 2026-07-28
-permits this), in a fixed order.
+`search`/`fetch`). `tools/list` lists every tool, in a fixed order, so an agent knows what it
+could ask for. A call to a writing tool without its scope is answered HTTP 403
+`insufficient_scope` before the tool runs, naming the scope, so the client can step up.
 
 Shared conventions:
 
@@ -229,38 +230,44 @@ migration. The role and its password are created by a documented one-time step
 
 `readOnlyHint: false`, `destructiveHint: false` (every change is reversible), `idempotentHint:
 true`. Scope `mail:triage`. Input: `{ changes: [{ thread_id, done?, later?, read?, archived?,
-lane?, status?, assignee?, priority?, add_tags?, remove_tags? }] }`, up to 50.
+lane?, status?, assignee?, priority?, add_tags?, remove_tags? }] }`, up to 50. `archived` is
+`true` only (no unarchive yet); `status` is `open` or `resolved`; `assignee` is `"me"`, a
+teammate's email, or `null`; tags are names.
 
 Each field sets an absolute value, so a retried call writes the same state:
 
 | Field                                   | Does what the app does today                                         |
 | --------------------------------------- | -------------------------------------------------------------------- |
-| `done`, `later`, `read`                 | `setThreadState` (per member; read also syncs IMAP on personal inboxes) |
-| `archived: true`                        | archive route: Postgres plus outbox `archive` per folder             |
-| `lane`                                  | **new**: a person's re-sort (`triage_source = person`) plus a `triage_feedback` row; there is no route for it yet, and the app gets the same function |
+| `done`, `later`                         | `setThreadState` (per member)                                        |
+| `read`                                  | `markRead` in `thread-writes.ts`, shared with the route (syncs IMAP on personal inboxes) |
+| `archived: true`                        | `archiveThread` in `thread-writes.ts`, shared with the route          |
+| `lane`                                  | **new**: `resortThread`, a person's re-sort (`triage_source = person`) plus a `triage_feedback` row; no route uses it yet |
 | `status`, `assignee`, `priority`, tags  | the conversation change functions (ADR 0021), shared inboxes only    |
 
-Returns one result per change: `ok`, or an error for that change alone. Writes go through the
-existing guards: billing (`requireWritableWorkspace`: a read-only workspace still reads), the
-per-member action rate limit, the realtime ping so open apps update, and an `audit_events` row
-with `data.via = "mcp"` and the OAuth client's name.
+Returns one result per change: `ok` with the fields applied, or an error for that change alone.
+Every change is checked against billing (`inGoodStanding`: a read-only workspace still reads), the
+per-person action rate limit, a realtime announcement so open apps update, and an
+`audit_events` row (`mcp.triage`, `data.via = "mcp"`, the OAuth client id, the fields applied).
 
-To share one code path with the routes, the bodies of the archive, state and conversation-change
-handlers move into functions in `apps/worker/src/` that take `{ db, member, … }`, and both the
-routes and the tools call them. The Worker never calls itself over HTTP.
+The read and archive route bodies moved into `apps/worker/src/thread-writes.ts`, which takes
+`{ db, memberId, requestId }`; both the routes and the tool call it, so they write the same rows
+and outbox keys. The Worker never calls itself over HTTP.
 
-The outbox idempotency key for a change is derived from the request's JSON-RPC id, the OAuth
-grant and the change, so a client's retry of the same call does not queue a second archive.
+The outbox idempotency key hashes the OAuth client, the thread, its latest message time and the
+change: a client's retry queues no second archive, and the same change after new mail queues it
+again.
 
 ### `draft_reply`: write, never send
 
 `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false`. Scope `mail:draft`.
-Input: `{ thread_id, body, reply_all? = false, message_id? }`, or for new mail `{ mailbox, to,
-subject, body }`.
+Input: `{ thread_id, body, reply_all? = false, message_id? }`. Drafts of new mail wait until the
+web app can open a draft by link (`/compose` takes none today).
 
-It creates an Omni draft through the existing drafts code (`packages/db/src/drafts.ts`) and
-returns its `url`. The person reviews and sends it in Omni. The tool description says so, so the
-agent tells the person where the draft is.
+It creates an Omni draft on the thread through the existing drafts code
+(`packages/db/src/drafts.ts`), addressed by the same rule as a reply (`replyRecipients` in
+`@omni/mail-core/compose`, now shared with the send route), and returns the thread's `url`,
+where the composer shows it. The person reviews and sends it in Omni. The tool description says
+so, so the agent tells the person where the draft is.
 
 ## Authorization
 

@@ -1,5 +1,5 @@
-import { expect, test } from "vitest";
-import { forwardBody, forwardSubject, replySubject } from "./compose";
+import { describe, expect, test } from "vitest";
+import { forwardBody, forwardSubject, replyRecipients, replySubject } from "./compose";
 
 test("reply and forward subjects never stack a prefix a client already added, in any case or language", () => {
   // Bug caught: "Re: RE: Invoice" after an Outlook reply, "Fwd: FW: Invoice" after an Outlook forward.
@@ -45,4 +45,32 @@ test("a forward's HTML escapes the original's sender, subject and text", () => {
       "Order #12 & #13 <please>",
     ].join("\n"),
   );
+});
+
+describe("replyRecipients", () => {
+  const self = "Help@Acme.test";
+  // Catches: a reply to our own last message going to ourselves instead of the customer.
+  test("replying to our own message goes to the people it went to", () => {
+    expect(
+      replyRecipients(
+        { fromAddress: "help@acme.test", to: [{ address: "ana@x.test" }], cc: [] },
+        self,
+        false,
+      ),
+    ).toEqual({ to: ["ana@x.test"], cc: [] });
+  });
+  // Catches: reply all cc'ing our own address, or the sender twice.
+  test("reply all copies everyone else once, never ourselves", () => {
+    expect(
+      replyRecipients(
+        {
+          fromAddress: "ana@x.test",
+          to: [{ address: "help@acme.test" }, { address: "bo@x.test" }],
+          cc: [{ address: "ana@x.test" }, { address: "cy@x.test" }],
+        },
+        self,
+        true,
+      ),
+    ).toEqual({ to: ["ana@x.test"], cc: ["bo@x.test", "cy@x.test"] });
+  });
 });

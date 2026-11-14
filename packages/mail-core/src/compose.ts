@@ -7,6 +7,31 @@ export function replySubject(subject: string) {
   return /^(re|aw|sv|antw)\s*:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
 }
 
+/**
+ * Who a reply goes to by default: the sender, or, when replying to our own message, the people
+ * it went to. Reply all adds everyone else on it as cc, never our own address or a `to` twice.
+ */
+export function replyRecipients(
+  message: {
+    fromAddress: string;
+    to: readonly { address: string }[];
+    cc: readonly { address: string }[];
+  },
+  selfAddress: string,
+  replyAll: boolean,
+) {
+  const self = selfAddress.toLowerCase();
+  const isSelf = (address: string) => address.toLowerCase() === self;
+  const fromUs = isSelf(message.fromAddress);
+  const to = fromUs ? message.to.map((a) => a.address) : [message.fromAddress];
+  const cc = replyAll
+    ? [...(fromUs ? [] : message.to), ...message.cc]
+        .map((a) => a.address)
+        .filter((a) => !isSelf(a) && !to.includes(a))
+    : [];
+  return { to, cc };
+}
+
 /** `Fwd: <subject>`, without stacking a second forward prefix (`Fwd:`, `FW:`, `WG:`). */
 export function forwardSubject(subject: string) {
   const trimmed = subject.trim();

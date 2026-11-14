@@ -4,13 +4,21 @@
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
-import { authenticate } from "../mcp/auth.ts";
+import { authenticate, insufficientScope } from "../mcp/auth.ts";
 import { checkRateLimit, type RateLimitRule } from "../rate-limiter.ts";
-import { createServer } from "../mcp/server.ts";
+import { createServer, TOOL_SCOPES } from "../mcp/server.ts";
 
 /** Browsers may call from our own origins only; native clients send no `Origin`. */
 function originAllowed(origin: string | undefined, allowed: string[]) {
   return origin === undefined || allowed.includes(origin);
+}
+
+/** The scope a `tools/call` body needs beyond `mail:read`, if any. */
+function toolScope(body: unknown) {
+  if (typeof body !== "object" || body === null) return undefined;
+  const { method, params } = body as { method?: unknown; params?: { name?: unknown } };
+  if (method !== "tools/call" || typeof params?.name !== "string") return undefined;
+  return TOOL_SCOPES[params.name];
 }
 
 export const mcp = new Hono<AppEnv>()
@@ -23,17 +31,28 @@ export const mcp = new Hono<AppEnv>()
     }
     const caller = await authenticate(c.req.raw, auth, baseURL);
     if (caller instanceof Response) return caller;
+    // A writing tool needs its own scope: answer 403 before it runs, so the client can step up.
+    const needed = toolScope(
+      await c.req.raw
+        .clone()
+        .json()
+        .catch(() => null),
+    );
+    if (needed && !caller.scopes.has(needed)) return insufficientScope(baseURL, [needed]);
     c.set("log", log.child({ component: "mcp", clientId: caller.clientId }));
 
     const context = {
+      env: c.env,
       db,
+      requestId: c.var.requestId,
+      waitUntil: (promise: Promise<unknown>) => c.executionCtx.waitUntil(promise),
       caller,
       config,
       webAppURL: config.auth.webAppURL,
       log: c.var.log,
       // Per person, across their agents: a key apart from the app's per-member limits.
-      rateLimit: (rule: RateLimitRule) =>
-        checkRateLimit(c.env, config, rule, `mcp:${caller.userId}`),
+      rateLimit: (rule: RateLimitRule, cost?: number) =>
+        checkRateLimit(c.env, config, rule, `mcp:${caller.userId}`, cost),
     };
     const handler = createMcpHandler(() => createServer(context), {
       legacy: "stateless",

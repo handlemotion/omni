@@ -24,16 +24,19 @@ export type RateLimitRule = keyof typeof RULES;
 
 export class RateLimiter extends DurableObject<Env> {
   /**
-   * Counts one hit if the window has room. Returns 0 when allowed, otherwise the seconds until
-   * the window resets. Refused hits are not counted, so a client that waits gets in again.
+   * Counts `cost` hits (one by default: a batch counts each of its items) if the window has room
+   * for all of them. Returns 0 when allowed, otherwise the seconds until the window resets.
+   * Refused hits are not counted, so a client that waits gets in again.
    */
-  async hit(limit: number, windowSeconds: number): Promise<number> {
+  async hit(limit: number, windowSeconds: number, cost = 1): Promise<number> {
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
     let state = await this.ctx.storage.get<{ start: number; count: number }>("window");
     if (!state || now >= state.start + windowMs) state = { start: now, count: 0 };
-    if (state.count >= limit) return Math.max(1, Math.ceil((state.start + windowMs - now) / 1000));
-    state.count += 1;
+    if (state.count + cost > limit) {
+      return Math.max(1, Math.ceil((state.start + windowMs - now) / 1000));
+    }
+    state.count += cost;
     await this.ctx.storage.put("window", state);
     // Nothing outlives its window: the alarm clears this instance's storage.
     await this.ctx.storage.setAlarm(state.start + windowMs);
@@ -54,12 +57,13 @@ export async function checkRateLimit(
   config: Config,
   rule: RateLimitRule,
   key: string,
+  cost = 1,
 ): Promise<number> {
   const limit: RateLimit = config[RULES[rule]];
   if (!limit) return 0;
   const name = await sha256Hex(`${rule}:${key}`);
   const stub = env.RATE_LIMITER.get(env.RATE_LIMITER.idFromName(name));
-  return stub.hit(limit.count, limit.windowSeconds);
+  return stub.hit(limit.count, limit.windowSeconds, cost);
 }
 
 export function tooManyRequests(retryAfter: number) {

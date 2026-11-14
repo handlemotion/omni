@@ -7,7 +7,6 @@ import {
   forUser,
   LANES,
   listMemberMailboxes,
-  setThreadArchived,
   THREAD_VIEWS,
   threadActionTargets,
   type MailActionRequest,
@@ -22,6 +21,12 @@ import { pingMailService } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { smartSearch } from "../search.ts";
 import { attachmentResponse } from "./assets.ts";
+import {
+  archiveThread,
+  enqueuePerFolder as queuePerFolder,
+  markRead,
+  type ThreadWriter,
+} from "../thread-writes.ts";
 import { zValidator } from "../validator.ts";
 
 const cursorSchema = z.object({ t: z.iso.datetime(), id: z.string().min(1) });
@@ -130,6 +135,11 @@ export function enqueue(
   });
 }
 
+/** Who a route's thread writes act as: this request's member. */
+export function writerOf(c: Context<AppEnv>): ThreadWriter {
+  return { db: c.var.db, memberId: c.var.member.id, requestId: c.var.requestId };
+}
+
 /**
  * Queues actions that each target one folder's copies, keyed by kind and folder so a retry under
  * the same idempotency key queues nothing new, and pings the mail service when any was queued.
@@ -140,11 +150,7 @@ export async function enqueuePerFolder(
   key: string,
   requests: Exclude<MailActionRequest, { kind: "send" }>[],
 ) {
-  const actionIds: string[] = [];
-  for (const request of requests) {
-    const idempotencyKey = outboxKey(c, key, request.kind, request.payload.folder);
-    actionIds.push((await enqueue(c, mailbox, request, idempotencyKey)).id);
-  }
+  const actionIds = await queuePerFolder(writerOf(c), mailbox, key, requests);
   if (actionIds.length) pingLater(c);
   return actionIds;
 }
@@ -268,21 +274,10 @@ export const mail = new Hono<AppEnv>()
     async (c) => {
       const { read } = c.req.valid("json");
       const key = c.req.valid("header")["idempotency-key"];
-      const threadId = c.req.param("id");
-      const state = await forMember(c.var.db, c.var.member.id).setThreadState(threadId, { read });
-      if (!state) notFound();
-
-      const found = await threadActionTargets(c.var.db, c.var.member.id, threadId);
-      const kind = read ? "mark_read" : "mark_unread";
-      const actionIds =
-        found?.mailboxKind === "personal"
-          ? await enqueuePerFolder(
-              c,
-              found,
-              key,
-              found.targets.map(({ role: _role, ...target }) => ({ kind, payload: target })),
-            )
-          : [];
+      const marked = await markRead(writerOf(c), c.req.param("id"), read, key);
+      if (!marked) notFound();
+      const { state, actionIds } = marked;
+      if (actionIds.length) pingLater(c);
       return c.json({ state, actionIds });
     },
   )
@@ -370,19 +365,10 @@ export const mail = new Hono<AppEnv>()
     zValidator("header", idempotencyHeader),
     async (c) => {
       const key = c.req.valid("header")["idempotency-key"];
-      const threadId = c.req.param("id");
-      const found = await threadActionTargets(c.var.db, c.var.member.id, threadId);
-      if (!found) notFound();
-      await setThreadArchived(c.var.db, c.var.member.id, threadId, true);
-
-      const actionIds = await enqueuePerFolder(
-        c,
-        found,
-        key,
-        found.targets
-          .filter(({ role }) => role !== "archive" && role !== "trash")
-          .map(({ role: _role, ...target }) => ({ kind: "archive", payload: target })),
-      );
+      const archived = await archiveThread(writerOf(c), c.req.param("id"), key);
+      if (!archived) notFound();
+      const { actionIds } = archived;
+      if (actionIds.length) pingLater(c);
       return c.json({ actionIds });
     },
   )

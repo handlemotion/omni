@@ -140,6 +140,10 @@ export const READ_ONLY_ALLOWED = [
   { path: "/api/workspaces", reason: "which workspaces the user belongs to" },
   { path: "/api/join", reason: "asking to join a company, and the answer: membership, not mail" },
   { path: "/api/account", reason: "the person's own sign-in emails, not the workspace" },
+  {
+    path: "/api/oauth",
+    reason: "an agent's sign-in and its workspace choice: access, not mail (ADR 0029)",
+  },
 ] as const satisfies readonly { path: string; reason: string }[];
 
 export function allowedWhileReadOnly(path: string) {
