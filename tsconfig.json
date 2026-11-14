@@ -10,6 +10,7 @@
     { "path": "./apps/mail" },
     { "path": "./apps/worker" },
     { "path": "./packages/client" },
-    { "path": "./apps/web" }
+    { "path": "./apps/web" },
+    { "path": "./apps/ios" }
   ]
 }

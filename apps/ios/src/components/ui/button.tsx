@@ -1,0 +1,69 @@
+import { ActivityIndicator, Pressable, StyleSheet, View, type PressableProps } from "react-native";
+import { colors, radius, space } from "@/theme/tokens.ts";
+import { Text } from "./text.tsx";
+
+export interface ButtonProps extends Omit<PressableProps, "children"> {
+  label: string;
+  intent?: "primary" | "plain";
+  size?: "md" | "lg";
+  /** The action is running: dimmed like a disabled button, a spinner beside the label. */
+  isPending?: boolean;
+}
+
+/** A labelled action. Squeezes to 0.97 while pressed (tactile-design). */
+export function Button({
+  label,
+  intent = "primary",
+  size = "md",
+  isPending,
+  disabled,
+  style,
+  ...props
+}: ButtonProps) {
+  const primary = intent === "primary";
+  return (
+    <Pressable
+      {...props}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!(disabled || isPending), busy: !!isPending }}
+      disabled={disabled || isPending}
+      style={(state) => [
+        styles.base,
+        size === "lg" ? styles.lg : styles.md,
+        primary ? styles.primary : styles.plain,
+        (disabled || isPending) && styles.dimmed,
+        state.pressed && styles.pressed,
+        typeof style === "function" ? style(state) : style,
+      ]}
+    >
+      <View style={styles.row}>
+        {isPending ? (
+          <ActivityIndicator color={primary ? colors.primaryForeground : colors.foreground} />
+        ) : null}
+        <Text
+          size={size === "lg" ? "lg" : "md"}
+          weight="medium"
+          tone={primary ? "primaryForeground" : "foreground"}
+        >
+          {label}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  base: { borderRadius: radius.field, alignItems: "center", justifyContent: "center" },
+  md: { height: 44, paddingHorizontal: space(4) },
+  lg: { height: 52, paddingHorizontal: space(5) },
+  primary: {
+    backgroundColor: colors.primaryButton,
+    // The darker edge gives a button its depth; no outer drop.
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  plain: { backgroundColor: colors.well },
+  dimmed: { opacity: 0.5 },
+  pressed: { transform: [{ scale: 0.97 }] },
+  row: { flexDirection: "row", alignItems: "center", gap: space(2) },
+});

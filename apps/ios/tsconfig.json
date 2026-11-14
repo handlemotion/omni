@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": ".tsbuild",
+    "lib": ["es2024", "dom"],
+    "jsx": "react-jsx",
+    "customConditions": ["react-native"],
+    "allowImportingTsExtensions": true,
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src", "app.config.ts", "expo-env.d.ts"],
+  // The Worker's route types reach the app through `@omni/client`.
+  "references": [{ "path": "../../packages/client/tsconfig.src.json" }]
+}
