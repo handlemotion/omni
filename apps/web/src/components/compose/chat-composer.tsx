@@ -181,10 +181,11 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
 
   return (
     <div className="flex flex-col">
-      {/* 15px corners as in dorks. Dotted with no fill, like the hidden notes it adds. */}
+      {/* 12px corners: the reply banner 8px inside keeps 4px, concentric. Dotted with no fill, like
+          the hidden notes it adds. */}
       <div
         ref={box}
-        className="relative flex flex-col rounded-[15px] border border-dashed border-muted-foreground/40 focus-within:border-ring/70"
+        className="relative flex flex-col rounded-[12px] border border-dashed border-muted-foreground/40 focus-within:border-ring/70"
       >
         {reply && (
           // The banner sits 8px inside the box (the buttons' inset), concentric with its corners.
@@ -334,7 +335,7 @@ export function ReplyLine({ reply, className = "" }: { reply: Reply; className?:
 /** The chat box's banner: what the next message replies to, and an X to drop it. */
 function ReplyBanner({ reply, onClear }: { reply: Reply; onClear: () => void }) {
   return (
-    <div className="flex h-8 w-full min-w-0 items-center gap-1 rounded-[7px] bg-accent ps-2.5 pe-1 text-[13px] text-muted-foreground">
+    <div className="flex h-8 w-full min-w-0 items-center gap-1 rounded-sm bg-accent ps-2.5 pe-1 text-[13px] text-muted-foreground">
       <ReplyLine reply={reply} className="flex-1" />
       <TooltipTrigger delay={400}>
         <Button

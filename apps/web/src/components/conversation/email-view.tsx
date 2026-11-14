@@ -6,6 +6,7 @@ import { IconBubble } from "@/components/icons/sidebar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Thread } from "@/lib/types.ts";
+import { useComposerState } from "../compose/composer-state.tsx";
 
 export type ReaderView = "conversation" | "email";
 
@@ -43,9 +44,15 @@ export function FloatingPager(props: {
   count: number;
   onMove: (step: number) => void;
 }) {
+  const composer = useComposerState();
+  // Over a docked email composer they sit closer to it (10px); alone, 20px off the bottom like
+  // Reply and Forward.
+  const docked = composer.email && composer.mode === "public";
   if (props.count < 2) return null;
   return (
-    <div className="pointer-events-none absolute start-5 bottom-full z-20 mb-5 flex gap-1 *:pointer-events-auto">
+    <div
+      className={`pointer-events-none absolute start-5 bottom-full z-20 flex gap-2 *:pointer-events-auto ${docked ? "mb-2.5" : "mb-5"}`}
+    >
       <Pager label="Previous email" isDisabled={props.index === 0} onPress={() => props.onMove(-1)}>
         <IconChevronUp />
       </Pager>
@@ -68,10 +75,11 @@ function Pager(props: {
 }) {
   return (
     <TooltipTrigger delay={400}>
-      {/* Plain glyphs, the toolbar's size: 28px squares that fill only on hover. */}
+      {/* Bordered and raised like Reply and Forward, a size smaller: 28px squares. */}
       <Button
-        intent="ghost"
-        size="sq-sm-lg"
+        intent="outline"
+        size="sq-sm"
+        className="shadow-(--shadow-overlay)"
         aria-label={props.label}
         isDisabled={props.isDisabled}
         onPress={props.onPress}
