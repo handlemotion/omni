@@ -42,11 +42,13 @@ import type {
   ThreadView,
 } from "@/lib/types.ts";
 
-// The middle of three columns: wide enough for a sender and the start of a subject, so the
-// reading column beside it gets the rest of the page.
-const LIST_WIDTH = 440;
+// With a thread open, the reading column keeps the width the person dragged it to (768px until
+// then) and the list takes the rest, never under 320px (`min-w-80`). The width is the reader's,
+// not the list's, so a wide window grows the list and the reader stays where it was put.
+const READER_WIDTH = 768;
+const READER_MIN = 400;
+const READER_MAX = 4096;
 const LIST_MIN = 320;
-const LIST_MAX = 720;
 
 /** What a list row shows. Threads and search results both map to it. */
 export interface ListRow {
@@ -177,10 +179,14 @@ export function List(
   // With a thread open, three columns: the list keeps a width the person can drag, the reading
   // column the rest at the window's full height. Closed, the list fills the page.
   const split = detail && !hideList;
-  const listWidth = useStoredWidth("omni:list-width", LIST_WIDTH, LIST_MIN, LIST_MAX);
-  // Until dragged, the reading column keeps a comfortable 576px (`w-xl`) and the list takes the
-  // rest, down to its minimum.
-  const hug = split && !listWidth.isSet;
+  const reader = useStoredWidth("omni:reader-width", READER_WIDTH, READER_MIN, READER_MAX);
+  const rowRef = useRef<HTMLDivElement>(null);
+  // The grip moves the edge between the list and the reader: it reports the list's new width,
+  // and the reader takes what the row leaves, so the list never drops under its minimum.
+  const resizeList = (listWidth: number) => {
+    const row = rowRef.current?.offsetWidth ?? 0;
+    reader.set(row - Math.max(LIST_MIN, listWidth));
+  };
   const [resizing, setResizing] = useState(false);
   // The rows behind the open thread, for its full-screen switcher.
   // A helpdesk list's rows follow its status, not Done or Later: no view to leave there.
@@ -209,11 +215,13 @@ export function List(
         />
       )}
       {/* The list and the reading column side by side, each the window's full height. */}
-      <div className={`flex min-h-0 flex-1 ${resizing ? "cursor-ew-resize select-none" : ""}`}>
+      <div
+        ref={rowRef}
+        className={`flex min-h-0 flex-1 ${resizing ? "cursor-ew-resize select-none" : ""}`}
+      >
         <section
           ref={listRef}
-          style={split && !hug ? { width: listWidth.width } : undefined}
-          className={`relative flex flex-col ${hug ? "min-w-80" : "min-w-0"} ${split && !hug ? "flex-none" : "flex-1"} ${hideList ? "hidden" : ""}`}
+          className={`relative flex flex-1 flex-col ${split ? "min-w-80" : "min-w-0"} ${hideList ? "hidden" : ""}`}
         >
           {/* 10px on the right, the same as the 28px controls' inset from the top. */}
           <header
@@ -224,15 +232,11 @@ export function List(
                 <IconSidebar />
               </SidebarTrigger>
             )}
-            {/* 1px down: centers the title's capitals on the sidebar header's icons. Collapsed,
-                the title centres on the sidebar button beside it instead. It never shrinks: the
+            {/* Centred as laid out, with no nudge: its capitals sit on the icons' centre line,
+                like the sidebar's "All" and the subject beside it. It never shrinks: the
                 caption truncates and the search field narrows first. */}
-            <Heading
-              className={`shrink-0 whitespace-nowrap ${sidebarHidden ? "" : "translate-y-px"}`}
-            >
-              {props.title}
-            </Heading>
-            <span className="min-w-0 flex-1 translate-y-px truncate text-xs text-subtle-foreground">
+            <Heading className="shrink-0 whitespace-nowrap">{props.title}</Heading>
+            <span className="min-w-0 flex-1 truncate text-xs text-subtle-foreground">
               {props.caption}
             </span>
             {/* A plain list's checked rows: how many, before the actions. */}
@@ -315,13 +319,17 @@ export function List(
         {/* The reading column, from the window's top to its bottom, only with a thread open. The
             same wrapper in and out of full screen, so toggling it doesn't remount it. */}
         {threadId && props.children && (
-          <div className={`relative flex min-w-0 ${hug ? "w-xl shrink" : "flex-1"}`}>
+          // Split, a fixed width that still gives way to the list's minimum in a narrow window.
+          <div
+            style={split ? { width: reader.width } : undefined}
+            className={`relative flex min-w-0 ${split ? "shrink" : "flex-1"}`}
+          >
             {split && (
               <ResizeGrip
                 label="Resize list"
-                width={() => listRef.current?.offsetWidth ?? listWidth.width}
-                onResize={listWidth.set}
-                onReset={listWidth.reset}
+                width={() => listRef.current?.offsetWidth ?? 0}
+                onResize={resizeList}
+                onReset={reader.reset}
                 onResizingChange={setResizing}
               />
             )}

@@ -393,13 +393,9 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
           <ThreadSwitcher threadId={thread.id} />
         </div>
       )}
-      {/* 1px down, like the list's title beside it: the capitals centre on the icons. */}
-      {/* 14px, cut in its middle: a long subject keeps its start and its end. */}
-      <Heading
-        level={2}
-        className="min-w-0 flex-1 translate-y-px text-md"
-        title={subject || undefined}
-      >
+      {/* 14px, cut in its middle: a long subject keeps its start and its end. Centred as laid
+          out, like the list's title beside it: the capitals sit on the icons' centre line. */}
+      <Heading level={2} className="min-w-0 flex-1 text-md" title={subject || undefined}>
         <MiddleTruncate text={subject || "(no subject)"} />
       </Heading>
       <div className="flex shrink-0 items-center gap-1">
