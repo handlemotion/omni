@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
+import { ComposeDialog } from "../../components/compose/compose-pane.tsx";
 import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
@@ -59,14 +60,16 @@ function Shell() {
         (settings.isOpen ? "scale-95 opacity-40" : "")
       }
     >
-      <AppSidebar />
-      <SidebarInset>
-        <SidebarResizeGrip />
-        <ListSweepProvider>
+      {/* Above the sidebar too: its search sweeps the list when smart search runs. */}
+      <ListSweepProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <SidebarResizeGrip />
           <Outlet />
-        </ListSweepProvider>
-      </SidebarInset>
+        </SidebarInset>
+      </ListSweepProvider>
       <KeyboardShortcuts />
+      <ComposeDialog />
       <LazySettingsDialog />
     </ResizableSidebarProvider>
   );

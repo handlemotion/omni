@@ -41,8 +41,9 @@ it. It holds no values: colors, sizes, and radii live in code, so they cannot dr
 - **Icons come from Central Icons.** Every icon is a Central glyph exported from
   `@/components/icons/central` under our own `Icon<Name>` (add one there if it's missing). Never
   draw an icon inline, paste SVG paths, or add a one-off icon file; when a glyph looks wrong, pick
-  another Central glyph. Central's licence forbids sharing its glyphs publicly, so Omni's web app
-  stays closed source.
+  another Central glyph. Where a glyph comes in sizes (`Small`, `Medium`, `Large`), use `Medium`,
+  always: it matches the rest of the set. Central's licence forbids sharing its glyphs publicly, so
+  Omni's web app stays closed source.
 - **Menus.** Every menu item leads with an icon (14px, muted, the label after it); a menu
   without icons is not allowed. A person, workspace or mailbox leads with its avatar instead.
   `SettingsRowMenu` requires an `icon` per item, so a missing one fails the type check.

@@ -1,11 +1,24 @@
-// Whether new mail is open in the reading pane, beside the list, where an open thread sits. One
-// value for the whole app: Compose and the `c` key open it, the pane's close button and opening
-// a thread close it. Not remembered across reloads: a reload lands on the list.
-import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
+// Whether the new-mail dialog is open. One value for the whole app: Compose (the sidebar row, the
+// floating button) and the `c` key open it over whatever is on screen; its close button, Escape
+// and a send close it. Not remembered across reloads. An undone send reopens it holding the
+// draft it sent, since the dialog (and its composer) closed with the send.
 import { useCallback, useSyncExternalStore } from "react";
+import type { ComposerFile } from "./use-compose.ts";
+
+/** A sent message's content, handed back to a fresh composer when its send is undone. */
+export interface NewMessageDraft {
+  mailboxId: string;
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  subject: string;
+  text: string;
+  files: ComposerFile[];
+}
 
 const listeners = new Set<() => void>();
 let current = false;
+let draft: NewMessageDraft | undefined;
 
 function set(open: boolean) {
   if (current === open) return;
@@ -21,24 +34,32 @@ function subscribe(listener: () => void) {
 /** `[open, close]`. */
 export function useComposePane() {
   const open = useSyncExternalStore(subscribe, () => current);
-  const close = useCallback(() => set(false), []);
+  const close = useCallback(() => {
+    draft = undefined;
+    set(false);
+  }, []);
   return [open, close] as const;
 }
 
-/** Opens new mail in the pane. An open thread closes first: the pane takes its place. */
+/** Opens new mail in its dialog, over the list or the open thread alike. */
 export function useOpenCompose() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { threadId } = useParams({ strict: false });
-  return useCallback(() => {
-    set(true);
-    // The deep-link page has no list, so no pane: new mail opens beside the inbox instead.
-    if (location.pathname === "/compose") return void navigate({ to: "/inbox" });
-    if (!threadId) return;
-    const path = location.pathname.slice(0, location.pathname.lastIndexOf("/"));
-    void navigate({ href: path + location.searchStr });
-  }, [navigate, location, threadId]);
+  return useCallback(() => set(true), []);
 }
 
-/** Closes the pane when a thread opens in its place. */
-export const closeComposePane = () => set(false);
+/**
+ * Opens the dialog again with an undone send's content. False while the dialog is already open
+ * (a new message begun since): that one is kept, and the caller hands this one back another way.
+ */
+export function reopenCompose(content: NewMessageDraft) {
+  if (current) return false;
+  draft = content;
+  set(true);
+  return true;
+}
+
+/** The handed-back draft, once, for the composer that opens with it. */
+export function takeComposeDraft() {
+  const taken = draft;
+  draft = undefined;
+  return taken;
+}

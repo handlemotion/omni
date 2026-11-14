@@ -72,6 +72,8 @@
   --accent-foreground: var(--foreground);
   --primary-subtle: color-mix(in oklab, var(--primary) 12%, transparent);
   --primary-subtle-foreground: var(--primary);
+  /* The nav's unread count: a lighter, opaque brand tint, so it stays light on a row's fill. */
+  --unread-count: color-mix(in oklab, var(--primary) 8%, white);
   --chart-1: var(--primary);
   --chart-2: color-mix(in oklab, var(--primary) 80%, white);
   --chart-3: color-mix(in oklab, var(--primary) 60%, white);
@@ -135,6 +137,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-subtle: var(--primary-subtle);
   --color-primary-subtle-foreground: var(--primary-subtle-foreground);
+  --color-unread-count: var(--unread-count);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);

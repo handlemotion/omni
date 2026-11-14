@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { ComponentType } from "react";
 import {
   IconCircle,
@@ -32,7 +33,6 @@ import { pictureUrl } from "@/lib/urls.ts";
  * 24px inside the rail, like the Reply/Forward/Note segments, with the rail's inner radius and
  * an 8px inset instead of the button's 10px.
  */
-const INSET = "h-6 rounded-[calc(var(--radius-lg)-2px)] px-1.5";
 
 type Glyph = ComponentType<{ className?: string; "data-slot"?: string }>;
 
@@ -71,7 +71,7 @@ export const SNOOZES = [
  * A shared inbox's conversation state, at the left of the reader's toolbar: status, assignee,
  * priority and tags, each a menu. Every change shows at once and offers undo.
  */
-export function Properties({ thread }: { thread: Thread }) {
+export function Properties({ thread, children }: { thread: Thread; children?: ReactNode }) {
   const { data: conversation } = useConversation(thread.id);
   const { data: assignees = [] } = useAssignees(thread.mailboxId);
   const { data: tags = [] } = useTags(thread.mailboxId);
@@ -90,11 +90,10 @@ export function Properties({ thread }: { thread: Thread }) {
   const applied = new Set(conversation.tags.map((t) => t.id));
 
   return (
-    // A rail of metadata under the title: the composer's segmented control in outline (border,
-    // no fill), 28px plus its border. A narrow column wraps it onto a second row.
-    <div className="flex w-fit max-w-full min-w-0 flex-wrap items-center gap-0.5 rounded-lg border p-0.5">
+    // The rail's controls, spread across it: the rail itself is the frame.
+    <div className="flex min-w-0 flex-1 items-center justify-between gap-1">
       <MenuTrigger>
-        <Button intent="ghost" size="sm" className={INSET} aria-label={`Status: ${status.label}`}>
+        <Button intent="ghost" size="sm" aria-label={`Status: ${status.label}`}>
           <status.icon />
           <span>{status.label}</span>
         </Button>
@@ -127,7 +126,7 @@ export function Properties({ thread }: { thread: Thread }) {
           intent="ghost"
           size="sm"
           aria-label={`Assignee: ${assignee?.name ?? "Unassigned"}`}
-          className={`min-w-0 ${INSET}`}
+          className="min-w-0"
         >
           {assignee ? <Face assignee={assignee} /> : <IconUserRound />}
           <span className="truncate">{assignee?.name ?? "Unassigned"}</span>
@@ -163,7 +162,7 @@ export function Properties({ thread }: { thread: Thread }) {
         <Button
           intent="ghost"
           size="sm"
-          className={INSET}
+
           aria-label={`Priority: ${priority.label}`}
         >
           <priority.icon />
@@ -200,7 +199,7 @@ export function Properties({ thread }: { thread: Thread }) {
               ? `Tags: ${conversation.tags.map((t) => t.name).join(", ")}`
               : "Add tags"
           }
-          className={`min-w-0 ${INSET}`}
+          className="min-w-0"
         >
           <IconTag />
           <span className="truncate">
@@ -234,6 +233,7 @@ export function Properties({ thread }: { thread: Thread }) {
           )}
         </Menu>
       </MenuTrigger>
+      {children}
     </div>
   );
 }

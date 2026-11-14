@@ -237,9 +237,13 @@ export function MailboxSwitcher() {
         placement="bottom start"
         popover={{
           offset: 8,
-          // Fit-content like every menu; rows carry an avatar and two lines, so the cap is
-          // raised to 320px (addresses truncate past it).
-          className: "max-w-[min(20rem,calc(100vw-16px))] [--popover-radius:var(--radius-xl)]",
+          // The trigger sits 8px from the window's edge: keep the same 8px, so the menu's left
+          // edge lines up with the trigger's instead of being pushed in to the usual 16px.
+          collisionPadding: 8,
+          // Rows carry an avatar and two lines: at least 288px, growing to 384px for long
+          // addresses (they truncate past it).
+          className:
+            "min-w-72 max-w-[min(24rem,calc(100vw-16px))] [--popover-radius:var(--radius-xl)]",
         }}
         className="p-2"
       >

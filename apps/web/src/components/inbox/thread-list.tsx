@@ -1,5 +1,5 @@
 import { useLocation, useParams } from "@tanstack/react-router";
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Selection } from "react-aria-components";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
@@ -8,13 +8,17 @@ import { Skeleton, SkeletonBox } from "skullet/react";
 import { ConversationMeta, type ConversationRowInfo } from "@/components/inbox/conversation-meta";
 import { ListSweepSlot } from "@/components/inbox/list-sweep";
 import { OpenListContext } from "@/components/inbox/open-list";
-import { SearchPopover } from "@/components/search/search-popover";
-import { ComposePane } from "@/components/compose/compose-pane";
 import { EmptyState } from "@/components/empty/empty-state";
-import { IconPencil } from "@/components/icons/central";
+import { useQueryClient } from "@tanstack/react-query";
+import { IconArrowRotateClockwise, IconMailOpen, IconPencil } from "@/components/icons/central";
+import { keys } from "@/lib/query-keys.ts";
+import { IconSearch } from "@/components/icons/sidebar";
+import { openSearch, SearchPopover } from "@/components/search/search-popover";
+import { useMarkRead } from "@/hooks/use-mail-actions.ts";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
-import { Checkbox, CheckboxField } from "@/components/ui/checkbox";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
@@ -22,12 +26,11 @@ import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { IconSidebar } from "@/components/icons/sidebar";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
-import { closeComposePane, useComposePane, useOpenCompose } from "@/hooks/use-compose-pane.ts";
+import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
-import { useCounts, useThreads } from "@/hooks/use-mail.ts";
+import { useThreads } from "@/hooks/use-mail.ts";
 import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
 import { useWorkspaceNames } from "@/hooks/use-workspaces.ts";
-import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { senderLabel } from "@/lib/threads.ts";
 import type {
   ConversationFilter,
@@ -37,7 +40,8 @@ import type {
   ThreadView,
 } from "@/lib/types.ts";
 
-// The list beside an open thread: wide enough for a sender, subject and preview line.
+// The middle of three columns: wide enough for a sender and the start of a subject, so the
+// reading column beside it gets the rest of the page.
 const LIST_WIDTH = 440;
 const LIST_MIN = 320;
 const LIST_MAX = 720;
@@ -77,7 +81,6 @@ export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
     isSuccess,
     refetch,
   } = useThreads(props.filter);
-  const unread = useUnreadCount(props.filter);
   const names = useWorkspaceNames(props.filter.mailbox);
   // Stable rows, so the virtualized list's row cache survives renders that don't change them.
   const rows = useMemo(
@@ -105,7 +108,6 @@ export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
       }
       rows={rows}
       loading={isPending}
-      count={unread}
       shortcuts={{ view: props.filter.view, threads, loadMore }}
       loadMore={loadMore}
       isLoadingMore={isFetchingNextPage}
@@ -159,23 +161,20 @@ export function List(
      * shows it.
      */
     loading?: boolean;
-    /** Shown in brand blue after the title (unread threads), when above zero. */
-    count?: number;
-    /** What the bar above the rows says about their order or scope. */
+    /** What the header says about the rows' order or scope, after the title. */
     caption?: ReactNode;
     /** Loads the next page, called as the end of the list nears. */
     loadMore?: (() => void) | undefined;
     isLoadingMore?: boolean;
     /** The list keys (j/k, x, e, ...), for lists of threads. */
     shortcuts?: ShortcutsSource;
-    /** Shown in place of the caption while rows are selected: what to do with them. */
+    /** Shown in the header while rows are selected: what to do with them. */
     bulkActions?: (selection: { ids: string[]; clear: () => void }) => ReactNode;
     /** Shown in place of the rows when there are none (or they failed to load). */
     empty?: ReactNode;
   },
 ) {
   const threads = props.rows;
-  const unread = props.count ?? 0;
   const [selected, setSelected] = useState<Selection>(new Set());
   const count = selected === "all" ? threads.length : selected.size;
   const [fullScreen] = useFullScreen();
@@ -185,21 +184,18 @@ export function List(
   const closeHref = threadId
     ? location.pathname.slice(0, location.pathname.lastIndexOf("/")) + location.searchStr
     : undefined;
-  // New mail opens in the reading pane, like a thread; a thread opening takes its place.
-  const [composing, closeCompose] = useComposePane();
+  // New mail opens in a dialog over the page (`ComposeDialog`).
   const openCompose = useOpenCompose();
-  useEffect(() => {
-    if (threadId) closeComposePane();
-  }, [threadId]);
-  const detail = !!threadId || composing;
+  const detail = !!threadId;
   // Full screen (toggled from the conversation's toolbar): the open pane takes the whole width.
   const hideList = fullScreen && detail;
   const listRef = useRef<HTMLElement>(null);
-  // Beside an open thread the list keeps a width the person can drag; alone it fills the page.
+  // With a thread open, three columns: the list keeps a width the person can drag, the reading
+  // column the rest at the window's full height. Closed, the list fills the page.
   const split = detail && !hideList;
   const listWidth = useStoredWidth("omni:list-width", LIST_WIDTH, LIST_MIN, LIST_MAX);
-  // Until dragged, the thread takes a 672px reading pane (`w-2xl`) and the list the rest, down to
-  // its minimum.
+  // Until dragged, the reading column keeps a comfortable 576px (`w-xl`) and the list takes the
+  // rest, down to its minimum.
   const hug = split && !listWidth.isSet;
   const [resizing, setResizing] = useState(false);
   // The rows behind the open thread, for its full-screen switcher.
@@ -228,66 +224,56 @@ export function List(
           listHidden={hideList}
         />
       )}
-      {/* 10px on the right, the same as the 28px controls' inset from the top. */}
-      <header
-        className={`flex h-12 shrink-0 items-center gap-2 pe-2.5 ${sidebarHidden ? "ps-2.5" : "ps-5"}`}
-      >
-        {sidebarHidden && (
-          <SidebarTrigger intent="ghost" size="sq-xs" aria-label="Open sidebar">
-            <IconSidebar />
-          </SidebarTrigger>
-        )}
-        {/* 1px down: centers the title's capitals on the sidebar header's icons. Collapsed, the
-            title centres on the sidebar button beside it instead, so it stays put. */}
-        <Heading className={sidebarHidden ? "" : "translate-y-px"}>
-          {props.title}
-          {unread > 0 && <span className="ms-1 text-primary tabular-nums">{unread}</span>}
-        </Heading>
-        <div className="ms-auto flex items-center gap-2">
-          <SearchPopover />
-          <Button
-            intent="primary"
-            size="sm"
-            aria-keyshortcuts={ariaKeyShortcuts("compose")}
-            // 27px: a filled button reads 1px taller than the outlined search field beside it.
-            className="h-6.75"
-            onPress={openCompose}
-          >
-            <IconPencil />
-            Compose
-          </Button>
-        </div>
-      </header>
-
+      {/* The list and the reading column side by side, each the window's full height. */}
       <div className={`flex min-h-0 flex-1 ${resizing ? "cursor-ew-resize select-none" : ""}`}>
         <section
           ref={listRef}
           style={split && !hug ? { width: listWidth.width } : undefined}
-          className={`flex flex-col ${hug ? "min-w-80" : "min-w-0"} ${split && !hug ? "flex-none" : "flex-1"} ${hideList ? "hidden" : ""}`}
+          className={`relative flex flex-col ${hug ? "min-w-80" : "min-w-0"} ${split && !hug ? "flex-none" : "flex-1"} ${hideList ? "hidden" : ""}`}
         >
-          {/* pb-0.5 lifts the row 1px: under the borderless header the true middle reads low.
-              The reader's toolbar beside it does the same, so the two stay on one line. */}
-          <div className="flex h-10.5 items-center gap-2 border-b px-5 pb-0.5">
-            <CheckboxField
-              aria-label="Select all"
-              isSelected={threads.length > 0 && count === threads.length}
-              isIndeterminate={count > 0 && count < threads.length}
-              onChange={(all) => setSelected(all ? "all" : new Set())}
+          {/* 10px on the right, the same as the 28px controls' inset from the top. */}
+          <header
+            className={`flex h-12 shrink-0 items-center gap-2 border-b pe-2.5 ${sidebarHidden ? "ps-2.5" : "ps-5"}`}
+          >
+            {sidebarHidden && (
+              <SidebarTrigger intent="ghost" size="sq-xs" aria-label="Open sidebar">
+                <IconSidebar />
+              </SidebarTrigger>
+            )}
+            {/* 1px down: centers the title's capitals on the sidebar header's icons. Collapsed,
+                the title centres on the sidebar button beside it instead. It never shrinks: the
+                caption truncates and the search field narrows first. */}
+            <Heading
+              className={`shrink-0 whitespace-nowrap ${sidebarHidden ? "" : "translate-y-px"}`}
             >
-              <Checkbox />
-            </CheckboxField>
-            {count > 0 && props.bulkActions ? (
-              props.bulkActions({
-                ids: selected === "all" ? threads.map((t) => t.id) : [...selected].map(String),
-                clear: () => setSelected(new Set()),
-              })
-            ) : (
-              // 1px down: the caption's ink centers on the checkbox's, not its line box.
-              <span className="translate-y-px text-xs text-subtle-foreground">
-                {props.caption ?? "Most recent"}
+              {props.title}
+            </Heading>
+            <span className="min-w-0 flex-1 translate-y-px truncate text-xs text-subtle-foreground">
+              {props.caption}
+            </span>
+            {/* A plain list's checked rows: how many, before the actions. */}
+            {count > 0 && !props.bulkActions && (
+              <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+                {count} selected
               </span>
             )}
-          </div>
+            <div className="flex min-w-0 items-center gap-1 *:shrink-0 *:data-[search-field]:shrink">
+              {/* The same search as the sidebar's field (and `/`). On a phone the sidebar is a sheet
+                  that unmounts when closed, so the header holds the search field itself there. */}
+              {sidebar.isMobile ? (
+                <SearchPopover />
+              ) : (
+                <HeaderAction label="Search" onPress={openSearch}>
+                  <IconSearch />
+                </HeaderAction>
+              )}
+              <MarkAllRead rows={threads} />
+              <ReloadAction />
+              <HeaderAction label="Compose" shortcut="compose" onPress={openCompose}>
+                <IconPencil />
+              </HeaderAction>
+            </div>
+          </header>
 
           {/* Only the rows on screen are in the DOM, so thousands of threads scroll like fifty.
               The list is its own scroll container; rows keep the frame's fixed height. The
@@ -321,11 +307,24 @@ export function List(
               </RowHover>
             </ListSweepSlot>
           )}
+          {/* A helpdesk list's actions on its checked rows float at the column's foot, 16px up and
+              centred, framed like the reader's properties bar. 12px before the count, where the
+              buttons' labels sit from the other edge. */}
+          {count > 0 && props.bulkActions && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-5">
+              <div className="pointer-events-auto max-w-full overflow-x-auto rounded-lg border bg-background p-0.5 ps-3">
+                {props.bulkActions({
+                  ids: selected === "all" ? threads.map((t) => t.id) : [...selected].map(String),
+                  clear: () => setSelected(new Set()),
+                })}
+              </div>
+            </div>
+          )}
         </section>
-        {/* Only with a thread (or new mail) open: closed, the list takes the full width. The same
-            wrapper in and out of full screen, so toggling it doesn't remount the thread. */}
-        {detail && (props.children || composing) && (
-          <div className={`relative flex min-w-0 ${hug ? "w-2xl shrink" : "flex-1"}`}>
+        {/* The reading column, from the window's top to its bottom, only with a thread open. The
+            same wrapper in and out of full screen, so toggling it doesn't remount it. */}
+        {threadId && props.children && (
+          <div className={`relative flex min-w-0 ${hug ? "w-xl shrink" : "flex-1"}`}>
             {split && (
               <ResizeGrip
                 label="Resize list"
@@ -335,15 +334,81 @@ export function List(
                 onResizingChange={setResizing}
               />
             )}
-            {threadId ? (
-              <OpenListContext value={openList}>{props.children}</OpenListContext>
-            ) : (
-              <ComposePane onClose={closeCompose} />
-            )}
+            <OpenListContext value={openList}>{props.children}</OpenListContext>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+/** An icon action in the list's header, the reader's toolbar size, with its tooltip. */
+function HeaderAction(props: {
+  label: string;
+  shortcut?: Parameters<typeof ariaKeyShortcuts>[0];
+  isDisabled?: boolean;
+  isPending?: boolean;
+  onPress: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <TooltipTrigger delay={400}>
+      <Button
+        intent="ghost"
+        size="sq-sm-lg"
+        aria-label={props.label}
+        aria-keyshortcuts={props.shortcut && ariaKeyShortcuts(props.shortcut)}
+        isDisabled={props.isDisabled}
+        isPending={props.isPending}
+        onPress={props.onPress}
+      >
+        {props.children}
+      </Button>
+      <Tooltip>{props.label}</Tooltip>
+    </TooltipTrigger>
+  );
+}
+
+/** Fetches everything on screen again: the lists, the open thread, the counts. */
+function ReloadAction() {
+  const client = useQueryClient();
+  const [pending, setPending] = useState(false);
+  return (
+    <HeaderAction
+      label="Reload"
+      isPending={pending}
+      onPress={() => {
+        setPending(true);
+        // Server data only: client-only state (pending and failed sends) has nothing to fetch,
+        // and refetching it would clear it.
+        void client
+          .refetchQueries({
+            type: "active",
+            predicate: (query) => query.queryKey[1] !== keys.local()[1],
+          })
+          .finally(() => setPending(false));
+      }}
+    >
+      <IconArrowRotateClockwise />
+    </HeaderAction>
+  );
+}
+
+/**
+ * Marks every unread row in the list read, one at a time as `u` does. Always in the header, so
+ * its actions stay put; disabled while nothing is unread.
+ */
+function MarkAllRead({ rows }: { rows: ListRow[] }) {
+  const markRead = useMarkRead();
+  const unread = rows.filter((r) => r.unread);
+  return (
+    <HeaderAction
+      label="Mark all read"
+      isDisabled={!unread.length}
+      onPress={() => unread.forEach((r) => markRead.mutate({ threadId: r.id, read: true }))}
+    >
+      <IconMailOpen />
+    </HeaderAction>
   );
 }
 
@@ -525,13 +590,4 @@ function RowBones() {
       </span>
     </div>
   ));
-}
-
-/** Unread threads in the inbox (or one lane of it), across the filtered mailbox(es). */
-function useUnreadCount(filter: ThreadFilter) {
-  const { data } = useCounts();
-  if (filter.view !== "inbox" || filter.lane || !data) return 0;
-  return data.counts
-    .filter((c) => !filter.mailbox || c.mailboxId === filter.mailbox)
-    .reduce((sum, c) => sum + c.unread, 0);
 }

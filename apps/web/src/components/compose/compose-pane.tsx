@@ -1,10 +1,9 @@
-import { IconX } from "@/components/icons/central";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useAllMailboxes } from "@/hooks/use-mail.ts";
 import { useMember } from "@/hooks/use-session.ts";
+import { Dialog, DialogTitle } from "@/components/ui/dialog";
+import { reopenCompose, takeComposeDraft, useComposePane } from "@/hooks/use-compose-pane.ts";
 import { useSearch } from "@tanstack/react-router";
+import { useState } from "react";
 import { NewMessageComposer } from "./composer.tsx";
 
 /**
@@ -21,35 +20,48 @@ export function useComposeMailboxes() {
 }
 
 /**
- * New mail in the reading pane beside the list, laid out like an open conversation: the same
- * toolbar row (with close where the thread's actions sit), then the composer filling the rest.
+ * New mail in a dialog over the page, like a command palette: the title row with its close, then
+ * the composer filling the rest. Replies stay under their conversation. Send closes it; an undo
+ * opens it again holding what was sent.
  */
-export function ComposePane({ onClose }: { onClose: () => void }) {
+export function ComposeDialog() {
+  const [open, close] = useComposePane();
+  return (
+    <Dialog
+      aria-label="New email"
+      size="3xl"
+      bare
+      isOpen={open}
+      onOpenChange={(next) => !next && close()}
+      // Tall enough to write in, short of the window's edges.
+      className="h-[min(--spacing(160),calc(100dvh-2rem))]"
+    >
+      <ComposeDialogBody onSent={close} />
+    </Dialog>
+  );
+}
+
+function ComposeDialogBody({ onSent }: { onSent: () => void }) {
   const mailboxes = useComposeMailboxes();
   // From the mailbox the switcher shows, when it shows one.
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
-  const [fullScreen] = useFullScreen();
-  // Full screen, the sidebar's own edge is the only line: a second one beside it would double up.
-  const edge = fullScreen ? "" : "border-s";
+  // Read once, as the dialog opens: an undone send's content, if that is why it opened.
+  const [restored] = useState(takeComposeDraft);
   return (
-    <section aria-label="New message" className="flex min-w-0 flex-1 flex-col">
-      {/* The conversation toolbar's row: same height, lift and inset (see `Actions`). */}
-      <div
-        className={`relative flex h-10.5 shrink-0 items-center border-b pb-0.5 ${fullScreen ? "" : "border-s border-s-transparent"}`}
-      >
-        <div className="absolute inset-y-0 end-1.5 flex items-center pb-0.5">
-          <TooltipTrigger delay={400}>
-            <Button intent="ghost" size="sq-sm-lg" aria-label="Close" onPress={onClose}>
-              <IconX />
-            </Button>
-            <Tooltip>Close</Tooltip>
-          </TooltipTrigger>
-        </div>
+    <>
+      {/* 12px in, where the composer's rows start; the dialog's close sits at the row's end. */}
+      <div className="flex h-12 shrink-0 items-center border-b px-3 pe-12">
+        <DialogTitle>New email</DialogTitle>
       </div>
-      {/* The composer is the pane itself: full width, no card, its tools at the bottom. */}
-      <div className={`flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none ${edge}`}>
-        <NewMessageComposer mailboxes={mailboxes} initial={{ mailboxId: mailbox }} />
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none">
+        <NewMessageComposer
+          mailboxes={mailboxes}
+          initial={{ mailboxId: mailbox }}
+          restored={restored}
+          onSent={onSent}
+          onUndone={reopenCompose}
+        />
       </div>
-    </section>
+    </>
   );
 }

@@ -1,7 +1,5 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRouter, useSearch } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
-import { IconArrowRotateClockwise } from "@/components/icons/central";
+import type { ReactNode } from "react";
 import {
   IconBubble,
   IconBubbleAnnotation,
@@ -20,6 +18,7 @@ import {
 } from "@/components/icons/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SearchPopover } from "@/components/search/search-popover";
 import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
 import { Notifications } from "./notifications";
@@ -35,12 +34,13 @@ import {
   SidebarLabel,
   SidebarSection,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
+import { useCounts } from "@/hooks/use-mail.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
 import { openSettings } from "@/hooks/use-settings-dialog.ts";
-import { keys } from "@/lib/query-keys.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 
 /** A nav row. No `href`: the frame shows it, but the app has no view for it yet. */
@@ -50,10 +50,18 @@ interface NavItem {
   href?: string;
   /** Path (and lane, for inbox lanes) that marks this row current. */
   current?: { path: string; lane?: string; exact?: boolean };
+  /** Shows the inbox's unread threads at the row's end. */
+  unread?: boolean;
 }
 
 const mail: NavItem[] = [
-  { label: "Inbox", icon: <IconInbox />, href: "/inbox", current: { path: "/inbox" } },
+  {
+    label: "Inbox",
+    icon: <IconInbox />,
+    href: "/inbox",
+    current: { path: "/inbox" },
+    unread: true,
+  },
   { label: "Later", icon: <IconClock />, href: "/later", current: { path: "/later" } },
   {
     label: "Needs reply",
@@ -80,13 +88,15 @@ const folders: NavItem[] = [
 // Figma: Omni, sidebar (node 1:3).
 export function AppSidebar() {
   const router = useRouter();
+  const { isMobile } = useSidebar();
   const shown = useShownMailbox();
   // The links carry the URL's mailbox as it is, not the one found in the workspace list: right
   // after a switch that list is still loading, and a link built from it would drop the mailbox.
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
   return (
     <Sidebar>
-      <SidebarHeader className="justify-between">
+      {/* The switcher fills the row up to the icons, as close as they sit to each other. */}
+      <SidebarHeader className="justify-between gap-0.5">
         <MailboxSwitcher />
         <div className="flex items-center gap-0.5">
           <Button
@@ -105,7 +115,6 @@ export function AppSidebar() {
           >
             <IconChevronRight />
           </Button>
-          <ReloadButton />
           <SidebarTrigger intent="ghost" size="sq-xs">
             <IconSidebar />
           </SidebarTrigger>
@@ -116,6 +125,11 @@ export function AppSidebar() {
         {/* The first group needs no heading: it's what the app opens to. The same rows for every
             mailbox the switcher shows; a shared inbox adds its Mine. Every row
             keeps the switcher's choice: a link never changes which mailbox is shown. */}
+        {/* Search first, as wide as the links under it, the content's 12px gap above them; its
+            box grows out to the right. */}
+        {/* On a phone the sidebar is a sheet that unmounts when closed: the list header holds
+            search there instead (one search mounted at a time, so keys open one panel). */}
+        {!isMobile && <SearchPopover side="start" />}
         <SidebarSection>
           <Items items={mail} mailbox={mailbox} />
           {shown?.kind === "shared" && <HelpdeskItems mailboxId={shown.id} />}
@@ -144,33 +158,6 @@ export function AppSidebar() {
         </div>
       </SidebarFooter>
     </Sidebar>
-  );
-}
-
-/** Fetches everything on screen again: the lists, the open thread, the counts. */
-function ReloadButton() {
-  const client = useQueryClient();
-  const [pending, setPending] = useState(false);
-  return (
-    <Button
-      intent="ghost"
-      size="sq-xs"
-      aria-label="Reload"
-      isPending={pending}
-      onPress={() => {
-        setPending(true);
-        // Server data only: client-only state (pending and failed sends) has nothing to fetch,
-        // and refetching it would clear it.
-        void client
-          .refetchQueries({
-            type: "active",
-            predicate: (query) => query.queryKey[1] !== keys.local()[1],
-          })
-          .finally(() => setPending(false));
-      }}
-    >
-      <IconArrowRotateClockwise className="size-icon" />
-    </Button>
   );
 }
 
@@ -218,8 +205,30 @@ function Items({ items, mailbox }: { items: NavItem[]; mailbox: string | undefin
     >
       {item.icon}
       <SidebarLabel>{item.label}</SidebarLabel>
+      {item.unread && <UnreadCount mailbox={mailbox} />}
     </SidebarItem>
   ));
+}
+
+/** Unread threads in the inbox, across the shown mailbox (or all of them); nothing at zero. */
+function UnreadCount({ mailbox }: { mailbox: string | undefined }) {
+  const counts = useCounts().data?.counts ?? [];
+  const unread = counts
+    .filter((c) => !mailbox || c.mailboxId === mailbox)
+    .reduce((sum, c) => sum + c.unread, 0);
+  if (!unread) return null;
+  return (
+    // Square: 18px a side for one digit, wider only for more. 4px into the row's end padding:
+    // its centre lines up with the sidebar toggle's and the search field's `/` above it. It multiplies, so on the current
+    // row's fill it reads a step darker than on a plain row.
+    <Badge
+      intent="primary"
+      isCircle={false}
+      className="ms-auto -me-1 h-4.5 min-w-4.5 justify-center bg-unread-count px-1 py-0 text-xs/4.5 tabular-nums mix-blend-multiply"
+    >
+      {unread}
+    </Badge>
+  );
 }
 
 /**

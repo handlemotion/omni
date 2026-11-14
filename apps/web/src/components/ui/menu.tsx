@@ -90,7 +90,13 @@ export function MenuTrigger({ isOpen, defaultOpen, onOpenChange, children }: Men
 
 export interface MenuProps<T> {
   placement?: Placement;
-  popover?: { className?: string; offset?: number; placement?: Placement };
+  popover?: {
+    className?: string;
+    offset?: number;
+    placement?: Placement;
+    /** Room kept from the window's edges (16px). Less for a trigger that sits closer. */
+    collisionPadding?: number;
+  };
   className?: string;
   "aria-label"?: string;
   /** With a function as children, renders one item per entry (keyed by its `id`). */
@@ -120,6 +126,19 @@ const MENU_ITEM_SELECTOR = "[role='menuitem'], [role='menuitemradio'], [role='me
  * rows carry more (an avatar and two lines) raises only the cap with `max-w-*`.
  */
 const MENU_WIDTH = "w-max min-w-33 max-w-60";
+
+/** Where the menu opens: beside its trigger (a submenu places itself), 8px off, 16px from edges. */
+function positionProps(
+  nested: boolean,
+  popover: MenuProps<object>["popover"],
+  placement: Placement | undefined,
+) {
+  return {
+    ...(nested ? {} : toSideAlign(popover?.placement ?? placement ?? "bottom start")),
+    sideOffset: popover?.offset ?? 8,
+    collisionPadding: popover?.collisionPadding ?? 16,
+  };
+}
 
 /** A group around items that keeps them on the menu's grid. */
 const ON_GRID = "col-span-full grid grid-cols-subgrid";
@@ -161,9 +180,7 @@ export function Menu<T extends { id?: Key }>({
       value={{ selectionMode, selected, onAction, onSelectionChange, actions }}
     >
       <Content
-        {...(nested ? {} : toSideAlign(popover?.placement ?? placement ?? "bottom start"))}
-        sideOffset={popover?.offset ?? 8}
-        collisionPadding={16}
+        {...positionProps(nested, popover, placement)}
         className={cn(MENU_WIDTH, popupSurface, "overflow-hidden", popover?.className)}
         aria-label={props["aria-label"]}
       >

@@ -179,45 +179,42 @@ test("a mailbox in the other workspace opens; a switch the server refuses says s
   expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.hello.id);
 });
 
-// Catches: rows cropped to their content (a layout width of NaN), or the thread pane holding
-// half the page with no thread open.
-test("the list spans the page until a thread opens, and again once it closes", async () => {
+// Catches: rows cropped to their content (a layout width of NaN), an empty reading column left
+// standing with nothing open, or a thread that the top bar's close doesn't close.
+test("the list fills the page until a thread opens beside it, and again once it closes", async () => {
   const { email } = await ana("wide");
   const page = await openSwitcher(email);
   await page.keyboard.press("Escape");
   const row = page.getByRole("row").filter({ hasText: "Hello from Beta" });
   await row.waitFor();
-  const compose = page.getByRole("button", { name: "Compose" });
-  const rightEdge = async (locator: typeof row) => {
-    const box = await locator.boundingBox();
+  const list = page.getByRole("grid");
+  const width = async (locator: typeof row) => (await locator.boundingBox())?.width ?? 0;
+  // Alone, the list (and every row in it) runs to the window's edge.
+  const right = async () => {
+    const box = await row.boundingBox();
     return box ? box.x + box.width : 0;
   };
-  // Full width: the row ends where the header's last control does, give or take its padding.
-  await expect
-    .poll(async () => (await rightEdge(compose)) - (await rightEdge(row)))
-    .toBeLessThan(24);
+  const viewport = page.viewportSize()?.width ?? 0;
+  await expect.poll(async () => viewport - (await right())).toBeLessThan(2);
+  expect(Math.abs((await width(row)) - (await width(list)))).toBeLessThan(2);
 
+  // Open, the thread takes the right of the page; the list keeps the rest.
   await row.click();
   await page.waitForURL((url) => url.pathname.startsWith("/inbox/"));
-  await expect
-    .poll(async () => (await rightEdge(compose)) - (await rightEdge(row)))
-    .toBeGreaterThan(200);
+  await page.getByRole("button", { name: "Reply", exact: true }).last().waitFor();
+  await expect.poll(async () => viewport - (await right())).toBeGreaterThan(400);
 
-  await page.goBack();
-  await page.waitForURL((url) => url.pathname === "/inbox");
-  await expect
-    .poll(async () => (await rightEdge(compose)) - (await rightEdge(row)))
-    .toBeLessThan(24);
-  // New mail opens in the same pane, beside the list, and closes back to the full list.
-  await compose.click();
-  await page.getByRole("region", { name: "New message" }).waitFor();
-  await expect
-    .poll(async () => (await rightEdge(compose)) - (await rightEdge(row)))
-    .toBeGreaterThan(200);
+  // The top bar's close goes back to the list alone.
   await page.getByRole("button", { name: "Close", exact: true }).click();
-  await expect
-    .poll(async () => (await rightEdge(compose)) - (await rightEdge(row)))
-    .toBeLessThan(24);
+  await page.waitForURL((url) => url.pathname === "/inbox");
+  await expect.poll(async () => viewport - (await right())).toBeLessThan(2);
+
+  // New mail opens in a dialog over the page and closes back to it.
+  await page.getByRole("button", { name: "Compose" }).click();
+  const dialog = page.getByRole("dialog", { name: "New email" });
+  await dialog.waitFor();
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "detached" });
 });
 
 // Catches: a sidebar link that drops (or swaps) the mailbox the switcher shows.
@@ -231,7 +228,8 @@ test("sidebar links keep the mailbox the switcher shows", async () => {
     ["All mail", "/all"],
     ["Inbox", "/inbox"],
   ] as const) {
-    await page.getByRole("link", { name, exact: true }).click();
+    // Inbox's name carries its unread count ("Inbox 3").
+    await page.getByRole("link", { name: new RegExp(`^${name}( \\d+)?$`) }).click();
     await page.waitForURL((url) => url.pathname === path);
     expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.hello.id);
     await page.getByRole("button", { name: /^Switch mailbox, currently Hello/ }).waitFor();

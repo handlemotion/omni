@@ -38,8 +38,13 @@ interface ComposerState {
   forwardId: string | undefined;
   forward: (messageId: string) => void;
   stopForward: () => void;
-  /** Whether the composer shows: always on a shared inbox; from Reply or Forward on a personal one. */
+  /**
+   * Whether the composer shows: from Reply or Forward, and on a shared inbox also once the email
+   * is a conversation (replied to, or started with `startChat`).
+   */
   open: boolean;
+  /** Opens a shared inbox's hidden notes on a single email, so the team can talk first. */
+  startChat: () => void;
   /** Whether the email composer is mounted: from Reply or Forward until a discard. */
   email: boolean;
   replyKind: ReplyKind;
@@ -68,7 +73,18 @@ interface ComposerState {
 const Context = createContext<ComposerState | null>(null);
 
 /** One per open conversation (keyed by thread), so nothing carries over to the next one. */
-export function ComposerProvider({ chat, children }: { chat: boolean; children: ReactNode }) {
+export function ComposerProvider({
+  chat,
+  chatOpen,
+  onStartChat,
+  children,
+}: {
+  chat: boolean;
+  /** A shared inbox's conversation is under way: its hidden composer stays docked. */
+  chatOpen: boolean;
+  onStartChat: () => void;
+  children: ReactNode;
+}) {
   const [mode, setMode] = useState<ComposerMode>(chat ? "hidden" : "public");
   const [reply, setReply] = useState<Reply>();
   const [seed, setSeed] = useState<{ text: string }>();
@@ -96,6 +112,7 @@ export function ComposerProvider({ chat, children }: { chat: boolean; children: 
     reply,
     seed,
     replyInChat: (next, draft) => {
+      onStartChat();
       setReply(next);
       // A new object each time, so the same words handed over twice still arrive.
       if (draft) setSeed({ text: draft });
@@ -108,7 +125,11 @@ export function ComposerProvider({ chat, children }: { chat: boolean; children: 
       startEmail();
     },
     stopForward: () => setForwardId(undefined),
-    open: chat || email,
+    open: (chat && chatOpen) || email,
+    startChat: () => {
+      onStartChat();
+      setMode("hidden");
+    },
     email,
     replyKind,
     replyToId,

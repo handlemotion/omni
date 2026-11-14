@@ -3,6 +3,7 @@
 // signature, files, canned replies, a shared draft that saves as you type, Cmd/Ctrl+Enter to
 // send, and the undo-send toast. No Figma frame exists yet; this is a proposal built from the
 // primitives.
+import type { NewMessageDraft } from "@/hooks/use-compose-pane.ts";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DropZone } from "react-aria-components/DropZone";
 import {
@@ -605,8 +606,18 @@ export function NewMessageComposer(props: {
   };
   /** A bordered, rounded card on the page (full-screen compose), not the pane itself. */
   island?: boolean;
+  /** An undone send's content, to start from instead of an empty message. */
+  restored?: NewMessageDraft | undefined;
+  /**
+   * Called once a send is queued. Without it the form clears for the next message; with it the
+   * caller closes the composer, and an undo gets the content back through `onUndone`.
+   */
+  onSent?: () => void;
+  /** Takes an undone send back; false when it can't, and the text goes to the clipboard. */
+  onUndone?: (draft: NewMessageDraft) => boolean;
 }) {
-  const mailboxId = props.initial.mailboxId || props.mailboxes[0]?.id || "";
+  const mailboxId =
+    props.restored?.mailboxId || props.initial.mailboxId || props.mailboxes[0]?.id || "";
   return mailboxId ? <NewMessage key={mailboxId} mailboxId={mailboxId} {...props} /> : null;
 }
 
@@ -615,20 +626,25 @@ function NewMessage(props: {
   mailboxes: { id: string; address: string }[];
   initial: { to?: string | undefined; subject?: string | undefined };
   island?: boolean | undefined;
+  restored?: NewMessageDraft | undefined;
+  onSent?: (() => void) | undefined;
+  onUndone?: ((draft: NewMessageDraft) => boolean) | undefined;
 }) {
+  const restored = props.restored;
   const [mailboxId, setMailboxId] = useState(props.mailboxId);
   const { signature, isLoading: signatureLoading } = useSignature(mailboxId);
   const files = useComposerFiles(mailboxId);
+  const resetFiles = files.reset;
   const sendNew = useSendNew();
   const cancelSend = useCancelSend();
   const [to, setTo] = useState<string[]>(
-    props.initial.to ? props.initial.to.split(/[,;\s]+/).filter(Boolean) : [],
+    restored?.to ?? (props.initial.to ? props.initial.to.split(/[,;\s]+/).filter(Boolean) : []),
   );
-  const [cc, setCc] = useState<string[]>([]);
-  const [bcc, setBcc] = useState<string[]>([]);
-  const [showCopies, setShowCopies] = useState(false);
-  const [subject, setSubject] = useState(props.initial.subject ?? "");
-  const [text, setText] = useState("");
+  const [cc, setCc] = useState<string[]>(restored?.cc ?? []);
+  const [bcc, setBcc] = useState<string[]>(restored?.bcc ?? []);
+  const [showCopies, setShowCopies] = useState(!!(restored?.cc.length || restored?.bcc.length));
+  const [subject, setSubject] = useState(restored?.subject ?? props.initial.subject ?? "");
+  const [text, setText] = useState(restored?.text ?? "");
   const textarea = useRef<HTMLTextAreaElement>(null);
   const started = useRef(false);
   const [ready, setReady] = useState(false);
@@ -636,8 +652,10 @@ function NewMessage(props: {
     if (started.current || signatureLoading) return;
     started.current = true;
     setReady(true);
+    // A handed-back draft already holds its signature and files.
+    if (restored) return resetFiles(restored.files);
     setText(startingBody(signature));
-  }, [signature, signatureLoading]);
+  }, [signature, signatureLoading, restored, resetFiles]);
 
   const canSend = !files.busy && to.length > 0 && !sendNew.isPending;
   const send = () => {
@@ -655,6 +673,21 @@ function NewMessage(props: {
       { mailboxId, to, cc, bcc, subject, text, attachments: files.attachments },
       {
         onSuccess: (queued) => {
+          const { onSent, onUndone } = props;
+          if (onSent) {
+            onSent();
+            offerUndoSend(queued, async () => {
+              const stopped = await cancelSend(queued.actionId);
+              if (stopped && !onUndone?.({ mailboxId, ...before })) {
+                // A new message is open in its place: keep it, and hand this one back as the
+                // reply composer does.
+                void navigator.clipboard?.writeText(before.text).catch(() => undefined);
+                appToast.message("Send stopped", { description: "Its text is on your clipboard." });
+              }
+              return stopped;
+            });
+            return;
+          }
           setTo([]);
           setCc([]);
           setBcc([]);

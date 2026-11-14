@@ -66,4 +66,4 @@ export { IconAt } from "central-icons-outlined/IconAt";
 export { IconArrowShareLeft as IconReply } from "central-icons-outlined/IconArrowShareLeft";
 export { IconArrowUndoUp as IconReplyAll } from "central-icons-outlined/IconArrowUndoUp";
 export { IconArrowShareRight as IconForward } from "central-icons-outlined/IconArrowShareRight";
-export { IconCrossSmall as IconX } from "central-icons-outlined/IconCrossSmall";
+export { IconCrossMedium as IconX } from "central-icons-outlined/IconCrossMedium";
