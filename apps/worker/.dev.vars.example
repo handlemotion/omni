@@ -44,10 +44,10 @@ SYSTEM_MAIL_FROM=
 UPLOAD_MAX_BYTES=
 
 # --- AI ---
-# Secret. Summaries, and triage when TYPESAFE_API_KEY is empty. With neither key, threads stay
+# Secret. Triage when TYPESAFE_API_KEY is empty. With neither key, threads stay
 # unsorted (only a wordless reply from you files itself, as FYI).
 ANTHROPIC_API_KEY=
-# Secret. TypeSafe key: triage runs on Jev when set (summaries stay on Claude), and search
+# Secret. TypeSafe key: triage runs on Jev when set, and search
 # results are reordered by Jev's relevance judgment. Empty: search keeps full-text order.
 TYPESAFE_API_KEY=
 # Optional. "jev" or "claude"; defaults to Jev when TYPESAFE_API_KEY is set.
@@ -56,8 +56,6 @@ TRIAGE_PROVIDER=
 JEV_MODEL=
 # Optional. TypeSafe API base URL. Defaults to https://api.typesafe.ai.
 TYPESAFE_API_URL=
-# Tokens per org per UTC day. Over the cap, summaries pause and triage keeps running.
-AI_DAILY_TOKEN_CAP=1000000
 
 # --- Billing (optional, ADR 0015; docs/self-hosting.md "Billing") ---
 # Leave STRIPE_SECRET_KEY empty for no billing: no plan, no limits. Set it (test mode, sk_test_...)

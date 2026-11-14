@@ -331,10 +331,11 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   // A redelivered job for an email already triaged costs nothing and counts nothing...
   await redeliver(reader, request);
   // ...and a job retried after the model ran but before the triage was saved runs again without
-  // counting twice: forget the saved triage to put the thread back in that state.
+  // counting twice: forget the saved triage (and the done marker written after it) to put the
+  // thread back in that state.
   await database.db
     .update(schema.threads)
-    .set({ triageMessageId: null })
+    .set({ triageMessageId: null, summaryMessageId: null })
     .where(eq(schema.threads.id, request.threadId));
   await redeliver(reader, request);
   await waitUntil(async () => (await threadRow(request.threadId)).triageMessageId === request.id);

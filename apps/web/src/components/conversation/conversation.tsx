@@ -46,7 +46,7 @@ const KEEP_FIRST = 1;
 const KEEP_LAST = 8;
 
 /**
- * The open conversation beside the list: its actions, subject and AI summary, then the messages
+ * The open conversation beside the list: its actions and subject, then the messages
  * oldest first, ending at the newest with the reply box under it.
  */
 export function Conversation({ threadId }: { threadId: string }) {
@@ -113,24 +113,17 @@ export function Conversation({ threadId }: { threadId: string }) {
           // Full screen, the sidebar's own edge is the only line: a second beside it doubles up.
           className={`${SCROLLER} overflow-y-auto overscroll-none ${fullScreen ? "" : "border-s"}`}
         >
+          {/* A single email's title is a row of its own, as tall as a list row with the same
+              bottom edge, so it lines up with the row it was opened from. */}
+          {single && <TitleRow subject={subject} />}
           {/* Grows to fill a short thread, so the composer stays at the pane's bottom. */}
           <div className={single ? PAGE : COLUMN}>
-            <div className="flex flex-col gap-2">
-              <Heading level={2}>{subject || "(no subject)"}</Heading>
-              {/* What the conversation is (status, owner, priority, tags) sits with its title. */}
-              {shared && (
-                <div className="mt-2">
-                  <Properties thread={thread} />
-                </div>
-              )}
-              {thread.summary && (
-                <p className="text-sm/6 text-muted-foreground">{thread.summary}</p>
-              )}
-            </div>
+            <ColumnHead subject={subject} thread={thread} shared={shared} single={single} />
             <Timeline
               key={threadId}
               threadId={threadId}
               mailboxId={thread.mailboxId}
+              mailboxAddress={thread.mailboxAddress}
               messages={thread.messages}
               helpdesk={shared ? helpdesk : undefined}
               flat={single}
@@ -146,6 +139,35 @@ export function Conversation({ threadId }: { threadId: string }) {
         </div>
       </ComposerProvider>
     </section>
+  );
+}
+
+/** A single email's title, on one line: as tall as a list row, with the same bottom edge. */
+function TitleRow({ subject }: { subject: string }) {
+  return (
+    <div className="flex h-13.25 shrink-0 items-center border-b px-5">
+      <Heading level={2} className="truncate" title={subject || undefined}>
+        {subject || "(no subject)"}
+      </Heading>
+    </div>
+  );
+}
+
+/**
+ * The top of the messages: a conversation's title, and on a shared inbox what it is (status,
+ * owner, priority, tags). A single email's title is its row above, so only the properties stay.
+ */
+function ColumnHead(props: { subject: string; thread: Thread; shared: boolean; single: boolean }) {
+  if (props.single && !props.shared) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      {!props.single && <Heading level={2}>{props.subject || "(no subject)"}</Heading>}
+      {props.shared && (
+        <div className="mt-2">
+          <Properties thread={props.thread} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -165,9 +187,8 @@ function isSingleEmail(
 const SECTION = "flex min-w-0 flex-1 flex-col";
 const SCROLLER = "flex min-h-0 flex-1 flex-col";
 const COLUMN = "mx-auto flex w-full max-w-3xl grow flex-col gap-6 px-5 pt-6 pb-6";
-// A single email: the column without its width cap, and more room between its title (and
-// properties) and the sender.
-const PAGE = "flex w-full grow flex-col gap-8 px-5 pt-6 pb-6";
+// A single email: the column without its width cap, under its title row.
+const PAGE = "flex w-full grow flex-col gap-6 px-5 pt-5 pb-6";
 
 /**
  * The thread while it loads: the toolbar, a subject and a few messages, drawn from skullet's
@@ -227,11 +248,13 @@ function MessageBones({ width, ours = false }: { width: string; ours?: boolean }
 function Timeline(props: {
   threadId: string;
   mailboxId: string;
+  /** The inbox's own address: it reads as "You" among a message's recipients. */
+  mailboxAddress: string;
   messages: Message[];
   helpdesk: HelpdeskState | undefined;
   flat?: boolean;
 }) {
-  const { threadId, mailboxId, messages, helpdesk, flat } = props;
+  const { threadId, mailboxId, mailboxAddress, messages, helpdesk, flat } = props;
   const [unfolded, setUnfolded] = useState(false);
   const lines = useEventLines(mailboxId, helpdesk?.events ?? []);
   const entries: { at: string; key: string; node: ReactNode }[] = [
@@ -241,7 +264,7 @@ function Timeline(props: {
       node: (
         <>
           <AddedLine message={message} />
-          <MessageItem threadId={threadId} message={message} flat={flat} />
+          <MessageItem threadId={threadId} message={message} self={mailboxAddress} flat={flat} />
         </>
       ),
     })),

@@ -81,6 +81,8 @@ export const buttonStyles = tv({
         "*:data-[slot=loader]:size-4.5",
       ],
       inset: "size-4.5 shrink-0 border-0",
+      // No box of its own: a toggle inside a line of text (a message's "to …").
+      text: ["gap-x-1 p-0 text-xs", "*:[svg]:size-3"],
     },
 
     isCircle: {

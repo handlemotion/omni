@@ -1,10 +1,26 @@
 import { type ReactNode, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
-import { IconImage, IconMail, IconNote } from "@/components/icons/central";
+import { Button } from "@/components/ui/button";
+import {
+  DescriptionDetails,
+  DescriptionList,
+  DescriptionTerm,
+} from "@/components/ui/description-list";
+import {
+  IconChevronDown,
+  IconForward,
+  IconImage,
+  IconMail,
+  IconNote,
+  IconReply,
+} from "@/components/icons/central";
 import { MenuItem, MenuLabel } from "@/components/ui/menu";
+import { Tag, TagGroup, TagList } from "@/components/ui/tag-group";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import type { PendingSend } from "@/lib/pending.ts";
 import type { Message } from "@/lib/types.ts";
 import { AttachmentChips } from "./attachments.tsx";
+import { useComposerState } from "../compose/composer-state.tsx";
 import { REPLY_SOURCE } from "../compose/selection-reply.tsx";
 import { FullMessage } from "./full-message.tsx";
 import { MessageMenu } from "./message-menu.tsx";
@@ -16,6 +32,7 @@ const DAY_TIME = new Intl.DateTimeFormat(undefined, {
   hour: "numeric",
   minute: "2-digit",
 });
+const FULL_DATE = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 /** Today's messages show the time; older ones the day as well. */
 export function messageTime(iso: string) {
@@ -55,6 +72,8 @@ export function AddedLine({ message }: { message: Message }) {
 export function MessageItem(props: {
   threadId: string;
   message: Message;
+  /** The inbox's own address: it reads as "You" among the recipients. */
+  self: string;
   /** The thread's only message, shown as the page: a card without its edge. */
   flat?: boolean | undefined;
 }) {
@@ -83,6 +102,8 @@ export function MessageItem(props: {
       text={message.cleanText}
       messageId={message.id}
       extra={toggle}
+      // A single email's header shows Reply and Forward beside it: a hidden ⋯ would leave a gap.
+      visible={!!props.flat}
     />
   );
 
@@ -93,7 +114,7 @@ export function MessageItem(props: {
       className={`group/item flex flex-col ${props.flat ? "gap-4" : "gap-3"} ${ours ? "items-end" : "items-start"}`}
     >
       {props.flat ? (
-        <EmailHeader message={message} sender={sender} menu={menu} />
+        <EmailHeader message={message} sender={sender} self={props.self} menu={menu} />
       ) : (
         <ChatHeader message={message} sender={sender} menu={menu} />
       )}
@@ -104,7 +125,14 @@ export function MessageItem(props: {
           className={`flex w-full flex-col gap-3 bg-background ${props.flat ? "" : "rounded-xl border p-4 shadow-(--shadow-raised)"}`}
         >
           {!full && <Body loose text={message.cleanText} />}
-          {full && <FullMessage threadId={threadId} messageId={message.id} images={images} />}
+          {full && (
+            <FullMessage
+              threadId={threadId}
+              messageId={message.id}
+              images={images}
+              flat={props.flat}
+            />
+          )}
         </div>
       ) : (
         <>
@@ -178,31 +206,123 @@ function ChatHeader(props: { message: Message; sender: string; menu: ReactNode }
 }
 
 /**
- * A single email's sender, laid out like mail rather than chat: a larger face, the name over
- * the address, and the time at the end of the line.
+ * A single email's sender, laid out like mail: a larger face, the name and time, and under them
+ * whom it went to, which opens the full From, To, Cc and Date. Reply and Forward sit at the end,
+ * beside the ⋯.
  */
-function EmailHeader(props: { message: Message; sender: string; menu: ReactNode }) {
+function EmailHeader(props: { message: Message; sender: string; self: string; menu: ReactNode }) {
   const { message, sender } = props;
-  const named = !!message.fromName && message.fromName !== message.fromAddress;
+  const [open, setOpen] = useState(false);
+  const composer = useComposerState();
+  const name = (a: { name?: string | null; address: string }) =>
+    a.address.toLowerCase() === props.self.toLowerCase() ? "You" : personName(a);
+  const recipients = [...message.to, ...message.cc].map(name);
   return (
-    <header className="flex w-full items-center gap-3">
-      <Avatar
-        isSquare
-        size="md"
-        initials={sender.slice(0, 1).toUpperCase()}
-        className="bg-accent text-foreground outline-0"
-      />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm">{sender}</span>
-        {named && (
-          <span className="truncate text-xs text-muted-foreground">{message.fromAddress}</span>
+    <div className="flex w-full flex-col gap-4">
+      <header className="flex w-full items-center gap-3">
+        <Avatar
+          isSquare
+          size="md"
+          initials={sender.slice(0, 1).toUpperCase()}
+          className="bg-accent text-foreground outline-0"
+        />
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+          <div className="flex max-w-full items-baseline gap-2">
+            <span className="truncate text-sm">{sender}</span>
+            <time dateTime={message.sentAt} className="text-xs text-subtle-foreground tabular-nums">
+              {messageTime(message.sentAt)}
+            </time>
+          </div>
+          <Button
+            intent="plain"
+            size="text"
+            aria-expanded={open}
+            aria-label={open ? "Hide details" : "Show details"}
+            onPress={() => setOpen((was) => !was)}
+            // Grey through the button's own colour, which a text class would not override.
+            className="max-w-full [--btn-foreground:var(--color-muted-foreground)] hover:[--btn-foreground:var(--color-foreground)]"
+          >
+            <span className="truncate">to {list(recipients) || "undisclosed recipients"}</span>
+            <IconChevronDown className={open ? "rotate-180" : ""} />
+          </Button>
+        </div>
+        <HeaderAction label="Reply" onPress={() => composer.openReply("reply")}>
+          <IconReply />
+        </HeaderAction>
+        <HeaderAction label="Forward" onPress={() => composer.forward(message.id)}>
+          <IconForward />
+        </HeaderAction>
+        {props.menu}
+      </header>
+      {open && <Details message={message} name={name} />}
+    </div>
+  );
+}
+
+function HeaderAction(props: { label: string; onPress: () => void; children: ReactNode }) {
+  return (
+    <TooltipTrigger delay={400}>
+      <Button
+        intent="ghost"
+        size="sq-xs"
+        aria-label={props.label}
+        className="text-muted-foreground hover:text-foreground"
+        onPress={props.onPress}
+      >
+        {props.children}
+      </Button>
+      <Tooltip>{props.label}</Tooltip>
+    </TooltipTrigger>
+  );
+}
+
+/** Who sent it and to whom, each on its own row, and when. */
+function Details(props: {
+  message: Message;
+  name: (a: { name?: string | null; address: string }) => string;
+}) {
+  const { message } = props;
+  const rows: [string, { name?: string | null; address: string }[]][] = [
+    ["To", message.to],
+    ["Cc", message.cc],
+  ];
+  return (
+    <DescriptionList className="sm:grid-cols-[--spacing(20)_auto]">
+      <DescriptionTerm>From</DescriptionTerm>
+      {/* One line, name then address, so every row is the same height. */}
+      <DescriptionDetails className="flex min-w-0 items-baseline gap-2">
+        <span className="shrink-0">{message.fromName || message.fromAddress}</span>
+        {message.fromName && (
+          <span className="truncate text-muted-foreground">{message.fromAddress}</span>
         )}
-      </div>
-      {props.menu}
-      <time dateTime={message.sentAt} className="text-xs text-subtle-foreground tabular-nums">
-        {messageTime(message.sentAt)}
-      </time>
-    </header>
+      </DescriptionDetails>
+      {rows
+        .filter(([, people]) => people.length > 0)
+        .map(([label, people]) => (
+          <Row key={label} label={label}>
+            {/* Out by the pill's 8px padding, so its text lines up with From's and Date's. */}
+            <TagGroup aria-label={label} className="-ms-2">
+              <TagList items={people.map((p) => ({ id: p.address, label: props.name(p) }))}>
+                {(item) => <Tag id={item.id}>{item.label}</Tag>}
+              </TagList>
+            </TagGroup>
+          </Row>
+        ))}
+      <Row label="Date">
+        <time dateTime={message.sentAt} className="tabular-nums">
+          {FULL_DATE.format(new Date(message.sentAt))}
+        </time>
+      </Row>
+    </DescriptionList>
+  );
+}
+
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <>
+      <DescriptionTerm>{label}</DescriptionTerm>
+      <DescriptionDetails>{children}</DescriptionDetails>
+    </>
   );
 }
 

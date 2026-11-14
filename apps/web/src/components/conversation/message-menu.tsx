@@ -6,7 +6,8 @@ import { quoteText } from "@/lib/reply.ts";
 import { useComposerState } from "../compose/composer-state.tsx";
 
 /**
- * The ⋯ beside a message or note in the timeline: reply to it in a hidden note (shared inboxes), forward
+ * The ⋯ beside a message or note in the timeline: reply to it in a hidden note (shared inboxes) or
+ * by email (personal threads, which open the composer), forward
  * it (mail only), and whatever the item adds (edit and delete on your own notes). It shows on
  * hover or focus, like a chat app's message actions; touch screens always show it.
  */
@@ -23,18 +24,20 @@ export function MessageMenu(props: {
    * edge in line with the bubble instead of leaving room for a button that only shows on hover.
    */
   start?: boolean;
+  /** Always shown, not only on hover: a header with its other actions in view (a single email). */
+  visible?: boolean;
 }) {
   const composer = useComposerState();
   const { messageId } = props;
   const canReply = composer.chat && props.text.trim().length > 0;
-  if (!canReply && !props.messageId && !props.extra) return null;
+  if (!canReply && composer.chat && !props.messageId && !props.extra) return null;
   return (
     <MenuTrigger>
       <Button
         intent="ghost"
         size="sq-2xs"
         aria-label={props.label}
-        className={`-my-0.5 ${props.start ? "order-first" : ""} opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100`}
+        className={`-my-0.5 ${props.start ? "order-first" : ""} ${props.visible ? "" : "opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100"}`}
       >
         <IconEllipsis />
       </Button>
@@ -46,6 +49,12 @@ export function MessageMenu(props: {
           >
             <IconReply data-slot="icon" />
             <MenuLabel>Hidden reply</MenuLabel>
+          </MenuItem>
+        )}
+        {!composer.chat && (
+          <MenuItem textValue="Reply" onAction={() => composer.openReply("reply")}>
+            <IconReply data-slot="icon" />
+            <MenuLabel>Reply</MenuLabel>
           </MenuItem>
         )}
         {messageId && (

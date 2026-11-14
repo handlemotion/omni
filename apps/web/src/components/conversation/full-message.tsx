@@ -22,7 +22,13 @@ function loadRemoteImages(frame: HTMLIFrameElement | null) {
  * frame grows to fit its content, so the conversation scrolls as one page instead of a box
  * inside a box.
  */
-export function FullMessage(props: { threadId: string; messageId: string; images?: boolean }) {
+export function FullMessage(props: {
+  threadId: string;
+  messageId: string;
+  images?: boolean;
+  /** On the page (a single email), not inside a card: the frame is the message's own island. */
+  flat?: boolean | undefined;
+}) {
   const { threadId, messageId } = props;
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState<number>();
@@ -76,7 +82,8 @@ export function FullMessage(props: { threadId: string; messageId: string; images
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       // Mail that never loads still leaves room to see it is coming.
       style={{ height: height ?? 160 }}
-      className="block w-full bg-background"
+      // Rounded like a card on the page; inside a card, a step smaller than the card's corner.
+      className={`block w-full bg-background ${props.flat ? "rounded-xl" : "rounded-lg"}`}
     />
   );
 }

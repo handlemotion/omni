@@ -36,18 +36,13 @@ export {
   rankByRelevance,
   type SearchCandidate,
 } from "./search.ts";
-export { summarize, DEFAULT_SUMMARY_INPUT_TOKENS } from "./summarize.ts";
 export {
   DEFAULT_AUTO_FILE_THRESHOLD,
-  isOverDailyCap,
   laneFor,
-  shouldSummarize,
   triageByRule,
   usageMonth,
   usagePeriod,
-  type DailyUsage,
   type Lane,
-  type SummaryDecision,
 } from "./policy.ts";
 export {
   AI_MODEL,
@@ -60,8 +55,6 @@ export {
   type Priority,
   type ListSignals,
   type ModelClient,
-  type SummarizeInput,
-  type SummaryResult,
   type TriageInput,
   type TriageResult,
   type TriageSource,

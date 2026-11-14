@@ -1,22 +1,18 @@
-// AI queue consumer: triage and summary for a thread after new mail, in either direction. A job
+// AI queue consumer: triage for a thread after new mail, in either direction. A job
 // names only the thread; the consumer reads its current state and triages the latest message, so
 // a redelivered or duplicate job converges on the same result, and work already done for that
-// message (`triage_message_id`, `summary_message_id`) is skipped without a model call.
+// message (`triage_message_id`, and `summary_message_id` as the job's done marker) is skipped without a model call.
 import Anthropic from "@anthropic-ai/sdk";
 import * as Sentry from "@sentry/cloudflare";
 import {
   chooseTriageClient,
-  shouldSummarize,
-  summarize,
   triage,
   triageByRule,
   triageInputFor,
-  type ModelClient,
   type TriageClient,
 } from "@omni/ai";
 import {
   addAiUsage,
-  getAiUsage,
   loadThreadForAi,
   markTriagePaused,
   recordDeadLetter,
@@ -24,7 +20,7 @@ import {
   saveTriage,
   type Db,
 } from "@omni/db";
-import { gateTriage, inGoodStanding } from "./billing.ts";
+import { gateTriage } from "./billing.ts";
 import { openDb } from "./db.ts";
 import { loadConfig, type Config } from "./env.ts";
 import { createLogger } from "./log.ts";
@@ -101,7 +97,7 @@ export async function consumeDeadLetters(batch: MessageBatch<AiJob>, env: Env) {
 
 /**
  * `superseded`: a newer message arrived mid-job; that message's own job files the thread.
- * `changed`: mail was merged in or pruned while the model ran, so the summary was dropped; the job
+ * `changed`: mail was merged in or pruned while the model ran, so the done marker was not set; the job
  *   runs again on the thread as it is now.
  * `triage_paused`: the workspace used its monthly allowance; the thread records until when.
  * `billing_inactive`: no plan in good standing, so no AI at all (ADR 0015).
@@ -114,8 +110,7 @@ export type AiJobOutcome =
   | "no_model"
   | "superseded"
   | "changed"
-  | "triaged"
-  | "summarized";
+  | "triaged";
 
 export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
   const config = loadConfig(env);
@@ -129,7 +124,6 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
       typesafeApiUrl: config.TYPESAFE_API_URL,
       anthropic,
     }),
-    summary: anthropic,
   };
   const { db, close } = openDb(env);
   try {
@@ -147,7 +141,7 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
           if (job.requestId) scope.setTag("request_id", job.requestId);
           return runAiJob(db, models, config, job);
         });
-        if (outcome === "triaged" || outcome === "summarized" || outcome === "triage_paused") {
+        if (outcome === "triaged" || outcome === "triage_paused") {
           const { mailboxId, threadId } = job;
           await fanOut(env, db, config, new Map([[mailboxId, new Set([threadId])]]));
         }
@@ -196,26 +190,26 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
 
 export async function runAiJob(
   db: Db,
-  models: { triage: TriageClient; summary: ModelClient },
+  models: { triage: TriageClient },
   config: Config,
   job: AiJob,
 ): Promise<AiJobOutcome> {
   const thread = await loadThreadForAi(db, job.threadId);
   const latest = thread?.messages.at(-1);
   if (!thread || !latest) return "missing";
-  // The summary marker moves only after the whole job ran for this message.
+  // The done marker (`summary_message_id`, named for the removed summaries) moves only after the
+  // whole job ran for this message.
   if (thread.summaryMessageId === latest.id) return "done_already";
 
-  // Triage runs on Jev or Claude; summaries only on Claude.
+  // Triage runs on Jev or Claude.
   const triageEnabled = Boolean(config.TYPESAFE_API_KEY || config.ANTHROPIC_API_KEY);
-  const summaryEnabled = Boolean(config.ANTHROPIC_API_KEY);
   const isUs = (address: string) => thread.selfAddresses.has(address.toLowerCase());
   const day = new Date().toISOString().slice(0, 10);
 
   let bucket = thread.triage;
   let triaged = false;
   // The triage describes the latest message. Already done for it (a redelivery, or a retry after
-  // the summary failed): reuse it. A newer message, from either side, re-triages, even a thread a
+  // the marker failed): reuse it. A newer message, from either side, re-triages, even a thread a
   // person re-sorted. Without a model only the wordless-reply rule can file a thread.
   if (thread.triageMessageId !== latest.id) {
     const input = triageInputFor(thread.messages, isUs);
@@ -246,39 +240,14 @@ export async function runAiJob(
     }
   }
   if (!bucket) return "no_model";
-  const nothingNew = triaged ? "triaged" : "done_already";
 
-  // Noise never gets a summary, so the job is complete.
-  if (bucket === "noise") {
-    const saved = await saveSummary(db, thread.id, {
-      summary: null,
-      messageId: latest.id,
-      messageCount: thread.messages.length,
-    });
-    return saved ? "triaged" : "changed";
-  }
-  if (!summaryEnabled) return nothingNew;
-  if (!(await inGoodStanding(db, config, thread.orgId))) return nothingNew;
-
-  const decision = shouldSummarize({
-    bucket,
-    usage: await getAiUsage(db, thread.orgId, day),
-    dailyTokenCap: config.AI_DAILY_TOKEN_CAP,
-  });
-  if (!decision.run) return nothingNew;
-
-  const summary = await summarize(models.summary, {
-    subject: latest.subject,
-    messages: thread.messages.map((m) => ({
-      from: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress,
-      text: m.cleanText,
-    })),
-  });
-  await addAiUsage(db, thread.orgId, day, summary.usage);
+  // The job is complete for this message: the marker makes a redelivery a no-op. Summaries were
+  // removed (ADR 0028), so the marker is all that is written.
   const saved = await saveSummary(db, thread.id, {
-    summary: summary.summary,
+    summary: null,
     messageId: latest.id,
     messageCount: thread.messages.length,
   });
-  return saved ? "summarized" : "changed";
+  if (!saved) return "changed";
+  return triaged ? "triaged" : "done_already";
 }

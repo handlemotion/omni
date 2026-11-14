@@ -125,15 +125,6 @@ export async function saveSummary(
   return rows.length > 0;
 }
 
-/** Today's spend for the org (UTC day). */
-export async function getAiUsage(db: Db, orgId: string, day: string) {
-  const [row] = await db
-    .select({ tokensIn: aiUsage.tokensIn, tokensOut: aiUsage.tokensOut })
-    .from(aiUsage)
-    .where(and(eq(aiUsage.orgId, orgId), eq(aiUsage.day, day)));
-  return row ?? { tokensIn: 0, tokensOut: 0 };
-}
-
 export async function addAiUsage(
   db: Db,
   orgId: string,

@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  laneFor,
-  shouldSummarize,
-  toPlainText,
-  truncateToTokens,
-  usageMonth,
-  usagePeriod,
-} from "./policy.ts";
-import { summaryPrompt, triagePrompt } from "./prompt.ts";
+import { laneFor, truncateToTokens, usageMonth, usagePeriod } from "./policy.ts";
+import { triagePrompt } from "./prompt.ts";
 import type { TriageInput } from "./types.ts";
 
 const thread: TriageInput = {
@@ -28,25 +21,6 @@ describe("laneFor", () => {
 
   it("never auto-files a fallback, even if its confidence were high", () => {
     expect(laneFor({ bucket: "fyi", confidence: 1, source: "fallback" })).toBe("unsure");
-  });
-});
-
-describe("shouldSummarize", () => {
-  const usage = { tokensIn: 900, tokensOut: 99 };
-
-  it("skips noise even with budget left", () => {
-    expect(shouldSummarize({ bucket: "noise", usage, dailyTokenCap: 10_000 })).toEqual({
-      run: false,
-      reason: "noise",
-    });
-  });
-
-  it("pauses once input plus output tokens reach the cap", () => {
-    expect(shouldSummarize({ bucket: "needs_reply", usage, dailyTokenCap: 1_000 }).run).toBe(true);
-    expect(shouldSummarize({ bucket: "needs_reply", usage, dailyTokenCap: 999 })).toEqual({
-      run: false,
-      reason: "over_cap",
-    });
   });
 });
 
@@ -86,36 +60,6 @@ describe("prompt hardening", () => {
       1_500,
     );
     expect(prompt.match(/^Reader has replied in this thread before:/gm)).toHaveLength(1);
-  });
-
-  it("drops the oldest messages first when a thread exceeds the budget", () => {
-    const prompt = summaryPrompt(
-      {
-        subject: "Long thread",
-        messages: [
-          { from: "a@x.example", text: "OLDEST hello" },
-          { from: "b@x.example", text: "MIDDLE " + "x ".repeat(5_000) },
-          { from: "c@x.example", text: "NEWEST please send the invoice" },
-        ],
-      },
-      200,
-    );
-    expect(prompt).toContain("NEWEST please send the invoice");
-    expect(prompt).toContain("MIDDLE");
-    expect(prompt).not.toContain("OLDEST");
-    expect(prompt).toContain("1 earlier message(s) omitted");
-  });
-});
-
-describe("toPlainText", () => {
-  it("strips markup and invisible characters from model output", () => {
-    expect(
-      toPlainText('<a href="https://evil.example">Click</a> **now**‮ to\n\nverify <img src=x>'),
-    ).toBe("Click now to verify");
-  });
-
-  it("returns null when nothing readable is left", () => {
-    expect(toPlainText("<b></b>  \n")).toBeNull();
   });
 });
 

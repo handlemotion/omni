@@ -36,29 +36,6 @@ export function laneFor(
   return result.confidence >= threshold ? result.bucket : "unsure";
 }
 
-/** The org's `ai_usage` row for today. */
-export interface DailyUsage {
-  tokensIn: number;
-  tokensOut: number;
-}
-
-export function isOverDailyCap(usage: DailyUsage, dailyTokenCap: number): boolean {
-  return usage.tokensIn + usage.tokensOut >= dailyTokenCap;
-}
-
-export type SummaryDecision = { run: true } | { run: false; reason: "noise" | "over_cap" };
-
-/** Summaries skip noise and pause over the daily cap. Triage ignores the cap. */
-export function shouldSummarize(input: {
-  bucket: Bucket;
-  usage: DailyUsage;
-  dailyTokenCap: number;
-}): SummaryDecision {
-  if (input.bucket === "noise") return { run: false, reason: "noise" };
-  if (isOverDailyCap(input.usage, input.dailyTokenCap)) return { run: false, reason: "over_cap" };
-  return { run: true };
-}
-
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
 }
@@ -73,28 +50,6 @@ export function truncateToTokens(text: string, maxTokens: number): string {
   const space = cut.search(/\s\S*$/);
   if (space > cut.length * 0.8) cut = cut.slice(0, space);
   return cut.trimEnd() + TRUNCATION_MARKER;
-}
-
-const MAX_SUMMARY_CHARS = 600;
-
-/**
- * Model output is shown as plain text, never HTML. Strips tags, control characters, and
- * markdown emphasis, collapses whitespace, and caps the length. Returns null if nothing is left.
- */
-export function toPlainText(text: string, maxChars = MAX_SUMMARY_CHARS): string | null {
-  const plain = text
-    .replace(/<[^>]*>/g, " ")
-    .replace(/[<>]/g, "")
-    // oxlint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u001F\u007F-\u009F​-‏‪-‮⁦-⁩]/g, " ")
-    .replace(/[*_`#]+/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (plain.length === 0) return null;
-  if (plain.length <= maxChars) return plain;
-  const cut = plain.slice(0, maxChars - 1);
-  const space = cut.lastIndexOf(" ");
-  return (space > maxChars * 0.8 ? cut.slice(0, space) : cut).trimEnd() + "…";
 }
 
 /**

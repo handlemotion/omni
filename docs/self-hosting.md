@@ -11,7 +11,7 @@ Status: draft. Each unit adds its required services, bindings, and variables her
 - A Postgres database reachable from Cloudflare Hyperdrive and from the mail service.
 - One always-on container host for `apps/mail` (we use Fly.io; any Docker host works).
 - Any IMAP/SMTP mail host. Purelymail's admin API is optional.
-- An Anthropic API key for triage and summaries.
+- An Anthropic API key for triage (or a TypeSafe key for Jev).
 
 ## Local run
 
@@ -324,12 +324,11 @@ to `.dev.vars`.
 | `MAIL_SERVICE_HMAC_SECRET`   | secret | yes      | Same value as the mail service's.                                                                                                                                               |
 | `SYSTEM_MAIL_FROM`           | var    | no       | Address magic links, invitations and notices come from (Email Sending). Empty disables them.                                                                                    |
 | `SENTRY_DSN`                 | var    | no       | Empty keeps Sentry off. Its environment tag is `ENVIRONMENT`.                                                                                                                   |
-| `ANTHROPIC_API_KEY`          | secret | no       | Summaries, and triage when Jev is off. Without any AI key threads stay unsorted (a wordless reply of yours still files as FYI).                                                 |
-| `TYPESAFE_API_KEY`           | secret | no       | Triage on TypeSafe's Jev, and search reordered by Jev's relevance judgment; summaries stay on Claude. Without it search keeps full-text order.                                  |
+| `ANTHROPIC_API_KEY`          | secret | no       | Triage when Jev is off. Without any AI key threads stay unsorted (a wordless reply of yours still files as FYI).                                                                |
+| `TYPESAFE_API_KEY`           | secret | no       | Triage on TypeSafe's Jev, and search reordered by Jev's relevance judgment. Without it search keeps full-text order.                                                            |
 | `TRIAGE_PROVIDER`            | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                                                                              |
 | `JEV_MODEL`                  | var    | no       | Jev model override.                                                                                                                                                             |
 | `TYPESAFE_API_URL`           | var    | no       | TypeSafe API base URL. Defaults to `https://api.typesafe.ai`.                                                                                                                   |
-| `AI_DAILY_TOKEN_CAP`         | var    | no       | Tokens per org per UTC day (default 1,000,000). Over it, summaries pause.                                                                                                       |
 | `EXPO_PUSH_ENABLED`          | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                                                                                                            |
 | `EXPO_ACCESS_TOKEN`          | secret | no       | Only if your Expo project enforces push security.                                                                                                                               |
 | `DOMAIN_CONNECT_PROVIDER_ID` | var    | no       | Domain Connect provider id our templates are published under. Empty hides one-click setup.                                                                                      |

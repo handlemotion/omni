@@ -33,8 +33,6 @@ export function RecipientField(props: {
   value: string[];
   onChange: (next: string[]) => void;
   autoFocus?: boolean;
-  /** Shown in place of the label (a reply's mark); the label still names the field. */
-  lead?: React.ReactNode;
   /** Shown at the end of the line (the Cc/Bcc toggles). */
   end?: React.ReactNode;
 }) {
@@ -58,12 +56,9 @@ export function RecipientField(props: {
 
   return (
     // One of the composer's rows: 44px, its divider the card's full width (see `ComposerFrame`).
-    // A mark (Reply) takes only its own width, so the chips sit close after it; a label (To, Cc,
-    // Bcc) keeps the 32px column the labels line up in.
+    // The label (From, To, Cc, Bcc) keeps the 32px column the labels line up in.
     <div className="flex min-h-11 items-center gap-2.5 border-b px-3 py-1">
-      <span className={`flex shrink-0 text-sm text-muted-foreground ${props.lead ? "" : "w-8"}`}>
-        {props.lead ?? props.label}
-      </span>
+      <span className="flex w-8 shrink-0 text-sm text-muted-foreground">{props.label}</span>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
         {value.length > 0 && (
           <TagGroup
@@ -97,6 +92,8 @@ export function RecipientField(props: {
             ref={input}
             plain
             size="sm"
+            // With no pills yet, typing starts where a pill's text would (8px in), like From's.
+            className={value.length ? "" : "ps-2"}
             autoFocus={props.autoFocus}
             onKeyDown={(event) => {
               if ([",", ";", " "].includes(event.key) || (event.key === "Enter" && text)) {

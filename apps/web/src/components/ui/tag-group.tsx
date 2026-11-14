@@ -1,4 +1,4 @@
-import { XCircleIcon } from "@heroicons/react/16/solid";
+import { IconX } from "@/components/icons/central";
 import { Button } from "react-aria-components/Button";
 import type { TagGroupProps, TagListProps, TagProps } from "react-aria-components/TagGroup";
 import {
@@ -30,13 +30,14 @@ export function Tag({ children, className, ...props }: TagProps) {
     <PrimitiveTag
       textValue={textValue}
       className={cx(
-        "inset-ring inset-ring-input outline-hidden dark:bg-input/30",
+        // A grey fill, no edge: recipients and picked options read as pills, not fields.
+        "bg-accent outline-hidden",
         "inline-flex items-center gap-x-1.5 py-0.5 text-xs/5 forced-colors:outline",
         "*:[svg]:size-3 *:[svg]:shrink-0",
         "cursor-default rounded-full px-2",
         "selected:inset-ring-ring/70 selected:bg-primary-subtle selected:text-primary-subtle-foreground",
         "disabled:opacity-50 disabled:forced-colors:text-[GrayText]",
-        props.href && "cursor-pointer hover:inset-ring-muted-foreground",
+        props.href && "cursor-pointer hover:bg-secondary",
         className,
       )}
       {...props}
@@ -45,8 +46,9 @@ export function Tag({ children, className, ...props }: TagProps) {
         <>
           {children}
           {allowsRemoving && (
-            <Button slot="remove" className="">
-              <XCircleIcon className="-me-1 size-4" />
+            // A light × on the grey pill: muted until hovered.
+            <Button slot="remove" className="text-muted-foreground hover:text-foreground">
+              <IconX className="-me-0.5 size-3" />
             </Button>
           )}
         </>

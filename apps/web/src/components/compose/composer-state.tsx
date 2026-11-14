@@ -1,11 +1,13 @@
 // Which composer the open conversation shows, shared by the timeline (each message's menu, a
 // selection's reply box) and the composer under it. Hidden is the team's side of a shared inbox:
 // internal notes, written like a chat. Public is the email the customer gets: a reply or a
-// forward.
+// forward. On a personal thread the email composer stays closed until Reply or Forward opens it.
 import { createContext, useContext, useState, type ReactNode } from "react";
 import type { Reply } from "@/lib/reply.ts";
 
 export type ComposerMode = "public" | "hidden";
+/** Who a reply goes to: the latest sender, or everyone on the thread outside the team. */
+export type ReplyKind = "reply" | "replyAll";
 
 interface ComposerState {
   /** True on a shared inbox: Hidden exists. A personal thread only has Public. */
@@ -23,6 +25,15 @@ interface ComposerState {
   forwardId: string | undefined;
   forward: (messageId: string) => void;
   stopForward: () => void;
+  /** Whether the email composer shows. Always on a shared inbox, where it is also the chat. */
+  open: boolean;
+  replyKind: ReplyKind;
+  /** Opens the email composer as a reply (to the sender, or to all). */
+  openReply: (kind: ReplyKind) => void;
+  /** Closes it after a discard (a shared inbox starts a fresh one in its place). */
+  close: () => void;
+  /** Changes on every close, so the next composer starts empty. */
+  generation: number;
 }
 
 const Context = createContext<ComposerState | null>(null);
@@ -33,6 +44,10 @@ export function ComposerProvider({ chat, children }: { chat: boolean; children: 
   const [reply, setReply] = useState<Reply>();
   const [seed, setSeed] = useState<{ text: string }>();
   const [forwardId, setForwardId] = useState<string>();
+  const [opened, setOpened] = useState(false);
+  // A shared inbox writes to everyone outside the team by default, as it always did.
+  const [replyKind, setReplyKind] = useState<ReplyKind>(chat ? "replyAll" : "reply");
+  const [generation, setGeneration] = useState(0);
   const value: ComposerState = {
     chat,
     // A personal thread opened in the same reader has no chat.
@@ -51,8 +66,23 @@ export function ComposerProvider({ chat, children }: { chat: boolean; children: 
     forward: (messageId) => {
       setForwardId(messageId);
       setMode("public");
+      setOpened(true);
     },
     stopForward: () => setForwardId(undefined),
+    open: chat || opened,
+    replyKind,
+    openReply: (kind) => {
+      setReplyKind(kind);
+      setForwardId(undefined);
+      setMode("public");
+      setOpened(true);
+    },
+    close: () => {
+      setForwardId(undefined);
+      setOpened(false);
+      setGeneration((n) => n + 1);
+    },
+    generation,
   };
   return <Context value={value}>{children}</Context>;
 }

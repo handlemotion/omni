@@ -87,19 +87,6 @@ export interface TriageResult {
   helpdesk?: HelpdeskTriage;
 }
 
-export interface SummarizeInput {
-  subject: string;
-  /** Oldest first. `text` is each message's `clean_text`. The newest fit the token budget. */
-  messages: ReadonlyArray<{ from: string; text: string }>;
-}
-
-export interface SummaryResult {
-  /** Plain text, 1-3 sentences. Null when the model gave nothing usable. */
-  summary: string | null;
-  source: "ai" | "fallback";
-  usage: Usage;
-}
-
 export interface CallOptions {
   model?: string;
   /** Token budget for untrusted email text in the prompt. */

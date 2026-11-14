@@ -1,8 +1,8 @@
-// triage() and summarize() against a canned Messages API response. No network; the point is
+// triage() against a canned Messages API response. No network; the point is
 // what the wrapper does with each kind of answer the real API can return.
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
-import { summarize, triage, type ModelClient, type TriageInput } from "./index.ts";
+import { triage, type ModelClient, type TriageInput } from "./index.ts";
 
 const thread: TriageInput = {
   from: { name: "Ana", address: "ana@client.example" },
@@ -117,27 +117,5 @@ describe("helpdesk triage on Claude", () => {
   it("keeps noise at low priority whatever the model says", async () => {
     const { client } = reply('{"bucket":"noise","confidence":0.97,"priority":"urgent","tags":[]}');
     expect((await triage(client, support)).helpdesk?.priority).toBe("low");
-  });
-});
-
-describe("summarize", () => {
-  const input = { subject: "Contract renewal", messages: [{ from: "Ana", text: "Confirm?" }] };
-
-  it("returns plain text even when the model emits markup", async () => {
-    const { client } = reply(
-      JSON.stringify({ summary: "Ana asks you to <b>confirm</b> the terms by **Friday**." }),
-    );
-    const result = await summarize(client, input);
-    expect(result.summary).toBe("Ana asks you to confirm the terms by Friday.");
-    expect(result.source).toBe("ai");
-  });
-
-  it("returns no summary for invalid output", async () => {
-    const { client } = reply('{"text":"wrong field"}');
-    expect(await summarize(client, input)).toEqual({
-      summary: null,
-      source: "fallback",
-      usage: { tokensIn: 500, tokensOut: 30 },
-    });
   });
 });

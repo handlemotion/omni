@@ -10,7 +10,8 @@ import {
   IconForward,
   IconMail,
   IconReply,
-  IconX,
+  IconReplyAll,
+  IconTrash,
 } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +36,7 @@ import type { Message, Thread } from "@/lib/types.ts";
 import { CannedPicker } from "./canned-picker.tsx";
 import { AttachButton, ComposerFiles } from "./composer-files.tsx";
 import { ChatComposer } from "./chat-composer.tsx";
-import { useComposerState } from "./composer-state.tsx";
+import { useComposerState, type ReplyKind } from "./composer-state.tsx";
 import { RecipientField } from "./recipient-field.tsx";
 import { Toolbar } from "./toolbar.tsx";
 import { Visibility } from "./visibility.tsx";
@@ -136,16 +137,24 @@ function customerRecipients(messages: Message[], inbox: string): string[] {
 
 type Mode = "reply" | "forward";
 
+/** Whom a reply starts addressed to, by kind: the latest sender, or everyone outside the team. */
+function recipientsFor(kind: ReplyKind, thread: Thread): string[] {
+  return kind === "replyAll"
+    ? customerRecipients(thread.messages, thread.mailboxAddress)
+    : replyRecipients(thread.messages.at(-1));
+}
+
 /**
  * The composer pinned under the open conversation. On a shared inbox a switch among its tools
  * picks who will see what you write: Public is an email to the customer (or a
  * forward, picked from a message's menu), Hidden is an internal note only the team sees. A
- * personal thread is always Public. Replies go from the inbox's address with your name; they
+ * personal thread is always Public, and shows the composer only once Reply or Forward opens it. Replies go from the inbox's address with your name; they
  * show in the thread at once and can be undone while they wait in the outbox.
  */
 export function ReplyComposer({ thread }: { thread: Thread }) {
   const state = useComposerState();
   const hidden = state.mode === "hidden";
+  if (!state.open) return null;
   return (
     // The pane's bottom edge, full width: one composer whose mode switches in place. A hidden
     // note's edge is dashed, like the notes it adds.
@@ -161,11 +170,10 @@ export function ReplyComposer({ thread }: { thread: Thread }) {
       {!hidden && (
         // A fresh composer per reply or forwarded message: its own recipients, body and draft.
         <ModeComposer
-          key={`${thread.id}:${state.forwardId ?? "reply"}`}
+          key={`${thread.id}:${state.forwardId ?? "reply"}:${state.generation}`}
           thread={thread}
           mode={state.forwardId ? "forward" : "reply"}
           sourceId={state.forwardId}
-          onStopForward={state.stopForward}
         />
       )}
     </div>
@@ -177,10 +185,10 @@ function ModeComposer(props: {
   mode: Mode;
   /** The message to forward; a reply answers the latest. */
   sourceId: string | undefined;
-  onStopForward: () => void;
 }) {
   const { thread, mode } = props;
-  const { chat } = useComposerState();
+  const state = useComposerState();
+  const { chat } = state;
   const latest = thread.messages.at(-1);
   const { signature, isLoading: signatureLoading } = useSignature(thread.mailboxId);
   const files = useComposerFiles(thread.mailboxId);
@@ -189,8 +197,7 @@ function ModeComposer(props: {
   const cancelSend = useCancelSend();
   const render = useRenderCannedReply(thread.id);
 
-  const defaultTo =
-    mode === "reply" ? customerRecipients(thread.messages, thread.mailboxAddress) : [];
+  const defaultTo = mode === "reply" ? recipientsFor(state.replyKind, thread) : [];
   const [to, setTo] = useState<string[]>(defaultTo);
   const [cc, setCc] = useState<string[]>([]);
   const [bcc, setBcc] = useState<string[]>([]);
@@ -359,6 +366,24 @@ function ModeComposer(props: {
     }
   };
 
+  // Reply and Reply all keep what was written and swap the recipients; Forward is its own draft.
+  const switchTo = (next: ReplyKind | "forward") => {
+    if (next === "forward") return state.forward(source?.id ?? latest?.id ?? "");
+    state.openReply(next);
+    if (mode === "forward") return;
+    const recipients = recipientsFor(next, thread);
+    setTo(recipients);
+    edited({ to: recipients });
+  };
+
+  // Throws the draft and its uploads away and closes the composer.
+  const discard = () => {
+    touched.current = false;
+    void draft.detach().then(draft.remove);
+    for (const file of files.files) files.remove(file.id);
+    state.close();
+  };
+
   const insertCanned = async (picked: CannedReply) => {
     try {
       const rendered = await render(picked.id);
@@ -385,16 +410,12 @@ function ModeComposer(props: {
 
   return (
     <ComposerFrame flat onFiles={files.add}>
-      {/* One row: what this is (reply or forward), whom to, and from where. */}
+      <FromRow
+        mailboxes={[{ id: thread.mailboxId, address: thread.mailboxAddress }]}
+        value={thread.mailboxId}
+        onChange={() => undefined}
+      />
       <Recipients
-        lead={
-          mode === "forward" ? (
-            <ForwardMark message={source} onStop={props.onStopForward} />
-          ) : (
-            <IconReply aria-label="Reply" className="size-3.5" />
-          )
-        }
-        from={thread.mailboxAddress}
         to={to}
         cc={cc}
         bcc={bcc}
@@ -418,21 +439,78 @@ function ModeComposer(props: {
           edited({ text: next });
         }}
         onSend={send}
+        // Opened by Reply on a personal thread: ready to write. A shared inbox's stays put.
+        autoFocus={!chat && mode === "reply"}
       />
       <ComposerFiles files={files.files} onRemove={files.remove} />
       <Toolbar
         start={
           <>
+            <KindMenu kind={mode === "forward" ? "forward" : state.replyKind} onChange={switchTo} />
             <AttachButton onFiles={files.add} />
             {chat && <Visibility />}
             <CannedPicker mailboxId={thread.mailboxId} onPick={(r) => void insertCanned(r)} />
           </>
+        }
+        end={
+          <TooltipTrigger delay={400}>
+            <Button
+              intent="ghost"
+              size="sq-sm"
+              aria-label="Discard"
+              className="text-muted-foreground hover:text-foreground"
+              onPress={discard}
+            >
+              <IconTrash />
+            </Button>
+            <Tooltip>Discard</Tooltip>
+          </TooltipTrigger>
         }
         canSend={canSend}
         isPending={forward.isPending}
         onSend={send}
       />
     </ComposerFrame>
+  );
+}
+
+const KINDS = {
+  reply: { icon: IconReply, label: "Reply" },
+  replyAll: { icon: IconReplyAll, label: "Reply all" },
+  forward: { icon: IconForward, label: "Forward" },
+} as const;
+type Kind = keyof typeof KINDS;
+
+/** What the composer sends, and the menu that changes it: Reply, Reply all or Forward. */
+function KindMenu({ kind, onChange }: { kind: Kind; onChange: (next: Kind) => void }) {
+  const current = KINDS[kind];
+  return (
+    <MenuTrigger>
+      <Button intent="ghost" size="sm" aria-label={`${current.label}, change`}>
+        <current.icon />
+        {current.label}
+        <IconChevronDown />
+      </Button>
+      <Menu
+        placement="top start"
+        selectionMode="single"
+        selectedKeys={[kind]}
+        onSelectionChange={(keys) => {
+          const next = [...keys][0] as Kind | undefined;
+          if (next && next !== kind) onChange(next);
+        }}
+      >
+        {(Object.keys(KINDS) as Kind[]).map((id) => {
+          const option = KINDS[id];
+          return (
+            <MenuItem key={id} id={id} textValue={option.label}>
+              <option.icon data-slot="icon" />
+              <MenuLabel>{option.label}</MenuLabel>
+            </MenuItem>
+          );
+        })}
+      </Menu>
+    </MenuTrigger>
   );
 }
 
@@ -585,8 +663,14 @@ function FromRow(props: {
       <span className="w-8 shrink-0 text-sm text-muted-foreground">From</span>
       {props.mailboxes.length > 1 ? (
         <MenuTrigger>
-          {/* -8px: the address starts where the To field's text does, not at the button's edge. */}
-          <Button intent="plain" size="sm" aria-label={`From ${address}`} className="-ms-2 min-w-0">
+          {/* Grey on hover, like the composer's other menus. -2px: the button's 10px padding
+              puts the address 8px in, where the To pills' text starts. */}
+          <Button
+            intent="ghost"
+            size="sm"
+            aria-label={`From ${address}`}
+            className="-ms-0.5 min-w-0"
+          >
             <span className="truncate">{address}</span>
             <IconChevronDown className="text-muted-foreground" />
           </Button>
@@ -608,7 +692,8 @@ function FromRow(props: {
           </Menu>
         </MenuTrigger>
       ) : (
-        <span className="min-w-0 truncate text-sm">{address}</span>
+        // 8px in: the To pills' text starts there, inside their fill.
+        <span className="min-w-0 truncate ps-2 text-sm">{address}</span>
       )}
     </div>
   );
@@ -670,9 +755,6 @@ function focusBody(event: React.MouseEvent<HTMLElement>) {
 }
 
 function Recipients(props: {
-  lead?: ReactNode;
-  /** The sending address, at the end of the To line. */
-  from?: string | undefined;
   to: string[];
   cc: string[];
   bcc: string[];
@@ -687,27 +769,19 @@ function Recipients(props: {
         label="To"
         value={props.to}
         autoFocus={props.autoFocus}
-        lead={props.lead}
         onChange={(to) => props.onChange({ to })}
         end={
-          <span className="flex max-w-1/2 min-w-0 items-center gap-2">
-            {props.from && (
-              <span className="min-w-0 truncate text-sm text-muted-foreground">
-                From {props.from}
-              </span>
-            )}
-            {!props.showCopies && (
-              // -8px: the button's own padding; its ink ends 12px in, like the row's start.
-              <Button
-                intent="plain"
-                size="sm"
-                className="-me-2 shrink-0"
-                onPress={props.onShowCopies}
-              >
-                Cc Bcc
-              </Button>
-            )}
-          </span>
+          !props.showCopies && (
+            // -8px: the button's own padding; its ink ends 12px in, like the row's start.
+            <Button
+              intent="plain"
+              size="sm"
+              className="-me-2 shrink-0"
+              onPress={props.onShowCopies}
+            >
+              Cc Bcc
+            </Button>
+          )
         }
       />
       {props.showCopies && (
@@ -732,6 +806,7 @@ function Body(props: {
   onSend: () => void;
   rows?: number;
   readOnly?: boolean;
+  autoFocus?: boolean;
   /** Take the frame's spare height, so the tools sit at its bottom and writing room stays long. */
   fill?: boolean;
 }) {
@@ -740,6 +815,7 @@ function Body(props: {
       ref={props.ref}
       plain
       readOnly={props.readOnly}
+      autoFocus={props.autoFocus}
       aria-label={props.label}
       placeholder="Write…"
       rows={props.rows ?? 4}
@@ -755,34 +831,5 @@ function Body(props: {
       // 12px under the divider, the same as its 12px sides, so Write doesn't crowd the line.
       className={`${props.fill ? "min-h-24 flex-1" : "max-h-[min(24rem,30vh)] min-h-24"} resize-none px-3 pt-3 pb-1 sm:px-3 sm:pt-3 sm:pb-1`}
     />
-  );
-}
-
-/**
- * A forward's mark in the To line's label column: the forward arrow, which turns into an X on
- * hover or focus, back to replying. Its tooltip says whose message goes.
- */
-function ForwardMark({ message, onStop }: { message: Message | undefined; onStop: () => void }) {
-  const from = !message
-    ? "a"
-    : message.fromMe
-      ? "your"
-      : `${message.fromName || message.fromAddress}'s`;
-  return (
-    <TooltipTrigger delay={400}>
-      <Button
-        intent="ghost"
-        size="sq-xs"
-        aria-label={`Forward ${from} message. Reply instead`}
-        // -5px each side: the 14px glyph sits 5px inside the 24px button; this puts it where
-        // Reply's sits, with the chips as close after it.
-        className="group -mx-[5px] text-muted-foreground hover:text-foreground"
-        onPress={onStop}
-      >
-        <IconForward className="group-hover:hidden group-focus-visible:hidden" />
-        <IconX className="hidden group-hover:block group-focus-visible:block" />
-      </Button>
-      <Tooltip>{`Forward ${from} message · Reply instead`}</Tooltip>
-    </TooltipTrigger>
   );
 }

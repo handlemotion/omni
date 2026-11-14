@@ -3,7 +3,7 @@
 // (TYPESAFE_API_KEY, ANTHROPIC_API_KEY). Costs a few cents per run; sends only `threads.ts`.
 /* oxlint-disable no-console -- a CLI report */
 import Anthropic from "@anthropic-ai/sdk";
-import { createJevClient, laneFor, summarize, triage, type TriageClient } from "../src/index.ts";
+import { createJevClient, laneFor, triage, type TriageClient } from "../src/index.ts";
 import { threads } from "./threads.ts";
 
 const providers: Array<{ name: string; client: TriageClient }> = [];
@@ -42,14 +42,6 @@ for (const thread of threads) {
         result.model ?? "",
       ].join("  "),
     );
-  }
-
-  if (anthropic && thread.expected !== "noise") {
-    const s = await summarize(anthropic, {
-      subject: thread.input.subject,
-      messages: [{ from: thread.input.from.address, text: thread.input.latestText }],
-    });
-    console.log(`  summary: ${s.summary ?? "(none)"}`);
   }
 }
 
