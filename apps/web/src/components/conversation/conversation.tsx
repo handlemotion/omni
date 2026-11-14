@@ -1,13 +1,9 @@
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import {
-  IconArchive,
   IconCheck,
-  IconCircle,
-  IconCircleCheck,
   IconClock3,
-  IconClockSnooze,
   IconInbox,
   IconMail,
   IconMailOpen,
@@ -16,15 +12,13 @@ import {
 } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
-import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { ShowMore } from "@/components/ui/show-more";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { useConversation, useReopen, useResolve, useSnooze } from "@/hooks/use-conversation.ts";
+import { useConversation } from "@/hooks/use-conversation.ts";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useAllMailboxes, useThread } from "@/hooks/use-mail.ts";
 import { useFollowMerge } from "@/hooks/use-realtime.ts";
 import {
-  useArchive,
   useMarkDone,
   useMarkRead,
   useMarkReadOnOpen,
@@ -37,7 +31,7 @@ import { ComposerProvider } from "../compose/composer-state.tsx";
 import { SelectionReply } from "../compose/selection-reply.tsx";
 import { EventLine, NoteItem, useEventLines } from "./activity.tsx";
 import { AddedLine, MessageItem, PendingItem } from "./message.tsx";
-import { Properties, SNOOZES } from "./properties.tsx";
+import { Properties } from "./properties.tsx";
 import { ThreadSwitcher } from "./thread-switcher.tsx";
 
 /** Past this many messages, the middle of a thread folds behind one button. */
@@ -102,7 +96,7 @@ export function Conversation({ threadId }: { threadId: string }) {
 
   return (
     <section aria-label="Conversation" className={SECTION}>
-      <Actions thread={thread} shared={shared} />
+      <Actions thread={thread} />
       {/* The divider from the list runs beside the messages only; the toolbar row stays open,
           continuing the list's header row. */}
       {/* Per conversation: the timeline's menus and selections steer the composer under it. */}
@@ -307,16 +301,6 @@ function Timeline(props: {
   );
 }
 
-/** Back to the list: the thread route's parent, same search. */
-function useCloseThread() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  return () => {
-    const path = location.pathname.slice(0, location.pathname.lastIndexOf("/"));
-    void navigate({ href: path + location.searchStr });
-  };
-}
-
 function Entry({ children }: { children: ReactNode }) {
   // Off-screen messages keep a guessed height instead of laying out; `auto` remembers the real
   // one once seen, so scrolling back does not jump. `content-visibility` clips paint to the box,
@@ -330,11 +314,11 @@ function Entry({ children }: { children: ReactNode }) {
 }
 
 /**
- * The actions at the right of the bar over the conversation. A shared inbox's conversation is
- * resolved or snoozed for the whole team; a personal thread keeps archive, done and later
- * (ADR 0007). Read state and full screen in both.
+ * The actions at the right of the bar over the conversation, the same on every thread (ADR 0032):
+ * done and later (yours alone), read state and full screen. A shared conversation's team state
+ * (status, owner, priority, tags) is the rail under its title.
  */
-function Actions({ thread, shared }: { thread: Thread; shared: boolean }) {
+function Actions({ thread }: { thread: Thread }) {
   const markRead = useMarkRead();
   const [fullScreen, toggleFullScreen] = useFullScreen();
 
@@ -353,14 +337,7 @@ function Actions({ thread, shared }: { thread: Thread; shared: boolean }) {
         </div>
       )}
       <div className="absolute inset-y-0 end-1.5 flex items-center gap-1 pb-0.5">
-        {shared ? (
-          <>
-            <HelpdeskActions threadId={thread.id} />
-            <TriageActions thread={thread} />
-          </>
-        ) : (
-          <MailActions thread={thread} />
-        )}
+        <TriageActions thread={thread} />
         <Action
           label={thread.read ? "Mark unread" : "Mark read"}
           onPress={() => markRead.mutate({ threadId: thread.id, read: !thread.read })}
@@ -375,68 +352,9 @@ function Actions({ thread, shared }: { thread: Thread; shared: boolean }) {
   );
 }
 
-/** Resolve (or reopen) and snooze, for everyone on the inbox. Each offers undo. */
-function HelpdeskActions({ threadId }: { threadId: string }) {
-  const { data: conversation } = useConversation(threadId);
-  const resolve = useResolve();
-  const reopen = useReopen();
-  const snooze = useSnooze();
-  const resolved = conversation?.status === "resolved";
-  const close = useCloseThread();
-  return (
-    <>
-      <Action
-        label={resolved ? "Reopen" : "Resolve"}
-        onPress={() => {
-          if (resolved) return reopen.mutate({ threadId });
-          // Done with it: it leaves the inbox, and the reader goes back to the list.
-          resolve.mutate({ threadId });
-          close();
-        }}
-      >
-        {resolved ? <IconCircle /> : <IconCircleCheck />}
-      </Action>
-      <MenuTrigger>
-        <TooltipTrigger delay={400}>
-          {/* The team's snooze, apart from your own Later (a plain clock) beside it. */}
-          <Button intent="ghost" size="sq-sm-lg" aria-label="Snooze">
-            <IconClockSnooze />
-          </Button>
-          <Tooltip>Snooze</Tooltip>
-        </TooltipTrigger>
-        <Menu placement="bottom end">
-          {SNOOZES.map(({ label, until }) => (
-            <MenuItem
-              key={label}
-              textValue={label}
-              onAction={() => snooze.mutate({ threadId, until: until() })}
-            >
-              <IconClockSnooze data-slot="icon" />
-              <MenuLabel>{label}</MenuLabel>
-            </MenuItem>
-          ))}
-        </Menu>
-      </MenuTrigger>
-    </>
-  );
-}
-
-/** A personal thread's own actions (ADR 0007, ADR 0027): archive, then done and later. */
-function MailActions({ thread }: { thread: Thread }) {
-  const archive = useArchive();
-  return (
-    <>
-      <Action label="Archive" onPress={() => archive.mutate({ threadId: thread.id })}>
-        <IconArchive />
-      </Action>
-      <TriageActions thread={thread} />
-    </>
-  );
-}
-
 /**
  * Done and Later, which act for you alone, on a personal thread and on a shared conversation
- * alike (ADR 0031): on a shared inbox they leave the team's status as it is.
+ * alike (ADR 0032): a teammate's Done, reply, assignment or status never clears it for you.
  */
 function TriageActions({ thread }: { thread: Thread }) {
   const threadId = thread.id;

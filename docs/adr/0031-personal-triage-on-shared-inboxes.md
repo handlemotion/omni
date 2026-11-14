@@ -1,6 +1,6 @@
 # 0031: Personal triage on shared inboxes
 
-Date: 2026-11-14 · Status: accepted · Amends: ADR 0021 ("Relation to ADR 0007")
+Date: 2026-11-14 · Status: accepted · Amends: ADR 0021 ("Relation to ADR 0007") · Decisions 2, 3 and 5 superseded by ADR 0032
 
 ## Context
 

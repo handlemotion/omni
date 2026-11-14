@@ -3,7 +3,7 @@ import {
   IconCircle,
   IconCircleCheck,
   IconCircleDashed,
-  IconClock3,
+  IconClockSnooze,
   IconSignalHigh,
   IconSignalLow,
   IconSignalMedium,
@@ -39,7 +39,7 @@ type Glyph = ComponentType<{ className?: string; "data-slot"?: string }>;
 const STATUS: Record<ConversationStatus, { label: string; icon: Glyph }> = {
   open: { label: "Open", icon: IconCircle },
   pending: { label: "Pending", icon: IconCircleDashed },
-  snoozed: { label: "Snoozed", icon: IconClock3 },
+  snoozed: { label: "Snoozed", icon: IconClockSnooze },
   resolved: { label: "Resolved", icon: IconCircleCheck },
 };
 
@@ -114,7 +114,7 @@ export function Properties({ thread }: { thread: Thread }) {
           {SNOOZES.map(({ label, until }) => (
             <Item
               key={label}
-              icon={IconClock3}
+              icon={IconClockSnooze}
               label={label}
               onAction={() => snooze.mutate({ threadId, until: until() })}
             />

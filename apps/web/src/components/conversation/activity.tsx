@@ -130,7 +130,7 @@ function useDescribe(mailboxId: string) {
       case "merged":
         return "Another conversation was merged into this one";
       case "handoff":
-        return `${actor ?? "A teammate"} handed this off to ${String(data.address)}`;
+        return `${actor ?? "A teammate"} continued this conversation in their inbox`;
       // The note shows itself; the first response is the reply above it.
       default:
         return null;

@@ -1,4 +1,4 @@
-import { and, desc, eq, getTableColumns, ne, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import {
   attachments,
@@ -32,14 +32,14 @@ export type Lane = (typeof triageBucket.enumValues)[number] | "unsure";
 export const LANES = [...triageBucket.enumValues, "unsure"] as const satisfies readonly Lane[];
 
 /**
- * Per-member triage views (ADR 0007, Later: ADR 0027, shared inboxes: ADR 0031). A thread is *done*
+ * Per-member triage views (ADR 0007, Later: ADR 0027, shared inboxes: ADR 0032). A thread is *done*
  * for a member while its `last_message_at` is at or before their `done_through`, and in *Later*
  * while their `snoozed_until` is in the future (`infinity` once moved there); done wins over Later.
+ * On a shared inbox they are the member's own too: a conversation stays in each teammate's Inbox
+ * until they mark it done, whoever owns it, whatever its status, whoever replied.
  *
- * - `inbox`: not archived, not done, not in Later, and it concerns the member: open, and nobody's
- *   or theirs (`concernsMe`). What still needs attention.
- * - `later`: not archived, not resolved, in Later, not done. Stays until the member moves it back
- *   or done.
+ * - `inbox`: not archived, not done, not in Later. What still needs attention.
+ * - `later`: not archived, in Later, not done. Stays until the member moves it back or done.
  * - `done`: done, archived or not.
  * - `archive`: archived (moved out of INBOX on the server; shared by everyone on the mailbox).
  * - `all`: every thread the member can see, whatever its state.
@@ -92,18 +92,6 @@ function laneFilter(lane: Lane): SQL {
   return lane === "unsure"
     ? sql`(${threads.triageSource} = 'ai' and ${threads.triageConfidence} < ${TRIAGE_AUTO_FILE_CONFIDENCE})`
     : sql`(${threads.triage} = ${lane} and (${threads.triageSource} = 'person' or ${threads.triageConfidence} >= ${TRIAGE_AUTO_FILE_CONFIDENCE}))`;
-}
-
-/**
- * Whether a thread belongs in `me`'s Inbox (ADR 0031): open and nobody's or theirs, or theirs and
- * waiting on the customer (a reply claims the conversation and makes it pending, so it stays under
- * Awaiting reply, as answered personal mail does). Snoozed and resolved conversations, and ones a
- * teammate owns, stay out of everyone else's Inbox (the team sees them in its helpdesk views).
- * Personal threads always pass: their status is never changed from `open` and they have no
- * assignee (ADR 0021).
- */
-function concernsMe(me: AnyColumn): SQL {
-  return sql`((${threads.status} = 'open' and (${threads.assigneeMemberId} is null or ${threads.assigneeMemberId} = ${me})) or (${threads.status} = 'pending' and ${threads.assigneeMemberId} = ${me}))`;
 }
 
 /** Membership of a helpdesk view; `me` is the member column `mine` compares with. */
@@ -255,14 +243,9 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
   const doneRule = sql`${threads.lastMessageAt} <= s.done_through`;
   const laterRule = sql`s.snoozed_until > now()`;
   const viewFilters: Record<ThreadView, SQL[]> = {
-    inbox: [
-      eq(threads.archived, false),
-      concernsMe(mailboxAccess.memberId),
-      sql`not ${state(sql`${doneRule} or ${laterRule}`)}`,
-    ],
+    inbox: [eq(threads.archived, false), sql`not ${state(sql`${doneRule} or ${laterRule}`)}`],
     later: [
       eq(threads.archived, false),
-      ne(threads.status, "resolved"),
       state(sql`${laterRule} and not coalesce(${doneRule}, false)`),
     ],
     // Not `exists`: Postgres plans that as a join against every one of the member's state rows,
@@ -502,8 +485,8 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
       // This member's state row is joined already; no per-thread lookup.
       const done = sql`coalesce(${threads.lastMessageAt} <= ${threadState.doneThrough}, false)`;
       const inLater = sql`coalesce(${threadState.snoozedUntil} > now(), false)`;
-      const later = sql`(${inLater} and not ${done} and ${threads.status} <> 'resolved')`;
-      const inbox = sql`(not (${inLater} or ${done}) and ${concernsMe(mailboxAccess.memberId)})`;
+      const later = sql`(${inLater} and not ${done})`;
+      const inbox = sql`not (${inLater} or ${done})`;
       const unread = sql`coalesce(${threadState.read}, false) = false`;
       const count = (filter: SQL) => sql<number>`(count(*) filter (where ${filter}))::int`;
       const rows = await db
