@@ -25,6 +25,7 @@ import {
   threadTags as threadTagsTable,
   threads,
 } from "../src/schema/index.ts";
+import { notifyMemberJoined } from "../src/notifications.ts";
 import { listUserWorkspaces } from "../src/workspaces.ts";
 import { createThread, enqueueAction, upsertMessage } from "../src/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
@@ -66,6 +67,39 @@ async function seedThread(
   });
   return { threadId, messageId: message.id };
 }
+
+describe("workspace notifications", () => {
+  test("a new teammate notifies everyone else once, and only inside that workspace", async () => {
+    const team = await createOrg(db, "joiners");
+    const other = await createOrg(db, "elsewhere");
+    const dan = await createMember(db, team.id, "dan");
+    const eve = await createMember(db, team.id, "eve");
+    const outsider = await createMember(db, other.id, "outsider");
+    const frank = await createMember(db, team.id, "frank");
+
+    // Accepting twice (a retried request, the invitation hook and the route) notifies once.
+    const joined = { orgId: team.id, userId: frank.userId };
+    expect((await notifyMemberJoined(db, joined)).toSorted()).toEqual([dan.id, eve.id].toSorted());
+    expect(await notifyMemberJoined(db, joined)).toEqual([]);
+
+    const forDan = await forMember(db, dan.id).listNotifications();
+    expect(forDan.unread).toBe(1);
+    expect(
+      forDan.notifications.map((n) => [n.kind, n.threadId, n.mailboxId, n.actor?.name]),
+    ).toEqual([["member_joined", null, null, "frank"]]);
+    expect((await forMember(db, frank.id).listNotifications()).notifications).toEqual([]);
+
+    // A workspace notification filed under another workspace (a buggy writer) stays hidden.
+    await db.insert(notifications).values({
+      orgId: team.id,
+      memberId: outsider.id,
+      kind: "member_joined",
+      actorMemberId: frank.id,
+    });
+    const forOutsider = await forMember(db, outsider.id).listNotifications();
+    expect(forOutsider).toEqual({ notifications: [], unread: 0 });
+  });
+});
 
 describe("forMember isolation", () => {
   // Org A: alice sees hello@, bob sees billing@. Org B: carol sees ops@, and holds a forged

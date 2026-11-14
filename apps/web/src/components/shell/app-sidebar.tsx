@@ -21,7 +21,8 @@ import { Button } from "@/components/ui/button";
 import { SearchPopover } from "@/components/search/search-popover";
 import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
-import { Notifications } from "./notifications";
+import { CountBadge } from "./count-badge";
+import { NotificationsButton } from "./notifications";
 import {
   Sidebar,
   SidebarContent,
@@ -151,7 +152,7 @@ export function AppSidebar() {
         </div>
         <OfflineBadge />
         <div className="flex items-center gap-0.5">
-          <Notifications />
+          <NotificationsButton />
           <Button intent="ghost" size="sq-xs" aria-label="Help">
             <IconHelp />
           </Button>
@@ -217,18 +218,9 @@ function UnreadCount({ mailbox }: { mailbox: string | undefined }) {
     .filter((c) => !mailbox || c.mailboxId === mailbox)
     .reduce((sum, c) => sum + c.unread, 0);
   if (!unread) return null;
-  return (
-    // Square: 18px a side for one digit, wider only for more. 4px into the row's end padding:
-    // its centre lines up with the sidebar toggle's and the search field's `/` above it. It multiplies, so on the current
-    // row's fill it reads a step darker than on a plain row.
-    <Badge
-      intent="primary"
-      isCircle={false}
-      className="ms-auto -me-1 h-4.5 min-w-4.5 justify-center bg-unread-count px-1 py-0 text-xs/4.5 tabular-nums mix-blend-multiply"
-    >
-      {unread}
-    </Badge>
-  );
+  // 4px into the row's end padding: its centre lines up with the sidebar toggle's and the search
+  // field's `/` above it.
+  return <CountBadge count={unread} className="ms-auto -me-1" />;
 }
 
 /**

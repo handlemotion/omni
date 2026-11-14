@@ -67,3 +67,4 @@ export { IconArrowShareLeft as IconReply } from "central-icons-outlined/IconArro
 export { IconArrowUndoUp as IconReplyAll } from "central-icons-outlined/IconArrowUndoUp";
 export { IconArrowShareRight as IconForward } from "central-icons-outlined/IconArrowShareRight";
 export { IconCrossMedium as IconX } from "central-icons-outlined/IconCrossMedium";
+export { IconSettingsSliderHor as IconSliders } from "central-icons-outlined/IconSettingsSliderHor";

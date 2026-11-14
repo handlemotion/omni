@@ -1,9 +1,10 @@
-// Desktop notifications (S2): your helpdesk notifications (assigned, mentioned, a customer
-// replied, SLA at risk or breached) as system notifications while Omni is in the background.
+// Desktop notifications (S2): your notifications (assigned, mentioned, a note on a conversation
+// you're in, a customer replied, SLA at risk or breached, a teammate joined) as system notifications while Omni is in the background.
 // Which kinds reach you at all is decided by the server (`member_preferences`); whether this
 // browser shows them is a per-device choice, kept in localStorage beside the browser's own
 // permission. Nothing here is sent to the server.
 import { useSyncExternalStore } from "react";
+import { notificationSubject, notificationTitle } from "./notification-text.ts";
 import type { NotificationPage } from "./types.ts";
 
 type Notice = NotificationPage["notifications"][number];
@@ -53,14 +54,6 @@ export async function setDesktopNotifications(on: boolean): Promise<DesktopNotif
   return currentState();
 }
 
-const TITLES: Record<Notice["kind"], string> = {
-  assigned: "Assigned to you",
-  mention: "You were mentioned",
-  customer_reply: "The customer replied",
-  sla_at_risk: "Due soon",
-  sla_breached: "Overdue",
-};
-
 /**
  * Remembers which notifications this tab has seen, and shows the new unread ones. The first list
  * only sets the baseline, so opening Omni never replays old ones. Shows nothing while the tab is
@@ -73,8 +66,8 @@ export function createNotifier(open: (notice: Notice) => void) {
     seen = new Set([...(seen ?? []), ...notices.map((n) => n.id)]);
     if (currentState() !== "on" || document.visibilityState === "visible") return;
     for (const notice of fresh) {
-      const shown = new Notification(TITLES[notice.kind], {
-        body: notice.subject || "(no subject)",
+      const shown = new Notification(notificationTitle(notice), {
+        body: notificationSubject(notice) ?? "",
         // One per notification, even if two tabs both show it.
         tag: notice.id,
       });

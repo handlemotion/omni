@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { createNotifier, useDesktopNotificationState } from "../lib/desktop-notifications.ts";
 import { notificationsQuery } from "../lib/notifications.ts";
+import { openNotificationsPanel } from "./use-notifications-panel.ts";
 
 export {
   setDesktopNotifications,
@@ -21,6 +22,7 @@ export function useDesktopNotifications() {
       createNotifier((notice) => {
         if (notice.threadId)
           void navigate({ to: "/inbox/$threadId", params: { threadId: notice.threadId } });
+        else openNotificationsPanel();
       }),
     [navigate],
   );

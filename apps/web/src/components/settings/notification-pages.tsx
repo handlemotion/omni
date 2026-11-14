@@ -13,8 +13,8 @@ import { SettingsToggleRow } from "./kit/settings-toggle-row";
 const DESCRIPTIONS = {
   unsupported: "This browser can't show notifications.",
   blocked: "Blocked for Omni in this browser's site settings.",
-  on: "When you're assigned, mentioned, a customer replies, or a conversation is due.",
-  off: "When you're assigned, mentioned, a customer replies, or a conversation is due.",
+  on: "When you're assigned or mentioned, a teammate writes on your conversations, a customer replies, a conversation is due, or someone joins.",
+  off: "When you're assigned or mentioned, a teammate writes on your conversations, a customer replies, a conversation is due, or someone joins.",
 } as const;
 
 export function NotificationsPage() {

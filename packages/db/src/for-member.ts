@@ -9,6 +9,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 import type { Db } from "./client.ts";
+import { alias } from "drizzle-orm/pg-core";
 import {
   attachments,
   businessHours,
@@ -1031,10 +1032,24 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
       options: { unreadOnly?: boolean; before?: ConversationCursor; limit?: number } = {},
     ) {
       const { unreadOnly = false, before, limit = 50 } = options;
+      // Yours, and still yours to see: a conversation's needs a grant on its inbox in its org
+      // today; a workspace one (no thread) needs only that you are still its member.
       const visible = and(
         isGrantee(notifications.memberId),
-        eq(mailboxAccess.memberId, notifications.memberId),
+        sql`(
+          (${notifications.threadId} is null and exists (
+            select 1 from ${members} vm
+            where vm.id = ${notifications.memberId} and vm.organization_id = ${notifications.orgId}
+          ))
+          or exists (
+            select 1 from ${mailboxAccess} va
+            join ${members} vm on vm.id = va.member_id and vm.organization_id = ${threads.orgId}
+            where va.mailbox_id = ${threads.mailboxId} and va.member_id = ${notifications.memberId}
+          )
+        )`,
       );
+      const actorMember = alias(members, "actor_member");
+      const actorUser = alias(users, "actor_user");
       const [rows, [unread]] = await Promise.all([
         db
           .select({
@@ -1044,6 +1059,8 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
             mailboxId: threads.mailboxId,
             noteId: notifications.noteId,
             actorMemberId: notifications.actorMemberId,
+            /** Who did it, when someone did (null for a customer reply or an SLA). */
+            actor: { name: actorUser.name, email: actorUser.email, image: actorUser.image },
             data: notifications.data,
             readAt: notifications.readAt,
             createdAt: notifications.createdAt,
@@ -1052,9 +1069,9 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
             subject: sql<string>`coalesce((select m.subject from ${messages} m where m.thread_id = ${threads.id} order by m.sent_at desc, m.id desc limit 1), '')`,
           })
           .from(notifications)
-          .innerJoin(threads, eq(threads.id, notifications.threadId))
-          .innerJoin(...threadGrant)
-          .innerJoin(...threadOrg)
+          .leftJoin(threads, eq(threads.id, notifications.threadId))
+          .leftJoin(actorMember, eq(actorMember.id, notifications.actorMemberId))
+          .leftJoin(actorUser, eq(actorUser.id, actorMember.userId))
           .where(
             and(
               visible,
@@ -1069,9 +1086,7 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         db
           .select({ count: sql<number>`count(*)::int` })
           .from(notifications)
-          .innerJoin(threads, eq(threads.id, notifications.threadId))
-          .innerJoin(...threadGrant)
-          .innerJoin(...threadOrg)
+          .leftJoin(threads, eq(threads.id, notifications.threadId))
           .where(and(visible, sql`${notifications.readAt} is null`)),
       ]);
       return { notifications: rows, unread: unread?.count ?? 0 };

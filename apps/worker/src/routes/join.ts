@@ -7,12 +7,14 @@ import {
   declineJoinRequest,
   joinStatus,
   listJoinRequests,
+  notifyMemberJoined,
   ownerEmails,
   requestToJoin,
 } from "@omni/db";
 import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { resolveSession, systemMailSender, type AppEnv } from "../context.ts";
+import { notifyMembers } from "../realtime.ts";
 
 /** The signed-in person and the company their sign-in is scoped to, when they are not its member. */
 async function asker(c: Context<AppEnv>) {
@@ -48,6 +50,12 @@ async function tellOwners(c: Context<AppEnv>, orgId: string, company: string, wh
   }
 }
 
+/** Tells the workspace its new member joined: a notification each, and a live refetch. */
+async function announceJoin(c: Context<AppEnv>, orgId: string, userId: string) {
+  const memberIds = await notifyMemberJoined(c.var.db, { orgId, userId });
+  await notifyMembers(c.env, c.var.db, { orgId, threadId: null, memberIds, kind: "member_joined" });
+}
+
 export const join = new Hono<AppEnv>()
   /** `{ company: { id, name }, requested }` for a scoped sign-in that is not a member; else 404. */
   .get("/", async (c) => {
@@ -79,6 +87,7 @@ export const join = new Hono<AppEnv>()
       requestId: c.req.param("id"),
     });
     if (!userId) throw new HTTPException(404, { message: "not found" });
+    c.executionCtx.waitUntil(announceJoin(c, member.orgId, userId));
     return c.body(null, 204);
   })
   .post("/requests/:id/decline", async (c) => {

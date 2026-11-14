@@ -89,7 +89,7 @@ const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-di
 const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
 /** Today: the time. Before: the day. */
-function rowTime(iso: string) {
+export function rowTime(iso: string) {
   const date = new Date(iso);
   return (new Date().toDateString() === date.toDateString() ? TIME : DAY).format(date);
 }

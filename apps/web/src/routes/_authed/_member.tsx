@@ -4,6 +4,7 @@ import { ComposeDialog } from "../../components/compose/compose-pane.tsx";
 import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
+import { NotificationsPanel } from "../../components/shell/notifications.tsx";
 import {
   ResizableSidebarProvider,
   SidebarResizeGrip,
@@ -63,6 +64,7 @@ function Shell() {
       {/* Above the sidebar too: its search sweeps the list when smart search runs. */}
       <ListSweepProvider>
         <AppSidebar />
+        <NotificationsPanel />
         <SidebarInset>
           <SidebarResizeGrip />
           <Outlet />

@@ -759,6 +759,53 @@ describe("notes and notifications", () => {
   });
 });
 
+describe("note notifications", () => {
+  type Kinds = { notifications: { kind: string; noteId: string | null }[] };
+
+  test("a note reaches the assignee and earlier note authors once, never its author, and goes with it", async () => {
+    const { db } = database;
+    const desk = await supportDesk("following");
+    const beaCookie = await signIn(worker, db, "bea@following.test");
+    const asked = await seedMessage(db, desk.inbox, {
+      subject: "Refund status",
+      fromAddress: "luis@client.test",
+      uid: 1,
+      sentAt: new Date(Date.now() - 60_000),
+    });
+    const kinds = async (cookie: string) =>
+      ((await (await api("/notifications", cookie)).json()) as Kinds).notifications.map((n) => [
+        n.kind,
+        n.noteId,
+      ]);
+    const note = async (cookie: string, body: string, mentions: string[] = []) =>
+      (
+        (await (
+          await post(`/threads/${asked.threadId}/notes`, cookie, { body, mentions })
+        ).json()) as {
+          note: { id: string };
+        }
+      ).note.id;
+
+    // Bea holds it. Ana's note reaches her as a note; Ana hears nothing of her own.
+    await put(`/threads/${asked.threadId}/assignee`, desk.anaCookie, { memberId: desk.bea.id });
+    const first = await note(desk.anaCookie, "Customer called about this");
+    expect(await kinds(beaCookie)).toEqual([
+      ["note", first],
+      ["assigned", null],
+    ]);
+    expect(await kinds(desk.anaCookie)).toEqual([]);
+
+    // Bea answers: Ana wrote on it before, so she hears. Mentioning Ana gives her one, not two.
+    const second = await note(beaCookie, "@Ana on it", [desk.ana.id]);
+    expect(await kinds(desk.anaCookie)).toEqual([["mention", second]]);
+    expect((await kinds(beaCookie)).length).toBe(2);
+
+    // Deleting the note takes its notifications with it.
+    await api(`/threads/${asked.threadId}/notes/${first}`, desk.anaCookie, { method: "DELETE" });
+    expect(await kinds(beaCookie)).toEqual([["assigned", null]]);
+  });
+});
+
 describe("SLAs", () => {
   const minutes = (n: number) => n * 60_000;
 

@@ -26,14 +26,12 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function Root() {
   const router = useRouter();
-  // Setup's validation and failures toast at the bottom right, in dorks' blue.
+  // Setup's validation and failures toast in dorks' blue.
   const setup = useLocation({ select: (l) => l.pathname.startsWith("/onboarding") });
   return (
     <RouterProvider navigate={(href, options) => router.navigate({ ...options, href })}>
       <Outlet />
-      {/* In the app, toasts stack over the floating Compose (or Reply and Forward) at the bottom
-          right: 20px in like them, 12px above their 32px. Setup has no floating actions. */}
-      <Toaster setup={setup} {...(!setup && { offset: { right: 20, bottom: 64 } })} />
+      <Toaster setup={setup} />
       <SharedTooltip />
     </RouterProvider>
   );

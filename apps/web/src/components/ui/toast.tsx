@@ -52,7 +52,11 @@ interface PromptOptions extends ToastTarget {
   secondary?: ToastAction;
 }
 
-/** Hosts the toasts: bottom right, 356px wide (the full width less a gutter on a phone). */
+/**
+ * Hosts the toasts: bottom centre, 356px wide (the full width less a gutter on a phone). Centred,
+ * they never land on the floating Reply and Forward at a thread's bottom right, and keep Sonner's
+ * own offset everywhere.
+ */
 /**
  * Setup's toast (dorks' onboarding): Sonner's own toast, painted brand blue by `.setup-toaster` in
  * styles.css, instead of `ToastCard`. The same message twice replaces itself.
@@ -67,7 +71,7 @@ export function Toaster({
   setup = false,
   ...props
 }: ToasterProps & {
-  /** Setup's toaster: bottom right, brand-blue toasts with a close (see `setupToast`). */
+  /** Setup's toaster: brand-blue toasts with a close (see `setupToast`). */
   setup?: boolean;
 }) {
   return (
@@ -76,7 +80,7 @@ export function Toaster({
       closeButton={setup}
       {...(setup && { icons: { error: <XCircleIcon className="size-4" /> } })}
       duration={NOTICE_DURATION_MS}
-      position="bottom-right"
+      position="bottom-center"
       theme="light"
       style={{ "--width": "min(356px, calc(100vw - 2rem))", ...style } as CSSProperties}
       toastOptions={{

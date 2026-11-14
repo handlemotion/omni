@@ -141,6 +141,10 @@ export const notificationKind = pgEnum("notification_kind", [
   "customer_reply",
   "sla_at_risk",
   "sla_breached",
+  /** A teammate left a note on a shared conversation you take part in (assignee, earlier notes). */
+  "note",
+  /** Someone joined your workspace; no thread. `actor_member_id` is the new member. */
+  "member_joined",
 ]);
 export const draftKind = pgEnum("draft_kind", ["new", "reply", "forward"]);
 export const theme = pgEnum("theme", ["system", "light", "dark"]);
@@ -1319,8 +1323,9 @@ export const memberPreferences = pgTable("member_preferences", {
 });
 
 /**
- * Something a member should know about: assigned to them, mentioned, their customer replied, an
- * SLA at risk. `dedupe_key` makes a job that runs twice notify once.
+ * Something a member should know about: assigned to them, mentioned, a note on a conversation
+ * they take part in, their customer replied, an SLA at risk, a new teammate. `thread_id` is null
+ * for workspace notifications. `dedupe_key` makes a job that runs twice notify once.
  */
 export const notifications = pgTable(
   "notifications",

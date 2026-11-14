@@ -2,7 +2,10 @@ import type { HelpdeskRealtimeEvent, MailActionKind } from "@omni/contracts";
 import type { schema } from "@omni/db";
 import type { Realtime as RealtimeObject } from "@omni/worker";
 
-/** Why a member was notified: assigned to them, @mentioned in a note, a customer replied, an SLA. */
+/**
+ * Why a member was notified: assigned to them, @mentioned in a note, a note on a conversation they
+ * take part in, a customer replied, an SLA, a teammate joined the workspace.
+ */
 export type NotificationKind = (typeof schema.notificationKind.enumValues)[number];
 
 /**
@@ -10,7 +13,7 @@ export type NotificationKind = (typeof schema.notificationKind.enumValues)[numbe
  * only to members whose preferences allow realtime notifications of that kind.
  */
 export type NotificationEvent =
-  | { type: "notification"; threadId: string; kind: NotificationKind }
+  | { type: "notification"; threadId: string | null; kind: NotificationKind }
   /**
    * Notifications this member had about the thread were withdrawn (the note that mentioned them
    * was deleted): refetch the list. Never show it as a new notification.
@@ -239,9 +242,8 @@ function parseEvent(data: string): RealtimeEvent | undefined {
   }
   if (event.type === "notification") {
     const { threadId, kind } = event;
-    if (!isId(threadId) || typeof kind !== "string" || !Object.hasOwn(NOTIFICATION_KINDS, kind)) {
-      return undefined;
-    }
+    if (threadId !== null && !isId(threadId)) return undefined;
+    if (typeof kind !== "string" || !Object.hasOwn(NOTIFICATION_KINDS, kind)) return undefined;
     return { type: "notification", threadId, kind: kind as NotificationKind };
   }
   if (event.type === "notification.removed") {
@@ -275,6 +277,8 @@ const NOTIFICATION_KINDS: Record<NotificationKind, true> = {
   customer_reply: true,
   sla_at_risk: true,
   sla_breached: true,
+  note: true,
+  member_joined: true,
 };
 
 const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0;

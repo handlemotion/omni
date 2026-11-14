@@ -1,34 +1,227 @@
-// In-app notifications (ADR 0021): a bell in the sidebar's footer with your unread count, opening
-// the list: assigned to you, @mentioned in a note, a customer replied, an SLA at risk or breached.
-// Picking one marks it read and opens its conversation in the inbox's list.
+// In-app notifications: the bell in the sidebar's footer, with your unread count, toggles a panel
+// the window's height that slides out from the sidebar's edge and floats over the page (Figma:
+// Omni, node 64:2). It shares the thread list's header height, header actions and fluid hover;
+// its rows are two lines beside who did it, so they read as notifications, not mail.
+// All or Unread; picking one marks it read and opens its conversation, or People in settings
+// for a new teammate. Escape or a press outside closes it.
 import { useRouter } from "@tanstack/react-router";
-import { useState } from "react";
-import { IconBell } from "@/components/icons/central";
+import { useEffect, useRef, useState, type Key, type ReactNode } from "react";
+import { Collection } from "react-aria-components/Collection";
+import { GridListLoadMoreItem } from "react-aria-components/GridList";
+import { Skeleton, SkeletonBox } from "skullet/react";
+import { EmptyState } from "@/components/empty/empty-state";
+import {
+  IconBell,
+  IconCircleAlert,
+  IconClock3,
+  IconMail,
+  IconMailOpen,
+  IconSliders,
+  IconX,
+} from "@/components/icons/central";
+import { rowTime } from "@/components/inbox/conversation-meta";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ListBox, ListBoxItem } from "@/components/ui/list-box";
-import { Popover, PopoverTrigger } from "@/components/ui/popover";
+import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
+import { GridList, GridListItem } from "@/components/ui/grid-list";
+import { useSidebar } from "@/components/ui/sidebar";
+import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { useAssignees } from "@/hooks/use-conversation.ts";
+import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { useMarkNotificationsRead, useNotifications } from "@/hooks/use-notifications.ts";
+import {
+  closeNotificationsPanel,
+  toggleNotificationsPanel,
+  useNotificationsPanel,
+} from "@/hooks/use-notifications-panel.ts";
+import { openSettings } from "@/hooks/use-settings-dialog.ts";
+import {
+  actorName,
+  notificationParts,
+  notificationSubject,
+  notificationTitle,
+} from "@/lib/notification-text.ts";
 import type { Notification } from "@/lib/types.ts";
-import { messageTime } from "../conversation/message.tsx";
+import { pictureUrl } from "@/lib/urls.ts";
+import { CountBadge } from "./count-badge";
 
-/** Past this, the badge says 99+. */
-const MAX_COUNT = 99;
+/** The bell: opens and closes the panel, and wears your unread count. */
+export function NotificationsButton() {
+  const { unread } = useNotifications();
+  const open = useNotificationsPanel();
+  const { isMobile, setIsOpenOnMobile } = useSidebar();
+  return (
+    <TooltipTrigger delay={400}>
+      <Button
+        intent="ghost"
+        size="sq-xs"
+        aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+        aria-expanded={open}
+        aria-controls="notifications-panel"
+        data-notifications-toggle
+        onPress={() => {
+          // On a phone the bell sits in the sidebar's sheet, which would cover the panel.
+          if (isMobile) setIsOpenOnMobile(false);
+          toggleNotificationsPanel();
+        }}
+        className="relative"
+      >
+        <IconBell />
+        {/* Over the bell's top right, out of the flow so the footer doesn't shift. */}
+        <CountBadge count={unread} className="pointer-events-none absolute -end-2 -top-2" />
+      </Button>
+      <Tooltip>Notifications</Tooltip>
+    </TooltipTrigger>
+  );
+}
 
-export function Notifications() {
-  const { notifications, unread, hasNextPage, fetchNextPage, isFetchingNextPage } =
-    useNotifications();
+type View = "all" | "unread";
+
+/** The panel. Mount once in the shell, beside the sidebar. */
+export function NotificationsPanel() {
+  const open = useNotificationsPanel();
+  const { open: sidebarOpen, isMobile } = useSidebar();
+  const { unread } = useNotifications();
+  const markRead = useMarkNotificationsRead();
+  const [view, setView] = useState<View>("all");
+  const panel = useRef<HTMLElement>(null);
+
+  // Escape and a press anywhere outside close it; the bell toggles it on its own.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) closeNotificationsPanel();
+    };
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (!target || panel.current?.contains(target)) return;
+      if (target.closest("[data-notifications-toggle]")) return;
+      closeNotificationsPanel();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [open]);
+
+  // Focus moves into it when it opens, so the keyboard can walk the list at once.
+  useEffect(() => {
+    if (open) panel.current?.focus({ preventScroll: true });
+  }, [open]);
+
+  return (
+    // The clip starts at the sidebar's edge, so the panel slides out from under it.
+    <div
+      className={`pointer-events-none fixed inset-y-0 end-0 z-30 overflow-hidden ${
+        sidebarOpen && !isMobile ? "start-(--sidebar-width)" : "start-0"
+      }`}
+    >
+      <aside
+        ref={panel}
+        id="notifications-panel"
+        aria-label="Notifications"
+        tabIndex={-1}
+        inert={!open}
+        className={`pointer-events-auto flex h-full w-108 max-w-full flex-col border-e bg-background shadow-overlay outline-hidden transition-[translate,opacity,visibility] duration-200 ease-out motion-reduce:transition-[opacity,visibility] ${
+          open
+            ? "visible translate-x-0 opacity-100"
+            : "invisible -translate-x-full opacity-0 motion-reduce:translate-x-0"
+        }`}
+      >
+        {/* The thread list's header height and insets: the title 20px in, actions 10px from the
+            edge. No rule under it: the tabs' line closes the header. */}
+        <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2.5">
+          <h2 className="min-w-0 flex-1 truncate text-sm font-medium">Notifications</h2>
+          <div className="flex items-center gap-1">
+            <HeaderAction
+              label="Mark all read"
+              isDisabled={unread === 0}
+              onPress={() => markRead.mutate({})}
+            >
+              <IconMailOpen />
+            </HeaderAction>
+            <HeaderAction
+              label="Notification settings"
+              onPress={() => openSettings("notifications")}
+            >
+              <IconSliders />
+            </HeaderAction>
+            {/* A phone shows the panel full width, with no outside to press: it closes here. */}
+            {isMobile && (
+              <HeaderAction label="Close" onPress={closeNotificationsPanel}>
+                <IconX />
+              </HeaderAction>
+            )}
+          </div>
+        </header>
+        <Tabs
+          selectedKey={view}
+          onSelectionChange={(key: Key) => setView(key as View)}
+          className="min-h-0 w-full flex-1 gap-0"
+        >
+          {/* 4px up, under the header's title, so the tabs belong to it. */}
+          <TabList aria-label="Show" className="-mt-1 shrink-0 px-5">
+            <Tab id="all">All</Tab>
+            <Tab id="unread" className="gap-1.5">
+              Unread
+              <CountBadge count={unread} />
+            </Tab>
+          </TabList>
+          <TabPanel id="all" className="flex min-h-0 flex-col">
+            <NotificationList unread={false} />
+          </TabPanel>
+          <TabPanel id="unread" className="flex min-h-0 flex-col">
+            <NotificationList unread />
+          </TabPanel>
+        </Tabs>
+      </aside>
+    </div>
+  );
+}
+
+/** An icon action in the header: the thread list's own, the reader's toolbar size. */
+function HeaderAction(props: {
+  label: string;
+  isDisabled?: boolean;
+  onPress: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <TooltipTrigger delay={400}>
+      <Button
+        intent="ghost"
+        size="sq-sm-lg"
+        aria-label={props.label}
+        isDisabled={props.isDisabled}
+        onPress={props.onPress}
+      >
+        {props.children}
+      </Button>
+      <Tooltip>{props.label}</Tooltip>
+    </TooltipTrigger>
+  );
+}
+
+function NotificationList({ unread }: { unread: boolean }) {
+  const { notifications, isPending, hasNextPage, fetchNextPage, isFetchingNextPage } =
+    useNotifications({ unread });
   const markRead = useMarkNotificationsRead();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const label = unread ? `Notifications, ${unread} unread` : "Notifications";
+  const hover = useFluidHoverList({
+    itemSelector: "[role='row']",
+    highlightedSelector: "[data-focus-visible]",
+  });
 
   const openOne = (n: Notification) => {
     if (!n.readAt) markRead.mutate({ ids: [n.id] });
-    setOpen(false);
+    closeNotificationsPanel();
     const threadId = n.threadId;
-    if (!threadId) return;
+    if (!threadId) {
+      if (n.kind === "member_joined") openSettings("people");
+      return;
+    }
     // In its inbox's list of every conversation, where it is whatever its status.
     void (n.mailboxId
       ? router.navigate({
@@ -39,119 +232,128 @@ export function Notifications() {
       : router.navigate({ to: "/all/$threadId", params: { threadId } }));
   };
 
-  return (
-    <PopoverTrigger isOpen={open} onOpenChange={setOpen}>
-      <TooltipTrigger delay={400}>
-        <Button intent="ghost" size="sq-xs" aria-label={label} className="relative">
-          <IconBell />
-          {unread > 0 && (
-            // Over the bell's top right, out of the flow so the footer doesn't shift.
-            <span className="pointer-events-none absolute -end-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-xs leading-none text-primary-foreground tabular-nums">
-              {unread > MAX_COUNT ? `${MAX_COUNT}+` : unread}
-            </span>
-          )}
-        </Button>
-        <Tooltip>Notifications</Tooltip>
-      </TooltipTrigger>
-      <Popover
-        placement="top end"
-        aria-label="Notifications"
-        className="max-h-[28rem] w-80 max-w-[calc(100vw-2rem)]"
+  if (isPending) {
+    return (
+      <Skeleton
+        loading
+        label="Loading notifications"
+        skeleton={<RowBones />}
+        className="min-h-0 flex-1 overflow-hidden"
       >
-        <header className="flex items-center justify-between gap-2 border-b px-3 py-2">
-          <span className="text-sm">Notifications</span>
-          <Button
-            intent="plain"
-            size="sm"
-            isDisabled={unread === 0}
-            onPress={() => markRead.mutate({})}
-            className="-me-2"
-          >
-            Mark all read
-          </Button>
-        </header>
-        {notifications.length === 0 ? (
-          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-            Nothing yet. You'll hear here when you're assigned or mentioned.
-          </p>
-        ) : (
-          <ListBox
-            aria-label="Notifications"
-            items={notifications}
-            selectionMode="none"
-            onAction={(key) => {
-              const n = notifications.find((x) => x.id === key);
-              if (n) openOne(n);
-            }}
-            className="max-h-none min-h-0 flex-1 rounded-none border-0"
-          >
-            {(n) => (
-              <ListBoxItem id={n.id} textValue={n.subject || "(no subject)"}>
-                <Row notification={n} />
-              </ListBoxItem>
-            )}
-          </ListBox>
-        )}
-        {hasNextPage && (
-          <div className="border-t p-1">
-            <Button
-              intent="plain"
-              size="sm"
-              className="w-full"
-              isPending={isFetchingNextPage}
-              onPress={() => void fetchNextPage()}
-            >
-              Show older
-            </Button>
-          </div>
-        )}
-      </Popover>
-    </PopoverTrigger>
-  );
-}
-
-function Row({ notification: n }: { notification: Notification }) {
-  const { data: assignees = [] } = useAssignees(n.mailboxId ?? undefined);
-  const person = assignees.find((a) => a.memberId === n.actorMemberId);
-  const actor = person ? person.name || person.email : undefined;
-  return (
-    <div className="col-span-full flex min-w-0 items-start gap-2 py-0.5">
-      {/* Unread: a primary dot; read: the same space, so the text lines up. */}
-      <span
-        aria-label={n.readAt ? undefined : "Unread"}
-        className={`mt-1.5 size-1.5 shrink-0 rounded-full ${n.readAt ? "" : "bg-primary"}`}
+        {null}
+      </Skeleton>
+    );
+  }
+  if (notifications.length === 0) {
+    return (
+      <EmptyState
+        figure="drawer"
+        title="No notifications"
+        description="Your inbox looks very clean today"
       />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-sm">{describe(n, actor)}</span>
-          <time
-            dateTime={n.createdAt}
-            className="shrink-0 text-xs text-subtle-foreground tabular-nums"
-          >
-            {messageTime(n.createdAt)}
-          </time>
-        </span>
-        <span className="truncate text-xs text-muted-foreground">
-          {n.subject || "(no subject)"}
-        </span>
-      </div>
+    );
+  }
+  return (
+    <div className="@container relative flex min-h-0 flex-1 flex-col" {...hover.containerProps}>
+      <FluidHoverHighlight {...hover.highlightProps} />
+      <GridList
+        aria-label={unread ? "Unread notifications" : "Notifications"}
+        // Transparent, as the thread list: the highlight sits under the rows.
+        className="min-h-0 flex-1 overflow-y-auto overscroll-none bg-transparent"
+        selectionMode="none"
+        onAction={(key) => {
+          const n = notifications.find((x) => x.id === key);
+          if (n) openOne(n);
+        }}
+      >
+        <Collection items={notifications}>{(n) => <NotificationRow notification={n} />}</Collection>
+        <GridListLoadMoreItem
+          onLoadMore={hasNextPage ? () => void fetchNextPage() : undefined}
+          isLoading={isFetchingNextPage}
+          scrollOffset={3}
+        />
+      </GridList>
     </div>
   );
 }
 
-function describe(n: Notification, actor: string | undefined) {
-  switch (n.kind) {
-    case "assigned":
-      return actor ? `${actor} assigned you` : "Assigned to you";
-    case "mention":
-      return actor ? `${actor} mentioned you` : "You were mentioned";
-    case "customer_reply":
-      return "The customer replied";
-    case "sla_at_risk":
-      return "Due soon";
-    case "sla_breached":
-      return "Overdue";
-    default:
-      return "Activity";
+/**
+ * Two lines beside who did it: "Bea Klein assigned you", then what it is about; the unread dot
+ * and the time at the end of the first line. 20px all round, ruled like the thread list.
+ */
+function NotificationRow({ notification: n }: { notification: Notification }) {
+  const unread = !n.readAt;
+  const { actor, action } = notificationParts(n);
+  const subject = notificationSubject(n);
+  return (
+    <GridListItem
+      id={n.id}
+      textValue={notificationTitle(n)}
+      className="items-center gap-3 border-b p-5"
+    >
+      <Lead notification={n} />
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-sm">
+            {actor && (
+              <span className={unread ? "text-foreground" : "text-muted-foreground"}>{actor} </span>
+            )}
+            <span className={!actor && unread ? "text-foreground" : "text-muted-foreground"}>
+              {action}
+            </span>
+          </span>
+          {/* Unread: a primary dot just before the time, which keeps the row's end. */}
+          {unread && (
+            <span aria-label="Unread" className="size-2 shrink-0 rounded-full bg-primary" />
+          )}
+          <time
+            dateTime={n.createdAt}
+            className="shrink-0 text-xs text-subtle-foreground tabular-nums"
+          >
+            {rowTime(n.createdAt)}
+          </time>
+        </span>
+        {subject && <span className="truncate text-sm text-subtle-foreground">{subject}</span>}
+      </span>
+    </GridListItem>
+  );
+}
+
+/** A squircle: 28px with 6px corners. */
+const AVATAR =
+  "shrink-0 bg-accent text-foreground outline-0 mix-blend-multiply [--avatar-radius:var(--radius-lg)] [--avatar-size:--spacing(7)]";
+
+/** Who did it, by their picture; what happened, by a glyph, when no one did. */
+function Lead({ notification: n }: { notification: Notification }) {
+  const name = actorName(n);
+  if (name) {
+    return (
+      <Avatar
+        isSquare
+        src={pictureUrl(n.actor?.image)}
+        initials={name.slice(0, 1).toUpperCase()}
+        className={AVATAR}
+      />
+    );
   }
+  const Glyph =
+    n.kind === "sla_breached" ? IconCircleAlert : n.kind === "sla_at_risk" ? IconClock3 : IconMail;
+  return (
+    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent text-muted-foreground mix-blend-multiply">
+      <Glyph aria-hidden className="size-icon" />
+    </span>
+  );
+}
+
+/** The rows while they load: the thread list's bones on the same grid. */
+function RowBones() {
+  return Array.from({ length: 12 }, (_, i) => (
+    <div key={i} className="flex items-center gap-3 border-b p-5">
+      <SkeletonBox width={28} height={28} radius="var(--radius-lg)" />
+      <span className="flex min-w-0 flex-1 flex-col gap-2">
+        <SkeletonBox width={`${55 + ((i * 23) % 35)}%`} height={10} />
+        <SkeletonBox width={`${35 + ((i * 17) % 30)}%`} height={8} />
+      </span>
+    </div>
+  ));
 }

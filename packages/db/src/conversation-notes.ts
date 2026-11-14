@@ -1,8 +1,15 @@
-// Internal notes (ADR 0021): in the timeline, never sent, never on IMAP. @mentions notify.
+// Internal notes (ADR 0021): in the timeline, never sent, never on IMAP. @mentions notify, and
+// so does every note on a conversation you take part in (its assignee, earlier note authors).
 
-import { and, eq, exists, inArray, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNotNull, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
-import { conversationEvents, mailboxAccess, members, notes } from "./schema/index.ts";
+import {
+  conversationEvents,
+  mailboxAccess,
+  members,
+  notes,
+  notifications,
+} from "./schema/index.ts";
 import { type Executor, lockConversation, writeEvents, notify } from "./conversation-core.ts";
 
 export const NOTE_MAX_LENGTH = 20_000;
@@ -57,8 +64,47 @@ export async function createNote(
       dedupeKey: `mention:${note!.id}`,
       noteId: note!.id,
     });
-    return { ok: true as const, note: note!, conversation: row, notified };
+    // The mentioned already heard; everyone else taking part hears about the note itself.
+    const participants = (await participantsOf(tx, row)).filter((m) => !mentions.includes(m));
+    const followed = await notify(tx, row, {
+      memberIds: participants,
+      kind: "note",
+      actorMemberId: input.memberId,
+      dedupeKey: `note:${note!.id}`,
+      noteId: note!.id,
+    });
+    return { ok: true as const, note: note!, conversation: row, notified, followed };
   });
+}
+
+/**
+ * Who takes part in a shared conversation: its assignee and whoever left a note on it before,
+ * among those who can still see the inbox.
+ */
+async function participantsOf(
+  tx: Executor,
+  row: { id: string; orgId: string; mailboxId: string; assigneeMemberId: string | null },
+) {
+  const authors = await tx
+    .selectDistinct({ id: notes.authorMemberId })
+    .from(notes)
+    .where(and(eq(notes.threadId, row.id), isNotNull(notes.authorMemberId)));
+  const wanted = [
+    ...new Set([row.assigneeMemberId, ...authors.map((a) => a.id)].filter((m) => m !== null)),
+  ];
+  if (wanted.length === 0) return [];
+  const allowed = await tx
+    .select({ id: mailboxAccess.memberId })
+    .from(mailboxAccess)
+    .innerJoin(members, eq(members.id, mailboxAccess.memberId))
+    .where(
+      and(
+        eq(mailboxAccess.mailboxId, row.mailboxId),
+        eq(members.organizationId, row.orgId),
+        inArray(mailboxAccess.memberId, wanted),
+      ),
+    );
+  return allowed.map((m) => m.id);
 }
 
 /**
@@ -94,12 +140,20 @@ export async function updateNote(
   return row ?? null;
 }
 
-/** Deletes the author's own note (its timeline event and notifications go with it). */
+/**
+ * Deletes the author's own note (its timeline event and notifications go with it). `notified`
+ * is who had a notification about it.
+ */
 export async function deleteNote(
   db: Executor,
   input: { threadId: string; noteId: string; memberId: string },
 ) {
   return db.transaction(async (tx) => {
+    // Who was notified about it: those notifications go with the note (cascade).
+    const notified = await tx
+      .select({ memberId: notifications.memberId })
+      .from(notifications)
+      .where(eq(notifications.noteId, input.noteId));
     const [row] = await tx
       .delete(notes)
       .where(
@@ -137,6 +191,6 @@ export async function deleteNote(
           sql`${conversationEvents.data}->>'noteId' = ${row.id}`,
         ),
       );
-    return row;
+    return { ...row, notified: [...new Set(notified.map((n) => n.memberId))] };
   });
 }

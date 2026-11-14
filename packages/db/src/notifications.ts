@@ -1,7 +1,9 @@
-// Notifications: marking a member's own read, and whose preferences let one out (B4).
+// Notifications: marking a member's own read, workspace notifications (a teammate joined), and
+// whose preferences let one out (B4).
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
-import { memberPreferences, notifications } from "./schema/index.ts";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { uuidv7 } from "uuidv7";
+import { memberPreferences, members, notifications } from "./schema/index.ts";
 import { type Executor, type NotificationKind } from "./conversation-core.ts";
 
 // Notifications: a member's own.
@@ -20,6 +22,41 @@ export async function markNotificationsRead(db: Executor, memberId: string, ids:
     )
     .returning({ id: notifications.id });
   return rows.length;
+}
+
+/**
+ * Tells everyone else in workspace `orgId` that user `userId`, now its member, joined. Once per
+ * member, however often it runs. Answers who got a new notification.
+ */
+export async function notifyMemberJoined(
+  db: Executor,
+  input: { orgId: string; userId: string },
+): Promise<string[]> {
+  const [joined] = await db
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.organizationId, input.orgId), eq(members.userId, input.userId)));
+  if (!joined) return [];
+  const others = await db
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.organizationId, input.orgId), ne(members.id, joined.id)));
+  if (others.length === 0) return [];
+  const rows = await db
+    .insert(notifications)
+    .values(
+      others.map((other) => ({
+        id: uuidv7(),
+        orgId: input.orgId,
+        memberId: other.id,
+        kind: "member_joined" as const,
+        actorMemberId: joined.id,
+        dedupeKey: `member_joined:${joined.id}`,
+      })),
+    )
+    .onConflictDoNothing()
+    .returning({ memberId: notifications.memberId });
+  return rows.map((r) => r.memberId);
 }
 
 // Realtime (B4): who hears about a conversation, and whose preferences let a notification out.

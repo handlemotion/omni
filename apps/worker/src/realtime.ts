@@ -24,8 +24,11 @@ export type RealtimeEvent =
   | { type: "action"; actionId: string; status: "failed"; error: string }
   /** A domain's DNS was checked again (ADR 0011): refetch the onboarding status. */
   | { type: "domain"; domainId: string }
-  /** This member got a new notification (`GET /api/notifications` has it). */
-  | { type: "notification"; threadId: string; kind: NotificationKind }
+  /**
+   * This member got a new notification (`GET /api/notifications` has it). `threadId` is null for
+   * a workspace notification (someone joined).
+   */
+  | { type: "notification"; threadId: string | null; kind: NotificationKind }
   /**
    * Notifications this member had were withdrawn (the note that mentioned them was deleted):
    * refetch `GET /api/notifications`. Never shown as a new notification.
@@ -289,7 +292,7 @@ export async function announceMerges(
 export async function notifyMembers(
   env: Env,
   db: Db,
-  input: { orgId: string; threadId: string; memberIds: string[]; kind: NotificationKind },
+  input: { orgId: string; threadId: string | null; memberIds: string[]; kind: NotificationKind },
 ) {
   if (input.memberIds.length === 0) return;
   const accepting = await membersAccepting(db, input.memberIds, input.kind, "realtime");

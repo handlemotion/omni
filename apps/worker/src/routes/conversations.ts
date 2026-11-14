@@ -336,7 +336,10 @@ export const conversations = new Hono<AppEnv>()
     applyChange(c, c.req.param("id"), { type: "tag", tagId: c.req.param("tagId"), add: false }),
   )
 
-  /** An internal note in the timeline; never sent. Each @mentioned teammate is notified. */
+  /**
+   * An internal note in the timeline; never sent. Each @mentioned teammate is notified, and so is
+   * everyone else taking part (the assignee, earlier note authors).
+   */
   .post(
     "/threads/:id/notes",
     limitPerMember("actions"),
@@ -361,6 +364,12 @@ export const conversations = new Hono<AppEnv>()
             threadId: id,
             memberIds: result.notified,
             kind: "mention",
+          }),
+          notifyMembers(c.env, c.var.db, {
+            orgId,
+            threadId: id,
+            memberIds: result.followed,
+            kind: "note",
           }),
         ]),
       );
@@ -402,11 +411,11 @@ export const conversations = new Hono<AppEnv>()
           c.var.config,
           new Map([[note.mailboxId, new Set([note.threadId])]]),
         ),
-        // Its mention notifications went with it: the mentioned refetch theirs.
+        // Its notifications went with it: whoever had one refetches theirs.
         withdrawNotifications(c.env, {
           orgId: note.orgId,
           threadId: note.threadId,
-          memberIds: note.mentions.filter((m) => m !== c.var.member.id),
+          memberIds: note.notified,
         }),
       ]),
     );

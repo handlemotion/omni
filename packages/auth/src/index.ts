@@ -8,6 +8,7 @@ import {
   isCompany,
   schema,
   claimInvitationInboxes,
+  notifyMemberJoined,
   syncTeamMailboxAccess,
   teamMailbox,
 } from "@omni/db";
@@ -568,6 +569,11 @@ export function createAuth(env: AuthEnv) {
               orgId: invitation.organizationId,
               invitationId: invitation.id,
               memberId: member.id,
+            });
+            // Everyone already there hears they joined (their list shows it on its next fetch).
+            await notifyMemberJoined(env.db, {
+              orgId: invitation.organizationId,
+              userId: member.userId,
             });
           },
           beforeDeleteTeam: async ({ team }) => {
