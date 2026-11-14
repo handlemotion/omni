@@ -5,6 +5,7 @@ import { createMcpHandler } from "@modelcontextprotocol/server";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 import { authenticate } from "../mcp/auth.ts";
+import { checkRateLimit, type RateLimitRule } from "../rate-limiter.ts";
 import { createServer } from "../mcp/server.ts";
 
 /** Browsers may call from our own origins only; native clients send no `Origin`. */
@@ -24,7 +25,16 @@ export const mcp = new Hono<AppEnv>()
     if (caller instanceof Response) return caller;
     c.set("log", log.child({ component: "mcp", clientId: caller.clientId }));
 
-    const context = { db, caller, webAppURL: config.auth.webAppURL, log: c.var.log };
+    const context = {
+      db,
+      caller,
+      config,
+      webAppURL: config.auth.webAppURL,
+      log: c.var.log,
+      // Per person, across their agents: a key apart from the app's per-member limits.
+      rateLimit: (rule: RateLimitRule) =>
+        checkRateLimit(c.env, config, rule, `mcp:${caller.userId}`),
+    };
     const handler = createMcpHandler(() => createServer(context), {
       legacy: "stateless",
       responseMode: "json",

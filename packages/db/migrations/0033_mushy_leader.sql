@@ -1,0 +1,1 @@
+CREATE INDEX "messages_mailbox_from_address_idx" ON "messages" USING btree ("mailbox_id",lower("from_address"));

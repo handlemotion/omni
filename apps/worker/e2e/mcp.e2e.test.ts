@@ -190,6 +190,39 @@ async function inbox(token: string, args: Record<string, unknown> = {}) {
   }
 }
 
+/** One tool call through the official client: its structured result, or its error text. */
+interface SearchResult {
+  results: { id: string; title: string; url: string; mailbox: string }[];
+  ranking: string;
+  next_cursor?: string;
+}
+
+interface FetchedThread {
+  id: string;
+  text: string;
+  metadata: {
+    truncated: boolean;
+    messages: { from_me: boolean }[];
+    conversation?: { status: string; assignee: string | null };
+  };
+}
+
+type FetchResult = FetchedThread & { more?: FetchedThread[]; not_found?: string[] };
+
+async function tool<T = unknown>(token: string, name: string, args: Record<string, unknown>) {
+  const client = await agent(token);
+  try {
+    const result = await client.callTool({ name, arguments: args });
+    return {
+      isError: result.isError === true,
+      data: result.structuredContent as T,
+      text: JSON.stringify(result.content),
+    };
+  } finally {
+    await client.close();
+  }
+}
+
 /** A JSON-RPC call the way 2025-era clients (Claude, ChatGPT today) send it, no handshake state. */
 function legacyCall(token: string, body: unknown) {
   return fetch(at("/mcp"), {
@@ -393,6 +426,23 @@ describe("what a grant reaches", () => {
     const result = await inbox(workOnly.access_token);
     expect(result.mailboxes.map((m) => m.address)).toEqual(["cara@work.test"]);
     expect(result.workspaces.map((w) => w.id)).toEqual([work.id]);
+
+    // No argument widens it: an empty or other workspace is refused by every tool.
+    await seedMessage(db, sideBox, { subject: "Side project", fromAddress: "x@side.test", uid: 1 });
+    for (const [name, args] of [
+      ["inbox", { workspace: "" }],
+      ["search", { query: "", view: "all", workspace: "" }],
+      ["search", { query: "", view: "all", workspace: side.id }],
+    ] as const) {
+      const call = await tool(workOnly.access_token, name, args);
+      expect(call.isError).toBe(true);
+      expect(call.text).not.toContain("Side project");
+    }
+    const listed = await tool<SearchResult>(workOnly.access_token, "search", {
+      query: "",
+      view: "all",
+    });
+    expect(listed.data.results.map((r) => r.mailbox)).not.toContain("cara@side.test");
   });
 
   // Catches: picking a workspace that is not yours to widen a grant.
@@ -443,4 +493,211 @@ describe("what a grant reaches", () => {
     expect(response.headers.get("www-authenticate")).toContain('error="insufficient_scope"');
     expect(response.headers.get("www-authenticate")).toContain('scope="mail:read"');
   });
+});
+
+describe("finding and reading mail", () => {
+  let token: string;
+  let invoice: string;
+  let lunch: string;
+  let ticket: string;
+  let strangers: string;
+
+  beforeAll(async () => {
+    const org = await createOrg(db, "readers");
+    const gil = await createMember(db, org.id, "gil@readers.test");
+    await db.update(schema.users).set({ name: "Gil" }).where(eq(schema.users.id, gil.userId));
+    const box = await createMailbox(db, org.id, "gil@readers.test", "personal");
+    await grant(db, org.id, box.id, gil.id);
+    ({ threadId: invoice } = await seedMessage(db, box, {
+      subject: "Invoice 9001 failed",
+      fromAddress: "billing@mail.stripe.test",
+      fromName: "Stripe",
+      to: ["gil@readers.test"],
+      uid: 1,
+      sentAt: new Date("2026-10-01T10:00:00Z"),
+      text: "Your payment for invoice 9001 failed. Update your card by Friday.",
+    }));
+    await seedMessage(db, box, {
+      subject: "Re: Invoice 9001 failed",
+      fromAddress: "gil@readers.test",
+      to: ["billing@mail.stripe.test"],
+      uid: 2,
+      threadId: invoice,
+      sentAt: new Date("2026-10-02T10:00:00Z"),
+      text: "Card updated, please retry the charge.",
+    });
+    ({ threadId: lunch } = await seedMessage(db, box, {
+      subject: "Lunch on Friday",
+      fromAddress: "maya@friends.test",
+      uid: 3,
+      sentAt: new Date("2026-10-03T10:00:00Z"),
+      text: `Lunch on Friday? ${"We could try the new place by the river. ".repeat(80)}`,
+    }));
+
+    // A shared inbox Gil works in: its conversation state comes with the thread.
+    const desk = await createMailbox(db, org.id, "help@readers.test", "shared");
+    await grant(db, org.id, desk.id, gil.id);
+    ({ threadId: ticket } = await seedMessage(db, desk, {
+      subject: "Order 77 never arrived",
+      fromAddress: "customer@shop.test",
+      uid: 1,
+      text: "My order 77 never arrived.",
+    }));
+    await db
+      .update(schema.threads)
+      .set({ assigneeMemberId: gil.id, status: "pending" })
+      .where(eq(schema.threads.id, ticket));
+
+    // Someone else's mail with the same words: never found, never read.
+    const elsewhere = await createOrg(db, "elsewhere");
+    const hal = await createMember(db, elsewhere.id, "hal@elsewhere.test");
+    const halBox = await createMailbox(db, elsewhere.id, "hal@elsewhere.test", "personal");
+    await grant(db, elsewhere.id, halBox.id, hal.id);
+    ({ threadId: strangers } = await seedMessage(db, halBox, {
+      subject: "Invoice 9001 failed",
+      fromAddress: "billing@mail.stripe.test",
+      uid: 1,
+      text: "Their invoice 9001 failed too.",
+    }));
+
+    const jar = new CookieJar();
+    await signIn(worker, db, "gil@readers.test", jar);
+    ({ access_token: token } = await connect(jar));
+  });
+
+  // Catches: search that misses the person's own mail, returns another person's, or loses the
+  // fields ChatGPT's deep research needs (id, title, url).
+  test("search by words finds the person's thread, in ChatGPT's shape", async () => {
+    const { data, isError } = await tool<SearchResult>(token, "search", { query: "invoice 9001" });
+    expect(isError).toBe(false);
+    expect(data.results.map((r) => r.id)).toEqual([invoice]);
+    expect(data.results[0]).toMatchObject({
+      title: expect.stringContaining("Invoice 9001"),
+      url: `${WEB_ORIGIN}/all/${invoice}`,
+      mailbox: "gil@readers.test",
+    });
+    expect(JSON.stringify(data)).not.toContain(strangers);
+  });
+
+  // Catches: a filter ignored by search, so "what did Stripe send" returns everything.
+  test("filters narrow a search and a listing", async () => {
+    const fromStripe = await tool<SearchResult>(token, "search", {
+      query: "friday",
+      from: "stripe.test",
+    });
+    expect(fromStripe.data.results.map((r) => r.id)).toEqual([invoice]);
+    const listed = await tool<SearchResult>(token, "search", {
+      query: "",
+      participant: "friends.test",
+    });
+    expect(listed.data).toMatchObject({ ranking: "newest" });
+    expect(listed.data.results.map((r) => r.id)).toEqual([lunch]);
+    const helpdesk = await tool<SearchResult>(token, "search", {
+      query: "",
+      status: "pending",
+      view: "all",
+    });
+    expect(helpdesk.data.results.map((r) => r.id)).toEqual([ticket]);
+    const bad = await tool<SearchResult>(token, "search", { query: "", from: "%" });
+    expect(bad.isError).toBe(true);
+  });
+
+  // Catches: a cursor that repeats or skips threads when an agent pages through a listing.
+  test("a listing pages with next_cursor without repeats", async () => {
+    const first = await tool<SearchResult>(token, "search", { query: "", view: "all", limit: 2 });
+    expect(first.data.results).toHaveLength(2);
+    const second = await tool<SearchResult>(token, "search", {
+      query: "",
+      view: "all",
+      limit: 2,
+      cursor: first.data.next_cursor,
+    });
+    const seen = [...first.data.results, ...second.data.results].map((r) => r.id);
+    expect(new Set(seen).size).toBe(seen.length);
+    expect(seen.sort()).toEqual([invoice, lunch, ticket].sort());
+    expect(second.data.next_cursor).toBeUndefined();
+  });
+
+  // Catches: reading someone else's thread by guessing its id, or a batch that drops the rest
+  // when one id is bad.
+  test("fetch reads a batch of the person's threads and nobody else's", async () => {
+    const { data } = await tool<FetchResult>(token, "fetch", {
+      id: invoice,
+      ids: [ticket, strangers],
+    });
+    expect(data.id).toBe(invoice);
+    expect(data.text).toContain("From: Stripe <billing@mail.stripe.test>");
+    expect(data.text).toContain("Card updated, please retry the charge.");
+    expect(data.metadata.messages.map((m) => m.from_me)).toEqual([false, true]);
+    expect(data.more!.map((d) => d.id)).toEqual([ticket]);
+    expect(data.more![0]!.metadata.conversation).toMatchObject({
+      status: "pending",
+      assignee: "Gil",
+    });
+    expect(data.not_found).toEqual([strangers]);
+    expect(JSON.stringify(data)).not.toContain("Their invoice");
+
+    const alone = await tool<FetchResult>(token, "fetch", { id: strangers });
+    expect(alone.isError).toBe(true);
+    expect(alone.text).not.toContain("Their invoice");
+  });
+
+  // Catches: a long thread blowing past the agent's context instead of giving way oldest first.
+  test("fetch keeps to max_chars, cutting the oldest messages first", async () => {
+    const { data } = await tool<FetchResult>(token, "fetch", {
+      id: invoice,
+      ids: [lunch],
+      max_chars: 2_000,
+    });
+    const all = `${data.text}${data.more![0]!.text}`;
+    expect(all.length).toBeLessThanOrEqual(2_000);
+    expect(data.text).toMatch(/earlier message.* not shown/i);
+    expect(data.text).toContain("Card updated, please retry the charge.");
+    expect(data.more![0]!.metadata.truncated).toBe(true);
+  });
+});
+
+// Catches: fetch returning far more text than max_chars when many threads share a small budget
+// (a fixed minimum per thread, headers and notices that never shrink), flooding the agent's context.
+test("fetch keeps ten long threads within max_chars", async () => {
+  const org = await createOrg(db, "budget");
+  const ivy = await createMember(db, org.id, "ivy@budget.test");
+  const box = await createMailbox(db, org.id, "ivy@budget.test", "personal");
+  await grant(db, org.id, box.id, ivy.id);
+  const ids: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const { threadId } = await seedMessage(db, box, {
+      subject: `Long report ${i}`,
+      fromAddress: `writer${i}@reports.test`,
+      uid: 2 * i + 1,
+      sentAt: new Date(Date.UTC(2026, 9, 1, i)),
+      text: "Old context. ".repeat(500),
+    });
+    await seedMessage(db, box, {
+      subject: `Re: Long report ${i}`,
+      fromAddress: `writer${i}@reports.test`,
+      uid: 2 * i + 2,
+      threadId,
+      sentAt: new Date(Date.UTC(2026, 9, 2, i)),
+      text: `Report ${i} body. `.repeat(600),
+    });
+    ids.push(threadId);
+  }
+  const jar = new CookieJar();
+  await signIn(worker, db, "ivy@budget.test", jar);
+  const { access_token } = await connect(jar);
+  const [first, ...rest] = ids;
+  const { data, isError } = await tool<FetchResult>(access_token, "fetch", {
+    id: first,
+    ids: rest,
+    max_chars: 2_000,
+  });
+  expect(isError).toBe(false);
+  const documents = [data, ...(data.more ?? [])];
+  expect(documents).toHaveLength(10);
+  expect(documents.reduce((sum, d) => sum + d.text.length, 0)).toBeLessThanOrEqual(2_000);
+  for (const document of documents) {
+    expect(document.text).toContain("From: writer");
+    expect(document.metadata.truncated).toBe(true);
+  }
 });

@@ -115,45 +115,49 @@ Built from `forUser().listMailboxes`, `counts`, `conversationCounts`, `listThrea
 | Field                       | Meaning                                                                    |
 | --------------------------- | -------------------------------------------------------------------------- |
 | `query` (required, may be `""`) | Web search syntax: words, `"phrases"`, `-exclusions`. Empty lists by filters. |
-| `from`, `to`, `participant` | An address or a domain (`stripe.com`).                                     |
+| `from`, `participant`       | An address or a domain (`stripe.com`, subdomains too). `participant` is from, to or cc. |
 | `mailbox`, `workspace`      | Narrow to one.                                                             |
 | `after`, `before`           | Sent-at bounds.                                                            |
-| `view`                      | `inbox`, `later`, `done`, `archive`, `all` (default: `all` with a query, `inbox` without). |
-| `lane`, `unread`, `from_me`, `has_attachments` | State filters.                                          |
-| `status`, `assignee`, `tag` | Helpdesk filters (shared inboxes).                                         |
+| `from_me`, `has_attachments` | Message filters.                                                          |
+| `view`, `lane`, `unread`    | Without a query only. `view` is `inbox` (default), `later`, `done`, `archive`, `all`. |
+| `status`, `tag`             | Without a query only. Helpdesk filters (shared inboxes).                  |
 | `limit` (≤ 50, default 10), `cursor` | Pagination.                                                       |
 
 Returns `results: [{ id, title, url, … }]` (the ChatGPT shape), where each result also has the
-mailbox, participants, `last_message_at`, `message_count`, unread/done/Later, lane, helpdesk
-status, the best-matching message's sender and date, and `snippet`, the passage that matched.
-It also returns `next_cursor` and `ranking` (`relevance` or `text`).
+mailbox, the matching (or latest) message's sender and date, `last_message_at`,
+`message_count` and `snippet`; listings add unread and lane. It also returns `ranking`
+(`relevance`, `text` or `newest`), `next_cursor` for listings, and a `note` naming any
+listing-only filter a query ignored.
 
 With a query, this is today's smart search (`apps/worker/src/search.ts`): full-text recall
-through `forUser().search`, reranked by Jev when configured, falling back to text order. The new
-filters go inside recall, in the per-mailbox lateral branches, so they narrow cost instead of
-filtering a page afterwards. Without a query, it is `listThreads` with filters. Both need new
-`forMember` read paths, so both get leak cases in `packages/db/e2e/for-member.e2e.test.ts`.
+through `forUser().search`, reranked by Jev when configured, falling back to text order. Message
+filters apply to each mailbox's 200 newest matches for the words (`SEARCH_FILTER_WINDOW`):
+filtering inside the recall made Postgres read whole mailboxes (18 ms to 570 ms on the perf
+seed). Without a query, it is `listThreads` with filters; an exact `from` address goes through
+`messages_mailbox_from_address_idx`. Both get leak cases in
+`packages/db/e2e/for-member.e2e.test.ts`.
 
 ### `fetch`: read threads (ChatGPT `fetch`-compatible)
 
-`readOnlyHint: true`. Input: `{ id, ids?, detail? = "clean", max_chars? = 40000 }`. `id` is
+`readOnlyHint: true`. Input: `{ id, ids?, max_chars? = 40000, workspace? }`. `id` is
 required (ChatGPT calls `fetch({ id })`); `ids` adds up to 9 more threads to read in one call.
 
 Each thread returns `{ id, title, url, text, metadata }` (the ChatGPT shape):
 
 - `text`: the conversation as plain text, one block per message: sender, recipients, date, then
-  its body. With `detail: "clean"` the body is `clean_text`, with quoted history and signatures
-  already stripped (mail-core `stripReply`, ADR 0003). That is our biggest token saving: a
-  20-message thread is new text only, not 20 nested copies. `detail: "full"` adds the quoted
-  history back from the raw message for when an agent needs what was quoted.
+  its body. The body is `clean_text`, with quoted history and signatures already stripped
+  (mail-core `stripReply`, ADR 0003), plus a forwarded message's text. That is our biggest token
+  saving: a 20-message thread is new text only, not 20 nested copies. Reading the quoted history
+  back from the raw message (`detail: "full"`) is left for later: it needs a MIME parse in the
+  Worker, and no question in the eval has needed it yet.
 - `metadata`: mailbox, participants, per-message `{ id, from, to, cc, sent_at, from_me,
   attachments: [{ filename, mime_type, size }] }`, lane and confidence, per-person state, and for
   shared inboxes the conversation: status, assignee, priority, tags, SLA due times, internal
   notes with author names.
 
 Over `max_chars` (summed over the call), the oldest messages' bodies are cut first and marked:
-the latest message is what agents need most. Built on `forUser().getThread` and
-`getConversation`; `ids` run in one batched query set, not ten round trips.
+the latest message is what agents need most. Built on `forUser().getThreads` (three queries
+for any number of ids) and, for shared inboxes, `getConversation`.
 
 ### `query`: read-only SQL over a mail schema
 
@@ -345,7 +349,7 @@ zod, as everywhere else.
 | `inbox`               | 250 ms                          | 5 existing reads in parallel, each already index-served    |
 | `search`, text order  | 300 ms                          | today's bounded per-mailbox recall, filters inside it      |
 | `search`, reranked    | 1.8 s                           | today's 1.5 s Jev budget; falls back to text order         |
-| `fetch`, 10 threads   | 300 ms                          | one batched query set; no R2 reads for `detail: "clean"`   |
+| `fetch`, 10 threads   | 300 ms                          | one batched query set (`getThreads`); no R2 reads          |
 | `query`               | 5 s hard cap                    | views on indexed columns; `statement_timeout`              |
 | `triage`, 50 changes  | 1 s                             | batched writes; outbox pinged once                         |
 

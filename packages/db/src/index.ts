@@ -27,6 +27,7 @@ export * from "./orgs.ts";
 export * from "./personal-space.ts";
 export * from "./session-scopes.ts";
 export * from "./oauth-grants.ts";
+export * from "./thread-filters.ts";
 export * from "./join-requests.ts";
 export * from "./placement.ts";
 export * from "./domains.ts";

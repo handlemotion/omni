@@ -3,7 +3,7 @@
 // TypeSafe key, or when Jev fails or is slow, the full-text order is the answer, so search works
 // the same for self-hosters with no AI account.
 import { createJevClient, judgeRelevance, rankByRelevance, type SearchCandidate } from "@omni/ai";
-import type { MemberQueries } from "@omni/db";
+import type { MemberQueries, MessageFilters } from "@omni/db";
 import type { Config } from "./env.ts";
 import type { Logger } from "./log.ts";
 
@@ -42,10 +42,11 @@ export async function smartSearch(
   queries: MemberQueries,
   config: Config,
   query: string,
-  options: { mailboxId?: string; limit: number; log: Logger },
+  options: { mailboxId?: string; limit: number; log: Logger; filters?: MessageFilters },
 ): Promise<{ hits: Hit[]; ranking: "jev" | "text" }> {
   const hits = await queries.search(query, {
     mailboxId: options.mailboxId,
+    filters: options.filters,
     limit: Math.max(options.limit, RERANK_CANDIDATES),
   });
   const text = { hits: hits.slice(0, options.limit), ranking: "text" as const };

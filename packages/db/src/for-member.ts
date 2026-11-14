@@ -1,4 +1,13 @@
-import { and, desc, eq, getTableColumns, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from "drizzle-orm";
 import type { Db } from "./client.ts";
 import {
   attachments,
@@ -23,6 +32,12 @@ import {
   triageBucket,
   users,
 } from "./schema/index.ts";
+import {
+  conversationCondition,
+  messageCondition,
+  type MessageFilters,
+  type ThreadFilters,
+} from "./thread-filters.ts";
 
 /** Triage at or above this confidence files itself; below it lands in the Unsure lane. */
 export const TRIAGE_AUTO_FILE_CONFIDENCE = 0.85;
@@ -129,6 +144,20 @@ const SEARCH_WORD_HITS = 25;
 const SEARCH_SENDER_WINDOW = 300;
 /** Days over which the recency boost (up to 2x for mail sent now) halves. */
 const SEARCH_RECENCY_DAYS = 30;
+/**
+ * With filters, each recall branch takes this many of a mailbox's newest matches for the words,
+ * then applies the filters to them. Filtering inside the recall makes Postgres expect almost no
+ * rows and read the whole mailbox instead of walking its newest first (perf:explain: 18 ms to
+ * 570 ms); a LIMITed subquery keeps the filter out of the recall's plan.
+ */
+const SEARCH_FILTER_WINDOW = 200;
+/**
+ * What a search recall reads of each message: what it returns and what `messageCondition` tests.
+ * Never `m.*`: that would read every hit's search vector too.
+ */
+const RECALL_COLUMNS = sql.raw(
+  'm.id, m.thread_id, m.sent_at, m.mailbox_id, m.from_address, m."to", m.cc',
+);
 /** Query words matched one by one; more are ignored (the exact match still sees them all). */
 const SEARCH_MAX_WORDS = 6;
 
@@ -294,15 +323,39 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         view?: ThreadView;
         before?: ThreadCursor;
         limit?: number;
+        /** Only threads the member has not read. */
+        unread?: boolean;
+        /** Narrow by messages (some message matches all) and conversation state (ADR 0029). */
+        filters?: ThreadFilters;
       } = {},
     ) {
-      const { mailboxId, lane, view = "inbox", before, limit = 50 } = options;
+      const { mailboxId, lane, view = "inbox", before, limit = 50, unread, filters: by } = options;
       const filters: (SQL | undefined)[] = [
         eq(threads.mailboxId, mailboxAccess.mailboxId),
         eq(threads.orgId, members.organizationId),
         ...viewFilters[view],
       ];
       if (lane) filters.push(laneFilter(lane));
+      if (unread) filters.push(sql`not ${state(sql`s.read`)}`);
+      // One exact sender: the threads holding their messages, found through
+      // `messages_mailbox_from_address_idx` (a rare sender would otherwise mean walking every
+      // thread). The other conditions still apply below.
+      const sender = by?.from?.includes("@") ? by.from.toLowerCase() : undefined;
+      if (sender) {
+        filters.push(
+          sql`${threads.id} in (select ms.thread_id from ${messages} ms where ms.mailbox_id = ${threads.mailboxId} and lower(ms.from_address) = ${sender})`,
+        );
+      }
+      const matching = by && messageCondition("mf", by);
+      if (matching) {
+        // A scalar subquery, not `exists`: Postgres would plan the semi-join as rare and read
+        // every thread of the mailbox (perf:explain: 500 ms) instead of walking them newest first
+        // and stopping at `limit`.
+        filters.push(
+          sql`coalesce((select true from ${messages} mf where mf.thread_id = ${threads.id} and ${matching} limit 1), false)`,
+        );
+      }
+      if (by) filters.push(conversationCondition('"threads"', by));
       if (before) {
         filters.push(
           sql`(${threads.lastMessageAt}, ${threads.id}) < (${before.lastMessageAt.toISOString()}::timestamptz, ${before.id})`,
@@ -977,8 +1030,19 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
     },
 
     async getThread(threadId: string) {
-      // One round trip: the three reads are independent and each carries the access check.
-      const [[thread], rows, files] = await Promise.all([
+      const [thread] = await this.getThreads([threadId]);
+      return thread ?? null;
+    },
+
+    /**
+     * The threads among `threadIds` a grantee can see, each with its messages oldest first and
+     * their attachments, in the order asked for. Three queries whatever the count, each carrying
+     * the access check; ids nobody can see are left out.
+     */
+    async getThreads(threadIds: readonly string[]) {
+      if (threadIds.length === 0) return [];
+      const ids = [...new Set(threadIds)];
+      const [threadRows, rows, files] = await Promise.all([
         db
           .select({
             ...threadFields,
@@ -990,13 +1054,13 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
           .innerJoin(...threadOrg)
           .innerJoin(mailboxes, eq(mailboxes.id, threads.mailboxId))
           .leftJoin(threadState, myState)
-          .where(eq(threads.id, threadId)),
+          .where(inArray(threads.id, ids)),
         db
           .select(messageColumns)
           .from(messages)
           .innerJoin(...messageGrant)
           .innerJoin(...messageOrg)
-          .where(eq(messages.threadId, threadId))
+          .where(inArray(messages.threadId, ids))
           .orderBy(messages.sentAt, messages.id),
         db
           .select(getTableColumns(attachments))
@@ -1004,16 +1068,24 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
           .innerJoin(messages, eq(messages.id, attachments.messageId))
           .innerJoin(...messageGrant)
           .innerJoin(...messageOrg)
-          .where(eq(messages.threadId, threadId)),
+          .where(inArray(messages.threadId, ids)),
       ]);
-      if (!thread) return null;
-      return {
-        ...thread,
-        messages: rows.map((m) => ({
-          ...m,
-          attachments: files.filter((a) => a.messageId === m.id),
-        })),
-      };
+      const byId = new Map(threadRows.map((thread) => [thread.id, thread]));
+      return ids.flatMap((id) => {
+        const thread = byId.get(id);
+        if (!thread) return [];
+        return [
+          {
+            ...thread,
+            messages: rows
+              .filter((m) => m.threadId === id)
+              .map((m) => ({
+                ...m,
+                attachments: files.filter((a) => a.messageId === m.id),
+              })),
+          },
+        ];
+      });
     },
 
     /**
@@ -1034,15 +1106,23 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
      * thread takes its best message, which supplies `from`, `sentAt`, the `snippet` around the
      * match, and `excerpt`, a longer passage for a relevance judge.
      */
-    async search(query: string, options: { mailboxId?: string; limit?: number } = {}) {
+    async search(
+      query: string,
+      options: { mailboxId?: string; limit?: number; filters?: MessageFilters } = {},
+    ) {
       const { mailboxId, limit = 20 } = options;
+      // Filters apply to a window of each mailbox's newest matches (`SEARCH_FILTER_WINDOW`).
+      const matching = options.filters && messageCondition("m", options.filters);
+      const narrowed = matching ? sql` where ${matching}` : sql``;
       const { words, prefix } = searchWords(query);
       const terms = words.map((w, i) => (prefix && i === words.length - 1 ? `${w}:*` : w));
       const exact = sql`websearch_to_tsquery('english', ${query})`;
       // Every word in one query, for the snippet: it highlights whichever words the message has.
       const any = terms.length ? sql`to_tsquery('english', ${terms.join(" | ")})` : exact;
       const recall = (source: SQL, filter: SQL, cap: number) =>
-        sql`(select m.id, m.thread_id, m.sent_at, ${source} as source from ${messages} m where m.mailbox_id = ma.mailbox_id and m.org_id = mem.organization_id and ${filter} order by m.sent_at desc, m.id desc limit ${cap})`;
+        matching
+          ? sql`(select m.id, m.thread_id, m.sent_at, ${source} as source from (select ${RECALL_COLUMNS} from ${messages} m where m.mailbox_id = ma.mailbox_id and m.org_id = mem.organization_id and ${filter} order by m.sent_at desc, m.id desc limit ${SEARCH_FILTER_WINDOW}) m${narrowed} order by m.sent_at desc, m.id desc limit ${cap})`
+          : sql`(select m.id, m.thread_id, m.sent_at, ${source} as source from ${messages} m where m.mailbox_id = ma.mailbox_id and m.org_id = mem.organization_id and ${filter} order by m.sent_at desc, m.id desc limit ${cap})`;
       // One word: its own branch below already is the exact match (as a prefix while typing).
       const exactRecall =
         terms.length === 1
@@ -1057,9 +1137,13 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
             sql` union all ${recall(sql`${term}::text`, sql`m.search_vector @@ to_tsquery('english', ${term}) and numnode(to_tsquery('english', ${term})) > 0`, SEARCH_WORD_HITS)}`,
         ),
       );
+      // The newest messages a sender match looks through (with filters, those of them that match).
+      const senderWindow = matching
+        ? sql`(select m.id, m.thread_id, m.sent_at, m.from_address from (select ${RECALL_COLUMNS} from ${messages} m where m.mailbox_id = ma.mailbox_id and m.org_id = mem.organization_id order by m.sent_at desc, m.id desc limit ${SEARCH_SENDER_WINDOW}) m${narrowed}`
+        : sql`(select m.id, m.thread_id, m.sent_at, m.from_address from ${messages} m where m.mailbox_id = ma.mailbox_id and m.org_id = mem.organization_id order by m.sent_at desc, m.id desc limit ${SEARCH_SENDER_WINDOW}`;
       const senderPatterns = words.filter((w) => w.length >= 3).map((w) => `%${w}%`);
       const senderRecall = senderPatterns.length
-        ? sql`union all (select r.id, r.thread_id, r.sent_at, 'sender' as source from (select m.id, m.thread_id, m.sent_at, m.from_address from ${messages} m where m.mailbox_id = ma.mailbox_id and m.org_id = mem.organization_id order by m.sent_at desc, m.id desc limit ${SEARCH_SENDER_WINDOW}) r where r.from_address ilike any (array[${sql.join(
+        ? sql`union all (select r.id, r.thread_id, r.sent_at, 'sender' as source from ${senderWindow}) r where r.from_address ilike any (array[${sql.join(
             senderPatterns.map((pattern) => sql`${pattern}`),
             sql`, `,
           )}]))`

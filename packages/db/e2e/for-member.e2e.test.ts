@@ -14,12 +14,15 @@ import {
 import { applyAgentReply, applyConversationChange } from "../src/conversations.ts";
 import { forMember, forUser } from "../src/for-member.ts";
 import {
+  attachments as attachmentsTable,
   drafts as schemaDrafts,
   mailboxes as schemaMailboxes,
   mailDomains,
   members,
   notifications,
+  tags as tagsTable,
   threadState,
+  threadTags as threadTagsTable,
   threads,
 } from "../src/schema/index.ts";
 import { listUserWorkspaces } from "../src/workspaces.ts";
@@ -154,6 +157,16 @@ describe("forMember isolation", () => {
     expect((await forMember(db, bob).search("flamingo")).map((h) => h.messageId)).toEqual([
       billing.messageId,
     ]);
+
+    // Agents' reads (ADR 0029): a batch of ids, and filters, never reach past the grants.
+    expect(
+      (await asAlice.getThreads([billing.threadId, hello.threadId, ops.threadId])).map((t) => t.id),
+    ).toEqual([hello.threadId]);
+    const everyone = { from: "example.test", participant: "example.test" };
+    expect(
+      (await asAlice.listThreads({ view: "all", filters: everyone })).map((t) => t.id),
+    ).toEqual([hello.threadId]);
+    expect(await asAlice.search("flamingo", { filters: everyone })).toEqual([]);
   });
 
   test("a grant that crosses orgs opens nothing", async () => {
@@ -833,4 +846,77 @@ test("google accounts: only personal Gmail the grantees can see, scoped sessions
   const evesDraft = await draftIn(evesBox.id, company.id);
   expect(await forUser(db, dan.userId).memberForResource("draft", evesDraft)).toBeNull();
   expect(await forUser(db, dan.userId).memberForResource("action", "no-such-action")).toBeNull();
+});
+
+// Catches: an agent's filter that matches the wrong messages (a domain that also matches a
+// lookalike, a participant only checked as sender, dates off by the boundary, a tag on another
+// thread), which would answer "what did Stripe send me" with someone else's mail.
+test("thread filters match by sender, participant, dates, attachments, mine, status and tag", async () => {
+  const org = await createOrg(db, "filters");
+  const member = (await createMember(db, org.id, "fiona")).id;
+  const box = await createMailbox(db, org.id, "fiona@acme.test");
+  await grant(db, org.id, box.id, member);
+  const seed = async (subject: string, message: Partial<Parameters<typeof upsertMessage>[1]>) => {
+    const sentAt = message.sentAt ?? new Date("2026-10-10T12:00:00Z");
+    const threadId = await createThread(db, {
+      orgId: org.id,
+      mailboxId: box.id,
+      subjectKey: subject,
+      lastMessageAt: sentAt,
+    });
+    const stored = await upsertMessage(db, {
+      orgId: org.id,
+      mailboxId: box.id,
+      threadId,
+      messageIdHeader: `<${threadId}@filters.test>`,
+      subject,
+      fromAddress: "someone@else.test",
+      sentAt,
+      cleanText: `${subject} walrus`,
+      ...message,
+    });
+    return { threadId, messageId: stored.id };
+  };
+  const stripe = await seed("receipt", { fromAddress: "billing@mail.stripe.com" });
+  const lookalike = await seed("phish", { fromAddress: "billing@notstripe.com" });
+  const cc = await seed("cc'd", { cc: [{ name: null, address: "ops@stripe.com" }] });
+  const early = await seed("early", { sentAt: new Date("2026-09-01T00:00:00Z") });
+  const mine = await seed("sent", { fromAddress: "Fiona@acme.test" });
+  await db.insert(attachmentsTable).values({
+    orgId: org.id,
+    messageId: early.messageId,
+    filename: "a.pdf",
+    mimeType: "application/pdf",
+    size: 10,
+    r2Key: "k",
+  });
+  await db.update(threads).set({ status: "resolved" }).where(eq(threads.id, cc.threadId));
+  const [tag] = await db
+    .insert(tagsTable)
+    .values({ orgId: org.id, mailboxId: box.id, name: "VIP" })
+    .returning();
+  await db
+    .insert(threadTagsTable)
+    .values({ orgId: org.id, threadId: mine.threadId, tagId: tag!.id });
+
+  const reads = forMember(db, member);
+  const list = async (filters: Parameters<typeof reads.listThreads>[0]) =>
+    (await reads.listThreads({ view: "all", ...filters })).map((t) => t.id).sort();
+  const ids = (...threads: { threadId: string }[]) => threads.map((t) => t.threadId).sort();
+
+  expect(await list({ filters: { from: "stripe.com" } })).toEqual(ids(stripe));
+  expect(await list({ filters: { from: "billing@notstripe.com" } })).toEqual(ids(lookalike));
+  expect(await list({ filters: { participant: "stripe.com" } })).toEqual(ids(stripe, cc));
+  expect(await list({ filters: { before: new Date("2026-10-01T00:00:00Z") } })).toEqual(ids(early));
+  expect(
+    await list({ filters: { after: new Date("2026-10-10T12:00:00Z"), from: "else.test" } }),
+  ).toEqual(ids(cc));
+  expect(await list({ filters: { hasAttachments: true } })).toEqual(ids(early));
+  expect(await list({ filters: { fromMe: true } })).toEqual(ids(mine));
+  expect(await list({ filters: { status: "resolved" } })).toEqual(ids(cc));
+  expect(await list({ filters: { tag: "vip" } })).toEqual(ids(mine));
+  // Search applies the same message filters inside its recall.
+  expect(
+    (await reads.search("walrus", { filters: { from: "stripe.com" } })).map((h) => h.threadId),
+  ).toEqual([stripe.threadId]);
 });

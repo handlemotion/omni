@@ -8,6 +8,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
+import { sql } from "drizzle-orm";
 import { createDb, type Db } from "../src/client.ts";
 import { readDatabaseUrl } from "../src/env.ts";
 import {
@@ -64,8 +65,8 @@ const one = async <T>(q: Promise<T[]>) => (await q)[0]!;
 const memberAll = "member-org1-1";
 const memberFew = "member-org1-8";
 const box = await one(
-  raw<{ id: string; orgId: string }[]>`
-    select m.id, m.org_id as "orgId" from mailboxes m join threads t on t.mailbox_id = m.id
+  raw<{ id: string; orgId: string; address: string }[]>`
+    select m.id, m.org_id as "orgId", m.address from mailboxes m join threads t on t.mailbox_id = m.id
     group by m.id order by count(*) desc limit 1`,
 );
 const inbox = await one(
@@ -123,6 +124,11 @@ const desk = await one(
 );
 
 const all = forMember(db, memberAll);
+const tenThreads = (
+  await db.execute<{ id: string }>(
+    sql`select id from threads where mailbox_id = ${box.id} order by last_message_at desc limit 10`,
+  )
+).map((row) => row.id);
 const few = forMember(db, memberFew);
 // The web app reads through `forUser` (every workspace the person belongs to, ADR 0014).
 const user = forUser(db, `user-${memberAll}`);
@@ -177,6 +183,38 @@ const cases: Case[] = [
   },
   { name: "getThread (3 messages)", run: () => all.getThread(typical.id) },
   { name: "getThread (longest thread)", run: () => all.getThread(longest.id) },
+  // Agents' reads (ADR 0029): filtered listings and searches, and a batch read.
+  {
+    name: "agent: list from common domain",
+    run: () => all.listThreads({ view: "all", filters: { from: "acme.test" } }),
+  },
+  {
+    name: "agent: list from one rare address",
+    run: () => all.listThreads({ view: "all", filters: { from: "person42@acme.test" } }),
+  },
+  {
+    name: "agent: list from the inbox's own address",
+    run: () => all.listThreads({ view: "all", filters: { from: box.address } }),
+  },
+  {
+    name: "agent: list participant, one mailbox",
+    run: () =>
+      all.listThreads({ view: "all", mailboxId: box.id, filters: { participant: "globex.test" } }),
+  },
+  {
+    name: "agent: list unread, last 30 days",
+    run: () =>
+      all.listThreads({ unread: true, filters: { after: new Date(Date.now() - 30 * 86_400_000) } }),
+  },
+  {
+    name: "agent: search medium word from domain",
+    run: () => all.search("harbor", { filters: { from: "acme.test" } }),
+  },
+  {
+    name: "agent: search medium word from one address",
+    run: () => all.search("harbor", { filters: { from: "person42@acme.test" } }),
+  },
+  { name: "agent: getThreads (10)", run: () => all.getThreads(tenThreads) },
   { name: "search common word", run: () => all.search("meeting") },
   { name: "search medium word", run: () => all.search("harbor") },
   { name: "search rare token", run: () => all.search(rareToken.token) },
