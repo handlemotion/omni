@@ -19,7 +19,6 @@ import { replyLabel, withReply, type Reply } from "@/lib/reply.ts";
 import type { Assignee, Thread } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 import { useComposerState } from "./composer-state.tsx";
-import { Visibility } from "./visibility.tsx";
 
 /** A teammate as the note names them: their name, or their address when they have none. */
 const nameOf = (person: Assignee) => person.name || person.email;
@@ -220,16 +219,15 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
               send();
             }
           }}
-          // A 44px row: 12px above and below a 20px line. The text starts 74px in (past the two
-          // 28px buttons, their 4px gap and 8px edge, and 6px more) and ends 42px in (past Send).
+          // A 44px row: 12px above and below a 20px line. The text starts 42px in (past the 28px
+          // Mention button, its 8px edge, and 6px more) and ends 42px in (past Send).
           // Stacked, the bottom inset makes room for the button row (16px gap, 28px button, 8px edge).
-          className={`max-h-[40vh] min-h-0 resize-none ps-[74px] pe-[42px] py-3 text-sm/5 sm:ps-[74px] sm:pe-[42px] sm:py-3 sm:text-sm/5 ${
+          className={`max-h-[40vh] min-h-0 resize-none ps-[42px] pe-[42px] py-3 text-sm/5 sm:ps-[42px] sm:pe-[42px] sm:py-3 sm:text-sm/5 ${
             stacked ? "pb-13 sm:pb-13" : ""
           }`}
         />
-        {/* The two buttons keep one spot, 8px from the bottom corners, one row or stacked. */}
+        {/* The button keeps one spot, 8px from the bottom corners, one row or stacked. */}
         <div className="absolute bottom-2 left-2 flex items-center gap-1">
-          <Visibility />
           <TooltipTrigger delay={400}>
             <Button
               intent="ghost"

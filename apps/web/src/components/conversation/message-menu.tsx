@@ -5,6 +5,20 @@ import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { quoteText } from "@/lib/reply.ts";
 import { useComposerState } from "../compose/composer-state.tsx";
 
+/** Muted beside other actions; in a chat line, hidden until the message is hovered or focused. */
+function menuButtonClass(props: { visible?: boolean; island?: boolean; start?: boolean }) {
+  const shown = props.visible || props.island;
+  return [
+    shown ? "text-muted-foreground hover:text-foreground" : "-my-0.5",
+    props.start ? "order-first" : "",
+    // On the island, its hit area keeps to its own width (see the island's buttons).
+    props.island ? "before:min-w-0" : "",
+    shown
+      ? ""
+      : "opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100",
+  ].join(" ");
+}
+
 /**
  * The ⋯ beside a message or note in the timeline: reply to it in a hidden note (shared inboxes) or
  * by email (personal threads, which open the composer), forward
@@ -26,11 +40,16 @@ export function MessageMenu(props: {
   start?: boolean;
   /** Always shown, not only on hover: a header with its other actions in view (a single email). */
   visible?: boolean;
+  /** Reply and Forward are buttons in the message's header, so the menu leaves them out. */
+  inline?: boolean;
+  /** On a message's action island, which shows and hides it: always drawn, 20px and muted. */
+  island?: boolean;
 }) {
   const composer = useComposerState();
-  const { messageId } = props;
+  const messageId = props.inline ? undefined : props.messageId;
   const canReply = composer.chat && props.text.trim().length > 0;
-  if (!canReply && composer.chat && !props.messageId && !props.extra) return null;
+  const canMail = !props.inline && (!composer.chat || !!messageId);
+  if (!canReply && !canMail && !props.extra) return null;
   return (
     <MenuTrigger>
       <Button
@@ -38,7 +57,7 @@ export function MessageMenu(props: {
         // Beside Reply and Forward (a single email), their size; in a chat line, a small one.
         size={props.visible ? "sq-xs" : "sq-2xs"}
         aria-label={props.label}
-        className={`${props.visible ? "text-muted-foreground hover:text-foreground" : "-my-0.5"} ${props.start ? "order-first" : ""} ${props.visible ? "" : "opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100"}`}
+        className={menuButtonClass(props)}
       >
         <IconEllipsis />
       </Button>
@@ -54,10 +73,12 @@ export function MessageMenu(props: {
         )}
         {/* Email reply: always on a personal thread; on a shared inbox, from a mail message,
             which also reopens a composer a discard closed. To everyone there, as it defaults. */}
-        {(!composer.chat || messageId) && (
+        {canMail && (
           <MenuItem
             textValue="Reply"
-            onAction={() => composer.openReply(composer.chat ? "replyAll" : "reply")}
+            onAction={() =>
+              composer.openReply(composer.chat ? "replyAll" : "reply", props.messageId)
+            }
           >
             <IconReply data-slot="icon" />
             <MenuLabel>Reply</MenuLabel>

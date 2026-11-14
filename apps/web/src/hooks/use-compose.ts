@@ -233,21 +233,26 @@ const AUTOSAVE_MS = 800;
  */
 export function useDraft(
   where: Omit<NewDraft, keyof DraftContent> & { threadId?: string | undefined },
-  options: { onConflict?: (theirs: Draft) => void; enabled?: boolean } = {},
+  options: {
+    onConflict?: (theirs: Draft) => void;
+    enabled?: boolean;
+    /** Resume only a draft for `sourceMessageId` (a forward always does; a reply to a chosen message). */
+    matchSource?: boolean;
+  } = {},
 ) {
   const client = useQueryClient();
   const list = useQuery({
     ...draftsQuery(where.threadId ? { threadId: where.threadId } : { mailboxId: where.mailboxId }),
     enabled: options.enabled !== false,
   });
-  // A forward of a named message resumes only that message's draft, never another forward's.
+  // A forward of a named message resumes only that message's draft, never another forward's; a
+  // reply to a chosen message, only a reply to that message.
+  const matchSource = options.matchSource ?? where.kind === "forward";
   const existing = list.data?.find(
     (d) =>
       d.kind === where.kind &&
       (where.kind === "new" ? !d.threadId : true) &&
-      (where.kind === "forward" && where.sourceMessageId
-        ? d.sourceMessageId === where.sourceMessageId
-        : true),
+      (matchSource && where.sourceMessageId ? d.sourceMessageId === where.sourceMessageId : true),
   );
   const state = useRef<{ id?: string; version?: number; creating?: Promise<Draft | undefined> }>(
     {},

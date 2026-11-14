@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { ShowMore } from "@/components/ui/show-more";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { useLeaveOpenThread } from "@/components/inbox/open-list";
 import { useConversation } from "@/hooks/use-conversation.ts";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useAllMailboxes, useThread } from "@/hooks/use-mail.ts";
@@ -30,7 +31,7 @@ import { ReplyComposer } from "../compose/composer.tsx";
 import { ComposerProvider } from "../compose/composer-state.tsx";
 import { SelectionReply } from "../compose/selection-reply.tsx";
 import { EventLine, NoteItem, useEventLines } from "./activity.tsx";
-import { AddedLine, MessageItem, PendingItem } from "./message.tsx";
+import { AddedLine, MessageItem, PendingItem, scrollToMessage } from "./message.tsx";
 import { Properties } from "./properties.tsx";
 import { ThreadSwitcher } from "./thread-switcher.tsx";
 
@@ -112,8 +113,9 @@ export function Conversation({ threadId }: { threadId: string }) {
               bottom edge, so it lines up with the row it was opened from. */}
           {single && <TitleRow subject={subject} />}
           {/* Grows to fill a short thread, so the composer stays at the pane's bottom. */}
-          <div className={single ? PAGE : COLUMN}>
-            <ColumnHead subject={subject} thread={thread} shared={shared} single={single} />
+          {/* A shared inbox leaves room at the end for the properties pill over the composer. */}
+          <div className={columnClass(single, shared)}>
+            {!single && <Heading level={2}>{subject || "(no subject)"}</Heading>}
             <Timeline
               key={threadId}
               threadId={threadId}
@@ -129,6 +131,7 @@ export function Conversation({ threadId }: { threadId: string }) {
           </div>
           {/* The pane's bottom edge, full width; the messages scroll above it. */}
           <div className="sticky bottom-0 w-full shrink-0 bg-background">
+            {shared && <PropertiesPill thread={thread} />}
             <ReplyComposer thread={thread} />
           </div>
         </div>
@@ -152,19 +155,15 @@ function TitleRow({ subject }: { subject: string }) {
 }
 
 /**
- * The top of the messages: a conversation's title, and on a shared inbox what it is (status,
- * owner, priority, tags). A single email's title is its row above, so only the properties stay.
+ * A shared conversation's status, owner, priority and tags, floating 16px over the composer,
+ * centred: it rides up with the composer when the email composer opens.
  */
-function ColumnHead(props: { subject: string; thread: Thread; shared: boolean; single: boolean }) {
-  if (props.single && !props.shared) return null;
+function PropertiesPill({ thread }: { thread: Thread }) {
   return (
-    <div className="flex flex-col gap-2">
-      {!props.single && <Heading level={2}>{props.subject || "(no subject)"}</Heading>}
-      {props.shared && (
-        <div className="mt-2">
-          <Properties thread={props.thread} />
-        </div>
-      )}
+    <div className="pointer-events-none absolute inset-x-0 bottom-full mb-4 flex justify-center px-5">
+      <div className="pointer-events-auto max-w-full rounded-lg bg-background">
+        <Properties thread={thread} />
+      </div>
     </div>
   );
 }
@@ -189,6 +188,11 @@ const SCROLLER = "flex min-h-0 flex-1 flex-col";
 const COLUMN = "mx-auto flex w-full max-w-3xl grow flex-col gap-6 px-5 pt-6 pb-10";
 // A single email: the column without its width cap, under its title row.
 const PAGE = "flex w-full grow flex-col gap-6 px-5 pt-5 pb-6";
+
+/** The messages' column; on a shared inbox with room at the end for the properties pill. */
+function columnClass(single: boolean, shared: boolean) {
+  return `${single ? PAGE : COLUMN} ${shared ? "pb-20" : ""}`;
+}
 
 /**
  * The thread while it loads: the toolbar, a subject and a few messages, drawn from skullet's
@@ -256,7 +260,15 @@ function Timeline(props: {
 }) {
   const { threadId, mailboxId, mailboxAddress, messages, helpdesk, flat } = props;
   const [unfolded, setUnfolded] = useState(false);
+  // A message folded away mounts once the fold opens, then scrolls into view.
+  const show = (id: string) => {
+    if (scrollToMessage(id)) return;
+    setUnfolded(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => scrollToMessage(id)));
+  };
   const lines = useEventLines(mailboxId, helpdesk?.events ?? []);
+  // Each message by its Message-ID, for the one a team reply answered.
+  const byHeader = new Map(messages.map((m) => [m.messageIdHeader, m]));
   const entries: { at: string; key: string; node: ReactNode }[] = [
     ...messages.map((message) => ({
       at: message.sentAt,
@@ -264,7 +276,14 @@ function Timeline(props: {
       node: (
         <>
           <AddedLine message={message} />
-          <MessageItem threadId={threadId} message={message} self={mailboxAddress} flat={flat} />
+          <MessageItem
+            threadId={threadId}
+            message={message}
+            self={mailboxAddress}
+            flat={flat}
+            repliedTo={message.inReplyTo ? byHeader.get(message.inReplyTo) : undefined}
+            onShow={show}
+          />
         </>
       ),
     })),
@@ -361,21 +380,26 @@ function TriageActions({ thread }: { thread: Thread }) {
   const moveToLater = useMoveToLater();
   const markDone = useMarkDone();
   const markUndone = useMarkUndone();
+  // Taken out of the list behind it, the thread gives way to the next row, as `e` and `h` do.
+  const leave = useLeaveOpenThread();
   return (
     <>
       <Action
         label={thread.done ? "Not done" : "Done"}
-        onPress={() =>
-          thread.done
-            ? markUndone.mutate({ threadId })
-            : markDone.mutate({ threadId, through: thread.lastMessageAt })
-        }
+        onPress={() => {
+          leave(threadId, thread.done ? "undone" : "done");
+          if (thread.done) markUndone.mutate({ threadId });
+          else markDone.mutate({ threadId, through: thread.lastMessageAt });
+        }}
       >
         {thread.done ? <IconInbox /> : <IconCheck />}
       </Action>
       <Action
         label={thread.later ? "Back to inbox" : "Later"}
-        onPress={() => moveToLater.mutate({ threadId, later: !thread.later })}
+        onPress={() => {
+          leave(threadId, thread.later ? "unlater" : "later");
+          moveToLater.mutate({ threadId, later: !thread.later });
+        }}
       >
         {thread.later ? <IconInbox /> : <IconClock3 />}
       </Action>
