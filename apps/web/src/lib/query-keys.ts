@@ -66,6 +66,8 @@ export const keys = {
   mailboxes: () => [...mail, "mailboxes"] as const,
   /** Every mailbox the user can open, in every workspace (ADR 0024): where they can send from. */
   allMailboxes: () => [...mail, "mailboxes", "all"] as const,
+  /** Your personal mailboxes in every workspace, with their CRM forwarding (ADR 0032). */
+  forwarding: () => [...mail, "forwarding"] as const,
   /** Whether Google can be connected here, and the member's connected Gmail accounts. */
   googleAccounts: () => [...mail, "google-accounts"] as const,
   /** Every mailbox of the workspace, without its mail (owners and admins). */

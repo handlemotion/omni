@@ -148,7 +148,7 @@ export async function enqueuePerFolder(
   c: Context<AppEnv>,
   mailbox: ActionMailbox,
   key: string,
-  requests: Exclude<MailActionRequest, { kind: "send" }>[],
+  requests: Exclude<MailActionRequest, { kind: "send" | "forward_copy" }>[],
 ) {
   const actionIds = await queuePerFolder(writerOf(c), mailbox, key, requests);
   if (actionIds.length) pingLater(c);

@@ -21,6 +21,7 @@ import type { Logger } from "./log.ts";
 import { WorkerNotifier } from "./notify.ts";
 import { createS3Store } from "./objects.ts";
 import { PgActionSource, PgMailStore, PgSendFiles } from "./pg-store.ts";
+import { PgForwarding } from "./forward-copy.ts";
 import { connectGoogle, createGoogleOAuth, disconnectGoogle } from "./providers/gmail.ts";
 import { createCreditWatch } from "./hosting/credit-watch.ts";
 import { disconnectHostedMailbox, disconnectMailbox } from "./hosting/disconnect.ts";
@@ -173,6 +174,7 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
   const supervisor = new Supervisor({
     store,
     files: new PgSendFiles({ db, objects }),
+    forwarding: new PgForwarding({ db, objects }),
     actions: new PgActionSource({
       db,
       onFailed: deliverPending,

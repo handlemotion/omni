@@ -38,20 +38,20 @@ thing, not an Attio integration. Attio is the first one we test against.
    recipients only. No header changes: the people you write to never see it, and the Sent copy is
    the same message they got.
 4. **Received mail: a forward from your own address.** The mail service sends a copy to the
-   forwarding address over the mailbox's own SMTP, `From:` the mailbox address, so Attio accepts
-   it. Format, in order of preference, settled by one live test against Attio:
-   1. **Redirect**: the original message re-sent unchanged (`From`, `To`, `Date`, `Message-ID`
-      intact), envelope sender = the mailbox. Best fidelity, and Attio files it on the real
-      sender. Only usable if Attio accepts an envelope match.
-   2. **Inline forward**: a new message `From:` the mailbox with the original quoted in the
-      standard "Forwarded message" block. Attio parses that block for the participants.
+   forwarding address over the mailbox's own SMTP: `From:` the mailbox address, `Fwd: <subject>`,
+   the original's headers and text under the standard "---------- Forwarded message ---------"
+   divider (`@omni/mail-core` `forwardBody`, the one Omni's own forwards use), with its
+   attachments. Attio's docs describe exactly this (a member forwards; the copy is filed on the
+   forwarded message's participants). A redirect (the original re-sent unchanged) was dropped:
+   its `From:` is the original sender, which Attio's rule says it drops.
 5. **It runs on the outbox.** Each forward is a `mail_actions` row of a new kind, `forward_copy`,
    with idempotency key `forward:<mailbox_id>:<message_id>`: a re-sync, a retry or a second worker
    never sends the same copy twice, and failures retry with backoff like any send. A forward copy
    is never appended to Sent and never indexed as a message. Messages from the forwarding address
-   itself are ignored (no loops).
-6. **Only new mail.** Turning it on does not backfill history (beyond the thread backfill in 2).
-   History import never enqueues forwards.
+   itself are ignored, and a mailbox cannot forward to its own address (no loops).
+6. **Only new mail.** `mailboxes.forward_since` is when the address was set. Mail dated more than
+   5 minutes before it (senders' clocks) never qualifies by itself, so history import and re-syncs
+   queue nothing; the only older mail sent is the thread backfill in 2 (at most 25 messages).
 7. **API** (Worker, owner of the mailbox only; through `db.forMember`):
    - `GET /api/mailboxes/:id/forwarding` → `{ address, scope, lastForwardedAt, lastError }`
    - `PUT /api/mailboxes/:id/forwarding` `{ address, scope }` · `DELETE` turns it off.
@@ -66,8 +66,9 @@ thing, not an Attio integration. Attio is the first one we test against.
   that is far inside Purelymail's limits; `all` on a busy mailbox is the case to watch.
 - A crash between SMTP's OK and marking the row done can send one copy twice (sends avoid this
   by finding their Message-ID in Sent; copies are not filed there). Attio dedupes on Message-ID
-  for redirects; for inline forwards a rare duplicate on a record is accepted.
-- Schema is additive (two nullable columns, one enum, one enum value): old code ignores it.
+  is not relied on: a rare duplicate on a record is accepted.
+- Schema is additive (`forward_address`, `forward_scope`, `forward_since`, one enum, one
+  `mail_action_kind` value): old code ignores it.
 
 ## Verification
 
@@ -78,4 +79,4 @@ thing, not an Attio integration. Attio is the first one we test against.
 - E2E (`apps/worker`): only the mailbox owner can read or change the setting.
 - Live (approved Nov 14, 2026): one send and one received reply from a test
   mailbox to your Attio forwarding address, then check both appear on the right Attio record. This
-  picks redirect or inline forward (decision 4).
+  confirms Attio files the inline forward on the original sender (decision 4).

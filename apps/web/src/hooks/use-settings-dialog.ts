@@ -9,6 +9,7 @@ export const SETTINGS_PAGES = [
   "shortcuts",
   "notifications",
   "accounts",
+  "forwarding",
   "general",
   "people",
   "inboxes",

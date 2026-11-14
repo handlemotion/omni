@@ -10,6 +10,7 @@ import {
   IconClock3,
   IconMailOpen,
   IconCreditCard,
+  IconForward,
   IconInbox,
   IconKeyboard,
   IconMail,
@@ -59,6 +60,7 @@ import { WorkspaceChooser } from "./workspace-chooser";
 import { HelpdeskPage } from "./helpdesk-pages";
 import { NotificationsPage } from "./notification-pages";
 import { ConnectedAccountsPage } from "./connected-accounts-page";
+import { ForwardingPage } from "./forwarding-page";
 import { InboxesPage, SharedMailboxesPage } from "./mailbox-pages";
 import { GeneralPage, PeoplePage } from "./workspace-pages";
 
@@ -115,6 +117,13 @@ function useAccountPages(): PageDefinition[] {
         icon: glyph(IconMailOpen),
         terms: ["google", "gmail", "connect", "disconnect", "oauth", "personal inbox"],
         render: () => <ConnectedAccountsPage />,
+      },
+      {
+        id: "forwarding",
+        title: "Forwarding",
+        icon: glyph(IconForward),
+        terms: ["crm", "attio", "hubspot", "bcc", "forwarding address", "copy"],
+        render: () => <ForwardingPage />,
       },
       {
         id: "shortcuts",

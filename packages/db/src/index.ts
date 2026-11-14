@@ -53,3 +53,4 @@ export * from "./conversation-tags.ts";
 export * from "./conversation-notes.ts";
 export * from "./notifications.ts";
 export * from "./sla.ts";
+export * from "./forwarding.ts";

@@ -182,8 +182,15 @@ export const sendPayloadSchema = z.object({
     .optional(),
 });
 
+/** A copy of a received message for the mailbox's forwarding address (ADR 0032). */
+export const forwardCopyPayloadSchema = z.object({
+  /** `messages.id` of the received message. */
+  messageId: z.string().min(1),
+});
+
 export const actionPayloadSchemas = {
   send: sendPayloadSchema,
+  forward_copy: forwardCopyPayloadSchema,
   archive: messageTargetSchema,
   move: messageTargetSchema.extend({ destination: z.string().min(1) }),
   mark_read: messageTargetSchema,
@@ -199,6 +206,7 @@ export const actionPayloadSchemas = {
 export type MailActionKind = keyof typeof actionPayloadSchemas;
 export type MessageTarget = z.infer<typeof messageTargetSchema>;
 export type SendPayload = z.infer<typeof sendPayloadSchema>;
+export type ForwardCopyPayload = z.infer<typeof forwardCopyPayloadSchema>;
 export type SendAttachment = z.infer<typeof sendAttachmentSchema>;
 export type ActionPayload<K extends MailActionKind> = z.infer<(typeof actionPayloadSchemas)[K]>;
 

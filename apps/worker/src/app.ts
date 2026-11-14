@@ -33,6 +33,7 @@ import { connect } from "./routes/connect.ts";
 import { folders } from "./routes/folders.ts";
 import { library } from "./routes/library.ts";
 import { mail } from "./routes/mail.ts";
+import { forwarding } from "./routes/forwarding.ts";
 import { workspaceAdmin } from "./routes/workspace-admin.ts";
 import { workspaceInboxes } from "./routes/workspace-inboxes.ts";
 import { workspaceInvitations } from "./routes/workspace-invitations.ts";
@@ -124,6 +125,7 @@ const api = new Hono<AppEnv>()
     return stub.fetch(new Request(c.req.raw, { headers }));
   })
   .route("/", mail)
+  .route("/", forwarding)
   .route("/", compose)
   .route("/", handoff)
   .route("/", folders)

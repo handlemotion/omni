@@ -259,6 +259,7 @@ const SLA_TARGETS = new Set(["first_response", "next_response", "resolution"]);
 // A record, so a new action kind in the contracts is a type error here until it is listed.
 const ACTION_KINDS: Record<MailActionKind, true> = {
   send: true,
+  forward_copy: true,
   archive: true,
   move: true,
   mark_read: true,

@@ -110,6 +110,8 @@ export type Assignee = InferResponseType<
  * A shared inbox's SLA settings: `policies` (targets in minutes per priority, null untracked),
  * `businessHours` (null: always open) and whether it auto-assigns new conversations.
  */
+export type Forwarding = InferResponseType<Api["forwarding"]["$get"], 200>["mailboxes"][number];
+export type ForwardScope = Forwarding["scope"];
 export type SlaSettings = InferResponseType<Api["mailboxes"][":id"]["sla"]["$get"], 200>;
 export type SlaPolicy = SlaSettings["policies"][number];
 /** What `PUT /mailboxes/:id/sla/:priority` takes: the three targets and `businessHoursOnly`. */

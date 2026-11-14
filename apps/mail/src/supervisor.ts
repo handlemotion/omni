@@ -1,3 +1,4 @@
+import type { Forwarding } from "./forward-copy.ts";
 import { Effect, Fiber, Semaphore } from "effect";
 import type { Logger } from "./log.ts";
 import {
@@ -14,6 +15,7 @@ export interface SupervisorOptions {
   actions: ActionSource;
   /** Reads send attachments from the object store. */
   files?: SendFiles;
+  forwarding?: Forwarding;
   logger: Logger;
   /** Non-inbox folders are synced on this interval; INBOX is live through IDLE. */
   syncIntervalMs?: number;
@@ -52,6 +54,7 @@ export class Supervisor {
       logger: options.logger,
       store: options.store,
       files: options.files,
+      forwarding: options.forwarding,
       connection: (id) => this.connections.get(id),
     });
   }

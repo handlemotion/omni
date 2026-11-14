@@ -11,6 +11,7 @@ import {
   claimProviderThread,
   createThread,
   deferAction,
+  enqueueForwardCopies,
   sendingPaused,
   type Db,
   findFolder,
@@ -227,6 +228,8 @@ export class PgMailStore implements MailStore {
       );
     }
 
+    // Before the location: a retry after a failure here finds no location and queues again.
+    await enqueueForwardCopies(this.db, { mailboxId, messageId: stored.id, role: folder.role });
     const created = await addLocation(this.db, {
       orgId: mailbox.orgId,
       mailboxId,
@@ -271,6 +274,8 @@ export class PgMailStore implements MailStore {
       parsed,
       threadId,
     );
+    // Missed on a failure, it is queued again when the Sent copy is stored.
+    await enqueueForwardCopies(this.db, { mailboxId, messageId: result.id, role: "sent" });
     if (result.inserted) {
       this.onIngested({
         orgId: mailbox.orgId,

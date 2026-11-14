@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Effect, Schedule } from "effect";
 import { createTransport } from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
+import { composeForwardCopy, type Forwarding } from "./forward-copy.ts";
 import type { Logger } from "./log.ts";
 import {
   type ImapSession,
@@ -42,6 +43,8 @@ export interface OutboxOptions {
   store?: Pick<MailStore, "storeSent">;
   /** Reads a send's attachments. Required for sends that carry any. */
   files?: SendFiles;
+  /** The CRM forwarding address (ADR 0032). Required for `forward_copy`. */
+  forwarding?: Forwarding;
   maxAttempts?: number;
   retryBaseMs?: number;
   retryMaxMs?: number;
@@ -56,8 +59,10 @@ export interface OutboxOptions {
  * has a Message-ID derived from its idempotency key, and we look for it in Sent before sending.
  */
 export class OutboxExecutor {
-  private readonly options: Required<Omit<OutboxOptions, "connection" | "store" | "files">> &
-    Pick<OutboxOptions, "connection" | "store" | "files">;
+  private readonly options: Required<
+    Omit<OutboxOptions, "connection" | "store" | "files" | "forwarding">
+  > &
+    Pick<OutboxOptions, "connection" | "store" | "files" | "forwarding">;
   private draining: Promise<number> | null = null;
   private drainAgain = false;
   private stopped = false;
@@ -72,6 +77,7 @@ export class OutboxExecutor {
     this.options = {
       store: undefined,
       files: undefined,
+      forwarding: undefined,
       maxAttempts: 8,
       retryBaseMs: 5_000,
       retryMaxMs: 30 * 60_000,
@@ -151,7 +157,8 @@ export class OutboxExecutor {
         return;
       }
       const sent =
-        action.kind === "send" && (action.smtpAcceptedAt || this.accepted.has(action.id));
+        (action.kind === "send" || action.kind === "forward_copy") &&
+        (action.smtpAcceptedAt || this.accepted.has(action.id));
       if (sent && action.attempts >= this.options.maxAttempts) {
         // The mail went out; only the Sent copy is missing. "failed" would invite a resend.
         log.error("outbox.sent_not_filed", { error: message, attempts: action.attempts });
@@ -189,6 +196,8 @@ export class OutboxExecutor {
     switch (action.kind) {
       case "send":
         return this.send(connection, action);
+      case "forward_copy":
+        return this.forwardCopy(connection, action);
       case "archive":
         return connection.run(async (session) => {
           // Our own replies stay in Sent and junk stays in Junk: archiving a conversation files
@@ -287,7 +296,10 @@ export class OutboxExecutor {
             `sending from ${mailbox.address} is paused: its domain's DNS no longer verifies`,
           );
         }
-        await smtpSend(mailbox, action.payload, raw);
+        const { to, cc = [], bcc = [] } = action.payload;
+        // The CRM's copy rides the envelope only: no header names it (ADR 0032).
+        const crm = await this.options.forwarding?.target(mailbox.id);
+        await smtpSend(mailbox, [...to, ...cc, ...bcc, ...(crm ? [crm] : [])], raw);
         this.accepted.add(action.id);
       }
       await persistAccepted(() => this.options.actions.markSmtpAccepted(action.id));
@@ -315,6 +327,31 @@ export class OutboxExecutor {
       // Save the Sent copy now so it shows in the thread without waiting for the 5-minute sync.
       await session.syncFolder(sent.path);
     });
+  }
+
+  /** A received message, forwarded to the CRM. Never filed in Sent or indexed. */
+  private async forwardCopy(
+    connection: MailboxConnection,
+    action: Extract<MailAction, { kind: "forward_copy" }>,
+  ): Promise<void> {
+    if (action.smtpAcceptedAt || this.accepted.has(action.id)) return;
+    const mailbox = connection.mailbox;
+    if (!this.options.forwarding) throw new PermanentActionError("this outbox cannot forward");
+    // Gone since, or forwarding turned off: nothing to send.
+    const source = await this.options.forwarding.copy(mailbox.id, action.payload.messageId);
+    if (!source) return;
+    const raw = await composeForwardCopy(source.raw, {
+      from: mailbox.address,
+      to: source.to,
+      messageId: deterministicMessageId(action.idempotencyKey, mailbox.address),
+    });
+    if (await this.options.actions.sendingPaused(mailbox.address)) {
+      throw new SendingPausedError(`sending from ${mailbox.address} is paused`);
+    }
+    await smtpSend(mailbox, [source.to], raw);
+    this.accepted.add(action.id);
+    await persistAccepted(() => this.options.actions.markSmtpAccepted(action.id));
+    this.accepted.delete(action.id);
   }
 
   private filedInSent(connection: MailboxConnection, messageId: string): Promise<boolean> {
@@ -374,7 +411,7 @@ function composeMessage(
     .build();
 }
 
-async function smtpSend(mailbox: MailboxConfig, payload: SendPayload, raw: Buffer): Promise<void> {
+async function smtpSend(mailbox: MailboxConfig, recipients: string[], raw: Buffer) {
   const { auth } = mailbox;
   const login = await loginFor(mailbox).catch((error: unknown) => {
     // A revoked Google grant will not come back on a retry; the mailbox shows it needs reconnecting.
@@ -399,7 +436,7 @@ async function smtpSend(mailbox: MailboxConfig, payload: SendPayload, raw: Buffe
     await transport.sendMail({
       envelope: {
         from: mailbox.address,
-        to: [...payload.to, ...(payload.cc ?? []), ...(payload.bcc ?? [])],
+        to: recipients,
       },
       raw,
     });

@@ -70,6 +70,8 @@ export interface Address {
 export const mailboxKind = pgEnum("mailbox_kind", ["personal", "shared"]);
 // `imap` is any standards-based host with no provider API; `purelymail` adds its optional admin API.
 export const mailProvider = pgEnum("mail_provider", ["purelymail", "gmail", "microsoft", "imap"]);
+/** What a mailbox copies to its forwarding address (ADR 0032). */
+export const forwardScope = pgEnum("forward_scope", ["sent", "conversations", "all"]);
 export const mailboxStatus = pgEnum("mailbox_status", ["pending", "active", "error", "disabled"]);
 export const folderRole = pgEnum("folder_role", [
   "inbox",
@@ -90,6 +92,7 @@ export const triageBucket = pgEnum("triage_bucket", [
 export const triageSource = pgEnum("triage_source", ["ai", "person"]);
 export const mailActionKind = pgEnum("mail_action_kind", [
   "send",
+  "forward_copy",
   "archive",
   "move",
   "mark_read",
@@ -172,6 +175,14 @@ export const mailboxes = pgTable(
      */
     autoAssign: boolean("auto_assign").notNull().default(false),
     autoAssignLastMemberId: text("auto_assign_last_member_id"),
+    /**
+     * A CRM's forwarding address (ADR 0032): sends BCC it, received mail is forwarded to it per
+     * `forward_scope`. Null is off. Personal mailboxes only. `forward_since` is when it was last
+     * turned on: nothing older is forwarded, so a sync or import never floods the CRM.
+     */
+    forwardAddress: text("forward_address"),
+    forwardScope: forwardScope("forward_scope").notNull().default("conversations"),
+    forwardSince: timestamptz("forward_since"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

@@ -87,11 +87,22 @@ export interface MailStore {
 // wrong message.
 
 // Payload shapes live in `@omni/contracts`, shared with the Worker that writes them.
-export type { MessageTarget, SendAttachment, SendPayload } from "@omni/contracts";
-import type { MessageTarget, SendAttachment, SendPayload } from "@omni/contracts";
+export type {
+  ForwardCopyPayload,
+  MessageTarget,
+  SendAttachment,
+  SendPayload,
+} from "@omni/contracts";
+import type {
+  ForwardCopyPayload,
+  MessageTarget,
+  SendAttachment,
+  SendPayload,
+} from "@omni/contracts";
 
 export type MailAction =
   | ActionBase<"send", SendPayload>
+  | ActionBase<"forward_copy", ForwardCopyPayload>
   | ActionBase<"archive", MessageTarget>
   | ActionBase<"move", MessageTarget & { destination: string }>
   | ActionBase<"mark_read", MessageTarget>
@@ -111,7 +122,7 @@ interface ActionBase<K extends string, P> {
   idempotencyKey: string;
   /** Attempts so far, including the one this claim starts. */
   attempts: number;
-  /** Set once SMTP accepted a send, so a retry only finishes the Sent append. */
+  /** Set once SMTP accepted a send or a forward copy, so a retry never sends again. */
   smtpAcceptedAt: Date | null;
 }
 
