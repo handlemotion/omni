@@ -47,3 +47,23 @@ export function addedRecipients<A extends { address: string }>(
     return true;
   });
 }
+
+/** Links longer than this are tracking redirects in practice: they cost tokens and say nothing. */
+export const AGENT_LINK_MAX = 100;
+
+/**
+ * Message text as an agent reads it: links over `AGENT_LINK_MAX` characters dropped (their label
+ * stays), empty `( )` left by the HTML-to-text step removed, and the blank lines that leaves
+ * collapsed. Short links (an address, a docs page) are kept.
+ */
+export function withoutLongLinks(text: string) {
+  const keep = (url: string) => url.length <= AGENT_LINK_MAX;
+  return text
+    .replace(/[ \t]*\(\s*(https?:\/\/[^\s)]*)?\s*\)/g, (match, url?: string) =>
+      url && keep(url) ? match : "",
+    )
+    .replace(/https?:\/\/\S+/g, (url) => (keep(url) ? url : ""))
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}

@@ -176,9 +176,17 @@ function searchWords(query: string) {
   return { words: [...words].slice(0, SEARCH_MAX_WORDS), prefix: /[\p{L}\p{N}]$/u.test(query) };
 }
 
+/**
+ * Text with its links taken out, for previews: a snippet of a newsletter is otherwise a run of
+ * URLs. Takes the `( url )` the HTML-to-text step writes after a link's label as well.
+ */
+function withoutLinks(text: SQL) {
+  return sql`regexp_replace(${text}, '\\(\\s*https?://[^\\s)]*\\s*\\)|https?://\\S+', ' ', 'g')`;
+}
+
 /** A plain-text passage of the message body around the query's matches. */
 function headline(query: SQL, options: string) {
-  return sql`ts_headline('english', regexp_replace(left(m.clean_text, 6000), '\\s+', ' ', 'g'), ${query}, ${`${options}, StartSel="", StopSel="", ShortWord=2`})`;
+  return sql`ts_headline('english', regexp_replace(${withoutLinks(sql`left(m.clean_text, 6000)`)}, '\\s+', ' ', 'g'), ${query}, ${`${options}, StartSel="", StopSel="", ShortWord=2`})`;
 }
 
 interface SearchRow {
@@ -194,6 +202,10 @@ interface SearchRow {
   last_message_at: string | Date;
   message_count: number;
   score: number;
+  triage: (typeof triageBucket.enumValues)[number] | null;
+  triage_source: string | null;
+  triage_confidence: number | null;
+  read: boolean;
   snippet: string;
   excerpt: string;
 }
@@ -296,7 +308,7 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
       fromName: string | null;
       fromAddress: string;
       snippet: string;
-    } | null>`(select jsonb_build_object('subject', m.subject, 'fromName', m.from_name, 'fromAddress', m.from_address, 'snippet', left(btrim(regexp_replace(left(m.clean_text, 600), '\\s+', ' ', 'g')), 200)) from ${messages} m where m.thread_id = ${threads.id} order by m.sent_at desc, m.id desc limit 1)`.as(
+    } | null>`(select jsonb_build_object('subject', m.subject, 'fromName', m.from_name, 'fromAddress', m.from_address, 'snippet', left(btrim(regexp_replace(${withoutLinks(sql`left(m.clean_text, 1500)`)}, '\\s+', ' ', 'g')), 200)) from ${messages} m where m.thread_id = ${threads.id} order by m.sent_at desc, m.id desc limit 1)`.as(
       "latest",
     ),
     messageCount:
@@ -1178,6 +1190,8 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         top as (select * from best order by score desc, thread_id desc limit ${limit})
         select t.org_id, top.thread_id, m.id as message_id, t.mailbox_id, mb.address as mailbox_address,
           m.subject, m.from_name, m.from_address, m.sent_at, t.last_message_at, top.score::float8 as score,
+          t.triage, t.triage_source, t.triage_confidence,
+          coalesce((select s.read from ${threadState} s join ${mailboxAccess} sa on sa.member_id = s.member_id and sa.mailbox_id = t.mailbox_id where s.thread_id = t.id and ${isGrantee(sql`sa.member_id`)} limit 1), false) as read,
           (select count(*)::int from ${messages} c where c.thread_id = t.id) as message_count,
           ${headline(any, "MaxWords=20, MinWords=10, MaxFragments=1")} as snippet,
           ${headline(any, "MaxWords=60, MinWords=40")} as excerpt
@@ -1199,6 +1213,10 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         lastMessageAt: new Date(row.last_message_at),
         messageCount: row.message_count,
         score: row.score,
+        triage: row.triage,
+        triageSource: row.triage_source,
+        triageConfidence: row.triage_confidence,
+        unread: !row.read,
         snippet: row.snippet,
         excerpt: row.excerpt,
       }));

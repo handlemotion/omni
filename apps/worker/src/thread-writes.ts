@@ -24,7 +24,7 @@ export async function enqueuePerFolder(
   writer: ThreadWriter,
   mailbox: { orgId: string; mailboxId: string },
   key: string,
-  requests: Exclude<MailActionRequest, { kind: "send" }>[],
+  requests: Exclude<MailActionRequest, { kind: "send" | "forward_copy" }>[],
 ) {
   const actionIds: string[] = [];
   for (const request of requests) {

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { addedParticipants, messageDisplay } from "./display";
+import { addedParticipants, messageDisplay, withoutLongLinks } from "./display";
 
 const words = (n: number) => Array.from({ length: n }, (_, i) => `w${i}`).join(" \n ");
 
@@ -22,4 +22,31 @@ test("addedParticipants announces a person once, against the whole thread, ignor
     { fromAddress: "bea@example.com", to: [ana, luis], cc: [] },
   ]);
   expect(added).toEqual([[], [], [bea], []]);
+});
+
+test("withoutLongLinks drops tracking links but keeps their labels, short links and parentheses", () => {
+  const tracker =
+    "https://track.pstmrk.it/3ts/app.attio.com%2Fchowmein%2Fsettings%2Femail-and-calendar-accounts%3Futm_source%3Dnotification_emails/kdVK/e2LJAQ/Ag/208ef3d8";
+  const text = [
+    tracker,
+    "",
+    "Hi Rodrigo,",
+    "",
+    `Reconnect Email ( ${tracker} )`,
+    "",
+    "Contact our Success team ( support@example.com ) or see ( https://example.com/help ).",
+    "Notification preferences (  )",
+    "(see below)",
+  ].join("\n");
+  expect(withoutLongLinks(text)).toBe(
+    [
+      "Hi Rodrigo,",
+      "",
+      "Reconnect Email",
+      "",
+      "Contact our Success team ( support@example.com ) or see ( https://example.com/help ).",
+      "Notification preferences",
+      "(see below)",
+    ].join("\n"),
+  );
 });

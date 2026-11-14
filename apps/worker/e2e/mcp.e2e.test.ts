@@ -193,7 +193,15 @@ async function inbox(token: string, args: Record<string, unknown> = {}) {
 
 /** One tool call through the official client: its structured result, or its error text. */
 interface SearchResult {
-  results: { id: string; title: string; url: string; mailbox: string }[];
+  results: {
+    id: string;
+    title: string;
+    url: string;
+    mailbox: string;
+    snippet: string;
+    unread: boolean;
+    lane: string | null;
+  }[];
   ranking: string;
   next_cursor?: string;
 }
@@ -701,6 +709,49 @@ test("fetch keeps ten long threads within max_chars", async () => {
     expect(document.text).toContain("From: writer");
     expect(document.metadata.truncated).toBe(true);
   }
+});
+
+// Catches: a newsletter read as a wall of tracking links (snippets that are only URLs, `fetch`
+// text that spends the budget on redirects), and word search dropping the read and lane state
+// the listing returns.
+test("agents read newsletters without tracking links, and word search keeps thread state", async () => {
+  const org = await createOrg(db, "letters");
+  const uma = await createMember(db, org.id, "uma@letters.test");
+  const box = await createMailbox(db, org.id, "uma@letters.test", "personal");
+  await grant(db, org.id, box.id, uma.id);
+  const tracker = `https://track.letters.test/click/${"a1b2c3d4".repeat(16)}`;
+  const { threadId } = await seedMessage(db, box, {
+    subject: "Your weekly digest",
+    fromAddress: "digest@news.letters.test",
+    uid: 1,
+    text: [
+      `${tracker}${tracker}`,
+      `Read the digest ( ${tracker} ) or reply to editor@letters.test.`,
+      "Archive ( https://letters.test/archive )",
+      `Notification preferences (  ) ${tracker}`,
+    ].join("\n"),
+  });
+  await db
+    .update(schema.threads)
+    .set({ triage: "fyi", triageSource: "ai", triageConfidence: 0.95 })
+    .where(eq(schema.threads.id, threadId));
+  const jar = new CookieJar();
+  await signIn(worker, db, "uma@letters.test", jar);
+  const { access_token } = await connect(jar);
+
+  const byWords = await tool<SearchResult>(access_token, "search", { query: "weekly digest" });
+  const listed = await tool<SearchResult>(access_token, "search", { query: "" });
+  for (const found of [byWords.data.results[0], listed.data.results[0]]) {
+    expect(found).toMatchObject({ id: threadId, unread: true, lane: "fyi" });
+    expect(found!.snippet).toMatch(/^Read the digest .*editor@letters\.test/);
+    expect(found!.snippet).not.toContain("http");
+  }
+
+  const { data } = await tool<FetchResult>(access_token, "fetch", { id: threadId });
+  expect(data.text).not.toContain("track.letters.test");
+  expect(data.text).toContain("Read the digest or reply to editor@letters.test.");
+  expect(data.text).toContain("Archive ( https://letters.test/archive )");
+  expect(data.text).toMatch(/Notification preferences$/m);
 });
 
 describe("changing mail", () => {

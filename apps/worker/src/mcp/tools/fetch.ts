@@ -1,10 +1,11 @@
 // `fetch`: read threads (ADR 0029), in the shape ChatGPT's deep research expects
 // (`{ id, title, url, text, metadata }`), up to 10 per call. `text` is the conversation as plain
 // text with quoted history and signatures already stripped (`clean_text`), so a long thread costs
-// its new words only. Over the size budget the oldest messages give way first: the latest one is
+// its new words only, and links over 100 characters (tracking redirects) are dropped. Over the size budget the oldest messages give way first: the latest one is
 // what an agent most needs.
 import type { McpServer } from "@modelcontextprotocol/server";
 import { schema } from "@omni/db";
+import { withoutLongLinks } from "@omni/mail-core/display";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { laneOf, personSchema, result, threadUrl, toolError } from "../format.ts";
@@ -112,11 +113,12 @@ function header(message: Message) {
 
 function body(message: Message) {
   const forwarded = message.forwarded;
-  if (!forwarded) return message.cleanText;
+  const text = withoutLongLinks(message.cleanText);
+  if (!forwarded) return text;
   const about = [forwarded.from && `from ${forwarded.from}`, forwarded.date, forwarded.subject]
     .filter(Boolean)
     .join(", ");
-  return `${message.cleanText}\n\n[Forwarded message${about ? ` (${about})` : ""}]\n${forwarded.text}`;
+  return `${text}\n\n[Forwarded message${about ? ` (${about})` : ""}]\n${withoutLongLinks(forwarded.text)}`;
 }
 
 interface Block {

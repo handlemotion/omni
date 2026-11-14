@@ -8,7 +8,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { LANES, THREAD_VIEWS, type ThreadFilters } from "@omni/db";
 import { z } from "zod";
 import { smartSearch } from "../../search.ts";
-import { personSchema, result, threadSummary, threadUrl, toolError } from "../format.ts";
+import { laneOf, personSchema, result, threadSummary, threadUrl, toolError } from "../format.ts";
 import { findMailbox, readsFor, unknownMailbox, type Reads } from "../scope.ts";
 import { guarded, type ToolContext } from "../server.ts";
 
@@ -73,8 +73,8 @@ const resultSchema = z.object({
   last_message_at: z.string(),
   message_count: z.number(),
   snippet: z.string(),
-  unread: z.boolean().optional(),
-  lane: z.string().nullable().optional(),
+  unread: z.boolean(),
+  lane: z.string().nullable().describe("Triage lane, as in `inbox`; null before triage."),
 });
 
 const outputSchema = z.object({
@@ -154,6 +154,8 @@ async function searchByWords(
       last_message_at: hit.lastMessageAt.toISOString(),
       message_count: hit.messageCount,
       snippet: hit.snippet,
+      unread: hit.unread,
+      lane: laneOf(hit),
     })),
     ranking: ranking === "jev" ? ("relevance" as const) : ("text" as const),
     ...(ignored.length
