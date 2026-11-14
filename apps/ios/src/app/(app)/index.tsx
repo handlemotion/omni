@@ -21,7 +21,14 @@ export default function Inbox() {
           router.push({ pathname: "/mailboxes", params: mailbox ? { current: mailbox } : {} })
         }
       />
-      <ThreadList mailboxId={current?.id} mailboxes={mailboxes.data ?? []} you={you} />
+      <ThreadList
+        mailboxId={current?.id}
+        mailboxes={mailboxes.data ?? []}
+        you={you}
+        onOpenThread={(thread) =>
+          router.push({ pathname: "/thread/[id]", params: { id: thread.id } })
+        }
+      />
     </Screen>
   );
 }

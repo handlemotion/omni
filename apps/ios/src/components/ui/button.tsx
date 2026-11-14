@@ -4,7 +4,8 @@ import { Text } from "./text.tsx";
 
 export interface ButtonProps extends Omit<PressableProps, "children"> {
   label: string;
-  intent?: "primary" | "plain";
+  /** `primary` filled brand, `plain` a well, `quiet` text only (a secondary action in place). */
+  intent?: "primary" | "plain" | "quiet";
   size?: "md" | "lg";
   /** The action is running: dimmed like a disabled button, a spinner beside the label. */
   isPending?: boolean;
@@ -30,7 +31,7 @@ export function Button({
       style={(state) => [
         styles.base,
         size === "lg" ? styles.lg : styles.md,
-        primary ? styles.primary : styles.plain,
+        intent === "quiet" ? styles.quiet : primary ? styles.primary : styles.plain,
         (disabled || isPending) && styles.dimmed,
         state.pressed && styles.pressed,
         typeof style === "function" ? style(state) : style,
@@ -63,6 +64,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   plain: { backgroundColor: colors.well },
+  quiet: { height: 32, paddingHorizontal: space(2), alignSelf: "flex-start" },
   dimmed: { opacity: 0.5 },
   pressed: { transform: [{ scale: 0.97 }] },
   row: { flexDirection: "row", alignItems: "center", gap: space(2) },
