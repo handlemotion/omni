@@ -82,6 +82,9 @@ function useDescribe(mailboxId: string) {
         if (cause === "snooze_expired") return "Back from snooze";
         // A reply moves it to Pending each time: the reply itself says so.
         if (cause === "agent_reply") return null;
+        // A hand-off resolves it: the hand-off line says so.
+        if (cause === "handoff") return null;
+        if (cause === "handoff_cancelled") return `${actor ?? "Omni"} cancelled the hand-off`;
         if (data.reason === "discarded_elsewhere")
           return "Resolved: moved to Trash or Junk in another mail app";
         const who = actor ?? "Omni";
@@ -97,6 +100,8 @@ function useDescribe(mailboxId: string) {
         return null;
       }
       case "assigned": {
+        // Part of a hand-off or its undo: their own line says so.
+        if (data.cause === "handoff" || data.cause === "handoff_cancelled") return null;
         if (data.cause === "auto_assign")
           return `Assigned to ${people.object(data.to)} automatically`;
         // The first reply claims an unowned conversation.
@@ -124,6 +129,8 @@ function useDescribe(mailboxId: string) {
       }
       case "merged":
         return "Another conversation was merged into this one";
+      case "handoff":
+        return `${actor ?? "A teammate"} handed this off to ${String(data.address)}`;
       // The note shows itself; the first response is the reply above it.
       default:
         return null;

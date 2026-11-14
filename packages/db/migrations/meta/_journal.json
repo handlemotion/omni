@@ -225,6 +225,13 @@
       "when": 1794620087918,
       "tag": "0031_motionless_brood",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794622830465,
+      "tag": "0032_handoff_event",
+      "breakpoints": true
     }
   ]
 }

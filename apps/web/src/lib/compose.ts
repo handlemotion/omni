@@ -273,6 +273,43 @@ export const forwardMutation = (client: QueryClient) =>
     },
   });
 
+export interface HandoffVariables extends Recipients {
+  key: string;
+  threadId: string;
+  /** The member's own personal mailbox the reply goes from. */
+  mailboxId: string;
+  to: string[];
+  text: string;
+  /** The message replied to; the latest when absent. */
+  messageId?: string | undefined;
+  /** Uploads staged on `mailboxId`. */
+  attachments?: SendAttachment[] | undefined;
+}
+
+/**
+ * A reply to a shared conversation from the member's personal mailbox (ADR 0030): it is sent and
+ * answered there, and the shared conversation is assigned to them and resolved. No pending
+ * bubble: the sent mail lands in their own mailbox's thread, not this one.
+ */
+export const handoffMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationKey: [...keys.mail(), "handoff"],
+    retry,
+    scope,
+    mutationFn: ({ key, threadId, attachments = [], ...rest }: HandoffVariables) =>
+      call(
+        api.threads[":id"].handoff.$post({
+          param: { id: threadId },
+          header: header(key),
+          json: { ...compact(rest), to: rest.to, attachments },
+        }),
+      ),
+    onSettled: (_data, _error, { threadId }) => {
+      void client.invalidateQueries({ queryKey: keys.thread(threadId) });
+      void client.invalidateQueries({ queryKey: keys.conversationLists() });
+    },
+  });
+
 export interface NewMailVariables {
   key: string;
   mailboxId: string;

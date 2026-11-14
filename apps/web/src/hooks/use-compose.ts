@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDebouncedValue } from "./use-debounced-value.ts";
+import { useAllMailboxes } from "./use-mail.ts";
 import {
   cancelSend,
   cannedRepliesQuery,
@@ -14,6 +15,7 @@ import {
   draftsQuery,
   forgetPending,
   forwardMutation,
+  handoffMutation,
   newMailMutation,
   renderCannedReply,
   saveDraft,
@@ -170,6 +172,33 @@ export function useComposeReply() {
 /** `mutate({ threadId, to, text, messageId?, includeAttachments?, attachments?, draftId? })`. */
 export function useForward() {
   return useKeyedMutation(forwardMutation(useQueryClient()));
+}
+
+/**
+ * `mutate({ threadId, mailboxId, to, text, cc?, bcc?, messageId?, attachments? })`: replies from
+ * the member's personal mailbox and hands the shared conversation off to them (ADR 0030).
+ */
+export function useHandoff() {
+  return useKeyedMutation(handoffMutation(useQueryClient()));
+}
+
+/**
+ * Where a reply on this inbox can go from: the inbox itself first, then, on a shared inbox, the
+ * member's own connected personal mailboxes in its workspace, for a hand-off (ADR 0030).
+ */
+export function useReplyFromMailboxes(inbox: { id: string; address: string }) {
+  const all = useAllMailboxes().data ?? [];
+  const shared = all.find((m) => m.id === inbox.id && m.kind === "shared");
+  const own = shared
+    ? all.filter(
+        (m) =>
+          m.kind === "personal" &&
+          m.orgId === shared.orgId &&
+          m.role === "owner" &&
+          m.status === "active",
+      )
+    : [];
+  return [inbox, ...own.map((m) => ({ id: m.id, address: m.address }))];
 }
 
 /** `mutate({ mailboxId, to, subject, text, cc?, bcc?, attachments?, draftId? })`. */

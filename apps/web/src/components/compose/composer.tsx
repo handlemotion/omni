@@ -25,7 +25,9 @@ import {
   useComposerFiles,
   useDraft,
   useForward,
+  useHandoff,
   useRenderCannedReply,
+  useReplyFromMailboxes,
   useSendNew,
   useSignature,
   type CannedReply,
@@ -149,7 +151,8 @@ function recipientsFor(kind: ReplyKind, thread: Thread): string[] {
  * picks who will see what you write: Public is an email to the customer (or a
  * forward, picked from a message's menu), Hidden is an internal note only the team sees. A
  * personal thread is always Public, and shows the composer only once Reply or Forward opens it. Replies go from the inbox's address with your name; they
- * show in the thread at once and can be undone while they wait in the outbox.
+ * show in the thread at once and can be undone while they wait in the outbox. From one of your own
+ * mailboxes instead, a reply hands the conversation off to you (ADR 0030).
  */
 export function ReplyComposer({ thread }: { thread: Thread }) {
   const state = useComposerState();
@@ -191,9 +194,18 @@ function ModeComposer(props: {
   const { chat } = state;
   const latest = thread.messages.at(-1);
   const { signature, isLoading: signatureLoading } = useSignature(thread.mailboxId);
-  const files = useComposerFiles(thread.mailboxId);
+  // A reply can leave the shared inbox from one of your own mailboxes: a hand-off (ADR 0030).
+  const fromOptions = useReplyFromMailboxes({
+    id: thread.mailboxId,
+    address: thread.mailboxAddress,
+  });
+  const [fromId, setFromId] = useState(thread.mailboxId);
+  const handingOff = mode === "reply" && fromId !== thread.mailboxId;
+  // Files are staged on the mailbox that sends them.
+  const files = useComposerFiles(handingOff ? fromId : thread.mailboxId);
   const reply = useComposeReply();
   const forward = useForward();
+  const handoff = useHandoff();
   const cancelSend = useCancelSend();
   const render = useRenderCannedReply(thread.id);
 
@@ -253,7 +265,9 @@ function ModeComposer(props: {
   // Only what the agent changed is saved: opening Forward must not leave an empty draft behind.
   const touched = useRef(false);
   const edited = (next: Partial<{ text: string; to: string[]; cc: string[]; bcc: string[] }>) => {
-    if (!started.current) return;
+    // A hand-off is your own mail, not the team's: it is not kept in the inbox's shared draft,
+    // which would also resume as a reply from the inbox.
+    if (!started.current || handingOff) return;
     touched.current = true;
     draft.save({
       bodyText: next.text ?? text,
@@ -279,7 +293,8 @@ function ModeComposer(props: {
     (mode === "forward" || hasWords(text, signature)) &&
     // Replies queue (offline they wait their turn, each as a pending bubble), so another can be
     // written and sent while one is in flight; the box clears on send, so nothing goes twice.
-    !forward.isPending;
+    !forward.isPending &&
+    !handoff.isPending;
 
   const send = () => {
     if (!canSend) return;
@@ -333,7 +348,22 @@ function ModeComposer(props: {
       setCc([]);
       setBcc([]);
     }
-    if (mode === "reply") {
+    if (handingOff) {
+      handoff.mutate(
+        {
+          threadId: thread.id,
+          mailboxId: fromId,
+          ...(source ? { messageId: source.id } : {}),
+          to,
+          cc,
+          bcc,
+          text,
+          attachments,
+        },
+        // No pending bubble: the mail lands in your own mailbox's thread, not this one.
+        { onSuccess: (queued) => sent(queued), onError: failed },
+      );
+    } else if (mode === "reply") {
       reply.mutate(
         {
           threadId: thread.id,
@@ -411,9 +441,22 @@ function ModeComposer(props: {
   return (
     <ComposerFrame flat onFiles={files.add}>
       <FromRow
-        mailboxes={[{ id: thread.mailboxId, address: thread.mailboxAddress }]}
-        value={thread.mailboxId}
-        onChange={() => undefined}
+        mailboxes={mode === "reply" ? fromOptions : fromOptions.slice(0, 1)}
+        value={handingOff ? fromId : thread.mailboxId}
+        onChange={(next) => {
+          // A staged file belongs to the mailbox it was uploaded for; another can't send it.
+          if (files.files.length) {
+            for (const file of files.files) files.remove(file.id);
+            appToast.message("Attachments removed", {
+              description: "Attach them again to send from this address.",
+            });
+          }
+          if (next !== thread.mailboxId) {
+            touched.current = false;
+            void draft.discard();
+          }
+          setFromId(next);
+        }}
       />
       <Recipients
         to={to}
@@ -467,7 +510,7 @@ function ModeComposer(props: {
           </TooltipTrigger>
         }
         canSend={canSend}
-        isPending={forward.isPending}
+        isPending={forward.isPending || handoff.isPending}
         onSend={send}
       />
     </ComposerFrame>

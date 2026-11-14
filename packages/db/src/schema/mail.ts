@@ -126,6 +126,11 @@ export const conversationEventKind = pgEnum("conversation_event_kind", [
   "sla_breached",
   /** Another thread was merged into this one: `{ fromThreadId }`. */
   "merged",
+  /**
+   * A teammate replied from their personal mailbox and took the conversation one-to-one
+   * (ADR 0030): `{ mailboxId, address, actionId, previous: { status, assigneeMemberId } }`.
+   */
+  "handoff",
 ]);
 export const notificationKind = pgEnum("notification_kind", [
   "assigned",

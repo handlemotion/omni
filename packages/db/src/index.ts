@@ -47,6 +47,7 @@ export * from "./customers.ts";
 export * from "./drafts.ts";
 export * from "./preferences.ts";
 export * from "./conversations.ts";
+export * from "./handoff.ts";
 export * from "./conversation-tags.ts";
 export * from "./conversation-notes.ts";
 export * from "./notifications.ts";

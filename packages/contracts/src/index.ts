@@ -167,6 +167,12 @@ export const sendPayloadSchema = z.object({
   inReplyToMessageId: z.string().min(1).optional(),
   attachments: z.array(sendAttachmentSchema).max(MAX_SEND_ATTACHMENTS).optional(),
   /**
+   * A hand-off (ADR 0030): the shared conversation (`threads.id`, another mailbox's) this reply
+   * from a personal mailbox takes over. The Worker reads it when the send is cancelled, to undo
+   * the hand-off; the mail service ignores it.
+   */
+  handoffThreadId: z.string().min(1).optional(),
+  /**
    * Message-ID to send with, in `<id@host>` form, chosen by the Worker so the app knows it before
    * the mail goes out. Absent: the mail service derives one from the idempotency key.
    */

@@ -2,8 +2,9 @@ import { createContext, use, useState, type ReactNode } from "react";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 
-// Dorks' frame proportions (and the Figma frame's): 275px by default, 200 to 420px when dragged.
-const SIDEBAR_WIDTH = 275;
+// 240px by default (the `--spacing-sidebar` token), 200 to 420px when dragged. A width someone
+// dragged to is kept in this browser and wins over the default.
+const SIDEBAR_WIDTH = 240;
 const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 420;
 

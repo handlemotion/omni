@@ -161,7 +161,7 @@ async function fileMail(
   return inserted.length;
 }
 
-interface Applied {
+export interface Applied {
   row: ConversationRow;
   changed: boolean;
   queuedActions: number;
@@ -173,7 +173,7 @@ interface Applied {
  * Moves the conversation to `next` (from the status function), writes its status event and files
  * the mail. Returns the new row; unchanged when `next` reports no change.
  */
-async function applyStatus(
+export async function applyStatus(
   tx: Tx,
   row: ConversationRow,
   event: ConversationEvent,
@@ -258,7 +258,7 @@ async function canSee(tx: Tx, memberId: string, mailboxId: string, orgId: string
 }
 
 /** Sets the assignee and writes the `assigned` event. */
-async function assign(
+export async function assign(
   tx: Tx,
   row: ConversationRow,
   memberId: string | null,

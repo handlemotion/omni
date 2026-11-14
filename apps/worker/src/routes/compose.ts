@@ -31,7 +31,7 @@ import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { optionalJsonBody, zValidator } from "../validator.ts";
-import { fanOut } from "../realtime.ts";
+import { fanOut, notifyMembers } from "../realtime.ts";
 import { assertLatest, basedOnMessageId, StaleThread } from "./reply-precondition.ts";
 import { attachmentResponse } from "./assets.ts";
 import { idempotencyHeader, notFound, outboxKey, pingLater, type ActionMailbox } from "./mail.ts";
@@ -40,8 +40,8 @@ import { idempotencyHeader, notFound, outboxKey, pingLater, type ActionMailbox }
 const UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
 
 const address = z.email();
-const recipients = z.array(address).max(100);
-const attachmentList = z.array(sendAttachmentSchema).max(50).default([]);
+export const recipients = z.array(address).max(100);
+export const attachmentList = z.array(sendAttachmentSchema).max(50).default([]);
 
 const sendBody = z.object({
   mailboxId: z.string().min(1),
@@ -89,7 +89,7 @@ const uploadQuery = z.object({
 });
 
 /** Chosen here so a send can return it before the mail goes out. */
-function newMessageId(address: string) {
+export function newMessageId(address: string) {
   const domain = address.slice(address.lastIndexOf("@") + 1);
   return `<${crypto.randomUUID()}@${domain}>`;
 }
@@ -99,7 +99,11 @@ function newMessageId(address: string) {
  * Message-ID, not the fresh one it just made. The thread's message carries the same id once
  * the mail service stores the sent copy.
  */
-function sendResponse(action: { id: string; payload: Record<string, unknown>; runAfter: Date }) {
+export function sendResponse(action: {
+  id: string;
+  payload: Record<string, unknown>;
+  runAfter: Date;
+}) {
   return {
     actionId: action.id,
     messageIdHeader: (action.payload as SendPayload).messageId ?? null,
@@ -109,7 +113,7 @@ function sendResponse(action: { id: string; payload: Record<string, unknown>; ru
 }
 
 /** The From display name: the agent, and on a shared inbox the team they write for. */
-async function fromName(c: Context<AppEnv>, mailboxKind: "personal" | "shared") {
+export async function fromName(c: Context<AppEnv>, mailboxKind: "personal" | "shared") {
   const identity = await senderIdentity(c.var.db, c.var.member.id);
   if (!identity?.name) return undefined;
   return mailboxKind === "shared" ? `${identity.name} from ${identity.orgName}` : identity.name;
@@ -186,7 +190,7 @@ async function afterAgentReply(c: Context<AppEnv>, threadId: string) {
 }
 
 /** Drops empty optional recipient lists so payloads stay as small as before. */
-function optionalList(name: "cc" | "bcc", list: string[] | undefined) {
+export function optionalList(name: "cc" | "bcc", list: string[] | undefined) {
   return list?.length ? { [name]: list } : {};
 }
 
@@ -194,7 +198,7 @@ function optionalList(name: "cc" | "bcc", list: string[] | undefined) {
  * The thread with the chosen message (or its latest), and where its actions run. Throws
  * `StaleThread` when the composer's `basedOnMessageId` is no longer the latest.
  */
-async function threadMessage(
+export async function threadMessage(
   c: Context<AppEnv>,
   threadId: string,
   body: { messageId?: string; basedOnMessageId?: string },
@@ -215,7 +219,7 @@ async function threadMessage(
  * Runs a reply or forward. A newer message answers 409 with it, unless this is a retry of a send
  * already queued under the same Idempotency-Key: that one answers its send, as any retry does.
  */
-async function sendUnlessStale(
+export async function sendUnlessStale(
   c: Context<AppEnv>,
   key: string,
   send: () => Promise<Parameters<typeof sendResponse>[0]>,
@@ -597,6 +601,22 @@ export const compose = new Hono<AppEnv>()
     if (!result) notFound();
     if (result === "too_late") {
       return c.json({ error: "already sent", requestId: c.var.requestId }, 409);
+    }
+    // A hand-off's send: its shared conversation came back to the team (ADR 0030).
+    if (result.handoff?.changed) {
+      if (result.handoff.queuedActions > 0) pingLater(c);
+      const { mailboxId, id, orgId } = result.handoff.conversation;
+      c.executionCtx.waitUntil(
+        Promise.all([
+          fanOut(c.env, c.var.db, c.var.config, new Map([[mailboxId, new Set([id])]])),
+          notifyMembers(c.env, c.var.db, {
+            orgId,
+            threadId: id,
+            memberIds: result.handoff.notified,
+            kind: "assigned",
+          }),
+        ]),
+      );
     }
     return c.json({ cancelled: true, payload: result.payload });
   })

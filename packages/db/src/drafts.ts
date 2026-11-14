@@ -5,6 +5,7 @@
 import { and, desc, eq, exists, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { memberMailbox } from "./compose.ts";
+import { undoHandoff } from "./handoff.ts";
 import { grantFor } from "./member-mail.ts";
 import {
   drafts,
@@ -29,8 +30,10 @@ export async function undoSendSeconds(db: Db, memberId: string) {
 
 /**
  * Cancels the member's own send if the mail service has not claimed it: deletes the outbox row
- * and frees its uploads for another send. Returns the payload so the composer can be restored,
- * `"too_late"` once it is claimed or done, or null when there is no such send of theirs.
+ * and frees its uploads for another send. A hand-off's send (ADR 0030) also puts its shared
+ * conversation back, in the same transaction (`handoff`: what changed there). Returns the
+ * payload so the composer can be restored, `"too_late"` once it is claimed or done, or null when
+ * there is no such send of theirs.
  */
 export async function cancelSend(db: Db, memberId: string, actionId: string) {
   return db.transaction(async (tx) => {
@@ -74,7 +77,10 @@ export async function cancelSend(db: Db, memberId: string, actionId: string) {
         })
         .where(inArray(uploads.id, uploadIds));
     }
-    return { payload };
+    const handoff = payload.handoffThreadId
+      ? await undoHandoff(tx, { threadId: payload.handoffThreadId, actionId, memberId })
+      : null;
+    return { payload, handoff };
   });
 }
 
