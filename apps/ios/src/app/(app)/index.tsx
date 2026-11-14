@@ -1,23 +1,27 @@
-import { StyleSheet, View } from "react-native";
-import { Button } from "@/components/ui/button.tsx";
+import { router, useLocalSearchParams } from "expo-router";
+import { InboxHeader } from "@/components/inbox/inbox-header.tsx";
+import { ThreadList } from "@/components/inbox/thread-list.tsx";
 import { Screen } from "@/components/ui/screen.tsx";
-import { Text } from "@/components/ui/text.tsx";
-import { signOut, useSession } from "@/lib/session.ts";
-import { space } from "@/theme/tokens.ts";
+import { mailboxName, useMailboxes } from "@/lib/mail.ts";
+import { useSession } from "@/lib/session.ts";
 
-// Placeholder until the inbox lands (next layer): who is signed in, and a way out.
-export default function Home() {
+/** The inbox: every inbox you can open, or the one picked in the mailbox sheet. */
+export default function Inbox() {
+  const { mailbox } = useLocalSearchParams<{ mailbox?: string }>();
   const session = useSession();
+  const mailboxes = useMailboxes();
+  const you = session.data?.user.name || session.data?.user.email || "";
+  const current = mailboxes.data?.find((m) => m.id === mailbox);
   return (
-    <Screen>
-      <View style={styles.body}>
-        <Text size="title" weight="semibold">
-          {session.data?.user.email}
-        </Text>
-        <Button intent="plain" label="Sign out" onPress={() => void signOut()} />
-      </View>
+    <Screen edges={["top"]}>
+      <InboxHeader
+        title={current ? mailboxName(current, you) : "All mailboxes"}
+        you={you}
+        onOpenMailboxes={() =>
+          router.push({ pathname: "/mailboxes", params: mailbox ? { current: mailbox } : {} })
+        }
+      />
+      <ThreadList mailboxId={current?.id} mailboxes={mailboxes.data ?? []} you={you} />
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({ body: { flex: 1, padding: space(6), gap: space(4) } });

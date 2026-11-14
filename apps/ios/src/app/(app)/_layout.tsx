@@ -10,6 +10,16 @@ export default function SignedInLayout() {
   return (
     <Stack
       screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
-    />
+    >
+      <Stack.Screen
+        name="mailboxes"
+        options={{
+          presentation: "formSheet",
+          sheetAllowedDetents: [0.6, 1],
+          sheetGrabberVisible: true,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+    </Stack>
   );
 }

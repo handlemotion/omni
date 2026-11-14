@@ -1,0 +1,32 @@
+import type { ComponentType, ReactNode } from "react";
+import { StyleSheet, View } from "react-native";
+import type { SvgProps } from "react-native-svg";
+import { colors, space } from "@/theme/tokens.ts";
+import { Text } from "./text.tsx";
+
+/** A list with nothing in it: a glyph, a title, and at most one action. No explanation. */
+export function EmptyState(props: {
+  icon: ComponentType<SvgProps & { size?: number }>;
+  title: string;
+  children?: ReactNode;
+}) {
+  const Icon = props.icon;
+  return (
+    <View style={styles.empty}>
+      <Icon size={32} color={colors.subtleForeground} />
+      <Text tone="mutedForeground">{props.title}</Text>
+      {props.children}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  // A little above the true middle, where it looks centred.
+  empty: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space(3),
+    paddingBottom: space(16),
+  },
+});
