@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { IconBubble } from "@/components/icons/sidebar";
+import { MiddleTruncate } from "@/components/ui/middle-truncate";
 import { ShowMore } from "@/components/ui/show-more";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useLeaveOpenThread, useOpenList } from "@/components/inbox/open-list";
@@ -363,12 +364,13 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
         </div>
       )}
       {/* 1px down, like the list's title beside it: the capitals centre on the icons. */}
+      {/* 14px, cut in its middle: a long subject keeps its start and its end. */}
       <Heading
         level={2}
-        className="min-w-0 flex-1 translate-y-px truncate"
+        className="min-w-0 flex-1 translate-y-px text-md"
         title={subject || undefined}
       >
-        {subject || "(no subject)"}
+        <MiddleTruncate text={subject || "(no subject)"} />
       </Heading>
       <div className="flex shrink-0 items-center gap-1">
         <TriageActions thread={thread} />

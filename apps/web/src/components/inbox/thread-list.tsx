@@ -9,6 +9,7 @@ import { ConversationMeta, type ConversationRowInfo } from "@/components/inbox/c
 import { ListSweepSlot } from "@/components/inbox/list-sweep";
 import { OpenListContext } from "@/components/inbox/open-list";
 import { EmptyState } from "@/components/empty/empty-state";
+import { FloatingCompose } from "@/components/compose/floating-actions";
 import { useQueryClient } from "@tanstack/react-query";
 import { IconArrowRotateClockwise, IconMailOpen, IconPencil } from "@/components/icons/central";
 import { keys } from "@/lib/query-keys.ts";
@@ -269,9 +270,12 @@ export function List(
               )}
               <MarkAllRead rows={threads} />
               <ReloadAction />
-              <HeaderAction label="Compose" shortcut="compose" onPress={openCompose}>
-                <IconPencil />
-              </HeaderAction>
+              {/* With no thread open, Compose floats at the list's foot instead. */}
+              {detail && (
+                <HeaderAction label="Compose" shortcut="compose" onPress={openCompose}>
+                  <IconPencil />
+                </HeaderAction>
+              )}
             </div>
           </header>
 
@@ -310,6 +314,10 @@ export function List(
           {/* A helpdesk list's actions on its checked rows float at the column's foot, 16px up and
               centred, framed like the reader's properties bar. 12px before the count, where the
               buttons' labels sit from the other edge. */}
+          {/* New mail, where Reply floats once a thread opens; gone while the bulk bar is up. */}
+          {!detail && !(count > 0 && props.bulkActions) && (
+            <FloatingCompose onPress={openCompose} />
+          )}
           {count > 0 && props.bulkActions && (
             <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-5">
               <div className="pointer-events-auto max-w-full overflow-x-auto rounded-lg border bg-background p-0.5 ps-3">

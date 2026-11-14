@@ -106,6 +106,9 @@
   --text-xs--line-height: 13px;
   --text-sm: 13px;
   --text-sm--line-height: 16px;
+  /* The open conversation's subject in the reader's top bar. */
+  --text-md: 14px;
+  --text-md--line-height: 18px;
   --text-lg: 17px;
   --text-lg--line-height: 21px;
 

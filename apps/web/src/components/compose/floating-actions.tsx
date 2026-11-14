@@ -1,7 +1,7 @@
-// Reply and Forward, floating at the reading column's bottom right over an open personal thread.
-// New mail is the list header's pen and the sidebar's Compose.
+// Reply and Forward, floating at the reading column's bottom right over an open thread; Compose,
+// at the list's bottom right while no thread is open (with one open, the list header's pen).
 import type { ReactNode } from "react";
-import { IconForward, IconReply } from "@/components/icons/central";
+import { IconForward, IconPencil, IconReply } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import type { Thread } from "@/lib/types.ts";
 import { useComposerState } from "./composer-state.tsx";
@@ -39,6 +39,18 @@ export function FloatingReply({ thread }: { thread: Thread }) {
         Reply
       </Button>
     </Floating>
+  );
+}
+
+/** New mail, at the list's bottom right, where Reply sits once a thread opens. */
+export function FloatingCompose({ onPress }: { onPress: () => void }) {
+  return (
+    <div className="pointer-events-none absolute end-5 bottom-5 z-20 flex *:pointer-events-auto">
+      <Button intent="primary" size="md" className={FLOAT} onPress={onPress}>
+        <IconPencil />
+        Compose
+      </Button>
+    </div>
   );
 }
 
