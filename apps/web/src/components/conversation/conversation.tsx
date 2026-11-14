@@ -7,6 +7,7 @@ import {
   IconCircle,
   IconCircleCheck,
   IconClock3,
+  IconClockSnooze,
   IconInbox,
   IconMail,
   IconMailOpen,
@@ -352,7 +353,14 @@ function Actions({ thread, shared }: { thread: Thread; shared: boolean }) {
         </div>
       )}
       <div className="absolute inset-y-0 end-1.5 flex items-center gap-1 pb-0.5">
-        {shared ? <HelpdeskActions threadId={thread.id} /> : <MailActions thread={thread} />}
+        {shared ? (
+          <>
+            <HelpdeskActions threadId={thread.id} />
+            <TriageActions thread={thread} />
+          </>
+        ) : (
+          <MailActions thread={thread} />
+        )}
         <Action
           label={thread.read ? "Mark unread" : "Mark read"}
           onPress={() => markRead.mutate({ threadId: thread.id, read: !thread.read })}
@@ -390,8 +398,9 @@ function HelpdeskActions({ threadId }: { threadId: string }) {
       </Action>
       <MenuTrigger>
         <TooltipTrigger delay={400}>
+          {/* The team's snooze, apart from your own Later (a plain clock) beside it. */}
           <Button intent="ghost" size="sq-sm-lg" aria-label="Snooze">
-            <IconClock3 />
+            <IconClockSnooze />
           </Button>
           <Tooltip>Snooze</Tooltip>
         </TooltipTrigger>
@@ -402,7 +411,7 @@ function HelpdeskActions({ threadId }: { threadId: string }) {
               textValue={label}
               onAction={() => snooze.mutate({ threadId, until: until() })}
             >
-              <IconClock3 data-slot="icon" />
+              <IconClockSnooze data-slot="icon" />
               <MenuLabel>{label}</MenuLabel>
             </MenuItem>
           ))}
@@ -412,18 +421,30 @@ function HelpdeskActions({ threadId }: { threadId: string }) {
   );
 }
 
-/** A personal thread's own actions (ADR 0007, ADR 0027): archive, done, later. */
+/** A personal thread's own actions (ADR 0007, ADR 0027): archive, then done and later. */
 function MailActions({ thread }: { thread: Thread }) {
-  const threadId = thread.id;
   const archive = useArchive();
+  return (
+    <>
+      <Action label="Archive" onPress={() => archive.mutate({ threadId: thread.id })}>
+        <IconArchive />
+      </Action>
+      <TriageActions thread={thread} />
+    </>
+  );
+}
+
+/**
+ * Done and Later, which act for you alone, on a personal thread and on a shared conversation
+ * alike (ADR 0031): on a shared inbox they leave the team's status as it is.
+ */
+function TriageActions({ thread }: { thread: Thread }) {
+  const threadId = thread.id;
   const moveToLater = useMoveToLater();
   const markDone = useMarkDone();
   const markUndone = useMarkUndone();
   return (
     <>
-      <Action label="Archive" onPress={() => archive.mutate({ threadId })}>
-        <IconArchive />
-      </Action>
       <Action
         label={thread.done ? "Not done" : "Done"}
         onPress={() =>

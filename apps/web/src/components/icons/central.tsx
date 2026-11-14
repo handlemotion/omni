@@ -15,6 +15,7 @@ export { IconCircleCheck } from "central-icons-outlined/IconCircleCheck";
 export { IconQuestionmarkCircle as IconCircleHelp } from "central-icons-outlined/IconQuestionmarkCircle";
 export { IconCircleX } from "central-icons-outlined/IconCircleX";
 export { IconClock3OClock as IconClock3 } from "central-icons-outlined/IconClock3OClock";
+export { IconClockSnooze } from "central-icons-outlined/IconClockSnooze";
 export { IconSquareBehindSquare1 as IconCopy } from "central-icons-outlined/IconSquareBehindSquare1";
 export { IconCreditCard1 as IconCreditCard } from "central-icons-outlined/IconCreditCard1";
 export { IconDotGrid1x3Horizontal as IconEllipsis } from "central-icons-outlined/IconDotGrid1x3Horizontal";

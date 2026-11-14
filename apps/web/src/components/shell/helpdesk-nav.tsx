@@ -1,7 +1,8 @@
-// A shared inbox's helpdesk views (ADR 0021). The sidebar shows only the one mail's own rows
-// don't already cover, Mine, in the same group as Inbox and Later, for the shared inbox the
-// mailbox switcher shows. Unassigned mail is everyone's, so it's the Inbox; Open, Pending,
-// Snoozed and Resolved are Inbox, Awaiting reply, Later and All mail.
+// A shared inbox's helpdesk views (ADR 0021). The sidebar shows the ones mail's own rows don't
+// already cover, Mine and Open, in the same group as Inbox and Later, for the shared inbox the
+// mailbox switcher shows. The Inbox holds only what concerns you (open, and nobody's or yours:
+// ADR 0031), so Open is the team's whole queue; Pending, Snoozed and Resolved are Awaiting reply,
+// Later and All mail.
 import { useLocation, useSearch } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { IconCircleCheck, IconUserCog } from "@/components/icons/central";
@@ -32,15 +33,15 @@ export const VIEW_NAV: { view: NavView; label: string; icon: ReactNode }[] = [
 export const viewLabel = (view: HelpdeskView) =>
   VIEW_NAV.find((v) => v.view === view)?.label ?? "All conversations";
 
-/** The shared inbox's Mine row, with its count. */
+/** The shared inbox's Mine and Open rows, with their counts. */
 export function HelpdeskItems(props: { mailboxId: string }) {
   const counts = useConversationCounts().data?.find((c) => c.mailboxId === props.mailboxId);
   const { pathname } = useLocation();
   const search = useSearch({ strict: false }) as { mailbox?: string; view?: string; tag?: string };
   const here = pathname.startsWith("/inbox") && search.mailbox === props.mailboxId && !search.tag;
   return VIEW_NAV.flatMap(({ view, label, icon }) => {
-    // The only view mail's own rows don't already cover.
-    if (view !== "mine") return [];
+    // The views mail's own rows don't already cover.
+    if (view !== "mine" && view !== "open") return [];
     const count = counts?.views[view] ?? 0;
     return (
       <SidebarItem
