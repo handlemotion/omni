@@ -189,7 +189,9 @@ function isSingleEmail(
 // The reader's layout, shared by the conversation and its skeleton so the two line up.
 const SECTION = "flex min-w-0 flex-1 flex-col";
 const SCROLLER = "flex min-h-0 flex-1 flex-col";
-const COLUMN = "mx-auto flex w-full max-w-3xl grow flex-col gap-6 px-5 pt-6 pb-6";
+// 40px under the last message: more than the 24px between messages, so the newest one doesn't
+// sit on the composer when scrolled to the end.
+const COLUMN = "mx-auto flex w-full max-w-3xl grow flex-col gap-6 px-5 pt-6 pb-10";
 // A single email: the column without its width cap, under its title row.
 const PAGE = "flex w-full grow flex-col gap-6 px-5 pt-5 pb-6";
 

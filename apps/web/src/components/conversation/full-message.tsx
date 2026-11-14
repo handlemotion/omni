@@ -46,8 +46,6 @@ export function FullMessage(props: {
   const [height, setHeight] = useState<number>();
   const images = useRef(props.images);
   images.current = props.images;
-  const flat = useRef(props.flat);
-  flat.current = props.flat;
 
   // Asked for after the frame loaded: swap them in now. Before then, `onLoad` does it.
   useEffect(() => {
@@ -70,7 +68,7 @@ export function FullMessage(props: {
     };
     const onLoad = () => {
       if (images.current) loadRemoteImages(frame);
-      if (flat.current) dropDefaultMargin(frame);
+      dropDefaultMargin(frame);
       refits = 0;
       fit();
       // Images and web fonts land after `load` for lazy content: refit as the body resizes.
@@ -97,8 +95,8 @@ export function FullMessage(props: {
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       // Mail that never loads still leaves room to see it is coming.
       style={{ height: height ?? 160 }}
-      // Rounded like a card on the page; inside a card, a step smaller than the card's corner.
-      className={`block w-full bg-background ${props.flat ? "rounded-xl" : "rounded-lg"}`}
+      // Rounded like a card on the page; inside a card, the card's own corners clip it.
+      className={`block w-full bg-background ${props.flat ? "rounded-xl" : ""}`}
     />
   );
 }

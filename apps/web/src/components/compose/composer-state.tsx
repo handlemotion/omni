@@ -1,7 +1,8 @@
 // Which composer the open conversation shows, shared by the timeline (each message's menu, a
 // selection's reply box) and the composer under it. Hidden is the team's side of a shared inbox:
 // internal notes, written like a chat. Public is the email the customer gets: a reply or a
-// forward. On a personal thread the email composer stays closed until Reply or Forward opens it.
+// forward. On a personal thread the email composer stays closed until Reply or Forward opens it;
+// on a shared inbox it starts open. Discard closes it on both.
 import { createContext, useContext, useState, type ReactNode } from "react";
 import type { Reply } from "@/lib/reply.ts";
 
@@ -25,12 +26,12 @@ interface ComposerState {
   forwardId: string | undefined;
   forward: (messageId: string) => void;
   stopForward: () => void;
-  /** Whether the email composer shows. Always on a shared inbox, where it is also the chat. */
+  /** Whether the composer shows: open from the start on a shared inbox, until a discard. */
   open: boolean;
   replyKind: ReplyKind;
   /** Opens the email composer as a reply (to the sender, or to all). */
   openReply: (kind: ReplyKind) => void;
-  /** Closes it after a discard (a shared inbox starts a fresh one in its place). */
+  /** Closes it after a discard, until Reply, Forward or a hidden reply opens it again. */
   close: () => void;
   /** Changes on every close, so the next composer starts empty. */
   generation: number;
@@ -44,7 +45,8 @@ export function ComposerProvider({ chat, children }: { chat: boolean; children: 
   const [reply, setReply] = useState<Reply>();
   const [seed, setSeed] = useState<{ text: string }>();
   const [forwardId, setForwardId] = useState<string>();
-  const [opened, setOpened] = useState(false);
+  // A shared inbox's composer (also its chat) starts open; a personal thread's waits for Reply.
+  const [opened, setOpened] = useState(chat);
   // A shared inbox writes to everyone outside the team by default, as it always did.
   const [replyKind, setReplyKind] = useState<ReplyKind>(chat ? "replyAll" : "reply");
   const [generation, setGeneration] = useState(0);
@@ -60,6 +62,7 @@ export function ComposerProvider({ chat, children }: { chat: boolean; children: 
       // A new object each time, so the same words handed over twice still arrive.
       if (draft) setSeed({ text: draft });
       setMode("hidden");
+      setOpened(true);
     },
     clearReply: () => setReply(undefined),
     forwardId,
@@ -69,7 +72,7 @@ export function ComposerProvider({ chat, children }: { chat: boolean; children: 
       setOpened(true);
     },
     stopForward: () => setForwardId(undefined),
-    open: chat || opened,
+    open: opened,
     replyKind,
     openReply: (kind) => {
       setReplyKind(kind);

@@ -52,8 +52,13 @@ export function MessageMenu(props: {
             <MenuLabel>Hidden reply</MenuLabel>
           </MenuItem>
         )}
-        {!composer.chat && (
-          <MenuItem textValue="Reply" onAction={() => composer.openReply("reply")}>
+        {/* Email reply: always on a personal thread; on a shared inbox, from a mail message,
+            which also reopens a composer a discard closed. To everyone there, as it defaults. */}
+        {(!composer.chat || messageId) && (
+          <MenuItem
+            textValue="Reply"
+            onAction={() => composer.openReply(composer.chat ? "replyAll" : "reply")}
+          >
             <IconReply data-slot="icon" />
             <MenuLabel>Reply</MenuLabel>
           </MenuItem>

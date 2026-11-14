@@ -123,7 +123,9 @@ export function MessageItem(props: {
       {card ? (
         <div
           {...{ [REPLY_SOURCE]: sender }}
-          className={`flex w-full flex-col gap-3 bg-background ${props.flat ? "" : "rounded-xl border p-4 shadow-(--shadow-raised)"}`}
+          // The sender's layout fills its card edge to edge, clipped to the card's corners; text
+          // keeps the card's 16px padding.
+          className={`flex w-full flex-col gap-3 bg-background ${props.flat ? "" : `rounded-xl border shadow-(--shadow-raised) ${full ? "overflow-hidden" : "p-4"}`}`}
         >
           {!full && <Body loose text={message.cleanText} />}
           {full && (
