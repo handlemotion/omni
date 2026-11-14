@@ -13,10 +13,13 @@ const FLOAT = "shadow-(--shadow-overlay)";
  * Reply and Forward for the open thread, at the reading pane's bottom right. Gone while a
  * composer is docked there (an email, or a shared conversation's hidden notes).
  */
-export function FloatingReply({ thread }: { thread: Thread }) {
+export function FloatingReply({ thread, messageId }: { thread: Thread; messageId?: string }) {
   const composer = useComposerState();
-  const latest = thread.messages.at(-1);
-  if (!latest || composer.open) return null;
+  // The email on screen, in the email view; the latest otherwise.
+  const latest = thread.messages.find((m) => m.id === messageId) ?? thread.messages.at(-1);
+  // Back once no composer shows: also after a send from the email view, whose notes stay away.
+  const composing = composer.chatOpen || (composer.email && composer.mode === "public");
+  if (!latest || composing) return null;
   return (
     <Floating>
       <Button
@@ -33,7 +36,7 @@ export function FloatingReply({ thread }: { thread: Thread }) {
         size="md"
         className={FLOAT}
         // A shared inbox answers everyone outside the team, as a message's own Reply does.
-        onPress={() => composer.openReply(composer.chat ? "replyAll" : "reply")}
+        onPress={() => composer.openReply(composer.chat ? "replyAll" : "reply", messageId)}
       >
         <IconReply />
         Reply

@@ -13,7 +13,6 @@ import {
 } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
-import { IconBubble } from "@/components/icons/sidebar";
 import { MiddleTruncate } from "@/components/ui/middle-truncate";
 import { ShowMore } from "@/components/ui/show-more";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
@@ -30,11 +29,13 @@ import {
   useMoveToLater,
 } from "@/hooks/use-mail-actions.ts";
 import type { Conversation as HelpdeskState, Message, Thread } from "@/lib/types.ts";
+import { ChatDock } from "../compose/chat-composer.tsx";
 import { ReplyComposer } from "../compose/composer.tsx";
 import { ComposerProvider, useComposerState } from "../compose/composer-state.tsx";
 import { FloatingReply } from "../compose/floating-actions.tsx";
 import { SelectionReply } from "../compose/selection-reply.tsx";
 import { EventLine, NoteItem, useEventLines } from "./activity.tsx";
+import { FloatingPager, useReaderView, ViewToggle, type ReaderView } from "./email-view.tsx";
 import { AddedLine, MessageItem, PendingItem, scrollToMessage } from "./message.tsx";
 import { Properties } from "./properties.tsx";
 import { ThreadSwitcher } from "./thread-switcher.tsx";
@@ -69,10 +70,10 @@ export function Conversation({ threadId }: { threadId: string }) {
   );
   const [fullScreen] = useFullScreen();
   const scroller = useRef<HTMLDivElement>(null);
-  // A shared email the team started talking about reads as a conversation, as a reply makes it.
-  const [started, setStarted] = useState<string>();
-  const single =
-    isSingleEmail(thread, pending.length, shared ? helpdesk : undefined) && started !== threadId;
+  // A single email reads as an email, anything more as a conversation, until the rail's toggle
+  // (or starting a chat) picks one for this thread.
+  const reader = useReaderView(threadId, thread, isSingleEmail(thread, pending.length, helpdesk));
+  const single = reader.view === "email";
   // Whether the reader sat at the bottom before this render: new mail follows them only then.
   const atBottom = useRef(true);
 
@@ -80,11 +81,12 @@ export function Conversation({ threadId }: { threadId: string }) {
   // email is a page, read from its top.
   const toEnd = () =>
     scroller.current?.scrollTo({ top: single ? 0 : scroller.current.scrollHeight });
-  // A conversation opens at its newest message, like a chat.
+  // A conversation opens at its newest message, like a chat; each email from its top.
   useLayoutEffect(() => {
     atBottom.current = true;
     toEnd();
-  }, [threadId]);
+    // Paging is the email view's alone: in the conversation, new mail keeps the guard below.
+  }, [threadId, reader.view, single ? reader.email?.id : undefined]);
   // A new message or reply keeps the newest in view, unless they scrolled up to read.
   useLayoutEffect(() => {
     if (atBottom.current) toEnd();
@@ -112,10 +114,10 @@ export function Conversation({ threadId }: { threadId: string }) {
         key={threadId}
         chat={shared}
         chatOpen={!single}
-        onStartChat={() => setStarted(threadId)}
+        onStartChat={() => reader.setView("conversation")}
       >
         {/* A shared conversation's status, owner, priority and tags, under the title. */}
-        {shared && <PropertiesRow thread={thread} />}
+        {shared && <PropertiesRow thread={thread} view={reader.view} onView={reader.setView} />}
         <SelectionReply threadId={threadId} />
         <div
           ref={scroller}
@@ -131,20 +133,18 @@ export function Conversation({ threadId }: { threadId: string }) {
               threadId={threadId}
               mailboxId={thread.mailboxId}
               mailboxAddress={thread.mailboxAddress}
-              messages={thread.messages}
-              helpdesk={shared ? helpdesk : undefined}
+              // The email view: the one email paged to, without the team's notes and activity.
+              messages={reader.shown}
+              helpdesk={shared && !single ? helpdesk : undefined}
               flat={single}
             />
             {pending.map((send) => (
               <PendingItem key={send.key} send={send} />
             ))}
+            {/* An email being written: the thread's next message, after the ones on their way. */}
+            {!single && <ReplyComposer thread={thread} />}
           </div>
-          {/* The pane's bottom edge, full width; the messages scroll above it. */}
-          <div className="sticky bottom-0 w-full shrink-0 bg-background">
-            {/* Reply and Forward float here until a composer docks in their place. */}
-            <FloatingReply thread={thread} />
-            <ReplyComposer thread={thread} />
-          </div>
+          <Foot thread={thread} reader={single ? reader : undefined} />
         </div>
       </ComposerProvider>
     </section>
@@ -153,21 +153,50 @@ export function Conversation({ threadId }: { threadId: string }) {
 
 /**
  * A shared conversation's status, owner, priority and tags, in a row of its own under the top
- * bar; on a single email, ending with Start conversation, which opens the team's hidden notes.
+ * bar, ending with the toggle between the conversation and its emails.
  */
-function PropertiesRow({ thread }: { thread: Thread }) {
+function PropertiesRow(props: {
+  thread: Thread;
+  view: ReaderView;
+  onView: (view: ReaderView) => void;
+}) {
   const composer = useComposerState();
   return (
     // 52px, as tall as a list row.
     <div className="flex h-13 shrink-0 items-center border-s border-b px-3">
-      <Properties thread={thread}>
-        {!composer.open && (
-          <Button intent="ghost" size="sm" onPress={composer.startChat}>
-            <IconBubble />
-            Start conversation
-          </Button>
-        )}
+      <Properties thread={props.thread}>
+        <ViewToggle
+          view={props.view}
+          // Into the conversation the team's chat opens, as Start conversation did.
+          onChange={(view) => (view === "conversation" ? composer.startChat() : props.onView(view))}
+        />
       </Properties>
+    </div>
+  );
+}
+
+/**
+ * The pane's bottom edge, full width; the messages scroll above it. Reply and Forward float over
+ * it until a composer opens; across from them, the email view's chevrons. On a shared
+ * conversation, the hidden notes' composer floats here too.
+ */
+function Foot({
+  thread,
+  reader,
+}: {
+  thread: Thread;
+  /** The email view's place in the thread; unset in the conversation view. */
+  reader: { index: number; email: Message | undefined; move: (step: number) => void } | undefined;
+}) {
+  return (
+    <div className="sticky bottom-0 w-full shrink-0">
+      {reader && (
+        <FloatingPager index={reader.index} count={thread.messages.length} onMove={reader.move} />
+      )}
+      <FloatingReply thread={thread} messageId={reader?.email?.id} />
+      {/* The email view's email composer floats here, as the notes' does in the conversation. */}
+      {reader && <ReplyComposer thread={thread} docked />}
+      <ChatDock thread={thread} />
     </div>
   );
 }
@@ -179,6 +208,7 @@ function PropertiesRow({ thread }: { thread: Thread }) {
 function isSingleEmail(
   thread: Thread | undefined,
   pending: number,
+  /** Unset on a personal thread, which has none. */
   helpdesk: HelpdeskState | undefined,
 ) {
   return thread?.messages.length === 1 && !pending && !helpdesk?.notes.length;

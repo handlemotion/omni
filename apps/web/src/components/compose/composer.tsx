@@ -4,7 +4,7 @@
 // send, and the undo-send toast. No Figma frame exists yet; this is a proposal built from the
 // primitives.
 import type { NewMessageDraft } from "@/hooks/use-compose-pane.ts";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { DropZone } from "react-aria-components/DropZone";
 import {
   IconChevronDown,
@@ -38,7 +38,6 @@ import {
 import type { Message, Thread } from "@/lib/types.ts";
 import { CannedPicker } from "./canned-picker.tsx";
 import { AttachButton, ComposerFiles } from "./composer-files.tsx";
-import { ChatComposer } from "./chat-composer.tsx";
 import { useComposerState, type ReplyKind } from "./composer-state.tsx";
 import { RecipientField } from "./recipient-field.tsx";
 import { Toolbar } from "./toolbar.tsx";
@@ -147,41 +146,51 @@ function recipientsFor(kind: ReplyKind, thread: Thread, source: Message | undefi
 }
 
 /**
- * The composer pinned under the open conversation. On a shared inbox a switch among its tools
- * picks who will see what you write: Public is an email to the customer (or a
- * forward, picked from a message's menu), Hidden is an internal note only the team sees. A
- * personal thread is always Public, and shows the composer only once Reply or Forward opens it. Replies go from the inbox's address with your name; they
+ * The email being written (a reply, or a forward picked from a message's menu), as the thread's
+ * next message: a card at the end of the timeline, once Reply or Forward opens it. A shared
+ * inbox's hidden notes have their own composer floating at the pane's bottom (`ChatDock`). Replies go from the inbox's address with your name; they
  * show in the thread at once and can be undone while they wait in the outbox. From one of your own
  * mailboxes instead, a reply hands the conversation off to you (ADR 0030).
  */
-export function ReplyComposer({ thread }: { thread: Thread }) {
+export function ReplyComposer({ thread, docked = false }: { thread: Thread; docked?: boolean }) {
   const state = useComposerState();
-  const hidden = state.mode === "hidden";
-  if (!state.open) return null;
+  const showing = state.email && state.mode === "public";
+  const box = useRef<HTMLDivElement>(null);
+  const key = `${thread.id}:${state.forwardId ? `forward:${state.forwardId}` : `reply:${state.replyToId ?? ""}`}:${state.generation}`;
+  // In the thread, the email being written is its next message: brought into view where it opens.
+  useLayoutEffect(() => {
+    if (showing && !docked) box.current?.scrollIntoView({ block: "nearest" });
+  }, [showing, docked, key]);
+  // Kept mounted while Hidden shows after a send, so its undo can hand the text back.
+  if (!state.email) return null;
   return (
-    // The pane's bottom edge, full width: one composer whose mode switches in place. A hidden
-    // note's edge is dashed, like the notes it adds.
+    // Docked (the email view): floating 16px off the pane's bottom over a fade, like the notes.
+    // In the conversation: your next message, under your name like the ones you sent.
     <div
-      className={`flex flex-col border-t ${hidden ? "border-dashed border-muted-foreground/60" : ""}`}
+      ref={box}
+      hidden={!showing}
+      className={docked ? "relative px-5 pb-4" : "flex flex-col items-end gap-3"}
     >
-      {/* Kept mounted while Public shows, so a half-written note waits there. */}
-      {state.chat && (
-        <div hidden={!hidden}>
-          <ChatComposer key={thread.id} thread={thread} active={hidden} />
-        </div>
+      {!docked && (
+        <header className="flex items-center gap-2">
+          <span className="text-sm">You</span>
+        </header>
       )}
-      {/* Kept mounted while Hidden shows after a send, so its undo can hand the text back. */}
-      {state.email && (
-        <div hidden={hidden}>
-          {/* A fresh composer per reply or forwarded message: its own recipients, body and draft. */}
-          <ModeComposer
-            key={`${thread.id}:${state.forwardId ? `forward:${state.forwardId}` : `reply:${state.replyToId ?? ""}`}:${state.generation}`}
-            thread={thread}
-            mode={state.forwardId ? "forward" : "reply"}
-            sourceId={state.forwardId ?? state.replyToId}
-          />
-        </div>
+      {docked && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 bg-linear-to-b from-transparent to-background to-[2.5rem]"
+        />
       )}
+      {/* A fresh composer per reply or forwarded message: its own recipients, body and draft. */}
+      <div className="relative w-full">
+        <ModeComposer
+          key={key}
+          thread={thread}
+          mode={state.forwardId ? "forward" : "reply"}
+          sourceId={state.forwardId ?? state.replyToId}
+        />
+      </div>
     </div>
   );
 }
@@ -474,7 +483,7 @@ function ModeComposer(props: {
   };
 
   return (
-    <ComposerFrame flat onFiles={files.add}>
+    <ComposerFrame onFiles={files.add}>
       <FromRow
         mailboxes={mode === "reply" ? fromOptions : fromOptions.slice(0, 1)}
         value={handingOff ? fromId : thread.mailboxId}

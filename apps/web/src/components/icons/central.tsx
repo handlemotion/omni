@@ -10,6 +10,7 @@ export { IconArrowUpRight } from "central-icons-outlined/IconArrowUpRight";
 export { IconCheckmark1 as IconCheck } from "central-icons-outlined/IconCheckmark1";
 export { IconChevronDownMedium as IconChevronDown } from "central-icons-outlined/IconChevronDownMedium";
 export { IconChevronRightMedium as IconChevronRight } from "central-icons-outlined/IconChevronRightMedium";
+export { IconChevronTopMedium as IconChevronUp } from "central-icons-outlined/IconChevronTopMedium";
 export { IconChevronGrabberVertical as IconChevronsUpDown } from "central-icons-outlined/IconChevronGrabberVertical";
 export { IconExclamationCircle as IconCircleAlert } from "central-icons-outlined/IconExclamationCircle";
 export { IconCircleCheck } from "central-icons-outlined/IconCircleCheck";

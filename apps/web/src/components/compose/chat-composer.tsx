@@ -56,6 +56,29 @@ function useWraps(ref: RefObject<HTMLTextAreaElement | null>, text: string) {
   return wraps;
 }
 
+/**
+ * A shared conversation's hidden notes, floating 16px off the pane's bottom in the messages'
+ * column; they scroll behind it and fade out as they reach it. Gone while an email is written.
+ */
+export function ChatDock({ thread }: { thread: Thread }) {
+  const { chat, chatOpen, mode } = useComposerState();
+  const active = chatOpen && mode === "hidden";
+  if (!chat) return null;
+  return (
+    // Kept mounted while an email is written or the email view shows, so a half-written note
+    // waits here.
+    <div hidden={!active} className="relative mx-auto w-full max-w-3xl px-5 pb-4">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 bg-linear-to-b from-transparent to-background to-[2.5rem]"
+      />
+      <div className="relative">
+        <ChatComposer key={thread.id} thread={thread} active={active} />
+      </div>
+    </div>
+  );
+}
+
 export function ChatComposer({ thread, active }: { thread: Thread; active: boolean }) {
   const { reply, seed, clearReply, replyInChat } = useComposerState();
   const { data: assignees = [] } = useAssignees(thread.mailboxId);
@@ -158,8 +181,11 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
 
   return (
     <div className="flex flex-col">
-      {/* No edge of its own: the docked composer's dashed top edge marks a hidden note. */}
-      <div ref={box} className="relative flex flex-col">
+      {/* 15px corners as in dorks. Dotted with no fill, like the hidden notes it adds. */}
+      <div
+        ref={box}
+        className="relative flex flex-col rounded-[15px] border border-dashed border-muted-foreground/40 focus-within:border-ring/70"
+      >
         {reply && (
           // The banner sits 8px inside the box (the buttons' inset), concentric with its corners.
           <div className="px-2 pt-2">

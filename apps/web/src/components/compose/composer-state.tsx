@@ -43,6 +43,8 @@ interface ComposerState {
    * is a conversation (replied to, or started with `startChat`).
    */
   open: boolean;
+  /** A shared inbox's conversation is under way: its hidden composer floats at the bottom. */
+  chatOpen: boolean;
   /** Opens a shared inbox's hidden notes on a single email, so the team can talk first. */
   startChat: () => void;
   /** Whether the email composer is mounted: from Reply or Forward until a discard. */
@@ -126,6 +128,7 @@ export function ComposerProvider({
     },
     stopForward: () => setForwardId(undefined),
     open: (chat && chatOpen) || email,
+    chatOpen: chat && chatOpen,
     startChat: () => {
       onStartChat();
       setMode("hidden");
