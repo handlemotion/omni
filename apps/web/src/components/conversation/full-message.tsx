@@ -4,15 +4,35 @@ import { messageHtmlUrl } from "@/lib/urls.ts";
 /** Enough fits for images and fonts arriving late; few enough to stop a viewport-unit loop. */
 const MAX_REFITS = 12;
 
+/** Where the mail service parks a blocked remote image's proxied URL (`BLOCKED_SRC_ATTR`). */
+const BLOCKED_SRC = "data-omni-src";
+
+/** Puts each blocked remote image's proxied URL back in `src`, so it loads. */
+function loadRemoteImages(frame: HTMLIFrameElement | null) {
+  for (const img of frame?.contentDocument?.querySelectorAll(`img[${BLOCKED_SRC}]`) ?? []) {
+    img.setAttribute("src", img.getAttribute(BLOCKED_SRC) ?? "");
+    img.removeAttribute(BLOCKED_SRC);
+  }
+}
+
 /**
  * A message's sanitized HTML, as the sender laid it out. Sandboxed with scripts off; same-origin
  * so its images can send the session cookie (see `messageHtmlUrl`), which also lets this page
- * read the document's height. The frame grows to fit its content, so the conversation scrolls as
- * one page instead of a box inside a box.
+ * read the document's height and swap in remote images when the reader asks (`images`). The
+ * frame grows to fit its content, so the conversation scrolls as one page instead of a box
+ * inside a box.
  */
-export function FullMessage({ threadId, messageId }: { threadId: string; messageId: string }) {
+export function FullMessage(props: { threadId: string; messageId: string; images?: boolean }) {
+  const { threadId, messageId } = props;
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState<number>();
+  const images = useRef(props.images);
+  images.current = props.images;
+
+  // Asked for after the frame loaded: swap them in now. Before then, `onLoad` does it.
+  useEffect(() => {
+    if (props.images) loadRemoteImages(ref.current);
+  }, [props.images]);
 
   useEffect(() => {
     const frame = ref.current;
@@ -29,6 +49,7 @@ export function FullMessage({ threadId, messageId }: { threadId: string; message
       setHeight(doc.documentElement.scrollHeight);
     };
     const onLoad = () => {
+      if (images.current) loadRemoteImages(frame);
       refits = 0;
       fit();
       // Images and web fonts land after `load` for lazy content: refit as the body resizes.

@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
-import { IconMail, IconNote } from "@/components/icons/central";
+import { IconImage, IconMail, IconNote } from "@/components/icons/central";
 import { MenuItem, MenuLabel } from "@/components/ui/menu";
 import type { PendingSend } from "@/lib/pending.ts";
 import type { Message } from "@/lib/types.ts";
@@ -60,20 +60,19 @@ export function MessageItem(props: {
 }) {
   const { threadId, message } = props;
   const [full, setFull] = useState(opensFull(message));
+  // Remote images stay blocked (spec: tracking pixels) until the reader loads them.
+  const [images, setImages] = useState(false);
   const sender = personName({ name: message.fromName, address: message.fromAddress });
   const card = message.display === "card" || full || !!props.flat;
   // Right-hand side: anything this inbox sent. Blue only for the reader's own replies.
   const ours = message.fromTeam && !card;
 
-  // In the ⋯ menu: the sender's layout, or the text Omni drew from it.
   const toggle = message.hasHtml && (
-    <MenuItem
-      textValue={full ? "Show text" : "Show full message"}
-      onAction={() => setFull((open) => !open)}
-    >
-      {full ? <IconNote data-slot="icon" /> : <IconMail data-slot="icon" />}
-      <MenuLabel>{full ? "Show text" : "Show full message"}</MenuLabel>
-    </MenuItem>
+    <HtmlMenuItems
+      full={full}
+      onToggle={() => setFull((open) => !open)}
+      onLoadImages={full && !images && message.remoteImageCount > 0 ? () => setImages(true) : null}
+    />
   );
 
   const menu = (
@@ -105,7 +104,7 @@ export function MessageItem(props: {
           className={`flex w-full flex-col gap-3 bg-background ${props.flat ? "" : "rounded-xl border p-4 shadow-(--shadow-raised)"}`}
         >
           {!full && <Body loose text={message.cleanText} />}
-          {full && <FullMessage threadId={threadId} messageId={message.id} />}
+          {full && <FullMessage threadId={threadId} messageId={message.id} images={images} />}
         </div>
       ) : (
         <>
@@ -128,6 +127,30 @@ export function MessageItem(props: {
         align={ours ? "end" : "start"}
       />
     </article>
+  );
+}
+
+/** In the ⋯ menu: the sender's layout or the text Omni drew from it, and its remote images. */
+function HtmlMenuItems(props: {
+  full: boolean;
+  onToggle: () => void;
+  /** Set while the full message shows and has remote images still blocked. */
+  onLoadImages: (() => void) | null;
+}) {
+  const label = props.full ? "Show text" : "Show full message";
+  return (
+    <>
+      <MenuItem textValue={label} onAction={props.onToggle}>
+        {props.full ? <IconNote data-slot="icon" /> : <IconMail data-slot="icon" />}
+        <MenuLabel>{label}</MenuLabel>
+      </MenuItem>
+      {props.onLoadImages && (
+        <MenuItem textValue="Load images" onAction={props.onLoadImages}>
+          <IconImage data-slot="icon" />
+          <MenuLabel>Load images</MenuLabel>
+        </MenuItem>
+      )}
+    </>
   );
 }
 

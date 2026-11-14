@@ -19,6 +19,7 @@ export { IconSquareBehindSquare1 as IconCopy } from "central-icons-outlined/Icon
 export { IconCreditCard1 as IconCreditCard } from "central-icons-outlined/IconCreditCard1";
 export { IconDotGrid1x3Horizontal as IconEllipsis } from "central-icons-outlined/IconDotGrid1x3Horizontal";
 export { IconGlobe } from "central-icons-outlined/IconGlobe";
+export { IconImages1 as IconImage } from "central-icons-outlined/IconImages1";
 export { IconInboxEmpty as IconInbox } from "central-icons-outlined/IconInboxEmpty";
 export { IconCircleInfo as IconInfo } from "central-icons-outlined/IconCircleInfo";
 export { IconKey1 as IconKey } from "central-icons-outlined/IconKey1";
