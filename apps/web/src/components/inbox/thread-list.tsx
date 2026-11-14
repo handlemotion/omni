@@ -220,7 +220,7 @@ export function List(
             className={`flex h-12 shrink-0 items-center gap-2 border-b pe-2.5 ${sidebarHidden ? "ps-2.5" : "ps-5"}`}
           >
             {sidebarHidden && (
-              <SidebarTrigger intent="ghost" size="sq-xs" aria-label="Open sidebar">
+              <SidebarTrigger intent="ghost" size="sq-sm" aria-label="Open sidebar">
                 <IconSidebar />
               </SidebarTrigger>
             )}
@@ -346,7 +346,7 @@ function HeaderAction(props: {
     <TooltipTrigger delay={400}>
       <Button
         intent="ghost"
-        size="sq-sm-lg"
+        size="sq-sm"
         aria-label={props.label}
         aria-keyshortcuts={props.shortcut && ariaKeyShortcuts(props.shortcut)}
         isDisabled={props.isDisabled}

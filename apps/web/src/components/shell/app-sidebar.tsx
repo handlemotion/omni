@@ -96,13 +96,15 @@ export function AppSidebar() {
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
   return (
     <Sidebar>
-      {/* The switcher fills the row up to the icons, as close as they sit to each other. */}
-      <SidebarHeader className="justify-between gap-0.5">
+      {/* The switcher fills the row up to the icons, as close as they sit to each other. 2px
+          down: the row's centre (24px) meets the list and reading headers' (23.5px), so the
+          sidebar's icons sit on the same line as their toolbars. */}
+      <SidebarHeader className="justify-between gap-0.5 pt-0.5">
         <MailboxSwitcher />
         <div className="flex items-center gap-0.5">
           <Button
             intent="ghost"
-            size="sq-xs"
+            size="sq-sm"
             aria-label="Back"
             onPress={() => router.history.back()}
           >
@@ -110,13 +112,13 @@ export function AppSidebar() {
           </Button>
           <Button
             intent="ghost"
-            size="sq-xs"
+            size="sq-sm"
             aria-label="Forward"
             onPress={() => router.history.forward()}
           >
             <IconChevronRight />
           </Button>
-          <SidebarTrigger intent="ghost" size="sq-xs">
+          <SidebarTrigger intent="ghost" size="sq-sm">
             <IconSidebar />
           </SidebarTrigger>
         </div>
@@ -153,7 +155,7 @@ export function AppSidebar() {
         <OfflineBadge />
         <div className="flex items-center gap-0.5">
           <NotificationsButton />
-          <Button intent="ghost" size="sq-xs" aria-label="Help">
+          <Button intent="ghost" size="sq-sm" aria-label="Help">
             <IconHelp />
           </Button>
         </div>

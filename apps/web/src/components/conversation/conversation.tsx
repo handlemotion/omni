@@ -463,7 +463,7 @@ function TriageActions({ thread }: { thread: Thread }) {
 function Action(props: { label: string; onPress: () => void; children: ReactNode }) {
   return (
     <TooltipTrigger delay={400}>
-      <Button intent="ghost" size="sq-sm-lg" aria-label={props.label} onPress={props.onPress}>
+      <Button intent="ghost" size="sq-sm" aria-label={props.label} onPress={props.onPress}>
         {props.children}
       </Button>
       <Tooltip>{props.label}</Tooltip>

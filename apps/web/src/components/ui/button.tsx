@@ -66,18 +66,10 @@ export const buttonStyles = tv({
         "*:[svg]:size-icon",
         "*:data-[slot=loader]:size-icon",
       ],
-      // Icon-only squares on the same scale: 28, 32 and 40px.
-      "sq-sm": [
-        "touch-target size-7 shrink-0",
-        "*:[svg]:size-icon",
-        "*:data-[slot=loader]:size-icon",
-      ],
-      // A 28px square with a 17px glyph: the conversation toolbar.
-      "sq-sm-lg": [
-        "touch-target size-7 shrink-0",
-        "*:[svg]:size-icon-lg",
-        "*:data-[slot=loader]:size-icon-lg",
-      ],
+      // Icon-only squares on the same scale: 28, 32 and 40px. `sq-sm` (28px, 16px glyph) is the
+      // one icon button for toolbars and the sidebar's top and bottom rows; the smaller squares
+      // above are for actions inside a row or a line of text.
+      "sq-sm": ["touch-target size-7 shrink-0", "*:[svg]:size-4", "*:data-[slot=loader]:size-4"],
       "sq-md": ["touch-target size-8 shrink-0", "*:[svg]:size-4", "*:data-[slot=loader]:size-4"],
       "sq-lg": [
         "touch-target size-10 shrink-0",

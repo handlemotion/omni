@@ -124,7 +124,7 @@ export function Tab({ className, ref, ...props }: TabProps) {
       className={cx(
         "group/tab rounded-lg [--tab-gutter:var(--tab-gutter-x)]",
         orientation === "horizontal"
-          ? "[--tab-gutter-x:--spacing(2.5)] [--tab-gutter-y:--spacing(1)] first:-ms-(--tab-gutter) last:-me-(--tab-gutter)"
+          ? "[--tab-gutter-x:--spacing(2.5)] [--tab-gutter-y:var(--tab-list-tab-y,--spacing(1))] first:-ms-(--tab-gutter) last:-me-(--tab-gutter)"
           : "w-full justify-start [--tab-gutter-x:--spacing(4)] [--tab-gutter-y:--spacing(1.5)]",
         "relative flex cursor-default items-center whitespace-nowrap text-sm/6 outline-hidden transition [-webkit-tap-highlight-color:transparent]",
         "px-(--tab-gutter-x) py-(--tab-gutter-y)",
