@@ -4,7 +4,14 @@
 
 import { z } from "zod";
 import { decide, decideSent, type Decision } from "./decide.ts";
-import { decidePriority, pickTags, tagQuestions, type PriorityJudgments } from "./helpdesk.ts";
+import {
+  decidePriority,
+  pickAssignee,
+  pickTags,
+  tagQuestions,
+  teammateQuestions,
+  type PriorityJudgments,
+} from "./helpdesk.ts";
 import { truncateToTokens } from "./policy.ts";
 import {
   JEV_EARLIER_MESSAGE_TOKENS,
@@ -127,6 +134,7 @@ export function jevTriageRequest(input: TriageInput, model = JEV_MODEL) {
         ...TRIAGE_QUESTIONS,
         ...PRIORITY_QUESTIONS,
         ...tagQuestions(input.helpdesk.tags).questions,
+        ...teammateQuestions(input.helpdesk.teammates).questions,
       }
     : TRIAGE_QUESTIONS;
   return { model, state: triageState(input), questions };
@@ -190,11 +198,18 @@ export async function triageWithJev(client: JevClient, input: TriageInput): Prom
   if (input.helpdesk && !input.latestFromUs) {
     const { asked } = tagQuestions(input.helpdesk.tags);
     const tagNouls = nouls(asked.map((_, i) => `tag_${i}`));
+    const team = teammateQuestions(input.helpdesk.teammates).asked;
+    const teamNouls = nouls(team.map((_, i) => `teammate_${i}`));
     result.helpdesk = {
       priority: decidePriority(nouls(PRIORITY_JUDGMENTS) as PriorityJudgments, bucket),
       tagIds: pickTags(
         asked,
         asked.map((_, i) => tagNouls[`tag_${i}`] ?? 0),
+      ),
+      assigneeId: pickAssignee(
+        team,
+        team.map((_, i) => teamNouls[`teammate_${i}`] ?? 0),
+        bucket,
       ),
     };
   }

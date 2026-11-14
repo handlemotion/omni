@@ -2,7 +2,7 @@
 // the system prompt says so, and nothing inside the block can close it early or fake a field.
 
 import { truncateToTokens } from "./policy.ts";
-import { MAX_TAG_QUESTIONS } from "./questions.ts";
+import { MAX_TAG_QUESTIONS, MAX_TEAMMATE_QUESTIONS } from "./questions.ts";
 import type { TriageInput } from "./types.ts";
 
 export const DATA_TAG = "email_data";
@@ -32,7 +32,8 @@ export const HELPDESK_TRIAGE_SYSTEM = `${TRIAGE_SYSTEM}
 
 This inbox is a shared support inbox worked by a team; "the reader" is that team. Also judge:
 - priority: urgent when the customer cannot use the product or service and it must be fixed within a day or two; high when they are blocked, face a near deadline, report a wrong or missing charge or refund, or are frustrated or angry; low when the message asks nothing of the team; otherwise normal.
-- tags: the inbox's tags, listed after the email, that describe what the message is about. Pick at most three, only from that list, and none when none fits.`;
+- tags: the inbox's tags, listed after the email, that describe what the message is about. Pick at most three, only from that list, and none when none fits. A tag's description, when it has one, says what the team files under it.
+- assignee: the teammate, listed after the email by role, whose role covers what the customer asks for; none when no role clearly does or there are no teammates.`;
 
 /** Neutralizes anything in untrusted text that could close or reopen the data block. */
 export function escapeUntrusted(text: string): string {
@@ -81,6 +82,24 @@ export function triagePrompt(input: TriageInput, maxInputTokens: number): string
   );
   const prompt = `Classify this email thread.\n\n${block(lines)}`;
   if (!input.helpdesk || input.latestFromUs) return prompt;
-  const tags = input.helpdesk.tags.slice(0, MAX_TAG_QUESTIONS).map((t) => `- ${tagLabel(t.name)}`);
-  return `${prompt}\n\nThe inbox's tags:\n${tags.length ? tags.join("\n") : "(none)"}`;
+  const tags = input.helpdesk.tags
+    .slice(0, MAX_TAG_QUESTIONS)
+    .map((t) => `- ${tagLabel(t.name)}${t.description?.trim() ? `: ${field(t.description)}` : ""}`);
+  const team = teammatesForPrompt(input.helpdesk.teammates).map(
+    (t) => `- ${t.label}: ${field(t.role)}`,
+  );
+  return `${prompt}\n\nThe inbox's tags:\n${tags.length ? tags.join("\n") : "(none)"}\n\nTeammates:\n${team.length ? team.join("\n") : "(none)"}`;
+}
+
+/**
+ * Teammates as the model sees and answers them: a neutral label each (`teammate_1`, ...), never a
+ * name or address, and their role. The label maps back to the member id.
+ */
+export function teammatesForPrompt(
+  teammates: NonNullable<TriageInput["helpdesk"]>["teammates"] = [],
+) {
+  return teammates
+    .filter((t) => t.role.trim())
+    .slice(0, MAX_TEAMMATE_QUESTIONS)
+    .map((t, i) => ({ id: t.id, role: t.role, label: `teammate_${i + 1}` }));
 }

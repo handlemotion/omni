@@ -16,3 +16,15 @@ and Jev's live response to it. They are used three ways:
   ```bash
   pnpm --filter @omni/ai record   # runs under Doppler; or set TYPESAFE_API_KEY and run node eval/record.ts
   ```
+
+## Helpdesk
+
+`helpdesk.json` is a shared support inbox: its tags (with what the team files under each), its
+teammates by role, and threads from `fixtures/eml/helpdesk-*.eml` with the bucket, priority, tags
+and assignee each message should get. Their recordings are `recordings/helpdesk-<thread>-<n>.json`,
+checked by `packages/ai/src/fixtures.test.ts` and replayed by
+`apps/worker/e2e/helpdesk-triage.e2e.test.ts`. Re-record with:
+
+```bash
+pnpm --filter @omni/ai record:helpdesk
+```

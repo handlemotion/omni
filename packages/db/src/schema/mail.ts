@@ -1027,6 +1027,8 @@ export const tags = pgTable(
     name: text("name").notNull(),
     /** A token name from the design system, not a hex value. */
     color: text("color"),
+    /** What the team files under the tag. Triage reads it to judge when the tag fits. */
+    description: text("description"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

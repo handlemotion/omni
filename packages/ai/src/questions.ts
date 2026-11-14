@@ -200,16 +200,40 @@ export const MAX_TAG_QUESTIONS = 25;
 export const MAX_SUGGESTED_TAGS = 3;
 
 /**
- * One Noul per tag. The tag's name rides in the question, so no question has to look a tag up in a
- * shared list; question ids (`tag_0`, `tag_1`, ...) are never sent to the model.
+ * One Noul per tag. The tag's name, and what the team files under it when they described it, ride
+ * in the question, so no question has to look a tag up in a shared list; question ids (`tag_0`,
+ * `tag_1`, ...) are never sent to the model. A tag without a description asks exactly what it
+ * asked before descriptions existed.
  */
-export function tagQuestion(name: string): NoulQuestion {
+export function tagQuestion(name: string, description?: string | null): NoulQuestion {
+  const about = description?.trim();
   return {
     type: "noul",
     instructions: `Does the tag "${name}" describe what \`latest_message\` is about?`,
     criteria: {
-      true: `A support agent sorting this message would file it under "${name}".`,
+      true: about
+        ? `A support agent sorting this message would file it under "${name}", which the team uses for: ${about}`
+        : `A support agent sorting this message would file it under "${name}".`,
       false: `The message is about something else, or only mentions "${name}" in passing.`,
+    },
+  };
+}
+
+/** At most this many teammates are asked about; members past it are left to people. */
+export const MAX_TEAMMATE_QUESTIONS = 10;
+
+/**
+ * One Noul per teammate with a described role: does this message fall under it? Code picks the
+ * assignee from the answers (`pickAssignee`). Only the role is sent, never a name or address.
+ */
+export function teammateQuestion(role: string): NoulQuestion {
+  return {
+    type: "noul",
+    instructions: `Is \`latest_message\` about work handled by the teammate whose role is: "${role}"?`,
+    criteria: {
+      true: "What the sender asks for is the kind of work that role describes.",
+      false:
+        "The sender asks for something that role does not cover, or mentions that work only in passing.",
     },
   };
 }

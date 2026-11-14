@@ -23,6 +23,8 @@ export * as schema from "./schema/index.ts";
 export * from "./system.ts";
 export * from "./member-mail.ts";
 export * from "./ai-jobs.ts";
+export * from "./ai-helpdesk.ts";
+export * from "./ai-settings.ts";
 export * from "./orgs.ts";
 export * from "./personal-space.ts";
 export * from "./session-scopes.ts";

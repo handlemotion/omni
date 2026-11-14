@@ -762,6 +762,42 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
     },
 
     /** A shared or personal inbox's tags by name. Null when no grantee can see the inbox. */
+    /**
+     * The shared inboxes the member is on, with every tag and what it is for (ADR 0033): the AI
+     * settings page. An inbox the member is not on is left out, even for an owner.
+     */
+    async listSharedInboxTags() {
+      const [mailboxGrant, mailboxOrg] = access(mailboxes.id, mailboxes.orgId);
+      const inboxes = await db
+        .select({ id: mailboxes.id, address: mailboxes.address })
+        .from(mailboxes)
+        .innerJoin(...mailboxGrant)
+        .innerJoin(...mailboxOrg)
+        .where(eq(mailboxes.kind, "shared"))
+        .orderBy(mailboxes.address);
+      if (inboxes.length === 0) return [];
+      const rows = await db
+        .select({
+          id: tags.id,
+          mailboxId: tags.mailboxId,
+          name: tags.name,
+          color: tags.color,
+          description: tags.description,
+        })
+        .from(tags)
+        .innerJoin(mailboxes, eq(mailboxes.id, tags.mailboxId))
+        .innerJoin(...mailboxGrant)
+        .innerJoin(...mailboxOrg)
+        .where(eq(mailboxes.kind, "shared"))
+        .orderBy(sql`lower(${tags.name})`, tags.id);
+      return inboxes.map((inbox) => ({
+        ...inbox,
+        tags: rows
+          .filter((tag) => tag.mailboxId === inbox.id)
+          .map(({ mailboxId: _mailboxId, ...tag }) => tag),
+      }));
+    },
+
     async listTags(mailboxId: string) {
       const [mailboxGrant, mailboxOrg] = access(mailboxes.id, mailboxes.orgId);
       const [[visible], rows] = await Promise.all([

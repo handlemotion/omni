@@ -169,6 +169,29 @@ describe("forMember isolation", () => {
     expect(await asAlice.search("flamingo", { filters: everyone })).toEqual([]);
   });
 
+  test("the AI settings list only the tags of shared inboxes the member is on", async () => {
+    const [helloBox, billingBox] = await Promise.all([
+      forMember(db, alice).getThread(hello.threadId),
+      forMember(db, bob).getThread(billing.threadId),
+    ]);
+    await db.insert(tagsTable).values([
+      { orgId: orgAId, mailboxId: helloBox!.mailboxId, name: "Order", description: "Orders" },
+      { orgId: orgAId, mailboxId: billingBox!.mailboxId, name: "Refund", description: "Refunds" },
+    ]);
+    // Alice is on hello@ only: billing@'s tag and its description stay hidden, owner or not.
+    expect(await forMember(db, alice).listSharedInboxTags()).toEqual([
+      {
+        id: helloBox!.mailboxId,
+        address: "hello@a.test",
+        tags: [expect.objectContaining({ name: "Order", description: "Orders" })],
+      },
+    ]);
+    // Carol's grant on hello@ crosses orgs: she sees only her own org's ops@.
+    expect((await forMember(db, carol).listSharedInboxTags()).map((i) => i.address)).toEqual([
+      "ops@b.test",
+    ]);
+  });
+
   test("a grant that crosses orgs opens nothing", async () => {
     const asCarol = forMember(db, carol);
     expect((await asCarol.listThreads()).map((t) => t.id)).toEqual([ops.threadId]);

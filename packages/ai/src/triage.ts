@@ -2,7 +2,13 @@ import { z } from "zod";
 import { createJevClient, triageWithJev, type JevClient } from "./jev.ts";
 import { callStructured } from "./model.ts";
 import { triageByRule } from "./policy.ts";
-import { HELPDESK_TRIAGE_SYSTEM, TRIAGE_SYSTEM, triagePrompt, tagLabel } from "./prompt.ts";
+import {
+  HELPDESK_TRIAGE_SYSTEM,
+  TRIAGE_SYSTEM,
+  tagLabel,
+  teammatesForPrompt,
+  triagePrompt,
+} from "./prompt.ts";
 import { MAX_SUGGESTED_TAGS, MAX_TAG_QUESTIONS } from "./questions.ts";
 import {
   AI_MODEL,
@@ -78,7 +84,7 @@ async function triageWithClaude(
   const model = options.model ?? AI_MODEL;
   const user = triagePrompt(input, options.maxInputTokens ?? DEFAULT_TRIAGE_INPUT_TOKENS);
   if (input.helpdesk && !input.latestFromUs) {
-    return triageHelpdeskWithClaude(client, input.helpdesk.tags, model, user);
+    return triageHelpdeskWithClaude(client, input.helpdesk, model, user);
   }
   const result = await callStructured(client, {
     model,
@@ -99,17 +105,21 @@ async function triageWithClaude(
  */
 async function triageHelpdeskWithClaude(
   client: ModelClient,
-  tags: TriageInputTags,
+  helpdesk: HelpdeskInput,
   model: string,
   user: string,
 ): Promise<TriageResult> {
-  const byLabel = new Map(tags.slice(0, MAX_TAG_QUESTIONS).map((t) => [tagLabel(t.name), t.id]));
+  const byLabel = new Map(
+    helpdesk.tags.slice(0, MAX_TAG_QUESTIONS).map((t) => [tagLabel(t.name), t.id]),
+  );
   const labels = [...byLabel.keys()];
+  const team = teammatesForPrompt(helpdesk.teammates);
   const schema = TriageOutput.extend({
     priority: z.enum(PRIORITIES),
     tags: labels.length
       ? z.array(z.enum(labels as [string, ...string[]])).max(MAX_SUGGESTED_TAGS)
       : z.array(z.string()).max(0),
+    assignee: z.enum(["none", ...team.map((t) => t.label)]),
   });
   const result = await callStructured(client, {
     model,
@@ -121,13 +131,19 @@ async function triageHelpdeskWithClaude(
   if (!result.ok) return { bucket: "fyi", confidence: 0, source: "fallback", usage: result.usage };
   const { bucket, confidence, priority } = result.data;
   const tagIds = [...new Set(result.data.tags.map((label) => byLabel.get(label)!))];
+  // As on Jev: only a message that waits on the team is handed to anyone.
+  const assignee = team.find((t) => t.label === result.data.assignee);
   return {
     bucket,
     confidence,
     source: "ai",
     usage: result.usage,
-    helpdesk: { priority: bucket === "fyi" || bucket === "noise" ? "low" : priority, tagIds },
+    helpdesk: {
+      priority: bucket === "fyi" || bucket === "noise" ? "low" : priority,
+      tagIds,
+      assigneeId: bucket === "needs_reply" ? (assignee?.id ?? null) : null,
+    },
   };
 }
 
-type TriageInputTags = NonNullable<TriageInput["helpdesk"]>["tags"];
+type HelpdeskInput = NonNullable<TriageInput["helpdesk"]>;

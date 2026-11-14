@@ -22,13 +22,20 @@ export {
 } from "./decide.ts";
 export {
   decidePriority,
+  pickAssignee,
   pickTags,
   PRIORITY_TABLE,
   tagQuestions,
+  teammateQuestions,
   type PriorityJudgments,
 } from "./helpdesk.ts";
 export { triageInputFor, type ThreadMessage } from "./input.ts";
-export { JEV_MODEL, MAX_SUGGESTED_TAGS, MAX_TAG_QUESTIONS } from "./questions.ts";
+export {
+  JEV_MODEL,
+  MAX_SUGGESTED_TAGS,
+  MAX_TAG_QUESTIONS,
+  MAX_TEAMMATE_QUESTIONS,
+} from "./questions.ts";
 export {
   describeDate,
   jevSearchRequest,
@@ -51,6 +58,7 @@ export {
   type Bucket,
   type CallOptions,
   type HelpdeskTag,
+  type HelpdeskTeammate,
   type HelpdeskTriage,
   type Priority,
   type ListSignals,

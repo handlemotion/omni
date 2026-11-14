@@ -369,7 +369,15 @@ export async function applyConversationChange(
         if (change.memberId && !(await canSee(tx, change.memberId, row.mailboxId, row.orgId))) {
           return { ok: false, reason: "not_assignable" };
         }
-        applied = await assign(tx, row, change.memberId, actorMemberId, now, {}, dedupeKey);
+        applied = await assign(
+          tx,
+          row,
+          change.memberId,
+          actorMemberId,
+          now,
+          change.source ? { source: change.source } : {},
+          dedupeKey,
+        );
         break;
       case "priority":
         if (row.priority === change.priority) {

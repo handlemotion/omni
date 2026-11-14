@@ -1,0 +1,47 @@
+{
+  "inbox": "support@helpdesk.example",
+  "tags": [
+    { "name": "Billing", "description": "Charges, invoices, refunds and plan changes" },
+    { "name": "Bug", "description": "Something in the app is broken or shows an error" },
+    { "name": "Feature request" }
+  ],
+  "teammates": [
+    { "key": "ana", "role": "Billing, invoices, refunds and payment problems" },
+    { "key": "bo", "role": "Bugs, errors and technical problems with the app" },
+    { "key": "cy", "role": "Sales questions from prospective customers: pricing, demos and plans" }
+  ],
+  "threads": [
+    {
+      "name": "double-charge",
+      "messages": [
+        {
+          "eml": "helpdesk-double-charge.eml",
+          "expect": {
+            "bucket": "needs_reply",
+            "priority": "high",
+            "tags": ["Billing"],
+            "assignee": "ana"
+          }
+        },
+        {
+          "eml": "helpdesk-double-charge-again.eml",
+          "expect": {
+            "bucket": "needs_reply",
+            "priority": "high",
+            "tags": ["Billing"],
+            "assignee": "ana"
+          }
+        }
+      ]
+    },
+    {
+      "name": "promo",
+      "messages": [
+        {
+          "eml": "helpdesk-promo.eml",
+          "expect": { "bucket": "noise", "priority": "low", "tags": [], "assignee": null }
+        }
+      ]
+    }
+  ]
+}

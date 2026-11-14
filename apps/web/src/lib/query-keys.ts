@@ -74,6 +74,8 @@ export const keys = {
   workspaceMailboxes: () => [...mail, "workspace-mailboxes"] as const,
   /** Every member with the inboxes each can open (owners and admins). */
   workspaceMembers: () => [...mail, "workspace-members"] as const,
+  /** Each member's role and each shared inbox's tags, for triage (owners and admins). */
+  aiSettings: () => [...mail, "ai-settings"] as const,
   mailboxMembers: (mailboxId: string) => [...mail, "mailbox-members", mailboxId] as const,
   counts: () => [...mail, "counts"] as const,
   threadLists: () => [...mail, "threads"] as const,

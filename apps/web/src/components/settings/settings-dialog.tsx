@@ -7,6 +7,7 @@
 // group labels, the search field on top), set at the right of the left 35%; the page is a 640px
 // column in the right 65%, its title 17px. The page body is transitive's settings kit (`./kit`).
 import {
+  IconAi,
   IconClock3,
   IconMailOpen,
   IconCreditCard,
@@ -57,12 +58,13 @@ import { BillingPage } from "./billing-page";
 import { SettingsPageHeader } from "./kit/settings-layout";
 import { SettingsConfirmDialog } from "./kit/settings-stacked-dialog";
 import { WorkspaceChooser } from "./workspace-chooser";
+import { AiPage } from "./ai-page";
 import { HelpdeskPage } from "./helpdesk-pages";
 import { NotificationsPage } from "./notification-pages";
 import { ConnectedAccountsPage } from "./connected-accounts-page";
 import { ForwardingPage } from "./forwarding-page";
 import { InboxesPage, SharedMailboxesPage } from "./mailbox-pages";
-import { GeneralPage, PeoplePage } from "./workspace-pages";
+import { GeneralPage, isManager, PeoplePage } from "./workspace-pages";
 
 interface PageDefinition {
   id: SettingsPageId;
@@ -197,6 +199,13 @@ const WORKSPACE_PAGES: PageDefinition[] = [
     render: () => <HelpdeskPage />,
   },
   {
+    id: "ai",
+    title: "AI",
+    icon: glyph(IconAi),
+    terms: ["roles", "assign", "assignment", "triage", "jev", "tags", "descriptions", "labels"],
+    render: () => <AiPage />,
+  },
+  {
     id: "billing",
     title: "Billing",
     icon: glyph(IconCreditCard),
@@ -206,7 +215,9 @@ const WORKSPACE_PAGES: PageDefinition[] = [
 ];
 
 /** Pages only a company has: a Personal space has no team, shared inboxes or plan (ADR 0024). */
-const COMPANY_PAGES = new Set(["people", "shared", "helpdesk", "billing"]);
+const COMPANY_PAGES = new Set(["people", "shared", "helpdesk", "ai", "billing"]);
+/** Pages only owners and admins see: the API answers anyone else 403. */
+const MANAGER_PAGES = new Set(["ai"]);
 
 /**
  * The workspace's pages; Billing only where the install bills (ADR 0015: it is optional), and
@@ -215,12 +226,16 @@ const COMPANY_PAGES = new Set(["people", "shared", "helpdesk", "billing"]);
 function useWorkspacePages() {
   const billed = useBilling().data?.enabled !== false;
   const personal = usePersonalWorkspace();
+  const manager = isManager(useMember().member.role);
   return useMemo(
     () =>
       WORKSPACE_PAGES.filter(
-        (p) => (billed || p.id !== "billing") && !(personal && COMPANY_PAGES.has(p.id)),
+        (p) =>
+          (billed || p.id !== "billing") &&
+          !(personal && COMPANY_PAGES.has(p.id)) &&
+          (manager || !MANAGER_PAGES.has(p.id)),
       ),
-    [billed, personal],
+    [billed, personal, manager],
   );
 }
 

@@ -5,6 +5,7 @@ import {
   createJevClient,
   decidePriority,
   jevTriageRequest,
+  pickAssignee,
   pickTags,
   triage,
   type PriorityJudgments,
@@ -18,6 +19,24 @@ const calm: PriorityJudgments = {
   money_at_stake: 0.05,
   sender_upset: 0.05,
 };
+
+describe("assignee", () => {
+  const team = [
+    { id: "ana", role: "Billing and refunds" },
+    { id: "bo", role: "Bug reports" },
+  ];
+  it.each([
+    ["the one whose role reads yes", [0.1, 0.9], "needs_reply", "bo"],
+    ["the most likely of two yeses", [0.95, 0.8], "needs_reply", "ana"],
+    // Between the bands is not a yes: it stays for a person to pick up.
+    ["nobody when no role is a settled yes", [0.6, 0.5], "needs_reply", null],
+    // A receipt that matches Billing still asks nothing of anyone.
+    ["nobody when the message waits on no one", [0.95, 0.1], "fyi", null],
+    ["nobody for noise", [0.95, 0.1], "noise", null],
+  ] as const)("picks %s", (_, nouls, bucket, expected) => {
+    expect(pickAssignee(team, nouls, bucket)).toBe(expected);
+  });
+});
 
 describe("priority table", () => {
   it.each([
@@ -110,7 +129,11 @@ describe("helpdesk triage on Jev", () => {
     });
     const result = await triage(client, input);
     expect(result.bucket).toBe("needs_reply");
-    expect(result.helpdesk).toEqual({ priority: "high", tagIds: ["tag_billing"] });
+    expect(result.helpdesk).toEqual({
+      priority: "high",
+      tagIds: ["tag_billing"],
+      assigneeId: null,
+    });
     const questions = (sent[0] as { questions: Record<string, { instructions: string }> })
       .questions;
     expect(questions.tag_1?.instructions).toContain('"Billing"');

@@ -21,7 +21,12 @@ async function memberSeesMailbox(db: Executor, memberId: string, mailboxId: stri
   return row ?? null;
 }
 
-const tagColumns = { id: tags.id, name: tags.name, color: tags.color };
+const tagColumns = {
+  id: tags.id,
+  name: tags.name,
+  color: tags.color,
+  description: tags.description,
+};
 
 /**
  * Creates a tag, or returns the one with the same name ignoring case (so a retry or a teammate
@@ -31,7 +36,7 @@ export async function createTag(
   db: Executor,
   memberId: string,
   mailboxId: string,
-  input: { name: string; color?: string | null },
+  input: { name: string; color?: string | null; description?: string | null },
 ) {
   const mailbox = await memberSeesMailbox(db, memberId, mailboxId);
   if (!mailbox) return null;
@@ -43,6 +48,7 @@ export async function createTag(
       mailboxId,
       name: input.name,
       color: input.color ?? null,
+      description: input.description?.trim() || null,
     })
     .onConflictDoNothing()
     .returning(tagColumns);
@@ -54,15 +60,21 @@ export async function createTag(
   return { tag: existing!, created: false };
 }
 
-/** Renames or recolors a tag. `conflict` when another tag already has the name. */
+/**
+ * Renames, recolors or re-describes a tag (a blank description clears it). `conflict` when another
+ * tag already has the name.
+ */
 export async function updateTag(
   db: Executor,
   memberId: string,
   mailboxId: string,
   tagId: string,
-  patch: { name?: string; color?: string | null },
+  patch: { name?: string; color?: string | null; description?: string | null },
 ) {
   if (!(await memberSeesMailbox(db, memberId, mailboxId))) return { status: "not_found" as const };
+  if (patch.description !== undefined) {
+    patch = { ...patch, description: patch.description?.trim() || null };
+  }
   try {
     const [row] = await db
       .update(tags)

@@ -427,9 +427,10 @@ function RowHover({ children }: { children: ReactNode }) {
   );
 }
 
-// 53px: the frame's row (12px padding, the 28px avatar, 12px padding, 1px border). The load-more
+// 52px with its 1px border, the composer's row height, so the list and the composer beside it
+// rule their lines at the same heights (the row's own `h-13` must match). The load-more
 // sentinel takes no space; `loaderSize` 0 keeps the list's end where it was.
-const LIST_LAYOUT = { rowSize: 53, loaderSize: 0 };
+const LIST_LAYOUT = { rowSize: 52, loaderSize: 0 };
 
 interface ShortcutsSource {
   view: ThreadView;
@@ -462,8 +463,9 @@ function ThreadRow({
       textValue={`${sender} ${thread.subject}`}
       // The open thread's row keeps the accent fill, the same grey as the sidebar's current item;
       // a checked row takes the brand tint, like your own messages. The checkbox and the avatar
-      // multiply, so their edge and fill still show on the hover highlight or the tint.
-      className={`gap-4 border-b px-5 py-3 selected:bg-primary-subtle **:data-[slot=indicator]:mix-blend-multiply ${isCurrent ? "bg-accent" : ""}`}
+      // multiply, so their edge and fill still show on the hover highlight or the tint. 52px with
+      // its border, the composer's row height, so the two tables' lines meet side by side.
+      className={`h-13 gap-4 border-b px-5 selected:bg-primary-subtle **:data-[slot=indicator]:mix-blend-multiply ${isCurrent ? "bg-accent" : ""}`}
     >
       <Avatar
         isSquare
@@ -513,7 +515,7 @@ function ThreadRow({
  */
 function RowBones() {
   return Array.from({ length: 16 }, (_, i) => (
-    <div key={i} className="flex h-13.25 items-center gap-4 border-b ps-13.25 pe-5">
+    <div key={i} className="flex h-13 items-center gap-4 border-b ps-13.25 pe-5">
       <SkeletonBox width={28} height={28} radius="var(--radius-sm)" />
       <span className="ms-4 w-[min(--spacing(68),30%)] shrink-0">
         <SkeletonBox width={`${45 + ((i * 17) % 30)}%`} height={10} />

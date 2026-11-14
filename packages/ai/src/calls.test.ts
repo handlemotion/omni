@@ -93,29 +93,46 @@ describe("helpdesk triage on Claude", () => {
     helpdesk: {
       tags: [
         { id: "t1", name: "Billing" },
-        { id: "t2", name: "Bug" },
+        { id: "t2", name: "Bug", description: "Errors, crashes and anything broken in the app" },
+      ],
+      teammates: [
+        { id: "m-ana", role: "Billing, invoices and refunds" },
+        { id: "m-bo", role: "Technical problems and bug reports" },
       ],
     },
   };
 
   it("maps tag names back to ids and offers only the inbox's tags", async () => {
     const { client, requests } = reply(
-      '{"bucket":"needs_reply","confidence":0.9,"priority":"high","tags":["Billing"]}',
+      '{"bucket":"needs_reply","confidence":0.9,"priority":"high","tags":["Billing"],"assignee":"teammate_2"}',
     );
     const result = await triage(client, support);
-    expect(result.helpdesk).toEqual({ priority: "high", tagIds: ["t1"] });
-    expect(requests[0]?.messages[0]?.content).toContain("- Bug");
+    expect(result.helpdesk).toEqual({ priority: "high", tagIds: ["t1"], assigneeId: "m-bo" });
+    const prompt = String(requests[0]?.messages[0]?.content);
+    expect(prompt).toContain("- Bug: Errors, crashes and anything broken in the app");
+    // Teammates go to the model by role only, under a neutral label.
+    expect(prompt).toContain("- teammate_2: Technical problems and bug reports");
+    expect(prompt).not.toContain("m-bo");
+  });
+
+  it("hands nobody a message that does not wait on the team", async () => {
+    const { client } = reply(
+      '{"bucket":"fyi","confidence":0.9,"priority":"normal","tags":[],"assignee":"teammate_1"}',
+    );
+    expect((await triage(client, support)).helpdesk?.assigneeId).toBeNull();
   });
 
   it("treats a tag outside the inbox's list as invalid output, not a new tag", async () => {
     const { client } = reply(
-      '{"bucket":"needs_reply","confidence":0.9,"priority":"high","tags":["Refunds"]}',
+      '{"bucket":"needs_reply","confidence":0.9,"priority":"high","tags":["Refunds"],"assignee":"none"}',
     );
     expect(await triage(client, support)).toMatchObject({ source: "fallback", confidence: 0 });
   });
 
   it("keeps noise at low priority whatever the model says", async () => {
-    const { client } = reply('{"bucket":"noise","confidence":0.97,"priority":"urgent","tags":[]}');
+    const { client } = reply(
+      '{"bucket":"noise","confidence":0.97,"priority":"urgent","tags":[],"assignee":"none"}',
+    );
     expect((await triage(client, support)).helpdesk?.priority).toBe("low");
   });
 });

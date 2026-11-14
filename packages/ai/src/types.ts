@@ -13,6 +13,16 @@ export type Priority = (typeof PRIORITIES)[number];
 export interface HelpdeskTag {
   id: string;
   name: string;
+  /** What the team files under it, in their words. Sharpens the tag's question when set. */
+  description?: string | null;
+}
+
+/** A teammate triage may assign a conversation to, by the role the workspace described. */
+export interface HelpdeskTeammate {
+  /** The member id. */
+  id: string;
+  /** What this person handles, in the team's words. Never empty. */
+  role: string;
 }
 
 /** The Worker passes a real `Anthropic` instance; only `messages` is used. */
@@ -55,7 +65,7 @@ export interface TriageInput {
    * Set for a shared inbox (ADR 0021): triage then also judges priority and which of `tags` fit.
    * Ignored when the latest message is our own: priority and tags describe what a customer asked.
    */
-  helpdesk?: { tags: readonly HelpdeskTag[] };
+  helpdesk?: { tags: readonly HelpdeskTag[]; teammates?: readonly HelpdeskTeammate[] };
 }
 
 /** What helpdesk triage adds to the bucket. */
@@ -63,6 +73,11 @@ export interface HelpdeskTriage {
   priority: Priority;
   /** Ids from the input's `helpdesk.tags`, most likely first. */
   tagIds: string[];
+  /**
+   * The teammate (an id from `helpdesk.teammates`) whose role covers what the customer asks for,
+   * or null when no role clearly does or the message asks nothing of the team.
+   */
+  assigneeId: string | null;
 }
 
 export type TriageSource = "rule" | "ai" | "fallback";

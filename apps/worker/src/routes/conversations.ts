@@ -4,6 +4,7 @@
 // transaction and queues the IMAP filing (archive on resolve, back to INBOX on reopen).
 import {
   applyConversationChange,
+  MAX_ROLE_DESCRIPTION,
   CONVERSATION_VIEWS,
   createNote,
   createTag,
@@ -93,10 +94,24 @@ const tagColor = z
   .string()
   .regex(/^[a-z][a-z0-9-]{0,31}$/)
   .nullable();
-const newTagBody = z.object({ name: z.string().trim().min(1).max(64), color: tagColor.optional() });
+/** What the team files under a tag (ADR 0033); triage reads it. Blank clears it. */
+const tagDescription = z.string().max(MAX_ROLE_DESCRIPTION);
+const newTagBody = z.object({
+  name: z.string().trim().min(1).max(64),
+  color: tagColor.optional(),
+  description: tagDescription.optional(),
+});
 const tagPatchBody = z
-  .object({ name: z.string().trim().min(1).max(64).optional(), color: tagColor.optional() })
-  .refine((patch) => patch.name !== undefined || patch.color !== undefined, "nothing to change");
+  .object({
+    name: z.string().trim().min(1).max(64).optional(),
+    color: tagColor.optional(),
+    description: tagDescription.optional(),
+  })
+  .refine(
+    (patch) =>
+      patch.name !== undefined || patch.color !== undefined || patch.description !== undefined,
+    "nothing to change",
+  );
 
 /** A target in minutes, up to a year; null leaves it untracked. */
 const targetMinutes = z.number().int().min(1).max(525_600).nullable();

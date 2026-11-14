@@ -3,6 +3,7 @@
 // the caller's classes. Decorative by default (aria-hidden): name the control around it instead.
 // Licensed for closed-source use only: never publish this package's glyphs in public code.
 
+export { IconAiBotHead as IconAi } from "central-icons-outlined/IconAiBotHead";
 export { IconArrowLeft } from "central-icons-outlined/IconArrowLeft";
 export { IconArrowRotateClockwise } from "central-icons-outlined/IconArrowRotateClockwise";
 export { IconArrowUpRight } from "central-icons-outlined/IconArrowUpRight";

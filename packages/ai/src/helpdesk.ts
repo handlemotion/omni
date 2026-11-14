@@ -6,13 +6,15 @@ import { read } from "./decide.ts";
 import {
   MAX_SUGGESTED_TAGS,
   MAX_TAG_QUESTIONS,
+  MAX_TEAMMATE_QUESTIONS,
   NOUL_YES,
   PRIORITY_JUDGMENTS,
   tagQuestion,
+  teammateQuestion,
   type NoulQuestion,
   type PriorityJudgment,
 } from "./questions.ts";
-import type { Bucket, HelpdeskTag, Priority } from "./types.ts";
+import type { Bucket, HelpdeskTag, HelpdeskTeammate, Priority } from "./types.ts";
 
 export type PriorityJudgments = Record<PriorityJudgment, number>;
 
@@ -48,7 +50,7 @@ export function tagQuestions(tags: readonly HelpdeskTag[]) {
   const asked = tags.slice(0, MAX_TAG_QUESTIONS);
   const questions: Record<string, NoulQuestion> = {};
   asked.forEach((tag, i) => {
-    questions[`tag_${i}`] = tagQuestion(tag.name);
+    questions[`tag_${i}`] = tagQuestion(tag.name, tag.description);
   });
   return { asked, questions };
 }
@@ -61,6 +63,39 @@ export function pickTags(asked: readonly HelpdeskTag[], nouls: readonly number[]
     .sort((a, b) => b.p - a.p)
     .slice(0, MAX_SUGGESTED_TAGS)
     .map((t) => t.id);
+}
+
+/** The teammates Jev is asked about: the first `MAX_TEAMMATE_QUESTIONS`, keyed `teammate_<index>`. */
+export function teammateQuestions(teammates: readonly HelpdeskTeammate[] = []) {
+  const asked = teammates.filter((t) => t.role.trim()).slice(0, MAX_TEAMMATE_QUESTIONS);
+  const questions: Record<string, NoulQuestion> = {};
+  asked.forEach((teammate, i) => {
+    questions[`teammate_${i}`] = teammateQuestion(teammate.role.trim());
+  });
+  return { asked, questions };
+}
+
+/**
+ * Who takes the conversation. Only a message that waits on the team (`needs_reply`) is handed to
+ * anyone, and only to a teammate whose role reads a settled yes; among several, the most likely.
+ * Otherwise nobody: it stays unassigned for a person to pick up.
+ */
+export function pickAssignee(
+  asked: readonly HelpdeskTeammate[],
+  nouls: readonly number[],
+  bucket: Bucket,
+): string | null {
+  if (bucket !== "needs_reply") return null;
+  let best: string | null = null;
+  let bestP = NOUL_YES;
+  for (const [i, teammate] of asked.entries()) {
+    const p = nouls[i] ?? 0;
+    if (p >= bestP && (best === null || p > bestP)) {
+      best = teammate.id;
+      bestP = p;
+    }
+  }
+  return best;
 }
 
 export { PRIORITY_JUDGMENTS };

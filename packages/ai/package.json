@@ -11,7 +11,8 @@
     "test": "vitest run",
     "eval": "doppler run -p omni -c dev_worker -- node eval/run.ts",
     "record": "doppler run -p omni -c dev_worker -- node eval/record.ts",
-    "record:search": "doppler run -p omni -c dev_worker -- node eval/record-search.ts"
+    "record:search": "doppler run -p omni -c dev_worker -- node eval/record-search.ts",
+    "record:helpdesk": "doppler run -p omni -c dev_worker -- node eval/record-helpdesk.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

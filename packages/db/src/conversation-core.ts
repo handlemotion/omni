@@ -37,7 +37,13 @@ export type ConversationChange =
    * (a member id, or `null` for unassigned) it changes nothing unless the conversation is still
    * assigned that way when locked, so two teammates claiming at once cannot both win.
    */
-  | { type: "assign"; memberId: string | null; expectedAssignee?: string | null }
+  | {
+      type: "assign";
+      memberId: string | null;
+      expectedAssignee?: string | null;
+      /** `ai`: triage handed it to the teammate whose role fits (ADR 0033). */
+      source?: "ai";
+    }
   /** `source: "ai"` marks a change triage made, so a member's later correction can be learned from. */
   | { type: "priority"; priority: Priority; source?: "ai" }
   | { type: "tag"; tagId: string; add: boolean; source?: "ai" };

@@ -35,6 +35,7 @@ import { library } from "./routes/library.ts";
 import { mail } from "./routes/mail.ts";
 import { forwarding } from "./routes/forwarding.ts";
 import { workspaceAdmin } from "./routes/workspace-admin.ts";
+import { aiSettings } from "./routes/ai-settings.ts";
 import { workspaceInboxes } from "./routes/workspace-inboxes.ts";
 import { workspaceInvitations } from "./routes/workspace-invitations.ts";
 import { onboarding } from "./routes/onboarding.ts";
@@ -133,6 +134,7 @@ const api = new Hono<AppEnv>()
   .route("/", library)
   .route("/", conversations)
   .route("/", workspaceAdmin)
+  .route("/", aiSettings)
   .route("/", workspaceInboxes)
   .route("/", workspaceInvitations)
   .route("/workspace", workspaceLogo)
