@@ -259,14 +259,19 @@ html .setup-toaster [data-sonner-toast][data-styled="true"] {
   padding: 8px 36px 8px 12px;
   gap: 8px;
   align-items: flex-start;
-  /* A solid edge in the page's own colour, so a toast stacked behind the front one stays its own card. */
-  border: 1px solid var(--background);
+  border: 0;
   border-radius: 8px;
   background: var(--primary-button);
   color: var(--primary-foreground);
   font-family: var(--font-sans);
   font-size: 13px;
   box-shadow: none;
+}
+/* Behind the front toast in a collapsed stack, a toast dims toward the page so the two don't merge. */
+html
+  .setup-toaster
+  [data-sonner-toast][data-styled="true"][data-expanded="false"][data-front="false"] {
+  background: color-mix(in oklab, var(--primary-button) 65%, var(--background));
 }
 html .setup-toaster [data-sonner-toast][data-styled="true"] [data-icon] {
   margin: 2px 0 0;

@@ -419,8 +419,7 @@ export function TableRow<T extends object>({
         ) =>
           cn(
             "group relative cursor-default outline outline-transparent",
-            isFocusVisible &&
-              "bg-primary/5 outline-primary ring-3 ring-ring/20 hover:bg-primary/10",
+            isFocusVisible && "bg-primary/5 outline-primary hover:bg-primary/10",
             isDragging && "cursor-grabbing bg-primary/10 text-foreground outline-primary",
             isSelected &&
               "bg-(--table-selected-background) text-foreground hover:bg-(--table-selected-background)/50",

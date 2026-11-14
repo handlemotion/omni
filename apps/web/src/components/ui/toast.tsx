@@ -133,7 +133,7 @@ function ToastButton(props: {
       type="button"
       className={cn(
         "inline-flex h-6 shrink-0 cursor-pointer items-center rounded-sm px-2 text-sm leading-5 font-medium tracking-[-0.01em]",
-        "outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "outline-none focus-visible:inset-ring focus-visible:inset-ring-ring",
         "disabled:cursor-not-allowed disabled:opacity-50",
         props.emphasis === "primary"
           ? "bg-primary-foreground text-primary-button hover:bg-primary-foreground/90"
@@ -158,8 +158,7 @@ interface ToastCardProps {
 
 /**
  * The toast card, brand blue like setup's toasts (`.setup-toaster` in styles.css): white text and
- * icon on the primary button's blue, edged in the page's own colour so a stacked toast stays its
- * own card.
+ * icon on the primary button's blue, with no edge. Stacked behind the front toast, a card dims.
  *
  * Room, in ink: 8px above and below the 24px action (12px to the icon's shape and the text),
  * 12px from the left edge to the icon, 8px from the right edge to the action.
@@ -171,8 +170,10 @@ export function ToastCard({ tone, message, description, children }: ToastCardPro
       data-tone={tone}
       className={cn(
         // h-full + overflow-hidden: a collapsed stack sizes every toast to the front one.
-        "relative flex h-full w-full flex-col overflow-hidden bg-primary-button text-primary-foreground",
-        "rounded-lg border border-background",
+        "relative flex h-full w-full flex-col overflow-hidden rounded-lg bg-primary-button text-primary-foreground transition-colors duration-200",
+        // In a collapsed stack the cards behind the front one fade toward the page, so their
+        // edges stay apart from it without a border.
+        "[[data-expanded=false][data-front=false]_&]:bg-[color-mix(in_oklab,var(--color-primary-button)_65%,var(--color-background))]",
       )}
     >
       <div

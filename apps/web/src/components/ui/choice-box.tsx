@@ -109,9 +109,9 @@ const choiceBoxItemStyles = tv({
       true: "not-data-readonly:not-data-focus-visible:not-selected:inset-ring-muted-foreground/30",
     },
     isFocused: {
-      true: "inset-ring-(--choice-box-active-ring) ring-(--choice-box-ring) ring-3 invalid:ring-danger-subtle-foreground/20",
+      true: "inset-ring-(--choice-box-active-ring)",
     },
-    isInvalid: { true: "ring-3 ring-danger-subtle-foreground/20" },
+    isInvalid: { true: "inset-ring-danger-subtle-foreground/70" },
     isOneColumn: {
       true: "col-span-full",
     },

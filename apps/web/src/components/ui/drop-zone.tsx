@@ -8,7 +8,7 @@ export function DropZone({ className, ...props }: DropZoneProps) {
       className={composeRenderProps(className, (className, { isDropTarget }) =>
         cn(
           "group/drop-zone relative z-10 flex max-h-56 items-center justify-center overflow-hidden rounded-lg border border-dashed p-6",
-          isDropTarget && "border-primary border-solid bg-primary/10 ring-3 ring-ring/20",
+          isDropTarget && "border-primary border-solid bg-primary/10",
           className,
         ),
       )}

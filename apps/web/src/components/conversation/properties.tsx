@@ -32,7 +32,7 @@ import { pictureUrl } from "@/lib/urls.ts";
  * 24px inside the rail, like the Reply/Forward/Note segments, with the rail's inner radius and
  * an 8px inset instead of the button's 10px.
  */
-const INSET = "h-6 rounded-[calc(var(--radius-lg)-2px)] px-2";
+const INSET = "h-6 rounded-[calc(var(--radius-lg)-2px)] px-1.5";
 
 type Glyph = ComponentType<{ className?: string; "data-slot"?: string }>;
 

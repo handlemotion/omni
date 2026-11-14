@@ -31,8 +31,8 @@ const ROW_CONTENT = "col-span-full flex min-w-0 items-center gap-3";
  *  24px under the group above, 16px over its own rows. Aligned with the avatars. */
 const GROUP_LABEL = "px-2.25 pt-4 pb-2 text-xs/4 sm:px-2.25 sm:pt-4 sm:pb-2 sm:text-xs/4";
 
-/** Three blank discs: the cluster's shape before any mailbox has a face. */
-const BLANK_FACES: Face[] = ["a", "b", "c"].map((key) => ({ key, name: "", image: null }));
+/** Two blank discs: the cluster's shape before any mailbox has a face. */
+const BLANK_FACES: Face[] = ["a", "b"].map((key) => ({ key, name: "", image: null }));
 
 const failed = () => appToast.error("The mailbox could not be opened. Try again.");
 
@@ -50,42 +50,59 @@ export function mailboxName(mailbox: WorkspaceMailbox, you: string) {
   return local.charAt(0).toUpperCase() + local.slice(1);
 }
 
-/** A round avatar `size` px across: the picture when there is one, else the initial. Multiply:
+/** A round avatar `size` px across: the picture when there is one, else the initial on a grey a
+ *  half step darker than the hover highlight, so a face without a picture still stands out. Multiply:
  *  under the row's hover highlight the fill darkens with it instead of sitting on top. */
-function FaceAvatar(props: { face: Face; size: number; plain?: boolean }) {
+function FaceAvatar(props: { face: Face; size: number }) {
   return (
     <Avatar
       src={props.face.image}
-      initials={props.plain ? undefined : props.face.name.slice(0, 1).toUpperCase()}
-      className="bg-accent text-foreground outline-0 mix-blend-multiply"
+      initials={props.face.name.slice(0, 1).toUpperCase() || undefined}
+      className="bg-[color-mix(in_oklab,var(--color-muted)_50%,var(--color-accent))] text-foreground outline-0 mix-blend-multiply"
       style={{ "--avatar-size": `${props.size}px` } as CSSProperties}
     />
   );
 }
 
-/**
- * "All mailboxes": the mailboxes' own avatars in a triangle over one avatar's square, two on top
- * and one below between them. With more than three, the last becomes "+N". Discs are half the
- * square and just touch, so none hides another. A ring in the fill behind them (`ring`) keeps a
- * hairline between neighbours on the menu, under the hover highlight and on the trigger.
- * `plain` drops initials and the count, for sizes where they would be specks.
- */
-function Cluster(props: { faces: Face[]; size: number; ring: string; plain?: boolean }) {
-  const { faces, size } = props;
-  // Half-size discs that just touch, none hiding another: two on top, one centred below.
-  const disc = size / 2;
-  const spots = [
-    { x: 0, y: size / 32 },
-    { x: disc, y: size / 32 },
-    { x: disc / 2, y: size - disc - size / 32 },
+/** Where each disc sits in a `size` square, by how many there are, and how wide each is. */
+function clusterLayout(count: number, size: number) {
+  if (count <= 1) return [{ x: 0, y: 0, d: size }];
+  if (count === 2) {
+    // Two on the diagonal, top left behind bottom right, each well over half the square.
+    const d = size * 0.62;
+    return [
+      { x: 0, y: 0, d },
+      { x: size - d, y: size - d, d },
+    ];
+  }
+  // Three equal discs on an even triangle: every pair of centres the same distance apart, a
+  // hair under one disc's width, so every ring between them is the same hairline. The triangle
+  // spans the square's width and sits centred in its height.
+  const d = size / 1.88;
+  const side = d * 0.88;
+  const top = (size - (side * Math.sqrt(3)) / 2 - d) / 2;
+  return [
+    { x: 0, y: top, d },
+    { x: side, y: top, d },
+    { x: side / 2, y: top + (side * Math.sqrt(3)) / 2, d },
   ];
-  const extra = faces.length - 3;
+}
+
+/**
+ * "All mailboxes": the mailboxes' own avatars in one avatar's square. One fills it; two sit on
+ * the diagonal; with three or more, the first two sit on top and "+N" (the rest) below between them,
+ * all three the same size. A ring in the fill behind them (`ring`) keeps a hairline between neighbours on the menu,
+ * under the hover highlight and on the trigger.
+ */
+function Cluster(props: { faces: Face[]; size: number; ring: string }) {
+  const { faces, size } = props;
   const shown: (Face | { more: number })[] =
-    extra > 0 ? [...faces.slice(0, 2), { more: extra + 1 }] : faces.slice(0, 3);
+    faces.length > 2 ? [...faces.slice(0, 2), { more: faces.length - 2 }] : faces;
+  const spots = clusterLayout(shown.length, size);
   return (
     <span aria-hidden className="relative block shrink-0" style={{ width: size, height: size }}>
       {shown.map((item, i) => {
-        const spot = spots[i] ?? { x: 0, y: 0 };
+        const spot = spots[i] ?? { x: 0, y: 0, d: size };
         return (
           <span
             key={"more" in item ? "more" : item.key}
@@ -94,12 +111,12 @@ function Cluster(props: { faces: Face[]; size: number; ring: string; plain?: boo
           >
             {"more" in item ? (
               <Avatar
-                initials={props.plain ? undefined : `+${item.more}`}
-                className="bg-accent text-muted-foreground outline-0 mix-blend-multiply"
-                style={{ "--avatar-size": `${disc}px` } as CSSProperties}
+                initials={`+${item.more}`}
+                className="bg-[color-mix(in_oklab,var(--color-muted)_50%,var(--color-accent))] text-foreground outline-0 mix-blend-multiply"
+                style={{ "--avatar-size": `${spot.d}px` } as CSSProperties}
               />
             ) : (
-              <FaceAvatar face={item} size={disc} plain={props.plain} />
+              <FaceAvatar face={item} size={spot.d} />
             )}
           </span>
         );
@@ -145,7 +162,7 @@ export function MailboxSwitcher() {
   const shown = active?.mailboxes.find((box) => box.id === current);
   const pending = openWorkspace.isPending || openMailbox.isPending;
   const faces = all.flatMap((workspace) => workspace.mailboxes.map(face));
-  // With no mailbox yet the cluster keeps its three discs, blank, so All keeps its mark.
+  // With no mailbox yet the cluster keeps two discs, blank, so All keeps its mark.
   const clusterFaces = faces.length > 0 ? faces : BLANK_FACES;
 
   // The trigger shares the header with four buttons: "All mailboxes" (99px) would clip, so it
@@ -199,16 +216,14 @@ export function MailboxSwitcher() {
             // 18px over the 15px box: the grid would start it at the box's left edge (centre
             // 1.5px right of the nav icons'), so the margin centres it on the same axis.
             <span className="-m-[1.5px]">
-              <FaceAvatar face={face(shown)} size={18} plain />
+              <FaceAvatar face={face(shown)} size={18} />
             </span>
           ) : (
-            // 20px over the 15px box, centred on the same axis; at this size initials are
-            // specks, so the discs are plain (pictures still show).
+            // 20px over the 15px box, centred on the same axis.
             <span className="-m-[2.5px]">
               <Cluster
                 faces={clusterFaces}
                 size={20}
-                plain
                 ring="bg-sidebar group-hover/trigger:bg-accent group-aria-expanded/trigger:bg-accent"
               />
             </span>

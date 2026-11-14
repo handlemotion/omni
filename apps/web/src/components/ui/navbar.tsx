@@ -219,7 +219,7 @@ export function NavbarItem({ className, isCurrent, ...props }: NavbarItemProps) 
           "*:not-nth-2:last:[svg]:row-start-1 *:not-nth-2:last:[svg]:ms-auto *:not-nth-2:last:[svg]:size-5 md:*:not-nth-2:last:[svg]:size-4",
           "*:data-[slot=avatar]:-m-0.5 *:data-[slot=avatar]:size-6 md:*:data-[slot=avatar]:size-5",
           "*:[svg]:text-muted-foreground pressed:*:[svg]:text-foreground hover:*:[svg]:text-foreground",
-          "outline-hidden focus-visible:inset-ring focus-visible:inset-ring-ring focus-visible:ring-2 focus-visible:ring-ring/20",
+          "outline-hidden focus-visible:inset-ring focus-visible:inset-ring-ring",
           "text-start disabled:cursor-default disabled:opacity-50",
         ],
         className,

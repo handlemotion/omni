@@ -49,7 +49,7 @@ export function Switch({ children, className, ...props }: SwitchButtonProps) {
               "forced-colors:outline forced-colors:[--switch-bg:Highlight]",
               values.isHovered && "inset-ring-muted-foreground/30",
               values.isFocusVisible &&
-                "inset-ring-ring/70 selected:inset-ring-(--switch-bg)/30 bg-(--switch-bg)/20 ring-(--switch-bg)/20 ring-2 dark:inset-ring-(--switch-bg)/70",
+                "inset-ring-ring/70 selected:inset-ring-(--switch-bg)/30 bg-(--switch-bg)/20 dark:inset-ring-(--switch-bg)/70",
               values.isSelected &&
                 "inset-ring-(--switch-shadow) bg-(--switch-bg) dark:inset-ring-(--switch-bg-ring) dark:bg-(--switch-bg)",
               values.isDisabled &&

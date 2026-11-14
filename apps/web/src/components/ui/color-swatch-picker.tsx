@@ -31,8 +31,8 @@ export function ColorSwatchPickerItem({
       })}
       className={cx(
         "relative size-(--default-item-size,--spacing(8)) rounded-lg outline-hidden *:rounded-[calc(var(--radius-lg)-1px)] *:data-[slot=color-swatch]:size-(--default-item-size,--spacing(8))",
-        "selected:ring-3 selected:ring-ring/20 selected:*:inset-ring-current/40",
-        "focus-visible:opacity-80 focus-visible:ring-ring/20 focus-visible:*:inset-ring-current/40",
+        "selected:*:inset-ring-current/40",
+        "focus-visible:opacity-80 focus-visible:*:inset-ring-current/40",
         "hover:opacity-90",
         "disabled:opacity-50",
         className,

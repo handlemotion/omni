@@ -6,15 +6,15 @@ import { Loader } from "./loader";
 
 export const buttonStyles = tv({
   base: [
-    "[--btn-border:var(--color-foreground)]/15 [--btn-icon-active:var(--btn-foreground)] [--btn-outline:var(--btn-bg)] [--btn-radius:calc(var(--radius-lg)-1px)] [--btn-ring:var(--btn-bg)]/20",
-    "bg-(--btn-bg) text-(--btn-foreground) outline-(--btn-outline) ring-(--btn-ring) hover:bg-(--btn-overlay) active:bg-(--btn-overlay) pressed:bg-(--btn-overlay)",
+    "[--btn-border:var(--color-foreground)]/15 [--btn-icon-active:var(--btn-foreground)] [--btn-outline:var(--btn-bg)] [--btn-radius:calc(var(--radius-lg)-1px)]",
+    "bg-(--btn-bg) text-(--btn-foreground) outline-(--btn-outline) hover:bg-(--btn-overlay) active:bg-(--btn-overlay) pressed:bg-(--btn-overlay)",
     "relative isolate inline-flex items-center justify-center border border-(--btn-border) hover:no-underline",
     // Tactile press: a short squeeze a quick second press retargets. Driven by native `:active`
     // (shadcn's press), not React Aria's `pressed`, so it never waits on a React render. Off on
     // menu triggers (a squeezed trigger looks narrower than its open menu), when disabled or
     // pending, and under reduced motion.
     "transition-[scale,background-color] duration-150 ease-out motion-safe:[&:active]:not-aria-[haspopup]:scale-97 disabled:[&:active]:scale-100 pending:[&:active]:scale-100",
-    "focus:outline-0 focus-visible:outline focus-visible:outline-offset-2 focus-visible:ring-2 focus-visible:ring-offset-3 focus-visible:ring-offset-background",
+    "focus:outline-0 focus-visible:outline focus-visible:outline-offset-2",
     "forced-colors:[--btn-icon:ButtonText] forced-colors:hover:[--btn-icon:ButtonText] *:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-(--btn-icon) hover:*:[svg]:text-(--btn-icon-active) active:*:[svg]:text-(--btn-icon-active) pressed:*:[svg]:text-(--btn-icon-active) focus-visible:*:[svg]:text-(--btn-icon-active)/80",
     "*:data-[slot=loader]:-mx-0.5 *:data-[slot=loader]:shrink-0 *:data-[slot=loader]:self-center *:data-[slot=loader]:text-(--btn-icon)",
     "pending:opacity-50 disabled:opacity-50 disabled:forced-colors:text-[GrayText]",
@@ -25,13 +25,13 @@ export const buttonStyles = tv({
       // Every button shares the danger button's build: an edge a step darker than its fill, a
       // faint top highlight inside (`--shadow-button`), no outer drop.
       // Disabled, a primary button goes grey (the secondary fill, muted text), not a faded blue:
-      // blue means it can be pressed.
+      // blue means it can be pressed. Its edge fades to near the canvas, so the grey reads as off.
       primary: [
         "shadow-(--shadow-button) [--btn-bg:var(--color-primary-button)] [--btn-border:color-mix(in_oklab,var(--color-primary-button)_85%,black)] [--btn-foreground:var(--color-primary-foreground)] [--btn-icon-active:var(--primary-foreground)] [--btn-icon:var(--primary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-primary-foreground)_10%,var(--color-primary-button)_90%)]",
-        "disabled:opacity-100 disabled:[--btn-bg:var(--color-secondary)] disabled:[--btn-border:color-mix(in_oklab,var(--color-secondary)_88%,black)] disabled:[--btn-foreground:var(--color-muted-foreground)] disabled:[--btn-icon:var(--color-muted-foreground)] disabled:[--btn-icon-active:var(--color-muted-foreground)] disabled:[--btn-overlay:var(--color-secondary)]",
+        "disabled:opacity-100 disabled:[--btn-bg:var(--color-secondary)] disabled:[--btn-border:color-mix(in_oklab,var(--color-secondary)_50%,var(--color-background))] disabled:[--btn-foreground:var(--color-muted-foreground)] disabled:[--btn-icon:var(--color-muted-foreground)] disabled:[--btn-icon-active:var(--color-muted-foreground)] disabled:[--btn-overlay:var(--color-secondary)]",
       ],
       secondary:
-        "shadow-(--shadow-button) [--btn-border:color-mix(in_oklab,var(--color-secondary)_88%,black)] [--btn-bg:var(--color-secondary)] [--btn-foreground:var(--color-secondary-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-secondary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-secondary-foreground)_4%,var(--color-secondary))] [--btn-ring:var(--color-muted-foreground)]/20",
+        "shadow-(--shadow-button) [--btn-border:color-mix(in_oklab,var(--color-secondary)_88%,black)] [--btn-bg:var(--color-secondary)] [--btn-foreground:var(--color-secondary-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-secondary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-secondary-foreground)_4%,var(--color-secondary))]",
       warning:
         "shadow-(--shadow-button) [--btn-border:color-mix(in_oklab,var(--color-warning)_80%,black)] [--btn-bg:var(--color-warning)] [--btn-foreground:var(--color-warning-foreground)] [--btn-icon:var(--color-warning-foreground)]/60 [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-warning)_90%)]",
       // Filled red with a 1px darker edge and a faint top highlight (onboarding reference).
@@ -42,12 +42,12 @@ export const buttonStyles = tv({
       // Raised: a crisp 1px drop under the border, so it reads as something to press. Hover and
       // press are a quiet 4% wash of the foreground (as on secondary), not a grey fill.
       outline:
-        "shadow-(--shadow-button) border-border [--btn-bg:var(--color-background)] [--btn-foreground:var(--color-black)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:color-mix(in_oklab,var(--color-foreground)_4%,var(--color-background))] [--btn-ring:var(--color-ring)]/20",
+        "shadow-(--shadow-button) border-border [--btn-bg:var(--color-background)] [--btn-foreground:var(--color-black)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:color-mix(in_oklab,var(--color-foreground)_4%,var(--color-background))]",
       // Plain until hovered, then a borderless grey backdrop: toolbars of icon actions.
       ghost:
-        "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-accent)] [--btn-ring:var(--color-ring)]/20 aria-expanded:[--btn-bg:var(--color-accent)]",
+        "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]",
       plain:
-        "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:transparent] [--btn-ring:var(--color-ring)]/20",
+        "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:transparent]",
     },
     // The control scale: sm 28px, md 32px, lg 40px. Icons grow with the button, so a glyph's ink
     // balances the 13px label beside it: 14px at sm, 16px at md, 18px at lg.

@@ -1,10 +1,20 @@
 import {
+  createTooltipController,
   Tooltip as TooltipRoot,
   TooltipArrow,
   TooltipContent,
   TooltipTrigger as TooltipTriggerPrimitive,
 } from "@ui-sdk/react/tooltip";
-import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
+import {
+  Children,
+  isValidElement,
+  useId,
+  useLayoutEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { twJoin } from "cn";
 import type { VariantProps } from "tailwind-variants";
 import { tv } from "tailwind-variants";
@@ -29,6 +39,91 @@ const tooltipStyles = tv({
   },
 });
 
+/**
+ * Every hover tooltip in the app is one tooltip, shared through this controller: moving from one
+ * trigger to the next slides it across instead of closing one and opening another. Each trigger
+ * passes its id as the payload and keeps its current `<Tooltip>` props in `entries`, so content
+ * that changes while open ("Copy" → "Copied") stays live.
+ */
+const sharedTooltip = createTooltipController<string>();
+const entries = new Map<string, TooltipProps>();
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((listener) => listener());
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+const showable = (id: string | undefined) => {
+  const entry = id ? entries.get(id) : undefined;
+  return Boolean(entry && !entry.hidden);
+};
+
+/** Ms the pointer rests before the shared tooltip opens. */
+const SHARED_DELAY = 400;
+/** Ms it waits after the pointer leaves, so crossing the gap between icons doesn't close it. */
+const SHARED_CLOSE_DELAY = 120;
+
+/**
+ * Slides the shared tooltip when another trigger takes it over. The positioner jumps it to the new
+ * trigger (`left`/`top`, placed afresh with no transition), so this watches those writes and plays
+ * the move back from the old spot. It runs before paint (a mutation observer is a microtask), so
+ * the jump never shows. Only while it stays open: a fresh open appears in place.
+ */
+function slide(el: HTMLElement | null) {
+  if (!el) return;
+  let last: { x: number; y: number } | null = null;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const observer = new MutationObserver(() => {
+    if (!el.hasAttribute("data-open")) {
+      last = null;
+      return;
+    }
+    const now = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
+    const from = last;
+    last = now;
+    if (!from || reduce.matches) return;
+    // Start from where it shows now, mid-slide included: a second placement (the new label
+    // resizing it) retargets the slide instead of stacking a second one on it.
+    const [tx = 0, ty = 0] = getComputedStyle(el)
+      .translate.split(" ")
+      .map((v) => parseFloat(v) || 0);
+    const dx = from.x + tx - now.x;
+    const dy = from.y + ty - now.y;
+    for (const running of el.getAnimations()) if (running.id === "slide") running.cancel();
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    const animation = el.animate([{ translate: `${dx}px ${dy}px` }, { translate: "0 0" }], {
+      duration: 180,
+      easing: "cubic-bezier(0.23, 1, 0.32, 1)",
+    });
+    animation.id = "slide";
+  });
+  observer.observe(el, { attributes: true, attributeFilter: ["style", "data-open"] });
+  return () => observer.disconnect();
+}
+
+/** The one shared tooltip. Mount it once, at the root. */
+export function SharedTooltip() {
+  const [id, setId] = useState<string>();
+  const props = useSyncExternalStore(subscribe, () => (id ? entries.get(id) : undefined));
+  return (
+    <TooltipRoot
+      controller={sharedTooltip}
+      delay={SHARED_DELAY}
+      closeDelay={SHARED_CLOSE_DELAY}
+      onOpenChange={(open, details) => {
+        if (open && !showable(sharedTooltip.getPayload())) details.cancel();
+      }}
+      onPayloadChange={(next, details) => {
+        if (showable(next as string)) return setId(next as string);
+        details.cancel();
+        sharedTooltip.close();
+      }}
+    >
+      <TooltipBody {...props} ref={slide} />
+    </TooltipRoot>
+  );
+}
+
 export interface TooltipTriggerProps {
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -47,6 +142,9 @@ export interface TooltipTriggerProps {
  * parts: the first child becomes the trigger through `render`, so it must forward its props and
  * ref to its DOM element. A `<Tooltip hidden>` turns the tooltip off but keeps the trigger. Inside
  * a `MenuTrigger` or `PopoverTrigger`, the props and ref that trigger passes reach the element too.
+ *
+ * Hover tooltips join the shared one (`SharedTooltip`), at its delay. A controlled tooltip, or one
+ * that opens at once (`delay={0}`: the collapsed sidebar's labels), keeps a tooltip of its own.
  */
 export function TooltipTrigger({
   delay,
@@ -61,6 +159,37 @@ export function TooltipTrigger({
   const tooltip = rest.find(
     (child): child is ReactElement<TooltipProps> => isValidElement(child) && child.type === Tooltip,
   );
+  const own = isOpen !== undefined || onOpenChange !== undefined || delay === 0;
+  const id = useId();
+  const entry =
+    own || !tooltip ? undefined : { ...tooltip.props, hidden: isDisabled || tooltip.props.hidden };
+
+  // Kept current on every render, so the open tooltip shows what its trigger shows now.
+  useLayoutEffect(() => {
+    if (!entry) return;
+    entries.set(id, entry);
+    notify();
+  });
+  useLayoutEffect(
+    () => () => {
+      if (!entries.delete(id)) return;
+      if (sharedTooltip.getPayload() === id && sharedTooltip.isOpen()) sharedTooltip.close();
+      notify();
+    },
+    [id],
+  );
+
+  const element = trigger as ReactElement<Record<string, unknown>>;
+  if (!own) {
+    return (
+      <TooltipTriggerPrimitive
+        {...forwarded}
+        controller={sharedTooltip}
+        payload={id}
+        render={element}
+      />
+    );
+  }
   return (
     <TooltipRoot
       open={isOpen}
@@ -69,10 +198,7 @@ export function TooltipTrigger({
       closeDelay={closeDelay}
       disabled={isDisabled || Boolean(tooltip?.props.hidden)}
     >
-      <TooltipTriggerPrimitive
-        {...forwarded}
-        render={trigger as ReactElement<Record<string, unknown>>}
-      />
+      <TooltipTriggerPrimitive {...forwarded} render={element} />
       {rest}
     </TooltipRoot>
   );
@@ -88,18 +214,24 @@ export interface TooltipProps extends VariantProps<typeof tooltipStyles> {
   children?: ReactNode;
 }
 
-export function Tooltip({
+/** Marks a trigger's tooltip; `TooltipTrigger` decides where it renders. */
+export function Tooltip(props: TooltipProps) {
+  if (props.hidden) return null;
+  return <TooltipBody {...props} />;
+}
+
+function TooltipBody({
   offset = 6,
   arrow = false,
   inverse,
   placement = "top",
   className,
-  hidden,
   children,
-}: TooltipProps) {
-  if (hidden) return null;
+  ref,
+}: TooltipProps & { ref?: React.Ref<HTMLDivElement> }) {
   return (
     <TooltipContent
+      ref={ref}
       {...toSideAlign(placement)}
       sideOffset={offset}
       className={tooltipStyles({ inverse, className })}
