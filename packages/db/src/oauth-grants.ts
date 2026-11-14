@@ -1,9 +1,9 @@
 // Which workspaces an agent's OAuth grant reaches (ADR 0029). The consent screen records the
 // person's pick for the session; the grant's reference is that workspace's id, or `ALL_WORKSPACES`.
 // A session scoped to a company (ADR 0024) can only grant that company.
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
-import { members } from "./schema/auth.ts";
+import { jwks, members } from "./schema/auth.ts";
 import { oauthWorkspaceChoices } from "./schema/identity.ts";
 import { sessionAccess } from "./session-scopes.ts";
 
@@ -59,4 +59,36 @@ async function isMember(db: Db, userId: string, orgId: string) {
     .where(and(eq(members.userId, userId), eq(members.organizationId, orgId)))
     .limit(1);
   return row !== undefined;
+}
+
+/** How long an expired signing key still verifies tokens: Better Auth's JWKS grace period. */
+const SIGNING_KEY_GRACE = "30 days";
+
+/**
+ * The public keys agents' access tokens are signed with (ADR 0029), as Better Auth's JWKS
+ * endpoint shapes them. Read here rather than through that endpoint for two reasons:
+ *
+ * - Hyperdrive caches reads for up to a minute, and a cached empty read made the endpoint report
+ *   no keys (and mint another) while tokens were already signed with one: every call was refused.
+ *   `now()` in the query keeps Hyperdrive from caching it.
+ * - Checking a token never creates a key.
+ */
+export async function tokenSigningKeys(db: Db) {
+  const rows = await db
+    .select({
+      id: jwks.id,
+      publicKey: jwks.publicKey,
+      alg: jwks.alg,
+      crv: jwks.crv,
+    })
+    .from(jwks)
+    .where(
+      sql`${jwks.expiresAt} is null or ${jwks.expiresAt} + ${SIGNING_KEY_GRACE}::interval > now()`,
+    );
+  return rows.map((row) => ({
+    alg: row.alg ?? "EdDSA",
+    ...(row.crv ? { crv: row.crv } : {}),
+    ...(JSON.parse(row.publicKey) as Record<string, unknown>),
+    kid: row.id,
+  }));
 }

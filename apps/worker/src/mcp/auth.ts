@@ -1,9 +1,11 @@
 // Who an MCP request acts for (ADR 0029). The bearer token is a JWT our own OAuth provider signed
 // for the `/mcp` resource: it is checked here against our JWKS (signature, issuer, audience,
-// expiry), with no database read and no HTTP call to ourselves. Failures answer the way MCP
+// expiry), with the keys read straight from the database (`tokenSigningKeys`) and no HTTP call to
+// ourselves. Failures answer the way MCP
 // clients expect, so they can start or step up sign-in: 401 with the protected-resource metadata,
 // or 403 `insufficient_scope` naming every scope the call needs.
 import { MAIL_READ_SCOPE, mcpResource, WORKSPACE_CLAIM, type Auth } from "@omni/auth";
+import { tokenSigningKeys, type Db } from "@omni/db";
 import { createLocalJWKSet, errors, jwtVerify, type JSONWebKeySet } from "jose";
 
 export interface McpCaller {
@@ -20,11 +22,11 @@ export interface McpCaller {
 const JWKS_TTL_MS = 5 * 60_000;
 let jwksCache: { keys: JSONWebKeySet; issuer: string; expires: number } | undefined;
 
-async function verificationKeys(auth: Auth, forceRefresh: boolean) {
+async function verificationKeys(auth: Auth, db: Db, forceRefresh: boolean) {
   if (!forceRefresh && jwksCache && jwksCache.expires > Date.now()) return jwksCache;
-  const [keys, context] = await Promise.all([auth.api.getJwks(), auth.$context]);
+  const [keys, context] = await Promise.all([tokenSigningKeys(db), auth.$context]);
   jwksCache = {
-    keys: keys as JSONWebKeySet,
+    keys: { keys } as JSONWebKeySet,
     issuer: context.baseURL,
     expires: Date.now() + JWKS_TTL_MS,
   };
@@ -78,6 +80,7 @@ export function insufficientScope(baseURL: string, needed: readonly string[]) {
 export async function authenticate(
   request: Request,
   auth: Auth,
+  db: Db,
   baseURL: string,
 ): Promise<McpCaller | Response> {
   const header = request.headers.get("authorization") ?? "";
@@ -85,7 +88,7 @@ export async function authenticate(
   if (!token) return challenge(401, baseURL, [MAIL_READ_SCOPE]);
 
   const verify = async (forceRefresh: boolean) => {
-    const { keys, issuer } = await verificationKeys(auth, forceRefresh);
+    const { keys, issuer } = await verificationKeys(auth, db, forceRefresh);
     return jwtVerify(token, createLocalJWKSet(keys), {
       issuer,
       audience: mcpResource(baseURL),

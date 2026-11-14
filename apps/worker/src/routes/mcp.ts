@@ -29,7 +29,7 @@ export const mcp = new Hono<AppEnv>()
     if (!originAllowed(c.req.header("origin"), allowed)) {
       return c.json({ error: "origin not allowed" }, 403);
     }
-    const caller = await authenticate(c.req.raw, auth, baseURL);
+    const caller = await authenticate(c.req.raw, auth, db, baseURL);
     if (caller instanceof Response) return caller;
     // A writing tool needs its own scope: answer 403 before it runs, so the client can step up.
     const needed = toolScope(
