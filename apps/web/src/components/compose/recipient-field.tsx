@@ -55,9 +55,9 @@ export function RecipientField(props: {
   };
 
   return (
-    // One of the composer's rows: 44px, its divider the card's full width (see `ComposerFrame`).
+    // One of the composer's rows: its height set by `ComposerFrame`, its divider the card's full width.
     // The label (From, To, Cc, Bcc) keeps the 32px column the labels line up in.
-    <div className="flex min-h-11 items-center gap-2.5 border-b px-3 py-1">
+    <div className="flex min-h-(--composer-row) items-center gap-2.5 border-b px-3 py-1">
       <span className="flex w-8 shrink-0 text-sm text-muted-foreground">{props.label}</span>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
         {value.length > 0 && (

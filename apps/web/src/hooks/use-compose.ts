@@ -315,8 +315,20 @@ export function useDraft(
   const detach = useCallback(async () => {
     const pending = state.current;
     forget();
-    return pending.id ?? (await pending.creating)?.id;
-  }, [forget]);
+    // Out of the cached lists at once (before the first await), so a composer that mounts next
+    // (Discard on a shared inbox, Reply again) doesn't resume the draft before the refetch.
+    // The cache holds the response (`{ drafts }`); `draftsQuery` selects the list from it.
+    const drop = (id: string) =>
+      client.setQueriesData<{ drafts: Draft[] }>({ queryKey: keys.draftLists() }, (old) =>
+        Array.isArray(old?.drafts)
+          ? { ...old, drafts: old.drafts.filter((d) => d.id !== id) }
+          : old,
+      );
+    if (pending.id) drop(pending.id);
+    const id = pending.id ?? (await pending.creating)?.id;
+    if (id) drop(id);
+    return id;
+  }, [client, forget]);
 
   /** Deletes a draft `detach` handed over. */
   const remove = useCallback(

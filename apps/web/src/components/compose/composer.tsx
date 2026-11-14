@@ -486,7 +486,8 @@ function KindMenu({ kind, onChange }: { kind: Kind; onChange: (next: Kind) => vo
   const current = KINDS[kind];
   return (
     <MenuTrigger>
-      <Button intent="ghost" size="sm" aria-label={`${current.label}, change`}>
+      {/* Tertiary: an edge and no fill, so it reads as a choice, apart from the icon tools. */}
+      <Button intent="outline" size="sm" aria-label={`${current.label}, change`}>
         <current.icon />
         {current.label}
         <IconChevronDown />
@@ -526,6 +527,8 @@ export function NewMessageComposer(props: {
     to?: string | undefined;
     subject?: string | undefined;
   };
+  /** A bordered, rounded card on the page (full-screen compose), not the pane itself. */
+  island?: boolean;
 }) {
   const mailboxId = props.initial.mailboxId || props.mailboxes[0]?.id || "";
   return mailboxId ? <NewMessage key={mailboxId} mailboxId={mailboxId} {...props} /> : null;
@@ -535,6 +538,7 @@ function NewMessage(props: {
   mailboxId: string;
   mailboxes: { id: string; address: string }[];
   initial: { to?: string | undefined; subject?: string | undefined };
+  island?: boolean | undefined;
 }) {
   const [mailboxId, setMailboxId] = useState(props.mailboxId);
   const { signature, isLoading: signatureLoading } = useSignature(mailboxId);
@@ -593,7 +597,7 @@ function NewMessage(props: {
   };
 
   return (
-    <ComposerFrame flat fill onFiles={files.add}>
+    <ComposerFrame flat={!props.island} fill onFiles={files.add}>
       <FromRow
         mailboxes={props.mailboxes}
         value={mailboxId}
@@ -621,7 +625,7 @@ function NewMessage(props: {
           if (next.bcc) setBcc(next.bcc);
         }}
       />
-      <div data-composer-head className="flex min-h-11 items-center border-b px-3">
+      <div data-composer-head className="flex min-h-(--composer-row) items-center border-b px-3">
         <Input
           plain
           size="sm"
@@ -659,7 +663,10 @@ function FromRow(props: {
 }) {
   const address = props.mailboxes.find((m) => m.id === props.value)?.address;
   return (
-    <div data-composer-head className="flex min-h-11 items-center gap-2.5 border-b px-3 py-1">
+    <div
+      data-composer-head
+      className="flex min-h-(--composer-row) items-center gap-2.5 border-b px-3 py-1"
+    >
       <span className="w-8 shrink-0 text-sm text-muted-foreground">From</span>
       {props.mailboxes.length > 1 ? (
         <MenuTrigger>
@@ -725,6 +732,9 @@ function ComposerFrame(props: {
           "flex flex-col bg-background outline-hidden",
           props.flat ? "" : "rounded-xl border shadow-raised",
           props.fill ? "min-h-0 flex-1" : "",
+          // Row height: 52px on the full-page composer, a more compact 48px on a reply under the
+          // conversation.
+          props.fill ? "[--composer-row:--spacing(13)]" : "[--composer-row:--spacing(12)]",
           // Flat there is no border to light up, so a drop rings its inside edge.
           isDropTarget ? (props.flat ? "ring-1 ring-ring ring-inset" : "border-ring") : "",
         ].join(" ")

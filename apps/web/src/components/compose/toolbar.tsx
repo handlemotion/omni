@@ -19,7 +19,8 @@ export function Toolbar(props: {
   return (
     <div className="flex items-center justify-between gap-2 px-3 pb-3">
       <div className="flex items-center gap-1">{props.start}</div>
-      <div className="flex items-center gap-1">
+      {/* 12px between Discard and Send: a destructive tool kept apart from the main action. */}
+      <div className="flex items-center gap-3">
         {props.end}
         <TooltipTrigger delay={400}>
           <Button

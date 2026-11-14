@@ -16,6 +16,7 @@ function Compose() {
     <section aria-label="New message" className="min-w-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl px-5 py-6">
         <NewMessageComposer
+          island
           mailboxes={mailboxes}
           initial={{ mailboxId: search.mailbox, to: search.to, subject: search.subject }}
         />
