@@ -16,6 +16,7 @@ import {
 } from "@/components/icons/central";
 import { MenuItem, MenuLabel } from "@/components/ui/menu";
 import { Tag, TagGroup, TagList } from "@/components/ui/tag-group";
+import { appToast } from "@/components/ui/toast";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import type { PendingSend } from "@/lib/pending.ts";
 import type { Message } from "@/lib/types.ts";
@@ -246,15 +247,23 @@ function EmailHeader(props: { message: Message; sender: string; self: string; me
             <IconChevronDown className={open ? "rotate-180" : ""} />
           </Button>
         </div>
-        <HeaderAction label="Reply" onPress={() => composer.openReply("reply")}>
-          <IconReply />
-        </HeaderAction>
-        <HeaderAction label="Forward" onPress={() => composer.forward(message.id)}>
-          <IconForward />
-        </HeaderAction>
-        {props.menu}
+        {/* The three actions read as one group: closer to each other than to the name. */}
+        <div className="flex items-center gap-1">
+          <HeaderAction label="Reply" onPress={() => composer.openReply("reply")}>
+            <IconReply />
+          </HeaderAction>
+          <HeaderAction label="Forward" onPress={() => composer.forward(message.id)}>
+            <IconForward />
+          </HeaderAction>
+          {props.menu}
+        </div>
       </header>
-      {open && <Details message={message} name={name} />}
+      {/* In by the face's 32px and the header's 12px gap: the rows start where the name does. */}
+      {open && (
+        <div className="ps-11">
+          <Details message={message} name={name} />
+        </div>
+      )}
     </div>
   );
 }
@@ -303,7 +312,7 @@ function Details(props: {
             {/* Out by the pill's 8px padding, so its text lines up with From's and Date's. */}
             <TagGroup aria-label={label} className="-ms-2">
               <TagList items={people.map((p) => ({ id: p.address, label: props.name(p) }))}>
-                {(item) => <Tag id={item.id}>{item.label}</Tag>}
+                {(item) => <Recipient id={item.id} label={item.label} />}
               </TagList>
             </TagGroup>
           </Row>
@@ -314,6 +323,25 @@ function Details(props: {
         </time>
       </Row>
     </DescriptionList>
+  );
+}
+
+/** A recipient's pill: its address on hover, and a click copies it. */
+function Recipient({ id, label }: { id: string; label: string }) {
+  const copy = () =>
+    navigator.clipboard.writeText(id).then(
+      () => appToast.success("Address copied"),
+      () => appToast.error("The address could not be copied."),
+    );
+  return (
+    // The tooltip sits inside the pill: React Aria builds a tag list's items in a document of its
+    // own, where a tooltip around the Tag cannot render.
+    <Tag id={id} textValue={label} onAction={copy} className="cursor-pointer hover:bg-secondary">
+      <TooltipTrigger delay={400}>
+        <span>{label}</span>
+        <Tooltip>{id}</Tooltip>
+      </TooltipTrigger>
+    </Tag>
   );
 }
 

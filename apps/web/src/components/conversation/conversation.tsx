@@ -142,10 +142,13 @@ export function Conversation({ threadId }: { threadId: string }) {
   );
 }
 
-/** A single email's title, on one line: as tall as a list row, with the same bottom edge. */
+/**
+ * A single email's title, on one line: as tall as a list row, with the same bottom edge. It stays
+ * at the pane's top, filled, so the email scrolls under it.
+ */
 function TitleRow({ subject }: { subject: string }) {
   return (
-    <div className="flex h-13.25 shrink-0 items-center border-b px-5">
+    <div className="sticky top-0 z-10 flex h-13.25 shrink-0 items-center border-b bg-background px-5">
       <Heading level={2} className="truncate" title={subject || undefined}>
         {subject || "(no subject)"}
       </Heading>
@@ -314,10 +317,10 @@ function useCloseThread() {
 function Entry({ children }: { children: ReactNode }) {
   // Off-screen messages keep a guessed height instead of laying out; `auto` remembers the real
   // one once seen, so scrolling back does not jump. `content-visibility` clips paint to the box,
-  // so 4px of padding (taken back by the margin) leaves room for the header's ⋯ button, which
-  // reaches above the article.
+  // so 6px of padding on every side (taken back by the margin) leaves room for the header's
+  // buttons and their 5px focus ring, which reach past the article's edges.
   return (
-    <div className="-mt-1 flex flex-col gap-3 pt-1 [contain-intrinsic-size:auto_160px] [content-visibility:auto]">
+    <div className="-m-1.5 flex flex-col gap-3 p-1.5 [contain-intrinsic-size:auto_160px] [content-visibility:auto]">
       {children}
     </div>
   );

@@ -7,6 +7,18 @@ const MAX_REFITS = 12;
 /** Where the mail service parks a blocked remote image's proxied URL (`BLOCKED_SRC_ATTR`). */
 const BLOCKED_SRC = "data-omni-src";
 
+/**
+ * Takes away the browser's default 8px body margin, so a sender's full-width layout fills the
+ * frame and its rounded corners clip it. First in the head, so the sender's own styles still win.
+ */
+function dropDefaultMargin(frame: HTMLIFrameElement) {
+  const doc = frame.contentDocument;
+  if (!doc?.head) return;
+  const style = doc.createElement("style");
+  style.textContent = "body{margin:0}";
+  doc.head.prepend(style);
+}
+
 /** Puts each blocked remote image's proxied URL back in `src`, so it loads. */
 function loadRemoteImages(frame: HTMLIFrameElement | null) {
   for (const img of frame?.contentDocument?.querySelectorAll(`img[${BLOCKED_SRC}]`) ?? []) {
@@ -34,6 +46,8 @@ export function FullMessage(props: {
   const [height, setHeight] = useState<number>();
   const images = useRef(props.images);
   images.current = props.images;
+  const flat = useRef(props.flat);
+  flat.current = props.flat;
 
   // Asked for after the frame loaded: swap them in now. Before then, `onLoad` does it.
   useEffect(() => {
@@ -56,6 +70,7 @@ export function FullMessage(props: {
     };
     const onLoad = () => {
       if (images.current) loadRemoteImages(frame);
+      if (flat.current) dropDefaultMargin(frame);
       refits = 0;
       fit();
       // Images and web fonts land after `load` for lazy content: refit as the body resizes.

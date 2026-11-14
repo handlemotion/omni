@@ -57,6 +57,7 @@
   --card-foreground: var(--foreground);
   --overlay: var(--surface);
   --overlay-foreground: var(--foreground);
+  --tooltip: #2b2b2b; /* Coal: softer than the near-black foreground. */
   --navbar: var(--surface);
   --navbar-foreground: var(--foreground);
   --sidebar: var(--surface);
@@ -143,6 +144,7 @@
   --color-card-foreground: var(--card-foreground);
   --color-overlay: var(--overlay);
   --color-overlay-foreground: var(--overlay-foreground);
+  --color-tooltip: var(--tooltip);
   --color-navbar: var(--navbar);
   --color-navbar-foreground: var(--navbar-foreground);
   --color-sidebar: var(--sidebar);

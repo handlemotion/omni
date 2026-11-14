@@ -10,17 +10,17 @@ import type { VariantProps } from "tailwind-variants";
 import { tv } from "tailwind-variants";
 import { toSideAlign, type Placement } from "./placement";
 
-// shadcn's tooltip look on UI SDK's tooltip: a small dark chip (foreground on background),
+// shadcn's tooltip look on UI SDK's tooltip: a small coal chip (background text on `tooltip`),
 // 12px text, a short fade and zoom from its trigger. `inverse={false}` keeps the light overlay.
 const tooltipStyles = tv({
   base: [
-    "group w-fit max-w-xs origin-(--transform-origin) rounded-md px-3 py-1.5 text-xs text-balance *:[strong]:font-medium",
+    "group w-fit max-w-xs origin-(--transform-origin) rounded-md px-2 py-1.5 text-xs text-balance *:[strong]:font-medium",
     "transition-[opacity,scale] duration-150 ease-out data-ending-style:duration-100 motion-reduce:transition-none",
     "data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0 data-instant:transition-none",
   ],
   variants: {
     inverse: {
-      true: ["bg-foreground text-background", "**:[.text-muted-foreground]:text-background/60"],
+      true: ["bg-tooltip text-background", "**:[.text-muted-foreground]:text-background/60"],
       false: "border border-border bg-overlay text-overlay-foreground",
     },
   },
@@ -90,7 +90,7 @@ export interface TooltipProps extends VariantProps<typeof tooltipStyles> {
 
 export function Tooltip({
   offset = 6,
-  arrow = true,
+  arrow = false,
   inverse,
   placement = "top",
   className,
@@ -113,9 +113,7 @@ export function Tooltip({
             aria-hidden
             className={twJoin(
               "block group-data-[side=bottom]:rotate-180 group-data-[side=left]:-rotate-90 group-data-[side=right]:rotate-90 forced-colors:fill-[Canvas] forced-colors:stroke-[ButtonBorder]",
-              inverse === false
-                ? "fill-overlay stroke-border"
-                : "fill-foreground stroke-transparent",
+              inverse === false ? "fill-overlay stroke-border" : "fill-tooltip stroke-transparent",
             )}
           >
             <path d="M0 0 L5 5 L10 0" />

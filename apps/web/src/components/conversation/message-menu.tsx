@@ -35,9 +35,10 @@ export function MessageMenu(props: {
     <MenuTrigger>
       <Button
         intent="ghost"
-        size="sq-2xs"
+        // Beside Reply and Forward (a single email), their size; in a chat line, a small one.
+        size={props.visible ? "sq-xs" : "sq-2xs"}
         aria-label={props.label}
-        className={`-my-0.5 ${props.start ? "order-first" : ""} ${props.visible ? "" : "opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100"}`}
+        className={`${props.visible ? "text-muted-foreground hover:text-foreground" : "-my-0.5"} ${props.start ? "order-first" : ""} ${props.visible ? "" : "opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100"}`}
       >
         <IconEllipsis />
       </Button>
