@@ -13,6 +13,27 @@ import { type Priority, type Tx } from "./conversation-core.ts";
 import { applyConversationChange } from "./conversations.ts";
 import { conversationEvents, mailboxes, messages, tags, threads } from "./schema/index.ts";
 
+/**
+ * How long the AI job waits for a message's own ingest (`applyInboundMessage`) before triaging it
+ * anyway. The Worker queues the job before it runs the ingest for the same batch, so a fast job
+ * could otherwise resolve or assign first and have the ingest's status rule undo it. A message
+ * older than this whose ingest never ran (mail from before the helpdesk) is triaged as it is.
+ */
+export const INGEST_WAIT_MS = 2 * 60_000;
+
+/** The message's helpdesk ingest has not run yet, and may still: wait for it before triage. */
+export async function awaitingIngest(db: Db, messageId: string, now = new Date()) {
+  const [row] = await db
+    .select({ applied: messages.workflowAppliedAt, createdAt: messages.createdAt })
+    .from(messages)
+    .where(eq(messages.id, messageId));
+  return (
+    row !== undefined &&
+    row.applied === null &&
+    now.getTime() - row.createdAt.getTime() < INGEST_WAIT_MS
+  );
+}
+
 /** At most this many of an inbox's tags are offered to triage, in name order. */
 export const HELPDESK_TAGS_FOR_AI = 25;
 
@@ -49,7 +70,10 @@ export interface AiHelpdeskChanges {
 }
 
 export type AiHelpdeskOutcome =
-  /** Not a shared conversation, or `messageId` is no longer its latest message. */
+  /**
+   * Not a shared conversation, `messageId` is no longer its latest message, or a teammate
+   * re-sorted that message while the model ran.
+   */
   | { applied: false }
   | {
       applied: true;
@@ -96,12 +120,19 @@ export async function applyAiHelpdeskTriage(
         kind: mailboxes.kind,
         status: threads.status,
         assigneeMemberId: threads.assigneeMemberId,
+        triageSource: threads.triageSource,
+        triageMessageId: threads.triageMessageId,
       })
       .from(threads)
       .innerJoin(mailboxes, eq(mailboxes.id, threads.mailboxId))
       .where(eq(threads.id, threadId))
       .for("update", { of: threads });
     if (thread?.kind !== "shared") return { applied: false };
+    // A teammate re-sorted this message while the model ran: their call stands, and none of the
+    // model's changes follow from a bucket they overruled.
+    if (thread.triageSource === "person" && thread.triageMessageId === messageId) {
+      return { applied: false };
+    }
     // Same order as `loadThreadForAi`: nothing in the thread sorts after `messageId`.
     const triaged = alias(messages, "triaged");
     const [latest] = await tx

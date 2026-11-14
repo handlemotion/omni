@@ -15,6 +15,7 @@ import {
 import {
   addAiUsage,
   applyAiHelpdeskTriage,
+  awaitingIngest,
   helpdeskContextForAi,
   loadThreadForAi,
   markTriagePaused,
@@ -105,6 +106,7 @@ export async function consumeDeadLetters(batch: MessageBatch<AiJob>, env: Env) {
  *   runs again on the thread as it is now.
  * `triage_paused`: the workspace used its monthly allowance; the thread records until when.
  * `billing_inactive`: no plan in good standing, so no AI at all (ADR 0015).
+ * `ingesting`: a shared inbox's message whose own ingest has not run yet; the job runs again shortly.
  */
 export type AiJobOutcome =
   | "missing"
@@ -114,6 +116,7 @@ export type AiJobOutcome =
   | "no_model"
   | "superseded"
   | "changed"
+  | "ingesting"
   | "triaged";
 
 export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
@@ -164,6 +167,12 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
         // Nothing else is sure to queue a job for a prune, so this one reads the thread again.
         if (outcome === "changed") {
           message.retry({ delaySeconds: 5 });
+          continue;
+        }
+        // The ingest usually lands within seconds; at 30s apart, the retries outlast
+        // `INGEST_WAIT_MS`, after which the job triages the message as it is.
+        if (outcome === "ingesting") {
+          message.retry({ delaySeconds: 30 });
           continue;
         }
         message.ack();
@@ -238,7 +247,11 @@ export async function runAiJob(
     const input = triageInputFor(thread.messages, isUs);
     // A shared inbox: triage also judges priority, tags (ADR 0022) and who takes it (ADR 0033).
     const helpdesk = await helpdeskContextForAi(db, thread.mailboxId);
-    if (helpdesk) input.helpdesk = helpdesk;
+    if (helpdesk) {
+      // Its status rule runs first, so what triage sets is not undone by it (nor round-robin beaten).
+      if (await awaitingIngest(db, latest.id)) return "ingesting";
+      input.helpdesk = helpdesk;
+    }
     const byRule = triageByRule(input);
     // A model call counts against the workspace's monthly allowance (ADR 0015); the rule is free.
     if (triageEnabled && !byRule) {
