@@ -211,6 +211,18 @@ describe("search", () => {
     );
   });
 
+  test("a query finds mail by what it means when none of its words are in the mail", async () => {
+    // No thread says "otp": the sign-in code is found among the newest threads, by Jev alone.
+    const { ranking, results } = await search("otp");
+    expect(ranking).toBe("jev");
+    expect(results.map((r) => r.threadId)).toEqual([threadIds.get("fernway-sign-in-code")]);
+    expect(results[0]!.snippet).toContain("Enter 482913 to finish signing in");
+
+    // Without Jev there is nothing to judge meaning with: only word matches, here none.
+    jev.state.mode = "fail";
+    expect((await search("one time passcode otp")).results).toEqual([]);
+  });
+
   test("a repeated search reuses Jev's judgments", async () => {
     const first = await search("nightwatch bill from august");
     const asked = jev.state.requests;

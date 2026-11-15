@@ -30,6 +30,12 @@ export const inboxSearch = z.object({
 
 export const listSearch = z.object({ mailbox: optionalId });
 
+export const draftsSearch = z.object({
+  mailbox: optionalId,
+  /** A new message's draft to open in the compose dialog; dropped once it has. */
+  draft: optionalId,
+});
+
 export const searchSearch = z.object({
   q: fallback(z._default(z.string(), ""), ""),
   mailbox: optionalId,

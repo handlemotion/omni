@@ -81,6 +81,14 @@
       "sentAt": "2026-10-31T22:40:00Z",
       "messageCount": 1,
       "text": "Someone asked to reset the password for your Lumen Hosting account. If it was you, follow the link below within an hour. If not, you can ignore this email."
+    },
+    {
+      "id": "fernway-sign-in-code",
+      "subject": "482913 is your Fernway sign-in code",
+      "from": { "name": "Fernway", "address": "no-reply@fernway.example" },
+      "sentAt": "2026-11-02T08:14:00Z",
+      "messageCount": 1,
+      "text": "Enter 482913 to finish signing in to Fernway. The code expires in 10 minutes. If you didn't try to sign in, you can ignore this email."
     }
   ],
   "queries": [
@@ -101,6 +109,7 @@
     },
     { "id": "lisbon-trip", "query": "my lisbon trip", "best": "lisbon-flight" },
     { "id": "signed-contract", "query": "signed contract", "best": "brightside-contract-signed" },
-    { "id": "hosting-receipt", "query": "hosting receipt", "best": "lumen-invoice-oct" }
+    { "id": "hosting-receipt", "query": "hosting receipt", "best": "lumen-invoice-oct" },
+    { "id": "otp", "query": "otp", "best": "fernway-sign-in-code" }
   ]
 }

@@ -31,8 +31,10 @@ function Search() {
         sender: hit.from.name || hit.from.address,
         subject: hit.subject,
         snippet: hit.snippet,
-        unread: false,
+        unread: hit.unread,
         workspace: names?.get(hit.orgId),
+        // Search doesn't say whether a hit is done or in Later: its menu offers both as new.
+        triage: { done: false, later: false, lastMessageAt: hit.lastMessageAt },
       })),
     [hits, names],
   );

@@ -10,6 +10,8 @@ const LEAVES = {
   later: ["inbox", "done"],
   unlater: ["later"],
   archive: ["inbox", "later"],
+  // Every copy moves to Trash, the sent and junk ones too.
+  trash: ["inbox", "later", "sent", "spam"],
 } as const satisfies Record<string, readonly ThreadView[]>;
 
 export function leavesView(action: keyof typeof LEAVES, view: ThreadView | undefined) {

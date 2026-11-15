@@ -11,6 +11,7 @@ import {
   moveMutation,
   replyMutation,
   sendMutation,
+  trashMutation,
   undoneMutation,
 } from "../lib/mail-mutations.ts";
 import { dismissFailure, removePending, type ActionFailure } from "../lib/pending.ts";
@@ -43,6 +44,11 @@ export function useMarkUndone() {
 /** `mutate({ threadId })`. */
 export function useArchive() {
   return useKeyedMutation(archiveMutation(useQueryClient()));
+}
+
+/** `mutate({ threadId })`: every copy goes to the mailbox's Trash. */
+export function useMoveToTrash() {
+  return useKeyedMutation(trashMutation(useQueryClient()));
 }
 
 /** `mutate({ threadId, destination })`, where `destination` is an IMAP folder path. */

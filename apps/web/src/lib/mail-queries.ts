@@ -91,6 +91,9 @@ export const threadQuery = (threadId: string) =>
     },
   });
 
+/** The most the API returns: a query by meaning ("otp") can match a lot of mail. */
+const SEARCH_LIMIT = 50;
+
 /** Search across every workspace the user belongs to (ADR 0014); each hit carries its `orgId`. */
 export const searchQuery = (q: string, mailbox?: string) =>
   queryOptions({
@@ -98,7 +101,14 @@ export const searchQuery = (q: string, mailbox?: string) =>
     queryFn: ({ signal }) =>
       call(
         api.search.$get(
-          { query: { scope: "all", q, ...(mailbox ? { mailboxId: mailbox } : {}) } },
+          {
+            query: {
+              scope: "all",
+              q,
+              limit: String(SEARCH_LIMIT),
+              ...(mailbox ? { mailboxId: mailbox } : {}),
+            },
+          },
           { init: { signal } },
         ),
       ),

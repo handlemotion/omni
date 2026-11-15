@@ -12,9 +12,9 @@ import {
   IconInbox,
   IconPaperPlane,
   IconSidebar,
-  IconStar,
   IconTrash,
   IconWarning,
+  IconWrite,
 } from "@/components/icons/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -80,10 +80,10 @@ const mail: NavItem[] = [
 
 const folders: NavItem[] = [
   { label: "All mail", icon: <IconEmail />, href: "/all", current: { path: "/all" } },
-  { label: "Favorite", icon: <IconStar /> },
-  { label: "Sent", icon: <IconPaperPlane /> },
-  { label: "Trash", icon: <IconTrash /> },
-  { label: "Spam", icon: <IconWarning /> },
+  { label: "Drafts", icon: <IconWrite />, href: "/drafts", current: { path: "/drafts" } },
+  { label: "Sent", icon: <IconPaperPlane />, href: "/sent", current: { path: "/sent" } },
+  { label: "Trash", icon: <IconTrash />, href: "/trash", current: { path: "/trash" } },
+  { label: "Spam", icon: <IconWarning />, href: "/spam", current: { path: "/spam" } },
 ];
 
 // Figma: Omni, sidebar (node 1:3).

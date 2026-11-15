@@ -1,6 +1,7 @@
 // The thread list's keys (`j`/`k`, `o`, `x`, `e`, `h`, `u`, `z`, Esc; on a helpdesk list `e`
 // resolves, `h` snoozes and `i` assigns to you). The cursor is the focused row:
-// moving it moves real focus, so React Aria and screen readers follow it.
+// moving it moves real focus, so React Aria and screen readers follow it. The same actions are
+// returned for a row's context menu, which names its row instead of using the cursor.
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, type RefObject } from "react";
 import type { Selection } from "react-aria-components";
@@ -15,7 +16,13 @@ import type {
 import { offerUndo } from "../lib/undo.ts";
 import { useBulkChange } from "./use-conversation.ts";
 import { usePrefetchThread } from "./use-mail.ts";
-import { useMarkDone, useMarkRead, useMarkUndone, useMoveToLater } from "./use-mail-actions.ts";
+import {
+  useMarkDone,
+  useMarkRead,
+  useMarkUndone,
+  useMoveToLater,
+  useMoveToTrash,
+} from "./use-mail-actions.ts";
 import { announce, useShortcut } from "./use-shortcuts.ts";
 import { useUndo } from "./use-undo.ts";
 
@@ -26,6 +33,21 @@ const each =
     list.forEach(run);
 
 const plural = (n: number) => (n === 1 ? "Thread" : `${n} threads`);
+
+/**
+ * The list's actions on one row, for its context menu. Each acts on the whole selection when
+ * `id` is one of the checked rows, and on that row alone otherwise.
+ */
+export interface ThreadListActions {
+  open: (id: string) => void;
+  /** Done, or back out of Done when every target already is. */
+  done: (id: string) => void;
+  /** Into Later, or back to the Inbox when every target is there. */
+  later: (id: string) => void;
+  /** Read when any target is unread, unread otherwise. */
+  read: (id: string) => void;
+  trash: (id: string) => void;
+}
 
 /** How long `h` snoozes a helpdesk conversation for the team: a day. */
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
@@ -48,7 +70,7 @@ export function useThreadListShortcuts(options: {
   /** List view with a thread open: the list is hidden, so j/k open the neighbour. */
   listHidden: boolean;
   loadMore?: (() => void) | undefined;
-}) {
+}): ThreadListActions {
   const { view, threadId, href, selected, setSelected, listRef, listHidden, helpdesk } = options;
   const threads: (ThreadSummary | ConversationSummary)[] = helpdesk
     ? helpdesk.conversations
@@ -59,6 +81,7 @@ export function useThreadListShortcuts(options: {
   const markDone = useMarkDone();
   const markUndone = useMarkUndone();
   const moveToLater = useMoveToLater();
+  const moveToTrash = useMoveToTrash();
   const prefetch = usePrefetchThread();
   // Binds `z` to the standing undo offer wherever the list is, toast or not.
   useUndo();
@@ -122,8 +145,13 @@ export function useThreadListShortcuts(options: {
     else focusRow(id);
   };
 
-  /** The selected threads, or else the one under the cursor. */
-  const targets = () => {
+  /**
+   * The selected threads, or else the one under the cursor. With `row` (a context menu's row):
+   * the selection when the row is part of it, else that row alone.
+   */
+  const targets = (row?: string) => {
+    const checked = (id: string) => selected === "all" || selected.has(id);
+    if (row && !checked(row)) return threads.filter((t) => t.id === row);
     if (selected === "all") return [...threads];
     if (selected.size) return threads.filter((t) => selected.has(t.id));
     const id = cursor();
@@ -143,7 +171,9 @@ export function useThreadListShortcuts(options: {
   ) => {
     if (!list.length) return;
     const gone = new Set(list.filter(leaves).map((t) => t.id));
-    const at = ids.indexOf(cursor() ?? "");
+    // From the open thread when it is one of them: its neighbour opens in its place.
+    const from = threadId && gone.has(threadId) ? threadId : cursor();
+    const at = ids.indexOf(from ?? "");
     const stays = (id: string | undefined) => !!id && !gone.has(id);
     const neighbour =
       ids.slice(at + 1).find(stays) ?? ids.slice(0, Math.max(at, 0)).findLast(stays);
@@ -181,7 +211,7 @@ export function useThreadListShortcuts(options: {
   };
 
   /** Plain thread rows under the cursor or selected (none on a helpdesk list). */
-  const threadTargets = () => (helpdesk ? [] : (targets() as ThreadSummary[]));
+  const threadTargets = (row?: string) => (helpdesk ? [] : (targets(row) as ThreadSummary[]));
 
   const bulk = useBulkChange();
   /**
@@ -263,53 +293,55 @@ export function useThreadListShortcuts(options: {
     },
     has,
   );
-  useShortcut(
-    "done",
-    () => {
-      const list = threadTargets();
-      const undo = list.every((t) => t.done);
-      act(
-        list,
-        each((t) =>
-          undo
-            ? markUndone.mutate({ threadId: t.id })
-            : markDone.mutate({ threadId: t.id, through: t.lastMessageAt }),
-        ),
-        () => leavesView(undo ? "undone" : "done", view),
-        (n) => `${plural(n)} ${undo ? "back in the Inbox" : "marked done"}`,
-        each(restore(undo ? "undone" : "done")),
-      );
-    },
-    plain,
-  );
-  useShortcut(
-    "later",
-    () => {
-      const list = threadTargets();
-      const back = list.every((t) => t.later);
-      act(
-        list,
-        each((t) => moveToLater.mutate({ threadId: t.id, later: !back })),
-        () => leavesView(back ? "unlater" : "later", view),
-        (n) => `${plural(n)} ${back ? "back in the Inbox" : "moved to Later"}`,
-        each(restore(back ? "unlater" : "later")),
-      );
-    },
-    plain,
-  );
-  useShortcut(
-    "read",
-    () => {
-      const list = targets();
-      const read = list.some((t) => t.unread);
-      act(
-        list,
-        each((t: ThreadSummary | ConversationSummary) => markRead.mutate({ threadId: t.id, read })),
-        () => false,
-        (n) => `${plural(n)} marked ${read ? "read" : "unread"}`,
-      );
-    },
-    has,
-  );
+  const done = (row?: string) => {
+    const list = threadTargets(row);
+    const undo = list.every((t) => t.done);
+    act(
+      list,
+      each((t) =>
+        undo
+          ? markUndone.mutate({ threadId: t.id })
+          : markDone.mutate({ threadId: t.id, through: t.lastMessageAt }),
+      ),
+      () => leavesView(undo ? "undone" : "done", view),
+      (n) => `${plural(n)} ${undo ? "back in the Inbox" : "marked done"}`,
+      each(restore(undo ? "undone" : "done")),
+    );
+  };
+  const later = (row?: string) => {
+    const list = threadTargets(row);
+    const back = list.every((t) => t.later);
+    act(
+      list,
+      each((t) => moveToLater.mutate({ threadId: t.id, later: !back })),
+      () => leavesView(back ? "unlater" : "later", view),
+      (n) => `${plural(n)} ${back ? "back in the Inbox" : "moved to Later"}`,
+      each(restore(back ? "unlater" : "later")),
+    );
+  };
+  const read = (row?: string) => {
+    const list = targets(row);
+    const toRead = list.some((t) => t.unread);
+    act(
+      list,
+      each((t: ThreadSummary | ConversationSummary) =>
+        markRead.mutate({ threadId: t.id, read: toRead }),
+      ),
+      () => false,
+      (n) => `${plural(n)} marked ${toRead ? "read" : "unread"}`,
+    );
+  };
+  /** No undo: bringing mail back out of Trash is a move the app does not offer yet. */
+  const trash = (row: string) =>
+    act(
+      targets(row),
+      each((t: ThreadSummary | ConversationSummary) => moveToTrash.mutate({ threadId: t.id })),
+      () => leavesView("trash", helpdesk ? undefined : view),
+      (n) => `${plural(n)} moved to Trash`,
+    );
+  useShortcut("done", () => done(), plain);
+  useShortcut("later", () => later(), plain);
+  useShortcut("read", () => read(), has);
   useShortcut("close", close, !!threadId);
+  return { open, done, later, read, trash };
 }

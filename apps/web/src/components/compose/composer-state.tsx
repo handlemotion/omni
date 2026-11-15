@@ -4,7 +4,15 @@
 // reply or a forward. A shared inbox's composer is always there, in Hidden; Reply or Forward on a
 // message turns it into the email composer, and a send or a discard turns it back. A personal
 // thread has only Public, closed until Reply or Forward opens it and again after a discard.
-import { createContext, useContext, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import type { ComposerFile } from "@/hooks/use-compose.ts";
 import type { Reply } from "@/lib/reply.ts";
 
@@ -72,15 +80,43 @@ interface ComposerState {
   generation: number;
 }
 
+/**
+ * A reply or forward asked for from outside the conversation (a list row's menu): the thread's
+ * provider takes it once the thread is open, which may be a navigation and a load later.
+ */
+interface ComposeRequest {
+  threadId: string;
+  kind: "reply" | "forward";
+  /** The message answered or forwarded (a saved draft's); the latest when unset. */
+  messageId?: string | undefined;
+}
+let requested: ComposeRequest | undefined;
+const requestListeners = new Set<() => void>();
+const subscribeRequests = (listener: () => void) => {
+  requestListeners.add(listener);
+  return () => requestListeners.delete(listener);
+};
+
+/** Opens `threadId`'s email composer, replying to or forwarding its latest message. */
+export function requestCompose(request: ComposeRequest) {
+  requested = request;
+  for (const listener of requestListeners) listener();
+}
+
 const Context = createContext<ComposerState | null>(null);
 
 /** One per open conversation (keyed by thread), so nothing carries over to the next one. */
 export function ComposerProvider({
+  threadId,
+  messages,
   chat,
   chatOpen,
   onStartChat,
   children,
 }: {
+  threadId: string;
+  /** The thread's messages: a reply or forward asked for from the list takes the latest. */
+  messages: readonly { id: string }[];
   chat: boolean;
   /** A shared inbox's conversation is under way: its hidden composer stays docked. */
   chatOpen: boolean;
@@ -107,6 +143,18 @@ export function ComposerProvider({
     setEmail(true);
     setMode("public");
   };
+  const latestMessageId = messages.at(-1)?.id;
+  const request = useSyncExternalStore(subscribeRequests, () => requested);
+  useEffect(() => {
+    if (request?.threadId !== threadId) return;
+    requested = undefined;
+    const messageId = request.messageId ?? latestMessageId;
+    if (request.kind === "forward" && !messageId) return;
+    setForwardId(request.kind === "forward" ? messageId : undefined);
+    if (request.kind === "reply" && request.messageId) setReplyToId(request.messageId);
+    setEmail(true);
+    setMode("public");
+  }, [request, threadId, latestMessageId]);
   const value: ComposerState = {
     chat,
     // A personal thread opened in the same reader has no chat.

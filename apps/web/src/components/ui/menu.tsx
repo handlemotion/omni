@@ -3,6 +3,7 @@ import {
   Menu as MenuRoot,
   MenuCheckboxItem,
   MenuContent,
+  MenuContextTrigger,
   MenuGroup,
   MenuGroupLabel,
   MenuItem as MenuItemPrimitive,
@@ -83,6 +84,28 @@ export function MenuTrigger({ isOpen, defaultOpen, onOpenChange, children }: Men
       onOpenChange={onOpenChange && ((open) => onOpenChange(open))}
     >
       <MenuTriggerPrimitive render={trigger as ReactElement<Record<string, unknown>>} />
+      {rest}
+    </MenuRoot>
+  );
+}
+
+export interface ContextMenuTriggerProps {
+  onOpenChange?: (open: boolean) => void;
+  /** The area first, then its `<Menu>`. */
+  children: ReactNode;
+}
+
+/**
+ * A menu opened at the pointer by a right-click or a long press on its area (Shift+F10 from the
+ * keys). The first child becomes the area through `render`, so it must forward its props and ref
+ * to its DOM element; a `contextmenu` event it stops in the capture phase leaves the browser's
+ * own menu, for the parts of the area that have no actions.
+ */
+export function ContextMenuTrigger({ onOpenChange, children }: ContextMenuTriggerProps) {
+  const [area, ...rest] = Children.toArray(children);
+  return (
+    <MenuRoot onOpenChange={onOpenChange && ((open) => onOpenChange(open))}>
+      <MenuContextTrigger render={area as ReactElement<Record<string, unknown>>} />
       {rest}
     </MenuRoot>
   );

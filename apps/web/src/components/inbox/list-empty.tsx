@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import type { ConversationFilter, HelpdeskView, ThreadFilter, ThreadView } from "@/lib/types.ts";
 
-const VIEW_TEXT: Record<ThreadView, { title: string; description: string }> = {
+const VIEW_TEXT: Record<ThreadView, { title: string; description?: string }> = {
   inbox: { title: "Inbox zero", description: "You're all caught up. New mail lands here." },
   later: {
     title: "Nothing for later",
@@ -23,6 +23,10 @@ const VIEW_TEXT: Record<ThreadView, { title: string; description: string }> = {
     title: "No mail yet",
     description: "Mail from your connected accounts shows up here once it syncs.",
   },
+  // No frame for these yet: a title only, no copy of our own.
+  sent: { title: "Nothing sent yet" },
+  trash: { title: "Trash is empty" },
+  spam: { title: "No spam" },
 };
 
 const LANE_TEXT: Partial<Record<string, { title: string; description: string }>> = {
@@ -42,6 +46,9 @@ const VIEW_PATH = {
   done: "/done",
   archive: "/archive",
   all: "/all",
+  sent: "/sent",
+  trash: "/trash",
+  spam: "/spam",
 } as const satisfies Record<ThreadView, string>;
 
 /** An empty thread list (Inbox, Later, Done, Archive, All mail). */

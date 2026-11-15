@@ -620,14 +620,15 @@ export const compose = new Hono<AppEnv>()
     return c.json({ cancelled: true, payload: result.payload });
   })
 
-  /** Drafts of an inbox or a conversation, shared with everyone on the inbox. */
+  /**
+   * Drafts of an inbox or a conversation, shared with everyone on the inbox; with neither, the
+   * drafts of every inbox the member is on (the Drafts page).
+   */
   .get(
     "/drafts",
     zValidator(
       "query",
-      z
-        .object({ mailboxId: z.string().min(1).optional(), threadId: z.string().min(1).optional() })
-        .refine((q) => q.mailboxId || q.threadId, "mailboxId or threadId is required"),
+      z.object({ mailboxId: z.string().min(1).optional(), threadId: z.string().min(1).optional() }),
     ),
     async (c) =>
       c.json({ drafts: await listDrafts(c.var.db, c.var.member.id, c.req.valid("query")) }),

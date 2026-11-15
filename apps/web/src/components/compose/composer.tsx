@@ -68,7 +68,7 @@ const draftFiles = (files: ComposerFile[]): DraftFile[] =>
   );
 
 /** Files a saved draft carries, named from the thread where they came from an original. */
-function filesFromDraft(draft: Draft, messages: Message[] = []): ComposerFile[] {
+export function filesFromDraft(draft: Draft, messages: Message[] = []): ComposerFile[] {
   const originals = messages.flatMap((m) => m.attachments);
   return draft.attachments.map((a) => {
     if ("attachmentId" in a && a.attachmentId) {
@@ -164,7 +164,8 @@ export function ReplyComposer({ thread, docked = false }: { thread: Thread; dock
   // Kept mounted while Hidden shows after a send, so its undo can hand the text back.
   if (!state.email) return null;
   return (
-    // Docked (the email view): floating 16px off the pane's bottom over a fade, like the notes.
+    // Docked (the email view): floating 16px off the pane's bottom, like the notes; the email
+    // scrolls under it.
     // In the conversation: your next message, under your name like the ones you sent.
     <div
       ref={box}
@@ -175,12 +176,6 @@ export function ReplyComposer({ thread, docked = false }: { thread: Thread; dock
         <header className="flex items-center gap-2">
           <span className="text-sm">You</span>
         </header>
-      )}
-      {docked && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 bg-linear-to-b from-transparent to-background to-[2.5rem]"
-        />
       )}
       {/* A fresh composer per reply or forwarded message: its own recipients, body and draft. */}
       <div className="relative w-full">

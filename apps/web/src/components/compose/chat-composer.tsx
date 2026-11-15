@@ -58,7 +58,7 @@ function useWraps(ref: RefObject<HTMLTextAreaElement | null>, text: string) {
 
 /**
  * A shared conversation's hidden notes, floating 16px off the pane's bottom in the messages'
- * column; they scroll behind it and fade out as they reach it. Gone while an email is written.
+ * column; they scroll under it. Gone while an email is written.
  */
 export function ChatDock({ thread }: { thread: Thread }) {
   const { chat, chatOpen, mode } = useComposerState();
@@ -68,10 +68,6 @@ export function ChatDock({ thread }: { thread: Thread }) {
     // Kept mounted while an email is written or the email view shows, so a half-written note
     // waits here.
     <div hidden={!active} className="relative mx-auto w-full max-w-3xl px-5 pb-4">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 bg-linear-to-b from-transparent to-background to-[2.5rem]"
-      />
       <div className="relative">
         <ChatComposer key={thread.id} thread={thread} active={active} />
       </div>

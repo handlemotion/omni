@@ -147,6 +147,25 @@ export const archiveMutation = (client: QueryClient) =>
     onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
   });
 
+/** Moves every copy of the thread to the mailbox's Trash; it leaves the Inbox for everyone. */
+export const trashMutation = (client: QueryClient) =>
+  mutationOptions({
+    mutationKey: [...keys.mail(), "trash"],
+    retry,
+    scope,
+    mutationFn: ({ threadId, key }: Keyed & { threadId: string }) =>
+      call(api.threads[":id"].trash.$post({ param: { id: threadId }, header: header(key) })),
+    onMutate: async ({ threadId }) => {
+      const snapshot = await snapshotThread(client, threadId);
+      patchThread(client, threadId, { archived: true });
+      removeFromLists(client, threadId, (f) => leavesView("trash", f.view));
+      return { snapshot };
+    },
+    onError: (_error, _vars, context) => restore(client, context?.snapshot),
+    // The Trash list gains the thread once the mail has moved; the next sync's event refetches it.
+    onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
+  });
+
 /** Moves the thread's messages to another IMAP folder. Not optimistic: no list shows folders. */
 export const moveMutation = (client: QueryClient) =>
   mutationOptions({

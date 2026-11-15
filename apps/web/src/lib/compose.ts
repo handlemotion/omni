@@ -121,11 +121,22 @@ export const customerSearchQuery = (q: string) =>
     staleTime: 30_000,
   });
 
-/** Shared drafts of one conversation (or, with `mailboxId`, new mail on an inbox). */
-export const draftsQuery = (where: { threadId: string } | { mailboxId: string }) =>
+/**
+ * Shared drafts of one conversation, of one inbox (`mailboxId`), or of every inbox you are on.
+ */
+export const draftsQuery = (where: { threadId: string } | { mailboxId?: string | undefined }) =>
   queryOptions({
     queryKey: keys.drafts(where),
-    queryFn: ({ signal }) => call(api.drafts.$get({ query: where }, { init: { signal } })),
+    queryFn: ({ signal }) =>
+      call(
+        api.drafts.$get(
+          {
+            query:
+              "threadId" in where ? where : where.mailboxId ? { mailboxId: where.mailboxId } : {},
+          },
+          { init: { signal } },
+        ),
+      ),
     select: (data) => data.drafts,
   });
 

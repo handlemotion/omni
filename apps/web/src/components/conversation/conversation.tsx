@@ -112,6 +112,8 @@ export function Conversation({ threadId }: { threadId: string }) {
       {/* Per conversation: the timeline's menus and selections steer the composer under it. */}
       <ComposerProvider
         key={threadId}
+        threadId={threadId}
+        messages={thread.messages}
         chat={shared}
         chatOpen={!single}
         onStartChat={() => reader.setView("conversation")}

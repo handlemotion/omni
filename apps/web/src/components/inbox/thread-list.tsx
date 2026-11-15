@@ -1,5 +1,5 @@
 import { useLocation, useParams } from "@tanstack/react-router";
-import { memo, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Selection } from "react-aria-components";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
@@ -8,17 +8,14 @@ import { Skeleton, SkeletonBox } from "skullet/react";
 import { ConversationMeta, type ConversationRowInfo } from "@/components/inbox/conversation-meta";
 import { ListSweepSlot } from "@/components/inbox/list-sweep";
 import { OpenListContext } from "@/components/inbox/open-list";
+import { HeaderAction, MarkAllRead, ReloadAction } from "@/components/inbox/list-header-actions";
+import { RowMenu } from "@/components/inbox/row-menu";
 import { EmptyState } from "@/components/empty/empty-state";
 import { ThreadListEmpty } from "@/components/inbox/list-empty";
 import { FloatingCompose } from "@/components/compose/floating-actions";
-import { useQueryClient } from "@tanstack/react-query";
-import { IconArrowRotateClockwise, IconMailOpen, IconPencil } from "@/components/icons/central";
-import { keys } from "@/lib/query-keys.ts";
+import { IconPencil } from "@/components/icons/central";
 import { IconSearch } from "@/components/icons/sidebar";
 import { openSearch, SearchPopover } from "@/components/search/search-popover";
-import { useMarkRead } from "@/hooks/use-mail-actions.ts";
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
@@ -31,7 +28,10 @@ import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useThreads } from "@/hooks/use-mail.ts";
-import { useThreadListShortcuts } from "@/hooks/use-thread-list-shortcuts.ts";
+import {
+  useThreadListShortcuts,
+  type ThreadListActions,
+} from "@/hooks/use-thread-list-shortcuts.ts";
 import { useWorkspaceNames } from "@/hooks/use-workspaces.ts";
 import { senderLabel } from "@/lib/threads.ts";
 import type {
@@ -61,6 +61,8 @@ export interface ListRow {
   workspace?: string | undefined;
   /** A helpdesk conversation's status, assignee, SLA and the rest, shown after the subject. */
   conversation?: ConversationRowInfo | undefined;
+  /** Your own Done and Later on the thread, where the row's menu offers them. */
+  triage?: { done: boolean; later: boolean; lastMessageAt: string } | undefined;
 }
 
 interface ListProps {
@@ -134,6 +136,7 @@ const toRow = (thread: ThreadSummary, workspace?: string): ListRow => ({
   snippet: thread.snippet,
   unread: thread.unread,
   workspace,
+  triage: { done: thread.done, later: thread.later, lastMessageAt: thread.lastMessageAt },
 });
 
 // Figma: Omni, inbox list (node 15:2), on our tokens: brand blue for the count, checkboxes and
@@ -158,6 +161,8 @@ export function List(
     bulkActions?: (selection: { ids: string[]; clear: () => void }) => ReactNode;
     /** Shown in place of the rows when there are none (or they failed to load). */
     empty?: ReactNode;
+    /** Rows that are not threads (drafts) have no context menu. */
+    rowMenu?: boolean;
   },
 ) {
   const threads = props.rows;
@@ -176,6 +181,8 @@ export function List(
   // Full screen (toggled from the conversation's toolbar): the open pane takes the whole width.
   const hideList = fullScreen && detail;
   const listRef = useRef<HTMLElement>(null);
+  // The keys' actions, for the rows' context menu.
+  const actions = useRef<ThreadListActions | null>(null);
   // With a thread open, three columns: the list keeps a width the person can drag, the reading
   // column the rest at the window's full height. Closed, the list fills the page.
   const split = detail && !hideList;
@@ -199,6 +206,22 @@ export function List(
   const sidebar = useSidebar();
   const sidebarHidden = sidebar.isMobile || !sidebar.open;
 
+  const rows = (
+    <RowHover>
+      <Rows
+        label={props.title}
+        rows={threads}
+        href={props.href}
+        current={threadId}
+        closeHref={closeHref}
+        selected={selected}
+        onSelectionChange={setSelected}
+        loadMore={props.loadMore}
+        isLoadingMore={props.isLoadingMore}
+      />
+    </RowHover>
+  );
+
   return (
     // Viewport height, so the virtualized list is its own scroll container however tall the
     // thread beside it is. No `flex-1`: its 0% basis resolves to the content height here.
@@ -212,6 +235,7 @@ export function List(
           setSelected={setSelected}
           listRef={listRef}
           listHidden={hideList}
+          actions={actions}
         />
       )}
       {/* The list and the reading column side by side, each the window's full height. */}
@@ -283,19 +307,18 @@ export function List(
             props.empty
           ) : (
             <ListSweepSlot>
-              <RowHover>
-                <Rows
-                  label={props.title}
+              {props.rowMenu === false ? (
+                rows
+              ) : (
+                <RowMenu
                   rows={threads}
                   href={props.href}
-                  current={threadId}
-                  closeHref={closeHref}
-                  selected={selected}
-                  onSelectionChange={setSelected}
-                  loadMore={props.loadMore}
-                  isLoadingMore={props.isLoadingMore}
-                />
-              </RowHover>
+                  actions={actions}
+                  inTrash={props.shortcuts?.view === "trash"}
+                >
+                  {rows}
+                </RowMenu>
+              )}
             </ListSweepSlot>
           )}
           {/* A helpdesk list's actions on its checked rows float at the column's foot, 16px up and
@@ -338,76 +361,6 @@ export function List(
         )}
       </div>
     </div>
-  );
-}
-
-/** An icon action in the list's header, the reader's toolbar size, with its tooltip. */
-function HeaderAction(props: {
-  label: string;
-  shortcut?: Parameters<typeof ariaKeyShortcuts>[0];
-  isDisabled?: boolean;
-  isPending?: boolean;
-  onPress: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <TooltipTrigger delay={400}>
-      <Button
-        intent="ghost"
-        size="sq-sm"
-        aria-label={props.label}
-        aria-keyshortcuts={props.shortcut && ariaKeyShortcuts(props.shortcut)}
-        isDisabled={props.isDisabled}
-        isPending={props.isPending}
-        onPress={props.onPress}
-      >
-        {props.children}
-      </Button>
-      <Tooltip>{props.label}</Tooltip>
-    </TooltipTrigger>
-  );
-}
-
-/** Fetches everything on screen again: the lists, the open thread, the counts. */
-function ReloadAction() {
-  const client = useQueryClient();
-  const [pending, setPending] = useState(false);
-  return (
-    <HeaderAction
-      label="Reload"
-      isPending={pending}
-      onPress={() => {
-        setPending(true);
-        // Server data only: client-only state (pending and failed sends) has nothing to fetch,
-        // and refetching it would clear it.
-        void client
-          .refetchQueries({
-            type: "active",
-            predicate: (query) => query.queryKey[1] !== keys.local()[1],
-          })
-          .finally(() => setPending(false));
-      }}
-    >
-      <IconArrowRotateClockwise />
-    </HeaderAction>
-  );
-}
-
-/**
- * Marks every unread row in the list read, one at a time as `u` does. Always in the header, so
- * its actions stay put; disabled while nothing is unread.
- */
-function MarkAllRead({ rows }: { rows: ListRow[] }) {
-  const markRead = useMarkRead();
-  const unread = rows.filter((r) => r.unread);
-  return (
-    <HeaderAction
-      label="Mark all read"
-      isDisabled={!unread.length}
-      onPress={() => unread.forEach((r) => markRead.mutate({ threadId: r.id, read: true }))}
-    >
-      <IconMailOpen />
-    </HeaderAction>
   );
 }
 
@@ -505,8 +458,20 @@ interface ShortcutsSource {
 }
 
 /** Binds the list keys while mounted; a component so `List` can use them only for threads. */
-function ListShortcuts(props: Parameters<typeof useThreadListShortcuts>[0]) {
-  useThreadListShortcuts(props);
+function ListShortcuts({
+  actions,
+  ...props
+}: Parameters<typeof useThreadListShortcuts>[0] & {
+  /** Handed the list's actions, for the rows' context menu. */
+  actions: RefObject<ThreadListActions | null>;
+}) {
+  const current = useThreadListShortcuts(props);
+  useEffect(() => {
+    actions.current = current;
+    return () => {
+      actions.current = null;
+    };
+  });
   return null;
 }
 

@@ -114,14 +114,23 @@ export interface DraftContent {
   attachments: DraftAttachment[];
 }
 
-/** Drafts of one inbox, or of one conversation, newest first. Empty when the member can't see it. */
+/**
+ * Drafts of one inbox, of one conversation, or (no filter) of every inbox the member is on,
+ * newest first. Empty when the member can't see it.
+ */
 export async function listDrafts(
   db: Db,
   memberId: string,
   filter: { mailboxId?: string; threadId?: string },
 ) {
   return db
-    .select(draftColumns)
+    .select({
+      ...draftColumns,
+      /** A reply's or forward's conversation, by its latest subject (a reply saves none). */
+      threadSubject: sql<
+        string | null
+      >`(select m.subject from ${messages} m where m.thread_id = "drafts"."thread_id" order by m.sent_at desc, m.id desc limit 1)`,
+    })
     .from(drafts)
     .where(
       and(

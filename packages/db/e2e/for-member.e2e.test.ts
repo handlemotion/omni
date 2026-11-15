@@ -17,8 +17,10 @@ import {
   attachments as attachmentsTable,
   drafts as schemaDrafts,
   mailboxes as schemaMailboxes,
+  mailboxFolders,
   mailDomains,
   members,
+  messageLocations,
   notifications,
   tags as tagsTable,
   threadState,
@@ -606,6 +608,47 @@ test("full-text search matches stemmed words in clean_text", async () => {
 
   const hits = await forMember(db, member).search("invoices");
   expect(hits.map((h) => h.messageId)).toEqual([messageId]);
+});
+
+test("Sent, Trash and Spam list the threads filed in that folder, and the newest threads feed search", async () => {
+  const org = await createOrg(db, "folders-org");
+  const member = (await createMember(db, org.id, "erin")).id;
+  const box = await createMailbox(db, org.id, "erin@folders.test");
+  await grant(db, org.id, box.id, member);
+  const filed: Record<string, string> = {};
+  let uid = 1;
+  for (const role of ["inbox", "sent", "trash", "junk"] as const) {
+    const [folder] = await db
+      .insert(mailboxFolders)
+      .values({ orgId: org.id, mailboxId: box.id, path: role, role, uidvalidity: 1 })
+      .returning({ id: mailboxFolders.id });
+    const { threadId, messageId } = await seedThread(org.id, box.id, `${role} mail`);
+    await db.insert(messageLocations).values({
+      orgId: org.id,
+      mailboxId: box.id,
+      folderId: folder!.id,
+      imapUid: uid++,
+      messageId,
+    });
+    filed[role] = threadId;
+  }
+
+  const reads = forMember(db, member);
+  const ids = async (view: "sent" | "trash" | "spam") =>
+    (await reads.listThreads({ view })).map((t) => t.id);
+  expect(await ids("sent")).toEqual([filed.sent]);
+  expect(await ids("trash")).toEqual([filed.trash]);
+  expect(await ids("spam")).toEqual([filed.junk]);
+
+  // Candidates for a relevance judge: every thread, with the start of its latest message.
+  const recent = await reads.searchRecent({ limit: 10 });
+  expect(recent.map((h) => h.threadId).toSorted()).toEqual(Object.values(filed).toSorted());
+  expect(recent[0]).toMatchObject({ mailboxAddress: "erin@folders.test", messageCount: 1 });
+  expect(recent[0]!.excerpt).toMatch(/^Please look at the \w+ mail details\.$/);
+  // Another org's member sees none of it.
+  const other = await createOrg(db, "folders-other");
+  const outsider = (await createMember(db, other.id, "eve")).id;
+  expect(await forMember(db, outsider).searchRecent({ limit: 10 })).toEqual([]);
 });
 
 test("lanes split AI triage at the auto-file confidence; person triage always files", async () => {

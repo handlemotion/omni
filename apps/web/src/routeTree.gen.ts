@@ -19,20 +19,28 @@ import { Route as AuthedMemberAllRouteImport } from "./routes/_authed/_member/al
 import { Route as AuthedMemberArchiveRouteImport } from "./routes/_authed/_member/archive";
 import { Route as AuthedMemberComposeRouteImport } from "./routes/_authed/_member/compose";
 import { Route as AuthedMemberDoneRouteImport } from "./routes/_authed/_member/done";
+import { Route as AuthedMemberDraftsRouteImport } from "./routes/_authed/_member/drafts";
 import { Route as AuthedMemberInboxRouteImport } from "./routes/_authed/_member/inbox";
 import { Route as AuthedMemberLaterRouteImport } from "./routes/_authed/_member/later";
 import { Route as AuthedMemberSearchRouteImport } from "./routes/_authed/_member/search";
+import { Route as AuthedMemberSentRouteImport } from "./routes/_authed/_member/sent";
+import { Route as AuthedMemberSpamRouteImport } from "./routes/_authed/_member/spam";
+import { Route as AuthedMemberTrashRouteImport } from "./routes/_authed/_member/trash";
 import { Route as AuthedInviteInvitationIdRouteImport } from "./routes/_authed/invite.$invitationId";
 import { Route as AuthedOauthConsentRouteImport } from "./routes/_authed/oauth/consent";
 import { Route as AuthedMemberAllThreadIdRouteImport } from "./routes/_authed/_member/all.$threadId";
 import { Route as AuthedMemberArchiveThreadIdRouteImport } from "./routes/_authed/_member/archive.$threadId";
 import { Route as AuthedMemberDoneThreadIdRouteImport } from "./routes/_authed/_member/done.$threadId";
+import { Route as AuthedMemberDraftsThreadIdRouteImport } from "./routes/_authed/_member/drafts.$threadId";
 import { Route as AuthedMemberInboxThreadIdRouteImport } from "./routes/_authed/_member/inbox.$threadId";
 import { Route as AuthedMemberLaterThreadIdRouteImport } from "./routes/_authed/_member/later.$threadId";
 import { Route as AuthedMemberSearchThreadIdRouteImport } from "./routes/_authed/_member/search.$threadId";
+import { Route as AuthedMemberSentThreadIdRouteImport } from "./routes/_authed/_member/sent.$threadId";
 import { Route as AuthedMemberSettingsIndexRouteImport } from "./routes/_authed/_member/settings/index";
 import { Route as AuthedMemberSettingsAccountsRouteImport } from "./routes/_authed/_member/settings/accounts";
 import { Route as AuthedMemberSettingsBillingRouteImport } from "./routes/_authed/_member/settings/billing";
+import { Route as AuthedMemberSpamThreadIdRouteImport } from "./routes/_authed/_member/spam.$threadId";
+import { Route as AuthedMemberTrashThreadIdRouteImport } from "./routes/_authed/_member/trash.$threadId";
 import { Route as AuthedSettingsEmailsVerifyRouteImport } from "./routes/_authed/settings/emails.verify";
 
 const IndexRoute = IndexRouteImport.update({
@@ -83,6 +91,11 @@ const AuthedMemberDoneRoute = AuthedMemberDoneRouteImport.update({
   path: "/done",
   getParentRoute: () => AuthedMemberRoute,
 } as any);
+const AuthedMemberDraftsRoute = AuthedMemberDraftsRouteImport.update({
+  id: "/drafts",
+  path: "/drafts",
+  getParentRoute: () => AuthedMemberRoute,
+} as any);
 const AuthedMemberInboxRoute = AuthedMemberInboxRouteImport.update({
   id: "/inbox",
   path: "/inbox",
@@ -96,6 +109,21 @@ const AuthedMemberLaterRoute = AuthedMemberLaterRouteImport.update({
 const AuthedMemberSearchRoute = AuthedMemberSearchRouteImport.update({
   id: "/search",
   path: "/search",
+  getParentRoute: () => AuthedMemberRoute,
+} as any);
+const AuthedMemberSentRoute = AuthedMemberSentRouteImport.update({
+  id: "/sent",
+  path: "/sent",
+  getParentRoute: () => AuthedMemberRoute,
+} as any);
+const AuthedMemberSpamRoute = AuthedMemberSpamRouteImport.update({
+  id: "/spam",
+  path: "/spam",
+  getParentRoute: () => AuthedMemberRoute,
+} as any);
+const AuthedMemberTrashRoute = AuthedMemberTrashRouteImport.update({
+  id: "/trash",
+  path: "/trash",
   getParentRoute: () => AuthedMemberRoute,
 } as any);
 const AuthedInviteInvitationIdRoute =
@@ -126,6 +154,12 @@ const AuthedMemberDoneThreadIdRoute =
     path: "/$threadId",
     getParentRoute: () => AuthedMemberDoneRoute,
   } as any);
+const AuthedMemberDraftsThreadIdRoute =
+  AuthedMemberDraftsThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedMemberDraftsRoute,
+  } as any);
 const AuthedMemberInboxThreadIdRoute =
   AuthedMemberInboxThreadIdRouteImport.update({
     id: "/$threadId",
@@ -143,6 +177,12 @@ const AuthedMemberSearchThreadIdRoute =
     id: "/$threadId",
     path: "/$threadId",
     getParentRoute: () => AuthedMemberSearchRoute,
+  } as any);
+const AuthedMemberSentThreadIdRoute =
+  AuthedMemberSentThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedMemberSentRoute,
   } as any);
 const AuthedMemberSettingsIndexRoute =
   AuthedMemberSettingsIndexRouteImport.update({
@@ -162,6 +202,18 @@ const AuthedMemberSettingsBillingRoute =
     path: "/settings/billing",
     getParentRoute: () => AuthedMemberRoute,
   } as any);
+const AuthedMemberSpamThreadIdRoute =
+  AuthedMemberSpamThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedMemberSpamRoute,
+  } as any);
+const AuthedMemberTrashThreadIdRoute =
+  AuthedMemberTrashThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedMemberTrashRoute,
+  } as any);
 const AuthedSettingsEmailsVerifyRoute =
   AuthedSettingsEmailsVerifyRouteImport.update({
     id: "/settings/emails/verify",
@@ -178,19 +230,27 @@ export interface FileRoutesByFullPath {
   "/archive": typeof AuthedMemberArchiveRouteWithChildren;
   "/compose": typeof AuthedMemberComposeRoute;
   "/done": typeof AuthedMemberDoneRouteWithChildren;
+  "/drafts": typeof AuthedMemberDraftsRouteWithChildren;
   "/inbox": typeof AuthedMemberInboxRouteWithChildren;
   "/later": typeof AuthedMemberLaterRouteWithChildren;
   "/search": typeof AuthedMemberSearchRouteWithChildren;
+  "/sent": typeof AuthedMemberSentRouteWithChildren;
+  "/spam": typeof AuthedMemberSpamRouteWithChildren;
+  "/trash": typeof AuthedMemberTrashRouteWithChildren;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
   "/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
   "/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
+  "/drafts/$threadId": typeof AuthedMemberDraftsThreadIdRoute;
   "/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
   "/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
+  "/sent/$threadId": typeof AuthedMemberSentThreadIdRoute;
   "/settings/accounts": typeof AuthedMemberSettingsAccountsRoute;
   "/settings/billing": typeof AuthedMemberSettingsBillingRoute;
+  "/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
+  "/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/settings/": typeof AuthedMemberSettingsIndexRoute;
 }
@@ -203,19 +263,27 @@ export interface FileRoutesByTo {
   "/archive": typeof AuthedMemberArchiveRouteWithChildren;
   "/compose": typeof AuthedMemberComposeRoute;
   "/done": typeof AuthedMemberDoneRouteWithChildren;
+  "/drafts": typeof AuthedMemberDraftsRouteWithChildren;
   "/inbox": typeof AuthedMemberInboxRouteWithChildren;
   "/later": typeof AuthedMemberLaterRouteWithChildren;
   "/search": typeof AuthedMemberSearchRouteWithChildren;
+  "/sent": typeof AuthedMemberSentRouteWithChildren;
+  "/spam": typeof AuthedMemberSpamRouteWithChildren;
+  "/trash": typeof AuthedMemberTrashRouteWithChildren;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
   "/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
   "/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
+  "/drafts/$threadId": typeof AuthedMemberDraftsThreadIdRoute;
   "/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
   "/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
+  "/sent/$threadId": typeof AuthedMemberSentThreadIdRoute;
   "/settings/accounts": typeof AuthedMemberSettingsAccountsRoute;
   "/settings/billing": typeof AuthedMemberSettingsBillingRoute;
+  "/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
+  "/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/settings": typeof AuthedMemberSettingsIndexRoute;
 }
@@ -231,19 +299,27 @@ export interface FileRoutesById {
   "/_authed/_member/archive": typeof AuthedMemberArchiveRouteWithChildren;
   "/_authed/_member/compose": typeof AuthedMemberComposeRoute;
   "/_authed/_member/done": typeof AuthedMemberDoneRouteWithChildren;
+  "/_authed/_member/drafts": typeof AuthedMemberDraftsRouteWithChildren;
   "/_authed/_member/inbox": typeof AuthedMemberInboxRouteWithChildren;
   "/_authed/_member/later": typeof AuthedMemberLaterRouteWithChildren;
   "/_authed/_member/search": typeof AuthedMemberSearchRouteWithChildren;
+  "/_authed/_member/sent": typeof AuthedMemberSentRouteWithChildren;
+  "/_authed/_member/spam": typeof AuthedMemberSpamRouteWithChildren;
+  "/_authed/_member/trash": typeof AuthedMemberTrashRouteWithChildren;
   "/_authed/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/_authed/oauth/consent": typeof AuthedOauthConsentRoute;
   "/_authed/_member/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
   "/_authed/_member/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/_authed/_member/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
+  "/_authed/_member/drafts/$threadId": typeof AuthedMemberDraftsThreadIdRoute;
   "/_authed/_member/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
   "/_authed/_member/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
   "/_authed/_member/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
+  "/_authed/_member/sent/$threadId": typeof AuthedMemberSentThreadIdRoute;
   "/_authed/_member/settings/accounts": typeof AuthedMemberSettingsAccountsRoute;
   "/_authed/_member/settings/billing": typeof AuthedMemberSettingsBillingRoute;
+  "/_authed/_member/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
+  "/_authed/_member/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
   "/_authed/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
   "/_authed/_member/settings/": typeof AuthedMemberSettingsIndexRoute;
 }
@@ -258,19 +334,27 @@ export interface FileRouteTypes {
     | "/archive"
     | "/compose"
     | "/done"
+    | "/drafts"
     | "/inbox"
     | "/later"
     | "/search"
+    | "/sent"
+    | "/spam"
+    | "/trash"
     | "/invite/$invitationId"
     | "/oauth/consent"
     | "/all/$threadId"
     | "/archive/$threadId"
     | "/done/$threadId"
+    | "/drafts/$threadId"
     | "/inbox/$threadId"
     | "/later/$threadId"
     | "/search/$threadId"
+    | "/sent/$threadId"
     | "/settings/accounts"
     | "/settings/billing"
+    | "/spam/$threadId"
+    | "/trash/$threadId"
     | "/settings/emails/verify"
     | "/settings/";
   fileRoutesByTo: FileRoutesByTo;
@@ -283,19 +367,27 @@ export interface FileRouteTypes {
     | "/archive"
     | "/compose"
     | "/done"
+    | "/drafts"
     | "/inbox"
     | "/later"
     | "/search"
+    | "/sent"
+    | "/spam"
+    | "/trash"
     | "/invite/$invitationId"
     | "/oauth/consent"
     | "/all/$threadId"
     | "/archive/$threadId"
     | "/done/$threadId"
+    | "/drafts/$threadId"
     | "/inbox/$threadId"
     | "/later/$threadId"
     | "/search/$threadId"
+    | "/sent/$threadId"
     | "/settings/accounts"
     | "/settings/billing"
+    | "/spam/$threadId"
+    | "/trash/$threadId"
     | "/settings/emails/verify"
     | "/settings";
   id:
@@ -310,19 +402,27 @@ export interface FileRouteTypes {
     | "/_authed/_member/archive"
     | "/_authed/_member/compose"
     | "/_authed/_member/done"
+    | "/_authed/_member/drafts"
     | "/_authed/_member/inbox"
     | "/_authed/_member/later"
     | "/_authed/_member/search"
+    | "/_authed/_member/sent"
+    | "/_authed/_member/spam"
+    | "/_authed/_member/trash"
     | "/_authed/invite/$invitationId"
     | "/_authed/oauth/consent"
     | "/_authed/_member/all/$threadId"
     | "/_authed/_member/archive/$threadId"
     | "/_authed/_member/done/$threadId"
+    | "/_authed/_member/drafts/$threadId"
     | "/_authed/_member/inbox/$threadId"
     | "/_authed/_member/later/$threadId"
     | "/_authed/_member/search/$threadId"
+    | "/_authed/_member/sent/$threadId"
     | "/_authed/_member/settings/accounts"
     | "/_authed/_member/settings/billing"
+    | "/_authed/_member/spam/$threadId"
+    | "/_authed/_member/trash/$threadId"
     | "/_authed/settings/emails/verify"
     | "/_authed/_member/settings/";
   fileRoutesById: FileRoutesById;
@@ -405,6 +505,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedMemberDoneRouteImport;
       parentRoute: typeof AuthedMemberRoute;
     };
+    "/_authed/_member/drafts": {
+      id: "/_authed/_member/drafts";
+      path: "/drafts";
+      fullPath: "/drafts";
+      preLoaderRoute: typeof AuthedMemberDraftsRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
+    };
     "/_authed/_member/inbox": {
       id: "/_authed/_member/inbox";
       path: "/inbox";
@@ -424,6 +531,27 @@ declare module "@tanstack/react-router" {
       path: "/search";
       fullPath: "/search";
       preLoaderRoute: typeof AuthedMemberSearchRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
+    };
+    "/_authed/_member/sent": {
+      id: "/_authed/_member/sent";
+      path: "/sent";
+      fullPath: "/sent";
+      preLoaderRoute: typeof AuthedMemberSentRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
+    };
+    "/_authed/_member/spam": {
+      id: "/_authed/_member/spam";
+      path: "/spam";
+      fullPath: "/spam";
+      preLoaderRoute: typeof AuthedMemberSpamRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
+    };
+    "/_authed/_member/trash": {
+      id: "/_authed/_member/trash";
+      path: "/trash";
+      fullPath: "/trash";
+      preLoaderRoute: typeof AuthedMemberTrashRouteImport;
       parentRoute: typeof AuthedMemberRoute;
     };
     "/_authed/invite/$invitationId": {
@@ -461,6 +589,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedMemberDoneThreadIdRouteImport;
       parentRoute: typeof AuthedMemberDoneRoute;
     };
+    "/_authed/_member/drafts/$threadId": {
+      id: "/_authed/_member/drafts/$threadId";
+      path: "/$threadId";
+      fullPath: "/drafts/$threadId";
+      preLoaderRoute: typeof AuthedMemberDraftsThreadIdRouteImport;
+      parentRoute: typeof AuthedMemberDraftsRoute;
+    };
     "/_authed/_member/inbox/$threadId": {
       id: "/_authed/_member/inbox/$threadId";
       path: "/$threadId";
@@ -482,6 +617,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedMemberSearchThreadIdRouteImport;
       parentRoute: typeof AuthedMemberSearchRoute;
     };
+    "/_authed/_member/sent/$threadId": {
+      id: "/_authed/_member/sent/$threadId";
+      path: "/$threadId";
+      fullPath: "/sent/$threadId";
+      preLoaderRoute: typeof AuthedMemberSentThreadIdRouteImport;
+      parentRoute: typeof AuthedMemberSentRoute;
+    };
     "/_authed/_member/settings/": {
       id: "/_authed/_member/settings/";
       path: "/settings";
@@ -502,6 +644,20 @@ declare module "@tanstack/react-router" {
       fullPath: "/settings/billing";
       preLoaderRoute: typeof AuthedMemberSettingsBillingRouteImport;
       parentRoute: typeof AuthedMemberRoute;
+    };
+    "/_authed/_member/spam/$threadId": {
+      id: "/_authed/_member/spam/$threadId";
+      path: "/$threadId";
+      fullPath: "/spam/$threadId";
+      preLoaderRoute: typeof AuthedMemberSpamThreadIdRouteImport;
+      parentRoute: typeof AuthedMemberSpamRoute;
+    };
+    "/_authed/_member/trash/$threadId": {
+      id: "/_authed/_member/trash/$threadId";
+      path: "/$threadId";
+      fullPath: "/trash/$threadId";
+      preLoaderRoute: typeof AuthedMemberTrashThreadIdRouteImport;
+      parentRoute: typeof AuthedMemberTrashRoute;
     };
     "/_authed/settings/emails/verify": {
       id: "/_authed/settings/emails/verify";
@@ -547,6 +703,17 @@ const AuthedMemberDoneRouteChildren: AuthedMemberDoneRouteChildren = {
 const AuthedMemberDoneRouteWithChildren =
   AuthedMemberDoneRoute._addFileChildren(AuthedMemberDoneRouteChildren);
 
+interface AuthedMemberDraftsRouteChildren {
+  AuthedMemberDraftsThreadIdRoute: typeof AuthedMemberDraftsThreadIdRoute;
+}
+
+const AuthedMemberDraftsRouteChildren: AuthedMemberDraftsRouteChildren = {
+  AuthedMemberDraftsThreadIdRoute: AuthedMemberDraftsThreadIdRoute,
+};
+
+const AuthedMemberDraftsRouteWithChildren =
+  AuthedMemberDraftsRoute._addFileChildren(AuthedMemberDraftsRouteChildren);
+
 interface AuthedMemberInboxRouteChildren {
   AuthedMemberInboxThreadIdRoute: typeof AuthedMemberInboxThreadIdRoute;
 }
@@ -580,14 +747,51 @@ const AuthedMemberSearchRouteChildren: AuthedMemberSearchRouteChildren = {
 const AuthedMemberSearchRouteWithChildren =
   AuthedMemberSearchRoute._addFileChildren(AuthedMemberSearchRouteChildren);
 
+interface AuthedMemberSentRouteChildren {
+  AuthedMemberSentThreadIdRoute: typeof AuthedMemberSentThreadIdRoute;
+}
+
+const AuthedMemberSentRouteChildren: AuthedMemberSentRouteChildren = {
+  AuthedMemberSentThreadIdRoute: AuthedMemberSentThreadIdRoute,
+};
+
+const AuthedMemberSentRouteWithChildren =
+  AuthedMemberSentRoute._addFileChildren(AuthedMemberSentRouteChildren);
+
+interface AuthedMemberSpamRouteChildren {
+  AuthedMemberSpamThreadIdRoute: typeof AuthedMemberSpamThreadIdRoute;
+}
+
+const AuthedMemberSpamRouteChildren: AuthedMemberSpamRouteChildren = {
+  AuthedMemberSpamThreadIdRoute: AuthedMemberSpamThreadIdRoute,
+};
+
+const AuthedMemberSpamRouteWithChildren =
+  AuthedMemberSpamRoute._addFileChildren(AuthedMemberSpamRouteChildren);
+
+interface AuthedMemberTrashRouteChildren {
+  AuthedMemberTrashThreadIdRoute: typeof AuthedMemberTrashThreadIdRoute;
+}
+
+const AuthedMemberTrashRouteChildren: AuthedMemberTrashRouteChildren = {
+  AuthedMemberTrashThreadIdRoute: AuthedMemberTrashThreadIdRoute,
+};
+
+const AuthedMemberTrashRouteWithChildren =
+  AuthedMemberTrashRoute._addFileChildren(AuthedMemberTrashRouteChildren);
+
 interface AuthedMemberRouteChildren {
   AuthedMemberAllRoute: typeof AuthedMemberAllRouteWithChildren;
   AuthedMemberArchiveRoute: typeof AuthedMemberArchiveRouteWithChildren;
   AuthedMemberComposeRoute: typeof AuthedMemberComposeRoute;
   AuthedMemberDoneRoute: typeof AuthedMemberDoneRouteWithChildren;
+  AuthedMemberDraftsRoute: typeof AuthedMemberDraftsRouteWithChildren;
   AuthedMemberInboxRoute: typeof AuthedMemberInboxRouteWithChildren;
   AuthedMemberLaterRoute: typeof AuthedMemberLaterRouteWithChildren;
   AuthedMemberSearchRoute: typeof AuthedMemberSearchRouteWithChildren;
+  AuthedMemberSentRoute: typeof AuthedMemberSentRouteWithChildren;
+  AuthedMemberSpamRoute: typeof AuthedMemberSpamRouteWithChildren;
+  AuthedMemberTrashRoute: typeof AuthedMemberTrashRouteWithChildren;
   AuthedMemberSettingsAccountsRoute: typeof AuthedMemberSettingsAccountsRoute;
   AuthedMemberSettingsBillingRoute: typeof AuthedMemberSettingsBillingRoute;
   AuthedMemberSettingsIndexRoute: typeof AuthedMemberSettingsIndexRoute;
@@ -598,9 +802,13 @@ const AuthedMemberRouteChildren: AuthedMemberRouteChildren = {
   AuthedMemberArchiveRoute: AuthedMemberArchiveRouteWithChildren,
   AuthedMemberComposeRoute: AuthedMemberComposeRoute,
   AuthedMemberDoneRoute: AuthedMemberDoneRouteWithChildren,
+  AuthedMemberDraftsRoute: AuthedMemberDraftsRouteWithChildren,
   AuthedMemberInboxRoute: AuthedMemberInboxRouteWithChildren,
   AuthedMemberLaterRoute: AuthedMemberLaterRouteWithChildren,
   AuthedMemberSearchRoute: AuthedMemberSearchRouteWithChildren,
+  AuthedMemberSentRoute: AuthedMemberSentRouteWithChildren,
+  AuthedMemberSpamRoute: AuthedMemberSpamRouteWithChildren,
+  AuthedMemberTrashRoute: AuthedMemberTrashRouteWithChildren,
   AuthedMemberSettingsAccountsRoute: AuthedMemberSettingsAccountsRoute,
   AuthedMemberSettingsBillingRoute: AuthedMemberSettingsBillingRoute,
   AuthedMemberSettingsIndexRoute: AuthedMemberSettingsIndexRoute,

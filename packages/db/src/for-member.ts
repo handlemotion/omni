@@ -15,6 +15,7 @@ import {
   businessHours,
   conversationEvents,
   drafts,
+  folderRole,
   mailActions,
   mailboxAccess,
   mailboxFolders,
@@ -59,8 +60,19 @@ export const LANES = [...triageBucket.enumValues, "unsure"] as const satisfies r
  * - `done`: done, archived or not.
  * - `archive`: archived (moved out of INBOX on the server; shared by everyone on the mailbox).
  * - `all`: every thread the member can see, whatever its state.
+ * - `sent`, `trash`, `spam`: threads with a message filed in the mailbox's Sent, Trash or Junk
+ *   folder on the server (`message_locations`), whatever the member's own state.
  */
-export const THREAD_VIEWS = ["inbox", "later", "done", "archive", "all"] as const;
+export const THREAD_VIEWS = [
+  "inbox",
+  "later",
+  "done",
+  "archive",
+  "all",
+  "sent",
+  "trash",
+  "spam",
+] as const;
 export type ThreadView = (typeof THREAD_VIEWS)[number];
 
 /**
@@ -211,6 +223,29 @@ interface SearchRow {
   excerpt: string;
 }
 
+/** A search row as the API reads it. */
+function toSearchHit(row: SearchRow) {
+  return {
+    orgId: row.org_id,
+    threadId: row.thread_id,
+    messageId: row.message_id,
+    mailboxId: row.mailbox_id,
+    mailboxAddress: row.mailbox_address,
+    subject: row.subject,
+    from: { name: row.from_name, address: row.from_address } satisfies Participant,
+    sentAt: new Date(row.sent_at),
+    lastMessageAt: new Date(row.last_message_at),
+    messageCount: row.message_count,
+    score: row.score,
+    triage: row.triage,
+    triageSource: row.triage_source,
+    triageConfidence: row.triage_confidence,
+    unread: !row.read,
+    snippet: row.snippet,
+    excerpt: row.excerpt,
+  };
+}
+
 const { searchVector: _searchVector, ...messageColumns } = getTableColumns(messages);
 
 /**
@@ -284,6 +319,10 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
     sql`exists (select 1 from ${threadState} s where s.thread_id = ${threads.id} and s.member_id = ${mailboxAccess.memberId} and (${filter}))`;
   const doneRule = sql`${threads.lastMessageAt} <= s.done_through`;
   const laterRule = sql`s.snoozed_until > now()`;
+  // A scalar subquery for the same reason as `done` below: checked per thread as the page index
+  // is walked newest first, never planned as a join over every filed message.
+  const filedIn = (role: (typeof folderRole.enumValues)[number]) =>
+    sql`coalesce((select true from ${messages} fm join ${messageLocations} fl on fl.message_id = fm.id join ${mailboxFolders} ff on ff.id = fl.folder_id where fm.thread_id = ${threads.id} and ff.role = ${role} limit 1), false)`;
   const viewFilters: Record<ThreadView, SQL[]> = {
     inbox: [eq(threads.archived, false), sql`not ${state(sql`${doneRule} or ${laterRule}`)}`],
     later: [
@@ -299,6 +338,9 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
     ],
     archive: [eq(threads.archived, true)],
     all: [],
+    sent: [filedIn("sent")],
+    trash: [filedIn("trash")],
+    spam: [filedIn("junk")],
   };
 
   // Per-thread summary for list rows, read through the thread (already access-checked).
@@ -1252,25 +1294,49 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         join ${mailboxes} mb on mb.id = t.mailbox_id
         order by top.score desc, top.thread_id desc
       `)) as unknown as SearchRow[]; // postgres-js: the rows themselves
-      return rows.map((row) => ({
-        orgId: row.org_id,
-        threadId: row.thread_id,
-        messageId: row.message_id,
-        mailboxId: row.mailbox_id,
-        mailboxAddress: row.mailbox_address,
-        subject: row.subject,
-        from: { name: row.from_name, address: row.from_address } satisfies Participant,
-        sentAt: new Date(row.sent_at),
-        lastMessageAt: new Date(row.last_message_at),
-        messageCount: row.message_count,
-        score: row.score,
-        triage: row.triage,
-        triageSource: row.triage_source,
-        triageConfidence: row.triage_confidence,
-        unread: !row.read,
-        snippet: row.snippet,
-        excerpt: row.excerpt,
-      }));
+      return rows.map(toSearchHit);
+    },
+
+    /**
+     * The newest `limit` threads the member can see, in `search`'s row shape: each thread's
+     * latest message, the start of its text as `snippet` and a longer `excerpt`. No query: these
+     * are candidates for a relevance judge, which finds mail by meaning that shares no word with
+     * what was typed ("otp" for "your sign-in code"). Bounded per granted mailbox, like the list.
+     */
+    async searchRecent(options: { mailboxId?: string; limit: number }) {
+      const { mailboxId, limit } = options;
+      const start = (chars: number) =>
+        sql`left(btrim(regexp_replace(${withoutLinks(sql`left(m.clean_text, ${chars * 2})`)}, '\\s+', ' ', 'g')), ${chars})`;
+      const rows = (await db.execute(sql`
+        with page as (
+          select t.* from ${mailboxAccess} ma
+          join ${members} mem on mem.id = ma.member_id
+          cross join lateral (
+            select t.id, t.org_id, t.mailbox_id, t.last_message_at, t.triage, t.triage_source, t.triage_confidence
+            from ${threads} t
+            where t.mailbox_id = ma.mailbox_id and t.org_id = mem.organization_id
+            order by t.last_message_at desc, t.id desc limit ${limit}
+          ) t
+          where ${isGrantee(sql`ma.member_id`)} ${mailboxId ? sql`and ma.mailbox_id = ${mailboxId}` : sql``}
+          order by t.last_message_at desc, t.id desc limit ${limit}
+        )
+        select t.org_id, t.id as thread_id, m.id as message_id, t.mailbox_id, mb.address as mailbox_address,
+          m.subject, m.from_name, m.from_address, m.sent_at, t.last_message_at, 0::float8 as score,
+          t.triage, t.triage_source, t.triage_confidence,
+          coalesce((select s.read from ${threadState} s join ${mailboxAccess} sa on sa.member_id = s.member_id and sa.mailbox_id = t.mailbox_id where s.thread_id = t.id and ${isGrantee(sql`sa.member_id`)} limit 1), false) as read,
+          (select count(*)::int from ${messages} c where c.thread_id = t.id) as message_count,
+          ${start(200)} as snippet,
+          ${start(1500)} as excerpt
+        from page t
+        join lateral (
+          select m.id, m.subject, m.from_name, m.from_address, m.sent_at, m.clean_text
+          from ${messages} m where m.thread_id = t.id
+          order by m.sent_at desc, m.id desc limit 1
+        ) m on true
+        join ${mailboxes} mb on mb.id = t.mailbox_id
+        order by t.last_message_at desc, t.id desc
+      `)) as unknown as SearchRow[]; // postgres-js: the rows themselves
+      return rows.map(toSearchHit);
     },
 
     /**

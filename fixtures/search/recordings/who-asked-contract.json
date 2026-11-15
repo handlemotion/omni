@@ -11,6 +11,24 @@
         "instructions": {
           "question": "Is `thread` the email thread the person who typed `query` is looking for?",
           "thread": {
+            "subject": "482913 is your Fernway sign-in code",
+            "from": "Fernway <no-reply@fernway.example>",
+            "sent": "November 2, 2026 (yesterday)",
+            "mailbox": "sam@example.com",
+            "messages_in_thread": 1,
+            "excerpt": "Enter 482913 to finish signing in to Fernway. The code expires in 10 minutes. If you didn't try to sign in, you can ignore this email."
+          }
+        },
+        "criteria": {
+          "true": "The thread is about what `query` describes, and fits any person, company, kind of email, or time `query` names.",
+          "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
+        }
+      },
+      "candidate_1": {
+        "type": "noul",
+        "instructions": {
+          "question": "Is `thread` the email thread the person who typed `query` is looking for?",
+          "thread": {
             "subject": "Reset your password",
             "from": "Lumen Hosting <no-reply@lumenhost.example>",
             "sent": "October 31, 2026 (3 days ago)",
@@ -24,7 +42,7 @@
           "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
         }
       },
-      "candidate_1": {
+      "candidate_2": {
         "type": "noul",
         "instructions": {
           "question": "Is `thread` the email thread the person who typed `query` is looking for?",
@@ -42,7 +60,7 @@
           "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
         }
       },
-      "candidate_2": {
+      "candidate_3": {
         "type": "noul",
         "instructions": {
           "question": "Is `thread` the email thread the person who typed `query` is looking for?",
@@ -60,7 +78,7 @@
           "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
         }
       },
-      "candidate_3": {
+      "candidate_4": {
         "type": "noul",
         "instructions": {
           "question": "Is `thread` the email thread the person who typed `query` is looking for?",
@@ -78,7 +96,7 @@
           "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
         }
       },
-      "candidate_4": {
+      "candidate_5": {
         "type": "noul",
         "instructions": {
           "question": "Is `thread` the email thread the person who typed `query` is looking for?",
@@ -96,7 +114,7 @@
           "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
         }
       },
-      "candidate_5": {
+      "candidate_6": {
         "type": "noul",
         "instructions": {
           "question": "Is `thread` the email thread the person who typed `query` is looking for?",
@@ -114,7 +132,7 @@
           "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
         }
       },
-      "candidate_6": {
+      "candidate_7": {
         "type": "noul",
         "instructions": {
           "question": "Is `thread` the email thread the person who typed `query` is looking for?",
@@ -132,7 +150,7 @@
           "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
         }
       },
-      "candidate_7": {
+      "candidate_8": {
         "type": "noul",
         "instructions": {
           "question": "Is `thread` the email thread the person who typed `query` is looking for?",
@@ -150,7 +168,7 @@
           "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
         }
       },
-      "candidate_8": {
+      "candidate_9": {
         "type": "noul",
         "instructions": {
           "question": "Is `thread` the email thread the person who typed `query` is looking for?",
@@ -168,7 +186,7 @@
           "false": "The thread only shares some words with `query`, or it is from a different person or company, a different kind of email, or a different time than `query` names."
         }
       },
-      "candidate_9": {
+      "candidate_10": {
         "type": "noul",
         "instructions": {
           "question": "Is `thread` the email thread the person who typed `query` is looking for?",
@@ -197,44 +215,48 @@
       },
       "candidate_1": {
         "type": "noul",
-        "noul": 0.1
+        "noul": 0.01
       },
       "candidate_2": {
         "type": "noul",
-        "noul": 0.3
+        "noul": 0.11
       },
       "candidate_3": {
         "type": "noul",
-        "noul": 0.82
+        "noul": 0.29
       },
       "candidate_4": {
         "type": "noul",
-        "noul": 0.12
+        "noul": 0.86
       },
       "candidate_5": {
         "type": "noul",
-        "noul": 0.01
+        "noul": 0.1
       },
       "candidate_6": {
         "type": "noul",
-        "noul": 0.02
+        "noul": 0.01
       },
       "candidate_7": {
         "type": "noul",
-        "noul": 0.01
+        "noul": 0.02
       },
       "candidate_8": {
         "type": "noul",
-        "noul": 0.03
+        "noul": 0.01
       },
       "candidate_9": {
+        "type": "noul",
+        "noul": 0.03
+      },
+      "candidate_10": {
         "type": "noul",
         "noul": 0.03
       }
     },
     "usage": {
-      "input_tokens": 2758,
-      "output_tokens": 184
+      "input_tokens": 3000,
+      "output_tokens": 203
     }
   }
 }

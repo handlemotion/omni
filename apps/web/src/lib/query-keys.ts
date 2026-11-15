@@ -117,7 +117,7 @@ export const keys = {
   customerSearch: (q: string) => [...mail, "customers", { q }] as const,
   /** Shared drafts: one conversation's, or an inbox's new mail. */
   draftLists: () => [...mail, "drafts"] as const,
-  drafts: (where: { threadId: string } | { mailboxId: string }) =>
+  drafts: (where: { threadId: string } | { mailboxId?: string | undefined }) =>
     [...mail, "drafts", where] as const,
 
   /** App-only state, never fetched (`query-client.ts` keeps it forever). */

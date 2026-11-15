@@ -223,6 +223,11 @@ export function useCancelSend() {
 }
 
 /** How long autosave waits after the last keystroke. */
+/** Every draft on the inbox the switcher shows, or on all of yours, newest first. */
+export function useDrafts(mailbox?: string) {
+  return useQuery(draftsQuery({ mailboxId: mailbox }));
+}
+
 const AUTOSAVE_MS = 800;
 
 /**
