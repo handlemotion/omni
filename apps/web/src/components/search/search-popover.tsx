@@ -166,12 +166,12 @@ export function SearchPopover({ side = "end" }: { side?: "start" | "end" }) {
         onPress={() => open()}
         aria-label="Search"
         data-search-field
-        // In the sidebar, 2px at the end (not 3): the `/` centres on the toggle above it.
-        className={`flex h-7 ${side === "start" ? "w-full" : "w-60 min-w-24"} cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 ${side === "start" ? "pe-0.5" : "pe-0.75"} text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70 ${phase === "closed" ? "" : "invisible"}`}
+        // In the sidebar, 4px at the end (not 5): the 16px `/` centres on the toggle above it.
+        className={`flex h-7 ${side === "start" ? "w-full" : "w-60 min-w-24"} cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 ${side === "start" ? "pe-1" : "pe-1.25"} text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70 ${phase === "closed" ? "" : "invisible"}`}
       >
         <IconSearch className="text-muted-foreground" />
         <span className="flex-1 text-start">Search</span>
-        <Keyboard>/</Keyboard>
+        <Keyboard className="h-4 min-w-4">/</Keyboard>
       </Button>
       <ModalOverlay
         isOpen={phase !== "closed"}

@@ -42,10 +42,10 @@ import type {
   ThreadView,
 } from "@/lib/types.ts";
 
-// With a thread open, the reading column keeps the width the person dragged it to (768px until
+// With a thread open, the reading column keeps the width the person dragged it to (640px until
 // then) and the list takes the rest, never under 320px (`min-w-80`). The width is the reader's,
 // not the list's, so a wide window grows the list and the reader stays where it was put.
-const READER_WIDTH = 768;
+const READER_WIDTH = 640;
 const READER_MIN = 400;
 const READER_MAX = 4096;
 const LIST_MIN = 320;

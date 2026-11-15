@@ -14,6 +14,7 @@
     "test": "vitest run --passWithNoTests",
     "test:e2e": "vitest run --config vitest.e2e.mts",
     "mailbox:add": "node src/cli/mailbox-add.ts",
+    "dev:seed": "node src/cli/dev-seed.ts",
     "google:connect": "node src/cli/google-connect.ts",
     "dead-letters": "node src/cli/dead-letters.ts"
   },

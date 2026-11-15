@@ -10,6 +10,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --ui=tui",
+    "dev:stack": "node scripts/dev-stack.mjs",
     "check": "oxfmt --check . && oxlint . && pnpm check:policies",
     "check:policies": "node scripts/check-tests.mjs && node scripts/check-workflows.mjs",
     "check-types": "tsc -b --pretty false",

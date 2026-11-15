@@ -158,7 +158,9 @@ export class Realtime extends DurableObject<Env> {
     const presence = presenceOf(socket);
     const memberId = this.ctx.getTags(socket)[0];
     if (presence && memberId) await this.leave(socket, memberId, presence);
-    socket.close(code === 1005 ? 1000 : code, "closing");
+    // 1005 (no code), 1006 (dropped without a close frame) and 1015 (TLS failure) only describe
+    // a close; sending one throws.
+    socket.close(code === 1005 || code === 1006 || code === 1015 ? 1000 : code, "closing");
   }
 
   override async webSocketError(socket: WebSocket) {
