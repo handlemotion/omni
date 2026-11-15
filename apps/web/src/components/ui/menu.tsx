@@ -23,6 +23,7 @@ import {
   isValidElement,
   useContext,
   useRef,
+  type ComponentProps,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -119,6 +120,8 @@ export interface MenuProps<T> {
     placement?: Placement;
     /** Room kept from the window's edges (16px). Less for a trigger that sits closer. */
     collisionPadding?: number;
+    /** What the menu lines up with and takes `--anchor-width` from, in place of its trigger. */
+    anchor?: ComponentProps<typeof MenuContent>["anchor"];
   };
   className?: string;
   "aria-label"?: string;
@@ -160,6 +163,7 @@ function positionProps(
     ...(nested ? {} : toSideAlign(popover?.placement ?? placement ?? "bottom start")),
     sideOffset: popover?.offset ?? 8,
     collisionPadding: popover?.collisionPadding ?? 16,
+    ...(popover?.anchor ? { anchor: popover.anchor } : {}),
   };
 }
 

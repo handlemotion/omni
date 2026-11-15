@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./clean": "./src/clean.ts",
     "./display": "./src/display.ts",
+    "./verification-code": "./src/verification-code.ts",
     "./domains": "./src/domains.ts",
     "./telemetry": "./src/telemetry.ts",
     "./dns-diagnostics": "./src/dns-diagnostics.ts",
