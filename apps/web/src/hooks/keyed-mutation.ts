@@ -22,6 +22,18 @@ export type KeyedMutation<TData, TVars extends { key: string }, TContext> = Dist
     variables: Omit<TVars, "key">,
     options?: MutateOptions<TData, Error, TVars, TContext>,
   ) => Promise<TData>;
+  /**
+   * `mutate` whose callbacks outlive the caller: TanStack drops a call's own `onSuccess` and
+   * `onError` once the component that made it unmounts. For follow-ups owed whether or not the
+   * screen is still there (deleting a sent draft, offering its undo).
+   */
+  mutateDetached: (
+    variables: Omit<TVars, "key">,
+    callbacks: {
+      onSuccess?: (data: TData, variables: TVars) => void;
+      onError?: (error: Error) => void;
+    },
+  ) => void;
 };
 
 /**
@@ -38,5 +50,12 @@ export function useKeyedMutation<TData, TVars extends { key: string }, TContext>
     ...(mutation as DistributiveOmit<typeof mutation, "mutate" | "mutateAsync">),
     mutate: (variables, opts) => mutation.mutate(withKey(variables), opts),
     mutateAsync: (variables, opts) => mutation.mutateAsync(withKey(variables), opts),
+    mutateDetached: (variables, { onSuccess, onError }) => {
+      const keyed = withKey(variables);
+      void mutation.mutateAsync(keyed).then(
+        (data) => onSuccess?.(data, keyed),
+        (error: Error) => onError?.(error),
+      );
+    },
   };
 }

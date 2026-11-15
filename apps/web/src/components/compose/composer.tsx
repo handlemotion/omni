@@ -361,6 +361,8 @@ function ModeComposer(props: {
       edited({ text: before.text, to: before.to, cc: before.cc, bcc: before.bcc });
     };
     const handedOver = draft.detach();
+    // Sent detached: the reply's pending bubble can turn a single email into a conversation,
+    // which mounts a new composer in place of this one before the send settles.
     const sent = (queued: Parameters<typeof offerUndoSend>[0], pending?: { key: string }) => {
       void handedOver.then(draft.remove);
       offerUndoSend(queued, async () => {
@@ -388,7 +390,7 @@ function ModeComposer(props: {
       setBcc([]);
     }
     if (handingOff) {
-      handoff.mutate(
+      handoff.mutateDetached(
         {
           threadId: thread.id,
           mailboxId: fromId,
@@ -403,7 +405,7 @@ function ModeComposer(props: {
         { onSuccess: (queued) => sent(queued), onError: failed },
       );
     } else if (mode === "reply") {
-      reply.mutate(
+      reply.mutateDetached(
         {
           threadId: thread.id,
           text,
@@ -418,7 +420,7 @@ function ModeComposer(props: {
         },
       );
     } else {
-      forward.mutate(
+      forward.mutateDetached(
         {
           threadId: thread.id,
           ...(source ? { messageId: source.id } : {}),
@@ -429,7 +431,6 @@ function ModeComposer(props: {
           includeAttachments: false,
           attachments,
         },
-        // Stays in Forward until it settles: the callbacks only run while this is mounted.
         { onSuccess: (queued) => sent(queued), onError: failed },
       );
     }
