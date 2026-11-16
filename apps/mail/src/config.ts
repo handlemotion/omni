@@ -76,6 +76,11 @@ const schema = z.object({
     .optional()
     .transform((value) => value || undefined),
   /**
+   * A Google account indexes mail from this many days before it was connected, and everything
+   * after (ADR 0045). 0 indexes the whole account.
+   */
+  GMAIL_SYNC_DAYS: z.coerce.number().int().nonnegative().default(7),
+  /**
    * Recursive resolvers used to find a domain's nameservers, comma-separated `ip` or `ip:port`.
    * Empty: the system's. Verification then asks those nameservers directly (ADR 0010).
    */

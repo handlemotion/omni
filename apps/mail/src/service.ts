@@ -33,6 +33,8 @@ import { Supervisor } from "./supervisor.ts";
 import { rehomeMailboxes } from "./rehome.ts";
 import { every } from "./timing.ts";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export type ServiceConfig = Pick<
   Config,
   | "DATABASE_URL"
@@ -55,6 +57,7 @@ export type ServiceConfig = Pick<
       Config,
       | "PURELYMAIL_API_TOKEN"
       | "PURELYMAIL_CREDIT_WARN_USD"
+      | "GMAIL_SYNC_DAYS"
       | "DNS_RESOLVERS"
       | "DNS_NAMESERVER_PORT"
       | "DNS_TIMEOUT_MS"
@@ -209,6 +212,7 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
   let reconciling: Promise<void> | null = null;
   let again = false;
   let stopping = false;
+  const gmailSyncDays = config.GMAIL_SYNC_DAYS ?? 7;
   async function reconcileOnce() {
     if (stopping) return;
     // Mailboxes whose address a company has since locked move there first (ADR 0024), so the
@@ -247,6 +251,10 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
         address: row.address,
         kind: row.kind,
         provider: row.provider,
+        // A Google account indexes from a few days before it was connected (ADR 0045).
+        ...(row.provider === "gmail" && gmailSyncDays > 0
+          ? { syncSince: new Date(row.createdAt.getTime() - gmailSyncDays * DAY_MS) }
+          : {}),
         user: credentials.user,
         auth,
         imap: credentials.imap,

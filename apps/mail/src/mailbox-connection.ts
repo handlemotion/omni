@@ -46,6 +46,11 @@ export interface MailboxConfig {
   kind: "personal" | "shared";
   /** `gmail` for a Google account, where Gmail's read is Omni's Done (ADR 0044). */
   provider?: string;
+  /**
+   * Index only mail from this date on (ADR 0045). Each folder syncs from its oldest message dated
+   * on or after it; everything older stays on the server. Unset: every message.
+   */
+  syncSince?: Date;
   user: string;
   auth: MailAuth;
   imap: ServerEndpoint;
@@ -722,7 +727,14 @@ export class MailboxConnection extends EventEmitter<Events> {
     return position;
   }
 
-  /** Every UID in the folder; the stored index stands in when the plan says nothing moved. */
+  /**
+   * Every UID the index should hold; the stored index stands in when the plan says nothing moved.
+   *
+   * With `syncSince` that is the folder from its oldest message dated on or after it (the floor),
+   * plus whatever is already stored. The floor is read from the server on every sync, so a wiped
+   * index rebuilds the same set, and mail below it is never listed: it cannot look deleted. Mail
+   * that enters the folder later gets a higher UID, so it is indexed whatever its date.
+   */
   private async listServerUids(
     client: ImapFlow,
     box: MailboxObject,
@@ -731,7 +743,14 @@ export class MailboxConnection extends EventEmitter<Events> {
   ): Promise<number[]> {
     if (!plan.listUids) return [...index.keys()];
     if (box.exists === 0) return [];
-    return (await client.search({ all: true }, { uid: true })) || [];
+    const since = this.mailbox.syncSince;
+    if (!since) return (await client.search({ all: true }, { uid: true })) || [];
+    const recent = (await client.search({ since }, { uid: true })) || [];
+    const floor = recent.reduce((low, uid) => Math.min(low, uid), box.uidNext);
+    const from = lowestUid(index, floor);
+    const listed = (await client.search({ uid: `${from}:*` }, { uid: true })) || [];
+    // `n:*` always matches the newest message, even one below `n`.
+    return listed.filter((uid) => uid >= floor || index.has(uid));
   }
 
   /**
@@ -769,8 +788,9 @@ export class MailboxConnection extends EventEmitter<Events> {
     changedSince: bigint | undefined,
   ): Promise<FlagChange[]> {
     const changes: FlagChange[] = [];
+    // Nothing below the lowest stored UID is indexed, so its flags are not read.
     for await (const msg of client.fetch(
-      "1:*",
+      `${lowestUid(index, 1)}:*`,
       { uid: true, flags: true },
       { uid: true, changedSince },
     )) {
@@ -964,6 +984,13 @@ function fetchedFields(path: string, msg: FetchMessageObject): Omit<FetchedMessa
     internalDate: msg.internalDate ? new Date(msg.internalDate) : null,
     ...(msg.threadId ? { providerThreadId: msg.threadId } : {}),
   };
+}
+
+/** The lowest stored UID, or `fallback` when it is lower or nothing is stored. */
+function lowestUid(index: Map<number, string[]>, fallback: number): number {
+  let lowest = fallback;
+  for (const uid of index.keys()) lowest = Math.min(lowest, uid);
+  return lowest;
 }
 
 function sortedFlags(flags: Set<string> | undefined): string[] {

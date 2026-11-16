@@ -715,6 +715,43 @@ describe("a Google account (ADR 0023)", () => {
   });
 });
 
+describe("a Google account's first sync (ADR 0045)", () => {
+  it("indexes the week before it was connected, and an ordinary mailbox still indexes everything", async () => {
+    const day = 24 * 60 * 60_000;
+    const seedWithHistory = async () => {
+      const seeded = await seedConnectable();
+      await otherClient(seeded.box, async (client) => {
+        for (const [subject, age] of [
+          ["a month old", 30],
+          ["nine days old", 9],
+          ["five days old", 5],
+        ] as const) {
+          const date = new Date(Date.now() - age * day);
+          const raw = `From: a@outside.test\r\nTo: ${seeded.box.address}\r\nSubject: ${subject}\r\nMessage-ID: <${randomUUID()}@outside.test>\r\nDate: ${date.toUTCString()}\r\n\r\nhi\r\n`;
+          await client.append("INBOX", raw, [], date);
+        }
+      });
+      await deliver(seeded.box.address, "today");
+      return seeded.box;
+    };
+    const google = await seedWithHistory();
+    await db
+      .update(schema.mailboxes)
+      .set({ provider: "gmail" })
+      .where(eq(schema.mailboxes.id, google.id));
+    const ordinary = await seedWithHistory();
+
+    await startMailService();
+    await connected(google.id);
+    await connected(ordinary.id);
+
+    const subjects = async (mailboxId: string) =>
+      (await stored(db, mailboxId, "INBOX")).map((m) => m.subject);
+    expect(await subjects(google.id)).toEqual(["five days old", "today"]);
+    expect(await subjects(ordinary.id)).toHaveLength(4);
+  });
+});
+
 describe("a Google account's read state is Done (ADR 0044)", () => {
   it("makes mail read in Gmail Done, reopens it when marked unread there, and marks read what Omni marks done", async () => {
     const seeded = await seedConnectable();

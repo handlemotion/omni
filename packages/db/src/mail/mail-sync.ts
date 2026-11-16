@@ -46,6 +46,7 @@ export function listServiceMailboxes(db: Db) {
       provider: mailboxes.provider,
       credentialsEnc: mailboxes.credentialsEnc,
       status: mailboxes.status,
+      createdAt: mailboxes.createdAt,
     })
     .from(mailboxes)
     .where(and(ne(mailboxes.status, "disabled"), syncableMailbox));

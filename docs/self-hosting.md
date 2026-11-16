@@ -62,32 +62,33 @@ host. CONDSTORE and IDLE are used when the server offers them; without them it f
 UID-list diffs and polling. On every connect it logs the server's capabilities
 (`imap.capabilities`).
 
-| Variable                     | Required | Default            | Purpose                                                         |
-| ---------------------------- | -------- | ------------------ | --------------------------------------------------------------- |
-| `MAIL_SERVICE_HMAC_SECRET`   | yes      |                    | Signs Worker → mail service pings; same value in the Worker.    |
-| `DATABASE_URL`               | yes      |                    | Postgres the service writes the mail index to.                  |
-| `MAIL_CREDENTIALS_KEY`       | yes      |                    | Keyring `k1:<base64 32 bytes>[,k0:...]`, current key first.     |
-| `S3_ENDPOINT`                | yes      |                    | S3 API endpoint: R2, MinIO, AWS, or the local gateway.          |
-| `S3_BUCKET`                  | yes      |                    | Bucket for raw mail, sanitized HTML and attachments.            |
-| `S3_ACCESS_KEY_ID`           | yes      |                    | S3 key pair (for R2: an R2 API token with object read/write).   |
-| `S3_SECRET_ACCESS_KEY`       | yes      |                    |                                                                 |
-| `S3_REGION`                  | no       | `auto`             | Signing region; R2 uses `auto`.                                 |
-| `IMAGE_PROXY_URL`            | no       | `/api/image-proxy` | Worker image proxy that remote images in HTML go through.       |
-| `ATTACHMENT_URL`             | no       | `/api/attachments` | Worker route for inline `cid:` images.                          |
-| `PORT`                       | no       | `8788`             | HTTP port for `/health` and `/ping`.                            |
-| `LOG_LEVEL`                  | no       | `info`             | `debug`, `info`, `warn`, or `error`. Logs are JSON on stdout.   |
-| `SYNC_INTERVAL_MS`           | no       | `300000`           | Sync interval for non-inbox folders (INBOX is live via IDLE).   |
-| `OUTBOX_INTERVAL_MS`         | no       | `30000`            | Outbox poll interval when no ping arrives.                      |
-| `MAILBOX_CONCURRENCY`        | no       | `4`                | Mailboxes connecting or syncing at once.                        |
-| `PURELYMAIL_API_TOKEN`       | no       |                    | Purelymail admin API token. Unset: onboarding uses IMAP logins. |
-| `PURELYMAIL_CREDIT_WARN_USD` | no       | `5`                | With the token: credit below this logs `hosting.credit_low`.    |
-| `GOOGLE_CLIENT_ID`           | no       |                    | Google OAuth client. With the secret, Gmail accounts connect.   |
-| `GOOGLE_CLIENT_SECRET`       | no       |                    | Secret. Set both or neither; one alone stops the service.       |
-| `SENTRY_DSN`                 | no       |                    | Sentry DSN. Unset keeps error reporting off.                    |
-| `SENTRY_ENVIRONMENT`         | no       | `production`       | Sentry environment tag.                                         |
-| `DNS_RESOLVERS`              | no       | system resolvers   | `ip` or `ip:port` list used to find a domain's nameservers.     |
-| `DNS_NAMESERVER_PORT`        | no       | `53`               | Port nameservers are asked on. Change only for a test server.   |
-| `DNS_TIMEOUT_MS`             | no       | `2000`             | Per-query DNS timeout.                                          |
+| Variable                     | Required | Default            | Purpose                                                                              |
+| ---------------------------- | -------- | ------------------ | ------------------------------------------------------------------------------------ |
+| `MAIL_SERVICE_HMAC_SECRET`   | yes      |                    | Signs Worker → mail service pings; same value in the Worker.                         |
+| `DATABASE_URL`               | yes      |                    | Postgres the service writes the mail index to.                                       |
+| `MAIL_CREDENTIALS_KEY`       | yes      |                    | Keyring `k1:<base64 32 bytes>[,k0:...]`, current key first.                          |
+| `S3_ENDPOINT`                | yes      |                    | S3 API endpoint: R2, MinIO, AWS, or the local gateway.                               |
+| `S3_BUCKET`                  | yes      |                    | Bucket for raw mail, sanitized HTML and attachments.                                 |
+| `S3_ACCESS_KEY_ID`           | yes      |                    | S3 key pair (for R2: an R2 API token with object read/write).                        |
+| `S3_SECRET_ACCESS_KEY`       | yes      |                    |                                                                                      |
+| `S3_REGION`                  | no       | `auto`             | Signing region; R2 uses `auto`.                                                      |
+| `IMAGE_PROXY_URL`            | no       | `/api/image-proxy` | Worker image proxy that remote images in HTML go through.                            |
+| `ATTACHMENT_URL`             | no       | `/api/attachments` | Worker route for inline `cid:` images.                                               |
+| `PORT`                       | no       | `8788`             | HTTP port for `/health` and `/ping`.                                                 |
+| `LOG_LEVEL`                  | no       | `info`             | `debug`, `info`, `warn`, or `error`. Logs are JSON on stdout.                        |
+| `SYNC_INTERVAL_MS`           | no       | `300000`           | Sync interval for non-inbox folders (INBOX is live via IDLE).                        |
+| `OUTBOX_INTERVAL_MS`         | no       | `30000`            | Outbox poll interval when no ping arrives.                                           |
+| `MAILBOX_CONCURRENCY`        | no       | `4`                | Mailboxes connecting or syncing at once.                                             |
+| `PURELYMAIL_API_TOKEN`       | no       |                    | Purelymail admin API token. Unset: onboarding uses IMAP logins.                      |
+| `PURELYMAIL_CREDIT_WARN_USD` | no       | `5`                | With the token: credit below this logs `hosting.credit_low`.                         |
+| `GOOGLE_CLIENT_ID`           | no       |                    | Google OAuth client. With the secret, Gmail accounts connect.                        |
+| `GOOGLE_CLIENT_SECRET`       | no       |                    | Secret. Set both or neither; one alone stops the service.                            |
+| `GMAIL_SYNC_DAYS`            | no       | `7`                | Days of mail a Gmail account indexes from before it was connected; `0` is all of it. |
+| `SENTRY_DSN`                 | no       |                    | Sentry DSN. Unset keeps error reporting off.                                         |
+| `SENTRY_ENVIRONMENT`         | no       | `production`       | Sentry environment tag.                                                              |
+| `DNS_RESOLVERS`              | no       | system resolvers   | `ip` or `ip:port` list used to find a domain's nameservers.                          |
+| `DNS_NAMESERVER_PORT`        | no       | `53`               | Port nameservers are asked on. Change only for a test server.                        |
+| `DNS_TIMEOUT_MS`             | no       | `2000`             | Per-query DNS timeout.                                                               |
 
 Generate the secrets with `openssl rand -hex 32` and `echo "k1:$(openssl rand -base64 32)"`.
 Keep `MAIL_CREDENTIALS_KEY` only on the mail service. To rotate it, put the new key first
