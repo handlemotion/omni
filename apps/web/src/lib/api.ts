@@ -23,10 +23,13 @@ export const auth = createAuth({
 /** A failed API call. `status` 0 means the request never got an answer (offline, aborted). */
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  /** The Worker's `code` beside `error`, where a route gives one the client acts on. */
+  readonly code: string | undefined;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -47,11 +50,11 @@ export async function call<T extends ClientResponse<any>>(
     if (error instanceof DetailedError) {
       reportAnswer();
       const data = (error.detail as { data?: unknown } | undefined)?.data;
-      const message =
-        typeof data === "object" && data !== null && "error" in data
-          ? String((data as { error: unknown }).error)
-          : error.message;
-      throw new ApiError(Number(error.statusCode ?? 0), message);
+      const body =
+        typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {};
+      const message = "error" in body ? String(body.error) : error.message;
+      const code = typeof body.code === "string" ? body.code : undefined;
+      throw new ApiError(Number(error.statusCode ?? 0), message, code);
     }
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     reportNoAnswer();

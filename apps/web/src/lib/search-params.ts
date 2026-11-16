@@ -49,3 +49,6 @@ export const composeSearch = z.object({
 
 /** The confirmation link mailed to a new sign-in email (ADR 0014). */
 export const verifySignInEmailSearch = z.object({ token: optional(z.string()) });
+
+/** A shared link's page: `node`, a folder inside what was shared. */
+export const linkSearch = z.object({ node: optionalId });

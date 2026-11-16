@@ -69,3 +69,12 @@ export { IconArrowUndoUp as IconReplyAll } from "central-icons-outlined/IconArro
 export { IconArrowShareRight as IconForward } from "central-icons-outlined/IconArrowShareRight";
 export { IconCrossMedium as IconX } from "central-icons-outlined/IconCrossMedium";
 export { IconSettingsSliderHor as IconSliders } from "central-icons-outlined/IconSettingsSliderHor";
+export { IconFolder1 as IconFolder } from "central-icons-outlined/IconFolder1";
+export { IconFolderShared } from "central-icons-outlined/IconFolderShared";
+export { IconFolderAddRight as IconFolderPlus } from "central-icons-outlined/IconFolderAddRight";
+export { IconMoveFolder as IconFolderMove } from "central-icons-outlined/IconMoveFolder";
+export { IconFileBend as IconFile } from "central-icons-outlined/IconFileBend";
+export { IconArrowInbox as IconDownload } from "central-icons-outlined/IconArrowInbox";
+export { IconArrowRotateCounterClockwise as IconRestore } from "central-icons-outlined/IconArrowRotateCounterClockwise";
+export { IconUserAdd } from "central-icons-outlined/IconUserAdd";
+export { IconChainLink1 as IconLink } from "central-icons-outlined/IconChainLink1";

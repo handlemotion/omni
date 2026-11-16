@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SearchPopover } from "@/components/search/search-popover";
+import { StorageNav } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
 import { CountBadge } from "./count-badge";
@@ -138,6 +139,7 @@ export function AppSidebar() {
           {shown?.kind === "shared" && <HelpdeskItems mailboxId={shown.id} />}
         </SidebarSection>
         <Group label="Folders" items={folders} mailbox={mailbox} />
+        <StorageNav mailbox={mailbox} />
       </SidebarContent>
 
       <SidebarFooter className="justify-between">

@@ -45,20 +45,24 @@ Components use `hooks/` only. `lib/` is how the hooks work.
 
 ## Path map
 
-| Path                         | Search params                        | Loader                                      |
-| ---------------------------- | ------------------------------------ | ------------------------------------------- |
-| `/`                          |                                      | redirect to `/inbox`                        |
-| `/login`                     | `redirect?`, `error?`                | signed-in members are sent on to `redirect` |
-| `/invite/$invitationId`      |                                      | the invitation (any signed-in user)         |
-| `/onboarding`                |                                      | setup status (may create, or finishing one) |
-| `/inbox`, `/inbox/$threadId` | `mailbox?`, `lane?`, `view?`, `tag?` | first page of the list; the thread          |
-| `/later`, `/later/$id`       | `mailbox?`                           | same, Later view                            |
-| `/done`, `/done/$id`         | `mailbox?`                           | same, done view                             |
-| `/archive`, `/archive/$id`   | `mailbox?`                           | same, archive view                          |
-| `/all`, `/all/$id`           | `mailbox?`                           | same, all mail                              |
-| `/search`, `/search/$id`     | `q`, `mailbox?`                      | results for `q`; the thread                 |
-| `/compose`                   | `mailbox?`, `to?`, `subject?`        | (mailboxes come from the shell)             |
-| `/settings`                  |                                      | opens the settings dialog (⌘. anywhere)     |
+| Path                                       | Search params                        | Loader                                           |
+| ------------------------------------------ | ------------------------------------ | ------------------------------------------------ |
+| `/`                                        |                                      | redirect to `/inbox`                             |
+| `/login`                                   | `redirect?`, `error?`                | signed-in members are sent on to `redirect`      |
+| `/invite/$invitationId`                    |                                      | the invitation (any signed-in user)              |
+| `/onboarding`                              |                                      | setup status (may create, or finishing one)      |
+| `/inbox`, `/inbox/$threadId`               | `mailbox?`, `lane?`, `view?`, `tag?` | first page of the list; the thread               |
+| `/later`, `/later/$id`                     | `mailbox?`                           | same, Later view                                 |
+| `/done`, `/done/$id`                       | `mailbox?`                           | same, done view                                  |
+| `/archive`, `/archive/$id`                 | `mailbox?`                           | same, archive view                               |
+| `/all`, `/all/$id`                         | `mailbox?`                           | same, all mail                                   |
+| `/search`, `/search/$id`                   | `q`, `mailbox?`                      | results for `q`; the thread                      |
+| `/compose`                                 | `mailbox?`, `to?`, `subject?`        | (mailboxes come from the shell)                  |
+| `/settings`                                |                                      | opens the settings dialog (⌘. anywhere)          |
+| `/files/my`, `/files/my/$folderId`         | `mailbox?`                           | a folder of My files (ADR 0034)                  |
+| `/files/shared`, `/files/shared/$folderId` | `mailbox?`                           | a folder of Shared (companies only)              |
+| `/files/shared-with-me`, `/files/trash`    | `mailbox?`                           | what was shared with you; Trash                  |
+| `/s/$shareId`                              | `node?`                              | a shared link, signed in or not; 404 → not found |
 
 Guards: `_authed` needs a user, `_authed/_member` needs a member of the active organization and
 loads mailboxes and counts for the shell. A user with no organization goes to `/onboarding` if
@@ -186,6 +190,9 @@ reconnects realtime for the new member. Any 401 does the same, which sends the u
 | `useConversations(filter)`, `useConversationCounts()`                                                                                              | helpdesk lists (`conversations`, paging) and the navigation's counts                             |
 | `useThreadListShortcuts({ …, helpdesk: { filter, conversations } })`                                                                               | on a helpdesk list e/h/i resolve, snooze, assign to me (one bulk request, one undo)              |
 | `useBulkChange()`                                                                                                                                  | `run(threadIds, change, { mailboxId, tag?, undo? })`: one request per 100, failed rows roll back |
+| `useStorageList(place)`, `useStorageTrash()`, `useSharedWithMe()`, `useStorageLink(shareId, node?)`, `useStorageUsage()`                           | Storage (ADR 0034): folders, Trash, shared with you, a link's contents, usage                    |
+| `useCreateFolder()`, `useChangeNode()`, `useTrashNode()`, `useRestoreNode()`, `useDeleteForever()`, `useUploads()`                                 | changes and uploads; pass `shareId` to go through a link's door (an Editor)                      |
+| `useStorageSharing(id)`, `usePutStoragePerson()`, `useRemoveStoragePerson()`, `useSetStorageLink()`                                                | who an item is shared with, and its link                                                         |
 | `useSlaSettings(mailboxId)`                                                                                                                        | `{ policies, businessHours, autoAssign }` for an inbox                                           |
 | `usePutSlaPolicy()`, `useDeleteSlaPolicy()`, `usePutBusinessHours()`, `useDeleteBusinessHours()`, `useSetAutoAssign()`                             | inbox SLA settings (owners and admins; optimistic, rollback)                                     |
 

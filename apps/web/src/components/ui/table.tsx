@@ -37,6 +37,12 @@ export interface TableProps extends Omit<TablePrimitiveProps, "className"> {
   bleed?: boolean;
   grid?: boolean;
   striped?: boolean;
+  /**
+   * `page`: the table is a page's whole content, edge to edge. Fixed column widths, cells from the
+   * page's 20px gutter, 44px rows under a 36px header of regular-weight labels that sticks to the
+   * page's scroll container (the table's own wrapper scrolls nothing).
+   */
+  variant?: "default" | "page";
   ref?: React.Ref<HTMLTableElement>;
 }
 
@@ -46,10 +52,13 @@ const TableContext = createContext<TableProps>({
 
 const useTableContext = () => use(TableContext);
 
-export function Root(props: TableProps) {
+export function Root({ variant, ...props }: TableProps) {
   return (
     <TablePrimitive
-      className="w-full min-w-full caption-bottom text-sm/6 outline-hidden [--table-selected-background:var(--color-secondary)]/50"
+      className={cn(
+        "w-full min-w-full caption-bottom text-sm/6 outline-hidden [--table-selected-background:var(--color-secondary)]/50",
+        variant === "page" && "table-fixed",
+      )}
       {...props}
     />
   );
@@ -61,15 +70,19 @@ export function Table({
   bleed = false,
   grid = false,
   striped = false,
+  variant = "default",
   ref,
   ...props
 }: TableProps) {
+  const page = variant === "page";
+  if (page) bleed = true;
   return (
-    <TableContext.Provider value={{ allowResize, bleed, grid, striped }}>
+    <TableContext.Provider value={{ allowResize, bleed, grid, striped, variant }}>
       <div className="flow-root">
         <div
           className={cn(
             "relative -mx-(--gutter) overflow-x-auto whitespace-nowrap [--gutter-y:--spacing(2)] has-data-[slot=table-resizable-container]:overflow-auto",
+            page && "mx-0 overflow-visible [--gutter:--spacing(5)]",
             className,
           )}
         >
@@ -78,10 +91,10 @@ export function Table({
           >
             {allowResize ? (
               <ResizableTableContainer data-slot="table-resizable-container">
-                <Root ref={ref} {...props} />
+                <Root ref={ref} variant={variant} {...props} />
               </ResizableTableContainer>
             ) : (
-              <Root {...props} ref={ref} />
+              <Root {...props} variant={variant} ref={ref} />
             )}
           </div>
         </div>
@@ -292,7 +305,7 @@ export interface TableColumnProps extends ColumnProps {
 }
 
 export function TableColumn({ isResizable = false, className, ...props }: TableColumnProps) {
-  const { bleed, grid } = useTableContext();
+  const { bleed, grid, variant } = useTableContext();
   return (
     <Column
       data-slot="table-column"
@@ -306,6 +319,7 @@ export function TableColumn({ isResizable = false, className, ...props }: TableC
           !bleed && "sm:first:ps-1 sm:last:pe-1",
           grid && "border-l first:border-l-0",
           isResizable && "truncate overflow-hidden",
+          variant === "page" && "h-9 py-0 text-xs font-normal",
         ],
         className,
       )}
@@ -347,13 +361,16 @@ export function TableHeader<T extends object>({
   className,
   ...props
 }: TableHeaderProps<T>) {
-  const { bleed } = useTableContext();
+  const { bleed, variant } = useTableContext();
   const { selectionBehavior, selectionMode, allowsDragging } = useTableOptions();
   return (
     <TableHeaderPrimitive
       ref={ref}
       data-slot="table-header"
-      className={cx("border-b", className)}
+      className={cx(
+        cn("border-b", variant === "page" && "sticky top-0 z-10 bg-background"),
+        className,
+      )}
       {...props}
     >
       {allowsDragging && (
@@ -474,11 +491,16 @@ export function TableRow<T extends object>({
   );
 }
 
+const stop = (event: React.SyntheticEvent) => event.stopPropagation();
+const STOP = { onPointerDown: stop, onPointerUp: stop, onClick: stop, onKeyDown: stop };
+
 export interface TableCellProps extends CellProps {
+  /** The row's actions (its menu): no padding but the end gutter's, its content at the end. */
+  actions?: boolean;
   ref?: React.Ref<HTMLTableCellElement>;
 }
-export function TableCell({ className, ref, ...props }: TableCellProps) {
-  const { allowResize, bleed, grid, striped } = useTableContext();
+export function TableCell({ className, actions = false, ref, ...props }: TableCellProps) {
+  const { allowResize, bleed, grid, striped, variant } = useTableContext();
   return (
     <Cell
       ref={ref}
@@ -491,6 +513,9 @@ export function TableCell({ className, ref, ...props }: TableCellProps) {
           grid && "border-l first:border-l-0",
           !bleed && "sm:first:ps-1 sm:last:pe-1",
           allowResize && "truncate overflow-hidden",
+          variant === "page" && "h-11 py-0",
+          // 10px in from the end, where a page header's own actions sit.
+          actions && "px-0 last:pe-2.5",
         ),
         className,
       )}
@@ -503,7 +528,14 @@ export function TableCell({ className, ref, ...props }: TableCellProps) {
       {composeRenderProps(
         props.children,
         (children, { hasChildItems, isTreeColumn, isExpanded, isDisabled }) => (
-          <div className={isTreeColumn ? "flex items-center" : undefined}>
+          <div
+            className={
+              isTreeColumn ? "flex items-center" : actions ? "flex justify-end" : undefined
+            }
+            // A row with a link or an action would take presses on its own controls, and React
+            // carries a menu's presses up from its portal: an action cell's stay in the cell.
+            {...(actions ? STOP : {})}
+          >
             {hasChildItems && isTreeColumn && (
               <PrimitiveButton
                 slot="chevron"

@@ -16,6 +16,7 @@ import { cn } from "cn";
 import { useState } from "react";
 import { Skeleton } from "skullet/react";
 import { CardBrandMark } from "@/components/icons/card-brand-mark";
+import { StorageUsageSection } from "@/components/storage/storage-usage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/field";
@@ -208,6 +209,8 @@ export function BillingPage() {
           </Skeleton>
         </SettingsSection>
       )}
+
+      {(data === undefined || enabled) && <StorageUsageSection />}
 
       {(data === undefined || enabled) &&
         (manager ? (

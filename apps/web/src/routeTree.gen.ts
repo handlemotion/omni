@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from "./routes/login";
 import { Route as AuthedMemberRouteImport } from "./routes/_authed/_member";
 import { Route as AuthedJoinRouteImport } from "./routes/_authed/join";
 import { Route as AuthedOnboardingRouteImport } from "./routes/_authed/onboarding";
+import { Route as SShareIdRouteImport } from "./routes/s.$shareId";
 import { Route as AuthedMemberAllRouteImport } from "./routes/_authed/_member/all";
 import { Route as AuthedMemberArchiveRouteImport } from "./routes/_authed/_member/archive";
 import { Route as AuthedMemberComposeRouteImport } from "./routes/_authed/_member/compose";
@@ -32,6 +33,9 @@ import { Route as AuthedMemberAllThreadIdRouteImport } from "./routes/_authed/_m
 import { Route as AuthedMemberArchiveThreadIdRouteImport } from "./routes/_authed/_member/archive.$threadId";
 import { Route as AuthedMemberDoneThreadIdRouteImport } from "./routes/_authed/_member/done.$threadId";
 import { Route as AuthedMemberDraftsThreadIdRouteImport } from "./routes/_authed/_member/drafts.$threadId";
+import { Route as AuthedMemberFilesIndexRouteImport } from "./routes/_authed/_member/files/index";
+import { Route as AuthedMemberFilesSharedWithMeRouteImport } from "./routes/_authed/_member/files/shared-with-me";
+import { Route as AuthedMemberFilesTrashRouteImport } from "./routes/_authed/_member/files/trash";
 import { Route as AuthedMemberInboxThreadIdRouteImport } from "./routes/_authed/_member/inbox.$threadId";
 import { Route as AuthedMemberLaterThreadIdRouteImport } from "./routes/_authed/_member/later.$threadId";
 import { Route as AuthedMemberSearchThreadIdRouteImport } from "./routes/_authed/_member/search.$threadId";
@@ -42,6 +46,10 @@ import { Route as AuthedMemberSettingsBillingRouteImport } from "./routes/_authe
 import { Route as AuthedMemberSpamThreadIdRouteImport } from "./routes/_authed/_member/spam.$threadId";
 import { Route as AuthedMemberTrashThreadIdRouteImport } from "./routes/_authed/_member/trash.$threadId";
 import { Route as AuthedSettingsEmailsVerifyRouteImport } from "./routes/_authed/settings/emails.verify";
+import { Route as AuthedMemberFilesMyIndexRouteImport } from "./routes/_authed/_member/files/my.index";
+import { Route as AuthedMemberFilesMyFolderIdRouteImport } from "./routes/_authed/_member/files/my.$folderId";
+import { Route as AuthedMemberFilesSharedIndexRouteImport } from "./routes/_authed/_member/files/shared.index";
+import { Route as AuthedMemberFilesSharedFolderIdRouteImport } from "./routes/_authed/_member/files/shared.$folderId";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -70,6 +78,11 @@ const AuthedOnboardingRoute = AuthedOnboardingRouteImport.update({
   id: "/onboarding",
   path: "/onboarding",
   getParentRoute: () => AuthedRoute,
+} as any);
+const SShareIdRoute = SShareIdRouteImport.update({
+  id: "/s/$shareId",
+  path: "/s/$shareId",
+  getParentRoute: () => rootRouteImport,
 } as any);
 const AuthedMemberAllRoute = AuthedMemberAllRouteImport.update({
   id: "/all",
@@ -160,6 +173,22 @@ const AuthedMemberDraftsThreadIdRoute =
     path: "/$threadId",
     getParentRoute: () => AuthedMemberDraftsRoute,
   } as any);
+const AuthedMemberFilesIndexRoute = AuthedMemberFilesIndexRouteImport.update({
+  id: "/files/",
+  path: "/files/",
+  getParentRoute: () => AuthedMemberRoute,
+} as any);
+const AuthedMemberFilesSharedWithMeRoute =
+  AuthedMemberFilesSharedWithMeRouteImport.update({
+    id: "/files/shared-with-me",
+    path: "/files/shared-with-me",
+    getParentRoute: () => AuthedMemberRoute,
+  } as any);
+const AuthedMemberFilesTrashRoute = AuthedMemberFilesTrashRouteImport.update({
+  id: "/files/trash",
+  path: "/files/trash",
+  getParentRoute: () => AuthedMemberRoute,
+} as any);
 const AuthedMemberInboxThreadIdRoute =
   AuthedMemberInboxThreadIdRouteImport.update({
     id: "/$threadId",
@@ -220,12 +249,37 @@ const AuthedSettingsEmailsVerifyRoute =
     path: "/settings/emails/verify",
     getParentRoute: () => AuthedRoute,
   } as any);
+const AuthedMemberFilesMyIndexRoute =
+  AuthedMemberFilesMyIndexRouteImport.update({
+    id: "/files/my/",
+    path: "/files/my/",
+    getParentRoute: () => AuthedMemberRoute,
+  } as any);
+const AuthedMemberFilesMyFolderIdRoute =
+  AuthedMemberFilesMyFolderIdRouteImport.update({
+    id: "/files/my/$folderId",
+    path: "/files/my/$folderId",
+    getParentRoute: () => AuthedMemberRoute,
+  } as any);
+const AuthedMemberFilesSharedIndexRoute =
+  AuthedMemberFilesSharedIndexRouteImport.update({
+    id: "/files/shared/",
+    path: "/files/shared/",
+    getParentRoute: () => AuthedMemberRoute,
+  } as any);
+const AuthedMemberFilesSharedFolderIdRoute =
+  AuthedMemberFilesSharedFolderIdRouteImport.update({
+    id: "/files/shared/$folderId",
+    path: "/files/shared/$folderId",
+    getParentRoute: () => AuthedMemberRoute,
+  } as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/login": typeof LoginRoute;
   "/join": typeof AuthedJoinRoute;
   "/onboarding": typeof AuthedOnboardingRoute;
+  "/s/$shareId": typeof SShareIdRoute;
   "/all": typeof AuthedMemberAllRouteWithChildren;
   "/archive": typeof AuthedMemberArchiveRouteWithChildren;
   "/compose": typeof AuthedMemberComposeRoute;
@@ -243,6 +297,8 @@ export interface FileRoutesByFullPath {
   "/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
   "/drafts/$threadId": typeof AuthedMemberDraftsThreadIdRoute;
+  "/files/shared-with-me": typeof AuthedMemberFilesSharedWithMeRoute;
+  "/files/trash": typeof AuthedMemberFilesTrashRoute;
   "/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
   "/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
@@ -252,13 +308,19 @@ export interface FileRoutesByFullPath {
   "/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
   "/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
+  "/files/": typeof AuthedMemberFilesIndexRoute;
   "/settings/": typeof AuthedMemberSettingsIndexRoute;
+  "/files/my/$folderId": typeof AuthedMemberFilesMyFolderIdRoute;
+  "/files/shared/$folderId": typeof AuthedMemberFilesSharedFolderIdRoute;
+  "/files/my/": typeof AuthedMemberFilesMyIndexRoute;
+  "/files/shared/": typeof AuthedMemberFilesSharedIndexRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/login": typeof LoginRoute;
   "/join": typeof AuthedJoinRoute;
   "/onboarding": typeof AuthedOnboardingRoute;
+  "/s/$shareId": typeof SShareIdRoute;
   "/all": typeof AuthedMemberAllRouteWithChildren;
   "/archive": typeof AuthedMemberArchiveRouteWithChildren;
   "/compose": typeof AuthedMemberComposeRoute;
@@ -276,6 +338,8 @@ export interface FileRoutesByTo {
   "/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
   "/drafts/$threadId": typeof AuthedMemberDraftsThreadIdRoute;
+  "/files/shared-with-me": typeof AuthedMemberFilesSharedWithMeRoute;
+  "/files/trash": typeof AuthedMemberFilesTrashRoute;
   "/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
   "/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
   "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
@@ -285,7 +349,12 @@ export interface FileRoutesByTo {
   "/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
   "/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
+  "/files": typeof AuthedMemberFilesIndexRoute;
   "/settings": typeof AuthedMemberSettingsIndexRoute;
+  "/files/my/$folderId": typeof AuthedMemberFilesMyFolderIdRoute;
+  "/files/shared/$folderId": typeof AuthedMemberFilesSharedFolderIdRoute;
+  "/files/my": typeof AuthedMemberFilesMyIndexRoute;
+  "/files/shared": typeof AuthedMemberFilesSharedIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -295,6 +364,7 @@ export interface FileRoutesById {
   "/_authed/_member": typeof AuthedMemberRouteWithChildren;
   "/_authed/join": typeof AuthedJoinRoute;
   "/_authed/onboarding": typeof AuthedOnboardingRoute;
+  "/s/$shareId": typeof SShareIdRoute;
   "/_authed/_member/all": typeof AuthedMemberAllRouteWithChildren;
   "/_authed/_member/archive": typeof AuthedMemberArchiveRouteWithChildren;
   "/_authed/_member/compose": typeof AuthedMemberComposeRoute;
@@ -312,6 +382,8 @@ export interface FileRoutesById {
   "/_authed/_member/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
   "/_authed/_member/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
   "/_authed/_member/drafts/$threadId": typeof AuthedMemberDraftsThreadIdRoute;
+  "/_authed/_member/files/shared-with-me": typeof AuthedMemberFilesSharedWithMeRoute;
+  "/_authed/_member/files/trash": typeof AuthedMemberFilesTrashRoute;
   "/_authed/_member/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
   "/_authed/_member/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
   "/_authed/_member/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
@@ -321,7 +393,12 @@ export interface FileRoutesById {
   "/_authed/_member/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
   "/_authed/_member/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
   "/_authed/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
+  "/_authed/_member/files/": typeof AuthedMemberFilesIndexRoute;
   "/_authed/_member/settings/": typeof AuthedMemberSettingsIndexRoute;
+  "/_authed/_member/files/my/$folderId": typeof AuthedMemberFilesMyFolderIdRoute;
+  "/_authed/_member/files/shared/$folderId": typeof AuthedMemberFilesSharedFolderIdRoute;
+  "/_authed/_member/files/my/": typeof AuthedMemberFilesMyIndexRoute;
+  "/_authed/_member/files/shared/": typeof AuthedMemberFilesSharedIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -330,6 +407,7 @@ export interface FileRouteTypes {
     | "/login"
     | "/join"
     | "/onboarding"
+    | "/s/$shareId"
     | "/all"
     | "/archive"
     | "/compose"
@@ -347,6 +425,8 @@ export interface FileRouteTypes {
     | "/archive/$threadId"
     | "/done/$threadId"
     | "/drafts/$threadId"
+    | "/files/shared-with-me"
+    | "/files/trash"
     | "/inbox/$threadId"
     | "/later/$threadId"
     | "/search/$threadId"
@@ -356,13 +436,19 @@ export interface FileRouteTypes {
     | "/spam/$threadId"
     | "/trash/$threadId"
     | "/settings/emails/verify"
-    | "/settings/";
+    | "/files/"
+    | "/settings/"
+    | "/files/my/$folderId"
+    | "/files/shared/$folderId"
+    | "/files/my/"
+    | "/files/shared/";
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/"
     | "/login"
     | "/join"
     | "/onboarding"
+    | "/s/$shareId"
     | "/all"
     | "/archive"
     | "/compose"
@@ -380,6 +466,8 @@ export interface FileRouteTypes {
     | "/archive/$threadId"
     | "/done/$threadId"
     | "/drafts/$threadId"
+    | "/files/shared-with-me"
+    | "/files/trash"
     | "/inbox/$threadId"
     | "/later/$threadId"
     | "/search/$threadId"
@@ -389,7 +477,12 @@ export interface FileRouteTypes {
     | "/spam/$threadId"
     | "/trash/$threadId"
     | "/settings/emails/verify"
-    | "/settings";
+    | "/files"
+    | "/settings"
+    | "/files/my/$folderId"
+    | "/files/shared/$folderId"
+    | "/files/my"
+    | "/files/shared";
   id:
     | "__root__"
     | "/"
@@ -398,6 +491,7 @@ export interface FileRouteTypes {
     | "/_authed/_member"
     | "/_authed/join"
     | "/_authed/onboarding"
+    | "/s/$shareId"
     | "/_authed/_member/all"
     | "/_authed/_member/archive"
     | "/_authed/_member/compose"
@@ -415,6 +509,8 @@ export interface FileRouteTypes {
     | "/_authed/_member/archive/$threadId"
     | "/_authed/_member/done/$threadId"
     | "/_authed/_member/drafts/$threadId"
+    | "/_authed/_member/files/shared-with-me"
+    | "/_authed/_member/files/trash"
     | "/_authed/_member/inbox/$threadId"
     | "/_authed/_member/later/$threadId"
     | "/_authed/_member/search/$threadId"
@@ -424,13 +520,19 @@ export interface FileRouteTypes {
     | "/_authed/_member/spam/$threadId"
     | "/_authed/_member/trash/$threadId"
     | "/_authed/settings/emails/verify"
-    | "/_authed/_member/settings/";
+    | "/_authed/_member/files/"
+    | "/_authed/_member/settings/"
+    | "/_authed/_member/files/my/$folderId"
+    | "/_authed/_member/files/shared/$folderId"
+    | "/_authed/_member/files/my/"
+    | "/_authed/_member/files/shared/";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   AuthedRoute: typeof AuthedRouteWithChildren;
   LoginRoute: typeof LoginRoute;
+  SShareIdRoute: typeof SShareIdRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -476,6 +578,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/onboarding";
       preLoaderRoute: typeof AuthedOnboardingRouteImport;
       parentRoute: typeof AuthedRoute;
+    };
+    "/s/$shareId": {
+      id: "/s/$shareId";
+      path: "/s/$shareId";
+      fullPath: "/s/$shareId";
+      preLoaderRoute: typeof SShareIdRouteImport;
+      parentRoute: typeof rootRouteImport;
     };
     "/_authed/_member/all": {
       id: "/_authed/_member/all";
@@ -596,6 +705,27 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedMemberDraftsThreadIdRouteImport;
       parentRoute: typeof AuthedMemberDraftsRoute;
     };
+    "/_authed/_member/files/": {
+      id: "/_authed/_member/files/";
+      path: "/files";
+      fullPath: "/files/";
+      preLoaderRoute: typeof AuthedMemberFilesIndexRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
+    };
+    "/_authed/_member/files/shared-with-me": {
+      id: "/_authed/_member/files/shared-with-me";
+      path: "/files/shared-with-me";
+      fullPath: "/files/shared-with-me";
+      preLoaderRoute: typeof AuthedMemberFilesSharedWithMeRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
+    };
+    "/_authed/_member/files/trash": {
+      id: "/_authed/_member/files/trash";
+      path: "/files/trash";
+      fullPath: "/files/trash";
+      preLoaderRoute: typeof AuthedMemberFilesTrashRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
+    };
     "/_authed/_member/inbox/$threadId": {
       id: "/_authed/_member/inbox/$threadId";
       path: "/$threadId";
@@ -665,6 +795,34 @@ declare module "@tanstack/react-router" {
       fullPath: "/settings/emails/verify";
       preLoaderRoute: typeof AuthedSettingsEmailsVerifyRouteImport;
       parentRoute: typeof AuthedRoute;
+    };
+    "/_authed/_member/files/my/": {
+      id: "/_authed/_member/files/my/";
+      path: "/files/my";
+      fullPath: "/files/my/";
+      preLoaderRoute: typeof AuthedMemberFilesMyIndexRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
+    };
+    "/_authed/_member/files/my/$folderId": {
+      id: "/_authed/_member/files/my/$folderId";
+      path: "/files/my/$folderId";
+      fullPath: "/files/my/$folderId";
+      preLoaderRoute: typeof AuthedMemberFilesMyFolderIdRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
+    };
+    "/_authed/_member/files/shared/": {
+      id: "/_authed/_member/files/shared/";
+      path: "/files/shared";
+      fullPath: "/files/shared/";
+      preLoaderRoute: typeof AuthedMemberFilesSharedIndexRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
+    };
+    "/_authed/_member/files/shared/$folderId": {
+      id: "/_authed/_member/files/shared/$folderId";
+      path: "/files/shared/$folderId";
+      fullPath: "/files/shared/$folderId";
+      preLoaderRoute: typeof AuthedMemberFilesSharedFolderIdRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
     };
   }
 }
@@ -792,9 +950,16 @@ interface AuthedMemberRouteChildren {
   AuthedMemberSentRoute: typeof AuthedMemberSentRouteWithChildren;
   AuthedMemberSpamRoute: typeof AuthedMemberSpamRouteWithChildren;
   AuthedMemberTrashRoute: typeof AuthedMemberTrashRouteWithChildren;
+  AuthedMemberFilesSharedWithMeRoute: typeof AuthedMemberFilesSharedWithMeRoute;
+  AuthedMemberFilesTrashRoute: typeof AuthedMemberFilesTrashRoute;
   AuthedMemberSettingsAccountsRoute: typeof AuthedMemberSettingsAccountsRoute;
   AuthedMemberSettingsBillingRoute: typeof AuthedMemberSettingsBillingRoute;
+  AuthedMemberFilesIndexRoute: typeof AuthedMemberFilesIndexRoute;
   AuthedMemberSettingsIndexRoute: typeof AuthedMemberSettingsIndexRoute;
+  AuthedMemberFilesMyFolderIdRoute: typeof AuthedMemberFilesMyFolderIdRoute;
+  AuthedMemberFilesSharedFolderIdRoute: typeof AuthedMemberFilesSharedFolderIdRoute;
+  AuthedMemberFilesMyIndexRoute: typeof AuthedMemberFilesMyIndexRoute;
+  AuthedMemberFilesSharedIndexRoute: typeof AuthedMemberFilesSharedIndexRoute;
 }
 
 const AuthedMemberRouteChildren: AuthedMemberRouteChildren = {
@@ -809,9 +974,16 @@ const AuthedMemberRouteChildren: AuthedMemberRouteChildren = {
   AuthedMemberSentRoute: AuthedMemberSentRouteWithChildren,
   AuthedMemberSpamRoute: AuthedMemberSpamRouteWithChildren,
   AuthedMemberTrashRoute: AuthedMemberTrashRouteWithChildren,
+  AuthedMemberFilesSharedWithMeRoute: AuthedMemberFilesSharedWithMeRoute,
+  AuthedMemberFilesTrashRoute: AuthedMemberFilesTrashRoute,
   AuthedMemberSettingsAccountsRoute: AuthedMemberSettingsAccountsRoute,
   AuthedMemberSettingsBillingRoute: AuthedMemberSettingsBillingRoute,
+  AuthedMemberFilesIndexRoute: AuthedMemberFilesIndexRoute,
   AuthedMemberSettingsIndexRoute: AuthedMemberSettingsIndexRoute,
+  AuthedMemberFilesMyFolderIdRoute: AuthedMemberFilesMyFolderIdRoute,
+  AuthedMemberFilesSharedFolderIdRoute: AuthedMemberFilesSharedFolderIdRoute,
+  AuthedMemberFilesMyIndexRoute: AuthedMemberFilesMyIndexRoute,
+  AuthedMemberFilesSharedIndexRoute: AuthedMemberFilesSharedIndexRoute,
 };
 
 const AuthedMemberRouteWithChildren = AuthedMemberRoute._addFileChildren(
@@ -843,6 +1015,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
   LoginRoute: LoginRoute,
+  SShareIdRoute: SShareIdRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

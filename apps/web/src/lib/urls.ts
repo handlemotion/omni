@@ -32,3 +32,15 @@ export function attachmentUrl(threadId: string, attachmentId: string) {
     .$url({ param: { id: threadId, attachmentId } })
     .toString();
 }
+
+/** A stored file's bytes (ADR 0034): always a download, never rendered on our origin. */
+export function storageFileUrl(fileId: string) {
+  return api.storage.files[":id"].content.$url({ param: { id: fileId } }).toString();
+}
+
+/** A file's bytes through a shared link's door: what `/s/<shareId>` downloads. */
+export function sharedFileUrl(shareId: string, fileId: string) {
+  return api.storage.shared[":shareId"].files[":id"].content
+    .$url({ param: { shareId, id: fileId } })
+    .toString();
+}

@@ -79,7 +79,7 @@ export function ProgressBarTrack({ className, ref, ...props }: React.ComponentPr
           data-slot="progress-container"
           className={cn(
             "[--progress-content-bg:var(--color-primary)]",
-            "relative h-1.5 w-full min-w-52 overflow-hidden rounded-full bg-(--progress-container-bg,var(--color-secondary)) outline-1 outline-transparent -outline-offset-1 will-change-transform",
+            "relative h-1.5 w-full overflow-hidden rounded-full bg-(--progress-container-bg,var(--color-secondary)) outline-1 outline-transparent -outline-offset-1 will-change-transform",
             className,
           )}
         >
