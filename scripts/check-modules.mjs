@@ -7,6 +7,8 @@
 //    them, even in a join. Platform code is held to this too.
 // 3. A module imports another module's code only when it declares it in `uses`, and then only its
 //    surface file and contract: CRM may use Mail and Storage, which know nothing of each other.
+//    `workerUses` widens this for the module's Worker folder alone: a feature spanning two
+//    modules is a Worker route calling both doors, kept with the module whose screen starts it.
 // 4. A module's Worker folder (`apps/worker/src/<module>/`) is imported only by that module, a
 //    module that uses it, and the files that wire modules in (`app.ts`, `index.ts`, `modules.ts`, `mcp/`).
 // 5. A module's tables are named `<module>_*`, unless they predate the rule (`prefixed: false`).
@@ -21,10 +23,11 @@ import { dirname, join, normalize } from "node:path";
 
 /**
  * The modules and what each may use. Mail's tables predate `<module>_*` and keep their names: a
- * rename is a destructive migration that buys nothing (ADR 0035 decision 3).
+ * rename is a destructive migration that buys nothing (ADR 0035 decision 3). Mail's Worker
+ * folder calls Storage's door to save an attachment to drive (ADR 0039 decision 3).
  */
 export const MODULES = {
-  mail: { uses: [], prefixed: false },
+  mail: { uses: [], workerUses: ["storage"], prefixed: false },
   storage: { uses: [], prefixed: true },
   crm: { uses: ["mail", "storage"], prefixed: true },
 };
@@ -223,7 +226,7 @@ function barrelProblems(file, source, owner, origins, modules) {
       const origin = origins(barrel).get(name);
       const to = origin && ownerOf(origin, modules);
       if (!to || to.module === owner.module || to.part === "schema") continue;
-      if (!modules[owner.module].uses.includes(to.module)) foreign.add(`${name} (${to.module})`);
+      if (!usesOf(owner, modules).includes(to.module)) foreign.add(`${name} (${to.module})`);
     }
   }
   return foreign.size ? [{ file, rule: "uses", message: MESSAGES.barrel([...foreign]) }] : [];
@@ -275,7 +278,13 @@ function importProblem(importer, target, modules) {
   if (to.part === "private") return "private";
   if (!from) return to.part === "worker" ? "worker" : null;
   // What is left is a surface, a contract, a Worker folder or a module's own service.
-  return modules[from.module].uses.includes(to.module) ? null : "uses";
+  return usesOf(from, modules).includes(to.module) ? null : "uses";
+}
+
+/** The modules a part of a module may use: its `uses`, plus `workerUses` in its Worker folder. */
+function usesOf(from, modules) {
+  const { uses, workerUses = [] } = modules[from.module];
+  return from.part === "worker" ? [...uses, ...workerUses] : uses;
 }
 
 const MESSAGES = {

@@ -157,6 +157,32 @@ export async function findMemberAttachmentByHash(db: Db, memberId: string, sha25
 }
 
 /**
+ * One attachment by id, if the member can see its message: the same grant as
+ * `findMemberAttachmentByHash`, for routes that name an attachment (save to drive).
+ */
+export async function findMemberAttachment(db: Db, memberId: string, attachmentId: string) {
+  const [row] = await db
+    .select({
+      id: attachments.id,
+      orgId: attachments.orgId,
+      r2Key: attachments.r2Key,
+      filename: attachments.filename,
+      mimeType: attachments.mimeType,
+      size: attachments.size,
+    })
+    .from(attachments)
+    .innerJoin(messages, eq(messages.id, attachments.messageId))
+    .where(
+      and(
+        eq(attachments.id, attachmentId),
+        exists(grantFor(db, memberId, messages.mailboxId, messages.orgId)),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/**
  * Where one message's sanitized HTML is stored (`messages.html_r2_key`), if it is in `threadId`
  * and the member can see it. One indexed read, not the whole thread.
  */

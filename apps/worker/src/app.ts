@@ -34,6 +34,7 @@ import { connect } from "./routes/connect.ts";
 import { folders } from "./routes/folders.ts";
 import { library } from "./routes/library.ts";
 import { mail } from "./routes/mail.ts";
+import { saveToDrive } from "./mail/save-to-drive.ts";
 import { forwarding } from "./routes/forwarding.ts";
 import { mailCrmSharing } from "./mail/crm-sharing.ts";
 import { workspaceAdmin } from "./routes/workspace-admin.ts";
@@ -130,6 +131,7 @@ const api = new Hono<AppEnv>()
     return stub.fetch(new Request(c.req.raw, { headers }));
   })
   .route("/", mail)
+  .route("/", saveToDrive)
   .route("/", forwarding)
   .route("/mail", mailCrmSharing)
   .route("/", compose)

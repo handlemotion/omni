@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { check, findProblems } from "./check-modules.mjs";
 
 const MODULES = {
-  mail: { uses: [], prefixed: false },
+  mail: { uses: [], workerUses: ["storage"], prefixed: false },
   storage: { uses: [], prefixed: true },
   crm: { uses: ["mail", "storage"], prefixed: true },
 };
@@ -92,6 +92,23 @@ test("a Worker module folder is reached only by its module and the registrars", 
   assert.deepEqual(problems, [
     "apps/worker/src/routes/mail.ts worker",
     "apps/worker/src/storage/routes.ts uses",
+  ]);
+});
+
+test("Mail's Worker folder may call Storage for save to drive; Mail in @omni/db still may not", () => {
+  const files = {
+    "packages/db/src/index.ts": `export * from "./storage.ts";`,
+    "packages/db/src/storage.ts": `export function memberStorage() {}`,
+    "apps/worker/src/mail/save-to-drive.ts": [
+      `import { memberStorage } from "@omni/db";`,
+      `import { storageLimit } from "../storage/core.ts";`,
+    ].join("\n"),
+    "packages/db/src/mail/member-mail.ts": `import { memberStorage } from "../storage.ts";`,
+    "apps/mail/src/sync.ts": `import { storageLimit } from "../../worker/src/storage/core.ts";`,
+  };
+  assert.deepEqual(problemsIn(files), [
+    "packages/db/src/mail/member-mail.ts uses",
+    "apps/mail/src/sync.ts uses",
   ]);
 });
 
