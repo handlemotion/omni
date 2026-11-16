@@ -5,9 +5,9 @@
 // invitation sent later lets the person sign up again.
 import { and, asc, eq, gt, gte, inArray, lt, notExists, or, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
+import { orgHasMailbox } from "./mail.ts";
 import { isCompany } from "./personal-space.ts";
 import { invitations, members, organizations, sessions, users } from "./schema/auth.ts";
-import { mailboxes } from "./schema/mail.ts";
 import { personalSpaces, userEmails } from "./schema/identity.ts";
 import { storageGrants, storageNodes } from "./schema/storage.ts";
 
@@ -50,7 +50,7 @@ export async function deleteAbandonedSignUps(
                 eq(members.userId, users.id),
                 or(
                   isCompany(db, members.organizationId),
-                  sql`exists (select 1 from ${mailboxes} mb where mb.org_id = ${members.organizationId})`,
+                  orgHasMailbox(sql`${members.organizationId}`),
                   sql`exists (select 1 from ${storageNodes} sn where sn.org_id = ${members.organizationId})`,
                 ),
               ),

@@ -9,7 +9,6 @@ export * from "./oauth-grants.ts";
 export * from "./join-requests.ts";
 export * from "./domains.ts";
 export * from "./workspaces.ts";
-export * from "./dead-letters.ts";
 export type { DomainCheck, DomainRecordDiagnostic, MailDomainRecord } from "./schema/domains.ts";
 export * from "./pictures.ts";
 export * from "./billing.ts";

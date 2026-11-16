@@ -17,13 +17,12 @@ import {
   TransactionRollbackError,
 } from "drizzle-orm";
 import type { Db } from "./client.ts";
-import type { InboxAuditAction } from "./mail.ts";
+import { countMailboxesOnDomain, type InboxAuditAction } from "./mail.ts";
 import { assertCompany, workspaceKind } from "./personal-space.ts";
 import {
   auditEvents,
   type DomainCheck,
   domainClaims,
-  mailboxes,
   mailDomains,
   type MailDomainRecord,
   members,
@@ -337,17 +336,6 @@ export async function recordChallengeState(
   return input.ok ? "restored" : "lost";
 }
 
-/** Mailboxes the org has on `domain`. A domain with any cannot be released or moved. */
-async function mailboxesOn(db: Db, orgId: string, domain: string) {
-  const rows = await db
-    .select({ id: mailboxes.id })
-    .from(mailboxes)
-    .where(
-      and(eq(mailboxes.orgId, orgId), sql`split_part(${mailboxes.address}, '@', 2) = ${domain}`),
-    );
-  return rows.length;
-}
-
 export type HandOverResult =
   | { ok: true }
   | { ok: false; reason: "not_locked" | "has_mailboxes" | "personal_space" };
@@ -362,7 +350,7 @@ export async function releaseDomain(
 ): Promise<HandOverResult> {
   const now = input.now ?? new Date();
   return db.transaction(async (tx) => {
-    if ((await mailboxesOn(tx as unknown as Db, input.orgId, input.domain)) > 0) {
+    if ((await countMailboxesOnDomain(tx as unknown as Db, input.orgId, input.domain)) > 0) {
       return { ok: false, reason: "has_mailboxes" } as const;
     }
     const [removed] = await tx
@@ -418,7 +406,7 @@ export async function transferDomain(
     if ((await workspaceKind(tx, input.toOrgId)) === "personal") {
       return { ok: false, reason: "personal_space" } as const;
     }
-    if ((await mailboxesOn(tx as unknown as Db, input.fromOrgId, input.domain)) > 0) {
+    if ((await countMailboxesOnDomain(tx as unknown as Db, input.fromOrgId, input.domain)) > 0) {
       return { ok: false, reason: "has_mailboxes" } as const;
     }
     const [moved] = await tx
@@ -519,21 +507,6 @@ export async function findOrgDomain(db: Db, orgId: string, domain: string) {
     .select(lockFields)
     .from(mailDomains)
     .where(and(eq(mailDomains.orgId, orgId), eq(mailDomains.domain, domain)));
-  return row ?? null;
-}
-
-/** The mailbox at `address` in `orgId`, if any. */
-export async function findOrgMailbox(db: Db, orgId: string, address: string) {
-  const [row] = await db
-    .select({
-      id: mailboxes.id,
-      kind: mailboxes.kind,
-      provider: mailboxes.provider,
-      status: mailboxes.status,
-      credentialsEnc: mailboxes.credentialsEnc,
-    })
-    .from(mailboxes)
-    .where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.address, address)));
   return row ?? null;
 }
 

@@ -7,7 +7,6 @@ import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
 import { organizations, subscriptions } from "./schema/auth.ts";
 import { stripeEvents, trialClaims, triageUsage } from "./schema/billing.ts";
-import { threads } from "./schema/mail.ts";
 
 /**
  * Stripe subscription statuses that keep a workspace fully usable. `past_due` is Stripe's grace
@@ -136,14 +135,6 @@ export async function claimTriage(
     });
     return "counted";
   });
-}
-
-/** Records why the thread's latest message went untriaged: the allowance resets at `until`. */
-export async function markTriagePaused(db: Db, threadId: string, until: Date) {
-  await db
-    .update(threads)
-    .set({ triagePausedUntil: until, updatedAt: new Date() })
-    .where(eq(threads.id, threadId));
 }
 
 export interface StripeEventRef {

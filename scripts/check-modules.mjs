@@ -39,20 +39,12 @@ const REGISTRARS = [
 
 /** Files that broke a rule before it existed: `file` may break `rule`. Only ever shrinks. */
 export const DEBT = [
-  // The abandoned sign-up sweep asks whether a person holds mailboxes, files or grants.
+  // The abandoned sign-up sweep asks whether a person holds files or grants (Storage's tables).
   { file: "packages/db/src/abandoned-sign-ups.ts", rule: "tables" },
   // The request context types the link a Storage share route resolved (`storage/http.ts`).
   { file: "apps/worker/src/context.ts", rule: "worker" },
   // A Stripe event with a card lifts Storage's cap at once (`storage/billing.ts`).
   { file: "apps/worker/src/routes/stripe-webhook.ts", rule: "worker" },
-  // Billing counts the emails AI triaged this month (`threads`).
-  { file: "packages/db/src/billing.ts", rule: "tables" },
-  // The operator's dead-letter listing reads failed outbox actions (`mail_actions`).
-  { file: "packages/db/src/dead-letters.ts", rule: "tables" },
-  // A domain's release refuses while mailboxes sit on it (`mailboxes`).
-  { file: "packages/db/src/domains.ts", rule: "tables" },
-  // The workspace switcher lists the mailboxes each workspace's member can open.
-  { file: "packages/db/src/workspaces.ts", rule: "tables" },
 ];
 
 const SOURCE = /^(packages\/[^/]+\/src|apps\/(worker|mail)\/src)\/.*\.(ts|tsx|mts)$/;

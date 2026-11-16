@@ -143,3 +143,11 @@ export async function addAiUsage(
       },
     });
 }
+
+/** Records why the thread's latest message went untriaged: the allowance resets at `until`. */
+export async function markTriagePaused(db: Db, threadId: string, until: Date) {
+  await db
+    .update(threads)
+    .set({ triagePausedUntil: until, updatedAt: new Date() })
+    .where(eq(threads.id, threadId));
+}

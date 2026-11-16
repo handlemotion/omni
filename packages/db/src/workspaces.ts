@@ -3,14 +3,8 @@
 import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { isCompany } from "./personal-space.ts";
-import {
-  mailboxAccess,
-  mailboxes,
-  members,
-  organizations,
-  orgSetup,
-  setupStep,
-} from "./schema/index.ts";
+import { mailboxesOpenTo, orgHasMailbox } from "./mail.ts";
+import { members, organizations, orgSetup, setupStep } from "./schema/index.ts";
 
 export type SetupStep = (typeof setupStep.enumValues)[number];
 
@@ -22,7 +16,7 @@ export const SETUP_STEPS = setupStep.enumValues;
  * was tracked. With a mailbox it is in use, so `complete`; without one it still needs setup.
  */
 function stepWithoutRow(orgId: SQL | string) {
-  return sql`(case when exists (select 1 from ${mailboxes} m where m.org_id = ${orgId}) then 'complete' else 'created' end)::setup_step`;
+  return sql`(case when ${orgHasMailbox(orgId)} then 'complete' else 'created' end)::setup_step`;
 }
 
 function currentStep(orgId: string) {
@@ -108,24 +102,7 @@ export async function listUserWorkspaces(
         ),
       )
       .orderBy(asc(members.createdAt), asc(organizations.id)),
-    db
-      .select({
-        orgId: mailboxes.orgId,
-        id: mailboxes.id,
-        address: mailboxes.address,
-        kind: mailboxes.kind,
-      })
-      .from(mailboxes)
-      .innerJoin(mailboxAccess, eq(mailboxAccess.mailboxId, mailboxes.id))
-      .innerJoin(
-        members,
-        and(
-          eq(members.id, mailboxAccess.memberId),
-          eq(members.organizationId, mailboxes.orgId),
-          eq(members.userId, userId),
-        ),
-      )
-      .orderBy(asc(mailboxes.kind), asc(mailboxes.address)),
+    mailboxesOpenTo(db, userId),
   ]);
   return orgs.map((org) => ({
     ...org,

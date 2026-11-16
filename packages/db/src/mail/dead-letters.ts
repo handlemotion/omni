@@ -2,8 +2,8 @@
 // (`dead_letters`) and outbox actions that exhausted their retries (`mail_actions` with status
 // `failed`). Operator reads, not member-scoped: never serve them to a member's request.
 import { and, desc, eq, gte } from "drizzle-orm";
-import type { Db } from "./client.ts";
-import { deadLetters, mailActions, threads } from "./schema/index.ts";
+import type { Db } from "../client.ts";
+import { deadLetters, mailActions, threads } from "../schema/index.ts";
 
 export interface DeadLetterInput {
   /** Null resolves it from `threadId` (jobs queued before they carried an org). */
