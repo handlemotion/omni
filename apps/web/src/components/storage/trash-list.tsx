@@ -5,11 +5,13 @@ import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { IconRestore, IconTrash } from "@/components/icons/central";
 import { ListFailed } from "@/components/inbox/thread-list";
+import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { Heading } from "@/components/ui/heading";
 import { useRestoreNode, useStorageTrash } from "@/hooks/use-storage.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { DeleteForeverDialog } from "./file-dialogs.tsx";
 import { FileTable, FileTableBones } from "./file-table.tsx";
+import { NodeMenu } from "./node-menu.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 import { StorageFrame } from "./storage-frame.tsx";
 import { UploadsPanel } from "./uploads-panel.tsx";
@@ -18,6 +20,17 @@ export function TrashList() {
   const trash = useStorageTrash();
   const restore = useRestoreNode();
   const [deleting, setDeleting] = useState<StorageNode | null>(null);
+  const menu = (node: StorageNode): SettingsRowMenuItem[] => [
+    {
+      icon: IconRestore,
+      label: "Restore",
+      onAction: () =>
+        restore.mutate(node.id, {
+          onError: (error) => storageErrorToast(error, "It was not restored"),
+        }),
+    },
+    { icon: IconTrash, label: "Delete forever", danger: true, onAction: () => setDeleting(node) },
+  ];
   return (
     <StorageFrame
       title={<Heading className="truncate text-md">Trash</Heading>}
@@ -42,29 +55,16 @@ export function TrashList() {
             />
           </div>
         ) : (
-          <FileTable
-            label="Trash"
-            nodes={trash.nodes}
-            date={{ title: "Deleted", of: (node) => node.trashedAt }}
-            menu={(node) => [
-              {
-                icon: IconRestore,
-                label: "Restore",
-                onAction: () =>
-                  restore.mutate(node.id, {
-                    onError: (error) => storageErrorToast(error, "It was not restored"),
-                  }),
-              },
-              {
-                icon: IconTrash,
-                label: "Delete forever",
-                danger: true,
-                onAction: () => setDeleting(node),
-              },
-            ]}
-            loadMore={trash.hasNextPage ? () => void trash.fetchNextPage() : undefined}
-            isLoadingMore={trash.isFetchingNextPage}
-          />
+          <NodeMenu nodes={trash.nodes} menu={menu}>
+            <FileTable
+              label="Trash"
+              nodes={trash.nodes}
+              date={{ title: "Deleted", of: (node) => node.trashedAt }}
+              menu={menu}
+              loadMore={trash.hasNextPage ? () => void trash.fetchNextPage() : undefined}
+              isLoadingMore={trash.isFetchingNextPage}
+            />
+          </NodeMenu>
         )}
       </div>
       <UploadsPanel />

@@ -12,6 +12,7 @@ import { FileTrigger } from "@/components/ui/file-trigger";
 import type { StorageNode } from "@/lib/storage.ts";
 import { FileSections, FileSectionsBones } from "./file-sections.tsx";
 import type { FolderSource, OpenFile } from "./folder-view.tsx";
+import { NodeMenu } from "./node-menu.tsx";
 
 interface Actions {
   onNewFolder: () => void;
@@ -77,15 +78,17 @@ function Content(props: Parameters<typeof FolderBody>[0]) {
     );
   }
   return (
-    <FileSections
-      label={source.label}
-      nodes={list.nodes}
-      href={source.folderHref}
-      fileUrl={source.fileUrl}
-      open={selected}
-      menu={props.menu}
-      loadMore={list.hasNextPage && !list.isFetchingNextPage ? fetchNext(list) : undefined}
-    />
+    <NodeMenu nodes={list.nodes} menu={props.menu}>
+      <FileSections
+        label={source.label}
+        nodes={list.nodes}
+        href={source.folderHref}
+        fileUrl={source.fileUrl}
+        open={selected}
+        menu={props.menu}
+        loadMore={list.hasNextPage && !list.isFetchingNextPage ? fetchNext(list) : undefined}
+      />
+    </NodeMenu>
   );
 }
 
