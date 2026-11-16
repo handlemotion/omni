@@ -182,6 +182,10 @@ Several agents may work in this repository at once.
 - **Stacks (`gh stack`, see the `gh-stack` skill).** Work that depends on unmerged work is a
   layer stacked on that branch, never a parallel branch off `main` that copies or re-implements
   it. Each layer is one reviewable PR with one owner. Stacks merge bottom-first.
+- **Every layer merges into `main`.** A stack is rooted on `main` and created with `gh stack` or
+  the stacks API, so each layer lands on `main` in turn. Never point a PR's base at another
+  feature branch outside such a stack, and never merge a PR into a branch that is not `main`:
+  work merged into a branch that will become a single PR later has not landed.
 - **Parallel agents.** Independent work gets its own stack rooted on `main`. Before starting, an
   agent names the modules it owns (a module is its folders in every package, ADR 0035); two
   stacks never edit the same module or the same platform file. Shared touch points are resolved

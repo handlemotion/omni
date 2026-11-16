@@ -1,7 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "local",
-  "description": "The bundled local shell (server picker, offline screen). No filesystem, no shell, no HTTP.",
+  "description": "The bundled local shell (server picker, offline screen): read the chosen server and open one. No filesystem, no shell, no HTTP.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "local": true,
+  "permissions": ["core:default", "allow-server-origin", "allow-open-server"]
 }

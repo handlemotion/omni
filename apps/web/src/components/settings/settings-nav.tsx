@@ -19,6 +19,7 @@ import { appToast } from "@/components/ui/toast";
 import { useMember } from "@/hooks/use-session.ts";
 import { rememberAppHref, settingsBackHref } from "@/hooks/use-settings.ts";
 import { useOpenWorkspace, useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
+import { desktop } from "@/lib/desktop.ts";
 import { workspaceHref } from "@/lib/workspaces.ts";
 import type { Workspace } from "@/lib/types.ts";
 import { matches, type PageDefinition, useAccountPages, useWorkspacePages } from "./settings-pages";
@@ -33,6 +34,8 @@ export function SettingsNav() {
   return (
     <Sidebar closeButton={false}>
       <SidebarContent className="*:shrink-0">
+        {/* In the desktop app the title bar's group takes the first row, as in the app's sidebar. */}
+        {desktop.isDesktop && <div aria-hidden className="h-8" />}
         <SidebarItem href={settingsBackHref()} aria-label="Back to the app">
           <IconChevronLeft className="size-icon" />
           <SidebarLabel>Settings</SidebarLabel>

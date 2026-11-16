@@ -77,7 +77,11 @@ an offline screen, and nothing else. It never talks to `/api`.
 The remote origin gets the smallest capability that works: window dragging and controls,
 back/forward, notifications, badge count, opening external links, and three commands of ours
 (`sync_status`, `sync_connect`, `sync_disconnect`). No filesystem, no shell, no HTTP plugin. Only
-the configured server origin matches `remote.urls`; any other navigation opens in the browser.
+the configured server origin matches `remote.urls`, so another origin's page or frame in the window
+can call nothing. Link clicks to other origins and new windows open in the default browser (the
+web app sends them there on purpose); the app's own round trips through another origin (Google
+connect, Stripe, Domain Connect) and third-party frames (Stripe Elements) stay in the window,
+because their state and cookies live in its cookie jar.
 
 ### 3. Drive is one File Provider domain, a folder per workspace
 
@@ -361,8 +365,9 @@ edges. Schema changes go through `db:generate`, never a hand-written migration.
 ### The shell
 
 - The bundled local page decides where to go: stored origin, else the build's default, else the
-  picker. It then navigates the main window to that origin. Navigation to any other origin is
-  cancelled and handed to the `opener` plugin.
+  picker. It then navigates the main window to that origin. `http(s)` navigations stay in the
+  window (WebKit asks the same hook for subframes, and round trips need the window's cookies);
+  new-window requests, `mailto:` and `tel:` go to the `opener` plugin; other schemes are dropped.
 - Sign-in by deep link reuses what iOS does: read `apps/ios/src/lib/session.ts` and
   `apps/worker/e2e/ios-sign-in.e2e.test.ts` before writing it. The one difference is where the
   cookie goes: into the webview's cookie store for the server origin, then reload. Confirm the

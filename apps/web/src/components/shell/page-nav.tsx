@@ -1,16 +1,29 @@
 // The start of every page header in the app shell: the sidebar's toggle, left of the title, open
 // or closed (on a phone, the sidebar sheet's).
+// In the desktop app the title bar holds the toggle; with the sidebar closed, the header leaves
+// room for the title bar's group instead.
 import { IconSidebar } from "@/components/icons/sidebar";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { desktop } from "@/lib/desktop.ts";
+import { TitleBarSpace } from "./desktop-title-bar";
 
-/** Whether page headers start with the sidebar toggle: always, in the app shell. */
+function useSidebarOpen() {
+  const sidebar = useSidebar();
+  return sidebar.isMobile ? sidebar.isOpenOnMobile : sidebar.open;
+}
+
+/**
+ * Whether page headers start with the sidebar toggle (or, in the desktop app, the title bar's
+ * room): always in a browser; in the desktop app while the sidebar is closed.
+ */
 export function usePageNavShown() {
-  return true;
+  const open = useSidebarOpen();
+  return !desktop.isDesktop || !open;
 }
 
 export function PageNav() {
-  const sidebar = useSidebar();
-  const open = sidebar.isMobile ? sidebar.isOpenOnMobile : sidebar.open;
+  const open = useSidebarOpen();
+  if (desktop.isDesktop) return open ? null : <TitleBarSpace inset={10} />;
   return (
     // 4px more before the title than the header's own 8px gap, so the title reads as the start
     // of the page, not a second button. 2px in from the header's 10px (optical): the glyph's ink

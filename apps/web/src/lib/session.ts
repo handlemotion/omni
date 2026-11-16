@@ -5,6 +5,7 @@ import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react
 import { dropStartupResponses } from "./startup-fetch.ts";
 import { api, ApiError, auth, call } from "./api.ts";
 import { setCurrentWorkspaceId } from "./current-workspace.ts";
+import { desktop } from "./desktop.ts";
 import { keys } from "./query-keys.ts";
 import { forgetOutstanding } from "./pending.ts";
 import { cancelUploads } from "./storage-uploads.ts";
@@ -98,13 +99,18 @@ export function isServerPath(to: string) {
   return to.startsWith("/api/");
 }
 
-/** Emails a sign-in link that returns to `redirect` (a same-origin path) or the inbox. */
-export function signInWithMagicLink(email: string, redirect?: string) {
+/**
+ * Emails a sign-in link that returns to `redirect` (a same-origin path) or the inbox. In the
+ * desktop app the link opens in the browser, so it returns to the app through the shell's
+ * `omni://` callback instead, success or failure; the window then reloads where it was.
+ */
+export async function signInWithMagicLink(email: string, redirect?: string) {
+  const callback = desktop.isDesktop ? await desktop.signInCallback() : null;
   return authCall(
     auth.signIn.magicLink({
       email,
-      callbackURL: safeRedirect(redirect),
-      errorCallbackURL: "/login?error=magic_link",
+      callbackURL: callback ?? safeRedirect(redirect),
+      errorCallbackURL: callback ?? "/login?error=magic_link",
     }),
   );
 }

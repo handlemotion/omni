@@ -1,12 +1,20 @@
 // Keyboard shortcuts: the one definition. The key handler, the `?` list, the command menu and
 // `aria-keyshortcuts` all read this table, so what the app does and what it says can't drift.
 // No React here; `hooks/use-shortcuts.ts` dispatches keys and runs handlers.
+import { desktop } from "./desktop.ts";
 
 /**
  * A key as `KeyboardEvent.key` reports it (`j`, `Enter`, `ArrowDown`, `?`), or `Mod+k`: ⌘ on a
  * Mac, Ctrl elsewhere. A sequence (`["g", "i"]`) is pressed one key after the other.
  */
 export type KeySequence = readonly string[];
+
+/**
+ * Keys only the desktop app binds (docs/spec/desktop.md, "Navigation changes in the web app"): a
+ * browser keeps ⌘N, ⌘R and ⌘[ for itself, and has its own back and forward.
+ */
+const inDesktop = (...keys: KeySequence[]): KeySequence[] => (desktop.isDesktop ? keys : []);
+const onWindows = desktop.platform === "windows";
 
 export interface ShortcutDefinition {
   label: string;
@@ -40,19 +48,38 @@ export const SHORTCUTS = {
   goLater: { label: "Later", group: "Go to", keys: [["g", "l"]], command: true },
   goAll: { label: "All mail", group: "Go to", keys: [["g", "a"]], command: true },
   goDrive: { label: "Drive", group: "Go to", keys: [["g", "f"]], command: true },
-  compose: { label: "Compose", group: "General", keys: [["c"]], command: true },
+  compose: {
+    label: "Compose",
+    group: "General",
+    keys: [["c"], ...inDesktop(["Mod+n"])],
+    command: true,
+  },
   // Bound by the title-bar search popover, which listens for them itself; listed here so `?`
   // shows them. Nothing registers a handler, so the shared listener leaves them alone.
   search: { label: "Search", group: "General", keys: [["/"]] },
   commandMenu: { label: "Search and commands", group: "General", keys: [["Mod+k"]] },
   help: { label: "Keyboard shortcuts", group: "General", keys: [["?"]], command: true },
   // Opens and closes from anywhere, even while typing or inside another dialog (see the listener).
-  settings: { label: "Settings", group: "General", keys: [["Mod+."]] },
+  settings: { label: "Settings", group: "General", keys: [...inDesktop(["Mod+,"]), ["Mod+."]] },
+  back: {
+    label: "Back",
+    group: "General",
+    keys: inDesktop(onWindows ? ["Alt+ArrowLeft"] : ["Mod+["]),
+  },
+  forward: {
+    label: "Forward",
+    group: "General",
+    keys: inDesktop(onWindows ? ["Alt+ArrowRight"] : ["Mod+]"]),
+  },
+  reload: { label: "Reload", group: "General", keys: inDesktop(["Mod+r"]) },
 } as const satisfies Record<string, ShortcutDefinition>;
 
 export type ShortcutId = keyof typeof SHORTCUTS;
 
-export const SHORTCUT_IDS = Object.keys(SHORTCUTS) as ShortcutId[];
+/** Every shortcut with a key here: the desktop app's own are left out in a browser. */
+export const SHORTCUT_IDS = (Object.keys(SHORTCUTS) as ShortcutId[]).filter(
+  (id) => SHORTCUTS[id].keys.length > 0,
+);
 
 /**
  * The shortcuts that are also commands, in display order. The search popover renders these as
@@ -62,7 +89,11 @@ export const COMMAND_IDS = SHORTCUT_IDS.filter((id) => "command" in SHORTCUTS[id
 
 /** The key this event names in `SHORTCUTS`' terms, or null for a chord we never bind. */
 export function eventKey(event: KeyboardEvent): string | null {
-  if (event.altKey) return null;
+  // Alt+← and Alt+→ are back and forward on Windows; no other Alt chord is bound.
+  if (event.altKey) {
+    const arrow = event.key === "ArrowLeft" || event.key === "ArrowRight";
+    return arrow && !event.metaKey && !event.ctrlKey ? `Alt+${event.key}` : null;
+  }
   if (event.metaKey || event.ctrlKey) {
     return event.key.length === 1 ? `Mod+${event.key.toLowerCase()}` : null;
   }
@@ -110,6 +141,8 @@ const isMac = () =>
 const NAMES: Record<string, string> = {
   ArrowDown: "↓",
   ArrowUp: "↑",
+  ArrowLeft: "←",
+  ArrowRight: "→",
   Escape: "Esc",
   Enter: "Enter",
 };
@@ -120,6 +153,7 @@ export function keyLabel(key: string): string[] {
     const letter = key.slice(4).toUpperCase();
     return isMac() ? ["⌘", letter] : ["Ctrl", letter];
   }
+  if (key.startsWith("Alt+")) return ["Alt", NAMES[key.slice(4)] ?? key.slice(4)];
   return [NAMES[key] ?? key.toUpperCase()];
 }
 

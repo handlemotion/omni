@@ -4,8 +4,101 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Omni</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #111111;
+        --muted: #6b6b6b;
+        --line: #e4e4e4;
+        --accent: #111111;
+        --on-accent: #ffffff;
+        font:
+          14px/1.4 system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #141414;
+          --fg: #f2f2f2;
+          --muted: #9a9a9a;
+          --line: #2c2c2c;
+          --accent: #f2f2f2;
+          --on-accent: #141414;
+        }
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--fg);
+      }
+      form {
+        display: grid;
+        gap: 12px;
+        width: min(320px, calc(100vw - 32px));
+      }
+      form[hidden] {
+        display: none;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 17px;
+        font-weight: 600;
+        text-align: center;
+        overflow-wrap: anywhere;
+      }
+      input,
+      button {
+        font: inherit;
+        height: 36px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        padding: 0 12px;
+        background: var(--bg);
+        color: var(--fg);
+      }
+      input[aria-invalid="true"] {
+        border-color: #d93636;
+      }
+      button {
+        cursor: default;
+      }
+      button[type="submit"] {
+        background: var(--accent);
+        color: var(--on-accent);
+        border-color: var(--accent);
+      }
+      button:disabled {
+        opacity: 0.5;
+      }
+    </style>
   </head>
   <body>
+    <form id="picker" hidden>
+      <h1>Omni Server</h1>
+      <input
+        name="origin"
+        type="text"
+        inputmode="url"
+        autocomplete="url"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="omni.example.com"
+        aria-label="Server"
+        required
+      />
+      <button type="submit">Continue</button>
+    </form>
+    <form id="offline" hidden>
+      <h1 id="offline-host"></h1>
+      <button type="submit">Try Again</button>
+      <button type="button" id="change">Change Server</button>
+    </form>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

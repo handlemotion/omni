@@ -243,11 +243,14 @@ export function workspaceLabel(workspace: Workspace, userName: string | null | u
 export function WorkspaceSwitcher({
   end,
   workspacesOnly = false,
+  iconOnly = false,
   onChoose,
   pending = false,
 }: {
   end?: ReactNode;
   workspacesOnly?: boolean;
+  /** Its mark alone, as the desktop app's title bar draws it; the menu is the same. */
+  iconOnly?: boolean;
   onChoose?: (workspace: Workspace) => void;
   pending?: boolean;
 }) {
@@ -286,7 +289,14 @@ export function WorkspaceSwitcher({
           // 9px after the name against the mark's 6.5px from the start (optical, measured): the
           // text's soft end needs a little more room than the mark's hard edge to look even. In
           // settings it is a full row with the mailbox switcher's chevron, as a chooser.
-          className={workspacesOnly ? undefined : "w-auto max-w-full shrink pe-2.25"}
+          // In the desktop title bar, the mark in the same 28px square as the arrows beside it.
+          className={
+            iconOnly
+              ? "size-7 shrink-0 justify-center px-0"
+              : workspacesOnly
+                ? undefined
+                : "w-auto max-w-full shrink pe-2.25"
+          }
         >
           <span className="grid size-icon shrink-0 place-items-center">
             {openWorkspace.isPending || pending ? (
@@ -298,7 +308,7 @@ export function WorkspaceSwitcher({
               </span>
             )}
           </span>
-          <span className="min-w-0 truncate">{label(active)}</span>
+          {!iconOnly && <span className="min-w-0 truncate">{label(active)}</span>}
           {workspacesOnly && (
             <IconChevronsUpDown className="ms-auto -me-0.75 size-3.5 shrink-0 text-subtle-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
           )}

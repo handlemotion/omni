@@ -4,6 +4,7 @@
 // browser shows them is a per-device choice, kept in localStorage beside the browser's own
 // permission. Nothing here is sent to the server.
 import { useSyncExternalStore } from "react";
+import { desktop } from "./desktop.ts";
 import { notificationSubject, notificationTitle } from "./notification-text.ts";
 import type { NotificationPage } from "./types.ts";
 
@@ -55,16 +56,24 @@ export async function setDesktopNotifications(on: boolean): Promise<DesktopNotif
 }
 
 /**
+ * Whether Omni is out of sight. A tab is when another tab or app covers it. The desktop app's
+ * window can stay visible behind other apps, so there it is whenever another app has the focus.
+ */
+const inBackground = () =>
+  desktop.isDesktop ? !document.hasFocus() : document.visibilityState !== "visible";
+
+/**
  * Remembers which notifications this tab has seen, and shows the new unread ones. The first list
- * only sets the baseline, so opening Omni never replays old ones. Shows nothing while the tab is
- * in front: the app itself is on screen then.
+ * only sets the baseline, so opening Omni never replays old ones. Shows nothing while Omni is in
+ * front: the app itself is on screen then. In the desktop app, `Notification` is the
+ * notification plugin's (Tauri installs it), so the same call shows a native one.
  */
 export function createNotifier(open: (notice: Notice) => void) {
   let seen: Set<string> | null = null;
   return (notices: readonly Notice[]) => {
     const fresh = seen ? notices.filter((n) => !n.readAt && !seen!.has(n.id)) : [];
     seen = new Set([...(seen ?? []), ...notices.map((n) => n.id)]);
-    if (currentState() !== "on" || document.visibilityState === "visible") return;
+    if (currentState() !== "on" || !inBackground()) return;
     for (const notice of fresh) {
       const shown = new Notification(notificationTitle(notice), {
         body: notificationSubject(notice) ?? "",

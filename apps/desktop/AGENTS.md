@@ -19,8 +19,9 @@ Extends the root `AGENTS.md`. The design is `docs/spec/desktop.md` and ADR 0043:
 - Wire shapes come from `generated/` (Swift and Rust, from `@omni/contracts`). Never write a
   request or response struct by hand; add the schema to `STORAGE_SYNC_NATIVE_TYPES` instead.
 - The web app talks to the shell only through the commands in `src-tauri/src/sync/` and the
-  official plugins the remote capability grants. Adding a command means adding it to that
-  capability too.
+  official plugins the remote capability grants. That capability is built at runtime for the
+  chosen origin (`REMOTE_PERMISSIONS` in `src-tauri/src/server.rs`). Adding a command means
+  listing it in `src-tauri/build.rs` and granting its `allow-<command>` there too.
 - Rust: `cargo fmt`, `cargo clippy --all-targets` with every Clippy lint denied, no `unsafe`.
   Tests only for pure logic, named for the bug they catch (ADR 0043, "Consequences").
 - Config is build-time env (`.env.example`); nothing Handlemotion-specific in code.

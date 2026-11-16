@@ -15,8 +15,18 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
-tauri = { version = "2.12", features = [] }
+tauri = { version = "2.12", features = ["tray-icon"] }
+serde_json.workspace = true
 omni-sync-types.workspace = true
+tauri-plugin-store = "2.5.1"
+tauri-plugin-opener = "2.7.3"
+tauri-plugin-notification = "2.8.1"
+url = "2.5.8"
+tauri-plugin-deep-link = "2.6.3"
+tauri-plugin-single-instance = { version = "2.5.5", features = ["deep-link"] }
+uuid = { version = "1.29.2", features = ["v4"] }
+tauri-plugin-autostart = "2.7.0"
+tauri-plugin-window-state = "2.5.0"
 
 [lints]
 workspace = true

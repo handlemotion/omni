@@ -19,6 +19,7 @@ import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
 import { ModuleSwitcher, useCurrentModule, WorkspaceSwitcher } from "./module-switcher";
 import { CountBadge } from "./count-badge";
+import { TitleBarSpace } from "./desktop-title-bar";
 import { NotificationsButton } from "./notifications";
 import {
   Sidebar,
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
+import { desktop } from "@/lib/desktop.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { useCounts } from "@/hooks/use-mail.ts";
 import { useMember } from "@/hooks/use-session.ts";
@@ -101,7 +103,16 @@ export function AppSidebar() {
             middle (24px down: the sidebar's 8px padding and half the 32px row), so it sits on
             the same line as their titles. */}
         {/* The workspace, hugging its mark and name, and the bell at the row's end. */}
-        <WorkspaceSwitcher end={<NotificationsButton />} />
+        {desktop.isDesktop ? (
+          // The desktop title bar holds the switcher over this row's start; the bell stays.
+          // The switcher's 32px row height, so the rows under it stay where they are.
+          <div className="flex h-8 items-center justify-between gap-1">
+            <TitleBarSpace inset={8} />
+            <NotificationsButton />
+          </div>
+        ) : (
+          <WorkspaceSwitcher end={<NotificationsButton />} />
+        )}
         {module === "files" ? (
           <StorageNav mailbox={mailbox} />
         ) : module === "crm" ? (
