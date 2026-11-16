@@ -22,7 +22,7 @@ import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
 import { useSidebar } from "@/components/ui/sidebar";
-import { PageNav } from "@/components/shell/page-nav";
+import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
@@ -157,6 +157,7 @@ export function List(
     rowMenu?: boolean;
   },
 ) {
+  const pageNav = usePageNavShown();
   const threads = props.rows;
   const [selected, setSelected] = useState<Selection>(new Set());
   const count = selected === "all" ? threads.length : selected.size;
@@ -237,8 +238,11 @@ export function List(
           ref={listRef}
           className={`relative flex flex-1 flex-col ${split ? "min-w-80" : "min-w-0"} ${hideList ? "hidden" : ""}`}
         >
-          {/* 10px each side, the same as the 28px controls' inset from the top. */}
-          <header className="flex h-12 shrink-0 items-center gap-2 border-b ps-2.5 pe-2.5">
+          {/* 10px each side, the same as the 28px controls' inset from the top; 20px before a
+              title that starts the header, as the reading column's subject has. */}
+          <header
+            className={`flex h-12 shrink-0 items-center gap-2 border-b pe-2.5 ${pageNav ? "ps-2.5" : "ps-5"}`}
+          >
             <PageNav />
             {/* 14px. Centred as laid out, with no nudge: its capitals sit on the icons' centre
                 line. It never shrinks: the caption truncates and the search field narrows

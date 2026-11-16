@@ -208,7 +208,10 @@ export function MailboxSwitcher() {
           )}
         </span>
         <span className="min-w-0 truncate">{triggerName}</span>
-        <IconChevronsUpDown className="ms-auto size-3.5 shrink-0 text-subtle-foreground" />
+        {/* 3px into the row's end padding: 2px like the unread counts, 1px more for the glyph's
+            ink sitting left in its box (optical, measured). That puts its ink on the axis of the
+            search field's `/` and the workspace mark above. Foreground on hover, as link icons. */}
+        <IconChevronsUpDown className="ms-auto -me-0.75 size-3.5 shrink-0 text-subtle-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
       </SidebarItemTrigger>
 
       <Menu

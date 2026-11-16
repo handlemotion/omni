@@ -13,7 +13,7 @@ import {
 } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
-import { PageNav } from "@/components/shell/page-nav";
+import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
 import { MiddleTruncate } from "@/components/ui/middle-truncate";
 import { ShowMore } from "@/components/ui/show-more";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
@@ -381,6 +381,7 @@ function Entry({ children }: { children: ReactNode }) {
 function Actions({ thread, subject }: { thread: Thread; subject: string }) {
   const markRead = useMarkRead();
   const [fullScreen, toggleFullScreen] = useFullScreen();
+  const pageNav = usePageNavShown();
   const navigate = useNavigate();
   const closeHref = useOpenList()?.closeHref;
 
@@ -388,10 +389,10 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
     // The reading column's top bar: the subject, then the actions. One row with the list's
     // header beside it, the same height and bottom line; end-2.5 matches that header's inset.
     <div
-      className={`flex h-12 shrink-0 items-center gap-3 border-b pe-2.5 ${fullScreen ? "ps-2.5" : "ps-5 border-s"}`}
+      className={`flex h-12 shrink-0 items-center gap-3 border-b pe-2.5 ${fullScreen && pageNav ? "ps-2.5" : "ps-5"} ${fullScreen ? "" : "border-s"}`}
     >
-      {/* Full screen hides the list and its header: the page's Back, Forward and sidebar toggle
-          start this one instead. */}
+      {/* Full screen hides the list and its header: the page's sidebar toggle (while the
+          sidebar is closed) starts this one instead. */}
       {fullScreen && <PageNav />}
       {/* Full screen hides the list: switch threads from here, before the subject. */}
       {fullScreen && (

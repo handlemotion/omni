@@ -318,7 +318,11 @@ export function SidebarContent({ className, ...props }: React.ComponentProps<"di
   const { state } = useSidebar();
   // One hover highlight springs between the rows (transitive's fluid hover); rows have no hover
   // fill of their own. Only the row under the pointer lights: the space between groups does not.
-  const hover = useFluidHoverList({ itemSelector: "[data-slot='sidebar-item']" });
+  // Links carry the slot; a menu trigger's button keeps its own `data-slot="button"`, so it is
+  // marked with `data-sidebar-item` instead and lights the same way.
+  const hover = useFluidHoverList({
+    itemSelector: "[data-slot='sidebar-item'], [data-sidebar-item]",
+  });
   return (
     <div
       data-slot="sidebar-content"
@@ -452,7 +456,7 @@ export function SidebarItemTrigger({ className, ...props }: MenuButtonProps) {
   return (
     <MenuButton
       intent="plain"
-      data-slot="sidebar-item"
+      data-sidebar-item
       className={cn(
         "group/sidebar-item h-8 w-full min-w-0 justify-start gap-2.5 rounded-lg px-2 text-start text-sm",
         "aria-expanded:[--btn-bg:var(--sidebar-accent)] aria-expanded:[--btn-overlay:var(--sidebar-accent)] aria-expanded:*:[svg]:text-foreground",

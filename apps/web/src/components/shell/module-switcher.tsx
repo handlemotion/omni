@@ -183,14 +183,20 @@ function WorkspaceSwitcher() {
 
   return (
     <MenuTrigger>
-      {/* A 32px square, the row's height, with the 18px mark (an unread count's size) in its
-          middle: its centre 16px from the row's end, beside the counts' 13px and the mailbox
-          chevron's 15px below it. */}
-      <Button intent="ghost" size="sq-md" aria-label={`Switch workspace, currently ${active.name}`}>
+      {/* The mark is the button: a 22px mark in a 26px box with no fill of its own, the box
+          flush with the row's end, so the mark's centre sits 13px in, on the axis of the search
+          field's `/`, the unread counts and the mailbox chevron below it. Hovered or open, the
+          mark itself darkens a step instead of a fill appearing behind it. */}
+      <Button
+        intent="plain"
+        size="sq-xs"
+        className="*:transition-[filter] *:duration-150 *:ease-out hover:*:brightness-92 aria-expanded:*:brightness-92"
+        aria-label={`Switch workspace, currently ${active.name}`}
+      >
         {openWorkspace.isPending ? (
           <Loader className="size-icon text-muted-foreground" />
         ) : (
-          <WorkspaceMark workspace={active} size={18} />
+          <WorkspaceMark workspace={active} size={22} />
         )}
       </Button>
       <Menu

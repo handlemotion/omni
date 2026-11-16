@@ -5,8 +5,8 @@ import {
   IconBubbleAnnotation,
   IconClock,
   IconEmail,
-  IconHelp,
   IconSettings,
+  IconSidebar,
   IconInbox,
   IconPaperPlane,
   IconTrash,
@@ -32,6 +32,7 @@ import {
   SidebarItem,
   SidebarLabel,
   SidebarSection,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
@@ -84,8 +85,9 @@ const folders: NavItem[] = [
 ];
 
 // Figma: Omni, sidebar (node 1:3). One module at a time (ADR 0035), after Skiff: the top row is
-// the module, and its menu switches module and workspace; the rest is that module's own. Back,
-// Forward and the sidebar toggle start each page's header (`PageNav`).
+// the module, and its menu switches module and workspace; the rest is that module's own. The
+// sidebar's toggle closes it from the footer; closed, the toggle starts each page's header
+// (`PageNav`).
 export function AppSidebar() {
   const module = useCurrentModule();
   // The links carry the URL's mailbox as it is, not the one found in the workspace list: right
@@ -117,9 +119,9 @@ export function AppSidebar() {
         <OfflineBadge />
         <div className="flex items-center gap-0.5">
           <NotificationsButton />
-          <Button intent="ghost" size="sq-sm" aria-label="Help">
-            <IconHelp />
-          </Button>
+          <SidebarTrigger intent="ghost" size="sq-sm" aria-label="Close sidebar">
+            <IconSidebar />
+          </SidebarTrigger>
         </div>
       </SidebarFooter>
     </Sidebar>
