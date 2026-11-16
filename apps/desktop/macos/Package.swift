@@ -11,11 +11,22 @@ let package = Package(
     platforms: [.macOS(.v13)],
     products: [
         .library(name: "OmniSyncCore", targets: ["OmniSyncCore"]),
+        .library(name: "OmniSyncClient", targets: ["OmniSyncClient"]),
     ],
     targets: [
         // Symlinked from `apps/desktop/generated/swift`: generator output, never edited here.
         .target(name: "StorageSync", swiftSettings: [.swiftLanguageMode(.v5)]),
         .target(name: "OmniSyncCore", dependencies: ["StorageSync"]),
+        // The sync API over URLSession, the token in the keychain, the settings the app shares.
+        .target(name: "OmniSyncClient", dependencies: ["OmniSyncCore", "StorageSync"]),
+        // OmniFileProvider.appex's executable; `scripts/build-extension.sh` wraps it in the bundle.
+        .executableTarget(
+            name: "OmniFileProvider",
+            dependencies: ["OmniSyncClient", "OmniSyncCore", "StorageSync"],
+            // FileProvider's observers and completion handlers carry no Sendable annotations.
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-e", "-Xlinker", "_NSExtensionMain"])]
+        ),
         .testTarget(name: "OmniSyncCoreTests", dependencies: ["OmniSyncCore", "StorageSync"]),
     ]
 )
