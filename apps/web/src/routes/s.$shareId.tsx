@@ -2,6 +2,7 @@
 // a link that opens nothing to this reader (a Restricted link without a session, a reset one), and
 // the page is then the not-found, inside the link page's frame.
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import { EmptyState } from "../components/empty/empty-state.tsx";
 import { LinkFrame } from "../components/storage/link-frame.tsx";
 import { LinkPage } from "../components/storage/link-page.tsx";
 import { ApiError } from "../lib/api.ts";
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/s/$shareId")({
   component: Link,
   notFoundComponent: () => (
     <LinkFrame>
-      <p className="p-5 text-sm text-foreground">Not found.</p>
+      <EmptyState figure="loupe" title="Not found" />
     </LinkFrame>
   ),
 });

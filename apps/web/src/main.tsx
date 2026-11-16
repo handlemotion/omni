@@ -2,7 +2,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { appToast } from "./components/ui/toast.tsx";
 import { routeOutsideLinks, routeTitleBarDrags } from "./lib/desktop.ts";
+import { reloadForUpdate } from "./lib/failure.ts";
 import { createQueryClient } from "./lib/query-client.ts";
 import { resetSession } from "./lib/session.ts";
 import { dropStartupResponses } from "./lib/startup-fetch.ts";
@@ -14,15 +16,26 @@ initErrorReporting();
 routeOutsideLinks();
 routeTitleBarDrags();
 
-let resetting = false;
-const queryClient = createQueryClient(() => {
-  // Many queries can 401 at once; reset once. The guards then redirect to /login.
-  if (resetting) return;
-  resetting = true;
-  void resetSession(queryClient, router).finally(() => {
-    resetting = false;
-  });
+// A lazy chunk (a route, a preview) that fails to load is almost always a window older than the
+// last deploy: its chunks are gone. Reload once for the current build (ADR 0046). Within a minute
+// of the last reload the error goes on to the screen's error boundary instead of looping.
+window.addEventListener("vite:preloadError", (event) => {
+  if (reloadForUpdate()) event.preventDefault();
 });
+
+let resetting = false;
+const queryClient = createQueryClient(
+  () => {
+    // Many queries can 401 at once; reset once. The guards then redirect to /login.
+    if (resetting) return;
+    resetting = true;
+    void resetSession(queryClient, router).finally(() => {
+      resetting = false;
+    });
+  },
+  // Ten actions failing offline show one toast, not ten.
+  (message, failure) => appToast.error(message, { id: `failure-${failure.kind}` }),
+);
 const router = createAppRouter(queryClient);
 
 // The landing screen's code starts loading now, beside the session check its guards wait on,

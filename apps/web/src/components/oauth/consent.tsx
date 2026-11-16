@@ -53,6 +53,7 @@ export function Consent({ clientId, scope }: { clientId: string; scope: string }
   const [workspace, setWorkspace] = useState(ALL);
   const answer = useMutation({
     mutationFn: answerConsent,
+    meta: { handlesError: true },
     onError: () => appToast.error("The request expired. Start the connection again."),
   });
   const requested = new Set(scope.split(" ").filter(Boolean));

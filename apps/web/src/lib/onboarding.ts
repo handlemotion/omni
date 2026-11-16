@@ -213,6 +213,7 @@ function storeDomain(client: QueryClient, domain: OnboardingDomain) {
 /** `mutate(domain)`: claims it and returns the DNS records to add, each checked. */
 export const addDomainMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     /** A domain, or `{ domain, host: "gmail" }` for one whose mail stays at Google (ADR 0024). */
     mutationFn: (input: string | { domain: string; host: "gmail" }) =>
       call(
@@ -230,6 +231,7 @@ export const addDomainMutation = (client: QueryClient) =>
  */
 export const removeDomainMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (id: string) =>
       call(api.onboarding.domains[":id"].release.$post({ param: { id } })),
     onSuccess: (_, id) => {
@@ -248,6 +250,7 @@ export const removeDomainMutation = (client: QueryClient) =>
 /** `mutate(domainId)`: a new challenge value, for a member who lost the first one. */
 export const rotateChallengeMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (id: string) =>
       call(api.onboarding.domains[":id"].challenge.$post({ param: { id } })),
     onSuccess: (domain) => storeDomain(client, domain),
@@ -264,6 +267,7 @@ export function watchDomain(id: string, reset: boolean) {
 /** `mutate(domainId)`: checks the DNS records again. */
 export const checkDomainMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (id: string) => call(api.onboarding.domains[":id"].check.$post({ param: { id } })),
     onSuccess: (domain) => storeDomain(client, domain),
   });
@@ -292,6 +296,7 @@ export interface NewMailbox {
  */
 export const createMailboxesMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: async (input: {
       domainId: string;
       mailboxes: NewMailbox[];
@@ -330,6 +335,7 @@ export const createMailboxesMutation = (client: QueryClient) =>
  */
 export const finishSetupMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: () => call(api.onboarding.complete.$post()),
     onSuccess: () =>
       Promise.all([

@@ -1,6 +1,7 @@
 import { createFileRoute, notFound, Outlet, redirect, useLocation } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { ComposeDialog } from "../../components/compose/compose-pane.tsx";
+import { ModuleBoundary } from "../../components/errors/error-boundary.tsx";
 import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
 import { SettingsNav } from "../../components/settings/settings-nav.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
@@ -108,7 +109,10 @@ function Shell() {
         {/* Starts after the closed sidebar's island, while it shows. */}
         <SidebarInset className="ps-(--sidebar-island-width)">
           <SidebarResizeGrip />
-          <Outlet />
+          {/* A module's failure takes its pane only: the sidebar and title bar stay. */}
+          <ModuleBoundary>
+            <Outlet />
+          </ModuleBoundary>
         </SidebarInset>
       </ListSweepProvider>
       <TitleBar />

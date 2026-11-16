@@ -7,6 +7,7 @@ import {
   type ToOptions,
 } from "@tanstack/react-router";
 import { RouterProvider } from "react-aria-components";
+import { ErrorScreen, FullWindow, NotFoundState } from "../components/errors/error-screen.tsx";
 import { Toaster } from "../components/ui/toast.tsx";
 import { SharedTooltip } from "../components/ui/tooltip.tsx";
 import type { RouterContext } from "../router.ts";
@@ -21,7 +22,17 @@ declare module "react-aria-components" {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: Root,
-  notFoundComponent: () => <p>Not found.</p>,
+  // The whole window: the shell may be what failed.
+  errorComponent: ({ error, reset }) => (
+    <FullWindow>
+      <ErrorScreen error={error} reset={reset} />
+    </FullWindow>
+  ),
+  notFoundComponent: () => (
+    <FullWindow>
+      <NotFoundState />
+    </FullWindow>
+  ),
 });
 
 function Root() {

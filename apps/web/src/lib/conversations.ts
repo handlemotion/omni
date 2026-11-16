@@ -424,6 +424,7 @@ export const bulkChangeMutation = (client: QueryClient) =>
 /** Creates a tag on the inbox; a name that exists (ignoring case) answers that tag. */
 export const createTagMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({
       mailboxId,
       ...json
@@ -439,6 +440,7 @@ export const createTagMutation = (client: QueryClient) =>
 /** Renames or recolors a tag. 409 when another tag of the inbox has that name. */
 export const updateTagMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({
       mailboxId,
       tagId,
@@ -460,6 +462,7 @@ export const updateTagMutation = (client: QueryClient) =>
 /** Deletes a tag and takes it off every conversation. */
 export const deleteTagMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ mailboxId, tagId }: { mailboxId: string; tagId: string }) =>
       call(api.mailboxes[":id"].tags[":tagId"].$delete({ param: { id: mailboxId, tagId } })),
     onSettled: (_data, _error, { mailboxId }) => {

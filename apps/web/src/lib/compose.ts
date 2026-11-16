@@ -203,6 +203,7 @@ export interface ComposeReplyVariables extends Recipients {
  */
 export const composeReplyMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationKey: [...keys.mail(), "reply"],
     retry,
     scope,
@@ -262,6 +263,7 @@ export interface ForwardVariables extends Recipients {
 /** Forwards a message (the latest by default) with what the agent wrote above it. */
 export const forwardMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationKey: [...keys.mail(), "forward"],
     retry,
     scope,
@@ -308,6 +310,7 @@ export interface HandoffVariables extends Recipients {
  */
 export const handoffMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationKey: [...keys.mail(), "handoff"],
     retry,
     scope,
@@ -340,6 +343,7 @@ export interface NewMailVariables {
 /** New mail from one of the member's mailboxes. */
 export const newMailMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationKey: [...keys.mail(), "send"],
     retry,
     scope,

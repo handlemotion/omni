@@ -13,6 +13,7 @@ export const joinQuery = () =>
 
 export const askToJoinMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: () => call(api.join.$post()),
     onSuccess: (status) => client.setQueryData(keys.join(), status),
   });
@@ -28,6 +29,7 @@ export const joinRequestsQuery = (enabled = true) =>
 /** `mutate({ id, answer })`: accept adds them as a member; decline drops the request. */
 export const answerJoinRequestMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ id, answer }: { id: string; answer: "accept" | "decline" }) =>
       call(
         answer === "accept"

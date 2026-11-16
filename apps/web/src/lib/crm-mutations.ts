@@ -31,24 +31,28 @@ const settle = (client: QueryClient) => ({ onSettled: () => crmChanged(client) }
 
 export const createCompanyMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (json: NewCompany) => call(api.crm.companies.$post({ json })),
     ...settle(client),
   });
 
 export const createPersonMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (json: NewPerson) => call(api.crm.people.$post({ json })),
     ...settle(client),
   });
 
 export const createDealMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (json: NewDeal) => call(api.crm.deals.$post({ json })),
     ...settle(client),
   });
 
 export const updateCompanyMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ id, ...json }: CompanyChange & { id: string }) =>
       call(api.crm.companies[":id"].$patch({ param: { id }, json })),
     ...settle(client),
@@ -56,6 +60,7 @@ export const updateCompanyMutation = (client: QueryClient) =>
 
 export const updatePersonMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ id, ...json }: PersonChange & { id: string }) =>
       call(api.crm.people[":id"].$patch({ param: { id }, json })),
     ...settle(client),
@@ -63,6 +68,7 @@ export const updatePersonMutation = (client: QueryClient) =>
 
 export const updateDealMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ id, ...json }: DealChange & { id: string }) =>
       call(api.crm.deals[":id"].$patch({ param: { id }, json })),
     ...settle(client),
@@ -71,6 +77,7 @@ export const updateDealMutation = (client: QueryClient) =>
 /** `mutate({ id, domain })` adds a domain to a company. */
 export const addDomainMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ id, domain }: { id: string; domain: string }) =>
       call(api.crm.companies[":id"].domains[":domain"].$put({ param: { id, domain } })),
     ...settle(client),
@@ -82,6 +89,7 @@ export const addDomainMutation = (client: QueryClient) =>
  */
 export const moveDealMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ dealId, stage }: { dealId: string; stage: CrmStage }) =>
       call(api.crm.deals[":id"].$patch({ param: { id: dealId }, json: { stageId: stage.id } })),
     onMutate: async ({ dealId, stage }) => {
@@ -105,6 +113,7 @@ export const moveDealMutation = (client: QueryClient) =>
 /** `mutate({ record, id, body })` writes a note on one company, person or deal. */
 export const createNoteMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ record, id, body }: { record: CrmRecordKind; id: string; body: string }) => {
       const on =
         record === "companies"
@@ -120,6 +129,7 @@ export const createNoteMutation = (client: QueryClient) =>
 /** `mutate(id)`: its author deletes a note. */
 export const deleteNoteMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (id: string) => call(api.crm.notes[":id"].$delete({ param: { id } })),
     ...settle(client),
   });
@@ -130,6 +140,7 @@ export const deleteNoteMutation = (client: QueryClient) =>
  */
 export const recordFolderMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ kind, id }: { kind: "companies" | "deals"; id: string }) =>
       kind === "companies"
         ? call(api.crm.companies[":id"].folder.$post({ param: { id } }))
@@ -139,6 +150,7 @@ export const recordFolderMutation = (client: QueryClient) =>
 
 export const createContractMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (json: NewContract) => call(api.crm.contracts.$post({ json })),
     ...settle(client),
   });
@@ -146,6 +158,7 @@ export const createContractMutation = (client: QueryClient) =>
 /** Status, title, dates or file. Signing locks the file, so Storage refetches too. */
 export const updateContractMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ id, ...json }: ContractChange & { id: string }) =>
       call(api.crm.contracts[":id"].$patch({ param: { id }, json })),
     onSettled: () => Promise.all([crmChanged(client), storageChanged(client)]),
@@ -153,6 +166,7 @@ export const updateContractMutation = (client: QueryClient) =>
 
 export const deleteContractMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (id: string) => call(api.crm.contracts[":id"].$delete({ param: { id } })),
     ...settle(client),
   });
@@ -160,6 +174,7 @@ export const deleteContractMutation = (client: QueryClient) =>
 /** `mutate(stages)` replaces the pipeline, in order (owners and admins). */
 export const putStagesMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (stages: StageInput[]) => call(api.crm.stages.$put({ json: { stages } })),
     ...settle(client),
   });

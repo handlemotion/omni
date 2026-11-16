@@ -8,6 +8,7 @@
 import { IconPlus, IconUserMinus } from "@/components/icons/central";
 import { lazy, useState } from "react";
 import { Skeleton, SkeletonSuspense } from "skullet/react";
+import { Contain } from "@/components/errors/error-boundary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ChartConfig } from "@/components/ui/chart";
@@ -220,17 +221,20 @@ export function InboxesPage() {
             ) : (
               // The chart and its lanes in one group: the rows are the chart's legend.
               <SettingsGroup>
-                <SkeletonSuspense skeleton={<div className="h-62" />}>
-                  <SettingsChart
-                    label="Threads in each inbox by lane"
-                    config={LANE_CHART}
-                    dataKey="mailbox"
-                    data={list.map(({ mailbox, row }) => ({
-                      mailbox: mailboxName(mailbox),
-                      ...row.lanes,
-                    }))}
-                  />
-                </SkeletonSuspense>
+                {/* The rows below carry the numbers: a chart that fails leaves just them. */}
+                <Contain fallback={null}>
+                  <SkeletonSuspense skeleton={<div className="h-62" />}>
+                    <SettingsChart
+                      label="Threads in each inbox by lane"
+                      config={LANE_CHART}
+                      dataKey="mailbox"
+                      data={list.map(({ mailbox, row }) => ({
+                        mailbox: mailboxName(mailbox),
+                        ...row.lanes,
+                      }))}
+                    />
+                  </SkeletonSuspense>
+                </Contain>
                 {LANES.map((lane, i) => {
                   const total = list.reduce((sum, { row }) => sum + row.lanes[lane], 0);
                   return (

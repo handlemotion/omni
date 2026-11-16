@@ -17,6 +17,7 @@ export type AiSettings = Awaited<
 /** A blank role clears it. */
 export const setRoleMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ memberId, description }: { memberId: string; description: string }) =>
       call(
         api.workspace.ai.members[":memberId"].role.$put({
@@ -33,6 +34,7 @@ export const setRoleMutation = (client: QueryClient) =>
  */
 export const setTagDescriptionMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({
       mailboxId,
       tagId,

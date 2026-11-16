@@ -50,6 +50,7 @@ const settle = (client: QueryClient) =>
 /** A personal inbox for `memberId`; the issuer gets no access. Idempotent per address. */
 export const issueInboxMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ memberId, ...placement }: InboxPlacement & { memberId: string }) =>
       call(
         api.workspace.members[":memberId"].inboxes.$post({
@@ -63,6 +64,7 @@ export const issueInboxMutation = (client: QueryClient) =>
 /** A shared inbox seen by exactly `memberIds`. Idempotent per address. */
 export const createSharedInboxMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ memberIds, ...placement }: InboxPlacement & { memberIds: string[] }) =>
       call(
         api.workspace["shared-inboxes"].$post({
@@ -75,6 +77,7 @@ export const createSharedInboxMutation = (client: QueryClient) =>
 /** Gives a former member's inbox to `memberId`: theirs from now on, old mail included. */
 export const giveInboxMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ mailboxId, memberId }: { mailboxId: string; memberId: string }) =>
       call(
         api.workspace.inboxes[":id"].owner.$post({ param: { id: mailboxId }, json: { memberId } }),
@@ -85,6 +88,7 @@ export const giveInboxMutation = (client: QueryClient) =>
 /** Turns a former member's inbox into a shared inbox seen by `memberIds`. */
 export const shareInboxMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ mailboxId, memberIds }: { mailboxId: string; memberIds: string[] }) =>
       call(
         api.workspace.inboxes[":id"].shared.$post({
@@ -98,6 +102,7 @@ export const shareInboxMutation = (client: QueryClient) =>
 /** Removes an inbox from the workspace (its mail stays at the host). 204, so no body to parse. */
 export const removeInboxMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: async (mailboxId: string) => {
       const response = await api.workspace.inboxes[":id"].$delete({ param: { id: mailboxId } });
       if (!response.ok) await call(Promise.resolve(response));
@@ -108,6 +113,7 @@ export const removeInboxMutation = (client: QueryClient) =>
 /** Invites `email` with a personal inbox (`inbox`) and/or shared inboxes to be on. */
 export const inviteWithInboxMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (input: {
       email: string;
       role?: "member" | "admin";

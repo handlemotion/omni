@@ -15,6 +15,7 @@ const settle = (client: QueryClient) => client.invalidateQueries({ queryKey: key
 
 export const setForwardingMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (vars: { mailboxId: string; address: string; scope: ForwardScope }) =>
       call(
         api.mailboxes[":id"].forwarding.$put({
@@ -27,6 +28,7 @@ export const setForwardingMutation = (client: QueryClient) =>
 
 export const clearForwardingMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (mailboxId: string) =>
       call(api.mailboxes[":id"].forwarding.$delete({ param: { id: mailboxId } })),
     onSettled: () => settle(client),

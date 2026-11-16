@@ -51,6 +51,7 @@ export interface AddNoteVariables {
  */
 export const addNoteMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationKey: [...keys.mail(), "note"],
     scope,
     mutationFn: ({ threadId, body, mentions = [] }: AddNoteVariables) =>
@@ -87,6 +88,7 @@ export const addNoteMutation = (client: QueryClient) =>
 /** The author edits their own note. 404 for anyone else's (or a deleted one). */
 export const editNoteMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationKey: [...keys.mail(), "note-edit"],
     scope,
     mutationFn: ({ threadId, noteId, body }: { threadId: string; noteId: string; body: string }) =>
@@ -115,6 +117,7 @@ export const editNoteMutation = (client: QueryClient) =>
 /** The author deletes their own note; its timeline event and notifications go with it. */
 export const deleteNoteMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationKey: [...keys.mail(), "note-delete"],
     scope,
     mutationFn: ({ threadId, noteId }: { threadId: string; noteId: string }) =>

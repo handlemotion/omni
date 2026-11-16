@@ -94,13 +94,17 @@ export function useAcceptInvitation() {
   const client = useQueryClient();
   const router = useRouter();
   return useMutation({
+    meta: { handlesError: true },
     mutationFn: (invitationId: string) => acceptInvitation(client, router, invitationId),
   });
 }
 
 /** `mutate(invitationId)`. */
 export function useRejectInvitation() {
-  return useMutation({ mutationFn: (invitationId: string) => rejectInvitation(invitationId) });
+  return useMutation({
+    meta: { handlesError: true },
+    mutationFn: (invitationId: string) => rejectInvitation(invitationId),
+  });
 }
 
 /** Accounts signed in on this browser; add one by signing in again from `/login`. */

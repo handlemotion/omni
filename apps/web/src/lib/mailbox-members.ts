@@ -43,6 +43,7 @@ const settle = (client: QueryClient, mailboxId: string) =>
 /** Idempotent on the server (a PUT), so a retry is safe without a key. */
 export const addMailboxMemberMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ mailboxId, memberId }: MailboxMemberChange) =>
       call(
         api.workspace["shared-inboxes"][":id"].people[":memberId"].$put({
@@ -54,6 +55,7 @@ export const addMailboxMemberMutation = (client: QueryClient) =>
 
 export const removeMailboxMemberMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ mailboxId, memberId }: MailboxMemberChange) =>
       call(
         api.workspace["shared-inboxes"][":id"].people[":memberId"].$delete({

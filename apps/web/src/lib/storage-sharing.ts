@@ -41,6 +41,7 @@ const sharingChanged =
 /** `mutate({ id, linkAccess })` sets general access; `mutate({ id, reset: true })` a new link. */
 export const setLinkMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({
       id,
       ...json
@@ -52,6 +53,7 @@ export const setLinkMutation = (client: QueryClient) =>
 /** `mutate({ id, email, role })` adds a person (they get one mail) or changes their role. */
 export const putPersonMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ id, email, role }: { id: string; email: string; role: StorageGrantRole }) =>
       call(
         api.storage.nodes[":id"].sharing.people[":email"].$put({
@@ -65,6 +67,7 @@ export const putPersonMutation = (client: QueryClient) =>
 /** `mutate({ id, email })` removes a person; their next request finds nothing. */
 export const removePersonMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ id, email }: { id: string; email: string }) =>
       call(api.storage.nodes[":id"].sharing.people[":email"].$delete({ param: { id, email } })),
     onSuccess: sharingChanged(client),

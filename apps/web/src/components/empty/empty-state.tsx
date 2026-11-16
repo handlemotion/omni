@@ -3,7 +3,7 @@
 // nothing, then one or two lines of text and the actions. The figures answer the pointer, follow
 // the theme on their own and rest still under reduced motion.
 import type { ReactNode } from "react";
-import { Cabinet, Drawer, Loupe, Plug } from "@lucasmarkes/hairline/react";
+import { Cabinet, Drawer, Exploded, Loupe, Padlock, Plug } from "@lucasmarkes/hairline/react";
 import {
   Empty,
   EmptyContent,
@@ -14,16 +14,25 @@ import {
 } from "@/components/ui/empty";
 
 /** The figures in use. Add one here before using a new one. */
-const FIGURES = { cabinet: Cabinet, drawer: Drawer, loupe: Loupe, plug: Plug };
+const FIGURES = {
+  cabinet: Cabinet,
+  drawer: Drawer,
+  exploded: Exploded,
+  loupe: Loupe,
+  padlock: Padlock,
+  plug: Plug,
+};
 
 /**
  * Top to bottom: the figure (208px, 20px above the text), a title, a description only when it
- * helps, then, 24px below, the actions as small buttons.
+ * helps, an identifier a person may quote (`meta`, meta-sized and selectable), then, 24px below,
+ * the actions as small buttons.
  */
 export function EmptyState(props: {
   figure: keyof typeof FIGURES;
   title: string;
   description?: string;
+  meta?: string;
   children?: ReactNode;
 }) {
   const Figure = FIGURES[props.figure];
@@ -36,6 +45,11 @@ export function EmptyState(props: {
         </EmptyMedia>
         <EmptyTitle>{props.title}</EmptyTitle>
         {props.description && <EmptyDescription>{props.description}</EmptyDescription>}
+        {props.meta && (
+          <EmptyDescription className="text-xs tabular-nums select-text">
+            {props.meta}
+          </EmptyDescription>
+        )}
       </EmptyHeader>
       {props.children && (
         <EmptyContent className="flex-row justify-center gap-2">{props.children}</EmptyContent>

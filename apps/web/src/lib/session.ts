@@ -262,6 +262,7 @@ export const sessionsQuery = () =>
 /** `mutate(sessionToken)` signs the user out on that device. Not for the current session. */
 export const revokeSessionMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (token: string) => authCall(auth.revokeSession({ token })),
     onSettled: () => client.invalidateQueries({ queryKey: keys.sessions() }),
   });
@@ -269,6 +270,7 @@ export const revokeSessionMutation = (client: QueryClient) =>
 /** `mutate()` signs the user out on every device but this one. */
 export const revokeOtherSessionsMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: () => authCall(auth.revokeOtherSessions()),
     onSettled: () => client.invalidateQueries({ queryKey: keys.sessions() }),
   });
@@ -279,6 +281,7 @@ export const revokeOtherSessionsMutation = (client: QueryClient) =>
  */
 export const updateNameMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (name: string) => authCall(auth.updateUser({ name })),
     onSuccess: () =>
       Promise.all([

@@ -60,6 +60,7 @@ export const passkeysQuery = () =>
 
 export const cancelInvitationMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (invitationId: string) =>
       authCall(auth.organization.cancelInvitation({ invitationId })),
     onSettled: () => client.invalidateQueries({ queryKey: keys.invitations() }),
@@ -67,6 +68,7 @@ export const cancelInvitationMutation = (client: QueryClient) =>
 
 export const removeMemberMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (memberIdOrEmail: string) =>
       authCall(
         auth.organization.removeMember({ memberIdOrEmail, organizationId: organizationId() }),
@@ -82,6 +84,7 @@ export const removeMemberMutation = (client: QueryClient) =>
 
 export const updateMemberRoleMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ memberId, role }: { memberId: string; role: Role }) =>
       authCall(
         auth.organization.updateMemberRole({ memberId, role, organizationId: organizationId() }),
@@ -91,12 +94,14 @@ export const updateMemberRoleMutation = (client: QueryClient) =>
 
 export const addPasskeyMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (name?: string) => authCall(auth.passkey.addPasskey(name ? { name } : {})),
     onSettled: () => client.invalidateQueries({ queryKey: keys.passkeys() }),
   });
 
 export const deletePasskeyMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (id: string) => authCall(auth.passkey.deletePasskey({ id })),
     onSettled: () => client.invalidateQueries({ queryKey: keys.passkeys() }),
   });
@@ -104,6 +109,7 @@ export const deletePasskeyMutation = (client: QueryClient) =>
 /** `mutate({ id, name })` renames one of the user's passkeys. */
 export const renamePasskeyMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ id, name }: { id: string; name: string }) =>
       authCall(auth.passkey.updatePasskey({ id, name })),
     onSettled: () => client.invalidateQueries({ queryKey: keys.passkeys() }),
@@ -112,6 +118,7 @@ export const renamePasskeyMutation = (client: QueryClient) =>
 /** `mutate(invitationId)` sends a pending invitation's email again (through the Worker). */
 export const resendInvitationMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (invitationId: string) =>
       call(api.workspace.invitations[":id"].resend.$post({ param: { id: invitationId } })),
     onSettled: () => client.invalidateQueries({ queryKey: keys.invitations() }),
@@ -123,6 +130,7 @@ export const resendInvitationMutation = (client: QueryClient) =>
  */
 export const changeOrganizationHandleMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (slug: string) =>
       authCall(auth.organization.update({ data: { slug }, organizationId: organizationId() })),
     onSettled: () =>
@@ -135,6 +143,7 @@ export const changeOrganizationHandleMutation = (client: QueryClient) =>
 /** `mutate(name)` renames the active organization (owners and admins). */
 export const renameOrganizationMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (name: string) =>
       authCall(auth.organization.update({ data: { name }, organizationId: organizationId() })),
     onSettled: () =>

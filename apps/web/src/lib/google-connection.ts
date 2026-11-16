@@ -82,6 +82,7 @@ export const refreshAfterGoogle = (client: QueryClient) =>
 /** `mutate(mailboxId)`: revoked at Google, no longer synced, the inbox removed. */
 export const disconnectGoogleMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (mailboxId: string) =>
       call(api.connect.google[":mailboxId"].$delete({ param: { mailboxId } })),
     onSettled: () => refreshAfterGoogle(client),

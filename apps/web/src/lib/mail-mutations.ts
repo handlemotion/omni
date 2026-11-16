@@ -265,6 +265,7 @@ export const sendMutation = (client: QueryClient) =>
  */
 export const unsubscribeMutation = () =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationKey: [...keys.mail(), "unsubscribe"],
     retry,
     scope,

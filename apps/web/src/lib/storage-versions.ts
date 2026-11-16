@@ -38,6 +38,7 @@ export function storageVersionUrl(id: string, versionId: string, shareId?: strin
 /** `mutate({ id, versionId, shareId? })` makes a kept version the file's content again. */
 export const restoreVersionMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ id, versionId, shareId }: { id: string; versionId: string; shareId?: string }) =>
       shareId
         ? call(sharedDoor()[":versionId"].restore.$post({ param: { shareId, id, versionId } }))

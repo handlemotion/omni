@@ -27,6 +27,7 @@ function settingsMutation<V extends { mailboxId: string }>(
   dues: boolean,
 ) {
   return mutationOptions({
+    meta: { handlesError: true },
     mutationFn: request,
     onMutate: async (vars: V) => {
       const key = keys.sla(vars.mailboxId);

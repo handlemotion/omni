@@ -71,6 +71,7 @@ const sharedDoor = () => api.storage.shared[":shareId"];
 /** `mutate({ name, place, shareId? })` makes a folder; a taken name gets a number. */
 export const createFolderMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({
       name,
       place,
@@ -89,6 +90,7 @@ export const createFolderMutation = (client: QueryClient) =>
 /** `mutate({ id, name })` renames; `mutate({ id, place })` moves within the workspace. */
 export const changeNodeMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({
       shareId,
       ...change
@@ -104,6 +106,7 @@ export const changeNodeMutation = (client: QueryClient) =>
 /** `mutate({ id, shareId? })` moves a file or folder to Trash. */
 export const trashNodeMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: ({ id, shareId }: { id: string; shareId?: string }) =>
       shareId
         ? call(sharedDoor().nodes[":id"].$delete({ param: { shareId, id }, query: {} }))
@@ -114,6 +117,7 @@ export const trashNodeMutation = (client: QueryClient) =>
 /** `mutate(id)` puts a trashed file or folder back where it was. */
 export const restoreNodeMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (id: string) => call(api.storage.nodes[":id"].restore.$post({ param: { id } })),
     onSuccess: () => storageChanged(client),
   });
@@ -121,6 +125,7 @@ export const restoreNodeMutation = (client: QueryClient) =>
 /** `mutate(id)` deletes something in Trash for good. */
 export const deleteForeverMutation = (client: QueryClient) =>
   mutationOptions({
+    meta: { handlesError: true },
     mutationFn: (id: string) =>
       call(api.storage.nodes[":id"].$delete({ param: { id }, query: { forever: "1" } })),
     onSuccess: () => storageChanged(client),
