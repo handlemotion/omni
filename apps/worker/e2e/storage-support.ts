@@ -60,22 +60,26 @@ export async function startStorageStack(options: {
     return { status: response.status, body: (text ? JSON.parse(text) : null) as any };
   }
 
-  const putPart = (jar: CookieJar, uploadId: string, n: number, bytes: Uint8Array) =>
-    fetch(url(`/uploads/${uploadId}/parts/${n}`), {
+  const putPart = (jar: CookieJar, uploadId: string, n: number, bytes: Uint8Array, base = "") =>
+    fetch(url(`${base}/uploads/${uploadId}/parts/${n}`), {
       method: "PUT",
       headers: { cookie: jar.header, "content-type": "application/octet-stream" },
       body: new Blob([new Uint8Array(bytes)]),
     });
 
-  /** Uploads `bytes` whole: open, every part in order, complete. */
+  /**
+   * Uploads `bytes` whole: open, every part in order, complete. `base` is `/shared/<shareId>`
+   * for someone uploading into what was shared with them.
+   */
   async function upload(
     jar: CookieJar,
     place: { space: "personal" | "shared" } | { parentId: string },
     name: string,
     bytes: Uint8Array,
     mimeType?: string,
+    base = "",
   ): Promise<StorageNode> {
-    const opened = await api(jar, "POST", "/uploads", {
+    const opened = await api(jar, "POST", `${base}/uploads`, {
       name,
       size: bytes.length,
       mimeType,
@@ -84,17 +88,22 @@ export async function startStorageStack(options: {
     if (opened.status !== 201) throw new Error(`open ${name}: ${opened.status}`);
     const { id, partSize, partCount } = opened.body.upload as StorageUpload;
     for (let n = 1; n <= partCount; n++) {
-      const sent = await putPart(jar, id, n, bytes.subarray((n - 1) * partSize, n * partSize));
+      const part = bytes.subarray((n - 1) * partSize, n * partSize);
+      const sent = await putPart(jar, id, n, part, base);
       if (sent.status !== 200) throw new Error(`part ${n} of ${name}: ${sent.status}`);
       await sent.body?.cancel();
     }
-    const done = await api(jar, "POST", `/uploads/${id}/complete`);
+    const done = await api(jar, "POST", `${base}/uploads/${id}/complete`);
     if (done.status !== 200) throw new Error(`complete ${name}: ${done.status}`);
     return done.body.node;
   }
 
+  /** A GET whose answer is read by the caller: bytes, headers. */
+  const get = (jar: CookieJar, path: string, headers: Record<string, string> = {}) =>
+    fetch(url(path), { headers: { cookie: jar.header, ...headers } });
+
   const download = (jar: CookieJar, nodeId: string, headers: Record<string, string> = {}) =>
-    fetch(url(`/files/${nodeId}/content`), { headers: { cookie: jar.header, ...headers } });
+    get(jar, `/files/${nodeId}/content`, headers);
 
   return {
     database,
@@ -103,6 +112,7 @@ export async function startStorageStack(options: {
     api,
     putPart,
     upload,
+    get,
     download,
     async company(name: string) {
       return createOrg(db, name);

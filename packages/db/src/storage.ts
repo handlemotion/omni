@@ -102,10 +102,17 @@ export function memberStorage(db: Db, memberId: string) {
  * address on that company's claimed domains count.
  */
 export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) {
-  const door = grantDoor(userId, scopeOrgId);
+  const through = (shareId?: string) => {
+    const door = grantDoor(userId, scopeOrgId, shareId);
+    return { ...treeOperations(db, door), ...uploadOperations(db, door) };
+  };
   return {
-    ...treeOperations(db, door),
-    ...uploadOperations(db, door),
+    ...through(),
+    /**
+     * The same, reaching only the node that carries the link `/s/<shareId>` and what is inside
+     * it. Everything it reaches is in that node's workspace.
+     */
+    under: (shareId: string) => through(shareId),
     /** "Shared with me": every live node granted to the person, newest grant first. */
     async sharedWithMe(page: { cursor?: SharedWithMeCursor | null; limit?: number } = {}) {
       return listSharedWith(db, await grantAddresses(db, userId, scopeOrgId), page);
@@ -138,4 +145,6 @@ export function publicStorageNode(db: Db, shareId: string, nodeId?: string) {
 
 export type MemberStorage = ReturnType<typeof memberStorage>;
 export type UserStorage = ReturnType<typeof userStorage>;
+/** The grant door bounded to one link: `forUser(...).storage.under(shareId)`. */
+export type SharedStorage = ReturnType<UserStorage["under"]>;
 export type PublicStorage = ReturnType<typeof publicStorage>;

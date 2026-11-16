@@ -128,6 +128,10 @@ const configSchema = z
     RATE_LIMIT_PROVISION: rateLimit("30/3600"),
     /** Per member: image proxy fetches of images not already cached. */
     RATE_LIMIT_IMAGE_PROXY: rateLimit("300/60"),
+    /** Per member: people added to a Storage item, each of whom is sent mail (ADR 0034). */
+    RATE_LIMIT_STORAGE_SHARE: rateLimit("60/3600"),
+    /** Per IP: requests to Storage's link door, `/api/storage/shared/*`. */
+    RATE_LIMIT_STORAGE_LINK: rateLimit("300/60"),
   })
   .refine((env) => !env.IMAGE_PROXY_TEST_ALLOW_ORIGIN || env.ENVIRONMENT === "test", {
     path: ["IMAGE_PROXY_TEST_ALLOW_ORIGIN"],

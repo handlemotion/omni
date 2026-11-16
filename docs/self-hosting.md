@@ -313,35 +313,35 @@ Variables (`vars` in `wrangler.jsonc`, or the dashboard; `keep_vars` keeps dashb
 deploy) and secrets (`wrangler secret put <NAME>`). Locally, copy `apps/worker/.dev.vars.example`
 to `.dev.vars`.
 
-| Variable                     | Kind   | Required | Notes                                                                                                                                                                           |
-| ---------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`         | secret | yes      | At least 32 random characters.                                                                                                                                                  |
-| `BETTER_AUTH_URL`            | var    | yes      | Public origin of the Worker (and the web app it serves). Magic links point here.                                                                                                |
-| `AUTH_TRUSTED_ORIGINS`       | var    | no       | Comma-separated web/app origins. Include `omni://` to let the iOS app sign in (its magic links end on that scheme).                                                             |
-| `AUTH_PASSKEY_RP_ID`         | var    | no       | WebAuthn relying party ID.                                                                                                                                                      |
-| `APP_NAME`                   | var    | no       | Defaults to `Omni`.                                                                                                                                                             |
-| `WEB_APP_URL`                | var    | no       | Web app origin; invitation emails link to `<WEB_APP_URL>/invite/<id>`. Defaults to `BETTER_AUTH_URL`.                                                                           |
-| `GOOGLE_CLIENT_ID`           | var    | no       | Google OAuth client ID. With `GOOGLE_CLIENT_SECRET`, the login page shows "Using Google". See [Sign in with Google](#sign-in-with-google).                                      |
-| `GOOGLE_CLIENT_SECRET`       | secret | no       | Google OAuth client secret. Set both or neither; one alone stops the Worker from starting.                                                                                      |
-| `MAIL_SERVICE_URL`           | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                              |
-| `MAIL_SERVICE_HMAC_SECRET`   | secret | yes      | Same value as the mail service's.                                                                                                                                               |
-| `SYSTEM_MAIL_FROM`           | var    | no       | Address magic links, invitations and notices come from (Email Sending). Empty disables them.                                                                                    |
-| `SENTRY_DSN`                 | var    | no       | Empty keeps Sentry off. Its environment tag is `ENVIRONMENT`.                                                                                                                   |
-| `ANTHROPIC_API_KEY`          | secret | no       | Triage when Jev is off. Without any AI key threads stay unsorted (a wordless reply of yours still files as FYI).                                                                |
-| `TYPESAFE_API_KEY`           | secret | no       | Triage on TypeSafe's Jev, and search reordered by Jev's relevance judgment. Without it search keeps full-text order.                                                            |
-| `TRIAGE_PROVIDER`            | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                                                                              |
-| `JEV_MODEL`                  | var    | no       | Jev model override.                                                                                                                                                             |
-| `TYPESAFE_API_URL`           | var    | no       | TypeSafe API base URL. Defaults to `https://api.typesafe.ai`.                                                                                                                   |
-| `EXPO_PUSH_ENABLED`          | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                                                                                                            |
-| `EXPO_ACCESS_TOKEN`          | secret | no       | Only if your Expo project enforces push security.                                                                                                                               |
-| `DOMAIN_CONNECT_PROVIDER_ID` | var    | no       | Domain Connect provider id our templates are published under. Empty hides one-click setup.                                                                                      |
-| `DOMAIN_CONNECT_KEY_HOST`    | var    | no       | TXT host of the public key, for templates that require signed requests.                                                                                                         |
-| `DOMAIN_CONNECT_PRIVATE_KEY` | secret | no       | PKCS#8 PEM key that signs Domain Connect apply URLs.                                                                                                                            |
-| `IMAGE_PROXY_DOH_URL`        | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                      |
-| `STORAGE_MAX_FILE_BYTES`     | var    | no       | Largest file Storage accepts, in bytes. Default 5 GB (`5368709120`).                                                                                                            |
-| `STORAGE_PERSONAL_GB`        | var    | no       | Most a Personal space may store, in GB (1024³ bytes; decimals allowed). Past it uploads answer `402 STORAGE_FULL`. Empty: no cap.                                               |
-| `STORAGE_MAX_GB`             | var    | no       | Ceiling on what any one workspace may store, in GB. Empty: none.                                                                                                                |
-| `ENVIRONMENT`                | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`. |
+| Variable                     | Kind   | Required | Notes                                                                                                                                                                                       |
+| ---------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`         | secret | yes      | At least 32 random characters.                                                                                                                                                              |
+| `BETTER_AUTH_URL`            | var    | yes      | Public origin of the Worker (and the web app it serves). Magic links point here.                                                                                                            |
+| `AUTH_TRUSTED_ORIGINS`       | var    | no       | Comma-separated web/app origins. Include `omni://` to let the iOS app sign in (its magic links end on that scheme).                                                                         |
+| `AUTH_PASSKEY_RP_ID`         | var    | no       | WebAuthn relying party ID.                                                                                                                                                                  |
+| `APP_NAME`                   | var    | no       | Defaults to `Omni`.                                                                                                                                                                         |
+| `WEB_APP_URL`                | var    | no       | Web app origin; invitation emails link to `<WEB_APP_URL>/invite/<id>`. Defaults to `BETTER_AUTH_URL`.                                                                                       |
+| `GOOGLE_CLIENT_ID`           | var    | no       | Google OAuth client ID. With `GOOGLE_CLIENT_SECRET`, the login page shows "Using Google". See [Sign in with Google](#sign-in-with-google).                                                  |
+| `GOOGLE_CLIENT_SECRET`       | secret | no       | Google OAuth client secret. Set both or neither; one alone stops the Worker from starting.                                                                                                  |
+| `MAIL_SERVICE_URL`           | var    | yes      | Base URL of the mail service; the Worker pings `POST /ping` on it.                                                                                                                          |
+| `MAIL_SERVICE_HMAC_SECRET`   | secret | yes      | Same value as the mail service's.                                                                                                                                                           |
+| `SYSTEM_MAIL_FROM`           | var    | no       | Address magic links, invitations and notices come from (Email Sending). Empty disables them; people added to a Storage item are then added without a mail and find it under Shared with me. |
+| `SENTRY_DSN`                 | var    | no       | Empty keeps Sentry off. Its environment tag is `ENVIRONMENT`.                                                                                                                               |
+| `ANTHROPIC_API_KEY`          | secret | no       | Triage when Jev is off. Without any AI key threads stay unsorted (a wordless reply of yours still files as FYI).                                                                            |
+| `TYPESAFE_API_KEY`           | secret | no       | Triage on TypeSafe's Jev, and search reordered by Jev's relevance judgment. Without it search keeps full-text order.                                                                        |
+| `TRIAGE_PROVIDER`            | var    | no       | `jev` or `claude`; defaults to Jev when `TYPESAFE_API_KEY` is set.                                                                                                                          |
+| `JEV_MODEL`                  | var    | no       | Jev model override.                                                                                                                                                                         |
+| `TYPESAFE_API_URL`           | var    | no       | TypeSafe API base URL. Defaults to `https://api.typesafe.ai`.                                                                                                                               |
+| `EXPO_PUSH_ENABLED`          | var    | no       | `true` sends Expo push to members with no app open. Default `false`.                                                                                                                        |
+| `EXPO_ACCESS_TOKEN`          | secret | no       | Only if your Expo project enforces push security.                                                                                                                                           |
+| `DOMAIN_CONNECT_PROVIDER_ID` | var    | no       | Domain Connect provider id our templates are published under. Empty hides one-click setup.                                                                                                  |
+| `DOMAIN_CONNECT_KEY_HOST`    | var    | no       | TXT host of the public key, for templates that require signed requests.                                                                                                                     |
+| `DOMAIN_CONNECT_PRIVATE_KEY` | secret | no       | PKCS#8 PEM key that signs Domain Connect apply URLs.                                                                                                                                        |
+| `IMAGE_PROXY_DOH_URL`        | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                                  |
+| `STORAGE_MAX_FILE_BYTES`     | var    | no       | Largest file Storage accepts, in bytes. Default 5 GB (`5368709120`).                                                                                                                        |
+| `STORAGE_PERSONAL_GB`        | var    | no       | Most a Personal space may store, in GB (1024³ bytes; decimals allowed). Past it uploads answer `402 STORAGE_FULL`. Empty: no cap.                                                           |
+| `STORAGE_MAX_GB`             | var    | no       | Ceiling on what any one workspace may store, in GB. Empty: none.                                                                                                                            |
+| `ENVIRONMENT`                | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`.             |
 
 | `RATE_LIMIT_*` | var | no | Rate limits, `<count>/<seconds>` or `off`. See [Rate limits](#rate-limits). |
 | `STRIPE_*`, `BILLING_*` | both | no | Optional billing. Leave unset to self-host with no plan and no limits. See [Billing](#billing-optional). |
@@ -393,21 +393,23 @@ disconnects one.
 #### Rate limits
 
 The Worker limits the routes that send mail, call the mail service, fetch remote URLs (the
-image proxy) or let someone guess at sign-in, in the `RATE_LIMITER` Durable Object (one
+image proxy), answer without a sign-in (Storage's links) or let someone guess at sign-in, in the `RATE_LIMITER` Durable Object (one
 instance per key, so counts are exact). Each is a var of the form `<count>/<seconds>`; `off` disables it, empty means the default. Over a
 limit the Worker answers `429` with `Retry-After`. Per-IP limits key on `CF-Connecting-IP`,
 which Cloudflare sets and clients cannot.
 
-| Variable                 | Default    | Counts                                                                                                                                                                        |
-| ------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RATE_LIMIT_AUTH`        | `60/60`    | Per IP: every sign-in step (magic link and its link, passkey options and verify, Google). Session reads are free.                                                             |
-| `RATE_LIMIT_MAGIC_LINK`  | `5/900`    | Per email address: magic-link requests, so nobody can flood an inbox from your no-reply mailbox.                                                                              |
-| `RATE_LIMIT_INVITE`      | `30/3600`  | Per inviting user: invitations sent or resent.                                                                                                                                |
-| `RATE_LIMIT_SEARCH`      | `60/60`    | Per member: searches.                                                                                                                                                         |
-| `RATE_LIMIT_SEND`        | `100/3600` | Per member: new mail and replies.                                                                                                                                             |
-| `RATE_LIMIT_ACTIONS`     | `300/60`   | Per member: other writes that reach IMAP (read state, archive, move).                                                                                                         |
-| `RATE_LIMIT_PROVISION`   | `30/3600`  | Per member: creating a mailbox, which calls the mail service. Adding and checking domains have their own per-workspace limits (`DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER`). |
-| `RATE_LIMIT_IMAGE_PROXY` | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                                                                                          |
+| Variable                   | Default    | Counts                                                                                                                                                                        |
+| -------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RATE_LIMIT_AUTH`          | `60/60`    | Per IP: every sign-in step (magic link and its link, passkey options and verify, Google). Session reads are free.                                                             |
+| `RATE_LIMIT_MAGIC_LINK`    | `5/900`    | Per email address: magic-link requests, so nobody can flood an inbox from your no-reply mailbox.                                                                              |
+| `RATE_LIMIT_INVITE`        | `30/3600`  | Per inviting user: invitations sent or resent.                                                                                                                                |
+| `RATE_LIMIT_SEARCH`        | `60/60`    | Per member: searches.                                                                                                                                                         |
+| `RATE_LIMIT_SEND`          | `100/3600` | Per member: new mail and replies.                                                                                                                                             |
+| `RATE_LIMIT_ACTIONS`       | `300/60`   | Per member: other writes that reach IMAP (read state, archive, move).                                                                                                         |
+| `RATE_LIMIT_PROVISION`     | `30/3600`  | Per member: creating a mailbox, which calls the mail service. Adding and checking domains have their own per-workspace limits (`DOMAIN_ADD_LIMITER`, `DOMAIN_CHECK_LIMITER`). |
+| `RATE_LIMIT_IMAGE_PROXY`   | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                                                                                          |
+| `RATE_LIMIT_STORAGE_SHARE` | `60/3600`  | Per member: people added to a file or folder in Storage, each of whom is sent one mail. Changing a role sends none and is free.                                               |
+| `RATE_LIMIT_STORAGE_LINK`  | `300/60`   | Per IP: requests to Storage's link door (`/api/storage/shared/*`), which answers anyone holding a link, signed in or not.                                                     |
 
 #### Billing (optional)
 

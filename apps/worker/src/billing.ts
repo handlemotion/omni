@@ -141,6 +141,10 @@ export const READ_ONLY_ALLOWED = [
   { path: "/api/join", reason: "asking to join a company, and the answer: membership, not mail" },
   { path: "/api/account", reason: "the person's own sign-in emails, not the workspace" },
   {
+    path: "/api/storage/shared",
+    reason: "gated in storage-shared.ts by the shared node's workspace, not the visitor's own",
+  },
+  {
     path: "/api/oauth",
     reason: "an agent's sign-in and its workspace choice: access, not mail (ADR 0029)",
   },

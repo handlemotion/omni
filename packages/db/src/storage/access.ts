@@ -145,8 +145,10 @@ export async function grantAddresses(ex: Db, userId: string, scopeOrgId?: string
  * the folder itself; nobody shares, restores or deletes for good through a grant. In Shared, a
  * grantee who is a member of the workspace takes away no more than their membership lets them:
  * any member can share, so an editor grant to oneself would otherwise undo the member door's rule.
+ * With `underShareId` the door opens only the node carrying that link and what is inside it,
+ * which is how a request made at `/s/<shareId>` stays in the one workspace it names.
  */
-export function grantDoor(userId: string, scopeOrgId?: string | null): Door {
+export function grantDoor(userId: string, scopeOrgId?: string | null, underShareId?: string): Door {
   /** The person's own member door onto a Shared node of a workspace they belong to. */
   async function asMember(ex: Db, node: NodeRow) {
     if (node.space !== "shared") return null;
@@ -161,6 +163,7 @@ export function grantDoor(userId: string, scopeOrgId?: string | null): Door {
     async access(ex, chain) {
       const node = chain[0];
       if (!node || inTrash(chain)) return null;
+      if (underShareId && !chain.some((row) => row.shareId === underShareId)) return null;
       const addresses = await grantAddresses(ex, userId, scopeOrgId);
       if (addresses.length === 0) return null;
       const grants = await ex

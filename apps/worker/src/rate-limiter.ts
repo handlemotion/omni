@@ -1,5 +1,5 @@
 // Rate limits for abuse-prone routes (sign-in, invitations, search, sending, mail service calls,
-// image proxy fetches).
+// image proxy fetches, Storage's share mail and link door).
 // One Durable Object instance per (rule, key), so every count is strongly consistent and a busy
 // key never slows another. Fixed windows: simple, and exact enough for abuse control.
 import { DurableObject } from "cloudflare:workers";
@@ -18,6 +18,8 @@ const RULES = {
   actions: "RATE_LIMIT_ACTIONS",
   provision: "RATE_LIMIT_PROVISION",
   imageProxy: "RATE_LIMIT_IMAGE_PROXY",
+  storageShare: "RATE_LIMIT_STORAGE_SHARE",
+  storageLink: "RATE_LIMIT_STORAGE_LINK",
 } as const satisfies Record<string, keyof Config>;
 
 export type RateLimitRule = keyof typeof RULES;

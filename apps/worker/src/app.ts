@@ -41,6 +41,7 @@ import { workspaceInvitations } from "./routes/workspace-invitations.ts";
 import { onboarding } from "./routes/onboarding.ts";
 import { account as accountPicture, pictures, workspaceLogo } from "./routes/pictures.ts";
 import { storage } from "./routes/storage.ts";
+import { storageShared } from "./routes/storage-shared.ts";
 import { workspaces } from "./routes/workspaces.ts";
 import { join } from "./routes/join.ts";
 import { mcp } from "./routes/mcp.ts";
@@ -206,6 +207,8 @@ export const app = new Hono<AppEnv>()
   // Your picture lives beside your sign-in emails under /api/account.
   .route("/api/account", accountPicture)
   .route("/api/pictures", pictures)
+  // Storage's link door (ADR 0034): a session is optional, so it sits ahead of the member API.
+  .route("/api/storage/shared", storageShared)
   .route("/api", api)
   .onError((error, c) => {
     if (error instanceof HTTPException) {

@@ -54,7 +54,8 @@
     "STORAGE_PERSONAL_GB": "",
     "STORAGE_MAX_GB": "",
     // Rate limits as "<count>/<seconds>", or "off". Empty means the default shown. Sign-in steps
-    // count per IP; magic links per address; invitations per inviting user; the rest per member.
+    // count per IP; magic links per address; invitations per inviting user; Storage's link door
+    // per IP; the rest per member.
     "RATE_LIMIT_AUTH": "60/60",
     "RATE_LIMIT_MAGIC_LINK": "5/900",
     "RATE_LIMIT_INVITE": "30/3600",
@@ -63,6 +64,8 @@
     "RATE_LIMIT_ACTIONS": "300/60",
     "RATE_LIMIT_PROVISION": "30/3600",
     "RATE_LIMIT_IMAGE_PROXY": "300/60",
+    "RATE_LIMIT_STORAGE_SHARE": "60/3600",
+    "RATE_LIMIT_STORAGE_LINK": "300/60",
   },
   // Auth and notice mail (magic links, invitations, domain notices) goes out through Cloudflare
   // Email Sending from SYSTEM_MAIL_FROM, whose domain must be onboarded to Email Sending.

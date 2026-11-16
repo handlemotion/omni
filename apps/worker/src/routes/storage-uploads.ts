@@ -2,7 +2,8 @@
 // every size. Open checks the quota and opens the multipart upload; each part streams from the
 // request into R2; complete closes it and inserts the file. The upload's row lists the parts the
 // bucket has, so a part can be sent again, parts can go in parallel, and a dropped connection
-// resumes from `GET /uploads/:id`. Completing twice returns the same file.
+// resumes from `GET /uploads/:id`. Completing twice returns the same file. Written against
+// `writeDoor`, so the same routes serve a member and, under a link, an editor.
 import {
   STORAGE_MAX_PARTS,
   storageOpenUploadBodySchema,
@@ -21,7 +22,7 @@ import {
   wireUpload,
 } from "../storage.ts";
 import { zValidator } from "../validator.ts";
-import { fail, memberStorage, placeOf, refused } from "./storage-http.ts";
+import { fail, placeOf, refused, writeDoor } from "./storage-http.ts";
 
 const live = (upload: StorageUpload) => upload.expiresAt > new Date();
 const answer = (upload: StorageUpload) =>
@@ -43,10 +44,18 @@ async function finishObject(bucket: R2Bucket, upload: StorageUpload) {
   }
 }
 
+/** The holder's upload, when it is in the workspace this door writes to. */
+async function findUpload(c: Context<AppEnv>, id: string) {
+  const { files, orgId } = writeDoor(c);
+  const upload = await files.upload(id);
+  return upload?.orgId === orgId ? upload : null;
+}
+
 /** Checks a part against its upload, streams it into the bucket and records it. */
 async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
   const n = Number(c.req.param("n"));
-  const upload = await memberStorage(c).upload(c.req.param("id") ?? "");
+  const { files } = writeDoor(c);
+  const upload = await findUpload(c, c.req.param("id") ?? "");
   if (!upload || (!upload.nodeId && !live(upload))) return refused(c, "not_found");
   if (upload.nodeId) return fail(c, 409, "UPLOAD_COMPLETE", "the upload is already a file");
   if (n < 1 || n > partCount(upload.size) || !upload.r2UploadId) {
@@ -63,11 +72,11 @@ async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
     ({ etag } = await multipart.uploadPart(n, body));
   } catch (error) {
     // Aborted or completed while the part was on its way: there is nothing to add it to.
-    const now = await memberStorage(c).upload(upload.id);
+    const now = await files.upload(upload.id);
     if (!now || now.nodeId) return refused(c, "not_found");
     throw error;
   }
-  const recorded = await memberStorage(c).recordUploadPart(upload.id, {
+  const recorded = await files.recordUploadPart(upload.id, {
     partNumber: n,
     etag,
     size: expected,
@@ -79,12 +88,13 @@ async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
 export const storageUploads = new Hono<AppEnv>()
   .post("/uploads", zValidator("json", storageOpenUploadBodySchema), async (c) => {
     const { name, size, mimeType, parentId, space } = c.req.valid("json");
-    const { db, config, member } = c.var;
+    const { db, config } = c.var;
+    const { files, orgId } = writeDoor(c);
     if (size > config.STORAGE_MAX_FILE_BYTES || partCount(size) > STORAGE_MAX_PARTS) {
       return fail(c, 413, "FILE_TOO_LARGE", "the file is larger than one file may be");
     }
-    const { limitBytes } = await storageLimit(db, config, member.orgId);
-    const opened = await memberStorage(c).openUpload(placeOf({ parentId, space }), {
+    const { limitBytes } = await storageLimit(db, config, orgId);
+    const opened = await files.openUpload(placeOf({ parentId, space }), {
       name,
       size,
       mimeType,
@@ -94,19 +104,19 @@ export const storageUploads = new Hono<AppEnv>()
     if (size === 0) return c.json(answer(opened.upload), 201);
     try {
       const multipart = await c.env.STORAGE_BUCKET.createMultipartUpload(opened.upload.r2Key);
-      const started = await memberStorage(c).startUpload(opened.upload.id, multipart.uploadId);
+      const started = await files.startUpload(opened.upload.id, multipart.uploadId);
       if (!started) throw new Error("storage: the upload was gone before it started");
       return c.json(answer(started), 201);
     } catch (error) {
       // Nothing may keep holding room for an upload that cannot receive a part.
-      await memberStorage(c).abortUpload(opened.upload.id);
+      await files.abortUpload(opened.upload.id);
       throw error;
     }
   })
 
   /** The upload and the parts already stored: what a client reads to resume. */
   .get("/uploads/:id", async (c) => {
-    const upload = await memberStorage(c).upload(c.req.param("id"));
+    const upload = await findUpload(c, c.req.param("id"));
     if (!upload || (!upload.nodeId && !live(upload))) return refused(c, "not_found");
     return c.json(answer(upload));
   })
@@ -122,9 +132,10 @@ export const storageUploads = new Hono<AppEnv>()
   })
 
   .post("/uploads/:id/complete", async (c) => {
-    const { db, config, member, log } = c.var;
+    const { db, config, log } = c.var;
+    const { files } = writeDoor(c);
     const bucket = c.env.STORAGE_BUCKET;
-    const upload = await memberStorage(c).upload(c.req.param("id"));
+    const upload = await findUpload(c, c.req.param("id"));
     if (!upload) return refused(c, "not_found");
     if (!upload.nodeId) {
       if (!live(upload)) return refused(c, "not_found");
@@ -133,8 +144,8 @@ export const storageUploads = new Hono<AppEnv>()
       }
       await finishObject(bucket, upload);
     }
-    const { limitBytes } = await storageLimit(db, config, member.orgId);
-    const done = await memberStorage(c).completeUpload(upload.id, { limitBytes });
+    const { limitBytes } = await storageLimit(db, config, upload.orgId);
+    const done = await files.completeUpload(upload.id, { limitBytes });
     if (done.status === "ok") {
       return c.json({ node: wireNode(done.node) } satisfies StorageNodeResponse);
     }
@@ -142,7 +153,7 @@ export const storageUploads = new Hono<AppEnv>()
     // upload that never became a file loses its bytes. A completed one is a file, which someone
     // may hold even when this caller no longer reaches it (it was moved out of Shared), and
     // `abortUpload` refuses it: the object goes only with the row that was its sole owner.
-    const aborted = await memberStorage(c).abortUpload(upload.id);
+    const aborted = await files.abortUpload(upload.id);
     if (aborted.status === "ok") {
       await bucket.delete(aborted.r2Key).catch((error: unknown) => {
         log.error("storage.objects_left", { count: 1, error });
@@ -152,7 +163,7 @@ export const storageUploads = new Hono<AppEnv>()
   })
 
   .delete("/uploads/:id", async (c) => {
-    const aborted = await memberStorage(c).abortUpload(c.req.param("id"));
+    const aborted = await writeDoor(c).files.abortUpload(c.req.param("id"));
     if (aborted.status !== "ok") return refused(c, aborted.status);
     await abortMultipart(c.env.STORAGE_BUCKET, aborted.r2Key, aborted.r2UploadId);
     return c.body(null, 204);

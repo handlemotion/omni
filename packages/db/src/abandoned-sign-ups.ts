@@ -9,7 +9,7 @@ import { isCompany } from "./personal-space.ts";
 import { invitations, members, organizations, sessions, users } from "./schema/auth.ts";
 import { mailboxes } from "./schema/mail.ts";
 import { personalSpaces, userEmails } from "./schema/identity.ts";
-import { storageNodes } from "./schema/storage.ts";
+import { storageGrants, storageNodes } from "./schema/storage.ts";
 
 /** How long an account with no workspace may sit unused before it is deleted. */
 export const ABANDONED_SIGN_UP_DAYS = 30;
@@ -24,7 +24,8 @@ export const ABANDONED_SIGN_UP_BATCH = 500;
  * Kept: anyone in a company, or whose Personal space holds a mailbox or a file; anyone with a
  * live invitation to their primary or any extra sign-in email (they may still accept it); anyone
  * who ever invited someone (they were a member, and deleting them would cascade to those
- * invitations); anyone with a session used since `idleSince`. Safe to run twice and from two
+ * invitations); anyone something in Storage is shared with, at an address they verified (the
+ * grant is why they signed up, ADR 0034); anyone with a session used since `idleSince`. Safe to run twice and from two
  * places at once: a row another run holds is skipped.
  */
 export async function deleteAbandonedSignUps(
@@ -60,6 +61,27 @@ export async function deleteAbandonedSignUps(
             .select({ one: sql`1` })
             .from(invitations)
             .where(eq(invitations.inviterId, users.id)),
+        ),
+        // A grant is addressed to an address, and opens for whoever verified it (ADR 0034).
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(storageGrants)
+            .where(
+              or(
+                and(
+                  eq(users.emailVerified, true),
+                  eq(storageGrants.email, sql`lower(${users.email})`),
+                ),
+                inArray(
+                  storageGrants.email,
+                  db
+                    .select({ email: sql`lower(${userEmails.email})` })
+                    .from(userEmails)
+                    .where(eq(userEmails.userId, users.id)),
+                ),
+              ),
+            ),
         ),
         notExists(
           db

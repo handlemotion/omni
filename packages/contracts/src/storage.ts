@@ -192,7 +192,14 @@ export const storageSetLinkBodySchema = z.union([
   z.strictObject({ reset: z.literal(true) }),
 ]);
 
-/** `PUT /nodes/:id/sharing/people/:email`: add the person, or change their role. */
+/** A person's address as a grant stores it: trimmed and lowercase. `:email` in the routes below. */
+export const storageEmailSchema = z.string().trim().toLowerCase().pipe(z.email().max(320));
+
+/**
+ * `PUT /nodes/:id/sharing/people/:email`: add the person, or change their role. Adding sends them
+ * one mail with the link; a role change sends none. `DELETE` the same removes them. Both answer
+ * `{ sharing }`. Only a member who can write the node manages its sharing.
+ */
 export const storagePutPersonBodySchema = z.object({ role: storageGrantRoleSchema });
 
 /** `GET /shared-with-me`: what was shared with the signed-in person, newest first. */
@@ -210,7 +217,18 @@ export const storageSharedWithMeResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 
-/** `GET /shared/:shareId?node=`: the shared node, or a folder inside it. */
+/**
+ * `GET /shared/:shareId?node=`: the shared node, or a folder inside it. This is what `/s/<shareId>`
+ * opens. Without a session it answers only while the link is open to anyone; with one, also for a
+ * person the node was shared with. Anything else is `404`. `item.role` says what the reader may do.
+ *
+ * The rest of what was shared is reached under the same prefix, by the same shapes as a member's
+ * own routes: `GET /shared/:shareId/files/:id/content` downloads, and for an Editor
+ * `POST /shared/:shareId/folders`, `PATCH` and `DELETE /shared/:shareId/nodes/:id` and
+ * `/shared/:shareId/uploads...` change what is inside the shared folder (always by `parentId`:
+ * a link has no `space`). A change goes by the shared node's workspace: `402 BILLING_INACTIVE`
+ * when that workspace is read-only, whatever the reader's own.
+ */
 export const storageSharedQuerySchema = z.object({ node: id.optional(), ...page });
 export const storageSharedResponseSchema = z.object({
   /** The node opened: the shared one, or `node` inside it. */
