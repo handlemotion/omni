@@ -334,6 +334,40 @@ test("an Editor uploads and changes inside the granted folder and nowhere else; 
   });
 });
 
+// Catches: an upload opened as Editor that keeps taking parts, completes into a file, or is
+// aborted after the person was made a Viewer, because the upload routes checked only that the
+// upload was theirs and not that they may still write where it lands.
+test("an Editor made Viewer mid-upload can no longer add parts to it, complete it or abort it", async () => {
+  const { ana: owner } = await ana();
+  const project = await folder(owner, { space: "personal" }, "Project");
+  const email = address("downgraded");
+  const shareId = await share(owner, project.id, email, "editor");
+  const guest = await signedIn(email);
+  const base = `/shared/${shareId}`;
+  const bytes = randomBytes(3000);
+  const opened = await stack.api(guest, "POST", `${base}/uploads`, {
+    name: "late.bin",
+    size: bytes.length,
+    parentId: project.id,
+  });
+  expect(opened.status).toBe(201);
+  const id = opened.body.upload.id as string;
+
+  await share(owner, project.id, email, "viewer");
+  expect((await stack.putPart(guest, id, 1, bytes, base)).status).toBe(404);
+  expect((await stack.api(guest, "POST", `${base}/uploads/${id}/complete`)).status).toBe(404);
+  expect((await stack.api(guest, "DELETE", `${base}/uploads/${id}`)).status).toBe(404);
+  expect(names((await stack.api(owner.jar, "GET", `/nodes?parent=${project.id}`)).body)).toEqual(
+    [],
+  );
+
+  // Made Editor again, the same upload is theirs to finish: refusing it removed nothing.
+  await share(owner, project.id, email, "editor");
+  expect((await stack.putPart(guest, id, 1, bytes, base)).status).toBe(200);
+  const done = await stack.api(guest, "POST", `${base}/uploads/${id}/complete`);
+  expect(done).toMatchObject({ status: 200, body: { node: { name: "late.bin" } } });
+});
+
 // Catches: whoever controls a company's mail (and so can sign in as its addresses) reaching what
 // was shared with a person's own address.
 test("a session scoped to a company does not see or open a grant addressed to the person's personal address", async () => {

@@ -92,7 +92,19 @@ export function uploadOperations(db: Db, door: Door) {
     const query = ex.select().from(storageUploads).where(eq(storageUploads.id, uploadId));
     const [upload] = await (lock ? query.for("update") : query);
     if (!upload || !(await door.ownsUpload(ex, upload.memberId))) return null;
-    return upload;
+    // An upload in progress through a grant is a write into its folder: the grantee must still be
+    // able to write there through this door. A grant made Viewer, removed, or reached through
+    // another link's door no longer adds parts to it, completes it or aborts it. A member's right
+    // to write into their own drive or Shared lasts as long as their membership (removal deletes
+    // their uploads), and a folder trashed meanwhile is for `completeUpload` to refuse and clean
+    // up. A completed upload is a file, which `completeUpload` resolves through the door itself.
+    if (upload.nodeId || door.kind !== "grant") return upload;
+    const at = await resolvePlace(
+      ex,
+      door,
+      upload.parentId ? { parentId: upload.parentId } : { space: upload.space },
+    );
+    return at?.writable ? upload : null;
   }
 
   return {
