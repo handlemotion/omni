@@ -1,6 +1,7 @@
 // Organizations, members, invitations and passkeys, all through Better Auth's client.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, auth, call } from "./api.ts";
+import { currentWorkspaceId } from "./current-workspace.ts";
 import { keys } from "./query-keys.ts";
 import { authCall } from "./session.ts";
 
@@ -12,19 +13,34 @@ export const organizationsQuery = () =>
     queryFn: ({ signal }) => authCall(auth.organization.list({ fetchOptions: { signal } })),
   });
 
-/** Members of the active organization. */
+// Better Auth's organization calls name this tab's workspace: left out, they act on the
+// session's, which another tab may have switched (ADR 0043).
+const organizationId = () => currentWorkspaceId();
+
+/** Members of this tab's workspace. */
 export const membersQuery = () =>
   queryOptions({
     queryKey: keys.members(),
-    queryFn: ({ signal }) => authCall(auth.organization.listMembers({ fetchOptions: { signal } })),
+    queryFn: ({ signal }) =>
+      authCall(
+        auth.organization.listMembers({
+          query: { organizationId: organizationId() },
+          fetchOptions: { signal },
+        }),
+      ),
   });
 
-/** Invitations sent by the active organization. */
+/** Invitations sent by this tab's workspace. */
 export const invitationsQuery = () =>
   queryOptions({
     queryKey: keys.invitations(),
     queryFn: ({ signal }) =>
-      authCall(auth.organization.listInvitations({ fetchOptions: { signal } })),
+      authCall(
+        auth.organization.listInvitations({
+          query: { organizationId: organizationId() },
+          fetchOptions: { signal },
+        }),
+      ),
   });
 
 /** One invitation addressed to the signed-in user, for the accept page. */
@@ -52,7 +68,9 @@ export const cancelInvitationMutation = (client: QueryClient) =>
 export const removeMemberMutation = (client: QueryClient) =>
   mutationOptions({
     mutationFn: (memberIdOrEmail: string) =>
-      authCall(auth.organization.removeMember({ memberIdOrEmail })),
+      authCall(
+        auth.organization.removeMember({ memberIdOrEmail, organizationId: organizationId() }),
+      ),
     // Their inboxes stay with the workspace, unassigned (ADR 0026): refresh that list too.
     onSettled: () =>
       Promise.all([
@@ -65,7 +83,9 @@ export const removeMemberMutation = (client: QueryClient) =>
 export const updateMemberRoleMutation = (client: QueryClient) =>
   mutationOptions({
     mutationFn: ({ memberId, role }: { memberId: string; role: Role }) =>
-      authCall(auth.organization.updateMemberRole({ memberId, role })),
+      authCall(
+        auth.organization.updateMemberRole({ memberId, role, organizationId: organizationId() }),
+      ),
     onSettled: () => client.invalidateQueries({ queryKey: keys.members() }),
   });
 
@@ -103,7 +123,8 @@ export const resendInvitationMutation = (client: QueryClient) =>
  */
 export const changeOrganizationHandleMutation = (client: QueryClient) =>
   mutationOptions({
-    mutationFn: (slug: string) => authCall(auth.organization.update({ data: { slug } })),
+    mutationFn: (slug: string) =>
+      authCall(auth.organization.update({ data: { slug }, organizationId: organizationId() })),
     onSettled: () =>
       Promise.all([
         client.invalidateQueries({ queryKey: keys.workspaces() }),
@@ -114,7 +135,8 @@ export const changeOrganizationHandleMutation = (client: QueryClient) =>
 /** `mutate(name)` renames the active organization (owners and admins). */
 export const renameOrganizationMutation = (client: QueryClient) =>
   mutationOptions({
-    mutationFn: (name: string) => authCall(auth.organization.update({ data: { name } })),
+    mutationFn: (name: string) =>
+      authCall(auth.organization.update({ data: { name }, organizationId: organizationId() })),
     onSettled: () =>
       Promise.all([
         client.invalidateQueries({ queryKey: keys.workspaces() }),

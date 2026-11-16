@@ -17,6 +17,7 @@ import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
 import { ApiError } from "@/lib/api.ts";
 import { CRM_LISTS } from "./crm-nav.tsx";
 import { RecordMark } from "./record-list.tsx";
+import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 export interface RecordTab {
   id: string;
@@ -81,12 +82,13 @@ export function RecordFrame(props: {
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  const { href: inWorkspace } = useWorkspacePaths();
   const list = CRM_LISTS[props.list];
   return (
     <StorageFrame
       title={
         <Breadcrumbs aria-label="Record" size="lg">
-          <BreadcrumbsItem className="shrink-0" href={list.path}>
+          <BreadcrumbsItem className="shrink-0" href={inWorkspace(list.path)}>
             {list.label}
           </BreadcrumbsItem>
           {props.name !== null && <BreadcrumbsItem>{props.name}</BreadcrumbsItem>}
@@ -119,9 +121,10 @@ export function RelatedRow(props: {
   name: string;
   meta?: ReactNode;
 }) {
+  const { href: inWorkspace } = useWorkspacePaths();
   return (
     <Link
-      href={`/crm/${props.kind}/${encodeURIComponent(props.id)}`}
+      href={inWorkspace(`/crm/${props.kind}/${encodeURIComponent(props.id)}`)}
       className="-mx-2 flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-foreground transition-colors duration-150 ease-out hover:bg-hover"
     >
       <RecordMark name={props.name} square={props.kind === "companies"} size={18} />

@@ -48,33 +48,41 @@ Components use `hooks/` only. `lib/` is how the hooks work.
 
 ## Path map
 
-| Path                                       | Search params                        | Loader                                           |
-| ------------------------------------------ | ------------------------------------ | ------------------------------------------------ |
-| `/`                                        |                                      | redirect to `/inbox`                             |
-| `/login`                                   | `redirect?`, `error?`                | signed-in members are sent on to `redirect`      |
-| `/invite/$invitationId`                    |                                      | the invitation (any signed-in user)              |
-| `/onboarding`                              |                                      | setup status (may create, or finishing one)      |
-| `/inbox`, `/inbox/$threadId`               | `mailbox?`, `lane?`, `view?`, `tag?` | first page of the list; the thread               |
-| `/later`, `/later/$id`                     | `mailbox?`                           | same, Later view                                 |
-| `/done`, `/done/$id`                       | `mailbox?`                           | same, done view                                  |
-| `/archive`, `/archive/$id`                 | `mailbox?`                           | same, archive view                               |
-| `/all`, `/all/$id`                         | `mailbox?`                           | same, all mail                                   |
-| `/search`, `/search/$id`                   | `q`, `mailbox?`                      | results for `q`; the thread                      |
-| `/compose`                                 | `mailbox?`, `to?`, `subject?`        | (mailboxes come from the shell)                  |
-| `/settings`                                |                                      | opens the settings dialog (⌘. anywhere)          |
-| `/files/my`, `/files/my/$folderId`         | `mailbox?`                           | a folder of My files (ADR 0034)                  |
-| `/files/shared`, `/files/shared/$folderId` | `mailbox?`                           | a folder of Shared (companies only)              |
-| `/files/shared-with-me`, `/files/trash`    | `mailbox?`                           | what was shared with you; Trash                  |
-| `/s/$shareId`                              | `node?`                              | a shared link, signed in or not; 404 → not found |
-| `/crm/companies`, `/crm/people`            | `q?`, `mailbox?`                     | first page for `q` (company workspaces only)     |
-| `/crm/deals`                               | `q?`, `view?` (`list`), `mailbox?`   | the board's deals, or the list for `q`           |
-| `/crm/{companies,people,deals}/$id`        | `mailbox?`                           | the record and its timeline's first page         |
+Every page inside a workspace starts with its slug (`$ws` below, ADR 0043); mail has its own
+`/mail` prefix. A path from before (`/inbox/<id>`, `/files/my`, `/settings`) is sent on under the
+session's workspace.
 
-Guards: `_authed` needs a user, `_authed/_member` needs a member of the active organization and
+| Path                                               | Search params                        | Loader                                           |
+| -------------------------------------------------- | ------------------------------------ | ------------------------------------------------ |
+| `/`                                                |                                      | redirect to the workspace's `/$ws/mail/inbox`    |
+| `/login`                                           | `redirect?`, `error?`                | signed-in members are sent on to `redirect`      |
+| `/invite/$invitationId`                            |                                      | the invitation (any signed-in user)              |
+| `/onboarding`                                      |                                      | setup status (may create, or finishing one)      |
+| `/$ws/mail/inbox`, `/$ws/mail/inbox/$threadId`     | `mailbox?`, `lane?`, `view?`, `tag?` | first page of the list; the thread               |
+| `/$ws/mail/later`, `/$ws/mail/later/$id`           | `mailbox?`                           | same, Later view                                 |
+| `/$ws/mail/done`, `/$ws/mail/done/$id`             | `mailbox?`                           | same, done view                                  |
+| `/$ws/mail/archive`, `/$ws/mail/archive/$id`       | `mailbox?`                           | same, archive view                               |
+| `/$ws/mail/all`, `/$ws/mail/all/$id`               | `mailbox?`                           | same, all mail                                   |
+| `/$ws/mail/{drafts,sent,spam,trash}[/$id]`         | `mailbox?`                           | same, those folders                              |
+| `/$ws/mail/search`, `/$ws/mail/search/$id`         | `q`, `mailbox?`                      | results for `q`; the thread                      |
+| `/$ws/mail/compose`                                | `mailbox?`, `to?`, `subject?`        | (mailboxes come from the shell)                  |
+| `/$ws/settings`, `/$ws/settings/$page`             |                                      | the settings page shown last (⌘. anywhere)       |
+| `/$ws/files/my`, `/$ws/files/my/$folderId`         | `mailbox?`                           | a folder of My files (ADR 0034)                  |
+| `/$ws/files/shared`, `/$ws/files/shared/$folderId` | `mailbox?`                           | a folder of Shared (companies only)              |
+| `/$ws/files/shared-with-me`, `/$ws/files/trash`    | `mailbox?`                           | what was shared with you; Trash                  |
+| `/s/$shareId`                                      | `node?`                              | a shared link, signed in or not; 404 → not found |
+| `/$ws/crm/companies`, `/$ws/crm/people`            | `q?`, `mailbox?`                     | first page for `q` (company workspaces only)     |
+| `/$ws/crm/deals`                                   | `q?`, `view?` (`list`), `mailbox?`   | the board's deals, or the list for `q`           |
+| `/$ws/crm/{companies,people,deals}/$id`            | `mailbox?`                           | the record and its timeline's first page         |
+
+Guards: `_authed` needs a user. `_authed/$workspace` resolves the slug, makes it the tab's
+workspace (`lib/workspaces.ts` `enterWorkspace`: every API call sends `omni-workspace`, every
+workspace query key carries its id, the session's active organization follows), moves a
+`?mailbox=` or a thread of another workspace to that one, and needs the user's member there; it
 loads mailboxes and counts for the shell. A user with no organization goes to `/onboarding` if
 they may create one (always with open sign-up; owners only with `SIGN_UP=invitation`, ADR 0018), else to `/login?error=no_organization`; an owner or
 admin whose workspace's setup is unfinished (`member.setup !== "complete"`, from `/api/me`) goes
-to `/onboarding`, which resumes at the saved step; `/settings` stays reachable (ADR 0007, 0009). The thread routes are children of their list, so the
+to `/onboarding`, which resumes at the saved step; `/$ws/settings` stays reachable (ADR 0007, 0009). The thread routes are children of their list, so the
 list stays mounted (three panes) and the back button walks the URL history.
 
 ## How the data layer works

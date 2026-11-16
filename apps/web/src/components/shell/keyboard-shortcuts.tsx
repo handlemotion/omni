@@ -11,6 +11,7 @@ import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import { useAnnouncement, useShortcut, useShortcutListener } from "@/hooks/use-shortcuts.ts";
 import { keyLabel, SHORTCUT_IDS, SHORTCUTS, type KeySequence } from "@/lib/shortcuts.ts";
 import { useOpenModule } from "./module-switcher";
+import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
 /**
  * The app-wide keys: compose, go-to and `?`. List keys live on the thread list; `/` and ⌘K
@@ -18,13 +19,20 @@ import { useOpenModule } from "./module-switcher";
  */
 export function KeyboardShortcuts() {
   const navigate = useNavigate();
+  const workspace = useWorkspaceSlug();
   const [help, setHelp] = useState(false);
   const openCompose = useOpenCompose();
   useShortcutListener();
   useShortcut("compose", openCompose);
-  useShortcut("goInbox", () => void navigate({ to: "/inbox" }));
-  useShortcut("goLater", () => void navigate({ to: "/later" }));
-  useShortcut("goAll", () => void navigate({ to: "/all" }));
+  useShortcut(
+    "goInbox",
+    () => void navigate({ to: "/$workspace/mail/inbox", params: { workspace } }),
+  );
+  useShortcut(
+    "goLater",
+    () => void navigate({ to: "/$workspace/mail/later", params: { workspace } }),
+  );
+  useShortcut("goAll", () => void navigate({ to: "/$workspace/mail/all", params: { workspace } }));
   const openModule = useOpenModule();
   useShortcut("goDrive", () => openModule("files"));
   useShortcut("help", () => setHelp(true));

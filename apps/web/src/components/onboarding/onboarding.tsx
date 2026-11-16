@@ -217,7 +217,7 @@ function useFinish() {
   const navigate = useNavigate();
   const finishSetup = useFinishSetup();
   return {
-    run: () => finishSetup.mutate(undefined, { onSuccess: () => void navigate({ to: "/inbox" }) }),
+    run: () => finishSetup.mutate(undefined, { onSuccess: () => void navigate({ to: "/" }) }),
     isPending: finishSetup.isPending || finishSetup.isSuccess,
     problem: finishSetup.error?.message ?? null,
   };

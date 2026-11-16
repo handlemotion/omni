@@ -12,51 +12,52 @@ import { Route as rootRouteImport } from "./routes/__root";
 import { Route as IndexRouteImport } from "./routes/index";
 import { Route as AuthedRouteImport } from "./routes/_authed";
 import { Route as LoginRouteImport } from "./routes/login";
-import { Route as AuthedMemberRouteImport } from "./routes/_authed/_member";
+import { Route as AuthedWorkspaceRouteImport } from "./routes/_authed/$workspace";
 import { Route as AuthedJoinRouteImport } from "./routes/_authed/join";
 import { Route as AuthedOnboardingRouteImport } from "./routes/_authed/onboarding";
 import { Route as SShareIdRouteImport } from "./routes/s.$shareId";
-import { Route as AuthedMemberAllRouteImport } from "./routes/_authed/_member/all";
-import { Route as AuthedMemberArchiveRouteImport } from "./routes/_authed/_member/archive";
-import { Route as AuthedMemberComposeRouteImport } from "./routes/_authed/_member/compose";
-import { Route as AuthedMemberCrmRouteImport } from "./routes/_authed/_member/crm";
-import { Route as AuthedMemberDoneRouteImport } from "./routes/_authed/_member/done";
-import { Route as AuthedMemberDraftsRouteImport } from "./routes/_authed/_member/drafts";
-import { Route as AuthedMemberInboxRouteImport } from "./routes/_authed/_member/inbox";
-import { Route as AuthedMemberLaterRouteImport } from "./routes/_authed/_member/later";
-import { Route as AuthedMemberSearchRouteImport } from "./routes/_authed/_member/search";
-import { Route as AuthedMemberSentRouteImport } from "./routes/_authed/_member/sent";
-import { Route as AuthedMemberSpamRouteImport } from "./routes/_authed/_member/spam";
-import { Route as AuthedMemberTrashRouteImport } from "./routes/_authed/_member/trash";
+import { Route as AuthedWorkspaceSplatRouteImport } from "./routes/_authed/$workspace/$";
+import { Route as AuthedWorkspaceCrmRouteImport } from "./routes/_authed/$workspace/crm";
 import { Route as AuthedInviteInvitationIdRouteImport } from "./routes/_authed/invite.$invitationId";
 import { Route as AuthedOauthConsentRouteImport } from "./routes/_authed/oauth/consent";
-import { Route as AuthedMemberAllThreadIdRouteImport } from "./routes/_authed/_member/all.$threadId";
-import { Route as AuthedMemberArchiveThreadIdRouteImport } from "./routes/_authed/_member/archive.$threadId";
-import { Route as AuthedMemberCrmIndexRouteImport } from "./routes/_authed/_member/crm/index";
-import { Route as AuthedMemberDoneThreadIdRouteImport } from "./routes/_authed/_member/done.$threadId";
-import { Route as AuthedMemberDraftsThreadIdRouteImport } from "./routes/_authed/_member/drafts.$threadId";
-import { Route as AuthedMemberFilesIndexRouteImport } from "./routes/_authed/_member/files/index";
-import { Route as AuthedMemberFilesSharedWithMeRouteImport } from "./routes/_authed/_member/files/shared-with-me";
-import { Route as AuthedMemberFilesTrashRouteImport } from "./routes/_authed/_member/files/trash";
-import { Route as AuthedMemberInboxThreadIdRouteImport } from "./routes/_authed/_member/inbox.$threadId";
-import { Route as AuthedMemberLaterThreadIdRouteImport } from "./routes/_authed/_member/later.$threadId";
-import { Route as AuthedMemberSearchThreadIdRouteImport } from "./routes/_authed/_member/search.$threadId";
-import { Route as AuthedMemberSentThreadIdRouteImport } from "./routes/_authed/_member/sent.$threadId";
-import { Route as AuthedMemberSettingsIndexRouteImport } from "./routes/_authed/_member/settings/index";
-import { Route as AuthedMemberSettingsPageRouteImport } from "./routes/_authed/_member/settings/$page";
-import { Route as AuthedMemberSpamThreadIdRouteImport } from "./routes/_authed/_member/spam.$threadId";
-import { Route as AuthedMemberTrashThreadIdRouteImport } from "./routes/_authed/_member/trash.$threadId";
+import { Route as AuthedWorkspaceCrmIndexRouteImport } from "./routes/_authed/$workspace/crm/index";
+import { Route as AuthedWorkspaceFilesIndexRouteImport } from "./routes/_authed/$workspace/files/index";
+import { Route as AuthedWorkspaceFilesSharedWithMeRouteImport } from "./routes/_authed/$workspace/files/shared-with-me";
+import { Route as AuthedWorkspaceFilesTrashRouteImport } from "./routes/_authed/$workspace/files/trash";
+import { Route as AuthedWorkspaceMailAllRouteImport } from "./routes/_authed/$workspace/mail/all";
+import { Route as AuthedWorkspaceMailArchiveRouteImport } from "./routes/_authed/$workspace/mail/archive";
+import { Route as AuthedWorkspaceMailComposeRouteImport } from "./routes/_authed/$workspace/mail/compose";
+import { Route as AuthedWorkspaceMailDoneRouteImport } from "./routes/_authed/$workspace/mail/done";
+import { Route as AuthedWorkspaceMailDraftsRouteImport } from "./routes/_authed/$workspace/mail/drafts";
+import { Route as AuthedWorkspaceMailInboxRouteImport } from "./routes/_authed/$workspace/mail/inbox";
+import { Route as AuthedWorkspaceMailLaterRouteImport } from "./routes/_authed/$workspace/mail/later";
+import { Route as AuthedWorkspaceMailSearchRouteImport } from "./routes/_authed/$workspace/mail/search";
+import { Route as AuthedWorkspaceMailSentRouteImport } from "./routes/_authed/$workspace/mail/sent";
+import { Route as AuthedWorkspaceMailSpamRouteImport } from "./routes/_authed/$workspace/mail/spam";
+import { Route as AuthedWorkspaceMailTrashRouteImport } from "./routes/_authed/$workspace/mail/trash";
+import { Route as AuthedWorkspaceSettingsIndexRouteImport } from "./routes/_authed/$workspace/settings/index";
+import { Route as AuthedWorkspaceSettingsPageRouteImport } from "./routes/_authed/$workspace/settings/$page";
 import { Route as AuthedSettingsEmailsVerifyRouteImport } from "./routes/_authed/settings/emails.verify";
-import { Route as AuthedMemberCrmCompaniesIndexRouteImport } from "./routes/_authed/_member/crm/companies.index";
-import { Route as AuthedMemberCrmCompaniesIdRouteImport } from "./routes/_authed/_member/crm/companies.$id";
-import { Route as AuthedMemberCrmDealsIndexRouteImport } from "./routes/_authed/_member/crm/deals.index";
-import { Route as AuthedMemberCrmDealsIdRouteImport } from "./routes/_authed/_member/crm/deals.$id";
-import { Route as AuthedMemberCrmPeopleIndexRouteImport } from "./routes/_authed/_member/crm/people.index";
-import { Route as AuthedMemberCrmPeopleIdRouteImport } from "./routes/_authed/_member/crm/people.$id";
-import { Route as AuthedMemberFilesMyIndexRouteImport } from "./routes/_authed/_member/files/my.index";
-import { Route as AuthedMemberFilesMyFolderIdRouteImport } from "./routes/_authed/_member/files/my.$folderId";
-import { Route as AuthedMemberFilesSharedIndexRouteImport } from "./routes/_authed/_member/files/shared.index";
-import { Route as AuthedMemberFilesSharedFolderIdRouteImport } from "./routes/_authed/_member/files/shared.$folderId";
+import { Route as AuthedWorkspaceCrmCompaniesIndexRouteImport } from "./routes/_authed/$workspace/crm/companies.index";
+import { Route as AuthedWorkspaceCrmCompaniesIdRouteImport } from "./routes/_authed/$workspace/crm/companies.$id";
+import { Route as AuthedWorkspaceCrmDealsIndexRouteImport } from "./routes/_authed/$workspace/crm/deals.index";
+import { Route as AuthedWorkspaceCrmDealsIdRouteImport } from "./routes/_authed/$workspace/crm/deals.$id";
+import { Route as AuthedWorkspaceCrmPeopleIndexRouteImport } from "./routes/_authed/$workspace/crm/people.index";
+import { Route as AuthedWorkspaceCrmPeopleIdRouteImport } from "./routes/_authed/$workspace/crm/people.$id";
+import { Route as AuthedWorkspaceFilesMyIndexRouteImport } from "./routes/_authed/$workspace/files/my.index";
+import { Route as AuthedWorkspaceFilesMyFolderIdRouteImport } from "./routes/_authed/$workspace/files/my.$folderId";
+import { Route as AuthedWorkspaceFilesSharedIndexRouteImport } from "./routes/_authed/$workspace/files/shared.index";
+import { Route as AuthedWorkspaceFilesSharedFolderIdRouteImport } from "./routes/_authed/$workspace/files/shared.$folderId";
+import { Route as AuthedWorkspaceMailAllThreadIdRouteImport } from "./routes/_authed/$workspace/mail/all.$threadId";
+import { Route as AuthedWorkspaceMailArchiveThreadIdRouteImport } from "./routes/_authed/$workspace/mail/archive.$threadId";
+import { Route as AuthedWorkspaceMailDoneThreadIdRouteImport } from "./routes/_authed/$workspace/mail/done.$threadId";
+import { Route as AuthedWorkspaceMailDraftsThreadIdRouteImport } from "./routes/_authed/$workspace/mail/drafts.$threadId";
+import { Route as AuthedWorkspaceMailInboxThreadIdRouteImport } from "./routes/_authed/$workspace/mail/inbox.$threadId";
+import { Route as AuthedWorkspaceMailLaterThreadIdRouteImport } from "./routes/_authed/$workspace/mail/later.$threadId";
+import { Route as AuthedWorkspaceMailSearchThreadIdRouteImport } from "./routes/_authed/$workspace/mail/search.$threadId";
+import { Route as AuthedWorkspaceMailSentThreadIdRouteImport } from "./routes/_authed/$workspace/mail/sent.$threadId";
+import { Route as AuthedWorkspaceMailSpamThreadIdRouteImport } from "./routes/_authed/$workspace/mail/spam.$threadId";
+import { Route as AuthedWorkspaceMailTrashThreadIdRouteImport } from "./routes/_authed/$workspace/mail/trash.$threadId";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -72,8 +73,9 @@ const LoginRoute = LoginRouteImport.update({
   path: "/login",
   getParentRoute: () => rootRouteImport,
 } as any);
-const AuthedMemberRoute = AuthedMemberRouteImport.update({
-  id: "/_member",
+const AuthedWorkspaceRoute = AuthedWorkspaceRouteImport.update({
+  id: "/$workspace",
+  path: "/$workspace",
   getParentRoute: () => AuthedRoute,
 } as any);
 const AuthedJoinRoute = AuthedJoinRouteImport.update({
@@ -91,65 +93,15 @@ const SShareIdRoute = SShareIdRouteImport.update({
   path: "/s/$shareId",
   getParentRoute: () => rootRouteImport,
 } as any);
-const AuthedMemberAllRoute = AuthedMemberAllRouteImport.update({
-  id: "/all",
-  path: "/all",
-  getParentRoute: () => AuthedMemberRoute,
+const AuthedWorkspaceSplatRoute = AuthedWorkspaceSplatRouteImport.update({
+  id: "/$",
+  path: "/$",
+  getParentRoute: () => AuthedWorkspaceRoute,
 } as any);
-const AuthedMemberArchiveRoute = AuthedMemberArchiveRouteImport.update({
-  id: "/archive",
-  path: "/archive",
-  getParentRoute: () => AuthedMemberRoute,
-} as any);
-const AuthedMemberComposeRoute = AuthedMemberComposeRouteImport.update({
-  id: "/compose",
-  path: "/compose",
-  getParentRoute: () => AuthedMemberRoute,
-} as any);
-const AuthedMemberCrmRoute = AuthedMemberCrmRouteImport.update({
+const AuthedWorkspaceCrmRoute = AuthedWorkspaceCrmRouteImport.update({
   id: "/crm",
   path: "/crm",
-  getParentRoute: () => AuthedMemberRoute,
-} as any);
-const AuthedMemberDoneRoute = AuthedMemberDoneRouteImport.update({
-  id: "/done",
-  path: "/done",
-  getParentRoute: () => AuthedMemberRoute,
-} as any);
-const AuthedMemberDraftsRoute = AuthedMemberDraftsRouteImport.update({
-  id: "/drafts",
-  path: "/drafts",
-  getParentRoute: () => AuthedMemberRoute,
-} as any);
-const AuthedMemberInboxRoute = AuthedMemberInboxRouteImport.update({
-  id: "/inbox",
-  path: "/inbox",
-  getParentRoute: () => AuthedMemberRoute,
-} as any);
-const AuthedMemberLaterRoute = AuthedMemberLaterRouteImport.update({
-  id: "/later",
-  path: "/later",
-  getParentRoute: () => AuthedMemberRoute,
-} as any);
-const AuthedMemberSearchRoute = AuthedMemberSearchRouteImport.update({
-  id: "/search",
-  path: "/search",
-  getParentRoute: () => AuthedMemberRoute,
-} as any);
-const AuthedMemberSentRoute = AuthedMemberSentRouteImport.update({
-  id: "/sent",
-  path: "/sent",
-  getParentRoute: () => AuthedMemberRoute,
-} as any);
-const AuthedMemberSpamRoute = AuthedMemberSpamRouteImport.update({
-  id: "/spam",
-  path: "/spam",
-  getParentRoute: () => AuthedMemberRoute,
-} as any);
-const AuthedMemberTrashRoute = AuthedMemberTrashRouteImport.update({
-  id: "/trash",
-  path: "/trash",
-  getParentRoute: () => AuthedMemberRoute,
+  getParentRoute: () => AuthedWorkspaceRoute,
 } as any);
 const AuthedInviteInvitationIdRoute =
   AuthedInviteInvitationIdRouteImport.update({
@@ -162,97 +114,102 @@ const AuthedOauthConsentRoute = AuthedOauthConsentRouteImport.update({
   path: "/oauth/consent",
   getParentRoute: () => AuthedRoute,
 } as any);
-const AuthedMemberAllThreadIdRoute = AuthedMemberAllThreadIdRouteImport.update({
-  id: "/$threadId",
-  path: "/$threadId",
-  getParentRoute: () => AuthedMemberAllRoute,
-} as any);
-const AuthedMemberArchiveThreadIdRoute =
-  AuthedMemberArchiveThreadIdRouteImport.update({
-    id: "/$threadId",
-    path: "/$threadId",
-    getParentRoute: () => AuthedMemberArchiveRoute,
-  } as any);
-const AuthedMemberCrmIndexRoute = AuthedMemberCrmIndexRouteImport.update({
+const AuthedWorkspaceCrmIndexRoute = AuthedWorkspaceCrmIndexRouteImport.update({
   id: "/",
   path: "/",
-  getParentRoute: () => AuthedMemberCrmRoute,
+  getParentRoute: () => AuthedWorkspaceCrmRoute,
 } as any);
-const AuthedMemberDoneThreadIdRoute =
-  AuthedMemberDoneThreadIdRouteImport.update({
-    id: "/$threadId",
-    path: "/$threadId",
-    getParentRoute: () => AuthedMemberDoneRoute,
+const AuthedWorkspaceFilesIndexRoute =
+  AuthedWorkspaceFilesIndexRouteImport.update({
+    id: "/files/",
+    path: "/files/",
+    getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
-const AuthedMemberDraftsThreadIdRoute =
-  AuthedMemberDraftsThreadIdRouteImport.update({
-    id: "/$threadId",
-    path: "/$threadId",
-    getParentRoute: () => AuthedMemberDraftsRoute,
-  } as any);
-const AuthedMemberFilesIndexRoute = AuthedMemberFilesIndexRouteImport.update({
-  id: "/files/",
-  path: "/files/",
-  getParentRoute: () => AuthedMemberRoute,
-} as any);
-const AuthedMemberFilesSharedWithMeRoute =
-  AuthedMemberFilesSharedWithMeRouteImport.update({
+const AuthedWorkspaceFilesSharedWithMeRoute =
+  AuthedWorkspaceFilesSharedWithMeRouteImport.update({
     id: "/files/shared-with-me",
     path: "/files/shared-with-me",
-    getParentRoute: () => AuthedMemberRoute,
+    getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
-const AuthedMemberFilesTrashRoute = AuthedMemberFilesTrashRouteImport.update({
-  id: "/files/trash",
-  path: "/files/trash",
-  getParentRoute: () => AuthedMemberRoute,
+const AuthedWorkspaceFilesTrashRoute =
+  AuthedWorkspaceFilesTrashRouteImport.update({
+    id: "/files/trash",
+    path: "/files/trash",
+    getParentRoute: () => AuthedWorkspaceRoute,
+  } as any);
+const AuthedWorkspaceMailAllRoute = AuthedWorkspaceMailAllRouteImport.update({
+  id: "/mail/all",
+  path: "/mail/all",
+  getParentRoute: () => AuthedWorkspaceRoute,
 } as any);
-const AuthedMemberInboxThreadIdRoute =
-  AuthedMemberInboxThreadIdRouteImport.update({
-    id: "/$threadId",
-    path: "/$threadId",
-    getParentRoute: () => AuthedMemberInboxRoute,
+const AuthedWorkspaceMailArchiveRoute =
+  AuthedWorkspaceMailArchiveRouteImport.update({
+    id: "/mail/archive",
+    path: "/mail/archive",
+    getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
-const AuthedMemberLaterThreadIdRoute =
-  AuthedMemberLaterThreadIdRouteImport.update({
-    id: "/$threadId",
-    path: "/$threadId",
-    getParentRoute: () => AuthedMemberLaterRoute,
+const AuthedWorkspaceMailComposeRoute =
+  AuthedWorkspaceMailComposeRouteImport.update({
+    id: "/mail/compose",
+    path: "/mail/compose",
+    getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
-const AuthedMemberSearchThreadIdRoute =
-  AuthedMemberSearchThreadIdRouteImport.update({
-    id: "/$threadId",
-    path: "/$threadId",
-    getParentRoute: () => AuthedMemberSearchRoute,
+const AuthedWorkspaceMailDoneRoute = AuthedWorkspaceMailDoneRouteImport.update({
+  id: "/mail/done",
+  path: "/mail/done",
+  getParentRoute: () => AuthedWorkspaceRoute,
+} as any);
+const AuthedWorkspaceMailDraftsRoute =
+  AuthedWorkspaceMailDraftsRouteImport.update({
+    id: "/mail/drafts",
+    path: "/mail/drafts",
+    getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
-const AuthedMemberSentThreadIdRoute =
-  AuthedMemberSentThreadIdRouteImport.update({
-    id: "/$threadId",
-    path: "/$threadId",
-    getParentRoute: () => AuthedMemberSentRoute,
+const AuthedWorkspaceMailInboxRoute =
+  AuthedWorkspaceMailInboxRouteImport.update({
+    id: "/mail/inbox",
+    path: "/mail/inbox",
+    getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
-const AuthedMemberSettingsIndexRoute =
-  AuthedMemberSettingsIndexRouteImport.update({
+const AuthedWorkspaceMailLaterRoute =
+  AuthedWorkspaceMailLaterRouteImport.update({
+    id: "/mail/later",
+    path: "/mail/later",
+    getParentRoute: () => AuthedWorkspaceRoute,
+  } as any);
+const AuthedWorkspaceMailSearchRoute =
+  AuthedWorkspaceMailSearchRouteImport.update({
+    id: "/mail/search",
+    path: "/mail/search",
+    getParentRoute: () => AuthedWorkspaceRoute,
+  } as any);
+const AuthedWorkspaceMailSentRoute = AuthedWorkspaceMailSentRouteImport.update({
+  id: "/mail/sent",
+  path: "/mail/sent",
+  getParentRoute: () => AuthedWorkspaceRoute,
+} as any);
+const AuthedWorkspaceMailSpamRoute = AuthedWorkspaceMailSpamRouteImport.update({
+  id: "/mail/spam",
+  path: "/mail/spam",
+  getParentRoute: () => AuthedWorkspaceRoute,
+} as any);
+const AuthedWorkspaceMailTrashRoute =
+  AuthedWorkspaceMailTrashRouteImport.update({
+    id: "/mail/trash",
+    path: "/mail/trash",
+    getParentRoute: () => AuthedWorkspaceRoute,
+  } as any);
+const AuthedWorkspaceSettingsIndexRoute =
+  AuthedWorkspaceSettingsIndexRouteImport.update({
     id: "/settings/",
     path: "/settings/",
-    getParentRoute: () => AuthedMemberRoute,
+    getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
-const AuthedMemberSettingsPageRoute =
-  AuthedMemberSettingsPageRouteImport.update({
+const AuthedWorkspaceSettingsPageRoute =
+  AuthedWorkspaceSettingsPageRouteImport.update({
     id: "/settings/$page",
     path: "/settings/$page",
-    getParentRoute: () => AuthedMemberRoute,
-  } as any);
-const AuthedMemberSpamThreadIdRoute =
-  AuthedMemberSpamThreadIdRouteImport.update({
-    id: "/$threadId",
-    path: "/$threadId",
-    getParentRoute: () => AuthedMemberSpamRoute,
-  } as any);
-const AuthedMemberTrashThreadIdRoute =
-  AuthedMemberTrashThreadIdRouteImport.update({
-    id: "/$threadId",
-    path: "/$threadId",
-    getParentRoute: () => AuthedMemberTrashRoute,
+    getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
 const AuthedSettingsEmailsVerifyRoute =
   AuthedSettingsEmailsVerifyRouteImport.update({
@@ -260,357 +217,429 @@ const AuthedSettingsEmailsVerifyRoute =
     path: "/settings/emails/verify",
     getParentRoute: () => AuthedRoute,
   } as any);
-const AuthedMemberCrmCompaniesIndexRoute =
-  AuthedMemberCrmCompaniesIndexRouteImport.update({
+const AuthedWorkspaceCrmCompaniesIndexRoute =
+  AuthedWorkspaceCrmCompaniesIndexRouteImport.update({
     id: "/companies/",
     path: "/companies/",
-    getParentRoute: () => AuthedMemberCrmRoute,
+    getParentRoute: () => AuthedWorkspaceCrmRoute,
   } as any);
-const AuthedMemberCrmCompaniesIdRoute =
-  AuthedMemberCrmCompaniesIdRouteImport.update({
+const AuthedWorkspaceCrmCompaniesIdRoute =
+  AuthedWorkspaceCrmCompaniesIdRouteImport.update({
     id: "/companies/$id",
     path: "/companies/$id",
-    getParentRoute: () => AuthedMemberCrmRoute,
+    getParentRoute: () => AuthedWorkspaceCrmRoute,
   } as any);
-const AuthedMemberCrmDealsIndexRoute =
-  AuthedMemberCrmDealsIndexRouteImport.update({
+const AuthedWorkspaceCrmDealsIndexRoute =
+  AuthedWorkspaceCrmDealsIndexRouteImport.update({
     id: "/deals/",
     path: "/deals/",
-    getParentRoute: () => AuthedMemberCrmRoute,
+    getParentRoute: () => AuthedWorkspaceCrmRoute,
   } as any);
-const AuthedMemberCrmDealsIdRoute = AuthedMemberCrmDealsIdRouteImport.update({
-  id: "/deals/$id",
-  path: "/deals/$id",
-  getParentRoute: () => AuthedMemberCrmRoute,
-} as any);
-const AuthedMemberCrmPeopleIndexRoute =
-  AuthedMemberCrmPeopleIndexRouteImport.update({
+const AuthedWorkspaceCrmDealsIdRoute =
+  AuthedWorkspaceCrmDealsIdRouteImport.update({
+    id: "/deals/$id",
+    path: "/deals/$id",
+    getParentRoute: () => AuthedWorkspaceCrmRoute,
+  } as any);
+const AuthedWorkspaceCrmPeopleIndexRoute =
+  AuthedWorkspaceCrmPeopleIndexRouteImport.update({
     id: "/people/",
     path: "/people/",
-    getParentRoute: () => AuthedMemberCrmRoute,
+    getParentRoute: () => AuthedWorkspaceCrmRoute,
   } as any);
-const AuthedMemberCrmPeopleIdRoute = AuthedMemberCrmPeopleIdRouteImport.update({
-  id: "/people/$id",
-  path: "/people/$id",
-  getParentRoute: () => AuthedMemberCrmRoute,
-} as any);
-const AuthedMemberFilesMyIndexRoute =
-  AuthedMemberFilesMyIndexRouteImport.update({
+const AuthedWorkspaceCrmPeopleIdRoute =
+  AuthedWorkspaceCrmPeopleIdRouteImport.update({
+    id: "/people/$id",
+    path: "/people/$id",
+    getParentRoute: () => AuthedWorkspaceCrmRoute,
+  } as any);
+const AuthedWorkspaceFilesMyIndexRoute =
+  AuthedWorkspaceFilesMyIndexRouteImport.update({
     id: "/files/my/",
     path: "/files/my/",
-    getParentRoute: () => AuthedMemberRoute,
+    getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
-const AuthedMemberFilesMyFolderIdRoute =
-  AuthedMemberFilesMyFolderIdRouteImport.update({
+const AuthedWorkspaceFilesMyFolderIdRoute =
+  AuthedWorkspaceFilesMyFolderIdRouteImport.update({
     id: "/files/my/$folderId",
     path: "/files/my/$folderId",
-    getParentRoute: () => AuthedMemberRoute,
+    getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
-const AuthedMemberFilesSharedIndexRoute =
-  AuthedMemberFilesSharedIndexRouteImport.update({
+const AuthedWorkspaceFilesSharedIndexRoute =
+  AuthedWorkspaceFilesSharedIndexRouteImport.update({
     id: "/files/shared/",
     path: "/files/shared/",
-    getParentRoute: () => AuthedMemberRoute,
+    getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
-const AuthedMemberFilesSharedFolderIdRoute =
-  AuthedMemberFilesSharedFolderIdRouteImport.update({
+const AuthedWorkspaceFilesSharedFolderIdRoute =
+  AuthedWorkspaceFilesSharedFolderIdRouteImport.update({
     id: "/files/shared/$folderId",
     path: "/files/shared/$folderId",
-    getParentRoute: () => AuthedMemberRoute,
+    getParentRoute: () => AuthedWorkspaceRoute,
+  } as any);
+const AuthedWorkspaceMailAllThreadIdRoute =
+  AuthedWorkspaceMailAllThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedWorkspaceMailAllRoute,
+  } as any);
+const AuthedWorkspaceMailArchiveThreadIdRoute =
+  AuthedWorkspaceMailArchiveThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedWorkspaceMailArchiveRoute,
+  } as any);
+const AuthedWorkspaceMailDoneThreadIdRoute =
+  AuthedWorkspaceMailDoneThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedWorkspaceMailDoneRoute,
+  } as any);
+const AuthedWorkspaceMailDraftsThreadIdRoute =
+  AuthedWorkspaceMailDraftsThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedWorkspaceMailDraftsRoute,
+  } as any);
+const AuthedWorkspaceMailInboxThreadIdRoute =
+  AuthedWorkspaceMailInboxThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedWorkspaceMailInboxRoute,
+  } as any);
+const AuthedWorkspaceMailLaterThreadIdRoute =
+  AuthedWorkspaceMailLaterThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedWorkspaceMailLaterRoute,
+  } as any);
+const AuthedWorkspaceMailSearchThreadIdRoute =
+  AuthedWorkspaceMailSearchThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedWorkspaceMailSearchRoute,
+  } as any);
+const AuthedWorkspaceMailSentThreadIdRoute =
+  AuthedWorkspaceMailSentThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedWorkspaceMailSentRoute,
+  } as any);
+const AuthedWorkspaceMailSpamThreadIdRoute =
+  AuthedWorkspaceMailSpamThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedWorkspaceMailSpamRoute,
+  } as any);
+const AuthedWorkspaceMailTrashThreadIdRoute =
+  AuthedWorkspaceMailTrashThreadIdRouteImport.update({
+    id: "/$threadId",
+    path: "/$threadId",
+    getParentRoute: () => AuthedWorkspaceMailTrashRoute,
   } as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/login": typeof LoginRoute;
+  "/$workspace": typeof AuthedWorkspaceRouteWithChildren;
   "/join": typeof AuthedJoinRoute;
   "/onboarding": typeof AuthedOnboardingRoute;
   "/s/$shareId": typeof SShareIdRoute;
-  "/all": typeof AuthedMemberAllRouteWithChildren;
-  "/archive": typeof AuthedMemberArchiveRouteWithChildren;
-  "/compose": typeof AuthedMemberComposeRoute;
-  "/crm": typeof AuthedMemberCrmRouteWithChildren;
-  "/done": typeof AuthedMemberDoneRouteWithChildren;
-  "/drafts": typeof AuthedMemberDraftsRouteWithChildren;
-  "/inbox": typeof AuthedMemberInboxRouteWithChildren;
-  "/later": typeof AuthedMemberLaterRouteWithChildren;
-  "/search": typeof AuthedMemberSearchRouteWithChildren;
-  "/sent": typeof AuthedMemberSentRouteWithChildren;
-  "/spam": typeof AuthedMemberSpamRouteWithChildren;
-  "/trash": typeof AuthedMemberTrashRouteWithChildren;
+  "/$workspace/$": typeof AuthedWorkspaceSplatRoute;
+  "/$workspace/crm": typeof AuthedWorkspaceCrmRouteWithChildren;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
-  "/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
-  "/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
-  "/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
-  "/drafts/$threadId": typeof AuthedMemberDraftsThreadIdRoute;
-  "/files/shared-with-me": typeof AuthedMemberFilesSharedWithMeRoute;
-  "/files/trash": typeof AuthedMemberFilesTrashRoute;
-  "/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
-  "/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
-  "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
-  "/sent/$threadId": typeof AuthedMemberSentThreadIdRoute;
-  "/settings/$page": typeof AuthedMemberSettingsPageRoute;
-  "/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
-  "/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
+  "/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
+  "/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
+  "/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
+  "/$workspace/mail/archive": typeof AuthedWorkspaceMailArchiveRouteWithChildren;
+  "/$workspace/mail/compose": typeof AuthedWorkspaceMailComposeRoute;
+  "/$workspace/mail/done": typeof AuthedWorkspaceMailDoneRouteWithChildren;
+  "/$workspace/mail/drafts": typeof AuthedWorkspaceMailDraftsRouteWithChildren;
+  "/$workspace/mail/inbox": typeof AuthedWorkspaceMailInboxRouteWithChildren;
+  "/$workspace/mail/later": typeof AuthedWorkspaceMailLaterRouteWithChildren;
+  "/$workspace/mail/search": typeof AuthedWorkspaceMailSearchRouteWithChildren;
+  "/$workspace/mail/sent": typeof AuthedWorkspaceMailSentRouteWithChildren;
+  "/$workspace/mail/spam": typeof AuthedWorkspaceMailSpamRouteWithChildren;
+  "/$workspace/mail/trash": typeof AuthedWorkspaceMailTrashRouteWithChildren;
+  "/$workspace/settings/$page": typeof AuthedWorkspaceSettingsPageRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
-  "/crm/": typeof AuthedMemberCrmIndexRoute;
-  "/files/": typeof AuthedMemberFilesIndexRoute;
-  "/settings/": typeof AuthedMemberSettingsIndexRoute;
-  "/crm/companies/$id": typeof AuthedMemberCrmCompaniesIdRoute;
-  "/crm/deals/$id": typeof AuthedMemberCrmDealsIdRoute;
-  "/crm/people/$id": typeof AuthedMemberCrmPeopleIdRoute;
-  "/files/my/$folderId": typeof AuthedMemberFilesMyFolderIdRoute;
-  "/files/shared/$folderId": typeof AuthedMemberFilesSharedFolderIdRoute;
-  "/crm/companies/": typeof AuthedMemberCrmCompaniesIndexRoute;
-  "/crm/deals/": typeof AuthedMemberCrmDealsIndexRoute;
-  "/crm/people/": typeof AuthedMemberCrmPeopleIndexRoute;
-  "/files/my/": typeof AuthedMemberFilesMyIndexRoute;
-  "/files/shared/": typeof AuthedMemberFilesSharedIndexRoute;
+  "/$workspace/crm/": typeof AuthedWorkspaceCrmIndexRoute;
+  "/$workspace/files/": typeof AuthedWorkspaceFilesIndexRoute;
+  "/$workspace/settings/": typeof AuthedWorkspaceSettingsIndexRoute;
+  "/$workspace/crm/companies/$id": typeof AuthedWorkspaceCrmCompaniesIdRoute;
+  "/$workspace/crm/deals/$id": typeof AuthedWorkspaceCrmDealsIdRoute;
+  "/$workspace/crm/people/$id": typeof AuthedWorkspaceCrmPeopleIdRoute;
+  "/$workspace/files/my/$folderId": typeof AuthedWorkspaceFilesMyFolderIdRoute;
+  "/$workspace/files/shared/$folderId": typeof AuthedWorkspaceFilesSharedFolderIdRoute;
+  "/$workspace/mail/all/$threadId": typeof AuthedWorkspaceMailAllThreadIdRoute;
+  "/$workspace/mail/archive/$threadId": typeof AuthedWorkspaceMailArchiveThreadIdRoute;
+  "/$workspace/mail/done/$threadId": typeof AuthedWorkspaceMailDoneThreadIdRoute;
+  "/$workspace/mail/drafts/$threadId": typeof AuthedWorkspaceMailDraftsThreadIdRoute;
+  "/$workspace/mail/inbox/$threadId": typeof AuthedWorkspaceMailInboxThreadIdRoute;
+  "/$workspace/mail/later/$threadId": typeof AuthedWorkspaceMailLaterThreadIdRoute;
+  "/$workspace/mail/search/$threadId": typeof AuthedWorkspaceMailSearchThreadIdRoute;
+  "/$workspace/mail/sent/$threadId": typeof AuthedWorkspaceMailSentThreadIdRoute;
+  "/$workspace/mail/spam/$threadId": typeof AuthedWorkspaceMailSpamThreadIdRoute;
+  "/$workspace/mail/trash/$threadId": typeof AuthedWorkspaceMailTrashThreadIdRoute;
+  "/$workspace/crm/companies/": typeof AuthedWorkspaceCrmCompaniesIndexRoute;
+  "/$workspace/crm/deals/": typeof AuthedWorkspaceCrmDealsIndexRoute;
+  "/$workspace/crm/people/": typeof AuthedWorkspaceCrmPeopleIndexRoute;
+  "/$workspace/files/my/": typeof AuthedWorkspaceFilesMyIndexRoute;
+  "/$workspace/files/shared/": typeof AuthedWorkspaceFilesSharedIndexRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/login": typeof LoginRoute;
+  "/$workspace": typeof AuthedWorkspaceRouteWithChildren;
   "/join": typeof AuthedJoinRoute;
   "/onboarding": typeof AuthedOnboardingRoute;
   "/s/$shareId": typeof SShareIdRoute;
-  "/all": typeof AuthedMemberAllRouteWithChildren;
-  "/archive": typeof AuthedMemberArchiveRouteWithChildren;
-  "/compose": typeof AuthedMemberComposeRoute;
-  "/done": typeof AuthedMemberDoneRouteWithChildren;
-  "/drafts": typeof AuthedMemberDraftsRouteWithChildren;
-  "/inbox": typeof AuthedMemberInboxRouteWithChildren;
-  "/later": typeof AuthedMemberLaterRouteWithChildren;
-  "/search": typeof AuthedMemberSearchRouteWithChildren;
-  "/sent": typeof AuthedMemberSentRouteWithChildren;
-  "/spam": typeof AuthedMemberSpamRouteWithChildren;
-  "/trash": typeof AuthedMemberTrashRouteWithChildren;
+  "/$workspace/$": typeof AuthedWorkspaceSplatRoute;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
-  "/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
-  "/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
-  "/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
-  "/drafts/$threadId": typeof AuthedMemberDraftsThreadIdRoute;
-  "/files/shared-with-me": typeof AuthedMemberFilesSharedWithMeRoute;
-  "/files/trash": typeof AuthedMemberFilesTrashRoute;
-  "/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
-  "/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
-  "/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
-  "/sent/$threadId": typeof AuthedMemberSentThreadIdRoute;
-  "/settings/$page": typeof AuthedMemberSettingsPageRoute;
-  "/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
-  "/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
+  "/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
+  "/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
+  "/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
+  "/$workspace/mail/archive": typeof AuthedWorkspaceMailArchiveRouteWithChildren;
+  "/$workspace/mail/compose": typeof AuthedWorkspaceMailComposeRoute;
+  "/$workspace/mail/done": typeof AuthedWorkspaceMailDoneRouteWithChildren;
+  "/$workspace/mail/drafts": typeof AuthedWorkspaceMailDraftsRouteWithChildren;
+  "/$workspace/mail/inbox": typeof AuthedWorkspaceMailInboxRouteWithChildren;
+  "/$workspace/mail/later": typeof AuthedWorkspaceMailLaterRouteWithChildren;
+  "/$workspace/mail/search": typeof AuthedWorkspaceMailSearchRouteWithChildren;
+  "/$workspace/mail/sent": typeof AuthedWorkspaceMailSentRouteWithChildren;
+  "/$workspace/mail/spam": typeof AuthedWorkspaceMailSpamRouteWithChildren;
+  "/$workspace/mail/trash": typeof AuthedWorkspaceMailTrashRouteWithChildren;
+  "/$workspace/settings/$page": typeof AuthedWorkspaceSettingsPageRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
-  "/crm": typeof AuthedMemberCrmIndexRoute;
-  "/files": typeof AuthedMemberFilesIndexRoute;
-  "/settings": typeof AuthedMemberSettingsIndexRoute;
-  "/crm/companies/$id": typeof AuthedMemberCrmCompaniesIdRoute;
-  "/crm/deals/$id": typeof AuthedMemberCrmDealsIdRoute;
-  "/crm/people/$id": typeof AuthedMemberCrmPeopleIdRoute;
-  "/files/my/$folderId": typeof AuthedMemberFilesMyFolderIdRoute;
-  "/files/shared/$folderId": typeof AuthedMemberFilesSharedFolderIdRoute;
-  "/crm/companies": typeof AuthedMemberCrmCompaniesIndexRoute;
-  "/crm/deals": typeof AuthedMemberCrmDealsIndexRoute;
-  "/crm/people": typeof AuthedMemberCrmPeopleIndexRoute;
-  "/files/my": typeof AuthedMemberFilesMyIndexRoute;
-  "/files/shared": typeof AuthedMemberFilesSharedIndexRoute;
+  "/$workspace/crm": typeof AuthedWorkspaceCrmIndexRoute;
+  "/$workspace/files": typeof AuthedWorkspaceFilesIndexRoute;
+  "/$workspace/settings": typeof AuthedWorkspaceSettingsIndexRoute;
+  "/$workspace/crm/companies/$id": typeof AuthedWorkspaceCrmCompaniesIdRoute;
+  "/$workspace/crm/deals/$id": typeof AuthedWorkspaceCrmDealsIdRoute;
+  "/$workspace/crm/people/$id": typeof AuthedWorkspaceCrmPeopleIdRoute;
+  "/$workspace/files/my/$folderId": typeof AuthedWorkspaceFilesMyFolderIdRoute;
+  "/$workspace/files/shared/$folderId": typeof AuthedWorkspaceFilesSharedFolderIdRoute;
+  "/$workspace/mail/all/$threadId": typeof AuthedWorkspaceMailAllThreadIdRoute;
+  "/$workspace/mail/archive/$threadId": typeof AuthedWorkspaceMailArchiveThreadIdRoute;
+  "/$workspace/mail/done/$threadId": typeof AuthedWorkspaceMailDoneThreadIdRoute;
+  "/$workspace/mail/drafts/$threadId": typeof AuthedWorkspaceMailDraftsThreadIdRoute;
+  "/$workspace/mail/inbox/$threadId": typeof AuthedWorkspaceMailInboxThreadIdRoute;
+  "/$workspace/mail/later/$threadId": typeof AuthedWorkspaceMailLaterThreadIdRoute;
+  "/$workspace/mail/search/$threadId": typeof AuthedWorkspaceMailSearchThreadIdRoute;
+  "/$workspace/mail/sent/$threadId": typeof AuthedWorkspaceMailSentThreadIdRoute;
+  "/$workspace/mail/spam/$threadId": typeof AuthedWorkspaceMailSpamThreadIdRoute;
+  "/$workspace/mail/trash/$threadId": typeof AuthedWorkspaceMailTrashThreadIdRoute;
+  "/$workspace/crm/companies": typeof AuthedWorkspaceCrmCompaniesIndexRoute;
+  "/$workspace/crm/deals": typeof AuthedWorkspaceCrmDealsIndexRoute;
+  "/$workspace/crm/people": typeof AuthedWorkspaceCrmPeopleIndexRoute;
+  "/$workspace/files/my": typeof AuthedWorkspaceFilesMyIndexRoute;
+  "/$workspace/files/shared": typeof AuthedWorkspaceFilesSharedIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
   "/_authed": typeof AuthedRouteWithChildren;
   "/login": typeof LoginRoute;
-  "/_authed/_member": typeof AuthedMemberRouteWithChildren;
+  "/_authed/$workspace": typeof AuthedWorkspaceRouteWithChildren;
   "/_authed/join": typeof AuthedJoinRoute;
   "/_authed/onboarding": typeof AuthedOnboardingRoute;
   "/s/$shareId": typeof SShareIdRoute;
-  "/_authed/_member/all": typeof AuthedMemberAllRouteWithChildren;
-  "/_authed/_member/archive": typeof AuthedMemberArchiveRouteWithChildren;
-  "/_authed/_member/compose": typeof AuthedMemberComposeRoute;
-  "/_authed/_member/crm": typeof AuthedMemberCrmRouteWithChildren;
-  "/_authed/_member/done": typeof AuthedMemberDoneRouteWithChildren;
-  "/_authed/_member/drafts": typeof AuthedMemberDraftsRouteWithChildren;
-  "/_authed/_member/inbox": typeof AuthedMemberInboxRouteWithChildren;
-  "/_authed/_member/later": typeof AuthedMemberLaterRouteWithChildren;
-  "/_authed/_member/search": typeof AuthedMemberSearchRouteWithChildren;
-  "/_authed/_member/sent": typeof AuthedMemberSentRouteWithChildren;
-  "/_authed/_member/spam": typeof AuthedMemberSpamRouteWithChildren;
-  "/_authed/_member/trash": typeof AuthedMemberTrashRouteWithChildren;
+  "/_authed/$workspace/$": typeof AuthedWorkspaceSplatRoute;
+  "/_authed/$workspace/crm": typeof AuthedWorkspaceCrmRouteWithChildren;
   "/_authed/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/_authed/oauth/consent": typeof AuthedOauthConsentRoute;
-  "/_authed/_member/all/$threadId": typeof AuthedMemberAllThreadIdRoute;
-  "/_authed/_member/archive/$threadId": typeof AuthedMemberArchiveThreadIdRoute;
-  "/_authed/_member/done/$threadId": typeof AuthedMemberDoneThreadIdRoute;
-  "/_authed/_member/drafts/$threadId": typeof AuthedMemberDraftsThreadIdRoute;
-  "/_authed/_member/files/shared-with-me": typeof AuthedMemberFilesSharedWithMeRoute;
-  "/_authed/_member/files/trash": typeof AuthedMemberFilesTrashRoute;
-  "/_authed/_member/inbox/$threadId": typeof AuthedMemberInboxThreadIdRoute;
-  "/_authed/_member/later/$threadId": typeof AuthedMemberLaterThreadIdRoute;
-  "/_authed/_member/search/$threadId": typeof AuthedMemberSearchThreadIdRoute;
-  "/_authed/_member/sent/$threadId": typeof AuthedMemberSentThreadIdRoute;
-  "/_authed/_member/settings/$page": typeof AuthedMemberSettingsPageRoute;
-  "/_authed/_member/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
-  "/_authed/_member/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
+  "/_authed/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
+  "/_authed/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
+  "/_authed/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
+  "/_authed/$workspace/mail/archive": typeof AuthedWorkspaceMailArchiveRouteWithChildren;
+  "/_authed/$workspace/mail/compose": typeof AuthedWorkspaceMailComposeRoute;
+  "/_authed/$workspace/mail/done": typeof AuthedWorkspaceMailDoneRouteWithChildren;
+  "/_authed/$workspace/mail/drafts": typeof AuthedWorkspaceMailDraftsRouteWithChildren;
+  "/_authed/$workspace/mail/inbox": typeof AuthedWorkspaceMailInboxRouteWithChildren;
+  "/_authed/$workspace/mail/later": typeof AuthedWorkspaceMailLaterRouteWithChildren;
+  "/_authed/$workspace/mail/search": typeof AuthedWorkspaceMailSearchRouteWithChildren;
+  "/_authed/$workspace/mail/sent": typeof AuthedWorkspaceMailSentRouteWithChildren;
+  "/_authed/$workspace/mail/spam": typeof AuthedWorkspaceMailSpamRouteWithChildren;
+  "/_authed/$workspace/mail/trash": typeof AuthedWorkspaceMailTrashRouteWithChildren;
+  "/_authed/$workspace/settings/$page": typeof AuthedWorkspaceSettingsPageRoute;
   "/_authed/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
-  "/_authed/_member/crm/": typeof AuthedMemberCrmIndexRoute;
-  "/_authed/_member/files/": typeof AuthedMemberFilesIndexRoute;
-  "/_authed/_member/settings/": typeof AuthedMemberSettingsIndexRoute;
-  "/_authed/_member/crm/companies/$id": typeof AuthedMemberCrmCompaniesIdRoute;
-  "/_authed/_member/crm/deals/$id": typeof AuthedMemberCrmDealsIdRoute;
-  "/_authed/_member/crm/people/$id": typeof AuthedMemberCrmPeopleIdRoute;
-  "/_authed/_member/files/my/$folderId": typeof AuthedMemberFilesMyFolderIdRoute;
-  "/_authed/_member/files/shared/$folderId": typeof AuthedMemberFilesSharedFolderIdRoute;
-  "/_authed/_member/crm/companies/": typeof AuthedMemberCrmCompaniesIndexRoute;
-  "/_authed/_member/crm/deals/": typeof AuthedMemberCrmDealsIndexRoute;
-  "/_authed/_member/crm/people/": typeof AuthedMemberCrmPeopleIndexRoute;
-  "/_authed/_member/files/my/": typeof AuthedMemberFilesMyIndexRoute;
-  "/_authed/_member/files/shared/": typeof AuthedMemberFilesSharedIndexRoute;
+  "/_authed/$workspace/crm/": typeof AuthedWorkspaceCrmIndexRoute;
+  "/_authed/$workspace/files/": typeof AuthedWorkspaceFilesIndexRoute;
+  "/_authed/$workspace/settings/": typeof AuthedWorkspaceSettingsIndexRoute;
+  "/_authed/$workspace/crm/companies/$id": typeof AuthedWorkspaceCrmCompaniesIdRoute;
+  "/_authed/$workspace/crm/deals/$id": typeof AuthedWorkspaceCrmDealsIdRoute;
+  "/_authed/$workspace/crm/people/$id": typeof AuthedWorkspaceCrmPeopleIdRoute;
+  "/_authed/$workspace/files/my/$folderId": typeof AuthedWorkspaceFilesMyFolderIdRoute;
+  "/_authed/$workspace/files/shared/$folderId": typeof AuthedWorkspaceFilesSharedFolderIdRoute;
+  "/_authed/$workspace/mail/all/$threadId": typeof AuthedWorkspaceMailAllThreadIdRoute;
+  "/_authed/$workspace/mail/archive/$threadId": typeof AuthedWorkspaceMailArchiveThreadIdRoute;
+  "/_authed/$workspace/mail/done/$threadId": typeof AuthedWorkspaceMailDoneThreadIdRoute;
+  "/_authed/$workspace/mail/drafts/$threadId": typeof AuthedWorkspaceMailDraftsThreadIdRoute;
+  "/_authed/$workspace/mail/inbox/$threadId": typeof AuthedWorkspaceMailInboxThreadIdRoute;
+  "/_authed/$workspace/mail/later/$threadId": typeof AuthedWorkspaceMailLaterThreadIdRoute;
+  "/_authed/$workspace/mail/search/$threadId": typeof AuthedWorkspaceMailSearchThreadIdRoute;
+  "/_authed/$workspace/mail/sent/$threadId": typeof AuthedWorkspaceMailSentThreadIdRoute;
+  "/_authed/$workspace/mail/spam/$threadId": typeof AuthedWorkspaceMailSpamThreadIdRoute;
+  "/_authed/$workspace/mail/trash/$threadId": typeof AuthedWorkspaceMailTrashThreadIdRoute;
+  "/_authed/$workspace/crm/companies/": typeof AuthedWorkspaceCrmCompaniesIndexRoute;
+  "/_authed/$workspace/crm/deals/": typeof AuthedWorkspaceCrmDealsIndexRoute;
+  "/_authed/$workspace/crm/people/": typeof AuthedWorkspaceCrmPeopleIndexRoute;
+  "/_authed/$workspace/files/my/": typeof AuthedWorkspaceFilesMyIndexRoute;
+  "/_authed/$workspace/files/shared/": typeof AuthedWorkspaceFilesSharedIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | "/"
     | "/login"
+    | "/$workspace"
     | "/join"
     | "/onboarding"
     | "/s/$shareId"
-    | "/all"
-    | "/archive"
-    | "/compose"
-    | "/crm"
-    | "/done"
-    | "/drafts"
-    | "/inbox"
-    | "/later"
-    | "/search"
-    | "/sent"
-    | "/spam"
-    | "/trash"
+    | "/$workspace/$"
+    | "/$workspace/crm"
     | "/invite/$invitationId"
     | "/oauth/consent"
-    | "/all/$threadId"
-    | "/archive/$threadId"
-    | "/done/$threadId"
-    | "/drafts/$threadId"
-    | "/files/shared-with-me"
-    | "/files/trash"
-    | "/inbox/$threadId"
-    | "/later/$threadId"
-    | "/search/$threadId"
-    | "/sent/$threadId"
-    | "/settings/$page"
-    | "/spam/$threadId"
-    | "/trash/$threadId"
+    | "/$workspace/files/shared-with-me"
+    | "/$workspace/files/trash"
+    | "/$workspace/mail/all"
+    | "/$workspace/mail/archive"
+    | "/$workspace/mail/compose"
+    | "/$workspace/mail/done"
+    | "/$workspace/mail/drafts"
+    | "/$workspace/mail/inbox"
+    | "/$workspace/mail/later"
+    | "/$workspace/mail/search"
+    | "/$workspace/mail/sent"
+    | "/$workspace/mail/spam"
+    | "/$workspace/mail/trash"
+    | "/$workspace/settings/$page"
     | "/settings/emails/verify"
-    | "/crm/"
-    | "/files/"
-    | "/settings/"
-    | "/crm/companies/$id"
-    | "/crm/deals/$id"
-    | "/crm/people/$id"
-    | "/files/my/$folderId"
-    | "/files/shared/$folderId"
-    | "/crm/companies/"
-    | "/crm/deals/"
-    | "/crm/people/"
-    | "/files/my/"
-    | "/files/shared/";
+    | "/$workspace/crm/"
+    | "/$workspace/files/"
+    | "/$workspace/settings/"
+    | "/$workspace/crm/companies/$id"
+    | "/$workspace/crm/deals/$id"
+    | "/$workspace/crm/people/$id"
+    | "/$workspace/files/my/$folderId"
+    | "/$workspace/files/shared/$folderId"
+    | "/$workspace/mail/all/$threadId"
+    | "/$workspace/mail/archive/$threadId"
+    | "/$workspace/mail/done/$threadId"
+    | "/$workspace/mail/drafts/$threadId"
+    | "/$workspace/mail/inbox/$threadId"
+    | "/$workspace/mail/later/$threadId"
+    | "/$workspace/mail/search/$threadId"
+    | "/$workspace/mail/sent/$threadId"
+    | "/$workspace/mail/spam/$threadId"
+    | "/$workspace/mail/trash/$threadId"
+    | "/$workspace/crm/companies/"
+    | "/$workspace/crm/deals/"
+    | "/$workspace/crm/people/"
+    | "/$workspace/files/my/"
+    | "/$workspace/files/shared/";
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/"
     | "/login"
+    | "/$workspace"
     | "/join"
     | "/onboarding"
     | "/s/$shareId"
-    | "/all"
-    | "/archive"
-    | "/compose"
-    | "/done"
-    | "/drafts"
-    | "/inbox"
-    | "/later"
-    | "/search"
-    | "/sent"
-    | "/spam"
-    | "/trash"
+    | "/$workspace/$"
     | "/invite/$invitationId"
     | "/oauth/consent"
-    | "/all/$threadId"
-    | "/archive/$threadId"
-    | "/done/$threadId"
-    | "/drafts/$threadId"
-    | "/files/shared-with-me"
-    | "/files/trash"
-    | "/inbox/$threadId"
-    | "/later/$threadId"
-    | "/search/$threadId"
-    | "/sent/$threadId"
-    | "/settings/$page"
-    | "/spam/$threadId"
-    | "/trash/$threadId"
+    | "/$workspace/files/shared-with-me"
+    | "/$workspace/files/trash"
+    | "/$workspace/mail/all"
+    | "/$workspace/mail/archive"
+    | "/$workspace/mail/compose"
+    | "/$workspace/mail/done"
+    | "/$workspace/mail/drafts"
+    | "/$workspace/mail/inbox"
+    | "/$workspace/mail/later"
+    | "/$workspace/mail/search"
+    | "/$workspace/mail/sent"
+    | "/$workspace/mail/spam"
+    | "/$workspace/mail/trash"
+    | "/$workspace/settings/$page"
     | "/settings/emails/verify"
-    | "/crm"
-    | "/files"
-    | "/settings"
-    | "/crm/companies/$id"
-    | "/crm/deals/$id"
-    | "/crm/people/$id"
-    | "/files/my/$folderId"
-    | "/files/shared/$folderId"
-    | "/crm/companies"
-    | "/crm/deals"
-    | "/crm/people"
-    | "/files/my"
-    | "/files/shared";
+    | "/$workspace/crm"
+    | "/$workspace/files"
+    | "/$workspace/settings"
+    | "/$workspace/crm/companies/$id"
+    | "/$workspace/crm/deals/$id"
+    | "/$workspace/crm/people/$id"
+    | "/$workspace/files/my/$folderId"
+    | "/$workspace/files/shared/$folderId"
+    | "/$workspace/mail/all/$threadId"
+    | "/$workspace/mail/archive/$threadId"
+    | "/$workspace/mail/done/$threadId"
+    | "/$workspace/mail/drafts/$threadId"
+    | "/$workspace/mail/inbox/$threadId"
+    | "/$workspace/mail/later/$threadId"
+    | "/$workspace/mail/search/$threadId"
+    | "/$workspace/mail/sent/$threadId"
+    | "/$workspace/mail/spam/$threadId"
+    | "/$workspace/mail/trash/$threadId"
+    | "/$workspace/crm/companies"
+    | "/$workspace/crm/deals"
+    | "/$workspace/crm/people"
+    | "/$workspace/files/my"
+    | "/$workspace/files/shared";
   id:
     | "__root__"
     | "/"
     | "/_authed"
     | "/login"
-    | "/_authed/_member"
+    | "/_authed/$workspace"
     | "/_authed/join"
     | "/_authed/onboarding"
     | "/s/$shareId"
-    | "/_authed/_member/all"
-    | "/_authed/_member/archive"
-    | "/_authed/_member/compose"
-    | "/_authed/_member/crm"
-    | "/_authed/_member/done"
-    | "/_authed/_member/drafts"
-    | "/_authed/_member/inbox"
-    | "/_authed/_member/later"
-    | "/_authed/_member/search"
-    | "/_authed/_member/sent"
-    | "/_authed/_member/spam"
-    | "/_authed/_member/trash"
+    | "/_authed/$workspace/$"
+    | "/_authed/$workspace/crm"
     | "/_authed/invite/$invitationId"
     | "/_authed/oauth/consent"
-    | "/_authed/_member/all/$threadId"
-    | "/_authed/_member/archive/$threadId"
-    | "/_authed/_member/done/$threadId"
-    | "/_authed/_member/drafts/$threadId"
-    | "/_authed/_member/files/shared-with-me"
-    | "/_authed/_member/files/trash"
-    | "/_authed/_member/inbox/$threadId"
-    | "/_authed/_member/later/$threadId"
-    | "/_authed/_member/search/$threadId"
-    | "/_authed/_member/sent/$threadId"
-    | "/_authed/_member/settings/$page"
-    | "/_authed/_member/spam/$threadId"
-    | "/_authed/_member/trash/$threadId"
+    | "/_authed/$workspace/files/shared-with-me"
+    | "/_authed/$workspace/files/trash"
+    | "/_authed/$workspace/mail/all"
+    | "/_authed/$workspace/mail/archive"
+    | "/_authed/$workspace/mail/compose"
+    | "/_authed/$workspace/mail/done"
+    | "/_authed/$workspace/mail/drafts"
+    | "/_authed/$workspace/mail/inbox"
+    | "/_authed/$workspace/mail/later"
+    | "/_authed/$workspace/mail/search"
+    | "/_authed/$workspace/mail/sent"
+    | "/_authed/$workspace/mail/spam"
+    | "/_authed/$workspace/mail/trash"
+    | "/_authed/$workspace/settings/$page"
     | "/_authed/settings/emails/verify"
-    | "/_authed/_member/crm/"
-    | "/_authed/_member/files/"
-    | "/_authed/_member/settings/"
-    | "/_authed/_member/crm/companies/$id"
-    | "/_authed/_member/crm/deals/$id"
-    | "/_authed/_member/crm/people/$id"
-    | "/_authed/_member/files/my/$folderId"
-    | "/_authed/_member/files/shared/$folderId"
-    | "/_authed/_member/crm/companies/"
-    | "/_authed/_member/crm/deals/"
-    | "/_authed/_member/crm/people/"
-    | "/_authed/_member/files/my/"
-    | "/_authed/_member/files/shared/";
+    | "/_authed/$workspace/crm/"
+    | "/_authed/$workspace/files/"
+    | "/_authed/$workspace/settings/"
+    | "/_authed/$workspace/crm/companies/$id"
+    | "/_authed/$workspace/crm/deals/$id"
+    | "/_authed/$workspace/crm/people/$id"
+    | "/_authed/$workspace/files/my/$folderId"
+    | "/_authed/$workspace/files/shared/$folderId"
+    | "/_authed/$workspace/mail/all/$threadId"
+    | "/_authed/$workspace/mail/archive/$threadId"
+    | "/_authed/$workspace/mail/done/$threadId"
+    | "/_authed/$workspace/mail/drafts/$threadId"
+    | "/_authed/$workspace/mail/inbox/$threadId"
+    | "/_authed/$workspace/mail/later/$threadId"
+    | "/_authed/$workspace/mail/search/$threadId"
+    | "/_authed/$workspace/mail/sent/$threadId"
+    | "/_authed/$workspace/mail/spam/$threadId"
+    | "/_authed/$workspace/mail/trash/$threadId"
+    | "/_authed/$workspace/crm/companies/"
+    | "/_authed/$workspace/crm/deals/"
+    | "/_authed/$workspace/crm/people/"
+    | "/_authed/$workspace/files/my/"
+    | "/_authed/$workspace/files/shared/";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -643,11 +672,11 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof LoginRouteImport;
       parentRoute: typeof rootRouteImport;
     };
-    "/_authed/_member": {
-      id: "/_authed/_member";
-      path: "";
-      fullPath: "/";
-      preLoaderRoute: typeof AuthedMemberRouteImport;
+    "/_authed/$workspace": {
+      id: "/_authed/$workspace";
+      path: "/$workspace";
+      fullPath: "/$workspace";
+      preLoaderRoute: typeof AuthedWorkspaceRouteImport;
       parentRoute: typeof AuthedRoute;
     };
     "/_authed/join": {
@@ -671,89 +700,19 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SShareIdRouteImport;
       parentRoute: typeof rootRouteImport;
     };
-    "/_authed/_member/all": {
-      id: "/_authed/_member/all";
-      path: "/all";
-      fullPath: "/all";
-      preLoaderRoute: typeof AuthedMemberAllRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
+    "/_authed/$workspace/$": {
+      id: "/_authed/$workspace/$";
+      path: "/$";
+      fullPath: "/$workspace/$";
+      preLoaderRoute: typeof AuthedWorkspaceSplatRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/archive": {
-      id: "/_authed/_member/archive";
-      path: "/archive";
-      fullPath: "/archive";
-      preLoaderRoute: typeof AuthedMemberArchiveRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
-    "/_authed/_member/compose": {
-      id: "/_authed/_member/compose";
-      path: "/compose";
-      fullPath: "/compose";
-      preLoaderRoute: typeof AuthedMemberComposeRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
-    "/_authed/_member/crm": {
-      id: "/_authed/_member/crm";
+    "/_authed/$workspace/crm": {
+      id: "/_authed/$workspace/crm";
       path: "/crm";
-      fullPath: "/crm";
-      preLoaderRoute: typeof AuthedMemberCrmRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
-    "/_authed/_member/done": {
-      id: "/_authed/_member/done";
-      path: "/done";
-      fullPath: "/done";
-      preLoaderRoute: typeof AuthedMemberDoneRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
-    "/_authed/_member/drafts": {
-      id: "/_authed/_member/drafts";
-      path: "/drafts";
-      fullPath: "/drafts";
-      preLoaderRoute: typeof AuthedMemberDraftsRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
-    "/_authed/_member/inbox": {
-      id: "/_authed/_member/inbox";
-      path: "/inbox";
-      fullPath: "/inbox";
-      preLoaderRoute: typeof AuthedMemberInboxRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
-    "/_authed/_member/later": {
-      id: "/_authed/_member/later";
-      path: "/later";
-      fullPath: "/later";
-      preLoaderRoute: typeof AuthedMemberLaterRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
-    "/_authed/_member/search": {
-      id: "/_authed/_member/search";
-      path: "/search";
-      fullPath: "/search";
-      preLoaderRoute: typeof AuthedMemberSearchRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
-    "/_authed/_member/sent": {
-      id: "/_authed/_member/sent";
-      path: "/sent";
-      fullPath: "/sent";
-      preLoaderRoute: typeof AuthedMemberSentRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
-    "/_authed/_member/spam": {
-      id: "/_authed/_member/spam";
-      path: "/spam";
-      fullPath: "/spam";
-      preLoaderRoute: typeof AuthedMemberSpamRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
-    "/_authed/_member/trash": {
-      id: "/_authed/_member/trash";
-      path: "/trash";
-      fullPath: "/trash";
-      preLoaderRoute: typeof AuthedMemberTrashRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
+      fullPath: "/$workspace/crm";
+      preLoaderRoute: typeof AuthedWorkspaceCrmRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
     "/_authed/invite/$invitationId": {
       id: "/_authed/invite/$invitationId";
@@ -769,117 +728,124 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedOauthConsentRouteImport;
       parentRoute: typeof AuthedRoute;
     };
-    "/_authed/_member/all/$threadId": {
-      id: "/_authed/_member/all/$threadId";
-      path: "/$threadId";
-      fullPath: "/all/$threadId";
-      preLoaderRoute: typeof AuthedMemberAllThreadIdRouteImport;
-      parentRoute: typeof AuthedMemberAllRoute;
-    };
-    "/_authed/_member/archive/$threadId": {
-      id: "/_authed/_member/archive/$threadId";
-      path: "/$threadId";
-      fullPath: "/archive/$threadId";
-      preLoaderRoute: typeof AuthedMemberArchiveThreadIdRouteImport;
-      parentRoute: typeof AuthedMemberArchiveRoute;
-    };
-    "/_authed/_member/crm/": {
-      id: "/_authed/_member/crm/";
+    "/_authed/$workspace/crm/": {
+      id: "/_authed/$workspace/crm/";
       path: "/";
-      fullPath: "/crm/";
-      preLoaderRoute: typeof AuthedMemberCrmIndexRouteImport;
-      parentRoute: typeof AuthedMemberCrmRoute;
+      fullPath: "/$workspace/crm/";
+      preLoaderRoute: typeof AuthedWorkspaceCrmIndexRouteImport;
+      parentRoute: typeof AuthedWorkspaceCrmRoute;
     };
-    "/_authed/_member/done/$threadId": {
-      id: "/_authed/_member/done/$threadId";
-      path: "/$threadId";
-      fullPath: "/done/$threadId";
-      preLoaderRoute: typeof AuthedMemberDoneThreadIdRouteImport;
-      parentRoute: typeof AuthedMemberDoneRoute;
-    };
-    "/_authed/_member/drafts/$threadId": {
-      id: "/_authed/_member/drafts/$threadId";
-      path: "/$threadId";
-      fullPath: "/drafts/$threadId";
-      preLoaderRoute: typeof AuthedMemberDraftsThreadIdRouteImport;
-      parentRoute: typeof AuthedMemberDraftsRoute;
-    };
-    "/_authed/_member/files/": {
-      id: "/_authed/_member/files/";
+    "/_authed/$workspace/files/": {
+      id: "/_authed/$workspace/files/";
       path: "/files";
-      fullPath: "/files/";
-      preLoaderRoute: typeof AuthedMemberFilesIndexRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
+      fullPath: "/$workspace/files/";
+      preLoaderRoute: typeof AuthedWorkspaceFilesIndexRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/files/shared-with-me": {
-      id: "/_authed/_member/files/shared-with-me";
+    "/_authed/$workspace/files/shared-with-me": {
+      id: "/_authed/$workspace/files/shared-with-me";
       path: "/files/shared-with-me";
-      fullPath: "/files/shared-with-me";
-      preLoaderRoute: typeof AuthedMemberFilesSharedWithMeRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
+      fullPath: "/$workspace/files/shared-with-me";
+      preLoaderRoute: typeof AuthedWorkspaceFilesSharedWithMeRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/files/trash": {
-      id: "/_authed/_member/files/trash";
+    "/_authed/$workspace/files/trash": {
+      id: "/_authed/$workspace/files/trash";
       path: "/files/trash";
-      fullPath: "/files/trash";
-      preLoaderRoute: typeof AuthedMemberFilesTrashRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
+      fullPath: "/$workspace/files/trash";
+      preLoaderRoute: typeof AuthedWorkspaceFilesTrashRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/inbox/$threadId": {
-      id: "/_authed/_member/inbox/$threadId";
-      path: "/$threadId";
-      fullPath: "/inbox/$threadId";
-      preLoaderRoute: typeof AuthedMemberInboxThreadIdRouteImport;
-      parentRoute: typeof AuthedMemberInboxRoute;
+    "/_authed/$workspace/mail/all": {
+      id: "/_authed/$workspace/mail/all";
+      path: "/mail/all";
+      fullPath: "/$workspace/mail/all";
+      preLoaderRoute: typeof AuthedWorkspaceMailAllRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/later/$threadId": {
-      id: "/_authed/_member/later/$threadId";
-      path: "/$threadId";
-      fullPath: "/later/$threadId";
-      preLoaderRoute: typeof AuthedMemberLaterThreadIdRouteImport;
-      parentRoute: typeof AuthedMemberLaterRoute;
+    "/_authed/$workspace/mail/archive": {
+      id: "/_authed/$workspace/mail/archive";
+      path: "/mail/archive";
+      fullPath: "/$workspace/mail/archive";
+      preLoaderRoute: typeof AuthedWorkspaceMailArchiveRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/search/$threadId": {
-      id: "/_authed/_member/search/$threadId";
-      path: "/$threadId";
-      fullPath: "/search/$threadId";
-      preLoaderRoute: typeof AuthedMemberSearchThreadIdRouteImport;
-      parentRoute: typeof AuthedMemberSearchRoute;
+    "/_authed/$workspace/mail/compose": {
+      id: "/_authed/$workspace/mail/compose";
+      path: "/mail/compose";
+      fullPath: "/$workspace/mail/compose";
+      preLoaderRoute: typeof AuthedWorkspaceMailComposeRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/sent/$threadId": {
-      id: "/_authed/_member/sent/$threadId";
-      path: "/$threadId";
-      fullPath: "/sent/$threadId";
-      preLoaderRoute: typeof AuthedMemberSentThreadIdRouteImport;
-      parentRoute: typeof AuthedMemberSentRoute;
+    "/_authed/$workspace/mail/done": {
+      id: "/_authed/$workspace/mail/done";
+      path: "/mail/done";
+      fullPath: "/$workspace/mail/done";
+      preLoaderRoute: typeof AuthedWorkspaceMailDoneRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/settings/": {
-      id: "/_authed/_member/settings/";
+    "/_authed/$workspace/mail/drafts": {
+      id: "/_authed/$workspace/mail/drafts";
+      path: "/mail/drafts";
+      fullPath: "/$workspace/mail/drafts";
+      preLoaderRoute: typeof AuthedWorkspaceMailDraftsRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
+    };
+    "/_authed/$workspace/mail/inbox": {
+      id: "/_authed/$workspace/mail/inbox";
+      path: "/mail/inbox";
+      fullPath: "/$workspace/mail/inbox";
+      preLoaderRoute: typeof AuthedWorkspaceMailInboxRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
+    };
+    "/_authed/$workspace/mail/later": {
+      id: "/_authed/$workspace/mail/later";
+      path: "/mail/later";
+      fullPath: "/$workspace/mail/later";
+      preLoaderRoute: typeof AuthedWorkspaceMailLaterRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
+    };
+    "/_authed/$workspace/mail/search": {
+      id: "/_authed/$workspace/mail/search";
+      path: "/mail/search";
+      fullPath: "/$workspace/mail/search";
+      preLoaderRoute: typeof AuthedWorkspaceMailSearchRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
+    };
+    "/_authed/$workspace/mail/sent": {
+      id: "/_authed/$workspace/mail/sent";
+      path: "/mail/sent";
+      fullPath: "/$workspace/mail/sent";
+      preLoaderRoute: typeof AuthedWorkspaceMailSentRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
+    };
+    "/_authed/$workspace/mail/spam": {
+      id: "/_authed/$workspace/mail/spam";
+      path: "/mail/spam";
+      fullPath: "/$workspace/mail/spam";
+      preLoaderRoute: typeof AuthedWorkspaceMailSpamRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
+    };
+    "/_authed/$workspace/mail/trash": {
+      id: "/_authed/$workspace/mail/trash";
+      path: "/mail/trash";
+      fullPath: "/$workspace/mail/trash";
+      preLoaderRoute: typeof AuthedWorkspaceMailTrashRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
+    };
+    "/_authed/$workspace/settings/": {
+      id: "/_authed/$workspace/settings/";
       path: "/settings";
-      fullPath: "/settings/";
-      preLoaderRoute: typeof AuthedMemberSettingsIndexRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
+      fullPath: "/$workspace/settings/";
+      preLoaderRoute: typeof AuthedWorkspaceSettingsIndexRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/settings/$page": {
-      id: "/_authed/_member/settings/$page";
+    "/_authed/$workspace/settings/$page": {
+      id: "/_authed/$workspace/settings/$page";
       path: "/settings/$page";
-      fullPath: "/settings/$page";
-      preLoaderRoute: typeof AuthedMemberSettingsPageRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
-    };
-    "/_authed/_member/spam/$threadId": {
-      id: "/_authed/_member/spam/$threadId";
-      path: "/$threadId";
-      fullPath: "/spam/$threadId";
-      preLoaderRoute: typeof AuthedMemberSpamThreadIdRouteImport;
-      parentRoute: typeof AuthedMemberSpamRoute;
-    };
-    "/_authed/_member/trash/$threadId": {
-      id: "/_authed/_member/trash/$threadId";
-      path: "/$threadId";
-      fullPath: "/trash/$threadId";
-      preLoaderRoute: typeof AuthedMemberTrashThreadIdRouteImport;
-      parentRoute: typeof AuthedMemberTrashRoute;
+      fullPath: "/$workspace/settings/$page";
+      preLoaderRoute: typeof AuthedWorkspaceSettingsPageRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
     "/_authed/settings/emails/verify": {
       id: "/_authed/settings/emails/verify";
@@ -888,268 +854,375 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedSettingsEmailsVerifyRouteImport;
       parentRoute: typeof AuthedRoute;
     };
-    "/_authed/_member/crm/companies/": {
-      id: "/_authed/_member/crm/companies/";
+    "/_authed/$workspace/crm/companies/": {
+      id: "/_authed/$workspace/crm/companies/";
       path: "/companies";
-      fullPath: "/crm/companies/";
-      preLoaderRoute: typeof AuthedMemberCrmCompaniesIndexRouteImport;
-      parentRoute: typeof AuthedMemberCrmRoute;
+      fullPath: "/$workspace/crm/companies/";
+      preLoaderRoute: typeof AuthedWorkspaceCrmCompaniesIndexRouteImport;
+      parentRoute: typeof AuthedWorkspaceCrmRoute;
     };
-    "/_authed/_member/crm/companies/$id": {
-      id: "/_authed/_member/crm/companies/$id";
+    "/_authed/$workspace/crm/companies/$id": {
+      id: "/_authed/$workspace/crm/companies/$id";
       path: "/companies/$id";
-      fullPath: "/crm/companies/$id";
-      preLoaderRoute: typeof AuthedMemberCrmCompaniesIdRouteImport;
-      parentRoute: typeof AuthedMemberCrmRoute;
+      fullPath: "/$workspace/crm/companies/$id";
+      preLoaderRoute: typeof AuthedWorkspaceCrmCompaniesIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceCrmRoute;
     };
-    "/_authed/_member/crm/deals/": {
-      id: "/_authed/_member/crm/deals/";
+    "/_authed/$workspace/crm/deals/": {
+      id: "/_authed/$workspace/crm/deals/";
       path: "/deals";
-      fullPath: "/crm/deals/";
-      preLoaderRoute: typeof AuthedMemberCrmDealsIndexRouteImport;
-      parentRoute: typeof AuthedMemberCrmRoute;
+      fullPath: "/$workspace/crm/deals/";
+      preLoaderRoute: typeof AuthedWorkspaceCrmDealsIndexRouteImport;
+      parentRoute: typeof AuthedWorkspaceCrmRoute;
     };
-    "/_authed/_member/crm/deals/$id": {
-      id: "/_authed/_member/crm/deals/$id";
+    "/_authed/$workspace/crm/deals/$id": {
+      id: "/_authed/$workspace/crm/deals/$id";
       path: "/deals/$id";
-      fullPath: "/crm/deals/$id";
-      preLoaderRoute: typeof AuthedMemberCrmDealsIdRouteImport;
-      parentRoute: typeof AuthedMemberCrmRoute;
+      fullPath: "/$workspace/crm/deals/$id";
+      preLoaderRoute: typeof AuthedWorkspaceCrmDealsIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceCrmRoute;
     };
-    "/_authed/_member/crm/people/": {
-      id: "/_authed/_member/crm/people/";
+    "/_authed/$workspace/crm/people/": {
+      id: "/_authed/$workspace/crm/people/";
       path: "/people";
-      fullPath: "/crm/people/";
-      preLoaderRoute: typeof AuthedMemberCrmPeopleIndexRouteImport;
-      parentRoute: typeof AuthedMemberCrmRoute;
+      fullPath: "/$workspace/crm/people/";
+      preLoaderRoute: typeof AuthedWorkspaceCrmPeopleIndexRouteImport;
+      parentRoute: typeof AuthedWorkspaceCrmRoute;
     };
-    "/_authed/_member/crm/people/$id": {
-      id: "/_authed/_member/crm/people/$id";
+    "/_authed/$workspace/crm/people/$id": {
+      id: "/_authed/$workspace/crm/people/$id";
       path: "/people/$id";
-      fullPath: "/crm/people/$id";
-      preLoaderRoute: typeof AuthedMemberCrmPeopleIdRouteImport;
-      parentRoute: typeof AuthedMemberCrmRoute;
+      fullPath: "/$workspace/crm/people/$id";
+      preLoaderRoute: typeof AuthedWorkspaceCrmPeopleIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceCrmRoute;
     };
-    "/_authed/_member/files/my/": {
-      id: "/_authed/_member/files/my/";
+    "/_authed/$workspace/files/my/": {
+      id: "/_authed/$workspace/files/my/";
       path: "/files/my";
-      fullPath: "/files/my/";
-      preLoaderRoute: typeof AuthedMemberFilesMyIndexRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
+      fullPath: "/$workspace/files/my/";
+      preLoaderRoute: typeof AuthedWorkspaceFilesMyIndexRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/files/my/$folderId": {
-      id: "/_authed/_member/files/my/$folderId";
+    "/_authed/$workspace/files/my/$folderId": {
+      id: "/_authed/$workspace/files/my/$folderId";
       path: "/files/my/$folderId";
-      fullPath: "/files/my/$folderId";
-      preLoaderRoute: typeof AuthedMemberFilesMyFolderIdRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
+      fullPath: "/$workspace/files/my/$folderId";
+      preLoaderRoute: typeof AuthedWorkspaceFilesMyFolderIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/files/shared/": {
-      id: "/_authed/_member/files/shared/";
+    "/_authed/$workspace/files/shared/": {
+      id: "/_authed/$workspace/files/shared/";
       path: "/files/shared";
-      fullPath: "/files/shared/";
-      preLoaderRoute: typeof AuthedMemberFilesSharedIndexRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
+      fullPath: "/$workspace/files/shared/";
+      preLoaderRoute: typeof AuthedWorkspaceFilesSharedIndexRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
     };
-    "/_authed/_member/files/shared/$folderId": {
-      id: "/_authed/_member/files/shared/$folderId";
+    "/_authed/$workspace/files/shared/$folderId": {
+      id: "/_authed/$workspace/files/shared/$folderId";
       path: "/files/shared/$folderId";
-      fullPath: "/files/shared/$folderId";
-      preLoaderRoute: typeof AuthedMemberFilesSharedFolderIdRouteImport;
-      parentRoute: typeof AuthedMemberRoute;
+      fullPath: "/$workspace/files/shared/$folderId";
+      preLoaderRoute: typeof AuthedWorkspaceFilesSharedFolderIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceRoute;
+    };
+    "/_authed/$workspace/mail/all/$threadId": {
+      id: "/_authed/$workspace/mail/all/$threadId";
+      path: "/$threadId";
+      fullPath: "/$workspace/mail/all/$threadId";
+      preLoaderRoute: typeof AuthedWorkspaceMailAllThreadIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceMailAllRoute;
+    };
+    "/_authed/$workspace/mail/archive/$threadId": {
+      id: "/_authed/$workspace/mail/archive/$threadId";
+      path: "/$threadId";
+      fullPath: "/$workspace/mail/archive/$threadId";
+      preLoaderRoute: typeof AuthedWorkspaceMailArchiveThreadIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceMailArchiveRoute;
+    };
+    "/_authed/$workspace/mail/done/$threadId": {
+      id: "/_authed/$workspace/mail/done/$threadId";
+      path: "/$threadId";
+      fullPath: "/$workspace/mail/done/$threadId";
+      preLoaderRoute: typeof AuthedWorkspaceMailDoneThreadIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceMailDoneRoute;
+    };
+    "/_authed/$workspace/mail/drafts/$threadId": {
+      id: "/_authed/$workspace/mail/drafts/$threadId";
+      path: "/$threadId";
+      fullPath: "/$workspace/mail/drafts/$threadId";
+      preLoaderRoute: typeof AuthedWorkspaceMailDraftsThreadIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceMailDraftsRoute;
+    };
+    "/_authed/$workspace/mail/inbox/$threadId": {
+      id: "/_authed/$workspace/mail/inbox/$threadId";
+      path: "/$threadId";
+      fullPath: "/$workspace/mail/inbox/$threadId";
+      preLoaderRoute: typeof AuthedWorkspaceMailInboxThreadIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceMailInboxRoute;
+    };
+    "/_authed/$workspace/mail/later/$threadId": {
+      id: "/_authed/$workspace/mail/later/$threadId";
+      path: "/$threadId";
+      fullPath: "/$workspace/mail/later/$threadId";
+      preLoaderRoute: typeof AuthedWorkspaceMailLaterThreadIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceMailLaterRoute;
+    };
+    "/_authed/$workspace/mail/search/$threadId": {
+      id: "/_authed/$workspace/mail/search/$threadId";
+      path: "/$threadId";
+      fullPath: "/$workspace/mail/search/$threadId";
+      preLoaderRoute: typeof AuthedWorkspaceMailSearchThreadIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceMailSearchRoute;
+    };
+    "/_authed/$workspace/mail/sent/$threadId": {
+      id: "/_authed/$workspace/mail/sent/$threadId";
+      path: "/$threadId";
+      fullPath: "/$workspace/mail/sent/$threadId";
+      preLoaderRoute: typeof AuthedWorkspaceMailSentThreadIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceMailSentRoute;
+    };
+    "/_authed/$workspace/mail/spam/$threadId": {
+      id: "/_authed/$workspace/mail/spam/$threadId";
+      path: "/$threadId";
+      fullPath: "/$workspace/mail/spam/$threadId";
+      preLoaderRoute: typeof AuthedWorkspaceMailSpamThreadIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceMailSpamRoute;
+    };
+    "/_authed/$workspace/mail/trash/$threadId": {
+      id: "/_authed/$workspace/mail/trash/$threadId";
+      path: "/$threadId";
+      fullPath: "/$workspace/mail/trash/$threadId";
+      preLoaderRoute: typeof AuthedWorkspaceMailTrashThreadIdRouteImport;
+      parentRoute: typeof AuthedWorkspaceMailTrashRoute;
     };
   }
 }
 
-interface AuthedMemberAllRouteChildren {
-  AuthedMemberAllThreadIdRoute: typeof AuthedMemberAllThreadIdRoute;
+interface AuthedWorkspaceCrmRouteChildren {
+  AuthedWorkspaceCrmIndexRoute: typeof AuthedWorkspaceCrmIndexRoute;
+  AuthedWorkspaceCrmCompaniesIdRoute: typeof AuthedWorkspaceCrmCompaniesIdRoute;
+  AuthedWorkspaceCrmDealsIdRoute: typeof AuthedWorkspaceCrmDealsIdRoute;
+  AuthedWorkspaceCrmPeopleIdRoute: typeof AuthedWorkspaceCrmPeopleIdRoute;
+  AuthedWorkspaceCrmCompaniesIndexRoute: typeof AuthedWorkspaceCrmCompaniesIndexRoute;
+  AuthedWorkspaceCrmDealsIndexRoute: typeof AuthedWorkspaceCrmDealsIndexRoute;
+  AuthedWorkspaceCrmPeopleIndexRoute: typeof AuthedWorkspaceCrmPeopleIndexRoute;
 }
 
-const AuthedMemberAllRouteChildren: AuthedMemberAllRouteChildren = {
-  AuthedMemberAllThreadIdRoute: AuthedMemberAllThreadIdRoute,
+const AuthedWorkspaceCrmRouteChildren: AuthedWorkspaceCrmRouteChildren = {
+  AuthedWorkspaceCrmIndexRoute: AuthedWorkspaceCrmIndexRoute,
+  AuthedWorkspaceCrmCompaniesIdRoute: AuthedWorkspaceCrmCompaniesIdRoute,
+  AuthedWorkspaceCrmDealsIdRoute: AuthedWorkspaceCrmDealsIdRoute,
+  AuthedWorkspaceCrmPeopleIdRoute: AuthedWorkspaceCrmPeopleIdRoute,
+  AuthedWorkspaceCrmCompaniesIndexRoute: AuthedWorkspaceCrmCompaniesIndexRoute,
+  AuthedWorkspaceCrmDealsIndexRoute: AuthedWorkspaceCrmDealsIndexRoute,
+  AuthedWorkspaceCrmPeopleIndexRoute: AuthedWorkspaceCrmPeopleIndexRoute,
 };
 
-const AuthedMemberAllRouteWithChildren = AuthedMemberAllRoute._addFileChildren(
-  AuthedMemberAllRouteChildren,
-);
+const AuthedWorkspaceCrmRouteWithChildren =
+  AuthedWorkspaceCrmRoute._addFileChildren(AuthedWorkspaceCrmRouteChildren);
 
-interface AuthedMemberArchiveRouteChildren {
-  AuthedMemberArchiveThreadIdRoute: typeof AuthedMemberArchiveThreadIdRoute;
+interface AuthedWorkspaceMailAllRouteChildren {
+  AuthedWorkspaceMailAllThreadIdRoute: typeof AuthedWorkspaceMailAllThreadIdRoute;
 }
 
-const AuthedMemberArchiveRouteChildren: AuthedMemberArchiveRouteChildren = {
-  AuthedMemberArchiveThreadIdRoute: AuthedMemberArchiveThreadIdRoute,
-};
+const AuthedWorkspaceMailAllRouteChildren: AuthedWorkspaceMailAllRouteChildren =
+  {
+    AuthedWorkspaceMailAllThreadIdRoute: AuthedWorkspaceMailAllThreadIdRoute,
+  };
 
-const AuthedMemberArchiveRouteWithChildren =
-  AuthedMemberArchiveRoute._addFileChildren(AuthedMemberArchiveRouteChildren);
+const AuthedWorkspaceMailAllRouteWithChildren =
+  AuthedWorkspaceMailAllRoute._addFileChildren(
+    AuthedWorkspaceMailAllRouteChildren,
+  );
 
-interface AuthedMemberCrmRouteChildren {
-  AuthedMemberCrmIndexRoute: typeof AuthedMemberCrmIndexRoute;
-  AuthedMemberCrmCompaniesIdRoute: typeof AuthedMemberCrmCompaniesIdRoute;
-  AuthedMemberCrmDealsIdRoute: typeof AuthedMemberCrmDealsIdRoute;
-  AuthedMemberCrmPeopleIdRoute: typeof AuthedMemberCrmPeopleIdRoute;
-  AuthedMemberCrmCompaniesIndexRoute: typeof AuthedMemberCrmCompaniesIndexRoute;
-  AuthedMemberCrmDealsIndexRoute: typeof AuthedMemberCrmDealsIndexRoute;
-  AuthedMemberCrmPeopleIndexRoute: typeof AuthedMemberCrmPeopleIndexRoute;
+interface AuthedWorkspaceMailArchiveRouteChildren {
+  AuthedWorkspaceMailArchiveThreadIdRoute: typeof AuthedWorkspaceMailArchiveThreadIdRoute;
 }
 
-const AuthedMemberCrmRouteChildren: AuthedMemberCrmRouteChildren = {
-  AuthedMemberCrmIndexRoute: AuthedMemberCrmIndexRoute,
-  AuthedMemberCrmCompaniesIdRoute: AuthedMemberCrmCompaniesIdRoute,
-  AuthedMemberCrmDealsIdRoute: AuthedMemberCrmDealsIdRoute,
-  AuthedMemberCrmPeopleIdRoute: AuthedMemberCrmPeopleIdRoute,
-  AuthedMemberCrmCompaniesIndexRoute: AuthedMemberCrmCompaniesIndexRoute,
-  AuthedMemberCrmDealsIndexRoute: AuthedMemberCrmDealsIndexRoute,
-  AuthedMemberCrmPeopleIndexRoute: AuthedMemberCrmPeopleIndexRoute,
-};
+const AuthedWorkspaceMailArchiveRouteChildren: AuthedWorkspaceMailArchiveRouteChildren =
+  {
+    AuthedWorkspaceMailArchiveThreadIdRoute:
+      AuthedWorkspaceMailArchiveThreadIdRoute,
+  };
 
-const AuthedMemberCrmRouteWithChildren = AuthedMemberCrmRoute._addFileChildren(
-  AuthedMemberCrmRouteChildren,
-);
+const AuthedWorkspaceMailArchiveRouteWithChildren =
+  AuthedWorkspaceMailArchiveRoute._addFileChildren(
+    AuthedWorkspaceMailArchiveRouteChildren,
+  );
 
-interface AuthedMemberDoneRouteChildren {
-  AuthedMemberDoneThreadIdRoute: typeof AuthedMemberDoneThreadIdRoute;
+interface AuthedWorkspaceMailDoneRouteChildren {
+  AuthedWorkspaceMailDoneThreadIdRoute: typeof AuthedWorkspaceMailDoneThreadIdRoute;
 }
 
-const AuthedMemberDoneRouteChildren: AuthedMemberDoneRouteChildren = {
-  AuthedMemberDoneThreadIdRoute: AuthedMemberDoneThreadIdRoute,
-};
+const AuthedWorkspaceMailDoneRouteChildren: AuthedWorkspaceMailDoneRouteChildren =
+  {
+    AuthedWorkspaceMailDoneThreadIdRoute: AuthedWorkspaceMailDoneThreadIdRoute,
+  };
 
-const AuthedMemberDoneRouteWithChildren =
-  AuthedMemberDoneRoute._addFileChildren(AuthedMemberDoneRouteChildren);
+const AuthedWorkspaceMailDoneRouteWithChildren =
+  AuthedWorkspaceMailDoneRoute._addFileChildren(
+    AuthedWorkspaceMailDoneRouteChildren,
+  );
 
-interface AuthedMemberDraftsRouteChildren {
-  AuthedMemberDraftsThreadIdRoute: typeof AuthedMemberDraftsThreadIdRoute;
+interface AuthedWorkspaceMailDraftsRouteChildren {
+  AuthedWorkspaceMailDraftsThreadIdRoute: typeof AuthedWorkspaceMailDraftsThreadIdRoute;
 }
 
-const AuthedMemberDraftsRouteChildren: AuthedMemberDraftsRouteChildren = {
-  AuthedMemberDraftsThreadIdRoute: AuthedMemberDraftsThreadIdRoute,
-};
+const AuthedWorkspaceMailDraftsRouteChildren: AuthedWorkspaceMailDraftsRouteChildren =
+  {
+    AuthedWorkspaceMailDraftsThreadIdRoute:
+      AuthedWorkspaceMailDraftsThreadIdRoute,
+  };
 
-const AuthedMemberDraftsRouteWithChildren =
-  AuthedMemberDraftsRoute._addFileChildren(AuthedMemberDraftsRouteChildren);
+const AuthedWorkspaceMailDraftsRouteWithChildren =
+  AuthedWorkspaceMailDraftsRoute._addFileChildren(
+    AuthedWorkspaceMailDraftsRouteChildren,
+  );
 
-interface AuthedMemberInboxRouteChildren {
-  AuthedMemberInboxThreadIdRoute: typeof AuthedMemberInboxThreadIdRoute;
+interface AuthedWorkspaceMailInboxRouteChildren {
+  AuthedWorkspaceMailInboxThreadIdRoute: typeof AuthedWorkspaceMailInboxThreadIdRoute;
 }
 
-const AuthedMemberInboxRouteChildren: AuthedMemberInboxRouteChildren = {
-  AuthedMemberInboxThreadIdRoute: AuthedMemberInboxThreadIdRoute,
-};
+const AuthedWorkspaceMailInboxRouteChildren: AuthedWorkspaceMailInboxRouteChildren =
+  {
+    AuthedWorkspaceMailInboxThreadIdRoute:
+      AuthedWorkspaceMailInboxThreadIdRoute,
+  };
 
-const AuthedMemberInboxRouteWithChildren =
-  AuthedMemberInboxRoute._addFileChildren(AuthedMemberInboxRouteChildren);
+const AuthedWorkspaceMailInboxRouteWithChildren =
+  AuthedWorkspaceMailInboxRoute._addFileChildren(
+    AuthedWorkspaceMailInboxRouteChildren,
+  );
 
-interface AuthedMemberLaterRouteChildren {
-  AuthedMemberLaterThreadIdRoute: typeof AuthedMemberLaterThreadIdRoute;
+interface AuthedWorkspaceMailLaterRouteChildren {
+  AuthedWorkspaceMailLaterThreadIdRoute: typeof AuthedWorkspaceMailLaterThreadIdRoute;
 }
 
-const AuthedMemberLaterRouteChildren: AuthedMemberLaterRouteChildren = {
-  AuthedMemberLaterThreadIdRoute: AuthedMemberLaterThreadIdRoute,
-};
+const AuthedWorkspaceMailLaterRouteChildren: AuthedWorkspaceMailLaterRouteChildren =
+  {
+    AuthedWorkspaceMailLaterThreadIdRoute:
+      AuthedWorkspaceMailLaterThreadIdRoute,
+  };
 
-const AuthedMemberLaterRouteWithChildren =
-  AuthedMemberLaterRoute._addFileChildren(AuthedMemberLaterRouteChildren);
+const AuthedWorkspaceMailLaterRouteWithChildren =
+  AuthedWorkspaceMailLaterRoute._addFileChildren(
+    AuthedWorkspaceMailLaterRouteChildren,
+  );
 
-interface AuthedMemberSearchRouteChildren {
-  AuthedMemberSearchThreadIdRoute: typeof AuthedMemberSearchThreadIdRoute;
+interface AuthedWorkspaceMailSearchRouteChildren {
+  AuthedWorkspaceMailSearchThreadIdRoute: typeof AuthedWorkspaceMailSearchThreadIdRoute;
 }
 
-const AuthedMemberSearchRouteChildren: AuthedMemberSearchRouteChildren = {
-  AuthedMemberSearchThreadIdRoute: AuthedMemberSearchThreadIdRoute,
-};
+const AuthedWorkspaceMailSearchRouteChildren: AuthedWorkspaceMailSearchRouteChildren =
+  {
+    AuthedWorkspaceMailSearchThreadIdRoute:
+      AuthedWorkspaceMailSearchThreadIdRoute,
+  };
 
-const AuthedMemberSearchRouteWithChildren =
-  AuthedMemberSearchRoute._addFileChildren(AuthedMemberSearchRouteChildren);
+const AuthedWorkspaceMailSearchRouteWithChildren =
+  AuthedWorkspaceMailSearchRoute._addFileChildren(
+    AuthedWorkspaceMailSearchRouteChildren,
+  );
 
-interface AuthedMemberSentRouteChildren {
-  AuthedMemberSentThreadIdRoute: typeof AuthedMemberSentThreadIdRoute;
+interface AuthedWorkspaceMailSentRouteChildren {
+  AuthedWorkspaceMailSentThreadIdRoute: typeof AuthedWorkspaceMailSentThreadIdRoute;
 }
 
-const AuthedMemberSentRouteChildren: AuthedMemberSentRouteChildren = {
-  AuthedMemberSentThreadIdRoute: AuthedMemberSentThreadIdRoute,
-};
+const AuthedWorkspaceMailSentRouteChildren: AuthedWorkspaceMailSentRouteChildren =
+  {
+    AuthedWorkspaceMailSentThreadIdRoute: AuthedWorkspaceMailSentThreadIdRoute,
+  };
 
-const AuthedMemberSentRouteWithChildren =
-  AuthedMemberSentRoute._addFileChildren(AuthedMemberSentRouteChildren);
+const AuthedWorkspaceMailSentRouteWithChildren =
+  AuthedWorkspaceMailSentRoute._addFileChildren(
+    AuthedWorkspaceMailSentRouteChildren,
+  );
 
-interface AuthedMemberSpamRouteChildren {
-  AuthedMemberSpamThreadIdRoute: typeof AuthedMemberSpamThreadIdRoute;
+interface AuthedWorkspaceMailSpamRouteChildren {
+  AuthedWorkspaceMailSpamThreadIdRoute: typeof AuthedWorkspaceMailSpamThreadIdRoute;
 }
 
-const AuthedMemberSpamRouteChildren: AuthedMemberSpamRouteChildren = {
-  AuthedMemberSpamThreadIdRoute: AuthedMemberSpamThreadIdRoute,
-};
+const AuthedWorkspaceMailSpamRouteChildren: AuthedWorkspaceMailSpamRouteChildren =
+  {
+    AuthedWorkspaceMailSpamThreadIdRoute: AuthedWorkspaceMailSpamThreadIdRoute,
+  };
 
-const AuthedMemberSpamRouteWithChildren =
-  AuthedMemberSpamRoute._addFileChildren(AuthedMemberSpamRouteChildren);
+const AuthedWorkspaceMailSpamRouteWithChildren =
+  AuthedWorkspaceMailSpamRoute._addFileChildren(
+    AuthedWorkspaceMailSpamRouteChildren,
+  );
 
-interface AuthedMemberTrashRouteChildren {
-  AuthedMemberTrashThreadIdRoute: typeof AuthedMemberTrashThreadIdRoute;
+interface AuthedWorkspaceMailTrashRouteChildren {
+  AuthedWorkspaceMailTrashThreadIdRoute: typeof AuthedWorkspaceMailTrashThreadIdRoute;
 }
 
-const AuthedMemberTrashRouteChildren: AuthedMemberTrashRouteChildren = {
-  AuthedMemberTrashThreadIdRoute: AuthedMemberTrashThreadIdRoute,
-};
+const AuthedWorkspaceMailTrashRouteChildren: AuthedWorkspaceMailTrashRouteChildren =
+  {
+    AuthedWorkspaceMailTrashThreadIdRoute:
+      AuthedWorkspaceMailTrashThreadIdRoute,
+  };
 
-const AuthedMemberTrashRouteWithChildren =
-  AuthedMemberTrashRoute._addFileChildren(AuthedMemberTrashRouteChildren);
+const AuthedWorkspaceMailTrashRouteWithChildren =
+  AuthedWorkspaceMailTrashRoute._addFileChildren(
+    AuthedWorkspaceMailTrashRouteChildren,
+  );
 
-interface AuthedMemberRouteChildren {
-  AuthedMemberAllRoute: typeof AuthedMemberAllRouteWithChildren;
-  AuthedMemberArchiveRoute: typeof AuthedMemberArchiveRouteWithChildren;
-  AuthedMemberComposeRoute: typeof AuthedMemberComposeRoute;
-  AuthedMemberCrmRoute: typeof AuthedMemberCrmRouteWithChildren;
-  AuthedMemberDoneRoute: typeof AuthedMemberDoneRouteWithChildren;
-  AuthedMemberDraftsRoute: typeof AuthedMemberDraftsRouteWithChildren;
-  AuthedMemberInboxRoute: typeof AuthedMemberInboxRouteWithChildren;
-  AuthedMemberLaterRoute: typeof AuthedMemberLaterRouteWithChildren;
-  AuthedMemberSearchRoute: typeof AuthedMemberSearchRouteWithChildren;
-  AuthedMemberSentRoute: typeof AuthedMemberSentRouteWithChildren;
-  AuthedMemberSpamRoute: typeof AuthedMemberSpamRouteWithChildren;
-  AuthedMemberTrashRoute: typeof AuthedMemberTrashRouteWithChildren;
-  AuthedMemberFilesSharedWithMeRoute: typeof AuthedMemberFilesSharedWithMeRoute;
-  AuthedMemberFilesTrashRoute: typeof AuthedMemberFilesTrashRoute;
-  AuthedMemberSettingsPageRoute: typeof AuthedMemberSettingsPageRoute;
-  AuthedMemberFilesIndexRoute: typeof AuthedMemberFilesIndexRoute;
-  AuthedMemberSettingsIndexRoute: typeof AuthedMemberSettingsIndexRoute;
-  AuthedMemberFilesMyFolderIdRoute: typeof AuthedMemberFilesMyFolderIdRoute;
-  AuthedMemberFilesSharedFolderIdRoute: typeof AuthedMemberFilesSharedFolderIdRoute;
-  AuthedMemberFilesMyIndexRoute: typeof AuthedMemberFilesMyIndexRoute;
-  AuthedMemberFilesSharedIndexRoute: typeof AuthedMemberFilesSharedIndexRoute;
+interface AuthedWorkspaceRouteChildren {
+  AuthedWorkspaceSplatRoute: typeof AuthedWorkspaceSplatRoute;
+  AuthedWorkspaceCrmRoute: typeof AuthedWorkspaceCrmRouteWithChildren;
+  AuthedWorkspaceFilesSharedWithMeRoute: typeof AuthedWorkspaceFilesSharedWithMeRoute;
+  AuthedWorkspaceFilesTrashRoute: typeof AuthedWorkspaceFilesTrashRoute;
+  AuthedWorkspaceMailAllRoute: typeof AuthedWorkspaceMailAllRouteWithChildren;
+  AuthedWorkspaceMailArchiveRoute: typeof AuthedWorkspaceMailArchiveRouteWithChildren;
+  AuthedWorkspaceMailComposeRoute: typeof AuthedWorkspaceMailComposeRoute;
+  AuthedWorkspaceMailDoneRoute: typeof AuthedWorkspaceMailDoneRouteWithChildren;
+  AuthedWorkspaceMailDraftsRoute: typeof AuthedWorkspaceMailDraftsRouteWithChildren;
+  AuthedWorkspaceMailInboxRoute: typeof AuthedWorkspaceMailInboxRouteWithChildren;
+  AuthedWorkspaceMailLaterRoute: typeof AuthedWorkspaceMailLaterRouteWithChildren;
+  AuthedWorkspaceMailSearchRoute: typeof AuthedWorkspaceMailSearchRouteWithChildren;
+  AuthedWorkspaceMailSentRoute: typeof AuthedWorkspaceMailSentRouteWithChildren;
+  AuthedWorkspaceMailSpamRoute: typeof AuthedWorkspaceMailSpamRouteWithChildren;
+  AuthedWorkspaceMailTrashRoute: typeof AuthedWorkspaceMailTrashRouteWithChildren;
+  AuthedWorkspaceSettingsPageRoute: typeof AuthedWorkspaceSettingsPageRoute;
+  AuthedWorkspaceFilesIndexRoute: typeof AuthedWorkspaceFilesIndexRoute;
+  AuthedWorkspaceSettingsIndexRoute: typeof AuthedWorkspaceSettingsIndexRoute;
+  AuthedWorkspaceFilesMyFolderIdRoute: typeof AuthedWorkspaceFilesMyFolderIdRoute;
+  AuthedWorkspaceFilesSharedFolderIdRoute: typeof AuthedWorkspaceFilesSharedFolderIdRoute;
+  AuthedWorkspaceFilesMyIndexRoute: typeof AuthedWorkspaceFilesMyIndexRoute;
+  AuthedWorkspaceFilesSharedIndexRoute: typeof AuthedWorkspaceFilesSharedIndexRoute;
 }
 
-const AuthedMemberRouteChildren: AuthedMemberRouteChildren = {
-  AuthedMemberAllRoute: AuthedMemberAllRouteWithChildren,
-  AuthedMemberArchiveRoute: AuthedMemberArchiveRouteWithChildren,
-  AuthedMemberComposeRoute: AuthedMemberComposeRoute,
-  AuthedMemberCrmRoute: AuthedMemberCrmRouteWithChildren,
-  AuthedMemberDoneRoute: AuthedMemberDoneRouteWithChildren,
-  AuthedMemberDraftsRoute: AuthedMemberDraftsRouteWithChildren,
-  AuthedMemberInboxRoute: AuthedMemberInboxRouteWithChildren,
-  AuthedMemberLaterRoute: AuthedMemberLaterRouteWithChildren,
-  AuthedMemberSearchRoute: AuthedMemberSearchRouteWithChildren,
-  AuthedMemberSentRoute: AuthedMemberSentRouteWithChildren,
-  AuthedMemberSpamRoute: AuthedMemberSpamRouteWithChildren,
-  AuthedMemberTrashRoute: AuthedMemberTrashRouteWithChildren,
-  AuthedMemberFilesSharedWithMeRoute: AuthedMemberFilesSharedWithMeRoute,
-  AuthedMemberFilesTrashRoute: AuthedMemberFilesTrashRoute,
-  AuthedMemberSettingsPageRoute: AuthedMemberSettingsPageRoute,
-  AuthedMemberFilesIndexRoute: AuthedMemberFilesIndexRoute,
-  AuthedMemberSettingsIndexRoute: AuthedMemberSettingsIndexRoute,
-  AuthedMemberFilesMyFolderIdRoute: AuthedMemberFilesMyFolderIdRoute,
-  AuthedMemberFilesSharedFolderIdRoute: AuthedMemberFilesSharedFolderIdRoute,
-  AuthedMemberFilesMyIndexRoute: AuthedMemberFilesMyIndexRoute,
-  AuthedMemberFilesSharedIndexRoute: AuthedMemberFilesSharedIndexRoute,
+const AuthedWorkspaceRouteChildren: AuthedWorkspaceRouteChildren = {
+  AuthedWorkspaceSplatRoute: AuthedWorkspaceSplatRoute,
+  AuthedWorkspaceCrmRoute: AuthedWorkspaceCrmRouteWithChildren,
+  AuthedWorkspaceFilesSharedWithMeRoute: AuthedWorkspaceFilesSharedWithMeRoute,
+  AuthedWorkspaceFilesTrashRoute: AuthedWorkspaceFilesTrashRoute,
+  AuthedWorkspaceMailAllRoute: AuthedWorkspaceMailAllRouteWithChildren,
+  AuthedWorkspaceMailArchiveRoute: AuthedWorkspaceMailArchiveRouteWithChildren,
+  AuthedWorkspaceMailComposeRoute: AuthedWorkspaceMailComposeRoute,
+  AuthedWorkspaceMailDoneRoute: AuthedWorkspaceMailDoneRouteWithChildren,
+  AuthedWorkspaceMailDraftsRoute: AuthedWorkspaceMailDraftsRouteWithChildren,
+  AuthedWorkspaceMailInboxRoute: AuthedWorkspaceMailInboxRouteWithChildren,
+  AuthedWorkspaceMailLaterRoute: AuthedWorkspaceMailLaterRouteWithChildren,
+  AuthedWorkspaceMailSearchRoute: AuthedWorkspaceMailSearchRouteWithChildren,
+  AuthedWorkspaceMailSentRoute: AuthedWorkspaceMailSentRouteWithChildren,
+  AuthedWorkspaceMailSpamRoute: AuthedWorkspaceMailSpamRouteWithChildren,
+  AuthedWorkspaceMailTrashRoute: AuthedWorkspaceMailTrashRouteWithChildren,
+  AuthedWorkspaceSettingsPageRoute: AuthedWorkspaceSettingsPageRoute,
+  AuthedWorkspaceFilesIndexRoute: AuthedWorkspaceFilesIndexRoute,
+  AuthedWorkspaceSettingsIndexRoute: AuthedWorkspaceSettingsIndexRoute,
+  AuthedWorkspaceFilesMyFolderIdRoute: AuthedWorkspaceFilesMyFolderIdRoute,
+  AuthedWorkspaceFilesSharedFolderIdRoute:
+    AuthedWorkspaceFilesSharedFolderIdRoute,
+  AuthedWorkspaceFilesMyIndexRoute: AuthedWorkspaceFilesMyIndexRoute,
+  AuthedWorkspaceFilesSharedIndexRoute: AuthedWorkspaceFilesSharedIndexRoute,
 };
 
-const AuthedMemberRouteWithChildren = AuthedMemberRoute._addFileChildren(
-  AuthedMemberRouteChildren,
+const AuthedWorkspaceRouteWithChildren = AuthedWorkspaceRoute._addFileChildren(
+  AuthedWorkspaceRouteChildren,
 );
 
 interface AuthedRouteChildren {
-  AuthedMemberRoute: typeof AuthedMemberRouteWithChildren;
+  AuthedWorkspaceRoute: typeof AuthedWorkspaceRouteWithChildren;
   AuthedJoinRoute: typeof AuthedJoinRoute;
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute;
   AuthedInviteInvitationIdRoute: typeof AuthedInviteInvitationIdRoute;
@@ -1158,7 +1231,7 @@ interface AuthedRouteChildren {
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
-  AuthedMemberRoute: AuthedMemberRouteWithChildren,
+  AuthedWorkspaceRoute: AuthedWorkspaceRouteWithChildren,
   AuthedJoinRoute: AuthedJoinRoute,
   AuthedOnboardingRoute: AuthedOnboardingRoute,
   AuthedInviteInvitationIdRoute: AuthedInviteInvitationIdRoute,

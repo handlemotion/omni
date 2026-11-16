@@ -38,14 +38,15 @@ import { useConnectivity } from "@/hooks/use-connectivity.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { useCounts } from "@/hooks/use-mail.ts";
 import { useMember } from "@/hooks/use-session.ts";
-import { useWorkspaces } from "@/hooks/use-workspaces.ts";
+import { useWorkspaceSlug, useWorkspaces } from "@/hooks/use-workspaces.ts";
+import { workspaceHref } from "@/lib/workspaces.ts";
 
 /** A nav row. No `href`: the frame shows it, but the app has no view for it yet. */
 interface NavItem {
   label: string;
   icon: ReactNode;
   href?: string;
-  /** Path (and lane, for inbox lanes) that marks this row current. */
+  /** Path inside the workspace (and lane, for inbox lanes) that marks this row current. */
   current?: { path: string; lane?: string; exact?: boolean };
   /** Shows the inbox's unread threads at the row's end. */
   unread?: boolean;
@@ -55,31 +56,31 @@ const mail: NavItem[] = [
   {
     label: "Inbox",
     icon: <IconInbox />,
-    href: "/inbox",
-    current: { path: "/inbox" },
+    href: "/mail/inbox",
+    current: { path: "/mail/inbox" },
     unread: true,
   },
-  { label: "Later", icon: <IconClock />, href: "/later", current: { path: "/later" } },
+  { label: "Later", icon: <IconClock />, href: "/mail/later", current: { path: "/mail/later" } },
   {
     label: "Needs reply",
     icon: <IconBubble />,
-    href: "/inbox?lane=needs_reply",
-    current: { path: "/inbox", lane: "needs_reply" },
+    href: "/mail/inbox?lane=needs_reply",
+    current: { path: "/mail/inbox", lane: "needs_reply" },
   },
   {
     label: "Awaiting reply",
     icon: <IconBubbleAnnotation />,
-    href: "/inbox?lane=waiting_on_them",
-    current: { path: "/inbox", lane: "waiting_on_them" },
+    href: "/mail/inbox?lane=waiting_on_them",
+    current: { path: "/mail/inbox", lane: "waiting_on_them" },
   },
 ];
 
 const folders: NavItem[] = [
-  { label: "All mail", icon: <IconEmail />, href: "/all", current: { path: "/all" } },
-  { label: "Drafts", icon: <IconWrite />, href: "/drafts", current: { path: "/drafts" } },
-  { label: "Sent", icon: <IconPaperPlane />, href: "/sent", current: { path: "/sent" } },
-  { label: "Trash", icon: <IconTrash />, href: "/trash", current: { path: "/trash" } },
-  { label: "Spam", icon: <IconWarning />, href: "/spam", current: { path: "/spam" } },
+  { label: "All mail", icon: <IconEmail />, href: "/mail/all", current: { path: "/mail/all" } },
+  { label: "Drafts", icon: <IconWrite />, href: "/mail/drafts", current: { path: "/mail/drafts" } },
+  { label: "Sent", icon: <IconPaperPlane />, href: "/mail/sent", current: { path: "/mail/sent" } },
+  { label: "Trash", icon: <IconTrash />, href: "/mail/trash", current: { path: "/mail/trash" } },
+  { label: "Spam", icon: <IconWarning />, href: "/mail/spam", current: { path: "/mail/spam" } },
 ];
 
 // Figma: Omni, sidebar (node 1:3). One module at a time (ADR 0035), after Skiff: the top row is
@@ -176,19 +177,24 @@ function Group(props: { label: string; items: NavItem[]; mailbox: string | undef
 }
 
 function Items({ items, mailbox }: { items: NavItem[]; mailbox: string | undefined }) {
+  const workspace = useWorkspaceSlug();
   const { pathname } = useLocation();
   const { lane, view } = useSearch({ strict: false }) as { lane?: string; view?: string };
-  const isCurrent = ({ current }: NavItem) =>
-    !!current &&
-    // A helpdesk view lives under /inbox too; its own row is the current one.
-    !view &&
-    (current.exact ? pathname === current.path : pathname.startsWith(current.path)) &&
-    lane === current.lane;
+  const isCurrent = ({ current }: NavItem) => {
+    if (!current) return false;
+    const path = workspaceHref(workspace, current.path);
+    // A helpdesk view lives under /mail/inbox too; its own row is the current one.
+    return (
+      !view &&
+      (current.exact ? pathname === path : pathname.startsWith(path)) &&
+      lane === current.lane
+    );
+  };
 
   return items.map((item) => (
     <SidebarItem
       key={item.label}
-      href={item.href && withMailbox(item.href, mailbox)}
+      href={item.href && workspaceHref(workspace, withMailbox(item.href, mailbox))}
       isCurrent={isCurrent(item)}
     >
       {item.icon}

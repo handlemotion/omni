@@ -4,6 +4,7 @@
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { THUMBNAIL_MAX_BYTES, TEXT_PREVIEW_BYTES } from "./file-kind.ts";
 import { keys } from "./query-keys.ts";
+import { workspaceHeaders } from "./current-workspace.ts";
 
 /** A file as a preview reads it: where its bytes are and which version. */
 export interface PreviewSource {
@@ -26,7 +27,8 @@ async function bytes(url: string, signal: AbortSignal, range?: number) {
   const response = await fetch(url, {
     signal,
     credentials: "same-origin",
-    headers: range ? { range: `bytes=0-${range - 1}` } : {},
+    // The tab's workspace, as every API call names it (ADR 0043).
+    headers: { ...workspaceHeaders(), ...(range ? { range: `bytes=0-${range - 1}` } : {}) },
   });
   if (!response.ok) throw new PreviewError(response.status);
   return response;

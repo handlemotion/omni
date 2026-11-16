@@ -4,6 +4,7 @@
 import { ERROR_FORMAT_HEADER, ERROR_FORMAT_VERSION, toApiError } from "@omni/client";
 import { api, ApiError, call } from "./api.ts";
 import type { StorageNode, StoragePlace } from "./storage.ts";
+import { workspaceHeaders } from "./current-workspace.ts";
 
 /** Parts on their way at once. */
 const PARALLEL_PARTS = 3;
@@ -165,6 +166,9 @@ function putPart(url: string, part: Blob, signal: AbortSignal, onSent: (bytes: n
     };
     xhr.open("PUT", url);
     xhr.setRequestHeader(ERROR_FORMAT_HEADER, ERROR_FORMAT_VERSION);
+    // The tab's workspace, as every API call names it (ADR 0043).
+    for (const [name, value] of Object.entries(workspaceHeaders()))
+      xhr.setRequestHeader(name, value);
     xhr.responseType = "json";
     xhr.upload.addEventListener("progress", (event) => onSent(Math.min(event.loaded, part.size)));
     xhr.addEventListener("load", () =>

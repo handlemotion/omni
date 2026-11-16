@@ -19,9 +19,9 @@ import { useStorageList, useUploads } from "@/hooks/use-storage.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
 import { crmErrorToast } from "./crm-errors.ts";
+import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 const download = (node: StorageNode) => window.location.assign(storageFileUrl(node.id));
-const driveHref = (folderId: string) => `/files/shared/${encodeURIComponent(folderId)}`;
 
 /** Finds or makes the record's folder, then uploads `files` into it. */
 export function useRecordUpload(kind: "companies" | "deals", id: string, folderId: string | null) {
@@ -90,6 +90,9 @@ function Empty(props: { onFiles: (files: File[]) => void }) {
 }
 
 function FolderFiles(props: { folderId: string; name: string; onFiles: (files: File[]) => void }) {
+  const { href: inWorkspace } = useWorkspacePaths();
+  const driveHref = (folderId: string) =>
+    inWorkspace(`/files/shared/${encodeURIComponent(folderId)}`);
   const navigate = useNavigate();
   const list = useStorageList({ parentId: props.folderId });
   if (list.isPending) {

@@ -16,10 +16,10 @@ import {
   SidebarSection,
 } from "@/components/ui/sidebar";
 import { appToast } from "@/components/ui/toast";
-import { useMember, useSetActiveOrganization } from "@/hooks/use-session.ts";
+import { useMember } from "@/hooks/use-session.ts";
 import { rememberAppHref, settingsBackHref } from "@/hooks/use-settings.ts";
-import { useOpenWorkspace } from "@/hooks/use-workspaces.ts";
-import { needsSetup } from "@/lib/onboarding.ts";
+import { useOpenWorkspace, useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
+import { workspaceHref } from "@/lib/workspaces.ts";
 import type { Workspace } from "@/lib/types.ts";
 import { matches, type PageDefinition, useAccountPages, useWorkspacePages } from "./settings-pages";
 
@@ -51,14 +51,15 @@ export function SettingsNav() {
 
 function Group(props: { label: string; pages: PageDefinition[]; switcher?: ReactNode }) {
   const { pathname } = useLocation();
+  const workspace = useWorkspaceSlug();
   return (
     <SidebarSection label={props.label}>
       {props.switcher}
       {props.pages.map((p) => (
         <SidebarItem
           key={p.id}
-          href={`/settings/${p.id}`}
-          isCurrent={pathname === `/settings/${p.id}`}
+          href={workspaceHref(workspace, `/settings/${p.id}`)}
+          isCurrent={pathname === workspaceHref(workspace, `/settings/${p.id}`)}
         >
           {p.icon}
           <SidebarLabel>{p.title}</SidebarLabel>
@@ -76,19 +77,17 @@ function Group(props: { label: string; pages: PageDefinition[]; switcher?: React
  */
 function SettingsWorkspaceSwitcher() {
   const { member } = useMember();
-  const switchTo = useSetActiveOrganization();
   const openWorkspace = useOpenWorkspace();
   const choose = (target: Workspace) => {
     if (target.id === member.orgId) return;
-    if (needsSetup(target)) {
-      openWorkspace.mutate(target);
-      return;
-    }
-    switchTo.mutate(target.id, {
-      onSuccess: () =>
-        rememberAppHref(moduleHome(new URL(settingsBackHref(), window.location.origin).pathname)),
+    const back = moduleHome(
+      new URL(settingsBackHref(), window.location.origin).pathname,
+      target.slug,
+    );
+    openWorkspace.mutate(target, {
+      onSuccess: () => rememberAppHref(back),
       onError: () => appToast.error("The workspace could not be opened."),
     });
   };
-  return <WorkspaceSwitcher onChoose={choose} pending={switchTo.isPending} workspacesOnly />;
+  return <WorkspaceSwitcher onChoose={choose} pending={openWorkspace.isPending} workspacesOnly />;
 }

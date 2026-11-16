@@ -22,7 +22,7 @@ import {
 } from "../lib/storage-sharing.ts";
 import { addUploads, removeUpload, retryUpload, uploadsStore } from "../lib/storage-uploads.ts";
 import { useSession } from "./use-session.ts";
-import { useWorkspaces } from "./use-workspaces.ts";
+import { useCurrentWorkspace } from "./use-workspaces.ts";
 
 /**
  * A folder's contents (a space's root, or a folder by id), folders first. `nodes` is every loaded
@@ -43,8 +43,7 @@ export function useStorageTrash() {
 
 /** True in a company workspace: only those have Shared (a Personal space has My files alone). */
 export function useHasSharedFiles() {
-  const workspaces = useWorkspaces().data;
-  const active = workspaces?.workspaces.find((w) => w.id === workspaces.activeOrganizationId);
+  const active = useCurrentWorkspace();
   return !!active && active.kind !== "personal";
 }
 

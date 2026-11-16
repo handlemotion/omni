@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./errors": "./src/errors.ts"
+    "./errors": "./src/errors.ts",
+    "./headers": "./src/headers.ts"
   },
   "dependencies": {
     "zod": "4.6.7"

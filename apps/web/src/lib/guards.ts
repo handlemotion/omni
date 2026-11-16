@@ -34,8 +34,8 @@ export async function requireMember(client: QueryClient, location: ParsedLocatio
   return { ...session, member: session.member };
 }
 
-const isSettings = (pathname: string) =>
-  pathname === "/settings" || pathname.startsWith("/settings/");
+/** `/<workspace>/settings/…` (ADR 0043). */
+const isSettings = (pathname: string) => pathname.split("/")[2] === "settings";
 
 /**
  * Onboarding is for someone who may create a company, or who is finishing the active one.
@@ -44,7 +44,7 @@ const isSettings = (pathname: string) =>
 export async function requireOnboarding(client: QueryClient) {
   const status = await client.ensureQueryData(onboardingQuery());
   if (status.canCreateOrganization || needsSetup(status.organization)) return status;
-  throw redirect({ to: "/inbox" });
+  throw redirect({ to: "/" });
 }
 
 /** Sends a signed-in member away from the sign-in page. */

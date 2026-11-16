@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "@/components/ui/link";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
+import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 export function FieldRow(props: { label: string; children: ReactNode; htmlFor?: string }) {
   return (
@@ -104,12 +105,13 @@ export function LinkValue(props: {
   to?: { kind: "companies" | "people" | "deals"; id: string; name: string } | null;
   action?: ReactNode;
 }) {
+  const { href: inWorkspace } = useWorkspacePaths();
   return (
     <FieldRow label={props.label}>
       <span className="flex min-w-0 flex-1 items-center gap-1 px-2">
         {props.to ? (
           <Link
-            href={`/crm/${props.to.kind}/${encodeURIComponent(props.to.id)}`}
+            href={inWorkspace(`/crm/${props.to.kind}/${encodeURIComponent(props.to.id)}`)}
             className="truncate text-sm text-foreground underline-offset-2 hover:underline"
           >
             {props.to.name}

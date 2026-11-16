@@ -45,6 +45,7 @@ import {
 import type { Notification } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 import { CountBadge } from "./count-badge";
+import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
 /** The bell: opens and closes the panel, and wears your unread count. */
 export function NotificationsButton() {
@@ -220,6 +221,7 @@ function NotificationList({ unread }: { unread: boolean }) {
     useNotifications({ unread });
   const markRead = useMarkNotificationsRead();
   const router = useRouter();
+  const workspace = useWorkspaceSlug();
   const openSettings = useOpenSettings();
   const hover = useFluidHoverList({
     itemSelector: "[role='row']",
@@ -237,11 +239,11 @@ function NotificationList({ unread }: { unread: boolean }) {
     // In its inbox's list of every conversation, where it is whatever its status.
     void (n.mailboxId
       ? router.navigate({
-          to: "/inbox/$threadId",
-          params: { threadId },
+          to: "/$workspace/mail/inbox/$threadId",
+          params: { workspace, threadId },
           search: { mailbox: n.mailboxId, view: "all" },
         })
-      : router.navigate({ to: "/all/$threadId", params: { threadId } }));
+      : router.navigate({ to: "/$workspace/mail/all/$threadId", params: { workspace, threadId } }));
   };
 
   if (isPending) {

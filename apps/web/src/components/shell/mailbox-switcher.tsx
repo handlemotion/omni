@@ -168,10 +168,8 @@ export function MailboxSwitcher() {
       className={ROW}
       textValue={mailbox.address}
       onAction={() =>
-        openMailbox.mutate(
-          { workspaceId: member.orgId, mailboxId: mailbox.id },
-          { onError: failed },
-        )
+        active &&
+        openMailbox.mutate({ workspace: active, mailboxId: mailbox.id }, { onError: failed })
       }
     >
       <RowBody

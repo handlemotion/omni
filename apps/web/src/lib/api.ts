@@ -3,6 +3,7 @@
 import { createApi, createAuth, toApiError, type ApiErrorInfo } from "@omni/client";
 import { DetailedError, parseResponse, type ClientResponse } from "hono/client";
 import { reportAnswer, reportNoAnswer } from "./connectivity.ts";
+import { workspaceHeaders } from "./current-workspace.ts";
 import { takeStartupResponse } from "./startup-fetch.ts";
 import { tracedFetch } from "./telemetry.ts";
 
@@ -11,6 +12,8 @@ const origin = window.location.origin;
 /** Typed Hono RPC calls: `api.threads.$get({ query })`. Prefer `call()` to unwrap them. */
 export const api = createApi({
   baseUrl: origin,
+  // This tab's workspace (its URL's), not the session's, which every tab shares (ADR 0043).
+  headers: workspaceHeaders,
   fetch: (input, init) => takeStartupResponse(input, init) ?? tracedFetch(input, init),
 });
 

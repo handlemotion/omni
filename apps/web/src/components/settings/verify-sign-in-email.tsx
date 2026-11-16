@@ -21,7 +21,7 @@ export function VerifySignInEmail({ token }: { token: string | undefined }) {
     verify.mutate(token, {
       onSuccess: ({ email }) => {
         appToast.success(`You can now sign in with ${email}`);
-        void navigate({ to: "/settings" });
+        void navigate({ href: "/settings" });
       },
     });
   }, [token, verify, navigate]);
@@ -35,7 +35,7 @@ export function VerifySignInEmail({ token }: { token: string | undefined }) {
           <Heading>{failure ? "Could not add this email" : "Adding your email"}</Heading>
           {failure && <Text>{failure}</Text>}
           {failure && (
-            <Button intent="outline" size="lg" onPress={() => void navigate({ to: "/settings" })}>
+            <Button intent="outline" size="lg" onPress={() => void navigate({ href: "/settings" })}>
               Back to settings
             </Button>
           )}

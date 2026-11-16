@@ -25,6 +25,7 @@ import {
   useListSearch,
   type RecordColumn,
 } from "./record-list.tsx";
+import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 const day = (iso: string | null) => (iso ? DAY.format(new Date(iso)) : null);
 
@@ -110,6 +111,7 @@ const sourceOf = <T,>(query: PagedQuery, rows: T[]) => ({
 });
 
 export function CompaniesPage({ q }: { q: string }) {
+  const { href: inWorkspace } = useWorkspacePaths();
   const search = useListSearch(q);
   const list = useCrmCompanies(q);
   const [adding, setAdding] = useState(false);
@@ -122,7 +124,7 @@ export function CompaniesPage({ q }: { q: string }) {
         source={sourceOf(list, list.companies)}
         columns={COMPANY_COLUMNS}
         mark={(company) => <RecordMark name={company.name} square />}
-        href={(company) => `/crm/companies/${encodeURIComponent(company.id)}`}
+        href={(company) => inWorkspace(`/crm/companies/${encodeURIComponent(company.id)}`)}
         onNew={() => setAdding(true)}
       />
       {adding && <NewCompanyDialog onClose={() => setAdding(false)} />}
@@ -131,6 +133,7 @@ export function CompaniesPage({ q }: { q: string }) {
 }
 
 export function PeoplePage({ q }: { q: string }) {
+  const { href: inWorkspace } = useWorkspacePaths();
   const search = useListSearch(q);
   const list = useCrmPeople(q);
   const [adding, setAdding] = useState(false);
@@ -143,7 +146,7 @@ export function PeoplePage({ q }: { q: string }) {
         source={sourceOf(list, list.people)}
         columns={PEOPLE_COLUMNS}
         mark={(person) => <RecordMark name={person.name} />}
-        href={(person) => `/crm/people/${encodeURIComponent(person.id)}`}
+        href={(person) => inWorkspace(`/crm/people/${encodeURIComponent(person.id)}`)}
         onNew={() => setAdding(true)}
       />
       {adding && <NewPersonDialog onClose={() => setAdding(false)} />}
@@ -155,6 +158,7 @@ export type DealsView = "board" | "list";
 
 /** The deals: the board by stage, or the list. A search shows the list. */
 export function DealsPage({ q, view }: { q: string; view: DealsView }) {
+  const { href: inWorkspace } = useWorkspacePaths();
   const search = useListSearch(q);
   const shown: DealsView = q ? "list" : view;
   const list = useCrmDeals(q, { all: shown === "board" });
@@ -169,7 +173,7 @@ export function DealsPage({ q, view }: { q: string; view: DealsView }) {
         source={sourceOf(list, list.deals)}
         columns={dealColumns(stages)}
         mark={(deal) => <RecordMark name={deal.name} />}
-        href={(deal) => `/crm/deals/${encodeURIComponent(deal.id)}`}
+        href={(deal) => inWorkspace(`/crm/deals/${encodeURIComponent(deal.id)}`)}
         onNew={() => setAdding(true)}
         extra={<ViewToggle view={shown} />}
         replaceBody={shown === "board" ? <DealBoard deals={list.deals} list={list} /> : undefined}

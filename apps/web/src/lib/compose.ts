@@ -8,6 +8,7 @@ import { api, ApiError, call } from "./api.ts";
 import { reportAnswer, reportNoAnswer } from "./connectivity.ts";
 import { addPending, removePending, updatePending } from "./pending.ts";
 import { keys } from "./query-keys.ts";
+import { workspaceHeaders } from "./current-workspace.ts";
 
 export type Upload = InferResponseType<Api["uploads"]["$post"], 201>;
 export type CannedReply = InferResponseType<Api["canned-replies"]["$get"], 200>["replies"][number];
@@ -46,6 +47,9 @@ export function uploadFile(
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url.pathname + url.search);
     xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
+    // The tab's workspace, as every API call names it (ADR 0043).
+    for (const [name, value] of Object.entries(workspaceHeaders()))
+      xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) options.onProgress?.(event.loaded / event.total);
     };

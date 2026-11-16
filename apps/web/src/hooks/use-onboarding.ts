@@ -62,7 +62,7 @@ export function useOnboardingExit() {
   const exit = onboardingExit(status.data, workspaces.data?.workspaces);
   const leave = useMutation({
     mutationFn: async () => {
-      if (exit.kind === "inbox") await navigate({ to: "/inbox" });
+      if (exit.kind === "inbox") await navigate({ to: "/" });
       else if (exit.kind === "workspace") await openWorkspace(client, router, exit.workspace);
       else await signOut(client, router);
     },

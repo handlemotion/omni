@@ -1,4 +1,5 @@
 import { createAuth, usesOAuthProvider, type Auth, type InvitationMessage } from "@omni/auth";
+import { WORKSPACE_HEADER, WORKSPACE_PARAM } from "@omni/contracts/headers";
 import { forUser, isCompany, schema, sessionAccess, type Db } from "@omni/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
@@ -91,7 +92,8 @@ export interface SessionUser {
  * belongs to no organization yet. With `threadId` (thread routes, ADR 0014) it is the user's member
  * in that thread's org when one of their members can see it, so a thread opened from the
  * cross-workspace list reads and changes as that member without switching the active org;
- * otherwise, and without `threadId`, it is the member in the active org (or the user's first org).
+ * otherwise, and without `threadId`, it is the member in the workspace the request names
+ * (`omni-workspace`, ADR 0043), else in the session's active org (or the user's first org).
  * Both lookups run in one round trip.
  */
 export async function resolveSession(
@@ -110,8 +112,12 @@ export async function resolveSession(
   // cached cookie expires every request reads the session from the database again.
   for (const cookie of headers.getSetCookie()) c.header("set-cookie", cookie, { append: true });
   if (!session) return null;
-  const activeOrg = (session.session as { activeOrganizationId?: string | null })
-    .activeOrganizationId;
+  // The workspace the request names (the web app's URL, per tab) wins over the session's, which
+  // every tab shares; a workspace the user is not a member of finds no member (403).
+  const activeOrg =
+    c.req.raw.headers.get(WORKSPACE_HEADER) ||
+    new URL(c.req.raw.url).searchParams.get(WORKSPACE_PARAM) ||
+    (session.session as { activeOrganizationId?: string | null }).activeOrganizationId;
   // A session deleted since its cookie was cached is signed out (ADR 0024).
   const access = await sessionAccess(c.var.db, session.session.id);
   if (!access) return null;
@@ -190,6 +196,9 @@ function memberMiddleware(threadParam?: string) {
       throw new HTTPException(403, { message: "not a member of any organization" });
     c.set("user", resolved.user);
     c.set("member", resolved.member);
+    // Which workspace answered, so a client can tell an answer for another tab's workspace (a
+    // preload sent before it knew its own) from one for its own (ADR 0043).
+    c.header(WORKSPACE_HEADER, resolved.member.orgId);
     await next();
   });
 }

@@ -23,11 +23,13 @@ import { Loader } from "@/components/ui/loader";
 import { useThreads } from "@/hooks/use-mail.ts";
 import { searchQuery } from "@/lib/mail-queries.ts";
 import { senderLabel } from "@/lib/threads.ts";
+import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
+import { workspaceHref } from "@/lib/workspaces.ts";
 
 // Commands and recent threads in one popover anchored to the title-bar field (Vercel's Find as the
 // reference): opening it dims the app and grows the field into the panel, not a centered window.
 // "/" or ⌘K opens it from anywhere. Typing filters fuzzily in the browser (cmdk); "Smart search"
-// asks the server and shows its results in the main list, at `/search?q=`.
+// asks the server and shows its results in the main list, at `/<workspace>/mail/search?q=`.
 
 interface Command {
   id: string;
@@ -37,22 +39,22 @@ interface Command {
 }
 
 const COMMANDS: Command[] = [
-  { id: "compose", title: "Compose", icon: <IconWrite />, href: "/compose" },
-  { id: "inbox", title: "Inbox", icon: <IconInbox />, href: "/inbox" },
-  { id: "later", title: "Later", icon: <IconClock />, href: "/later" },
+  { id: "compose", title: "Compose", icon: <IconWrite />, href: "/mail/compose" },
+  { id: "inbox", title: "Inbox", icon: <IconInbox />, href: "/mail/inbox" },
+  { id: "later", title: "Later", icon: <IconClock />, href: "/mail/later" },
   {
     id: "needs-reply",
     title: "Needs reply",
     icon: <IconBubble />,
-    href: "/inbox?lane=needs_reply",
+    href: "/mail/inbox?lane=needs_reply",
   },
   {
     id: "awaiting-reply",
     title: "Awaiting reply",
     icon: <IconBubbleAnnotation />,
-    href: "/inbox?lane=waiting_on_them",
+    href: "/mail/inbox?lane=waiting_on_them",
   },
-  { id: "all", title: "All mail", icon: <IconEmail />, href: "/all" },
+  { id: "all", title: "All mail", icon: <IconEmail />, href: "/mail/all" },
   { id: "settings", title: "Settings", icon: <IconSettings />, href: "/settings" },
 ];
 
@@ -256,6 +258,7 @@ function SearchPanel({
   seed?: SearchSeed | undefined;
 }) {
   const navigate = useNavigate();
+  const workspace = useWorkspaceSlug();
   const router = useRouter();
   const queryClient = useQueryClient();
   const sweepList = useListSweep();
@@ -281,7 +284,13 @@ function SearchPanel({
     }
     // Together: the band slides down the list, under the popover while it closes.
     onClose();
-    sweepList(() => navigate({ to: "/search", search: { q: query, mailbox } }));
+    sweepList(() =>
+      navigate({
+        to: "/$workspace/mail/search",
+        params: { workspace },
+        search: { q: query, mailbox },
+      }),
+    );
   };
 
   return (
@@ -345,7 +354,7 @@ function SearchPanel({
               keywords={[c.title]}
               icon={c.icon}
               title={c.title}
-              onSelect={() => go(() => router.navigate({ href: c.href }))}
+              onSelect={() => go(() => router.navigate({ href: workspaceHref(workspace, c.href) }))}
             />
           ))}
           {/* Threads only once there's something to match them against. */}
@@ -361,7 +370,12 @@ function SearchPanel({
                   title={thread.subject || "(no subject)"}
                   detail={sender}
                   onSelect={() =>
-                    go(() => navigate({ to: "/inbox/$threadId", params: { threadId: thread.id } }))
+                    go(() =>
+                      navigate({
+                        to: "/$workspace/mail/inbox/$threadId",
+                        params: { workspace, threadId: thread.id },
+                      }),
+                    )
                   }
                 />
               );

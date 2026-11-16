@@ -4,7 +4,6 @@
 // deals. A record's page keeps its list's row current. The tree and the counts read the deals the
 // board loads (one cache), so the sidebar costs no request of its own beyond the first page of
 // companies.
-import { useLocation } from "@tanstack/react-router";
 import { useMemo, type ReactNode } from "react";
 import {
   IconBuildings,
@@ -19,6 +18,7 @@ import { SidebarItem, SidebarLabel, SidebarSection } from "@/components/ui/sideb
 import { useCrmCompanies, useCrmDeals, useCrmStages } from "@/hooks/use-crm.ts";
 import { useSidebarExpanded } from "@/hooks/use-sidebar-expanded.ts";
 import type { CrmCompany, CrmDeal, CrmStageKind } from "@/lib/crm.ts";
+import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 export const CRM_LISTS = {
   companies: { label: "Companies", path: "/crm/companies" },
@@ -45,7 +45,7 @@ const COMPANIES_SHOWN = 12;
 
 /** A nav link that keeps showing `mailbox`, the switcher's choice, for the way back to mail. */
 export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
-  const { pathname } = useLocation();
+  const { place: pathname, href: inWorkspace } = useWorkspacePaths();
   const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
   // Every deal, as the board loads them: the stage counts and the companies' deals.
   const { deals, isPending } = useCrmDeals("", { all: true });
@@ -65,7 +65,7 @@ export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
           return (
             <SidebarItem
               key={path}
-              href={path + search}
+              href={inWorkspace(path + search)}
               isCurrent={pathname === path || pathname.startsWith(`${path}/`)}
             >
               {icon}
@@ -82,6 +82,7 @@ export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
 
 /** The stages in order, each with how many deals sit in it; each leads to the board. */
 function Pipeline(props: { deals: CrmDeal[]; pending: boolean; search: string }) {
+  const { href } = useWorkspacePaths();
   const stages = useCrmStages().data ?? [];
   const counts = useMemo(() => {
     const map = new Map<string, number>();
@@ -94,7 +95,7 @@ function Pipeline(props: { deals: CrmDeal[]; pending: boolean; search: string })
       {stages.map((stage) => (
         <SidebarTreeRow
           key={stage.id}
-          href={CRM_LISTS.deals.path + props.search}
+          href={href(CRM_LISTS.deals.path + props.search)}
           isCurrent={false}
           depth={0}
           icon={STAGE_GLYPH[stage.kind]}
@@ -132,13 +133,13 @@ function Companies(props: { byCompany: Map<string, CrmDeal[]>; search: string })
 
 function Company(props: { company: CrmCompany; deals: CrmDeal[]; search: string }) {
   const { company, deals } = props;
-  const { pathname } = useLocation();
+  const { place: pathname, href: inWorkspace } = useWorkspacePaths();
   const open = useSidebarExpanded("crm", company.id);
   const href = `${CRM_LISTS.companies.path}/${encodeURIComponent(company.id)}`;
   return (
     <>
       <SidebarTreeRow
-        href={href + props.search}
+        href={inWorkspace(href + props.search)}
         isCurrent={pathname === href}
         depth={0}
         icon={<IconBuildings className="size-icon" />}
@@ -152,7 +153,7 @@ function Company(props: { company: CrmCompany; deals: CrmDeal[]; search: string 
           return (
             <SidebarTreeRow
               key={deal.id}
-              href={dealHref + props.search}
+              href={inWorkspace(dealHref + props.search)}
               isCurrent={pathname === dealHref}
               depth={1}
               icon={STAGE_GLYPH[deal.stageKind]}

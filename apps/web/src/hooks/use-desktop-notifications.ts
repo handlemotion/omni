@@ -11,17 +11,22 @@ export {
   setDesktopNotifications,
   useDesktopNotificationState,
 } from "../lib/desktop-notifications.ts";
+import { useWorkspaceSlug } from "./use-workspaces.ts";
 
 export function useDesktopNotifications() {
   const on = useDesktopNotificationState() === "on";
   const navigate = useNavigate();
+  const workspace = useWorkspaceSlug();
   // The unread list refetches when the realtime socket says one arrived.
   const unread = useInfiniteQuery({ ...notificationsQuery({ unread: true }), enabled: on });
   const notify = useMemo(
     () =>
       createNotifier((notice) => {
         if (notice.threadId)
-          void navigate({ to: "/inbox/$threadId", params: { threadId: notice.threadId } });
+          void navigate({
+            to: "/$workspace/mail/inbox/$threadId",
+            params: { workspace, threadId: notice.threadId },
+          });
         else openNotificationsPanel();
       }),
     [navigate],

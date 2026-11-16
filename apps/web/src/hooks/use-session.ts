@@ -13,7 +13,6 @@ import {
   updateNameMutation,
   rejectInvitation,
   sessionQuery,
-  setActiveOrganization,
   signInMethodsQuery,
   signInWithGoogle,
   signInWithMagicLink,
@@ -83,15 +82,6 @@ export function useSignOut() {
 /** Organizations the user belongs to. */
 export function useOrganizations() {
   return useQuery(organizationsQuery());
-}
-
-/** `mutate(organizationId)` switches organization: cache cleared, realtime reconnects. */
-export function useSetActiveOrganization() {
-  const client = useQueryClient();
-  const router = useRouter();
-  return useMutation({
-    mutationFn: (organizationId: string) => setActiveOrganization(client, router, organizationId),
-  });
 }
 
 /** The invitation shown on `/invite/$invitationId`. */

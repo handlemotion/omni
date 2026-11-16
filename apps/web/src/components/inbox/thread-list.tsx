@@ -477,8 +477,8 @@ function RowHover({ children }: { children: ReactNode }) {
 
 // 40px rows (the row's own `h-10` must match) under date headers, measured: the first is shorter
 // than the rest (`DateHeader`). The load-more sentinel takes no space; `loaderSize` 0 keeps the
-// list's end where it was.
-const LIST_LAYOUT = { rowSize: 40, estimatedHeadingSize: 48, loaderSize: 0 };
+// list's end where it was. 2px between rows, so two lit rows (open, checked, hovered) never touch.
+const LIST_LAYOUT = { rowSize: 40, gap: 2, estimatedHeadingSize: 48, loaderSize: 0 };
 
 interface ShortcutsSource {
   view: ThreadView;

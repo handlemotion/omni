@@ -10,6 +10,7 @@ import { fileType } from "@/lib/file-kind.ts";
 import type { StorageNode, StorageSpace } from "@/lib/storage.ts";
 import { FileGlyph } from "./file-glyph.tsx";
 import { SPACE_PATH } from "./storage-nav.tsx";
+import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 /** A level shows this many items; the folder's page has the rest. */
 const SHOWN = 40;
@@ -34,12 +35,12 @@ export function SidebarTree(props: { space: StorageSpace; label: string; search:
 function Folder(props: { node: StorageNode; depth: number; search: string }) {
   const { node, depth } = props;
   const open = useSidebarExpanded("drive", node.id);
-  const { pathname } = useLocation();
+  const { place: pathname, href: inWorkspace } = useWorkspacePaths();
   const href = `${SPACE_PATH[node.space]}/${encodeURIComponent(node.id)}`;
   return (
     <>
       <SidebarTreeRow
-        href={href + props.search}
+        href={inWorkspace(href + props.search)}
         isCurrent={pathname === href}
         depth={depth}
         icon={<FileGlyph kind="folder" className="size-icon" />}
@@ -68,13 +69,14 @@ function Contents(props: { node: StorageNode; depth: number; search: string }) {
 
 function File(props: { node: StorageNode; depth: number; search: string }) {
   const { node } = props;
-  const { pathname, searchStr } = useLocation();
+  const { searchStr } = useLocation();
+  const { place: pathname, href: inWorkspace } = useWorkspacePaths();
   const folder = `${SPACE_PATH[node.space]}${node.parentId ? `/${encodeURIComponent(node.parentId)}` : ""}`;
   const query = new URLSearchParams(props.search);
   query.set("file", node.id);
   return (
     <SidebarTreeRow
-      href={`${folder}?${query}`}
+      href={inWorkspace(`${folder}?${query}`)}
       isCurrent={pathname === folder && new URLSearchParams(searchStr).get("file") === node.id}
       depth={props.depth}
       icon={<FileGlyph kind={fileType(node.name, node.mimeType).kind} className="size-icon" />}

@@ -19,6 +19,9 @@ import {
   type TestDb,
 } from "../../worker/e2e/support.ts";
 
+/** Where a URL is inside its workspace: `/mail/inbox` for `/<slug>/mail/inbox` (ADR 0043). */
+const place = (url: URL | string) => `/${new URL(url).pathname.split("/").slice(2).join("/")}`;
+
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
 let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
@@ -88,7 +91,7 @@ test("someone in no company lands in their Personal space's inbox, not in compan
   // The inbox shell's switcher renders only once the member guards let the page stay (a
   // redirect to setup passes through `/inbox` on its way, so the URL alone proves nothing).
   await page.getByRole("button", { name: /^Switch mailbox/ }).waitFor({ timeout: 15_000 });
-  expect(new URL(page.url()).pathname).toBe("/inbox");
+  expect(place(page.url())).toBe("/mail/inbox");
 });
 
 // Catches: a new Personal space showing an empty list with no way to bring mail in.
@@ -231,7 +234,7 @@ test("signing in with a company's address as an outsider opens a join screen to 
   expect(await acceptJoinRequest(db, { orgId: company.orgId, requestId: request!.id })).toEqual(
     expect.any(String),
   );
-  await page.waitForURL((url) => url.pathname === "/inbox", { timeout: 30_000 });
+  await page.waitForURL((url) => place(url) === "/mail/inbox", { timeout: 30_000 });
   await page.getByRole("button", { name: /^Switch mailbox/ }).waitFor();
 });
 

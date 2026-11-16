@@ -6,9 +6,11 @@ import {
   useInvitation,
   useRejectInvitation,
 } from "../../hooks/use-session.ts";
+import { leaveWorkspace } from "../../lib/current-workspace.ts";
 import { invitationQuery } from "../../lib/org-queries.ts";
 
 export const Route = createFileRoute("/_authed/invite/$invitationId")({
+  beforeLoad: ({ preload }) => leaveWorkspace(preload),
   loader: ({ context, params }) =>
     context.queryClient.ensureQueryData(invitationQuery(params.invitationId)),
   component: Invite,
@@ -28,9 +30,7 @@ function Invite() {
       <pre>{JSON.stringify(invitation.data, null, 2)}</pre>
       <button
         type="button"
-        onClick={() =>
-          accept.mutate(invitationId, { onSuccess: () => void navigate({ to: "/inbox" }) })
-        }
+        onClick={() => accept.mutate(invitationId, { onSuccess: () => void navigate({ to: "/" }) })}
       >
         Accept
       </button>

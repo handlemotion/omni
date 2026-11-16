@@ -24,7 +24,7 @@ export function Join() {
   useEffect(() => {
     if (!status.isError) return;
     client.removeQueries({ queryKey: keys.session() });
-    void navigate({ to: "/inbox" });
+    void navigate({ to: "/" });
   }, [status.isError, client, navigate]);
   const signOut = useSignOut();
   const company = status.data?.company.name ?? "";

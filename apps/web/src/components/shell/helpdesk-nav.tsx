@@ -15,6 +15,8 @@ import {
 import { SidebarItem, SidebarLabel } from "@/components/ui/sidebar";
 import { useConversationCounts } from "@/hooks/use-conversation.ts";
 import type { HelpdeskView } from "@/lib/types.ts";
+import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
+import { workspaceHref } from "@/lib/workspaces.ts";
 
 type NavView = Exclude<HelpdeskView, "all">;
 
@@ -35,9 +37,13 @@ export const viewLabel = (view: HelpdeskView) =>
 /** The shared inbox's Mine row, with its count. */
 export function HelpdeskItems(props: { mailboxId: string }) {
   const counts = useConversationCounts().data?.find((c) => c.mailboxId === props.mailboxId);
+  const workspace = useWorkspaceSlug();
   const { pathname } = useLocation();
   const search = useSearch({ strict: false }) as { mailbox?: string; view?: string; tag?: string };
-  const here = pathname.startsWith("/inbox") && search.mailbox === props.mailboxId && !search.tag;
+  const here =
+    pathname.startsWith(workspaceHref(workspace, "/mail/inbox")) &&
+    search.mailbox === props.mailboxId &&
+    !search.tag;
   return VIEW_NAV.flatMap(({ view, label, icon }) => {
     // The only view mail's own rows don't already cover.
     if (view !== "mine") return [];
@@ -45,7 +51,10 @@ export function HelpdeskItems(props: { mailboxId: string }) {
     return (
       <SidebarItem
         key={view}
-        href={`/inbox?mailbox=${encodeURIComponent(props.mailboxId)}&view=${view}`}
+        href={workspaceHref(
+          workspace,
+          `/mail/inbox?mailbox=${encodeURIComponent(props.mailboxId)}&view=${view}`,
+        )}
         isCurrent={here && search.view === view}
       >
         {icon}

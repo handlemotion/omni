@@ -40,7 +40,7 @@ import { useOnboarding } from "@/hooks/use-onboarding";
 import { useMember, useSignOut } from "@/hooks/use-session.ts";
 import { useOpenSettings } from "@/hooks/use-settings.ts";
 import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
-import { useOpenWorkspace, useWorkspaces } from "@/hooks/use-workspaces.ts";
+import { useOpenWorkspace, useWorkspaceSlug, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { Workspace } from "@/lib/types.ts";
 
 export type ModuleId = "mail" | "files" | "crm";
@@ -50,7 +50,7 @@ interface Module {
   label: string;
   icon: ComponentType<{ className?: string }>;
   /** Where switching to the module lands. */
-  home: "/inbox" | "/files/my" | "/crm/companies";
+  home: "/$workspace/mail/inbox" | "/$workspace/files/my" | "/$workspace/crm/companies";
   /** Its identity colour, as a fill. */
   fill: string;
 }
@@ -59,15 +59,15 @@ const MAIL: Module = {
   id: "mail",
   label: "Mail",
   icon: IconMailFilled,
-  home: "/inbox",
+  home: "/$workspace/mail/inbox",
   fill: "bg-module-mail",
 };
-/** Storage (ADR 0034), called Drive; its paths stay `/files/*`. */
+/** Storage (ADR 0034), called Drive; its paths stay `/<workspace>/files/*`. */
 const DRIVE: Module = {
   id: "files",
   label: "Drive",
   icon: IconFolderFilled,
-  home: "/files/my",
+  home: "/$workspace/files/my",
   fill: "bg-module-drive",
 };
 /** The CRM (ADR 0036, ADR 0039): a company workspace's only; a Personal space has none. */
@@ -75,7 +75,7 @@ const CRM: Module = {
   id: "crm",
   label: "CRM",
   icon: IconHandshakeFilled,
-  home: "/crm/companies",
+  home: "/$workspace/crm/companies",
   fill: "bg-module-crm",
 };
 const MODULES = [MAIL, DRIVE, CRM];
@@ -85,16 +85,17 @@ const under = (pathname: string, root: string) =>
   pathname === root || pathname.startsWith(`${root}/`);
 
 /** The module a path belongs to: Drive's and the CRM's own paths, else Mail (every other shell
- *  route is mail's). */
+ *  route is mail's). Paths are `/<workspace>/<module>/…` (ADR 0043). */
 export function moduleOf(pathname: string): ModuleId {
-  if (under(pathname, "/files")) return "files";
-  if (under(pathname, "/crm")) return "crm";
+  const place = `/${pathname.split("/").slice(2).join("/")}`;
+  if (under(place, "/files")) return "files";
+  if (under(place, "/crm")) return "crm";
   return "mail";
 }
 
-/** Where a module's paths start: Back from settings lands here after a workspace switch. */
-export function moduleHome(pathname: string) {
-  return BY_ID[moduleOf(pathname)].home;
+/** Where a module's paths start in a workspace: Back from settings lands here after a switch. */
+export function moduleHome(pathname: string, workspace: string) {
+  return BY_ID[moduleOf(pathname)].home.replace("$workspace", encodeURIComponent(workspace));
 }
 
 export function useCurrentModule() {
@@ -149,10 +150,15 @@ function Label({ name, current }: { name: string; current: boolean }) {
  */
 export function useOpenModule() {
   const router = useRouter();
+  const workspace = useWorkspaceSlug();
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
   return (id: ModuleId) => {
     const module = BY_ID[id];
-    void router.navigate({ to: module.home, search: mailbox ? { mailbox } : {} });
+    void router.navigate({
+      to: module.home,
+      params: { workspace },
+      search: mailbox ? { mailbox } : {},
+    });
   };
 }
 

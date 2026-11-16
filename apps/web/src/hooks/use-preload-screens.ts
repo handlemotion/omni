@@ -13,7 +13,7 @@ export function usePreloadScreens() {
   useEffect(() => {
     const preload = () => {
       for (const [id, route] of Object.entries(router.routesById)) {
-        if (id.startsWith("/_authed/_member/")) router.loadRouteChunk(route)?.catch(() => {});
+        if (id.startsWith("/_authed/$workspace/")) router.loadRouteChunk(route)?.catch(() => {});
       }
     };
     if (typeof requestIdleCallback === "undefined") {

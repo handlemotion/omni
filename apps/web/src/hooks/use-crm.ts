@@ -31,12 +31,11 @@ import {
   updateDealMutation,
   updatePersonMutation,
 } from "../lib/crm-mutations.ts";
-import { useWorkspaces } from "./use-workspaces.ts";
+import { useCurrentWorkspace } from "./use-workspaces.ts";
 
 /** True in a company workspace: a Personal space has no CRM (`no_crm`). */
 export function useHasCrm() {
-  const workspaces = useWorkspaces().data;
-  const active = workspaces?.workspaces.find((w) => w.id === workspaces.activeOrganizationId);
+  const active = useCurrentWorkspace();
   return !!active && active.kind !== "personal";
 }
 

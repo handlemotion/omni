@@ -17,6 +17,7 @@ import {
 import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
 import { parseMoney } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
+import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
 /** The longest name the API takes. */
 export const NAME_MAX = 500;
@@ -25,6 +26,7 @@ export const NAME_MAX = 500;
 export function NewCompanyDialog({ onClose }: { onClose: () => void }) {
   const create = useCreateCompany();
   const navigate = useNavigate();
+  const workspace = useWorkspaceSlug();
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
   return (
@@ -40,7 +42,10 @@ export function NewCompanyDialog({ onClose }: { onClose: () => void }) {
           { name: name.trim(), ...(domain.trim() ? { domains: [domain.trim()] } : {}) },
           {
             onSuccess: ({ company }) =>
-              void navigate({ to: "/crm/companies/$id", params: { id: company.id } }),
+              void navigate({
+                to: "/$workspace/crm/companies/$id",
+                params: { workspace, id: company.id },
+              }),
             onError: (error) => crmErrorToast(error, "The company was not created"),
           },
         )
@@ -61,6 +66,7 @@ export function NewCompanyDialog({ onClose }: { onClose: () => void }) {
 export function NewPersonDialog(props: { companyId?: string; onClose: () => void }) {
   const create = useCreatePerson();
   const navigate = useNavigate();
+  const workspace = useWorkspaceSlug();
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [companyId, setCompanyId] = useState<string | null>(props.companyId ?? null);
@@ -77,7 +83,10 @@ export function NewPersonDialog(props: { companyId?: string; onClose: () => void
           { name: name.trim(), address: address.trim(), ...(companyId ? { companyId } : {}) },
           {
             onSuccess: ({ person }) =>
-              void navigate({ to: "/crm/people/$id", params: { id: person.id } }),
+              void navigate({
+                to: "/$workspace/crm/people/$id",
+                params: { workspace, id: person.id },
+              }),
             onError: (error) => crmErrorToast(error, "The person was not added"),
           },
         )
@@ -99,6 +108,7 @@ export function NewPersonDialog(props: { companyId?: string; onClose: () => void
 export function NewDealDialog(props: { companyId?: string; onClose: () => void }) {
   const create = useCreateDeal();
   const navigate = useNavigate();
+  const workspace = useWorkspaceSlug();
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
   const [companyId, setCompanyId] = useState<string | null>(props.companyId ?? null);
@@ -120,7 +130,10 @@ export function NewDealDialog(props: { companyId?: string; onClose: () => void }
           },
           {
             onSuccess: ({ deal }) =>
-              void navigate({ to: "/crm/deals/$id", params: { id: deal.id } }),
+              void navigate({
+                to: "/$workspace/crm/deals/$id",
+                params: { workspace, id: deal.id },
+              }),
             onError: (error) => crmErrorToast(error, "The deal was not created"),
           },
         )

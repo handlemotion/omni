@@ -7,6 +7,7 @@ import { openSearch } from "@/components/search/search-popover";
 import { Button } from "@/components/ui/button";
 import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import type { ConversationFilter, HelpdeskView, ThreadFilter, ThreadView } from "@/lib/types.ts";
+import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
 const VIEW_TEXT: Record<ThreadView, { title: string; description?: string }> = {
   inbox: { title: "Inbox zero", description: "You're all caught up. New mail lands here." },
@@ -41,31 +42,48 @@ const LANE_TEXT: Partial<Record<string, { title: string; description: string }>>
 };
 
 const VIEW_PATH = {
-  inbox: "/inbox",
-  later: "/later",
-  done: "/done",
-  archive: "/archive",
-  all: "/all",
-  sent: "/sent",
-  trash: "/trash",
-  spam: "/spam",
+  inbox: "/$workspace/mail/inbox",
+  later: "/$workspace/mail/later",
+  done: "/$workspace/mail/done",
+  archive: "/$workspace/mail/archive",
+  all: "/$workspace/mail/all",
+  sent: "/$workspace/mail/sent",
+  trash: "/$workspace/mail/trash",
+  spam: "/$workspace/mail/spam",
 } as const satisfies Record<ThreadView, string>;
 
 /** An empty thread list (Inbox, Later, Done, Archive, All mail). */
 export function ThreadListEmpty(props: { filter: ThreadFilter }) {
   const navigate = useNavigate();
+  const workspace = useWorkspaceSlug();
   const openCompose = useOpenCompose();
   const { view, mailbox, lane } = props.filter;
   const text = (view === "inbox" && lane && LANE_TEXT[lane]) || VIEW_TEXT[view];
   const filtered = !!(mailbox || lane);
-  const clear = () => void navigate({ to: VIEW_PATH[view], search: {} });
+  const clear = () => void navigate({ to: VIEW_PATH[view], params: { workspace }, search: {} });
   // Where to go next: All mail from the Inbox and Archive, the Inbox from Later and Done.
   const next =
     view === "all"
       ? { label: "Compose", go: openCompose }
       : view === "inbox" || view === "archive"
-        ? { label: "All mail", go: () => void navigate({ to: "/all", search: { mailbox } }) }
-        : { label: "Go to Inbox", go: () => void navigate({ to: "/inbox", search: { mailbox } }) };
+        ? {
+            label: "All mail",
+            go: () =>
+              void navigate({
+                to: "/$workspace/mail/all",
+                params: { workspace },
+                search: { mailbox },
+              }),
+          }
+        : {
+            label: "Go to Inbox",
+            go: () =>
+              void navigate({
+                to: "/$workspace/mail/inbox",
+                params: { workspace },
+                search: { mailbox },
+              }),
+          };
   return (
     <EmptyState
       figure={view === "archive" ? "cabinet" : "drawer"}
@@ -119,6 +137,7 @@ const HELPDESK_TEXT: Record<HelpdeskView, { title: string; description: string }
 /** An empty helpdesk view: clear its tag, or widen to every conversation in the inbox. */
 export function ConversationListEmpty(props: { filter: ConversationFilter }) {
   const navigate = useNavigate();
+  const workspace = useWorkspaceSlug();
   const { mailbox, view, tag } = props.filter;
   const text = HELPDESK_TEXT[view];
   const showAll = view !== "all";
@@ -127,7 +146,13 @@ export function ConversationListEmpty(props: { filter: ConversationFilter }) {
       {tag && (
         <Button
           size="sm"
-          onPress={() => void navigate({ to: "/inbox", search: { mailbox, view } })}
+          onPress={() =>
+            void navigate({
+              to: "/$workspace/mail/inbox",
+              params: { workspace },
+              search: { mailbox, view },
+            })
+          }
         >
           Clear filters
         </Button>
@@ -136,7 +161,13 @@ export function ConversationListEmpty(props: { filter: ConversationFilter }) {
         <Button
           size="sm"
           intent={tag ? "outline" : "primary"}
-          onPress={() => void navigate({ to: "/inbox", search: { mailbox, view: "all" } })}
+          onPress={() =>
+            void navigate({
+              to: "/$workspace/mail/inbox",
+              params: { workspace },
+              search: { mailbox, view: "all" },
+            })
+          }
         >
           All conversations
         </Button>
@@ -148,6 +179,7 @@ export function ConversationListEmpty(props: { filter: ConversationFilter }) {
 /** No search results: change the search, or widen it past one inbox. */
 export function SearchEmpty(props: { q: string; mailbox?: string | undefined }) {
   const navigate = useNavigate();
+  const workspace = useWorkspaceSlug();
   return (
     <EmptyState
       figure="loupe"
@@ -161,7 +193,13 @@ export function SearchEmpty(props: { q: string; mailbox?: string | undefined }) 
         <Button
           size="sm"
           intent="outline"
-          onPress={() => void navigate({ to: "/search", search: { q: props.q } })}
+          onPress={() =>
+            void navigate({
+              to: "/$workspace/mail/search",
+              params: { workspace },
+              search: { q: props.q },
+            })
+          }
         >
           Search all inboxes
         </Button>
@@ -169,7 +207,9 @@ export function SearchEmpty(props: { q: string; mailbox?: string | undefined }) 
         <Button
           size="sm"
           intent="outline"
-          onPress={() => void navigate({ to: "/all", search: {} })}
+          onPress={() =>
+            void navigate({ to: "/$workspace/mail/all", params: { workspace }, search: {} })
+          }
         >
           All mail
         </Button>

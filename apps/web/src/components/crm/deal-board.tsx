@@ -18,6 +18,7 @@ import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { useCrmStages, useMoveDeal } from "@/hooks/use-crm.ts";
 import { formatMoney, type CrmDeal, type CrmStage } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
+import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 /** The drag type a card carries: the deal's id. */
 const DEAL_TYPE = "application/x-omni-deal";
@@ -60,6 +61,7 @@ export function DealBoard(props: {
 }
 
 function Column({ stage, deals }: { stage: CrmStage; deals: CrmDeal[] }) {
+  const { href: inWorkspace } = useWorkspacePaths();
   const dragAndDropHooks = useColumnDragAndDrop(stage, deals);
   const total = sumValues(deals);
   return (
@@ -86,7 +88,7 @@ function Column({ stage, deals }: { stage: CrmStage; deals: CrmDeal[] }) {
           <GridListItem
             id={deal.id}
             textValue={deal.name}
-            href={`/crm/deals/${encodeURIComponent(deal.id)}`}
+            href={inWorkspace(`/crm/deals/${encodeURIComponent(deal.id)}`)}
             className="flex-col items-stretch gap-0.5 rounded-lg border bg-background px-3 py-2.5 shadow-(--shadow-raised) transition-colors duration-150 ease-out hover:border-muted-foreground/30"
           >
             <span className="truncate text-sm">{deal.name}</span>

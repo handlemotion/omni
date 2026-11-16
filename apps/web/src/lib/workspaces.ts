@@ -1,11 +1,14 @@
-// The workspace and account switcher's data (`GET /api/workspaces`) and the moves it makes:
-// open a workspace (onboarding while its setup is unfinished) or one of its mailboxes.
+// The workspace and account switcher's data (`GET /api/workspaces`), entering the workspace a
+// URL names (ADR 0043), and the moves the switcher makes: open a workspace (onboarding while its
+// setup is unfinished) or one of its mailboxes.
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import { api, call } from "./api.ts";
+import { api, auth, call } from "./api.ts";
+import { currentWorkspaceId, setCurrentWorkspaceId } from "./current-workspace.ts";
 import { needsSetup } from "./onboarding.ts";
 import { keys } from "./query-keys.ts";
-import { sessionQuery, setActiveOrganization } from "./session.ts";
-import type { Workspace } from "./types.ts";
+import { authCall, sessionQuery } from "./session.ts";
+import { cancelUploads } from "./storage-uploads.ts";
+import type { Workspace, Workspaces } from "./types.ts";
 
 /**
  * `{ activeOrganizationId, workspaces }`: every org the user belongs to with its setup step and
@@ -19,93 +22,167 @@ export const workspacesQuery = () =>
       call(api.workspaces.$get({ query: { include: "personal" } }, { init: { signal } })),
   });
 
-/** The lists the sidebar links to. Switching mailbox or workspace keeps the one on screen. */
-const LISTS = ["/inbox", "/later", "/done", "/archive", "/all"] as const;
-type ListPath = (typeof LISTS)[number];
-
-/** Files' places a workspace switch keeps: each space's top, never a folder of the one left. */
-const FILE_PLACES = [
-  "/files/my",
-  "/files/shared",
-  "/files/shared-with-me",
-  "/files/trash",
-] as const;
-type FilePlace = (typeof FILE_PLACES)[number];
-
-/** The CRM's lists a workspace switch keeps; a Personal space has none (its guard sends it on). */
-const CRM_PLACES = ["/crm/companies", "/crm/people", "/crm/deals"] as const;
-type CrmPlace = (typeof CRM_PLACES)[number];
-
-/** A router: reruns loaders, and navigates. */
-interface Navigator {
-  invalidate(): Promise<void>;
-  navigate(
-    options:
-      | { to: "/onboarding" }
-      | { to: ListPath | FilePlace | CrmPlace; search?: { mailbox?: string; lane?: string } },
-  ): Promise<void>;
-  state: { location: { pathname: string; search: object } };
+/**
+ * The workspace list, read again when the cached one lacks what is asked for: a workspace made,
+ * joined or renamed since it was read must not send its URL away.
+ */
+export async function workspacesWith(client: QueryClient, has: (data: Workspaces) => boolean) {
+  const cached = await client.ensureQueryData(workspacesQuery());
+  return has(cached) ? cached : client.fetchQuery({ ...workspacesQuery(), staleTime: 0 });
 }
 
 /**
- * Where a workspace switch lands: in Files, the same place at its top (a folder belongs to the
- * workspace left behind; `/files/shared` sends a Personal space on to My files itself), so the
- * module stays; in the CRM, the same list (a record belongs to the workspace left behind);
- * anywhere else, mail's same list.
+ * The workspace a URL's first segment names, by slug. `/inbox` and the other paths from before
+ * workspaces were in the URL name none, so they are sent on under one (`legacyPath`).
+ */
+export function workspaceBySlug(data: Workspaces, slug: string) {
+  return data.workspaces.find((workspace) => workspace.slug === slug);
+}
+
+/** The workspace whose member can open `mailboxId`, if the user has one. */
+export function workspaceOfMailbox(data: Workspaces, mailboxId: string) {
+  return data.workspaces.find((workspace) => workspace.mailboxes.some((m) => m.id === mailboxId));
+}
+
+/** `href` (`/<slug>/…`) with its workspace segment replaced by `slug`. */
+export function inOtherWorkspace(href: string, slug: string) {
+  return href.replace(/^\/[^/?#]*/, `/${encodeURIComponent(slug)}`);
+}
+
+/** The workspace the app opens to: the session's, else the first. */
+export function homeWorkspace(data: Workspaces) {
+  return (
+    data.workspaces.find((workspace) => workspace.id === data.activeOrganizationId) ??
+    data.workspaces[0]
+  );
+}
+
+/** `/<slug>/mail/inbox`: where `/` and a workspace's own root land. */
+export const workspaceHome = (slug: string) => workspaceHref(slug, "/mail/inbox");
+
+const MAIL = new Set(["inbox", "later", "done", "archive", "all", "search", "compose"]);
+const MAIL_MORE = new Set(["drafts", "sent", "spam", "trash"]);
+
+/**
+ * A path from before workspaces were in the URL (`/inbox/<id>`, `/files/my`, `/settings`), put
+ * under `slug`: mail's lists move under `/mail`. Null when `pathname` is no such path.
+ */
+export function legacyPath(slug: string, pathname: string) {
+  const [first = ""] = pathname.split("/").filter(Boolean);
+  const prefix = `/${encodeURIComponent(slug)}`;
+  if (MAIL.has(first) || MAIL_MORE.has(first)) return `${prefix}/mail${pathname}`;
+  if (first === "files" || first === "crm" || first === "settings") return `${prefix}${pathname}`;
+  return null;
+}
+
+/**
+ * Makes `workspace` this tab's: every API call names it, and every workspace query key carries it
+ * (`query-keys.ts`), so nothing cached for another workspace can show here, and coming back to one
+ * is served from its cache. Uploads still running go: they would land in the workspace left. The
+ * session's member is read again for this workspace, and the session's active organization
+ * follows, so the next load's preloads and anything that names no workspace (iOS, Better Auth's
+ * defaults) agree with this tab.
+ */
+export async function enterWorkspace(client: QueryClient, workspace: Pick<Workspace, "id">) {
+  const before = currentWorkspaceId();
+  if (before === workspace.id) return;
+  if (before) await cancelUploads();
+  setCurrentWorkspaceId(workspace.id);
+  const session = await client.ensureQueryData(sessionQuery());
+  // Both at once: the member here, and the session's workspace made this one.
+  await Promise.all([
+    // No member yet counts too: it may be an answer read for another workspace or identity.
+    session &&
+      session.member?.orgId !== workspace.id &&
+      client.fetchQuery({ ...sessionQuery(), staleTime: 0 }),
+    session &&
+      session.session.activeOrganizationId !== workspace.id &&
+      authCall(auth.organization.setActive({ organizationId: workspace.id })).then(() =>
+        // The workspace list says which one is the session's; it is now this one.
+        client.setQueryData<Workspaces>(
+          keys.workspaces(),
+          (data) => data && { ...data, activeOrganizationId: workspace.id },
+        ),
+      ),
+  ]);
+}
+
+/** A router: navigates. */
+interface Navigator {
+  navigate(options: { href: string }): Promise<void>;
+  state: { location: { pathname: string; search: object } };
+}
+
+/** Where the current URL is inside its workspace: `/mail/inbox/<id>` for `/<slug>/mail/inbox/<id>`. */
+export function placeInWorkspace(pathname: string) {
+  return `/${pathname.split("/").slice(2).join("/")}`;
+}
+
+const LISTS = ["/mail/inbox", "/mail/later", "/mail/done", "/mail/archive", "/mail/all"];
+const FILE_PLACES = ["/files/my", "/files/shared", "/files/shared-with-me", "/files/trash"];
+const CRM_PLACES = ["/crm/companies", "/crm/people", "/crm/deals"];
+
+const under = (place: string, path: string) => place === path || place.startsWith(`${path}/`);
+
+/**
+ * Where a workspace switch lands, inside the workspace: in Files, the same place at its top (a
+ * folder belongs to the workspace left behind; `/files/shared` sends a Personal space on to My
+ * files itself); in the CRM, the same list (a record belongs to the workspace left behind); in
+ * settings, the same page; anywhere else, mail's same list.
  */
 function samePlace(router: Navigator) {
-  const { pathname } = router.state.location;
-  if (pathname === "/files" || pathname.startsWith("/files/")) {
-    const place = FILE_PLACES.find((p) => pathname === p || pathname.startsWith(`${p}/`));
-    return { to: place ?? "/files/my", search: {} } as const;
-  }
-  if (pathname === "/crm" || pathname.startsWith("/crm/")) {
-    const place = CRM_PLACES.find((p) => pathname === p || pathname.startsWith(`${p}/`));
-    return { to: place ?? "/crm/companies", search: {} } as const;
-  }
+  const place = placeInWorkspace(router.state.location.pathname);
+  if (under(place, "/files")) return FILE_PLACES.find((p) => under(place, p)) ?? "/files/my";
+  if (under(place, "/crm")) return CRM_PLACES.find((p) => under(place, p)) ?? "/crm/companies";
+  if (under(place, "/settings")) return place;
   return sameList(router, undefined);
 }
 
 /**
- * Where a switch lands: the same list (and Inbox lane) as now, scoped to `mailbox`. An open
- * thread, a shared inbox's helpdesk view and its tag belong to the mailbox left behind, so they
- * go; anywhere that is not a list opens the Inbox.
+ * The same list (and Inbox lane) as now, scoped to `mailbox`. An open thread, a shared inbox's
+ * helpdesk view and its tag belong to the mailbox left behind, so they go; anywhere that is not
+ * a list opens the Inbox.
  */
 function sameList(router: Navigator, mailbox: string | undefined) {
-  const { pathname } = router.state.location;
+  const place = placeInWorkspace(router.state.location.pathname);
   const search = router.state.location.search as { lane?: string; view?: string };
-  const to = LISTS.find((list) => pathname === list || pathname.startsWith(`${list}/`));
-  const lane = to === "/inbox" && !search.view ? search.lane : undefined;
-  return { to: to ?? "/inbox", search: { mailbox, lane } } as const;
+  const list = LISTS.find((l) => under(place, l)) ?? "/mail/inbox";
+  const lane = list === "/mail/inbox" && !search.view ? search.lane : undefined;
+  const query = new URLSearchParams();
+  if (mailbox) query.set("mailbox", mailbox);
+  if (lane) query.set("lane", lane);
+  return query.size ? `${list}?${query}` : list;
 }
 
-/** Makes `orgId` the active organization unless it already is (switching resets the cache). */
-async function activate(client: QueryClient, router: Navigator, orgId: string) {
-  const session = await client.ensureQueryData(sessionQuery());
-  if (session?.member?.orgId !== orgId) await setActiveOrganization(client, router, orgId);
-}
+/** `place` (`/mail/inbox?lane=…`, `/files/my`) inside the workspace with this slug. */
+export const workspaceHref = (slug: string, place: string) =>
+  `/${encodeURIComponent(slug)}${place}`;
+
+const at = (workspace: Pick<Workspace, "slug">, place: string) =>
+  workspaceHref(workspace.slug, place);
 
 /**
- * Switches to the workspace, then opens onboarding if you can finish its setup, else the same
- * place: the same list in mail, the same space in Files.
+ * Opens the workspace: onboarding if you can finish its setup, else the same place in it. Its
+ * route makes it this tab's workspace (`enterWorkspace`).
  */
 export async function openWorkspace(
   client: QueryClient,
   router: Navigator,
-  workspace: Pick<Workspace, "id" | "role" | "setup">,
+  workspace: Pick<Workspace, "id" | "slug" | "role" | "setup">,
 ) {
-  const target = samePlace(router);
-  await activate(client, router, workspace.id);
-  await router.navigate(needsSetup(workspace) ? { to: "/onboarding" } : target);
+  if (needsSetup(workspace)) {
+    // Onboarding works on the session's workspace: make it this one first.
+    await enterWorkspace(client, workspace);
+    await router.navigate({ href: "/onboarding" });
+    return;
+  }
+  await router.navigate({ href: at(workspace, samePlace(router)) });
 }
 
-/** Switches to the mailbox's workspace if needed, then opens the same list for that mailbox. */
+/** Opens the same list for one of the workspace's mailboxes. */
 export async function openMailbox(
-  client: QueryClient,
   router: Navigator,
-  target: { workspaceId: string; mailboxId: string },
+  target: { workspace: Pick<Workspace, "slug">; mailboxId: string },
 ) {
-  const list = sameList(router, target.mailboxId);
-  await activate(client, router, target.workspaceId);
-  await router.navigate(list);
+  await router.navigate({ href: at(target.workspace, sameList(router, target.mailboxId)) });
 }

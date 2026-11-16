@@ -18,6 +18,7 @@ import { FolderCrumbs } from "./folder-crumbs.tsx";
 import { FolderView, type FolderDialog } from "./folder-view.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 import { SPACE_LABEL, SPACE_PATH } from "./storage-nav.tsx";
+import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 const EMPTY = {
   personal: { title: "No files yet", description: "Files you add here are yours alone." },
@@ -28,10 +29,13 @@ const EMPTY = {
 /** A link inside Storage, keeping the mailbox the switcher shows for the way back to mail. */
 function useStorageHref() {
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
+  const { href } = useWorkspacePaths();
   return useCallback(
     (space: StorageSpace, folderId?: string) =>
-      `${SPACE_PATH[space]}${folderId ? `/${encodeURIComponent(folderId)}` : ""}${mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : ""}`,
-    [mailbox],
+      href(
+        `${SPACE_PATH[space]}${folderId ? `/${encodeURIComponent(folderId)}` : ""}${mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : ""}`,
+      ),
+    [mailbox, href],
   );
 }
 

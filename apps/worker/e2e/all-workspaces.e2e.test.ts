@@ -381,3 +381,61 @@ test("a realtime socket opens for any of the user's workspaces, and only for the
   ]);
   southSocket.socket.close();
 });
+
+// Catches: a tab's lists showing another workspace's mail after a second tab switched the
+// session's active workspace (ADR 0043). Each request names its tab's workspace; one the user is
+// not a member of is refused, never answered from the session's.
+test("a request that names its workspace is answered for it, whichever one the session has active", async () => {
+  const { db } = database;
+  const north = await createOrg(db, "north");
+  const south = await createOrg(db, "south");
+  const elsewhere = await createOrg(db, "elsewhere");
+  const zoeNorth = await createMember(db, north.id, "zoe@north.test");
+  const zoeSouth = crypto.randomUUID();
+  await db.insert(schema.members).values({
+    id: zoeSouth,
+    organizationId: south.id,
+    userId: zoeNorth.userId,
+    createdAt: new Date(),
+  });
+  await createMember(db, elsewhere.id, "eve@elsewhere.test");
+  const northBox = await createMailbox(db, north.id, "zoe@north.test", "personal");
+  const southBox = await createMailbox(db, south.id, "help@south.test");
+  await grant(db, north.id, northBox.id, zoeNorth.id);
+  await grant(db, south.id, southBox.id, zoeSouth);
+  const sentAt = new Date("2026-10-01T09:00:00Z");
+  await seedMessage(db, northBox, { subject: "North", fromAddress: "x@c.test", uid: 1, sentAt });
+  await seedMessage(db, southBox, { subject: "South", fromAddress: "x@c.test", uid: 1, sentAt });
+
+  const jar = new CookieJar();
+  await signIn(worker, db, "zoe@north.test", jar);
+  const tab = async (orgId: string, path: string) => {
+    const response = await api(path, jar.header, { headers: { "omni-workspace": orgId } });
+    return { response, answeredFor: response.headers.get("omni-workspace") };
+  };
+  const listed = async (orgId: string) => {
+    const { response, answeredFor } = await tab(orgId, "/threads");
+    expect(response.status).toBe(200);
+    expect(answeredFor).toBe(orgId);
+    return ((await response.json()) as { threads: Row[] }).threads.map((t) => t.subject);
+  };
+
+  // Two tabs, one per workspace, while the session has North active and then South.
+  for (const active of [north.id, south.id]) {
+    await activate(jar, active);
+    expect(await listed(north.id)).toEqual(["North"]);
+    expect(await listed(south.id)).toEqual(["South"]);
+    const me = await tab(south.id, "/me");
+    expect(((await me.response.json()) as { orgId: string }).orgId).toBe(south.id);
+  }
+  // A download or preview the browser loads itself names it in the URL instead.
+  const byUrl = await get<{ threads: Row[] }>(`/threads?workspace=${north.id}`, jar.header);
+  expect(byUrl.threads.map((t) => t.subject)).toEqual(["North"]);
+  // Without either (iOS, old tabs): the session's, as before.
+  expect(await subjects(jar)).toEqual(["South"]);
+
+  // A workspace the user is not a member of: refused, not the session's mail.
+  const foreign = await tab(elsewhere.id, "/threads");
+  expect(foreign.response.status).toBe(403);
+  expect(foreign.answeredFor).toBeNull();
+});
