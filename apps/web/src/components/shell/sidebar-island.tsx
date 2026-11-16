@@ -33,12 +33,11 @@ export function SidebarIsland({ sections }: { sections: ReactNode[] }) {
     <nav
       ref={island}
       aria-label="Navigation"
-      // Balanced between the window's edge and the page: 20px in, and the page's first ink (the
-      // date headers, the checkboxes) 20px after it (the rows' own 20px inset). 56px down: its top
-      // edge on the top of the list's first date header's text (the 48px title row, then that
-      // header; measured).
+      // 17px in, a touch nearer the window's edge than the page's first ink is to it (20px, the
+      // rows' own inset). 51px down: its first button's top (past the 1px border and 4px padding)
+      // on the top of the list's first date header's text, not the island's edge (measured).
       // Never past the window's foot (16px clear of it): a short window scrolls the icons inside.
-      className="fixed start-5 top-14 z-10 flex max-h-[calc(100svh-(--spacing(18)))] flex-col rounded-xl border border-sidebar-border bg-sidebar"
+      className="fixed start-[17px] top-[51px] z-10 flex max-h-[calc(100svh-67px)] flex-col rounded-xl border border-sidebar-border bg-sidebar"
     >
       {/* The sidebar's list, for its one hover highlight; 4px round the 28px icons. */}
       <SidebarContent className="flex-initial gap-1 p-1">
