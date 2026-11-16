@@ -202,25 +202,27 @@ test("the list fills the page until a thread opens beside it, and again once it 
   await row.waitFor();
   const list = page.getByRole("grid");
   const width = async (locator: typeof row) => (await locator.boundingBox())?.width ?? 0;
-  // Alone, the list (and every row in it) runs to the window's edge.
-  const right = async () => {
-    const box = await row.boundingBox();
-    return box ? box.x + box.width : 0;
-  };
+  // Alone, the list (and every row in it) runs to the window's edge, but for the rows' 10px
+  // inset (`mx-2.5`). `gap` is the room past that inset: 0 alone, the reader's width beside it.
+  const INSET = 10;
   const viewport = page.viewportSize()?.width ?? 0;
-  await expect.poll(async () => viewport - (await right())).toBeLessThan(2);
-  expect(Math.abs((await width(row)) - (await width(list)))).toBeLessThan(2);
+  const gap = async () => {
+    const box = await row.boundingBox();
+    return viewport - INSET - (box ? box.x + box.width : 0);
+  };
+  await expect.poll(async () => Math.abs(await gap())).toBeLessThan(2);
+  expect(Math.abs((await width(list)) - (await width(row)) - 2 * INSET)).toBeLessThan(2);
 
   // Open, the thread takes the right of the page; the list keeps the rest.
   await row.click();
   await page.waitForURL((url) => url.pathname.startsWith("/inbox/"));
   await page.getByRole("button", { name: "Reply", exact: true }).last().waitFor();
-  await expect.poll(async () => viewport - (await right())).toBeGreaterThan(400);
+  await expect.poll(gap).toBeGreaterThan(400);
 
   // The top bar's close goes back to the list alone.
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/inbox");
-  await expect.poll(async () => viewport - (await right())).toBeLessThan(2);
+  await expect.poll(async () => Math.abs(await gap())).toBeLessThan(2);
 
   // New mail opens in a dialog over the page and closes back to it.
   await page.getByRole("button", { name: "Compose" }).click();

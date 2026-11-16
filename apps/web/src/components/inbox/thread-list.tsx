@@ -421,7 +421,13 @@ const Rows = memo(function Rows(props: {
         {groups ? (
           <Collection items={groups} dependencies={dependencies}>
             {(group) => (
-              <GridListSection id={group.id} aria-label={group.label} className="divide-y-0">
+              // A section's rows sit a level deeper, in wrappers of their own: those take the
+              // list's width too (see the grid's classes).
+              <GridListSection
+                id={group.id}
+                aria-label={group.label}
+                className="divide-y-0 *:w-full"
+              >
                 <DateHeader
                   label={group.label}
                   count={group.rows.length}

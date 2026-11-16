@@ -451,6 +451,8 @@ export function SidebarItem({
  * A sidebar row that opens a menu (put it first in a `MenuTrigger`): a `SidebarItem`'s box,
  * mark, label and hover highlight, as a button. Open shares the current row's accent fill, as a
  * pressed menu trigger keeps its fill (React Aria holds it pressed while the menu is open).
+ * Focus is a `SidebarItem`'s inset ring: the button's outline sits outside the row, where the
+ * sidebar's scroll container crops it.
  */
 export function SidebarItemTrigger({ className, ...props }: MenuButtonProps) {
   return (
@@ -460,6 +462,7 @@ export function SidebarItemTrigger({ className, ...props }: MenuButtonProps) {
       className={cn(
         "group/sidebar-item h-8 w-full min-w-0 justify-start gap-2.5 rounded-lg px-2 text-start text-sm",
         "aria-expanded:[--btn-bg:var(--sidebar-accent)] aria-expanded:[--btn-overlay:var(--sidebar-accent)] aria-expanded:*:[svg]:text-foreground",
+        "focus-visible:outline-hidden focus-visible:inset-ring focus-visible:inset-ring-sidebar-ring",
         className,
       )}
       {...props}
