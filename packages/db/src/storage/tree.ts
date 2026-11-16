@@ -22,6 +22,7 @@ import {
   STORAGE_MAX_DEPTH,
   subtreeOf,
   toNode,
+  type Drive,
   type NodeRow,
   type StorageListCursor,
   type StorageNode,
@@ -78,7 +79,15 @@ export type RenameResult =
   | Locked
   | VersionConflict
   | { status: "name_taken" };
-export type MoveResult = NodeResult | TooDeep | Locked | VersionConflict | { status: "cycle" };
+export type MoveResult =
+  /** `left`: the drive it moved out of, when it changed drive. */
+  | { status: "ok"; node: StorageNode; left: Drive | null }
+  | NotFound
+  | Forbidden
+  | TooDeep
+  | Locked
+  | VersionConflict
+  | { status: "cycle" };
 export type TrashResult = NodeResult | Locked | VersionConflict;
 export type FileResult = { status: "ok"; file: StorageNode; r2Key: string } | NotFound;
 
@@ -186,7 +195,9 @@ async function moveInto(
     const refusal = await leavingRefusal(tx, door, found);
     if (refusal) return refusal;
   }
-  if (node.parentId === dest.parentId && !crossing) return { status: "ok", node: toNode(node) };
+  if (node.parentId === dest.parentId && !crossing) {
+    return { status: "ok", node: toNode(node), left: null };
+  }
   if (
     node.kind === "folder" &&
     dest.depth + (await folderHeight(tx, node.id)) > STORAGE_MAX_DEPTH
@@ -220,7 +231,7 @@ async function moveInto(
     })
     .where(eq(storageNodes.id, node.id))
     .returning();
-  return moved ? { status: "ok", node: toNode(moved) } : NOT_FOUND;
+  return moved ? { status: "ok", node: toNode(moved), left: crossing ? from : null } : NOT_FOUND;
 }
 
 /** What a member and a grantee can both do, each bounded by their door. */

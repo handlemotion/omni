@@ -292,3 +292,17 @@ pub struct StorageSyncChange {
 
     pub revision: i64,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StorageChangedEvent {
+    pub space: Space,
+
+    #[serde(rename = "type")]
+    pub storage_changed_event_type: Type,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Type {
+    #[serde(rename = "storage.changed")]
+    StorageChanged,
+}

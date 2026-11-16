@@ -4,7 +4,8 @@
 // session cookie. One token spans every workspace the person belongs to (or the one company a
 // scoped session granted), so every route but `drives` names its workspace and acts as the
 // person's member there, checked on each request. The routes the app already has (list, folders,
-// rename, move, trash, uploads, download, usage) are mounted again under `/:orgId`.
+// rename, move, trash, uploads, download, usage) are mounted again under `/:orgId`, beside a
+// realtime socket that says when a drive changed.
 import {
   DESKTOP_CLIENT_ID,
   DESKTOP_REDIRECT_URI,
@@ -27,6 +28,7 @@ import { findMember, type AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { verifyAccessToken } from "../mcp/auth.ts";
 import { checkRateLimit, tooManyRequests } from "../rate-limiter.ts";
+import { MEMBER_HEADER, SYNC_HEADER } from "../realtime.ts";
 import { storageChanges } from "./changes.ts";
 import { wireNode } from "./core.ts";
 import { decodeCursor, encodeCursor, memberStorage, refused } from "./http.ts";
@@ -195,6 +197,22 @@ export const storageSync = new Hono<AppEnv>()
     const view = await memberStorage(c).node(c.req.param("id"));
     if (!view || view.inTrash) return refused(c, "not_found");
     return c.json({ node: wireNode(view.node) } satisfies StorageNodeResponse);
+  })
+
+  /**
+   * The workspace's realtime socket for a provider: `storage.changed` when a drive the member
+   * syncs changes, and nothing else. The token rides the upgrade's `Authorization` header.
+   */
+  .get("/:orgId/realtime", async (c) => {
+    if (c.req.header("upgrade") !== "websocket") {
+      return apiError(c, "upgrade_required", "expected a websocket upgrade");
+    }
+    const { id, orgId } = c.var.member;
+    const headers = new Headers(c.req.raw.headers);
+    headers.set(MEMBER_HEADER, id);
+    headers.set(SYNC_HEADER, "1");
+    const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
+    return stub.fetch(new Request(c.req.raw, { headers }));
   })
 
   .route("/:orgId", storageReads)

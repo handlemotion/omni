@@ -18,6 +18,7 @@ import { inGoodStanding } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { extraGb, storageLimit, wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
+import { announceDrives } from "./announce.ts";
 import { storageChanges } from "./changes.ts";
 import {
   decodeCursor,
@@ -89,6 +90,7 @@ export const storage = new Hono<AppEnv>()
   .post("/nodes/:id/restore", async (c) => {
     const restored = await memberStorage(c).restore(c.req.param("id"));
     if (restored.status !== "ok") return refused(c, restored.status);
+    announceDrives(c, [restored.node]);
     return c.json({ node: wireNode(restored.node) } satisfies StorageNodeResponse);
   })
 
@@ -96,6 +98,7 @@ export const storage = new Hono<AppEnv>()
   .delete("/nodes/:id/lock", async (c) => {
     const unlocked = await memberStorage(c).unlock(c.req.param("id"));
     if (unlocked.status !== "ok") return refused(c, unlocked.status);
+    announceDrives(c, [unlocked.node]);
     return c.json({ node: wireNode(unlocked.node) } satisfies StorageNodeResponse);
   })
 

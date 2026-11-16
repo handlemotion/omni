@@ -181,7 +181,7 @@ test("completing re-checks the limit, so a lowered allowance stores nothing", as
 });
 
 test("purging Trash frees the bytes of everything inside, only once it is 30 days old", async () => {
-  const { org, storage } = await workspace("purge");
+  const { org, member, storage } = await workspace("purge");
   const folder = await addFolder(storage, { space: "personal" }, "Old");
   const inner = await addFolder(storage, { parentId: folder.id }, "Inner");
   const one = await addFile(storage, { parentId: folder.id }, "one.bin", 100);
@@ -221,6 +221,7 @@ test("purging Trash frees the bytes of everything inside, only once it is 30 day
   expect(await storage.deleteForever(recent.id)).toEqual({
     status: "ok",
     r2Keys: [`orgs/${org.id}/${recent.id}`],
+    drive: { orgId: org.id, space: "personal", ownerMemberId: member.id },
   });
   expect((await storageUsageOf(db, org.id)).bytes).toBe(7);
 });

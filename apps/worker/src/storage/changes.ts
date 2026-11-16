@@ -12,6 +12,7 @@ import {
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import { ApiFailure } from "../errors.ts";
+import { announceDrives } from "./announce.ts";
 import { deleteStorageObjects, wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
 import { placeOf, refused, writeDoor } from "./http.ts";
@@ -34,6 +35,7 @@ export const storageChanges = new Hono<AppEnv>()
     const { name, parentId, space } = c.req.valid("json");
     const made = await writeDoor(c).files.createFolder(placeOf({ parentId, space }), name);
     if (made.status !== "ok") return refused(c, made.status);
+    announceDrives(c, [made.node]);
     return c.json({ node: wireNode(made.node) } satisfies StorageNodeResponse, 201);
   })
 
@@ -44,11 +46,16 @@ export const storageChanges = new Hono<AppEnv>()
     const guard = guardOf(c);
     const id = c.req.param("id");
     const { files } = writeDoor(c);
-    const changed =
-      "name" in body
-        ? await files.rename(id, body.name, guard)
-        : await files.move(id, placeOf(body), guard);
+    if ("name" in body) {
+      const renamed = await files.rename(id, body.name, guard);
+      if (renamed.status !== "ok") return refused(c, renamed.status);
+      announceDrives(c, [renamed.node]);
+      return c.json({ node: wireNode(renamed.node) } satisfies StorageNodeResponse);
+    }
+    const changed = await files.move(id, placeOf(body), guard);
     if (changed.status !== "ok") return refused(c, changed.status);
+    // Out of one drive into another: both hear of it.
+    announceDrives(c, [changed.node, changed.left]);
     return c.json({ node: wireNode(changed.node) } satisfies StorageNodeResponse);
   })
 
@@ -66,12 +73,14 @@ export const storageChanges = new Hono<AppEnv>()
       if (!query.forever) {
         const trashed = await files.trash(id, { ifRevision: query.ifRevision });
         if (trashed.status !== "ok") return refused(c, trashed.status);
+        announceDrives(c, [trashed.node]);
         return c.json({ node: wireNode(trashed.node) } satisfies StorageNodeResponse);
       }
       // Trash is its space's members' alone: a grant reaches nothing in it.
       if (!("deleteForever" in files)) return refused(c, "not_found");
       const deleted = await files.deleteForever(id);
       if (deleted.status !== "ok") return refused(c, deleted.status);
+      announceDrives(c, [deleted.drive]);
       await deleteStorageObjects(c.env.STORAGE_BUCKET, deleted.r2Keys, c.var.log);
       return c.body(null, 204);
     },

@@ -1,5 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
-import type { CrmChangedEvent, HelpdeskRealtimeEvent, SlaTarget } from "@omni/contracts";
+import type {
+  CrmChangedEvent,
+  HelpdeskRealtimeEvent,
+  SlaTarget,
+  StorageChangedEvent,
+  StorageSpace,
+} from "@omni/contracts";
 import {
   forMember,
   mailboxAudience,
@@ -15,6 +21,12 @@ import { createLogger } from "./log.ts";
 
 /** Header the Worker sets (never the client) to tell the DO whose socket this is. */
 export const MEMBER_HEADER = "x-omni-member-id";
+/**
+ * Set (by the Worker) on a desktop sync provider's socket: it hears `storage.changed` and nothing
+ * else, since its token reaches Storage alone. Such a socket is tagged `sync:<memberId>`.
+ */
+export const SYNC_HEADER = "x-omni-sync";
+const syncTag = (memberId: string) => `sync:${memberId}`;
 
 export type RealtimeEvent =
   | { type: "changed"; mailboxId: string; threadIds: string[] }
@@ -35,7 +47,7 @@ export type RealtimeEvent =
    */
   | { type: "notification.removed"; threadId: string };
 
-type OutboundEvent = RealtimeEvent | HelpdeskRealtimeEvent | CrmChangedEvent;
+type OutboundEvent = RealtimeEvent | HelpdeskRealtimeEvent | CrmChangedEvent | StorageChangedEvent;
 
 /** What an app sends: this member is viewing or replying in a conversation, or left it. */
 const presenceMessage = z.object({
@@ -66,7 +78,9 @@ export class Realtime extends DurableObject<Env> {
       return new Response("expected a websocket upgrade", { status: 426 });
     }
     const { 0: client, 1: server } = new WebSocketPair();
-    this.ctx.acceptWebSocket(server, [memberId]);
+    this.ctx.acceptWebSocket(server, [
+      request.headers.has(SYNC_HEADER) ? syncTag(memberId) : memberId,
+    ]);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -96,6 +110,28 @@ export class Realtime extends DurableObject<Env> {
   }
 
   /**
+   * Tells whoever sees the drive that it changed: its owner for a My files drive, everyone in the
+   * workspace for Shared. App sockets and sync sockets alike.
+   */
+  async storageChanged(space: StorageSpace, ownerMemberId: string | null) {
+    const sockets =
+      ownerMemberId === null
+        ? this.ctx.getWebSockets()
+        : [
+            ...this.ctx.getWebSockets(ownerMemberId),
+            ...this.ctx.getWebSockets(syncTag(ownerMemberId)),
+          ];
+    const message = JSON.stringify({ type: "storage.changed", space } satisfies OutboundEvent);
+    for (const socket of sockets) {
+      try {
+        socket.send(message);
+      } catch {
+        // Closing; the runtime drops it.
+      }
+    }
+  }
+
+  /**
    * Presence (`{"type":"presence","threadId","state"}`): a socket is in at most one conversation.
    * The DO checks the member can see it, tells everyone else who can, and answers a new viewer
    * with who is already there. Anything else is ignored; "ping" is answered by the auto-response.
@@ -109,7 +145,8 @@ export class Realtime extends DurableObject<Env> {
       return;
     }
     const memberId = this.ctx.getTags(socket)[0];
-    if (!memberId) return;
+    // A sync socket only listens.
+    if (!memberId || memberId.startsWith("sync:")) return;
     const current = presenceOf(socket);
     if (message.state === "left") {
       if (current?.threadId === message.threadId) await this.leave(socket, memberId, current);

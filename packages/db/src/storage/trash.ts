@@ -14,6 +14,7 @@ import {
   orgOfNode,
   pageSize,
   toNode,
+  type Drive,
   type StorageNode,
 } from "./core.ts";
 import { nextRevision } from "./revision.ts";
@@ -43,7 +44,8 @@ export type RestoreResult =
 
 export type DeleteForeverResult =
   /** The rows are gone and the bytes subtracted; the caller now deletes these objects. */
-  | { status: "ok"; r2Keys: string[] }
+  /** `drive`: the one it was deleted from. */
+  | { status: "ok"; r2Keys: string[]; drive: Drive }
   | NotFound
   | Forbidden
   | Locked
@@ -149,7 +151,7 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
         if (!found.node.trashedAt) return { status: "not_trashed" };
         if (!found.access.remove || !(await door.removesWhole(tx, found.node))) return FORBIDDEN;
         const { r2Keys } = await deleteSubtree(tx, orgId, nodeId);
-        return { status: "ok", r2Keys };
+        return { status: "ok", r2Keys, drive: driveOf(found.node) };
       });
     },
   };

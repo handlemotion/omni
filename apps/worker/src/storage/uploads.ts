@@ -23,6 +23,7 @@ import {
   wireUpload,
 } from "./core.ts";
 import { zValidator } from "../validator.ts";
+import { announceDrives } from "./announce.ts";
 import { placeOf, refused, writeDoor } from "./http.ts";
 
 const live = (upload: StorageUpload) => upload.expiresAt > new Date();
@@ -149,6 +150,7 @@ export const storageUploads = new Hono<AppEnv>()
     const { limitBytes } = await storageLimit(db, config, upload.orgId);
     const done = await files.completeUpload(upload.id, { limitBytes });
     if (done.status === "ok") {
+      announceDrives(c, [done.node]);
       return c.json({ node: wireNode(done.node) } satisfies StorageNodeResponse);
     }
     // No file came of it (no room any more, the folder is gone): nothing stays stored. Only an

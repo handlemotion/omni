@@ -265,3 +265,71 @@ test("a cursor behind swept tombstones answers 410; starting over works", async 
   expect(again.status).toBe(200);
   expect((await sync(token, "GET", `/${acme.id}/changes?space=personal`)).status).toBe(200);
 });
+
+/** A provider's realtime socket for the workspace, collecting what arrives. */
+async function listen(token: string, orgId: string) {
+  const url = at(`/api/storage/sync/${orgId}/realtime`);
+  url.protocol = "ws:";
+  // Node's WebSocket (undici) accepts headers: the bearer token, as the desktop shell sends it.
+  const socket = new WebSocket(url, {
+    headers: { authorization: `Bearer ${token}` },
+  } as unknown as string[]);
+  const received: { type: string; space: string }[] = [];
+  socket.addEventListener("message", (e) => received.push(JSON.parse(String(e.data))));
+  await new Promise<void>((resolve, reject) => {
+    socket.addEventListener("open", () => resolve());
+    socket.addEventListener("error", () => reject(new Error("websocket failed to open")));
+  });
+  return {
+    socket,
+    received,
+    /** Waits for an event about `space`, and returns everything heard so far. */
+    async until(space: string) {
+      const deadline = Date.now() + 10_000;
+      while (!received.some((event) => event.space === space)) {
+        if (Date.now() > deadline) throw new Error(`no storage.changed for ${space}`);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      return received.splice(0);
+    },
+  };
+}
+
+// Catches: a write that never tells the provider (it waits for its next poll), a move between
+// drives that names only the drive it entered (the old one keeps the file), and one member's My
+// files changes reaching another member's computer.
+test("a change pings the drives it touched, on the sockets of those who sync them", async () => {
+  const acme = await stack.company(`live-${randomUUID().slice(0, 6)}`);
+  const ana = await stack.member(acme.id);
+  const bo = await stack.member(acme.id);
+  const file = await stack.upload(ana.jar, { space: "personal" }, "plan.txt", bytes("plan"));
+  const bos = await stack.upload(bo.jar, { space: "personal" }, "bo.txt", bytes("bo"));
+  const [anaToken, boToken] = [await connect(ana), await connect(bo)];
+  const [anaHears, boHears] = await Promise.all([
+    listen(anaToken, acme.id),
+    listen(boToken, acme.id),
+  ]);
+
+  // Ana moves her file into Shared: she hears both drives, Bo hears Shared alone.
+  const moved = await sync(anaToken, "PATCH", `/${acme.id}/nodes/${file.id}`, {
+    space: "shared",
+  });
+  expect(moved.status).toBe(200);
+  const forAna = await anaHears.until("personal");
+  if (!forAna.some((event) => event.space === "shared"))
+    forAna.push(...(await anaHears.until("shared")));
+  expect(new Set(forAna.map((event) => event.space))).toEqual(new Set(["personal", "shared"]));
+  expect(forAna.every((event) => event.type === "storage.changed")).toBe(true);
+  expect(await boHears.until("shared")).toEqual([{ type: "storage.changed", space: "shared" }]);
+
+  // Bo renames in his My files: his socket hears it, and Ana's never does (both go out in the
+  // one call that reached Bo's).
+  expect(
+    (await sync(boToken, "PATCH", `/${acme.id}/nodes/${bos.id}`, { name: "b.txt" })).status,
+  ).toBe(200);
+  expect(await boHears.until("personal")).toEqual([{ type: "storage.changed", space: "personal" }]);
+  expect(anaHears.received).toEqual([]);
+
+  anaHears.socket.close();
+  boHears.socket.close();
+});

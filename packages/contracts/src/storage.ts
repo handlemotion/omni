@@ -316,6 +316,15 @@ export const storageRevisionGuardQuerySchema = z.object({
   ifRevision: z.coerce.number().int().nonnegative().optional(),
 });
 
+/**
+ * On the workspace's realtime socket (`GET /sync/:orgId/realtime` for a provider): something in
+ * this drive changed, so read its changes. Sent after the change commits; it names no node.
+ */
+export const storageChangedEventSchema = z.object({
+  type: z.literal("storage.changed"),
+  space: storageSpaceSchema,
+});
+
 /** The schemas the native sync providers are generated from, by the name their type takes. */
 export const STORAGE_SYNC_NATIVE_TYPES = {
   StorageNode: storageNodeSchema,
@@ -333,9 +342,11 @@ export const STORAGE_SYNC_NATIVE_TYPES = {
   StorageSyncDrivesResponse: storageSyncDrivesResponseSchema,
   StorageSyncChange: storageSyncChangeSchema,
   StorageSyncChangesResponse: storageSyncChangesResponseSchema,
+  StorageChangedEvent: storageChangedEventSchema,
 } as const;
 
 export type StorageSpace = z.infer<typeof storageSpaceSchema>;
+export type StorageChangedEvent = z.infer<typeof storageChangedEventSchema>;
 export type StorageNodeKind = z.infer<typeof storageNodeKindSchema>;
 export type StorageRole = z.infer<typeof storageRoleSchema>;
 export type StorageGrantRole = z.infer<typeof storageGrantRoleSchema>;

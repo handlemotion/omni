@@ -19,6 +19,7 @@
 //   let storageSyncDrivesResponse = try StorageSyncDrivesResponse(json)
 //   let storageSyncChange = try StorageSyncChange(json)
 //   let storageSyncChangesResponse = try StorageSyncChangesResponse(json)
+//   let storageChangedEvent = try StorageChangedEvent(json)
 
 //
 // Hashable or Equatable:
@@ -1357,6 +1358,69 @@ public extension StorageSyncChange {
     func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
         return String(data: try self.jsonData(), encoding: encoding)
     }
+}
+
+//
+// Hashable or Equatable:
+// The compiler will not be able to synthesize the implementation of Hashable or Equatable
+// for types that require the use of JSONAny, nor will the implementation of Hashable be
+// synthesized for types that have collections (such as arrays or dictionaries).
+
+// MARK: - StorageChangedEvent
+public struct StorageChangedEvent: Codable, Equatable {
+    public let space: Space
+    public let type: TypeEnum
+
+    public enum CodingKeys: String, CodingKey {
+        case space = "space"
+        case type = "type"
+    }
+
+    public init(space: Space, type: TypeEnum) {
+        self.space = space
+        self.type = type
+    }
+}
+
+// MARK: StorageChangedEvent convenience initializers and mutators
+
+public extension StorageChangedEvent {
+    init(data: Data) throws {
+        self = try newJSONDecoder().decode(StorageChangedEvent.self, from: data)
+    }
+
+    init(_ json: String, using encoding: String.Encoding = .utf8) throws {
+        guard let data = json.data(using: encoding) else {
+            throw NSError(domain: "JSONDecoding", code: 0, userInfo: nil)
+        }
+        try self.init(data: data)
+    }
+
+    init(fromURL url: URL) throws {
+        try self.init(data: try Data(contentsOf: url))
+    }
+
+    func with(
+        space: Space? = nil,
+        type: TypeEnum? = nil
+    ) -> StorageChangedEvent {
+        return StorageChangedEvent(
+            space: space ?? self.space,
+            type: type ?? self.type
+        )
+    }
+
+    func jsonData() throws -> Data {
+        return try newJSONEncoder().encode(self)
+    }
+
+    func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
+        return String(data: try self.jsonData(), encoding: encoding)
+    }
+}
+
+public enum TypeEnum: String, Codable, Equatable {
+    case storageChanged = "storage.changed"
 }
 
 // MARK: - Helper functions for creating encoders and decoders
