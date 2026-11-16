@@ -139,6 +139,7 @@ test("a read-only workspace still reads every CRM route", async () => {
   const queries: Record<string, string> = {
     lookup: "?address=carla@northwind.com",
     search: "?q=car",
+    contracts: `?deal=${deal.deal.id}`,
   };
 
   const reads = [

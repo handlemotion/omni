@@ -7,6 +7,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 import { companies } from "./companies.ts";
+import { contracts } from "./contracts.ts";
 import { deals } from "./deals.ts";
 import { find } from "./find.ts";
 import { notes } from "./notes.ts";
@@ -19,6 +20,7 @@ export const crm = new Hono<AppEnv>()
   .route("/", people)
   .route("/", deals)
   .route("/", pipeline)
+  .route("/", contracts)
   .route("/", notes)
   .route("/", timelines)
   .route("/", find);

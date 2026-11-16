@@ -109,6 +109,11 @@ export const ERROR_CODES = {
   stage_kind_required: spec(409, "conflict"),
   /** Not an ISO 4217 code, or a value with no currency and no workspace default. */
   invalid_currency: spec(400, "validation"),
+  /**
+   * A signed contract keeps its status, its document and its row, and the company or deal that
+   * holds one is not deleted for good.
+   */
+  contract_signed: spec(409, "conflict"),
 } as const satisfies Record<string, ErrorSpec>;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

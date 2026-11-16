@@ -37,6 +37,8 @@ import {
   type CrmDeal,
   type CrmPerson,
 } from "./records.ts";
+import { CONTRACT_SIGNED } from "./contract-status.ts";
+import { holdsSignedContract } from "./contracts.ts";
 import { ensureCrm, firstOpenStage, stageOf } from "./stages.ts";
 import { enterFirstStage, moveDealStage, type StageKind } from "./stage-transition.ts";
 
@@ -387,6 +389,7 @@ export async function archiveDeal(tx: Ex, member: CrmMember, id: string): Promis
 /** Deletes for good with its people links, notes, events and contracts. Owners and admins only. */
 export async function deleteDeal(tx: Ex, member: CrmMember, id: string): Promise<DeleteResult> {
   if (!member.admin) return FORBIDDEN;
+  if (await holdsSignedContract(tx, member.orgId, { dealId: id })) return CONTRACT_SIGNED;
   const deleted = await tx
     .delete(crmDeals)
     .where(and(eq(crmDeals.orgId, member.orgId), eq(crmDeals.id, id)))

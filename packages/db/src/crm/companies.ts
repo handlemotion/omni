@@ -3,6 +3,8 @@
 import { isWebmailDomain } from "@omni/mail-core/addresses";
 import { and, asc, eq, sql, type AnyColumn } from "drizzle-orm";
 import { crmCompanies, crmCompanyDomains, crmDeals, crmPeople, crmStages } from "../schema/crm.ts";
+import { CONTRACT_SIGNED, type ContractSigned } from "./contract-status.ts";
+import { holdsSignedContract } from "./contracts.ts";
 import {
   afterName,
   appendEvent,
@@ -63,7 +65,8 @@ export type CreateCompanyResult =
   | InvalidName
   | DomainRefusal;
 export type UpdateCompanyResult = CompanyResult | InvalidName;
-export type DeleteResult = { status: "ok" } | NotFound | Forbidden;
+/** `contract_signed`: the record holds a signed contract, which must outlive it. */
+export type DeleteResult = { status: "ok" } | NotFound | Forbidden | ContractSigned;
 export type DomainResult = { status: "ok"; domains: string[] } | NotFound | DomainRefusal;
 
 /** Each word must start the name or one of its words. */
@@ -261,6 +264,7 @@ export async function archiveCompany(
  */
 export async function deleteCompany(tx: Ex, member: CrmMember, id: string): Promise<DeleteResult> {
   if (!member.admin) return FORBIDDEN;
+  if (await holdsSignedContract(tx, member.orgId, { companyId: id })) return CONTRACT_SIGNED;
   const deleted = await tx
     .delete(crmCompanies)
     .where(and(eq(crmCompanies.orgId, member.orgId), eq(crmCompanies.id, id)))

@@ -99,6 +99,29 @@ export const crmEventSchema = z.object({
 
 export const crmSettingsSchema = z.object({ defaultCurrency: z.string().nullable() });
 
+/** `draft` → `sent` → `signed` → `ended`; `draft` may go straight to `signed`, `sent` back. */
+export const crmContractStatusSchema = z.enum(["draft", "sent", "signed", "ended"]);
+
+const day = z.iso.date();
+
+export const crmContractSchema = z.object({
+  id,
+  /** At least one of company and deal; a contract on a deal is also on its company. */
+  companyId: id.nullable(),
+  dealId: id.nullable(),
+  title: z.string(),
+  status: crmContractStatusSchema,
+  /** A file in Shared; use `/api/storage` on it. Locked once the contract is signed. */
+  documentNodeId: id.nullable(),
+  signedAt: isoDate.nullable(),
+  /** `YYYY-MM-DD`. */
+  effectiveOn: day.nullable(),
+  expiresOn: day.nullable(),
+  createdByMemberId: id.nullable(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+});
+
 /** A thread the viewer can open, from any of their mailboxes in the session's scope. */
 export const crmThreadSchema = z.object({
   id,
@@ -217,6 +240,48 @@ export const crmCreateNoteBodySchema = z
   });
 export const crmUpdateNoteBodySchema = z.object({ body: z.string().max(20_000) });
 
+/** `GET /contracts?company=|deal=`: newest first. A company's include those on its deals. */
+export const crmContractsQuerySchema = z
+  .object({
+    company: id.optional(),
+    deal: id.optional(),
+    cursor: page.cursor,
+    limit: page.limit,
+  })
+  .refine((query) => Boolean(query.company) !== Boolean(query.deal), {
+    message: "give exactly one of company and deal",
+  });
+
+/** `POST /contracts`: a draft. Without `companyId`, it is on the deal's company too. */
+export const crmCreateContractBodySchema = z
+  .object({
+    title: name,
+    companyId: id.optional(),
+    dealId: id.optional(),
+    /** A file in Shared. */
+    documentNodeId: id.nullable().optional(),
+    effectiveOn: day.nullable().optional(),
+    expiresOn: day.nullable().optional(),
+  })
+  .refine((contract) => Boolean(contract.companyId || contract.dealId), {
+    message: "give a companyId, a dealId or both",
+  });
+
+/**
+ * `PATCH /contracts/:id`: only the fields it names. Marking it `signed` needs a document and
+ * locks that file; a signed contract keeps its status and document (`contract_signed`).
+ */
+export const crmUpdateContractBodySchema = z.object({
+  title: name.optional(),
+  status: crmContractStatusSchema.optional(),
+  /** Replaced while `draft`, or when a `sent` contract is marked signed (the executed copy). */
+  documentNodeId: id.nullable().optional(),
+  /** When it was signed; now when a contract is marked signed without one. */
+  signedAt: isoDate.optional(),
+  effectiveOn: day.nullable().optional(),
+  expiresOn: day.nullable().optional(),
+});
+
 /** `GET /:records/:id/timeline`. */
 export const crmTimelineQuerySchema = z.object({
   cursor: z.string().min(1).max(2048).optional(),
@@ -273,11 +338,20 @@ export const crmDealListResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 export const crmDealResponseSchema = z.object({ deal: crmDealSchema });
-/** `GET /deals/:id`: with its people. Contracts join it in a later layer. */
+/** `GET /deals/:id`: with its people and its newest contracts (all of them on `/contracts`). */
 export const crmDealDetailResponseSchema = z.object({
   deal: crmDealSchema,
   people: z.array(crmPersonSchema),
+  contracts: z.array(crmContractSchema),
 });
+
+export const crmContractResponseSchema = z.object({ contract: crmContractSchema });
+export const crmContractListResponseSchema = z.object({
+  contracts: z.array(crmContractSchema),
+  nextCursor: z.string().nullable(),
+});
+/** `POST /companies/:id/folder` and `POST /deals/:id/folder`: use `/api/storage` on it. */
+export const crmFolderResponseSchema = z.object({ nodeId: id });
 
 export const crmStagesResponseSchema = z.object({ stages: z.array(crmStageSchema) });
 export const crmSettingsResponseSchema = z.object({ settings: crmSettingsSchema });
@@ -291,8 +365,8 @@ export const crmFoundResponseSchema = z.object({
 });
 
 /**
- * One timeline item. `at` orders the list, newest first (then `id`). New kinds may be added
- * (contracts next): a client skips a kind it does not know.
+ * One timeline item. `at` orders the list, newest first (then `id`). New kinds may be added: a
+ * client skips a kind it does not know.
  */
 const timelineItem = { id, at: isoDate };
 export const crmTimelineEventItemSchema = z.object({
@@ -310,9 +384,25 @@ export const crmTimelineThreadItemSchema = z.object({
   ...timelineItem,
   thread: crmThreadSchema,
 });
+/** A contract's own events, which are not repeated as `event` items. */
+export const crmTimelineContractItemSchema = z.object({
+  kind: z.literal("contract"),
+  ...timelineItem,
+  contract: z.object({
+    contractId: id,
+    /** The title when it happened. */
+    title: z.string(),
+    /** `status`: it moved to `status` (sent, signed, ended, back to draft). */
+    change: z.enum(["created", "status", "document", "deleted"]),
+    /** Its status after the change. */
+    status: crmContractStatusSchema,
+    actorMemberId: id.nullable(),
+  }),
+});
 export const crmTimelineItemSchema = z.discriminatedUnion("kind", [
   crmTimelineEventItemSchema,
   crmTimelineNoteItemSchema,
+  crmTimelineContractItemSchema,
   crmTimelineThreadItemSchema,
 ]);
 export const crmTimelineResponseSchema = z.object({
@@ -328,6 +418,7 @@ export const crmChangedKindSchema = z.enum([
   "note",
   "stages",
   "settings",
+  "contract",
 ]);
 export const crmChangedEventSchema = z.object({
   type: z.literal("crm.changed"),
@@ -343,6 +434,13 @@ export type CrmStage = z.infer<typeof crmStageSchema>;
 export type CrmNote = z.infer<typeof crmNoteSchema>;
 export type CrmEvent = z.infer<typeof crmEventSchema>;
 export type CrmSettings = z.infer<typeof crmSettingsSchema>;
+export type CrmContractStatus = z.infer<typeof crmContractStatusSchema>;
+export type CrmContract = z.infer<typeof crmContractSchema>;
+export type CrmCreateContractBody = z.infer<typeof crmCreateContractBodySchema>;
+export type CrmUpdateContractBody = z.infer<typeof crmUpdateContractBodySchema>;
+export type CrmContractResponse = z.infer<typeof crmContractResponseSchema>;
+export type CrmContractListResponse = z.infer<typeof crmContractListResponseSchema>;
+export type CrmFolderResponse = z.infer<typeof crmFolderResponseSchema>;
 export type CrmThread = z.infer<typeof crmThreadSchema>;
 export type CrmCreateCompanyBody = z.infer<typeof crmCreateCompanyBodySchema>;
 export type CrmUpdateCompanyBody = z.infer<typeof crmUpdateCompanyBodySchema>;

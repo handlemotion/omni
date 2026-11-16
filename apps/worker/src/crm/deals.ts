@@ -19,6 +19,7 @@ import {
   memberCrm,
   nameCursor,
   refused,
+  wireContract,
   wireDeal,
   wirePerson,
 } from "./http.ts";
@@ -51,11 +52,15 @@ export const deals = new Hono<AppEnv>()
   })
 
   .get("/deals/:id", async (c) => {
-    const found = await memberCrm(c).deal(c.req.param("id"));
+    const id = c.req.param("id");
+    const crm = memberCrm(c);
+    const [found, contracts] = await Promise.all([crm.deal(id), crm.listContracts({ dealId: id })]);
     if (found.status !== "ok") return refused(c, found);
     return c.json({
       deal: wireDeal(found.deal),
       people: found.people.map(wirePerson),
+      // Deleted between the two reads: the deal answered, so no contracts.
+      contracts: contracts.status === "ok" ? contracts.contracts.map(wireContract) : [],
     } satisfies CrmDealDetailResponse);
   })
 

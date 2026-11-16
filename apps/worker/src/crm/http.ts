@@ -6,6 +6,7 @@ import {
   ERROR_CODES,
   type CrmChangedKind,
   type CrmCompany as WireCompany,
+  type CrmContract as WireContract,
   type CrmDeal as WireDeal,
   type CrmEvent as WireEvent,
   type CrmNote as WireNote,
@@ -15,17 +16,22 @@ import {
 import {
   forMember,
   type AddressTaken,
+  type ContractSigned,
   type CrmCompany,
+  type CrmContract,
   type CrmDeal,
   type CrmEvent,
   type CrmNote,
   type CrmPerson,
   type DomainRefusal,
+  type FolderResult,
   type Forbidden,
   type InvalidAddress,
   type InvalidBody,
+  type InvalidContract,
   type InvalidCurrency,
   type InvalidName,
+  type InvalidTransition,
   type InvalidValue,
   type NoCrm,
   type NotFound,
@@ -50,12 +56,63 @@ export type CrmRefusal =
   | InvalidValue
   | DomainRefusal
   | AddressTaken
-  | Exclude<ReplaceStagesResult, { status: "ok" }>;
+  | Exclude<ReplaceStagesResult, { status: "ok" }>
+  | FilesRefusal;
+
+/** What contracts and record folders add: Storage's refusals to make a folder among them. */
+type FilesRefusal =
+  | ContractSigned
+  | InvalidContract
+  | InvalidTransition
+  | Exclude<FolderResult, { status: "ok" | "not_found" | "forbidden" | "invalid_name" }>;
 
 type Answer = { code: ErrorCode; message: string; param?: string; data?: Record<string, unknown> };
 
+const CONTRACT_MESSAGES: Record<string, string> = {
+  title: "a contract needs a title",
+  dealId: "a contract is on a company, a deal or both",
+  documentNodeId: "the document must be a file in Shared you can open; a signed contract needs one",
+  signedAt: "only a signed contract has a signing date",
+  effectiveOn: "that is not a date",
+  expiresOn: "that is not a date on or after the day it takes effect",
+};
+
+function filesAnswerFor(refusal: FilesRefusal): Answer {
+  switch (refusal.status) {
+    case "contract_signed":
+      return { code: "contract_signed", message: "a signed contract cannot change that" };
+    case "invalid_transition":
+      return {
+        code: "conflict",
+        message:
+          refusal.from === "sent" && refusal.to === "sent"
+            ? "a sent contract keeps its document; move it back to draft to replace it"
+            : `a contract cannot go from ${refusal.from} to ${refusal.to}`,
+        data: { from: refusal.from, to: refusal.to },
+      };
+    case "invalid_contract":
+      return {
+        code: "bad_request",
+        message: CONTRACT_MESSAGES[refusal.param] ?? "that cannot be stored",
+        param: refusal.param,
+      };
+    case "too_deep":
+      return { code: "too_deep", message: "the record's folder would be too deep in Shared" };
+  }
+}
+
+const FILES_STATUSES = new Set([
+  "contract_signed",
+  "invalid_transition",
+  "invalid_contract",
+  "too_deep",
+]);
+const isFilesRefusal = (refusal: CrmRefusal): refusal is FilesRefusal =>
+  FILES_STATUSES.has(refusal.status);
+
 /** The code, sentence and field of each refusal, and the ids a client acts on beside `error`. */
 function answerFor(refusal: CrmRefusal): Answer {
+  if (isFilesRefusal(refusal)) return filesAnswerFor(refusal);
   switch (refusal.status) {
     case "no_crm":
       return { code: "no_crm", message: "a Personal space has no CRM" };
@@ -140,6 +197,13 @@ export const wireDeal = (deal: CrmDeal): WireDeal => ({
   archivedAt: isoOrNull(deal.archivedAt),
   createdAt: iso(deal.createdAt),
   updatedAt: iso(deal.updatedAt),
+});
+
+export const wireContract = (contract: CrmContract): WireContract => ({
+  ...contract,
+  signedAt: isoOrNull(contract.signedAt),
+  createdAt: iso(contract.createdAt),
+  updatedAt: iso(contract.updatedAt),
 });
 
 export const wireNote = (note: CrmNote): WireNote => ({

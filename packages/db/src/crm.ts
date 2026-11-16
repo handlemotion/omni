@@ -5,6 +5,9 @@
 //    Personal space has no CRM: every operation answers `no_crm`.
 // 2. Guest: `forUser(db, userId, scope).crm`. Empty in v1; ADR 0037 opens it for clients.
 //
+// A record's files are a folder in Shared, made through Storage's member door; a contract's
+// file is locked through it when the contract is signed (ADR 0036 decisions 5 and 6).
+//
 // Every operation answers a result with a `status` instead of throwing for an expected refusal,
 // and every write appends its `crm_events` rows in its own transaction. The parts live in
 // `./crm/`.
@@ -20,6 +23,15 @@ import {
   updateCompany,
   type ListCompaniesInput,
 } from "./crm/companies.ts";
+import {
+  createContract,
+  deleteContract,
+  listContracts,
+  updateContract,
+  type ContractInput,
+  type ContractPatch,
+  type ListContractsInput,
+} from "./crm/contracts.ts";
 import {
   asMember,
   crmAudience,
@@ -39,6 +51,7 @@ import {
   type DealPatch,
   type ListDealsInput,
 } from "./crm/deals.ts";
+import { companyFolder, dealFolder } from "./crm/folders.ts";
 import {
   createNote,
   deleteNote,
@@ -73,6 +86,24 @@ export type {
   ListCompaniesInput,
   UpdateCompanyResult,
 } from "./crm/companies.ts";
+export {
+  changeContract,
+  type ContractChange,
+  type ContractSigned,
+  type ContractState,
+  type ContractStatus,
+  type ContractTransition,
+  type InvalidContract,
+  type InvalidTransition,
+} from "./crm/contract-status.ts";
+export type {
+  ContractInput,
+  ContractListResult,
+  ContractPatch,
+  ContractResult,
+  CrmContract,
+  ListContractsInput,
+} from "./crm/contracts.ts";
 export type { CrmNameCursor, CrmRecordRef, Forbidden, NoCrm, NotFound } from "./crm/core.ts";
 export type {
   DealDetailResult,
@@ -84,6 +115,7 @@ export type {
   ListDealsInput,
   WriteDealResult,
 } from "./crm/deals.ts";
+export { CRM_ROOT_FOLDER_NAME, type DealFolderResult, type FolderResult } from "./crm/folders.ts";
 export {
   CRM_NOTE_MAX_LENGTH,
   type CrmEvent,
@@ -171,6 +203,19 @@ export function memberCrm(db: Db, memberId: string) {
       writeAsMember(door, (m, tx) => moveDeals(tx, m, input)),
     archiveDeal: (id: string) => writeAsMember(door, (m, tx) => archiveDeal(tx, m, id)),
     deleteDeal: (id: string) => writeAsMember(door, (m, tx) => deleteDeal(tx, m, id)),
+
+    // Files: the record's folder in Shared, found or made
+    companyFolder: (id: string) => writeAsMember(door, (m, tx) => companyFolder(tx, m, id)),
+    dealFolder: (id: string) => writeAsMember(door, (m, tx) => dealFolder(tx, m, id)),
+
+    // Contracts
+    listContracts: (input: ListContractsInput) =>
+      asMember(door, (m, ex) => listContracts(ex, m, input)),
+    createContract: (input: ContractInput) =>
+      writeAsMember(door, (m, tx) => createContract(tx, m, input)),
+    updateContract: (id: string, patch: ContractPatch) =>
+      writeAsMember(door, (m, tx) => updateContract(tx, m, id, patch)),
+    deleteContract: (id: string) => writeAsMember(door, (m, tx) => deleteContract(tx, m, id)),
 
     // Stages and settings
     stages: () =>

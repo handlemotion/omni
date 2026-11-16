@@ -3,13 +3,16 @@
 // viewer (`forUser(...).threadsWith`), so each member sees exactly the mail they can open in the
 // inbox, from every mailbox in their session's scope, and nothing of anyone else's.
 //
+// A contract's events (`contract_*` in `crm_events`, written on its deal or else its company)
+// are `contract` items, never repeated as `event` items.
+//
 // Paging: every item is ordered by `(at, id)`, newest first; ids are UUIDs, unique across the
 // three sources. The cursor is the last item's `(at, id)`. Each source is asked for one page
 // strictly older than it, the pages are merged and cut to the limit, so an item is never shown
 // twice or skipped, whichever source it came from.
 import type { CrmTimelineItem, CrmTimelineResponse } from "@omni/contracts";
-import { crmTimelineQuerySchema } from "@omni/contracts";
-import { forUser, type CrmRecordRef, type ThreadWith } from "@omni/db";
+import { crmContractStatusSchema, crmTimelineQuerySchema } from "@omni/contracts";
+import { forUser, type CrmEvent, type CrmRecordRef, type ThreadWith } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
@@ -67,6 +70,39 @@ async function subjectOf(c: Context<AppEnv>, kind: RecordKind, id: string): Prom
   };
 }
 
+const CONTRACT_CHANGES = {
+  contract_created: "created",
+  contract_status_changed: "status",
+  contract_document_changed: "document",
+  contract_deleted: "deleted",
+} as const;
+
+const contractChange = (kind: string) =>
+  Object.hasOwn(CONTRACT_CHANGES, kind)
+    ? CONTRACT_CHANGES[kind as keyof typeof CONTRACT_CHANGES]
+    : null;
+
+/** What every contract event carries (`@omni/db`'s `contractEvent`). */
+const contractData = z.object({
+  contractId: z.string().min(1),
+  title: z.string(),
+  status: crmContractStatusSchema,
+});
+
+/** An event as its timeline item: a contract's own events are `contract` items. */
+function eventItem(event: CrmEvent): CrmTimelineItem {
+  const at = event.createdAt.toISOString();
+  const change = contractChange(event.kind);
+  const parsed = change && contractData.safeParse(event.data);
+  if (!parsed?.success) return { kind: "event", id: event.id, at, event: wireEvent(event) };
+  return {
+    kind: "contract",
+    id: event.id,
+    at,
+    contract: { ...parsed.data, change: change!, actorMemberId: event.actorMemberId },
+  };
+}
+
 const newestFirst = (a: CrmTimelineItem, b: CrmTimelineItem) =>
   a.at === b.at ? (a.id < b.id ? 1 : a.id > b.id ? -1 : 0) : a.at < b.at ? 1 : -1;
 
@@ -106,12 +142,7 @@ async function timeline(c: Context<AppEnv>, kind: RecordKind, id: string, page: 
 
   const webAppURL = c.var.config.auth.webAppURL;
   const merged: CrmTimelineItem[] = [
-    ...events.items.map((event) => ({
-      kind: "event" as const,
-      id: event.id,
-      at: event.createdAt.toISOString(),
-      event: wireEvent(event),
-    })),
+    ...events.items.map(eventItem),
     ...notes.items.map((note) => ({
       kind: "note" as const,
       id: note.id,

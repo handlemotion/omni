@@ -122,7 +122,11 @@ export type CrmEventKind =
   | "domain_added"
   | "domain_removed"
   | "address_added"
-  | "address_removed";
+  | "address_removed"
+  | "contract_created"
+  | "contract_status_changed"
+  | "contract_document_changed"
+  | "contract_deleted";
 
 /** Appends one event in the caller's transaction. */
 export async function appendEvent(

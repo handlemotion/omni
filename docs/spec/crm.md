@@ -114,6 +114,10 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 - Error codes beside `error`: `NOT_FOUND`, `NO_CRM`, `ADDRESS_TAKEN`, `DOMAIN_TAKEN`,
   `WEBMAIL_DOMAIN`, `STAGE_IN_USE`, `STAGE_KIND_REQUIRED` (each kind keeps at least one stage),
   `INVALID_CURRENCY`, `CONTRACT_SIGNED`, and the platform's `BILLING_INACTIVE`.
+- A contract goes `draft` → `sent` → `signed` → `ended`; `draft` may go straight to `signed`
+  and `sent` back to `draft`. Its file is replaced while `draft`, or with the move that takes a
+  `sent` one back to draft or to `signed`. Once signed it never goes back, keeps its file and
+  its row, and its company or deal is not deleted for good (`CONTRACT_SIGNED`).
 - `PATCH` changes only the fields it names. Two members editing different fields both win; on
   the same field the later write wins. There is no version check in v1.
 - Every write publishes `{ type: "crm.changed", kind, ids }` to the workspace's sockets.
