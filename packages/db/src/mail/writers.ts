@@ -4,6 +4,7 @@ import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import type { ActionPayload, MailActionKind } from "@omni/contracts";
 import { attachments, mailActions, mailboxFolders, messages, threads } from "../schema/index.ts";
+import { addParticipants } from "./thread-participants.ts";
 
 type NewMessage = Omit<
   typeof messages.$inferInsert,
@@ -67,7 +68,9 @@ export async function findThreadByMessageIds(db: Db, mailboxId: string, messageI
 /**
  * Inserts a message once per (mailbox_id, message_id_header). A repeat refreshes only where it
  * lives now (folder, UID, R2 key), so re-syncs and moves converge on one row. Attachments are
- * written with the first insert, and the thread's `last_message_at` only moves forward.
+ * written with the first insert, and the thread's `last_message_at` only moves forward. Its from,
+ * to and cc join the thread's participants every time (ADR 0036), after that update has locked
+ * the thread row, so a concurrent `rederiveParticipants` cannot drop them.
  */
 export async function upsertMessage(db: Db, input: NewMessage & { attachments?: NewAttachment[] }) {
   const { attachments: files = [], ...message } = input;
@@ -111,6 +114,7 @@ export async function upsertMessage(db: Db, input: NewMessage & { attachments?: 
         lastMessageAt: sql`greatest(${threads.lastMessageAt}, ${message.sentAt.toISOString()}::timestamptz)`,
       })
       .where(eq(threads.id, threadId));
+    await addParticipants(tx, [{ ...message, threadId }]);
     return { id, threadId, inserted };
   });
 }

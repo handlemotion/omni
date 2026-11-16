@@ -11,6 +11,7 @@ export {
   CONVERSATION_VIEWS,
   type ConversationView,
   type ConversationCursor,
+  type ThreadCursor,
   SLA_AT_RISK_MINUTES,
   type Participant,
   type MemberQueries,
@@ -45,3 +46,10 @@ export * from "./mail/sla.ts";
 export * from "./mail/forwarding.ts";
 export * from "./mail/dead-letters.ts";
 export * from "./mail/for-platform.ts";
+export {
+  indexParticipants,
+  participantsOf,
+  PARTICIPANT_BATCH,
+  PARTICIPANT_SETTLE_MS,
+} from "./mail/thread-participants.ts";
+export { THREADS_WITH_MAX, type ThreadsWithOptions, type ThreadWith } from "./mail/threads-with.ts";

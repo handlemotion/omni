@@ -9,6 +9,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import { participantQueries } from "./threads-with.ts";
 import { alias } from "drizzle-orm/pg-core";
 import {
   attachments,
@@ -372,6 +373,7 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
   };
 
   return {
+    ...participantQueries(db, isGrantee),
     async listThreads(
       options: {
         mailboxId?: string;

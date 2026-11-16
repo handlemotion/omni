@@ -7,6 +7,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
 import { queueMailEvents } from "./pending-mail-events.ts";
+import { mergeParticipants } from "./thread-participants.ts";
 import { assignments, conversationEvents, threads } from "../schema/index.ts";
 
 type Thread = typeof threads.$inferSelect;
@@ -28,7 +29,7 @@ export interface MergedThreads {
 
 /**
  * Merges `threadIds` (of one mailbox) into the oldest of them and deletes the rest. Messages,
- * notes, events, tags, drafts, notifications and per-member state move to the survivor. Two
+ * participants, notes, events, tags, drafts, notifications and per-member state move to the survivor. Two
  * threads that each belong to a different provider thread (Gmail) are separate conversations by
  * definition and are never merged: only the ones that agree with the survivor's provider thread
  * join it. Idempotent: ids that no longer exist are skipped.
@@ -88,6 +89,7 @@ export async function mergeThreads(
     const into = survivor.id;
     await tx.execute(sql`update messages set thread_id = ${into}, updated_at = now()
       where thread_id = any(${from})`);
+    await mergeParticipants(tx, { intoThreadId: into, fromThreadIds: fromIds });
     for (const table of ["notes", "drafts", "notifications", "triage_feedback"]) {
       await tx.execute(
         sql`update ${sql.identifier(table)} set thread_id = ${into} where thread_id = any(${from})`,

@@ -5,6 +5,7 @@ import { and, desc, eq, gte, inArray, ne, notInArray, type SQL, sql } from "driz
 import { MAX_PRUNED_THREADS_PER_EVENT } from "@omni/contracts";
 import type { Db } from "../client.ts";
 import { queueMailEvents, queueThreadsChanged } from "./pending-mail-events.ts";
+import { rederiveParticipants } from "./thread-participants.ts";
 import { syncableMailbox } from "./inbox-admin.ts";
 import { ensureMailboxTeam, syncMailboxAccess } from "./mailbox-teams.ts";
 import { assertCompany } from "../personal-space.ts";
@@ -554,6 +555,8 @@ export async function pruneMessages(
         updatedAt: new Date(),
       })
       .where(sql`${threads.id} = ${anyOf(threadIds)}`);
+    // A thread that keeps messages drops the addresses only the deleted ones had.
+    await rederiveParticipants(tx, threadIds);
     // Queued with the delete, so open apps drop these threads even if the service dies next.
     await queueMailEvents(
       tx,
@@ -911,6 +914,8 @@ export async function moveMessageToThread(
         })
         .where(eq(threads.id, moved.from));
     }
+    // Its addresses follow it; the thread it left keeps only what its other messages have.
+    await rederiveParticipants(tx, [moved.from, input.threadId]);
   });
 }
 

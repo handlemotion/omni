@@ -21,6 +21,7 @@ import {
   forMember,
   forUser,
   hasLocation,
+  indexParticipants,
   listMemberMailboxes,
   loadThreadForAi,
   mailboxAudience,
@@ -42,6 +43,7 @@ const BIG_TABLES = new Set([
   "attachments",
   "thread_state",
   "mail_actions",
+  "thread_participants",
 ]);
 
 const dbName = process.env.PERF_DATABASE ?? "omni_perf";
@@ -200,6 +202,36 @@ const cases: Case[] = [
     name: "agent: list participant, one mailbox",
     run: () =>
       all.listThreads({ view: "all", mailboxId: box.id, filters: { participant: "globex.test" } }),
+  },
+  // A CRM timeline (ADR 0036): a person's threads, a company's (its domain), a page down.
+  {
+    name: "threadsWith one rare address",
+    run: () => all.threadsWith({ addresses: ["person42@acme.test"] }),
+  },
+  {
+    name: "threadsWith common domain",
+    run: () => all.threadsWith({ domains: ["acme.test"] }),
+  },
+  {
+    name: "threadsWith address + domain (2 boxes)",
+    run: () => few.threadsWith({ addresses: ["person42@globex.test"], domains: ["initech.test"] }),
+  },
+  {
+    name: "threadsWith the inbox's own address",
+    run: () => all.threadsWith({ addresses: [box.address] }),
+  },
+  {
+    name: "threadsWith common domain, deep cursor",
+    run: () => all.threadsWith({ domains: ["acme.test"], before: deepCursor }),
+  },
+  {
+    name: "user: threadsWith common domain",
+    run: () => user.threadsWith({ domains: ["acme.test"] }),
+  },
+  {
+    name: "indexParticipants, caught up",
+    write: true,
+    run: (tx) => indexParticipants(tx),
   },
   {
     name: "agent: list unread, last 30 days",

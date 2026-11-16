@@ -14,7 +14,8 @@ import { createTestDatabase, seedMailbox, type TestDb } from "./support/db.ts";
 import { deliver, logger, mailbox, otherClient, waitFor } from "./support/greenmail.ts";
 import { createTestBucket, links } from "./support/objects.ts";
 
-const { mailboxFolders, messageLocations, messages, threadState, threads } = schema;
+const { mailboxFolders, messageLocations, messages, threadParticipants, threadState, threads } =
+  schema;
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: TestDb;
@@ -268,4 +269,93 @@ it("a full re-sync after losing the index rebuilds the same threads, read and ar
     async () => (await snapshot(box.id, ownerId)).copies.length >= before.copies.length,
   );
   expect(await snapshot(box.id, ownerId)).toEqual(before);
+});
+
+/** Each thread (as its sorted Message-IDs) with its participants (`thread_participants`). */
+async function participantSnapshot(mailboxId: string) {
+  const rows = await db
+    .select({ header: messages.messageIdHeader, threadId: messages.threadId })
+    .from(messages)
+    .where(eq(messages.mailboxId, mailboxId));
+  const people = await db
+    .select({ threadId: threadParticipants.threadId, address: threadParticipants.address })
+    .from(threadParticipants)
+    .where(eq(threadParticipants.mailboxId, mailboxId));
+  const byThread = new Map<string, { messages: string[]; participants: string[] }>();
+  for (const row of rows) {
+    const thread = byThread.get(row.threadId) ?? { messages: [], participants: [] };
+    thread.messages.push(row.header);
+    byThread.set(row.threadId, thread);
+  }
+  for (const row of people) byThread.get(row.threadId)?.participants.push(row.address);
+  return [...byThread.values()]
+    .map((t) => ({ messages: t.messages.toSorted(), participants: t.participants.toSorted() }))
+    .toSorted((a, b) => (a.messages[0] ?? "").localeCompare(b.messages[0] ?? ""));
+}
+
+it("a mailbox wiped and synced again from GreenMail ends with the same participants", async () => {
+  const { box } = await seedMailbox(db);
+  const live = startService(box);
+  await live.connection.start();
+  const id = (name: string) => `<${name}.${box.id}@outside.test>`;
+  const arrive = async (
+    subject: string,
+    messageId: string,
+    extra: { inReplyTo?: string; from?: string; cc?: string[] } = {},
+  ) => {
+    const seen = new Promise((resolve) => live.connection.once("message", resolve));
+    await deliver(box.address, subject, {
+      messageId,
+      ...extra,
+      ...(extra.inReplyTo ? { references: [extra.inReplyTo] } : {}),
+    });
+    await seen;
+  };
+  // Two replies arrive before the message they answer: two threads, merged when it lands. The
+  // Cc is mixed case and only ever in a Cc.
+  await arrive("Re: Proposal", id("proposal-2"), {
+    inReplyTo: id("proposal-1"),
+    from: "bea@client.test",
+  });
+  await arrive("Re: Proposal", id("proposal-3"), {
+    inReplyTo: id("proposal-1"),
+    from: "cy@client.test",
+  });
+  await arrive("Proposal", id("proposal-1"), { cc: ["Ana@Acme.test"] });
+  await arrive("Invoice", id("invoice-1"), { from: "billing@vendor.test" });
+
+  const before = await participantSnapshot(box.id);
+  const byFirst = (a: { messages: string[] }, b: { messages: string[] }) =>
+    (a.messages[0] ?? "").localeCompare(b.messages[0] ?? "");
+  expect(before).toEqual(
+    [
+      {
+        messages: [id("invoice-1")],
+        participants: ["billing@vendor.test", box.address].toSorted(),
+      },
+      {
+        messages: [id("proposal-1"), id("proposal-2"), id("proposal-3")].toSorted(),
+        participants: [
+          "ana@acme.test",
+          "bea@client.test",
+          box.address,
+          "cy@client.test",
+          "sender@outside.test",
+        ].toSorted(),
+      },
+    ].toSorted(byFirst),
+  );
+
+  // The mailbox's index is lost, and rebuilt from the server in another order.
+  await live.connection.stop();
+  await db.delete(threads).where(eq(threads.mailboxId, box.id));
+  await db.delete(mailboxFolders).where(eq(mailboxFolders.mailboxId, box.id));
+  expect(await participantSnapshot(box.id)).toEqual([]);
+
+  const rebuilt = startService(box);
+  await rebuilt.connection.start();
+  await waitFor(
+    async () => (await participantSnapshot(box.id)).flatMap((t) => t.messages).length >= 4,
+  );
+  expect(await participantSnapshot(box.id)).toEqual(before);
 });

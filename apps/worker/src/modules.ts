@@ -5,7 +5,7 @@
 // Hono RPC infers `AppType` from the chain.
 import type { ModuleLifecycle } from "@omni/auth";
 import { deleteWorkspaceStorage, handOverMemberStorage } from "@omni/db";
-import { helpdeskClock } from "./sla.ts";
+import { mailMinute } from "./mail/jobs.ts";
 import { abortExpiredStorageUploads, storageDaily } from "./storage/jobs.ts";
 import { cleanupExpiredUploads } from "./uploads.ts";
 
@@ -18,7 +18,8 @@ export interface Module extends ModuleLifecycle {
 
 const mail: Module = {
   name: "mail",
-  minute: helpdeskClock,
+  // The helpdesk's clock and the participant backfill (ADR 0036 decision 4).
+  minute: mailMinute,
   // Attachments staged for a send that never went.
   daily: cleanupExpiredUploads,
 };

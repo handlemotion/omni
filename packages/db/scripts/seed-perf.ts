@@ -13,6 +13,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { createDb } from "../src/client.ts";
 import { readDatabaseUrl } from "../src/env.ts";
+import { indexParticipants, PARTICIPANT_SETTLE_MS } from "../src/mail/thread-participants.ts";
 
 const dbName = process.env.PERF_DATABASE ?? "omni_perf";
 const threadCount = Number(process.env.PERF_THREADS ?? 60_000);
@@ -269,12 +270,24 @@ await step(
 `,
 );
 
+// Thread participants through the real backfill, as production fills them for existing mail.
+{
+  const started = performance.now();
+  const { db: seeded, close: closeSeeded } = createDb(url.toString(), { onnotice: () => {} });
+  // The seeded mail is seconds old: read it as if it had settled.
+  const now = new Date(Date.now() + 2 * PARTICIPANT_SETTLE_MS);
+  while ((await indexParticipants(seeded, { limit: 5000, now })).messages > 0);
+  await closeSeeded();
+  console.log(`${"thread_participants".padEnd(24)} ${Math.round(performance.now() - started)} ms`);
+}
+
 await step("cleanup", "drop table seed_mailboxes, seed_members, seed_threads, seed_messages");
 await step("vacuum analyze", "vacuum analyze");
 
 const [counts] = await sql`
   select (select count(*) from threads) as threads, (select count(*) from messages) as messages,
     (select count(*) from message_locations) as locations, (select count(*) from attachments) as attachments,
-    (select count(*) from thread_state) as thread_state, pg_size_pretty(pg_database_size(current_database())) as size`;
+    (select count(*) from thread_state) as thread_state,
+    (select count(*) from thread_participants) as participants, pg_size_pretty(pg_database_size(current_database())) as size`;
 console.log(counts);
 await sql.end();
