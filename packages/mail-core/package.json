@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./addresses": "./src/addresses.ts",
     "./clean": "./src/clean.ts",
     "./display": "./src/display.ts",
     "./verification-code": "./src/verification-code.ts",

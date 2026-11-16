@@ -1,5 +1,6 @@
 // A mailbox's CRM forwarding address (ADR 0032): what the mail service copies there, and the
 // owner's settings for it.
+import { sameAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, lt, ne, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import {
@@ -165,10 +166,6 @@ async function threadBackfill(db: Db, row: ForwardContext, ownMessageId: string)
     .orderBy(desc(messages.sentAt))
     .limit(THREAD_BACKFILL_LIMIT);
   return received.map((r) => r.id);
-}
-
-function sameAddress(a: string, b: string) {
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
 /**

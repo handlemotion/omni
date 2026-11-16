@@ -1,6 +1,7 @@
 // Sign-in emails (ADR 0014): every address a person may sign in with. The primary is
 // `users.email`; the others are verified rows in `user_emails`. An address belongs to at most one
 // person, primary or not, so a sign-in, a Google link or an invitation to it always means them.
+import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, eq, sql, TransactionRollbackError } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { users, verifications } from "./schema/auth.ts";
@@ -9,8 +10,6 @@ import { userEmails } from "./schema/identity.ts";
 /** A link to add an address works for an hour, once. */
 export const SIGN_IN_EMAIL_TOKEN_TTL_MS = 60 * 60 * 1000;
 const TOKEN_PREFIX = "sign-in-email:";
-
-const normalize = (email: string) => email.trim().toLowerCase();
 
 async function sha256Hex(text: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -30,7 +29,7 @@ function randomToken() {
  * it as an extra one. Null when nobody has it.
  */
 export async function findEmailOwner(db: Db, email: string) {
-  const address = normalize(email);
+  const address = normalizeAddress(email);
   const [primary] = await db
     .select({ userId: users.id, verified: users.emailVerified })
     .from(users)
@@ -90,7 +89,7 @@ export async function startSignInEmail(
   db: Db,
   input: { userId: string; email: string },
 ): Promise<StartSignInEmailResult> {
-  const email = normalize(input.email);
+  const email = normalizeAddress(input.email);
   const owner = await findEmailOwner(db, email);
   if (owner?.userId === input.userId) return { status: "yours" };
   if (owner) return { status: "taken" };
@@ -153,7 +152,7 @@ export async function removeSignInEmail(
   db: Db,
   input: { userId: string; email: string },
 ): Promise<RemoveSignInEmailResult> {
-  const email = normalize(input.email);
+  const email = normalizeAddress(input.email);
   return db
     .transaction(async (tx) => {
       const [user] = await tx
@@ -197,7 +196,7 @@ export async function setPrimarySignInEmail(
   db: Db,
   input: { userId: string; email: string },
 ): Promise<SetPrimarySignInEmailResult> {
-  const email = normalize(input.email);
+  const email = normalizeAddress(input.email);
   return db.transaction(async (tx) => {
     const [user] = await tx
       .select({ email: users.email, verified: users.emailVerified })

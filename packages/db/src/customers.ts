@@ -1,46 +1,11 @@
 // Customers (ADR 0021): the people who write to an org's shared inboxes, keyed by address and
 // filled on ingest. Members see a customer only through a conversation they can see, so the
 // profile, the history and autocomplete never reveal who wrote to an inbox they are not on.
+import { companyFromAddress, normalizeAddress, sameAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, exists, ilike, or, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { grantFor } from "./member-mail.ts";
 import { customers, mailboxes, members, messages, threads } from "./schema/index.ts";
-
-/** Mail hosts shared by many unrelated people: their domain says nothing about a company. */
-const WEBMAIL = new Set([
-  "gmail.com",
-  "googlemail.com",
-  "outlook.com",
-  "hotmail.com",
-  "live.com",
-  "msn.com",
-  "yahoo.com",
-  "ymail.com",
-  "icloud.com",
-  "me.com",
-  "mac.com",
-  "aol.com",
-  "proton.me",
-  "protonmail.com",
-  "gmx.com",
-  "gmx.de",
-  "mail.com",
-  "zoho.com",
-  "yandex.com",
-  "fastmail.com",
-  "hey.com",
-]);
-
-/** The address's domain and a company name guessed from it, unless it is webmail. */
-export function companyFromAddress(address: string) {
-  const domain = address.slice(address.lastIndexOf("@") + 1).toLowerCase();
-  if (!domain || WEBMAIL.has(domain)) return { domain: null, company: null };
-  // `mail.acme.co.uk` → "Acme": the label before the public suffix, roughly.
-  const labels = domain.split(".");
-  const short = labels.length > 2 && labels.at(-2)!.length <= 3 ? labels.at(-3) : labels.at(-2);
-  const company = short ? short[0]!.toUpperCase() + short.slice(1) : null;
-  return { domain, company };
-}
 
 /**
  * Records the sender of a newly indexed message as a customer of its org and links the
@@ -62,8 +27,8 @@ export async function recordCustomer(db: Db, event: { messageId: string }) {
     .innerJoin(mailboxes, eq(mailboxes.id, messages.mailboxId))
     .where(eq(messages.id, event.messageId));
   if (!message || message.mailboxKind !== "shared") return null;
-  const address = message.fromAddress.trim().toLowerCase();
-  if (!address.includes("@") || address === message.mailboxAddress.toLowerCase()) return null;
+  const address = normalizeAddress(message.fromAddress);
+  if (!address.includes("@") || sameAddress(address, message.mailboxAddress)) return null;
 
   const { domain, company } = companyFromAddress(address);
   const seen = message.sentAt.toISOString();

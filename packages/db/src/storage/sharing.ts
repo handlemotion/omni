@@ -1,6 +1,7 @@
 // Sharing (ADR 0034 decision 4): people added by address, and the one link every shared node
 // has. Only a member who can write the node shares it; every request checks the grant, so a
 // change here is immediate.
+import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { organizations } from "../schema/auth.ts";
@@ -48,8 +49,6 @@ export function newShareId() {
     .replaceAll("/", "_")
     .replace(/=+$/, "");
 }
-
-const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 async function readSharing(ex: Db, chain: NodeRow[]): Promise<StorageSharing> {
   const node = chain[0]!;
@@ -134,7 +133,7 @@ export function sharingOperations(db: Db, door: Door) {
 
     /** Adds a person by address, or changes their role. */
     putGrant(nodeId: string, email: string, role: StorageGrantRole): Promise<PutGrantResult> {
-      const address = normalizeEmail(email);
+      const address = normalizeAddress(email);
       if (!/^[^@\s]+@[^@\s]+$/.test(address)) return Promise.resolve({ status: "invalid_email" });
       return db.transaction(async (tx): Promise<PutGrantResult> => {
         const found = await shareable(tx, nodeId);
@@ -178,7 +177,7 @@ export function sharingOperations(db: Db, door: Door) {
       const removed = await db
         .delete(storageGrants)
         .where(
-          and(eq(storageGrants.nodeId, nodeId), eq(storageGrants.email, normalizeEmail(email))),
+          and(eq(storageGrants.nodeId, nodeId), eq(storageGrants.email, normalizeAddress(email))),
         )
         .returning({ id: storageGrants.id });
       return removed.length > 0 ? { status: "ok" } : NOT_FOUND;

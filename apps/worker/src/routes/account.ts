@@ -7,6 +7,7 @@ import {
   startSignInEmail,
   verifySignInEmail,
 } from "@omni/db";
+import { normalizeAddress } from "@omni/mail-core/addresses";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
@@ -47,7 +48,7 @@ const limit = (perAddress?: "magicLink") =>
       if (typeof body?.email === "string") {
         checks.push([
           perAddress,
-          checkRateLimit(c.env, c.var.config, perAddress, body.email.trim().toLowerCase()),
+          checkRateLimit(c.env, c.var.config, perAddress, normalizeAddress(body.email)),
         ]);
       }
     }
@@ -70,7 +71,7 @@ export const account = new Hono<AppEnv>()
    */
   .post("/emails", zValidator("json", emailBody), limit("magicLink"), async (c) => {
     const user: SessionUser = c.var.user;
-    const email = c.req.valid("json").email.trim().toLowerCase();
+    const email = normalizeAddress(c.req.valid("json").email);
 
     const started = await startSignInEmail(c.var.db, { userId: user.id, email });
     if (started.status === "yours") {
