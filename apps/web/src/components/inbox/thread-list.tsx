@@ -4,8 +4,9 @@ import type { Selection } from "react-aria-components";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
 import { ListLayout, Virtualizer } from "react-aria-components/Virtualizer";
-import { Skeleton, SkeletonBox } from "skullet/react";
-import { ConversationMeta, type ConversationRowInfo } from "@/components/inbox/conversation-meta";
+import { Skeleton } from "skullet/react";
+import type { ConversationRowInfo } from "@/components/inbox/conversation-meta";
+import { DateHeader, RowBones, ThreadRow } from "@/components/inbox/thread-row";
 import { ListSweepSlot } from "@/components/inbox/list-sweep";
 import { OpenListContext } from "@/components/inbox/open-list";
 import { HeaderAction, MarkAllRead, ReloadAction } from "@/components/inbox/list-header-actions";
@@ -17,9 +18,8 @@ import { IconPencil } from "@/components/icons/central";
 import { IconSearch } from "@/components/icons/sidebar";
 import { openSearch, SearchPopover } from "@/components/search/search-popover";
 import { Button } from "@/components/ui/button";
-import { Avatar } from "@/components/ui/avatar";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
-import { GridList, GridListItem } from "@/components/ui/grid-list";
+import { GridList, GridListSection } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
@@ -28,10 +28,12 @@ import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useThreads } from "@/hooks/use-mail.ts";
+import { useToday } from "@/hooks/use-today.ts";
 import {
   useThreadListShortcuts,
   type ThreadListActions,
 } from "@/hooks/use-thread-list-shortcuts.ts";
+import { groupByDate } from "@/lib/date-groups.ts";
 import { senderLabel } from "@/lib/threads.ts";
 import type {
   ConversationFilter,
@@ -56,6 +58,10 @@ export interface ListRow {
   subject: string;
   snippet: string;
   unread: boolean;
+  /** When the thread last heard from anyone: the row's time and its date group. */
+  date?: string | undefined;
+  /** Messages in the thread, shown after the subject when there is more than one. */
+  count?: number | undefined;
   /** A helpdesk conversation's status, assignee, SLA and the rest, shown after the subject. */
   conversation?: ConversationRowInfo | undefined;
   /** Your own Done and Later on the thread, where the row's menu offers them. */
@@ -70,6 +76,8 @@ interface ListProps {
   children?: ReactNode;
   /** Shown in place of the rows when there are none. */
   empty?: ReactNode;
+  /** Rows under relative date headers (Today, Yesterday, ...), from each row's `date`. */
+  grouped?: boolean;
 }
 
 /** One view's threads (inbox, later, all mail...), loading more as it scrolls. */
@@ -93,6 +101,7 @@ export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
   );
   return (
     <List
+      grouped
       {...props}
       empty={
         props.empty ??
@@ -128,6 +137,8 @@ const toRow = (thread: ThreadSummary): ListRow => ({
   subject: thread.subject,
   snippet: thread.snippet,
   unread: thread.unread,
+  date: thread.lastMessageAt,
+  count: thread.messageCount,
   triage: { done: thread.done, later: thread.later, lastMessageAt: thread.lastMessageAt },
 });
 
@@ -202,6 +213,7 @@ export function List(
       <Rows
         label={props.title}
         rows={threads}
+        grouped={props.grouped}
         href={props.href}
         current={threadId}
         closeHref={closeHref}
@@ -241,7 +253,7 @@ export function List(
           {/* 10px each side, the same as the 28px controls' inset from the top; 20px before a
               title that starts the header, as the reading column's subject has. */}
           <header
-            className={`flex h-12 shrink-0 items-center gap-2 border-b pe-2.5 ${pageNav ? "ps-2.5" : "ps-5"}`}
+            className={`flex h-12 shrink-0 items-center gap-2 pe-2.5 ${pageNav ? "ps-2.5" : "ps-5"}`}
           >
             <PageNav />
             {/* 14px. Centred as laid out, with no nudge: its capitals sit on the icons' centre
@@ -361,6 +373,7 @@ export function List(
 const Rows = memo(function Rows(props: {
   label: string;
   rows: ListRow[];
+  grouped?: boolean | undefined;
   href: (threadId: string) => string;
   /** The open thread, whose row is filled. */
   current: string | undefined;
@@ -371,6 +384,23 @@ const Rows = memo(function Rows(props: {
   loadMore?: (() => void) | undefined;
   isLoadingMore?: boolean | undefined;
 }) {
+  // Regroups at midnight, and redraws the rows so their times turn into days.
+  const today = useToday();
+  const groups = useMemo(
+    () => (props.grouped ? groupByDate(props.rows, (row) => row.date ?? "") : undefined),
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- `today` moves the groups on.
+    [props.grouped, props.rows, today],
+  );
+  const row = (thread: ListRow) => (
+    <ThreadRow
+      thread={thread}
+      href={
+        thread.id === props.current && props.closeHref ? props.closeHref : props.href(thread.id)
+      }
+      isCurrent={thread.id === props.current}
+    />
+  );
+  const dependencies = [props.href, props.current, props.closeHref, today];
   return (
     <Virtualizer layout={ListLayout} layoutOptions={LIST_LAYOUT}>
       <GridList
@@ -388,19 +418,26 @@ const Rows = memo(function Rows(props: {
         onSelectionChange={props.onSelectionChange}
       >
         {/* `items` lets React Aria cache rows by thread, so a scroll renders only new rows. */}
-        <Collection items={props.rows} dependencies={[props.href, props.current, props.closeHref]}>
-          {(thread) => (
-            <ThreadRow
-              thread={thread}
-              href={
-                thread.id === props.current && props.closeHref
-                  ? props.closeHref
-                  : props.href(thread.id)
-              }
-              isCurrent={thread.id === props.current}
-            />
-          )}
-        </Collection>
+        {groups ? (
+          <Collection items={groups} dependencies={dependencies}>
+            {(group) => (
+              <GridListSection id={group.id} aria-label={group.label} className="divide-y-0">
+                <DateHeader
+                  label={group.label}
+                  count={group.rows.length}
+                  first={group === groups[0]}
+                />
+                <Collection items={group.rows} dependencies={dependencies}>
+                  {row}
+                </Collection>
+              </GridListSection>
+            )}
+          </Collection>
+        ) : (
+          <Collection items={props.rows} dependencies={dependencies}>
+            {row}
+          </Collection>
+        )}
         {/* Asks for the next page three screens before the end (React Aria's default is one),
             so older mail is usually there by the time the reader scrolls to it. */}
         <GridListLoadMoreItem
@@ -432,10 +469,10 @@ function RowHover({ children }: { children: ReactNode }) {
   );
 }
 
-// 52px with its 1px border, the composer's row height, so the list and the composer beside it
-// rule their lines at the same heights (the row's own `h-13` must match). The load-more
-// sentinel takes no space; `loaderSize` 0 keeps the list's end where it was.
-const LIST_LAYOUT = { rowSize: 52, loaderSize: 0 };
+// 40px rows (the row's own `h-10` must match) under date headers, measured: the first is shorter
+// than the rest (`DateHeader`). The load-more sentinel takes no space; `loaderSize` 0 keeps the
+// list's end where it was.
+const LIST_LAYOUT = { rowSize: 40, estimatedHeadingSize: 48, loaderSize: 0 };
 
 interface ShortcutsSource {
   view: ThreadView;
@@ -461,80 +498,4 @@ function ListShortcuts({
     };
   });
   return null;
-}
-
-function ThreadRow({
-  thread,
-  href,
-  isCurrent,
-}: {
-  thread: ListRow;
-  href: string;
-  isCurrent: boolean;
-}) {
-  const sender = thread.sender;
-  return (
-    <GridListItem
-      id={thread.id}
-      href={href}
-      textValue={`${sender} ${thread.subject}`}
-      // The open thread's row keeps the accent fill, the same grey as the sidebar's current item;
-      // a checked row takes the brand tint, like your own messages. The checkbox and the avatar
-      // multiply, so their edge and fill still show on the hover highlight or the tint. 52px with
-      // its border, the composer's row height, so the two tables' lines meet side by side.
-      className={`h-13 gap-4 border-b px-5 selected:bg-primary-subtle **:data-[slot=indicator]:mix-blend-multiply ${isCurrent ? "bg-accent" : ""}`}
-    >
-      <Avatar
-        isSquare
-        initials={sender.slice(0, 1).toUpperCase()}
-        className="shrink-0 bg-accent text-foreground outline-0 mix-blend-multiply [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(7)]"
-      />
-      {/* 16px gap plus 16px margin: the frame's 32px between avatar and sender. The sender
-          column narrows with the list beside an open thread, so the subject keeps room and
-          sits close to the name. */}
-      <span
-        className={`ms-4 w-[min(--spacing(68),30%)] shrink-0 truncate @max-4xl:w-[min(--spacing(36),25%)] ${thread.unread ? "text-foreground" : "text-muted-foreground"}`}
-      >
-        {sender}
-      </span>
-      <span className="relative flex min-w-0 flex-1 items-center">
-        {thread.unread && (
-          <span
-            aria-label="Unread"
-            className="absolute -left-4.25 size-2 rounded-full bg-primary"
-          />
-        )}
-        <span className="truncate">
-          <span className={thread.unread ? "text-foreground" : "text-muted-foreground"}>
-            {thread.subject || "(no subject)"}
-            {thread.snippet && " –"}
-          </span>
-          {thread.snippet && (
-            <span className="ms-1.5 text-subtle-foreground">{thread.snippet}</span>
-          )}
-        </span>
-      </span>
-      {thread.conversation && <ConversationMeta info={thread.conversation} />}
-    </GridListItem>
-  );
-}
-
-/**
- * The list while its rows load, drawn from skullet's boxes on the row's own grid (avatar,
- * sender, subject; the checkbox column stays empty), enough rows to fill the list. Not measured
- * from sample rows: measuring ran on every list switch, a quarter of its time, though the
- * skeleton is held back 150 ms and usually never shows. Each box costs a style read too.
- */
-function RowBones() {
-  return Array.from({ length: 16 }, (_, i) => (
-    <div key={i} className="flex h-13 items-center gap-4 border-b ps-13.25 pe-5">
-      <SkeletonBox width={28} height={28} radius="var(--radius-sm)" />
-      <span className="ms-4 w-[min(--spacing(68),30%)] shrink-0">
-        <SkeletonBox width={`${45 + ((i * 17) % 30)}%`} height={10} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <SkeletonBox width={`${55 + ((i * 23) % 35)}%`} height={10} />
-      </span>
-    </div>
-  ));
 }
