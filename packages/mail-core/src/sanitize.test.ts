@@ -196,6 +196,19 @@ const VECTORS: [string, string][] = [
     `<p style="background:url(data:image/png,x(url(${T}/p.gif)))">x</p>`,
   ],
   ["svg style @import", `<svg><style>@import url(${T}/svg.css)</style></svg>`],
+  // A sheet now loses only its unsafe rules, so the escape tricks must not survive beside safe ones.
+  [
+    "CSS escape in one rule of a sheet",
+    `<style>p{color:red} b{background:u\\72l(${T}/e.gif)}</style>`,
+  ],
+  ["escaped brace ending a rule early", `<style>a\\{}b{background:u\\72l(${T}/e.gif)}</style>`],
+  ["escape in an @media prelude", `<style>@media (\\6d in-width:1px){p{color:red}}</style>`],
+  [
+    "escape in a string across rules",
+    `<style>p{content:"\\"} q{background:u\\72l(${T}/e.gif)}"}</style>`,
+  ],
+  ["body style", `<body style="background:u\\72l(${T}/b.gif)"><p>x</p></body>`],
+  ["body style url", `<body style="background:url(${T}/b.gif)"><p>x</p></body>`],
   ["target _top", `<a href="https://example.com/" target="_top">x</a>`],
   ["area target", `<map name="m"><area href="https://example.com/" target="_parent"></map>`],
 ];
@@ -272,5 +285,29 @@ describe("links", () => {
         ].join(""),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("the sender's own styles", () => {
+  // GitHub's mail rendered in the browser's serif: its fonts were in a sheet one escaped rule
+  // threw away, or on <body>, which parsing in body context drops.
+  test("one escaped rule costs only itself, not the whole sheet", () => {
+    const html = sanitizeHtml(
+      `<style>.sm\\:w-full{width:100%} body{font-family:-apple-system,"Segoe UI",sans-serif}</style><p>x</p>`,
+      options,
+    ).html;
+    expect(html).toContain('body{font-family:-apple-system,"Segoe UI",sans-serif}');
+    expect(html).not.toContain("w-full");
+  });
+
+  test("<body>'s style and bgcolor go back to the body, under the sender's !important rules", () => {
+    const html = sanitizeHtml(
+      `<html><head><style>@media (prefers-color-scheme:dark){body{background:#000!important}}</style></head><body style="font-family:Helvetica;color:#24292e" bgcolor="#f6f8fa"><p>x</p></body></html>`,
+      options,
+    ).html;
+    expect(html).toBe(
+      "<style>:where(body){background-color:#f6f8fa}html body{font-family:Helvetica;color:#24292e}</style>" +
+        "<style>@media (prefers-color-scheme:dark){body{background:#000!important}}</style><p>x</p>",
+    );
   });
 });

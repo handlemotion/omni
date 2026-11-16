@@ -8,6 +8,7 @@ import createDOMPurify from "dompurify";
 import { convert } from "html-to-text";
 import { JSDOM } from "jsdom";
 import type { ParsedMessage } from "./parse.ts";
+import { CSS_UNSAFE, dropUnsafeRules, removeImports, replaceUrls } from "./css.ts";
 import { stripReply, type StrippedText } from "./reply.ts";
 import {
   attribute,
@@ -276,6 +277,38 @@ const FORBID_TAGS = [
 // Attributes that fetch remote resources we cannot proxy one by one.
 const FORBID_ATTR = ["srcset", "background", "poster", "ping", "action", "formaction"];
 
+/** The opening `<body …>` tag's attributes. Values with a `>` inside are cut short, harmlessly. */
+const BODY_TAG = /<body\b([^>]*)>/i;
+
+/**
+ * Gives `<body>`'s style and `bgcolor` back to the body, as a first `html body { … }` rule
+ * (and a `:where(body)` one for `bgcolor`).
+ * Parsing in body context drops the `<body>` tag, and with it the font, colour and background
+ * many senders set only there (`<body style="font-family: …">`), so their mail fell back to the
+ * browser's serif. A rule rather than a wrapper element keeps the sender's own `body` rules in
+ * charge where they were: `!important` ones (dark mode, responsive padding) still win, and the
+ * extra `html` keeps plain ones from beating what was inline. The `<style>` goes through the
+ * same CSS rewrite as any other.
+ */
+function restoreBodyStyle(fragment: ReturnType<typeof parseBodyFragment>, html: string) {
+  const attrs = BODY_TAG.exec(html)?.[1];
+  if (!attrs) return;
+  const body = parseBodyFragment(`<div${attrs}>`).childNodes.find(isElement);
+  if (!body) return;
+  const bgcolor = attribute(body, "bgcolor");
+  const style = attribute(body, "style") ?? "";
+  // `bgcolor` is a presentation hint: any author rule beats it, so it gets no specificity.
+  const hint =
+    bgcolor && /^#?[\da-z]+$/i.test(bgcolor) ? `:where(body){background-color:${bgcolor}}` : "";
+  // Braces could close the rule and `<` could close the element: neither belongs in a style.
+  const inline = style && !/[{}<]/.test(style) ? `html body{${style}}` : "";
+  if (!hint && !inline) return;
+  const rule = parseBodyFragment(`<style>${hint}${inline}</style>`).childNodes.find(isElement);
+  if (!rule) return;
+  rule.parentNode = fragment;
+  fragment.childNodes.unshift(rule);
+}
+
 /**
  * Email-safe HTML: no scripts, forms or handlers; remote images blocked or proxied; cid:
  * mapped; links open outside the frame without a referrer.
@@ -288,6 +321,7 @@ export function sanitizeHtml(html: string, options: SanitizeOptions): SanitizedH
   }
 
   const fragment = parseBodyFragment(input);
+  restoreBodyStyle(fragment, input);
   capDepth(fragment);
   for (const element of elements(fragment)) {
     element.attrs = element.attrs
@@ -405,12 +439,9 @@ function classifyUrl(url: string): "data" | "cid" | "remote" | "other" {
   return "other";
 }
 
-// CSS escapes can spell `url(` in ways a scan cannot see; image-set(), image(), src() take
-// URLs outside url(); expression() is old IE script. All rare in mail: drop such CSS whole.
-const CSS_UNSAFE = /\\|image-set\s*\(|\bimage\s*\(|\bsrc\s*\(|expression\s*\(/i;
-
 /** CSS with every fetch removed or pointed at our proxy and attachments; "" to drop it. */
-function rewriteCss(css: string, options: SanitizeOptions, block: boolean): string {
+function rewriteCss(input: string, options: SanitizeOptions, block: boolean): string {
+  const css = CSS_UNSAFE.test(input) ? dropUnsafeRules(input) : input;
   if (CSS_UNSAFE.test(css)) return "";
   const rewritten = replaceUrls(removeImports(css), (raw) => {
     let url = raw.trim();
@@ -431,39 +462,4 @@ function rewriteCss(css: string, options: SanitizeOptions, block: boolean): stri
     return "none";
   });
   return rewritten ?? "";
-}
-
-// Both scans jump past each match, so they stay linear on hostile input (the regexes they
-// replace were quadratic on a run of "url(").
-
-/** Removes `@import` rules, each up to its `;` (or the end of the CSS). */
-function removeImports(css: string): string {
-  const pattern = /@import/gi;
-  let out = "";
-  let from = 0;
-  for (let match = pattern.exec(css); match; match = pattern.exec(css)) {
-    out += css.slice(from, match.index);
-    const end = css.indexOf(";", pattern.lastIndex);
-    from = end === -1 ? css.length : end + 1;
-    pattern.lastIndex = from;
-  }
-  return out + css.slice(from);
-}
-
-/**
- * Replaces each `url(…)` with `replace(…)`. Returns null for an unterminated `url(`: browsers
- * close it at the end of the CSS and load it, so the whole CSS has to go.
- */
-function replaceUrls(css: string, replace: (raw: string) => string): string | null {
-  const pattern = /url\(/gi;
-  let out = "";
-  let from = 0;
-  for (let match = pattern.exec(css); match; match = pattern.exec(css)) {
-    const end = css.indexOf(")", pattern.lastIndex);
-    if (end === -1) return null;
-    out += css.slice(from, match.index) + replace(css.slice(pattern.lastIndex, end));
-    from = end + 1;
-    pattern.lastIndex = from;
-  }
-  return out + css.slice(from);
 }

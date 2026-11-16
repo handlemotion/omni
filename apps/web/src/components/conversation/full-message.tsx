@@ -8,14 +8,19 @@ const MAX_REFITS = 12;
 const BLOCKED_SRC = "data-omni-src";
 
 /**
- * Takes away the browser's default 8px body margin, so a sender's full-width layout fills the
- * frame and its rounded corners clip it. First in the head, so the sender's own styles still win.
+ * The frame's defaults, first in the head so the sender's own styles still win. No 8px body
+ * margin, so a full-width layout fills the frame and its rounded corners clip it. And the system
+ * sans, as mail apps use, where the browser's would be Times: mail that names no font, and mail
+ * saved before the sanitizer kept `<body>`'s style, reads in it.
  */
-function dropDefaultMargin(frame: HTMLIFrameElement) {
+const FRAME_DEFAULTS =
+  'body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}';
+
+function applyFrameDefaults(frame: HTMLIFrameElement) {
   const doc = frame.contentDocument;
   if (!doc?.head) return;
   const style = doc.createElement("style");
-  style.textContent = "body{margin:0}";
+  style.textContent = FRAME_DEFAULTS;
   doc.head.prepend(style);
 }
 
@@ -60,7 +65,7 @@ export function FullMessage(props: {
     };
     const onLoad = () => {
       loadRemoteImages(frame);
-      dropDefaultMargin(frame);
+      applyFrameDefaults(frame);
       refits = 0;
       fit();
       // Images and web fonts land after `load` for lazy content: refit as the body resizes.
