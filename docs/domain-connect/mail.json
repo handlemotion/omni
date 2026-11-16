@@ -4,12 +4,12 @@
   "serviceId": "mail",
   "serviceName": "Omni mail on Purelymail",
   "version": 1,
-  "logoUrl": "https://inbox.omnidirectional.app/apple-touch-icon.png",
+  "logoUrl": "https://omnidirectional.app/apple-touch-icon.png",
   "description": "Proves the domain belongs to your Omni workspace and points its mail at Purelymail.",
   "variableDescription": "challenge: the token after omni-challenge= in Omni's ownership value. ownership: the part after purelymail_ownership_proof= in the Purelymail account's ownership code.",
   "syncBlock": false,
   "syncPubKeyDomain": "omnidirectional.app",
-  "syncRedirectDomain": "inbox.omnidirectional.app",
+  "syncRedirectDomain": "omnidirectional.app",
   "hostRequired": false,
   "records": [
     {

@@ -4,12 +4,12 @@
   "serviceId": "verify",
   "serviceName": "Omni domain ownership",
   "version": 1,
-  "logoUrl": "https://inbox.omnidirectional.app/apple-touch-icon.png",
+  "logoUrl": "https://omnidirectional.app/apple-touch-icon.png",
   "description": "Proves the domain belongs to your Omni workspace. Mail stays with your current host.",
   "variableDescription": "challenge: the token after omni-challenge= in Omni's ownership value.",
   "syncBlock": false,
   "syncPubKeyDomain": "omnidirectional.app",
-  "syncRedirectDomain": "inbox.omnidirectional.app",
+  "syncRedirectDomain": "omnidirectional.app",
   "hostRequired": false,
   "records": [
     {

@@ -1,6 +1,7 @@
 # 0006: Web app foundation (`apps/web`) and the API it needs
 
-Date: 2026-11-02 · Status: accepted
+Date: 2026-11-02 · Status: accepted · "Domains" superseded by ADR 0042 (the app lives at the root
+domain)
 
 ## Context
 
