@@ -47,8 +47,11 @@ import { pictureUrl } from "@/lib/urls.ts";
 import { CountBadge } from "./count-badge";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
-/** The bell: opens and closes the panel, and wears your unread count. */
-export function NotificationsButton() {
+/**
+ * The bell: opens and closes the panel, and wears your unread count. The desktop title bar draws
+ * it with the inbox glyph (`icon`).
+ */
+export function NotificationsButton({ icon = <IconBell /> }: { icon?: ReactNode }) {
   const { unread } = useNotifications();
   const open = useNotificationsPanel();
   const { isMobile, setIsOpenOnMobile } = useSidebar();
@@ -68,7 +71,7 @@ export function NotificationsButton() {
         }}
         className="relative"
       >
-        <IconBell />
+        {icon}
         {/* Over the bell's top right, out of the flow so the footer doesn't shift. */}
         <CountBadge count={unread} className="pointer-events-none absolute -end-2 -top-2" />
       </Button>

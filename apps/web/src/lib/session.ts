@@ -106,6 +106,7 @@ export function isServerPath(to: string) {
  */
 export async function signInWithMagicLink(email: string, redirect?: string) {
   const callback = desktop.isDesktop ? await desktop.signInCallback() : null;
+  if (callback) rememberSignInRedirect(safeRedirect(redirect));
   return authCall(
     auth.signIn.magicLink({
       email,
@@ -113,6 +114,29 @@ export async function signInWithMagicLink(email: string, redirect?: string) {
       errorCallbackURL: callback ?? "/login?error=magic_link",
     }),
   );
+}
+
+// The shell reloads the window at `/` once a desktop sign-in lands, so the destination the sign-in
+// started from waits here (this window's storage) for `/` to resume it.
+const SIGN_IN_REDIRECT = "omni.sign-in-redirect";
+
+function rememberSignInRedirect(to: string) {
+  try {
+    localStorage.setItem(SIGN_IN_REDIRECT, to);
+  } catch {
+    // Storage blocked: the sign-in still lands, on the inbox.
+  }
+}
+
+/** The destination a desktop sign-in started from, once; null when there is none. */
+export function takeSignInRedirect(): string | null {
+  try {
+    const to = localStorage.getItem(SIGN_IN_REDIRECT);
+    localStorage.removeItem(SIGN_IN_REDIRECT);
+    return to && to !== "/" ? safeRedirect(to) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Which sign-in methods this deployment offers beyond email and passkeys. */

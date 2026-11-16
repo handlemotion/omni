@@ -1,14 +1,11 @@
 import { createContext, use, useState, type ReactNode } from "react";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
-import { desktop } from "@/lib/desktop.ts";
 
 // 275px by default (the `--spacing-sidebar` token), 200 to 420px when dragged. A width someone
-// dragged to is kept in this browser and wins over the default. In the desktop app on macOS, at
-// least 240px: the title bar's group (traffic lights included) is 198px wide and sits over the
-// sidebar's top row, which still needs room for the bell after it.
+// dragged to is kept in this browser and wins over the default.
 const SIDEBAR_WIDTH = 275;
-const SIDEBAR_MIN = desktop.platform === "mac" ? 240 : 200;
+const SIDEBAR_MIN = 200;
 const SIDEBAR_MAX = 420;
 
 const WidthContext = createContext<

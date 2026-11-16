@@ -3,7 +3,7 @@
 // centred in what is left, its title 17px. The page body is transitive's settings kit (`./kit`).
 import type { ReactNode } from "react";
 import { Heading } from "@/components/ui/heading";
-import { PageNav } from "@/components/shell/page-nav";
+import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
 import type { SettingsPageId } from "@/hooks/use-settings.ts";
 import { usePersonalWorkspace } from "@/hooks/use-workspaces.ts";
 import { ProfilePage, SecurityPage, ShortcutsPage } from "./account-pages";
@@ -52,12 +52,15 @@ export function SettingsPage({ page }: { page: SettingsPageId }) {
   // Should the id match none, General shows.
   const current = [...account, ...allowed].find((p) => p.id === page) ?? GENERAL;
   const title = current.id === "profile" ? "Profile" : current.title;
+  const pageNav = usePageNavShown();
 
   return (
     <section className="flex h-svh min-h-0 min-w-0 flex-col">
-      {/* The thread list's header: 10px each side, the title after the sidebar toggle. A rule under
-          it here only: the page scrolls under the header. */}
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border ps-2.5 pe-2.5">
+      {/* The thread list's header: 10px each side, the title after the sidebar toggle, or 20px in
+          with no toggle before it. A rule under it here only: the page scrolls under the header. */}
+      <header
+        className={`flex h-12 shrink-0 items-center gap-2 border-b border-border pe-2.5 ${pageNav ? "ps-2.5" : "ps-5"}`}
+      >
         <PageNav />
         <Heading className="min-w-0 truncate text-md">{title}</Heading>
       </header>
