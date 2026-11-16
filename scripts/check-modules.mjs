@@ -85,10 +85,13 @@ export function ownerOf(file, modules = MODULES) {
  */
 export function importsOf(source) {
   const found = [];
-  const STATIC = /\b(?:import|export)\s+(type\s+)?([\s\S]*?)\s+from\s+["']([^"']+)["']/g;
-  for (const [, , clause, specifier] of source.matchAll(STATIC)) {
+  const STATIC = /\b(import|export)\s+(type\s+)?([\s\S]*?)\s+from\s+["']([^"']+)["']/g;
+  for (const [, keyword, , clause, specifier] of source.matchAll(STATIC)) {
     const bindings = bindingsOf(clause);
-    found.push({ specifier, bindings, names: bindings.map((b) => b.imported) });
+    // `export * from` hands on everything the module exports; a dynamic import has no names.
+    const reexportsAll =
+      keyword === "export" && bindings.some((b) => b.imported === "*" && !b.local);
+    found.push({ specifier, bindings, names: bindings.map((b) => b.imported), reexportsAll });
   }
   for (const [, specifier] of source.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)) {
     found.push({ specifier, bindings: [{ imported: "*", local: null }], names: ["*"] });
@@ -220,10 +223,11 @@ const BARRELS = ["packages/db/src/index.ts", "packages/contracts/src/index.ts"];
 function barrelProblems(file, source, owner, origins, modules) {
   if (!owner) return [];
   const foreign = new Set();
-  for (const { specifier, bindings } of importsOf(source)) {
+  for (const { specifier, bindings, reexportsAll } of importsOf(source)) {
     const barrel = resolve(file, specifier);
     if (!BARRELS.includes(barrel)) continue;
-    for (const name of namesTaken(source, specifier, bindings)) {
+    const names = reexportsAll ? origins(barrel).keys() : namesTaken(source, specifier, bindings);
+    for (const name of names) {
       const origin = origins(barrel).get(name);
       const to = origin && ownerOf(origin, modules);
       if (!to || to.module === owner.module || to.part === "schema") continue;
@@ -292,7 +296,7 @@ const MESSAGES = {
   tables: (tables) =>
     `names another module's tables (${tables.join(", ")}); read them through that module's surface file`,
   barrel: (names) =>
-    `imports ${names.join(", ")} through a barrel from a module it does not declare in \`uses\``,
+    `imports ${names.slice(0, 5).join(", ")}${names.length > 5 ? ` and ${names.length - 5} more` : ""} through a barrel from a module it does not declare in \`uses\``,
   naming: (table) => `table ${table} must be named <module>_* (ADR 0035 decision 3)`,
 };
 

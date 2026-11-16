@@ -190,3 +190,14 @@ test("a file re-exported twice by a surface keeps every name it exports", () => 
   };
   assert.deepEqual(problemsIn(files), ["apps/worker/src/storage/audit.ts uses"]);
 });
+
+test("a module that re-exports a whole barrel is checked against everything it hands on", () => {
+  const files = {
+    "packages/db/src/index.ts": `export * from "./mail.ts";`,
+    "packages/db/src/mail.ts": `export * from "./mail/customers.ts";`,
+    "packages/db/src/mail/customers.ts": `export async function recordCustomer() {}`,
+    "apps/worker/src/storage/probe.ts": `export * from "@omni/db";`,
+    "apps/worker/src/crm/probe.ts": `export * from "@omni/db";`,
+  };
+  assert.deepEqual(problemsIn(files), ["apps/worker/src/storage/probe.ts uses"]);
+});
