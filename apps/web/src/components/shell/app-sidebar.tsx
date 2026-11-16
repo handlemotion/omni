@@ -127,16 +127,16 @@ function MailNav({ mailbox }: { mailbox: string | undefined }) {
   const openCompose = useOpenCompose();
   return (
     <>
-      {/* What you do: write, find, and which mailbox you're in. On a phone the sidebar is a sheet
-          that unmounts when closed, so the list header holds search there instead (one search
-          mounted at a time, so keys open one panel). */}
+      {/* Which mailbox you're in, then what you do: write and find. On a phone the sidebar is a
+          sheet that unmounts when closed, so the list header holds search there instead (one
+          search mounted at a time, so keys open one panel). */}
       <SidebarSection>
+        <MailboxSwitcher />
         <SidebarItemTrigger onPress={openCompose} aria-keyshortcuts={ariaKeyShortcuts("compose")}>
           <IconWrite />
           <span className="min-w-0 truncate">Compose</span>
         </SidebarItemTrigger>
         {!isMobile && <SearchPopover side="start" />}
-        <MailboxSwitcher />
       </SidebarSection>
       {/* Where mail waits, the same rows for every mailbox the switcher shows; a shared inbox adds
           its Mine. Every row keeps the mailbox chosen: a link never changes which one is shown. */}

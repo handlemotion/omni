@@ -60,9 +60,9 @@
   --tooltip: #2b2b2b; /* Coal: softer than the near-black foreground. */
   --navbar: var(--surface);
   --navbar-foreground: var(--foreground);
-  /* The page's own white: the sidebar is not a surface raised on the canvas, its hairline
-     border is the only line between it and the content. */
-  --sidebar: var(--background);
+  /* A grey fill a hair under the page's white (a step subtler than `surface`), so the sidebar
+     reads apart from the content beside its hairline border. */
+  --sidebar: #fefefe;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary-subtle);
   --sidebar-primary-foreground: var(--primary);

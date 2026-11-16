@@ -125,7 +125,7 @@ function WorkspaceMark({ workspace, size }: { workspace: Workspace; size: number
 }
 
 /** A row's name, with the check on the current one riding inside the label so it sits on the
- *  name's line, 10px in from the row's end (as the settings workspace chooser does). */
+ *  name's line, 6px in from the row's end (as the settings workspace chooser does). */
 function Label({ name, current }: { name: string; current: boolean }) {
   return (
     // To the item's end (past the grid's empty columns), so the check sits at the far edge.
@@ -197,8 +197,8 @@ export function ModuleSwitcher() {
               id={module.id}
               textValue={module.label}
               onAction={() => module.id !== current.id && open(module.id)}
-              // 6px in, as above and below the 18px mark: balanced; the check 10px from the end.
-              className="ps-1.5 pe-2.5"
+              // 6px in, as above and below the 18px mark; the check 6px from the end to match.
+              className="ps-1.5 pe-1.5"
             >
               {/* The menu's icon gap after it, which it gives only to its own marks. */}
               <ModuleMark module={module} className="me-(--me-icon)" />
@@ -298,8 +298,8 @@ export function WorkspaceSwitcher({ end }: { end?: ReactNode }) {
               textValue={label(workspace)}
               onAction={() => choose(workspace)}
               // 6px in, as above and below the 20px mark: balanced (the items' 10px is for 14px
-              // icons). The name runs to the end, the check 10px from it.
-              className="ps-1.5 pe-2.5"
+              // icons). The name runs to the end, the check 6px from it, as the mark from the start.
+              className="ps-1.5 pe-1.5"
             >
               <WorkspaceMark workspace={workspace} size={20} />
               <Label name={label(workspace)} current={workspace.id === member.orgId} />
