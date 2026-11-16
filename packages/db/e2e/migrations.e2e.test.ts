@@ -34,6 +34,7 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "mail_actions",
       "mail_domains",
       "mailbox_access",
+      "mailbox_crm_sharing",
       "mailbox_folders",
       "mailboxes",
       "member_role_descriptions",
