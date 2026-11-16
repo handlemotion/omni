@@ -2,7 +2,7 @@
 // can be restored for 30 days, then the daily purge deletes it; "Delete forever" does so at once.
 import { and, desc, eq, isNotNull, lt, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { storageNodes } from "../schema/storage.ts";
+import { storageNodes } from "./stored.ts";
 import { loadMember, type Door } from "./access.ts";
 import {
   deleteSubtree,

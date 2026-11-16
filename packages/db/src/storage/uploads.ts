@@ -3,7 +3,8 @@
 import { and, eq, gt, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
-import { storageUploads, type StorageUploadPart } from "../schema/storage.ts";
+import type { StorageUploadPart } from "../schema/storage.ts";
+import { storageUploads } from "./stored.ts";
 import type { Door } from "./access.ts";
 import {
   addUsage,

@@ -2,7 +2,8 @@
 // list, create a folder, rename, move, trash, and the file lookup a download needs.
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { storageLocks, storageNodes } from "../schema/storage.ts";
+import { storageLocks } from "../schema/storage.ts";
+import { storageNodes } from "./stored.ts";
 import type { Access, Door, StorageRole } from "./access.ts";
 import {
   chainOf,

@@ -4,7 +4,7 @@
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
-import { storageNodes } from "../schema/storage.ts";
+import { storageNodes } from "./stored.ts";
 import { insertNode, lockTree, STORAGE_NAME_MAX_LENGTH, type Drive } from "./core.ts";
 
 export type StorageHandOverResult =

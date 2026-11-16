@@ -8,6 +8,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -48,43 +49,61 @@ export interface StorageUploadPart {
 }
 
 /**
+ * `storage_nodes` as it was before sync (ADR 0043). Storage code reads and writes the table
+ * through these columns (`storage/stored.ts`) until the sync code lands, so a Worker that deploys
+ * before migration 0043 has run never names a column that is not there yet.
+ */
+export const storageNodeStoredColumns = {
+  id: id(),
+  orgId: orgId(),
+  space: storageSpace("space").notNull(),
+  /**
+   * Whose My files this is in; null in Shared. No cascade: removing a member must move their
+   * files first (ADR 0034 decision 1), and a delete that skipped that fails instead of losing
+   * them. Deleting the workspace still cascades through `org_id`.
+   */
+  ownerMemberId: text("owner_member_id").references(() => members.id),
+  parentId: text("parent_id"),
+  kind: storageNodeKind("kind").notNull(),
+  name: text("name").notNull(),
+  /** Bytes; 0 for a folder. */
+  size: bigint("size", { mode: "number" }).notNull().default(0),
+  mimeType: text("mime_type"),
+  /** `orgs/<orgId>/<id>` for a file. The name is not in it, so rename and move never touch R2. */
+  r2Key: text("r2_key"),
+  /** 22 base64url characters from a CSPRNG, made the first time the node is shared. */
+  shareId: text("share_id"),
+  linkAccess: storageLinkAccess("link_access").notNull().default("restricted"),
+  /** The uploader. May be a member of another workspace when an editor grant made the node. */
+  createdByMemberId: text("created_by_member_id").references(() => members.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamptz("created_at").notNull().defaultNow(),
+  updatedAt: timestamptz("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+  /** Set on the node that was moved to Trash; everything inside it is in Trash with it. */
+  trashedAt: timestamptz("trashed_at"),
+};
+
+/**
  * A file or folder. There is no drives table: a drive is `(org_id, space, owner_member_id)`,
  * and a node whose `parent_id` is null sits at its root.
  */
 export const storageNodes = pgTable(
   "storage_nodes",
   {
-    id: id(),
-    orgId: orgId(),
-    space: storageSpace("space").notNull(),
+    ...storageNodeStoredColumns,
     /**
-     * Whose My files this is in; null in Shared. No cascade: removing a member must move their
-     * files first (ADR 0034 decision 1), and a delete that skipped that fails instead of losing
-     * them. Deleting the workspace still cascades through `org_id`.
+     * The workspace's sync revision (ADR 0043) at the last change to the row, from
+     * `storage_sync_state` in the same transaction. 0 for a row last changed before sync existed.
      */
-    ownerMemberId: text("owner_member_id").references(() => members.id),
-    parentId: text("parent_id"),
-    kind: storageNodeKind("kind").notNull(),
-    name: text("name").notNull(),
-    /** Bytes; 0 for a folder. */
-    size: bigint("size", { mode: "number" }).notNull().default(0),
-    mimeType: text("mime_type"),
-    /** `orgs/<orgId>/<id>` for a file. The name is not in it, so rename and move never touch R2. */
-    r2Key: text("r2_key"),
-    /** 22 base64url characters from a CSPRNG, made the first time the node is shared. */
-    shareId: text("share_id"),
-    linkAccess: storageLinkAccess("link_access").notNull().default("restricted"),
-    /** The uploader. May be a member of another workspace when an editor grant made the node. */
-    createdByMemberId: text("created_by_member_id").references(() => members.id, {
-      onDelete: "set null",
-    }),
-    createdAt: timestamptz("created_at").notNull().defaultNow(),
-    updatedAt: timestamptz("updated_at")
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-    /** Set on the node that was moved to Trash; everything inside it is in Trash with it. */
-    trashedAt: timestamptz("trashed_at"),
+    revision: bigint("revision", { mode: "number" }).notNull().default(0),
+    /** Goes up each time a file's bytes are replaced in place; constant for a folder. */
+    contentVersion: integer("content_version").notNull().default(1),
+    /** Hex SHA-256 of the bytes, as the client that uploaded them sent it; null when unknown. */
+    contentSha256: text("content_sha256"),
   },
   (t) => [
     // Target for composite foreign keys that pin a row to its node's org.
@@ -128,6 +147,63 @@ export const storageNodes = pgTable(
     index("storage_nodes_trash_idx")
       .on(t.orgId, t.trashedAt)
       .where(sql`${t.trashedAt} is not null`),
+    // A drive's change feed, in revision order, and its current revision.
+    index("storage_nodes_sync_idx").on(
+      t.orgId,
+      t.space,
+      sql`coalesce(${t.ownerMemberId}, '')`,
+      t.revision,
+      t.id,
+    ),
+  ],
+);
+
+/**
+ * A workspace's sync counter (ADR 0043). Every change to a node takes the next revision from
+ * here in its own transaction; the row stays locked until it commits, so revisions commit in
+ * order and a change feed read up to one never skips an earlier one.
+ */
+export const storageSyncState = pgTable("storage_sync_state", {
+  orgId: text("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  /** The last revision handed out. */
+  revision: bigint("revision", { mode: "number" }).notNull().default(0),
+  /**
+   * Tombstones below this revision have been swept: a cursor below it may have missed a
+   * deletion, so the feed answers `cursor_expired` and the client lists the drive again.
+   */
+  cursorFloor: bigint("cursor_floor", { mode: "number" }).notNull().default(0),
+});
+
+/**
+ * A node that left a drive for good: deleted forever, purged from Trash, or moved to another
+ * drive (the other space, or another member's My files in a hand-over). The change feed reports
+ * it as a deletion. Swept after `STORAGE_TOMBSTONE_DAYS`.
+ */
+export const storageTombstones = pgTable(
+  "storage_tombstones",
+  {
+    id: id(),
+    orgId: orgId(),
+    /** No foreign key: the node may be gone. */
+    nodeId: text("node_id").notNull(),
+    /** The drive it left. */
+    space: storageSpace("space").notNull(),
+    ownerMemberId: text("owner_member_id").references(() => members.id, { onDelete: "cascade" }),
+    revision: bigint("revision", { mode: "number" }).notNull(),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("storage_tombstones_sync_idx").on(
+      t.orgId,
+      t.space,
+      sql`coalesce(${t.ownerMemberId}, '')`,
+      t.revision,
+      t.nodeId,
+    ),
+    index("storage_tombstones_created_at_idx").on(t.createdAt),
+    index("storage_tombstones_owner_member_id_idx").on(t.ownerMemberId),
   ],
 );
 
@@ -250,6 +326,30 @@ export const storageGrants = pgTable(
   ],
 );
 
+/** `storage_uploads` before sync (ADR 0043), as `storageNodeStoredColumns` is to its table. */
+export const storageUploadStoredColumns = {
+  id: id(),
+  orgId: orgId(),
+  /** Who opened it. May be a member of another workspace when an editor grant allowed it. */
+  memberId: text("member_id")
+    .notNull()
+    .references(() => members.id, { onDelete: "cascade" }),
+  space: storageSpace("space").notNull(),
+  /** The folder it lands in; null is the root of the member's My files or of Shared. */
+  parentId: text("parent_id"),
+  name: text("name").notNull(),
+  /** Declared bytes: counted against the quota from the moment the upload opens. */
+  size: bigint("size", { mode: "number" }).notNull(),
+  mimeType: text("mime_type"),
+  r2Key: text("r2_key").notNull(),
+  /** The bucket's multipart upload id; null until the bucket has opened it. */
+  r2UploadId: text("r2_upload_id"),
+  parts: jsonb("parts").$type<StorageUploadPart[]>().notNull().default([]),
+  nodeId: text("node_id"),
+  expiresAt: timestamptz("expires_at").notNull(),
+  createdAt: timestamptz("created_at").notNull().defaultNow(),
+};
+
 /**
  * An upload in progress. Its id becomes the file's id, so the object key is known from the
  * start. `node_id` is set when it completes, which makes completing twice return the same file.
@@ -257,26 +357,9 @@ export const storageGrants = pgTable(
 export const storageUploads = pgTable(
   "storage_uploads",
   {
-    id: id(),
-    orgId: orgId(),
-    /** Who opened it. May be a member of another workspace when an editor grant allowed it. */
-    memberId: text("member_id")
-      .notNull()
-      .references(() => members.id, { onDelete: "cascade" }),
-    space: storageSpace("space").notNull(),
-    /** The folder it lands in; null is the root of the member's My files or of Shared. */
-    parentId: text("parent_id"),
-    name: text("name").notNull(),
-    /** Declared bytes: counted against the quota from the moment the upload opens. */
-    size: bigint("size", { mode: "number" }).notNull(),
-    mimeType: text("mime_type"),
-    r2Key: text("r2_key").notNull(),
-    /** The bucket's multipart upload id; null until the bucket has opened it. */
-    r2UploadId: text("r2_upload_id"),
-    parts: jsonb("parts").$type<StorageUploadPart[]>().notNull().default([]),
-    nodeId: text("node_id"),
-    expiresAt: timestamptz("expires_at").notNull(),
-    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    ...storageUploadStoredColumns,
+    /** Hex SHA-256 the client computed while reading the file; null when it sent none. */
+    sha256: text("sha256"),
   },
   (t) => [
     foreignKey({

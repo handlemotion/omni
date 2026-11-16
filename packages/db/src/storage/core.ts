@@ -4,7 +4,8 @@
 import { and, eq, getTableColumns, sql, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
-import { storageLocks, storageNodes, storageUsage } from "../schema/storage.ts";
+import { storageLocks, storageUsage } from "../schema/storage.ts";
+import { storageNodes } from "./stored.ts";
 
 /** Folders nest this deep at most where people create or move them. */
 export const STORAGE_MAX_DEPTH = 32;
