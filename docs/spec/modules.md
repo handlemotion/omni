@@ -20,7 +20,7 @@ same address a person signs in with.
 | Module           | What it is                                                | State (Nov 16, 2026)                                       | Decided in    |
 | ---------------- | --------------------------------------------------------- | ---------------------------------------------------------- | ------------- |
 | Mail             | Inboxes, shared inboxes, helpdesk, AI triage, MCP         | In production                                              | spec v1, ADRs |
-| Storage          | My files, Shared, sharing by address and by link          | 4 of 6 layers merged (#296 to #301); billing and web left  | ADR 0034      |
+| Storage          | My files, Shared, sharing by address and by link          | 5 of 6 layers merged (#296 to #304); the web screens left  | ADR 0034      |
 | CRM              | Companies, people, deals, contracts                       | Specified: `docs/spec/crm.md`                              | ADR 0036      |
 | Client dashboard | Clients sign in, get deliverables, sign contracts         | Direction set, not scheduled                               | ADR 0037      |
 | Calendar         | Events on the mail host over CalDAV                       | Not started; needs a spike first                           | future ADR    |
@@ -139,7 +139,7 @@ of everything it touches.
 
 - M1 and S1 change modules that have other owners. Each is its own PR on `main`, small and
   useful alone, and is coordinated with whoever holds that module's open stack. Storage's
-  remaining layers (ADR 0034 layers 5 and 6) are untouched by any of this.
+  remaining layer (ADR 0034 layer 6, the web screens) is untouched by any of this.
 - C1 to C5 are one stack. What each layer must prove is in `docs/spec/crm.md` "Plan".
 
 **Next, in the order we would take them**

@@ -33,7 +33,9 @@ This ADR becomes `accepted`, with its details checked again, when the work is sc
   with that address by magic link, which makes their account and Personal space as sign-up
   already does (ADR 0018, ADR 0024). Where `SIGN_UP=invitation`, a guest must already be able
   to sign in, as for Storage grants.
-- Removing a guest is immediate: every request checks the row.
+- Removing a guest is immediate and complete. The dashboard checks the row on every request,
+  and the same transaction removes the Storage grant decision 3 wrote for that address, so the
+  files close with the dashboard.
 
 ### 2. The guest door shows a projection, never the record
 
@@ -60,6 +62,14 @@ writes a Storage grant for their address on that subfolder (viewer, or editor so
 material back), through Storage's sharing operations. Delivering something is putting a file
 there. Everything Storage does for a grant (listing, download, removal, session scope) applies
 unchanged, and CRM serves no bytes.
+
+The guest row and the grant are written and removed together, in one transaction, through
+Storage's surface. Storage decides access from `storage_grants` alone and knows nothing of
+guests, so a guest row removed by itself would leave the former client able to list and
+download the folder, files added later included. A grant a member made for the same address in
+Storage's own share dialog is theirs to remove there: removing a guest takes away only what
+adding the guest gave. The e2e this layer owes: a removed guest gets `404` from the dashboard
+and from the `Client` folder on the next request.
 
 Tracked deliverables (a title, a due date, an approval by the client) are a later table,
 `crm_deliverables`, that points at nodes in that folder.
