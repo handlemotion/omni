@@ -37,8 +37,9 @@ beforeAll(async () => {
   const started = await startWorker({
     databaseUrl: database.url,
     mailServiceUrl: mail.url,
-    // Low enough that one test can use it up with full triage batches.
-    vars: { SYSTEM_MAIL_FROM, RATE_LIMIT_ACTIONS: "60/60" },
+    // A rate limit low enough that one test can use it up with full triage batches, and thread
+    // links on the web app's origin whatever a local .dev.vars says.
+    vars: { SYSTEM_MAIL_FROM, RATE_LIMIT_ACTIONS: "60/60", WEB_APP_URL: WEB_ORIGIN },
   });
   worker = { url: started.url.toString() };
   cleanup = async () => {
