@@ -361,6 +361,7 @@ public extension Path {
 }
 
 public enum Role: String, Codable, Equatable {
+    case commenter = "commenter"
     case editor = "editor"
     case member = "member"
     case viewer = "viewer"

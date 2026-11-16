@@ -10,8 +10,8 @@ import { companyForAddress } from "../session-scopes.ts";
 import { listSignInEmails } from "../sign-in-emails.ts";
 import { holdsOthersWork, inTrash, type Drive, type NodeRow, type StorageSpace } from "./core.ts";
 
-/** `member` is someone in the node's space; the other two come from a grant or a link. */
-export type StorageRole = "member" | "editor" | "viewer";
+/** `member` is someone in the node's space; the others come from a grant or a link. */
+export type StorageRole = "member" | "editor" | "commenter" | "viewer";
 
 export interface Access {
   role: StorageRole;
@@ -33,7 +33,15 @@ export interface Access {
  * on a folder above it. Unlike `change`, which an editor has only inside the folder they were
  * given: writing a document they were handed is what editing it means.
  */
-export const editsContent = (access: Access) => access.role !== "viewer";
+export const editsContent = (access: Access) =>
+  access.role === "member" || access.role === "editor";
+
+/**
+ * Whether the holder may read a file's comments and write their own (ADR 0043 decision 5): a
+ * member, an editor or a commenter. A viewer, and a link alone, see the file and not what people
+ * said about it.
+ */
+export const readsComments = (access: Access) => access.role !== "viewer";
 
 export interface Door {
   kind: "member" | "grant" | "link";
@@ -193,10 +201,11 @@ export function grantDoor(userId: string, scopeOrgId?: string | null, underShare
       );
       const editorAbove = chain.slice(1).some((row) => editing.has(row.id));
       const editor = editorAbove || editing.has(node.id);
+      const commenter = grants.some((grant) => grant.role === "commenter");
       const member = editorAbove ? await asMember(ex, node) : null;
       const memberRemoves = member ? ((await member.access(ex, chain))?.remove ?? false) : true;
       return {
-        role: editor ? "editor" : "viewer",
+        role: editor ? "editor" : commenter ? "commenter" : "viewer",
         top: chain.findLastIndex((row) => granted.has(row.id)),
         inside: editor && node.kind === "folder",
         change: editorAbove,

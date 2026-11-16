@@ -44,7 +44,7 @@ function SharedFolder(props: {
   item: Item;
 }) {
   const { shareId, item } = props;
-  const canWrite = item.role !== "viewer";
+  const canWrite = item.role === "member" || item.role === "editor";
   const trash = useTrashNode();
   // `path` runs from what was shared down to this folder.
   const [top = { id: item.node.id, name: item.node.name }, ...below] = item.path;

@@ -38,6 +38,7 @@ import { storageErrorToast } from "./storage-errors.ts";
 
 const ROLES: { id: StorageGrantRole; label: string }[] = [
   { id: "viewer", label: "Viewer" },
+  { id: "commenter", label: "Commenter" },
   { id: "editor", label: "Editor" },
 ];
 const ACCESS: { id: StorageLinkAccess; label: string }[] = [

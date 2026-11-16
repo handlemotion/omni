@@ -12,9 +12,12 @@ export const STORAGE_MAX_PARTS = 10_000;
 /** `personal` is the member's My files; `shared` is the company's shared drive. */
 export const storageSpaceSchema = z.enum(["personal", "shared"]);
 export const storageNodeKindSchema = z.enum(["folder", "file"]);
-/** `member` is someone in the node's space; `editor` and `viewer` come from a grant or a link. */
-export const storageRoleSchema = z.enum(["member", "editor", "viewer"]);
-export const storageGrantRoleSchema = z.enum(["viewer", "editor"]);
+/**
+ * `member` is someone in the node's space; the others come from a grant or a link. A `commenter`
+ * reads and writes comments (ADR 0043 decision 5); absent from a Worker older than comments.
+ */
+export const storageRoleSchema = z.enum(["member", "editor", "commenter", "viewer"]);
+export const storageGrantRoleSchema = z.enum(["viewer", "commenter", "editor"]);
 export const storageLinkAccessSchema = z.enum(["restricted", "anyone"]);
 
 const isoDate = z.iso.datetime();
@@ -616,3 +619,5 @@ export type StorageReplaceUploadBody = z.infer<typeof storageReplaceUploadBodySc
 export type DesktopSyncState = z.infer<typeof desktopSyncStateSchema>;
 export type DesktopWorkspaceSync = z.infer<typeof desktopWorkspaceSyncSchema>;
 export type DesktopSyncStatus = z.infer<typeof desktopSyncStatusSchema>;
+
+export * from "./storage-comments.ts";

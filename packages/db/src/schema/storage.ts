@@ -307,9 +307,7 @@ export const storageGrants = pgTable(
     nodeId: text("node_id").notNull(),
     /** Lowercase. */
     email: text("email").notNull(),
-    // Narrowed to the roles the code grants today: no `commenter` row exists until the comments
-    // work grants one, and that change drops this `$type` with its contract and labels.
-    role: storageGrantRole("role").$type<"viewer" | "editor">().notNull(),
+    role: storageGrantRole("role").notNull(),
     createdByMemberId: text("created_by_member_id").references(() => members.id, {
       onDelete: "set null",
     }),

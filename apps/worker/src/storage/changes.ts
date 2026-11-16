@@ -1,7 +1,8 @@
 // The routes that change files and folders (ADR 0034 decision 6): create a folder, rename, move,
-// trash, upload, and a file's versions. Written once against `writeDoor` and mounted twice: under `/api/storage`
-// for a member in their workspace, and under `/api/storage/shared/:shareId` for a person an
-// item was shared with as Editor, where the grant door bounds every one of them to that item.
+// trash, upload, and a file's versions and comments. Written once against `writeDoor` and
+// mounted twice: under `/api/storage` for a member in their workspace, and under
+// `/api/storage/shared/:shareId` for a person an item was shared with, where the grant door
+// bounds every one of them to that item.
 import {
   storageChangeNodeBodySchema,
   storageCreateFolderBodySchema,
@@ -16,6 +17,7 @@ import { announceDrives } from "./announce.ts";
 import { deleteStorageObjects, wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
 import { placeOf, refused, writeDoor } from "./http.ts";
+import { storageComments } from "./comments.ts";
 import { storageUploads } from "./uploads.ts";
 import { storageVersions } from "./versions.ts";
 
@@ -88,4 +90,5 @@ export const storageChanges = new Hono<AppEnv>()
   )
 
   .route("/", storageUploads)
-  .route("/", storageVersions);
+  .route("/", storageVersions)
+  .route("/", storageComments);

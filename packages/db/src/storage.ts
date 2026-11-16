@@ -10,6 +10,7 @@ import type { Db } from "./client.ts";
 import { grantAddresses, grantDoor, linkDoor, loadMember, memberDoor } from "./storage/access.ts";
 import type { StorageListCursor, StorageSpace } from "./storage/core.ts";
 import { storagePeakOf } from "./storage/billing.ts";
+import { commentOperations } from "./storage/comments.ts";
 import { lockOperations } from "./storage/lock.ts";
 import { storageUsageOf } from "./storage/maintenance.ts";
 import { listSharedWith, sharingOperations, type SharedWithMeCursor } from "./storage/sharing.ts";
@@ -54,6 +55,14 @@ export {
   type StorageSyncWorkspace,
 } from "./storage/sync.ts";
 export type { StorageLockResult } from "./storage/lock.ts";
+export type {
+  AddCommentResult,
+  CommentResult,
+  CommentsResult,
+  DeleteCommentResult,
+  StorageComment,
+  StorageCommentAnchor,
+} from "./storage/comments.ts";
 export {
   STORAGE_VERSION_DAYS,
   type RestoreVersionResult,
@@ -141,6 +150,7 @@ export function memberStorage(db: Db, memberId: string) {
     ...treeOperations(db, door),
     ...uploadOperations(db, door),
     ...versionOperations(db, door),
+    ...commentOperations(db, door),
     ...trashOperations(db, door, memberId),
     ...sharingOperations(db, door),
     ...lockOperations(db, door, memberId),
@@ -174,8 +184,8 @@ export function memberStorage(db: Db, memberId: string) {
 
 /**
  * The grant door. What was shared with the person by address, in any workspace: browse and
- * download, and with an editor grant upload, create folders, rename, move and trash inside the
- * granted folder. `scopeOrgId` is the session's scope (ADR 0024): with one, only grants to an
+ * download, with a commenter grant comment too, and with an editor grant upload, create folders,
+ * rename, move and trash inside the granted folder. `scopeOrgId` is the session's scope (ADR 0024): with one, only grants to an
  * address on that company's claimed domains count.
  */
 export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) {
@@ -185,6 +195,7 @@ export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) 
       ...treeOperations(db, door),
       ...uploadOperations(db, door),
       ...versionOperations(db, door),
+      ...commentOperations(db, door),
     };
   };
   return {
