@@ -33,14 +33,15 @@ export function SidebarIsland({ sections }: { sections: ReactNode[] }) {
     <nav
       ref={island}
       aria-label="Navigation"
-      // Its icons centred under the title bar's sidebar toggle, on the nav icons' 23.5px axis (the
-      // red traffic light's, on a Mac): 4.5px in, then the 1px border, 4px padding and half a 28px
-      // icon. 56px down: its top edge on the top of the list's first date header's text (the 48px
-      // title row, then that header; measured).
-      className="fixed start-[4.5px] top-14 z-10 rounded-xl border border-sidebar-border bg-sidebar"
+      // Balanced between the window's edge and the page: 20px in, and the page's first ink (the
+      // date headers, the checkboxes) 20px after it (the rows' own 20px inset). 56px down: its top
+      // edge on the top of the list's first date header's text (the 48px title row, then that
+      // header; measured).
+      // Never past the window's foot (16px clear of it): a short window scrolls the icons inside.
+      className="fixed start-5 top-14 z-10 flex max-h-[calc(100svh-(--spacing(18)))] flex-col rounded-xl border border-sidebar-border bg-sidebar"
     >
       {/* The sidebar's list, for its one hover highlight; 4px round the 28px icons. */}
-      <SidebarContent className="flex-none gap-1 overflow-visible p-1">
+      <SidebarContent className="flex-initial gap-1 p-1">
         {sections.map((section, index) => (
           <Fragment key={index}>
             {/* Edge to edge, through the island's 4px padding. */}

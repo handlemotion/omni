@@ -405,6 +405,10 @@ export function SidebarItem({
       ref={ref}
       data-slot="sidebar-item"
       aria-current={isCurrent ? "page" : undefined}
+      // Collapsed, the label is gone and the glyph is hidden: the tooltip's text names the link.
+      aria-label={
+        props["aria-label"] ?? (isCollapsed && typeof tooltip === "string" ? tooltip : undefined)
+      }
       className={composeRenderProps(
         className,
         (className, { isFocusVisible, isHovered, isDisabled }) =>
