@@ -3,7 +3,7 @@
 // bounded per run; what one run leaves, the next takes.
 import { indexParticipants, type Db } from "@omni/db";
 import { Effect, Result } from "effect";
-import { attempt, type JobError, retried, runJob, scopedDb, within } from "../job-effects.ts";
+import { attempt, type JobError, retried, runJob, scopedDb } from "../job-effects.ts";
 import { createLogger, type Logger } from "../log.ts";
 import { helpdeskClock } from "../sla.ts";
 
@@ -11,8 +11,6 @@ import { helpdeskClock } from "../sla.ts";
 const BACKFILL_MAX_BATCHES = 20;
 /** Wall time after which a run starts no new batch and leaves the rest to the next minute. */
 const BACKFILL_BUDGET_MS = 20_000;
-/** A run still going after this has a batch that hangs: it fails, and the next minute retries. */
-const BACKFILL_LIMIT = "45 seconds";
 
 /**
  * Indexes `thread_participants` (ADR 0036 decision 4) for messages stored without them: mail
@@ -33,7 +31,9 @@ export function backfillParticipants(db: Db, log: Logger, now?: Date) {
     }
     if (total.messages > 0) log.info("mail.participants_indexed", total);
     return total;
-  }).pipe(within("index_participants", BACKFILL_LIMIT));
+    // No `Effect.timeout` around this: it would abandon a batch's transaction, not stop it, and
+    // the next minute's run would start beside it (ADR 0038). The budget above bounds the run.
+  });
 }
 
 /**
