@@ -9,7 +9,9 @@ import {
   randomStorageSweepStart,
   recomputeStorageUsage,
   removeStorageUpload,
+  STORAGE_TOMBSTONE_DAYS,
   STORAGE_TRASH_DAYS,
+  sweepStorageTombstones,
   type Db,
 } from "@omni/db";
 import { Effect, Result } from "effect";
@@ -21,6 +23,8 @@ import { abortMultipart, deleteStorageObjects } from "./core.ts";
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Batches of 100 trashed nodes one daily run purges. */
 const PURGE_BATCHES = 20;
+/** Batches of 1000 tombstones one daily run sweeps. */
+const TOMBSTONE_BATCHES = 20;
 /** Pages of 1000 workspace prefixes one sweep reads, and batches of 1000 objects it deletes. */
 const SWEEP_PREFIX_PAGES = 10;
 const SWEEP_DELETE_BATCHES = 20;
@@ -80,6 +84,25 @@ function purgeTrash(db: Db, bucket: R2Bucket, log: Logger, now: Date, keepReadOn
       if (!more) break;
     }
     return objects;
+  });
+}
+
+/**
+ * Tombstones older than 90 days (ADR 0043): a sync client further behind than that lists its
+ * drive again, which the sweep tells it by raising the workspace's cursor floor.
+ */
+function sweepTombstones(db: Db, now: Date) {
+  return Effect.gen(function* () {
+    const before = new Date(now.getTime() - STORAGE_TOMBSTONE_DAYS * DAY_MS);
+    let deleted = 0;
+    for (let batch = 0; batch < TOMBSTONE_BATCHES; batch++) {
+      const swept = yield* retried("sweep_tombstones", () =>
+        sweepStorageTombstones(db, { before }),
+      );
+      deleted += swept.deleted;
+      if (!swept.more) break;
+    }
+    return deleted;
   });
 }
 
@@ -212,7 +235,8 @@ export function sweepDeletedWorkspaces(db: Db, bucket: R2Bucket, log: Logger) {
 
 /**
  * The daily job: purge old Trash, recount every workspace's usage from its files (a drifted
- * counter is wrong for a day at most), and sweep deleted workspaces out of the bucket. The three
+ * counter is wrong for a day at most), sweep deleted workspaces out of the bucket, and sweep old
+ * sync tombstones. The four
  * run side by side and each runs even if another fails; the run still fails so the error is
  * visible.
  */
@@ -223,11 +247,12 @@ export function storageDaily(env: Env, now = new Date()) {
   return runJob(
     Effect.gen(function* () {
       const db = yield* scopedDb(env);
-      const [purged, recounted, swept] = yield* Effect.all(
+      const [purged, recounted, swept, tombstones] = yield* Effect.all(
         [
           Effect.result(purgeTrash(db, bucket, log, now, billed)),
           Effect.result(retried("recompute_usage", () => recomputeStorageUsage(db))),
           Effect.result(sweepDeletedWorkspaces(db, bucket, log)),
+          Effect.result(sweepTombstones(db, now)),
         ],
         { concurrency: "unbounded" },
       );
@@ -235,8 +260,10 @@ export function storageDaily(env: Env, now = new Date()) {
         purgedObjects: valueOf(purged),
         usageRepaired: valueOf(recounted),
         swept: valueOf(swept),
+        tombstonesSwept: valueOf(tombstones),
       });
-      const failed = failureOf(purged) ?? failureOf(recounted) ?? failureOf(swept);
+      const failed =
+        failureOf(purged) ?? failureOf(recounted) ?? failureOf(swept) ?? failureOf(tombstones);
       if (failed) return yield* Effect.fail(failed);
     }),
   );

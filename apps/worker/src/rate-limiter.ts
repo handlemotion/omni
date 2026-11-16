@@ -22,6 +22,7 @@ const RULES = {
   imageProxy: "RATE_LIMIT_IMAGE_PROXY",
   storageShare: "RATE_LIMIT_STORAGE_SHARE",
   storageLink: "RATE_LIMIT_STORAGE_LINK",
+  storageSync: "RATE_LIMIT_STORAGE_SYNC",
 } as const satisfies Record<string, keyof Config>;
 
 export type RateLimitRule = keyof typeof RULES;

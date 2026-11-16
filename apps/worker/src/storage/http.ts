@@ -32,8 +32,7 @@ const FAILURES = {
   incomplete: ["upload_incomplete", "the upload is missing parts"],
   too_large: ["invalid_part", "the part does not fit the upload"],
   invalid_email: ["invalid_email", "that is not an email address"],
-  // Only a sync client's guard answers it (ADR 0043); its own code arrives with the sync routes.
-  version_conflict: ["conflict", "it changed since you read it"],
+  version_conflict: ["version_conflict", "it changed since you read it"],
 } as const satisfies Record<string, readonly [ErrorCode, string]>;
 
 /** The API's error answer for a result `@omni/db` refused, with a code the client can act on. */
@@ -104,9 +103,10 @@ export const listCursor = z.object({
   id: z.string().min(1),
 });
 
-export const wireView = (view: NodeViewRow): StorageNodeView => ({
-  ...view,
-  node: wireNode(view.node),
+export const wireView = ({ node, role, path }: NodeViewRow): StorageNodeView => ({
+  node: wireNode(node),
+  role,
+  path,
 });
 
 /**

@@ -33,7 +33,11 @@ import { storageSharing } from "./sharing.ts";
 
 const trashCursor = z.object({ trashedAt: z.coerce.date(), id: z.string().min(1) });
 
-export const storage = new Hono<AppEnv>()
+/**
+ * The reads a sync client shares with the app: a folder's contents, a file's bytes, and usage.
+ * Mounted here and again under `/api/storage/sync/:orgId` (`sync.ts`).
+ */
+export const storageReads = new Hono<AppEnv>()
   .get("/nodes", zValidator("query", storageListQuerySchema), async (c) => {
     const { space, parent, cursor, limit } = c.req.valid("query");
     const listed = await memberStorage(c).list(placeOf({ parentId: parent, space }), {
@@ -46,31 +50,6 @@ export const storage = new Hono<AppEnv>()
       nodes: listed.nodes.map(wireNode),
       nextCursor: encodeCursor(listed.nextCursor),
     } satisfies StorageListResponse);
-  })
-
-  .post("/nodes/:id/restore", async (c) => {
-    const restored = await memberStorage(c).restore(c.req.param("id"));
-    if (restored.status !== "ok") return refused(c, restored.status);
-    return c.json({ node: wireNode(restored.node) } satisfies StorageNodeResponse);
-  })
-
-  /** Unlocks a file (ADR 0036 decision 6). Owners and admins only; anyone else gets `403`. */
-  .delete("/nodes/:id/lock", async (c) => {
-    const unlocked = await memberStorage(c).unlock(c.req.param("id"));
-    if (unlocked.status !== "ok") return refused(c, unlocked.status);
-    return c.json({ node: wireNode(unlocked.node) } satisfies StorageNodeResponse);
-  })
-
-  .get("/trash", zValidator("query", storagePageQuerySchema), async (c) => {
-    const { cursor, limit } = c.req.valid("query");
-    const page = await memberStorage(c).listTrash({
-      cursor: decodeCursor(cursor, trashCursor),
-      limit,
-    });
-    return c.json({
-      nodes: page.nodes.map(wireNode),
-      nextCursor: encodeCursor(page.nextCursor),
-    } satisfies StorageTrashResponse);
   })
 
   /** The file's bytes, always as a download (see `fileResponse`). */
@@ -102,6 +81,34 @@ export const storage = new Hono<AppEnv>()
       overage: peak === null ? null : { extraGb: extraGb(peak, allowanceBytes!) },
       uploadsBlocked: writable ? (full ? "storage_full" : null) : "billing_inactive",
     } satisfies StorageUsage);
+  });
+
+export const storage = new Hono<AppEnv>()
+  .route("/", storageReads)
+
+  .post("/nodes/:id/restore", async (c) => {
+    const restored = await memberStorage(c).restore(c.req.param("id"));
+    if (restored.status !== "ok") return refused(c, restored.status);
+    return c.json({ node: wireNode(restored.node) } satisfies StorageNodeResponse);
+  })
+
+  /** Unlocks a file (ADR 0036 decision 6). Owners and admins only; anyone else gets `403`. */
+  .delete("/nodes/:id/lock", async (c) => {
+    const unlocked = await memberStorage(c).unlock(c.req.param("id"));
+    if (unlocked.status !== "ok") return refused(c, unlocked.status);
+    return c.json({ node: wireNode(unlocked.node) } satisfies StorageNodeResponse);
+  })
+
+  .get("/trash", zValidator("query", storagePageQuerySchema), async (c) => {
+    const { cursor, limit } = c.req.valid("query");
+    const page = await memberStorage(c).listTrash({
+      cursor: decodeCursor(cursor, trashCursor),
+      limit,
+    });
+    return c.json({
+      nodes: page.nodes.map(wireNode),
+      nextCursor: encodeCursor(page.nextCursor),
+    } satisfies StorageTrashResponse);
   })
 
   .route("/", storageSharing)

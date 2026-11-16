@@ -19,6 +19,22 @@ export const CRM_READ_SCOPE = "crm:read";
 /** Add and change CRM records and notes, never delete: `crm_write` (ADR 0036). */
 export const CRM_WRITE_SCOPE = "crm:write";
 
+/**
+ * Sync Storage with the desktop app's Finder folder (ADR 0043). Only the first-party Omni
+ * Desktop client holds it: it is not among the scopes a registered agent may ask for.
+ */
+export const STORAGE_SYNC_SCOPE = "storage:sync";
+
+/** The first-party desktop app's public client (ADR 0043): PKCE, no secret, no consent screen. */
+export const DESKTOP_CLIENT_ID = "omni-desktop";
+/** Where the desktop app receives its authorization code: its own `omni://` scheme. */
+export const DESKTOP_REDIRECT_URI = "omni://oauth/callback";
+
+/** The sync API, and the resource every desktop sync token is bound to. */
+export function storageSyncResource(baseURL: string) {
+  return new URL("/api/storage/sync", baseURL).toString();
+}
+
 export const MCP_SCOPES = [
   MAIL_READ_SCOPE,
   MAIL_TRIAGE_SCOPE,
@@ -72,7 +88,16 @@ export function mcpPlugins(env: McpAuthEnv) {
       // The Worker turns the request into `/login?redirect=…` and back (`routes/oauth.ts`).
       loginPage: new URL("/api/oauth/login", env.baseURL).toString(),
       consentPage: new URL("/oauth/consent", env.webAppURL ?? env.baseURL).toString(),
-      scopes: ["openid", "profile", "email", "offline_access", ...MCP_SCOPES],
+      scopes: ["openid", "profile", "email", "offline_access", ...MCP_SCOPES, STORAGE_SYNC_SCOPE],
+      // Desktop sync tokens are for the sync API alone; `/mcp` is added by the plugin. A client
+      // is linked only to the resources it was registered with, so an agent never gets this one.
+      resources: [
+        {
+          identifier: storageSyncResource(env.baseURL),
+          name: "Omni Desktop sync",
+          allowedScopes: [STORAGE_SYNC_SCOPE],
+        },
+      ],
       // Always on behalf of a person: no `client_credentials`.
       grantTypes: ["authorization_code", "refresh_token"],
       // Strict refresh rotation: a reused refresh token is a stolen one.
@@ -92,10 +117,12 @@ export function mcpPlugins(env: McpAuthEnv) {
       postLogin: {
         page: new URL("/oauth/consent", env.webAppURL ?? env.baseURL).toString(),
         shouldRedirect: () => false,
-        consentReferenceId: async ({ user, session }) => {
+        consentReferenceId: async ({ user, session, scopes }) => {
           const reference = await oauthWorkspaceReference(env.db, {
             sessionId: session.id,
             userId: user.id,
+            // Desktop sync has no workspace pick: an agent's earlier one must not narrow it.
+            ignorePick: scopes.includes(STORAGE_SYNC_SCOPE),
           });
           if (!reference) {
             throw new APIError("FORBIDDEN", {

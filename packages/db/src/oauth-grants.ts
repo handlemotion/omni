@@ -2,8 +2,15 @@
 // person's pick for the session; the grant's reference is that workspace's id, or `ALL_WORKSPACES`.
 // A session scoped to a company (ADR 0024) can only grant that company.
 import { and, eq, sql } from "drizzle-orm";
+import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
-import { jwks, members } from "./schema/auth.ts";
+import {
+  jwks,
+  members,
+  oauthClientResources,
+  oauthClients,
+  oauthResources,
+} from "./schema/auth.ts";
 import { oauthWorkspaceChoices } from "./schema/identity.ts";
 import { sessionAccess } from "./session-scopes.ts";
 
@@ -35,15 +42,17 @@ export async function chooseOAuthWorkspace(
 /**
  * The reference for a grant made in `sessionId`: its scoped company, else its recorded pick,
  * else every workspace. A pick the user has since lost falls back to nothing: `null`, and the
- * grant is refused.
+ * grant is refused. `ignorePick`: a grant that never offers the pick (desktop sync) reaches what
+ * the session reaches, whatever an agent's consent recorded in it before.
  */
 export async function oauthWorkspaceReference(
   db: Db,
-  input: { sessionId: string; userId: string },
+  input: { sessionId: string; userId: string; ignorePick?: boolean },
 ): Promise<string | null> {
   const access = await sessionAccess(db, input.sessionId);
   if (!access) return null;
   if (access.scopeOrgId) return access.scopeOrgId;
+  if (input.ignorePick) return ALL_WORKSPACES;
   const [choice] = await db
     .select({ orgId: oauthWorkspaceChoices.orgId })
     .from(oauthWorkspaceChoices)
@@ -91,4 +100,62 @@ export async function tokenSigningKeys(db: Db) {
     ...(JSON.parse(row.publicKey) as Record<string, unknown>),
     kid: row.id,
   }));
+}
+
+/** A first-party public client, as the server's own config defines it (ADR 0043). */
+export interface FirstPartyOAuthClient {
+  clientId: string;
+  name: string;
+  redirectUri: string;
+  scopes: string[];
+  /** The one resource its tokens are for, and the scopes that resource accepts. */
+  resource: { identifier: string; name: string; allowedScopes: string[] };
+}
+
+/**
+ * Makes sure a first-party client exists as configured: a native public client (PKCE, no
+ * secret) that skips the consent screen, linked to its one resource. Rows are config, not
+ * user data: run again it changes nothing, and a changed config overwrites the client's row.
+ */
+export async function ensureFirstPartyOAuthClient(db: Db, client: FirstPartyOAuthClient) {
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(oauthResources)
+      .values({
+        id: uuidv7(),
+        identifier: client.resource.identifier,
+        name: client.resource.name,
+        allowedScopes: client.resource.allowedScopes,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing({ target: oauthResources.identifier });
+    const fields = {
+      name: client.name,
+      redirectUris: [client.redirectUri],
+      scopes: client.scopes,
+      skipConsent: true,
+      disabled: false,
+      tokenEndpointAuthMethod: "none",
+      grantTypes: ["authorization_code", "refresh_token"],
+      responseTypes: ["code"],
+      applicationType: "native",
+      requirePKCE: true,
+      updatedAt: now,
+    };
+    await tx
+      .insert(oauthClients)
+      .values({ id: uuidv7(), clientId: client.clientId, createdAt: now, ...fields })
+      .onConflictDoUpdate({ target: oauthClients.clientId, set: fields });
+    await tx
+      .insert(oauthClientResources)
+      .values({
+        id: uuidv7(),
+        clientId: client.clientId,
+        resourceId: client.resource.identifier,
+        createdAt: now,
+      })
+      .onConflictDoNothing();
+  });
 }

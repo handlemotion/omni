@@ -42,6 +42,7 @@ interface __BaseEnv_Env {
   RATE_LIMIT_IMAGE_PROXY: string;
   RATE_LIMIT_STORAGE_SHARE: string;
   RATE_LIMIT_STORAGE_LINK: string;
+  RATE_LIMIT_STORAGE_SYNC: string;
   REPLAY_GUARD: DurableObjectNamespace<import("./src/index").ReplayGuard>;
   REALTIME: DurableObjectNamespace<import("./src/index").Realtime>;
   DOMAIN_WATCH: DurableObjectNamespace<import("./src/index").DomainWatch>;
@@ -96,6 +97,7 @@ declare namespace NodeJS {
       | "RATE_LIMIT_IMAGE_PROXY"
       | "RATE_LIMIT_STORAGE_SHARE"
       | "RATE_LIMIT_STORAGE_LINK"
+      | "RATE_LIMIT_STORAGE_SYNC"
     >
   > {}
 }

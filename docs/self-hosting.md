@@ -410,6 +410,7 @@ which Cloudflare sets and clients cannot.
 | `RATE_LIMIT_IMAGE_PROXY`   | `300/60`   | Per member: image-proxy fetches of images not already cached (cached ones are free).                                                                                          |
 | `RATE_LIMIT_STORAGE_SHARE` | `60/3600`  | Per member: people added to a file or folder in Storage, each of whom is sent one mail. Changing a role sends none and is free.                                               |
 | `RATE_LIMIT_STORAGE_LINK`  | `300/60`   | Per IP: requests to Storage's link door (`/api/storage/shared/*`), which answers anyone holding a link, signed in or not.                                                     |
+| `RATE_LIMIT_STORAGE_SYNC`  | `600/60`   | Per person and desktop app: requests to the desktop sync API (`/api/storage/sync/*`).                                                                                         |
 
 #### Billing (optional)
 

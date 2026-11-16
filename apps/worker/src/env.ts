@@ -132,6 +132,8 @@ const configSchema = z
     RATE_LIMIT_STORAGE_SHARE: rateLimit("60/3600"),
     /** Per IP: requests to Storage's link door, `/api/storage/shared/*`. */
     RATE_LIMIT_STORAGE_LINK: rateLimit("300/60"),
+    /** Per person and client: requests to the desktop sync API, `/api/storage/sync/*`. */
+    RATE_LIMIT_STORAGE_SYNC: rateLimit("600/60"),
   })
   .refine((env) => !env.IMAGE_PROXY_TEST_ALLOW_ORIGIN || env.ENVIRONMENT === "test", {
     path: ["IMAGE_PROXY_TEST_ALLOW_ORIGIN"],

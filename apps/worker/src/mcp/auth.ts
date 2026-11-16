@@ -74,6 +74,28 @@ export function insufficientScope(baseURL: string, needed: readonly string[]) {
 }
 
 /**
+ * The claims of an access token our provider signed for `audience`, or null when its signature,
+ * issuer, audience or expiry does not hold. Shared by `/mcp` and the desktop sync API.
+ */
+export async function verifyAccessToken(token: string, auth: Auth, db: Db, audience: string) {
+  const verify = async (forceRefresh: boolean) => {
+    const { keys, issuer } = await verificationKeys(auth, db, forceRefresh);
+    return jwtVerify(token, createLocalJWKSet(keys), { issuer, audience });
+  };
+  try {
+    return (await verify(false)).payload;
+  } catch (error) {
+    // A key we have not cached yet (rotation): reload once.
+    if (!(error instanceof errors.JWKSNoMatchingKey)) return null;
+    try {
+      return (await verify(true)).payload;
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
  * The caller, or the response to send instead: 401 without a valid token for this resource, 403
  * when it lacks `mail:read` (every tool reads).
  */
@@ -87,26 +109,7 @@ export async function authenticate(
   const token = /^Bearer (\S+)$/i.exec(header)?.[1];
   if (!token) return challenge(401, baseURL, [MAIL_READ_SCOPE]);
 
-  const verify = async (forceRefresh: boolean) => {
-    const { keys, issuer } = await verificationKeys(auth, db, forceRefresh);
-    return jwtVerify(token, createLocalJWKSet(keys), {
-      issuer,
-      audience: mcpResource(baseURL),
-    });
-  };
-  let payload;
-  try {
-    payload = (await verify(false)).payload;
-  } catch (error) {
-    // A key we have not cached yet (rotation): reload once.
-    if (error instanceof errors.JWKSNoMatchingKey) {
-      try {
-        payload = (await verify(true)).payload;
-      } catch {
-        payload = undefined;
-      }
-    }
-  }
+  const payload = await verifyAccessToken(token, auth, db, mcpResource(baseURL));
   if (!payload?.sub) {
     return challenge(401, baseURL, [MAIL_READ_SCOPE], {
       code: "invalid_token",

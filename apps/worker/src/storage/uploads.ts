@@ -88,7 +88,7 @@ async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
 
 export const storageUploads = new Hono<AppEnv>()
   .post("/uploads", zValidator("json", storageOpenUploadBodySchema), async (c) => {
-    const { name, size, mimeType, parentId, space } = c.req.valid("json");
+    const { name, size, mimeType, sha256, parentId, space } = c.req.valid("json");
     const { db, config } = c.var;
     const { files, orgId } = writeDoor(c);
     if (size > config.STORAGE_MAX_FILE_BYTES || partCount(size) > STORAGE_MAX_PARTS) {
@@ -100,6 +100,7 @@ export const storageUploads = new Hono<AppEnv>()
       size,
       mimeType,
       limitBytes,
+      sha256,
     });
     if (opened.status !== "ok") return refused(c, opened.status);
     if (size === 0) return c.json(answer(opened.upload), 201);

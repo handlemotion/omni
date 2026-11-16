@@ -42,6 +42,8 @@ export interface StorageNodeView {
   node: StorageNode;
   role: StorageRole;
   path: StoragePathEntry[];
+  /** In Trash itself or inside a folder that is: only a member reaches such a node. */
+  inTrash: boolean;
 }
 
 export type NotFound = { status: "not_found" };
@@ -98,6 +100,7 @@ const view = (chain: NodeRow[], access: Access): StorageNodeView => ({
     .slice(0, access.top + 1)
     .toReversed()
     .map((row) => ({ id: row.id, name: row.name })),
+  inTrash: inTrash(chain),
 });
 
 /** The node's chain and what the door allows on it, or null when the door opens nothing. */

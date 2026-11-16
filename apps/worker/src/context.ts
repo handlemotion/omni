@@ -9,6 +9,7 @@ import { loadConfig, type Config } from "./env.ts";
 import type { Logger } from "./log.ts";
 import { modules } from "./modules.ts";
 import type { SharedAccess } from "./storage/http.ts";
+import type { SyncCaller } from "./storage/sync.ts";
 
 export interface Member {
   /** `members.id`: what `forMember` and every mail table key on. */
@@ -31,6 +32,8 @@ export interface AppEnv {
     log: Logger;
     /** Set under `/api/storage/shared/:shareId` only: Storage reached by a grant or a link. */
     shared?: SharedAccess;
+    /** Set under `/api/storage/sync` only: who a desktop sync token acts for (ADR 0043). */
+    syncCaller?: SyncCaller;
   };
 }
 
