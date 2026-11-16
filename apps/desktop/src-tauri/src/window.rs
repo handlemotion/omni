@@ -41,12 +41,15 @@ pub fn create<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         }
     };
 
+    // Read first, always: the update relaunch keeps its arguments, so a login launch's `--hidden`
+    // must not leave the mark behind to hide the next ordinary launch.
+    let relaunched = crate::updater::relaunched(app);
     let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()));
     let window = chrome(builder)
         .title("Omni")
         .inner_size(1280.0, 800.0)
         .min_inner_size(720.0, 480.0)
-        .visible(!std::env::args().any(|arg| arg == HIDDEN_ARG))
+        .visible(!relaunched && !std::env::args().any(|arg| arg == HIDDEN_ARG))
         .on_navigation(on_navigation)
         .on_new_window(on_new_window)
         // The destination arrives filled in: the Downloads folder, the suggested name, made unique.
@@ -68,6 +71,8 @@ pub fn create<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         if let WindowEvent::CloseRequested { api, .. } = event {
             api.prevent_close();
             let _ = hide.hide();
+            // Hidden now, so a downloaded update installs (after the hide, not beside it).
+            crate::updater::install_if_idle(hide.app_handle());
         }
     });
     Ok(())

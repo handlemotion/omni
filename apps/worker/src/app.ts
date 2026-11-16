@@ -32,6 +32,7 @@ import { compose } from "./routes/compose.ts";
 import { unsubscribe } from "./routes/unsubscribe.ts";
 import { handoff } from "./routes/handoff.ts";
 import { connect, desktopGoogleReturn } from "./routes/connect.ts";
+import { desktop } from "./routes/desktop.ts";
 import { folders } from "./routes/folders.ts";
 import { library } from "./routes/library.ts";
 import { mail } from "./routes/mail.ts";
@@ -180,6 +181,8 @@ export const app = new Hono<AppEnv>()
   .use(trace)
   .use(securityHeaders)
   .get("/health", (c) => c.json({ ok: true }))
+  // Desktop app releases: the updater's manifest and the installers (public, signed files).
+  .route("/desktop", desktop)
   .route("/", internal)
   .use("/api/*", requestScope)
   // People's own agents (ADR 0029): the MCP endpoint and its OAuth discovery documents.

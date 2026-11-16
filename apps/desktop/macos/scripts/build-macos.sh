@@ -23,6 +23,9 @@ identity="${OMNI_SIGN_IDENTITY:--}"
 out="${OMNI_EXTENSION_OUT:-$here/build}"
 ext_id="$bundle_id.fileprovider"
 keychain_group="${team:+$team.}$bundle_id"
+# Notarization needs a secure timestamp on every signed binary; ad hoc signing has none to get.
+timestamp="--timestamp"
+[[ "$identity" == "-" ]] && timestamp="--timestamp=none"
 
 swift build --package-path "$here" -c release --arch arm64 --arch x86_64 --product OmniFileProvider
 swift build --package-path "$here" -c release --arch arm64 --arch x86_64 --product OmniSyncHelper
@@ -84,7 +87,7 @@ if [[ -n "${OMNI_EXTENSION_PROFILE:-}" ]]; then
   cp "$OMNI_EXTENSION_PROFILE" "$appex/Contents/embedded.provisionprofile"
 fi
 
-codesign --force --options runtime --timestamp=none --entitlements "$entitlements" --sign "$identity" "$appex"
+codesign --force --options runtime "$timestamp" --entitlements "$entitlements" --sign "$identity" "$appex"
 codesign --verify --strict "$appex"
 
 # The app's entitlements, for Tauri's signing step (tauri.macos.conf.json): the App Group and
@@ -111,7 +114,7 @@ plutil -lint "$app_entitlements" >/dev/null
 # the extension) and claims no entitlement: macOS kills a bare tool that claims a restricted one,
 # since only a bundle's main executable gets the bundle's profile.
 cp "$bin_dir/OmniSyncHelper" "$out/omni-sync"
-codesign --force --options runtime --timestamp=none --identifier "$bundle_id.sync" \
+codesign --force --options runtime "$timestamp" --identifier "$bundle_id.sync" \
   --sign "$identity" "$out/omni-sync"
 codesign --verify --strict "$out/omni-sync"
 

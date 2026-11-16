@@ -235,8 +235,11 @@ after a spike. Swift side: Foundation and FileProvider only.
 - **Links.** `omni://` opens threads and files in the app (`omni://open?path=/inbox/…`). Links to
   other origins open in the default browser. `mailto:` registers Omni as a mail handler and
   opens compose (macOS and Windows both ask the person first).
-- **Updates.** The updater plugin, checked at start and every 6 hours, installed on quit. Because
-  the UI comes from the server, a shell update is rare: native code, the extension, Tauri itself.
+- **Updates.** The updater plugin, checked a minute after start and every 6 hours, downloaded in
+  the background and installed while nobody is looking: at once if the window is closed, else
+  when it next closes or the app quits; the app relaunches into the menu bar, window hidden.
+  Because the UI comes from the server, a shell update is rare: native code, the extension,
+  Tauri itself.
 
 ### Navigation changes in the web app
 
@@ -267,12 +270,16 @@ primitives, and add no text.
   the app; associated domains on the app if passkeys are proven. Universal binary.
 - **Windows.** NSIS installer, signed with Azure Trusted Signing through `signCommand`. WebView2
   bootstrapper for machines without it.
-- **CI.** A new `Desktop` workflow, on changes under `apps/desktop/**` and on release tags:
-  Rust fmt, clippy and tests on Linux; an unsigned compile of the extension and the app on a
-  macOS runner; an unsigned build on a Windows runner. A `desktop-v*` tag builds signed artifacts
-  and publishes the updater manifest and installers to an R2 bucket behind the Worker
-  (`/desktop/latest.json`, `/desktop/download/:platform`), so a self-hoster can point the updater
-  at their own. `Checks` is unchanged for everyone else.
+- **CI.** A `Desktop` workflow, on pull requests touching `apps/desktop/**`: Rust fmt, clippy
+  and tests on Linux; unsigned compiles on macOS and Windows. `Checks` is unchanged for everyone
+  else.
+- **Releases.** No CI budget for signed builds, so a release runs on a Mac:
+  `apps/desktop/scripts/release-macos.sh` builds the version in `tauri.conf.json` (universal,
+  Developer ID, both profiles embedded, app and disk image notarized), signs the updater archive
+  with the updater key, uploads it to the R2 bucket behind the Worker (`DESKTOP_BUCKET`), writes
+  `/desktop/latest.json` last, checks the live feed and tags `desktop-v<version>`. The Worker
+  serves `/desktop/latest.json`, `/desktop/download/:platform` and `/desktop/releases/*` from it,
+  so a self-hoster publishes to their own. Every key stays a file on that Mac.
 - **Config.** `OMNI_DESKTOP_ORIGIN` (optional default server), `OMNI_DESKTOP_BUNDLE_ID`,
   `OMNI_DESKTOP_APP_GROUP`, `APPLE_TEAM_ID`, updater public key and endpoint. Documented in
   `apps/desktop/.env.example` and `docs/self-hosting.md`.

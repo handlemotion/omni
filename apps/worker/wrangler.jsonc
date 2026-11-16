@@ -17,7 +17,14 @@
     "directory": "../web/dist",
     "not_found_handling": "single-page-application",
     // `/mcp` and `/.well-known/*`: the MCP endpoint and its OAuth discovery (ADR 0029).
-    "run_worker_first": ["/api/*", "/health", "/internal/*", "/mcp", "/.well-known/*"],
+    "run_worker_first": [
+      "/api/*",
+      "/health",
+      "/internal/*",
+      "/mcp",
+      "/.well-known/*",
+      "/desktop/*",
+    ],
   },
   "vars": {
     // `test` only in the e2e suites; it unlocks test-only switches.
@@ -100,6 +107,13 @@
       "binding": "STORAGE_BUCKET",
       "bucket_name": "omni-storage",
       "preview_bucket_name": "omni-storage-dev",
+    },
+    // Desktop app releases: the updater manifest and installers (src/routes/desktop.ts),
+    // published from a Mac by apps/desktop/scripts/release-macos.sh. Public, signed files.
+    {
+      "binding": "DESKTOP_BUCKET",
+      "bucket_name": "omni-desktop",
+      "preview_bucket_name": "omni-desktop-dev",
     },
   ],
   // AI jobs: the Worker produces them on new mail and consumes them itself. Jobs that use up
