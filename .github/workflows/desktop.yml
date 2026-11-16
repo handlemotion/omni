@@ -106,3 +106,7 @@ jobs:
 
       # Compiles the shell and builds the bundled page; no installer, no signing.
       - run: pnpm --filter @omni/desktop tauri build --no-bundle
+
+      # The File Provider extension's Swift core and its tests (layer 6).
+      - if: runner.os == 'macOS'
+        run: swift test --package-path apps/desktop/macos
