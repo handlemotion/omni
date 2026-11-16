@@ -29,6 +29,7 @@ import {
   sendAttachmentFiles,
   orphanedMessages,
   pruneMessages,
+  refreshListUnsubscribe,
   removeLocations,
   replaceFolders,
   rescheduleAction,
@@ -215,17 +216,25 @@ export class PgMailStore implements MailStore {
       const result = await this.insert(mailboxId, mailbox, folder.id, fetched, parsed);
       stored = { id: result.id, threadId: result.threadId };
       inserted = result.inserted;
-    } else if (fetched.providerThreadId) {
-      // Indexed before Gmail's copy arrived (our own send, stored as SMTP accepted it): the
-      // message's thread takes Gmail's id, or the message moves to the thread that has it.
-      const providerThreadId = fetched.providerThreadId;
-      const found = stored;
-      await this.oneAtATime(mailboxId, () =>
-        this.followProviderThread(mailboxId, mailbox, found, providerThreadId, {
-          subjectKey: normalizeSubject(message.subject),
-          lastMessageAt: message.sentAt ?? fetched.internalDate ?? new Date(),
-        }),
-      );
+    } else {
+      // Already indexed: a re-sync brings its List-Unsubscribe up to date (rows stored before
+      // the columns existed have none).
+      await refreshListUnsubscribe(this.db, stored.id, {
+        listUnsubscribe: message.signals.listUnsubscribe,
+        listUnsubscribeOneClick: message.signals.listUnsubscribeOneClick,
+      });
+      if (fetched.providerThreadId) {
+        // Indexed before Gmail's copy arrived (our own send, stored as SMTP accepted it): the
+        // message's thread takes Gmail's id, or the message moves to the thread that has it.
+        const providerThreadId = fetched.providerThreadId;
+        const found = stored;
+        await this.oneAtATime(mailboxId, () =>
+          this.followProviderThread(mailboxId, mailbox, found, providerThreadId, {
+            subjectKey: normalizeSubject(message.subject),
+            lastMessageAt: message.sentAt ?? fetched.internalDate ?? new Date(),
+          }),
+        );
+      }
     }
 
     // Before the location: a retry after a failure here finds no location and queues again.
@@ -397,6 +406,8 @@ export class PgMailStore implements MailStore {
         cleanText,
         forwarded,
         remoteImageCount,
+        listUnsubscribe: message.signals.listUnsubscribe,
+        listUnsubscribeOneClick: message.signals.listUnsubscribeOneClick,
         // Bounces and auto-replies never reopen a conversation or start an SLA (ADR 0021).
         automated: parsed.message.automated !== null,
         // Cleared once the Worker accepts `message.created`; until then the sweep re-sends it.

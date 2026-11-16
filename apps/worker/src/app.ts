@@ -29,6 +29,7 @@ import { billingCards } from "./routes/billing-cards.ts";
 import { conversations } from "./routes/conversations.ts";
 import { stripeWebhook } from "./routes/stripe-webhook.ts";
 import { compose } from "./routes/compose.ts";
+import { unsubscribe } from "./routes/unsubscribe.ts";
 import { handoff } from "./routes/handoff.ts";
 import { connect } from "./routes/connect.ts";
 import { folders } from "./routes/folders.ts";
@@ -135,6 +136,7 @@ const api = new Hono<AppEnv>()
   .route("/", forwarding)
   .route("/mail", mailCrmSharing)
   .route("/", compose)
+  .route("/", unsubscribe)
   .route("/", handoff)
   .route("/", folders)
   .route("/connect", connect)

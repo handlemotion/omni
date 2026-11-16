@@ -183,13 +183,14 @@ describe("sync into Postgres against GreenMail", () => {
     expect(await spooled()).toEqual(before);
   });
 
-  it("stores a forward's original and marks an out-of-office reply as automated", async () => {
+  it("stores a forward's original, a list's unsubscribe, and marks an out-of-office reply as automated", async () => {
     const { box } = await seedMailbox(db);
     const fixture = (name: string) =>
       readFile(new URL(`../../../fixtures/eml/${name}`, import.meta.url));
     await otherClient(box, async (client) => {
       await client.append("INBOX", await fixture("gmail-forward.eml"), []);
       await client.append("INBOX", await fixture("auto-reply-outlook-out-of-office.eml"), []);
+      await client.append("INBOX", await fixture("newsletter-html-only.eml"), []);
     });
     await deliver(box.address, "a person writing");
 
@@ -205,6 +206,14 @@ describe("sync into Postgres against GreenMail", () => {
     // An auto-reply must not reopen a conversation or start an SLA; a person's mail must.
     expect(bySubject("Automatic reply")?.automated).toBe(true);
     expect(bySubject("a person writing")).toMatchObject({ automated: false, forwarded: null });
+    // The reader's Unsubscribe reads these; a person's mail has none.
+    expect(rows.find((m) => m.listUnsubscribeOneClick)).toMatchObject({
+      listUnsubscribe: [
+        expect.stringMatching(/^https:\/\/pixelweekly\.example\.com\/u\//),
+        expect.stringMatching(/^mailto:/),
+      ],
+    });
+    expect(bySubject("a person writing")?.listUnsubscribe).toEqual([]);
   });
 
   it("joins a reply to its thread by In-Reply-To, and a new subject starts a new thread", async () => {
@@ -470,7 +479,9 @@ describe("sync into Postgres against GreenMail", () => {
 
   it("re-syncs a folder from scratch when its UIDVALIDITY changes, without duplicate rows", async () => {
     const { box } = await seedMailbox(db);
-    const kept = raw({ subject: "kept receipt", id: "<kept-receipt@outside.test>" });
+    const kept =
+      "List-Unsubscribe: <mailto:leave@outside.test>\r\n" +
+      raw({ subject: "kept receipt", id: "<kept-receipt@outside.test>" });
     await otherClient(box, async (client) => {
       await client.mailboxCreate("Receipts");
       await client.append("Receipts", kept, []);
@@ -482,6 +493,11 @@ describe("sync into Postgres against GreenMail", () => {
     await connection.syncAll();
     expect(await stored(db, box.id, "Receipts")).toHaveLength(2);
     const oldValidity = (await store.getSyncPosition(box.id, "Receipts"))?.uidValidity;
+    // As if indexed before List-Unsubscribe was stored: the re-sync must fill it in.
+    await db
+      .update(schema.messages)
+      .set({ listUnsubscribe: [] })
+      .where(eq(schema.messages.messageIdHeader, "<kept-receipt@outside.test>"));
 
     // GreenMail derives UIDVALIDITY from the clock in seconds; let it tick so the new one differs.
     await new Promise((resolve) => setTimeout(resolve, 1_100));
@@ -500,6 +516,9 @@ describe("sync into Postgres against GreenMail", () => {
     // The kept message is the same row; the reset re-linked it instead of re-inserting.
     const rows = await messageRows(db, box.id);
     expect(rows.filter((r) => r.subject === "kept receipt")).toHaveLength(1);
+    expect(rows.find((r) => r.subject === "kept receipt")?.listUnsubscribe).toEqual([
+      "mailto:leave@outside.test",
+    ]);
     const position = await store.getSyncPosition(box.id, "Receipts");
     expect(position?.uidValidity).not.toBe(oldValidity);
   });

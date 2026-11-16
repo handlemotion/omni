@@ -132,7 +132,7 @@ export async function fromName(c: Context<AppEnv>, mailboxKind: "personal" | "sh
  * Queues one send. Refuses (400) attachments the mailbox may not carry; the uploads it takes are
  * marked used in the same transaction, so a delete or the expiry cleanup cannot remove them.
  */
-async function enqueueSend(
+export async function enqueueSend(
   c: Context<AppEnv>,
   mailbox: ActionMailbox & { kind: "personal" | "shared" },
   payload: Omit<SendPayload, "fromName" | "messageId" | "attachments"> & {

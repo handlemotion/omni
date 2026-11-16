@@ -25,6 +25,7 @@ import { useComposerState } from "../compose/composer-state.tsx";
 import { REPLY_SOURCE } from "../compose/selection-reply.tsx";
 import { FullMessage } from "./full-message.tsx";
 import { MessageMenu } from "./message-menu.tsx";
+import { Unsubscribe } from "./unsubscribe.tsx";
 
 const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 const DAY_TIME = new Intl.DateTimeFormat(undefined, {
@@ -124,6 +125,7 @@ export function MessageItem(props: {
         sender={sender}
         self={props.self}
         menu={menu}
+        unsubscribe={<Unsubscribe threadId={threadId} message={message} />}
       />
 
       {card ? (
@@ -179,11 +181,29 @@ function MessageHeader(props: {
   sender: string;
   self: string;
   menu: ReactNode;
+  /** List mail's Unsubscribe, on the sender's line. */
+  unsubscribe: ReactNode;
 }) {
-  const { message, sender, menu } = props;
+  const { message, sender, menu, unsubscribe } = props;
   if (props.flat)
-    return <EmailHeader message={message} sender={sender} self={props.self} menu={menu} />;
-  return <ChatHeader message={message} sender={sender} menu={menu} actions={!message.fromTeam} />;
+    return (
+      <EmailHeader
+        message={message}
+        sender={sender}
+        self={props.self}
+        menu={menu}
+        unsubscribe={unsubscribe}
+      />
+    );
+  return (
+    <ChatHeader
+      message={message}
+      sender={sender}
+      menu={menu}
+      actions={!message.fromTeam}
+      unsubscribe={unsubscribe}
+    />
+  );
 }
 
 /** Where a message sits in the page, so another can point to it. */
@@ -233,6 +253,7 @@ function ChatHeader(props: {
   sender: string;
   menu: ReactNode;
   actions: boolean;
+  unsubscribe: ReactNode;
 }) {
   const { message, sender } = props;
   return (
@@ -250,6 +271,7 @@ function ChatHeader(props: {
       <time dateTime={message.sentAt} className="text-xs text-subtle-foreground tabular-nums">
         {messageTime(message.sentAt)}
       </time>
+      {props.unsubscribe}
       {props.actions ? <ActionIsland message={message} menu={props.menu} /> : props.menu}
     </header>
   );
@@ -298,7 +320,13 @@ function ReplyActions({ message, small = false }: { message: Message; small?: bo
  * whom it went to, which opens the full From, To, Cc and Date. Reply and Forward sit at the end,
  * beside the ⋯.
  */
-function EmailHeader(props: { message: Message; sender: string; self: string; menu: ReactNode }) {
+function EmailHeader(props: {
+  message: Message;
+  sender: string;
+  self: string;
+  menu: ReactNode;
+  unsubscribe: ReactNode;
+}) {
   const { message, sender } = props;
   const [open, setOpen] = useState(false);
   const name = (a: { name?: string | null; address: string }) =>
@@ -319,6 +347,7 @@ function EmailHeader(props: { message: Message; sender: string; self: string; me
             <time dateTime={message.sentAt} className="text-xs text-subtle-foreground tabular-nums">
               {messageTime(message.sentAt)}
             </time>
+            {props.unsubscribe}
           </div>
           <Button
             intent="plain"

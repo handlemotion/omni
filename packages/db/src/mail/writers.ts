@@ -119,6 +119,30 @@ export async function upsertMessage(db: Db, input: NewMessage & { attachments?: 
   });
 }
 
+/**
+ * A stored message's List-Unsubscribe, from its headers as parsed again by a sync. Messages
+ * indexed before these columns existed pick them up on a re-sync; an unchanged row is not
+ * written.
+ */
+export async function refreshListUnsubscribe(
+  db: Db,
+  messageId: string,
+  input: { listUnsubscribe: string[]; listUnsubscribeOneClick: boolean },
+) {
+  await db
+    .update(messages)
+    .set({ ...input, updatedAt: new Date() })
+    .where(
+      and(
+        eq(messages.id, messageId),
+        or(
+          sql`${messages.listUnsubscribe} is distinct from ${sql.param(input.listUnsubscribe, messages.listUnsubscribe)}`,
+          sql`${messages.listUnsubscribeOneClick} is distinct from ${input.listUnsubscribeOneClick}`,
+        ),
+      ),
+    );
+}
+
 /** Saves a folder's sync position, creating the folder on first sight. */
 export async function upsertFolder(
   db: Db,

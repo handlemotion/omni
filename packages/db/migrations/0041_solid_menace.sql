@@ -1,0 +1,2 @@
+ALTER TABLE "messages" ADD COLUMN "list_unsubscribe" text[] DEFAULT '{}'::text[] NOT NULL;--> statement-breakpoint
+ALTER TABLE "messages" ADD COLUMN "list_unsubscribe_one_click" boolean DEFAULT false NOT NULL;

@@ -210,6 +210,13 @@ export const messages = pgTable(
     remoteImageCount: integer("remote_image_count").notNull().default(0),
     /** The message it forwards, when it is a forward (`@omni/mail-core` `cleanMessage`). */
     forwarded: jsonb("forwarded").$type<ForwardedMessage>(),
+    /** List-Unsubscribe URIs, angle brackets removed (`@omni/mail-core` `unsubscribeMethod`). */
+    listUnsubscribe: text("list_unsubscribe")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    /** List-Unsubscribe-Post offers RFC 8058 one-click. */
+    listUnsubscribeOneClick: boolean("list_unsubscribe_one_click").notNull().default(false),
     /**
      * Set when the mail service stores the row; cleared once the Worker accepts its
      * `message.created`. A sweep re-sends what is still set after a crash or Worker outage.

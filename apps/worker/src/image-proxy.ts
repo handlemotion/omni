@@ -165,8 +165,11 @@ async function readCapped(response: Response, maxBytes: number) {
   return out;
 }
 
-/** Null when the URL may be fetched; otherwise why not. Runs on every redirect hop. */
-async function checkDestination(
+/**
+ * Null when the URL may be fetched; otherwise why not. Run it on every redirect hop of any fetch
+ * to a URL taken from mail (image proxy, one-click unsubscribe).
+ */
+export async function checkDestination(
   url: URL,
   options: ProxyOptions,
   signal: AbortSignal,

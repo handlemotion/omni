@@ -258,3 +258,22 @@ export const sendMutation = (client: QueryClient) =>
       call(api.send.$post({ header: header(key), json })),
     onSuccess: () => void client.invalidateQueries({ queryKey: keys.threadLists() }),
   });
+
+/**
+ * Leaves the mailing list `messageId` came from: the Worker posts the list's one-click URL or
+ * queues its unsubscribe email. A list that only offers a page is opened by the app instead.
+ */
+export const unsubscribeMutation = () =>
+  mutationOptions({
+    mutationKey: [...keys.mail(), "unsubscribe"],
+    retry,
+    scope,
+    mutationFn: ({ threadId, messageId, key }: Keyed & { threadId: string; messageId: string }) =>
+      call(
+        api.threads[":id"].unsubscribe.$post({
+          param: { id: threadId },
+          header: header(key),
+          json: { messageId },
+        }),
+      ),
+  });

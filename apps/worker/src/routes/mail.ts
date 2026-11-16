@@ -13,6 +13,7 @@ import {
   type MemberQueries,
 } from "@omni/db";
 import { addedParticipants, messageDisplay } from "@omni/mail-core/display";
+import { unsubscribeMethod } from "@omni/mail-core/unsubscribe";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -170,10 +171,26 @@ function threadResponse(
   const added = addedParticipants(thread.messages);
   return {
     ...thread,
-    messages: thread.messages.map(({ r2Key: _raw, htmlR2Key, attachments, ...message }, i) => {
+    messages: thread.messages.map((row, i) => {
+      const {
+        r2Key: _raw,
+        htmlR2Key,
+        attachments,
+        listUnsubscribe,
+        listUnsubscribeOneClick,
+        ...message
+      } = row;
       const fromTeam = message.fromAddress.toLowerCase() === self;
+      const unsubscribe = fromTeam
+        ? null
+        : unsubscribeMethod(listUnsubscribe, listUnsubscribeOneClick);
       return {
         ...message,
+        /** How the reader can leave this list; a page's `url` is opened by the app. */
+        unsubscribe: unsubscribe && {
+          kind: unsubscribe.kind,
+          url: unsubscribe.kind === "link" ? unsubscribe.url : null,
+        },
         fromTeam,
         fromMe:
           fromTeam && (thread.mailboxKind === "personal" || message.sentByMemberId === memberId),
