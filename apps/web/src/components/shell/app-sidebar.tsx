@@ -12,14 +12,15 @@ import {
   IconWrite,
 } from "@/components/icons/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { CrmNav } from "@/components/crm/crm-nav";
-import { StorageNav } from "@/components/storage/storage-nav";
+import { CrmLists, CrmNav } from "@/components/crm/crm-nav";
+import { StorageNav, StoragePlaces } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
 import { ModuleSwitcher, useCurrentModule, WorkspaceSwitcher } from "./module-switcher";
 import { CountBadge } from "./count-badge";
 import { TitleBarRow, useTitleBar } from "./title-bar";
 import { NotificationsButton } from "./notifications";
+import { SidebarIsland } from "./sidebar-island";
 import {
   Sidebar,
   SidebarContent,
@@ -30,6 +31,7 @@ import {
   SidebarItem,
   SidebarLabel,
   SidebarSection,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
 import { useCounts } from "@/hooks/use-mail.ts";
@@ -89,6 +91,24 @@ export function AppSidebar() {
   // The links carry the URL's mailbox as it is, not the one found in the workspace list: right
   // after a switch that list is still loading, and a link built from it would drop the mailbox.
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
+  const { open, isMobile } = useSidebar();
+  // Closed, the module's places stay at hand as icons (`SidebarIsland`).
+  if (!open && !isMobile) {
+    return (
+      <SidebarIsland
+        sections={
+          module === "files"
+            ? [<StoragePlaces key="places" mailbox={mailbox} />]
+            : module === "crm"
+              ? [<CrmLists key="lists" mailbox={mailbox} />]
+              : [
+                  <MailItems key="mail" mailbox={mailbox} />,
+                  <Items key="folders" items={folders} mailbox={mailbox} />,
+                ]
+        }
+      />
+    );
+  }
   return (
     // The sheet on a phone closes from the page header's sidebar toggle: no second close mark.
     <Sidebar closeButton={false}>
@@ -122,7 +142,6 @@ export function AppSidebar() {
 
 /** Mail's rows: the mailbox, the lists and the folders. Compose and search are the page's. */
 function MailNav({ mailbox }: { mailbox: string | undefined }) {
-  const shown = useShownMailbox();
   return (
     <>
       {/* Which mailbox you're in, then where its mail waits: the same rows for every mailbox the
@@ -130,10 +149,20 @@ function MailNav({ mailbox }: { mailbox: string | undefined }) {
           never changes which one is shown. */}
       <SidebarSection>
         <MailboxSwitcher />
-        <Items items={mail} mailbox={mailbox} />
-        {shown?.kind === "shared" && <HelpdeskItems mailboxId={shown.id} />}
+        <MailItems mailbox={mailbox} />
       </SidebarSection>
       <Group label="Folders" items={folders} mailbox={mailbox} />
+    </>
+  );
+}
+
+/** Where the shown mailbox's mail waits: the lists, and a shared inbox's Mine. */
+function MailItems({ mailbox }: { mailbox: string | undefined }) {
+  const shown = useShownMailbox();
+  return (
+    <>
+      <Items items={mail} mailbox={mailbox} />
+      {shown?.kind === "shared" && <HelpdeskItems mailboxId={shown.id} />}
     </>
   );
 }
@@ -184,10 +213,15 @@ function Items({ items, mailbox }: { items: NavItem[]; mailbox: string | undefin
       key={item.label}
       href={item.href && workspaceHref(workspace, withMailbox(item.href, mailbox))}
       isCurrent={isCurrent(item)}
+      tooltip={item.label}
     >
-      {item.icon}
-      <SidebarLabel>{item.label}</SidebarLabel>
-      {item.unread && <UnreadCount mailbox={mailbox} />}
+      {({ isCollapsed }) => (
+        <>
+          {item.icon}
+          <SidebarLabel>{item.label}</SidebarLabel>
+          {item.unread && !isCollapsed && <UnreadCount mailbox={mailbox} />}
+        </>
+      )}
     </SidebarItem>
   ));
 }

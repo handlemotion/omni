@@ -56,11 +56,16 @@ export function HelpdeskItems(props: { mailboxId: string }) {
           `/mail/inbox?mailbox=${encodeURIComponent(props.mailboxId)}&view=${view}`,
         )}
         isCurrent={here && search.view === view}
+        tooltip={label}
       >
-        {icon}
-        <SidebarLabel>{label}</SidebarLabel>
-        {count > 0 && (
-          <span className="ms-auto text-xs text-muted-foreground tabular-nums">{count}</span>
+        {({ isCollapsed }) => (
+          <>
+            {icon}
+            <SidebarLabel>{label}</SidebarLabel>
+            {count > 0 && !isCollapsed && (
+              <span className="ms-auto text-xs text-muted-foreground tabular-nums">{count}</span>
+            )}
+          </>
         )}
       </SidebarItem>
     );

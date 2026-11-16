@@ -35,26 +35,34 @@ const ROWS: { label: string; path: string; icon: ReactNode; company?: boolean }[
 
 /** A nav link that keeps showing `mailbox`, the switcher's choice, for the way back to mail. */
 export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
-  const { place: pathname, href } = useWorkspacePaths();
   const hasShared = useHasSharedFiles();
   const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
   return (
     <>
       <SidebarSection>
-        {ROWS.filter((row) => !row.company || hasShared).map((row) => (
-          <SidebarItem
-            key={row.path}
-            href={href(row.path + search)}
-            // A folder's page is under its space's path, so the space stays current inside it.
-            isCurrent={pathname === row.path || pathname.startsWith(`${row.path}/`)}
-          >
-            {row.icon}
-            <SidebarLabel>{row.label}</SidebarLabel>
-          </SidebarItem>
-        ))}
+        <StoragePlaces mailbox={mailbox} />
       </SidebarSection>
       <SidebarTree space="personal" label="Folders" search={search} />
       {hasShared && <SidebarTree space="shared" label="Shared folders" search={search} />}
     </>
   );
+}
+
+/** The places, one row each; the closed sidebar's island shows them too. */
+export function StoragePlaces({ mailbox }: { mailbox: string | undefined }) {
+  const { place: pathname, href } = useWorkspacePaths();
+  const hasShared = useHasSharedFiles();
+  const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
+  return ROWS.filter((row) => !row.company || hasShared).map((row) => (
+    <SidebarItem
+      key={row.path}
+      href={href(row.path + search)}
+      // A folder's page is under its space's path, so the space stays current inside it.
+      isCurrent={pathname === row.path || pathname.startsWith(`${row.path}/`)}
+      tooltip={row.label}
+    >
+      {row.icon}
+      <SidebarLabel>{row.label}</SidebarLabel>
+    </SidebarItem>
+  ));
 }

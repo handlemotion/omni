@@ -45,7 +45,6 @@ const COMPANIES_SHOWN = 12;
 
 /** A nav link that keeps showing `mailbox`, the switcher's choice, for the way back to mail. */
 export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
-  const { place: pathname, href: inWorkspace } = useWorkspacePaths();
   const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
   // Every deal, as the board loads them: the stage counts and the companies' deals.
   const { deals, isPending } = useCrmDeals("", { all: true });
@@ -60,24 +59,32 @@ export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
   return (
     <>
       <SidebarSection>
-        {ROWS.map(({ list, icon }) => {
-          const { label, path } = CRM_LISTS[list];
-          return (
-            <SidebarItem
-              key={path}
-              href={inWorkspace(path + search)}
-              isCurrent={pathname === path || pathname.startsWith(`${path}/`)}
-            >
-              {icon}
-              <SidebarLabel>{label}</SidebarLabel>
-            </SidebarItem>
-          );
-        })}
+        <CrmLists mailbox={mailbox} />
       </SidebarSection>
       <Pipeline deals={deals} pending={isPending} search={search} />
       <Companies byCompany={byCompany} search={search} />
     </>
   );
+}
+
+/** The lists, one row each; the closed sidebar's island shows them too. */
+export function CrmLists({ mailbox }: { mailbox: string | undefined }) {
+  const { place: pathname, href: inWorkspace } = useWorkspacePaths();
+  const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
+  return ROWS.map(({ list, icon }) => {
+    const { label, path } = CRM_LISTS[list];
+    return (
+      <SidebarItem
+        key={path}
+        href={inWorkspace(path + search)}
+        isCurrent={pathname === path || pathname.startsWith(`${path}/`)}
+        tooltip={label}
+      >
+        {icon}
+        <SidebarLabel>{label}</SidebarLabel>
+      </SidebarItem>
+    );
+  });
 }
 
 /** The stages in order, each with how many deals sit in it; each leads to the board. */

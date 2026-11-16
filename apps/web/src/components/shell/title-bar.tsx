@@ -89,7 +89,10 @@ export function TitleBarSpace({ inset }: { inset: number }) {
     <div
       aria-hidden
       className="shrink-0 self-stretch"
-      style={{ width: `calc(var(${WIDTH_VAR}, 0px) - ${inset}px)` }}
+      // Less the closed sidebar's island, which the page already starts after.
+      style={{
+        width: `max(0px, calc(var(${WIDTH_VAR}, 0px) - ${inset}px - var(--sidebar-island-width, 0px)))`,
+      }}
     />
   );
 }

@@ -105,7 +105,8 @@ function Shell() {
         {/* Settings is a page: its nav takes the sidebar's place. */}
         {settings ? <SettingsNav /> : <AppSidebar />}
         <NotificationsPanel />
-        <SidebarInset>
+        {/* Starts after the closed sidebar's island, while it shows. */}
+        <SidebarInset className="ps-(--sidebar-island-width)">
           <SidebarResizeGrip />
           <Outlet />
         </SidebarInset>
