@@ -55,12 +55,13 @@ Rust, which every `objc2` call needs, and `keyring` writes to the login keychain
 access group the sandboxed extension reads. The founder chose the alternative:
 
 - `omni-sync`, a Swift command-line helper in `Contents/MacOS/`, registers and removes the domain,
-  runs the sync sign-in (PKCE), keeps the tokens in the shared keychain group, writes `sync.json`
-  (server, workspaces on, paused) in the App Group container, and signals the working set. The
-  Tauri shell runs it for each sync command and reads one line of JSON. The token and settings
-  code is the extension's own, so it exists once.
-- Its main bundle is the app, so `NSFileProviderManager` finds the embedded extension; it is
-  signed with the app's identifier and shared groups and relies on the app's provisioning
-  profile. Should macOS refuse a helper that way, the fallback is this ADR's original choice
-  with `unsafe` allowed in `src-tauri/src/sync/` alone.
+  runs the sync sign-in (PKCE), writes `sync.json` (server, workspaces on, paused) in the App
+  Group container, and signals the working set. The Tauri shell runs it for each sync command
+  and reads one line of JSON (types from `@omni/contracts`). Its main bundle is the app, so
+  `NSFileProviderManager` finds the embedded extension.
+- The helper claims no entitlement. A signed run showed macOS kills a bare tool that claims a
+  restricted one (`keychain-access-groups`): only a bundle's main executable gets the bundle's
+  provisioning profile. So the app, which holds the profile, keeps the sync token in the shared
+  keychain group with the `security-framework` crate (safe Rust; no `unsafe` in our code), and
+  the extension reads and refreshes it there.
 - The extension and helper are built by SwiftPM and a script, not an Xcode project.

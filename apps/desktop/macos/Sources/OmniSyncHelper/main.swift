@@ -1,17 +1,18 @@
 // `omni-sync`: the app's side of Drive sync on macOS (ADR 0043, amended). The Tauri shell runs it
 // from `Contents/MacOS/` for each sync command and reads one line of JSON back. It registers and
-// removes the File Provider domain, keeps the sync token in the keychain group the extension
-// reads, writes `sync.json`, and signals the working set. Rust stays free of `unsafe`, and the
-// keychain and settings code exists once, shared with the extension.
+// removes the File Provider domain, runs the sync sign-in, writes `sync.json`, and signals the
+// working set. It holds no restricted entitlement (macOS kills a bare tool that claims one), so
+// the keychain is the app's: `finish-sign-in` hands the tokens to it, and `status` and
+// `connect` take the app's word on whether it holds them.
 //
 //   omni-sync status                       DesktopSyncStatus
 //   omni-sync sign-in <origin>             { "url": … } to open in the app window
-//   omni-sync finish-sign-in <callback>    { "ok": true } once the tokens are stored
-//   omni-sync connect <orgId>              DesktopWorkspaceSync
+//   omni-sync finish-sign-in <callback>    DesktopSyncTokens, for the app to keep
+//   omni-sync connect <orgId>              DesktopWorkspaceSync (the app has a grant)
 //   omni-sync disconnect <orgId>           DesktopWorkspaceSync
 //   omni-sync signal                       { "ok": true }: something changed on the server
 //   omni-sync pause | resume               { "ok": true }
-//   omni-sync sign-out                     { "ok": true }: domain, token and settings gone
+//   omni-sync sign-out                     { "ok": true }: domain and settings gone
 //
 // A failure exits 1 with one line on stderr.
 
@@ -63,22 +64,20 @@ func signal() async throws {
     try await manager().signalEnumerator(for: .rootContainer)
 }
 
-/// Where sync stands for one workspace. Nothing here asks the server: the extension's errors
-/// reach Finder, and a missing token is the one thing the app must act on.
-func state(of orgId: String, settings: SyncSettings?, tokens: TokenStore) -> DesktopSyncState {
+/// Where sync stands for one workspace, as far as `sync.json` says. The app turns it into
+/// `needs_attention` when it holds no grant; the extension's errors reach Finder.
+func state(of orgId: String, settings: SyncSettings?) -> DesktopSyncState {
     guard let settings, settings.workspaces.contains(orgId) else { return .off }
-    if (try? tokens.read()) == nil { return .needsAttention }
     return settings.paused ? .paused : .synced
 }
 
 func run(_ arguments: [String]) async throws {
-    let (identity, container) = try identity()
+    let (_, container) = try identity()
     let settings = SyncSettings.read(from: container)
-    let tokens = TokenStore(identity: identity, settings: { SyncSettings.read(from: container) })
     switch (arguments.first, arguments.count) {
     case ("status", 1):
         let workspaces = (settings?.workspaces ?? []).map {
-            DesktopWorkspaceSync(orgId: $0, state: state(of: $0, settings: settings, tokens: tokens))
+            DesktopWorkspaceSync(orgId: $0, state: state(of: $0, settings: settings))
         }
         try print(json: DesktopSyncStatus(available: true, workspaces: workspaces))
 
@@ -92,16 +91,14 @@ func run(_ arguments: [String]) async throws {
     case ("finish-sign-in", 2):
         guard let callback = URL(string: arguments[1]) else { throw Failure("not a callback URL") }
         let (signIn, fresh) = try await SignIn.finish(callback: callback, container: container)
-        try tokens.write(fresh)
         var next = settings ?? SyncSettings(origin: signIn.origin, workspaces: [])
         next.origin = signIn.origin
         try next.write(to: container)
-        try await signal()
-        try print(json: DesktopSyncDone(ok: true))
+        try print(json: fresh)
 
     case ("connect", 2):
         let orgId = arguments[1]
-        guard var next = settings, (try? tokens.read()) != nil else {
+        guard var next = settings else {
             try print(json: DesktopWorkspaceSync(orgId: orgId, state: .needsAttention))
             return
         }
@@ -109,7 +106,7 @@ func run(_ arguments: [String]) async throws {
         try next.write(to: container)
         if try await !registered() { try await NSFileProviderManager.add(Omni.domain) }
         try await signal()
-        try print(json: DesktopWorkspaceSync(orgId: orgId, state: state(of: orgId, settings: next, tokens: tokens)))
+        try print(json: DesktopWorkspaceSync(orgId: orgId, state: state(of: orgId, settings: next)))
 
     case ("disconnect", 2):
         let orgId = arguments[1]
@@ -139,7 +136,6 @@ func run(_ arguments: [String]) async throws {
                 try keep(kept)
             }
         }
-        try tokens.delete()
         try? FileManager.default.removeItem(at: container.appendingPathComponent(SyncSettings.fileName))
         try print(json: DesktopSyncDone(ok: true))
 

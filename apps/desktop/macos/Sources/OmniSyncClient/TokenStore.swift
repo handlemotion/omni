@@ -1,20 +1,14 @@
 import Foundation
 import Security
+@preconcurrency import StorageSync
 
 /// The sync grant: an OAuth access token for `/api/storage/sync` and the refresh token that
-/// renews it (client `omni-desktop`, ADR 0043 decision 5). Never logged.
-public struct SyncTokens: Codable, Equatable, Sendable {
-    public var accessToken: String
-    public var refreshToken: String
-    /// Unix seconds; refreshed a minute early.
-    public var expiresAt: Double
+/// renews it (client `omni-desktop`, ADR 0043 decision 5), in the shape the app writes to the
+/// keychain (`desktopSyncTokensSchema`). Never logged.
+public typealias SyncTokens = DesktopSyncTokens
 
-    public init(accessToken: String, refreshToken: String, expiresAt: Double) {
-        self.accessToken = accessToken
-        self.refreshToken = refreshToken
-        self.expiresAt = expiresAt
-    }
-
+extension DesktopSyncTokens {
+    /// Refreshed a minute early.
     var expiresSoon: Bool { expiresAt - 60 <= Date().timeIntervalSince1970 }
 }
 
@@ -106,8 +100,8 @@ public final class TokenStore: AccessTokenSource {
         guard let refresh = answer.refresh_token ?? refreshToken else { throw TokenError.signedOut }
         return SyncTokens(
             accessToken: answer.access_token,
-            refreshToken: refresh,
-            expiresAt: Date().timeIntervalSince1970 + answer.expires_in
+            expiresAt: Date().timeIntervalSince1970 + answer.expires_in,
+            refreshToken: refresh
         )
     }
 

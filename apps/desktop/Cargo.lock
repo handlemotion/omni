@@ -2691,6 +2691,7 @@ name = "omni-desktop"
 version = "0.0.0"
 dependencies = [
  "omni-sync-types",
+ "security-framework",
  "serde",
  "serde_json",
  "tauri",

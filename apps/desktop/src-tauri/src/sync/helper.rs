@@ -6,8 +6,11 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use omni_sync_types::{
-    DesktopSyncDone, DesktopSyncSignIn, DesktopSyncState, DesktopSyncStatus, DesktopWorkspaceSync,
+    DesktopSyncDone, DesktopSyncSignIn, DesktopSyncState, DesktopSyncStatus, DesktopSyncTokens,
+    DesktopWorkspaceSync,
 };
+
+use super::keychain;
 use serde::de::DeserializeOwned;
 use tauri::{AppHandle, Manager, Runtime, Url};
 
@@ -44,31 +47,43 @@ async fn call<T: DeserializeOwned + Send + 'static>(args: Vec<String>) -> Result
     .map_err(|error| error.to_string())?
 }
 
-pub async fn status() -> Result<DesktopSyncStatus, String> {
-    call(vec!["status".into()]).await
+/// `sync.json`'s view, with any workspace that is on marked `needs_attention` while the app
+/// holds no grant (never signed in, or the server refused it).
+pub async fn status<R: Runtime>(app: &AppHandle<R>) -> Result<DesktopSyncStatus, String> {
+    let mut status: DesktopSyncStatus = call(vec!["status".into()]).await?;
+    if !keychain::holds(app) {
+        for workspace in &mut status.workspaces {
+            if workspace.state != DesktopSyncState::Off {
+                workspace.state = DesktopSyncState::NeedsAttention;
+            }
+        }
+    }
+    Ok(status)
 }
 
 pub async fn connect<R: Runtime>(
     app: &AppHandle<R>,
     org_id: String,
 ) -> Result<DesktopWorkspaceSync, String> {
-    let answer: DesktopWorkspaceSync = call(vec!["connect".into(), org_id.clone()]).await?;
-    if answer.state != DesktopSyncState::NeedsAttention {
-        return Ok(answer);
+    if keychain::holds(app) {
+        return call(vec!["connect".into(), org_id]).await;
     }
-    // No sync grant yet: the server's authorize page, in the window already signed in there.
+    // No sync grant: the server's authorize page, in the window already signed in there.
     let window = app.get_webview_window("main").ok_or("no main window")?;
     let here = window.url().map_err(|error| error.to_string())?;
     let origin = here.origin().ascii_serialization();
     let opened: DesktopSyncSignIn = call(vec!["sign-in".into(), origin]).await?;
     let authorize = Url::parse(&opened.url).map_err(|error| error.to_string())?;
     if let Ok(mut pending) = app.state::<Pending>().0.lock() {
-        *pending = Some((org_id, here));
+        *pending = Some((org_id.clone(), here));
     }
     window
         .navigate(authorize)
         .map_err(|error| error.to_string())?;
-    Ok(answer)
+    Ok(DesktopWorkspaceSync {
+        org_id,
+        state: DesktopSyncState::NeedsAttention,
+    })
 }
 
 pub async fn disconnect(org_id: String) -> Result<DesktopWorkspaceSync, String> {
@@ -76,7 +91,8 @@ pub async fn disconnect(org_id: String) -> Result<DesktopWorkspaceSync, String> 
 }
 
 pub async fn finish_sign_in<R: Runtime>(app: &AppHandle<R>, url: String) -> Result<(), String> {
-    let _: DesktopSyncDone = call(vec!["finish-sign-in".into(), url]).await?;
+    let tokens: DesktopSyncTokens = call(vec!["finish-sign-in".into(), url]).await?;
+    keychain::store(app, &tokens)?;
     let pending = app
         .state::<Pending>()
         .0
@@ -94,11 +110,13 @@ pub async fn finish_sign_in<R: Runtime>(app: &AppHandle<R>, url: String) -> Resu
 
 pub fn start<R: Runtime>(app: &AppHandle<R>) {
     app.manage(Pending::default());
-    std::thread::spawn(|| {
+    let app = app.clone();
+    std::thread::spawn(move || {
         loop {
             std::thread::sleep(POLL);
-            let synced = run::<DesktopSyncStatus>(&["status"])
-                .is_ok_and(|status| !status.workspaces.is_empty());
+            let synced = keychain::holds(&app)
+                && run::<DesktopSyncStatus>(&["status"])
+                    .is_ok_and(|status| !status.workspaces.is_empty());
             if synced {
                 // A failure here is the extension's to report, as a badge in Finder.
                 let _: Result<DesktopSyncDone, String> = run(&["signal"]);

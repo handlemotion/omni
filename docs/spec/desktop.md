@@ -214,9 +214,10 @@ apps/desktop/
 
 Libraries, all official Tauri plugins unless noted: `deep-link`, `single-instance` (with its
 `deep-link` feature, registered first), `updater`, `notification`, `autostart`, `window-state`,
-`opener`, `store` (the chosen server), `log`. On macOS the domain, the sync token and the
-signals go through `omni-sync`, a Swift helper in `Contents/MacOS/` that Rust runs (ADR 0043,
-amendment 1); Windows keeps its credentials with the `keyring` crate;
+`opener`, `store` (the chosen server), `log`. On macOS the domain, the sync sign-in and the
+signals go through `omni-sync`, a Swift helper in `Contents/MacOS/` that Rust runs, and the app
+keeps the sync token with `security-framework` (ADR 0043, amendment 1); Windows keeps its
+credentials with the `keyring` crate;
 `tauri-plugin-decorum` or its maintained fork for Windows snap layouts on a custom title bar,
 after a spike. Swift side: Foundation and FileProvider only.
 

@@ -356,6 +356,17 @@ export const desktopSyncStatusSchema = z.object({
  */
 export const desktopSyncSignInSchema = z.object({ url: z.string() });
 
+/**
+ * The desktop sync grant as the macOS app keeps it in the keychain group it shares with the File
+ * Provider extension, and as `omni-sync finish-sign-in` hands it to the app. `expiresAt` is Unix
+ * seconds.
+ */
+export const desktopSyncTokensSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  expiresAt: z.number(),
+});
+
 /** What `omni-sync` prints for a command that answers only that it worked. */
 export const desktopSyncDoneSchema = z.object({ ok: z.literal(true) });
 
@@ -382,6 +393,7 @@ export const STORAGE_SYNC_NATIVE_TYPES = {
   DesktopSyncStatus: desktopSyncStatusSchema,
   DesktopSyncSignIn: desktopSyncSignInSchema,
   DesktopSyncDone: desktopSyncDoneSchema,
+  DesktopSyncTokens: desktopSyncTokensSchema,
 } as const;
 
 export type StorageSpace = z.infer<typeof storageSpaceSchema>;

@@ -87,10 +87,10 @@ fi
 codesign --force --options runtime --timestamp=none --entitlements "$entitlements" --sign "$identity" "$appex"
 codesign --verify --strict "$appex"
 
-# omni-sync runs as part of the app (its main bundle is the app, so NSFileProviderManager finds
-# the extension), with the app's identifier and the groups it shares with the extension.
-helper_entitlements="$out/omni-sync.entitlements"
-cat >"$helper_entitlements" <<PLIST
+# The app's entitlements, for Tauri's signing step (tauri.macos.conf.json): the App Group and
+# the keychain group it shares with the extension. The app holds the provisioning profile.
+app_entitlements="$out/Omni.entitlements"
+cat >"$app_entitlements" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -99,21 +99,21 @@ cat >"$helper_entitlements" <<PLIST
   <key>keychain-access-groups</key><array><string>$keychain_group</string></array>
 PLIST
 if [[ -n "$team" ]]; then
-  cat >>"$helper_entitlements" <<PLIST
+  cat >>"$app_entitlements" <<PLIST
   <key>com.apple.application-identifier</key><string>$team.$bundle_id</string>
   <key>com.apple.developer.team-identifier</key><string>$team</string>
 PLIST
 fi
-echo "</dict></plist>" >>"$helper_entitlements"
-plutil -lint "$helper_entitlements" >/dev/null
+echo "</dict></plist>" >>"$app_entitlements"
+plutil -lint "$app_entitlements" >/dev/null
+
+# omni-sync runs as part of the app (its main bundle is the app, so NSFileProviderManager finds
+# the extension) and claims no entitlement: macOS kills a bare tool that claims a restricted one,
+# since only a bundle's main executable gets the bundle's profile.
 cp "$bin_dir/OmniSyncHelper" "$out/omni-sync"
 codesign --force --options runtime --timestamp=none --identifier "$bundle_id.sync" \
-  --entitlements "$helper_entitlements" --sign "$identity" "$out/omni-sync"
+  --sign "$identity" "$out/omni-sync"
 codesign --verify --strict "$out/omni-sync"
-
-# The app's own entitlements, for Tauri's signing step (tauri.macos.conf.json): the groups it
-# shares with the extension, which omni-sync uses on its behalf.
-cp "$helper_entitlements" "$out/Omni.entitlements"
 
 echo "$appex"
 echo "$out/omni-sync"

@@ -25,6 +25,7 @@
 //   let desktopSyncStatus = try DesktopSyncStatus(json)
 //   let desktopSyncSignIn = try DesktopSyncSignIn(json)
 //   let desktopSyncDone = try DesktopSyncDone(json)
+//   let desktopSyncTokens = try DesktopSyncTokens(json)
 
 //
 // Hashable or Equatable:
@@ -1650,6 +1651,70 @@ public extension DesktopSyncDone {
     ) -> DesktopSyncDone {
         return DesktopSyncDone(
             ok: ok ?? self.ok
+        )
+    }
+
+    func jsonData() throws -> Data {
+        return try newJSONEncoder().encode(self)
+    }
+
+    func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
+        return String(data: try self.jsonData(), encoding: encoding)
+    }
+}
+
+//
+// Hashable or Equatable:
+// The compiler will not be able to synthesize the implementation of Hashable or Equatable
+// for types that require the use of JSONAny, nor will the implementation of Hashable be
+// synthesized for types that have collections (such as arrays or dictionaries).
+
+// MARK: - DesktopSyncTokens
+public struct DesktopSyncTokens: Codable, Equatable {
+    public let accessToken: String
+    public let expiresAt: Double
+    public let refreshToken: String
+
+    public enum CodingKeys: String, CodingKey {
+        case accessToken = "accessToken"
+        case expiresAt = "expiresAt"
+        case refreshToken = "refreshToken"
+    }
+
+    public init(accessToken: String, expiresAt: Double, refreshToken: String) {
+        self.accessToken = accessToken
+        self.expiresAt = expiresAt
+        self.refreshToken = refreshToken
+    }
+}
+
+// MARK: DesktopSyncTokens convenience initializers and mutators
+
+public extension DesktopSyncTokens {
+    init(data: Data) throws {
+        self = try newJSONDecoder().decode(DesktopSyncTokens.self, from: data)
+    }
+
+    init(_ json: String, using encoding: String.Encoding = .utf8) throws {
+        guard let data = json.data(using: encoding) else {
+            throw NSError(domain: "JSONDecoding", code: 0, userInfo: nil)
+        }
+        try self.init(data: data)
+    }
+
+    init(fromURL url: URL) throws {
+        try self.init(data: try Data(contentsOf: url))
+    }
+
+    func with(
+        accessToken: String? = nil,
+        expiresAt: Double? = nil,
+        refreshToken: String? = nil
+    ) -> DesktopSyncTokens {
+        return DesktopSyncTokens(
+            accessToken: accessToken ?? self.accessToken,
+            expiresAt: expiresAt ?? self.expiresAt,
+            refreshToken: refreshToken ?? self.refreshToken
         )
     }
 

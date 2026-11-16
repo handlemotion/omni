@@ -19,6 +19,14 @@ final class Item: NSObject, NSFileProviderItem {
         parent = ItemID.parent(of: node)
     }
 
+    /// The domain's root: the system asks for it before anything else.
+    init(rootNamed name: String) {
+        id = .root
+        node = nil
+        self.name = name
+        parent = .root
+    }
+
     /// A synced workspace's folder at the root, named after the workspace.
     init(workspace: StorageSyncWorkspace) {
         id = .workspace(orgId: workspace.orgId)

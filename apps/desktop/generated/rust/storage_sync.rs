@@ -346,3 +346,13 @@ pub struct DesktopSyncSignIn {
 pub struct DesktopSyncDone {
     pub ok: bool,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopSyncTokens {
+    pub access_token: String,
+
+    pub expires_at: f64,
+
+    pub refresh_token: String,
+}

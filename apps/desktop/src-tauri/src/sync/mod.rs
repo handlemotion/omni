@@ -10,6 +10,8 @@
 
 #[cfg(target_os = "macos")]
 mod helper;
+#[cfg(target_os = "macos")]
+mod keychain;
 
 #[cfg(not(target_os = "macos"))]
 use omni_sync_types::DesktopSyncState;
@@ -20,11 +22,13 @@ use tauri::{AppHandle, Runtime};
 pub const OAUTH_CALLBACK: &str = "omni://oauth/callback";
 
 #[tauri::command]
-pub async fn sync_status() -> DesktopSyncStatus {
+pub async fn sync_status<R: Runtime>(app: AppHandle<R>) -> DesktopSyncStatus {
     #[cfg(target_os = "macos")]
-    if let Ok(status) = helper::status().await {
+    if let Ok(status) = helper::status(&app).await {
         return status;
     }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
     DesktopSyncStatus {
         available: false,
         workspaces: Vec::new(),

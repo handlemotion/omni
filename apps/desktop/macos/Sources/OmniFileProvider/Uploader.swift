@@ -61,7 +61,7 @@ struct Uploader {
     }
 
     /// The size and sha256 of the bytes, read once in 1 MiB chunks.
-    private static func measure(_ file: URL) throws -> (Int, String) {
+    static func measure(_ file: URL) throws -> (Int, String) {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }
         var hash = SHA256()
