@@ -46,7 +46,13 @@ test("forged, expired, unsigned-nonce and replayed mail events are rejected", as
     timestamp: Math.floor(Date.now() / 1000) - 120,
   });
   expect(expired.status).toBe(401);
-  expect(await expired.json()).toEqual({ error: "expired" });
+  expect(await expired.json()).toEqual({
+    error: "expired",
+    code: "unauthorized",
+    category: "unauthenticated",
+    retryable: false,
+    requestId: expect.any(String),
+  });
 
   const noNonce = await postMailEvents(worker, someEvents, { nonce: null });
   expect(noNonce.status).toBe(401);
@@ -57,7 +63,13 @@ test("forged, expired, unsigned-nonce and replayed mail events are rejected", as
   expect(valid.status).toBe(202);
   const replayed = await postMailEvents(worker, someEvents, { nonce, timestamp });
   expect(replayed.status).toBe(401);
-  expect(await replayed.json()).toEqual({ error: "replayed" });
+  expect(await replayed.json()).toEqual({
+    error: "replayed",
+    code: "unauthorized",
+    category: "unauthenticated",
+    retryable: false,
+    requestId: expect.any(String),
+  });
 });
 
 test("event types this Worker does not know are accepted and ignored, so deploy skew never wedges retries", async () => {

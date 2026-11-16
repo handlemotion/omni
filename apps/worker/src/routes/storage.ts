@@ -2,7 +2,7 @@
 // workspace's My files and Shared, Trash, download and usage; the changes are in
 // `storage-changes.ts` and sharing in `storage-sharing.ts`. Everything goes through
 // `forMember(member).storage`, which decides access; nothing here queries a storage table.
-// Every change is a write, so a read-only workspace (ADR 0015) answers it `402 BILLING_INACTIVE`
+// Every change is a write, so a read-only workspace (ADR 0015) answers it `402 billing_inactive`
 // in `requireWritableWorkspace` and keeps listing and downloading.
 import {
   storageListQuerySchema,
@@ -93,7 +93,7 @@ export const storage = new Hono<AppEnv>()
       limitBytes,
       allowanceBytes,
       overage: peak === null ? null : { extraGb: extraGb(peak, allowanceBytes!) },
-      uploadsBlocked: writable ? (full ? "STORAGE_FULL" : null) : "BILLING_INACTIVE",
+      uploadsBlocked: writable ? (full ? "storage_full" : null) : "billing_inactive",
     } satisfies StorageUsage);
   })
 

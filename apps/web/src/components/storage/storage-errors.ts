@@ -1,32 +1,34 @@
 // Every sentence a refused Storage request shows, in one place, keyed by the Worker's `code`
 // (never by HTTP status or the message's text). Anything without a code that this list knows
 // falls back to what the action was ("It was not renamed").
+import type { ErrorCode } from "@omni/client";
 import { appToast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api.ts";
 
-const BY_CODE: Record<string, string> = {
-  STORAGE_FULL: "Storage is full",
-  BILLING_INACTIVE: "This workspace is read-only",
-  FILE_TOO_LARGE: "That file is too large",
-  INVALID_NAME: "That name can't be used",
-  NAME_TAKEN: "That name is taken",
-  FORBIDDEN: "You can't change this",
-  NOT_FOUND: "That's no longer here",
-  TOO_DEEP: "Folders can't nest that deep",
-  CYCLE: "A folder can't move into itself",
-  PARENT_TRASHED: "Its folder is in Trash",
-  INVALID_EMAIL: "That isn't an email address",
+const BY_CODE: Partial<Record<ErrorCode, string>> = {
+  storage_full: "Storage is full",
+  billing_inactive: "This workspace is read-only",
+  file_too_large: "That file is too large",
+  invalid_name: "That name can't be used",
+  name_taken: "That name is taken",
+  forbidden: "You can't change this",
+  not_found: "That's no longer here",
+  too_deep: "Folders can't nest that deep",
+  cycle: "A folder can't move into itself",
+  parent_trashed: "Its folder is in Trash",
+  invalid_email: "That isn't an email address",
+  rate_limited: "Too many at once. Try again in a minute",
 };
 
 /** Refusals that would only repeat: an upload that met one offers no Retry. */
-const FINAL = new Set(["STORAGE_FULL", "BILLING_INACTIVE", "FILE_TOO_LARGE"]);
+const FINAL = new Set<string>(["storage_full", "billing_inactive", "file_too_large"]);
 
 const codeOf = (error: unknown) => (error instanceof ApiError ? error.code : undefined);
 
 /** Why `error` refused the action, or `fallback` ("The folder was not created"). */
 export function storageErrorText(error: unknown, fallback: string) {
   const code = codeOf(error);
-  return (code && BY_CODE[code]) || fallback;
+  return (code && BY_CODE[code as ErrorCode]) || fallback;
 }
 
 export function storageErrorToast(error: unknown, fallback: string) {

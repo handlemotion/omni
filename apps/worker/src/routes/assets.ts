@@ -2,10 +2,12 @@
 // attachments by content hash, and the HTML document itself. All need a signed-in member; mail
 // objects are served only when `forMember` (or its member-scoped helpers) can see them.
 import { findMemberAttachmentByHash, findMemberMessageHtml } from "@omni/db";
+import { codeForStatus } from "@omni/contracts";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
+import { apiError } from "../errors.ts";
 import { imageHeaders, isProxiableImageType, proxyImage } from "../image-proxy.ts";
 import { checkRateLimit, tooManyRequests } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
@@ -46,8 +48,8 @@ export const assets = new Hono<AppEnv>()
         beforeFetch: () => checkRateLimit(c.env, config, "imageProxy", member.id),
       });
       if (result instanceof Response) return result;
-      if (result.status === 429) return tooManyRequests(result.retryAfter);
-      return c.json({ error: result.reason }, result.status);
+      if (result.status === 429) return tooManyRequests(c, result.retryAfter, "imageProxy");
+      return apiError(c, codeForStatus(result.status), result.reason);
     },
   )
 

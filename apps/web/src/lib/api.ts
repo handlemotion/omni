@@ -1,6 +1,6 @@
 // The app's one API and auth client. The Worker serves this app and `/api` on the same origin
 // (ADR 0006), so the session cookie is first-party and there is nothing to configure.
-import { createApi, createAuth } from "@omni/client";
+import { createApi, createAuth, toApiError, type ApiErrorInfo } from "@omni/client";
 import { DetailedError, parseResponse, type ClientResponse } from "hono/client";
 import { reportAnswer, reportNoAnswer } from "./connectivity.ts";
 import { takeStartupResponse } from "./startup-fetch.ts";
@@ -20,22 +20,34 @@ export const auth = createAuth({
   fetch: (input, init) => takeStartupResponse(input, init) ?? fetch(input, init),
 });
 
-/** A failed API call. `status` 0 means the request never got an answer (offline, aborted). */
+/**
+ * A failed API call. `status` 0 means the request never got an answer (offline, aborted). The
+ * rest is what the Worker said (ADR 0038), when it said it: `code` is stable, the message is not.
+ */
 export class ApiError extends Error {
   readonly status: number;
-  /** The Worker's `code` beside `error`, where a route gives one the client acts on. */
-  readonly code: string | undefined;
-  constructor(status: number, message: string, code?: string) {
+  readonly code?: string;
+  readonly category?: string;
+  readonly retryable?: boolean;
+  readonly requestId?: string;
+  readonly param?: string;
+  readonly details?: Record<string, unknown>;
+  constructor(status: number, message: string, info: Omit<ApiErrorInfo, "message"> = {}) {
     super(message);
     this.name = "ApiError";
     this.status = status;
-    this.code = code;
+    this.code = info.code;
+    this.category = info.category;
+    this.retryable = info.retryable;
+    this.requestId = info.requestId;
+    this.param = info.param;
+    this.details = info.details;
   }
 }
 
 /**
- * Awaits a Hono RPC call and returns its typed success body, or throws `ApiError` with the
- * Worker's `{ error }` message. Pass `{ init: { signal } }` to the call so a cancelled query
+ * Awaits a Hono RPC call and returns its typed success body, or throws `ApiError` with what
+ * the Worker said, in either error shape. Pass `{ init: { signal } }` to the call so a cancelled query
  * aborts the request.
  */
 // oxlint-disable-next-line typescript/no-explicit-any -- mirrors hono's own `parseResponse` bound
@@ -50,11 +62,8 @@ export async function call<T extends ClientResponse<any>>(
     if (error instanceof DetailedError) {
       reportAnswer();
       const data = (error.detail as { data?: unknown } | undefined)?.data;
-      const body =
-        typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {};
-      const message = "error" in body ? String(body.error) : error.message;
-      const code = typeof body.code === "string" ? body.code : undefined;
-      throw new ApiError(Number(error.statusCode ?? 0), message, code);
+      const { message, ...info } = toApiError(data, error.message);
+      throw new ApiError(Number(error.statusCode ?? 0), message, info);
     }
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     reportNoAnswer();

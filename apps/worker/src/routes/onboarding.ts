@@ -30,12 +30,12 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { inGoodStanding } from "../billing.ts";
 import { requireMember, resolveSession, type AppEnv } from "../context.ts";
+import { apiError } from "../errors.ts";
 import {
   advanceDomainStep,
   audit,
   checkDomain,
   claimDomain,
-  DomainError,
   type DomainDeps,
   domainView,
   notifyOwners,
@@ -71,17 +71,6 @@ function deps(c: Context<AppEnv>): DomainDeps {
     email: c.env.EMAIL,
     waitUntil: (promise) => c.executionCtx.waitUntil(promise),
   };
-}
-
-/** Domain refusals become HTTP errors with their status. */
-async function domainCall<T>(task: () => Promise<T>): Promise<T> {
-  try {
-    return await task();
-  } catch (error) {
-    if (error instanceof DomainError)
-      throw new HTTPException(error.status, { message: error.message });
-    throw error;
-  }
 }
 
 /**
@@ -188,8 +177,11 @@ export const onboarding = new Hono<AppEnv>()
       const body = c.req.valid("json");
       const parsed = parseDomain(body.domain);
       if ("error" in parsed) throw new HTTPException(400, { message: parsed.error });
-      const { claim, challengeValue } = await domainCall(() =>
-        claimDomain(deps(c), c.var.member, parsed.domain, body.host),
+      const { claim, challengeValue } = await claimDomain(
+        deps(c),
+        c.var.member,
+        parsed.domain,
+        body.host,
       );
       const setup = (await findMemberDomain(c.var.db, c.var.member.id, claim.id)) ?? {
         claim,
@@ -215,7 +207,7 @@ export const onboarding = new Hono<AppEnv>()
   .post("/domains/:id/check", requireMember, requireDomainAdmin, async (c) => {
     await limit(c, c.env.DOMAIN_CHECK_LIMITER, "checks");
     const setup = await memberDomain(c);
-    const result = await domainCall(() => checkDomain(deps(c), c.var.member, setup));
+    const result = await checkDomain(deps(c), c.var.member, setup);
     return c.json(await domainStep(c, domainView(result.setup, { addError: result.addError })));
   })
   /**
@@ -390,12 +382,10 @@ export const onboarding = new Hono<AppEnv>()
       throw new HTTPException(409, { message: "create a mailbox before finishing setup" });
     }
     if (!(await inGoodStanding(db, c.var.config, member.orgId))) {
-      return c.json(
-        {
-          error: "start the free trial or choose a plan before finishing setup",
-          code: "BILLING_REQUIRED",
-        },
-        402,
+      return apiError(
+        c,
+        "billing_required",
+        "start the free trial or choose a plan before finishing setup",
       );
     }
     return c.json({ setup: await advanceOrgSetup(db, member.orgId, "complete") });

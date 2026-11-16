@@ -253,7 +253,7 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
       limitBytes: INCLUDED_GB * GIB,
       allowanceBytes: INCLUDED_GB * GIB,
       overage: null,
-      uploadsBlocked: "STORAGE_FULL",
+      uploadsBlocked: "storage_full",
     });
   }, 180_000);
 

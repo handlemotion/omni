@@ -62,9 +62,9 @@ test("an upload that would pass the cap answers 402 and stores nothing; deleting
     uploadsBlocked: null,
   });
   const over = await open("over.bin", 11);
-  expect(over).toMatchObject({ status: 402, body: { code: "STORAGE_FULL" } });
+  expect(over).toMatchObject({ status: 402, body: { code: "storage_full" } });
   expect((await open("fits.bin", 10)).status).toBe(201);
-  expect((await stack.api(jar, "GET", "/usage")).body.uploadsBlocked).toBe("STORAGE_FULL");
+  expect((await stack.api(jar, "GET", "/usage")).body.uploadsBlocked).toBe("storage_full");
 
   // Nothing came of the refused one: no file, no upload row, no object.
   expect(names((await stack.api(jar, "GET", "/nodes?space=personal")).body)).toEqual(["first.bin"]);
@@ -89,7 +89,7 @@ test("an upload that would pass the cap answers 402 and stores nothing; deleting
 
   // One file may be 3 MiB here, whatever room there is.
   const huge = await open("huge.bin", 3 * MIB + 1);
-  expect(huge).toMatchObject({ status: 413, body: { code: "FILE_TOO_LARGE" } });
+  expect(huge).toMatchObject({ status: 413, body: { code: "file_too_large" } });
   // A Personal space has no Shared.
   expect((await stack.api(jar, "GET", "/nodes?space=shared")).status).toBe(404);
 });
@@ -131,7 +131,7 @@ test("a read-only workspace still lists and downloads, and every change answers 
   expect((await stack.api(ana.jar, "GET", "/trash")).status).toBe(200);
   expect((await stack.api(ana.jar, "GET", "/usage")).body).toMatchObject({
     usedBytes: 1000,
-    uploadsBlocked: "BILLING_INACTIVE",
+    uploadsBlocked: "billing_inactive",
   });
 
   const uploadId = pending.body.upload.id as string;
@@ -145,7 +145,7 @@ test("a read-only workspace still lists and downloads, and every change answers 
     await stack.api(ana.jar, "POST", `/nodes/${file.id}/restore`),
   ];
   for (const change of changes) {
-    expect(change).toMatchObject({ status: 402, body: { code: "BILLING_INACTIVE" } });
+    expect(change).toMatchObject({ status: 402, body: { code: "billing_inactive" } });
   }
   const part = await stack.putPart(ana.jar, uploadId, 1, randomBytes(4));
   expect(part.status).toBe(402);
@@ -192,7 +192,7 @@ test("STORAGE_MAX_GB caps a company, which the Personal cap does not touch", asy
   });
   expect(await open("over.bin", MIB - 9)).toMatchObject({
     status: 402,
-    body: { code: "STORAGE_FULL" },
+    body: { code: "storage_full" },
   });
   expect((await open("fits.bin", MIB - 10)).status).toBe(201);
 });
@@ -236,7 +236,7 @@ test("a complete refused after its object was stitched leaves no object, no file
     .where(eq(schema.storageUsage.orgId, orgId));
   expect(await stack.api(jar, "POST", `/uploads/${full}/complete`)).toMatchObject({
     status: 402,
-    body: { code: "STORAGE_FULL" },
+    body: { code: "storage_full" },
   });
   await nothingStored();
   expect(await stack.usedBytes(orgId)).toBe(PERSONAL_BYTES);

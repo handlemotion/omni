@@ -48,7 +48,7 @@ test("a 40 MiB file sent in three parts, out of order and resumed, downloads byt
   // A part of the wrong length, or past the end, is refused before it reaches the bucket.
   const short = await stack.putPart(ana.jar, upload.id, 1, part(1).subarray(0, 100));
   expect(short.status).toBe(400);
-  expect(await short.json()).toMatchObject({ code: "INVALID_PART" });
+  expect(await short.json()).toMatchObject({ code: "invalid_part" });
   expect((await stack.putPart(ana.jar, upload.id, 4, part(3))).status).toBe(400);
   expect((await stack.putPart(ana.jar, upload.id, 0, part(3))).status).toBe(400);
 
@@ -59,7 +59,7 @@ test("a 40 MiB file sent in three parts, out of order and resumed, downloads byt
     { partNumber: 3, size: 8 * MIB },
   ]);
   const early = await stack.api(ana.jar, "POST", `/uploads/${upload.id}/complete`);
-  expect(early).toMatchObject({ status: 409, body: { code: "UPLOAD_INCOMPLETE" } });
+  expect(early).toMatchObject({ status: 409, body: { code: "upload_incomplete" } });
   expect(names((await stack.api(ana.jar, "GET", "/nodes?space=personal")).body)).toEqual([]);
 
   expect((await stack.putPart(ana.jar, upload.id, 1, part(1))).status).toBe(200);
@@ -262,11 +262,11 @@ test("folders, names, paging, and Trash: restore puts it back, delete forever re
   const inner = await folder("Inner", { parentId: docs.id });
 
   const invalid = await stack.api(ana.jar, "POST", "/folders", { name: "a/b", space: "personal" });
-  expect(invalid).toMatchObject({ status: 400, body: { code: "INVALID_NAME" } });
+  expect(invalid).toMatchObject({ status: 400, body: { code: "invalid_name" } });
   const clash = await stack.api(ana.jar, "PATCH", `/nodes/${twin.id}`, { name: "A.TXT" });
-  expect(clash).toMatchObject({ status: 409, body: { code: "NAME_TAKEN" } });
+  expect(clash).toMatchObject({ status: 409, body: { code: "name_taken" } });
   const cycle = await stack.api(ana.jar, "PATCH", `/nodes/${docs.id}`, { parentId: inner.id });
-  expect(cycle).toMatchObject({ status: 409, body: { code: "CYCLE" } });
+  expect(cycle).toMatchObject({ status: 409, body: { code: "cycle" } });
   expect((await stack.api(ana.jar, "PATCH", `/nodes/${twin.id}`, {})).status).toBe(400);
   expect((await stack.api(ana.jar, "GET", "/nodes")).status).toBe(400);
   const renamed = await stack.api(ana.jar, "PATCH", `/nodes/${twin.id}`, { name: "b.txt" });
@@ -290,7 +290,7 @@ test("folders, names, paging, and Trash: restore puts it back, delete forever re
   const key = storageObjectKey(org.id, a.id);
   expect(await bucket.head(key)).toMatchObject({ size: 4 });
   const live = await stack.api(ana.jar, "DELETE", `/nodes/${a.id}?forever=1`);
-  expect(live).toMatchObject({ status: 409, body: { code: "NOT_TRASHED" } });
+  expect(live).toMatchObject({ status: 409, body: { code: "not_trashed" } });
 
   const trashed = await stack.api(ana.jar, "DELETE", `/nodes/${a.id}`);
   expect(trashed.body.node.trashedAt).not.toBeNull();
@@ -589,20 +589,20 @@ test("a move too deep or into itself, and a restore under a trashed folder, answ
     name: "d33",
     parentId: deepest.id,
   });
-  expect(deeper).toMatchObject({ status: 409, body: { code: "TOO_DEEP" } });
+  expect(deeper).toMatchObject({ status: 409, body: { code: "too_deep" } });
   const other = await folder("other", { space: "personal" });
   expect(
     await stack.api(ana.jar, "PATCH", `/nodes/${other.id}`, { parentId: deepest.id }),
-  ).toMatchObject({ status: 409, body: { code: "TOO_DEEP" } });
+  ).toMatchObject({ status: 409, body: { code: "too_deep" } });
   expect(
     await stack.api(ana.jar, "PATCH", `/nodes/${top.id}`, { parentId: deepest.id }),
-  ).toMatchObject({ status: 409, body: { code: "CYCLE" } });
+  ).toMatchObject({ status: 409, body: { code: "cycle" } });
 
   const child = await folder("child", { parentId: other.id });
   expect((await stack.api(ana.jar, "DELETE", `/nodes/${child.id}`)).status).toBe(200);
   expect((await stack.api(ana.jar, "DELETE", `/nodes/${other.id}`)).status).toBe(200);
   expect(await stack.api(ana.jar, "POST", `/nodes/${child.id}/restore`)).toMatchObject({
     status: 409,
-    body: { code: "PARENT_TRASHED" },
+    body: { code: "parent_trashed" },
   });
 });

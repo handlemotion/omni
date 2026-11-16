@@ -5,7 +5,6 @@ import { orgSetupStep, schema } from "@omni/db";
 import { and, eq, sql } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
-import { HTTPException } from "hono/http-exception";
 import { routePath } from "hono/route";
 import { requireWritableWorkspace } from "./billing.ts";
 import {
@@ -18,6 +17,7 @@ import {
   type AppEnv,
 } from "./context.ts";
 import type { Config } from "./env.ts";
+import { answerThrown, apiError } from "./errors.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
 import { MEMBER_HEADER } from "./realtime.ts";
 import { account } from "./routes/account.ts";
@@ -105,7 +105,7 @@ const api = new Hono<AppEnv>()
    */
   .get("/realtime", async (c) => {
     if (c.req.header("upgrade") !== "websocket") {
-      return c.json({ error: "expected a websocket upgrade" }, 426);
+      return apiError(c, "upgrade_required", "expected a websocket upgrade");
     }
     // The socket authenticates by cookie, and browsers send cookies on cross-site websocket
     // handshakes, so a foreign page could open one as the member (cross-site WebSocket
@@ -113,14 +113,14 @@ const api = new Hono<AppEnv>()
     // handshake with no Origin comes from a native client, which has to hold the session itself.
     const origin = c.req.header("origin");
     if (origin !== undefined && !allowedOrigins(c.var.config).has(origin)) {
-      return c.json({ error: "origin not allowed" }, 403);
+      return apiError(c, "forbidden", "origin not allowed");
     }
     const org = c.req.query("org");
     const member =
       org && org !== c.var.member.orgId
         ? await findMember(c.var.db, c.var.user.id, org, c.var.user.scopeOrgId)
         : c.var.member;
-    if (!member) return c.json({ error: "not a member of that organization" }, 404);
+    if (!member) return apiError(c, "not_found", "not a member of that organization");
     const { id, orgId } = member;
     const headers = new Headers(c.req.raw.headers);
     headers.set(MEMBER_HEADER, id);
@@ -184,14 +184,14 @@ export const app = new Hono<AppEnv>()
   .route("/api/auth/stripe/webhook", stripeWebhook)
   // Checkout and the portal go through /api/billing, which pins them to the active workspace.
   // The plugin's own POSTs would also let a person subscribe for themselves, so they are closed.
-  .post("/api/auth/subscription/*", (c) => c.json({ error: "use /api/billing" }, 404))
+  .post("/api/auth/subscription/*", (c) => apiError(c, "not_found", "use /api/billing"))
   // Invitations carry the new member's inbox, so they go through the Worker (ADR 0026). Tabs
   // loaded before that still resend here: a resend of an invitation already pending in the
   // session's workspace passes; anything else would skip the inbox rule. Remove once those tabs
   // have reloaded.
   .post("/api/auth/organization/invite-member", limitAuth, async (c) => {
     if (await isPendingResend(c)) return withSignInRequest(() => c.var.auth.handler(c.req.raw));
-    return c.json({ error: "use /api/workspace/invitations" }, 404);
+    return apiError(c, "not_found", "use /api/workspace/invitations");
   })
   .on(["GET", "POST"], "/api/auth/*", limitAuth, (c) =>
     // Each auth request records the address it signs in with, to scope its session (ADR 0024).
@@ -210,14 +210,7 @@ export const app = new Hono<AppEnv>()
   // Storage's link door (ADR 0034): a session is optional, so it sits ahead of the member API.
   .route("/api/storage/shared", storageShared)
   .route("/api", api)
-  .onError((error, c) => {
-    if (error instanceof HTTPException) {
-      return c.json({ error: error.message, requestId: c.var.requestId }, error.status);
-    }
-    // Hono catches it before `withSentry` could, so the logger reports it.
-    (c.var.log ?? createLogger()).error("http.error", { error, orgId: c.var.member?.orgId });
-    return c.json({ error: "internal error", requestId: c.var.requestId }, 500);
-  });
+  .onError(answerThrown);
 
 /** Hono RPC type for web and iOS: `hc<AppType>(baseUrl)`. */
 export type AppType = typeof app;

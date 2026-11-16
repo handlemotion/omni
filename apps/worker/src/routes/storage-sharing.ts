@@ -107,7 +107,7 @@ export const storageSharing = new Hono<AppEnv>()
       if (before.status !== "ok") return refused(c, before.status);
       if (!before.sharing.people.some((person) => person.email === email)) {
         const wait = await checkRateLimit(c.env, c.var.config, "storageShare", c.var.member.id);
-        if (wait) return tooManyRequests(wait);
+        if (wait) return tooManyRequests(c, wait, "storageShare");
       }
       const put = await files.putGrant(id, email, c.req.valid("json").role);
       if (put.status !== "ok") return refused(c, put.status);

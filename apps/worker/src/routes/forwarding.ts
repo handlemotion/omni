@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
+import { apiError } from "../errors.ts";
 import { zValidator } from "../validator.ts";
 
 const forwardingBody = z.object({
@@ -28,7 +29,7 @@ export const forwarding = new Hono<AppEnv>()
     if (!mailbox) throw new HTTPException(404, { message: "mailbox not found" });
     // Copies sent to the mailbox itself would come back as new mail, forever.
     if (address.toLowerCase() === mailbox.address.toLowerCase()) {
-      return c.json({ error: "forward to another address than the mailbox's own" }, 400);
+      return apiError(c, "bad_request", "forward to another address than the mailbox's own");
     }
     await reader.set(id, { address: address.toLowerCase(), scope });
     return c.json({ ok: true as const });

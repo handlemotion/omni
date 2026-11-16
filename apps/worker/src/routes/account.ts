@@ -12,7 +12,13 @@ import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { resolveSession, systemMailSender, type AppEnv, type SessionUser } from "../context.ts";
-import { checkRateLimit, clientIp, tooManyRequests } from "../rate-limiter.ts";
+import {
+  checkRateLimit,
+  clientIp,
+  longestWait,
+  tooManyRequests,
+  type RateLimitRule,
+} from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
 
 const requireUser = createMiddleware<AppEnv>(async (c, next) => {
@@ -33,17 +39,20 @@ const requireUser = createMiddleware<AppEnv>(async (c, next) => {
  */
 const limit = (perAddress?: "magicLink") =>
   createMiddleware<AppEnv>(async (c, next) => {
-    const checks = [checkRateLimit(c.env, c.var.config, "auth", clientIp(c.req.raw))];
+    const checks: [RateLimitRule, Promise<number>][] = [
+      ["auth", checkRateLimit(c.env, c.var.config, "auth", clientIp(c.req.raw))],
+    ];
     if (perAddress) {
       const body = (await c.req.json().catch(() => null)) as { email?: unknown } | null;
       if (typeof body?.email === "string") {
-        checks.push(
+        checks.push([
+          perAddress,
           checkRateLimit(c.env, c.var.config, perAddress, body.email.trim().toLowerCase()),
-        );
+        ]);
       }
     }
-    const wait = Math.max(...(await Promise.all(checks)));
-    if (wait) return tooManyRequests(wait);
+    const refused = await longestWait(checks);
+    if (refused) return tooManyRequests(c, refused.wait, refused.rule);
     await next();
   });
 

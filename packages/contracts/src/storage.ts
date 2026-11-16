@@ -17,31 +17,6 @@ export const storageRoleSchema = z.enum(["member", "editor", "viewer"]);
 export const storageGrantRoleSchema = z.enum(["viewer", "editor"]);
 export const storageLinkAccessSchema = z.enum(["restricted", "anyone"]);
 
-/** `code` on an error answer, beside `error` (the sentence). */
-export const storageErrorCodeSchema = z.enum([
-  "NOT_FOUND",
-  "FORBIDDEN",
-  "INVALID_NAME",
-  "NAME_TAKEN",
-  "TOO_DEEP",
-  "CYCLE",
-  "PARENT_TRASHED",
-  "NOT_TRASHED",
-  /** 402: the workspace has no room for the file. */
-  "STORAGE_FULL",
-  /** 402: the workspace is read-only until it has an active plan (ADR 0015). */
-  "BILLING_INACTIVE",
-  /** 413: one file may not be this large (`STORAGE_MAX_FILE_BYTES`). */
-  "FILE_TOO_LARGE",
-  /** The part's number or length is not the one the upload expects. */
-  "INVALID_PART",
-  /** The parts sent so far do not add up to the file. */
-  "UPLOAD_INCOMPLETE",
-  /** The upload already became a file. */
-  "UPLOAD_COMPLETE",
-  "INVALID_EMAIL",
-]);
-
 const isoDate = z.iso.datetime();
 const id = z.string().min(1);
 const name = z.string().min(1).max(255);
@@ -169,7 +144,7 @@ export const storageUsageSchema = z.object({
    */
   overage: z.object({ extraGb: z.number().int().nonnegative() }).nullable().optional(),
   /** Why an upload would be refused now, or null when it would not. */
-  uploadsBlocked: z.enum(["STORAGE_FULL", "BILLING_INACTIVE"]).nullable(),
+  uploadsBlocked: z.enum(["storage_full", "billing_inactive"]).nullable(),
 });
 
 // --- Sharing (ADR 0034 decision 4) ---
@@ -232,7 +207,7 @@ export const storageSharedWithMeResponseSchema = z.object({
  * own routes: `GET /shared/:shareId/files/:id/content` downloads, and for an Editor
  * `POST /shared/:shareId/folders`, `PATCH` and `DELETE /shared/:shareId/nodes/:id` and
  * `/shared/:shareId/uploads...` change what is inside the shared folder (always by `parentId`:
- * a link has no `space`). A change goes by the shared node's workspace: `402 BILLING_INACTIVE`
+ * a link has no `space`). A change goes by the shared node's workspace: `402 billing_inactive`
  * when that workspace is read-only, whatever the reader's own.
  */
 export const storageSharedQuerySchema = z.object({ node: id.optional(), ...page });
@@ -249,7 +224,6 @@ export type StorageNodeKind = z.infer<typeof storageNodeKindSchema>;
 export type StorageRole = z.infer<typeof storageRoleSchema>;
 export type StorageGrantRole = z.infer<typeof storageGrantRoleSchema>;
 export type StorageLinkAccess = z.infer<typeof storageLinkAccessSchema>;
-export type StorageErrorCode = z.infer<typeof storageErrorCodeSchema>;
 export type StorageNode = z.infer<typeof storageNodeSchema>;
 export type StorageNodeView = z.infer<typeof storageNodeViewSchema>;
 export type StorageListResponse = z.infer<typeof storageListResponseSchema>;
@@ -269,9 +243,3 @@ export type StoragePutPersonBody = z.infer<typeof storagePutPersonBodySchema>;
 export type StorageSharedWithMeItem = z.infer<typeof storageSharedWithMeItemSchema>;
 export type StorageSharedWithMeResponse = z.infer<typeof storageSharedWithMeResponseSchema>;
 export type StorageSharedResponse = z.infer<typeof storageSharedResponseSchema>;
-/** Every error answer: the sentence, and a code where the client acts on it. */
-export interface StorageError {
-  error: string;
-  code?: StorageErrorCode;
-  requestId?: string;
-}

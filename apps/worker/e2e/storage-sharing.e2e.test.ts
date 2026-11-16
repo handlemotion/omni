@@ -330,7 +330,7 @@ test("an Editor uploads and changes inside the granted folder and nowhere else; 
     }),
   ).toMatchObject({
     status: 400,
-    body: { code: "INVALID_EMAIL" },
+    body: { code: "invalid_email" },
   });
 });
 

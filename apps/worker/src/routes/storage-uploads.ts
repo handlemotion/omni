@@ -13,6 +13,7 @@ import {
 import type { StorageUpload } from "@omni/db";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
+import { apiError } from "../errors.ts";
 import {
   abortMultipart,
   partCount,
@@ -22,7 +23,7 @@ import {
   wireUpload,
 } from "../storage.ts";
 import { zValidator } from "../validator.ts";
-import { fail, placeOf, refused, writeDoor } from "./storage-http.ts";
+import { placeOf, refused, writeDoor } from "./storage-http.ts";
 
 const live = (upload: StorageUpload) => upload.expiresAt > new Date();
 const answer = (upload: StorageUpload) =>
@@ -57,14 +58,14 @@ async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
   const { files } = writeDoor(c);
   const upload = await findUpload(c, c.req.param("id") ?? "");
   if (!upload || (!upload.nodeId && !live(upload))) return refused(c, "not_found");
-  if (upload.nodeId) return fail(c, 409, "UPLOAD_COMPLETE", "the upload is already a file");
+  if (upload.nodeId) return apiError(c, "upload_complete", "the upload is already a file");
   if (n < 1 || n > partCount(upload.size) || !upload.r2UploadId) {
-    return fail(c, 400, "INVALID_PART", `the upload has ${partCount(upload.size)} parts`);
+    return apiError(c, "invalid_part", `the upload has ${partCount(upload.size)} parts`);
   }
   const expected = partLength(upload.size, n);
   // R2 streams a body only when its length is known, and parts must be uniform.
   if (!body || Number(c.req.header("content-length")) !== expected) {
-    return fail(c, 400, "INVALID_PART", `part ${n} must be exactly ${expected} bytes`);
+    return apiError(c, "invalid_part", `part ${n} must be exactly ${expected} bytes`);
   }
   const multipart = c.env.STORAGE_BUCKET.resumeMultipartUpload(upload.r2Key, upload.r2UploadId);
   let etag: string;
@@ -91,7 +92,7 @@ export const storageUploads = new Hono<AppEnv>()
     const { db, config } = c.var;
     const { files, orgId } = writeDoor(c);
     if (size > config.STORAGE_MAX_FILE_BYTES || partCount(size) > STORAGE_MAX_PARTS) {
-      return fail(c, 413, "FILE_TOO_LARGE", "the file is larger than one file may be");
+      return apiError(c, "file_too_large", "the file is larger than one file may be");
     }
     const { limitBytes } = await storageLimit(db, config, orgId);
     const opened = await files.openUpload(placeOf({ parentId, space }), {

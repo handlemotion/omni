@@ -17,7 +17,7 @@ import type { Logger } from "./log.ts";
 const GB = 1024 ** 3;
 
 export interface StorageLimit {
-  /** Bytes nothing passes: a full workspace answers `402 STORAGE_FULL`. Null: no cap. */
+  /** Bytes nothing passes: a full workspace answers `402 storage_full`. Null: no cap. */
   limitBytes: number | null;
   /** Bytes the plan includes before extra storage is billed. Null: no plan. */
   allowanceBytes: number | null;

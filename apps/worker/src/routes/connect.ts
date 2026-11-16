@@ -12,6 +12,7 @@ import { advanceOrgSetup, forUser } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import type { AppEnv } from "../context.ts";
+import { apiError } from "../errors.ts";
 import { callMailService, MailServiceError } from "../mail-service.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { notFound } from "./mail.ts";
@@ -82,8 +83,7 @@ export const connect = new Hono<AppEnv>()
    */
   .get("/google/start", limitPerMember("provision"), async (c) => {
     const google = c.var.config.auth.google;
-    if (!google)
-      return c.json({ error: "Google is not configured", requestId: c.var.requestId }, 404);
+    if (!google) return apiError(c, "not_found", "Google is not configured");
     const state = randomToken(24);
     const verifier = randomToken(48);
     const back: Return = c.req.query("return") === "onboarding" ? "onboarding" : "settings";
@@ -194,18 +194,13 @@ export const connect = new Hono<AppEnv>()
     const mailboxId = c.req.param("mailboxId");
     const account = (await googleMailboxes(c)).find((m) => m.id === mailboxId);
     if (!account) notFound();
-    try {
-      // The account's own workspace and member, so a mail service from before ADR 0024 (which
-      // ignores `userId`) finds it too.
-      await callMailService(
-        c.var,
-        GOOGLE_DISCONNECT_PATH,
-        { orgId: account.orgId, memberId: account.memberId, mailboxId, userId: c.var.user.id },
-        googleDisconnectResultSchema,
-      );
-    } catch (failure) {
-      if (!(failure instanceof MailServiceError)) throw failure;
-      return c.json({ error: failure.message, requestId: c.var.requestId }, failure.status);
-    }
+    // The account's own workspace and member, so a mail service from before ADR 0024 (which
+    // ignores `userId`) finds it too. Its refusals answer with their status (errors.ts).
+    await callMailService(
+      c.var,
+      GOOGLE_DISCONNECT_PATH,
+      { orgId: account.orgId, memberId: account.memberId, mailboxId, userId: c.var.user.id },
+      googleDisconnectResultSchema,
+    );
     return c.body(null, 204);
   });

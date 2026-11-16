@@ -1,6 +1,7 @@
 // One file's upload (ADR 0034 decision 5), by the member's door or a shared link's: open it, send its parts (each `partSize` bytes but the
 // last, a few at once), then complete it. The server lists the parts it already has, so a retry
 // passes the upload's id and sends only what is missing; an upload that is gone starts over.
+import { ERROR_FORMAT_HEADER, ERROR_FORMAT_VERSION, toApiError } from "@omni/client";
 import { api, ApiError, call } from "./api.ts";
 import type { StorageNode, StoragePlace } from "./storage.ts";
 
@@ -153,13 +154,14 @@ function putPart(url: string, part: Blob, signal: AbortSignal, onSent: (bytes: n
       run();
     };
     xhr.open("PUT", url);
+    xhr.setRequestHeader(ERROR_FORMAT_HEADER, ERROR_FORMAT_VERSION);
     xhr.responseType = "json";
     xhr.upload.addEventListener("progress", (event) => onSent(Math.min(event.loaded, part.size)));
     xhr.addEventListener("load", () =>
       settle(() => {
         if (xhr.status >= 200 && xhr.status < 300) return resolve();
-        const body = (xhr.response ?? {}) as { error?: string; code?: string };
-        reject(new ApiError(xhr.status, body.error ?? `part ${xhr.status}`, body.code));
+        const { message, ...info } = toApiError(xhr.response, `part ${xhr.status}`);
+        reject(new ApiError(xhr.status, message, info));
       }),
     );
     xhr.addEventListener("error", () =>

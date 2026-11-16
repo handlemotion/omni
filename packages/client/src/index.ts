@@ -3,3 +3,5 @@
 export * from "./api.ts";
 export * from "./auth.ts";
 export * from "./realtime.ts";
+// The Worker's error answers in either shape (ADR 0038): codes, categories and `toApiError`.
+export * from "@omni/contracts/errors";

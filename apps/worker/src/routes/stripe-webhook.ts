@@ -16,6 +16,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import Stripe from "stripe";
 import type { AppEnv } from "../context.ts";
+import { apiError } from "../errors.ts";
 import { notePaymentMethod } from "../storage-billing.ts";
 
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
@@ -110,9 +111,9 @@ async function expectedEffect(
 
 export const stripeWebhook = new Hono<AppEnv>().post("/", async (c) => {
   const billing = c.var.config.auth.billing;
-  if (!billing) return c.json({ error: "billing is not enabled" }, 404);
+  if (!billing) return apiError(c, "not_found", "billing is not enabled");
   const signature = c.req.header("stripe-signature");
-  if (!signature) return c.json({ error: "missing Stripe signature" }, 400);
+  if (!signature) return apiError(c, "bad_request", "missing Stripe signature");
   const payload = await c.req.text();
 
   let event: Stripe.Event;
@@ -125,7 +126,7 @@ export const stripeWebhook = new Hono<AppEnv>().post("/", async (c) => {
       cryptoProvider,
     );
   } catch {
-    return c.json({ error: "invalid Stripe signature" }, 400);
+    return apiError(c, "bad_request", "invalid Stripe signature");
   }
 
   const object = event.data.object as unknown as StripeObject;
@@ -169,7 +170,7 @@ export const stripeWebhook = new Hono<AppEnv>().post("/", async (c) => {
     });
     if (!rows.some((row) => !expected.status || row.status === expected.status)) {
       c.var.log.error("stripe.event_not_applied", { ...fields, expected });
-      return c.json({ error: "event not applied; retry" }, 500);
+      return apiError(c, "internal_server_error", "event not applied; retry");
     }
   }
   await notePaymentMethod(c.var.db, billing, event);

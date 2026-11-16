@@ -4,9 +4,11 @@
 // key never slows another. Fixed windows: simple, and exact enough for abuse control.
 import { DurableObject } from "cloudflare:workers";
 import { sha256Hex } from "@omni/crypto";
+import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import type { AppEnv } from "./context.ts";
 import type { Config, RateLimit } from "./env.ts";
+import { apiError } from "./errors.ts";
 
 /** Each rule and the variable that sets it. */
 const RULES = {
@@ -68,11 +70,27 @@ export async function checkRateLimit(
   return stub.hit(limit.count, limit.windowSeconds, cost);
 }
 
-export function tooManyRequests(retryAfter: number) {
-  return Response.json(
-    { error: "too many requests" },
-    { status: 429, headers: { "retry-after": String(retryAfter) } },
-  );
+/**
+ * 429 `rate_limited` after `rule` refused for `retryAfter` seconds: `retry-after`, the
+ * `X-RateLimit-*` headers and `error.limit` (ADR 0038). The refused hit was not counted and the
+ * window is full, so nothing remains until it resets.
+ */
+export function tooManyRequests(c: Context<AppEnv>, retryAfter: number, rule: RateLimitRule) {
+  const total = c.var.config[RULES[rule]]?.count;
+  const resetMs = Date.now() + retryAfter * 1000;
+  const limit = { remaining: 0, reset: Math.ceil(resetMs / 1000), resetMs, total };
+  c.header("retry-after", String(retryAfter));
+  if (total !== undefined) c.header("x-ratelimit-limit", String(total));
+  c.header("x-ratelimit-remaining", "0");
+  c.header("x-ratelimit-reset", String(limit.reset));
+  return apiError(c, "rate_limited", "too many requests", { limit });
+}
+
+/** The rule that refused longest among `checks`, run together; null when all allowed. */
+export async function longestWait(checks: [RateLimitRule, Promise<number>][]) {
+  const waits = await Promise.all(checks.map(async ([rule, wait]) => ({ rule, wait: await wait })));
+  const longest = waits.reduce((a, b) => (b.wait > a.wait ? b : a));
+  return longest.wait ? longest : null;
 }
 
 /** The caller's IP as Cloudflare saw it. Clients cannot set this header through Cloudflare. */
@@ -84,7 +102,7 @@ export function clientIp(request: Request) {
 export function limitPerMember(rule: RateLimitRule) {
   return createMiddleware<AppEnv>(async (c, next) => {
     const wait = await checkRateLimit(c.env, c.var.config, rule, c.var.member.id);
-    if (wait) return tooManyRequests(wait);
+    if (wait) return tooManyRequests(c, wait, rule);
     await next();
   });
 }
@@ -102,21 +120,26 @@ export const limitAuth = createMiddleware<AppEnv>(async (c, next) => {
   const signInStep = c.req.method === "POST" || /^\/(callback|magic-link|passkey)\//.test(path);
   if (!signInStep) return next();
 
-  const checks: Promise<number>[] = [checkRateLimit(env, config, "auth", clientIp(c.req.raw))];
+  const checks: [RateLimitRule, Promise<number>][] = [
+    ["auth", checkRateLimit(env, config, "auth", clientIp(c.req.raw))],
+  ];
   if (c.req.method === "POST" && path === "/sign-in/magic-link") {
     const body = (await c.req.raw
       .clone()
       .json()
       .catch(() => null)) as { email?: unknown } | null;
     if (typeof body?.email === "string") {
-      checks.push(checkRateLimit(env, config, "magicLink", body.email.trim().toLowerCase()));
+      checks.push([
+        "magicLink",
+        checkRateLimit(env, config, "magicLink", body.email.trim().toLowerCase()),
+      ]);
     }
   }
   if (c.req.method === "POST" && path === "/organization/invite-member") {
     const session = await c.var.auth.api.getSession({ headers: c.req.raw.headers });
-    if (session) checks.push(checkRateLimit(env, config, "invite", session.user.id));
+    if (session) checks.push(["invite", checkRateLimit(env, config, "invite", session.user.id)]);
   }
-  const wait = Math.max(...(await Promise.all(checks)));
-  if (wait) return tooManyRequests(wait);
+  const refused = await longestWait(checks);
+  if (refused) return tooManyRequests(c, refused.wait, refused.rule);
   await next();
 });

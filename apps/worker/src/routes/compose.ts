@@ -34,6 +34,7 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
+import { apiError, errorBody } from "../errors.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { optionalJsonBody, zValidator } from "../validator.ts";
 import { fanOut, notifyMembers } from "../realtime.ts";
@@ -235,10 +236,7 @@ export async function sendUnlessStale(
     if (!(error instanceof StaleThread)) throw error;
     const earlier = await memberSendByKey(c.var.db, c.var.member.id, outboxKey(c, key, "send"));
     if (earlier) return c.json(sendResponse(earlier), 202);
-    return c.json(
-      { error: error.message, messages: error.messages, requestId: c.var.requestId },
-      409,
-    );
+    return c.json({ ...errorBody(c, "conflict", error.message), messages: error.messages }, 409);
   }
 }
 
@@ -469,19 +467,17 @@ export const compose = new Hono<AppEnv>()
     const { mailboxId, filename } = c.req.valid("query");
     const size = Number(c.req.header("content-length"));
     if (!Number.isSafeInteger(size) || size <= 0) {
-      return c.json({ error: "content-length required", requestId: c.var.requestId }, 411);
+      return apiError(c, "length_required", "content-length required");
     }
     if (size > c.var.config.UPLOAD_MAX_BYTES) {
-      return c.json(
-        {
-          error: `file is larger than ${c.var.config.UPLOAD_MAX_BYTES} bytes`,
-          requestId: c.var.requestId,
-        },
-        413,
+      return apiError(
+        c,
+        "payload_too_large",
+        `file is larger than ${c.var.config.UPLOAD_MAX_BYTES} bytes`,
       );
     }
     const body = c.req.raw.body;
-    if (!body) return c.json({ error: "empty body", requestId: c.var.requestId }, 400);
+    if (!body) return apiError(c, "bad_request", "empty body");
     const mailbox = await memberMailbox(c.var.db, c.var.member.id, mailboxId);
     if (!mailbox) notFound();
 
@@ -599,7 +595,7 @@ export const compose = new Hono<AppEnv>()
     const result = await cancelSend(c.var.db, c.var.member.id, c.req.param("id"));
     if (!result) notFound();
     if (result === "too_late") {
-      return c.json({ error: "already sent", requestId: c.var.requestId }, 409);
+      return apiError(c, "conflict", "already sent");
     }
     // A hand-off's send: its shared conversation came back to the team (ADR 0030).
     if (result.handoff?.changed) {
@@ -674,10 +670,8 @@ export const compose = new Hono<AppEnv>()
     const saved = await saveDraft(c.var.db, c.var.member.id, c.req.param("id"), version, content);
     if (!saved) notFound();
     if ("conflict" in saved) {
-      return c.json(
-        { error: "draft changed", draft: saved.conflict, requestId: c.var.requestId },
-        409,
-      );
+      // The teammate's draft rides beside the error, at the top level in both shapes.
+      return c.json({ ...errorBody(c, "conflict", "draft changed"), draft: saved.conflict }, 409);
     }
     return c.json(saved.draft);
   })

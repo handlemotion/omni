@@ -4,6 +4,9 @@ import { z } from "zod";
 
 // The Worker's Storage API as its clients see it (ADR 0034).
 export * from "./storage.ts";
+// Every Worker error answer, in both shapes (ADR 0038).
+export * from "./errors.ts";
+export * from "./error-schemas.ts";
 
 /** Worker → mail service: "the outbox or the mailbox list changed". Empty body. 202 or 401. */
 export const MAIL_PING_PATH = "/ping";

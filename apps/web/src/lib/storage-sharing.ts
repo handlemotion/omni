@@ -53,14 +53,12 @@ export const setLinkMutation = (client: QueryClient) =>
 export const putPersonMutation = (client: QueryClient) =>
   mutationOptions({
     mutationFn: ({ id, email, role }: { id: string; email: string; role: StorageGrantRole }) =>
-      // The route's type includes its plain-text 429, which `call` throws as an error: what
-      // comes back is always the sharing.
       call(
         api.storage.nodes[":id"].sharing.people[":email"].$put({
           param: { id, email },
           json: { role },
         }),
-      ) as Promise<unknown> as Promise<{ sharing: StorageSharing }>,
+      ),
     onSuccess: sharingChanged(client),
   });
 

@@ -150,6 +150,9 @@ test("lookalike names, claims past the cap and checks past the rate limit are re
     status: 400,
     body: {
       error: "that domain name mixes alphabets, so it could pass for another name",
+      code: "bad_request",
+      category: "validation",
+      retryable: false,
       requestId: expect.any(String),
     },
   });

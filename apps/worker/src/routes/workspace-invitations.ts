@@ -49,7 +49,7 @@ async function canGiveInbox(c: Context<AppEnv>, shared: unknown[]) {
  */
 const limitInvites = createMiddleware<AppEnv>(async (c, next) => {
   const wait = await checkRateLimit(c.env, c.var.config, "invite", c.var.user.id);
-  if (wait) return tooManyRequests(wait);
+  if (wait) return tooManyRequests(c, wait, "invite");
   await next();
 });
 
@@ -85,7 +85,7 @@ export const workspaceInvitations = new Hono<AppEnv>()
     // Making an inbox counts as provisioning; an invitation without one does not.
     if (body.inbox) {
       const wait = await checkRateLimit(c.env, c.var.config, "provision", member.id);
-      if (wait) return tooManyRequests(wait);
+      if (wait) return tooManyRequests(c, wait, "provision");
     }
     // Made first, so a failed invitation leaves an unowned inbox a retry reuses, never an
     // invitation that promised one and has none.

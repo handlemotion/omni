@@ -1,3 +1,4 @@
+import { ERROR_FORMAT_HEADER, ERROR_FORMAT_VERSION } from "@omni/contracts/errors";
 import type { AppType } from "@omni/worker";
 import { hc, type ClientRequestOptions, type InferResponseType } from "hono/client";
 
@@ -20,11 +21,16 @@ export type Api = Client["api"];
 /**
  * Typed calls to `/api`. The web app sends the session cookie itself (`credentials: "include"`,
  * which a cross-origin API needs); iOS passes it in `headers`. Mutating routes require an
- * `idempotency-key` header: reuse the same key when retrying the same intent.
+ * `idempotency-key` header: reuse the same key when retrying the same intent. Every call asks
+ * for the nested error shape (ADR 0038); read a failure with `toApiError`.
  */
 export function createApi(options: ApiOptions): Api {
+  const { headers } = options;
   return typedHc(options.baseUrl, {
-    headers: options.headers,
+    headers: async () => ({
+      [ERROR_FORMAT_HEADER]: ERROR_FORMAT_VERSION,
+      ...(typeof headers === "function" ? await headers() : headers),
+    }),
     fetch: options.fetch,
     init: { credentials: "include" },
   }).api;

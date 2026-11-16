@@ -9,6 +9,7 @@ import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { resolveSession, type AppEnv } from "../context.ts";
+import { apiError } from "../errors.ts";
 import { imageHeaders } from "../image-proxy.ts";
 import { zValidator } from "../validator.ts";
 
@@ -58,7 +59,7 @@ export function pictureKeyOf(url: string | null | undefined, owner: Owner, owner
 const upload = [
   bodyLimit({
     maxSize: MAX_PICTURE_BYTES + 64 * 1024,
-    onError: (c) => c.json({ error: "the picture is larger than 2 MB" }, 413),
+    onError: (c) => apiError(c, "payload_too_large", "the picture is larger than 2 MB"),
   }),
   zValidator(
     "form",

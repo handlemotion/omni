@@ -18,8 +18,9 @@ import {
 } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
-import { inGoodStanding } from "../billing.ts";
+import { inGoodStanding, READ_ONLY_MESSAGE } from "../billing.ts";
 import { findMemberIds, resolveSession, type AppEnv } from "../context.ts";
+import { apiError } from "../errors.ts";
 import { checkRateLimit, clientIp, tooManyRequests } from "../rate-limiter.ts";
 import { wireNode } from "../storage.ts";
 import { zValidator } from "../validator.ts";
@@ -28,7 +29,6 @@ import {
   decodeCursor,
   download,
   encodeCursor,
-  fail,
   listCursor,
   refused,
   wireView,
@@ -80,7 +80,7 @@ async function openShared(c: Context<AppEnv>, shareId: string): Promise<SharedAc
 const open = createMiddleware<AppEnv>(async (c, next) => {
   const { db, config } = c.var;
   const wait = await checkRateLimit(c.env, config, "storageLink", clientIp(c.req.raw));
-  if (wait) return tooManyRequests(wait);
+  if (wait) return tooManyRequests(c, wait, "storageLink");
 
   const shared = await openShared(c, c.req.param("shareId") ?? "");
   if (!shared) return refused(c, "not_found");
@@ -91,12 +91,7 @@ const open = createMiddleware<AppEnv>(async (c, next) => {
     // A link alone never writes: an anonymous editor would be an open upload endpoint.
     if (!shared.writer) return refused(c, "forbidden");
     if (!(await inGoodStanding(db, config, root.node.orgId))) {
-      return fail(
-        c,
-        402,
-        "BILLING_INACTIVE",
-        "this workspace is read-only until it has an active plan",
-      );
+      return apiError(c, "billing_inactive", READ_ONLY_MESSAGE);
     }
   }
   await next();

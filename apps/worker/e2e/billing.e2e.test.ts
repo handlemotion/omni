@@ -364,7 +364,7 @@ test("a new workspace finishes setup only once it has a trial or a plan", async 
   });
   const refused = await complete();
   expect(refused.status).toBe(402);
-  expect(await refused.json()).toMatchObject({ code: "BILLING_REQUIRED" });
+  expect(await refused.json()).toMatchObject({ code: "billing_required" });
   expect(await billing(owner.cookie)).toMatchObject({ trialAvailable: true, trialDays: 14 });
 
   // Checkout's way back must stay in the app: another origin is refused before Stripe is asked.

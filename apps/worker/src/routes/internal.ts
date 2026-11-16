@@ -11,6 +11,7 @@ import { applyInboundMessage, recordCustomer, resolveDiscarded } from "@omni/db"
 import { z } from "zod";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
+import { apiError } from "../errors.ts";
 import { openDb } from "../db.ts";
 import { loadConfig } from "../env.ts";
 import { pingMailService } from "../mail-service.ts";
@@ -28,29 +29,35 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     body,
     headers: c.req.raw.headers,
   });
-  if (!verified.ok) return c.json({ error: verified.reason }, 401);
-  if (!verified.nonce) return c.json({ error: "missing_nonce" }, 401);
+  if (!verified.ok) return apiError(c, "unauthorized", verified.reason);
+  if (!verified.nonce) return apiError(c, "unauthorized", "missing_nonce");
 
   const guard = c.env.REPLAY_GUARD.get(c.env.REPLAY_GUARD.idFromName("mail-service"));
   // Keep the nonce until its timestamp could no longer pass verification.
   const expiresAt = (verified.timestamp + DEFAULT_MAX_AGE_SECONDS + 1) * 1000;
   if (!(await guard.claim(verified.nonce, expiresAt))) {
-    return c.json({ error: "replayed" }, 401);
+    return apiError(c, "unauthorized", "replayed");
   }
 
   let parsed;
   try {
     parsed = envelope.safeParse(JSON.parse(body));
   } catch {
-    return c.json({ error: "invalid json" }, 400);
+    return apiError(c, "bad_request", "invalid json");
   }
-  if (!parsed.success) return c.json({ error: "invalid body", issues: parsed.error.issues }, 400);
+  if (!parsed.success) {
+    return apiError(c, "bad_request", "invalid body", { details: { issues: parsed.error.issues } });
+  }
   // Event types this Worker does not know yet are ignored (packages/contracts/AGENTS.md).
   const events: MailEvent[] = [];
   for (const raw of parsed.data.events) {
     if (!knownTypes.has(raw.type)) continue;
     const event = mailEventSchema.safeParse(raw);
-    if (!event.success) return c.json({ error: "invalid event", issues: event.error.issues }, 400);
+    if (!event.success) {
+      return apiError(c, "bad_request", "invalid event", {
+        details: { issues: event.error.issues },
+      });
+    }
     events.push(event.data);
   }
 

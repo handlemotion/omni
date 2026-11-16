@@ -1,7 +1,7 @@
 // The app's one API and auth client, from `@omni/client` like the web app's. Native requests
 // carry the session the auth client keeps in the Keychain (SecureStore) as a `Cookie` header.
 import { expoClient } from "@better-auth/expo/client";
-import { createApi, createAuth } from "@omni/client";
+import { createApi, createAuth, toApiError, type ApiErrorInfo } from "@omni/client";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { DetailedError, parseResponse, type ClientResponse } from "hono/client";
@@ -31,13 +31,28 @@ export const api = createApi({
   },
 });
 
-/** A failed API call. `status` 0 means the request never got an answer (offline, aborted). */
+/**
+ * A failed API call. `status` 0 means the request never got an answer (offline, aborted). The
+ * rest is what the Worker said (ADR 0038), when it said it: `code` is stable, the message is not.
+ */
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  readonly code?: string;
+  readonly category?: string;
+  readonly retryable?: boolean;
+  readonly requestId?: string;
+  readonly param?: string;
+  readonly details?: Record<string, unknown>;
+  constructor(status: number, message: string, info: Omit<ApiErrorInfo, "message"> = {}) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = info.code;
+    this.category = info.category;
+    this.retryable = info.retryable;
+    this.requestId = info.requestId;
+    this.param = info.param;
+    this.details = info.details;
   }
 }
 
@@ -51,11 +66,8 @@ export async function call<T extends ClientResponse<any>>(
   } catch (error) {
     if (error instanceof DetailedError) {
       const data = (error.detail as { data?: unknown } | undefined)?.data;
-      const message =
-        typeof data === "object" && data !== null && "error" in data
-          ? String((data as { error: unknown }).error)
-          : error.message;
-      throw new ApiError(Number(error.statusCode ?? 0), message);
+      const { message, ...info } = toApiError(data, error.message);
+      throw new ApiError(Number(error.statusCode ?? 0), message, info);
     }
     throw new ApiError(0, error instanceof Error ? error.message : String(error));
   }

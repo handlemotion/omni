@@ -14,6 +14,7 @@ import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./context.ts";
 import type { Config } from "./env.ts";
+import { apiError } from "./errors.ts";
 
 export type WorkspaceBilling =
   | { enabled: false }
@@ -123,6 +124,9 @@ export async function inGoodStanding(db: Db, config: Config, orgId: string) {
  * A path matches an entry when it is the entry or below it; `:param` matches one segment.
  * `e2e/billing-gate.e2e.test.ts` sends every write route in `app` and holds this list to it.
  */
+/** What a write in a workspace without a plan in good standing is told (`billing_inactive`). */
+export const READ_ONLY_MESSAGE = "this workspace is read-only until it has an active plan";
+
 export const READ_ONLY_ALLOWED = [
   // Inside the member API: `requireWritableWorkspace` lets these through.
   { path: "/api/billing", reason: "checkout and the portal are how a workspace becomes paid" },
@@ -174,13 +178,7 @@ export const requireWritableWorkspace = createMiddleware<AppEnv>(async (c, next)
     !allowedWhileReadOnly(c.req.path)
   ) {
     if (!(await inGoodStanding(c.var.db, c.var.config, c.var.member.orgId))) {
-      return c.json(
-        {
-          error: "this workspace is read-only until it has an active plan",
-          code: "BILLING_INACTIVE",
-        },
-        402,
-      );
+      return apiError(c, "billing_inactive", READ_ONLY_MESSAGE);
     }
   }
   await next();

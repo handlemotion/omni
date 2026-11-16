@@ -222,6 +222,19 @@ test("triage actions need an idempotency key and a thread the member can see", a
     // The API's one error shape, with a message the app can show (not a raw Zod error object).
     expect(await unkeyed.json()).toEqual({
       error: expect.stringContaining("idempotency-key"),
+      code: "bad_request",
+      category: "validation",
+      retryable: false,
+      param: "idempotency-key",
+      details: {
+        issues: [
+          {
+            path: ["idempotency-key"],
+            code: "invalid_type",
+            message: "Invalid input: expected string, received undefined",
+          },
+        ],
+      },
       requestId: unkeyed.headers.get("x-request-id"),
     });
   }

@@ -5,6 +5,7 @@ import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
+import { errorBody } from "../errors.ts";
 import { pingMailService } from "../mail-service.ts";
 import { fanOut, notifyMembers } from "../realtime.ts";
 import { optionalJsonBody } from "../validator.ts";
@@ -52,10 +53,8 @@ export async function applyChange(
   if (!result.ok) {
     const [status, message] = failures[result.reason];
     if (result.reason === "assignee_changed" && result.conversation) {
-      return c.json(
-        { error: message, conversation: result.conversation, requestId: c.var.requestId },
-        409,
-      );
+      const body = errorBody(c, "conflict", message);
+      return c.json({ ...body, conversation: result.conversation }, 409);
     }
     throw new HTTPException(status, { message });
   }
