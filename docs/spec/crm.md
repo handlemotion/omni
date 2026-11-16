@@ -1,7 +1,7 @@
 # Omni CRM: the client layer
 
 Nov 16, 2026 · Draft for review · Extends `docs/spec/v1.md` and `docs/spec/modules.md` ·
-Decisions: ADR 0036 (v1), ADR 0037 (later)
+Decisions: ADR 0036 (v1), ADR 0039 (v1 close-out), ADR 0037 (later)
 
 ## Summary
 
@@ -231,7 +231,7 @@ Each test below is named for the bug it catches.
 
 ## Open questions
 
-- [ ] Web screens: built now from references as Storage's were, or after Figma frames.
+- [x] Web screens: built now from Mobbin references; the founder redesigns them later (ADR 0039).
 - [ ] The starting stage names (Lead, In progress, Won, Delivered, Lost) and the folder name
       (`Clients`). Both can be renamed by a workspace; these are only what a new one sees.
-- [ ] Bringing our own records over from Attio: by hand (it is small today) or an import.
+- [x] Bringing our own records over from Attio: by hand. No imports in v1 (ADR 0039).
