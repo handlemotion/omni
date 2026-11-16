@@ -3,7 +3,7 @@
 // unless `READ_ONLY_ALLOWED` names it, and every route it names is not gated. The routes come
 // from the app itself, so a new write route fails here until someone decides which side it is on.
 import { randomUUID } from "node:crypto";
-import { schema } from "@omni/db";
+import { forMember, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { BILLING_SECRETS, MONTHLY_PRICE } from "./stripe-events.ts";
@@ -104,6 +104,8 @@ test("every write route is gated for an unpaid workspace unless the allowlist na
     allowed: false,
     gated: true,
   });
+  // The CRM's writes are in the walk (ADR 0036): a read-only workspace changes no record.
+  expect(answers).toContainEqual({ route: "POST /api/crm/people", allowed: false, gated: true });
   // Inviting stays open (ADR 0015), now that invitations go through the Worker (ADR 0026).
   expect(answers).toContainEqual({
     route: "POST /api/workspace/invitations/:id/resend",
@@ -115,4 +117,52 @@ test("every write route is gated for an unpaid workspace unless the allowlist na
     allowed: true,
     gated: false,
   });
+}, 60_000);
+
+test("a read-only workspace still reads every CRM route", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "unpaid-crm");
+  const email = `member-${randomUUID().slice(0, 8)}@omni.test`;
+  const member = await createMember(db, org.id, email);
+  const cookie = await signIn(worker, db, email);
+  // Records made below the gate, as a workspace that was paid once would have them.
+  const crm = forMember(db, member.id).crm;
+  const added = await crm.addPerson({ name: "Carla", address: "carla@northwind.com" });
+  if (added.status !== "ok" || !added.person.companyId) throw new Error("no person");
+  const deal = await crm.createDeal({ name: "Website", personIds: [added.person.id] });
+  if (deal.status !== "ok") throw new Error("no deal");
+  const ids: Record<string, string> = {
+    companies: added.person.companyId,
+    people: added.person.id,
+    deals: deal.deal.id,
+  };
+  const queries: Record<string, string> = {
+    lookup: "?address=carla@northwind.com",
+    search: "?q=car",
+  };
+
+  const reads = [
+    ...new Set(
+      app.routes
+        .filter((r) => r.method === "GET" && r.path.startsWith("/api/crm/"))
+        .map((r) => r.path),
+    ),
+  ];
+  expect(reads.length).toBeGreaterThan(10);
+  const answers = [];
+  for (const pattern of reads) {
+    const records = pattern.split("/")[3]!;
+    const path = pattern.replace(":id", ids[records] ?? "") + (queries[records] ?? "");
+    const response = await fetch(new URL(path, worker.url), { headers: { cookie } });
+    await response.body?.cancel();
+    answers.push({ route: pattern, status: response.status });
+  }
+  expect(answers.filter((a) => a.status !== 200)).toEqual([]);
+  // And a CRM write is gated (the first test walks every one).
+  const write = await fetch(new URL("/api/crm/companies", worker.url), {
+    method: "POST",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({ name: "Initech" }),
+  });
+  expect(write.status).toBe(402);
 }, 60_000);

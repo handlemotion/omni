@@ -94,6 +94,21 @@ export const ERROR_CODES = {
   upload_incomplete: spec(409, "conflict"),
   /** The upload already became a file. */
   upload_complete: spec(409, "conflict"),
+  // CRM (ADR 0036).
+  /** A Personal space has no CRM. */
+  no_crm: spec(404, "not_found"),
+  /** Another person holds the address; `personId` beside the error names them. */
+  address_taken: spec(409, "conflict"),
+  /** Another company holds the domain; `companyId` beside the error names it. */
+  domain_taken: spec(409, "conflict"),
+  /** gmail.com and the like are never a company's domain. */
+  webmail_domain: spec(400, "validation"),
+  /** A stage left out of the pipeline still holds deals; `stageIds` beside the error. */
+  stage_in_use: spec(409, "conflict"),
+  /** Each stage kind keeps at least one stage; `kinds` beside the error names the missing. */
+  stage_kind_required: spec(409, "conflict"),
+  /** Not an ISO 4217 code, or a value with no currency and no workspace default. */
+  invalid_currency: spec(400, "validation"),
 } as const satisfies Record<string, ErrorSpec>;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

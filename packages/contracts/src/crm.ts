@@ -1,0 +1,374 @@
+// The CRM's HTTP API (ADR 0036 decision 7), under `/api/crm` on the Worker: what the web and iOS
+// apps send and get back. The Worker validates requests with these schemas and types its answers
+// with them. Dates travel as ISO 8601 strings, money as a whole number of minor units with its
+// ISO 4217 currency, cursors as opaque strings to pass back unchanged. Error codes are rows in
+// `ERROR_CODES` (`errors.ts`), not here.
+import { z } from "zod";
+
+const isoDate = z.iso.datetime();
+const id = z.string().min(1).max(64);
+/** Checked again by `@omni/db`, which answers `invalid_name` for an empty or too long one. */
+const name = z.string().max(500);
+const address = z.string().min(1).max(320);
+const optionalText = z.string().max(2000).nullable().optional();
+
+/** What a stage means; the name is the workspace's. */
+export const crmStageKindSchema = z.enum(["open", "won", "done", "lost"]);
+
+export const crmCompanySchema = z.object({
+  id,
+  name: z.string(),
+  description: z.string().nullable(),
+  /** The company's folder in Shared once a file was added; use `/api/storage` on it. */
+  folderNodeId: id.nullable(),
+  createdByMemberId: id.nullable(),
+  archivedAt: isoDate.nullable(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+});
+
+export const crmPersonAddressSchema = z.object({ address: z.string(), isPrimary: z.boolean() });
+
+export const crmPersonSchema = z.object({
+  id,
+  name: z.string(),
+  companyId: id.nullable(),
+  jobTitle: z.string().nullable(),
+  phone: z.string().nullable(),
+  createdByMemberId: id.nullable(),
+  archivedAt: isoDate.nullable(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+  /** Primary first, then by address. */
+  addresses: z.array(crmPersonAddressSchema),
+});
+
+export const crmDealSchema = z.object({
+  id,
+  name: z.string(),
+  companyId: id.nullable(),
+  stageId: id,
+  /** The kind of the stage it is in. */
+  stageKind: crmStageKindSchema,
+  stageEnteredAt: isoDate,
+  ownerMemberId: id.nullable(),
+  /** In the currency's minor unit (cents). */
+  valueMinor: z.number().int().nullable(),
+  valueCurrency: z.string().nullable(),
+  /** When it first entered a `won` stage. */
+  wonAt: isoDate.nullable(),
+  /** When it entered a `done` or `lost` stage. */
+  closedAt: isoDate.nullable(),
+  folderNodeId: id.nullable(),
+  createdByMemberId: id.nullable(),
+  archivedAt: isoDate.nullable(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+});
+
+export const crmStageSchema = z.object({
+  id,
+  name: z.string(),
+  kind: crmStageKindSchema,
+  position: z.number().int(),
+});
+
+export const crmNoteSchema = z.object({
+  id,
+  companyId: id.nullable(),
+  personId: id.nullable(),
+  dealId: id.nullable(),
+  body: z.string(),
+  /** Null once the author has left the workspace. */
+  authorMemberId: id.nullable(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+});
+
+export const crmEventSchema = z.object({
+  id,
+  companyId: id.nullable(),
+  personId: id.nullable(),
+  dealId: id.nullable(),
+  /** `created`, `stage_moved`, `owner_changed`, … A client shows the kinds it knows. */
+  kind: z.string(),
+  actorMemberId: id.nullable(),
+  data: z.record(z.string(), z.unknown()),
+  createdAt: isoDate,
+});
+
+export const crmSettingsSchema = z.object({ defaultCurrency: z.string().nullable() });
+
+/** A thread the viewer can open, from any of their mailboxes in the session's scope. */
+export const crmThreadSchema = z.object({
+  id,
+  mailboxId: id,
+  subject: z.string(),
+  snippet: z.string(),
+  lastMessageAt: isoDate,
+  latestFrom: z.object({ name: z.string().nullable(), address: z.string() }).nullable(),
+  /** Where it opens in the web app. */
+  url: z.string(),
+});
+
+// Requests -------------------------------------------------------------------------------------
+
+const page = {
+  cursor: z.string().min(1).max(2048).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  /** `1` lists archived records too. */
+  archived: z.literal("1").optional(),
+};
+
+/** `GET /companies?q=`: by name; `q` matches the start of the name or one of its words. */
+export const crmCompaniesQuerySchema = z.object({ q: z.string().max(200).optional(), ...page });
+/** `GET /people?q=&company=`: `q` also matches the start of an address. */
+export const crmPeopleQuerySchema = z.object({
+  q: z.string().max(200).optional(),
+  company: id.optional(),
+  ...page,
+});
+/** `GET /deals?stage=&kind=&owner=&company=`. */
+export const crmDealsQuerySchema = z.object({
+  q: z.string().max(200).optional(),
+  stage: id.optional(),
+  kind: crmStageKindSchema.optional(),
+  owner: id.optional(),
+  company: id.optional(),
+  ...page,
+});
+
+/** `DELETE` archives; `?forever=1` deletes for good (owners and admins). */
+export const crmDeleteQuerySchema = z.object({ forever: z.literal("1").optional() });
+
+export const crmCreateCompanyBodySchema = z.object({
+  name,
+  description: optionalText,
+  domains: z.array(z.string().min(1).max(253)).max(20).optional(),
+});
+/** Only the fields it names change. */
+export const crmUpdateCompanyBodySchema = z.object({
+  name: name.optional(),
+  description: optionalText,
+});
+
+/** "Add once": an address that already has a person answers that person (`created: false`). */
+export const crmAddPersonBodySchema = z.object({
+  name,
+  address,
+  /** Without it, the company is found or made from the address's domain (not webmail). */
+  companyId: id.optional(),
+  jobTitle: optionalText,
+  phone: optionalText,
+});
+export const crmUpdatePersonBodySchema = z.object({
+  name: name.optional(),
+  /** Null leaves the person with no company. */
+  companyId: id.nullable().optional(),
+  jobTitle: optionalText,
+  phone: optionalText,
+  addresses: z
+    .object({
+      add: z.array(address).max(20).optional(),
+      remove: z.array(address).max(20).optional(),
+      /** One of the person's addresses after `add` and `remove`. */
+      primary: address.optional(),
+    })
+    .optional(),
+});
+
+const dealFields = {
+  companyId: id.nullable().optional(),
+  /** Moving to another stage. On create, the first `open` stage when left out. */
+  stageId: id.optional(),
+  /** On create, the creating member when left out; null for no owner. */
+  ownerMemberId: id.nullable().optional(),
+  valueMinor: z.number().int().nullable().optional(),
+  /** ISO 4217. The workspace's default when a value comes without one. */
+  currency: z.string().max(3).nullable().optional(),
+  /** The client's people on it: exactly these. */
+  personIds: z.array(id).max(100).optional(),
+};
+export const crmCreateDealBodySchema = z.object({ name, ...dealFields });
+export const crmUpdateDealBodySchema = z.object({ name: name.optional(), ...dealFields });
+
+/** An existing stage keeps its kind and may be renamed; a new one names its kind. */
+export const crmStageInputSchema = z.union([
+  z.object({ id, name: z.string().max(200) }),
+  z.object({ name: z.string().max(200), kind: crmStageKindSchema }),
+]);
+/** `PUT /stages`: the whole pipeline, in order (owners and admins). */
+export const crmPutStagesBodySchema = z.object({ stages: z.array(crmStageInputSchema).max(50) });
+
+export const crmPutSettingsBodySchema = z.object({
+  defaultCurrency: z.string().max(3).nullable(),
+});
+
+/** `POST /notes`: on exactly one record. */
+export const crmCreateNoteBodySchema = z
+  .object({
+    companyId: id.optional(),
+    personId: id.optional(),
+    dealId: id.optional(),
+    body: z.string().max(20_000),
+  })
+  .refine((note) => [note.companyId, note.personId, note.dealId].filter(Boolean).length === 1, {
+    message: "give exactly one of companyId, personId and dealId",
+  });
+export const crmUpdateNoteBodySchema = z.object({ body: z.string().max(20_000) });
+
+/** `GET /:records/:id/timeline`. */
+export const crmTimelineQuerySchema = z.object({
+  cursor: z.string().min(1).max(2048).optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+/** Up to 50 addresses, as `?address=a&address=b` or `?address=a,b`. */
+export const CRM_LOOKUP_MAX_ADDRESSES = 50;
+export const crmLookupQuerySchema = z.object({
+  address: z
+    .union([z.string(), z.array(z.string())])
+    .transform((value) =>
+      (Array.isArray(value) ? value : [value])
+        .flatMap((part) => part.split(","))
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0),
+    )
+    .pipe(z.array(address).min(1).max(CRM_LOOKUP_MAX_ADDRESSES)),
+});
+export const crmSearchQuerySchema = z.object({
+  q: z.string().min(1).max(200),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+// Responses ------------------------------------------------------------------------------------
+
+export const crmCompanyListResponseSchema = z.object({
+  companies: z.array(crmCompanySchema),
+  nextCursor: z.string().nullable(),
+});
+export const crmCompanyResponseSchema = z.object({ company: crmCompanySchema });
+/** `GET /companies/:id`: with its domains, live people and live deals. */
+export const crmCompanyDetailResponseSchema = z.object({
+  company: crmCompanySchema,
+  domains: z.array(z.string()),
+  people: z.array(crmPersonSchema),
+  deals: z.array(crmDealSchema),
+});
+export const crmDomainsResponseSchema = z.object({ domains: z.array(z.string()) });
+
+export const crmPersonListResponseSchema = z.object({
+  people: z.array(crmPersonSchema),
+  nextCursor: z.string().nullable(),
+});
+export const crmPersonResponseSchema = z.object({ person: crmPersonSchema });
+/** `POST /people`: 201 when made, 200 with `created: false` when the address had a person. */
+export const crmAddPersonResponseSchema = z.object({
+  person: crmPersonSchema,
+  created: z.boolean(),
+});
+
+export const crmDealListResponseSchema = z.object({
+  deals: z.array(crmDealSchema),
+  nextCursor: z.string().nullable(),
+});
+export const crmDealResponseSchema = z.object({ deal: crmDealSchema });
+/** `GET /deals/:id`: with its people. Contracts join it in a later layer. */
+export const crmDealDetailResponseSchema = z.object({
+  deal: crmDealSchema,
+  people: z.array(crmPersonSchema),
+});
+
+export const crmStagesResponseSchema = z.object({ stages: z.array(crmStageSchema) });
+export const crmSettingsResponseSchema = z.object({ settings: crmSettingsSchema });
+export const crmNoteResponseSchema = z.object({ note: crmNoteSchema });
+
+/** People, companies and deals: `GET /search` and `GET /lookup` (open and won deals only). */
+export const crmFoundResponseSchema = z.object({
+  people: z.array(crmPersonSchema),
+  companies: z.array(crmCompanySchema),
+  deals: z.array(crmDealSchema),
+});
+
+/**
+ * One timeline item. `at` orders the list, newest first (then `id`). New kinds may be added
+ * (contracts next): a client skips a kind it does not know.
+ */
+const timelineItem = { id, at: isoDate };
+export const crmTimelineEventItemSchema = z.object({
+  kind: z.literal("event"),
+  ...timelineItem,
+  event: crmEventSchema,
+});
+export const crmTimelineNoteItemSchema = z.object({
+  kind: z.literal("note"),
+  ...timelineItem,
+  note: crmNoteSchema,
+});
+export const crmTimelineThreadItemSchema = z.object({
+  kind: z.literal("thread"),
+  ...timelineItem,
+  thread: crmThreadSchema,
+});
+export const crmTimelineItemSchema = z.discriminatedUnion("kind", [
+  crmTimelineEventItemSchema,
+  crmTimelineNoteItemSchema,
+  crmTimelineThreadItemSchema,
+]);
+export const crmTimelineResponseSchema = z.object({
+  items: z.array(crmTimelineItemSchema),
+  nextCursor: z.string().nullable(),
+});
+
+/** What changed, on the workspace's realtime socket. Ids only: a client refetches. */
+export const crmChangedKindSchema = z.enum([
+  "company",
+  "person",
+  "deal",
+  "note",
+  "stages",
+  "settings",
+]);
+export const crmChangedEventSchema = z.object({
+  type: z.literal("crm.changed"),
+  kind: crmChangedKindSchema,
+  ids: z.array(id),
+});
+
+export type CrmStageKind = z.infer<typeof crmStageKindSchema>;
+export type CrmCompany = z.infer<typeof crmCompanySchema>;
+export type CrmPerson = z.infer<typeof crmPersonSchema>;
+export type CrmDeal = z.infer<typeof crmDealSchema>;
+export type CrmStage = z.infer<typeof crmStageSchema>;
+export type CrmNote = z.infer<typeof crmNoteSchema>;
+export type CrmEvent = z.infer<typeof crmEventSchema>;
+export type CrmSettings = z.infer<typeof crmSettingsSchema>;
+export type CrmThread = z.infer<typeof crmThreadSchema>;
+export type CrmCreateCompanyBody = z.infer<typeof crmCreateCompanyBodySchema>;
+export type CrmUpdateCompanyBody = z.infer<typeof crmUpdateCompanyBodySchema>;
+export type CrmAddPersonBody = z.infer<typeof crmAddPersonBodySchema>;
+export type CrmUpdatePersonBody = z.infer<typeof crmUpdatePersonBodySchema>;
+export type CrmCreateDealBody = z.infer<typeof crmCreateDealBodySchema>;
+export type CrmUpdateDealBody = z.infer<typeof crmUpdateDealBodySchema>;
+export type CrmStageInput = z.infer<typeof crmStageInputSchema>;
+export type CrmPutStagesBody = z.infer<typeof crmPutStagesBodySchema>;
+export type CrmPutSettingsBody = z.infer<typeof crmPutSettingsBodySchema>;
+export type CrmCreateNoteBody = z.infer<typeof crmCreateNoteBodySchema>;
+export type CrmCompanyListResponse = z.infer<typeof crmCompanyListResponseSchema>;
+export type CrmCompanyResponse = z.infer<typeof crmCompanyResponseSchema>;
+export type CrmCompanyDetailResponse = z.infer<typeof crmCompanyDetailResponseSchema>;
+export type CrmDomainsResponse = z.infer<typeof crmDomainsResponseSchema>;
+export type CrmPersonListResponse = z.infer<typeof crmPersonListResponseSchema>;
+export type CrmPersonResponse = z.infer<typeof crmPersonResponseSchema>;
+export type CrmAddPersonResponse = z.infer<typeof crmAddPersonResponseSchema>;
+export type CrmDealListResponse = z.infer<typeof crmDealListResponseSchema>;
+export type CrmDealResponse = z.infer<typeof crmDealResponseSchema>;
+export type CrmDealDetailResponse = z.infer<typeof crmDealDetailResponseSchema>;
+export type CrmStagesResponse = z.infer<typeof crmStagesResponseSchema>;
+export type CrmSettingsResponse = z.infer<typeof crmSettingsResponseSchema>;
+export type CrmNoteResponse = z.infer<typeof crmNoteResponseSchema>;
+export type CrmFoundResponse = z.infer<typeof crmFoundResponseSchema>;
+export type CrmTimelineItem = z.infer<typeof crmTimelineItemSchema>;
+export type CrmTimelineResponse = z.infer<typeof crmTimelineResponseSchema>;
+export type CrmChangedKind = z.infer<typeof crmChangedKindSchema>;
+export type CrmChangedEvent = z.infer<typeof crmChangedEventSchema>;

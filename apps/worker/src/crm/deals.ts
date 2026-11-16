@@ -1,0 +1,84 @@
+// Deals, under `/api/crm/deals`. A won deal is the project (ADR 0036): `PATCH` with a `stageId`
+// moves it through the one transition function in `@omni/db`.
+import {
+  crmCreateDealBodySchema,
+  crmDealsQuerySchema,
+  crmDeleteQuerySchema,
+  crmUpdateDealBodySchema,
+  type CrmDealDetailResponse,
+  type CrmDealListResponse,
+  type CrmDealResponse,
+} from "@omni/contracts";
+import { Hono } from "hono";
+import type { AppEnv } from "../context.ts";
+import { zValidator } from "../validator.ts";
+import {
+  announce,
+  decodeCursor,
+  encodeCursor,
+  memberCrm,
+  nameCursor,
+  refused,
+  wireDeal,
+  wirePerson,
+} from "./http.ts";
+
+export const deals = new Hono<AppEnv>()
+  .get("/deals", zValidator("query", crmDealsQuerySchema), async (c) => {
+    const { q, stage, kind, owner, company, cursor, limit, archived } = c.req.valid("query");
+    const listed = await memberCrm(c).listDeals({
+      q,
+      stageId: stage,
+      kind,
+      ownerMemberId: owner,
+      companyId: company,
+      cursor: decodeCursor(cursor, nameCursor),
+      limit,
+      includeArchived: archived === "1",
+    });
+    if (listed.status !== "ok") return refused(c, listed);
+    return c.json({
+      deals: listed.deals.map(wireDeal),
+      nextCursor: encodeCursor(listed.nextCursor),
+    } satisfies CrmDealListResponse);
+  })
+
+  .post("/deals", zValidator("json", crmCreateDealBodySchema), async (c) => {
+    const made = await memberCrm(c).createDeal(c.req.valid("json"));
+    if (made.status !== "ok") return refused(c, made);
+    await announce(c, "deal", [made.deal.id]);
+    return c.json({ deal: wireDeal(made.deal) } satisfies CrmDealResponse, 201);
+  })
+
+  .get("/deals/:id", async (c) => {
+    const found = await memberCrm(c).deal(c.req.param("id"));
+    if (found.status !== "ok") return refused(c, found);
+    return c.json({
+      deal: wireDeal(found.deal),
+      people: found.people.map(wirePerson),
+    } satisfies CrmDealDetailResponse);
+  })
+
+  /** Only the fields it names: name, company, owner, value, people, and a stage move. */
+  .patch("/deals/:id", zValidator("json", crmUpdateDealBodySchema), async (c) => {
+    const changed = await memberCrm(c).updateDeal(c.req.param("id"), c.req.valid("json"));
+    if (changed.status !== "ok") return refused(c, changed);
+    await announce(c, "deal", [changed.deal.id]);
+    return c.json({ deal: wireDeal(changed.deal) } satisfies CrmDealResponse);
+  })
+
+  /** Archives; `?forever=1` deletes for good (owners and admins), leaving its files in Storage. */
+  .delete("/deals/:id", zValidator("query", crmDeleteQuerySchema), async (c) => {
+    const id = c.req.param("id");
+    const crm = memberCrm(c);
+    if (c.req.valid("query").forever) {
+      const deleted = await crm.deleteDeal(id);
+      if (deleted.status !== "ok") return refused(c, deleted);
+      await announce(c, "deal", [id]);
+      return c.body(null, 204);
+    }
+    const archived = await crm.archiveDeal(id);
+    if (archived.status !== "ok") return refused(c, archived);
+    await announce(c, "deal", [id]);
+    return c.json({ deal: wireDeal(archived.deal) } satisfies CrmDealResponse);
+  });

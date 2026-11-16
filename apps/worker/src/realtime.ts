@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import type { HelpdeskRealtimeEvent, SlaTarget } from "@omni/contracts";
+import type { CrmChangedEvent, HelpdeskRealtimeEvent, SlaTarget } from "@omni/contracts";
 import {
   forMember,
   mailboxAudience,
@@ -35,7 +35,7 @@ export type RealtimeEvent =
    */
   | { type: "notification.removed"; threadId: string };
 
-type OutboundEvent = RealtimeEvent | HelpdeskRealtimeEvent;
+type OutboundEvent = RealtimeEvent | HelpdeskRealtimeEvent | CrmChangedEvent;
 
 /** What an app sends: this member is viewing or replying in a conversation, or left it. */
 const presenceMessage = z.object({

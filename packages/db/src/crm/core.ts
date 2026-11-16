@@ -45,6 +45,18 @@ export async function loadCrmMember(ex: Ex, memberId: string): Promise<CrmMember
   return { id: row.id, orgId: row.orgId, admin };
 }
 
+/**
+ * Who hears a CRM change: the workspace's members now. Every member sees every record
+ * (ADR 0036 decision 1), and a member removed since they connected is not among them.
+ */
+export async function crmAudience(ex: Ex, member: CrmMember) {
+  const rows = await ex
+    .select({ id: members.id })
+    .from(members)
+    .where(eq(members.organizationId, member.orgId));
+  return { status: "ok" as const, memberIds: rows.map((row) => row.id) };
+}
+
 /** The member door's context: the database, and how to resolve the member once per call. */
 export interface CrmDoor {
   db: Db;

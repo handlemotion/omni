@@ -17,6 +17,7 @@ import {
   type AppEnv,
 } from "./context.ts";
 import type { Config } from "./env.ts";
+import { crm } from "./crm/routes.ts";
 import { answerThrown, apiError } from "./errors.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
 import { MEMBER_HEADER } from "./realtime.ts";
@@ -143,7 +144,8 @@ const api = new Hono<AppEnv>()
   .route("/", assets)
   .route("/", billing)
   .route("/", billingCards)
-  .route("/storage", storage);
+  .route("/storage", storage)
+  .route("/crm", crm);
 
 /** A resend, from the old web app, of an invitation already pending in the session's workspace. */
 async function isPendingResend(c: Context<AppEnv>) {

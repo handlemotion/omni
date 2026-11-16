@@ -4,6 +4,8 @@ import { z } from "zod";
 
 // The Worker's Storage API as its clients see it (ADR 0034).
 export * from "./storage.ts";
+// The Worker's CRM API as its clients see it (ADR 0036).
+export * from "./crm.ts";
 // Every Worker error answer, in both shapes (ADR 0038).
 export * from "./errors.ts";
 export * from "./error-schemas.ts";
