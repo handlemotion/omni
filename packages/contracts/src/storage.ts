@@ -325,6 +325,31 @@ export const storageChangedEventSchema = z.object({
   space: storageSpaceSchema,
 });
 
+/**
+ * Where Drive sync stands for one workspace on this computer, as Settings → Drive shows it: `off`
+ * (the default, since it puts a folder in Finder), `synced`, `syncing`, `paused` from the tray,
+ * or `needs_attention` (sign in again, storage full).
+ */
+export const desktopSyncStateSchema = z.enum([
+  "off",
+  "synced",
+  "syncing",
+  "paused",
+  "needs_attention",
+]);
+
+export const desktopWorkspaceSyncSchema = z.object({ orgId: id, state: desktopSyncStateSchema });
+
+/**
+ * The desktop shell's `sync_status` command (not HTTP: Tauri IPC from the web app). `available`
+ * is false where the build has no sync provider. `sync_connect` and `sync_disconnect` take
+ * `{ orgId }` and answer a `desktopWorkspaceSyncSchema`.
+ */
+export const desktopSyncStatusSchema = z.object({
+  available: z.boolean(),
+  workspaces: z.array(desktopWorkspaceSyncSchema),
+});
+
 /** The schemas the native sync providers are generated from, by the name their type takes. */
 export const STORAGE_SYNC_NATIVE_TYPES = {
   StorageNode: storageNodeSchema,
@@ -343,6 +368,9 @@ export const STORAGE_SYNC_NATIVE_TYPES = {
   StorageSyncChange: storageSyncChangeSchema,
   StorageSyncChangesResponse: storageSyncChangesResponseSchema,
   StorageChangedEvent: storageChangedEventSchema,
+  DesktopSyncState: desktopSyncStateSchema,
+  DesktopWorkspaceSync: desktopWorkspaceSyncSchema,
+  DesktopSyncStatus: desktopSyncStatusSchema,
 } as const;
 
 export type StorageSpace = z.infer<typeof storageSpaceSchema>;
@@ -377,3 +405,6 @@ export type StorageSyncChangesQuery = z.infer<typeof storageSyncChangesQuerySche
 export type StorageSyncChange = z.infer<typeof storageSyncChangeSchema>;
 export type StorageSyncChangesResponse = z.infer<typeof storageSyncChangesResponseSchema>;
 export type StorageReplaceUploadBody = z.infer<typeof storageReplaceUploadBodySchema>;
+export type DesktopSyncState = z.infer<typeof desktopSyncStateSchema>;
+export type DesktopWorkspaceSync = z.infer<typeof desktopWorkspaceSyncSchema>;
+export type DesktopSyncStatus = z.infer<typeof desktopSyncStatusSchema>;

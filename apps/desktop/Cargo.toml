@@ -1,0 +1,21 @@
+# The desktop app's Rust: the Tauri shell, and the wire types generated from @omni/contracts.
+# The Windows Cloud Files provider joins as a member in its own layer (docs/spec/desktop.md).
+[workspace]
+resolver = "3"
+members = ["src-tauri", "generated/rust"]
+
+[workspace.package]
+edition = "2024"
+license = "AGPL-3.0-only"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+omni-sync-types = { path = "generated/rust" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }

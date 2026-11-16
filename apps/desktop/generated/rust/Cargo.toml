@@ -1,0 +1,18 @@
+# The sync protocol's wire types, generated from @omni/contracts (ADR 0043 decision 6).
+# `storage_sync.rs` is generated: `pnpm --filter @omni/contracts native-types`. This file and
+# `lib.rs` are written by hand.
+[package]
+name = "omni-sync-types"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

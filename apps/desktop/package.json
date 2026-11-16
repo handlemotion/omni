@@ -1,0 +1,20 @@
+{
+  "name": "@omni/desktop",
+  "private": true,
+  "description": "Desktop app (ADR 0043): Tauri 2 shell that loads the Omni server's web app, plus the OS sync providers",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:shell": "vite build",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.12.4"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4",
+    "vite": "^8.3.8"
+  }
+}

@@ -1,0 +1,22 @@
+[package]
+name = "omni-desktop"
+version = "0.0.0"
+description = "Omni Desktop: the Omni web app in a native window"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# `_lib` keeps the library's name apart from the binary's (a Cargo limitation on Windows).
+name = "omni_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+omni-sync-types.workspace = true
+
+[lints]
+workspace = true

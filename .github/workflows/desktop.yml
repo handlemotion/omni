@@ -1,0 +1,108 @@
+name: Desktop
+
+# The desktop app (ADR 0043, docs/spec/desktop.md "Build, signing, release"): Rust format, Clippy
+# and tests on Linux, and an unsigned build of the shell on macOS and Windows. Runs only when the
+# app or the contracts its types come from change; `Checks` is unchanged for everyone else.
+# Signed builds and the updater feed come with the release layer.
+#
+# The macOS and Windows builds run only when started by hand: this repository's jobs run on its
+# `boat` runners, and GitHub-hosted macOS and Windows runners are not enabled for it yet (a job
+# on them fails before it starts). Run them on push once they are.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "packages/contracts/**"
+      - ".github/workflows/desktop.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "packages/contracts/**"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust (Linux)
+    runs-on: boat # 4 vCPU / 8 GB: Tauri and WebKitGTK compile slowly on boat-small
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Tauri's Linux prerequisites (WebKitGTK 4.1), so Clippy can check the shell.
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+
+      - name: Toolchain
+        run: |
+          if ! command -v rustup >/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: apps/desktop
+
+      # `generate_context!` reads the bundled shell's output folder at compile time.
+      - name: Placeholder shell bundle
+        run: mkdir -p dist && touch dist/index.html
+
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets --locked
+      - run: cargo test --locked
+
+  build:
+    name: Build (${{ matrix.os }}, unsigned)
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: apps/desktop
+
+      - run: pnpm install --frozen-lockfile --filter @omni/desktop...
+
+      # Compiles the shell and builds the bundled page; no installer, no signing.
+      - run: pnpm --filter @omni/desktop tauri build --no-bundle

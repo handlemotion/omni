@@ -306,3 +306,33 @@ pub enum Type {
     #[serde(rename = "storage.changed")]
     StorageChanged,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DesktopSyncStatus {
+    pub available: bool,
+
+    pub workspaces: Vec<DesktopWorkspaceSync>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopWorkspaceSync {
+    pub org_id: String,
+
+    pub state: DesktopSyncState,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DesktopSyncState {
+    #[serde(rename = "needs_attention")]
+    NeedsAttention,
+
+    Off,
+
+    Paused,
+
+    Synced,
+
+    Syncing,
+}

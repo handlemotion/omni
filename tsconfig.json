@@ -11,6 +11,7 @@
     { "path": "./apps/worker" },
     { "path": "./packages/client" },
     { "path": "./apps/web" },
-    { "path": "./apps/ios" }
+    { "path": "./apps/ios" },
+    { "path": "./apps/desktop" }
   ]
 }

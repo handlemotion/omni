@@ -20,6 +20,9 @@
 //   let storageSyncChange = try StorageSyncChange(json)
 //   let storageSyncChangesResponse = try StorageSyncChangesResponse(json)
 //   let storageChangedEvent = try StorageChangedEvent(json)
+//   let desktopSyncState = try? JSONDecoder().decode(DesktopSyncState.self, from: jsonData)
+//   let desktopWorkspaceSync = try DesktopWorkspaceSync(json)
+//   let desktopSyncStatus = try DesktopSyncStatus(json)
 
 //
 // Hashable or Equatable:
@@ -1421,6 +1424,132 @@ public extension StorageChangedEvent {
 
 public enum TypeEnum: String, Codable, Equatable {
     case storageChanged = "storage.changed"
+}
+
+//
+// Hashable or Equatable:
+// The compiler will not be able to synthesize the implementation of Hashable or Equatable
+// for types that require the use of JSONAny, nor will the implementation of Hashable be
+// synthesized for types that have collections (such as arrays or dictionaries).
+
+// MARK: - DesktopSyncStatus
+public struct DesktopSyncStatus: Codable, Equatable {
+    public let available: Bool
+    public let workspaces: [DesktopWorkspaceSync]
+
+    public enum CodingKeys: String, CodingKey {
+        case available = "available"
+        case workspaces = "workspaces"
+    }
+
+    public init(available: Bool, workspaces: [DesktopWorkspaceSync]) {
+        self.available = available
+        self.workspaces = workspaces
+    }
+}
+
+// MARK: DesktopSyncStatus convenience initializers and mutators
+
+public extension DesktopSyncStatus {
+    init(data: Data) throws {
+        self = try newJSONDecoder().decode(DesktopSyncStatus.self, from: data)
+    }
+
+    init(_ json: String, using encoding: String.Encoding = .utf8) throws {
+        guard let data = json.data(using: encoding) else {
+            throw NSError(domain: "JSONDecoding", code: 0, userInfo: nil)
+        }
+        try self.init(data: data)
+    }
+
+    init(fromURL url: URL) throws {
+        try self.init(data: try Data(contentsOf: url))
+    }
+
+    func with(
+        available: Bool? = nil,
+        workspaces: [DesktopWorkspaceSync]? = nil
+    ) -> DesktopSyncStatus {
+        return DesktopSyncStatus(
+            available: available ?? self.available,
+            workspaces: workspaces ?? self.workspaces
+        )
+    }
+
+    func jsonData() throws -> Data {
+        return try newJSONEncoder().encode(self)
+    }
+
+    func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
+        return String(data: try self.jsonData(), encoding: encoding)
+    }
+}
+
+//
+// Hashable or Equatable:
+// The compiler will not be able to synthesize the implementation of Hashable or Equatable
+// for types that require the use of JSONAny, nor will the implementation of Hashable be
+// synthesized for types that have collections (such as arrays or dictionaries).
+
+// MARK: - DesktopWorkspaceSync
+public struct DesktopWorkspaceSync: Codable, Equatable {
+    public let orgId: String
+    public let state: DesktopSyncState
+
+    public enum CodingKeys: String, CodingKey {
+        case orgId = "orgId"
+        case state = "state"
+    }
+
+    public init(orgId: String, state: DesktopSyncState) {
+        self.orgId = orgId
+        self.state = state
+    }
+}
+
+// MARK: DesktopWorkspaceSync convenience initializers and mutators
+
+public extension DesktopWorkspaceSync {
+    init(data: Data) throws {
+        self = try newJSONDecoder().decode(DesktopWorkspaceSync.self, from: data)
+    }
+
+    init(_ json: String, using encoding: String.Encoding = .utf8) throws {
+        guard let data = json.data(using: encoding) else {
+            throw NSError(domain: "JSONDecoding", code: 0, userInfo: nil)
+        }
+        try self.init(data: data)
+    }
+
+    init(fromURL url: URL) throws {
+        try self.init(data: try Data(contentsOf: url))
+    }
+
+    func with(
+        orgId: String? = nil,
+        state: DesktopSyncState? = nil
+    ) -> DesktopWorkspaceSync {
+        return DesktopWorkspaceSync(
+            orgId: orgId ?? self.orgId,
+            state: state ?? self.state
+        )
+    }
+
+    func jsonData() throws -> Data {
+        return try newJSONEncoder().encode(self)
+    }
+
+    func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
+        return String(data: try self.jsonData(), encoding: encoding)
+    }
+}
+
+public enum DesktopSyncState: String, Codable, Equatable {
+    case needsAttention = "needs_attention"
+    case off = "off"
+    case paused = "paused"
+    case synced = "synced"
+    case syncing = "syncing"
 }
 
 // MARK: - Helper functions for creating encoders and decoders
