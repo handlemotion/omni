@@ -84,7 +84,11 @@ export async function reconcileThreads(
     join ${threads} t on t.id = s.thread_id
     join ${mailboxes} mb on mb.id = t.mailbox_id and mb.provider = 'gmail'
     where ts.thread_id = t.id and not s.seen
-      and (ts.done_through >= t.last_message_at or (${arrivedUnseen}::boolean and ts.read))
+      and (ts.done_through >= t.last_message_at or (${arrivedUnseen}::boolean and ts.read and exists (
+        -- Indexed since the member last touched the thread. A copy found again after a folder
+        -- reset is the first location of a message they may have opened since: not new mail.
+        select 1 from ${messages} n where n.id in (${messageIds}) and n.created_at > ts.updated_at
+      )))
     returning ts.thread_id as id`);
   // postgres-js returns the rows themselves. A new row that says unread shows what no row did.
   type ReadRow = { id: string; read: boolean; inserted: boolean };

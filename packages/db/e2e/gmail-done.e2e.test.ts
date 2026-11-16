@@ -164,3 +164,27 @@ test("the copies Done marks read stop at the done watermark: a reply indexed aft
   const newest = await threadActionTargets(db, member.id, first.threadId, "newest");
   expect(newest?.targets.map((t) => t.uids)).toEqual([[late.uid]]);
 });
+
+test("a copy found again after a folder reset is not new mail: a thread opened in Omni stays read", async () => {
+  const { mailbox, deliver } = await account("fay@gmail-done.test", "gmail");
+  const { threadId, uid } = await deliver(null, new Date("2026-11-01T09:00:00Z"), []);
+  await forMember(db, member.id).setThreadState(threadId, { read: true });
+
+  // UIDVALIDITY changed: the folder's locations are dropped and its mail is indexed again. The
+  // message row survives, so its copy comes back as its only location, still unread in Gmail.
+  const [copy] = await db
+    .delete(messageLocations)
+    .where(and(eq(messageLocations.mailboxId, mailbox.id), eq(messageLocations.imapUid, uid)))
+    .returning();
+  if (!copy) throw new Error("no location");
+  await addLocation(db, {
+    orgId: org.id,
+    mailboxId: mailbox.id,
+    folderId: copy.folderId,
+    uid: uid + 50,
+    messageId: copy.messageId,
+    flags: [],
+    modseq: null,
+  });
+  expect(await stateOf(threadId)).toMatchObject({ read: true, doneThrough: null });
+});
