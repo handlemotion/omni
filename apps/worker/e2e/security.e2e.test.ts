@@ -146,6 +146,15 @@ describe("security headers", () => {
     }
   });
 
+  test("a build file the deployed build lacks is a 404, not the app's HTML", async () => {
+    // A tab open across a deploy asks for its old build's chunk; index.html in its place made the
+    // browser refuse it as a script ("'text/html' is not a valid JavaScript MIME type").
+    const stale = await get(worker, "/assets/pdf-preview-0ld8uild.js");
+    expect(stale.status).toBe(404);
+    expect(stale.headers.get("content-type")).not.toMatch(/text\/html/);
+    expect(stale.headers.get("cache-control")).toBe("no-store");
+  });
+
   test("API answers, errors included, carry a deny-all CSP and the baseline", async () => {
     for (const path of ["/health", "/api/sign-in-methods", "/api/me", "/api/auth/get-session"]) {
       const response = await get(worker, path);

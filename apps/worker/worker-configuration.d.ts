@@ -9,6 +9,7 @@ interface __BaseEnv_Env {
   AI_QUEUE: Queue;
   DOMAIN_ADD_LIMITER: RateLimit;
   DOMAIN_CHECK_LIMITER: RateLimit;
+  ASSETS: Fetcher;
   ENVIRONMENT: string;
   BETTER_AUTH_URL: string;
   AUTH_TRUSTED_ORIGINS: string;

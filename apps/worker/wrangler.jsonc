@@ -15,9 +15,13 @@
   "build": { "command": "pnpm --filter @omni/web build", "watch_dir": "../web/src" },
   "assets": {
     "directory": "../web/dist",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application",
+    // `/assets/*`: the build's hashed files, so one the deployed build lacks is a 404, not
+    // index.html (src/build-assets.ts).
     // `/mcp` and `/.well-known/*`: the MCP endpoint and its OAuth discovery (ADR 0029).
     "run_worker_first": [
+      "/assets/*",
       "/api/*",
       "/health",
       "/internal/*",

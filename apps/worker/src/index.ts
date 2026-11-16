@@ -4,6 +4,7 @@ import { createStripeClient } from "@omni/auth";
 import { Effect } from "effect";
 import { pruneAbandonedSignUps } from "./abandoned-sign-ups.ts";
 import { app } from "./app.ts";
+import { isBuildAsset, serveBuildAsset } from "./build-assets.ts";
 import { reconcileSubscriptions } from "./billing-reconcile.ts";
 import { openDb } from "./db.ts";
 import { recheckLocks } from "./domains.ts";
@@ -34,7 +35,8 @@ export default Sentry.withSentry(
     beforeBreadcrumb: (breadcrumb) => scrubBreadcrumb(breadcrumb),
   }),
   {
-    fetch: app.fetch,
+    fetch: (request, env, ctx) =>
+      isBuildAsset(request) ? serveBuildAsset(request, env.ASSETS) : app.fetch(request, env, ctx),
     queue: consumeQueue,
     scheduled: (controller, env, ctx) =>
       ctx.waitUntil(
