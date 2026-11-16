@@ -228,6 +228,82 @@ describe("forMember isolation", () => {
     ]);
   });
 
+  test("storage: nobody but its owner reaches a member's My files, not an admin and not another org", async () => {
+    const team = await createOrg(db, "files-team");
+    const elsewhere = await createOrg(db, "files-elsewhere");
+    const owner = await createMember(db, team.id, "files-owner");
+    const teammate = await createMember(db, team.id, "files-teammate");
+    const admin = await createMember(db, team.id, "files-admin");
+    const boss = await createMember(db, team.id, "files-boss");
+    const outsider = await createMember(db, elsewhere.id, "files-outsider");
+    await db.update(members).set({ role: "admin" }).where(eq(members.id, admin.id));
+    await db.update(members).set({ role: "owner" }).where(eq(members.id, boss.id));
+
+    const mine = forMember(db, owner.id).storage;
+    const folder = await mine.createFolder({ space: "personal" }, "Private");
+    if (folder.status !== "ok") throw new Error(folder.status);
+    const opened = await mine.openUpload(
+      { parentId: folder.node.id },
+      { name: "payslip.pdf", size: 4, limitBytes: null },
+    );
+    if (opened.status !== "ok") throw new Error(opened.status);
+    await mine.recordUploadPart(opened.upload.id, { partNumber: 1, etag: "e", size: 4 });
+    const file = await mine.completeUpload(opened.upload.id, { limitBytes: null });
+    if (file.status !== "ok") throw new Error(file.status);
+    const shared = await mine.createFolder({ space: "shared" }, "Team");
+    if (shared.status !== "ok") throw new Error(shared.status);
+    expect((await mine.file(file.node.id)).status).toBe("ok");
+
+    for (const other of [teammate, admin, boss, outsider]) {
+      const theirs = forMember(db, other.id).storage;
+      expect(await theirs.node(folder.node.id)).toBeNull();
+      expect(await theirs.node(file.node.id)).toBeNull();
+      expect((await theirs.list({ parentId: folder.node.id })).status).toBe("not_found");
+      expect((await theirs.file(file.node.id)).status).toBe("not_found");
+      // Their own My files root is theirs alone: it does not list the owner's folder.
+      expect(await theirs.list({ space: "personal" })).toMatchObject({ status: "ok", nodes: [] });
+      expect((await theirs.rename(file.node.id, "seen.pdf")).status).toBe("not_found");
+      expect((await theirs.move(file.node.id, { space: "personal" })).status).toBe("not_found");
+      expect((await theirs.trash(file.node.id)).status).toBe("not_found");
+      expect((await theirs.sharing(file.node.id)).status).toBe("not_found");
+      expect((await theirs.putGrant(file.node.id, "me@example.test", "viewer")).status).toBe(
+        "not_found",
+      );
+      expect((await theirs.setLinkAccess(folder.node.id, "anyone")).status).toBe("not_found");
+      expect(
+        (
+          await theirs.openUpload(
+            { parentId: folder.node.id },
+            { name: "planted.txt", size: 1, limitBytes: null },
+          )
+        ).status,
+      ).toBe("not_found");
+      // Someone else's upload cannot be read, fed, finished or dropped.
+      expect(await theirs.upload(opened.upload.id)).toBeNull();
+      expect((await theirs.completeUpload(opened.upload.id, { limitBytes: null })).status).toBe(
+        "not_found",
+      );
+    }
+
+    // In Trash it is still only the owner's: an admin's Trash does not show it.
+    await mine.trash(file.node.id);
+    expect((await forMember(db, admin.id).storage.listTrash()).nodes).toEqual([]);
+    expect((await forMember(db, admin.id).storage.restore(file.node.id)).status).toBe("not_found");
+    expect((await forMember(db, admin.id).storage.deleteForever(file.node.id)).status).toBe(
+      "not_found",
+    );
+    // Shared is the company's, so a teammate lists it and another org's member does not.
+    expect(await forMember(db, teammate.id).storage.list({ space: "shared" })).toMatchObject({
+      nodes: [{ id: shared.node.id }],
+    });
+    expect(await forMember(db, outsider.id).storage.node(shared.node.id)).toBeNull();
+    expect(await forMember(db, outsider.id).storage.list({ space: "shared" })).toMatchObject({
+      nodes: [],
+    });
+    // Being a member of the org opens nothing through the grant door either.
+    expect(await forUser(db, admin.userId).storage.node(folder.node.id)).toBeNull();
+  });
+
   test("a grant that crosses orgs opens nothing", async () => {
     const asCarol = forMember(db, carol);
     expect((await asCarol.listThreads()).map((t) => t.id)).toEqual([ops.threadId]);

@@ -34,6 +34,7 @@ import {
   triageBucket,
   users,
 } from "./schema/index.ts";
+import { memberStorage, userStorage } from "./storage.ts";
 import {
   conversationCondition,
   messageCondition,
@@ -147,7 +148,8 @@ export interface ThreadCursor {
   id: string;
 }
 
-export type MemberQueries = ReturnType<typeof forMember>;
+/** The mail reads `forMember` and `forUser` share. Each adds its own door to Storage. */
+export type MemberQueries = ReturnType<typeof mailQueries>;
 
 /** Newest messages per granted mailbox that contain every word of the query. */
 const SEARCH_EXACT_HITS = 20;
@@ -254,7 +256,11 @@ const { searchVector: _searchVector, ...messageColumns } = getTableColumns(messa
  * crosses orgs returns nothing.
  */
 export function forMember(db: Db, memberId: string) {
-  return mailQueries(db, (grantee) => sql`${grantee} = ${memberId}`);
+  return {
+    ...mailQueries(db, (grantee) => sql`${grantee} = ${memberId}`),
+    /** The member door to Storage (ADR 0034): their My files and, in a company, Shared. */
+    storage: memberStorage(db, memberId),
+  };
 }
 
 /**
@@ -267,11 +273,15 @@ export function forMember(db: Db, memberId: string) {
  */
 export function forUser(db: Db, userId: string, scopeOrgId?: string | null) {
   const inScope = scopeOrgId ? sql` and um.organization_id = ${scopeOrgId}` : sql``;
-  return mailQueries(
-    db,
-    (grantee) =>
-      sql`${grantee} in (select um.id from ${members} um where um.user_id = ${userId}${inScope})`,
-  );
+  return {
+    ...mailQueries(
+      db,
+      (grantee) =>
+        sql`${grantee} in (select um.id from ${members} um where um.user_id = ${userId}${inScope})`,
+    ),
+    /** The grant door to Storage (ADR 0034): what was shared with an address they verified. */
+    storage: userStorage(db, userId, scopeOrgId),
+  };
 }
 
 /**

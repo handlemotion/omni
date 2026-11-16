@@ -82,6 +82,12 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "tags",
       "thread_tags",
       "uploads",
+      // Storage (ADR 0034).
+      "storage_grants",
+      "storage_nodes",
+      "storage_peaks",
+      "storage_uploads",
+      "storage_usage",
     ].toSorted(),
   );
 });
