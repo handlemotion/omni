@@ -99,3 +99,7 @@ export { IconGrid as IconCards } from "central-icons-outlined/IconGrid";
 export { IconEmail1 as IconMailFilled } from "central-icons-filled/IconEmail1";
 export { IconFolder1 as IconFolderFilled } from "central-icons-filled/IconFolder1";
 export { IconHandshake as IconHandshakeFilled } from "central-icons-filled/IconHandshake";
+export { IconArrowUpCircle as IconUpgrade } from "central-icons-outlined/IconArrowUpCircle";
+export { IconConnectors1 as IconConnections } from "central-icons-outlined/IconConnectors1";
+// Filled: the current choice's mark in a menu, in the brand colour.
+export { IconCircleCheck as IconCircleCheckFilled } from "central-icons-filled/IconCircleCheck";

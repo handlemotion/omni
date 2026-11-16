@@ -460,7 +460,8 @@ export function SidebarItemTrigger({ className, ...props }: MenuButtonProps) {
       intent="plain"
       data-sidebar-item
       className={cn(
-        "group/sidebar-item h-8 w-full min-w-0 justify-start gap-2.5 rounded-lg px-2 text-start text-sm",
+        // Glyphs at the link rows' 15px (a button draws 16), so labels start on one line.
+        "group/sidebar-item h-8 w-full min-w-0 justify-start gap-2.5 rounded-lg px-2 text-start text-sm *:[svg]:size-icon",
         "aria-expanded:[--btn-bg:var(--sidebar-accent)] aria-expanded:[--btn-overlay:var(--sidebar-accent)] aria-expanded:*:[svg]:text-foreground",
         "focus-visible:outline-hidden focus-visible:inset-ring focus-visible:inset-ring-sidebar-ring",
         className,

@@ -12,10 +12,13 @@ import { useMember, useSetActiveOrganization } from "@/hooks/use-session.ts";
 import { closeSettings } from "@/hooks/use-settings-dialog.ts";
 import { useOpenWorkspace, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import { needsSetup } from "@/lib/onboarding.ts";
+import { workspaceLabel } from "@/components/shell/module-switcher";
+import type { Workspace } from "@/lib/types.ts";
 import { WorkspaceAvatar } from "./workspace-pages";
 
 export function WorkspaceChooser() {
-  const { member } = useMember();
+  const { member, user } = useMember();
+  const label = (w: Workspace) => workspaceLabel(w, user.name);
   const workspaces = useWorkspaces().data?.workspaces ?? [];
   const switchTo = useSetActiveOrganization();
   const openWorkspace = useOpenWorkspace();
@@ -39,7 +42,7 @@ export function WorkspaceChooser() {
     <MenuTrigger>
       <Button
         intent="plain"
-        aria-label={`Workspace: ${active.name}. Choose another`}
+        aria-label={`Workspace: ${label(active)}. Choose another`}
         // Hover, pressed and open share the accent fill, as on the mailbox switcher; the mark and
         // name sit on the page rows' icon and label axes. As a menu trigger it skips the press
         // scale (`Button` leaves out `aria-haspopup`).
@@ -52,7 +55,7 @@ export function WorkspaceChooser() {
             <WorkspaceAvatar workspace={active} size={15} />
           )}
         </span>
-        <span className="min-w-0 flex-1 truncate text-start">{active.name}</span>
+        <span className="min-w-0 flex-1 truncate text-start">{label(active)}</span>
         <IconChevronsUpDown className="size-3.5 shrink-0 text-subtle-foreground" />
       </Button>
       {/* As wide as its trigger, so the menu reads as the chooser opened. */}
@@ -62,13 +65,13 @@ export function WorkspaceChooser() {
         onAction={(key) => choose(String(key))}
       >
         {workspaces.map((w) => (
-          <MenuItem key={w.id} id={w.id} textValue={w.name} className="pe-2.5">
+          <MenuItem key={w.id} id={w.id} textValue={label(w)} className="pe-2.5">
             <WorkspaceAvatar workspace={w} size={15} />
             {/* The check rides inside the label, so it sits on the name's line; after the label
                 the menu row would lift it out of line (an absolute icon slot). It mirrors the
                 mark: 14px, 10px in from the row's end as the mark is from its start. */}
             <MenuLabel className="flex min-w-0 items-center justify-between gap-3">
-              <span className="truncate">{w.name}</span>
+              <span className="truncate">{label(w)}</span>
               {w.id === member.orgId && <IconCheck className="size-3.5 shrink-0 text-foreground" />}
             </MenuLabel>
           </MenuItem>

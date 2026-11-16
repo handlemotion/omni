@@ -28,11 +28,14 @@ import {
   SidebarDisclosureTrigger,
   SidebarFooter,
   SidebarItem,
+  SidebarItemTrigger,
   SidebarLabel,
   SidebarSection,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
+import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { useCounts } from "@/hooks/use-mail.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
@@ -96,11 +99,8 @@ export function AppSidebar() {
         {/* First, in the list the hover highlight runs through, centred on the page headers'
             middle (24px down: the sidebar's 8px padding and half the 32px row), so it sits on
             the same line as their titles. */}
-        {/* The workspace, and the bell after its chevrons. */}
-        <div className="flex items-center gap-1 *:first:min-w-0 *:first:flex-1">
-          <WorkspaceSwitcher />
-          <NotificationsButton />
-        </div>
+        {/* The workspace, hugging its mark and name, and the bell at the row's end. */}
+        <WorkspaceSwitcher end={<NotificationsButton />} />
         {module === "files" ? (
           <StorageNav mailbox={mailbox} />
         ) : module === "crm" ? (
@@ -124,17 +124,23 @@ export function AppSidebar() {
 function MailNav({ mailbox }: { mailbox: string | undefined }) {
   const { isMobile } = useSidebar();
   const shown = useShownMailbox();
+  const openCompose = useOpenCompose();
   return (
     <>
-      {/* Search first, as wide as the links under it, the content's 12px gap above them; its
-          box grows out to the right. On a phone the sidebar is a sheet that unmounts when
-          closed: the list header holds search there instead (one search mounted at a time, so
-          keys open one panel). */}
-      {!isMobile && <SearchPopover side="start" />}
-      {/* The mailbox row, then the same rows for every mailbox it shows; a shared inbox adds its
-          Mine. Every row keeps the mailbox chosen: a link never changes which one is shown. */}
+      {/* What you do: write, find, and which mailbox you're in. On a phone the sidebar is a sheet
+          that unmounts when closed, so the list header holds search there instead (one search
+          mounted at a time, so keys open one panel). */}
       <SidebarSection>
+        <SidebarItemTrigger onPress={openCompose} aria-keyshortcuts={ariaKeyShortcuts("compose")}>
+          <IconWrite />
+          <span className="min-w-0 truncate">Compose</span>
+        </SidebarItemTrigger>
+        {!isMobile && <SearchPopover side="start" />}
         <MailboxSwitcher />
+      </SidebarSection>
+      {/* Where mail waits, the same rows for every mailbox the switcher shows; a shared inbox adds
+          its Mine. Every row keeps the mailbox chosen: a link never changes which one is shown. */}
+      <SidebarSection>
         <Items items={mail} mailbox={mailbox} />
         {shown?.kind === "shared" && <HelpdeskItems mailboxId={shown.id} />}
       </SidebarSection>

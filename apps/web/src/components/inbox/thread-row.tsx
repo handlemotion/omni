@@ -74,7 +74,9 @@ export function DateHeader(props: { label: string; count: number; first: boolean
   return (
     <GridListHeader
       data-fluid-hover-skip
-      className={`mx-2.5 flex items-end gap-1.5 px-3 pb-3 text-sm text-muted-foreground ${props.first ? "h-9" : "h-12"}`}
+      // Its text 20px from the pane's edge, on the line of the header's sidebar toggle above it
+      // (the rows' own 12px inset would put it 2px right of the toggle; measured).
+      className={`mx-2.5 flex items-end gap-1.5 ps-2.5 pe-3 pb-3 text-sm text-muted-foreground ${props.first ? "h-9" : "h-12"}`}
     >
       {label}
       <span className="text-subtle-foreground tabular-nums">{count}</span>

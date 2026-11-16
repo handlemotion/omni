@@ -225,7 +225,8 @@ test("the list fills the page until a thread opens beside it, and again once it 
   await expect.poll(async () => Math.abs(await gap())).toBeLessThan(2);
 
   // New mail opens in a dialog over the page and closes back to it.
-  await page.getByRole("button", { name: "Compose" }).click();
+  // The list's own Compose (the sidebar has one too).
+  await page.getByRole("main").getByRole("button", { name: "Compose" }).click();
   const dialog = page.getByRole("dialog", { name: "New email" });
   await dialog.waitFor();
   await page.keyboard.press("Escape");
@@ -379,8 +380,8 @@ test("a send from another workspace's address hears its failure after the dialog
   await sendNewMail(page, boxes.hello.address);
   // To a third workspace (neither Acme nor Beta), through the sidebar's workspace menu.
   await page.getByRole("button", { name: "Switch workspace, currently Acme" }).click();
-  await page.getByRole("menuitem", { name: "Personal" }).click();
-  await page.getByRole("button", { name: "Switch workspace, currently Personal" }).waitFor();
+  await page.getByRole("menuitem", { name: /(?:'s|^Personal) Workspace$/ }).click();
+  await page.getByRole("button", { name: /^Switch workspace, currently .*Workspace$/ }).waitFor();
 
   const action = await sentFrom(boxes.hello.id);
   // The mail service gives up on it, after the dialog has closed.
@@ -500,7 +501,8 @@ function watchSockets(page: Page, orgId: string) {
 
 /** Sends a new email from `address` through the compose dialog, which closes on send. */
 async function sendNewMail(page: Page, address: string) {
-  await page.getByRole("button", { name: "Compose" }).click();
+  // The list's own Compose (the sidebar has one too).
+  await page.getByRole("main").getByRole("button", { name: "Compose" }).click();
   const dialog = page.getByRole("dialog", { name: "New email" });
   await dialog.getByRole("button", { name: /^From / }).click();
   await page

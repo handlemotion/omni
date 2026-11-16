@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { SidebarItemTrigger } from "@/components/ui/sidebar";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { Command, defaultFilter } from "cmdk";
 import { motion, useReducedMotion, type Transition } from "motion/react";
@@ -161,18 +162,31 @@ export function SearchPopover({ side = "end" }: { side?: "start" | "end" }) {
     <>
       {/* While the box is up it sits exactly over the field, so the field steps aside: the same
           frame the box goes, the field is back, pixel for pixel where the box ended. */}
-      <Button
-        ref={triggerRef}
-        onPress={() => open()}
-        aria-label="Search"
-        data-search-field
-        // In the sidebar, 4px at the end (not 5): the 16px `/` centres on the toggle above it.
-        className={`flex h-7 ${side === "start" ? "w-full" : "w-60 min-w-24"} cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 ${side === "start" ? "pe-1" : "pe-1.25"} text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70 ${phase === "closed" ? "" : "invisible"}`}
-      >
-        <IconSearch className="text-muted-foreground" />
-        <span className="flex-1 text-start">Search</span>
-        <Keyboard className="h-4 min-w-4">/</Keyboard>
-      </Button>
+      {side === "start" ? (
+        // In the sidebar, a row like the links under it: the glyph, then "Search".
+        <SidebarItemTrigger
+          ref={triggerRef}
+          onPress={() => open()}
+          aria-label="Search"
+          aria-keyshortcuts="/"
+          className={phase === "closed" ? "" : "invisible"}
+        >
+          <IconSearch />
+          <span className="min-w-0 truncate">Search</span>
+        </SidebarItemTrigger>
+      ) : (
+        <Button
+          ref={triggerRef}
+          onPress={() => open()}
+          aria-label="Search"
+          data-search-field
+          className={`flex h-7 w-60 min-w-24 cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 pe-1.25 text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70 ${phase === "closed" ? "" : "invisible"}`}
+        >
+          <IconSearch className="text-muted-foreground" />
+          <span className="flex-1 text-start">Search</span>
+          <Keyboard className="h-4 min-w-4">/</Keyboard>
+        </Button>
+      )}
       <ModalOverlay
         isOpen={phase !== "closed"}
         onOpenChange={(next) => (next ? open(seed) : close())}

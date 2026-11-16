@@ -137,8 +137,8 @@ test("switching settings from a company's People page to the Personal space fall
   await dialog.getByRole("heading", { name: "People" }).waitFor();
 
   await dialog.getByRole("button", { name: /^Workspace: Switch Co/ }).click();
-  await page.getByRole("menuitem", { name: "Personal" }).click();
-  await dialog.getByRole("button", { name: /^Workspace: Personal/ }).waitFor();
+  await page.getByRole("menuitem", { name: /(?:'s|^Personal) Workspace$/ }).click();
+  await dialog.getByRole("button", { name: /^Workspace: .*Workspace\. Choose another$/ }).waitFor();
   await dialog.getByRole("heading", { name: "General" }).waitFor();
   expect(await dialog.getByRole("heading", { name: "People" }).count()).toBe(0);
 });
