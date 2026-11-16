@@ -22,6 +22,11 @@ extends this file and wins where they differ. Explicit user instructions overrid
 | `packages/crypto`    | `@omni/crypto`    | HMAC request signing and AES-256-GCM credential encryption (Web Crypto).         |
 | `packages/auth`      | `@omni/auth`      | Better Auth config (passkeys, magic links, organizations) shared by all clients. |
 
+- Mail, Storage and CRM are **modules** inside `@omni/db`, `@omni/contracts` and `@omni/worker`,
+  laid out as ADR 0035 decision 3 says: `schema/<module>.ts`, a surface file `<module>.ts` over a
+  private `<module>/` folder, `contracts/src/<module>.ts`, `apps/worker/src/<module>/`. A module
+  reads another only through its surface file, and only if `scripts/check-modules.mjs` lists it
+  in `uses`; that script enforces the rest in `pnpm check`.
 - `apps/web` (Vite SPA) and `apps/ios` (Expo) are owned by Rodrigo. Agents do not create or edit
   UI unless asked; build the API and types those apps will consume.
 - Any UI or design work: read `DESIGN.md` first, every time. It routes to the tokens, the
@@ -178,9 +183,12 @@ Several agents may work in this repository at once.
   layer stacked on that branch, never a parallel branch off `main` that copies or re-implements
   it. Each layer is one reviewable PR with one owner. Stacks merge bottom-first.
 - **Parallel agents.** Independent work gets its own stack rooted on `main`. Before starting, an
-  agent names the packages it owns; two stacks never edit the same package. Shared touch points
-  (`pnpm-lock.yaml`, root config, `docs/self-hosting.md`) are resolved by the later layer: merge
-  `main`, reinstall to regenerate the lockfile (`pnpm install`), never hand-merge it.
+  agent names the modules it owns (a module is its folders in every package, ADR 0035); two
+  stacks never edit the same module or the same platform file. Shared touch points are resolved
+  by the later layer: `pnpm-lock.yaml` (merge `main`, run `pnpm install`), root config,
+  `docs/self-hosting.md`, `packages/db/migrations/` (delete your own migration, merge `main`, run
+  `db:generate` again; never hand-merge the journal or a snapshot), `schema/index.ts`,
+  `apps/worker/src/app.ts` and `modules.ts`.
 - Before each push run `pnpm check`, `pnpm check-types`, and the tests your change touches: the
   affected unit suites and the e2e files that cover it (one file, or `-t` one test). Batch fixes
   into one push; CI minutes cost money.
