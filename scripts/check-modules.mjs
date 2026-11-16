@@ -79,39 +79,77 @@ export function ownerOf(file, modules = MODULES) {
   return null;
 }
 
-/** Every static and dynamic import or re-export in a source: its specifier and named bindings. */
+/**
+ * Every static and dynamic import or re-export in a source: its specifier, the names it takes
+ * from that module (`*` for all of it) and the local name each is bound to.
+ */
 export function importsOf(source) {
   const found = [];
   const STATIC = /\b(?:import|export)\s+(type\s+)?([\s\S]*?)\s+from\s+["']([^"']+)["']/g;
   for (const [, , clause, specifier] of source.matchAll(STATIC)) {
-    found.push({ specifier, names: bindingsOf(clause) });
+    const bindings = bindingsOf(clause);
+    found.push({ specifier, bindings, names: bindings.map((b) => b.imported) });
   }
   for (const [, specifier] of source.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)) {
-    found.push({ specifier, names: ["*"] });
+    found.push({ specifier, bindings: [{ imported: "*", local: null }], names: ["*"] });
   }
   for (const [, specifier] of source.matchAll(/^\s*import\s+["']([^"']+)["']/gm)) {
-    found.push({ specifier, names: [] });
+    found.push({ specifier, bindings: [], names: [] });
   }
   return found;
 }
 
-/** The names an import clause binds from its module: `{ a, b as c }` gives a and b; `* as x`, `*`. */
+/** What an import clause binds: `{ a, b as c }` gives a→a and b→c; `* as x` gives *→x. */
 function bindingsOf(clause) {
   const braces = clause.match(/\{([\s\S]*)\}/);
-  const names = braces
+  const bindings = braces
     ? braces[1]
         .split(",")
-        .map((part) =>
-          part
-            .trim()
-            .replace(/^type\s+/, "")
-            .split(/\s+as\s+/)[0]
-            .trim(),
-        )
+        .map((part) => part.trim().replace(/^type\s+/, ""))
         .filter(Boolean)
+        .map((part) => {
+          const [imported, local = imported] = part.split(/\s+as\s+/).map((x) => x.trim());
+          return { imported, local };
+        })
     : [];
-  if (/\*/.test(clause.replace(/\{[\s\S]*\}/, ""))) names.push("*");
-  return names;
+  const outside = clause.replace(/\{[\s\S]*\}/, "");
+  const star = outside.match(/\*\s*(?:as\s+(\w+))?/);
+  if (star) bindings.push({ imported: "*", local: star[1] ?? null });
+  return bindings;
+}
+
+/**
+ * Where each name a barrel exports is defined: name → file, following `export *`,
+ * `export { a as b } from` and `export * as x from` through the files given.
+ */
+export function exportOrigins(files, entry, done = new Map(), active = new Set()) {
+  if (done.has(entry)) return done.get(entry);
+  const origins = new Map();
+  const source = files.get(entry);
+  // Only a file on the current path is a cycle; one already read keeps its finished map.
+  if (!source || active.has(entry)) return origins;
+  active.add(entry);
+  const DECLARED =
+    /^export\s+(?:declare\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?|const|let|var|class|type|interface|enum)\s+(\w+)/gm;
+  for (const [, name] of source.matchAll(DECLARED)) origins.set(name, entry);
+  const REEXPORT = /\bexport\s+(?:type\s+)?([\s\S]*?)\s+from\s+["']([^"']+)["']/g;
+  for (const [, clause, specifier] of source.matchAll(REEXPORT)) {
+    const target = resolve(entry, specifier);
+    if (!target) continue;
+    for (const { imported, local } of bindingsOf(clause)) {
+      if (imported !== "*") {
+        const inner = exportOrigins(files, target, done, active).get(imported);
+        origins.set(local, inner ?? target);
+      } else if (local) origins.set(local, target);
+      else {
+        for (const [name, file] of exportOrigins(files, target, done, active))
+          origins.set(name, file);
+      }
+    }
+  }
+  active.delete(entry);
+  done.set(entry, origins);
+  return origins;
 }
 
 /** The repository path an import specifier points at, or null when it leaves the checked code. */
@@ -135,9 +173,22 @@ export function tablesOf(files, modules = MODULES) {
   return tables;
 }
 
-/** The tables a file names: imported from a schema path, or read as `schema.<table>`. */
+/**
+ * The tables a file names: imported from a schema path, or read as `<x>.<table>` where `x` is
+ * `schema` or any name the file bound the schema to (`schema as s`, `* as s`).
+ */
 function tablesNamedBy(file, source, tables) {
   const named = new Set();
+  const aliases = new Set(["schema"]);
+  for (const { specifier, bindings } of importsOf(source)) {
+    const target = resolve(file, specifier);
+    for (const { imported, local } of bindings) {
+      if (target === "packages/db/src/index.ts" && imported === "schema") aliases.add(local);
+      if (target?.startsWith("packages/db/src/schema/") && imported === "*" && local) {
+        aliases.add(local);
+      }
+    }
+  }
   for (const { specifier, names } of importsOf(source)) {
     const target = resolve(file, specifier);
     if (!target?.startsWith("packages/db/src/schema/")) continue;
@@ -150,10 +201,68 @@ function tablesNamedBy(file, source, tables) {
       else if (tables.has(name)) named.add(name);
     }
   }
-  for (const [, identifier] of source.matchAll(/\bschema\.(\w+)/g)) {
-    if (tables.has(identifier)) named.add(identifier);
+  for (const alias of aliases) {
+    const access = new RegExp(`(?<![\\w$])${alias}\\.(\\w+)`, "g");
+    for (const [, identifier] of source.matchAll(access)) {
+      if (tables.has(identifier)) named.add(identifier);
+    }
   }
   return [...named];
+}
+
+/** Barrels a module may import from, whose names are traced back to the file defining them. */
+const BARRELS = ["packages/db/src/index.ts", "packages/contracts/src/index.ts"];
+
+/**
+ * Names a module file takes from a barrel that belong to a module it does not declare in
+ * `uses`: `import { recordCustomer } from "../index.ts"` is still an import of Mail.
+ */
+function barrelProblems(file, source, owner, origins, modules) {
+  if (!owner) return [];
+  const foreign = new Set();
+  for (const { specifier, bindings } of importsOf(source)) {
+    const barrel = resolve(file, specifier);
+    if (!BARRELS.includes(barrel)) continue;
+    for (const name of namesTaken(source, specifier, bindings)) {
+      const origin = origins(barrel).get(name);
+      const to = origin && ownerOf(origin, modules);
+      if (!to || to.module === owner.module || to.part === "schema") continue;
+      if (!modules[owner.module].uses.includes(to.module)) foreign.add(`${name} (${to.module})`);
+    }
+  }
+  return foreign.size ? [{ file, rule: "uses", message: MESSAGES.barrel([...foreign]) }] : [];
+}
+
+/**
+ * The names a file reads from a module: named imports, `ns.<name>` for a namespace import
+ * (`* as ns`), and for a dynamic import, what it destructures or reads from its result.
+ */
+function namesTaken(source, specifier, bindings) {
+  const names = new Set();
+  const members = (local) => {
+    for (const [, name] of source.matchAll(new RegExp(`(?<![\\w$.])${local}\\.(\\w+)`, "g"))) {
+      names.add(name);
+    }
+  };
+  for (const { imported, local } of bindings) {
+    if (imported !== "*") names.add(imported);
+    else if (local) members(local);
+  }
+  if (!bindings.some((b) => b.imported === "*" && !b.local)) return names;
+  const spec = specifier.replaceAll(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+  const call = `await\\s+import\\(\\s*["']${spec}["']\\s*\\)`;
+  for (const [, list] of source.matchAll(new RegExp(`\\{([^}]*)\\}\\s*=\\s*${call}`, "g"))) {
+    for (const part of list.split(",")) {
+      const name = part.split(":")[0].trim();
+      if (name) names.add(name);
+    }
+  }
+  for (const [, local] of source.matchAll(new RegExp(`(\\w+)\\s*=\\s*${call}`, "g")))
+    members(local);
+  for (const [, name] of source.matchAll(new RegExp(`\\(\\s*${call}\\s*\\)\\.(\\w+)`, "g"))) {
+    names.add(name);
+  }
+  return names;
 }
 
 /** Whether `importer` may import `target`, by rules 1, 3 and 4; the rule broken, or null. */
@@ -182,6 +291,8 @@ const MESSAGES = {
     `imports ${target}, another module's Worker folder; call that module's door in @omni/db instead`,
   tables: (tables) =>
     `names another module's tables (${tables.join(", ")}); read them through that module's surface file`,
+  barrel: (names) =>
+    `imports ${names.join(", ")} through a barrel from a module it does not declare in \`uses\``,
   naming: (table) => `table ${table} must be named <module>_* (ADR 0035 decision 3)`,
 };
 
@@ -192,9 +303,15 @@ const MESSAGES = {
 export function findProblems(files, modules = MODULES) {
   const tables = tablesOf(files, modules);
   const problems = [];
+  const cache = new Map();
+  const origins = (barrel) => {
+    if (!cache.has(barrel)) cache.set(barrel, exportOrigins(files, barrel));
+    return cache.get(barrel);
+  };
   for (const [file, source] of files) {
     if (TEST.test(file) || !SOURCE.test(file)) continue;
     const owner = ownerOf(file, modules);
+    problems.push(...barrelProblems(file, source, owner, origins, modules));
     for (const { specifier } of importsOf(source)) {
       const target = resolve(file, specifier);
       const rule = target && importProblem(file, target, modules);

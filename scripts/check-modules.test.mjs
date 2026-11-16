@@ -125,10 +125,68 @@ test("debt hides its own problem and is reported once it no longer fails", () =>
   assert.deepEqual(stale, [{ file: "packages/db/src/gone.ts", rule: "tables" }]);
 });
 
+test("a module cannot reach another undeclared module through the @omni/db barrel", () => {
+  const files = {
+    "packages/db/src/index.ts": `export * from "./storage.ts";\nexport * from "./mail.ts";\nexport * as schema from "./schema/index.ts";`,
+    "packages/db/src/storage.ts": `export { readTree } from "./storage/tree.ts";`,
+    "packages/db/src/storage/tree.ts": `export function readTree() {}`,
+    "packages/db/src/mail.ts": `export * from "./mail/member-mail.ts";`,
+    "packages/db/src/mail/member-mail.ts": `export async function grantFor() {}`,
+    "packages/db/src/storage/lookup.ts": `import { grantFor, schema } from "../index.ts";`,
+    "apps/worker/src/crm/files.ts": `import { readTree, grantFor } from "@omni/db";`,
+  };
+  assert.deepEqual(problemsIn(files), ["packages/db/src/storage/lookup.ts uses"]);
+});
+
+test("a table read through any name the schema is bound to fails", () => {
+  const problems = problemsIn({
+    "packages/db/src/crm/lookup.ts": `import { schema as s } from "../index.ts";\ndb.select().from(s.storageNodes);`,
+    "apps/worker/src/crm/routes.ts": `import * as tables from "@omni/db/schema";\ntables.storageNodes;`,
+    "apps/worker/src/routes/mail.ts": `const s = { storageNodes: 1 };\ns.storageNodes;`,
+  });
+  assert.deepEqual(problems, [
+    "packages/db/src/crm/lookup.ts tables",
+    "apps/worker/src/crm/routes.ts tables",
+  ]);
+});
+
 test("a module's tables split into a schema folder are still its own", () => {
   const problems = problemsIn({
     "packages/db/src/schema/mail/helpdesk.ts": `export const tags = pgTable("tags", {});`,
     "packages/db/src/crm/tags.ts": `import { tags } from "../schema/mail/helpdesk.ts";`,
   });
   assert.deepEqual(problems, ["packages/db/src/crm/tags.ts tables"]);
+});
+
+test("a namespace or dynamic import of the barrel is traced like a named one", () => {
+  const files = {
+    "packages/db/src/index.ts": `export * from "./mail.ts";\nexport * as schema from "./schema/index.ts";`,
+    "packages/db/src/mail.ts": `export * from "./mail/customers.ts";`,
+    "packages/db/src/mail/customers.ts": `export async function recordCustomer() {}`,
+    "apps/worker/src/storage/a.ts": `import * as db from "@omni/db";\ndb.recordCustomer();`,
+    "apps/worker/src/storage/b.ts": `const { recordCustomer } = await import("@omni/db");`,
+    "apps/worker/src/storage/c.ts": `const db = await import("@omni/db");\ndb.recordCustomer();`,
+  };
+  assert.deepEqual(problemsIn(files), [
+    "apps/worker/src/storage/a.ts uses",
+    "apps/worker/src/storage/b.ts uses",
+    "apps/worker/src/storage/c.ts uses",
+  ]);
+});
+
+test("a table read through the barrel's schema under a namespace fails", () => {
+  const problems = problemsIn({
+    "packages/db/src/mail/files.ts": `import * as db from "../index.ts";\ndb.schema.storageNodes;`,
+  });
+  assert.deepEqual(problems, ["packages/db/src/mail/files.ts tables"]);
+});
+
+test("a file re-exported twice by a surface keeps every name it exports", () => {
+  const files = {
+    "packages/db/src/index.ts": `export * from "./mail.ts";`,
+    "packages/db/src/mail.ts": `export type { InboxAuditAction } from "./mail/inbox-admin.ts";\nexport * from "./mail/inbox-admin.ts";`,
+    "packages/db/src/mail/inbox-admin.ts": `export type InboxAuditAction = string;\nexport async function recordInboxEvent() {}`,
+    "apps/worker/src/storage/audit.ts": `import { recordInboxEvent } from "@omni/db";`,
+  };
+  assert.deepEqual(problemsIn(files), ["apps/worker/src/storage/audit.ts uses"]);
 });
