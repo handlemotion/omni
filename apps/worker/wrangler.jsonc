@@ -47,6 +47,11 @@
     "STRIPE_PUBLISHABLE_KEY": "",
     "BILLING_TRIAL_DAYS": "",
     "BILLING_TRIAGE_ALLOWANCE": "",
+    // Storage on the plan (ADR 0034): GB included, the metered price for extra GB, and the event
+    // name of the Stripe meter behind it. All three or none (none: no allowance, nothing metered).
+    "BILLING_STORAGE_INCLUDED_GB": "",
+    "STRIPE_PRICE_STORAGE": "",
+    "STRIPE_STORAGE_METER_EVENT": "",
     "IMAGE_PROXY_DOH_URL": "https://cloudflare-dns.com/dns-query",
     // Storage (ADR 0034). Largest file in bytes (empty: 5 GB); the most a Personal space and any
     // one workspace may store, in GB (empty: no cap).

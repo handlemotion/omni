@@ -9,6 +9,7 @@
 import type { Db } from "./client.ts";
 import { grantAddresses, grantDoor, linkDoor, loadMember, memberDoor } from "./storage/access.ts";
 import type { StorageListCursor } from "./storage/core.ts";
+import { storagePeakOf } from "./storage/billing.ts";
 import { storageUsageOf } from "./storage/maintenance.ts";
 import { listSharedWith, sharingOperations, type SharedWithMeCursor } from "./storage/sharing.ts";
 import { trashOperations } from "./storage/trash.ts";
@@ -73,6 +74,15 @@ export {
   recomputeStorageUsage,
   storageUsageOf,
 } from "./storage/maintenance.ts";
+export {
+  noteSubscriptionPaymentMethod,
+  raiseStoragePeak,
+  setStorageOverage,
+  storageBilledWorkspaces,
+  storageOverageOf,
+  storagePeakOf,
+  type StorageBilledWorkspace,
+} from "./storage/billing.ts";
 export type { StorageUploadPart } from "./schema/storage.ts";
 
 /**
@@ -91,6 +101,14 @@ export function memberStorage(db: Db, memberId: string) {
     async usage() {
       const member = await loadMember(db, memberId);
       return member ? storageUsageOf(db, member.orgId) : null;
+    },
+    /**
+     * The workspace's recorded peak for the usage month starting at `periodStart` (0 when none),
+     * or null when the member is gone.
+     */
+    async peak(periodStart: Date) {
+      const member = await loadMember(db, memberId);
+      return member ? storagePeakOf(db, member.orgId, periodStart) : null;
     },
   };
 }

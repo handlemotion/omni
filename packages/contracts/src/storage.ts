@@ -162,6 +162,12 @@ export const storageUsageSchema = z.object({
   allowanceBytes: z.number().nonnegative().nullable(),
   /** Bytes nothing passes; null when there is no cap. */
   limitBytes: z.number().nonnegative().nullable(),
+  /**
+   * Set when storage past the allowance is billed instead of refused: the whole GB above the
+   * allowance this usage month's peak comes to so far. Null (or absent, from a Worker that
+   * predates it): nothing extra is billed.
+   */
+  overage: z.object({ extraGb: z.number().int().nonnegative() }).nullable().optional(),
   /** Why an upload would be refused now, or null when it would not. */
   uploadsBlocked: z.enum(["STORAGE_FULL", "BILLING_INACTIVE"]).nullable(),
 });

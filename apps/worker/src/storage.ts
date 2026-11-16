@@ -2,11 +2,15 @@
 // how a file is served, and how objects leave the bucket. Access is decided in `@omni/db`.
 import { STORAGE_PART_BYTES, type StorageNode, type StorageUpload } from "@omni/contracts";
 import {
+  storageOverageOf,
   workspaceKind,
+  workspaceSubscription,
   type Db,
   type StorageNode as NodeRow,
   type StorageUpload as UploadRow,
+  type WorkspaceSubscription,
 } from "@omni/db";
+import { period } from "./billing.ts";
 import type { Config } from "./env.ts";
 import type { Logger } from "./log.ts";
 
@@ -17,22 +21,76 @@ export interface StorageLimit {
   limitBytes: number | null;
   /** Bytes the plan includes before extra storage is billed. Null: no plan. */
   allowanceBytes: number | null;
+  /**
+   * Set when storage past the allowance is billed instead of refused: the start of the usage
+   * month whose peak is billed.
+   */
+  overagePeriodStart: Date | null;
 }
 
 /**
- * How much `orgId` may store: the one place the quota is decided. Without billing only the two
- * optional caps exist, `STORAGE_PERSONAL_GB` for a Personal space and `STORAGE_MAX_GB` for any
- * workspace. The plan's allowance and its cap without a card (ADR 0034 decision 7) are added here.
+ * Whether a subscription row is one whose extra storage can be billed: paying (a trial is not),
+ * monthly (a yearly plan cannot carry the monthly metered price, ADR 0034 amendment), and with
+ * no scheduled change that would rewrite its items.
  */
-export async function storageLimit(db: Db, config: Config, orgId: string): Promise<StorageLimit> {
+export function billsOverage(
+  subscription: Pick<
+    NonNullable<WorkspaceSubscription>,
+    "status" | "billingInterval" | "stripeSubscriptionId" | "stripeScheduleId"
+  > | null,
+): subscription is NonNullable<typeof subscription> & { stripeSubscriptionId: string } {
+  return (
+    subscription !== null &&
+    (subscription.status === "active" || subscription.status === "past_due") &&
+    subscription.billingInterval === "month" &&
+    subscription.stripeSubscriptionId !== null &&
+    !subscription.stripeScheduleId
+  );
+}
+
+/**
+ * Whole GB of `peakBytes` above the allowance: what the meter is told. Rounded down, so a
+ * customer pays for each extra GB only once it is full.
+ */
+export function extraGb(peakBytes: number, allowanceBytes: number) {
+  return Math.max(0, Math.floor((peakBytes - allowanceBytes) / GB));
+}
+
+/**
+ * How much `orgId` may store: the one place the quota is decided (ADR 0034 decision 7).
+ *
+ * - `STORAGE_MAX_GB` caps every workspace, and `STORAGE_PERSONAL_GB` a Personal space, which
+ *   never has a plan. Without billing these are the only limits.
+ * - With billing on and storage on the plan, a company has the plan's allowance. It is also its
+ *   cap unless extra storage can be billed: a paying monthly subscription that Stripe showed
+ *   with a payment method. A trial, a yearly plan, no card and no plan are all capped.
+ */
+export async function storageLimit(
+  db: Db,
+  config: Config,
+  orgId: string,
+  now = new Date(),
+): Promise<StorageLimit> {
   const caps: number[] = [];
   if (config.STORAGE_MAX_GB !== undefined) caps.push(config.STORAGE_MAX_GB);
-  if (config.STORAGE_PERSONAL_GB !== undefined && (await workspaceKind(db, orgId)) === "personal") {
-    caps.push(config.STORAGE_PERSONAL_GB);
+  const personal = (await workspaceKind(db, orgId)) === "personal";
+  if (personal && config.STORAGE_PERSONAL_GB !== undefined) caps.push(config.STORAGE_PERSONAL_GB);
+  const plan = personal ? undefined : config.auth.billing?.storage;
+  let overagePeriodStart: Date | null = null;
+  if (plan) {
+    const subscription = await workspaceSubscription(db, orgId);
+    if (
+      billsOverage(subscription) &&
+      (await storageOverageOf(db, orgId)) === subscription.stripeSubscriptionId
+    ) {
+      overagePeriodStart = period(subscription, now)?.start ?? null;
+    }
+    if (!overagePeriodStart) caps.push(plan.includedGb);
   }
   return {
     limitBytes: caps.length ? Math.floor(Math.min(...caps) * GB) : null,
-    allowanceBytes: null,
+    allowanceBytes: plan ? Math.floor(plan.includedGb * GB) : null,
+    overagePeriodStart,
   };
 }
 

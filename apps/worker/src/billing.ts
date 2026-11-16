@@ -33,7 +33,8 @@ export type WorkspaceBilling =
       } | null;
     };
 
-function period(subscription: WorkspaceSubscription, now: Date) {
+/** The usage month `now` falls in, for triage and for Storage's peak; null with no period yet. */
+export function period(subscription: WorkspaceSubscription, now: Date) {
   if (!subscription?.periodStart) return null;
   return usagePeriod(
     {

@@ -11,6 +11,7 @@ import {
   type Db,
 } from "@omni/db";
 import { openDb } from "./db.ts";
+import { loadConfig } from "./env.ts";
 import { createLogger, type Logger } from "./log.ts";
 import { abortMultipart, deleteStorageObjects } from "./storage.ts";
 
@@ -47,12 +48,15 @@ export async function abortExpiredStorageUploads(env: Env) {
   }
 }
 
-/** Trash older than 30 days: rows first (which frees the bytes), then the objects. */
-async function purgeTrash(db: Db, bucket: R2Bucket, log: Logger, now: Date) {
+/**
+ * Trash older than 30 days: rows first (which frees the bytes), then the objects. With billing
+ * on, a read-only workspace keeps its Trash: nothing is deleted for not paying (ADR 0034).
+ */
+async function purgeTrash(db: Db, bucket: R2Bucket, log: Logger, now: Date, keepReadOnly: boolean) {
   const before = new Date(now.getTime() - STORAGE_TRASH_DAYS * DAY_MS);
   let objects = 0;
   for (let batch = 0; batch < PURGE_BATCHES; batch++) {
-    const { r2Keys, more } = await purgeStorageTrash(db, { before });
+    const { r2Keys, more } = await purgeStorageTrash(db, { before, keepReadOnly });
     await deleteStorageObjects(bucket, r2Keys, log);
     objects += r2Keys.length;
     if (!more) break;
@@ -181,9 +185,10 @@ export async function storageDaily(env: Env, now = new Date()) {
   const { db, close } = openDb(env);
   const log = createLogger({ component: "storage", requestId: crypto.randomUUID() });
   const bucket = env.STORAGE_BUCKET;
+  const billed = loadConfig(env).auth.billing !== undefined;
   try {
     const [purged, recounted, swept] = await Promise.allSettled([
-      purgeTrash(db, bucket, log, now),
+      purgeTrash(db, bucket, log, now, billed),
       recomputeStorageUsage(db),
       sweepDeletedWorkspaces(db, bucket, log),
     ]);

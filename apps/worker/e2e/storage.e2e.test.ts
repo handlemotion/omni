@@ -82,6 +82,7 @@ test("a 40 MiB file sent in three parts, out of order and resumed, downloads byt
     reservedBytes: 0,
     limitBytes: null,
     allowanceBytes: null,
+    overage: null,
     uploadsBlocked: null,
   });
   // A part sent after the fact has nothing to join.

@@ -34,6 +34,7 @@ export async function workspaceSubscription(db: Db, orgId: string) {
       trialEnd: subscriptions.trialEnd,
       cancelAtPeriodEnd: subscriptions.cancelAtPeriodEnd,
       stripeSubscriptionId: subscriptions.stripeSubscriptionId,
+      stripeScheduleId: subscriptions.stripeScheduleId,
     })
     .from(subscriptions)
     .where(eq(subscriptions.orgId, orgId))

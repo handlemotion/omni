@@ -28,6 +28,7 @@ import {
   threads,
 } from "../src/schema/index.ts";
 import { notifyMemberJoined } from "../src/notifications.ts";
+import { raiseStoragePeak } from "../src/storage/billing.ts";
 import { listUserWorkspaces } from "../src/workspaces.ts";
 import { createThread, enqueueAction, upsertMessage } from "../src/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
@@ -302,6 +303,13 @@ describe("forMember isolation", () => {
     });
     // Being a member of the org opens nothing through the grant door either.
     expect(await forUser(db, admin.userId).storage.node(folder.node.id)).toBeNull();
+
+    // A workspace's monthly peak is its members' to read, and nobody else's.
+    const month = new Date("2026-11-01T00:00:00Z");
+    await raiseStoragePeak(db, { orgId: team.id, periodStart: month, bytes: 7_000 });
+    expect(await forMember(db, teammate.id).storage.peak(month)).toBe(7_000);
+    expect(await forMember(db, outsider.id).storage.peak(month)).toBe(0);
+    expect(await forMember(db, "no-such-member").storage.peak(month)).toBeNull();
   });
 
   test("a grant that crosses orgs opens nothing", async () => {

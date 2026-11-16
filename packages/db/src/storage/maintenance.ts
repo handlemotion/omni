@@ -1,8 +1,10 @@
 // Trusted background work for Storage (ADR 0034 decisions 5 and 7): the purge of old Trash, and
 // the usage counter's read and its daily repair. Callers have already resolved the workspace.
-import { and, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNotNull, lt, not, or, sql } from "drizzle-orm";
+import { PAID_STATUSES } from "../billing.ts";
 import type { Db } from "../client.ts";
-import { organizations } from "../schema/auth.ts";
+import { isCompany } from "../personal-space.ts";
+import { organizations, subscriptions } from "../schema/auth.ts";
 import { storageNodes, storageUploads, storageUsage } from "../schema/storage.ts";
 import { deleteSubtree, lockTree, lockUsage } from "./core.ts";
 import { reservedBytes } from "./uploads.ts";
@@ -16,17 +18,45 @@ export async function storageUsageOf(db: Db, orgId: string) {
   return { bytes: row?.bytes ?? 0, reservedBytes: await reservedBytes(db, orgId) };
 }
 
+/** SQL condition: the workspace in `orgId` may write, as ADR 0015 defines good standing. */
+function inGoodStanding(db: Db, orgId: typeof storageNodes.orgId) {
+  return or(
+    // A Personal space is free (ADR 0024).
+    not(isCompany(db, orgId)),
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(subscriptions)
+        .where(and(eq(subscriptions.orgId, orgId), inArray(subscriptions.status, PAID_STATUSES))),
+    ),
+  );
+}
+
 /**
  * Deletes what was trashed before `before`, rows first, and subtracts its bytes. Returns the
  * objects the caller must now delete, and whether more is waiting. Each trashed node goes in
  * its own transaction, so a run that stops halfway has still freed what it returned.
+ *
+ * `keepReadOnly` (the caller sets it where billing is on) leaves the Trash of a workspace with
+ * no plan in good standing alone: restoring is a write it cannot make, and nothing is deleted
+ * for not paying. Its 30 days are not extended: what is due goes with the first purge after it
+ * pays again.
  */
-export async function purgeStorageTrash(db: Db, options: { before: Date; limit?: number }) {
+export async function purgeStorageTrash(
+  db: Db,
+  options: { before: Date; limit?: number; keepReadOnly?: boolean },
+) {
   const limit = options.limit ?? 100;
   const due = await db
     .select({ id: storageNodes.id, orgId: storageNodes.orgId })
     .from(storageNodes)
-    .where(and(isNotNull(storageNodes.trashedAt), lt(storageNodes.trashedAt, options.before)))
+    .where(
+      and(
+        isNotNull(storageNodes.trashedAt),
+        lt(storageNodes.trashedAt, options.before),
+        options.keepReadOnly ? inGoodStanding(db, storageNodes.orgId) : undefined,
+      ),
+    )
     .orderBy(storageNodes.trashedAt)
     .limit(limit + 1);
   const r2Keys: string[] = [];

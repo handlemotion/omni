@@ -58,6 +58,7 @@ test("an upload that would pass the cap answers 402 and stores nothing; deleting
     reservedBytes: MIB - 10,
     limitBytes: PERSONAL_BYTES,
     allowanceBytes: null,
+    overage: null,
     uploadsBlocked: null,
   });
   const over = await open("over.bin", 11);

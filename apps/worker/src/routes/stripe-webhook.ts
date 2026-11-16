@@ -16,6 +16,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import Stripe from "stripe";
 import type { AppEnv } from "../context.ts";
+import { notePaymentMethod } from "../storage-billing.ts";
 
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
 
@@ -171,6 +172,7 @@ export const stripeWebhook = new Hono<AppEnv>().post("/", async (c) => {
       return c.json({ error: "event not applied; retry" }, 500);
     }
   }
+  await notePaymentMethod(c.var.db, billing, event);
   await recordStripeEvent(c.var.db, ref);
   c.var.log.info("stripe.event", fields);
   return c.json({ received: true, applied: true });

@@ -230,3 +230,16 @@ export const storagePeaks = pgTable(
   },
   (t) => [primaryKey({ columns: [t.orgId, t.periodStart] })],
 );
+
+/**
+ * Workspaces whose subscription Stripe showed with a payment method: the one fact "no overage
+ * without a card" needs that the subscription row lacks (ADR 0034 decision 7). Written from
+ * Stripe's webhook and by the daily job; a row counts only for the subscription it names.
+ */
+export const storageOverage = pgTable("storage_overage", {
+  orgId: text("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  stripeSubscriptionId: text("stripe_subscription_id").notNull(),
+  checkedAt: timestamptz("checked_at").notNull().defaultNow(),
+});

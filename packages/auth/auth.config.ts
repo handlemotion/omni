@@ -18,6 +18,7 @@ export const auth: Auth = createAuth({
     publishableKey: undefined,
     trialDays: 0,
     triageAllowance: 1,
+    storage: undefined,
   },
   sendMagicLink: async () => {
     throw new Error("auth.config.ts is for schema generation only");

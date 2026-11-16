@@ -267,6 +267,13 @@
       "when": 1794787802016,
       "tag": "0037_warm_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794791490147,
+      "tag": "0038_lowly_forge",
+      "breakpoints": true
     }
   ]
 }

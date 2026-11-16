@@ -10,6 +10,7 @@ import { loadConfig } from "./env.ts";
 import { alertSlas, wakeSnoozed } from "./sla.ts";
 import { createLogger } from "./log.ts";
 import { consumeQueue, type AiJob } from "./queue.ts";
+import { billStorage } from "./storage-billing.ts";
 import { abortExpiredStorageUploads, storageDaily } from "./storage-cron.ts";
 import { cleanupExpiredUploads } from "./uploads.ts";
 
@@ -106,8 +107,9 @@ async function scheduledPrune(env: Env) {
 }
 
 /**
- * The daily billing cron: every workspace's subscriptions read back from Stripe (ADR 0015).
- * Nothing to do with billing off. Safe to run twice.
+ * The daily billing cron: every workspace's subscriptions read back from Stripe (ADR 0015),
+ * then, from those fresh rows, Storage's peaks and its meter (ADR 0034). Nothing to do with
+ * billing off. Safe to run twice.
  */
 async function scheduledReconcile(env: Env) {
   const billing = loadConfig(env).auth.billing;
@@ -115,13 +117,16 @@ async function scheduledReconcile(env: Env) {
   const { db, close } = openDb(env);
   const log = createLogger({ component: "billing", requestId: crypto.randomUUID() });
   try {
+    const stripe = createStripeClient(billing.secretKey);
     const result = await reconcileSubscriptions({
       db,
-      stripe: createStripeClient(billing.secretKey),
+      stripe,
       billing,
       log,
     });
     log.info("billing.reconciled", { ...result });
+    const storage = await billStorage({ db, stripe, billing, log });
+    if (storage) log.info("storage.billed", { ...storage });
   } finally {
     await close();
   }

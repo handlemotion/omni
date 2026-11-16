@@ -89,6 +89,12 @@ STRIPE_PUBLISHABLE_KEY=
 BILLING_TRIAL_DAYS=
 # Required. AI-triaged emails per workspace per month. Past it, triage pauses until the next period.
 BILLING_TRIAGE_ALLOWANCE=
+# Optional, all three or none (ADR 0034). GB of Storage a company's plan includes (decimals allowed),
+# the price id of the metered monthly price extra GB are billed at, and the event name of the Stripe
+# meter behind that price (aggregation: last). None: the plan has no storage allowance, nothing is metered.
+BILLING_STORAGE_INCLUDED_GB=
+STRIPE_PRICE_STORAGE=
+STRIPE_STORAGE_METER_EVENT=
 
 # --- Optional ---
 # "true" sends Expo push notifications to members with no app open.

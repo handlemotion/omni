@@ -420,16 +420,19 @@ are unlimited, and the only limit is a monthly allowance of AI-triaged emails. P
 keeps arriving and triage pauses until the next period. A workspace with no plan in good
 standing is read-only: its mail syncs and reads, but nothing is sent or changed. See ADR 0015.
 
-| Variable                   | Kind   | Required with billing | Notes                                                                                                          |
-| -------------------------- | ------ | --------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `BILLING`                  | var    | no                    | `off` turns billing off with the Stripe settings left in place (and unchecked). Empty: on when the key is set. |
-| `STRIPE_SECRET_KEY`        | secret | turns it on           | Stripe secret key (`sk_test_…` in development).                                                                |
-| `STRIPE_WEBHOOK_SECRET`    | secret | yes                   | Signing secret of the webhook endpoint below (`whsec_…`).                                                      |
-| `STRIPE_PRICE_MONTHLY`     | var    | yes                   | Price id of the plan's monthly price. Amounts live in Stripe.                                                  |
-| `STRIPE_PRICE_YEARLY`      | var    | no                    | Price id of the yearly price. Empty offers monthly only.                                                       |
-| `STRIPE_PUBLISHABLE_KEY`   | var    | no                    | Publishable key (`pk_test_…`, same mode as the secret key). Owners add cards in the app; empty: in the portal. |
-| `BILLING_TRIAL_DAYS`       | var    | no                    | Free trial length, once per workspace and once per account, no card needed. Empty or `0`: no trial.            |
-| `BILLING_TRIAGE_ALLOWANCE` | var    | yes                   | AI-triaged emails per workspace per month. Rule-filed threads and threads with no AI key never count.          |
+| Variable                      | Kind   | Required with billing  | Notes                                                                                                          |
+| ----------------------------- | ------ | ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `BILLING`                     | var    | no                     | `off` turns billing off with the Stripe settings left in place (and unchecked). Empty: on when the key is set. |
+| `STRIPE_SECRET_KEY`           | secret | turns it on            | Stripe secret key (`sk_test_…` in development).                                                                |
+| `STRIPE_WEBHOOK_SECRET`       | secret | yes                    | Signing secret of the webhook endpoint below (`whsec_…`).                                                      |
+| `STRIPE_PRICE_MONTHLY`        | var    | yes                    | Price id of the plan's monthly price. Amounts live in Stripe.                                                  |
+| `STRIPE_PRICE_YEARLY`         | var    | no                     | Price id of the yearly price. Empty offers monthly only.                                                       |
+| `STRIPE_PUBLISHABLE_KEY`      | var    | no                     | Publishable key (`pk_test_…`, same mode as the secret key). Owners add cards in the app; empty: in the portal. |
+| `BILLING_TRIAL_DAYS`          | var    | no                     | Free trial length, once per workspace and once per account, no card needed. Empty or `0`: no trial.            |
+| `BILLING_TRIAGE_ALLOWANCE`    | var    | yes                    | AI-triaged emails per workspace per month. Rule-filed threads and threads with no AI key never count.          |
+| `BILLING_STORAGE_INCLUDED_GB` | var    | no (all three or none) | GB of Storage a company's plan includes (decimals allowed). See "Storage on the plan" below.                   |
+| `STRIPE_PRICE_STORAGE`        | var    | no (all three or none) | Price id of the metered monthly price extra GB are billed at.                                                  |
+| `STRIPE_STORAGE_METER_EVENT`  | var    | no (all three or none) | Event name of the Stripe meter behind that price.                                                              |
 
 Set any of them without `STRIPE_SECRET_KEY` (or the key without the required ones) and the Worker
 refuses to start, naming the variable.
@@ -448,6 +451,28 @@ Setup in Stripe:
 3. Turn on the customer portal (Settings → Billing → Customer portal) so owners can switch
    interval and cancel. Saved cards and invoices are also in the app's Billing page, which reads
    them from Stripe; adding a card there needs `STRIPE_PUBLISHABLE_KEY` (Developers → API keys).
+
+##### Storage on the plan
+
+Optional (ADR 0034 decision 7). With the three storage variables unset, the plan has no storage
+allowance and nothing is metered: a company is held only by `STORAGE_MAX_GB`, when set. With
+them set, a company's plan includes `BILLING_STORAGE_INCLUDED_GB`. A trial, a yearly plan and a
+workspace with no card are capped there (`402 STORAGE_FULL`). A paying monthly workspace with a
+card may pass it, and is billed per whole extra GB for the most it stored in the billing period.
+Set `STORAGE_MAX_GB` too, so a runaway script cannot run up a bill.
+
+In Stripe:
+
+1. Create a meter (Billing → Meters): event name of your choice (it is
+   `STRIPE_STORAGE_METER_EVENT`), aggregation **Last**, customer mapping `stripe_customer_id`,
+   value key `value`. `Sum` would add up every day's report; it must be `Last`.
+2. Create a product (say "Extra storage") with a recurring **monthly**, **usage-based** price on
+   that meter, per unit (one unit is one GB). Its id is `STRIPE_PRICE_STORAGE`. It must be
+   monthly: it is added to monthly subscriptions, and a subscription's prices share one interval.
+3. Nothing else: Omni adds the price to a workspace's subscription the first time it stores more
+   than the allowance, and reports once a day (the `47 3 * * *` cron). While a subscription has
+   that item, Stripe's customer portal lets its owner cancel but not change the plan; Omni takes
+   the item off again a week into a billing period that stays under the allowance.
 
 Locally, no webhook endpoint is registered in Stripe: the Stripe CLI forwards your sandbox's
 events to the Worker. Its signing secret is `STRIPE_WEBHOOK_SECRET`. It has stayed the same

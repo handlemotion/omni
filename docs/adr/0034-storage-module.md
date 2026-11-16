@@ -260,3 +260,36 @@ are capped at the allowance until it can, and this ADR is amended.
   are required together or not at all.
 - Packages touched: `@omni/db`, `@omni/contracts`, `@omni/worker`, `@omni/auth` (the subscription
   item), `apps/web`. `apps/mail`, `mail-core`, `ai` and `crypto` are not.
+
+## Amendment: limits and billing as built (2026-11-16)
+
+Layer 5 settled what decision 7 left open:
+
+- **Yearly plans are capped at the allowance for now.** The storage price is monthly. A yearly
+  subscription can carry it only in Stripe's flexible billing mode, which existing subscriptions
+  cannot leave once migrated, and which Checkout cannot create with mixed intervals. A yearly
+  workspace gets no metered item and no meter events, and uploads past the allowance answer
+  `402 STORAGE_FULL`, like a trial. A workspace whose subscription has a schedule is capped the
+  same way, because a schedule rewrites its items.
+- **Who passes the allowance:** a company whose subscription is `active` or `past_due`, monthly,
+  and that Stripe showed with a payment method. A new table, `storage_overage`, records which
+  subscription that was. Stripe's webhook sets it when a subscription event carries a
+  `default_payment_method`, and the daily job sets or clears it from the subscription and its
+  customer, so no request calls Stripe. Billing on with the three storage variables unset means
+  no allowance and no meter: only `STORAGE_MAX_GB` applies.
+- **The period is `usagePeriod`.** For a monthly plan this is the subscription's own period,
+  which on a classic subscription is also the metered item's period, so a peak and Stripe's
+  `last` value cover the same month. The job runs once a day (`47 3 * * *`), so growth after
+  the last run before a period ends is not billed.
+- **Rounding is down.** What is reported is `floor((peak − allowance) / 1 GB)`: an extra GB is
+  billed once it is full.
+- **The item** is added by the daily job (`proration_behavior: none`) the first time a paying
+  monthly workspace's peak passes the allowance, before that day's event. A classic subscription
+  bills only usage reported after the item was added. While the item is on, an event is sent
+  every day, `0` included, with an identifier derived from workspace, period, day and value. The
+  item is removed again a week into a period whose peak stays under the allowance, by which time
+  the period before has been invoiced. While it is on, Stripe's customer portal can cancel the
+  subscription but not change it, so switching monthly to yearly waits until the item is gone.
+- **A read-only workspace keeps its Trash.** The daily purge skips workspaces not in good
+  standing, because restoring is a write they cannot make. What was due goes with the first
+  purge after the workspace pays again.
