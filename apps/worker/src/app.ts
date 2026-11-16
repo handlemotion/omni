@@ -20,7 +20,7 @@ import type { Config } from "./env.ts";
 import { crm } from "./crm/routes.ts";
 import { answerThrown, apiError } from "./errors.ts";
 import { createLogger, REQUEST_ID_HEADER, requestIdFrom } from "./log.ts";
-import { MEMBER_HEADER } from "./realtime.ts";
+import { MEMBER_HEADER, WATCH_HEADER } from "./realtime.ts";
 import { account } from "./routes/account.ts";
 import { internal } from "./routes/internal.ts";
 import { assets } from "./routes/assets.ts";
@@ -109,6 +109,7 @@ const api = new Hono<AppEnv>()
   /**
    * Websocket of `{ type: "changed", mailboxId, threadIds }` events for this member, or with
    * `?org=<id>` for the user's member in that org (the cross-workspace view keeps one per org).
+   * `?watch=1` opens a watch socket: new mail and notifications only, for desktop notifications.
    */
   .get("/realtime", async (c) => {
     if (c.req.header("upgrade") !== "websocket") {
@@ -131,6 +132,8 @@ const api = new Hono<AppEnv>()
     const { id, orgId } = member;
     const headers = new Headers(c.req.raw.headers);
     headers.set(MEMBER_HEADER, id);
+    if (c.req.query("watch") === "1") headers.set(WATCH_HEADER, "1");
+    else headers.delete(WATCH_HEADER);
     const stub = c.env.REALTIME.get(c.env.REALTIME.idFromName(orgId));
     return stub.fetch(new Request(c.req.raw, { headers }));
   })

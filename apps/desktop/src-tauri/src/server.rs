@@ -15,7 +15,7 @@ const STORE: &str = "shell.json";
 const SERVER_KEY: &str = "server";
 
 /// What the server origin may call (ADR 0043 decision 2): window dragging and controls, the
-/// badge, notifications, the launch-at-login switch, opening links outside, events, the magic-link callback
+/// badge, notifications (and showing the window when one is clicked), the launch-at-login switch, opening links outside, events, the magic-link callback
 /// (`deep_link.rs`) and the sync commands. No filesystem,
 /// no shell, no HTTP. A new command of ours is added here as well as in `build.rs`.
 const REMOTE_PERMISSIONS: &[&str] = &[
@@ -28,6 +28,9 @@ const REMOTE_PERMISSIONS: &[&str] = &[
     "core:window:allow-is-fullscreen",
     "core:window:allow-close",
     "core:window:allow-set-badge-count",
+    "core:window:allow-show",
+    "core:window:allow-unminimize",
+    "core:window:allow-set-focus",
     "notification:default",
     "autostart:allow-enable",
     "autostart:allow-disable",

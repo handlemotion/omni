@@ -62,9 +62,10 @@ function handshake(cookie: string, origin?: string) {
   });
 }
 
-async function connect(cookie: string) {
+async function connect(cookie: string, query: Record<string, string> = {}) {
   const url = new URL("/api/realtime", worker.url);
   url.protocol = "ws:";
+  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
   // Node's WebSocket (undici) accepts headers: the session cookie, and the Origin a browser on
   // the web app would send.
   const socket = new WebSocket(url, {
@@ -474,4 +475,58 @@ test("notes and assignments notify teammates live, as their preferences allow", 
   expect(await mentionsOf()).toEqual([]);
   bea.socket.close();
   carl.socket.close();
+});
+
+test("a watch socket hears new mail once, never backlog or its own sends, and leaves the app socket alone", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "watchers");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@watchers.test");
+  const box = await createMailbox(db, org.id, "ana@watchers.test", "personal");
+  await grant(db, org.id, box.id, ana.id);
+  const fresh = await seedMessage(db, box, {
+    subject: "Lunch?",
+    fromAddress: "bea@client.test",
+    uid: 1,
+  });
+  // A first sync's backlog, and Ana's own send filed in her inbox: neither is new mail.
+  const old = await seedMessage(db, box, {
+    subject: "Last week",
+    fromAddress: "cal@client.test",
+    uid: 2,
+    sentAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+  });
+  const own = await seedMessage(db, box, {
+    subject: "Note to self",
+    fromAddress: "ana@watchers.test",
+    uid: 3,
+  });
+
+  const cookie = await signIn(worker, db, "ana@watchers.test");
+  const app = await connect(cookie);
+  const watch = await connect(cookie, { org: org.id, watch: "1" });
+  const body = {
+    events: [fresh, old, own].map((m) => ({
+      type: "message.created" as const,
+      folderRole: "inbox" as const,
+      orgId: org.id,
+      mailboxId: box.id,
+      threadId: m.threadId,
+      messageId: m.messageId,
+    })),
+  };
+  expect((await postMailEvents(worker, body)).status).toBe(202);
+  expect(await watch.next(1)).toEqual([
+    { type: "mail.arrived", mailboxId: box.id, threadIds: [fresh.threadId] },
+  ]);
+  // The app socket refreshes as before and never hears `mail.arrived`.
+  expect((await app.next(2)).map((e) => e.type)).toEqual(["changed", "thread.changed"]);
+
+  // The mail service retries until answered: a replay refreshes, but is not new mail again.
+  expect((await postMailEvents(worker, body)).status).toBe(202);
+  await app.next(4);
+  expect(watch.received).toHaveLength(1);
+
+  app.socket.close();
+  watch.socket.close();
 });

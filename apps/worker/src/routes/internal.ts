@@ -7,7 +7,7 @@ import {
   mailEventSchema,
   type MailEvent,
 } from "@omni/contracts";
-import { applyInboundMessage, recordCustomer, resolveDiscarded } from "@omni/db";
+import { applyInboundMessage, newArrivals, recordCustomer, resolveDiscarded } from "@omni/db";
 import { z } from "zod";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
@@ -89,12 +89,17 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     // A replayed event (the mail service retries until we answer) is fanned out again, which is
     // harmless, but pushes only for mail seen here for the first time.
     const fresh = new Set<string>();
+    // Messages filed in an inbox for the first time: the candidates for a desktop notification.
+    const landed: string[] = [];
     for (const event of created) {
       const applied = await applyInboundMessage(db, {
         messageId: event.messageId,
         folderRole: event.folderRole,
       });
       if (applied.applied || applied.fresh) fresh.add(event.mailboxId);
+      if ((applied.applied || applied.fresh) && event.folderRole === "inbox") {
+        landed.push(event.messageId);
+      }
       if (!applied.applied) continue;
       queuedActions += applied.queuedActions;
       await notifyMembers(c.env, db, {
@@ -114,7 +119,10 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
     }
     if (queuedActions > 0)
       c.executionCtx.waitUntil(pingMailService({ config, log, requestId: c.var.requestId }));
-    if (created.length) await fanOut(c.env, db, config, changedThreads(created), { push: fresh });
+    if (created.length) {
+      const arrived = await newArrivals(db, landed);
+      await fanOut(c.env, db, config, changedThreads(created), { push: fresh, arrived });
+    }
     // Deleted mail: open apps refetch those threads (some are gone); no push for a removal.
     const pruned = events.filter((e) => e.type === "messages.pruned");
     if (pruned.length) await fanOut(c.env, db, config, listedThreads(pruned));

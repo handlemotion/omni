@@ -69,7 +69,10 @@ const event = (nodeId: string, memberId: string, state: "editing" | "left") =>
 /** The app sockets that see the drive: everyone's for Shared, the owner's for My files. */
 function audience(ctx: DurableObjectState, at: Editing) {
   const sockets = at.ownerMemberId ? ctx.getWebSockets(at.ownerMemberId) : ctx.getWebSockets();
-  return sockets.filter((socket) => !ctx.getTags(socket)[0]?.startsWith("sync:"));
+  return sockets.filter((socket) => {
+    const tag = ctx.getTags(socket)[0];
+    return !tag?.startsWith("sync:") && !tag?.startsWith("watch:");
+  });
 }
 
 function sendAll(sockets: WebSocket[], message: string) {

@@ -45,6 +45,18 @@ export const desktop = {
     return bridge().then((b) => b.signInCallback());
   },
 
+  /**
+   * A native notification. A click brings the window back (shown, in front) and runs `onClick`.
+   */
+  notify(notice: { title: string; body: string }, onClick: () => void) {
+    run("notify", (b) =>
+      b.notify(notice.title, notice.body, () => {
+        run("focus", (shell) => shell.focusWindow());
+        onClick();
+      }),
+    );
+  },
+
   /** The Dock badge: a count, or none at zero. macOS and Linux; Windows has no count badge. */
   setBadge(count: number) {
     run("badge", (b) => b.setBadge(count));

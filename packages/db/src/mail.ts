@@ -37,6 +37,7 @@ export * from "./mail/inbox-admin.ts";
 export * from "./mail/compose.ts";
 export * from "./mail/library.ts";
 export * from "./mail/customers.ts";
+export * from "./mail/arrivals.ts";
 export * from "./mail/drafts.ts";
 export * from "./mail/conversations.ts";
 export * from "./mail/handoff.ts";

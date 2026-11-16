@@ -54,6 +54,11 @@ export interface RealtimeOptions {
    * there. Without it, the session's active organization.
    */
   orgId?: string;
+  /**
+   * A watch socket: only `mail.arrived` and the member's notifications, for desktop
+   * notifications. It does not count as an open app, so the member's phone still gets its push.
+   */
+  watch?: boolean;
   onEvent: (event: RealtimeEvent) => void;
   /**
    * Socket state. An `"open"` with `reconnected: true` follows a socket that dropped or never
@@ -102,6 +107,7 @@ export function connectRealtime(options: RealtimeOptions): Realtime {
   } = options;
   const url = new URL("/api/realtime", options.baseUrl);
   if (options.orgId) url.searchParams.set("org", options.orgId);
+  if (options.watch) url.searchParams.set("watch", "1");
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 
   let socket: WebSocket | undefined;
@@ -223,6 +229,14 @@ function parseEvent(data: string): RealtimeEvent | undefined {
     event.threadIds.every((id) => typeof id === "string")
   ) {
     return { type: "changed", mailboxId: event.mailboxId, threadIds: event.threadIds };
+  }
+  if (
+    event.type === "mail.arrived" &&
+    isId(event.mailboxId) &&
+    Array.isArray(event.threadIds) &&
+    event.threadIds.every(isId)
+  ) {
+    return { type: "mail.arrived", mailboxId: event.mailboxId, threadIds: event.threadIds };
   }
   if (
     event.type === "action" &&
