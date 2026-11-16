@@ -7,7 +7,7 @@ import {
   provisionMailboxResultSchema,
   type ProvisionMailboxBody,
 } from "@omni/contracts";
-import { findMemberDomain, mailboxAtAddress } from "@omni/db";
+import { findMemberDomain, mailboxAtAddress, workspaceKind } from "@omni/db";
 import { mailboxAddress } from "@omni/mail-core/domains";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -119,10 +119,12 @@ export async function provisionMailbox(
   const { domain, address } = await resolveAddress(c, placement);
   const login = loginFor(domain, address, placement);
   // Onboarding's rule (ADR 0007): the creator's own address is their personal inbox, the rest
-  // (hello@, a teammate's before they join) are shared.
+  // (hello@, a teammate's before they join) are shared. A Personal space has only its owner, so
+  // every address on its domain is theirs (ADR 0042).
   const kind =
     target.kind === "by-address"
-      ? address === user.email.toLowerCase()
+      ? address === user.email.toLowerCase() ||
+        (await workspaceKind(db, member.orgId)) === "personal"
         ? "personal"
         : "shared"
       : target.kind;

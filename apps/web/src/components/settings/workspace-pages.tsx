@@ -50,12 +50,8 @@ import { useRemoveWorkspaceLogo, useUploadWorkspaceLogo } from "@/hooks/use-pict
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { OnboardingDomain, Workspace, WorkspaceMember } from "@/lib/types.ts";
 import { NameInputRow, PersonAvatar } from "./account-pages";
-import {
-  type InboxOwner,
-  MAILBOX_STATUS,
-  NewMailboxDialog,
-  useMailboxDomains,
-} from "./mailbox-pages";
+import { MAILBOX_STATUS, useMailboxDomains } from "./mailbox-pages";
+import { type InboxOwner, NewMailboxDialog, useOwnInboxCreation } from "./new-mailbox-dialog";
 import { InviteDialog } from "./invite-dialog";
 import { JoinRequestsSection } from "./join-requests-section";
 import { UnassignedInboxesSection } from "./unassigned-inboxes";
@@ -426,6 +422,13 @@ function DomainRecordsDialog(props: { domain: OnboardingDomain; onClose: () => v
   const { domain } = props;
   const check = useCheckDomain();
   const rotate = useRotateChallenge();
+  // A Personal space's next step once its domain takes mailboxes: its owner's first inbox on it.
+  const own = useOwnInboxCreation(domain.id);
+  const mailboxes = useOnboarding().data?.mailboxes;
+  const firstInbox =
+    own.personal &&
+    own.domains.some((d) => d.id === domain.id) &&
+    mailboxes?.every((m) => !m.address.toLowerCase().endsWith(`@${domain.domain}`));
   return (
     <SettingsListDialog
       isOpen
@@ -433,17 +436,22 @@ function DomainRecordsDialog(props: { domain: OnboardingDomain; onClose: () => v
       title={domain.domain}
       description="The records at your DNS host. Each must stay in place for mail to flow."
       footer={
-        <Button
-          intent="outline"
-          isPending={check.isPending}
-          onPress={() =>
-            check.mutate(domain.id, {
-              onError: (error) => appToast.error(error.message || "The records were not checked."),
-            })
-          }
-        >
-          Check records
-        </Button>
+        <>
+          <Button
+            intent="outline"
+            isPending={check.isPending}
+            onPress={() =>
+              check.mutate(domain.id, {
+                onError: (error) =>
+                  appToast.error(error.message || "The records were not checked."),
+              })
+            }
+          >
+            Check records
+          </Button>
+          {firstInbox && <Button onPress={own.open}>Create your inbox</Button>}
+          {own.dialog}
+        </>
       }
     >
       <DnsRecordsTable

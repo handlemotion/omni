@@ -18,7 +18,7 @@ import {
 } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { countMailboxesOnDomain, type InboxAuditAction } from "./mail.ts";
-import { assertCompany, workspaceKind } from "./personal-space.ts";
+import { workspaceKind } from "./personal-space.ts";
 import {
   auditEvents,
   type DomainCheck,
@@ -109,8 +109,7 @@ export async function openClaim(
 ): Promise<{ claim: DomainClaim; created: boolean } | { error: "cap" }> {
   const now = input.now ?? new Date();
   return db.transaction(async (tx) => {
-    // Domains belong to companies (ADR 0024).
-    await assertCompany(tx, input.orgId, "a domain");
+    // A Personal space may own its person's domain too (ADR 0042).
     await tx.execute(advisoryLock(`claims:${input.orgId}`));
     const [existing] = await tx
       .select()

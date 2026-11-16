@@ -1,6 +1,6 @@
 // A person's Personal space (ADR 0024): one organization per user, recorded in `personal_spaces`,
-// holding the mail accounts they connect themselves. It never has another member, a team, a
-// shared mailbox or a domain; companies (every other organization) own those.
+// holding the mail accounts they connect themselves, and their own domain if they bring one
+// (ADR 0042). It never has another member, a team or a shared mailbox; companies own those.
 import { eq, notExists, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";

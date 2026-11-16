@@ -12,9 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ChartConfig } from "@/components/ui/chart";
 import { Label } from "@/components/ui/field";
-import { Input, InputGroup } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { TextField } from "@/components/ui/text-field";
 import { appToast } from "@/components/ui/toast";
 import { useCounts, useMailboxes } from "@/hooks/use-mail.ts";
 import {
@@ -24,17 +22,9 @@ import {
   useWorkspaceMailboxes,
 } from "@/hooks/use-mailbox-members.ts";
 import { useOnboarding } from "@/hooks/use-onboarding.ts";
-import { useCreateSharedInbox, useIssueInbox } from "@/hooks/use-workspace-admin.ts";
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
-import { parseServer } from "@/lib/onboarding.ts";
-import {
-  LANES,
-  type Lane,
-  type Mailbox,
-  type OnboardingDomain,
-  type OrgMailbox,
-} from "@/lib/types.ts";
+import { LANES, type Lane, type Mailbox, type OrgMailbox } from "@/lib/types.ts";
 import { PersonAvatar } from "./account-pages";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import {
@@ -54,6 +44,7 @@ import {
 } from "./kit/settings-stacked-dialog";
 import { SettingsValueRow } from "./kit/settings-value-row";
 import { isManager } from "./workspace-pages";
+import { NewMailboxDialog, useOwnInboxCreation } from "./new-mailbox-dialog";
 
 // The chart library is most of a megabyte: it loads when a chart is first drawn, not with the app.
 const SettingsChart = lazy(() =>
@@ -159,6 +150,7 @@ export function useMailboxDomains() {
 export function InboxesPage() {
   const mine = useOwnMailboxes();
   const counts = useCounts();
+  const own = useOwnInboxCreation();
   // Each of your mailboxes beside its counts; undefined until both load.
   const rows =
     mine && counts.data
@@ -184,10 +176,26 @@ export function InboxesPage() {
             list.length === 0 ? (
               <SettingsEmptyState
                 title="No mailboxes"
-                description="An owner or admin can create your inbox or add you to a shared one."
+                description={
+                  own.personal
+                    ? undefined
+                    : "An owner or admin can create your inbox or add you to a shared one."
+                }
+                action={
+                  own.personal &&
+                  own.domains.length > 0 && (
+                    <Button size="sm" intent="outline" onPress={own.open}>
+                      <IconPlus data-slot="icon" />
+                      Create an inbox
+                    </Button>
+                  )
+                }
               />
             ) : (
               <SettingsGroup>
+                {own.personal && own.domains.length > 0 && (
+                  <SettingsAddRow label="Create an inbox" onPress={own.open} />
+                )}
                 {list.map(({ mailbox, row }) => (
                   <OwnMailboxRow key={mailbox.id} mailbox={mailbox} unread={row?.unread ?? 0} />
                 ))}
@@ -195,6 +203,7 @@ export function InboxesPage() {
             )
           }
         </Skeleton>
+        {own.dialog}
       </SettingsSection>
 
       <SettingsSection
@@ -511,133 +520,5 @@ export function PersonSelect(props: {
         )}
       </SelectContent>
     </Select>
-  );
-}
-
-/** The local part people get by default: theirs, as they sign in. */
-const localPartOf = (email: string) => email.split("@")[0] ?? "";
-
-/** The person a new personal inbox is for, as People lists them. */
-export interface InboxOwner {
-  id: string;
-  name: string;
-  email: string;
-  /** The signed-in member, making their own. */
-  isYou: boolean;
-}
-
-/**
- * Creates a mailbox on one of the workspace's domains (the setup route, ADR 0017): a shared one,
- * or `person`'s personal inbox that only they will see. A personal inbox starts as their sign-in
- * address when its domain is one of these. On the workspace's own mail host it needs the
- * mailbox's existing password and servers, as in setup.
- */
-export function NewMailboxDialog(props: {
-  domains: OnboardingDomain[];
-  person?: InboxOwner;
-  onClose: () => void;
-}) {
-  const { person } = props;
-  const { member } = useMember();
-  const issue = useIssueInbox();
-  const createShared = useCreateSharedInbox();
-  const create = person ? issue : createShared;
-  const signInDomain = person?.email.split("@")[1]?.toLowerCase();
-  const [domainId, setDomainId] = useState(
-    (props.domains.find((d) => d.domain.toLowerCase() === signInDomain) ?? props.domains[0]!).id,
-  );
-  const [localPart, setLocalPart] = useState(person ? localPartOf(person.email) : "");
-  const [password, setPassword] = useState("");
-  const [imap, setImap] = useState("");
-  const [smtp, setSmtp] = useState("");
-  const domain = props.domains.find((d) => d.id === domainId) ?? props.domains[0]!;
-  const ownHost = domain.provider === "imap";
-  const servers = ownHost ? { imap: parseServer(imap, 993), smtp: parseServer(smtp, 465) } : null;
-  const ready =
-    localPart.trim() !== "" && (!servers || (!!password && !!servers.imap && !!servers.smtp));
-
-  return (
-    <SettingsFormDialog
-      isOpen
-      onOpenChange={(open) => !open && props.onClose()}
-      title={
-        !person ? "Add a shared mailbox" : person.isYou ? "Create your inbox" : "Create an inbox"
-      }
-      description={
-        !person
-          ? "You can choose who sees it next."
-          : person.isYou
-            ? "Only you will see it."
-            : `Only ${person.name} will see it. You won't.`
-      }
-      action={person ? "Create" : "Add"}
-      disabled={!ready}
-      saving={create.isPending}
-      onSubmit={() => {
-        const placement = {
-          domainId: domain.id,
-          localPart: localPart.trim(),
-          ...(ownHost && servers?.imap && servers.smtp
-            ? { password, servers: { imap: servers.imap, smtp: servers.smtp } }
-            : {}),
-        };
-        const done = {
-          onSuccess: (made: { address: string }) => {
-            props.onClose();
-            appToast.success(
-              !person
-                ? `Added ${made.address}`
-                : person.isYou
-                  ? `Created ${made.address}`
-                  : `Created ${made.address} for ${person.name}`,
-            );
-          },
-          onError: (error: Error) =>
-            appToast.error(error.message || "The mailbox was not created."),
-        };
-        // A shared one starts with you on it; you choose who else sees it next.
-        if (person) issue.mutate({ ...placement, memberId: person.id }, done);
-        else createShared.mutate({ ...placement, memberIds: [member.id] }, done);
-      }}
-    >
-      {props.domains.length > 1 && (
-        <Select value={domainId} onChange={(next) => next && setDomainId(String(next))}>
-          <Label>Domain</Label>
-          <SelectTrigger />
-          <SelectContent items={props.domains}>
-            {(d) => (
-              <SelectItem id={d.id} textValue={d.domain}>
-                {d.domain}
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      )}
-      <TextField isRequired autoFocus value={localPart} onChange={setLocalPart}>
-        <Label>Address</Label>
-        <InputGroup className="[--input-gutter-end:--spacing(4)]">
-          <Input placeholder={person ? "name" : "hello"} autoComplete="off" />
-          <span data-slot="text" className="text-sm text-muted-foreground">
-            @{domain.domain}
-          </span>
-        </InputGroup>
-      </TextField>
-      {ownHost && (
-        <>
-          <TextField type="password" isRequired value={password} onChange={setPassword}>
-            <Label>Password</Label>
-            <Input autoComplete="off" />
-          </TextField>
-          <TextField isRequired value={imap} onChange={setImap}>
-            <Label>IMAP server</Label>
-            <Input placeholder={`imap.${domain.domain}:993`} autoComplete="off" />
-          </TextField>
-          <TextField isRequired value={smtp} onChange={setSmtp}>
-            <Label>SMTP server</Label>
-            <Input placeholder={`smtp.${domain.domain}:465`} autoComplete="off" />
-          </TextField>
-        </>
-      )}
-    </SettingsFormDialog>
   );
 }

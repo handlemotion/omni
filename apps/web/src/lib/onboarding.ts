@@ -205,9 +205,8 @@ function rememberChallenge(domain: OnboardingDomain) {
 function storeDomain(client: QueryClient, domain: OnboardingDomain) {
   rememberChallenge(domain);
   client.setQueryData<Onboarding>(keys.onboarding(), (data) =>
-    data?.organization
-      ? { ...data, domains: [...data.domains.filter((d) => d.id !== domain.id), domain] }
-      : data,
+    // A Personal space has domains too, with no organization to set up (ADR 0042).
+    data ? { ...data, domains: [...data.domains.filter((d) => d.id !== domain.id), domain] } : data,
   );
 }
 
@@ -240,7 +239,7 @@ export const removeDomainMutation = (client: QueryClient) =>
         // Storage blocked: nothing was kept.
       }
       client.setQueryData<Onboarding>(keys.onboarding(), (data) =>
-        data?.organization ? { ...data, domains: data.domains.filter((d) => d.id !== id) } : data,
+        data ? { ...data, domains: data.domains.filter((d) => d.id !== id) } : data,
       );
     },
     onSettled: () => client.invalidateQueries({ queryKey: keys.onboarding() }),

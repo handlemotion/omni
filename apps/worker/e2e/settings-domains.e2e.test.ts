@@ -242,3 +242,67 @@ test("removing: an admin withdraws a pending claim, a verified domain stays whil
     .where(eq(schema.mailboxes.id, a.mailboxId));
   expect(mailbox).toEqual({ id: a.mailboxId });
 });
+
+test("a Personal space adds its own domain, and every address on it is its owner's inbox", async () => {
+  const { db } = stack.database;
+  const suffix = randomUUID().slice(0, 8);
+  const email = `me-${suffix}@gmail.test`;
+  const jar = new CookieJar();
+  await signIn(stack.worker, db, email, jar);
+  const [space] = await db
+    .select({ orgId: schema.personalSpaces.orgId })
+    .from(schema.personalSpaces)
+    .innerJoin(schema.users, eq(schema.users.id, schema.personalSpaces.userId))
+    .where(eq(schema.users.email, email));
+
+  const domain = `me-${suffix}.test`;
+  stack.dns.addZone(domain);
+  const added = await api(jar, "POST", "/onboarding/domains", { domain });
+  expect(added).toMatchObject({ status: 200, body: { domain, status: "pending" } });
+  stack.publishChallenge(added.body);
+  const domainId = added.body.id as string;
+  expect(await api(jar, "POST", `/onboarding/domains/${domainId}/check`)).toMatchObject({
+    status: 200,
+    body: { status: "verified", added: true },
+  });
+  const [lock] = await db
+    .select({ orgId: schema.mailDomains.orgId })
+    .from(schema.mailDomains)
+    .where(eq(schema.mailDomains.domain, domain));
+  expect(lock).toEqual({ orgId: space!.orgId });
+
+  // Not the sign-in address, which in a company would make it shared: here it is personal.
+  const created = await api(jar, "POST", "/onboarding/mailboxes", {
+    domainId,
+    localPart: "hello",
+    login: {
+      password: "app-password",
+      imap: { host: greenmail.host, port: greenmail.imapPort },
+      smtp: { host: greenmail.host, port: greenmail.smtpPort },
+    },
+  });
+  expect(created.status).toBe(200);
+  const mailboxId = created.body.mailboxId as string;
+  await waitFor(async () => {
+    const [row] = await db
+      .select({ status: schema.mailboxes.status })
+      .from(schema.mailboxes)
+      .where(eq(schema.mailboxes.id, mailboxId));
+    return row?.status === "active";
+  });
+  const [mailbox] = await db
+    .select({ orgId: schema.mailboxes.orgId, kind: schema.mailboxes.kind })
+    .from(schema.mailboxes)
+    .where(eq(schema.mailboxes.id, mailboxId));
+  expect(mailbox).toEqual({ orgId: space!.orgId, kind: "personal" });
+
+  // Settings reads both from setup's status, which still has no company to resume.
+  expect(await api(jar, "GET", "/onboarding")).toMatchObject({
+    status: 200,
+    body: {
+      organization: null,
+      domains: [{ id: domainId, domain, status: "verified" }],
+      mailboxes: [{ id: mailboxId, address: `hello@${domain}`, kind: "personal" }],
+    },
+  });
+});

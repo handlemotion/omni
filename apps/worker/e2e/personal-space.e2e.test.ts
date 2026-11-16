@@ -1,11 +1,10 @@
 // Personal spaces (ADR 0024, rollout step 1) on the real Worker and Postgres: sign-up makes one
 // per person and signing in again never makes a second; a person from before ADR 0024 gets theirs
-// at their next sign-in; it holds no invitations, members, teams, domains or shared mailboxes and
+// at their next sign-in; it holds no invitations, members, teams or shared mailboxes and
 // cannot be deleted on its own; and today's clients do not see it (no default, not listed).
 import { randomUUID } from "node:crypto";
 import {
   ensurePersonalSpace,
-  openClaim,
   PersonalSpaceError,
   saveMailbox,
   schema,
@@ -197,27 +196,13 @@ test("a Personal space refuses invitations, members, teams and being deleted", a
   ).toHaveLength(1);
 });
 
-test("a Personal space holds no domain and no shared mailbox, but takes a personal one", async () => {
+test("a Personal space holds no shared mailbox, but takes a personal one", async () => {
   const { db } = database;
   const { spaceId } = await signedUp("mail@personal.test");
   const [member] = await db
     .select({ id: schema.members.id })
     .from(schema.members)
     .where(eq(schema.members.organizationId, spaceId));
-
-  await expect(
-    openClaim(db, {
-      orgId: spaceId,
-      domain: "personal-claim.test",
-      memberId: member!.id,
-      challengeHash: "x".repeat(64),
-      provider: "imap",
-      dnsRecords: [],
-    }),
-  ).rejects.toBeInstanceOf(PersonalSpaceError);
-  expect(
-    await db.select().from(schema.domainClaims).where(eq(schema.domainClaims.orgId, spaceId)),
-  ).toEqual([]);
 
   const mailbox = (kind: "personal" | "shared", address: string) =>
     saveMailbox(db, {

@@ -50,7 +50,7 @@ import {
   useSettingsDialog,
   type SettingsPageId,
 } from "@/hooks/use-settings-dialog.ts";
-import { useWorkspaces } from "@/hooks/use-workspaces.ts";
+import { usePersonalWorkspace } from "@/hooks/use-workspaces.ts";
 import { useBilling } from "@/hooks/use-billing.ts";
 import { useShortcut } from "@/hooks/use-shortcuts.ts";
 import { SHORTCUT_IDS, SHORTCUTS } from "@/lib/shortcuts.ts";
@@ -245,15 +245,6 @@ function useWorkspacePages() {
           (manager || !MANAGER_PAGES.has(p.id)),
       ),
     [billed, personal, manager],
-  );
-}
-
-/** Whether the active workspace is the user's Personal space. */
-function usePersonalWorkspace() {
-  const workspaces = useWorkspaces().data;
-  return (
-    workspaces?.workspaces.find((w) => w.id === workspaces.activeOrganizationId)?.kind ===
-    "personal"
   );
 }
 

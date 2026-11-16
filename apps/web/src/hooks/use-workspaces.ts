@@ -35,3 +35,12 @@ export function useOpenMailbox() {
       openMailbox(client, router, target),
   });
 }
+
+/** Whether the active workspace is the user's Personal space (ADR 0024). */
+export function usePersonalWorkspace() {
+  const workspaces = useWorkspaces().data;
+  return (
+    workspaces?.workspaces.find((w) => w.id === workspaces.activeOrganizationId)?.kind ===
+    "personal"
+  );
+}

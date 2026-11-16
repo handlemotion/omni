@@ -111,9 +111,7 @@ export const onboarding = new Hono<AppEnv>()
       !user.scopeOrgId && (await mayCreateOrganization(db, user.id, config.auth.signUp));
     /** Billing is on for this deployment (ADR 0015): setup then has a plan step. */
     const billing = { enabled: config.auth.billing !== undefined };
-    // Setup is a company's (ADR 0024): a Personal space has nothing to set up, so with it active
-    // the answer is the same as having no workspace yet, and setup creates a company.
-    if (!member || (await workspaceKind(db, member.orgId)) === "personal") {
+    if (!member) {
       return c.json({
         canCreateOrganization,
         billing,
@@ -122,14 +120,30 @@ export const onboarding = new Hono<AppEnv>()
         mailboxes: [],
       });
     }
-    const [org] = await db
-      .select({ name: schema.organizations.name })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, member.orgId));
     const [domains, mailboxes] = await Promise.all([
       listMemberDomains(db, member.id),
       listMemberMailboxes(db, member.id),
     ]);
+    const views = {
+      domains: domains.map((setup) => domainView(setup)),
+      mailboxes: mailboxes.map(({ id, address, kind, provider, status }) => ({
+        id,
+        address,
+        kind,
+        provider,
+        status,
+      })),
+    };
+    // Setup is a company's (ADR 0024): a Personal space has nothing to set up, so with it active
+    // there is no organization to resume and setup creates a company. Its own domains and
+    // mailboxes are still listed, for settings (ADR 0042).
+    if ((await workspaceKind(db, member.orgId)) === "personal") {
+      return c.json({ canCreateOrganization, billing, organization: null, ...views });
+    }
+    const [org] = await db
+      .select({ name: schema.organizations.name })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, member.orgId));
     return c.json({
       canCreateOrganization,
       billing,
@@ -145,14 +159,7 @@ export const onboarding = new Hono<AppEnv>()
          */
         needsPlan: !(await inGoodStanding(db, config, member.orgId)),
       },
-      domains: domains.map((setup) => domainView(setup)),
-      mailboxes: mailboxes.map(({ id, address, kind, provider, status }) => ({
-        id,
-        address,
-        kind,
-        provider,
-        status,
-      })),
+      ...views,
     });
   })
   /**
