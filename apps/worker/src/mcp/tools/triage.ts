@@ -5,7 +5,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import {
   applyConversationChange,
-  forMember,
   LANES,
   PRIORITIES,
   resortThread,
@@ -19,8 +18,10 @@ import { fanOut, notifyMembers } from "../../realtime.ts";
 import {
   archiveThread,
   markRead,
+  setTriage,
   type ThreadTargets,
   type ThreadWriter,
+  type TriagePatch,
 } from "../../thread-writes.ts";
 import { result, toolError } from "../format.ts";
 import { readsFor, type Reads } from "../scope.ts";
@@ -162,23 +163,24 @@ interface Target {
 /** The person's own state: done, Later, read, lane, archived. Returns the fields applied. */
 async function applyPersonal(context: ToolContext, target: Target, change: Change) {
   const { threadId, member, found, writer, effects } = target;
-  const state = forMember(context.db, member.id);
   const applied: string[] = [];
+  // A fresh key per call, as for read below: on a Google account each change must reach Gmail
+  // (ADR 0044), and a retried call queues the same flag twice, which is harmless.
+  const sync = async (name: "done" | "later", patch: TriagePatch) => {
+    const set = await setTriage(writer, threadId, patch, `mcp.${name}.${crypto.randomUUID()}`);
+    if (set?.actionIds.length) effects.queued = true;
+    applied.push(name);
+  };
   if (change.done !== undefined) {
-    await state.setThreadState(
-      threadId,
-      // Done through the mail this call saw, as the app's Done does: a message that arrives
-      // meanwhile stays in the Inbox.
+    // Done through the mail this call saw, as the app's Done does: a message that arrives
+    // meanwhile stays in the Inbox.
+    await sync(
+      "done",
       change.done ? { doneThrough: found.lastMessageAt, later: false } : { doneThrough: null },
     );
-    applied.push("done");
   }
   if (change.later !== undefined) {
-    await state.setThreadState(
-      threadId,
-      change.later ? { later: true, doneThrough: null } : { later: false },
-    );
-    applied.push("later");
+    await sync("later", change.later ? { later: true, doneThrough: null } : { later: false });
   }
   if (change.read !== undefined) {
     // A fresh key per call: read, unread, read again must each reach IMAP. A retried call queues

@@ -715,6 +715,89 @@ describe("a Google account (ADR 0023)", () => {
   });
 });
 
+describe("a Google account's read state is Done (ADR 0044)", () => {
+  it("makes mail read in Gmail Done, reopens it when marked unread there, and marks read what Omni marks done", async () => {
+    const seeded = await seedConnectable();
+    const { box, ownerId } = seeded;
+    await startMailService();
+    await connected(box.id);
+    await deliver(box.address, "read before Omni followed Gmail");
+    const [row] = await waitFor(async () => {
+      const rows = await stored(db, box.id, "INBOX");
+      return rows.length > 0 && rows;
+    });
+    if (!row) throw new Error("not synced");
+    const state = async () => {
+      const [found] = await db
+        .select({ read: schema.threadState.read, doneThrough: schema.threadState.doneThrough })
+        .from(schema.threadState)
+        .where(
+          and(
+            eq(schema.threadState.threadId, row.threadId),
+            eq(schema.threadState.memberId, ownerId),
+          ),
+        );
+      return found;
+    };
+    const inGmail = (task: (client: ImapFlow) => Promise<unknown>) =>
+      otherClient(box, async (client) => {
+        const lock = await client.getMailboxLock("INBOX");
+        try {
+          return await task(client);
+        } finally {
+          lock.release();
+        }
+      });
+
+    // Read while the mailbox was still an ordinary one: read, not done.
+    await inGmail((client) => client.messageFlagsAdd("1:*", ["\\Seen"]));
+    await waitFor(async () => (await state())?.read === true, 5_000);
+    expect((await state())?.doneThrough).toBeNull();
+
+    // The same mailbox as a Google account: connecting finds the mail Gmail already shows read.
+    await stopService();
+    await db
+      .update(schema.mailboxes)
+      .set({ provider: "gmail" })
+      .where(eq(schema.mailboxes.id, box.id));
+    await startMailService();
+    await connected(box.id);
+    await waitFor(async () => (await state())?.doneThrough != null, 5_000);
+
+    // Marked unread in Gmail: back in the Inbox within seconds, and open apps hear about it.
+    received = [];
+    await inGmail((client) => client.messageFlagsRemove("1:*", ["\\Seen"]));
+    await waitFor(async () => (await state())?.doneThrough === null, 5_000);
+    expect(await state()).toEqual({ read: false, doneThrough: null });
+    await waitFor(() => received.some((e) => e.type === "threads.changed"), 5_000);
+
+    // Done in Omni queues mark_read: the mail is read in Gmail, still in INBOX, and done here.
+    const position = await db
+      .select({ uidvalidity: schema.mailboxFolders.uidvalidity })
+      .from(schema.mailboxFolders)
+      .where(eq(schema.mailboxFolders.mailboxId, box.id));
+    await enqueue(db, seeded, {
+      kind: "mark_read",
+      idempotencyKey: `gmail-done-${box.id}`,
+      payload: { folder: "INBOX", uidValidity: String(position[0]?.uidvalidity), uids: [row.uid] },
+    });
+    const valid = await signRequest({
+      secret,
+      method: "POST",
+      path: MAIL_PING_PATH,
+      nonce: randomUUID(),
+    });
+    expect((await ping({ headers: valid })).status).toBe(202);
+    await waitFor(async () => (await state())?.doneThrough != null, 10_000);
+    const inbox = await inGmail(async (client) => {
+      const found = [];
+      for await (const message of client.fetch("1:*", { flags: true })) found.push(message);
+      return found.map((message) => [...(message.flags ?? [])]);
+    });
+    expect(inbox).toEqual([["\\Seen"]]);
+  });
+});
+
 describe("a mailbox finds its home (ADR 0024)", () => {
   /** A connectable GreenMail mailbox at `address`, in a Personal space of its own owner. */
   async function personalMailbox(address: string) {

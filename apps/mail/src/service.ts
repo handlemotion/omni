@@ -246,6 +246,7 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
         orgId: row.orgId,
         address: row.address,
         kind: row.kind,
+        provider: row.provider,
         user: credentials.user,
         auth,
         imap: credentials.imap,

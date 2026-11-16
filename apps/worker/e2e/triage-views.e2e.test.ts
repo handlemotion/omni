@@ -243,3 +243,70 @@ test("triage actions need an idempotency key and a thread the member can see", a
     await db.select().from(schema.threadState).where(eq(schema.threadState.threadId, threadId)),
   ).toEqual([]);
 });
+
+test("on a Google account Done marks the mail read in Gmail and never moves it; reading in Omni stays in Omni (ADR 0044)", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "gmail-done");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const box = await createMailbox(db, org.id, "ana@gmail-done.test", "personal");
+  await db
+    .update(schema.mailboxes)
+    .set({ provider: "gmail" })
+    .where(eq(schema.mailboxes.id, box.id));
+  const member = await createMember(db, org.id, "ana@gmail-done.test");
+  await grant(db, org.id, box.id, member.id);
+  const first = await seedMessage(db, box, {
+    subject: "Quote",
+    fromAddress: "luis@client.test",
+    uid: 1,
+    sentAt: new Date("2026-11-01T09:00:00Z"),
+  });
+  const newest = new Date("2026-11-02T09:00:00Z");
+  await seedMessage(db, box, {
+    subject: "Re: Quote",
+    fromAddress: "luis@client.test",
+    uid: 2,
+    threadId: first.threadId,
+    sentAt: newest,
+  });
+  const ana = await signIn(worker, db, "ana@gmail-done.test");
+  const queued = () =>
+    db
+      .select({ kind: schema.mailActions.kind, payload: schema.mailActions.payload })
+      .from(schema.mailActions)
+      .where(eq(schema.mailActions.mailboxId, box.id))
+      .orderBy(schema.mailActions.createdAt);
+
+  // Opening a thread marks it read in Omni. In Gmail that would mean Done, so nothing is sent.
+  const read = await api(`/threads/${first.threadId}/state`, ana, {
+    method: "PATCH",
+    body: JSON.stringify({ read: true }),
+  });
+  expect(read.status).toBe(200);
+  expect(await queued()).toEqual([]);
+
+  // Done: every message read in Gmail. A retry under the same key queues nothing more.
+  const done = () =>
+    api(`/threads/${first.threadId}/done`, ana, {
+      method: "POST",
+      headers: { "idempotency-key": "gmail-done-1" },
+      body: JSON.stringify({ through: newest.toISOString() }),
+    });
+  expect((await done()).status).toBe(200);
+  expect((await done()).status).toBe(200);
+  expect(await queued()).toMatchObject([
+    { kind: "mark_read", payload: { folder: "INBOX", uids: [1, 2] } },
+  ]);
+
+  // Not done: only the newest message goes back to unread, which is enough to keep the thread
+  // out of Done when Gmail is synced again.
+  const undone = await action(ana, "DELETE", `/threads/${first.threadId}/done`);
+  expect(undone).toMatchObject({ status: 200, body: { state: { done: false } } });
+  expect((await queued()).slice(1)).toMatchObject([
+    { kind: "mark_unread", payload: { folder: "INBOX", uids: [2] } },
+  ]);
+  // Nothing was ever asked to archive, move or delete.
+  expect((await queued()).every((a) => a.kind === "mark_read" || a.kind === "mark_unread")).toBe(
+    true,
+  );
+});

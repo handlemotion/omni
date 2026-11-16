@@ -26,7 +26,9 @@ import {
   archiveThread,
   enqueuePerFolder as queuePerFolder,
   markRead,
+  setTriage,
   type ThreadWriter,
+  type TriagePatch,
 } from "../thread-writes.ts";
 import { zValidator } from "../validator.ts";
 
@@ -153,6 +155,19 @@ export async function enqueuePerFolder(
   const actionIds = await queuePerFolder(writerOf(c), mailbox, key, requests);
   if (actionIds.length) pingLater(c);
   return actionIds;
+}
+
+/**
+ * Applies a Done or Later change for this request's member, and has the mail service mark the
+ * mail read or unread in Gmail when the thread is in a Google account (ADR 0044).
+ */
+async function triage(c: Context<AppEnv>, patch: TriagePatch) {
+  const id = c.req.param("id") ?? "";
+  const key = c.req.header("idempotency-key") ?? "";
+  const applied = await setTriage(writerOf(c), id, patch, key);
+  if (!applied) notFound();
+  if (applied.actionIds.length) pingLater(c);
+  return c.json({ state: applied.state });
 }
 
 /**
@@ -298,10 +313,11 @@ export const mail = new Hono<AppEnv>()
     },
   )
 
-  // Done and Later are this member's triage state (ADR 0007, ADR 0027): Postgres only, nothing
-  // for the outbox, so another member of a shared mailbox is unaffected. Each request sets
-  // absolute values, so a retry under the same idempotency key writes the same row. Done and
-  // Later exclude each other: marking one clears the other.
+  // Done and Later are this member's triage state (ADR 0007, ADR 0027): Postgres only, so another
+  // member of a shared mailbox is unaffected. A Google account also gets its mail marked read or
+  // unread in Gmail (ADR 0044), never moved. Each request sets absolute values, so a retry under
+  // the same idempotency key writes the same row and queues nothing new. Done and Later exclude
+  // each other: marking one clears the other.
 
   /**
    * Done through `through` (capped at the newest message). Answers `done: false` when a message
@@ -313,42 +329,24 @@ export const mail = new Hono<AppEnv>()
     zValidator("json", doneBody),
     async (c) => {
       const { through } = c.req.valid("json");
-      const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
-        doneThrough: new Date(through),
-        later: false,
-      });
-      if (!state) notFound();
-      return c.json({ state });
+      return triage(c, { doneThrough: new Date(through), later: false });
     },
   )
 
   /** Not done: back in the Inbox. */
-  .delete("/threads/:id/done", zValidator("header", idempotencyHeader), async (c) => {
-    const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
-      doneThrough: null,
-    });
-    if (!state) notFound();
-    return c.json({ state });
-  })
+  .delete("/threads/:id/done", zValidator("header", idempotencyHeader), (c) =>
+    triage(c, { doneThrough: null }),
+  )
 
   /** Into Later: out of the Inbox until the member moves it back (or marks it done). */
-  .post("/threads/:id/later", zValidator("header", idempotencyHeader), async (c) => {
-    const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
-      later: true,
-      doneThrough: null,
-    });
-    if (!state) notFound();
-    return c.json({ state });
-  })
+  .post("/threads/:id/later", zValidator("header", idempotencyHeader), (c) =>
+    triage(c, { later: true, doneThrough: null }),
+  )
 
   /** Out of Later: back in the Inbox. */
-  .delete("/threads/:id/later", zValidator("header", idempotencyHeader), async (c) => {
-    const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
-      later: false,
-    });
-    if (!state) notFound();
-    return c.json({ state });
-  })
+  .delete("/threads/:id/later", zValidator("header", idempotencyHeader), (c) =>
+    triage(c, { later: false }),
+  )
 
   /** Deprecated (ADR 0027): the timed deferral, for tabs open from before Later. */
   .post(
@@ -357,12 +355,7 @@ export const mail = new Hono<AppEnv>()
     zValidator("json", deferBody),
     async (c) => {
       const { until } = c.req.valid("json");
-      const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
-        deferredUntil: new Date(until),
-        doneThrough: null,
-      });
-      if (!state) notFound();
-      return c.json({ state });
+      return triage(c, { deferredUntil: new Date(until), doneThrough: null });
     },
   )
 

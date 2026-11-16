@@ -43,23 +43,67 @@ export async function enqueuePerFolder(
 
 /**
  * Read or unread for this member. On a personal mailbox it also syncs the IMAP \Seen flag; a
- * shared mailbox never changes it (spec: "Sync rules"). Null when the member cannot see the thread.
+ * shared mailbox never changes it (spec: "Sync rules"), and neither does a Google account, where
+ * \Seen means Done (ADR 0044). Null when the member cannot see the thread.
  */
 export async function markRead(writer: ThreadWriter, threadId: string, read: boolean, key: string) {
   const state = await forMember(writer.db, writer.memberId).setThreadState(threadId, { read });
   if (!state) return null;
   const found = await threadActionTargets(writer.db, writer.memberId, threadId);
-  const kind = read ? "mark_read" : "mark_unread";
   const actionIds =
-    found?.mailboxKind === "personal"
-      ? await enqueuePerFolder(
-          writer,
-          found,
-          key,
-          found.targets.map(({ role: _role, ...target }) => ({ kind, payload: target })),
-        )
+    found?.mailboxKind === "personal" && found.mailboxProvider !== "gmail"
+      ? await enqueueFlag(writer, found, read ? "mark_read" : "mark_unread", key)
       : [];
   return { state, actionIds, mailboxId: found?.mailboxId };
+}
+
+type Found = NonNullable<Awaited<ReturnType<typeof threadActionTargets>>>;
+
+function enqueueFlag(
+  writer: ThreadWriter,
+  found: Found,
+  kind: "mark_read" | "mark_unread",
+  key: string,
+) {
+  return enqueuePerFolder(
+    writer,
+    found,
+    key,
+    found.targets.map(({ role: _role, ...target }) => ({ kind, payload: target })),
+  );
+}
+
+export type TriagePatch = Parameters<ReturnType<typeof forMember>["setThreadState"]>[1];
+
+/**
+ * Done and Later for this member (ADR 0007, ADR 0027): Postgres only, except on a Google
+ * account, where Done is Gmail's read (ADR 0044). There, a thread that is now done has every
+ * copy marked read, and one taken out of Done (or put in Later) has its newest message marked
+ * unread, which is what keeps it out of Done when Gmail is synced again. Nothing is ever moved
+ * or deleted. Null when the member cannot see the thread.
+ */
+export async function setTriage(
+  writer: ThreadWriter,
+  threadId: string,
+  patch: TriagePatch,
+  key: string,
+) {
+  const state = await forMember(writer.db, writer.memberId).setThreadState(threadId, patch);
+  if (!state) return null;
+  // `done: false` after asking for done: a newer message arrived, and Gmail keeps it unread.
+  const kind = state.done ? "mark_read" : patch.doneThrough === null ? "mark_unread" : null;
+  if (!kind) return { state, actionIds: [] };
+  const found = await threadActionTargets(
+    writer.db,
+    writer.memberId,
+    threadId,
+    // Read only what Done covers: a reply indexed since `setThreadState` stays unread in Gmail,
+    // so it reopens the thread instead of being swept into Done unseen.
+    kind === "mark_unread" ? "newest" : (state.doneThrough ?? undefined),
+  );
+  const actionIds =
+    found?.mailboxProvider === "gmail" ? await enqueueFlag(writer, found, kind, key) : [];
+  return { state, actionIds };
 }
 
 /** Where a thread's mail is: each folder's copies, as the outbox targets them. */

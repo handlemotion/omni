@@ -44,6 +44,8 @@ export interface MailboxConfig {
   address: string;
   /** Shared mailboxes keep read state per person in Postgres; we never touch their `\Seen`. */
   kind: "personal" | "shared";
+  /** `gmail` for a Google account, where Gmail's read is Omni's Done (ADR 0044). */
+  provider?: string;
   user: string;
   auth: MailAuth;
   imap: ServerEndpoint;
@@ -503,7 +505,11 @@ export class MailboxConnection extends EventEmitter<Events> {
         this.requestInboxSync();
         // Mail leaving INBOX was deleted or moved: the folders it lands in tell which, and
         // whether the thread is archived now (ADR 0013).
-        if (name === "expunge") this.requestFiledSync();
+        // Gmail keeps a second copy of every message in All Mail, and read there is Done here
+        // (ADR 0044): fetch that copy's flag now too, not at the next poll.
+        if (name === "expunge" || (name === "flags" && this.capabilities?.gmail)) {
+          this.requestFiledSync();
+        }
       });
     }
     return client;
@@ -523,6 +529,11 @@ export class MailboxConnection extends EventEmitter<Events> {
         await this.discoverFolders();
         const inbox = this.inbox();
         if (inbox) await this.syncFolderNow(inbox.path);
+        // A sync reports only flags that changed. Mail already read in Gmail when Omni started
+        // treating that as Done is found here (ADR 0044).
+        if (inbox && this.mailbox.provider === "gmail") {
+          await this.store.reconcileFolder(this.mailbox.id, inbox.path);
+        }
       });
       if (!client.usable) throw new Error("connection closed during the first sync");
     } catch (error) {

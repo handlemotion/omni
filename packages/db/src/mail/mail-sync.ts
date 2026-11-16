@@ -1,11 +1,12 @@
 // Mail service writers for IMAP sync: folders, sync positions, message locations, mailboxes and
 // outbox bookkeeping. Like `writers.ts`, only trusted background code calls these, and each one
 // is idempotent so a repeated sync step converges.
-import { and, desc, eq, gte, inArray, ne, notInArray, type SQL, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, ne, notInArray, sql } from "drizzle-orm";
 import { MAX_PRUNED_THREADS_PER_EVENT } from "@omni/contracts";
 import type { Db } from "../client.ts";
-import { queueMailEvents, queueThreadsChanged } from "./pending-mail-events.ts";
+import { queueMailEvents } from "./pending-mail-events.ts";
 import { rederiveParticipants } from "./thread-participants.ts";
+import { reconcileThreads } from "./thread-reconcile.ts";
 import { syncableMailbox } from "./inbox-admin.ts";
 import { ensureMailboxTeam, syncMailboxAccess } from "./mailbox-teams.ts";
 import { assertCompany } from "../personal-space.ts";
@@ -19,7 +20,6 @@ import {
   uploads,
   messageLocations,
   messages,
-  threadState,
   threads,
   users,
 } from "../schema/index.ts";
@@ -316,6 +316,8 @@ export async function addLocation(
      * app). False for a message just indexed: `message.created` already refreshes its thread.
      */
     report?: boolean;
+    /** The message was just indexed: unread in Gmail, it turns its thread unread (ADR 0044). */
+    arrived?: boolean;
   },
 ) {
   return db.transaction(async (tx) => {
@@ -337,7 +339,12 @@ export async function addLocation(
       .update(messages)
       .set({ folderId: input.folderId, imapUid: input.uid, updatedAt: new Date() })
       .where(eq(messages.id, input.messageId));
-    await reconcileThreads(tx, sql`${input.messageId}`, input.report ?? true);
+    await reconcileThreads(
+      tx,
+      sql`${input.messageId}`,
+      input.report ?? true,
+      input.arrived === true && !input.flags.includes("\\Seen"),
+    );
     return true;
   });
 }
@@ -434,55 +441,18 @@ export async function removeLocations(
 }
 
 /**
- * Brings the threads of these messages (`messageIds`: a list of ids or a query selecting them) in line with where their IMAP copies are and how they
- * are flagged, so that state set in Omni, in Apple Mail, or by a full re-sync all end up the same
- * (spec, "Sync rules"):
- *
- * - Archived: a copy in INBOX means not archived; otherwise a copy in the archive, trash or junk
- *   folder means archived (out of the inbox: deleted or junked mail is not waiting for an answer).
- *   A thread with none of these (Sent only, another folder, or mid-move) keeps its state.
- * - Read, on personal mailboxes only: read when every copy has `\Seen`, for every member with
- *   access. Shared mailboxes keep read per person in Postgres and never look at `\Seen`.
+ * Reconciles every thread with a copy in this folder. A Google account's INBOX gets this on each
+ * connect, so mail read in Gmail before Omni followed its read state is Done here too (ADR 0044).
  */
-async function reconcileThreads(
-  db: Pick<Db, "execute" | "insert" | "select">,
-  messageIds: SQL,
-  report = true,
-): Promise<number> {
-  const summary = sql`
-    select m.thread_id,
-      bool_or(f.role = 'inbox') as in_inbox,
-      bool_or(f.role in ('archive', 'trash', 'junk')) as filed,
-      bool_and(${"\\Seen"}::text = any(l.flags)) as seen
-    from ${messages} m
-    join ${messageLocations} l on l.message_id = m.id
-    join ${mailboxFolders} f on f.id = l.folder_id
-    where m.thread_id in (select thread_id from ${messages} where id in (${messageIds}))
-    group by m.thread_id`;
-  const archived = await db.execute(sql`
-    update ${threads} t set archived = not s.in_inbox, updated_at = now()
-    from (${summary}) s
-    where t.id = s.thread_id and (s.in_inbox or s.filed) and t.archived = s.in_inbox
-    returning t.id`);
-  const read = await db.execute(sql`
-    insert into ${threadState} (org_id, thread_id, member_id, read)
-    select t.org_id, t.id, a.member_id, s.seen
-    from (${summary}) s
-    join ${threads} t on t.id = s.thread_id
-    join ${mailboxes} mb on mb.id = t.mailbox_id and mb.kind = 'personal'
-    join ${mailboxAccess} a on a.mailbox_id = t.mailbox_id
-    on conflict (thread_id, member_id) do update set read = excluded.read, updated_at = now()
-    where ${threadState}.read is distinct from excluded.read
-    returning thread_id as id, read, xmax = 0 as inserted`);
-  // postgres-js returns the rows themselves. A new row that says unread shows what no row did.
-  type ReadRow = { id: string; read: boolean; inserted: boolean };
-  const changed = [
-    ...(archived as unknown as { id: string }[]),
-    ...(read as unknown as ReadRow[]).filter((row) => row.read || !row.inserted),
-  ];
-  const threadIds = [...new Set(changed.map((row) => row.id))];
-  if (report) await queueThreadsChanged(db, threadIds);
-  return threadIds.length;
+export function reconcileFolder(db: Db, input: { mailboxId: string; path: string }) {
+  return db.transaction((tx) =>
+    reconcileThreads(
+      tx,
+      sql`select l.message_id from ${messageLocations} l
+        join ${mailboxFolders} f on f.id = l.folder_id
+        where f.mailbox_id = ${input.mailboxId} and f.path = ${input.path}`,
+    ),
+  );
 }
 
 /**

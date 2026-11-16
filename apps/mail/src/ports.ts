@@ -55,6 +55,11 @@ export interface MailStore {
   /** Store one message. Unique on (mailbox, folder, uid). Returns false when it was already stored. */
   storeMessage(mailboxId: string, message: FetchedMessage): Promise<{ created: boolean }>;
   applyFlags(mailboxId: string, folder: string, changes: FlagChange[]): Promise<void>;
+  /**
+   * Brings every thread with a copy in `folder` in line with the flags already stored, for state
+   * no flag change will report (a Google account's mail read before Omni followed it, ADR 0044).
+   */
+  reconcileFolder(mailboxId: string, folder: string): Promise<void>;
   /** Messages expunged or moved out of `folder`. */
   removeMessages(mailboxId: string, folder: string, uids: number[]): Promise<void>;
   /** UIDVALIDITY changed: forget every message and the sync position of this folder. */

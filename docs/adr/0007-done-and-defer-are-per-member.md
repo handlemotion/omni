@@ -1,6 +1,6 @@
 # 0007: Done and defer are per-member state, separate from archive
 
-Date: 2026-11-03 · Status: accepted · The Queue and timed defer are replaced by Later (ADR 0027)
+Date: 2026-11-03 · Status: accepted · The Queue and timed defer are replaced by Later (ADR 0027); on a Google account Done also marks the mail read in Gmail (ADR 0044)
 
 ## Context
 

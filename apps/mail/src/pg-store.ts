@@ -29,6 +29,7 @@ import {
   sendAttachmentFiles,
   orphanedMessages,
   pruneMessages,
+  reconcileFolder,
   refreshListUnsubscribe,
   removeLocations,
   replaceFolders,
@@ -248,6 +249,7 @@ export class PgMailStore implements MailStore {
       flags: fetched.flags,
       modseq: fetched.modseq,
       report: !inserted,
+      arrived: inserted,
     });
     // Another copy of a known message: a move in another mail app may have (un)archived it.
     if (created && !inserted) this.onChanged();
@@ -310,6 +312,10 @@ export class PgMailStore implements MailStore {
     if ((await setLocationFlags(this.db, { mailboxId, path: folder, changes })) > 0) {
       this.onChanged();
     }
+  }
+
+  async reconcileFolder(mailboxId: string, folder: string): Promise<void> {
+    if ((await reconcileFolder(this.db, { mailboxId, path: folder })) > 0) this.onChanged();
   }
 
   async removeMessages(mailboxId: string, folder: string, uids: number[]): Promise<void> {
