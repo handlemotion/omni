@@ -269,6 +269,10 @@ flyctl deploy . --config apps/mail/fly.toml --app <your-app>
 curl https://<your-app>.fly.dev/health
 ```
 
+The mail service needs at least 512 MB of memory, and 1 GB (what `fly.toml` asks for) once
+several mailboxes import at the same time: importing HTML mail peaks near 300 MB per mailbox. With
+less, a first sync slows to about a message a minute and `/health` starts timing out.
+
 Fly's GitHub deploy works the same with the repo root as working directory and this config path.
 Run the database migrations (`pnpm --filter @omni/db db:migrate`) before deploying code that needs
 them.

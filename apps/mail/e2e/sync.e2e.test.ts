@@ -393,6 +393,49 @@ describe("sync into Postgres against GreenMail", () => {
     expect(await messageRows(db, box.id)).toHaveLength(5);
   });
 
+  it("picks up an import that was cut off mid-folder, without fetching stored mail again", async () => {
+    // The bug: a deploy during a long first sync starts the folder over, so an account that
+    // never finishes between deploys never becomes ready.
+    const { box } = await seedMailbox(db);
+    await otherClient(box, async (client) => {
+      for (let n = 1; n <= 9; n++) await client.append("INBOX", raw({ subject: `old ${n}` }), []);
+    });
+
+    // The process is told to stop (SIGTERM) while the third message is being stored.
+    const first = connect(box);
+    const firstRun: number[] = [];
+    first.on("message", (event) => {
+      firstRun.push(event.uid);
+      if (firstRun.length === 3) void first.stop();
+    });
+    await first.start();
+    await first.stop();
+    expect(first.isReady).toBe(false);
+    const before = (await stored(db, box.id, "INBOX")).length;
+    expect(before).toBeGreaterThanOrEqual(3);
+    expect(before).toBeLessThan(9);
+
+    // A new process. Every message handed to the store was downloaded in full first.
+    let downloaded = 0;
+    store = new (class extends PgMailStore {
+      override storeMessage(...args: Parameters<PgMailStore["storeMessage"]>) {
+        downloaded++;
+        return super.storeMessage(...args);
+      }
+    })({ db, objects, links });
+    const second = connect(box);
+    const secondRun: number[] = [];
+    second.on("message", (event) => secondRun.push(event.uid));
+    await second.start();
+
+    expect(second.isReady).toBe(true);
+    expect(downloaded).toBe(9 - before);
+    expect(secondRun).toHaveLength(9 - before);
+    expect(secondRun.filter((uid) => firstRun.includes(uid))).toEqual([]);
+    expect(await stored(db, box.id, "INBOX")).toHaveLength(9);
+    expect(await messageRows(db, box.id)).toHaveLength(9);
+  });
+
   it("imports history newest first in batches", async () => {
     const { box } = await seedMailbox(db);
     for (const n of [1, 2, 3, 4, 5]) await deliver(box.address, `history ${n}`);
