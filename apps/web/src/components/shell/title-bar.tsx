@@ -88,15 +88,21 @@ export function TitleBarRow() {
  * Room for the title-bar group in a page header while the sidebar is closed. `inset` is how far in from the window's edge the row's content
  * starts, which the group already covers.
  */
-export function TitleBarSpace({ inset }: { inset: number }) {
+export function TitleBarSpace({
+  inset,
+  afterIsland = true,
+}: {
+  inset: number;
+  afterIsland?: boolean;
+}) {
+  // Less the closed sidebar's island, which a page already starts after; not for a row that starts
+  // at the window's edge over it (the notifications panel).
+  const island = afterIsland ? " - var(--sidebar-island-width, 0px)" : "";
   return (
     <div
       aria-hidden
       className="shrink-0 self-stretch"
-      // Less the closed sidebar's island, which the page already starts after.
-      style={{
-        width: `max(0px, calc(var(${WIDTH_VAR}, 0px) - ${inset}px - var(--sidebar-island-width, 0px)))`,
-      }}
+      style={{ width: `max(0px, calc(var(${WIDTH_VAR}, 0px) - ${inset}px${island}))` }}
     />
   );
 }

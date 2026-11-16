@@ -141,7 +141,7 @@ export function NotificationsPanel() {
             edge. No rule under it: the tabs' line closes the header. */}
         <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2.5">
           {/* With the sidebar closed the panel starts at the window's edge, under the title bar. */}
-          {titleBarOver && <TitleBarSpace inset={20} />}
+          {titleBarOver && <TitleBarSpace inset={20} afterIsland={false} />}
           <h2 className="min-w-0 flex-1 truncate text-sm font-medium">Notifications</h2>
           <div className="flex items-center gap-1">
             <HeaderAction
