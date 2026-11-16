@@ -9,7 +9,6 @@ import {
 import {
   IconChevronDown,
   IconForward,
-  IconImage,
   IconMail,
   IconNote,
   IconReply,
@@ -85,8 +84,6 @@ export function MessageItem(props: {
 }) {
   const { threadId, message } = props;
   const [full, setFull] = useState(opensFull(message));
-  // Remote images stay blocked (spec: tracking pixels) until the reader loads them.
-  const [images, setImages] = useState(false);
   const sender = personName({ name: message.fromName, address: message.fromAddress });
   const card = message.display === "card" || full || !!props.flat;
   // Right-hand side: anything this inbox sent. Blue only for the reader's own replies.
@@ -95,12 +92,7 @@ export function MessageItem(props: {
   const inline = !!props.flat || !message.fromTeam;
 
   const toggle = message.hasHtml && (
-    <HtmlMenuItems
-      full={full}
-      onToggle={() => setFull((open) => !open)}
-      blockedImages={images ? 0 : message.remoteImageCount}
-      onLoadImages={() => setImages(true)}
-    />
+    <HtmlMenuItems full={full} onToggle={() => setFull((open) => !open)} />
   );
 
   const menu = (
@@ -142,14 +134,7 @@ export function MessageItem(props: {
           className={`flex w-full flex-col gap-3 bg-background ${props.flat ? "" : `rounded-xl border shadow-(--shadow-raised) ${full ? "overflow-hidden" : "p-4"}`}`}
         >
           {!full && <Body loose text={message.cleanText} />}
-          {full && (
-            <FullMessage
-              threadId={threadId}
-              messageId={message.id}
-              images={images}
-              flat={props.flat}
-            />
-          )}
+          {full && <FullMessage threadId={threadId} messageId={message.id} flat={props.flat} />}
         </div>
       ) : (
         <>
@@ -176,30 +161,14 @@ export function MessageItem(props: {
   );
 }
 
-/** In the ⋯ menu: the sender's layout or the text Omni drew from it, and its remote images. */
-function HtmlMenuItems(props: {
-  full: boolean;
-  onToggle: () => void;
-  /** Remote images not loaded yet. */
-  blockedImages: number;
-  onLoadImages: () => void;
-}) {
+/** In the ⋯ menu: the sender's layout or the text Omni drew from it. */
+function HtmlMenuItems(props: { full: boolean; onToggle: () => void }) {
   const label = props.full ? "Show text" : "Show full message";
-  // Offered while the full message shows and has remote images still blocked.
-  const canLoadImages = props.full && props.blockedImages > 0;
   return (
-    <>
-      <MenuItem textValue={label} onAction={props.onToggle}>
-        {props.full ? <IconNote data-slot="icon" /> : <IconMail data-slot="icon" />}
-        <MenuLabel>{label}</MenuLabel>
-      </MenuItem>
-      {canLoadImages && (
-        <MenuItem textValue="Load images" onAction={props.onLoadImages}>
-          <IconImage data-slot="icon" />
-          <MenuLabel>Load images</MenuLabel>
-        </MenuItem>
-      )}
-    </>
+    <MenuItem textValue={label} onAction={props.onToggle}>
+      {props.full ? <IconNote data-slot="icon" /> : <IconMail data-slot="icon" />}
+      <MenuLabel>{label}</MenuLabel>
+    </MenuItem>
   );
 }
 

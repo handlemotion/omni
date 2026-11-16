@@ -62,8 +62,9 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Catches: remote images that never load, because nothing swaps the blocked URL back in.
-test("a newsletter's remote images stay blocked until the reader loads them", async () => {
+// Catches: remote images that never load, because nothing swaps the blocked URL back in, or that
+// load straight from the sender instead of through the image proxy (ADR 0041).
+test("a newsletter's remote images load on open, through the image proxy", async () => {
   const email = "ana@images.test";
   const system = await createOrg(db, "images-system");
   await createMailbox(db, system.id, SYSTEM_MAIL_FROM);
@@ -106,16 +107,10 @@ test("a newsletter's remote images stay blocked until the reader loads them", as
   const page = await context.newPage();
   await page.goto(new URL(`/inbox/${threadId}`, origin).toString());
 
-  // Opens as the sender laid it out, with the image not fetched.
+  // Opens as the sender laid it out, the image fetched through our proxy, never from the sender.
   const frame = page.frameLocator('iframe[title="Full message"]');
   const banner = frame.getByRole("img", { name: "Banner" });
   await banner.waitFor();
-  expect(await banner.getAttribute("src")).toBeNull();
-
-  await page.getByRole("article").hover();
-  await page.getByRole("button", { name: "Message actions" }).click();
-  await page.getByRole("menuitem", { name: "Load images" }).click();
-
   await expect
     .poll(() =>
       banner.evaluate((img) => {
@@ -127,8 +122,8 @@ test("a newsletter's remote images stay blocked until the reader loads them", as
       }),
     )
     .toBe(1);
-  await page.getByRole("button", { name: "Message actions" }).click();
-  await page.getByRole("menuitem", { name: "Show text" }).waitFor();
-  expect(await page.getByRole("menuitem", { name: "Load images" }).count()).toBe(0);
+  expect(await banner.getAttribute("src")).toBe(
+    `/api/image-proxy?url=${encodeURIComponent(`${imageOrigin}/banner.png`)}`,
+  );
   await context.close();
 });

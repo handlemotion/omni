@@ -30,27 +30,19 @@ function loadRemoteImages(frame: HTMLIFrameElement | null) {
 /**
  * A message's sanitized HTML, as the sender laid it out. Sandboxed with scripts off; same-origin
  * so its images can send the session cookie (see `messageHtmlUrl`), which also lets this page
- * read the document's height and swap in remote images when the reader asks (`images`). The
- * frame grows to fit its content, so the conversation scrolls as one page instead of a box
- * inside a box.
+ * read the document's height and swap in its remote images, through the image proxy, as it opens
+ * (ADR 0041). The frame grows to fit its content, so the conversation scrolls as one page instead
+ * of a box inside a box.
  */
 export function FullMessage(props: {
   threadId: string;
   messageId: string;
-  images?: boolean;
   /** On the page (a single email), not inside a card: the frame is the message's own island. */
   flat?: boolean | undefined;
 }) {
   const { threadId, messageId } = props;
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState<number>();
-  const images = useRef(props.images);
-  images.current = props.images;
-
-  // Asked for after the frame loaded: swap them in now. Before then, `onLoad` does it.
-  useEffect(() => {
-    if (props.images) loadRemoteImages(ref.current);
-  }, [props.images]);
 
   useEffect(() => {
     const frame = ref.current;
@@ -67,7 +59,7 @@ export function FullMessage(props: {
       setHeight(doc.documentElement.scrollHeight);
     };
     const onLoad = () => {
-      if (images.current) loadRemoteImages(frame);
+      loadRemoteImages(frame);
       dropDefaultMargin(frame);
       refits = 0;
       fit();
