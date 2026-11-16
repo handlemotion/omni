@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from "react";
+import { linkSegments } from "@omni/mail-core/links";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +14,7 @@ import {
   IconNote,
   IconReply,
 } from "@/components/icons/central";
+import { Link } from "@/components/ui/link";
 import { MenuItem, MenuLabel } from "@/components/ui/menu";
 import { Tag, TagGroup, TagList } from "@/components/ui/tag-group";
 import { appToast } from "@/components/ui/toast";
@@ -510,10 +512,27 @@ export function PendingItem({ send }: { send: PendingSend }) {
   );
 }
 
-/** Mail text as written: line breaks kept, long words and links wrapped. */
+/** Mail text as written: line breaks kept, long words wrapped, web addresses clickable. */
 function Body({ text, loose }: { text: string; loose?: boolean }) {
   // Cards read like a letter, with more leading; bubbles stay tight like chat.
   return (
-    <p className={`${loose ? "text-sm/6" : "text-sm/5"} break-words whitespace-pre-wrap`}>{text}</p>
+    <p className={`${loose ? "text-sm/6" : "text-sm/5"} break-words whitespace-pre-wrap`}>
+      {linkSegments(text).map((segment, index) =>
+        segment.href ? (
+          <Link
+            // oxlint-disable-next-line react/no-array-index-key -- segments never reorder
+            key={index}
+            href={segment.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2"
+          >
+            {segment.text}
+          </Link>
+        ) : (
+          segment.text
+        ),
+      )}
+    </p>
   );
 }

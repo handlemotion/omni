@@ -10,6 +10,7 @@
     "./clean": "./src/clean.ts",
     "./display": "./src/display.ts",
     "./verification-code": "./src/verification-code.ts",
+    "./links": "./src/links.ts",
     "./unsubscribe": "./src/unsubscribe.ts",
     "./domains": "./src/domains.ts",
     "./telemetry": "./src/telemetry.ts",

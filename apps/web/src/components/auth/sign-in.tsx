@@ -1,6 +1,6 @@
 import { Google } from "@ridemountainpig/svgl-react";
 import { useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { IconRedirectArrow } from "@/components/icons";
 import { IconKey } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,9 @@ import {
 } from "@/hooks/use-session.ts";
 import { isServerPath, safeRedirect } from "@/lib/session.ts";
 
+/** How long the same address waits before Continue mails it another link. */
+const RESEND_AFTER_MS = 30_000;
+
 // Figma: Omni, frame "/" (node 1:13).
 export function SignIn({ redirect }: { redirect?: string }) {
   const router = useRouter();
@@ -26,6 +29,10 @@ export function SignIn({ redirect }: { redirect?: string }) {
   const methods = useSignInMethods();
   const google = useSignInGoogle();
   const [email, setEmail] = useState("");
+  // The address a link was last asked for, and when. A second Continue (or Enter) while the
+  // first is still sending, or just after, would mail a second, different link: the form shows no
+  // sent state, so a person who sees nothing happen presses again.
+  const lastSend = useRef<{ email: string; at: number } | null>(null);
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-surface">
@@ -45,7 +52,14 @@ export function SignIn({ redirect }: { redirect?: string }) {
               className="flex flex-col gap-2"
               onSubmit={(event) => {
                 event.preventDefault();
-                magicLink.mutate({ email, redirect });
+                const last = lastSend.current;
+                if (last?.email === email && Date.now() - last.at < RESEND_AFTER_MS) return;
+                lastSend.current = { email, at: Date.now() };
+                magicLink.mutate(
+                  { email, redirect },
+                  // A failed send can be retried at once.
+                  { onError: () => (lastSend.current = null) },
+                );
               }}
             >
               <TextField
