@@ -771,30 +771,47 @@ describe("a Google account's read state is Done (ADR 0044)", () => {
     expect(await state()).toEqual({ read: false, doneThrough: null });
     await waitFor(() => received.some((e) => e.type === "threads.changed"), 5_000);
 
-    // Done in Omni queues mark_read: the mail is read in Gmail, still in INBOX, and done here.
     const position = await db
       .select({ uidvalidity: schema.mailboxFolders.uidvalidity })
       .from(schema.mailboxFolders)
       .where(eq(schema.mailboxFolders.mailboxId, box.id));
-    await enqueue(db, seeded, {
-      kind: "mark_read",
-      idempotencyKey: `gmail-done-${box.id}`,
-      payload: { folder: "INBOX", uidValidity: String(position[0]?.uidvalidity), uids: [row.uid] },
-    });
-    const valid = await signRequest({
-      secret,
-      method: "POST",
-      path: MAIL_PING_PATH,
-      nonce: randomUUID(),
-    });
-    expect((await ping({ headers: valid })).status).toBe(202);
+    const target = {
+      folder: "INBOX",
+      uidValidity: String(position[0]?.uidvalidity),
+      uids: [row.uid],
+    };
+    const run = async (name: string, payload: typeof target & { done?: true }) => {
+      const action = await enqueue(db, seeded, {
+        kind: "mark_read",
+        idempotencyKey: `${name}-${box.id}`,
+        payload,
+      });
+      const valid = await signRequest({
+        secret,
+        method: "POST",
+        path: MAIL_PING_PATH,
+        nonce: randomUUID(),
+      });
+      expect((await ping({ headers: valid })).status).toBe(202);
+      await waitFor(async () => (await actionRow(db, action.id)).status === "done", 10_000);
+    };
+    const flags = () =>
+      inGmail(async (client) => {
+        const found = [];
+        for await (const message of client.fetch("1:*", { flags: true })) found.push(message);
+        return found.map((message) => [...(message.flags ?? [])]);
+      });
+
+    // A Worker from before this rule still queues a plain mark_read when a thread is opened.
+    // On a Google account that must not reach Gmail, or opening would mean Done.
+    await run("gmail-opened", target);
+    expect(await flags()).toEqual([[]]);
+    expect((await state())?.doneThrough).toBeNull();
+
+    // Done in Omni: the mail is read in Gmail, still in INBOX, and done here.
+    await run("gmail-done", { ...target, done: true });
     await waitFor(async () => (await state())?.doneThrough != null, 10_000);
-    const inbox = await inGmail(async (client) => {
-      const found = [];
-      for await (const message of client.fetch("1:*", { flags: true })) found.push(message);
-      return found.map((message) => [...(message.flags ?? [])]);
-    });
-    expect(inbox).toEqual([["\\Seen"]]);
+    expect(await flags()).toEqual([["\\Seen"]]);
   });
 });
 

@@ -249,7 +249,6 @@ export class PgMailStore implements MailStore {
       flags: fetched.flags,
       modseq: fetched.modseq,
       report: !inserted,
-      arrived: inserted,
     });
     // Another copy of a known message: a move in another mail app may have (un)archived it.
     if (created && !inserted) this.onChanged();

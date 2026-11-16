@@ -33,7 +33,10 @@ async function account(address: string, provider: "gmail" | "imap") {
     highestModseq: 1n,
   });
   let uid = 0;
-  /** Indexes a message the way the mail service does: the row, then its INBOX copy. */
+  /**
+   * Indexes a message the way the mail service does: the row, then its INBOX copy. They are
+   * separate writes, so a sync that fails between them and retries looks exactly like this.
+   */
   const deliver = async (threadId: string | null, sentAt: Date, flags: string[]) => {
     uid += 1;
     const thread =
@@ -61,7 +64,6 @@ async function account(address: string, provider: "gmail" | "imap") {
       flags,
       modseq: null,
       report: false,
-      arrived: true,
     });
     return { threadId: thread, uid };
   };

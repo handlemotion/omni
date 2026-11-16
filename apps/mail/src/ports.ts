@@ -110,8 +110,8 @@ export type MailAction =
   | ActionBase<"forward_copy", ForwardCopyPayload>
   | ActionBase<"archive", MessageTarget>
   | ActionBase<"move", MessageTarget & { destination: string }>
-  | ActionBase<"mark_read", MessageTarget>
-  | ActionBase<"mark_unread", MessageTarget>
+  | ActionBase<"mark_read", MessageTarget & { done?: true | undefined }>
+  | ActionBase<"mark_unread", MessageTarget & { done?: true | undefined }>
   | ActionBase<"trash", MessageTarget>
   | ActionBase<"spam", MessageTarget>
   | ActionBase<"not_spam", MessageTarget>;

@@ -316,8 +316,6 @@ export async function addLocation(
      * app). False for a message just indexed: `message.created` already refreshes its thread.
      */
     report?: boolean;
-    /** The message was just indexed: unread in Gmail, it turns its thread unread (ADR 0044). */
-    arrived?: boolean;
   },
 ) {
   return db.transaction(async (tx) => {
@@ -339,12 +337,16 @@ export async function addLocation(
       .update(messages)
       .set({ folderId: input.folderId, imapUid: input.uid, updatedAt: new Date() })
       .where(eq(messages.id, input.messageId));
-    await reconcileThreads(
-      tx,
-      sql`${input.messageId}`,
-      input.report ?? true,
-      input.arrived === true && !input.flags.includes("\\Seen"),
-    );
+    // The message's first copy, unread: new mail, which turns its thread unread on a Google
+    // account (ADR 0044). Read from the rows, not from the caller, so a sync that stored the
+    // message, failed, and came back for its location still counts it as new.
+    const [first] = input.flags.includes("\\Seen")
+      ? []
+      : await tx
+          .select({ only: sql<boolean>`count(*) = 1` })
+          .from(messageLocations)
+          .where(eq(messageLocations.messageId, input.messageId));
+    await reconcileThreads(tx, sql`${input.messageId}`, input.report ?? true, first?.only === true);
     return true;
   });
 }

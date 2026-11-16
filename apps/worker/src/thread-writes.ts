@@ -59,17 +59,22 @@ export async function markRead(writer: ThreadWriter, threadId: string, read: boo
 
 type Found = NonNullable<Awaited<ReturnType<typeof threadActionTargets>>>;
 
+/** `done`: the flag is Done reaching a Google account, the only flag change it accepts. */
 function enqueueFlag(
   writer: ThreadWriter,
   found: Found,
   kind: "mark_read" | "mark_unread",
   key: string,
+  done?: true,
 ) {
   return enqueuePerFolder(
     writer,
     found,
     key,
-    found.targets.map(({ role: _role, ...target }) => ({ kind, payload: target })),
+    found.targets.map(({ role: _role, ...target }) => ({
+      kind,
+      payload: done ? { ...target, done } : target,
+    })),
   );
 }
 
@@ -102,7 +107,7 @@ export async function setTriage(
     kind === "mark_unread" ? "newest" : (state.doneThrough ?? undefined),
   );
   const actionIds =
-    found?.mailboxProvider === "gmail" ? await enqueueFlag(writer, found, kind, key) : [];
+    found?.mailboxProvider === "gmail" ? await enqueueFlag(writer, found, kind, key, true) : [];
   return { state, actionIds };
 }
 

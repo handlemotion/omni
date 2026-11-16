@@ -143,6 +143,13 @@ export const messageTargetSchema = z.object({
 });
 
 /**
+ * `done`: the flag carries Done to a Google account, where Gmail's read is Omni's Done (ADR
+ * 0044). There the mail service runs only these, and drops a plain read or unread: Omni's read
+ * state is not Gmail's, whatever a Worker from before that rule still queues.
+ */
+export const flagTargetSchema = messageTargetSchema.extend({ done: z.literal(true).optional() });
+
+/**
  * A file to attach to a send: one uploaded for it (`uploads.id`), or an attachment of a stored
  * message in the same mailbox (`attachments.id`), which is how forward keeps the originals. The
  * mail service streams each from R2 into the MIME.
@@ -203,8 +210,8 @@ export const actionPayloadSchemas = {
   forward_copy: forwardCopyPayloadSchema,
   archive: messageTargetSchema,
   move: messageTargetSchema.extend({ destination: z.string().min(1) }),
-  mark_read: messageTargetSchema,
-  mark_unread: messageTargetSchema,
+  mark_read: flagTargetSchema,
+  mark_unread: flagTargetSchema,
   /** Move to the mailbox's trash folder (`folder_role` trash). */
   trash: messageTargetSchema,
   /** Move to the junk folder (`folder_role` junk). */

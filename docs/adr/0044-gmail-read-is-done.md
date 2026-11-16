@@ -46,10 +46,12 @@ Applies to mailboxes with provider `gmail`. Every other mailbox behaves as befor
   not-done threads were opened here) is lost with Postgres, as ADR 0007 already accepts.
 - **First connect after this ships:** threads marked done in Omni that Gmail still shows unread
   (done from the list without opening) return to the Inbox once.
-- **Deploy order.** The Worker and the mail service deploy independently. While an old Worker
-  runs beside the new mail service, opening a thread still queues `mark_read`, which the new
-  rule turns into Done. The window is the minutes between the two deploys and each case is one
-  click to undo; a second action kind to tell the two apart was not worth carrying forever.
+- **Deploy order.** The Worker and the mail service deploy independently, and a Worker from
+  before this ADR queues `mark_read` whenever a thread is opened. So the flag actions that carry
+  Done say so (`done: true` in the payload), and on a Google account the mail service runs only
+  those. A plain `mark_read` is dropped there, in any deploy order: opening a thread never
+  becomes Done. The other way round (new Worker, old mail service) the old service ignores the
+  field and marks the mail read, which it then shows as read, as before.
 - Proven by `packages/db/e2e/gmail-done.e2e.test.ts` (the sync rule),
   `apps/worker/e2e/triage-views.e2e.test.ts` (what the API queues) and
   `apps/mail/e2e/service.e2e.test.ts` (the round trip over real IMAP). GreenMail has no All Mail,

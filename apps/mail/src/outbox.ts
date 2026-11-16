@@ -236,6 +236,9 @@ export class OutboxExecutor {
       case "mark_unread":
         // Shared mailboxes: read state is per person and lives only in Postgres.
         if (mailbox.kind === "shared") return Promise.resolve();
+        // A Google account: `\\Seen` means Done (ADR 0044), so only Done may set it. A plain read
+        // or unread comes from a Worker deployed before that rule, and stays in Omni.
+        if (mailbox.provider === "gmail" && !action.payload.done) return Promise.resolve();
         return connection.run(async (session) => {
           await selectTarget(session, action.payload, async () => {
             const uids = action.payload.uids.join(",");

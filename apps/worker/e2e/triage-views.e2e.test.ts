@@ -295,7 +295,7 @@ test("on a Google account Done marks the mail read in Gmail and never moves it; 
   expect((await done()).status).toBe(200);
   expect((await done()).status).toBe(200);
   expect(await queued()).toMatchObject([
-    { kind: "mark_read", payload: { folder: "INBOX", uids: [1, 2] } },
+    { kind: "mark_read", payload: { folder: "INBOX", uids: [1, 2], done: true } },
   ]);
 
   // Not done: only the newest message goes back to unread, which is enough to keep the thread
@@ -303,7 +303,7 @@ test("on a Google account Done marks the mail read in Gmail and never moves it; 
   const undone = await action(ana, "DELETE", `/threads/${first.threadId}/done`);
   expect(undone).toMatchObject({ status: 200, body: { state: { done: false } } });
   expect((await queued()).slice(1)).toMatchObject([
-    { kind: "mark_unread", payload: { folder: "INBOX", uids: [2] } },
+    { kind: "mark_unread", payload: { folder: "INBOX", uids: [2], done: true } },
   ]);
   // Nothing was ever asked to archive, move or delete.
   expect((await queued()).every((a) => a.kind === "mark_read" || a.kind === "mark_unread")).toBe(

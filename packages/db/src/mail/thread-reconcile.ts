@@ -26,8 +26,8 @@ import { queueThreadsChanged } from "./pending-mail-events.ts";
  *   at `\Seen`.
  * - Done, on Google accounts (ADR 0044): Gmail's read is Omni's Done. Every copy `\Seen` means
  *   done (and read, and out of Later); otherwise a done thread is back in the Inbox, unread.
- *   Omni's own read state is not derived from Gmail: only `arrivedUnseen` (a message just
- *   indexed that Gmail shows unread) turns a thread unread.
+ *   Omni's own read state is not derived from Gmail: only `arrivedUnseen` (the first copy of a
+ *   message, which Gmail shows unread) turns a thread unread.
  *
  * `report` queues `threads.changed` for the threads whose state changed. Returns how many did.
  */
