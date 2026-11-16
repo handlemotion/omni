@@ -88,6 +88,8 @@ export const ERROR_CODES = {
   cycle: spec(409, "conflict"),
   parent_trashed: spec(409, "conflict"),
   not_trashed: spec(409, "conflict"),
+  /** A locked file, or a folder holding one, cannot be renamed, moved, trashed or deleted. */
+  locked: spec(409, "conflict"),
   /** The parts sent so far do not add up to the file. */
   upload_incomplete: spec(409, "conflict"),
   /** The upload already became a file. */

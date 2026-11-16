@@ -100,6 +100,7 @@ export function wireNode(node: NodeRow): StorageNode {
     createdAt: node.createdAt.toISOString(),
     updatedAt: node.updatedAt.toISOString(),
     trashedAt: node.trashedAt?.toISOString() ?? null,
+    lockedAt: node.lockedAt?.toISOString() ?? null,
   };
 }
 

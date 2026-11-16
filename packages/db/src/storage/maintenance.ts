@@ -146,7 +146,7 @@ export async function randomStorageSweepStart(db: Db) {
  * Removes a workspace's storage rows ahead of the workspace itself. Trusted: the caller has
  * decided the workspace is being deleted. Its members are deleted before it is, and a member who
  * still owns files cannot go (`storage_nodes.owner_member_id` has no cascade), so the files' rows
- * go first; grants go with their nodes. Rows only: the daily sweep deletes the objects once the
+ * go first; grants and locks go with their nodes. Rows only: the daily sweep deletes the objects once the
  * organization row is gone. Run again it finds nothing.
  */
 export async function deleteWorkspaceStorage(db: Db, orgId: string) {

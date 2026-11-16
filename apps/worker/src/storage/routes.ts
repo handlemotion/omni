@@ -1,5 +1,5 @@
 // Storage's member routes (ADR 0034 decision 6), under `/api/storage`: browse the active
-// workspace's My files and Shared, Trash, download and usage; the changes are in
+// workspace's My files and Shared, Trash, unlocking a file, download and usage; the changes are in
 // `changes.ts` and sharing in `sharing.ts`. Everything goes through
 // `forMember(member).storage`, which decides access; nothing here queries a storage table.
 // Every change is a write, so a read-only workspace (ADR 0015) answers it `402 billing_inactive`
@@ -52,6 +52,13 @@ export const storage = new Hono<AppEnv>()
     const restored = await memberStorage(c).restore(c.req.param("id"));
     if (restored.status !== "ok") return refused(c, restored.status);
     return c.json({ node: wireNode(restored.node) } satisfies StorageNodeResponse);
+  })
+
+  /** Unlocks a file (ADR 0036 decision 6). Owners and admins only; anyone else gets `403`. */
+  .delete("/nodes/:id/lock", async (c) => {
+    const unlocked = await memberStorage(c).unlock(c.req.param("id"));
+    if (unlocked.status !== "ok") return refused(c, unlocked.status);
+    return c.json({ node: wireNode(unlocked.node) } satisfies StorageNodeResponse);
   })
 
   .get("/trash", zValidator("query", storagePageQuerySchema), async (c) => {

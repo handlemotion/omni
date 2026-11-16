@@ -84,11 +84,27 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "uploads",
       // Storage (ADR 0034).
       "storage_grants",
+      "storage_locks",
       "storage_nodes",
       "storage_overage",
       "storage_peaks",
       "storage_uploads",
       "storage_usage",
+      // Mail's participant index (ADR 0036 decision 4).
+      "thread_participants",
+      "thread_participants_backfill",
+      // CRM (ADR 0036).
+      "crm_companies",
+      "crm_company_domains",
+      "crm_contracts",
+      "crm_deal_people",
+      "crm_deals",
+      "crm_events",
+      "crm_notes",
+      "crm_people",
+      "crm_person_emails",
+      "crm_settings",
+      "crm_stages",
     ].toSorted(),
   );
 });

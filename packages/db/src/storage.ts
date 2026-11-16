@@ -10,6 +10,7 @@ import type { Db } from "./client.ts";
 import { grantAddresses, grantDoor, linkDoor, loadMember, memberDoor } from "./storage/access.ts";
 import type { StorageListCursor } from "./storage/core.ts";
 import { storagePeakOf } from "./storage/billing.ts";
+import { lockOperations } from "./storage/lock.ts";
 import { storageUsageOf } from "./storage/maintenance.ts";
 import { listSharedWith, sharingOperations, type SharedWithMeCursor } from "./storage/sharing.ts";
 import { trashOperations } from "./storage/trash.ts";
@@ -36,7 +37,9 @@ export type {
   StorageNodeView,
   StoragePathEntry,
   StoragePlace,
+  TrashResult,
 } from "./storage/tree.ts";
+export type { StorageLockResult } from "./storage/lock.ts";
 export {
   STORAGE_TRASH_DAYS,
   type DeleteForeverResult,
@@ -87,16 +90,18 @@ export type { StorageUploadPart } from "./schema/storage.ts";
 
 /**
  * The member door. Everything a member does in their workspace's Storage: browse and change
- * their own My files and (in a company) Shared, upload, trash and restore, and share. No
+ * their own My files and (in a company) Shared, upload, trash and restore, share, and lock. No
  * function here reaches another member's My files, whatever the caller's role.
  */
 export function memberStorage(db: Db, memberId: string) {
+  // `db` may be a transaction: its operations then run inside it, as savepoints.
   const door = memberDoor(memberId);
   return {
     ...treeOperations(db, door),
     ...uploadOperations(db, door),
     ...trashOperations(db, door, memberId),
     ...sharingOperations(db, door),
+    ...lockOperations(db, door, memberId),
     /** The workspace's bytes stored and reserved, or null when the member is gone. */
     async usage() {
       const member = await loadMember(db, memberId);

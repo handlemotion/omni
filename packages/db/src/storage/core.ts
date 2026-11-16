@@ -1,10 +1,10 @@
 // Storage internals (ADR 0034): the tree walks, the insert that numbers a taken name, and the
 // usage counter. Nothing here decides access; `access.ts` does, and only `../storage.ts` hands
 // these to callers.
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, sql, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
-import { storageNodes, storageUsage } from "../schema/storage.ts";
+import { storageLocks, storageNodes, storageUsage } from "../schema/storage.ts";
 
 /** Folders nest this deep at most where people create or move them. */
 export const STORAGE_MAX_DEPTH = 32;
@@ -22,7 +22,12 @@ const MAX_EXTENSION = 32;
 
 export type StorageSpace = (typeof storageNodes.space.enumValues)[number];
 export type StorageNodeKind = (typeof storageNodes.kind.enumValues)[number];
-export type NodeRow = typeof storageNodes.$inferSelect;
+/** A node's row; read through `nodeColumns`, it also says since when it is locked (`lock.ts`). */
+export type NodeRow = typeof storageNodes.$inferSelect & { lockedAt?: Date | null };
+
+/** A node's columns and its lock's `locked_at`, for a select left-joined with `lockJoin`. */
+export const nodeColumns = { ...getTableColumns(storageNodes), lockedAt: storageLocks.lockedAt };
+export const lockJoin = eq(storageLocks.nodeId, storageNodes.id);
 
 /** A file or folder as callers see it: no object key, no link. */
 export interface StorageNode {
@@ -39,6 +44,8 @@ export interface StorageNode {
   createdAt: Date;
   updatedAt: Date;
   trashedAt: Date | null;
+  /** Set on a locked file: see `lock.ts`. */
+  lockedAt: Date | null;
 }
 
 export function toNode(row: NodeRow): StorageNode {
@@ -56,6 +63,7 @@ export function toNode(row: NodeRow): StorageNode {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     trashedAt: row.trashedAt,
+    lockedAt: row.lockedAt ?? null,
   };
 }
 
@@ -119,8 +127,9 @@ export async function orgOfNode(ex: Db, nodeId: string) {
  */
 export async function chainOf(ex: Db, nodeId: string): Promise<NodeRow[] | null> {
   const rows = await ex
-    .select()
+    .select(nodeColumns)
     .from(storageNodes)
+    .leftJoin(storageLocks, lockJoin)
     .where(
       sql`${storageNodes.id} in (
         with recursive up(id, parent_id, depth) as (
@@ -201,6 +210,16 @@ export async function holdsOthersWork(ex: Db, nodeId: string, memberId: string) 
   return row !== undefined;
 }
 
+/** True when the node is a locked file, or a folder with one inside it at any depth. */
+export async function holdsLocked(ex: Db, nodeId: string) {
+  const [row] = await ex
+    .select({ id: storageLocks.nodeId })
+    .from(storageLocks)
+    .where(sql`${storageLocks.nodeId} in (${down(nodeId)} select id from down)`)
+    .limit(1);
+  return row !== undefined;
+}
+
 /** Rows that sit side by side: the children of `parentId`, or a drive's root when it is null. */
 function siblings(drive: Drive, parentId: string | null) {
   return and(
@@ -234,8 +253,9 @@ export async function listChildren(
     ? sql`(${storageNodes.kind}, lower(${storageNodes.name}), ${storageNodes.id}) > (${page.cursor.kind}::storage_node_kind, lower(${page.cursor.name}), ${page.cursor.id})`
     : undefined;
   const rows = await ex
-    .select()
+    .select(nodeColumns)
     .from(storageNodes)
+    .leftJoin(storageLocks, lockJoin)
     .where(and(siblings(drive, parentId), sql`${storageNodes.trashedAt} is null`, after))
     .orderBy(storageNodes.kind, sql`lower(${storageNodes.name})`, storageNodes.id)
     .limit(limit + 1);

@@ -27,6 +27,7 @@ const FAILURES = {
   cycle: ["cycle", "a folder cannot move into itself"],
   parent_trashed: ["parent_trashed", "the folder it was in is in Trash: restore that one"],
   not_trashed: ["not_trashed", "only what is in Trash is deleted for good"],
+  locked: ["locked", "a locked file cannot be renamed, moved, trashed or deleted"],
   full: ["storage_full", "this workspace's storage is full"],
   incomplete: ["upload_incomplete", "the upload is missing parts"],
   too_large: ["invalid_part", "the part does not fit the upload"],

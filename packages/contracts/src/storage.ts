@@ -39,6 +39,11 @@ export const storageNodeSchema = z.object({
   updatedAt: isoDate,
   /** Set on the node that was moved to Trash. */
   trashedAt: isoDate.nullable(),
+  /**
+   * Set on a locked file: it cannot be renamed, moved, trashed or deleted until unlocked. Absent
+   * from a Worker older than the lock.
+   */
+  lockedAt: isoDate.nullable().optional(),
 });
 
 /** A node as its reader sees it. `path` runs from the highest folder they can open to the node. */

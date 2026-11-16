@@ -5,7 +5,7 @@ import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { organizations } from "../schema/auth.ts";
-import { storageGrants, storageNodes } from "../schema/storage.ts";
+import { storageGrants, storageLocks, storageNodes } from "../schema/storage.ts";
 import type { Door } from "./access.ts";
 import { inTrash, MAX_WALK, pageSize, toNode, type NodeRow, type StorageNode } from "./core.ts";
 import { reach, type Forbidden, type NotFound } from "./tree.ts";
@@ -166,7 +166,13 @@ export function sharingOperations(db: Db, door: Door) {
             created: sql<boolean>`(xmax = 0)`,
           });
         const { created, ...person } = grant!;
-        return { status: "ok", created, shareId: node.shareId, person, node: toNode(node) };
+        return {
+          status: "ok",
+          created,
+          shareId: node.shareId,
+          person,
+          node: toNode({ ...node, lockedAt: found.node.lockedAt }),
+        };
       });
     },
 
@@ -236,18 +242,20 @@ export async function listSharedWith(
   const rows = await db
     .select({
       node: storageNodes,
+      lockedAt: storageLocks.lockedAt,
       role: mine.role,
       sharedAt: mine.sharedAt,
       orgName: organizations.name,
     })
     .from(mine)
     .innerJoin(storageNodes, eq(storageNodes.id, mine.nodeId))
+    .leftJoin(storageLocks, eq(storageLocks.nodeId, storageNodes.id))
     .innerJoin(organizations, eq(organizations.id, storageNodes.orgId))
     .where(after)
     .orderBy(desc(mine.sharedAt), desc(mine.nodeId))
     .limit(limit + 1);
   const items: SharedWithMeItem[] = rows.slice(0, limit).map((row) => ({
-    node: toNode(row.node),
+    node: toNode({ ...row.node, lockedAt: row.lockedAt }),
     role: row.role,
     shareId: row.node.shareId,
     orgName: row.orgName,

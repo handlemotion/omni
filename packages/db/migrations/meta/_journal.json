@@ -274,6 +274,13 @@
       "when": 1794791490147,
       "tag": "0038_lowly_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794799587177,
+      "tag": "0039_many_black_tom",
+      "breakpoints": true
     }
   ]
 }

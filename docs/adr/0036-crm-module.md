@@ -197,3 +197,19 @@ stores.
 
 Layers, each additive and one PR in a stack, are in `docs/spec/crm.md` "Plan", with the e2e
 that proves each and the bug it is named for.
+
+## Amendments
+
+- **2026-11-16: new tables land first, in their own layer.** Migrations, the Worker and the mail
+  service deploy independently (AGENTS.md "Database": expand, then contract). A column added to
+  an existing table breaks the code still running on the old schema, since Drizzle's `select()`
+  names every declared column, and a writer that inserts into a table not yet migrated breaks
+  ingestion. So every table this ADR adds (`storage_locks`, `thread_participants`,
+  `thread_participants_backfill`, the `crm_*` tables) ships in one schema-only layer, before any
+  code that reads or writes it.
+  - Decision 6: the lock is a row in `storage_locks` (`node_id`, `org_id`, `locked_at`,
+    `locked_by_member_id`), not columns on `storage_nodes`. A file is locked while its row
+    exists; deleting the node or the workspace takes the row with it.
+  - Decision 4: the backfill keeps a cursor per mailbox in `thread_participants_backfill` and
+    reads messages in id (UUIDv7, time) order from it every minute, so mail an older mail
+    service stores during a deploy is indexed too. `messages` gains no column.

@@ -2,13 +2,14 @@
 // list, create a folder, rename, move, trash, and the file lookup a download needs.
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { storageNodes } from "../schema/storage.ts";
+import { storageLocks, storageNodes } from "../schema/storage.ts";
 import type { Access, Door, StorageRole } from "./access.ts";
 import {
   chainOf,
   cleanName,
   driveOf,
   freeName,
+  holdsLocked,
   inTrash,
   insertNode,
   isInside,
@@ -46,6 +47,8 @@ export type NotFound = { status: "not_found" };
 export type Forbidden = { status: "forbidden" };
 export type InvalidName = { status: "invalid_name" };
 export type TooDeep = { status: "too_deep" };
+/** A locked file, or a folder holding one, refuses the change (ADR 0036 decision 6). */
+export type Locked = { status: "locked" };
 
 export type ListResult =
   | {
@@ -58,12 +61,14 @@ export type ListResult =
   | NotFound;
 export type NodeResult = { status: "ok"; node: StorageNode } | NotFound | Forbidden;
 export type CreateFolderResult = NodeResult | InvalidName | TooDeep;
-export type RenameResult = NodeResult | InvalidName | { status: "name_taken" };
-export type MoveResult = NodeResult | TooDeep | { status: "cycle" };
+export type RenameResult = NodeResult | InvalidName | Locked | { status: "name_taken" };
+export type MoveResult = NodeResult | TooDeep | Locked | { status: "cycle" };
+export type TrashResult = NodeResult | Locked;
 export type FileResult = { status: "ok"; file: StorageNode; r2Key: string } | NotFound;
 
 const NOT_FOUND = { status: "not_found" } as const;
 const FORBIDDEN = { status: "forbidden" } as const;
+export const LOCKED = { status: "locked" } as const;
 
 const view = (chain: NodeRow[], access: Access): StorageNodeView => ({
   node: toNode(chain[0]!),
@@ -119,6 +124,17 @@ async function folderHeight(ex: Db, nodeId: string) {
   return Math.max(0, ...rows.filter((row) => row.kind === "folder").map((row) => row.depth + 1));
 }
 
+/** Why a node may not leave its drive through this door, or null when it may. */
+async function leavingRefusal(tx: Db, door: Door, found: { node: NodeRow; access: Access }) {
+  // Taking a node out of Shared is trashing it for everyone else, and a grant never reaches
+  // past the drive it was made in.
+  if (door.kind !== "member" || !found.access.remove) return FORBIDDEN;
+  if (!(await door.removesWhole(tx, found.node))) return FORBIDDEN;
+  // Out of its drive is out of reach of everyone who could see a locked file inside.
+  if (await holdsLocked(tx, found.node.id)) return LOCKED;
+  return null;
+}
+
 async function moveInto(tx: Db, door: Door, nodeId: string, to: StoragePlace): Promise<MoveResult> {
   const orgId = await orgOfNode(tx, nodeId);
   if (!orgId) return NOT_FOUND;
@@ -127,6 +143,7 @@ async function moveInto(tx: Db, door: Door, nodeId: string, to: StoragePlace): P
   if (!found || inTrash(found.chain)) return NOT_FOUND;
   if (!found.access.change) return FORBIDDEN;
   const { node } = found;
+  if (node.lockedAt) return LOCKED;
   const dest = await resolvePlace(tx, door, to);
   if (!dest) return NOT_FOUND;
   // A move stays in its workspace (ADR 0034 decision 6).
@@ -134,10 +151,10 @@ async function moveInto(tx: Db, door: Door, nodeId: string, to: StoragePlace): P
   if (dest.chain.some((row) => row.id === node.id)) return { status: "cycle" };
   const from = driveOf(node);
   const crossing = !sameDrive(from, dest.drive);
-  // Taking a node out of Shared is trashing it for everyone else, and a grant never reaches
-  // past the drive it was made in.
-  if (crossing && (door.kind !== "member" || !found.access.remove)) return FORBIDDEN;
-  if (crossing && !(await door.removesWhole(tx, node))) return FORBIDDEN;
+  if (crossing) {
+    const refusal = await leavingRefusal(tx, door, found);
+    if (refusal) return refusal;
+  }
   if (node.parentId === dest.parentId && !crossing) return { status: "ok", node: toNode(node) };
   if (
     node.kind === "folder" &&
@@ -231,13 +248,18 @@ export function treeOperations(db: Db, door: Door) {
       const found = await reach(db, door, nodeId);
       if (!found || inTrash(found.chain)) return NOT_FOUND;
       if (!found.access.change) return FORBIDDEN;
+      if (found.node.lockedAt) return LOCKED;
       try {
         const [row] = await db
           .update(storageNodes)
           .set({ name: clean })
-          .where(sql`${storageNodes.id} = ${nodeId} and ${storageNodes.trashedAt} is null`)
+          .where(
+            sql`${storageNodes.id} = ${nodeId} and ${storageNodes.trashedAt} is null and not exists (select 1 from ${storageLocks} where ${storageLocks.nodeId} = ${storageNodes.id})`,
+          )
           .returning();
-        return row ? { status: "ok", node: toNode(row) } : NOT_FOUND;
+        if (row) return { status: "ok", node: toNode(row) };
+        // Locked, trashed or gone since it was read.
+        return (await holdsLocked(db, nodeId)) ? LOCKED : NOT_FOUND;
       } catch (error) {
         if (isUniqueViolation(error)) return { status: "name_taken" };
         throw error;
@@ -252,19 +274,29 @@ export function treeOperations(db: Db, door: Door) {
       return retryNameRace(() => db.transaction((tx) => moveInto(tx, door, nodeId, to)));
     },
 
-    /** Moves a node to Trash, with everything inside it. Trashing it again changes nothing. */
-    async trash(nodeId: string): Promise<NodeResult> {
-      const found = await reach(db, door, nodeId);
-      if (!found) return NOT_FOUND;
-      if (found.node.trashedAt) return { status: "ok", node: toNode(found.node) };
-      if (inTrash(found.chain)) return NOT_FOUND;
-      if (!found.access.remove || !(await door.removesWhole(db, found.node))) return FORBIDDEN;
-      const [row] = await db
-        .update(storageNodes)
-        .set({ trashedAt: new Date() })
-        .where(sql`${storageNodes.id} = ${nodeId} and ${storageNodes.trashedAt} is null`)
-        .returning();
-      return { status: "ok", node: toNode(row ?? found.node) };
+    /**
+     * Moves a node to Trash, with everything inside it. Trashing it again changes nothing. A
+     * locked file, or a folder holding one at any depth, stays.
+     */
+    trash(nodeId: string): Promise<TrashResult> {
+      return db.transaction(async (tx): Promise<TrashResult> => {
+        const orgId = await orgOfNode(tx, nodeId);
+        if (!orgId) return NOT_FOUND;
+        // Under the tree lock, as a lock is taken: a file locked meanwhile is seen here.
+        await lockTree(tx, orgId);
+        const found = await reach(tx, door, nodeId);
+        if (!found) return NOT_FOUND;
+        if (found.node.trashedAt) return { status: "ok", node: toNode(found.node) };
+        if (inTrash(found.chain)) return NOT_FOUND;
+        if (!found.access.remove || !(await door.removesWhole(tx, found.node))) return FORBIDDEN;
+        if (await holdsLocked(tx, nodeId)) return LOCKED;
+        const [row] = await tx
+          .update(storageNodes)
+          .set({ trashedAt: new Date() })
+          .where(sql`${storageNodes.id} = ${nodeId} and ${storageNodes.trashedAt} is null`)
+          .returning();
+        return { status: "ok", node: toNode(row ?? found.node) };
+      });
     },
 
     /** A file and where its bytes are, for a download. */

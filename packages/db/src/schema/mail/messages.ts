@@ -270,6 +270,8 @@ export const messages = pgTable(
     // An agent's "mail from this address" (ADR 0029) finds its messages directly, and Postgres
     // keeps statistics on the expression, so it can tell a rare sender from a common one.
     index("messages_mailbox_from_address_idx").on(t.mailboxId, sql`lower(${t.fromAddress})`),
+    // The participant backfill reads a mailbox's messages in id (time) order from its cursor.
+    index("messages_mailbox_id_id_idx").on(t.mailboxId, t.id),
   ],
 );
 

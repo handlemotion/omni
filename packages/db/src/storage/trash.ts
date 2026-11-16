@@ -8,13 +8,22 @@ import {
   deleteSubtree,
   driveOf,
   freeName,
+  holdsLocked,
   lockTree,
   orgOfNode,
   pageSize,
   toNode,
   type StorageNode,
 } from "./core.ts";
-import { reach, retryNameRace, type Forbidden, type NodeResult, type NotFound } from "./tree.ts";
+import {
+  LOCKED,
+  reach,
+  retryNameRace,
+  type Forbidden,
+  type Locked,
+  type NodeResult,
+  type NotFound,
+} from "./tree.ts";
 
 /** Days a trashed node can still be restored. */
 export const STORAGE_TRASH_DAYS = 30;
@@ -34,6 +43,7 @@ export type DeleteForeverResult =
   | { status: "ok"; r2Keys: string[] }
   | NotFound
   | Forbidden
+  | Locked
   /** Only what is in Trash is deleted for good. */
   | { status: "not_trashed" };
 
@@ -124,6 +134,8 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
         await lockTree(tx, orgId);
         const found = await reach(tx, door, nodeId);
         if (!found) return NOT_FOUND;
+        // A locked file is never in Trash; it says why it cannot go rather than where it is.
+        if (await holdsLocked(tx, nodeId)) return LOCKED;
         if (!found.node.trashedAt) return { status: "not_trashed" };
         if (!found.access.remove || !(await door.removesWhole(tx, found.node))) return FORBIDDEN;
         const { r2Keys } = await deleteSubtree(tx, orgId, nodeId);

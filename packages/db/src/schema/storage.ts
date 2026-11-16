@@ -132,6 +132,32 @@ export const storageNodes = pgTable(
 );
 
 /**
+ * A locked file (ADR 0036 decision 6): it cannot be renamed, moved, trashed or deleted for good,
+ * and a folder holding one cannot be trashed or leave its drive. A row is the lock; only a file
+ * is locked, which `storage/lock.ts` checks. Only an owner or admin unlocks. Deleting the node,
+ * or the workspace, takes the lock with it.
+ */
+export const storageLocks = pgTable(
+  "storage_locks",
+  {
+    nodeId: text("node_id").primaryKey(),
+    orgId: orgId(),
+    lockedAt: timestamptz("locked_at").notNull().defaultNow(),
+    /** Who locked it; null once that member is gone, and the file stays locked. */
+    lockedByMemberId: text("locked_by_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => [
+    foreignKey({
+      name: "storage_locks_node_org_fk",
+      columns: [t.nodeId, t.orgId],
+      foreignColumns: [storageNodes.id, storageNodes.orgId],
+    }).onDelete("cascade"),
+  ],
+);
+
+/**
  * A person a node is shared with. The grantee is an address, not a user, so a grant can exist
  * before the person does. A grant on a folder covers everything inside it.
  */
