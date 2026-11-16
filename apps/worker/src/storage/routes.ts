@@ -1,6 +1,6 @@
 // Storage's member routes (ADR 0034 decision 6), under `/api/storage`: browse the active
 // workspace's My files and Shared, Trash, download and usage; the changes are in
-// `storage-changes.ts` and sharing in `storage-sharing.ts`. Everything goes through
+// `changes.ts` and sharing in `sharing.ts`. Everything goes through
 // `forMember(member).storage`, which decides access; nothing here queries a storage table.
 // Every change is a write, so a read-only workspace (ADR 0015) answers it `402 billing_inactive`
 // in `requireWritableWorkspace` and keeps listing and downloading.
@@ -16,9 +16,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { inGoodStanding } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
-import { extraGb, storageLimit, wireNode } from "../storage.ts";
+import { extraGb, storageLimit, wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
-import { storageChanges } from "./storage-changes.ts";
+import { storageChanges } from "./changes.ts";
 import {
   decodeCursor,
   download,
@@ -28,8 +28,8 @@ import {
   placeOf,
   refused,
   wireView,
-} from "./storage-http.ts";
-import { storageSharing } from "./storage-sharing.ts";
+} from "./http.ts";
+import { storageSharing } from "./sharing.ts";
 
 const trashCursor = z.object({ trashedAt: z.coerce.date(), id: z.string().min(1) });
 

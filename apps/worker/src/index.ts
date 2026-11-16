@@ -10,7 +10,7 @@ import { loadConfig } from "./env.ts";
 import { createLogger } from "./log.ts";
 import { modules } from "./modules.ts";
 import { consumeQueue, type AiJob } from "./queue.ts";
-import { billStorage } from "./storage-billing.ts";
+import { billStorage } from "./storage/billing.ts";
 
 export type { AppType } from "./app.ts";
 export { DomainWatch } from "./domain-watch.ts";

@@ -10,10 +10,10 @@ import {
 } from "@omni/contracts";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
-import { deleteStorageObjects, wireNode } from "../storage.ts";
+import { deleteStorageObjects, wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
-import { placeOf, refused, writeDoor } from "./storage-http.ts";
-import { storageUploads } from "./storage-uploads.ts";
+import { placeOf, refused, writeDoor } from "./http.ts";
+import { storageUploads } from "./uploads.ts";
 
 export const storageChanges = new Hono<AppEnv>()
   .post("/folders", zValidator("json", storageCreateFolderBodySchema), async (c) => {

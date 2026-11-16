@@ -2,7 +2,7 @@
 // `/s/<shareId>` opens. A session is optional. Without one, only a link open to anyone answers,
 // and only to list and download. With one, a member of the item's workspace who reaches it there
 // gets in as a member, and a person it was shared with by the grant door bounded to this link;
-// both change what they may through the same routes a member uses (`storage-changes.ts`). Everything else is `404`, a Restricted link
+// both change what they may through the same routes a member uses (`changes.ts`). Everything else is `404`, a Restricted link
 // included: the answer never says whether a link exists.
 //
 // Mounted ahead of the member API, so the checks a member route gets from middleware are made
@@ -22,9 +22,9 @@ import { inGoodStanding, READ_ONLY_MESSAGE } from "../billing.ts";
 import { findMemberIds, resolveSession, type AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { checkRateLimit, clientIp, tooManyRequests } from "../rate-limiter.ts";
-import { wireNode } from "../storage.ts";
+import { wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
-import { storageChanges } from "./storage-changes.ts";
+import { storageChanges } from "./changes.ts";
 import {
   decodeCursor,
   download,
@@ -33,7 +33,7 @@ import {
   refused,
   wireView,
   type SharedAccess,
-} from "./storage-http.ts";
+} from "./http.ts";
 
 /** A member's or a grantee's door as the link door's routes read through it. */
 function through(root: SharedAccess["root"], door: MemberStorage | SharedStorage): SharedAccess {

@@ -49,7 +49,7 @@ apps/worker/e2e/crm-*.e2e.test.ts
 apps/web/src/components/crm/         screens (Rodrigo)
 ```
 
-Storage has this shape in `@omni/db` and `@omni/contracts` and moves to it in the Worker.
+Storage has this shape in `@omni/db`, `@omni/contracts` and the Worker.
 Mail predates it and moves when it is quiet (ADR 0035 "Rollout").
 
 ## What is shared

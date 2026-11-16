@@ -10,10 +10,10 @@ import {
   STORAGE_TRASH_DAYS,
   type Db,
 } from "@omni/db";
-import { openDb } from "./db.ts";
-import { loadConfig } from "./env.ts";
-import { createLogger, type Logger } from "./log.ts";
-import { abortMultipart, deleteStorageObjects } from "./storage.ts";
+import { openDb } from "../db.ts";
+import { loadConfig } from "../env.ts";
+import { createLogger, type Logger } from "../log.ts";
+import { abortMultipart, deleteStorageObjects } from "./core.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Batches of 100 trashed nodes one daily run purges. */

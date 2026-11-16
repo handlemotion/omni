@@ -10,9 +10,9 @@ import {
   type StorageUpload as UploadRow,
   type WorkspaceSubscription,
 } from "@omni/db";
-import { period } from "./billing.ts";
-import type { Config } from "./env.ts";
-import type { Logger } from "./log.ts";
+import { period } from "../billing.ts";
+import type { Config } from "../env.ts";
+import type { Logger } from "../log.ts";
 
 const GB = 1024 ** 3;
 

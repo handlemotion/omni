@@ -17,7 +17,7 @@ import { Hono } from "hono";
 import Stripe from "stripe";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
-import { notePaymentMethod } from "../storage-billing.ts";
+import { notePaymentMethod } from "../storage/billing.ts";
 
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
 

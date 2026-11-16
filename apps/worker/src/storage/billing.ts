@@ -14,8 +14,8 @@ import {
   type StorageBilledWorkspace,
 } from "@omni/db";
 import type Stripe from "stripe";
-import type { Logger } from "./log.ts";
-import { billsOverage, extraGb } from "./storage.ts";
+import type { Logger } from "../log.ts";
+import { billsOverage, extraGb } from "./core.ts";
 
 const GB = 1024 ** 3;
 const DAY_MS = 24 * 60 * 60 * 1000;

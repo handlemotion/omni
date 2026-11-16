@@ -7,7 +7,7 @@ import { openDb } from "./db.ts";
 import { loadConfig, type Config } from "./env.ts";
 import type { Logger } from "./log.ts";
 import { modules } from "./modules.ts";
-import type { SharedAccess } from "./routes/storage-http.ts";
+import type { SharedAccess } from "./storage/http.ts";
 
 export interface Member {
   /** `members.id`: what `forMember` and every mail table key on. */

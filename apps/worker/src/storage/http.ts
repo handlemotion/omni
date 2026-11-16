@@ -16,7 +16,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
-import { fileResponse, wireNode } from "../storage.ts";
+import { fileResponse, wireNode } from "./core.ts";
 
 const FAILURES = {
   not_found: ["not_found", "not found"],
@@ -42,7 +42,7 @@ export function refused(c: Context<AppEnv>, status: keyof typeof FAILURES) {
 export const memberStorage = (c: Context<AppEnv>) => forMember(c.var.db, c.var.member.id).storage;
 
 /**
- * A request made at `/shared/:shareId` (`storage-shared.ts`): what the link carries, and the door
+ * A request made at `/shared/:shareId` (`shared.ts`): what the link carries, and the door
  * that opened it. The member door, when the signed-in person reaches the item as a member of
  * its workspace; else a grant, when they have one; else the link itself.
  */

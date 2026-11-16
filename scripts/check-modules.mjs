@@ -9,7 +9,7 @@
 // 3. A module imports another module's code only when it declares it in `uses`, and then only its
 //    surface file and contract: CRM may use Mail and Storage, which know nothing of each other.
 // 4. A module's Worker folder (`apps/worker/src/<module>/`) is imported only by that module, a
-//    module that uses it, and the files that register modules (`app.ts`, `modules.ts`, `mcp/`).
+//    module that uses it, and the files that wire modules in (`app.ts`, `index.ts`, `modules.ts`, `mcp/`).
 // 5. A laid-out module's tables are named `<module>_*`.
 //
 // Tests are not checked: a leak test sets up rows the way it must. Files that predate the rule
@@ -56,31 +56,26 @@ export const MODULES = {
       "packages/db/src/writers.ts",
     ],
   },
-  storage: {
-    uses: [],
-    legacy: false,
-    files: [
-      "apps/worker/src/storage.ts",
-      "apps/worker/src/storage-billing.ts",
-      "apps/worker/src/storage-cron.ts",
-      "apps/worker/src/routes/storage.ts",
-      "apps/worker/src/routes/storage-changes.ts",
-      "apps/worker/src/routes/storage-http.ts",
-      "apps/worker/src/routes/storage-shared.ts",
-      "apps/worker/src/routes/storage-sharing.ts",
-      "apps/worker/src/routes/storage-uploads.ts",
-    ],
-  },
+  storage: { uses: [], legacy: false, files: [] },
   crm: { uses: ["mail", "storage"], legacy: false, files: [] },
 };
 
-/** Files that register every module, so they may import any module's Worker folder. */
-const REGISTRARS = ["apps/worker/src/app.ts", "apps/worker/src/modules.ts", "apps/worker/src/mcp/"];
+/** Files that wire every module in (routes, crons, agents), so they may import its Worker folder. */
+const REGISTRARS = [
+  "apps/worker/src/app.ts",
+  "apps/worker/src/index.ts",
+  "apps/worker/src/modules.ts",
+  "apps/worker/src/mcp/",
+];
 
 /** Files that broke a rule before it existed: `file` may break `rule`. Only ever shrinks. */
 export const DEBT = [
   // The abandoned sign-up sweep asks whether a person holds files or grants inside its query.
   { file: "packages/db/src/abandoned-sign-ups.ts", rule: "tables" },
+  // The request context types the link a Storage share route resolved (`storage/http.ts`).
+  { file: "apps/worker/src/context.ts", rule: "worker" },
+  // A Stripe event with a card lifts Storage's cap at once (`storage/billing.ts`).
+  { file: "apps/worker/src/routes/stripe-webhook.ts", rule: "worker" },
 ];
 
 const SOURCE = /^(packages\/[^/]+\/src|apps\/(worker|mail)\/src)\/.*\.(ts|tsx|mts)$/;

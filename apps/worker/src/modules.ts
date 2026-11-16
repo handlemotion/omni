@@ -6,7 +6,7 @@
 import type { ModuleLifecycle } from "@omni/auth";
 import { deleteWorkspaceStorage, handOverMemberStorage } from "@omni/db";
 import { helpdeskClock } from "./sla.ts";
-import { abortExpiredStorageUploads, storageDaily } from "./storage-cron.ts";
+import { abortExpiredStorageUploads, storageDaily } from "./storage/jobs.ts";
 import { cleanupExpiredUploads } from "./uploads.ts";
 
 export interface Module extends ModuleLifecycle {

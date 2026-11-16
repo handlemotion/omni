@@ -21,9 +21,9 @@ import {
   storageLimit,
   wireNode,
   wireUpload,
-} from "../storage.ts";
+} from "./core.ts";
 import { zValidator } from "../validator.ts";
-import { placeOf, refused, writeDoor } from "./storage-http.ts";
+import { placeOf, refused, writeDoor } from "./http.ts";
 
 const live = (upload: StorageUpload) => upload.expiresAt > new Date();
 const answer = (upload: StorageUpload) =>

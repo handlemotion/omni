@@ -147,7 +147,7 @@ export const READ_ONLY_ALLOWED = [
   { path: "/api/account", reason: "the person's own sign-in emails, not the workspace" },
   {
     path: "/api/storage/shared",
-    reason: "gated in storage-shared.ts by the shared node's workspace, not the visitor's own",
+    reason: "gated in storage/shared.ts by the shared node's workspace, not the visitor's own",
   },
   {
     path: "/api/oauth",

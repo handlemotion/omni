@@ -17,9 +17,9 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { systemMailSender, type AppEnv } from "../context.ts";
 import { checkRateLimit, tooManyRequests } from "../rate-limiter.ts";
-import { wireNode } from "../storage.ts";
+import { wireNode } from "./core.ts";
 import { zValidator } from "../validator.ts";
-import { decodeCursor, encodeCursor, memberStorage, refused } from "./storage-http.ts";
+import { decodeCursor, encodeCursor, memberStorage, refused } from "./http.ts";
 
 const sharedCursor = z.object({ sharedAt: z.coerce.date(), id: z.string().min(1) });
 
