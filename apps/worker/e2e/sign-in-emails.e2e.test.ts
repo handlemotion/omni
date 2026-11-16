@@ -44,6 +44,7 @@ beforeAll(async () => {
     baseURL: "http://localhost:8787",
     trustedOrigins: [WEB_ORIGIN],
     google: { clientId: "e2e-client.apps.googleusercontent.com", clientSecret: "e2e" },
+    modules: [],
     sendMagicLink: () => Promise.reject(new Error("this suite mails through the Worker")),
     sendInvitation: () => Promise.reject(new Error("this suite mails through the Worker")),
   });

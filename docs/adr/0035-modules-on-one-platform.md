@@ -77,7 +77,7 @@ is added to the platform, in its own PR.
 - Jobs and lifecycle hooks are registered in one list, `apps/worker/src/modules.ts`: `minute`,
   `daily`, `memberRemoved`, `workspaceDeleted`. `index.ts` walks the list for the crons, and
   the Worker hands it to `createAuth`, so `@omni/auth` runs each module's hooks without naming
-  a module (today it names Storage, in `storage-handover.ts`). Routes stay chained by hand in
+  a module (before this, it named Storage in `storage-handover.ts`). Routes stay chained by hand in
   `app.ts`, one line per module, because Hono RPC infers `AppType` from the chain.
 - Tables that predate this ADR keep their names. Renaming `threads` to `mail_threads` is a
   destructive migration that buys nothing.

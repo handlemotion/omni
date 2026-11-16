@@ -6,6 +6,7 @@ import { HTTPException } from "hono/http-exception";
 import { openDb } from "./db.ts";
 import { loadConfig, type Config } from "./env.ts";
 import type { Logger } from "./log.ts";
+import { modules } from "./modules.ts";
 import type { SharedAccess } from "./routes/storage-http.ts";
 
 export interface Member {
@@ -45,6 +46,7 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
       db,
       ...config.auth,
       billingLog: (event, fields) => c.var.log.error(event, fields),
+      modules,
       // Agents' OAuth only where it is used (ADR 0029): it costs a query each time it starts.
       oauthProvider: usesOAuthProvider(new URL(c.req.url).pathname),
       sendMagicLink: async ({ email, url }) => {

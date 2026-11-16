@@ -3,8 +3,9 @@
 // rule wakes a conversation only while its current snooze is over, and each alert is keyed by its
 // target and due time, so a late or doubled run changes nothing twice.
 import { applyConversationChange, dueSnoozes, emitSlaAlerts, type Db } from "@omni/db";
-import type { Config } from "./env.ts";
-import type { Logger } from "./log.ts";
+import { openDb } from "./db.ts";
+import { loadConfig, type Config } from "./env.ts";
+import { createLogger, type Logger } from "./log.ts";
 import { announceSla, fanOut, notifyMembers } from "./realtime.ts";
 
 export async function wakeSnoozed(scope: {
@@ -55,4 +56,21 @@ export async function alertSlas(scope: { env: Env; db: Db; now?: Date }) {
     atRisk: alerts.filter((a) => a.kind === "sla_at_risk").length,
     breached: alerts.filter((a) => a.kind === "sla_breached").length,
   };
+}
+
+/**
+ * The helpdesk's clock, every minute: wakes snoozed conversations whose time has come, then
+ * raises SLA alerts (a woken conversation may already be late). Safe to run twice.
+ */
+export async function helpdeskClock(env: Env) {
+  const { db, close } = openDb(env);
+  const log = createLogger({ component: "helpdesk", requestId: crypto.randomUUID() });
+  try {
+    const result = await wakeSnoozed({ env, db, config: loadConfig(env), log });
+    if (result.woken) log.info("helpdesk.snoozes_woken", result);
+    const alerts = await alertSlas({ env, db });
+    if (alerts.atRisk || alerts.breached) log.info("helpdesk.sla_alerts", alerts);
+  } finally {
+    await close();
+  }
 }

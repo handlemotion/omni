@@ -8,6 +8,7 @@ export const auth: Auth = createAuth({
   db: createDb("postgres://schema-generation-only@127.0.0.1:1/none").db,
   secret: "schema-generation-only-schema-generation-only",
   baseURL: "http://localhost",
+  modules: [],
   // Billing on, so the Stripe plugin's tables and columns are part of the schema (they are
   // additive and unused when a deploy leaves billing off).
   billing: {

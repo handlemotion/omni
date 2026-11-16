@@ -19,10 +19,11 @@ import { billingConfig, billingFields, checkBillingEnv, optionalText } from "./b
 import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
 import { resolveSignInEmails, signInEmails } from "./sign-in-emails.ts";
 import {
-  deleteStorageBeforeWorkspace,
-  handOverBeforeRemoval,
-  storageHandover,
-} from "./storage-handover.ts";
+  beforeDeleteWorkspace,
+  beforeRemoveMember,
+  moduleLifecycle,
+  type ModuleLifecycle,
+} from "./module-lifecycle.ts";
 import { ensurePersonalSpaceQuietly, personalSpaceHooks } from "./personal-space.ts";
 import { mcpPlugins } from "./mcp.ts";
 import {
@@ -235,6 +236,11 @@ export interface AuthEnv extends Partial<
    * each time an instance starts, and the Worker starts one per request.
    */
   oauthProvider?: boolean;
+  /**
+   * Each module's hooks for a member leaving and a workspace being deleted, in order (ADR 0035).
+   * The Worker passes its `modules.ts` list; required so a caller cannot drop them by accident.
+   */
+  modules: readonly ModuleLifecycle[];
 }
 
 /**
@@ -457,14 +463,14 @@ export function createAuth(env: AuthEnv) {
         teams: { enabled: true, defaultTeam: { enabled: false } },
         organizationHooks: {
           ...personalSpaceHooks(env.db),
-          // The Personal space's refusal first; then the files' rows, which would otherwise
-          // keep their owners' member rows from being deleted (ADR 0034).
+          // The Personal space's refusal first; then each module's rows, which could otherwise
+          // keep the member rows from being deleted (ADR 0035; Storage's files, ADR 0034).
           beforeDeleteOrganization: async (input) => {
             await personalSpaceHooks(env.db).beforeDeleteOrganization(input);
-            await deleteStorageBeforeWorkspace(env.db)(input);
+            await beforeDeleteWorkspace(env.db, env.modules)(input);
           },
-          // Their My files stay with the company (ADR 0034).
-          beforeRemoveMember: handOverBeforeRemoval(env.db),
+          // What each module keeps for the company (Storage: their My files, ADR 0034).
+          beforeRemoveMember: beforeRemoveMember(env.db, env.modules),
           // The invite step of onboarding, but only once the org has mailboxes: an invitation
           // sent from settings mid-setup must not skip the domain and mailbox steps.
           afterCreateInvitation: async ({ invitation }) => {
@@ -516,8 +522,8 @@ export function createAuth(env: AuthEnv) {
       signInEmails(env.db),
       // A session opened with a company's address stays in that company (ADR 0024).
       sessionScopeGuard(env.db),
-      // A member who leaves or is removed hands their files over first (ADR 0034).
-      storageHandover(env.db),
+      // A member who leaves runs each module's hooks first (ADR 0035).
+      moduleLifecycle(env.db, env.modules),
       // People's own agents over MCP (ADR 0029).
       ...(env.oauthProvider === false
         ? []
@@ -536,4 +542,5 @@ export type Auth = ReturnType<typeof createAuth>;
 
 /** Runs one auth request with its own sign-in store, so its session can be scoped (ADR 0024). */
 export { withSignInRequest } from "./session-scope.ts";
+export type { ModuleLifecycle } from "./module-lifecycle.ts";
 export * from "./mcp.ts";
