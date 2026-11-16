@@ -10,6 +10,7 @@ mod server;
 mod startup;
 mod sync;
 mod tray;
+mod updater;
 mod window;
 
 pub fn run() {
@@ -23,6 +24,12 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        // The key is build config; without it `updater::start` never checks.
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(updater::PUBKEY.unwrap_or_default())
+                .build(),
+        )
         .plugin(
             tauri_plugin_autostart::Builder::new()
                 .args([window::HIDDEN_ARG])
@@ -52,6 +59,7 @@ pub fn run() {
             tray::create(app)?;
             deep_link::listen(app);
             startup::default_on(app);
+            updater::start(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -62,6 +70,8 @@ pub fn run() {
             if let tauri::RunEvent::Reopen { .. } = event {
                 window::show(app);
             }
-            let _ = (app, event);
+            if let tauri::RunEvent::Exit = event {
+                updater::install_pending(app);
+            }
         });
 }

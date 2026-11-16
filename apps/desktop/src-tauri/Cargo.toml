@@ -27,6 +27,8 @@ tauri-plugin-single-instance = { version = "2.5.5", features = ["deep-link"] }
 uuid = { version = "1.29.2", features = ["v4"] }
 tauri-plugin-autostart = "2.7.0"
 tauri-plugin-window-state = "2.5.0"
+tauri-plugin-updater = "2.14.1"
+tokio = { version = "1.54.1", features = ["time"] }
 
 [lints]
 workspace = true

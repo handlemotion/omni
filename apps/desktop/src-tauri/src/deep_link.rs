@@ -70,6 +70,13 @@ fn is_app_path(path: &str) -> bool {
     path.starts_with('/') && !path.starts_with("//") && !path.contains('\\')
 }
 
+/// `path` resolved against the server, if it stays on the server's origin. `Url::join` drops tabs
+/// and newlines, so `/\n/evil.example` would otherwise become `//evil.example`.
+fn on_server(server: &Url, path: &str) -> Option<Url> {
+    let url = server.join(path).ok()?;
+    (url.origin() == server.origin()).then_some(url)
+}
+
 /// The cookies in a `Set-Cookie` value as `Headers.get` joins them (`a=1; Path=/, b=2`), scoped
 /// to the server's host. A comma inside `Expires=Wed, 21 Oct …` is not a separator: what follows
 /// it is not `name=`.
@@ -123,9 +130,14 @@ impl SignIns {
     /// True once per issued, unexpired `state`.
     fn take(&self, state: &str) -> bool {
         let mut states = self.0.lock().unwrap_or_else(PoisonError::into_inner);
-        let before = states.len();
-        states.retain(|(issued, at)| issued != state && at.elapsed() < STATE_TTL);
-        states.len() < before
+        let found = states
+            .iter()
+            .position(|(issued, at)| issued == state && at.elapsed() < STATE_TTL);
+        if let Some(index) = found {
+            states.remove(index);
+        }
+        states.retain(|(_, at)| at.elapsed() < STATE_TTL);
+        found.is_some()
     }
 }
 
@@ -183,7 +195,7 @@ fn handle_urls<R: Runtime>(app: &AppHandle<R>, urls: Vec<Url>) {
                 let _ = window.navigate(server.clone());
             }
             Link::Open { path } => {
-                if let Ok(url) = server.join(&path) {
+                if let Some(url) = on_server(&server, &path) {
                     let _ = window.navigate(url);
                 }
             }
@@ -225,6 +237,23 @@ mod tests {
         assert_eq!(parse(&url("https://open?path=/inbox")), None);
     }
 
+    // Bug: `/%0A/evil.example` passes the path check, and `Url::join` strips the newline, giving
+    // `//evil.example`: the window would load another origin's page from an `omni://` link.
+    #[test]
+    fn an_open_link_resolves_only_on_the_server() {
+        let server = url("https://omni.example.com/");
+        let Some(Link::Open { path }) =
+            parse(&url("omni://open?path=%2F%0A%2Fevil.example%2Flogin"))
+        else {
+            panic!("expected an open link");
+        };
+        assert_eq!(on_server(&server, &path), None);
+        assert_eq!(
+            on_server(&server, "/inbox/abc").map(String::from),
+            Some("https://omni.example.com/inbox/abc".into())
+        );
+    }
+
     // Bug: a refused link (`?error=`) or one without a state would be read as a sign-in.
     #[test]
     fn only_a_complete_redirect_is_a_sign_in() {
@@ -254,6 +283,19 @@ mod tests {
         assert!(!sign_ins.take("guess"));
         assert!(sign_ins.take(&state));
         assert!(!sign_ins.take(&state));
+    }
+
+    // Bug: pruning an expired state shrank the list, so `take("guess")` returned true whenever
+    // any sign-in had been left unfinished for an hour.
+    #[test]
+    fn an_expired_state_lets_no_guess_through() {
+        let sign_ins = SignIns::default();
+        sign_ins.0.lock().unwrap().push((
+            "stale".into(),
+            Instant::now() - STATE_TTL - Duration::from_secs(1),
+        ));
+        assert!(!sign_ins.take("guess"));
+        assert!(!sign_ins.take("stale"));
     }
 
     // Bug: splitting the joined header on every comma breaks `Expires=Wed, 21 Oct …` into a

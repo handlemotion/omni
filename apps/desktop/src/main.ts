@@ -83,7 +83,7 @@ offline.addEventListener("submit", async (event) => {
 });
 
 document.querySelector("#change")!.addEventListener("click", () => {
-  input.value = offline.dataset.origin ? new URL(offline.dataset.origin).host : "";
+  input.value = offline.dataset.origin ? new URL(offline.dataset.origin).origin : "";
   show(picker);
 });
 

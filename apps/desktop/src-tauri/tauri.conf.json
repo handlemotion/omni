@@ -32,6 +32,10 @@
       "desktop": {
         "schemes": ["omni"]
       }
+    },
+    "updater": {
+      "pubkey": "",
+      "requireSignedVersion": true
     }
   }
 }
