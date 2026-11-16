@@ -1,7 +1,8 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { ComposeDialog } from "../../components/compose/compose-pane.tsx";
 import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
+import { SettingsNav } from "../../components/settings/settings-nav.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
 import { NotificationsPanel } from "../../components/shell/notifications.tsx";
@@ -10,7 +11,7 @@ import {
   SidebarResizeGrip,
 } from "../../components/shell/sidebar-resize.tsx";
 import { SidebarInset } from "../../components/ui/sidebar.tsx";
-import { toggleSettings, useSettingsDialog } from "../../hooks/use-settings-dialog.ts";
+import { isSettingsPath, rememberAppHref, useToggleSettings } from "../../hooks/use-settings.ts";
 import { useShortcut } from "../../hooks/use-shortcuts.ts";
 import { useDesktopNotifications } from "../../hooks/use-desktop-notifications.ts";
 import { usePreloadScreens } from "../../hooks/use-preload-screens.ts";
@@ -48,22 +49,16 @@ function Shell() {
   useRealtimeConnection(member.orgId, { memberId: member.id });
   useDesktopNotifications();
   usePreloadScreens();
-  const settings = useSettingsDialog();
+  const settings = useSettingsLocation();
+  useShortcut("settings", useToggleSettings());
   return (
-    // While settings is open the whole app recedes under it: 100% to 95% and fading, as settings
-    // settles from 105% to 100% on top (a parallax stack). Same length and curve as the dialog.
-    <ResizableSidebarProvider
-      className={
-        // The page itself never scrolls: it is the window's size, and the list and the open
-        // thread scroll on their own inside it.
-        "h-svh overflow-hidden " +
-        "origin-center transition-[scale,opacity] duration-300 ease-out motion-reduce:transition-none " +
-        (settings.isOpen ? "scale-95 opacity-40" : "")
-      }
-    >
+    // The page itself never scrolls: it is the window's size, and the list and the open thread
+    // scroll on their own inside it.
+    <ResizableSidebarProvider className="h-svh overflow-hidden">
       {/* Above the sidebar too: its search sweeps the list when smart search runs. */}
       <ListSweepProvider>
-        <AppSidebar />
+        {/* Settings is a page: its nav takes the sidebar's place. */}
+        {settings ? <SettingsNav /> : <AppSidebar />}
         <NotificationsPanel />
         <SidebarInset>
           <SidebarResizeGrip />
@@ -72,38 +67,16 @@ function Shell() {
       </ListSweepProvider>
       <KeyboardShortcuts />
       <ComposeDialog />
-      <LazySettingsDialog />
     </ResizableSidebarProvider>
   );
 }
 
-const loadSettingsDialog = () => import("../../components/settings/settings-dialog.tsx");
-const SettingsDialog = lazy(() =>
-  loadSettingsDialog().then((m) => ({ default: m.SettingsDialog })),
-);
-
-/**
- * Settings and everything its pages use stay out of the startup bundle: the dialog mounts the
- * first time it opens, and its code loads once the app is idle, so that first open has it ready.
- * Until it mounts, ⌘. is bound here (the dialog binds it itself after).
- */
-function LazySettingsDialog() {
-  const { isOpen } = useSettingsDialog();
-  const [mounted, setMounted] = useState(isOpen);
-  if (isOpen && !mounted) setMounted(true);
-  useShortcut("settings", toggleSettings, !mounted);
+/** Whether a settings page is open; anywhere else is remembered as where its Back returns. */
+function useSettingsLocation() {
+  const { pathname, href } = useLocation();
+  const settings = isSettingsPath(pathname);
   useEffect(() => {
-    const preload = () => void loadSettingsDialog();
-    if (typeof requestIdleCallback === "undefined") {
-      const timer = setTimeout(preload, 2000);
-      return () => clearTimeout(timer);
-    }
-    const idle = requestIdleCallback(preload, { timeout: 5000 });
-    return () => cancelIdleCallback(idle);
-  }, []);
-  return mounted ? (
-    <Suspense fallback={null}>
-      <SettingsDialog />
-    </Suspense>
-  ) : null;
+    if (!settings) rememberAppHref(href);
+  }, [settings, href]);
+  return settings;
 }

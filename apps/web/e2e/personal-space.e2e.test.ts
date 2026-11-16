@@ -70,14 +70,14 @@ async function signedIn(email: string, path: string): Promise<Page> {
   return page;
 }
 
-/** The settings dialog's workspace pages, by title. */
+/** The settings nav's workspace pages, by title. */
 async function settingsPages(page: Page) {
-  const nav = page.getByRole("dialog");
-  await nav.getByText("Inboxes", { exact: true }).first().waitFor();
+  const link = (title: string) => page.getByRole("link", { name: title, exact: true });
+  await link("Inboxes").waitFor();
   const titles = ["General", "People", "Inboxes", "Shared", "Helpdesk"];
   const shown: string[] = [];
   for (const title of titles) {
-    if ((await nav.getByText(title, { exact: true }).count()) > 0) shown.push(title);
+    if ((await link(title).count()) > 0) shown.push(title);
   }
   return shown;
 }
@@ -131,16 +131,14 @@ test("switching settings from a company's People page to the Personal space fall
     slug: `switch-${Date.now()}`,
     ownerEmail: email,
   });
-  const page = await signedIn(email, "/settings");
-  const dialog = page.getByRole("dialog");
-  await dialog.getByText("People", { exact: true }).first().click();
-  await dialog.getByRole("heading", { name: "People" }).waitFor();
+  const page = await signedIn(email, "/settings/people");
+  await page.getByRole("heading", { name: "People" }).first().waitFor();
 
-  await dialog.getByRole("button", { name: /^Workspace: Switch Co/ }).click();
+  await page.getByRole("button", { name: /^Switch workspace, currently Switch Co/ }).click();
   await page.getByRole("menuitem", { name: /(?:'s|^Personal) Workspace$/ }).click();
-  await dialog.getByRole("button", { name: /^Workspace: .*Workspace\. Choose another$/ }).waitFor();
-  await dialog.getByRole("heading", { name: "General" }).waitFor();
-  expect(await dialog.getByRole("heading", { name: "People" }).count()).toBe(0);
+  await page.getByRole("button", { name: /^Switch workspace, currently .*Workspace$/ }).waitFor();
+  await page.getByRole("heading", { name: "General" }).first().waitFor();
+  expect(await page.getByRole("heading", { name: "People" }).count()).toBe(0);
 });
 
 // Catches: compose without `?mailbox=` sending a company's mail from a personal address that

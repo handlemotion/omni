@@ -34,7 +34,7 @@ import {
   toggleNotificationsPanel,
   useNotificationsPanel,
 } from "@/hooks/use-notifications-panel.ts";
-import { openSettings } from "@/hooks/use-settings-dialog.ts";
+import { useOpenSettings } from "@/hooks/use-settings.ts";
 import {
   actorName,
   notificationParts,
@@ -83,6 +83,7 @@ export function NotificationsPanel() {
   const { open: sidebarOpen, isMobile } = useSidebar();
   const { unread } = useNotifications();
   const markRead = useMarkNotificationsRead();
+  const openSettings = useOpenSettings();
   const [view, setView] = useState<View>("all");
   const panel = useRef<HTMLElement>(null);
 
@@ -144,7 +145,10 @@ export function NotificationsPanel() {
             </HeaderAction>
             <HeaderAction
               label="Notification settings"
-              onPress={() => openSettings("notifications")}
+              onPress={() => {
+                closeNotificationsPanel();
+                openSettings("notifications");
+              }}
             >
               <IconSliders />
             </HeaderAction>
@@ -213,6 +217,7 @@ function NotificationList({ unread }: { unread: boolean }) {
     useNotifications({ unread });
   const markRead = useMarkNotificationsRead();
   const router = useRouter();
+  const openSettings = useOpenSettings();
   const hover = useFluidHoverList({
     itemSelector: "[role='row']",
     highlightedSelector: "[data-focus-visible]",

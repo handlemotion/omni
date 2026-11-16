@@ -52,7 +52,7 @@ export function NavListSection<T extends object>({
   return (
     <ListBoxSection {...props} className={cn("flex flex-col gap-y-0.5", className)}>
       {label && (
-        <Header className="flex h-8 shrink-0 items-center px-2.25 text-xs text-subtle-foreground">
+        <Header className="flex h-8 shrink-0 items-center px-2.25 text-label text-subtle-foreground">
           {label}
         </Header>
       )}

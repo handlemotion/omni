@@ -113,6 +113,9 @@
 
   --text-xs: 11px;
   --text-xs--line-height: 13px;
+  /* Group titles in the sidebar and settings nav. */
+  --text-label: 12px;
+  --text-label--line-height: 15px;
   --text-sm: 13px;
   --text-sm--line-height: 16px;
   /* The open conversation's subject in the reader's top bar. */
@@ -126,7 +129,7 @@
   --radius-xl: 8px;
 
   --spacing-icon: 15px;
-  --spacing-sidebar: 240px;
+  --spacing-sidebar: 275px;
 
   --color-background: var(--background);
   --color-scrim: var(--scrim);
