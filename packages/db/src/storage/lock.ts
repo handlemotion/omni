@@ -5,10 +5,21 @@
 // deletes locked files: the lock cascades with its node.
 import { eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { storageLocks } from "../schema/storage.ts";
+import { storageLocks, storageNodes } from "../schema/storage.ts";
 import { loadMember, type Door } from "./access.ts";
 import { inTrash, lockTree, orgOfNode, toNode } from "./core.ts";
-import { reach, type NodeResult } from "./tree.ts";
+import { nextRevision } from "./revision.ts";
+import { keepUpdatedAt, reach, type NodeResult } from "./tree.ts";
+
+/** A lock taken or lifted changes what a sync client may do with the file: a new revision. */
+async function bump(tx: Db, orgId: string, nodeId: string) {
+  const revision = await nextRevision(tx, orgId);
+  await tx
+    .update(storageNodes)
+    .set({ revision, updatedAt: keepUpdatedAt })
+    .where(eq(storageNodes.id, nodeId));
+  return revision;
+}
 
 export type StorageLockResult =
   | NodeResult
@@ -42,18 +53,28 @@ export function lockOperations(db: Db, door: Door, memberId: string) {
           .onConflictDoNothing()
           .returning({ lockedAt: storageLocks.lockedAt });
         const lockedAt = row?.lockedAt ?? found.node.lockedAt ?? new Date();
-        return { status: "ok", node: toNode({ ...found.node, lockedAt }) };
+        const revision = row ? await bump(tx, orgId, nodeId) : found.node.revision;
+        return { status: "ok", node: toNode({ ...found.node, lockedAt, revision }) };
       });
     },
 
     /** Makes it an ordinary file again. Owners and admins only; unlocking twice is fine. */
-    async unlock(nodeId: string): Promise<NodeResult> {
-      const found = await reach(db, door, nodeId);
-      if (!found || inTrash(found.chain)) return NOT_FOUND;
-      const member = await loadMember(db, memberId);
-      if (!member?.admin) return FORBIDDEN;
-      await db.delete(storageLocks).where(eq(storageLocks.nodeId, nodeId));
-      return { status: "ok", node: toNode({ ...found.node, lockedAt: null }) };
+    unlock(nodeId: string): Promise<NodeResult> {
+      return db.transaction(async (tx): Promise<NodeResult> => {
+        const orgId = await orgOfNode(tx, nodeId);
+        if (!orgId) return NOT_FOUND;
+        await lockTree(tx, orgId);
+        const found = await reach(tx, door, nodeId);
+        if (!found || inTrash(found.chain)) return NOT_FOUND;
+        const member = await loadMember(tx, memberId);
+        if (!member?.admin) return FORBIDDEN;
+        const removed = await tx
+          .delete(storageLocks)
+          .where(eq(storageLocks.nodeId, nodeId))
+          .returning({ nodeId: storageLocks.nodeId });
+        const revision = removed.length > 0 ? await bump(tx, orgId, nodeId) : found.node.revision;
+        return { status: "ok", node: toNode({ ...found.node, lockedAt: null, revision }) };
+      });
     },
   };
 }

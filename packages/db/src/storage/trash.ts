@@ -2,20 +2,23 @@
 // can be restored for 30 days, then the daily purge deletes it; "Delete forever" does so at once.
 import { and, desc, eq, isNotNull, lt, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { storageNodes } from "./stored.ts";
+import { storageNodes } from "../schema/storage.ts";
 import { loadMember, type Door } from "./access.ts";
 import {
   deleteSubtree,
   driveOf,
   freeName,
   holdsLocked,
+  isInside,
   lockTree,
   orgOfNode,
   pageSize,
   toNode,
   type StorageNode,
 } from "./core.ts";
+import { nextRevision } from "./revision.ts";
 import {
+  keepUpdatedAt,
   LOCKED,
   reach,
   retryNameRace,
@@ -113,9 +116,16 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
             return { status: "parent_trashed" };
           }
           const { node } = found;
+          const revision = await nextRevision(tx, orgId);
+          // What is inside comes back with it, so a sync client hears about each of them.
+          await tx
+            .update(storageNodes)
+            .set({ revision, updatedAt: keepUpdatedAt })
+            .where(isInside(nodeId));
           const [row] = await tx
             .update(storageNodes)
             .set({
+              revision,
               trashedAt: null,
               name: freeName(driveOf(node), node.parentId, node.name, node.kind, node.id),
             })

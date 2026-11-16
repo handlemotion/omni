@@ -2,8 +2,7 @@
 // list, create a folder, rename, move, trash, and the file lookup a download needs.
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { storageLocks } from "../schema/storage.ts";
-import { storageNodes } from "./stored.ts";
+import { storageLocks, storageNodes } from "../schema/storage.ts";
 import type { Access, Door, StorageRole } from "./access.ts";
 import {
   chainOf,
@@ -14,6 +13,7 @@ import {
   inTrash,
   insertNode,
   isInside,
+  isSubtree,
   isUniqueViolation,
   listChildren,
   lockTree,
@@ -27,6 +27,7 @@ import {
   type StorageNode,
   type StorageSpace,
 } from "./core.ts";
+import { leaveTombstones, nextRevision } from "./revision.ts";
 
 /** Where something goes or is listed: inside a folder, or at the root of a space. */
 export type StoragePlace = { parentId: string } | { space: StorageSpace };
@@ -50,6 +51,13 @@ export type InvalidName = { status: "invalid_name" };
 export type TooDeep = { status: "too_deep" };
 /** A locked file, or a folder holding one, refuses the change (ADR 0036 decision 6). */
 export type Locked = { status: "locked" };
+/** The node changed since the revision the caller read (ADR 0043); nothing was changed. */
+export type VersionConflict = { status: "version_conflict" };
+
+/** What a sync client read: a change is refused when the node has moved on since. */
+export interface StorageGuard {
+  ifRevision?: number;
+}
 
 export type ListResult =
   | {
@@ -62,14 +70,26 @@ export type ListResult =
   | NotFound;
 export type NodeResult = { status: "ok"; node: StorageNode } | NotFound | Forbidden;
 export type CreateFolderResult = NodeResult | InvalidName | TooDeep;
-export type RenameResult = NodeResult | InvalidName | Locked | { status: "name_taken" };
-export type MoveResult = NodeResult | TooDeep | Locked | { status: "cycle" };
-export type TrashResult = NodeResult | Locked;
+export type RenameResult =
+  | NodeResult
+  | InvalidName
+  | Locked
+  | VersionConflict
+  | { status: "name_taken" };
+export type MoveResult = NodeResult | TooDeep | Locked | VersionConflict | { status: "cycle" };
+export type TrashResult = NodeResult | Locked | VersionConflict;
 export type FileResult = { status: "ok"; file: StorageNode; r2Key: string } | NotFound;
 
 const NOT_FOUND = { status: "not_found" } as const;
 const FORBIDDEN = { status: "forbidden" } as const;
 export const LOCKED = { status: "locked" } as const;
+export const VERSION_CONFLICT = { status: "version_conflict" } as const;
+/** For an update that is not an edit of the row, such as a new revision: "Modified" stays. */
+export const keepUpdatedAt = sql<Date>`${storageNodes.updatedAt}`;
+
+/** True when the guard names a revision the node is no longer at. */
+export const stale = (node: NodeRow, guard?: StorageGuard) =>
+  guard?.ifRevision !== undefined && node.revision !== guard.ifRevision;
 
 const view = (chain: NodeRow[], access: Access): StorageNodeView => ({
   node: toNode(chain[0]!),
@@ -136,7 +156,13 @@ async function leavingRefusal(tx: Db, door: Door, found: { node: NodeRow; access
   return null;
 }
 
-async function moveInto(tx: Db, door: Door, nodeId: string, to: StoragePlace): Promise<MoveResult> {
+async function moveInto(
+  tx: Db,
+  door: Door,
+  nodeId: string,
+  to: StoragePlace,
+  guard?: StorageGuard,
+): Promise<MoveResult> {
   const orgId = await orgOfNode(tx, nodeId);
   if (!orgId) return NOT_FOUND;
   await lockTree(tx, orgId);
@@ -144,6 +170,7 @@ async function moveInto(tx: Db, door: Door, nodeId: string, to: StoragePlace): P
   if (!found || inTrash(found.chain)) return NOT_FOUND;
   if (!found.access.change) return FORBIDDEN;
   const { node } = found;
+  if (stale(node, guard)) return VERSION_CONFLICT;
   if (node.lockedAt) return LOCKED;
   const dest = await resolvePlace(tx, door, to);
   if (!dest) return NOT_FOUND;
@@ -163,12 +190,20 @@ async function moveInto(tx: Db, door: Door, nodeId: string, to: StoragePlace): P
   ) {
     return { status: "too_deep" };
   }
+  const revision = await nextRevision(tx, node.orgId);
   if (crossing) {
-    // Everything inside changes drive with it. The node itself changes in the one update below,
-    // so it is never for a moment a sibling of the destination under its old name.
+    // The drive it leaves sees it all go; the one it enters sees it all arrive. Everything
+    // inside changes drive with it. The node itself changes in the one update below, so it is
+    // never for a moment a sibling of the destination under its old name.
+    await leaveTombstones(tx, isSubtree(node.id), revision);
     await tx
       .update(storageNodes)
-      .set({ space: dest.drive.space, ownerMemberId: dest.drive.ownerMemberId })
+      .set({
+        space: dest.drive.space,
+        ownerMemberId: dest.drive.ownerMemberId,
+        revision,
+        updatedAt: keepUpdatedAt,
+      })
       .where(isInside(node.id));
   }
   const [moved] = await tx
@@ -178,6 +213,7 @@ async function moveInto(tx: Db, door: Door, nodeId: string, to: StoragePlace): P
       ownerMemberId: dest.drive.ownerMemberId,
       parentId: dest.parentId,
       name: freeName(dest.drive, dest.parentId, node.name, node.kind, node.id),
+      revision,
     })
     .where(eq(storageNodes.id, node.id))
     .returning();
@@ -243,7 +279,7 @@ export function treeOperations(db: Db, door: Door) {
     },
 
     /** Renaming to a name a sibling has is refused: the person typed it, so they choose again. */
-    async rename(nodeId: string, name: string): Promise<RenameResult> {
+    async rename(nodeId: string, name: string, guard?: StorageGuard): Promise<RenameResult> {
       const clean = cleanName(name);
       if (!clean) return { status: "invalid_name" };
       try {
@@ -256,10 +292,12 @@ export function treeOperations(db: Db, door: Door) {
           const found = await reach(tx, door, nodeId);
           if (!found || inTrash(found.chain)) return NOT_FOUND;
           if (!found.access.change) return FORBIDDEN;
+          if (stale(found.node, guard)) return VERSION_CONFLICT;
           if (found.node.lockedAt) return LOCKED;
+          const revision = await nextRevision(tx, orgId);
           const [row] = await tx
             .update(storageNodes)
-            .set({ name: clean })
+            .set({ name: clean, revision })
             .where(
               sql`${storageNodes.id} = ${nodeId} and ${storageNodes.trashedAt} is null and not exists (select 1 from ${storageLocks} where ${storageLocks.nodeId} = ${storageNodes.id})`,
             )
@@ -276,15 +314,15 @@ export function treeOperations(db: Db, door: Door) {
      * Moves a node into a folder or to a root of the same workspace. A name taken there gets a
      * number. A member may cross between My files and Shared; a grantee stays in one drive.
      */
-    move(nodeId: string, to: StoragePlace): Promise<MoveResult> {
-      return retryNameRace(() => db.transaction((tx) => moveInto(tx, door, nodeId, to)));
+    move(nodeId: string, to: StoragePlace, guard?: StorageGuard): Promise<MoveResult> {
+      return retryNameRace(() => db.transaction((tx) => moveInto(tx, door, nodeId, to, guard)));
     },
 
     /**
      * Moves a node to Trash, with everything inside it. Trashing it again changes nothing. A
      * locked file, or a folder holding one at any depth, stays.
      */
-    trash(nodeId: string): Promise<TrashResult> {
+    trash(nodeId: string, guard?: StorageGuard): Promise<TrashResult> {
       return db.transaction(async (tx): Promise<TrashResult> => {
         const orgId = await orgOfNode(tx, nodeId);
         if (!orgId) return NOT_FOUND;
@@ -295,10 +333,17 @@ export function treeOperations(db: Db, door: Door) {
         if (found.node.trashedAt) return { status: "ok", node: toNode(found.node) };
         if (inTrash(found.chain)) return NOT_FOUND;
         if (!found.access.remove || !(await door.removesWhole(tx, found.node))) return FORBIDDEN;
+        if (stale(found.node, guard)) return VERSION_CONFLICT;
         if (await holdsLocked(tx, nodeId)) return LOCKED;
+        const revision = await nextRevision(tx, orgId);
+        // What is inside goes to Trash with it, so a sync client hears about each of them.
+        await tx
+          .update(storageNodes)
+          .set({ revision, updatedAt: keepUpdatedAt })
+          .where(isInside(nodeId));
         const [row] = await tx
           .update(storageNodes)
-          .set({ trashedAt: new Date() })
+          .set({ trashedAt: new Date(), revision })
           .where(sql`${storageNodes.id} = ${nodeId} and ${storageNodes.trashedAt} is null`)
           .returning();
         return { status: "ok", node: toNode(row ?? found.node) };

@@ -4,8 +4,9 @@
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
-import { storageNodes } from "./stored.ts";
+import { storageNodes } from "../schema/storage.ts";
 import { insertNode, lockTree, STORAGE_NAME_MAX_LENGTH, type Drive } from "./core.ts";
+import { leaveTombstones, nextRevision } from "./revision.ts";
 
 export type StorageHandOverResult =
   /** `folderId` is the new `Files from <name>` folder; null when there was nothing to move. */
@@ -80,6 +81,9 @@ export async function handOverMemberStorage(
       name: folderName(leaving.name || leaving.email),
       createdByMemberId: owner.id,
     });
+    // The leaving member's drive sees everything go; the recipient's sees it all arrive.
+    const revision = await nextRevision(tx, leaving.orgId);
+    await leaveTombstones(tx, owned, revision);
     // One statement: what was a root goes into the folder, everything changes owner. Names
     // cannot collide: the folder is new, and siblings below it all change owner together.
     const moved = await tx
@@ -87,6 +91,7 @@ export async function handOverMemberStorage(
       .set({
         ownerMemberId: owner.id,
         parentId: sql`coalesce(${storageNodes.parentId}, ${folder.id})`,
+        revision,
         // Changing hands is not an edit: "Modified" stays what it was.
         updatedAt: sql`${storageNodes.updatedAt}`,
       })

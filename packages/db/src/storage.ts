@@ -8,11 +8,12 @@
 // The parts live in `./storage/`: `access.ts` is the doors, the rest is what goes through them.
 import type { Db } from "./client.ts";
 import { grantAddresses, grantDoor, linkDoor, loadMember, memberDoor } from "./storage/access.ts";
-import type { StorageListCursor } from "./storage/core.ts";
+import type { StorageListCursor, StorageSpace } from "./storage/core.ts";
 import { storagePeakOf } from "./storage/billing.ts";
 import { lockOperations } from "./storage/lock.ts";
 import { storageUsageOf } from "./storage/maintenance.ts";
 import { listSharedWith, sharingOperations, type SharedWithMeCursor } from "./storage/sharing.ts";
+import { listChanges, listSyncWorkspaces, type StorageSyncCursor } from "./storage/sync.ts";
 import { trashOperations } from "./storage/trash.ts";
 import { treeOperations } from "./storage/tree.ts";
 import { uploadOperations } from "./storage/uploads.ts";
@@ -35,10 +36,20 @@ export type {
   NodeResult,
   RenameResult,
   StorageNodeView,
+  StorageGuard,
   StoragePathEntry,
   StoragePlace,
   TrashResult,
 } from "./storage/tree.ts";
+export {
+  STORAGE_TOMBSTONE_DAYS,
+  sweepStorageTombstones,
+  type StorageChange,
+  type StorageChangesResult,
+  type StorageSyncCursor,
+  type StorageSyncDrive,
+  type StorageSyncWorkspace,
+} from "./storage/sync.ts";
 export type { StorageLockResult } from "./storage/lock.ts";
 export {
   STORAGE_TRASH_DAYS,
@@ -102,6 +113,17 @@ export function memberStorage(db: Db, memberId: string) {
     ...trashOperations(db, door, memberId),
     ...sharingOperations(db, door),
     ...lockOperations(db, door, memberId),
+    /**
+     * A drive's change feed for a sync client (ADR 0043): the member's My files, or their
+     * company's Shared. `not_found` when the member is gone or the workspace has no such drive.
+     */
+    async changes(
+      space: StorageSpace,
+      page: { cursor?: StorageSyncCursor | null; limit?: number } = {},
+    ) {
+      const drive = await door.root(db, space);
+      return drive ? listChanges(db, drive, page) : ({ status: "not_found" } as const);
+    },
     /** The workspace's bytes stored and reserved, or null when the member is gone. */
     async usage() {
       const member = await loadMember(db, memberId);
@@ -136,6 +158,11 @@ export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) 
      * it. Everything it reaches is in that node's workspace.
      */
     under: (shareId: string) => through(shareId),
+    /**
+     * Every workspace the person belongs to, with the drives a sync client keeps for them there
+     * and each drive's revision (ADR 0043).
+     */
+    syncWorkspaces: () => listSyncWorkspaces(db, userId, scopeOrgId),
     /** "Shared with me": every live node granted to the person, newest grant first. */
     async sharedWithMe(page: { cursor?: SharedWithMeCursor | null; limit?: number } = {}) {
       return listSharedWith(db, await grantAddresses(db, userId, scopeOrgId), page);

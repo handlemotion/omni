@@ -4,8 +4,8 @@
 import { and, eq, getTableColumns, sql, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
-import { storageLocks, storageUsage } from "../schema/storage.ts";
-import { storageNodes } from "./stored.ts";
+import { storageLocks, storageNodes, storageUsage } from "../schema/storage.ts";
+import { leaveTombstones, nextRevision } from "./revision.ts";
 
 /** Folders nest this deep at most where people create or move them. */
 export const STORAGE_MAX_DEPTH = 32;
@@ -47,6 +47,12 @@ export interface StorageNode {
   trashedAt: Date | null;
   /** Set on a locked file: see `lock.ts`. */
   lockedAt: Date | null;
+  /** The workspace's sync revision at the node's last change (ADR 0043). */
+  revision: number;
+  /** Goes up each time the file's bytes are replaced in place. */
+  contentVersion: number;
+  /** Hex SHA-256 of the bytes when the uploader sent it. */
+  contentSha256: string | null;
 }
 
 export function toNode(row: NodeRow): StorageNode {
@@ -65,6 +71,9 @@ export function toNode(row: NodeRow): StorageNode {
     updatedAt: row.updatedAt,
     trashedAt: row.trashedAt,
     lockedAt: row.lockedAt ?? null,
+    revision: row.revision,
+    contentVersion: row.contentVersion,
+    contentSha256: row.contentSha256,
   };
 }
 
@@ -175,6 +184,10 @@ const down = (nodeId: string) => sql`
 /** SQL condition: `storage_nodes.id` is inside the node, not the node itself. */
 export const isInside = (nodeId: string) =>
   sql`${storageNodes.id} in (${down(nodeId)} select id from down where depth > 0)`;
+
+/** SQL condition: `storage_nodes.id` is the node or inside it. */
+export const isSubtree = (nodeId: string) =>
+  sql`${storageNodes.id} in (${down(nodeId)} select id from down)`;
 
 /** The node and everything inside it, trashed or not. */
 export async function subtreeOf(ex: Db, nodeId: string): Promise<SubtreeRow[]> {
@@ -316,6 +329,7 @@ export interface NewNode {
   size?: number;
   mimeType?: string | null;
   r2Key?: string | null;
+  contentSha256?: string | null;
   createdByMemberId: string | null;
 }
 
@@ -325,6 +339,7 @@ export interface NewNode {
  */
 export async function insertNode(tx: Db, input: NewNode): Promise<NodeRow> {
   const id = input.id ?? uuidv7();
+  const revision = await nextRevision(tx, input.drive.orgId);
   for (let attempt = 0; attempt < 8; attempt++) {
     const [row] = await tx
       .insert(storageNodes)
@@ -339,7 +354,9 @@ export async function insertNode(tx: Db, input: NewNode): Promise<NodeRow> {
         size: input.size ?? 0,
         mimeType: input.mimeType ?? null,
         r2Key: input.r2Key ?? null,
+        contentSha256: input.contentSha256 ?? null,
         createdByMemberId: input.createdByMemberId,
+        revision,
       })
       .onConflictDoNothing()
       .returning();
@@ -375,6 +392,8 @@ export async function addUsage(tx: Db, orgId: string, delta: number) {
 export async function deleteSubtree(tx: Db, orgId: string, nodeId: string) {
   await lockUsage(tx, orgId);
   const rows = await subtreeOf(tx, nodeId);
+  const revision = await nextRevision(tx, orgId);
+  await leaveTombstones(tx, isSubtree(nodeId), revision);
   await tx.delete(storageNodes).where(eq(storageNodes.id, nodeId));
   const bytes = rows.reduce((sum, row) => sum + row.size, 0);
   if (bytes > 0) await addUsage(tx, orgId, -bytes);

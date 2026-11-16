@@ -5,8 +5,7 @@ import { PAID_STATUSES } from "../billing.ts";
 import type { Db } from "../client.ts";
 import { isCompany } from "../personal-space.ts";
 import { organizations, subscriptions } from "../schema/auth.ts";
-import { storageUsage } from "../schema/storage.ts";
-import { storageNodes, storageUploads } from "./stored.ts";
+import { storageNodes, storageUploads, storageUsage } from "../schema/storage.ts";
 import { deleteSubtree, lockTree, lockUsage } from "./core.ts";
 import { reservedBytes } from "./uploads.ts";
 
