@@ -26,7 +26,10 @@ export function StorageFrame(props: {
     </header>
   );
   return (
-    <section className="relative flex h-svh min-h-0 min-w-0 flex-col">
+    // Outside the shell it fills what the link page's bar leaves.
+    <section
+      className={`relative flex min-h-0 min-w-0 flex-col ${props.sidebar === false ? "flex-1" : "h-svh"}`}
+    >
       {props.sidebar === false ? header(null, "ps-5") : header(<PageNav />, "ps-2.5")}
       {props.children}
     </section>

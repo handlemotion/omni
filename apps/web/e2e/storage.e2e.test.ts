@@ -89,7 +89,8 @@ test("a file larger than one part uploads from the page and downloads byte for b
 }, 120_000);
 
 // Catches: the link page reaching for a session (the member routes, a sign-in redirect) or
-// downloading through the member's door, so a link open to anyone fails for the people it is for.
+// downloading through the member's door, so a link open to anyone fails for the people it is for;
+// or its Sign in losing the way back to the link.
 test("a link open to anyone downloads its file, byte for byte, for someone signed out", async () => {
   const page = await signedIn(`link-${Date.now()}@gmail.test`, "/files/my");
   const bytes = randomBytes(300_000);
@@ -115,6 +116,11 @@ test("a link open to anyone downloads its file, byte for byte, for someone signe
   try {
     const anonymous = await signedOut.newPage();
     await anonymous.goto(link);
+    // Sign in comes back to this link, not to the inbox.
+    const signInLink = anonymous.getByRole("link", { name: "Sign in" });
+    expect(await signInLink.getAttribute("href")).toBe(
+      `/login?redirect=${encodeURIComponent(new URL(link).pathname)}`,
+    );
     const [download] = await Promise.all([
       anonymous.waitForEvent("download"),
       anonymous.getByRole("button", { name: "Download" }).click(),

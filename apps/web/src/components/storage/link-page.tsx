@@ -17,6 +17,7 @@ import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { sharedFileUrl } from "@/lib/urls.ts";
 import { FolderCrumbs } from "./folder-crumbs.tsx";
 import { FolderView, type FolderDialog } from "./folder-view.tsx";
+import { LinkFrame } from "./link-frame.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 
 export function LinkPage({ shareId, nodeId }: { shareId: string; nodeId?: string | undefined }) {
@@ -68,7 +69,7 @@ function SharedFolder(props: {
       : []),
   ];
   return (
-    <main className="h-svh bg-background">
+    <LinkFrame>
       <FolderView
         sidebar={false}
         title={
@@ -93,7 +94,7 @@ function SharedFolder(props: {
             : { title: "This folder is empty" },
         }}
       />
-    </main>
+    </LinkFrame>
   );
 }
 
@@ -104,21 +105,23 @@ function SharedFolder(props: {
  */
 function FileCard(props: { shareId: string; node: StorageNode }) {
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background p-4 pb-[12vh]">
-      <Card className="w-full max-w-90 items-center gap-0 px-6 text-center">
-        <IconFile aria-hidden className="size-5 text-muted-foreground" />
-        <h1 className="mt-3 max-w-full truncate text-base text-foreground">{props.node.name}</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground tabular-nums">
-          {formatBytes(props.node.size)}
-        </p>
-        <Button
-          className="mt-5 w-full"
-          onPress={() => window.location.assign(sharedFileUrl(props.shareId, props.node.id))}
-        >
-          <IconDownload />
-          Download
-        </Button>
-      </Card>
-    </main>
+    <LinkFrame>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-4 pb-[12vh]">
+        <Card className="w-full max-w-90 items-center gap-0 px-6 text-center">
+          <IconFile aria-hidden className="size-5 text-muted-foreground" />
+          <h1 className="mt-3 max-w-full truncate text-base text-foreground">{props.node.name}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground tabular-nums">
+            {formatBytes(props.node.size)}
+          </p>
+          <Button
+            className="mt-5 w-full"
+            onPress={() => window.location.assign(sharedFileUrl(props.shareId, props.node.id))}
+          >
+            <IconDownload />
+            Download
+          </Button>
+        </Card>
+      </div>
+    </LinkFrame>
   );
 }
