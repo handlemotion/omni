@@ -1,4 +1,9 @@
-import type { HelpdeskRealtimeEvent, MailActionKind } from "@omni/contracts";
+import type {
+  CrmChangedEvent,
+  CrmChangedKind,
+  HelpdeskRealtimeEvent,
+  MailActionKind,
+} from "@omni/contracts";
 import type { schema } from "@omni/db";
 import type { Realtime as RealtimeObject } from "@omni/worker";
 
@@ -251,7 +256,8 @@ function parseEvent(data: string): RealtimeEvent | undefined {
       ? { type: "notification.removed", threadId: event.threadId }
       : undefined;
   }
-  return parseHelpdeskEvent(value as Record<string, unknown>);
+  const record = value as Record<string, unknown>;
+  return parseCrmEvent(record) ?? parseHelpdeskEvent(record);
 }
 
 // Checked by hand rather than with the contracts' zod schemas: this runs in the web app's entry
@@ -282,6 +288,25 @@ const NOTIFICATION_KINDS: Record<NotificationKind, true> = {
 };
 
 const isId = (value: unknown): value is string => typeof value === "string" && value.length > 0;
+
+const CRM_CHANGED_KINDS: Record<CrmChangedKind, true> = {
+  company: true,
+  person: true,
+  deal: true,
+  note: true,
+  stages: true,
+  settings: true,
+  contract: true,
+};
+
+/** A CRM change in the workspace (ADR 0036): what kind of record, and which ids. */
+function parseCrmEvent(event: Record<string, unknown>): CrmChangedEvent | undefined {
+  if (event.type !== "crm.changed") return undefined;
+  const { kind, ids } = event;
+  if (typeof kind !== "string" || !Object.hasOwn(CRM_CHANGED_KINDS, kind)) return undefined;
+  if (!Array.isArray(ids) || !ids.every(isId)) return undefined;
+  return { type: "crm.changed", kind: kind as CrmChangedKind, ids };
+}
 
 function parseHelpdeskEvent(event: Record<string, unknown>): HelpdeskRealtimeEvent | undefined {
   const { mailboxId, threadId } = event;

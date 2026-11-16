@@ -1,37 +1,38 @@
-// The top of the sidebar: the module on screen (ADR 0035), Mail or Drive, whose menu switches
+// The top of the sidebar: the module on screen (ADR 0035), Mail, Drive or (in a company) CRM, whose menu switches
 // module, and at the row's end the workspace's avatar, whose menu switches workspace (a company
 // or your Personal space). The sidebar shows one module's rows at a time; the module follows the
 // route. Each module has an identity colour (`--module-*`), used on its mark here and nowhere
 // else.
 //
 // - Switching module keeps the workspace and the mailbox shown in mail.
-// - Switching workspace keeps the module: Drive opens the same space's top, mail the same list
-//   (`openWorkspace`); an owner or admin of a workspace still being set up goes to onboarding.
+// - Switching workspace keeps the module: Drive opens the same space's top, the CRM the same list,
+//   mail the same list (`openWorkspace`); an owner or admin of a workspace still being set up goes to onboarding.
 //
 // Geometry: the mark is an 18px tile on the nav icons' 15px axis (1.5px out on every side), so
 // its centre and the label after it line up with the rows below. The glyph is 12px, 3px in.
 import { useLocation, useRouter, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import type { ComponentType, CSSProperties } from "react";
-import { IconCheck, IconFolder, IconMail } from "@/components/icons/central";
+import { IconCheck, IconFolder, IconHandshake, IconMail } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { SidebarItemTrigger } from "@/components/ui/sidebar";
 import { appToast } from "@/components/ui/toast";
+import { useHasCrm } from "@/hooks/use-crm.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useOpenWorkspace, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { Workspace } from "@/lib/types.ts";
 
-export type ModuleId = "mail" | "files";
+export type ModuleId = "mail" | "files" | "crm";
 
 interface Module {
   id: ModuleId;
   label: string;
   icon: ComponentType<{ className?: string }>;
   /** Where switching to the module lands. */
-  home: "/inbox" | "/files/my";
+  home: "/inbox" | "/files/my" | "/crm/companies";
   /** Its identity colour, as a fill. */
   fill: string;
 }
@@ -51,11 +52,26 @@ const DRIVE: Module = {
   home: "/files/my",
   fill: "bg-module-drive",
 };
-const MODULES = [MAIL, DRIVE];
+/** The CRM (ADR 0036, ADR 0039): a company workspace's only; a Personal space has none. */
+const CRM: Module = {
+  id: "crm",
+  label: "CRM",
+  icon: IconHandshake,
+  home: "/crm/companies",
+  fill: "bg-module-crm",
+};
+const MODULES = [MAIL, DRIVE, CRM];
+const BY_ID = { mail: MAIL, files: DRIVE, crm: CRM } as const;
 
-/** The module a path belongs to: Drive's own paths, else Mail (every other shell route is mail's). */
+const under = (pathname: string, root: string) =>
+  pathname === root || pathname.startsWith(`${root}/`);
+
+/** The module a path belongs to: Drive's and the CRM's own paths, else Mail (every other shell
+ *  route is mail's). */
 export function moduleOf(pathname: string): ModuleId {
-  return pathname === "/files" || pathname.startsWith("/files/") ? "files" : "mail";
+  if (under(pathname, "/files")) return "files";
+  if (under(pathname, "/crm")) return "crm";
+  return "mail";
 }
 
 export function useCurrentModule() {
@@ -111,14 +127,15 @@ export function useOpenModule() {
   const router = useRouter();
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
   return (id: ModuleId) => {
-    const module = id === "files" ? DRIVE : MAIL;
+    const module = BY_ID[id];
     void router.navigate({ to: module.home, search: mailbox ? { mailbox } : {} });
   };
 }
 
 export function ModuleSwitcher() {
-  const current = useCurrentModule() === "files" ? DRIVE : MAIL;
+  const current = BY_ID[useCurrentModule()];
   const open = useOpenModule();
+  const modules = useHasCrm() ? MODULES : MODULES.filter((module) => module.id !== "crm");
 
   const openModule = (module: Module) => {
     if (module.id !== current.id) open(module.id);
@@ -147,7 +164,7 @@ export function ModuleSwitcher() {
             className: "min-w-(--anchor-width) max-w-[min(18rem,calc(100vw-16px))]",
           }}
         >
-          {MODULES.map((module) => (
+          {modules.map((module) => (
             <MenuItem
               key={module.id}
               id={module.id}

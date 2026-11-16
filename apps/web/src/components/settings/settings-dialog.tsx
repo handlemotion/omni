@@ -12,6 +12,7 @@ import {
   IconMailOpen,
   IconCreditCard,
   IconForward,
+  IconHandshake,
   IconInbox,
   IconKeyboard,
   IconMail,
@@ -59,6 +60,7 @@ import { SettingsPageHeader } from "./kit/settings-layout";
 import { SettingsConfirmDialog } from "./kit/settings-stacked-dialog";
 import { WorkspaceChooser } from "./workspace-chooser";
 import { AiPage } from "./ai-page";
+import { PipelinePage } from "./pipeline-page";
 import { HelpdeskPage } from "./helpdesk-pages";
 import { NotificationsPage } from "./notification-pages";
 import { ConnectedAccountsPage } from "./connected-accounts-page";
@@ -199,6 +201,13 @@ const WORKSPACE_PAGES: PageDefinition[] = [
     render: () => <HelpdeskPage />,
   },
   {
+    id: "pipeline",
+    title: "Pipeline",
+    icon: glyph(IconHandshake),
+    terms: ["crm", "stages", "deals", "won", "lost", "board", "rename", "reorder"],
+    render: () => <PipelinePage />,
+  },
+  {
     id: "ai",
     title: "AI",
     icon: glyph(IconAi),
@@ -215,9 +224,9 @@ const WORKSPACE_PAGES: PageDefinition[] = [
 ];
 
 /** Pages only a company has: a Personal space has no team, shared inboxes or plan (ADR 0024). */
-const COMPANY_PAGES = new Set(["people", "shared", "helpdesk", "ai", "billing"]);
+const COMPANY_PAGES = new Set(["people", "shared", "helpdesk", "pipeline", "ai", "billing"]);
 /** Pages only owners and admins see: the API answers anyone else 403. */
-const MANAGER_PAGES = new Set(["ai"]);
+const MANAGER_PAGES = new Set(["ai", "pipeline"]);
 
 /**
  * The workspace's pages; Billing only where the install bills (ADR 0015: it is optional), and

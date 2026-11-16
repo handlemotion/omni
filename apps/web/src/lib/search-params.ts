@@ -30,6 +30,16 @@ export const inboxSearch = z.object({
 
 export const listSearch = z.object({ mailbox: optionalId });
 
+/** A CRM list (ADR 0039): `q` searches it on the server. */
+export const crmListSearch = z.object({ mailbox: optionalId, q: optional(z.string()) });
+
+/** The deals: the board unless `view=list`. */
+export const crmDealsSearch = z.object({
+  mailbox: optionalId,
+  q: optional(z.string()),
+  view: optional(z.enum(["board", "list"])),
+});
+
 export const draftsSearch = z.object({
   mailbox: optionalId,
   /** A new message's draft to open in the compose dialog; dropped once it has. */

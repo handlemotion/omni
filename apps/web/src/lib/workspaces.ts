@@ -32,13 +32,17 @@ const FILE_PLACES = [
 ] as const;
 type FilePlace = (typeof FILE_PLACES)[number];
 
+/** The CRM's lists a workspace switch keeps; a Personal space has none (its guard sends it on). */
+const CRM_PLACES = ["/crm/companies", "/crm/people", "/crm/deals"] as const;
+type CrmPlace = (typeof CRM_PLACES)[number];
+
 /** A router: reruns loaders, and navigates. */
 interface Navigator {
   invalidate(): Promise<void>;
   navigate(
     options:
       | { to: "/onboarding" }
-      | { to: ListPath | FilePlace; search?: { mailbox?: string; lane?: string } },
+      | { to: ListPath | FilePlace | CrmPlace; search?: { mailbox?: string; lane?: string } },
   ): Promise<void>;
   state: { location: { pathname: string; search: object } };
 }
@@ -46,13 +50,18 @@ interface Navigator {
 /**
  * Where a workspace switch lands: in Files, the same place at its top (a folder belongs to the
  * workspace left behind; `/files/shared` sends a Personal space on to My files itself), so the
- * module stays; anywhere else, mail's same list.
+ * module stays; in the CRM, the same list (a record belongs to the workspace left behind);
+ * anywhere else, mail's same list.
  */
 function samePlace(router: Navigator) {
   const { pathname } = router.state.location;
   if (pathname === "/files" || pathname.startsWith("/files/")) {
     const place = FILE_PLACES.find((p) => pathname === p || pathname.startsWith(`${p}/`));
     return { to: place ?? "/files/my", search: {} } as const;
+  }
+  if (pathname === "/crm" || pathname.startsWith("/crm/")) {
+    const place = CRM_PLACES.find((p) => pathname === p || pathname.startsWith(`${p}/`));
+    return { to: place ?? "/crm/companies", search: {} } as const;
   }
   return sameList(router, undefined);
 }

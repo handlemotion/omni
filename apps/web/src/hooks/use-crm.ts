@@ -1,0 +1,171 @@
+// The CRM (ADR 0036, ADR 0039): lists, records, timelines, contracts, stages and the changes.
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
+import {
+  crmCompaniesQuery,
+  crmCompanyQuery,
+  crmContractsQuery,
+  crmDealQuery,
+  crmDealsQuery,
+  crmFindQuery,
+  crmPeopleQuery,
+  crmPersonQuery,
+  crmStagesQuery,
+  crmTimelineQuery,
+  type CrmRecordKind,
+} from "../lib/crm.ts";
+import {
+  addDomainMutation,
+  createCompanyMutation,
+  createContractMutation,
+  createDealMutation,
+  createNoteMutation,
+  createPersonMutation,
+  deleteContractMutation,
+  deleteNoteMutation,
+  moveDealMutation,
+  putStagesMutation,
+  recordFolderMutation,
+  updateCompanyMutation,
+  updateContractMutation,
+  updateDealMutation,
+  updatePersonMutation,
+} from "../lib/crm-mutations.ts";
+import { useWorkspaces } from "./use-workspaces.ts";
+
+/** True in a company workspace: a Personal space has no CRM (`no_crm`). */
+export function useHasCrm() {
+  const workspaces = useWorkspaces().data;
+  const active = workspaces?.workspaces.find((w) => w.id === workspaces.activeOrganizationId);
+  return !!active && active.kind !== "personal";
+}
+
+/** Companies by name; `companies` is every loaded page. */
+export function useCrmCompanies(q = "") {
+  const query = useInfiniteQuery(crmCompaniesQuery(q));
+  const companies = useMemo(
+    () => query.data?.pages.flatMap((page) => page.companies) ?? [],
+    [query.data],
+  );
+  return { ...query, companies };
+}
+
+export function useCrmPeople(q = "") {
+  const query = useInfiniteQuery(crmPeopleQuery(q));
+  const people = useMemo(
+    () => query.data?.pages.flatMap((page) => page.people) ?? [],
+    [query.data],
+  );
+  return { ...query, people };
+}
+
+/** Deals by name; `all` keeps loading pages until every deal is there (the board). */
+export function useCrmDeals(q = "", options: { all?: boolean } = {}) {
+  const query = useInfiniteQuery(crmDealsQuery(q));
+  const deals = useMemo(() => query.data?.pages.flatMap((page) => page.deals) ?? [], [query.data]);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  useEffect(() => {
+    if (options.all && hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [options.all, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  return { ...query, deals };
+}
+
+export function useCrmCompany(id: string, options: { enabled?: boolean } = {}) {
+  return useQuery({ ...crmCompanyQuery(id), enabled: options.enabled ?? true });
+}
+
+export function useCrmPerson(id: string) {
+  return useQuery(crmPersonQuery(id));
+}
+
+export function useCrmDeal(id: string) {
+  return useQuery(crmDealQuery(id));
+}
+
+/** The pipeline, in order. */
+export function useCrmStages() {
+  return useQuery(crmStagesQuery());
+}
+
+/** A record's timeline, newest first; `items` is every loaded page. */
+export function useCrmTimeline(kind: CrmRecordKind, id: string) {
+  const query = useInfiniteQuery(crmTimelineQuery(kind, id));
+  const items = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
+  return { ...query, items };
+}
+
+export function useCrmContracts(where: { company: string } | { deal: string }) {
+  const query = useInfiniteQuery(crmContractsQuery(where));
+  const contracts = useMemo(
+    () => query.data?.pages.flatMap((page) => page.contracts) ?? [],
+    [query.data],
+  );
+  return { ...query, contracts };
+}
+
+/** People, companies and deals for a picker; nothing until `q` has a letter. */
+export function useCrmFind(q: string) {
+  return useQuery(crmFindQuery(q));
+}
+
+export function useCreateCompany() {
+  return useMutation(createCompanyMutation(useQueryClient()));
+}
+
+export function useCreatePerson() {
+  return useMutation(createPersonMutation(useQueryClient()));
+}
+
+export function useCreateDeal() {
+  return useMutation(createDealMutation(useQueryClient()));
+}
+
+export function useUpdateCompany() {
+  return useMutation(updateCompanyMutation(useQueryClient()));
+}
+
+export function useUpdatePerson() {
+  return useMutation(updatePersonMutation(useQueryClient()));
+}
+
+export function useUpdateDeal() {
+  return useMutation(updateDealMutation(useQueryClient()));
+}
+
+export function useAddDomain() {
+  return useMutation(addDomainMutation(useQueryClient()));
+}
+
+/** `mutate({ dealId, stage })`: optimistic on every deals list, rolled back on failure. */
+export function useMoveDeal() {
+  return useMutation(moveDealMutation(useQueryClient()));
+}
+
+export function useCreateNote() {
+  return useMutation(createNoteMutation(useQueryClient()));
+}
+
+export function useDeleteNote() {
+  return useMutation(deleteNoteMutation(useQueryClient()));
+}
+
+/** `mutateAsync({ kind, id })` → `{ nodeId }`: the record's folder, made when missing. */
+export function useRecordFolder() {
+  return useMutation(recordFolderMutation(useQueryClient()));
+}
+
+export function useCreateContract() {
+  return useMutation(createContractMutation(useQueryClient()));
+}
+
+export function useUpdateContract() {
+  return useMutation(updateContractMutation(useQueryClient()));
+}
+
+export function useDeleteContract() {
+  return useMutation(deleteContractMutation(useQueryClient()));
+}
+
+export function usePutStages() {
+  return useMutation(putStagesMutation(useQueryClient()));
+}

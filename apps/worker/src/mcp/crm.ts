@@ -86,7 +86,15 @@ const common = {
   name: z.string(),
   workspace: z.string().describe("The workspace id it is in."),
   archived: z.boolean(),
+  url: z.string().describe("Where it opens in the web app: cite it."),
 };
+
+const RECORD_PATH = { person: "people", company: "companies", deal: "deals" } as const;
+
+/** `/crm/people/<id>`, `/crm/companies/<id>` or `/crm/deals/<id>` on the web app. */
+export function recordUrl(webAppURL: string, kind: RecordKind, id: string) {
+  return new URL(`/crm/${RECORD_PATH[kind]}/${encodeURIComponent(id)}`, webAppURL).toString();
+}
 
 export const personRowSchema = z.object({
   kind: z.literal("person"),
@@ -129,6 +137,7 @@ export type DealRow = z.infer<typeof dealRowSchema>;
 /** What rows need beside the record: the workspace, its stages and its owners' names. */
 export interface RowContext {
   workspace: string;
+  webAppURL: string;
   stages: CrmStage[];
   owners: Map<string, { name: string | null; address: string }>;
 }
@@ -140,6 +149,7 @@ export function personRow(person: CrmPerson, row: RowContext): PersonRow {
     name: person.name,
     workspace: row.workspace,
     archived: person.archivedAt !== null,
+    url: recordUrl(row.webAppURL, "person", person.id),
     email: person.addresses.find((a) => a.isPrimary)?.address ?? null,
     emails: person.addresses.map((a) => a.address),
     job_title: person.jobTitle,
@@ -155,6 +165,7 @@ export function companyRow(company: CrmCompany, row: RowContext): CompanyRow {
     name: company.name,
     workspace: row.workspace,
     archived: company.archivedAt !== null,
+    url: recordUrl(row.webAppURL, "company", company.id),
     description: company.description,
   };
 }
@@ -167,6 +178,7 @@ export function dealRow(deal: CrmDeal, row: RowContext): DealRow {
     name: deal.name,
     workspace: row.workspace,
     archived: deal.archivedAt !== null,
+    url: recordUrl(row.webAppURL, "deal", deal.id),
     company_id: deal.companyId,
     stage: { id: deal.stageId, name: stage?.name ?? deal.stageKind, kind: deal.stageKind },
     owner: deal.ownerMemberId ? (row.owners.get(deal.ownerMemberId) ?? null) : null,
@@ -206,6 +218,7 @@ export async function rowContext(
   ]);
   return {
     workspace: workspace.orgId,
+    webAppURL: context.webAppURL,
     stages: stages?.status === "ok" ? stages.stages : [],
     owners,
   };

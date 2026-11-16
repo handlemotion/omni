@@ -1199,8 +1199,8 @@ describe("the CRM", () => {
     expect(written.isError).toBe(false);
     expect(written.data.result).toBe("added");
     const id = written.data.person.id;
-    // No link until the web app serves `/crm/...`: an agent would cite a page that is not there.
-    expect(written.data.person).not.toHaveProperty("url");
+    // The link an agent cites opens the person's page in the web app.
+    expect(new URL(written.data.person.url).pathname).toBe(`/crm/people/${id}`);
     // Address edits on an add are refused rather than dropped while answering "added".
     const extra = await tool(access_token, "crm_write", {
       person: { name: "Ola Ortiz", email: "ola@bigco.test", add_emails: ["ola@home.test"] },

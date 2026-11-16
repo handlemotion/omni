@@ -19,6 +19,7 @@ import { Route as SShareIdRouteImport } from "./routes/s.$shareId";
 import { Route as AuthedMemberAllRouteImport } from "./routes/_authed/_member/all";
 import { Route as AuthedMemberArchiveRouteImport } from "./routes/_authed/_member/archive";
 import { Route as AuthedMemberComposeRouteImport } from "./routes/_authed/_member/compose";
+import { Route as AuthedMemberCrmRouteImport } from "./routes/_authed/_member/crm";
 import { Route as AuthedMemberDoneRouteImport } from "./routes/_authed/_member/done";
 import { Route as AuthedMemberDraftsRouteImport } from "./routes/_authed/_member/drafts";
 import { Route as AuthedMemberInboxRouteImport } from "./routes/_authed/_member/inbox";
@@ -31,6 +32,7 @@ import { Route as AuthedInviteInvitationIdRouteImport } from "./routes/_authed/i
 import { Route as AuthedOauthConsentRouteImport } from "./routes/_authed/oauth/consent";
 import { Route as AuthedMemberAllThreadIdRouteImport } from "./routes/_authed/_member/all.$threadId";
 import { Route as AuthedMemberArchiveThreadIdRouteImport } from "./routes/_authed/_member/archive.$threadId";
+import { Route as AuthedMemberCrmIndexRouteImport } from "./routes/_authed/_member/crm/index";
 import { Route as AuthedMemberDoneThreadIdRouteImport } from "./routes/_authed/_member/done.$threadId";
 import { Route as AuthedMemberDraftsThreadIdRouteImport } from "./routes/_authed/_member/drafts.$threadId";
 import { Route as AuthedMemberFilesIndexRouteImport } from "./routes/_authed/_member/files/index";
@@ -46,6 +48,12 @@ import { Route as AuthedMemberSettingsBillingRouteImport } from "./routes/_authe
 import { Route as AuthedMemberSpamThreadIdRouteImport } from "./routes/_authed/_member/spam.$threadId";
 import { Route as AuthedMemberTrashThreadIdRouteImport } from "./routes/_authed/_member/trash.$threadId";
 import { Route as AuthedSettingsEmailsVerifyRouteImport } from "./routes/_authed/settings/emails.verify";
+import { Route as AuthedMemberCrmCompaniesIndexRouteImport } from "./routes/_authed/_member/crm/companies.index";
+import { Route as AuthedMemberCrmCompaniesIdRouteImport } from "./routes/_authed/_member/crm/companies.$id";
+import { Route as AuthedMemberCrmDealsIndexRouteImport } from "./routes/_authed/_member/crm/deals.index";
+import { Route as AuthedMemberCrmDealsIdRouteImport } from "./routes/_authed/_member/crm/deals.$id";
+import { Route as AuthedMemberCrmPeopleIndexRouteImport } from "./routes/_authed/_member/crm/people.index";
+import { Route as AuthedMemberCrmPeopleIdRouteImport } from "./routes/_authed/_member/crm/people.$id";
 import { Route as AuthedMemberFilesMyIndexRouteImport } from "./routes/_authed/_member/files/my.index";
 import { Route as AuthedMemberFilesMyFolderIdRouteImport } from "./routes/_authed/_member/files/my.$folderId";
 import { Route as AuthedMemberFilesSharedIndexRouteImport } from "./routes/_authed/_member/files/shared.index";
@@ -97,6 +105,11 @@ const AuthedMemberArchiveRoute = AuthedMemberArchiveRouteImport.update({
 const AuthedMemberComposeRoute = AuthedMemberComposeRouteImport.update({
   id: "/compose",
   path: "/compose",
+  getParentRoute: () => AuthedMemberRoute,
+} as any);
+const AuthedMemberCrmRoute = AuthedMemberCrmRouteImport.update({
+  id: "/crm",
+  path: "/crm",
   getParentRoute: () => AuthedMemberRoute,
 } as any);
 const AuthedMemberDoneRoute = AuthedMemberDoneRouteImport.update({
@@ -161,6 +174,11 @@ const AuthedMemberArchiveThreadIdRoute =
     path: "/$threadId",
     getParentRoute: () => AuthedMemberArchiveRoute,
   } as any);
+const AuthedMemberCrmIndexRoute = AuthedMemberCrmIndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => AuthedMemberCrmRoute,
+} as any);
 const AuthedMemberDoneThreadIdRoute =
   AuthedMemberDoneThreadIdRouteImport.update({
     id: "/$threadId",
@@ -249,6 +267,40 @@ const AuthedSettingsEmailsVerifyRoute =
     path: "/settings/emails/verify",
     getParentRoute: () => AuthedRoute,
   } as any);
+const AuthedMemberCrmCompaniesIndexRoute =
+  AuthedMemberCrmCompaniesIndexRouteImport.update({
+    id: "/companies/",
+    path: "/companies/",
+    getParentRoute: () => AuthedMemberCrmRoute,
+  } as any);
+const AuthedMemberCrmCompaniesIdRoute =
+  AuthedMemberCrmCompaniesIdRouteImport.update({
+    id: "/companies/$id",
+    path: "/companies/$id",
+    getParentRoute: () => AuthedMemberCrmRoute,
+  } as any);
+const AuthedMemberCrmDealsIndexRoute =
+  AuthedMemberCrmDealsIndexRouteImport.update({
+    id: "/deals/",
+    path: "/deals/",
+    getParentRoute: () => AuthedMemberCrmRoute,
+  } as any);
+const AuthedMemberCrmDealsIdRoute = AuthedMemberCrmDealsIdRouteImport.update({
+  id: "/deals/$id",
+  path: "/deals/$id",
+  getParentRoute: () => AuthedMemberCrmRoute,
+} as any);
+const AuthedMemberCrmPeopleIndexRoute =
+  AuthedMemberCrmPeopleIndexRouteImport.update({
+    id: "/people/",
+    path: "/people/",
+    getParentRoute: () => AuthedMemberCrmRoute,
+  } as any);
+const AuthedMemberCrmPeopleIdRoute = AuthedMemberCrmPeopleIdRouteImport.update({
+  id: "/people/$id",
+  path: "/people/$id",
+  getParentRoute: () => AuthedMemberCrmRoute,
+} as any);
 const AuthedMemberFilesMyIndexRoute =
   AuthedMemberFilesMyIndexRouteImport.update({
     id: "/files/my/",
@@ -283,6 +335,7 @@ export interface FileRoutesByFullPath {
   "/all": typeof AuthedMemberAllRouteWithChildren;
   "/archive": typeof AuthedMemberArchiveRouteWithChildren;
   "/compose": typeof AuthedMemberComposeRoute;
+  "/crm": typeof AuthedMemberCrmRouteWithChildren;
   "/done": typeof AuthedMemberDoneRouteWithChildren;
   "/drafts": typeof AuthedMemberDraftsRouteWithChildren;
   "/inbox": typeof AuthedMemberInboxRouteWithChildren;
@@ -308,10 +361,17 @@ export interface FileRoutesByFullPath {
   "/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
   "/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
+  "/crm/": typeof AuthedMemberCrmIndexRoute;
   "/files/": typeof AuthedMemberFilesIndexRoute;
   "/settings/": typeof AuthedMemberSettingsIndexRoute;
+  "/crm/companies/$id": typeof AuthedMemberCrmCompaniesIdRoute;
+  "/crm/deals/$id": typeof AuthedMemberCrmDealsIdRoute;
+  "/crm/people/$id": typeof AuthedMemberCrmPeopleIdRoute;
   "/files/my/$folderId": typeof AuthedMemberFilesMyFolderIdRoute;
   "/files/shared/$folderId": typeof AuthedMemberFilesSharedFolderIdRoute;
+  "/crm/companies/": typeof AuthedMemberCrmCompaniesIndexRoute;
+  "/crm/deals/": typeof AuthedMemberCrmDealsIndexRoute;
+  "/crm/people/": typeof AuthedMemberCrmPeopleIndexRoute;
   "/files/my/": typeof AuthedMemberFilesMyIndexRoute;
   "/files/shared/": typeof AuthedMemberFilesSharedIndexRoute;
 }
@@ -349,10 +409,17 @@ export interface FileRoutesByTo {
   "/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
   "/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
   "/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
+  "/crm": typeof AuthedMemberCrmIndexRoute;
   "/files": typeof AuthedMemberFilesIndexRoute;
   "/settings": typeof AuthedMemberSettingsIndexRoute;
+  "/crm/companies/$id": typeof AuthedMemberCrmCompaniesIdRoute;
+  "/crm/deals/$id": typeof AuthedMemberCrmDealsIdRoute;
+  "/crm/people/$id": typeof AuthedMemberCrmPeopleIdRoute;
   "/files/my/$folderId": typeof AuthedMemberFilesMyFolderIdRoute;
   "/files/shared/$folderId": typeof AuthedMemberFilesSharedFolderIdRoute;
+  "/crm/companies": typeof AuthedMemberCrmCompaniesIndexRoute;
+  "/crm/deals": typeof AuthedMemberCrmDealsIndexRoute;
+  "/crm/people": typeof AuthedMemberCrmPeopleIndexRoute;
   "/files/my": typeof AuthedMemberFilesMyIndexRoute;
   "/files/shared": typeof AuthedMemberFilesSharedIndexRoute;
 }
@@ -368,6 +435,7 @@ export interface FileRoutesById {
   "/_authed/_member/all": typeof AuthedMemberAllRouteWithChildren;
   "/_authed/_member/archive": typeof AuthedMemberArchiveRouteWithChildren;
   "/_authed/_member/compose": typeof AuthedMemberComposeRoute;
+  "/_authed/_member/crm": typeof AuthedMemberCrmRouteWithChildren;
   "/_authed/_member/done": typeof AuthedMemberDoneRouteWithChildren;
   "/_authed/_member/drafts": typeof AuthedMemberDraftsRouteWithChildren;
   "/_authed/_member/inbox": typeof AuthedMemberInboxRouteWithChildren;
@@ -393,10 +461,17 @@ export interface FileRoutesById {
   "/_authed/_member/spam/$threadId": typeof AuthedMemberSpamThreadIdRoute;
   "/_authed/_member/trash/$threadId": typeof AuthedMemberTrashThreadIdRoute;
   "/_authed/settings/emails/verify": typeof AuthedSettingsEmailsVerifyRoute;
+  "/_authed/_member/crm/": typeof AuthedMemberCrmIndexRoute;
   "/_authed/_member/files/": typeof AuthedMemberFilesIndexRoute;
   "/_authed/_member/settings/": typeof AuthedMemberSettingsIndexRoute;
+  "/_authed/_member/crm/companies/$id": typeof AuthedMemberCrmCompaniesIdRoute;
+  "/_authed/_member/crm/deals/$id": typeof AuthedMemberCrmDealsIdRoute;
+  "/_authed/_member/crm/people/$id": typeof AuthedMemberCrmPeopleIdRoute;
   "/_authed/_member/files/my/$folderId": typeof AuthedMemberFilesMyFolderIdRoute;
   "/_authed/_member/files/shared/$folderId": typeof AuthedMemberFilesSharedFolderIdRoute;
+  "/_authed/_member/crm/companies/": typeof AuthedMemberCrmCompaniesIndexRoute;
+  "/_authed/_member/crm/deals/": typeof AuthedMemberCrmDealsIndexRoute;
+  "/_authed/_member/crm/people/": typeof AuthedMemberCrmPeopleIndexRoute;
   "/_authed/_member/files/my/": typeof AuthedMemberFilesMyIndexRoute;
   "/_authed/_member/files/shared/": typeof AuthedMemberFilesSharedIndexRoute;
 }
@@ -411,6 +486,7 @@ export interface FileRouteTypes {
     | "/all"
     | "/archive"
     | "/compose"
+    | "/crm"
     | "/done"
     | "/drafts"
     | "/inbox"
@@ -436,10 +512,17 @@ export interface FileRouteTypes {
     | "/spam/$threadId"
     | "/trash/$threadId"
     | "/settings/emails/verify"
+    | "/crm/"
     | "/files/"
     | "/settings/"
+    | "/crm/companies/$id"
+    | "/crm/deals/$id"
+    | "/crm/people/$id"
     | "/files/my/$folderId"
     | "/files/shared/$folderId"
+    | "/crm/companies/"
+    | "/crm/deals/"
+    | "/crm/people/"
     | "/files/my/"
     | "/files/shared/";
   fileRoutesByTo: FileRoutesByTo;
@@ -477,10 +560,17 @@ export interface FileRouteTypes {
     | "/spam/$threadId"
     | "/trash/$threadId"
     | "/settings/emails/verify"
+    | "/crm"
     | "/files"
     | "/settings"
+    | "/crm/companies/$id"
+    | "/crm/deals/$id"
+    | "/crm/people/$id"
     | "/files/my/$folderId"
     | "/files/shared/$folderId"
+    | "/crm/companies"
+    | "/crm/deals"
+    | "/crm/people"
     | "/files/my"
     | "/files/shared";
   id:
@@ -495,6 +585,7 @@ export interface FileRouteTypes {
     | "/_authed/_member/all"
     | "/_authed/_member/archive"
     | "/_authed/_member/compose"
+    | "/_authed/_member/crm"
     | "/_authed/_member/done"
     | "/_authed/_member/drafts"
     | "/_authed/_member/inbox"
@@ -520,10 +611,17 @@ export interface FileRouteTypes {
     | "/_authed/_member/spam/$threadId"
     | "/_authed/_member/trash/$threadId"
     | "/_authed/settings/emails/verify"
+    | "/_authed/_member/crm/"
     | "/_authed/_member/files/"
     | "/_authed/_member/settings/"
+    | "/_authed/_member/crm/companies/$id"
+    | "/_authed/_member/crm/deals/$id"
+    | "/_authed/_member/crm/people/$id"
     | "/_authed/_member/files/my/$folderId"
     | "/_authed/_member/files/shared/$folderId"
+    | "/_authed/_member/crm/companies/"
+    | "/_authed/_member/crm/deals/"
+    | "/_authed/_member/crm/people/"
     | "/_authed/_member/files/my/"
     | "/_authed/_member/files/shared/";
   fileRoutesById: FileRoutesById;
@@ -605,6 +703,13 @@ declare module "@tanstack/react-router" {
       path: "/compose";
       fullPath: "/compose";
       preLoaderRoute: typeof AuthedMemberComposeRouteImport;
+      parentRoute: typeof AuthedMemberRoute;
+    };
+    "/_authed/_member/crm": {
+      id: "/_authed/_member/crm";
+      path: "/crm";
+      fullPath: "/crm";
+      preLoaderRoute: typeof AuthedMemberCrmRouteImport;
       parentRoute: typeof AuthedMemberRoute;
     };
     "/_authed/_member/done": {
@@ -690,6 +795,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/archive/$threadId";
       preLoaderRoute: typeof AuthedMemberArchiveThreadIdRouteImport;
       parentRoute: typeof AuthedMemberArchiveRoute;
+    };
+    "/_authed/_member/crm/": {
+      id: "/_authed/_member/crm/";
+      path: "/";
+      fullPath: "/crm/";
+      preLoaderRoute: typeof AuthedMemberCrmIndexRouteImport;
+      parentRoute: typeof AuthedMemberCrmRoute;
     };
     "/_authed/_member/done/$threadId": {
       id: "/_authed/_member/done/$threadId";
@@ -796,6 +908,48 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthedSettingsEmailsVerifyRouteImport;
       parentRoute: typeof AuthedRoute;
     };
+    "/_authed/_member/crm/companies/": {
+      id: "/_authed/_member/crm/companies/";
+      path: "/companies";
+      fullPath: "/crm/companies/";
+      preLoaderRoute: typeof AuthedMemberCrmCompaniesIndexRouteImport;
+      parentRoute: typeof AuthedMemberCrmRoute;
+    };
+    "/_authed/_member/crm/companies/$id": {
+      id: "/_authed/_member/crm/companies/$id";
+      path: "/companies/$id";
+      fullPath: "/crm/companies/$id";
+      preLoaderRoute: typeof AuthedMemberCrmCompaniesIdRouteImport;
+      parentRoute: typeof AuthedMemberCrmRoute;
+    };
+    "/_authed/_member/crm/deals/": {
+      id: "/_authed/_member/crm/deals/";
+      path: "/deals";
+      fullPath: "/crm/deals/";
+      preLoaderRoute: typeof AuthedMemberCrmDealsIndexRouteImport;
+      parentRoute: typeof AuthedMemberCrmRoute;
+    };
+    "/_authed/_member/crm/deals/$id": {
+      id: "/_authed/_member/crm/deals/$id";
+      path: "/deals/$id";
+      fullPath: "/crm/deals/$id";
+      preLoaderRoute: typeof AuthedMemberCrmDealsIdRouteImport;
+      parentRoute: typeof AuthedMemberCrmRoute;
+    };
+    "/_authed/_member/crm/people/": {
+      id: "/_authed/_member/crm/people/";
+      path: "/people";
+      fullPath: "/crm/people/";
+      preLoaderRoute: typeof AuthedMemberCrmPeopleIndexRouteImport;
+      parentRoute: typeof AuthedMemberCrmRoute;
+    };
+    "/_authed/_member/crm/people/$id": {
+      id: "/_authed/_member/crm/people/$id";
+      path: "/people/$id";
+      fullPath: "/crm/people/$id";
+      preLoaderRoute: typeof AuthedMemberCrmPeopleIdRouteImport;
+      parentRoute: typeof AuthedMemberCrmRoute;
+    };
     "/_authed/_member/files/my/": {
       id: "/_authed/_member/files/my/";
       path: "/files/my";
@@ -849,6 +1003,30 @@ const AuthedMemberArchiveRouteChildren: AuthedMemberArchiveRouteChildren = {
 
 const AuthedMemberArchiveRouteWithChildren =
   AuthedMemberArchiveRoute._addFileChildren(AuthedMemberArchiveRouteChildren);
+
+interface AuthedMemberCrmRouteChildren {
+  AuthedMemberCrmIndexRoute: typeof AuthedMemberCrmIndexRoute;
+  AuthedMemberCrmCompaniesIdRoute: typeof AuthedMemberCrmCompaniesIdRoute;
+  AuthedMemberCrmDealsIdRoute: typeof AuthedMemberCrmDealsIdRoute;
+  AuthedMemberCrmPeopleIdRoute: typeof AuthedMemberCrmPeopleIdRoute;
+  AuthedMemberCrmCompaniesIndexRoute: typeof AuthedMemberCrmCompaniesIndexRoute;
+  AuthedMemberCrmDealsIndexRoute: typeof AuthedMemberCrmDealsIndexRoute;
+  AuthedMemberCrmPeopleIndexRoute: typeof AuthedMemberCrmPeopleIndexRoute;
+}
+
+const AuthedMemberCrmRouteChildren: AuthedMemberCrmRouteChildren = {
+  AuthedMemberCrmIndexRoute: AuthedMemberCrmIndexRoute,
+  AuthedMemberCrmCompaniesIdRoute: AuthedMemberCrmCompaniesIdRoute,
+  AuthedMemberCrmDealsIdRoute: AuthedMemberCrmDealsIdRoute,
+  AuthedMemberCrmPeopleIdRoute: AuthedMemberCrmPeopleIdRoute,
+  AuthedMemberCrmCompaniesIndexRoute: AuthedMemberCrmCompaniesIndexRoute,
+  AuthedMemberCrmDealsIndexRoute: AuthedMemberCrmDealsIndexRoute,
+  AuthedMemberCrmPeopleIndexRoute: AuthedMemberCrmPeopleIndexRoute,
+};
+
+const AuthedMemberCrmRouteWithChildren = AuthedMemberCrmRoute._addFileChildren(
+  AuthedMemberCrmRouteChildren,
+);
 
 interface AuthedMemberDoneRouteChildren {
   AuthedMemberDoneThreadIdRoute: typeof AuthedMemberDoneThreadIdRoute;
@@ -942,6 +1120,7 @@ interface AuthedMemberRouteChildren {
   AuthedMemberAllRoute: typeof AuthedMemberAllRouteWithChildren;
   AuthedMemberArchiveRoute: typeof AuthedMemberArchiveRouteWithChildren;
   AuthedMemberComposeRoute: typeof AuthedMemberComposeRoute;
+  AuthedMemberCrmRoute: typeof AuthedMemberCrmRouteWithChildren;
   AuthedMemberDoneRoute: typeof AuthedMemberDoneRouteWithChildren;
   AuthedMemberDraftsRoute: typeof AuthedMemberDraftsRouteWithChildren;
   AuthedMemberInboxRoute: typeof AuthedMemberInboxRouteWithChildren;
@@ -966,6 +1145,7 @@ const AuthedMemberRouteChildren: AuthedMemberRouteChildren = {
   AuthedMemberAllRoute: AuthedMemberAllRouteWithChildren,
   AuthedMemberArchiveRoute: AuthedMemberArchiveRouteWithChildren,
   AuthedMemberComposeRoute: AuthedMemberComposeRoute,
+  AuthedMemberCrmRoute: AuthedMemberCrmRouteWithChildren,
   AuthedMemberDoneRoute: AuthedMemberDoneRouteWithChildren,
   AuthedMemberDraftsRoute: AuthedMemberDraftsRouteWithChildren,
   AuthedMemberInboxRoute: AuthedMemberInboxRouteWithChildren,

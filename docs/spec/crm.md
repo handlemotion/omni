@@ -157,9 +157,9 @@ instructions keep telling agents to treat it as data.
 - A token reaches the company workspaces its grant does: its one workspace, or every company
   the person belongs to (`workspace` narrows a read; a write to one of several must name it). A
   Personal space has no CRM, so a token that reaches only one gets a tool error.
-- Every row carries `kind`, `id` and `workspace`. A row gains a `url` (`/crm/people/<id>`,
-  `/crm/companies/<id>`, `/crm/deals/<id>`) only once the web app serves those paths (C5), so an
-  agent never cites a link that answers "Not found".
+- Every row carries `kind`, `id`, `workspace` and a `url` on the web app (`/crm/people/<id>`,
+  `/crm/companies/<id>`, `/crm/deals/<id>`), which agents cite. The rows gained it with the web
+  screens (ADR 0039), so it never pointed at a page that answered "Not found".
 - `crm_fetch` takes `records: [{ kind, id }]`. Its thread ids come from
   `forUser(user, grant scope).threadsWith`, so they are threads the person can open.
 - `crm_write` takes exactly one of `person`, `company`, `deal` or `note`; with `id` it changes

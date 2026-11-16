@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SearchPopover } from "@/components/search/search-popover";
+import { CrmNav } from "@/components/crm/crm-nav";
 import { StorageNav } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
@@ -101,7 +102,13 @@ export function AppSidebar() {
             middle (24px down: the sidebar's 8px padding and half the 32px row), so it sits on
             the same line as their titles. */}
         <ModuleSwitcher />
-        {module === "files" ? <StorageNav mailbox={mailbox} /> : <MailNav mailbox={mailbox} />}
+        {module === "files" ? (
+          <StorageNav mailbox={mailbox} />
+        ) : module === "crm" ? (
+          <CrmNav mailbox={mailbox} />
+        ) : (
+          <MailNav mailbox={mailbox} />
+        )}
       </SidebarContent>
 
       <SidebarFooter className="justify-between">

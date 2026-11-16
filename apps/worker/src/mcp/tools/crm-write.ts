@@ -328,7 +328,7 @@ export function registerCrmWrite(server: McpServer, context: ToolContext) {
     {
       title: "Change the CRM",
       description:
-        "Add or change one record in the CRM, or add a note. Give exactly one of `person`, `company`, `deal` or `note`. With `id` it changes that record, only the fields given; without, it adds one (adding a person whose address is already known returns that person). A deal's `stage` moves it. Nothing is ever deleted or archived. Address edits (`add_emails`, `remove_emails`, `primary_email`) need `id`.",
+        "Add or change one record in the CRM, or add a note. Give exactly one of `person`, `company`, `deal` or `note`. With `id` it changes that record, only the fields given; without, it adds one (adding a person whose address is already known returns that person). A deal's `stage` moves it. Nothing is ever deleted or archived. Address edits (`add_emails`, `remove_emails`, `primary_email`) need `id`. The record comes back with its `url` to cite.",
       inputSchema,
       outputSchema,
       annotations: {

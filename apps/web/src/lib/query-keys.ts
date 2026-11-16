@@ -10,6 +10,8 @@
 //   │        · notifications ─ { unread } · sla(mailbox)
 //   ├─ storage ─ list(place) · trash · usage · sharing(id) · shared-with-me · link(share, node)
 //   │                                                                  (ADR 0034)
+//   ├─ crm ─ companies(q) · people(q) · deals(q) · company(id) · person(id) · deal(id) · stages
+//   │        · timeline(kind, id) · contracts(where) · find(q)                  (ADR 0036)
 //   └─ local ─ pending(threadId) · failures       (client-only state, never fetched)
 //
 // Switching organization or account clears the whole cache (see `session.ts`), so keys do not
@@ -24,6 +26,7 @@ const root = ["omni"] as const;
 const mail = [...root, "mail"] as const;
 const org = [...root, "org"] as const;
 const storage = [...root, "storage"] as const;
+const crm = [...root, "crm"] as const;
 const local = [...root, "local"] as const;
 
 /** A filter with absent fields dropped, so `{ mailbox: undefined }` and `{}` share a key. */
@@ -136,6 +139,23 @@ export const keys = {
   /** What a link opens: the shared node, or a folder inside it. */
   storageLink: (shareId: string, nodeId: string | undefined) =>
     [...storage, "link", shareId, nodeId ?? null] as const,
+
+  /** The CRM (ADR 0036): every list, record, timeline and the stages. */
+  crm: () => crm,
+  crmCompanies: (q: string) => [...crm, "companies", { q }] as const,
+  crmPeople: (q: string) => [...crm, "people", { q }] as const,
+  /** Every deals list (the board's and the searched ones), so a move patches them all. */
+  crmDealLists: () => [...crm, "deals"] as const,
+  crmDeals: (q: string) => [...crm, "deals", { q }] as const,
+  crmCompany: (id: string) => [...crm, "company", id] as const,
+  crmPerson: (id: string) => [...crm, "person", id] as const,
+  crmDeal: (id: string) => [...crm, "deal", id] as const,
+  crmStages: () => [...crm, "stages"] as const,
+  crmTimeline: (kind: string, id: string) => [...crm, "timeline", kind, id] as const,
+  crmContracts: (where: { company: string } | { deal: string }) =>
+    [...crm, "contracts", where] as const,
+  /** People, companies and deals whose name starts with `q`, for pickers. */
+  crmFind: (q: string) => [...crm, "find", { q }] as const,
 
   /** App-only state, never fetched (`query-client.ts` keeps it forever). */
   local: () => local,

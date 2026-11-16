@@ -138,6 +138,13 @@ export function startRealtime(client: QueryClient, activeOrgId: string): Realtim
       // A domain's DNS was checked again (the DNS page's auto-check): refetch its verdicts.
       case "domain":
         return void client.invalidateQueries({ queryKey: keys.onboarding() });
+      // A teammate (or an agent) changed the CRM: what is on screen refetches. A contract's
+      // signing locked its file, so Storage refetches too. Only the active workspace's CRM is
+      // cached.
+      case "crm.changed":
+        if (orgId !== activeOrgId) return;
+        if (event.kind === "contract") void client.invalidateQueries({ queryKey: keys.storage() });
+        return void client.invalidateQueries({ queryKey: keys.crm() });
     }
   };
 
@@ -164,6 +171,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string): Realtim
     // sends still waiting.
     if (reconnected) {
       void client.invalidateQueries({ queryKey: keys.mail() }, { cancelRefetch: false });
+      void client.invalidateQueries({ queryKey: keys.crm() }, { cancelRefetch: false });
       void recheckPendingSends(client);
     }
   };

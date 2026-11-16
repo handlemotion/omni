@@ -75,9 +75,10 @@
   --primary-subtle: color-mix(in oklab, var(--primary) 12%, transparent);
   /* Each module's identity, on its mark in the sidebar's module switcher only, with the white
      glyph on it. Both hold 3:1 against white and under the glyph: Mail is the brand blue
-     (4.5:1), Drive a green a step deeper than `success` (4.0:1). */
+     (4.5:1), Drive a green a step deeper than `success` (4.0:1), CRM a violet (5.4:1). */
   --module-mail: var(--primary);
   --module-drive: #15924f;
+  --module-crm: #7a4fd1;
   --module-foreground: #ffffff;
   --primary-subtle-foreground: var(--primary);
   --chart-1: var(--primary);
@@ -161,6 +162,7 @@
   --color-sidebar: var(--sidebar);
   --color-module-mail: var(--module-mail);
   --color-module-drive: var(--module-drive);
+  --color-module-crm: var(--module-crm);
   --color-module-foreground: var(--module-foreground);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
