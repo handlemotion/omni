@@ -17,15 +17,7 @@ import {
 } from "@omni/db";
 import { Effect } from "effect";
 import type Stripe from "stripe";
-import {
-  attempt,
-  type JobError,
-  Permanent,
-  Retryable,
-  retried,
-  retryTransient,
-  within,
-} from "../job-effects.ts";
+import { type JobError, Permanent, Retryable, retried } from "../job-effects.ts";
 import type { Logger } from "../log.ts";
 import { billsOverage, extraGb } from "./core.ts";
 
@@ -33,8 +25,11 @@ const GB = 1024 ** 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Stripe allows about 25 requests a second in test mode (100 live); stay well under. */
 const STRIPE_REQUEST_INTERVAL_MS = 100;
-/** One try at one workspace's Stripe calls; past it the try is abandoned and retried. */
-const STRIPE_TIME_LIMIT = "20 seconds";
+/**
+ * Each Stripe request's own timeout. Stripe's fetch client aborts the request when it runs out,
+ * so the call has ended before any retry starts (an `Effect.timeout` would leave it running).
+ */
+const STRIPE_TIMEOUT_MS = 20_000;
 /**
  * How far into a billing period with nothing to bill the metered item is taken off again. Its
  * removal drops whatever that item has not been invoiced for, so it waits until the period
@@ -63,6 +58,12 @@ function hasPaymentMethod(subscription: Stripe.Subscription) {
       ? null
       : (customer.invoice_settings?.default_payment_method ?? customer.default_source);
   return Boolean(subscription.default_payment_method ?? ofCustomer);
+}
+
+/** The idempotency key of the storage item's add to `subscriptionId` on the day of `now`. */
+function storageItemKey(subscriptionId: string, priceId: string, periodStart: Date, now: Date) {
+  const day = now.toISOString().slice(0, 10);
+  return `omni-storage-item-${subscriptionId}-${priceId}-${periodStart.toISOString()}-${day}`;
 }
 
 /**
@@ -94,9 +95,11 @@ async function billWorkspace(
   result: StorageBillingResult,
 ) {
   const { db, stripe, storage, now } = input;
-  const subscription = await stripe.subscriptions.retrieve(workspace.stripeSubscriptionId, {
-    expand: ["customer"],
-  });
+  const subscription = await stripe.subscriptions.retrieve(
+    workspace.stripeSubscriptionId,
+    { expand: ["customer"] },
+    { timeout: STRIPE_TIMEOUT_MS },
+  );
   const card = hasPaymentMethod(subscription);
   await setStorageOverage(db, workspace.orgId, card ? subscription.id : null);
   const billable =
@@ -108,33 +111,49 @@ async function billWorkspace(
   if (!item && billable && extra > 0) {
     // Before the event: on a classic subscription an item added mid-period is billed only for
     // what is reported after it was added.
-    const updated = await stripe.subscriptions.update(subscription.id, {
-      items: [{ price: storage.priceId }],
-      proration_behavior: "none",
-    });
+    // One key per subscription, price, period and day: a retry, or a second run beside this one,
+    // gets this add's answer instead of a second item. Stripe keeps a key for 24 hours and refuses
+    // it with other parameters; these never change for the key. Within a period the peak only
+    // rises, so the item is never taken off and needed again under the same key.
+    const updated = await stripe.subscriptions.update(
+      subscription.id,
+      { items: [{ price: storage.priceId }], proration_behavior: "none" },
+      {
+        timeout: STRIPE_TIMEOUT_MS,
+        idempotencyKey: storageItemKey(subscription.id, storage.priceId, period.start, now),
+      },
+    );
     item = updated.items.data.find((i) => i.price.id === storage.priceId);
     result.itemsAdded++;
   } else if (item && extra === 0 && now.getTime() - period.start.getTime() >= ITEM_KEPT_MS) {
-    await stripe.subscriptionItems.del(item.id, { proration_behavior: "none" });
+    // Keyed too: a retry after a removal Stripe made gets its answer, not "no such item".
+    await stripe.subscriptionItems.del(
+      item.id,
+      { proration_behavior: "none" },
+      { timeout: STRIPE_TIMEOUT_MS, idempotencyKey: `omni-storage-item-del-${item.id}` },
+    );
     item = undefined;
     result.itemsRemoved++;
   }
   if (!item) return;
   // Every day, 0 included: the meter bills the last value of the period, and a period nobody
   // reported in has none.
-  await stripe.billing.meterEvents.create({
-    event_name: storage.meterEvent,
-    payload: { stripe_customer_id: idOf(subscription.customer), value: String(extra) },
-    identifier: await meterEventIdentifier({
-      orgId: workspace.orgId,
-      periodStart: period.start,
-      day: now.toISOString().slice(0, 10),
-      extraGb: extra,
-    }),
-    // Stamped when sent, not when the job started: an item added above in this run would
-    // otherwise exist only after its first event, and that event would not be billed.
-    timestamp: Math.floor(Math.max(now.getTime(), Date.now()) / 1000),
-  });
+  await stripe.billing.meterEvents.create(
+    {
+      event_name: storage.meterEvent,
+      payload: { stripe_customer_id: idOf(subscription.customer), value: String(extra) },
+      identifier: await meterEventIdentifier({
+        orgId: workspace.orgId,
+        periodStart: period.start,
+        day: now.toISOString().slice(0, 10),
+        extraGb: extra,
+      }),
+      // Stamped when sent, not when the job started: an item added above in this run would
+      // otherwise exist only after its first event, and that event would not be billed.
+      timestamp: Math.floor(Math.max(now.getTime(), Date.now()) / 1000),
+    },
+    { timeout: STRIPE_TIMEOUT_MS },
+  );
   result.reported++;
 }
 
@@ -225,11 +244,12 @@ function billOne(
     const wait = run.pace.next - Date.now();
     if (wait > 0) yield* Effect.sleep(wait);
     run.pace.next = Date.now() + STRIPE_REQUEST_INTERVAL_MS;
-    // Safe to try again: it reads the subscription afresh, and the meter event's identifier
+    // Safe to try again once a try has ended (each request times itself out): it reads the
+    // subscription afresh, the item add and removal are keyed, and the meter event's identifier
     // makes a repeated event one.
-    yield* attempt("stripe", () =>
+    yield* retried("stripe", () =>
       billWorkspace(run, { ...workspace, stripeCustomerId }, { start, peakBytes }, result),
-    ).pipe(within("stripe", STRIPE_TIME_LIMIT), retryTransient);
+    );
   });
 }
 

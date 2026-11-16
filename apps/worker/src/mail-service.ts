@@ -28,7 +28,13 @@ export async function pingMailService(scope: MailServiceScope): Promise<boolean>
       body: "",
       requestId,
     });
-    const response = await fetch(url, { method: "POST", headers, body: "" });
+    // A nudge, not a delivery: a stalled one is cut short so it never holds up the AI job.
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: "",
+      signal: AbortSignal.timeout(10_000),
+    });
     const durationMs = Date.now() - started;
     if (response.ok) log.info("mail_service.ping", { status: response.status, durationMs });
     else log.warn("mail_service.ping_failed", { status: response.status, durationMs });

@@ -141,12 +141,39 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
       metadata: { referenceId: org.id },
     });
     expect(subscription.status).toBe("active");
-    // What it stores, as the counter has it (the daily recount trusts the files, so none here).
+    await store(org.id, storedBytes);
+    return { org, customer: customer.id, subscription };
+  }
+
+  /**
+   * What a workspace stores: one Shared file row of `bytes` and the counter to match. The daily
+   * recount runs beside the billing and sums the file rows, so a counter alone would be reset.
+   * No object is uploaded: nothing here reads it.
+   */
+  async function store(orgId: string, bytes: number) {
+    const [file] = await stack.db
+      .select({ id: schema.storageNodes.id })
+      .from(schema.storageNodes)
+      .where(eq(schema.storageNodes.orgId, orgId));
+    if (file) {
+      await stack.db
+        .update(schema.storageNodes)
+        .set({ size: bytes })
+        .where(eq(schema.storageNodes.id, file.id));
+    } else {
+      await stack.db.insert(schema.storageNodes).values({
+        orgId,
+        space: "shared",
+        kind: "file",
+        name: "stored.bin",
+        size: bytes,
+        r2Key: `orgs/${orgId}/${randomUUID()}`,
+      });
+    }
     await stack.db
       .insert(schema.storageUsage)
-      .values({ orgId: org.id, bytes: storedBytes })
-      .onConflictDoUpdate({ target: schema.storageUsage.orgId, set: { bytes: storedBytes } });
-    return { org, customer: customer.id, subscription };
+      .values({ orgId, bytes })
+      .onConflictDoUpdate({ target: schema.storageUsage.orgId, set: { bytes } });
   }
 
   /** The daily billing cron, run the way Cloudflare runs it: reconcile, then Storage's meter. */
@@ -209,20 +236,14 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
     ).toBe(3);
 
     // Files deleted: what is billed is still the month's peak.
-    await stack.db
-      .update(schema.storageUsage)
-      .set({ bytes: INCLUDED_GB * GIB })
-      .where(eq(schema.storageUsage.orgId, org.id));
+    await store(org.id, INCLUDED_GB * GIB);
     await daily();
     await new Promise((resolve) => setTimeout(resolve, 20_000));
     expect(await meterValue(customer, since)).toBe(3);
     expect(await previewQuantity(customer, subscription.id)).toBe(3);
 
     // A higher peak the same day is a new value, not a duplicate of the first.
-    await stack.db
-      .update(schema.storageUsage)
-      .set({ bytes: (INCLUDED_GB + 5) * GIB })
-      .where(eq(schema.storageUsage.orgId, org.id));
+    await store(org.id, (INCLUDED_GB + 5) * GIB);
     await daily();
     expect(
       await settle(

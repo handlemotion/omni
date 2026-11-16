@@ -36,7 +36,6 @@ import {
   Retryable,
   retryTransient,
   scopedDb,
-  within,
 } from "./job-effects.ts";
 import { createLogger, type Logger } from "./log.ts";
 import { pingMailService } from "./mail-service.ts";
@@ -57,6 +56,15 @@ export type AiJob = {
 
 /** Must match `max_retries` of the `omni-ai` consumer in wrangler.jsonc. */
 export const AI_QUEUE_MAX_RETRIES = 5;
+
+/** One model request's cancelling timeout (TypeSafe's client uses the same 20 s). */
+const MODEL_TIMEOUT_MS = 20_000;
+/**
+ * No message starts after this much of a batch's run. A job is at most two model calls, each tried
+ * three times at 20 s, about two minutes, so the last one started still ends inside a consumer's
+ * 15-minute wall clock.
+ */
+const BATCH_START_BUDGET_MS = 10 * 60 * 1000;
 
 /**
  * One handler for both queues the Worker consumes: AI jobs, and their dead-letter queue (by
@@ -141,13 +149,6 @@ export type AiJobOutcome =
   | "ingesting"
   | "triaged";
 
-/**
- * How long one job may take, its in-invocation retries included. A batch's ten jobs run one at a
- * time, so ten of these stay inside a consumer's 15-minute wall clock. Past it the job is retried
- * by Queues, like any retryable failure.
- */
-const JOB_TIME_LIMIT = "60 seconds";
-
 interface AiRun {
   env: Env;
   db: Db;
@@ -165,7 +166,13 @@ interface AiRun {
 export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
   const config = loadConfig(env);
   // With no key the client is never called: only the wordless-reply rule runs (see runAiJob).
-  const anthropic = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY ?? null });
+  // A cancelling timeout per request and no SDK retries: the job's own retries (`retryTransient`,
+  // then Queues) are the only ones, so a stalled request ends well inside the batch's budget.
+  const anthropic = new Anthropic({
+    apiKey: config.ANTHROPIC_API_KEY ?? null,
+    timeout: MODEL_TIMEOUT_MS,
+    maxRetries: 0,
+  });
   const models = {
     triage: chooseTriageClient({
       provider: config.TRIAGE_PROVIDER,
@@ -179,11 +186,18 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
     Effect.gen(function* () {
       const db = yield* scopedDb(env);
       const run: AiRun = { env, db, config, models, queue: batch.queue };
-      // One at a time, as before: a settled message never stops the rest of the batch.
-      yield* Effect.forEach(batch.messages, (message) => consumeAiMessage(run, message), {
-        concurrency: 1,
-        discard: true,
-      });
+      // One at a time, as before: a settled message never stops the rest of the batch. Past the
+      // batch's start budget the rest go back to Queues untouched, so slow jobs early in a batch
+      // never run the invocation out of time for the ones after them.
+      const started = Date.now();
+      yield* Effect.forEach(
+        batch.messages,
+        (message) =>
+          Date.now() - started < BATCH_START_BUDGET_MS
+            ? consumeAiMessage(run, message)
+            : Effect.sync(() => message.retry({ delaySeconds: 5 })),
+        { concurrency: 1, discard: true },
+      );
     }).pipe(Effect.scoped),
   );
 }
@@ -201,7 +215,12 @@ function consumeAiMessage(run: AiRun, message: Message<AiJob>): Effect.Effect<vo
   );
 }
 
-/** The job, then the live update for the people who see the thread. */
+/**
+ * The job, then the live update for the people who see the thread. No `Effect.timeout` here: it
+ * would abandon the promise, not stop it, and a retry would then run beside writes still in
+ * flight. The model calls carry their own cancelling timeouts (`MODEL_TIMEOUT_MS`, TypeSafe's
+ * 20 s), so an attempt always ends before the next one starts.
+ */
 function processAiJob(run: AiRun, job: AiJob, log: Logger): Effect.Effect<AiJobOutcome, JobError> {
   const { env, db, config, models } = run;
   return Effect.gen(function* () {
@@ -225,7 +244,7 @@ function processAiJob(run: AiRun, job: AiJob, log: Logger): Effect.Effect<AiJobO
       yield* attempt("fan_out", () => fanOut(env, db, config, changes)).pipe(retryTransient);
     }
     return outcome;
-  }).pipe(within("job", JOB_TIME_LIMIT));
+  });
 }
 
 function settle(message: Message<AiJob>, outcome: AiJobOutcome, log: Logger, started: number) {

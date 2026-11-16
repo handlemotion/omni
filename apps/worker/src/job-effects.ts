@@ -1,9 +1,9 @@
 // What the Worker's background jobs share in Effect (ADR 0038 decision 2): failures typed as
-// retryable or permanent, one bounded in-invocation retry, a time limit, and the per-run database
+// retryable or permanent, one bounded in-invocation retry, and the per-run database
 // client as a scoped resource. The work itself stays plain async functions, wrapped here at the
 // edge (ADR 0009); longer waits belong to Queues and the next cron run.
 import type { Db } from "@omni/db";
-import { Data, type Duration, Effect, Schedule, type Scope } from "effect";
+import { Data, Effect, Schedule, type Scope } from "effect";
 import { openDb } from "./db.ts";
 
 /** May succeed if tried again unchanged: a network or Hyperdrive blip, a timeout, a 429 or 5xx. */
@@ -50,7 +50,10 @@ export function attempt<A>(step: string, run: () => Promise<A>): Effect.Effect<A
 
 /**
  * A retryable failure is tried twice more in this invocation, about 250 ms and 500 ms later
- * (jittered): enough to ride out a blip, well inside a Worker's limits.
+ * (jittered): enough to ride out a blip, well inside a Worker's limits. A retry starts only once
+ * the attempt before it has settled, so wrap only calls that end on their own: a time limit
+ * belongs on the call (a request timeout that aborts it), never `Effect.timeout`, which would
+ * leave the abandoned call running beside the retry and past the run's database client.
  */
 export function retryTransient<A, R>(self: Effect.Effect<A, JobError, R>) {
   return self.pipe(
@@ -65,18 +68,6 @@ export function retryTransient<A, R>(self: Effect.Effect<A, JobError, R>) {
 /** `attempt`, with a retryable failure retried in this invocation (`retryTransient`). */
 export function retried<A>(step: string, run: () => Promise<A>): Effect.Effect<A, JobError> {
   return retryTransient(attempt(step, run));
-}
-
-/**
- * Fails with `Retryable` when `self` runs past `limit`. The promise underneath is abandoned, not
- * cancelled; the run's database client closes when the run ends.
- */
-export function within(step: string, limit: Duration.Input) {
-  return <A, R>(self: Effect.Effect<A, JobError, R>): Effect.Effect<A, JobError, R> =>
-    self.pipe(
-      Effect.timeout(limit),
-      Effect.catchTag("TimeoutError", (cause) => Effect.fail(new Retryable({ step, cause }))),
-    );
 }
 
 /**
