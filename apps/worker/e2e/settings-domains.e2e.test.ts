@@ -115,7 +115,7 @@ test("a domain another workspace verified, or a name under it, cannot be added o
     status: 409,
     body: {
       error: `${a.domain} is already set up by another workspace`,
-      code: "conflict",
+      code: "CONFLICT",
       category: "conflict",
       retryable: false,
       requestId: expect.any(String),
@@ -125,7 +125,7 @@ test("a domain another workspace verified, or a name under it, cannot be added o
     status: 409,
     body: {
       error: `mail.${a.domain} is under ${a.domain}, which another workspace set up`,
-      code: "conflict",
+      code: "CONFLICT",
       category: "conflict",
       retryable: false,
       requestId: expect.any(String),
@@ -148,7 +148,7 @@ test("a plain member can neither add nor remove a domain", async () => {
     status: 403,
     body: {
       error: "only owners and admins can set up mail",
-      code: "forbidden",
+      code: "FORBIDDEN",
       category: "permission",
       retryable: false,
       requestId: expect.any(String),
@@ -158,7 +158,7 @@ test("a plain member can neither add nor remove a domain", async () => {
     status: 403,
     body: {
       error: "only owners and admins can set up mail",
-      code: "forbidden",
+      code: "FORBIDDEN",
       category: "permission",
       retryable: false,
       requestId: expect.any(String),
@@ -215,7 +215,7 @@ test("removing: an admin withdraws a pending claim, a verified domain stays whil
     status: 403,
     body: {
       error: "only owners can release or move a domain",
-      code: "forbidden",
+      code: "FORBIDDEN",
       category: "permission",
       retryable: false,
       requestId: expect.any(String),
@@ -225,7 +225,7 @@ test("removing: an admin withdraws a pending claim, a verified domain stays whil
     status: 409,
     body: {
       error: `${a.domain} still has mailboxes in this workspace`,
-      code: "conflict",
+      code: "CONFLICT",
       category: "conflict",
       retryable: false,
       requestId: expect.any(String),

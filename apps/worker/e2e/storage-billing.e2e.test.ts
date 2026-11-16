@@ -185,7 +185,7 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
     expect({ plan: plan.stripeId, ...over }).toMatchObject({
       plan: plan.stripeId,
       status: 402,
-      body: { code: "storage_full" },
+      body: { code: "STORAGE_FULL" },
     });
     expect(await usage(owner)).toEqual({
       usedBytes: 0,
@@ -280,7 +280,7 @@ test("an editor's upload into a shared folder is held to the limit of the folder
   const into = { space: undefined, parentId: folder.id };
 
   expect((await open(guestHome.owner, ALLOWANCE + 1, door, into)).body).toMatchObject({
-    code: "storage_full",
+    code: "STORAGE_FULL",
   });
   expect((await open(guestHome.owner, ALLOWANCE, door, into)).status).toBe(201);
   // At home the same person may pass the allowance.

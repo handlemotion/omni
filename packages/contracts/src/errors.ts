@@ -145,8 +145,15 @@ function pick(source: Record<string, unknown>): Omit<ApiErrorInfo, "message"> {
 }
 
 /**
+ * A code as the legacy shape spells it: upper case, as codes shipped before this format
+ * (`STORAGE_FULL`), so tabs opened before it keep matching the codes they know.
+ */
+export const legacyCode = (code: ErrorCode) => code.toUpperCase();
+
+/**
  * Reads an error body in either shape, checked by hand; `fallback` is the message when the body
- * is neither (a proxy's HTML page, an empty body).
+ * is neither (a proxy's HTML page, an empty body). The code always comes back in lower case,
+ * whichever shape carried it.
  */
 export function toApiError(body: unknown, fallback: string): ApiErrorInfo {
   if (!isRecord(body)) return { message: fallback };
@@ -154,6 +161,10 @@ export function toApiError(body: unknown, fallback: string): ApiErrorInfo {
   if (isRecord(error) && typeof error.message === "string") {
     return { ...pick(error), message: error.message };
   }
-  if (typeof error === "string") return { ...pick(body), message: error };
+  if (typeof error === "string") {
+    const info = pick(body);
+    if (info.code) info.code = info.code.toLowerCase();
+    return { ...info, message: error };
+  }
   return { message: fallback };
 }

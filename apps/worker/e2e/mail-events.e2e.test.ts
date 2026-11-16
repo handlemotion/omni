@@ -48,7 +48,7 @@ test("forged, expired, unsigned-nonce and replayed mail events are rejected", as
   expect(expired.status).toBe(401);
   expect(await expired.json()).toEqual({
     error: "expired",
-    code: "unauthorized",
+    code: "UNAUTHORIZED",
     category: "unauthenticated",
     retryable: false,
     requestId: expect.any(String),
@@ -65,7 +65,7 @@ test("forged, expired, unsigned-nonce and replayed mail events are rejected", as
   expect(replayed.status).toBe(401);
   expect(await replayed.json()).toEqual({
     error: "replayed",
-    code: "unauthorized",
+    code: "UNAUTHORIZED",
     category: "unauthenticated",
     retryable: false,
     requestId: expect.any(String),

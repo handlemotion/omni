@@ -34,10 +34,17 @@ export const errorBodyV2Schema = z.object({
   }),
 });
 
+/** A code in the legacy shape: upper case, as shipped before this format (`legacyCode`). */
+export const legacyErrorCodeSchema = z
+  .string()
+  .refine(
+    (code) => code === code.toUpperCase() && errorCodeSchema.safeParse(code.toLowerCase()).success,
+  );
+
 /** Sent otherwise: `error` is the message; the rest flat beside it. */
 export const legacyErrorBodySchema = z.object({
   error: z.string(),
-  code: errorCodeSchema,
+  code: legacyErrorCodeSchema,
   category: errorCategorySchema,
   retryable: z.boolean(),
   ...extraFields,

@@ -185,7 +185,7 @@ test("a read-only workspace still serves its link; changes and sharing answer 40
   ];
   for (const change of changes) {
     expect(change.status).toBe(402);
-    expect(await change.json()).toMatchObject({ code: "billing_inactive" });
+    expect(await change.json()).toMatchObject({ code: "BILLING_INACTIVE" });
   }
   const sharingChanges = [
     await stack.api(lapsed.owner.jar, "PUT", person(folderId, address("late")), { role: "viewer" }),
@@ -193,7 +193,7 @@ test("a read-only workspace still serves its link; changes and sharing answer 40
     await stack.api(lapsed.owner.jar, "PUT", `/nodes/${folderId}/sharing/link`, { reset: true }),
   ];
   for (const change of sharingChanges) {
-    expect(change).toMatchObject({ status: 402, body: { code: "billing_inactive" } });
+    expect(change).toMatchObject({ status: 402, body: { code: "BILLING_INACTIVE" } });
   }
   const listed = await stack.api(lapsed.owner.jar, "GET", `/nodes?parent=${folderId}`);
   expect(listed.body.nodes.map((node: { name: string }) => node.name)).toEqual(["report.pdf"]);

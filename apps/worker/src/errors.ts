@@ -7,6 +7,7 @@ import {
   ERROR_CODES,
   ERROR_FORMAT_HEADER,
   ERROR_FORMAT_VERSION,
+  legacyCode,
   type ErrorBodyV2,
   type ErrorCode,
   type LegacyErrorBody,
@@ -55,7 +56,9 @@ export function errorBody(
   const { category, retryable } = ERROR_CODES[code];
   const fields = { category, retryable, requestId: c.var.requestId, ...extras };
   if (wantsNestedErrors(c)) return { error: { code, message, ...fields } };
-  return { error: message, code, ...fields };
+  // Upper case, as shipped: a tab opened before this format matches `STORAGE_FULL`, not
+  // `storage_full`, to choose its message and whether to offer Retry.
+  return { error: message, code: legacyCode(code), ...fields };
 }
 
 /** The error answer for `code`, with its status from the table. */

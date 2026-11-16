@@ -88,11 +88,28 @@ test("an old client that sends no header still gets `error` as the message strin
   expect(missing.status).toBe(404);
   expect(legacyErrorBodySchema.parse(missing.body)).toMatchObject({
     error: "not found",
-    code: "not_found",
+    code: "NOT_FOUND",
     category: "not_found",
     retryable: false,
   });
   expect(missing.body.requestId).toBe(missing.headers.get("x-request-id"));
+  // The client's reader gives the same lower-case code from this shape as from the nested one.
+  expect(toApiError(missing.body, "fallback")).toMatchObject({ code: "not_found" });
+});
+
+test("a tab of the Files UI opened before this format still gets the upper-case codes it matches", async () => {
+  // Bug: legacy answers switching to `billing_inactive`, so a tab opened before the deploy no
+  // longer recognises `BILLING_INACTIVE`/`STORAGE_FULL`: it loses the sentence and offers a Retry
+  // that cannot succeed.
+  const refused = await call("/api/storage/folders", {
+    method: "POST",
+    body: { name: "Plans", space: "personal" },
+  });
+  expect(refused.status).toBe(402);
+  expect(legacyErrorBodySchema.parse(refused.body)).toMatchObject({
+    code: "BILLING_INACTIVE",
+    category: "billing",
+  });
 });
 
 test("a client that sends the header gets the nested shape for the same failure", async () => {
