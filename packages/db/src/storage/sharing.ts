@@ -6,7 +6,7 @@ import type { Db } from "../client.ts";
 import { organizations } from "../schema/auth.ts";
 import { storageGrants, storageNodes } from "../schema/storage.ts";
 import type { Door } from "./access.ts";
-import { inTrash, pageSize, toNode, type NodeRow, type StorageNode } from "./core.ts";
+import { inTrash, MAX_WALK, pageSize, toNode, type NodeRow, type StorageNode } from "./core.ts";
 import { reach, type Forbidden, type NotFound } from "./tree.ts";
 
 export type StorageLinkAccess = (typeof storageNodes.linkAccess.enumValues)[number];
@@ -217,7 +217,7 @@ export async function listSharedWith(
       select n.parent_id, n.trashed_at, 0 from ${storageNodes} n where n.id = ${storageGrants.nodeId}
       union all
       select p.parent_id, p.trashed_at, up.depth + 1 from ${storageNodes} p
-        join up on p.id = up.parent_id where up.depth < 64
+        join up on p.id = up.parent_id where up.depth < ${MAX_WALK}
     ) select 1 from up where trashed_at is not null)`;
   const mine = db
     .select({

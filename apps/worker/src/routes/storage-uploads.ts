@@ -138,11 +138,16 @@ export const storageUploads = new Hono<AppEnv>()
     if (done.status === "ok") {
       return c.json({ node: wireNode(done.node) } satisfies StorageNodeResponse);
     }
-    // No file came of it (no room any more, the folder is gone): nothing stays stored.
-    await memberStorage(c).abortUpload(upload.id);
-    await bucket.delete(upload.r2Key).catch((error: unknown) => {
-      log.error("storage.objects_left", { count: 1, error });
-    });
+    // No file came of it (no room any more, the folder is gone): nothing stays stored. Only an
+    // upload that never became a file loses its bytes. A completed one is a file, which someone
+    // may hold even when this caller no longer reaches it (it was moved out of Shared), and
+    // `abortUpload` refuses it: the object goes only with the row that was its sole owner.
+    const aborted = await memberStorage(c).abortUpload(upload.id);
+    if (aborted.status === "ok") {
+      await bucket.delete(aborted.r2Key).catch((error: unknown) => {
+        log.error("storage.objects_left", { count: 1, error });
+      });
+    }
     return refused(c, done.status);
   })
 

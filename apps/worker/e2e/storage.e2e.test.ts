@@ -220,6 +220,29 @@ test("nobody but its member reaches a My files folder, file or upload over HTTP:
   expect(names((await stack.api(outsider.jar, "GET", "/nodes?space=shared")).body)).toEqual([]);
 });
 
+// Catches: a retried "complete" deleting the bytes of a file that still exists. The uploader's
+// client lost the answer and asks again after an admin took the file out of Shared: the uploader
+// no longer reaches it (404), and the handler treated that like an upload that came to nothing.
+test("completing again after the file left the uploader's reach answers 404 and leaves its bytes alone", async () => {
+  const org = await stack.company("retry-after-move");
+  const ana = await stack.member(org.id);
+  const admin = await stack.member(org.id, "admin");
+  const bytes = randomBytes(2048);
+  const file = await stack.upload(ana.jar, { space: "shared" }, "plan.bin", bytes);
+
+  const moved = await stack.api(admin.jar, "PATCH", `/nodes/${file.id}`, { space: "personal" });
+  expect(moved.body.node).toMatchObject({ space: "personal", ownerMemberId: admin.id });
+
+  // The upload's id is the file's id.
+  expect((await stack.api(ana.jar, "POST", `/uploads/${file.id}/complete`)).status).toBe(404);
+  expect((await stack.api(ana.jar, "DELETE", `/uploads/${file.id}`)).status).toBe(404);
+
+  const download = await stack.download(admin.jar, file.id);
+  expect(download.status).toBe(200);
+  expect(Buffer.from(await download.arrayBuffer())).toEqual(bytes);
+  expect(await stack.usedBytes(org.id)).toBe(bytes.length);
+});
+
 // Catches: a taken name overwriting its sibling, a rename colliding silently, a page boundary
 // that drops or repeats a row, Trash that still lists or cannot give back, "delete forever"
 // reaching a live file, and a deleted file whose bytes stay in the bucket and on the bill.
@@ -345,7 +368,8 @@ test("the minute cron aborts an upload nobody completed in 24 hours, and only th
 
 // Catches: Trash that never empties (bytes billed forever), a purge that takes what was trashed
 // yesterday or leaves the object behind, a usage counter that stays wrong, and a sweep that
-// leaves a deleted workspace's files in the bucket or deletes a live workspace's.
+// leaves a deleted workspace's files in the bucket (also one sorted before where this run's
+// listing started) or deletes a live workspace's.
 test("the daily cron purges Trash after 30 days, recounts usage, and sweeps only deleted workspaces from the bucket", async () => {
   const bucket = await stack.bucket();
   const org = await stack.company("daily");
@@ -367,8 +391,23 @@ test("the daily cron purges Trash after 30 days, recounts usage, and sweeps only
   const gone = await stack.company("closed");
   const cy = await stack.member(gone.id);
   const lost = await stack.upload(cy.jar, { space: "shared" }, "lost.bin", randomBytes(9));
-  await stack.db.delete(schema.organizations).where(eq(schema.organizations.id, gone.id));
-  expect(await bucket.head(storageObjectKey(gone.id, lost.id))).not.toBeNull();
+  // The sweep starts after a random live workspace and wraps around: two more closed
+  // workspaces, whose ids sort before and after every id a live one can have, so one is only
+  // ever reached by the wrap-around and the other by the first stretch.
+  const closed = [{ org: gone, file: lost }];
+  for (const id of [`0-first-${randomUUID()}`, `~last-${randomUUID()}`]) {
+    const [org] = await stack.db
+      .insert(schema.organizations)
+      .values({ id, name: id, slug: id, createdAt: new Date() })
+      .returning();
+    const dee = await stack.member(org!.id);
+    const file = await stack.upload(dee.jar, { space: "shared" }, "lost.bin", randomBytes(9));
+    closed.push({ org: org!, file });
+  }
+  for (const { org: shut, file } of closed) {
+    await stack.db.delete(schema.organizations).where(eq(schema.organizations.id, shut.id));
+    expect(await bucket.head(storageObjectKey(shut.id, file.id))).not.toBeNull();
+  }
   // Not ours to sweep: a key outside `orgs/`.
   await bucket.put(`other/${randomUUID()}`, "x");
 
@@ -381,7 +420,9 @@ test("the daily cron purges Trash after 30 days, recounts usage, and sweeps only
   expect(await stack.usedBytes(org.id)).toBe(37);
   expect((await stack.download(ana.jar, kept.id)).status).toBe(200);
 
-  expect((await bucket.list({ prefix: `orgs/${gone.id}/` })).objects).toEqual([]);
+  for (const { org: shut } of closed) {
+    expect((await bucket.list({ prefix: `orgs/${shut.id}/` })).objects).toEqual([]);
+  }
   expect((await bucket.list({ prefix: "other/" })).objects).toHaveLength(1);
 });
 

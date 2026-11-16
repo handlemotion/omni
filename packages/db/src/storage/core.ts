@@ -6,10 +6,16 @@ import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
 import { storageNodes, storageUsage } from "../schema/storage.ts";
 
-/** Folders nest this deep at most, so the walk up that every access check makes is bounded. */
+/** Folders nest this deep at most where people create or move them. */
 export const STORAGE_MAX_DEPTH = 32;
-/** A file inside the deepest folder, plus one so a chain that is too long is seen as such. */
-const MAX_WALK = STORAGE_MAX_DEPTH + 2;
+/**
+ * Where a walk up or down the tree gives up. Not the depth cap: a hand-over puts a tree one
+ * folder deeper each time it changes hands (`handover.ts`), so a tree can be deeper than anyone
+ * could build it and must still be reached, listed, trashed and purged whole. Parents cannot
+ * form a cycle (a move checks for one under the tree lock), so this only bounds a walk over
+ * rows that should not exist.
+ */
+export const MAX_WALK = 256;
 export const STORAGE_NAME_MAX_LENGTH = 255;
 
 export type StorageSpace = (typeof storageNodes.space.enumValues)[number];
@@ -107,7 +113,7 @@ export async function orgOfNode(ex: Db, nodeId: string) {
 
 /**
  * The node and its ancestors, node first, root last. Null when there is no such node, or its
- * chain does not reach a root within the depth cap.
+ * chain does not reach a root within `MAX_WALK`.
  */
 export async function chainOf(ex: Db, nodeId: string): Promise<NodeRow[] | null> {
   const rows = await ex
@@ -151,7 +157,7 @@ const down = (nodeId: string) => sql`
     select n.id, 0 from ${storageNodes} n where n.id = ${nodeId}
     union all
     select c.id, down.depth + 1 from ${storageNodes} c
-      join down on c.parent_id = down.id where down.depth < ${MAX_WALK * 2}
+      join down on c.parent_id = down.id where down.depth < ${MAX_WALK}
   )`;
 
 /** SQL condition: `storage_nodes.id` is inside the node, not the node itself. */

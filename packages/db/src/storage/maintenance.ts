@@ -98,3 +98,16 @@ export async function deletedStorageWorkspaces(db: Db, orgIds: string[]) {
   const alive = new Set(rows.map((row) => row.id));
   return orgIds.filter((id) => !alive.has(id));
 }
+
+/**
+ * For the bucket sweep: one workspace id picked at random, or null when there is none. The sweep
+ * starts its listing there, so over many runs it starts everywhere.
+ */
+export async function randomStorageSweepStart(db: Db) {
+  const [row] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .orderBy(sql`random()`)
+    .limit(1);
+  return row?.id ?? null;
+}

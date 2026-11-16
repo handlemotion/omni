@@ -68,6 +68,7 @@ export { handOverMemberStorage, type StorageHandOverResult } from "./storage/han
 export {
   deletedStorageWorkspaces,
   purgeStorageTrash,
+  randomStorageSweepStart,
   recomputeStorageUsage,
   storageUsageOf,
 } from "./storage/maintenance.ts";

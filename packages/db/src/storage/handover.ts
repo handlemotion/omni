@@ -28,8 +28,9 @@ function folderName(person: string) {
  * the workspace's oldest other owner when that is absent, not in the workspace, or the member
  * themselves. By `owner_member_id`, in one transaction. Run again it finds nothing to move and
  * changes nothing, so it is safe before every removal. Shared files, grants and links stay as
- * they are. The folder sits one level above what was a root, so a tree already at the depth cap
- * ends one deeper; the walks allow for that.
+ * they are. The folder sits one level above what was a root, so a tree ends one deeper each
+ * time it changes hands, past the depth cap if it was at it; the walks are not bound by the cap
+ * (`MAX_WALK` in `core.ts`).
  */
 export async function handOverMemberStorage(
   db: Db,

@@ -4,6 +4,7 @@ import {
   deletedStorageWorkspaces,
   expiredStorageUploads,
   purgeStorageTrash,
+  randomStorageSweepStart,
   recomputeStorageUsage,
   removeStorageUpload,
   STORAGE_TRASH_DAYS,
@@ -53,36 +54,81 @@ async function purgeTrash(db: Db, bucket: R2Bucket, log: Logger, now: Date) {
   return objects;
 }
 
+interface Sweep {
+  workspaces: number;
+  objects: number;
+  /** What the run has spent of `SWEEP_PREFIX_PAGES` and `SWEEP_DELETE_BATCHES`. */
+  pages: number;
+  batches: number;
+}
+
+/** Deletes everything under a deleted workspace's prefix. False when the run's batches ran out. */
+async function deleteWorkspaceObjects(bucket: R2Bucket, orgId: string, sweep: Sweep) {
+  for (let more = true; more;) {
+    if (sweep.batches++ >= SWEEP_DELETE_BATCHES) return false;
+    const under = await bucket.list({ prefix: `${ORG_PREFIX}${orgId}/`, limit: 1000 });
+    if (under.objects.length) await bucket.delete(under.objects.map((object) => object.key));
+    sweep.objects += under.objects.length;
+    more = under.truncated;
+  }
+  return true;
+}
+
 /**
- * Deletes the objects of workspaces that no longer exist. A deleted workspace's rows went by
- * cascade; its files are still under `orgs/<orgId>/`. Reads the workspace ids off the bucket's
- * own prefixes and deletes only under those with no organization row, so a live workspace's
- * objects are never touched. Starts over each run: what it deleted is no longer listed.
+ * Sweeps one stretch of the workspace prefixes, in key order: from just after the key `after`
+ * (the first prefix when absent) until the listing ends or has passed the key `until`. False
+ * when the run's pages or batches ran out first.
  */
-export async function sweepDeletedWorkspaces(db: Db, bucket: R2Bucket) {
-  let workspaces = 0;
-  let objects = 0;
-  let batches = 0;
+async function sweepStretch(
+  db: Db,
+  bucket: R2Bucket,
+  sweep: Sweep,
+  stretch: { after?: string; until?: string },
+) {
+  const { after, until } = stretch;
   let cursor: string | undefined;
-  for (let page = 0; page < SWEEP_PREFIX_PAGES; page++) {
-    const listed = await bucket.list({ prefix: ORG_PREFIX, delimiter: "/", cursor });
+  for (;;) {
+    if (sweep.pages++ >= SWEEP_PREFIX_PAGES) return false;
+    const listed = await bucket.list({
+      prefix: ORG_PREFIX,
+      delimiter: "/",
+      // A cursor already says where to go on from.
+      ...(cursor ? { cursor } : after ? { startAfter: after } : {}),
+    });
     const orgIds = listed.delimitedPrefixes
       .map((prefix) => prefix.slice(ORG_PREFIX.length, -1))
       .filter((id) => id.length > 0);
     for (const orgId of await deletedStorageWorkspaces(db, orgIds)) {
-      workspaces++;
-      for (let more = true; more;) {
-        if (batches++ >= SWEEP_DELETE_BATCHES) return { workspaces, objects, more: true };
-        const under = await bucket.list({ prefix: `${ORG_PREFIX}${orgId}/`, limit: 1000 });
-        if (under.objects.length) await bucket.delete(under.objects.map((object) => object.key));
-        objects += under.objects.length;
-        more = under.truncated;
-      }
+      sweep.workspaces++;
+      if (!(await deleteWorkspaceObjects(bucket, orgId, sweep))) return false;
     }
-    if (!listed.truncated) return { workspaces, objects, more: false };
+    const passed = until !== undefined && listed.delimitedPrefixes.some((prefix) => prefix > until);
+    if (!listed.truncated || passed) return true;
     cursor = listed.cursor;
   }
-  return { workspaces, objects, more: true };
+}
+
+/**
+ * Deletes the objects of workspaces that no longer exist. A deleted workspace's rows went by
+ * cascade; its files are still under `orgs/<orgId>/`. Reads the workspace ids off the bucket's
+ * own prefixes and deletes only under those with no organization row, so a live workspace's
+ * objects are never touched.
+ *
+ * A run reads a bounded number of pages, so it must not begin at the first prefix every time:
+ * with more live workspaces than those pages hold, a deleted one sorted after them would never
+ * be read. Each run starts after a workspace picked at random, reads on to the end, then wraps
+ * around to the first prefix and reads up to where it started. Nothing is remembered between
+ * runs: over many runs every prefix is read, and a bucket that fits in one run's pages is read
+ * whole every run. Should a bucket ignore `startAfter`, the first stretch is the whole listing.
+ */
+export async function sweepDeletedWorkspaces(db: Db, bucket: R2Bucket) {
+  const sweep: Sweep = { workspaces: 0, objects: 0, pages: 0, batches: 0 };
+  const startId = await randomStorageSweepStart(db);
+  const start = startId ? `${ORG_PREFIX}${startId}/` : undefined;
+  const done =
+    (await sweepStretch(db, bucket, sweep, { after: start })) &&
+    (start === undefined || (await sweepStretch(db, bucket, sweep, { until: start })));
+  return { workspaces: sweep.workspaces, objects: sweep.objects, more: !done };
 }
 
 /**

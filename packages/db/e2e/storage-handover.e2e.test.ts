@@ -2,7 +2,13 @@ import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
 import { members, storageNodes } from "../src/schema/index.ts";
-import { handOverMemberStorage, storageUsageOf } from "../src/storage.ts";
+import {
+  handOverMemberStorage,
+  purgeStorageTrash,
+  STORAGE_MAX_DEPTH,
+  storageObjectKey,
+  storageUsageOf,
+} from "../src/storage.ts";
 import { addFile, addFolder, setRole } from "./storage-support.ts";
 import { createMember, createOrg, createTestDatabase } from "./support.ts";
 
@@ -116,4 +122,50 @@ test("without a remover the files go to the workspace's owner, never to the memb
     status: "no_recipient",
   });
   expect((await forMember(db, only.id).storage.file(kept.id)).status).toBe("ok");
+});
+
+// Catches: files their owner cannot reach. Each hand-over puts the tree one folder deeper, so a
+// tree at the depth cap that changed hands a few times was longer than the walk up allowed, and
+// every lookup of it answered not_found; a walk down cut short would also leave rows uncounted.
+test("a file at the depth cap handed over three times is still its last owner's to open, trash and purge", async () => {
+  const org = await createOrg(db, "handover-deep");
+  const people = [];
+  for (const name of ["first", "second", "third", "last"]) {
+    const member = await createMember(db, org.id, name);
+    await setRole(db, member.id, "owner");
+    people.push(member);
+  }
+  const first = forMember(db, people[0]!.id).storage;
+  let folder = await addFolder(first, { space: "personal" }, "level 1");
+  for (let level = 2; level <= STORAGE_MAX_DEPTH; level++) {
+    folder = await addFolder(first, { parentId: folder.id }, `level ${level}`);
+  }
+  const file = await addFile(first, { parentId: folder.id }, "deep.txt", 12);
+
+  let outermost = "";
+  for (let hand = 0; hand < 3; hand++) {
+    const moved = await handOverMemberStorage(db, {
+      memberId: people[hand]!.id,
+      toMemberId: people[hand + 1]!.id,
+    });
+    expect(moved).toMatchObject({ status: "ok", toMemberId: people[hand + 1]!.id });
+    outermost = moved.status === "ok" ? moved.folderId! : "";
+  }
+
+  const last = forMember(db, people[3]!.id).storage;
+  expect((await last.file(file.id)).status).toBe("ok");
+  const seen = await last.node(file.id);
+  // Three `Files from` folders, the 32 levels, the file.
+  expect(seen?.path).toHaveLength(3 + STORAGE_MAX_DEPTH + 1);
+  expect(names(await last.list({ parentId: folder.id }))).toEqual(["deep.txt"]);
+  // The cap on what people build is unchanged: nothing more goes in down there.
+  expect((await last.createFolder({ parentId: folder.id }, "deeper")).status).toBe("too_deep");
+
+  // Trashed from the very top and purged: every row and the file's bytes go.
+  expect((await last.trash(outermost)).status).toBe("ok");
+  expect((await last.file(file.id)).status).toBe("ok");
+  const purged = await purgeStorageTrash(db, { before: new Date(Date.now() + 60_000) });
+  expect(purged.r2Keys).toContain(storageObjectKey(org.id, file.id));
+  expect((await storageUsageOf(db, org.id)).bytes).toBe(0);
+  expect(await last.node(file.id)).toBeNull();
 });
