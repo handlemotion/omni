@@ -73,12 +73,11 @@ export function TitleBar() {
 }
 
 /**
- * The sidebar's first row: the title bar's, so its own rows start under it (not on a phone). 24px,
- * not a full 32px row: with the sidebar's padding the first row then sits as far below the title
- * bar's centre line as the rows sit from each other.
+ * The sidebar's first row: the title bar's, so its own rows start under it (not on a phone). 28px,
+ * between a full 32px row and 24px, which crowded the title bar.
  */
 export function TitleBarRow() {
-  return useTitleBar() ? <div aria-hidden className="h-6 shrink-0" /> : null;
+  return useTitleBar() ? <div aria-hidden className="h-7 shrink-0" /> : null;
 }
 
 /**
