@@ -170,7 +170,9 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
     );
   await page.waitForRequest("**/api/storage/uploads/*/parts/1");
 
-  await page.getByRole("button", { name: "Settings" }).click();
+  // Settings is in the sidebar's workspace menu.
+  await page.getByRole("button", { name: /^Switch workspace/ }).click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
   await page.getByRole("button", { name: /^Workspace: Acme Files/ }).click();
   await page.getByRole("menuitem", { name: "Personal" }).click();
   await page.getByRole("button", { name: /^Workspace: Personal/ }).waitFor({ timeout: 15_000 });

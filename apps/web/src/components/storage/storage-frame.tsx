@@ -1,5 +1,5 @@
-// The frame every Storage screen shares, on the mail lists' grid: a 48px header (the title or the
-// breadcrumbs, an optional caption, then the screen's actions 10px from the right edge) over the
+// The frame every Storage screen shares, on the mail lists' grid: a 48px header with no line under
+// it, as mail's list header has none (the title or the breadcrumbs, an optional caption, then the screen's actions 10px from the right edge) over the
 // content, which scrolls on its own. In the app it starts with Back, Forward and the sidebar toggle;
 // a shared link's page has no app around it, so none.
 import type { ReactNode } from "react";
@@ -16,7 +16,7 @@ export function StorageFrame(props: {
   children: ReactNode;
 }) {
   const header = (toggle: ReactNode, inset: string) => (
-    <header className={`flex h-12 shrink-0 items-center gap-2 border-b pe-2.5 ${inset}`}>
+    <header className={`flex h-12 shrink-0 items-center gap-2 pe-2.5 ${inset}`}>
       {toggle}
       <div className="flex min-w-0 items-center">{props.title}</div>
       <span className="min-w-0 flex-1 truncate text-xs text-subtle-foreground">

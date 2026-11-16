@@ -1,12 +1,14 @@
-// Storage's rows in the sidebar (ADR 0034 decision 8): My files, Shared (a company's only: a
-// Personal space has no Shared), Shared with me and Trash. They are the Files module's whole
-// sidebar, shown alone while Files is open (ADR 0035).
+// Storage's sidebar (ADR 0034 decision 8), shown alone while Files is open (ADR 0035), after
+// Skiff Drive's: the places, My files, Shared (a
+// company's only: a Personal space has no Shared), Shared with me and Trash; then each space's
+// folders as a tree.
 import { useLocation } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { IconFolder, IconFolderShared, IconUsers } from "@/components/icons/central";
+import { IconFolder, IconFolderShared, IconUserRound } from "@/components/icons/central";
 import { IconTrash } from "@/components/icons/sidebar";
 import { SidebarItem, SidebarLabel, SidebarSection } from "@/components/ui/sidebar";
 import { useHasSharedFiles } from "@/hooks/use-storage.ts";
+import { SidebarTree } from "./sidebar-tree.tsx";
 
 export const SPACE_LABEL = { personal: "My files", shared: "Shared" } as const;
 export const SPACE_PATH = { personal: "/files/my", shared: "/files/shared" } as const;
@@ -26,7 +28,7 @@ const ROWS: { label: string; path: string; icon: ReactNode; company?: boolean }[
   {
     label: "Shared with me",
     path: "/files/shared-with-me",
-    icon: <IconUsers className="size-icon" />,
+    icon: <IconUserRound className="size-icon" />,
   },
   { label: "Trash", path: "/files/trash", icon: <IconTrash /> },
 ];
@@ -37,18 +39,22 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
   const hasShared = useHasSharedFiles();
   const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
   return (
-    <SidebarSection>
-      {ROWS.filter((row) => !row.company || hasShared).map((row) => (
-        <SidebarItem
-          key={row.path}
-          href={row.path + search}
-          // A folder's page is under its space's path, so the space stays current inside it.
-          isCurrent={pathname === row.path || pathname.startsWith(`${row.path}/`)}
-        >
-          {row.icon}
-          <SidebarLabel>{row.label}</SidebarLabel>
-        </SidebarItem>
-      ))}
-    </SidebarSection>
+    <>
+      <SidebarSection>
+        {ROWS.filter((row) => !row.company || hasShared).map((row) => (
+          <SidebarItem
+            key={row.path}
+            href={row.path + search}
+            // A folder's page is under its space's path, so the space stays current inside it.
+            isCurrent={pathname === row.path || pathname.startsWith(`${row.path}/`)}
+          >
+            {row.icon}
+            <SidebarLabel>{row.label}</SidebarLabel>
+          </SidebarItem>
+        ))}
+      </SidebarSection>
+      <SidebarTree space="personal" label="Folders" search={search} />
+      {hasShared && <SidebarTree space="shared" label="Shared folders" search={search} />}
+    </>
   );
 }

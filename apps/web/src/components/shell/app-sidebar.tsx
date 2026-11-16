@@ -5,8 +5,6 @@ import {
   IconBubbleAnnotation,
   IconClock,
   IconEmail,
-  IconSettings,
-  IconSidebar,
   IconInbox,
   IconPaperPlane,
   IconTrash,
@@ -14,13 +12,12 @@ import {
   IconWrite,
 } from "@/components/icons/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { SearchPopover } from "@/components/search/search-popover";
 import { CrmNav } from "@/components/crm/crm-nav";
 import { StorageNav } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
-import { ModuleSwitcher, useCurrentModule } from "./module-switcher";
+import { ModuleSwitcher, useCurrentModule, WorkspaceSwitcher } from "./module-switcher";
 import { CountBadge } from "./count-badge";
 import { NotificationsButton } from "./notifications";
 import {
@@ -33,15 +30,12 @@ import {
   SidebarItem,
   SidebarLabel,
   SidebarSection,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
 import { useCounts } from "@/hooks/use-mail.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
-import { openSettings } from "@/hooks/use-settings-dialog.ts";
-import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 
 /** A nav row. No `href`: the frame shows it, but the app has no view for it yet. */
 interface NavItem {
@@ -97,11 +91,16 @@ export function AppSidebar() {
   return (
     // The sheet on a phone closes from the page header's sidebar toggle: no second close mark.
     <Sidebar closeButton={false}>
-      <SidebarContent>
+      {/* Rows keep their height when the content runs long (a deep folder tree): it scrolls. */}
+      <SidebarContent className="*:shrink-0">
         {/* First, in the list the hover highlight runs through, centred on the page headers'
             middle (24px down: the sidebar's 8px padding and half the 32px row), so it sits on
             the same line as their titles. */}
-        <ModuleSwitcher />
+        {/* The workspace, and the bell after its chevrons. */}
+        <div className="flex items-center gap-1 *:first:min-w-0 *:first:flex-1">
+          <WorkspaceSwitcher />
+          <NotificationsButton />
+        </div>
         {module === "files" ? (
           <StorageNav mailbox={mailbox} />
         ) : module === "crm" ? (
@@ -111,25 +110,11 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="justify-between">
-        <div className="flex items-center gap-0.5">
-          <Button
-            intent="ghost"
-            size="sm"
-            aria-keyshortcuts={ariaKeyShortcuts("settings")}
-            onPress={() => openSettings()}
-          >
-            <IconSettings />
-            Settings
-          </Button>
-        </div>
+      {/* The foot: the module and its Switch. Settings is in the workspace's menu, the bell
+          beside it, and the sidebar's toggle at the start of every page header. */}
+      <SidebarFooter className="flex-col items-stretch">
         <OfflineBadge />
-        <div className="flex items-center gap-0.5">
-          <NotificationsButton />
-          <SidebarTrigger intent="ghost" size="sq-sm" aria-label="Close sidebar">
-            <IconSidebar />
-          </SidebarTrigger>
-        </div>
+        <ModuleSwitcher />
       </SidebarFooter>
     </Sidebar>
   );
@@ -228,7 +213,7 @@ function OfflineBadge() {
   const { online, queued } = useConnectivity();
   if (online) return null;
   return (
-    <Badge intent="warning" role="status" className="tabular-nums">
+    <Badge intent="warning" role="status" className="ms-2 mb-1 self-start tabular-nums">
       {queued > 0 ? `Offline · ${queued} queued` : "Offline"}
     </Badge>
   );

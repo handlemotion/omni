@@ -1,19 +1,16 @@
-// The start of every page header in the app shell while the sidebar is closed: the toggle that
-// opens it again (on a phone, the sidebar sheet). With the sidebar open its toggle sits in the
-// sidebar's footer instead, and the header starts with the title.
+// The start of every page header in the app shell: the sidebar's toggle, left of the title, open
+// or closed (on a phone, the sidebar sheet's).
 import { IconSidebar } from "@/components/icons/sidebar";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 
-/** Whether page headers start with the sidebar toggle: on a phone, or with the sidebar closed. */
+/** Whether page headers start with the sidebar toggle: always, in the app shell. */
 export function usePageNavShown() {
-  const sidebar = useSidebar();
-  return sidebar.isMobile || !sidebar.open;
+  return true;
 }
 
 export function PageNav() {
   const sidebar = useSidebar();
-  if (!usePageNavShown()) return null;
-  const open = sidebar.isMobile && sidebar.isOpenOnMobile;
+  const open = sidebar.isMobile ? sidebar.isOpenOnMobile : sidebar.open;
   return (
     // 4px more before the title than the header's own 8px gap, so the title reads as the start
     // of the page, not a second button.

@@ -12,6 +12,8 @@
 //   │                                                                  (ADR 0034)
 //   ├─ crm ─ companies(q) · people(q) · deals(q) · company(id) · person(id) · deal(id) · stages
 //   │        · timeline(kind, id) · contracts(where) · find(q)                  (ADR 0036)
+//   ├─ preview ─ (kind, file, version)   a file's preview bytes; outside `storage` so a list's
+//   │                                    refetch never refetches them (ADR 0040)
 //   └─ local ─ pending(threadId) · failures       (client-only state, never fetched)
 //
 // Switching organization or account clears the whole cache (see `session.ts`), so keys do not
@@ -28,6 +30,7 @@ const org = [...root, "org"] as const;
 const storage = [...root, "storage"] as const;
 const crm = [...root, "crm"] as const;
 const local = [...root, "local"] as const;
+const preview = [...root, "preview"] as const;
 
 /** A filter with absent fields dropped, so `{ mailbox: undefined }` and `{}` share a key. */
 function normalize(filter: ThreadFilter): ThreadFilter {
@@ -156,6 +159,12 @@ export const keys = {
     [...crm, "contracts", where] as const,
   /** People, companies and deals whose name starts with `q`, for pickers. */
   crmFind: (q: string) => [...crm, "find", { q }] as const,
+  /**
+   * A file's preview (ADR 0040): `image`, `thumbnail` or `text`, by the URL it is read through
+   * and the file's `updatedAt`, so a new version is a new key.
+   */
+  storagePreview: (kind: "image" | "thumbnail" | "text", url: string, version: string) =>
+    [...preview, kind, url, version] as const,
 
   /** App-only state, never fetched (`query-client.ts` keeps it forever). */
   local: () => local,

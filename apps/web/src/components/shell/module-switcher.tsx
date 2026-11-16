@@ -1,8 +1,8 @@
-// The top of the sidebar: the module on screen (ADR 0035), Mail, Drive or (in a company) CRM, whose menu switches
-// module, and at the row's end the workspace's avatar, whose menu switches workspace (a company
-// or your Personal space). The sidebar shows one module's rows at a time; the module follows the
-// route. Each module has an identity colour (`--module-*`), used on its mark here and nowhere
-// else.
+// The sidebar's two switchers. At its top, the workspace (a company or your Personal space) as one
+// row like the mailbox switcher's, whose menu switches workspace. At its foot, the module on
+// screen (ADR 0035), Mail, Drive or (in a company) CRM, with Switch, whose menu switches module. The sidebar shows one
+// module's rows at a time; the module follows the route. Each module has an identity colour
+// (`--module-*`), used on its mark here and nowhere else.
 //
 // - Switching module keeps the workspace and the mailbox shown in mail.
 // - Switching workspace keeps the module: Drive opens the same space's top, the CRM the same list,
@@ -13,15 +13,24 @@
 import { useLocation, useRouter, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import type { ComponentType, CSSProperties } from "react";
-import { IconCheck, IconFolder, IconHandshake, IconMail } from "@/components/icons/central";
+import {
+  IconCheck,
+  IconChevronsUpDown,
+  IconFolder,
+  IconHandshake,
+  IconMail,
+  IconSettings,
+} from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
-import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
+import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { SidebarItemTrigger } from "@/components/ui/sidebar";
 import { appToast } from "@/components/ui/toast";
 import { useHasCrm } from "@/hooks/use-crm.ts";
 import { useMember } from "@/hooks/use-session.ts";
+import { openSettings } from "@/hooks/use-settings-dialog.ts";
+import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { useOpenWorkspace, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { Workspace } from "@/lib/types.ts";
 
@@ -132,36 +141,38 @@ export function useOpenModule() {
   };
 }
 
+/** The sidebar's foot: the module on screen, and Switch, whose menu opens the other module. */
 export function ModuleSwitcher() {
   const current = BY_ID[useCurrentModule()];
   const open = useOpenModule();
   const modules = useHasCrm() ? MODULES : MODULES.filter((module) => module.id !== "crm");
 
-  const openModule = (module: Module) => {
-    if (module.id !== current.id) open(module.id);
-  };
-
   return (
-    // Two buttons side by side, after Craft: the module (most of the row) and the workspace's
-    // avatar at its end. 6px apart, so a finger's 44px area around the avatar's 32px button
-    // stops at the module's edge; each has its own hover and pressed fill.
-    <div className="flex min-w-0 items-center gap-1.5">
+    // A row on the nav rows' grid: the mark in the 15px icon box, the label 10px after it, and
+    // Switch, a round pill, at the row's end.
+    <div className="flex h-8 min-w-0 items-center gap-2.5 ps-2">
+      <span className="grid size-icon shrink-0 place-items-center">
+        <span className="-m-[1.5px]">
+          <ModuleMark module={current} />
+        </span>
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{current.label}</span>
       <MenuTrigger>
-        <SidebarItemTrigger aria-label={`Switch module, currently ${current.label}`}>
-          <span className="grid size-icon shrink-0 place-items-center">
-            <span className="-m-[1.5px]">
-              <ModuleMark module={current} />
-            </span>
-          </span>
-          <span className="min-w-0 truncate">{current.label}</span>
-        </SidebarItemTrigger>
+        <Button
+          intent="outline"
+          size="sm"
+          isCircle
+          aria-label={`Switch module, currently ${current.label}`}
+        >
+          Switch
+        </Button>
         <Menu
-          placement="bottom start"
+          placement="top end"
           popover={{
             offset: 4,
             // The row sits 8px from the window's edge: the menu keeps the same 8px.
             collisionPadding: 8,
-            className: "min-w-(--anchor-width) max-w-[min(18rem,calc(100vw-16px))]",
+            className: "min-w-48 max-w-[min(18rem,calc(100vw-16px))]",
           }}
         >
           {modules.map((module) => (
@@ -169,7 +180,7 @@ export function ModuleSwitcher() {
               key={module.id}
               id={module.id}
               textValue={module.label}
-              onAction={() => openModule(module)}
+              onAction={() => module.id !== current.id && open(module.id)}
             >
               {/* The menu's icon gap after it, which it gives only to its own marks. */}
               <ModuleMark module={module} className="me-(--me-icon)" />
@@ -178,13 +189,12 @@ export function ModuleSwitcher() {
           ))}
         </Menu>
       </MenuTrigger>
-      <WorkspaceSwitcher />
     </div>
   );
 }
 
-/** The current workspace's avatar at the module row's end, and the menu of every workspace. */
-function WorkspaceSwitcher() {
+/** The sidebar's top row: the workspace, and its menu: every workspace, then Settings. */
+export function WorkspaceSwitcher() {
   const { member } = useMember();
   const workspaces = useWorkspaces().data?.workspaces ?? [];
   const openWorkspace = useOpenWorkspace();
@@ -200,25 +210,29 @@ function WorkspaceSwitcher() {
 
   return (
     <MenuTrigger>
-      {/* The mark is the button: a 22px mark in a 26px box with no fill of its own, the box
-          flush with the row's end, so the mark's centre sits 13px in, on the axis of the search
-          field's `/`, the unread counts and the mailbox chevron below it. Hovered or open, the
-          mark itself darkens a step instead of a fill appearing behind it. */}
-      <Button
-        intent="plain"
-        size="sq-xs"
-        className="*:transition-[filter] *:duration-150 *:ease-out hover:*:brightness-92 aria-expanded:*:brightness-92"
-        aria-label={`Switch workspace, currently ${active.name}`}
-      >
-        {openWorkspace.isPending ? (
-          <Loader className="size-icon text-muted-foreground" />
-        ) : (
-          <WorkspaceMark workspace={active} size={22} />
-        )}
-      </Button>
+      {/* A sidebar row like the mailbox switcher: the mark in the nav icons' 15px box, the name
+          10px after it, the chevron at the row's end. */}
+      <SidebarItemTrigger aria-label={`Switch workspace, currently ${active.name}`}>
+        <span className="grid size-icon shrink-0 place-items-center">
+          {openWorkspace.isPending ? (
+            <Loader className="size-icon text-muted-foreground" />
+          ) : (
+            // 18px over the 15px box: the margin centres it on the nav icons' axis.
+            <span className="-m-[1.5px]">
+              <WorkspaceMark workspace={active} size={18} />
+            </span>
+          )}
+        </span>
+        <span className="min-w-0 truncate">{active.name}</span>
+        <IconChevronsUpDown className="ms-auto -me-0.75 size-3.5 shrink-0 text-subtle-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
+      </SidebarItemTrigger>
       <Menu
-        placement="bottom end"
-        popover={{ offset: 4, collisionPadding: 8, className: "min-w-56" }}
+        placement="bottom start"
+        popover={{
+          offset: 4,
+          collisionPadding: 8,
+          className: "min-w-(--anchor-width) max-w-[min(18rem,calc(100vw-16px))]",
+        }}
       >
         {workspaces.map((workspace) => (
           <MenuItem
@@ -231,6 +245,16 @@ function WorkspaceSwitcher() {
             <Label name={workspace.name} current={workspace.id === member.orgId} />
           </MenuItem>
         ))}
+        <MenuSeparator />
+        <MenuItem
+          id="settings"
+          textValue="Settings"
+          aria-keyshortcuts={ariaKeyShortcuts("settings")}
+          onAction={() => openSettings()}
+        >
+          <IconSettings data-slot="icon" />
+          <MenuLabel>Settings</MenuLabel>
+        </MenuItem>
       </Menu>
     </MenuTrigger>
   );

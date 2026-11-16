@@ -41,7 +41,7 @@ export function SharedWithMe() {
             />
           </div>
         ) : (
-          <Table variant="page" aria-label="Shared with me">
+          <Table variant="page" rowSize="lg" aria-label="Shared with me">
             <TableHeader>
               <TableColumn isRowHeader>Name</TableColumn>
               <TableColumn className="w-48 max-md:hidden">Workspace</TableColumn>
@@ -57,7 +57,11 @@ export function SharedWithMe() {
                   {...(item.shareId ? { href: `/s/${encodeURIComponent(item.shareId)}` } : {})}
                 >
                   <TableCell>
-                    <NameCell kind={item.node.kind} name={item.node.name} />
+                    <NameCell
+                      kind={item.node.kind}
+                      name={item.node.name}
+                      mimeType={item.node.mimeType}
+                    />
                   </TableCell>
                   <TableCell className="max-md:hidden">
                     <span className="block truncate text-muted-foreground">{item.orgName}</span>

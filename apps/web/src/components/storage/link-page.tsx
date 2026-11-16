@@ -2,6 +2,7 @@
 // or not: a file is a card with its name, size and Download; a folder is its page, with its
 // place inside what was shared in the title. An Editor (or a member of its workspace) changes
 // what is inside through the link's own door; sharing it on is the owner's, from Storage.
+import { useCallback, useMemo } from "react";
 import {
   IconDownload,
   IconFile,
@@ -46,28 +47,47 @@ function SharedFolder(props: {
   const trash = useTrashNode();
   // `path` runs from what was shared down to this folder.
   const [top = { id: item.node.id, name: item.node.name }, ...below] = item.path;
-  const download = (node: StorageNode) => window.location.assign(sharedFileUrl(shareId, node.id));
-  const menu = (node: StorageNode, open: (dialog: FolderDialog) => void): SettingsRowMenuItem[] => [
-    ...(node.kind === "file"
-      ? [{ icon: IconDownload, label: "Download", onAction: () => download(node) }]
-      : []),
-    ...(canWrite
-      ? [
-          { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },
-          { icon: IconFolderMove, label: "Move", onAction: () => open({ dialog: "move", node }) },
-          {
-            icon: IconTrash,
-            label: "Move to trash",
-            danger: true,
-            onAction: () =>
-              trash.mutate(
-                { id: node.id, shareId },
-                { onError: (error) => storageErrorToast(error, "It was not moved to Trash") },
-              ),
-          },
-        ]
-      : []),
-  ];
+  // Stable, so the memoized table and grid render only when their rows change.
+  const fileUrl = useCallback((node: StorageNode) => sharedFileUrl(shareId, node.id), [shareId]);
+  const folderHref = useCallback((node: StorageNode) => linkHref(shareId, node.id), [shareId]);
+  const download = useCallback(
+    (node: StorageNode) => window.location.assign(fileUrl(node)),
+    [fileUrl],
+  );
+  const trashNode = trash.mutate;
+  const menu = useMemo(
+    () =>
+      (node: StorageNode, open: (dialog: FolderDialog) => void): SettingsRowMenuItem[] => [
+        ...(node.kind === "file"
+          ? [{ icon: IconDownload, label: "Download", onAction: () => download(node) }]
+          : []),
+        ...(canWrite
+          ? [
+              {
+                icon: IconPencil,
+                label: "Rename",
+                onAction: () => open({ dialog: "rename", node }),
+              },
+              {
+                icon: IconFolderMove,
+                label: "Move",
+                onAction: () => open({ dialog: "move", node }),
+              },
+              {
+                icon: IconTrash,
+                label: "Move to trash",
+                danger: true,
+                onAction: () =>
+                  trashNode(
+                    { id: node.id, shareId },
+                    { onError: (error) => storageErrorToast(error, "It was not moved to Trash") },
+                  ),
+              },
+            ]
+          : []),
+      ],
+    [canWrite, download, shareId, trashNode],
+  );
   return (
     <LinkFrame>
       <FolderView
@@ -85,7 +105,8 @@ function SharedFolder(props: {
           shareId,
           canWrite,
           list: props.link,
-          folderHref: (node) => linkHref(shareId, node.id),
+          folderHref,
+          fileUrl,
           download,
           menu,
           move: { kind: "link", shareId, top, path: below },

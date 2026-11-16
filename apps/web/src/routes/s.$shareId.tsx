@@ -11,7 +11,8 @@ import { storageLinkQuery } from "../lib/storage-sharing.ts";
 
 export const Route = createFileRoute("/s/$shareId")({
   validateSearch: linkSearch,
-  loaderDeps: ({ search }) => search,
+  // The folder only: opening a file in the preview reloads nothing.
+  loaderDeps: ({ search: { node } }) => ({ node }),
   loader: async ({ context, params, deps }) => {
     // The frame's Sign in waits on the session; known before render, it never pops in or out.
     // `prefetchQuery` never throws.

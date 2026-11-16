@@ -1,6 +1,7 @@
 // A folder's page in My files or Shared (ADR 0034 decision 8), through the member's door: its
 // place in the title, and each row's Download, Share, Rename, Move and Move to trash.
 import { useSearch } from "@tanstack/react-router";
+import { useCallback, useMemo } from "react";
 import {
   IconDownload,
   IconFolderMove,
@@ -27,9 +28,11 @@ const EMPTY = {
 /** A link inside Storage, keeping the mailbox the switcher shows for the way back to mail. */
 function useStorageHref() {
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
-  const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
-  return (space: StorageSpace, folderId?: string) =>
-    `${SPACE_PATH[space]}${folderId ? `/${encodeURIComponent(folderId)}` : ""}${search}`;
+  return useCallback(
+    (space: StorageSpace, folderId?: string) =>
+      `${SPACE_PATH[space]}${folderId ? `/${encodeURIComponent(folderId)}` : ""}${mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : ""}`,
+    [mailbox],
+  );
 }
 
 export function FileList({ space, folderId }: { space: StorageSpace; folderId?: string }) {
@@ -38,6 +41,8 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
   const href = useStorageHref();
   const menu = useRowMenu();
   const path = list.folder?.path ?? [];
+  // Stable, so the memoized table and grid render only when their rows change.
+  const folderHref = useMemo(() => (node: StorageNode) => href(node.space, node.id), [href]);
   return (
     <FolderView
       title={
@@ -52,7 +57,8 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
         place,
         canWrite: true,
         list,
-        folderHref: (node) => href(node.space, node.id),
+        folderHref,
+        fileUrl,
         download,
         menu,
         move: { kind: "member", space, path },
@@ -62,34 +68,39 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
   );
 }
 
-/** Files only ever download (ADR 0034: nothing a person uploaded renders on our origin). */
-const download = (node: StorageNode) => window.location.assign(storageFileUrl(node.id));
+/** Where a file's bytes are: Download, and the preview's read of them (ADR 0040). */
+const fileUrl = (node: StorageNode) => storageFileUrl(node.id);
+const download = (node: StorageNode) => window.location.assign(fileUrl(node));
 
 /** A row's actions. In Shared, Trash is for whoever added the item, owners and admins. */
 function useRowMenu() {
   const { member } = useMember();
   const trash = useTrashNode();
   const manager = /\b(owner|admin)\b/.test(member.role);
-  return (node: StorageNode, open: (dialog: FolderDialog) => void): SettingsRowMenuItem[] => [
-    ...(node.kind === "file"
-      ? [{ icon: IconDownload, label: "Download", onAction: () => download(node) }]
-      : []),
-    { icon: IconUserAdd, label: "Share", onAction: () => open({ dialog: "share", node }) },
-    { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },
-    { icon: IconFolderMove, label: "Move", onAction: () => open({ dialog: "move", node }) },
-    ...(node.space === "personal" || manager || node.createdByMemberId === member.id
-      ? [
-          {
-            icon: IconTrash,
-            label: "Move to trash",
-            danger: true,
-            onAction: () =>
-              trash.mutate(
-                { id: node.id },
-                { onError: (error) => storageErrorToast(error, "It was not moved to Trash") },
-              ),
-          },
-        ]
-      : []),
-  ];
+  const trashNode = trash.mutate;
+  return useCallback(
+    (node: StorageNode, open: (dialog: FolderDialog) => void): SettingsRowMenuItem[] => [
+      ...(node.kind === "file"
+        ? [{ icon: IconDownload, label: "Download", onAction: () => download(node) }]
+        : []),
+      { icon: IconUserAdd, label: "Share", onAction: () => open({ dialog: "share", node }) },
+      { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },
+      { icon: IconFolderMove, label: "Move", onAction: () => open({ dialog: "move", node }) },
+      ...(node.space === "personal" || manager || node.createdByMemberId === member.id
+        ? [
+            {
+              icon: IconTrash,
+              label: "Move to trash",
+              danger: true,
+              onAction: () =>
+                trashNode(
+                  { id: node.id },
+                  { onError: (error) => storageErrorToast(error, "It was not moved to Trash") },
+                ),
+            },
+          ]
+        : []),
+    ],
+    [manager, member.id, trashNode],
+  );
 }

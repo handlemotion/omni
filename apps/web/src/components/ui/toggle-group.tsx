@@ -29,6 +29,11 @@ const useToggleGroupContext = () => use(ToggleGroupContext);
 export interface ToggleGroupProps extends ToggleButtonGroupProps {
   size?: ToggleSize;
   isCircle?: boolean;
+  /**
+   * Icons only, with no track: the chosen option keeps a faint border and its icon at full ink,
+   * the others are dimmed. For a quiet switch beside a section's header.
+   */
+  bare?: boolean;
 }
 
 export function ToggleGroup({
@@ -36,6 +41,7 @@ export function ToggleGroup({
   orientation = "horizontal",
   selectionMode = "single",
   isCircle,
+  bare,
   className,
   ...props
 }: ToggleGroupProps) {
@@ -53,7 +59,10 @@ export function ToggleGroup({
             "[--toggle-focused-bg:transparent] [--toggle-focused-foreground:var(--color-foreground)]",
             "[--toggle-hover-bg:transparent] [--toggle-hover-foreground:var(--color-foreground)]",
             "[--btn-icon:var(--color-muted-foreground)] [--btn-icon-active:var(--color-foreground)]",
-            "inline-flex overflow-hidden bg-accent p-(--toggle-gutter)",
+            "inline-flex overflow-hidden p-(--toggle-gutter)",
+            bare
+              ? "[--toggle-selected-bg:transparent] *:data-[slot=toggle-group-item]:selected:inset-ring *:data-[slot=toggle-group-item]:selected:inset-ring-border"
+              : "bg-accent",
             orientation === "horizontal" ? "flex-row" : "flex-col",
             selectionMode === "single" ? "gap-(--toggle-gutter)" : "gap-0",
             isCircle ? "rounded-full" : "rounded-(--toggle-group-radius)",

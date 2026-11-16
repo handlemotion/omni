@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { FileList } from "../../../../components/storage/file-list.tsx";
-import { listSearch } from "../../../../lib/search-params.ts";
+import { filesSearch } from "../../../../lib/search-params.ts";
 import { storageListQuery } from "../../../../lib/storage.ts";
 
 export const Route = createFileRoute("/_authed/_member/files/my/$folderId")({
-  validateSearch: listSearch,
+  validateSearch: filesSearch,
   loader: ({ context, params }) =>
     void context.queryClient.prefetchInfiniteQuery(storageListQuery({ parentId: params.folderId })),
   component: Folder,
