@@ -17,3 +17,4 @@ export * from "./abandoned-sign-ups.ts";
 export * from "./preferences.ts";
 export * from "./notifications.ts";
 export * from "./storage.ts";
+export * from "./crm.ts";
