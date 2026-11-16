@@ -53,16 +53,15 @@ const cursorParam = z
   .optional();
 
 /**
- * `workspace` (default): the active organization's member. `all`: every organization the user
- * belongs to, each row read as their member there (ADR 0014).
+ * Deprecated and ignored: lists, counts and search always cover the active workspace (ADR 0014,
+ * amended 2026-11-16: workspace isolation). `all` once meant every workspace; old web tabs and
+ * iOS builds still send it, and get the active workspace's mail, like everyone else.
  */
 const scopeParam = z.enum(["workspace", "all"]).default("workspace");
 
-/** The read path for `scope`. */
-function reader(c: Context<AppEnv>, scope: z.infer<typeof scopeParam>) {
-  return scope === "all"
-    ? forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId)
-    : forMember(c.var.db, c.var.member.id);
+/** The read path for lists, counts and search: this request's member, in its workspace. */
+function reader(c: Context<AppEnv>) {
+  return forMember(c.var.db, c.var.member.id);
 }
 
 const listQuery = z.object({
@@ -199,8 +198,8 @@ export const mail = new Hono<AppEnv>()
   })
 
   .get("/threads", zValidator("query", listQuery), async (c) => {
-    const { cursor, scope, ...query } = c.req.valid("query");
-    const threads = await reader(c, scope).listThreads({
+    const { cursor, scope: _scope, ...query } = c.req.valid("query");
+    const threads = await reader(c).listThreads({
       ...query,
       before: cursor,
     });
@@ -219,7 +218,7 @@ export const mail = new Hono<AppEnv>()
 
   /** Per mailbox: inbox and unread inbox threads, queued threads, and inbox threads per lane. */
   .get("/counts", zValidator("query", z.object({ scope: scopeParam })), async (c) => {
-    return c.json({ counts: await reader(c, c.req.valid("query").scope).counts() });
+    return c.json({ counts: await reader(c).counts() });
   })
 
   /**
@@ -240,8 +239,8 @@ export const mail = new Hono<AppEnv>()
    * or full-text relevance did (`text`: no TypeSafe key, or Jev failed or was slow).
    */
   .get("/search", limitPerMember("search"), zValidator("query", searchQuery), async (c) => {
-    const { q, scope, ...options } = c.req.valid("query");
-    const { hits, ranking } = await smartSearch(reader(c, scope), c.var.config, q, {
+    const { q, scope: _scope, ...options } = c.req.valid("query");
+    const { hits, ranking } = await smartSearch(reader(c), c.var.config, q, {
       ...options,
       log: c.var.log,
     });

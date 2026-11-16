@@ -1,7 +1,7 @@
 # 0014: "All mailboxes" spans every workspace
 
-Date: 2026-11-04 · Status: accepted · Amends: spec v1 "Data model" (all reads go through
-`db.forMember`)
+Date: 2026-11-04 · Status: accepted, amended 2026-11-16 (workspace isolation) · Amends: spec v1
+"Data model" (all reads go through `db.forMember`)
 
 ## Context
 
@@ -63,3 +63,29 @@ longer pings their phone for mail they are already watching on the web.
   workspace; each hit carries its `orgId`.
 - If a user ever had two members in one org (Better Auth prevents it; the schema does not), a
   thread in that org would list once per member.
+
+## Amendment (2026-11-16): "All" stays inside the active workspace
+
+Founder's decision: "All mailboxes" respects workspace isolation. Spanning every workspace meant
+a Personal space with no mailboxes of its own still listed, counted and searched Acme's mail
+under "All", so no workspace was ever a separate place.
+
+- **What "All" means now:** every mailbox of the **active** workspace that the member can see,
+  and nothing from another workspace. A workspace with no mailboxes shows the empty mail state.
+- **Server, so every client gets the same answer:** `GET /api/threads`, `/api/counts` and
+  `/api/search` read as the active workspace's member (`forMember`) whatever `scope` says.
+  `scope=all` is still accepted (old web tabs and iOS builds send it) and ignored; they now see
+  fewer threads, which is the intent. The parameter goes in a later contract step. A request that
+  names a `mailboxId` still runs as the member who can open that mailbox (ADR 0024), as before.
+- **Web:** lists, counts and search stop sending `scope=all`; the mailbox menu lists only the
+  active workspace's mailboxes, and another workspace is chosen from the sidebar's workspace
+  menu; rows no longer name their workspace. Realtime: only the active workspace's socket stays
+  open, so the push fallback covers other workspaces' mail again. Another workspace's socket
+  opens only while (a) one of its threads is on screen (opened by link) or (b) a send from one
+  of its addresses (a reply or new mail) has not had its result yet, and closes once neither
+  holds. Send responses carry the action's `orgId` for this (additive).
+- **Unchanged:** `forUser` and its isolation proof; `GET /api/mailboxes?scope=all` (compose can
+  still send from any address the session can open, ADR 0024); thread routes still open a
+  thread by id as the member who can see it, so a link to one still works; `?org=` sockets.
+- **MCP keeps its reach (ADR 0029).** An agent has no active workspace: the person chooses at
+  consent whether its grant covers every workspace or one, and that choice stands.

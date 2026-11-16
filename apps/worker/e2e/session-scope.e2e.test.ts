@@ -170,7 +170,8 @@ test("a magic link to a company address opens that company only, everywhere", as
 test("a magic link to a personal address opens every workspace", async () => {
   const a = await ana();
   const jar = await signedIn(a.personal);
-  expect(await threadOrgs(jar)).toEqual(new Set([a.acme.orgId, a.beta.orgId, a.spaceId]));
+  // Lists stay inside the active workspace (ADR 0014, amended): every one is reached by switching.
+  expect(await threadOrgs(jar)).toEqual(new Set([a.acme.orgId]));
   const listed = await api(jar, "/workspaces?include=personal");
   expect(listed.body.scopedTo).toBeNull();
   expect(new Set((listed.body.workspaces as { id: string }[]).map((w) => w.id))).toEqual(
@@ -180,6 +181,11 @@ test("a magic link to a personal address opens every workspace", async () => {
     organizationId: a.beta.orgId,
   });
   expect(switched.status).toBe(200);
+  expect(await threadOrgs(jar)).toEqual(new Set([a.beta.orgId]));
+  expect(
+    (await authPost(worker, jar, "/organization/set-active", { organizationId: a.spaceId })).status,
+  ).toBe(200);
+  expect(await threadOrgs(jar)).toEqual(new Set([a.spaceId]));
 });
 
 test("a scoped session cannot add a sign-in method, create a company or join another", async () => {

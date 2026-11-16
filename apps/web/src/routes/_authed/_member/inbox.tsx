@@ -5,7 +5,7 @@ import { inboxSearch } from "../../../lib/search-params.ts";
 import { ConversationList } from "../../../components/inbox/conversation-list.tsx";
 import { NoInboxes } from "../../../components/inbox/no-inboxes.tsx";
 import { ThreadList } from "../../../components/inbox/thread-list.tsx";
-import { useAllMailboxes } from "../../../hooks/use-mail.ts";
+import { useMailboxes } from "../../../hooks/use-mail.ts";
 
 export const Route = createFileRoute("/_authed/_member/inbox")({
   validateSearch: inboxSearch,
@@ -30,7 +30,8 @@ function Inbox() {
   const router = useRouter();
   const href = (threadId: string) =>
     router.buildLocation({ to: "/inbox/$threadId", params: { threadId }, search }).href;
-  const mailboxes = useAllMailboxes().data;
+  // The active workspace's: one with none shows the empty state, whatever other workspaces hold.
+  const mailboxes = useMailboxes().data;
   // A shared inbox's Mine (`?view=`) lists conversations; its Inbox, threads.
   if (search.mailbox && search.view) {
     return (

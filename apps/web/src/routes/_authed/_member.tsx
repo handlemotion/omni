@@ -45,7 +45,7 @@ export const Route = createFileRoute("/_authed/_member")({
 
 function Shell() {
   const { member } = Route.useRouteContext();
-  useRealtimeConnection(member.orgId, { memberId: member.id, everyWorkspace: true });
+  useRealtimeConnection(member.orgId, { memberId: member.id });
   useDesktopNotifications();
   usePreloadScreens();
   const settings = useSettingsDialog();

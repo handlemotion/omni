@@ -29,6 +29,7 @@ import {
   type Upload,
 } from "../lib/compose.ts";
 import { keys } from "../lib/query-keys.ts";
+import { settleOutstanding } from "../lib/pending.ts";
 import { useKeyedMutation } from "./keyed-mutation.ts";
 
 export type {
@@ -215,6 +216,7 @@ export function useCancelSend() {
   return useCallback(
     async (actionId: string, pending?: { threadId: string; key: string }) => {
       const stopped = await cancelSend(actionId);
+      if (stopped) settleOutstanding(actionId);
       if (stopped && pending) forgetPending(client, pending.threadId, pending.key);
       return stopped;
     },

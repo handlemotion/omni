@@ -5,6 +5,7 @@ import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react
 import { dropStartupResponses } from "./startup-fetch.ts";
 import { api, ApiError, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
+import { forgetOutstanding } from "./pending.ts";
 import { cancelUploads } from "./storage-uploads.ts";
 import type { Member } from "./types.ts";
 
@@ -67,12 +68,16 @@ interface Reloadable {
  * In-flight queries are aborted first so a late answer cannot land in the new cache.
  */
 export async function resetSession(client: QueryClient, router: Reloadable) {
+  const before = client.getQueryData<Session | null>(keys.session())?.user.id;
   // Already done before a switch; here for the rest (a 401): nothing goes on as someone else.
   await cancelUploads();
   dropStartupResponses();
   await client.cancelQueries();
   client.clear();
   await router.invalidate();
+  // A workspace switch keeps waiting for the person's sends; a new person (or none) does not.
+  const after = client.getQueryData<Session | null>(keys.session())?.user.id;
+  if (!after || after !== before) forgetOutstanding();
 }
 
 /** Only same-origin paths: `?redirect=https://evil.example` must not become an open redirect. */

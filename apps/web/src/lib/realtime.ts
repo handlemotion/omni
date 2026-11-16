@@ -1,6 +1,7 @@
-// Live updates: one websocket per workspace the user belongs to (the Durable Object is per org,
-// and lists span every workspace, ADR 0014), turned into cache invalidations. Events say what changed, not its contents, so this marks
-// those queries stale and TanStack Query refetches only the ones on screen.
+// Live updates: the active workspace's websocket (the Durable Object is per org, and lists show
+// only the active workspace, ADR 0014 as amended), plus any other workspace the app follows for
+// a while (`follow`), turned into cache invalidations. Events say what changed, not its contents,
+// so this marks those queries stale and TanStack Query refetches only the ones on screen.
 import {
   connectRealtime,
   type Realtime,
@@ -10,7 +11,15 @@ import {
 } from "@omni/client";
 import type { QueryClient } from "@tanstack/react-query";
 import { onWake, reportAnswer } from "./connectivity.ts";
-import { addFailure, allPending, failPendingByAction } from "./pending.ts";
+import { ApiError } from "./api.ts";
+import {
+  addFailure,
+  addOutstanding,
+  allPending,
+  failPendingByAction,
+  outstandingSends,
+  settleOutstanding,
+} from "./pending.ts";
 import { applyPresence, clearPresence } from "./presence.ts";
 import { actionQuery } from "./mail-queries.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
@@ -40,15 +49,18 @@ export const realtimeStatus = {
   },
 };
 
+/** The sockets one signed-in shell keeps: the active org's, and the others it follows. */
+export interface RealtimeConnections {
+  /** Keeps a socket open for exactly these orgs besides the active one, opening or closing. */
+  follow(orgIds: readonly string[]): void;
+  stop(): void;
+}
+
 /**
- * Opens a socket per org in `orgIds` and keeps the cache in step with them. The status shown is
- * the active org's socket. Returns the function that stops them all.
+ * Opens the active org's socket and keeps the cache in step with it and with every org it is
+ * told to `follow`. The status shown is the active org's socket.
  */
-export function startRealtime(
-  client: QueryClient,
-  orgIds: readonly string[],
-  activeOrgId: string,
-): () => void {
+export function startRealtime(client: QueryClient, activeOrgId: string): RealtimeConnections {
   const changedThreads = new Set<string>();
   const changedMailboxes = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -112,6 +124,7 @@ export function startRealtime(
       case "notification.removed":
         return void client.invalidateQueries({ queryKey: keys.notifications() });
       case "action.succeeded": {
+        settleOutstanding(event.actionId);
         // A reply went out: refetch its thread now rather than waiting for the sync's event.
         const pending = allPending(client).find((p) => p.actionId === event.actionId);
         if (pending) changed(event.mailboxId, [pending.threadId]);
@@ -140,6 +153,8 @@ export function startRealtime(
     if (next === "closed") clearPresence(orgId);
     if (next !== "open") return;
     for (const listener of openListeners) listener(orgId);
+    // A send's result may have come while no socket of its org was open.
+    void recheckOutstanding(client, orgId);
     // The Worker answered. Going online resumes paused mutations and refetches stale queries.
     reportAnswer();
     // Events sent while the socket was down are gone: mark all mail stale. Only queries on
@@ -151,22 +166,46 @@ export function startRealtime(
       void recheckPendingSends(client);
     }
   };
-  const connections = new Map(
-    [...new Set([activeOrgId, ...orgIds])].map((id) => [id, connect(id)]),
-  );
+  const connections = new Map([[activeOrgId, connect(activeOrgId)]]);
   sockets = connections;
   const stopWaking = onWake(() => {
     for (const connection of connections.values()) connection.wake();
   });
 
-  return () => {
-    clearTimeout(timer);
-    stopWaking();
-    if (sockets === connections) sockets = new Map();
-    for (const connection of connections.values()) connection.close();
-    clearPresence();
-    setStatus("closed");
+  return {
+    follow(orgIds) {
+      const wanted = new Set(orgIds.filter((id) => id !== activeOrgId));
+      for (const [id, connection] of connections) {
+        if (id === activeOrgId || wanted.has(id)) continue;
+        connection.close();
+        connections.delete(id);
+        clearPresence(id);
+      }
+      for (const id of wanted) if (!connections.has(id)) connections.set(id, connect(id));
+    },
+    stop() {
+      clearTimeout(timer);
+      stopWaking();
+      if (sockets === connections) sockets = new Map();
+      for (const connection of connections.values()) connection.close();
+      clearPresence();
+      setStatus("closed");
+    },
   };
+}
+
+/**
+ * Records every send the outbox takes (its answer names the action and its workspace) until its
+ * result comes back, so that workspace's socket stays open for it. Returns the unsubscribe.
+ */
+export function trackSends(client: QueryClient): () => void {
+  return client.getMutationCache().subscribe((event) => {
+    if (event.type !== "updated" || event.action.type !== "success") return;
+    const data = event.action.data as { actionId?: unknown; orgId?: unknown } | undefined;
+    if (typeof data?.actionId === "string" && typeof data.orgId === "string") {
+      addOutstanding({ actionId: data.actionId, orgId: data.orgId });
+    }
+  });
 }
 
 /** Sends on the workspace's socket. False when it is not open (the message is dropped). */
@@ -192,6 +231,7 @@ function onActionFailed(
   kind: string | undefined,
   error: string,
 ) {
+  settleOutstanding(actionId);
   // A failed reply shows on its pending bubble; anything else is reported as a failure, and the
   // lists refetch because an optimistic archive or move may not have happened after all.
   if (!failPendingByAction(client, actionId, error)) {
@@ -214,6 +254,25 @@ async function recheckPendingSends(client: QueryClient) {
         }
       } catch {
         // Offline again; the next reconnect checks again.
+      }
+    }),
+  );
+}
+
+/** Asks the outbox about `orgId`'s outstanding sends: settles the finished, reports failures. */
+async function recheckOutstanding(client: QueryClient, orgId: string) {
+  const waiting = outstandingSends.get().filter((s) => s.orgId === orgId);
+  await Promise.all(
+    waiting.map(async ({ actionId }) => {
+      try {
+        const action = await client.fetchQuery({ ...actionQuery(actionId), staleTime: 0 });
+        if (action.status === "done") settleOutstanding(actionId);
+        if (action.status === "failed") {
+          onActionFailed(client, action.id, action.kind, action.error ?? "Sending failed");
+        }
+      } catch (error) {
+        // Gone: undone inside its window. Anything else (offline): the next open asks again.
+        if (error instanceof ApiError && error.status === 404) settleOutstanding(actionId);
       }
     }),
   );

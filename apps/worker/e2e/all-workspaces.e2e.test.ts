@@ -1,10 +1,13 @@
-// The cross-workspace view (ADR 0014): one user in two organizations lists, counts, opens and
-// acts on threads from both without switching the active org, and never sees a mailbox none of
-// their members was granted.
-import { schema } from "@omni/db";
+// "All mailboxes" and workspace isolation (ADR 0014, amended 2026-11-16): one user in two
+// organizations lists, counts and searches only the active one's mail, whatever `scope` says, and
+// still opens and acts on a thread from the other by id. Never a mailbox none of their members was
+// granted.
+import { ensurePersonalSpace, schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
+  authPost,
+  CookieJar,
   createMailbox,
   createMember,
   createOrg,
@@ -50,6 +53,46 @@ async function get<T>(path: string, cookie: string) {
 
 type Row = { id: string; orgId: string; subject: string; read: boolean };
 type Counts = { counts: { orgId: string; mailboxId: string; inbox: number; unread: number }[] };
+type Hits = { results: { threadId: string; orgId: string }[] };
+
+/** Makes `orgId` the session's active workspace, as the web app's switch does. */
+async function activate(jar: CookieJar, orgId: string) {
+  const switched = await authPost(worker, jar, "/organization/set-active", {
+    organizationId: orgId,
+  });
+  if (switched.status !== 200) throw new Error(`set-active answered ${switched.status}`);
+}
+
+/** The subjects a list shows, with and without the old `scope=all`: both must agree. */
+async function subjects(jar: CookieJar, query = "") {
+  const lists = await Promise.all(
+    [query, `${query}${query ? "&" : ""}scope=all`].map((q) =>
+      get<{ threads: Row[] }>(`/threads${q ? `?${q}` : ""}`, jar.header),
+    ),
+  );
+  expect(lists[1]!.threads).toEqual(lists[0]!.threads);
+  return lists[0]!.threads.map((t) => t.subject);
+}
+
+/** Search hits as `[orgId, threadId]`, with and without the old `scope=all`. */
+async function searched(jar: CookieJar, q: string) {
+  const runs = await Promise.all(
+    ["", "&scope=all"].map((scope) =>
+      get<Hits>(`/search?q=${encodeURIComponent(q)}${scope}`, jar.header),
+    ),
+  );
+  expect(runs[1]!.results).toEqual(runs[0]!.results);
+  return runs[0]!.results.map((r) => [r.orgId, r.threadId]).sort();
+}
+
+/** Inbox counts as `[mailboxId, inbox, unread]`, with and without the old `scope=all`. */
+async function counted(jar: CookieJar) {
+  const runs = await Promise.all(
+    ["", "?scope=all"].map((scope) => get<Counts>(`/counts${scope}`, jar.header)),
+  );
+  expect(runs[1]!.counts).toEqual(runs[0]!.counts);
+  return runs[0]!.counts.map((c) => [c.mailboxId, c.inbox, c.unread]).sort();
+}
 
 /** Opens the realtime socket as the web app does, optionally for one of the user's orgs. */
 async function connect(cookie: string, org?: string) {
@@ -67,7 +110,9 @@ async function connect(cookie: string, org?: string) {
   return { socket, received };
 }
 
-test("one user in two workspaces lists, counts, opens and acts on both, and nothing else", async () => {
+// Catches: "All mailboxes", its unread counts or its search reaching into a workspace other than
+// the active one (the old `scope=all`), for new clients and for old tabs that still send it.
+test("a person in two workspaces sees only the active one's mail under All, its counts and its search", async () => {
   const { db } = database;
   const acme = await createOrg(db, "acme");
   const globex = await createOrg(db, "globex");
@@ -100,56 +145,47 @@ test("one user in two workspaces lists, counts, opens and acts on both, and noth
     seedMessage(db, box, { subject, fromAddress: "x@client.test", uid, sentAt: at(day) });
   const acmeOld = await seed(acmeBox, "Acme old", 1, 1);
   const globexMid = await seed(globexBox, "Globex mid", 1, 2);
-  await seed(acmeBox, "Acme new", 2, 3);
+  const acmeNew = await seed(acmeBox, "Acme new", 2, 3);
+  const globexLate = await seed(globexBox, "Globex late", 2, 4);
   const gusNewest = await seed(gusBox, "Gus private", 1, 5);
   const initechNewest = await seed(initechBox, "Initech", 1, 6);
 
-  const cookie = await signIn(worker, db, "uma@acme.test");
+  const jar = new CookieJar();
+  await signIn(worker, db, "uma@acme.test", jar);
 
-  // The active workspace alone, as before.
-  const active = await get<{ threads: Row[] }>("/threads", cookie);
-  expect(active.threads.map((t) => t.subject)).toEqual(["Acme new", "Acme old"]);
-
-  // Every workspace, newest first, paged by cursor. Gus's mailbox and Initech never show.
+  // Acme active: its threads only, newest first, paged by cursor.
+  expect(await subjects(jar)).toEqual(["Acme new", "Acme old"]);
   const first = await get<{ threads: Row[]; nextCursor: string }>(
-    "/threads?scope=all&limit=2",
-    cookie,
+    "/threads?scope=all&limit=1",
+    jar.header,
   );
   const rest = await get<{ threads: Row[]; nextCursor: string | null }>(
-    `/threads?scope=all&limit=2&cursor=${first.nextCursor}`,
-    cookie,
+    `/threads?scope=all&limit=1&cursor=${first.nextCursor}`,
+    jar.header,
   );
   expect([...first.threads, ...rest.threads].map((t) => [t.orgId, t.subject])).toEqual([
     [acme.id, "Acme new"],
-    [globex.id, "Globex mid"],
     [acme.id, "Acme old"],
   ]);
-  expect(rest.nextCursor).toBeNull();
-
-  // Search: every workspace with scope=all, the active one by default; never Gus or Initech.
-  type Hits = { results: { threadId: string; orgId: string }[] };
-  const searched = async (q: string, scope = "all") =>
-    (await get<Hits>(`/search?scope=${scope}&q=${encodeURIComponent(q)}`, cookie)).results.map(
-      (r) => [r.orgId, r.threadId],
-    );
-  expect(await searched("Globex mid")).toEqual([[globex.id, globexMid.threadId]]);
-  expect(await searched("Globex mid", "workspace")).toEqual([]);
-  expect(await searched("Gus private")).toEqual([]);
-  expect(await searched("Initech")).toEqual([]);
-
-  const counts = await get<Counts>("/counts?scope=all", cookie);
-  expect(counts.counts.map((c) => [c.mailboxId, c.inbox, c.unread]).sort()).toEqual(
+  expect(await subjects(jar, "view=all")).toEqual(["Acme new", "Acme old"]);
+  expect(await counted(jar)).toEqual([[acmeBox.id, 2, 2]]);
+  expect(await searched(jar, "Acme")).toEqual(
     [
-      [acmeBox.id, 2, 2],
-      [globexBox.id, 1, 1],
+      [acme.id, acmeNew.threadId],
+      [acme.id, acmeOld.threadId],
     ].sort(),
   );
+  for (const q of ["Globex", "Gus private", "Initech"]) expect(await searched(jar, q)).toEqual([]);
 
-  // A Globex thread opens and takes actions while Acme stays active, as Uma's Globex member.
-  const thread = await get<{ id: string; orgId: string }>(`/threads/${globexMid.threadId}`, cookie);
+  // A Globex thread still opens and takes actions by id while Acme stays active, as Uma's Globex
+  // member: a link to it keeps working.
+  const thread = await get<{ id: string; orgId: string }>(
+    `/threads/${globexMid.threadId}`,
+    jar.header,
+  );
   expect(thread.orgId).toBe(globex.id);
   const write = (path: string, method: string, body?: unknown) =>
-    api(path, cookie, {
+    api(path, jar.header, {
       method,
       headers: { "idempotency-key": `key-${crypto.randomUUID()}` },
       ...(body ? { body: JSON.stringify(body) } : {}),
@@ -190,17 +226,25 @@ test("one user in two workspaces lists, counts, opens and acts on both, and noth
     .from(schema.mailActions)
     .where(eq(schema.mailActions.id, actionIds[0]!));
   expect(action).toMatchObject({ kind: "archive", memberId: umaGlobex, orgId: globex.id });
-  expect(await get(`/actions/${actionIds[0]}`, cookie)).toMatchObject({ id: actionIds[0] });
+  expect(await get(`/actions/${actionIds[0]}`, jar.header)).toMatchObject({ id: actionIds[0] });
 
-  // Done and archived: off the cross-workspace inbox, on its done view.
-  const inbox = await get<{ threads: Row[] }>("/threads?scope=all", cookie);
-  expect(inbox.threads.map((t) => t.subject)).toEqual(["Acme new", "Acme old"]);
-  const done = await get<{ threads: Row[] }>("/threads?scope=all&view=done", cookie);
-  expect(done.threads.map((t) => [t.subject, t.read])).toEqual([["Globex mid", true]]);
+  // Globex active: its threads only, with the state she set from Acme; Acme's are gone.
+  await activate(jar, globex.id);
+  expect(await subjects(jar)).toEqual(["Globex late"]);
+  expect(await subjects(jar, "view=done")).toEqual(["Globex mid"]);
+  expect(await subjects(jar, "view=all")).toEqual(["Globex late", "Globex mid"]);
+  expect(await counted(jar)).toEqual([[globexBox.id, 1, 1]]);
+  expect(await searched(jar, "Globex")).toEqual(
+    [
+      [globex.id, globexLate.threadId],
+      [globex.id, globexMid.threadId],
+    ].sort(),
+  );
+  for (const q of ["Acme", "Gus private", "Initech"]) expect(await searched(jar, q)).toEqual([]);
 
   // Mailboxes no member of Uma's was granted: not readable, not writable, by any route.
   for (const hidden of [gusNewest, initechNewest]) {
-    expect((await api(`/threads/${hidden.threadId}`, cookie)).status).toBe(404);
+    expect((await api(`/threads/${hidden.threadId}`, jar.header)).status).toBe(404);
     expect((await write(`/threads/${hidden.threadId}/archive`, "POST")).status).toBe(404);
     expect((await write(`/threads/${hidden.threadId}/state`, "PATCH", { read: true })).status).toBe(
       404,
@@ -218,12 +262,72 @@ test("one user in two workspaces lists, counts, opens and acts on both, and noth
       ),
   ).toEqual([]);
   // The Acme thread is still read as Acme's member.
-  expect((await get<{ orgId: string }>(`/threads/${acmeOld.threadId}`, cookie)).orgId).toBe(
+  expect((await get<{ orgId: string }>(`/threads/${acmeOld.threadId}`, jar.header)).orgId).toBe(
     acme.id,
   );
 });
 
-test("the web app keeps a realtime socket per workspace, and only for the user's own", async () => {
+// Catches: a Personal space with no mailboxes of its own listing, counting or finding the
+// company's mail under "All" (the founder's report, 2026-11-16), in any view or lane.
+test("the Personal space with no mailboxes shows none of the company's mail", async () => {
+  const { db } = database;
+  const acme = await createOrg(db, "acme-personal");
+  await createMailbox(db, acme.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, acme.id, "ana@acme-personal.test");
+  const spaceId = await ensurePersonalSpace(db, ana.userId);
+  const box = await createMailbox(db, acme.id, "ana@acme-personal.test", "personal");
+  await grant(db, acme.id, box.id, ana.id);
+
+  // Acme's mail in every place the sidebar lists: the inbox and both reply lanes, Sent, All mail.
+  const seed = (subject: string, uid: number, folder?: string) =>
+    seedMessage(db, box, {
+      subject,
+      fromAddress: "client@example.test",
+      uid,
+      ...(folder ? { folder } : {}),
+    });
+  const asks = await seed("Acme asks", 1);
+  const waits = await seed("Acme waits", 2);
+  await seed("Acme sent", 1, "Sent");
+  for (const [thread, triage] of [
+    [asks, "needs_reply"],
+    [waits, "waiting_on_them"],
+  ] as const) {
+    await db
+      .update(schema.threads)
+      .set({ triage, triageSource: "person" })
+      .where(eq(schema.threads.id, thread.threadId));
+  }
+
+  const jar = new CookieJar();
+  await signIn(worker, db, "ana@acme-personal.test", jar);
+  const lists = [
+    "view=inbox",
+    "view=inbox&lane=needs_reply",
+    "view=inbox&lane=waiting_on_them",
+    "view=later",
+    "view=done",
+    "view=archive",
+    "view=all",
+    "view=sent",
+    "view=trash",
+    "view=spam",
+  ];
+  // Acme active, as a control: the seeded mail is where the lists look.
+  expect(await subjects(jar, "view=inbox&lane=needs_reply")).toEqual(["Acme asks"]);
+  expect(await subjects(jar, "view=inbox&lane=waiting_on_them")).toEqual(["Acme waits"]);
+  expect(await subjects(jar, "view=sent")).toEqual(["Acme sent"]);
+  expect((await searched(jar, "Acme")).length).toBe(3);
+
+  await activate(jar, spaceId);
+  expect(await get<{ orgId: string }>("/me", jar.header)).toMatchObject({ orgId: spaceId });
+  for (const list of lists) expect(await subjects(jar, list)).toEqual([]);
+  expect(await counted(jar)).toEqual([]);
+  for (const q of ["Acme", "asks", "waits", "sent"]) expect(await searched(jar, q)).toEqual([]);
+  expect(await get<{ mailboxes: unknown[] }>("/mailboxes", jar.header)).toEqual({ mailboxes: [] });
+});
+
+test("a realtime socket opens for any of the user's workspaces, and only for their own", async () => {
   const { db } = database;
   const north = await createOrg(db, "north");
   const south = await createOrg(db, "south");

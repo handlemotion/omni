@@ -3,8 +3,8 @@
 // server on another origin, the way a Google account's photo does.
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { createOrgWithOwner, schema } from "@omni/db";
-import { and, eq } from "drizzle-orm";
+import { createOrgWithOwner, ensurePersonalSpace, schema } from "@omni/db";
+import { eq } from "drizzle-orm";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import {
@@ -12,6 +12,7 @@ import {
   createOrg,
   createTestDatabase,
   grant,
+  postMailEvents,
   seedMessage,
   signIn,
   startMailServiceEndpoint,
@@ -72,7 +73,8 @@ afterEach(async () => {
   context = undefined;
 });
 
-/** Ana: owner of two workspaces, a personal and a shared mailbox in each, with a photo. */
+/** Ana: owner of two workspaces (Acme active), a personal and a shared mailbox in each, with a
+ *  photo; one unread thread in Acme's shared inbox, two in Beta's. */
 async function ana(slug: string) {
   const system = await createOrg(db, `${slug}-system`);
   await createMailbox(db, system.id, SYSTEM_MAIL_FROM);
@@ -101,12 +103,18 @@ async function ana(slug: string) {
   await grant(db, acme.orgId, boxes.support.id, acme.memberId);
   await grant(db, beta.orgId, boxes.beta.id, beta.memberId);
   await grant(db, beta.orgId, boxes.hello.id, beta.memberId);
-  await seedMessage(db, boxes.hello, {
+  await seedMessage(db, boxes.support, {
+    subject: "Hello from Acme",
+    fromAddress: "x@y.test",
+    uid: 1,
+  });
+  const betaHello = await seedMessage(db, boxes.hello, {
     subject: "Hello from Beta",
     fromAddress: "x@y.test",
     uid: 1,
   });
-  return { email, acme, beta, boxes };
+  await seedMessage(db, boxes.hello, { subject: "Beta again", fromAddress: "x@y.test", uid: 2 });
+  return { email, acme, beta, boxes, betaHello };
 }
 
 /** Signed in, on the inbox, with the switcher open. */
@@ -127,11 +135,11 @@ async function openSwitcher(email: string): Promise<Page> {
   return page;
 }
 
-test("your photo from another site shows on your personal mailboxes", async () => {
+test("your photo from another site shows on your personal mailbox", async () => {
   const { email } = await ana("photo");
   const page = await openSwitcher(email);
   const photos = page.getByRole("menuitem", { name: /Ana Lima/ }).locator("img");
-  await expect.poll(() => photos.count()).toBe(2);
+  await expect.poll(() => photos.count()).toBe(1);
   // Loaded, not refused by the page's CSP: the app's img-src allows only its own origin.
   for (const photo of await photos.all()) {
     await expect
@@ -148,35 +156,36 @@ test("your photo from another site shows on your personal mailboxes", async () =
   }
 });
 
-test("a mailbox in the other workspace opens; a switch the server refuses says so", async () => {
-  const { email, beta, boxes } = await ana("switch");
+// Catches: the mailbox menu, "All", its rows or the sidebar's unread count reaching into a
+// workspace other than the active one (ADR 0014, amended: workspace isolation).
+test("the menu and All show only the active workspace's mailboxes and mail", async () => {
+  const { email } = await ana("isolate");
   const page = await openSwitcher(email);
+  const menu = page.getByRole("menu");
+  const addresses = async () =>
+    (await menu.getByRole("menuitem").allInnerTexts()).map((text) => text.split("\n").at(-1));
+  expect(await addresses()).toEqual(["2 mailboxes", "ana@isolate.test", "support@isolate.test"]);
+  await page.keyboard.press("Escape");
+  await page.getByRole("row").filter({ hasText: "Hello from Acme" }).waitFor();
+  expect(await page.getByRole("row").filter({ hasText: "Beta" }).count()).toBe(0);
+  await page.getByRole("link", { name: "Inbox 1", exact: true }).waitFor();
 
-  await page.getByRole("menuitem", { name: /hello@beta-switch/ }).click();
-  await page.waitForURL((url) => url.searchParams.get("mailbox") === boxes.hello.id);
+  // Beta active, through the sidebar's workspace menu: its mailboxes, its mail and its count,
+  // and none of Acme's.
+  await page.getByRole("button", { name: "Switch workspace, currently Acme" }).click();
+  await page.getByRole("menuitem", { name: "Beta" }).click();
+  await page.getByRole("button", { name: "Switch workspace, currently Beta" }).waitFor();
   await page.getByRole("row").filter({ hasText: "Hello from Beta" }).waitFor();
-  const active = await page.evaluate(() =>
-    fetch("/api/workspaces").then((r) => r.json() as Promise<{ activeOrganizationId: string }>),
-  );
-  expect(active.activeOrganizationId).toBe(beta.orgId);
-
-  // Ana loses the Acme workspace while the menu still lists it.
+  await page.getByRole("row").filter({ hasText: "Beta again" }).waitFor();
+  expect(await page.getByRole("row").filter({ hasText: "Acme" }).count()).toBe(0);
+  await page.getByRole("link", { name: "Inbox 2", exact: true }).waitFor();
   await page.getByRole("button", { name: /^Switch mailbox/ }).click();
-  const [acme] = await db
-    .select({ id: schema.members.id })
-    .from(schema.members)
-    .innerJoin(schema.organizations, eq(schema.organizations.id, schema.members.organizationId))
-    .where(
-      and(eq(schema.organizations.slug, "switch-acme"), eq(schema.members.userId, beta.userId)),
-    );
-  await db.delete(schema.mailboxAccess).where(eq(schema.mailboxAccess.memberId, acme!.id));
-  await db.delete(schema.members).where(eq(schema.members.id, acme!.id));
-  await page.getByRole("menuitem", { name: /support@switch/ }).click();
-
-  await expect
-    .poll(() => page.locator("[data-slot=toast][data-tone=error]").innerText())
-    .toBe("The mailbox could not be opened. Try again.");
-  expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.hello.id);
+  await menu.waitFor();
+  expect(await addresses()).toEqual([
+    "2 mailboxes",
+    "ana@beta-isolate.test",
+    "hello@beta-isolate.test",
+  ]);
 });
 
 // Catches: rows cropped to their content (a layout width of NaN), an empty reading column left
@@ -185,7 +194,7 @@ test("the list fills the page until a thread opens beside it, and again once it 
   const { email } = await ana("wide");
   const page = await openSwitcher(email);
   await page.keyboard.press("Escape");
-  const row = page.getByRole("row").filter({ hasText: "Hello from Beta" });
+  const row = page.getByRole("row").filter({ hasText: "Hello from Acme" });
   await row.waitFor();
   const list = page.getByRole("grid");
   const width = async (locator: typeof row) => (await locator.boundingBox())?.width ?? 0;
@@ -221,8 +230,8 @@ test("the list fills the page until a thread opens beside it, and again once it 
 test("sidebar links keep the mailbox the switcher shows", async () => {
   const { email, boxes } = await ana("keep");
   const page = await openSwitcher(email);
-  await page.getByRole("menuitem", { name: /hello@beta-keep/ }).click();
-  await page.waitForURL((url) => url.searchParams.get("mailbox") === boxes.hello.id);
+  await page.getByRole("menuitem", { name: /support@keep/ }).click();
+  await page.waitForURL((url) => url.searchParams.get("mailbox") === boxes.support.id);
   for (const [name, path] of [
     ["Later", "/later"],
     ["All mail", "/all"],
@@ -231,8 +240,8 @@ test("sidebar links keep the mailbox the switcher shows", async () => {
     // Inbox's name carries its unread count ("Inbox 3").
     await page.getByRole("link", { name: new RegExp(`^${name}( \\d+)?$`) }).click();
     await page.waitForURL((url) => url.pathname === path);
-    expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.hello.id);
-    await page.getByRole("button", { name: /^Switch mailbox, currently Hello/ }).waitFor();
+    expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.support.id);
+    await page.getByRole("button", { name: /^Switch mailbox, currently Support/ }).waitFor();
   }
 });
 
@@ -244,8 +253,8 @@ test("switching mailbox keeps the list on screen", async () => {
   await page.getByRole("link", { name: "Later", exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/later");
   await page.getByRole("button", { name: /^Switch mailbox/ }).click();
-  await page.getByRole("menuitem", { name: /hello@beta-stay/ }).click();
-  await page.waitForURL((url) => url.searchParams.get("mailbox") === boxes.hello.id);
+  await page.getByRole("menuitem", { name: /support@stay/ }).click();
+  await page.waitForURL((url) => url.searchParams.get("mailbox") === boxes.support.id);
   expect(new URL(page.url()).pathname).toBe("/later");
 
   await page.getByRole("button", { name: /^Switch mailbox/ }).click();
@@ -291,9 +300,9 @@ test("switching workspace keeps the module; switching module keeps the workspace
 test("g then f keeps the mailbox for the way back to Mail", async () => {
   const { email, boxes } = await ana("gokeys");
   const page = await openSwitcher(email);
-  await page.getByRole("menuitem", { name: /hello@beta-gokeys/ }).click();
-  await page.waitForURL((url) => url.searchParams.get("mailbox") === boxes.hello.id);
-  await page.getByRole("row").filter({ hasText: "Hello from Beta" }).waitFor();
+  await page.getByRole("menuitem", { name: /support@gokeys/ }).click();
+  await page.waitForURL((url) => url.searchParams.get("mailbox") === boxes.support.id);
+  await page.getByRole("row").filter({ hasText: "Hello from Acme" }).waitFor();
 
   await page.keyboard.press("g");
   await page.keyboard.press("f");
@@ -301,8 +310,120 @@ test("g then f keeps the mailbox for the way back to Mail", async () => {
   await page.getByRole("button", { name: "Switch module, currently Drive" }).click();
   await page.getByRole("menuitem", { name: "Mail" }).click();
   await page.waitForURL((url) => url.pathname === "/inbox");
-  expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.hello.id);
-  await page.getByRole("button", { name: /^Switch mailbox, currently Hello/ }).waitFor();
+  expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.support.id);
+  await page.getByRole("button", { name: /^Switch mailbox, currently Support/ }).waitFor();
+});
+
+// Catches: a thread from another workspace, opened by its link, never updating live: only the
+// active workspace's socket was open, so its new mail (and its sends' results) never arrived.
+test("a thread from another workspace, opened by link, shows new mail live", async () => {
+  const { email, boxes, betaHello } = await ana("live");
+  const page = await openSwitcher(email);
+  await page.keyboard.press("Escape");
+  await page.goto(new URL(`/inbox/${betaHello.threadId}`, String(worker.url)).toString());
+  await page.getByText("Hello from Beta").first().waitFor();
+  // Acme stays active: lists keep to it, the thread reads as Ana's Beta member.
+  const active = await page.evaluate(() =>
+    fetch("/api/workspaces").then((r) => r.json() as Promise<{ activeOrganizationId: string }>),
+  );
+  expect(active.activeOrganizationId).not.toBe(boxes.hello.orgId);
+
+  // A reply lands in the thread, the way the mail service records and announces it.
+  const reply = await seedMessage(db, boxes.hello, {
+    subject: "Re: Hello from Beta",
+    fromAddress: "x@y.test",
+    uid: 3,
+    threadId: betaHello.threadId,
+    text: "A reply that arrives while the thread is open",
+  });
+  // Until Beta's socket is open, an event would reach nobody: wait for it.
+  await expect
+    .poll(
+      async () => {
+        const response = await postMailEvents(worker, {
+          events: [
+            {
+              type: "message.created",
+              folderRole: "inbox",
+              orgId: boxes.hello.orgId,
+              mailboxId: boxes.hello.id,
+              threadId: betaHello.threadId,
+              messageId: reply.messageId,
+            },
+          ],
+        });
+        expect(response.status).toBe(202);
+        return page.getByText("A reply that arrives while the thread is open").count();
+      },
+      { timeout: 10_000, interval: 500 },
+    )
+    .toBeGreaterThan(0);
+});
+
+// Catches: a send from another workspace's address failing silently. Only the active
+// workspace's socket was open, and the outbox announces a send's failure on the sender's own
+// workspace socket, so once the compose dialog closed nothing heard it; and a workspace switch
+// (which clears the query cache) forgetting the send, closing that socket before its result.
+test("a send from another workspace's address hears its failure after the dialog closes and a workspace switch", async () => {
+  const { email, beta, boxes } = await ana("sendfail");
+  await ensurePersonalSpace(db, beta.userId);
+  const page = await openSwitcher(email);
+  await page.keyboard.press("Escape");
+  const betaSockets: { frames: string[]; closed: () => boolean }[] = [];
+  page.on("websocket", (socket) => {
+    if (!socket.url().includes(`org=${beta.orgId}`)) return;
+    const frames: string[] = [];
+    let closed = false;
+    socket.on("framereceived", (frame) => frames.push(String(frame.payload)));
+    socket.on("close", () => (closed = true));
+    betaSockets.push({ frames, closed: () => closed });
+  });
+
+  await page.getByRole("button", { name: "Compose" }).click();
+  const dialog = page.getByRole("dialog", { name: "New email" });
+  await dialog.getByRole("button", { name: /^From / }).click();
+  await page
+    .getByRole("menuitemradio", { name: boxes.hello.address })
+    .or(page.getByRole("menuitem", { name: boxes.hello.address }))
+    .click();
+  await dialog.getByRole("button", { name: `From ${boxes.hello.address}` }).waitFor();
+  await dialog.getByRole("combobox", { name: "To" }).fill("client@example.test");
+  await dialog.getByRole("combobox", { name: "To" }).press("Enter");
+  await dialog.getByRole("textbox", { name: "Subject" }).fill("From Beta");
+  await dialog.getByRole("button", { name: "Send", exact: true }).click();
+  await dialog.waitFor({ state: "detached" });
+  // To a third workspace (neither Acme nor Beta), through the sidebar's workspace menu.
+  await page.getByRole("button", { name: "Switch workspace, currently Acme" }).click();
+  await page.getByRole("menuitem", { name: "Personal" }).click();
+  await page.getByRole("button", { name: "Switch workspace, currently Personal" }).waitFor();
+
+  const [action] = await db
+    .select({ id: schema.mailActions.id })
+    .from(schema.mailActions)
+    .where(eq(schema.mailActions.mailboxId, boxes.hello.id));
+  expect(action).toBeDefined();
+  // The mail service gives up on it, after the dialog has closed.
+  const failure = {
+    type: "action.failed" as const,
+    orgId: beta.orgId,
+    mailboxId: boxes.hello.id,
+    actionId: action!.id,
+    memberId: beta.memberId,
+    error: "550 mailbox unavailable",
+  };
+  // Until Beta's socket is open, the event would reach nobody: repeat it (receivers key on
+  // `actionId`, so a repeat is harmless).
+  await expect
+    .poll(
+      async () => {
+        expect((await postMailEvents(worker, { events: [failure] })).status).toBe(202);
+        return betaSockets.some((socket) => socket.frames.some((f) => f.includes(action!.id)));
+      },
+      { timeout: 10_000, interval: 500 },
+    )
+    .toBe(true);
+  // Heard: nothing more to wait for, so Beta's socket closes again.
+  await expect.poll(() => betaSockets.every((socket) => socket.closed())).toBe(true);
 });
 
 async function freePort() {

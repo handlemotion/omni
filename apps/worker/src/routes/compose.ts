@@ -107,11 +107,14 @@ export function newMessageId(address: string) {
  */
 export function sendResponse(action: {
   id: string;
+  orgId: string;
   payload: Record<string, unknown>;
   runAfter: Date;
 }) {
   return {
     actionId: action.id,
+    /** The workspace the send runs in: where its result (sent, failed) is announced. */
+    orgId: action.orgId,
     messageIdHeader: (action.payload as SendPayload).messageId ?? null,
     /** Until when `POST /actions/:id/cancel` can still stop it. */
     undoUntil: action.runAfter,

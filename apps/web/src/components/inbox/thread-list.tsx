@@ -32,7 +32,6 @@ import {
   useThreadListShortcuts,
   type ThreadListActions,
 } from "@/hooks/use-thread-list-shortcuts.ts";
-import { useWorkspaceNames } from "@/hooks/use-workspaces.ts";
 import { senderLabel } from "@/lib/threads.ts";
 import type {
   ConversationFilter,
@@ -57,8 +56,6 @@ export interface ListRow {
   subject: string;
   snippet: string;
   unread: boolean;
-  /** The workspace it belongs to, when the list spans more than one. */
-  workspace?: string | undefined;
   /** A helpdesk conversation's status, assignee, SLA and the rest, shown after the subject. */
   conversation?: ConversationRowInfo | undefined;
   /** Your own Done and Later on the thread, where the row's menu offers them. */
@@ -87,12 +84,8 @@ export function ThreadList(props: ListProps & { filter: ThreadFilter }) {
     isSuccess,
     refetch,
   } = useThreads(props.filter);
-  const names = useWorkspaceNames(props.filter.mailbox);
   // Stable rows, so the virtualized list's row cache survives renders that don't change them.
-  const rows = useMemo(
-    () => threads.map((thread) => toRow(thread, names?.get(thread.orgId))),
-    [threads, names],
-  );
+  const rows = useMemo(() => threads.map(toRow), [threads]);
   // Stable too: a new function would re-render every row (see `Rows`).
   const loadMore = useMemo(
     () => (hasNextPage ? () => void fetchNextPage() : undefined),
@@ -129,13 +122,12 @@ export function ListFailed(props: { retry: () => void }) {
   );
 }
 
-const toRow = (thread: ThreadSummary, workspace?: string): ListRow => ({
+const toRow = (thread: ThreadSummary): ListRow => ({
   id: thread.id,
   sender: senderLabel(thread),
   subject: thread.subject,
   snippet: thread.snippet,
   unread: thread.unread,
-  workspace,
   triage: { done: thread.done, later: thread.later, lastMessageAt: thread.lastMessageAt },
 });
 
@@ -518,11 +510,6 @@ function ThreadRow({
           )}
         </span>
       </span>
-      {thread.workspace && (
-        <span className="max-w-40 shrink-0 truncate text-xs text-subtle-foreground">
-          {thread.workspace}
-        </span>
-      )}
       {thread.conversation && <ConversationMeta info={thread.conversation} />}
     </GridListItem>
   );

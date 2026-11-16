@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import { SearchEmpty } from "../../../components/inbox/list-empty.tsx";
 import { List, type ListRow } from "../../../components/inbox/thread-list.tsx";
 import { useSearch } from "../../../hooks/use-mail.ts";
-import { useWorkspaceNames } from "../../../hooks/use-workspaces.ts";
 import { searchQuery } from "../../../lib/mail-queries.ts";
 import { searchSearch } from "../../../lib/search-params.ts";
 
@@ -21,7 +20,6 @@ function Search() {
   const search = Route.useSearch();
   const router = useRouter();
   const { data: hits, isPending, isSuccess } = useSearch(search.q, search.mailbox);
-  const names = useWorkspaceNames(search.mailbox);
 
   // One row per thread, best match first, with the passage that matched.
   const rows = useMemo(
@@ -32,11 +30,10 @@ function Search() {
         subject: hit.subject,
         snippet: hit.snippet,
         unread: hit.unread,
-        workspace: names?.get(hit.orgId),
         // Search doesn't say whether a hit is done or in Later: its menu offers both as new.
         triage: { done: false, later: false, lastMessageAt: hit.lastMessageAt },
       })),
-    [hits, names],
+    [hits],
   );
 
   return (

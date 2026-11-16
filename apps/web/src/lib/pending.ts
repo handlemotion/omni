@@ -99,3 +99,47 @@ export function dismissFailure(client: QueryClient, actionId: string) {
     list.filter((f) => f.actionId !== actionId),
   );
 }
+
+/**
+ * A send (reply or new mail) the outbox accepted whose result, sent or failed, has not come back
+ * yet, and the workspace it runs in: that workspace's socket stays open until it does. Kept
+ * outside the query cache, so a workspace switch (which clears the cache) keeps waiting for it;
+ * `resetSession` forgets them when the signed-in person changes or signs out.
+ */
+export interface OutstandingSend {
+  actionId: string;
+  orgId: string;
+}
+
+let outstanding: readonly OutstandingSend[] = [];
+const outstandingListeners = new Set<() => void>();
+
+function setOutstanding(next: readonly OutstandingSend[]) {
+  outstanding = next;
+  for (const listener of outstandingListeners) listener();
+}
+
+/** For `useSyncExternalStore`: the sends still waiting for their result. */
+export const outstandingSends = {
+  get: () => outstanding,
+  subscribe(listener: () => void) {
+    outstandingListeners.add(listener);
+    return () => outstandingListeners.delete(listener);
+  },
+};
+
+export function addOutstanding(send: OutstandingSend) {
+  setOutstanding([...outstanding.filter((s) => s.actionId !== send.actionId), send]);
+}
+
+/** Its result came back (or it was cancelled): nothing left to wait for. */
+export function settleOutstanding(actionId: string) {
+  if (outstanding.some((s) => s.actionId === actionId)) {
+    setOutstanding(outstanding.filter((s) => s.actionId !== actionId));
+  }
+}
+
+/** Another person (or nobody) is signed in now: their sends are not theirs to wait for. */
+export function forgetOutstanding() {
+  if (outstanding.length) setOutstanding([]);
+}
