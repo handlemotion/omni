@@ -3,7 +3,7 @@
 // A send waits in the outbox for the member's undo window (`run_after`), and cancelling deletes
 // the row before the mail service can claim it.
 import { and, desc, eq, exists, inArray, isNull, sql } from "drizzle-orm";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import { memberMailbox } from "./compose.ts";
 import { undoHandoff } from "./handoff.ts";
 import { grantFor } from "./member-mail.ts";
@@ -16,7 +16,7 @@ import {
   uploads,
   type Address,
   type DraftAttachment,
-} from "./schema/index.ts";
+} from "../schema/index.ts";
 import type { MailActionRequest } from "./writers.ts";
 
 /** The member's undo-send window in seconds: their preference, else 5 (Rodrigo, Nov 12). */

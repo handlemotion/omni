@@ -23,7 +23,7 @@ import {
   tags,
   threadTags,
   threads,
-} from "./schema/index.ts";
+} from "../schema/index.ts";
 import {
   type Tx,
   type Executor,

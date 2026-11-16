@@ -4,7 +4,7 @@
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { memberPreferences, members, notifications } from "./schema/index.ts";
-import { type Executor, type NotificationKind } from "./conversation-core.ts";
+import { type Executor, type NotificationKind } from "./mail.ts";
 
 // Notifications: a member's own.
 

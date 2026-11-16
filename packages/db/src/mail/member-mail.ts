@@ -3,7 +3,7 @@
 // missing grant or a grant that crosses orgs finds nothing.
 import type { MessageTarget } from "@omni/contracts";
 import { and, asc, desc, eq, exists, isNotNull, sql, type AnyColumn } from "drizzle-orm";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import {
   attachments,
   mailboxAccess,
@@ -15,7 +15,7 @@ import {
   threads,
   triageBucket,
   triageFeedback,
-} from "./schema/index.ts";
+} from "../schema/index.ts";
 
 /** `exists` subquery: `memberId` has a grant on the row's mailbox, in the row's org. */
 export function grantFor(db: Db, memberId: string, mailboxId: AnyColumn, orgId: AnyColumn) {

@@ -8,7 +8,7 @@
 // its send and its event and changes nothing more.
 import type { SendAttachment } from "@omni/contracts";
 import { and, eq } from "drizzle-orm";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import { enqueueSendWithAttachments } from "./compose.ts";
 import {
   lockConversation,
@@ -17,7 +17,7 @@ import {
   type Tx,
 } from "./conversation-core.ts";
 import { applyStatus, assign } from "./conversations.ts";
-import { conversationEvents } from "./schema/index.ts";
+import { conversationEvents } from "../schema/index.ts";
 import type { NewMailAction } from "./writers.ts";
 
 /** What a `handoff` event remembers, so a cancelled send can put the conversation back. */

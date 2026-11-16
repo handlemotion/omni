@@ -1,0 +1,45 @@
+// Mail (ADR 0035): the module's surface. Everything outside `mail/` reaches mail code through this
+// file; `for-member.ts` spreads its member and user doors into `forMember` and `forUser`.
+export {
+  memberMail,
+  userMail,
+  TRIAGE_AUTO_FILE_CONFIDENCE,
+  LANES,
+  type Lane,
+  THREAD_VIEWS,
+  type ThreadView,
+  CONVERSATION_VIEWS,
+  type ConversationView,
+  type ConversationCursor,
+  SLA_AT_RISK_MINUTES,
+  type Participant,
+  type MemberQueries,
+} from "./mail/queries.ts";
+export type { Executor, NotificationKind } from "./mail/conversation-core.ts";
+export type { InboxAuditAction } from "./mail/inbox-admin.ts";
+export * from "./mail/writers.ts";
+export * from "./mail/mail-sync.ts";
+export * from "./mail/mailbox-credentials.ts";
+export * from "./mail/thread-merge.ts";
+export * from "./mail/pending-mail-events.ts";
+export * from "./mail/system.ts";
+export * from "./mail/member-mail.ts";
+export * from "./mail/ai-jobs.ts";
+export * from "./mail/ai-helpdesk.ts";
+export * from "./mail/ai-settings.ts";
+export * from "./mail/thread-filters.ts";
+export * from "./mail/placement.ts";
+export * from "./mail/mailbox-teams.ts";
+export * from "./mail/workspace-mailboxes.ts";
+export * from "./mail/workspace-members.ts";
+export * from "./mail/inbox-admin.ts";
+export * from "./mail/compose.ts";
+export * from "./mail/library.ts";
+export * from "./mail/customers.ts";
+export * from "./mail/drafts.ts";
+export * from "./mail/conversations.ts";
+export * from "./mail/handoff.ts";
+export * from "./mail/conversation-tags.ts";
+export * from "./mail/conversation-notes.ts";
+export * from "./mail/sla.ts";
+export * from "./mail/forwarding.ts";

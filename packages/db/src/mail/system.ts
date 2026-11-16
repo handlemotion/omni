@@ -1,8 +1,8 @@
 // System reads for the Worker's trusted paths (background jobs). Not member-scoped:
 // never call these with input from a member's request to decide what that member may see.
 import { and, eq, inArray } from "drizzle-orm";
-import type { Db } from "./client.ts";
-import { mailboxAccess, mailboxes, members, pushTokens } from "./schema/index.ts";
+import type { Db } from "../client.ts";
+import { mailboxAccess, mailboxes, members, pushTokens } from "../schema/index.ts";
 
 /** Members who can see each mailbox, with the mailbox's org and address, for realtime fan-out. */
 export async function mailboxAudience(db: Db, mailboxIds: string[]) {

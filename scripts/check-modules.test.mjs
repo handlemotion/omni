@@ -4,9 +4,9 @@ import { test } from "node:test";
 import { check, findProblems } from "./check-modules.mjs";
 
 const MODULES = {
-  mail: { uses: [], legacy: true, files: ["packages/db/src/member-mail.ts"] },
-  storage: { uses: [], legacy: false, files: [] },
-  crm: { uses: ["mail", "storage"], legacy: false, files: [] },
+  mail: { uses: [], prefixed: false },
+  storage: { uses: [], prefixed: true },
+  crm: { uses: ["mail", "storage"], prefixed: true },
 };
 
 const SCHEMA = {
@@ -42,14 +42,14 @@ test("a table imported by name from the schema barrel fails, a same-named local 
   assert.deepEqual(problems, ["packages/db/src/sweep.ts tables"]);
 });
 
-test("Storage and Mail know nothing of each other, even a mail file not moved yet", () => {
+test("Storage and Mail know nothing of each other, not even through a surface", () => {
   const problems = problemsIn({
-    "packages/db/src/storage/sharing.ts": `import { grantFor } from "../member-mail.ts";`,
-    "packages/db/src/member-mail.ts": `import { storageOf } from "./storage.ts";`,
+    "packages/db/src/storage/sharing.ts": `import { grantFor } from "../mail.ts";`,
+    "packages/db/src/mail/member-mail.ts": `import { storageOf } from "../storage.ts";`,
   });
   assert.deepEqual(problems, [
     "packages/db/src/storage/sharing.ts uses",
-    "packages/db/src/member-mail.ts uses",
+    "packages/db/src/mail/member-mail.ts uses",
   ]);
 });
 
@@ -67,12 +67,13 @@ test("CRM may use Storage's surface, never its folder or its tables", () => {
   ]);
 });
 
-test("a module never names a legacy module's tables; platform code still may", () => {
+test("the mail service is Mail's own and may name its tables; platform code may not", () => {
   const problems = problemsIn({
-    "packages/db/src/crm/timeline.ts": `import { threads } from "../schema/index.ts";`,
+    "apps/mail/src/pg-store.ts": `import { schema } from "@omni/db";
+schema.threads;`,
     "packages/db/src/workspaces.ts": `import { threads } from "./schema/index.ts";`,
   });
-  assert.deepEqual(problems, ["packages/db/src/crm/timeline.ts tables"]);
+  assert.deepEqual(problems, ["packages/db/src/workspaces.ts tables"]);
 });
 
 test("a schema file may name another module's table in a foreign key", () => {

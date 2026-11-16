@@ -264,7 +264,7 @@ Input: `{ thread_id, body, reply_all? = false, message_id? }`. Drafts of new mai
 web app can open a draft by link (`/compose` takes none today).
 
 It creates an Omni draft on the thread through the existing drafts code
-(`packages/db/src/drafts.ts`), addressed by the same rule as a reply (`replyRecipients` in
+(`packages/db/src/mail/drafts.ts`), addressed by the same rule as a reply (`replyRecipients` in
 `@omni/mail-core/compose`, now shared with the send route), and returns the thread's `url`,
 where the composer shows it. The person reviews and sends it in Omni. The tool description says
 so, so the agent tells the person where the draft is.

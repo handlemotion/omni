@@ -2,15 +2,16 @@
 //
 // 1. A module's private folder (`packages/db/src/<module>/`) is imported only by that module.
 //    Everything else goes through its surface file, `packages/db/src/<module>.ts`.
-// 2. A module's tables (`packages/db/src/schema/<module>.ts`) are named only by that module. A
-//    schema file may name them in a foreign key; nothing else selects from them, even in a join.
-//    A `legacy` module's tables still share a file with platform tables, so until it moves only
-//    other modules are held to this for it.
+// 2. A module's tables (`packages/db/src/schema/<module>.ts` and `schema/<module>/`) are named only
+//    by that module. A schema file may name them in a foreign key; nothing else selects from
+//    them, even in a join. Platform code is held to this too.
 // 3. A module imports another module's code only when it declares it in `uses`, and then only its
 //    surface file and contract: CRM may use Mail and Storage, which know nothing of each other.
 // 4. A module's Worker folder (`apps/worker/src/<module>/`) is imported only by that module, a
 //    module that uses it, and the files that wire modules in (`app.ts`, `index.ts`, `modules.ts`, `mcp/`).
-// 5. A laid-out module's tables are named `<module>_*`.
+// 5. A module's tables are named `<module>_*`, unless they predate the rule (`prefixed: false`).
+//
+// A module is its folders in every package, and `apps/<module>/` (the mail service is Mail's).
 //
 // Tests are not checked: a leak test sets up rows the way it must. Files that predate the rule
 // are listed in DEBT; an entry that stops failing must be removed, so the list only shrinks.
@@ -19,45 +20,13 @@ import { readFileSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
 
 /**
- * The modules, what each may use, and files that belong to one but predate its layout (they sit
- * flat in a package until their rename-only move, ADR 0035 "Rollout" steps 4 and 5).
+ * The modules and what each may use. Mail's tables predate `<module>_*` and keep their names: a
+ * rename is a destructive migration that buys nothing (ADR 0035 decision 3).
  */
 export const MODULES = {
-  mail: {
-    uses: [],
-    legacy: true,
-    files: [
-      "packages/db/src/ai-helpdesk.ts",
-      "packages/db/src/ai-jobs.ts",
-      "packages/db/src/ai-settings.ts",
-      "packages/db/src/compose.ts",
-      "packages/db/src/conversation-core.ts",
-      "packages/db/src/conversation-notes.ts",
-      "packages/db/src/conversation-tags.ts",
-      "packages/db/src/conversations.ts",
-      "packages/db/src/customers.ts",
-      "packages/db/src/drafts.ts",
-      "packages/db/src/forwarding.ts",
-      "packages/db/src/handoff.ts",
-      "packages/db/src/inbox-admin.ts",
-      "packages/db/src/library.ts",
-      "packages/db/src/mail-sync.ts",
-      "packages/db/src/mailbox-credentials.ts",
-      "packages/db/src/mailbox-teams.ts",
-      "packages/db/src/member-mail.ts",
-      "packages/db/src/pending-mail-events.ts",
-      "packages/db/src/placement.ts",
-      "packages/db/src/sla.ts",
-      "packages/db/src/system.ts",
-      "packages/db/src/thread-filters.ts",
-      "packages/db/src/thread-merge.ts",
-      "packages/db/src/workspace-mailboxes.ts",
-      "packages/db/src/workspace-members.ts",
-      "packages/db/src/writers.ts",
-    ],
-  },
-  storage: { uses: [], legacy: false, files: [] },
-  crm: { uses: ["mail", "storage"], legacy: false, files: [] },
+  mail: { uses: [], prefixed: false },
+  storage: { uses: [], prefixed: true },
+  crm: { uses: ["mail", "storage"], prefixed: true },
 };
 
 /** Files that wire every module in (routes, crons, agents), so they may import its Worker folder. */
@@ -70,12 +39,20 @@ const REGISTRARS = [
 
 /** Files that broke a rule before it existed: `file` may break `rule`. Only ever shrinks. */
 export const DEBT = [
-  // The abandoned sign-up sweep asks whether a person holds files or grants inside its query.
+  // The abandoned sign-up sweep asks whether a person holds mailboxes, files or grants.
   { file: "packages/db/src/abandoned-sign-ups.ts", rule: "tables" },
   // The request context types the link a Storage share route resolved (`storage/http.ts`).
   { file: "apps/worker/src/context.ts", rule: "worker" },
   // A Stripe event with a card lifts Storage's cap at once (`storage/billing.ts`).
   { file: "apps/worker/src/routes/stripe-webhook.ts", rule: "worker" },
+  // Billing counts the emails AI triaged this month (`threads`).
+  { file: "packages/db/src/billing.ts", rule: "tables" },
+  // The operator's dead-letter listing reads failed outbox actions (`mail_actions`).
+  { file: "packages/db/src/dead-letters.ts", rule: "tables" },
+  // A domain's release refuses while mailboxes sit on it (`mailboxes`).
+  { file: "packages/db/src/domains.ts", rule: "tables" },
+  // The workspace switcher lists the mailboxes each workspace's member can open.
+  { file: "packages/db/src/workspaces.ts", rule: "tables" },
 ];
 
 const SOURCE = /^(packages\/[^/]+\/src|apps\/(worker|mail)\/src)\/.*\.(ts|tsx|mts)$/;
@@ -90,8 +67,8 @@ const PACKAGES = {
 
 /** The module a file belongs to, and which part of it, or null for platform code. */
 export function ownerOf(file, modules = MODULES) {
-  for (const [name, module] of Object.entries(modules)) {
-    if (module.files.includes(file)) return { module: name, part: "legacy" };
+  for (const name of Object.keys(modules)) {
+    if (file.startsWith(`apps/${name}/src/`)) return { module: name, part: "service" };
     if (file === `packages/db/src/${name}.ts`) return { module: name, part: "surface" };
     if (file.startsWith(`packages/db/src/${name}/`)) return { module: name, part: "private" };
     if (file === `packages/db/src/schema/${name}.ts`) return { module: name, part: "schema" };
@@ -192,7 +169,7 @@ function importProblem(importer, target, modules) {
   if (to.part === "worker" && registrar) return null;
   if (to.part === "private") return "private";
   if (!from) return to.part === "worker" ? "worker" : null;
-  // What is left is a surface, a contract, a Worker folder or a not-yet-moved file.
+  // What is left is a surface, a contract, a Worker folder or a module's own service.
   return modules[from.module].uses.includes(to.module) ? null : "uses";
 }
 
@@ -224,18 +201,15 @@ export function findProblems(files, modules = MODULES) {
       if (rule) problems.push({ file, rule, message: MESSAGES[rule](target) });
     }
     if (!file.startsWith("packages/db/src/schema/")) {
-      // Platform code may still name a module that is not laid out yet (its tables share a
-      // schema file with platform ones until it moves); other modules never may.
-      const foreign = tablesNamedBy(file, source, tables).filter((identifier) => {
-        const table = tables.get(identifier);
-        return table.module !== owner?.module && (owner || !modules[table.module].legacy);
-      });
+      const foreign = tablesNamedBy(file, source, tables).filter(
+        (identifier) => tables.get(identifier).module !== owner?.module,
+      );
       if (foreign.length)
         problems.push({ file, rule: "tables", message: MESSAGES.tables(foreign) });
     }
   }
   for (const [identifier, { module, sqlName, file }] of tables) {
-    if (!modules[module].legacy && !sqlName.startsWith(`${module}_`)) {
+    if (modules[module].prefixed && !sqlName.startsWith(`${module}_`)) {
       problems.push({
         file,
         rule: "naming",

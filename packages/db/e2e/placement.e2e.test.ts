@@ -4,7 +4,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { firstSyncDone, hasUnsyncedWork, listMisplacedMailboxes } from "../src/placement.ts";
+import { firstSyncDone, hasUnsyncedWork, listMisplacedMailboxes } from "../src/mail/placement.ts";
 import {
   drafts,
   mailActions,

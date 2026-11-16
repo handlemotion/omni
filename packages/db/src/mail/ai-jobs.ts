@@ -2,8 +2,8 @@
 // member-scoped. Every write is idempotent and none overrides a person's decision.
 import { and, asc, eq, isNull, notExists, or, sql, type Column } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import type { Db } from "./client.ts";
-import { aiUsage, mailboxes, messages, threads } from "./schema/index.ts";
+import type { Db } from "../client.ts";
+import { aiUsage, mailboxes, messages, threads } from "../schema/index.ts";
 
 const isDistinctFrom = (column: Column, value: string) => sql`${column} is distinct from ${value}`;
 

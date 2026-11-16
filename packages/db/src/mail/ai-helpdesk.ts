@@ -7,11 +7,11 @@
 
 import { and, asc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import { helpdeskTeammatesForAi } from "./ai-settings.ts";
 import { type Priority, type Tx } from "./conversation-core.ts";
 import { applyConversationChange } from "./conversations.ts";
-import { conversationEvents, mailboxes, messages, tags, threads } from "./schema/index.ts";
+import { conversationEvents, mailboxes, messages, tags, threads } from "../schema/index.ts";
 
 /**
  * How long the AI job waits for a message's own ingest (`applyInboundMessage`) before triaging it

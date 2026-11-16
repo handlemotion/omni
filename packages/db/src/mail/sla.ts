@@ -9,8 +9,8 @@ import { addBusinessMinutes, type BusinessSchedule } from "@omni/mail-core/busin
 import { and, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
-import type { Db } from "./client.ts";
-import { SLA_AT_RISK_MINUTES } from "./for-member.ts";
+import type { Db } from "../client.ts";
+import { SLA_AT_RISK_MINUTES } from "./queries.ts";
 import {
   businessHours,
   conversationEvents,
@@ -23,7 +23,7 @@ import {
   slaPolicies,
   threads,
   type BusinessHoursWindow,
-} from "./schema/index.ts";
+} from "../schema/index.ts";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Executor = Db | Tx;

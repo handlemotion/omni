@@ -5,7 +5,7 @@
 import { type ConversationState } from "@omni/mail-core/conversation-status";
 import { and, eq, exists, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import {
   conversationEvents,
   conversationPriority,
@@ -15,7 +15,7 @@ import {
   members,
   notifications,
   threads,
-} from "./schema/index.ts";
+} from "../schema/index.ts";
 
 export type Priority = (typeof conversationPriority.enumValues)[number];
 export type Status = (typeof conversationStatus.enumValues)[number];

@@ -3,11 +3,11 @@
 // is idempotent so a repeated sync step converges.
 import { and, desc, eq, gte, inArray, ne, notInArray, type SQL, sql } from "drizzle-orm";
 import { MAX_PRUNED_THREADS_PER_EVENT } from "@omni/contracts";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import { queueMailEvents, queueThreadsChanged } from "./pending-mail-events.ts";
 import { syncableMailbox } from "./inbox-admin.ts";
 import { ensureMailboxTeam, syncMailboxAccess } from "./mailbox-teams.ts";
-import { assertCompany } from "./personal-space.ts";
+import { assertCompany } from "../personal-space.ts";
 import {
   mailActions,
   mailboxAccess,
@@ -21,7 +21,7 @@ import {
   threadState,
   threads,
   users,
-} from "./schema/index.ts";
+} from "../schema/index.ts";
 
 type FolderRole = (typeof mailboxFolders.$inferSelect)["role"];
 

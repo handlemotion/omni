@@ -3,8 +3,8 @@
 // kind, health, who owns a personal one and how many people see a shared one. Never its mail:
 // nothing here reads threads or messages, and nothing grants access.
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import type { Db } from "./client.ts";
-import { mailboxAccess, mailboxes, mailboxFolders, members, users } from "./schema/index.ts";
+import type { Db } from "../client.ts";
+import { mailboxAccess, mailboxes, mailboxFolders, members, users } from "../schema/index.ts";
 
 /**
  * The org's mailboxes, by address. `syncedAt` is the latest folder sync. `people` counts the

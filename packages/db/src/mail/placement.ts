@@ -2,8 +2,8 @@
 // to be open. An address on a company's locked domain belongs to that company; any other address
 // belongs to the connecting person's Personal space.
 import { and, eq, sql } from "drizzle-orm";
-import type { Db } from "./client.ts";
-import { ensurePersonalSpace } from "./personal-space.ts";
+import type { Db } from "../client.ts";
+import { ensurePersonalSpace } from "../personal-space.ts";
 import {
   drafts,
   mailActions,
@@ -16,8 +16,8 @@ import {
   personalSpaces,
   threads,
   threadState,
-} from "./schema/index.ts";
-import { companyForAddress } from "./session-scopes.ts";
+} from "../schema/index.ts";
+import { companyForAddress } from "../session-scopes.ts";
 
 export type Placement =
   | { ok: true; orgId: string; memberId: string; kind: "personal" | "company" }

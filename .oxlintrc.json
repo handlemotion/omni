@@ -65,7 +65,7 @@
         "apps/worker/src/routes/library.ts",
         "apps/worker/src/routes/stripe-webhook.ts",
         "packages/client/src/realtime.ts",
-        "packages/db/src/conversations.ts",
+        "packages/db/src/mail/conversations.ts",
         "packages/mail-core/src/automated.ts",
         "packages/mail-core/src/sanitize.test.ts",
         "scripts/share.mjs"
@@ -95,9 +95,9 @@
         "apps/web/src/components/ui/sidebar.tsx",
         "apps/web/src/components/ui/table.tsx",
         "apps/worker/src/routes/compose.ts",
-        "packages/db/src/conversations.ts",
-        "packages/db/src/for-member.ts",
-        "packages/db/src/mail-sync.ts"
+        "packages/db/src/mail/conversations.ts",
+        "packages/db/src/mail/queries.ts",
+        "packages/db/src/mail/mail-sync.ts"
       ],
       "rules": {
         "max-lines": "off"

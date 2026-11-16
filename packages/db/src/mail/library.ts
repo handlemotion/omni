@@ -2,10 +2,10 @@
 // read and write checks the member's grant on the inbox (`grantFor`), and a member's own replies
 // are reachable only by that member.
 import { and, desc, eq, exists, inArray, ne, or, sql } from "drizzle-orm";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import { memberMailbox, senderIdentity } from "./compose.ts";
 import { grantFor } from "./member-mail.ts";
-import { cannedReplies, customers, mailboxes, messages, tags, threads } from "./schema/index.ts";
+import { cannedReplies, customers, mailboxes, messages, tags, threads } from "../schema/index.ts";
 
 export type CannedReplyScope = "inbox" | "personal";
 

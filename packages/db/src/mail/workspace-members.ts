@@ -2,8 +2,8 @@
 // (ADR 0026): which personal inboxes are theirs and which shared inboxes they are on. Facts about
 // mailboxes only, never their mail, and nothing here grants access.
 import { and, asc, count, eq } from "drizzle-orm";
-import type { Db } from "./client.ts";
-import { mailboxAccess, mailboxes, members, users } from "./schema/index.ts";
+import type { Db } from "../client.ts";
+import { mailboxAccess, mailboxes, members, users } from "../schema/index.ts";
 import { listWorkspaceMailboxes } from "./workspace-mailboxes.ts";
 
 type WorkspaceMailbox = Awaited<ReturnType<typeof listWorkspaceMailboxes>>[number];

@@ -1,7 +1,7 @@
 // The mail service's writes to a mailbox's sealed login after it was first saved.
 import { and, eq } from "drizzle-orm";
-import type { Db } from "./client.ts";
-import { mailboxes } from "./schema/index.ts";
+import type { Db } from "../client.ts";
+import { mailboxes } from "../schema/index.ts";
 
 /**
  * Swaps a mailbox's sealed login for a new one, only while the stored one is still `expected`:

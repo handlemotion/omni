@@ -17,7 +17,7 @@ import {
   TransactionRollbackError,
 } from "drizzle-orm";
 import type { Db } from "./client.ts";
-import type { InboxAuditAction } from "./inbox-admin.ts";
+import type { InboxAuditAction } from "./mail.ts";
 import { assertCompany, workspaceKind } from "./personal-space.ts";
 import {
   auditEvents,

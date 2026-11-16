@@ -3,9 +3,9 @@
 // profile, the history and autocomplete never reveal who wrote to an inbox they are not on.
 import { companyFromAddress, normalizeAddress, sameAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, exists, ilike, or, sql } from "drizzle-orm";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import { grantFor } from "./member-mail.ts";
-import { customers, mailboxes, members, messages, threads } from "./schema/index.ts";
+import { customers, mailboxes, members, messages, threads } from "../schema/index.ts";
 
 /**
  * Records the sender of a newly indexed message as a customer of its org and links the

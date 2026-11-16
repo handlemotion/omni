@@ -11,7 +11,7 @@ import {
   releaseDomain,
   transferDomain,
 } from "../src/domains.ts";
-import { applyAgentReply, applyConversationChange } from "../src/conversations.ts";
+import { applyAgentReply, applyConversationChange } from "../src/mail/conversations.ts";
 import { forMember, forUser } from "../src/for-member.ts";
 import {
   attachments as attachmentsTable,
@@ -30,7 +30,7 @@ import {
 import { notifyMemberJoined } from "../src/notifications.ts";
 import { raiseStoragePeak } from "../src/storage/billing.ts";
 import { listUserWorkspaces } from "../src/workspaces.ts";
-import { createThread, enqueueAction, upsertMessage } from "../src/writers.ts";
+import { createThread, enqueueAction, upsertMessage } from "../src/mail/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();

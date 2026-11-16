@@ -4,7 +4,7 @@
 import type { SendAttachment } from "@omni/contracts";
 import { and, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import { grantFor } from "./member-mail.ts";
 import type { NewMailAction } from "./writers.ts";
 import {
@@ -19,7 +19,7 @@ import {
   signatures,
   uploads,
   users,
-} from "./schema/index.ts";
+} from "../schema/index.ts";
 
 /** A mailbox this member can see, or null. Never includes `credentials_enc`. */
 export async function memberMailbox(db: Db, memberId: string, mailboxId: string) {

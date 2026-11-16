@@ -50,7 +50,7 @@ apps/web/src/components/crm/         screens (Rodrigo)
 ```
 
 Storage has this shape in `@omni/db`, `@omni/contracts` and the Worker.
-Mail predates it and moves when it is quiet (ADR 0035 "Rollout").
+Mail predates it and moved into it in place (ADR 0035 "Rollout"): its tables keep their names.
 
 ## What is shared
 

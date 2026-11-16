@@ -11,7 +11,7 @@ import {
   memberSignatures,
   memberUpload,
   setSignature,
-} from "../src/compose.ts";
+} from "../src/mail/compose.ts";
 import {
   createCannedReply,
   deleteCannedReply,
@@ -19,8 +19,8 @@ import {
   listCannedReplies,
   templateContext,
   updateCannedReply,
-} from "../src/library.ts";
-import { customerProfile, searchCustomers } from "../src/customers.ts";
+} from "../src/mail/library.ts";
+import { customerProfile, searchCustomers } from "../src/mail/customers.ts";
 import {
   cancelSend,
   createDraft,
@@ -29,9 +29,9 @@ import {
   listDrafts,
   memberSendByKey,
   saveDraft,
-} from "../src/drafts.ts";
+} from "../src/mail/drafts.ts";
 import { customers, threads } from "../src/schema/index.ts";
-import { createThread, enqueueAction } from "../src/writers.ts";
+import { createThread, enqueueAction } from "../src/mail/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase, grant } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();

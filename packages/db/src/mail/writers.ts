@@ -1,9 +1,9 @@
 // System writers for the mail service. They are not member-scoped: only trusted background code
 // calls them, never a route handling a member's request. Each one is idempotent.
 import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import type { ActionPayload, MailActionKind } from "@omni/contracts";
-import { attachments, mailActions, mailboxFolders, messages, threads } from "./schema/index.ts";
+import { attachments, mailActions, mailboxFolders, messages, threads } from "../schema/index.ts";
 
 type NewMessage = Omit<
   typeof messages.$inferInsert,

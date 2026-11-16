@@ -5,9 +5,9 @@
 // keep the earliest time.
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import { queueMailEvents } from "./pending-mail-events.ts";
-import { assignments, conversationEvents, threads } from "./schema/index.ts";
+import { assignments, conversationEvents, threads } from "../schema/index.ts";
 
 type Thread = typeof threads.$inferSelect;
 

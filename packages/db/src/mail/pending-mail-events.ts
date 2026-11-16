@@ -4,8 +4,8 @@
 import type { MailEvent } from "@omni/contracts";
 import { MAX_PRUNED_THREADS_PER_EVENT } from "@omni/contracts";
 import { asc, inArray } from "drizzle-orm";
-import type { Db } from "./client.ts";
-import { pendingMailEvents, threads } from "./schema/index.ts";
+import type { Db } from "../client.ts";
+import { pendingMailEvents, threads } from "../schema/index.ts";
 
 type Executor = Pick<Db, "insert">;
 

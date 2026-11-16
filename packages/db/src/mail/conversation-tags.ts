@@ -2,7 +2,7 @@
 
 import { and, eq, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
-import { mailboxAccess, mailboxes, members, tags } from "./schema/index.ts";
+import { mailboxAccess, mailboxes, members, tags } from "../schema/index.ts";
 import { type Executor } from "./conversation-core.ts";
 
 async function memberSeesMailbox(db: Executor, memberId: string, mailboxId: string) {

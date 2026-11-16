@@ -9,7 +9,7 @@ import {
   members,
   notes,
   notifications,
-} from "./schema/index.ts";
+} from "../schema/index.ts";
 import { type Executor, lockConversation, writeEvents, notify } from "./conversation-core.ts";
 
 export const NOTE_MAX_LENGTH = 20_000;

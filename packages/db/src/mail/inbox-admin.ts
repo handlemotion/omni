@@ -3,8 +3,8 @@
 // syncing it). It can be given to a member or turned into a shared inbox. Every inbox action is
 // recorded in `audit_events`, without mail content, so "admins cannot read it" is checkable.
 import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
-import type { Db } from "./client.ts";
-import { recordAudit } from "./domains.ts";
+import type { Db } from "../client.ts";
+import { recordAudit } from "../domains.ts";
 import { addTeamMembers, ensureMailboxTeam, syncMailboxAccess } from "./mailbox-teams.ts";
 import {
   auditEvents,
@@ -12,7 +12,7 @@ import {
   mailboxAccess,
   mailboxes,
   members,
-} from "./schema/index.ts";
+} from "../schema/index.ts";
 
 export type InboxAuditAction =
   | "inbox.issued"

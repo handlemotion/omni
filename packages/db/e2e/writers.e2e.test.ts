@@ -1,9 +1,9 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
-import { saveSummary } from "../src/ai-jobs.ts";
+import { saveSummary } from "../src/mail/ai-jobs.ts";
 import { createDb } from "../src/client.ts";
-import { moveMessageToThread, rescheduleAction, setLocationFlags } from "../src/mail-sync.ts";
-import { mergeThreads } from "../src/thread-merge.ts";
+import { moveMessageToThread, rescheduleAction, setLocationFlags } from "../src/mail/mail-sync.ts";
+import { mergeThreads } from "../src/mail/thread-merge.ts";
 import {
   attachments,
   conversationEvents,
@@ -22,7 +22,7 @@ import {
   enqueueAction,
   upsertFolder,
   upsertMessage,
-} from "../src/writers.ts";
+} from "../src/mail/writers.ts";
 import { createMailbox, createMember, createOrg, createTestDatabase } from "./support.ts";
 
 const { db, url, teardown } = await createTestDatabase();

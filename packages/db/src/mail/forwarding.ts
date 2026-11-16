@@ -2,7 +2,7 @@
 // owner's settings for it.
 import { sameAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, lt, ne, sql } from "drizzle-orm";
-import type { Db } from "./client.ts";
+import type { Db } from "../client.ts";
 import {
   mailActions,
   mailboxAccess,
@@ -11,7 +11,7 @@ import {
   messages,
   type folderRole,
   type forwardScope,
-} from "./schema/index.ts";
+} from "../schema/index.ts";
 
 export type ForwardScope = (typeof forwardScope.enumValues)[number];
 type FolderRole = (typeof folderRole.enumValues)[number];

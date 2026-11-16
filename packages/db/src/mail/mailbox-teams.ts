@@ -7,8 +7,8 @@
 // team, whatever ran before it, so a retry or a second run changes nothing.
 import { and, asc, eq, exists, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
-import type { Db } from "./client.ts";
-import { mailboxAccess, mailboxes, members, teamMembers, teams, users } from "./schema/index.ts";
+import type { Db } from "../client.ts";
+import { mailboxAccess, mailboxes, members, teamMembers, teams, users } from "../schema/index.ts";
 
 /**
  * Better Auth's `team_members.membership_key`: one row per (team, user). Ours match its rows, so
