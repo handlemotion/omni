@@ -257,6 +257,28 @@ describe("forMember isolation", () => {
     const comment = await mine.addComment(file.node.id, { body: "salary is wrong" });
     if (comment.status !== "ok") throw new Error(comment.status);
     const commentId = comment.comment.id;
+    // A contract out for signature in the same private folder: its signers' addresses and audit
+    // trail are the owner's to read, and nobody else's.
+    const contractUpload = await mine.openUpload(
+      { parentId: folder.node.id },
+      { name: "contract.pdf", size: 4, mimeType: "application/pdf", limitBytes: null },
+    );
+    if (contractUpload.status !== "ok") throw new Error(contractUpload.status);
+    await mine.recordUploadPart(contractUpload.upload.id, { partNumber: 1, etag: "e", size: 4 });
+    const contract = await mine.completeUpload(contractUpload.upload.id, { limitBytes: null });
+    if (contract.status !== "ok") throw new Error(contract.status);
+    const origin = { email: "files-owner@example.test", ip: null, userAgent: null };
+    const sent = await mine.sendForSignature(contract.node.id, {
+      contentVersion: contract.node.contentVersion,
+      sha256: "0".repeat(64),
+      signers: [{ email: "client@example.test", name: "Client" }],
+      origin,
+    });
+    if (sent.status !== "ok") throw new Error(sent.status);
+    expect(await mine.signatureRequests(contract.node.id)).toMatchObject({
+      status: "ok",
+      requests: [{ id: sent.request.id }],
+    });
 
     for (const other of [teammate, admin, boss, outsider]) {
       const theirs = forMember(db, other.id).storage;
@@ -293,7 +315,24 @@ describe("forMember isolation", () => {
       expect((await theirs.completeUpload(opened.upload.id, { limitBytes: null })).status).toBe(
         "not_found",
       );
+      // Its signature requests (signers' addresses, IPs, the trail) are not theirs to read, void
+      // or add to.
+      expect((await theirs.signatureRequests(contract.node.id)).status).toBe("not_found");
+      expect((await theirs.voidSignature(sent.request.id, origin)).status).toBe("not_found");
+      expect(
+        (
+          await theirs.sendForSignature(contract.node.id, {
+            contentVersion: contract.node.contentVersion,
+            sha256: "1".repeat(64),
+            signers: [{ email: "planted@example.test", name: "Planted" }],
+            origin,
+          })
+        ).status,
+      ).toBe("not_found");
     }
+    expect(await mine.signatureRequests(contract.node.id)).toMatchObject({
+      requests: [{ id: sent.request.id, status: "sent" }],
+    });
 
     // In Trash it is still only the owner's: an admin's Trash does not show it.
     await mine.trash(file.node.id);
