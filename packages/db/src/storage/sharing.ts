@@ -11,7 +11,7 @@ import { inTrash, MAX_WALK, pageSize, toNode, type NodeRow, type StorageNode } f
 import { reach, type Forbidden, type NotFound } from "./tree.ts";
 
 export type StorageLinkAccess = (typeof storageNodes.linkAccess.enumValues)[number];
-export type StorageGrantRole = (typeof storageGrants.role.enumValues)[number];
+export type StorageGrantRole = (typeof storageGrants.$inferSelect)["role"];
 
 export interface StoragePerson {
   email: string;

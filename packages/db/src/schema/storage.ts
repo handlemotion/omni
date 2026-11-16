@@ -38,8 +38,11 @@ export const storageSpace = pgEnum("storage_space", ["personal", "shared"]);
 /** In this order: a folder lists before a file. */
 export const storageNodeKind = pgEnum("storage_node_kind", ["folder", "file"]);
 export const storageLinkAccess = pgEnum("storage_link_access", ["restricted", "anyone"]);
-/** In this order: `max()` over a person's grants is the strongest one. */
-export const storageGrantRole = pgEnum("storage_grant_role", ["viewer", "editor"]);
+/**
+ * In this order: `max()` over a person's grants is the strongest one. A `commenter` reads and
+ * writes comments (ADR 0043 decision 5).
+ */
+export const storageGrantRole = pgEnum("storage_grant_role", ["viewer", "commenter", "editor"]);
 
 /** One part of a multipart upload, as the bucket acknowledged it. */
 export interface StorageUploadPart {
@@ -218,6 +221,11 @@ export const storageVersions = pgTable(
     }),
     writtenAt: timestamptz("written_at").notNull(),
     replacedAt: timestamptz("replaced_at").notNull().defaultNow(),
+    /**
+     * The file's `content_version` while this was its content, so a comment or signature made on
+     * it can find it. Null for a version kept before this column existed.
+     */
+    contentVersion: integer("content_version"),
   },
   (t) => [
     foreignKey({
@@ -299,7 +307,9 @@ export const storageGrants = pgTable(
     nodeId: text("node_id").notNull(),
     /** Lowercase. */
     email: text("email").notNull(),
-    role: storageGrantRole("role").notNull(),
+    // Narrowed to the roles the code grants today: no `commenter` row exists until the comments
+    // work grants one, and that change drops this `$type` with its contract and labels.
+    role: storageGrantRole("role").$type<"viewer" | "editor">().notNull(),
     createdByMemberId: text("created_by_member_id").references(() => members.id, {
       onDelete: "set null",
     }),
@@ -422,3 +432,7 @@ export const storageOverage = pgTable("storage_overage", {
   stripeSubscriptionId: text("stripe_subscription_id").notNull(),
   checkedAt: timestamptz("checked_at").notNull().defaultNow(),
 });
+
+// Comments and signing (ADR 0043 decisions 4 and 6), split out by concern.
+export * from "./storage/comments.ts";
+export * from "./storage/signing.ts";

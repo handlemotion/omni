@@ -309,6 +309,13 @@
       "when": 1794856945441,
       "tag": "0043_clever_george_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794867909415,
+      "tag": "0044_steady_squadron_supreme",
+      "breakpoints": true
     }
   ]
 }
