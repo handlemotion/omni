@@ -18,6 +18,12 @@ import { z } from "zod";
 import { openDb } from "./db.ts";
 import type { Config } from "./env.ts";
 import { createLogger } from "./log.ts";
+import {
+  filePresenceMessage,
+  leaveFile,
+  onFilePresence,
+  setConversation,
+} from "./realtime-files.ts";
 
 /** Header the Worker sets (never the client) to tell the DO whose socket this is. */
 export const MEMBER_HEADER = "x-omni-member-id";
@@ -55,6 +61,8 @@ const presenceMessage = z.object({
   threadId: z.string().min(1).max(64),
   state: z.enum(["viewing", "replying", "left"]),
 });
+/** What an app may send: conversation presence, or the file open in its editor. */
+const clientMessage = z.union([presenceMessage, filePresenceMessage]);
 /** Larger client messages are ignored unread. */
 const MAX_CLIENT_MESSAGE = 1024;
 
@@ -140,13 +148,17 @@ export class Realtime extends DurableObject<Env> {
     if (typeof raw !== "string" || raw.length > MAX_CLIENT_MESSAGE) return;
     let message;
     try {
-      message = presenceMessage.parse(JSON.parse(raw));
+      message = clientMessage.parse(JSON.parse(raw));
     } catch {
       return;
     }
     const memberId = this.ctx.getTags(socket)[0];
     // A sync socket only listens.
     if (!memberId || memberId.startsWith("sync:")) return;
+    if (message.type === "file.presence") {
+      await onFilePresence(this.ctx, this.env, socket, memberId, message);
+      return;
+    }
     const current = presenceOf(socket);
     if (message.state === "left") {
       if (current?.threadId === message.threadId) await this.leave(socket, memberId, current);
@@ -168,7 +180,7 @@ export class Realtime extends DurableObject<Env> {
       mailboxId: audience.mailboxId,
       state: message.state,
     };
-    socket.serializeAttachment(presence);
+    setConversation(socket, presence);
     const others = audience.memberIds.filter((m) => m !== memberId);
     // Repeats go out too: they are the heartbeat that keeps the member listed on teammates'
     // screens, which expire anyone they have not heard from. Teammates hear the member's state
@@ -194,6 +206,7 @@ export class Realtime extends DurableObject<Env> {
   override async webSocketClose(socket: WebSocket, code: number) {
     const presence = presenceOf(socket);
     const memberId = this.ctx.getTags(socket)[0];
+    if (memberId) leaveFile(this.ctx, socket, memberId);
     if (presence && memberId) await this.leave(socket, memberId, presence);
     // 1005 (no code), 1006 (dropped without a close frame) and 1015 (TLS failure) only describe
     // a close; sending one throws.
@@ -203,6 +216,7 @@ export class Realtime extends DurableObject<Env> {
   override async webSocketError(socket: WebSocket) {
     const presence = presenceOf(socket);
     const memberId = this.ctx.getTags(socket)[0];
+    if (memberId) leaveFile(this.ctx, socket, memberId);
     if (presence && memberId) await this.leave(socket, memberId, presence);
   }
 
@@ -221,7 +235,7 @@ export class Realtime extends DurableObject<Env> {
    * there on another socket (a second tab), in which case they hear that socket's state.
    */
   private async leave(socket: WebSocket, memberId: string, presence: Presence) {
-    socket.serializeAttachment(null);
+    setConversation(socket, null);
     let still: Presence | null = null;
     for (const other of this.ctx.getWebSockets(memberId)) {
       const theirs = other === socket ? null : presenceOf(other);
@@ -252,9 +266,11 @@ export class Realtime extends DurableObject<Env> {
   }
 }
 
+/** The socket's conversation presence; null when it is in none (it may still edit a file). */
 function presenceOf(socket: WebSocket): Presence | null {
   try {
-    return (socket.deserializeAttachment() as Presence | null) ?? null;
+    const presence = (socket.deserializeAttachment() as Partial<Presence> | null) ?? null;
+    return presence?.threadId ? (presence as Presence) : null;
   } catch {
     return null;
   }

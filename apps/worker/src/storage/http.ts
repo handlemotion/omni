@@ -41,6 +41,12 @@ export function refused(c: Context<AppEnv>, status: keyof typeof FAILURES) {
   return apiError(c, code, message);
 }
 
+/** A checked save based on content the file no longer has: its `contentVersion` now. */
+export const staleSave = (c: Context<AppEnv>, contentVersion: number) =>
+  apiError(c, "version_conflict", "the file changed since this was based on it", {
+    details: { contentVersion },
+  });
+
 export const memberStorage = (c: Context<AppEnv>) => forMember(c.var.db, c.var.member.id).storage;
 
 /**

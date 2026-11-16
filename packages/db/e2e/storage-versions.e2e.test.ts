@@ -37,11 +37,12 @@ async function addVersion(
   nodeId: string,
   size: number,
   limitBytes: number | null = null,
+  ifContentVersion?: number,
 ) {
-  const opened = await storage.openVersionUpload(nodeId, { size, limitBytes });
+  const opened = await storage.openVersionUpload(nodeId, { size, limitBytes, ifContentVersion });
   if (opened.status !== "ok") return opened;
   await storage.recordUploadPart(opened.upload.id, { partNumber: 1, etag: "etag-1", size });
-  const done = await storage.completeUpload(opened.upload.id, { limitBytes });
+  const done = await storage.completeUpload(opened.upload.id, { limitBytes, ifContentVersion });
   return done.status === "ok" ? { ...done, uploadId: opened.upload.id } : done;
 }
 
@@ -101,6 +102,14 @@ test("restoring a version swaps it with the current content and stores no more b
     r2Key: second.r2Key,
   });
   expect(await bytesOf(org.id)).toBe(50);
+  // Each kept version names the content version it was: 1 was replaced by the upload, 2 by the
+  // restore, which made the file's content version 3.
+  const kept = await db
+    .select({ size: storageVersions.size, contentVersion: storageVersions.contentVersion })
+    .from(storageVersions)
+    .where(eq(storageVersions.nodeId, file.id));
+  expect(kept).toEqual([{ size: 40, contentVersion: 2 }]);
+  expect(await storage.file(file.id)).toMatchObject({ file: { contentVersion: 3 } });
   // The same version cannot be restored twice: it is the current content now.
   expect(await storage.restoreVersion(file.id, old!.id)).toEqual({ status: "not_found" });
 });
@@ -242,4 +251,50 @@ test("a new version of a file deleted for good is refused, not made a new file",
   });
   expect(await storage.file(opened.upload.id)).toEqual({ status: "not_found" });
   expect(await bytesOf(org.id)).toBe(0);
+});
+
+// Catches: a checked save that overwrites a save made since it was based (the other person's
+// work is gone from the current content), refused on open but not on complete (the window while
+// the parts go up), and a refusal that does not say which content the file holds now.
+test("a checked save based on content the file no longer has is refused, on open and on complete", async () => {
+  const { org, storage } = await workspace("versions-checked");
+  const file = await addFile(storage, { space: "personal" }, "doc.md", 10);
+  const based = await storage.file(file.id);
+  if (based.status !== "ok") throw new Error(based.status);
+  expect(based.file.contentVersion).toBe(1);
+
+  // Two editors read version 1; the first opens its save, the second saves first.
+  const mine = await storage.openVersionUpload(file.id, {
+    size: 7,
+    limitBytes: null,
+    ifContentVersion: 1,
+  });
+  if (mine.status !== "ok") throw new Error(mine.status);
+  await storage.recordUploadPart(mine.upload.id, { partNumber: 1, etag: "e", size: 7 });
+  const theirs = await storage.openVersionUpload(file.id, {
+    size: 20,
+    limitBytes: null,
+    ifContentVersion: 1,
+  });
+  if (theirs.status !== "ok") throw new Error(theirs.status);
+  await storage.recordUploadPart(theirs.upload.id, { partNumber: 1, etag: "e", size: 20 });
+  const checked = { limitBytes: null, ifContentVersion: 1 };
+  expect(await storage.completeUpload(theirs.upload.id, checked)).toMatchObject({
+    status: "ok",
+    node: { size: 20, contentVersion: 2 },
+  });
+
+  expect(await storage.completeUpload(mine.upload.id, checked)).toEqual({
+    status: "version_conflict",
+    contentVersion: 2,
+  });
+  expect(
+    await storage.openVersionUpload(file.id, { size: 7, limitBytes: null, ifContentVersion: 1 }),
+  ).toEqual({ status: "version_conflict", contentVersion: 2 });
+  expect(await storage.file(file.id)).toMatchObject({ file: { size: 20, contentVersion: 2 } });
+  expect(await bytesOf(org.id)).toBe(30);
+
+  // Merged on top of version 2, it goes through; without a base, a save is not checked.
+  expect(await addVersion(storage, file.id, 9, null, 2).then((done) => done.status)).toBe("ok");
+  expect(await addVersion(storage, file.id, 4).then((done) => done.status)).toBe("ok");
 });

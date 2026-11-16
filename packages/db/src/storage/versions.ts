@@ -40,6 +40,17 @@ export type VersionsResult =
   | { status: "not_found" }
   | { status: "forbidden" };
 export type RestoreVersionResult = NodeResult | Locked;
+/**
+ * A checked save whose base is no longer the file's content: `contentVersion` is the file's now,
+ * so the editor can fetch it, merge, and save again on top of it.
+ */
+export type StaleContent = { status: "version_conflict"; contentVersion: number };
+
+/** Refuses a save based on another content than the file's current one. Null: unchecked. */
+export const staleFor = (node: NodeRow, base: number | null | undefined): StaleContent | null =>
+  base !== null && base !== undefined && node.contentVersion !== base
+    ? { status: "version_conflict", contentVersion: node.contentVersion }
+    : null;
 
 const NOT_FOUND = { status: "not_found" } as const;
 const FORBIDDEN = { status: "forbidden" } as const;
@@ -128,6 +139,8 @@ async function keepCurrent(tx: Db, node: NodeRow, r2Key: string) {
     size: node.size,
     mimeType: node.mimeType,
     r2Key,
+    // So a comment or signature made on this content finds it once it is replaced.
+    contentVersion: node.contentVersion,
     ...(await currentWriter(tx, node)),
   });
 }
@@ -147,10 +160,13 @@ export async function replaceContent(
     sha256: string | null;
     memberId: string;
   },
-): Promise<NodeResult | Locked> {
+  base: number | null = null,
+): Promise<NodeResult | Locked | StaleContent> {
   const found = await editable(tx, door, nodeId);
   if (found.status !== "ok") return found;
   if (found.node.lockedAt) return LOCKED;
+  const stale = staleFor(found.node, base);
+  if (stale) return stale;
   await keepCurrent(tx, found.node, found.r2Key);
   return setContent(tx, found.node, {
     ...content,

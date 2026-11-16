@@ -5,6 +5,7 @@
 // resumes from `GET /uploads/:id`. Completing twice returns the same file. Written against
 // `writeDoor`, so the same routes serve a member and, under a link, an editor.
 import {
+  storageCompleteUploadQuerySchema,
   STORAGE_MAX_PARTS,
   storageOpenUploadBodySchema,
   type StorageNodeResponse,
@@ -24,7 +25,7 @@ import {
 } from "./core.ts";
 import { zValidator } from "../validator.ts";
 import { announceDrives } from "./announce.ts";
-import { placeOf, refused, writeDoor } from "./http.ts";
+import { placeOf, refused, staleSave, writeDoor } from "./http.ts";
 
 const live = (upload: StorageUpload) => upload.expiresAt > new Date();
 const answer = (upload: StorageUpload) =>
@@ -135,6 +136,14 @@ export const storageUploads = new Hono<AppEnv>()
   })
 
   .post("/uploads/:id/complete", async (c) => {
+    // Read by hand, not by a validator, so the app's typed client need not send a query.
+    const guard = storageCompleteUploadQuerySchema.safeParse({
+      ifContentVersion: c.req.query("ifContentVersion"),
+    });
+    if (!guard.success) {
+      return apiError(c, "bad_request", "ifContentVersion must be a whole number");
+    }
+    const { ifContentVersion } = guard.data;
     const { db, config, log } = c.var;
     const { files } = writeDoor(c);
     const bucket = c.env.STORAGE_BUCKET;
@@ -148,7 +157,7 @@ export const storageUploads = new Hono<AppEnv>()
       await finishObject(bucket, upload);
     }
     const { limitBytes } = await storageLimit(db, config, upload.orgId);
-    const done = await files.completeUpload(upload.id, { limitBytes });
+    const done = await files.completeUpload(upload.id, { limitBytes, ifContentVersion });
     if (done.status === "ok") {
       announceDrives(c, [done.node]);
       return c.json({ node: wireNode(done.node) } satisfies StorageNodeResponse);
@@ -163,6 +172,7 @@ export const storageUploads = new Hono<AppEnv>()
         log.error("storage.objects_left", { count: 1, error });
       });
     }
+    if (done.status === "version_conflict") return staleSave(c, done.contentVersion);
     return refused(c, done.status);
   })
 

@@ -16,7 +16,7 @@ import { apiError } from "../errors.ts";
 import { zValidator } from "../validator.ts";
 import { announceDrives } from "./announce.ts";
 import { partCount, storageLimit, wireNode, wireUpload } from "./core.ts";
-import { download, refused, writeDoor } from "./http.ts";
+import { download, refused, staleSave, writeDoor } from "./http.ts";
 
 const wireContent = (content: StorageContent) => ({
   size: content.size,
@@ -27,7 +27,7 @@ const wireContent = (content: StorageContent) => ({
 
 export const storageVersions = new Hono<AppEnv>()
   .post("/files/:id/versions", zValidator("json", storageOpenVersionBodySchema), async (c) => {
-    const { size, mimeType, sha256 } = c.req.valid("json");
+    const { size, mimeType, sha256, ifContentVersion } = c.req.valid("json");
     const { db, config } = c.var;
     const { files, orgId } = writeDoor(c);
     if (size > config.STORAGE_MAX_FILE_BYTES || partCount(size) > STORAGE_MAX_PARTS) {
@@ -38,8 +38,10 @@ export const storageVersions = new Hono<AppEnv>()
       size,
       mimeType,
       sha256,
+      ifContentVersion,
       limitBytes,
     });
+    if (opened.status === "version_conflict") return staleSave(c, opened.contentVersion);
     if (opened.status !== "ok") return refused(c, opened.status);
     const answer = (upload: typeof opened.upload) =>
       c.json({ upload: wireUpload(upload) } satisfies StorageUploadResponse, 201);
