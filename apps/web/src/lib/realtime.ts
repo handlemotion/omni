@@ -125,7 +125,8 @@ export function startRealtime(client: QueryClient, activeOrgId: string): Realtim
         return void client.invalidateQueries({ queryKey: keys.notifications() });
       case "action.succeeded": {
         settleOutstanding(event.actionId);
-        // A reply went out: refetch its thread now rather than waiting for the sync's event.
+        // A reply went out: refetch its thread now rather than waiting for the sync's event. (No
+        // sender emits this yet; outstanding sends are settled by `recheckOutstanding`.)
         const pending = allPending(client).find((p) => p.actionId === event.actionId);
         if (pending) changed(event.mailboxId, [pending.threadId]);
         return;
@@ -240,9 +241,12 @@ function onActionFailed(
   void client.invalidateQueries({ queryKey: keys.mail() });
 }
 
-async function recheckPendingSends(client: QueryClient) {
+/** Asks the outbox about queued replies (only `threadId`'s when given); shows any that failed. */
+export async function recheckPendingSends(client: QueryClient, threadId?: string) {
   const queued = allPending(client).flatMap((p) =>
-    p.status === "queued" && p.actionId ? [p.actionId] : [],
+    p.status === "queued" && p.actionId && (!threadId || p.threadId === threadId)
+      ? [p.actionId]
+      : [],
   );
   await Promise.all(
     queued.map(async (actionId) => {
@@ -259,11 +263,36 @@ async function recheckPendingSends(client: QueryClient) {
   );
 }
 
-/** Asks the outbox about `orgId`'s outstanding sends: settles the finished, reports failures. */
-async function recheckOutstanding(client: QueryClient, orgId: string) {
-  const waiting = outstandingSends.get().filter((s) => s.orgId === orgId);
+/**
+ * How long after a send its workspace's socket stays open (with no thread of it on screen): the
+ * outbox's first try. The socket then closes, so the member is offline there again and gets the
+ * push fallback; the send's result is still tracked, over HTTP.
+ */
+export const SEND_SOCKET_MS = 2 * 60_000;
+/** How often outstanding sends are rechecked while any is younger than `SEND_SOCKET_MS`... */
+export const RECHECK_SENDS_FAST_MS = 10_000;
+/** ...and after: retries back off to minutes, so this does too. */
+export const RECHECK_SENDS_SLOW_MS = 60_000;
+/**
+ * When tracking gives up on a send. The outbox's longest retry chain (`apps/mail/src/outbox.ts`):
+ * an undo window of at most 30 s, then 8 attempts, each up to the 5 min claim lease if it hangs
+ * (40 min), with waits of `5 s + min(30 min, 5 s × 2^n)` between attempts 1 to 7 (at most 1,305 s,
+ * about 22 min): about 63 min. 90 min covers it. A send deferred because its mailbox or domain is
+ * unavailable spends no attempts and can wait longer: past this it is dropped as a reload would
+ * drop it (a new email: nothing shows; a reply: its bubble stays as it is until the thread is
+ * opened again or the socket reconnects, which ask again).
+ */
+const TRACK_SENDS_MAX_MS = 90 * 60_000;
+
+/**
+ * Asks the outbox about the outstanding sends (only `orgId`'s when given): settles the finished,
+ * sent or failed, and reports failures. One past `TRACK_SENDS_MAX_MS` is let go unasked.
+ */
+export async function recheckOutstanding(client: QueryClient, orgId?: string) {
+  const waiting = outstandingSends.get().filter((s) => !orgId || s.orgId === orgId);
   await Promise.all(
-    waiting.map(async ({ actionId }) => {
+    waiting.map(async ({ actionId, since }) => {
+      if (Date.now() - since > TRACK_SENDS_MAX_MS) return settleOutstanding(actionId);
       try {
         const action = await client.fetchQuery({ ...actionQuery(actionId), staleTime: 0 });
         if (action.status === "done") settleOutstanding(actionId);
@@ -271,7 +300,7 @@ async function recheckOutstanding(client: QueryClient, orgId: string) {
           onActionFailed(client, action.id, action.kind, action.error ?? "Sending failed");
         }
       } catch (error) {
-        // Gone: undone inside its window. Anything else (offline): the next open asks again.
+        // Gone: undone inside its window. Anything else (offline): the next check asks again.
         if (error instanceof ApiError && error.status === 404) settleOutstanding(actionId);
       }
     }),

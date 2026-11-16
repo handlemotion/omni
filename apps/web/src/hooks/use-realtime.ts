@@ -1,11 +1,16 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { threadQuery } from "../lib/mail-queries.ts";
 import { outstandingSends } from "../lib/pending.ts";
 import {
   onThreadsMerged,
+  RECHECK_SENDS_FAST_MS,
+  RECHECK_SENDS_SLOW_MS,
   realtimeStatus,
+  recheckOutstanding,
+  recheckPendingSends,
+  SEND_SOCKET_MS,
   startRealtime,
   trackSends,
   type RealtimeConnections,
@@ -15,9 +20,10 @@ import {
  * Keeps the realtime socket for `orgId`, the active workspace, open while mounted. The lists show
  * only the active workspace's mail (ADR 0014, amended: workspace isolation), so that is the one
  * socket that always stays open. Another workspace's opens only while (a) a thread of it is on
- * screen (a link opens it as that workspace's member) or (b) a send from one of its addresses
- * has not had its result yet, and closes once neither holds: its new messages and its sends'
- * results arrive there. A new `memberId` or org reopens the active one.
+ * screen (a link opens it as that workspace's member) or (b) for `SEND_SOCKET_MS` after a send
+ * from one of its addresses, and closes once neither holds, so the member is offline there again
+ * and gets its push. A send's result is tracked apart from the socket, over HTTP, until it
+ * comes. A new `memberId` or org reopens the active one.
  */
 export function useRealtimeConnection(orgId: string, options: { memberId?: string } = {}) {
   const client = useQueryClient();
@@ -33,8 +39,11 @@ export function useRealtimeConnection(orgId: string, options: { memberId?: strin
     outstandingSends.get,
     outstandingSends.get,
   );
+  // Rechecks move it on, so a send's socket closes `SEND_SOCKET_MS` after it.
+  const [now, setNow] = useState(() => Date.now());
+  const fresh = sending.filter((s) => now - s.since < SEND_SOCKET_MS).map((s) => s.orgId);
   // A string, so a re-render with the same orgs leaves the sockets alone.
-  const others = [...new Set([threadId ? threadOrg : undefined, ...sending.map((s) => s.orgId)])]
+  const others = [...new Set([threadId ? threadOrg : undefined, ...fresh])]
     .filter((id): id is string => !!id && id !== orgId)
     .sort()
     .join(",");
@@ -55,6 +64,26 @@ export function useRealtimeConnection(orgId: string, options: { memberId?: strin
     followed.current = others;
     connections.current?.follow(others ? others.split(",") : []);
   }, [others]);
+  // Nothing announces a send that went out: ask the outbox while any is waiting, every 10 s
+  // while one is fresh, then every minute, until each has its result.
+  const waiting = sending.length > 0;
+  useEffect(() => {
+    if (!waiting) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const at = Date.now();
+      setNow(at);
+      void recheckOutstanding(client);
+      const young = outstandingSends.get().some((s) => at - s.since < SEND_SOCKET_MS);
+      timer = setTimeout(tick, young ? RECHECK_SENDS_FAST_MS : RECHECK_SENDS_SLOW_MS);
+    };
+    timer = setTimeout(tick, RECHECK_SENDS_FAST_MS);
+    return () => clearTimeout(timer);
+  }, [client, waiting]);
+  // A thread opened again asks about its replies still queued: a new socket is not a reconnect.
+  useEffect(() => {
+    if (threadId) void recheckPendingSends(client, threadId);
+  }, [client, threadId]);
 }
 
 /** `connecting`, `open` or `closed`: for a "reconnecting…" indicator. */

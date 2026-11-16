@@ -109,6 +109,8 @@ export function dismissFailure(client: QueryClient, actionId: string) {
 export interface OutstandingSend {
   actionId: string;
   orgId: string;
+  /** When it was recorded (ms), for the cap on how long anything waits. */
+  since: number;
 }
 
 let outstanding: readonly OutstandingSend[] = [];
@@ -128,8 +130,11 @@ export const outstandingSends = {
   },
 };
 
-export function addOutstanding(send: OutstandingSend) {
-  setOutstanding([...outstanding.filter((s) => s.actionId !== send.actionId), send]);
+export function addOutstanding(send: Omit<OutstandingSend, "since">) {
+  setOutstanding([
+    ...outstanding.filter((s) => s.actionId !== send.actionId),
+    { ...send, since: Date.now() },
+  ]);
 }
 
 /** Its result came back (or it was cancelled): nothing left to wait for. */

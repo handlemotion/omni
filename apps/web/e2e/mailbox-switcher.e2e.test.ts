@@ -118,7 +118,10 @@ async function ana(slug: string) {
 }
 
 /** Signed in, on the inbox, with the switcher open. */
-async function openSwitcher(email: string): Promise<Page> {
+async function openSwitcher(
+  email: string,
+  beforeLoad?: (page: Page) => Promise<void>,
+): Promise<Page> {
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, email);
   context = await browser.newContext();
@@ -129,6 +132,7 @@ async function openSwitcher(email: string): Promise<Page> {
     }),
   );
   const page = await context.newPage();
+  await beforeLoad?.(page);
   await page.goto(new URL("/inbox", origin).toString());
   await page.getByRole("button", { name: /^Switch mailbox/ }).click();
   await page.getByRole("menu").waitFor();
@@ -369,45 +373,20 @@ test("a send from another workspace's address hears its failure after the dialog
   await ensurePersonalSpace(db, beta.userId);
   const page = await openSwitcher(email);
   await page.keyboard.press("Escape");
-  const betaSockets: { frames: string[]; closed: () => boolean }[] = [];
-  page.on("websocket", (socket) => {
-    if (!socket.url().includes(`org=${beta.orgId}`)) return;
-    const frames: string[] = [];
-    let closed = false;
-    socket.on("framereceived", (frame) => frames.push(String(frame.payload)));
-    socket.on("close", () => (closed = true));
-    betaSockets.push({ frames, closed: () => closed });
-  });
-
-  await page.getByRole("button", { name: "Compose" }).click();
-  const dialog = page.getByRole("dialog", { name: "New email" });
-  await dialog.getByRole("button", { name: /^From / }).click();
-  await page
-    .getByRole("menuitemradio", { name: boxes.hello.address })
-    .or(page.getByRole("menuitem", { name: boxes.hello.address }))
-    .click();
-  await dialog.getByRole("button", { name: `From ${boxes.hello.address}` }).waitFor();
-  await dialog.getByRole("combobox", { name: "To" }).fill("client@example.test");
-  await dialog.getByRole("combobox", { name: "To" }).press("Enter");
-  await dialog.getByRole("textbox", { name: "Subject" }).fill("From Beta");
-  await dialog.getByRole("button", { name: "Send", exact: true }).click();
-  await dialog.waitFor({ state: "detached" });
+  const betaSockets = watchSockets(page, beta.orgId);
+  await sendNewMail(page, boxes.hello.address);
   // To a third workspace (neither Acme nor Beta), through the sidebar's workspace menu.
   await page.getByRole("button", { name: "Switch workspace, currently Acme" }).click();
   await page.getByRole("menuitem", { name: "Personal" }).click();
   await page.getByRole("button", { name: "Switch workspace, currently Personal" }).waitFor();
 
-  const [action] = await db
-    .select({ id: schema.mailActions.id })
-    .from(schema.mailActions)
-    .where(eq(schema.mailActions.mailboxId, boxes.hello.id));
-  expect(action).toBeDefined();
+  const action = await sentFrom(boxes.hello.id);
   // The mail service gives up on it, after the dialog has closed.
   const failure = {
     type: "action.failed" as const,
     orgId: beta.orgId,
     mailboxId: boxes.hello.id,
-    actionId: action!.id,
+    actionId: action.id,
     memberId: beta.memberId,
     error: "550 mailbox unavailable",
   };
@@ -417,7 +396,7 @@ test("a send from another workspace's address hears its failure after the dialog
     .poll(
       async () => {
         expect((await postMailEvents(worker, { events: [failure] })).status).toBe(202);
-        return betaSockets.some((socket) => socket.frames.some((f) => f.includes(action!.id)));
+        return betaSockets.some((socket) => socket.frames.some((f) => f.includes(action.id)));
       },
       { timeout: 10_000, interval: 500 },
     )
@@ -425,6 +404,124 @@ test("a send from another workspace's address hears its failure after the dialog
   // Heard: nothing more to wait for, so Beta's socket closes again.
   await expect.poll(() => betaSockets.every((socket) => socket.closed())).toBe(true);
 });
+
+// Catches: a send from another workspace's address that goes out never closing that
+// workspace's socket. Nothing announces a send that succeeded, so the socket stayed open, and
+// while it is open the member counts as online there and gets no push for its new mail.
+test("a send from another workspace's address that goes out closes that workspace's socket", async () => {
+  const { email, beta, boxes } = await ana("sendok");
+  const page = await openSwitcher(email);
+  await page.keyboard.press("Escape");
+  const betaSockets = watchSockets(page, beta.orgId);
+  await sendNewMail(page, boxes.hello.address);
+  await expect.poll(() => betaSockets.length).toBeGreaterThan(0);
+  const action = await sentFrom(boxes.hello.id);
+  // The mail service sends it and records that, as `actions.complete()` does: no event.
+  await db
+    .update(schema.mailActions)
+    .set({ status: "done" })
+    .where(eq(schema.mailActions.id, action.id));
+  // Within the recheck interval (10 s), Beta's socket closes; Acme's stays.
+  await expect
+    .poll(() => betaSockets.every((socket) => socket.closed()), { timeout: 15_000 })
+    .toBe(true);
+  await page.getByRole("button", { name: "Switch workspace, currently Acme" }).waitFor();
+});
+
+// Catches: a send whose result comes after its workspace's socket has closed never being heard.
+// Tracking stopped with the socket (2 min), and a thread opened again is a new socket, not a
+// reconnect, so nothing asked the outbox again: the reply stayed "sending" though it failed.
+// The page's clock is Playwright's, so the 2 minutes pass at once; the server's is real.
+// (`passTime` keeps the sockets' pings answered, so no reconnect asks the outbox instead.)
+test("a reply from another workspace that fails after its socket closed shows as not sent", async () => {
+  const { email, beta, boxes, betaHello } = await ana("late");
+  const page = await openSwitcher(email, (p) => p.clock.install());
+  await page.keyboard.press("Escape");
+  const betaSockets = watchSockets(page, beta.orgId);
+
+  // Acme active; Beta's thread, opened by link, takes a reply.
+  await page.goto(new URL(`/inbox/${betaHello.threadId}`, String(worker.url)).toString());
+  await page.getByText("Hello from Beta").first().waitFor();
+  await page.getByRole("button", { name: "Reply", exact: true }).last().click();
+  await page.getByRole("textbox", { name: "Reply" }).fill("On my way");
+  await page.getByRole("button", { name: "Send", exact: true }).last().click();
+  const action = await expect
+    .poll(async () => (await sentFrom(boxes.hello.id).catch(() => null))?.id ?? "")
+    .not.toBe("")
+    .then(() => sentFrom(boxes.hello.id));
+
+  // Away from the thread (in the app, no reload), past the socket's 2 minutes: Beta's socket
+  // closes.
+  await page.getByRole("link", { name: "All mail", exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/all");
+  await passTime(page, 130_000);
+  await expect.poll(() => betaSockets.every((socket) => socket.closed())).toBe(true);
+
+  // The outbox gives up on it, with no event (none would reach a closed socket anyway).
+  await db
+    .update(schema.mailActions)
+    .set({ status: "failed", lastError: "550 mailbox unavailable" })
+    .where(eq(schema.mailActions.id, action.id));
+  await passTime(page, 65_000);
+
+  // Back in the thread, the reply shows it was not sent.
+  await page.goBack();
+  await page.waitForURL((url) => url.pathname.startsWith("/inbox/"));
+  await page.getByText("Not sent: 550 mailbox unavailable").waitFor({ timeout: 10_000 });
+});
+
+/**
+ * Moves the page's installed clock on by `ms` in 5 s steps, giving each step real time for the
+ * sockets' pongs to arrive: one jump would fire two pings with no pong between them, and the
+ * reconnect that follows would ask the outbox about every reply, hiding what is under test.
+ */
+async function passTime(page: Page, ms: number) {
+  for (let passed = 0; passed < ms; passed += 5_000) {
+    await page.clock.runFor(5_000);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+}
+
+/** Every socket the page opens for `orgId`: the frames it receives, and whether it closed. */
+function watchSockets(page: Page, orgId: string) {
+  const sockets: { frames: string[]; closed: () => boolean }[] = [];
+  page.on("websocket", (socket) => {
+    if (!socket.url().includes(`org=${orgId}`)) return;
+    const frames: string[] = [];
+    let closed = false;
+    socket.on("framereceived", (frame) => frames.push(String(frame.payload)));
+    socket.on("close", () => (closed = true));
+    sockets.push({ frames, closed: () => closed });
+  });
+  return sockets;
+}
+
+/** Sends a new email from `address` through the compose dialog, which closes on send. */
+async function sendNewMail(page: Page, address: string) {
+  await page.getByRole("button", { name: "Compose" }).click();
+  const dialog = page.getByRole("dialog", { name: "New email" });
+  await dialog.getByRole("button", { name: /^From / }).click();
+  await page
+    .getByRole("menuitemradio", { name: address })
+    .or(page.getByRole("menuitem", { name: address }))
+    .click();
+  await dialog.getByRole("button", { name: `From ${address}` }).waitFor();
+  await dialog.getByRole("combobox", { name: "To" }).fill("client@example.test");
+  await dialog.getByRole("combobox", { name: "To" }).press("Enter");
+  await dialog.getByRole("textbox", { name: "Subject" }).fill("From another workspace");
+  await dialog.getByRole("button", { name: "Send", exact: true }).click();
+  await dialog.waitFor({ state: "detached" });
+}
+
+/** The send the outbox holds for `mailboxId`. */
+async function sentFrom(mailboxId: string) {
+  const [action] = await db
+    .select({ id: schema.mailActions.id })
+    .from(schema.mailActions)
+    .where(eq(schema.mailActions.mailboxId, mailboxId));
+  if (!action) throw new Error("no send queued");
+  return action;
+}
 
 async function freePort() {
   const server = createServer();
