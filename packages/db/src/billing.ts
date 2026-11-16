@@ -6,7 +6,8 @@ import { and, count, desc, eq, gt, isNotNull, or, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
 import { organizations, subscriptions } from "./schema/auth.ts";
-import { stripeEvents, threads, trialClaims, triageUsage } from "./schema/mail.ts";
+import { stripeEvents, trialClaims, triageUsage } from "./schema/billing.ts";
+import { threads } from "./schema/mail.ts";
 
 /**
  * Stripe subscription statuses that keep a workspace fully usable. `past_due` is Stripe's grace

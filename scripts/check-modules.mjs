@@ -95,6 +95,7 @@ export function ownerOf(file, modules = MODULES) {
     if (file === `packages/db/src/${name}.ts`) return { module: name, part: "surface" };
     if (file.startsWith(`packages/db/src/${name}/`)) return { module: name, part: "private" };
     if (file === `packages/db/src/schema/${name}.ts`) return { module: name, part: "schema" };
+    if (file.startsWith(`packages/db/src/schema/${name}/`)) return { module: name, part: "schema" };
     if (file === `packages/contracts/src/${name}.ts`) return { module: name, part: "contract" };
     if (file.startsWith(`apps/worker/src/${name}/`)) return { module: name, part: "worker" };
   }
@@ -143,15 +144,15 @@ export function resolve(from, specifier) {
   return normalize(join(dirname(from), specifier));
 }
 
-/** Each laid-out module's tables: the exported identifier and its SQL name. */
+/** Each module's tables, from `schema/<module>.ts` and `schema/<module>/`: identifier, SQL name, file. */
 export function tablesOf(files, modules = MODULES) {
   const tables = new Map();
-  for (const name of Object.keys(modules)) {
-    const source = files.get(`packages/db/src/schema/${name}.ts`);
-    if (!source) continue;
-    const TABLE = /export\s+const\s+(\w+)\s*=\s*pgTable\(\s*["']([^"']+)["']/g;
+  const TABLE = /export\s+const\s+(\w+)\s*=\s*pgTable\(\s*["']([^"']+)["']/g;
+  for (const [file, source] of files) {
+    const owner = file.startsWith("packages/db/src/schema/") ? ownerOf(file, modules) : null;
+    if (owner?.part !== "schema") continue;
     for (const [, identifier, sqlName] of source.matchAll(TABLE)) {
-      tables.set(identifier, { module: name, sqlName });
+      tables.set(identifier, { module: owner.module, sqlName, file });
     }
   }
   return tables;
@@ -164,7 +165,9 @@ function tablesNamedBy(file, source, tables) {
     const target = resolve(file, specifier);
     if (!target?.startsWith("packages/db/src/schema/")) continue;
     // `* as x` of a module's own schema file names all its tables; of the barrel, `x.<table>` does.
-    const all = [...tables].filter(([, t]) => target === `packages/db/src/schema/${t.module}.ts`);
+    const all = [...tables].filter(
+      ([, t]) => target === t.file || target === `packages/db/src/schema/${t.module}.ts`,
+    );
     for (const name of names) {
       if (name === "*") all.forEach(([identifier]) => named.add(identifier));
       else if (tables.has(name)) named.add(name);
@@ -231,9 +234,8 @@ export function findProblems(files, modules = MODULES) {
         problems.push({ file, rule: "tables", message: MESSAGES.tables(foreign) });
     }
   }
-  for (const [identifier, { module, sqlName }] of tables) {
+  for (const [identifier, { module, sqlName, file }] of tables) {
     if (!modules[module].legacy && !sqlName.startsWith(`${module}_`)) {
-      const file = `packages/db/src/schema/${module}.ts`;
       problems.push({
         file,
         rule: "naming",

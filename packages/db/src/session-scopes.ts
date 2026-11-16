@@ -6,7 +6,7 @@ import type { Db } from "./client.ts";
 import { isCompany } from "./personal-space.ts";
 import { sessions } from "./schema/auth.ts";
 import { sessionScopes } from "./schema/identity.ts";
-import { mailDomains } from "./schema/mail.ts";
+import { mailDomains } from "./schema/domains.ts";
 
 /**
  * The company whose locked domain `address` is on, or null. A lock on a parent counts

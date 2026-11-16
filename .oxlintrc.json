@@ -97,8 +97,7 @@
         "apps/worker/src/routes/compose.ts",
         "packages/db/src/conversations.ts",
         "packages/db/src/for-member.ts",
-        "packages/db/src/mail-sync.ts",
-        "packages/db/src/schema/mail.ts"
+        "packages/db/src/mail-sync.ts"
       ],
       "rules": {
         "max-lines": "off"

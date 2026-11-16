@@ -123,3 +123,11 @@ test("debt hides its own problem and is reported once it no longer fails", () =>
   assert.deepEqual(problems, []);
   assert.deepEqual(stale, [{ file: "packages/db/src/gone.ts", rule: "tables" }]);
 });
+
+test("a module's tables split into a schema folder are still its own", () => {
+  const problems = problemsIn({
+    "packages/db/src/schema/mail/helpdesk.ts": `export const tags = pgTable("tags", {});`,
+    "packages/db/src/crm/tags.ts": `import { tags } from "../schema/mail/helpdesk.ts";`,
+  });
+  assert.deepEqual(problems, ["packages/db/src/crm/tags.ts tables"]);
+});
