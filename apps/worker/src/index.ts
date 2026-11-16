@@ -1,12 +1,14 @@
 import * as Sentry from "@sentry/cloudflare";
 import { PRIVATE_DATA_COLLECTION, scrubBreadcrumb, scrubEvent } from "@omni/mail-core/telemetry";
 import { createStripeClient } from "@omni/auth";
+import { Effect } from "effect";
 import { pruneAbandonedSignUps } from "./abandoned-sign-ups.ts";
 import { app } from "./app.ts";
 import { reconcileSubscriptions } from "./billing-reconcile.ts";
 import { openDb } from "./db.ts";
 import { recheckLocks } from "./domains.ts";
 import { loadConfig } from "./env.ts";
+import { attempt, runJob, scopedDb } from "./job-effects.ts";
 import { createLogger } from "./log.ts";
 import { modules } from "./modules.ts";
 import { consumeQueue, type AiJob } from "./queue.ts";
@@ -94,25 +96,22 @@ async function scheduledPrune(env: Env) {
  * then, from those fresh rows, Storage's peaks and its meter (ADR 0034). Nothing to do with
  * billing off. Safe to run twice.
  */
-async function scheduledReconcile(env: Env) {
+function scheduledReconcile(env: Env) {
   const billing = loadConfig(env).auth.billing;
-  if (!billing) return;
-  const { db, close } = openDb(env);
+  if (!billing) return Promise.resolve();
   const log = createLogger({ component: "billing", requestId: crypto.randomUUID() });
-  try {
-    const stripe = createStripeClient(billing.secretKey);
-    const result = await reconcileSubscriptions({
-      db,
-      stripe,
-      billing,
-      log,
-    });
-    log.info("billing.reconciled", { ...result });
-    const storage = await billStorage({ db, stripe, billing, log });
-    if (storage) log.info("storage.billed", { ...storage });
-  } finally {
-    await close();
-  }
+  return runJob(
+    Effect.gen(function* () {
+      const db = yield* scopedDb(env);
+      const stripe = createStripeClient(billing.secretKey);
+      const result = yield* attempt("reconcile", () =>
+        reconcileSubscriptions({ db, stripe, billing, log }),
+      );
+      log.info("billing.reconciled", { ...result });
+      const storage = yield* billStorage({ db, stripe, billing, log });
+      if (storage) log.info("storage.billed", { ...storage });
+    }),
+  );
 }
 
 /** The cron trigger: re-check every verified domain's challenge (ADR 0010). Safe to run twice. */

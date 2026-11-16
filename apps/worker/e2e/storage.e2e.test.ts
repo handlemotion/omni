@@ -3,7 +3,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { STORAGE_PART_BYTES, type StorageNode, type StorageUpload } from "@omni/contracts";
 import { schema, storageObjectKey } from "@omni/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { MIB, sha256, startStorageStack, type StorageStack } from "./storage-support.ts";
 import { authPost } from "./support.ts";
@@ -365,6 +365,56 @@ test("the minute cron aborts an upload nobody completed in 24 hours, and only th
   expect((await stack.api(ana.jar, "DELETE", `/uploads/${dropped.id}`)).status).toBe(204);
   expect((await stack.api(ana.jar, "POST", `/uploads/${dropped.id}/complete`)).status).toBe(404);
   expect((await stack.api(ana.jar, "GET", "/usage")).body.reservedBytes).toBe(0);
+});
+
+// Catches: one expired upload that cannot be removed holding up every other one, minute after
+// minute (it sorts first), and that failure going unseen.
+test("an expired upload the cron cannot remove does not hold up the others, and the run fails", async () => {
+  const org = await stack.company("stuck-upload");
+  const ana = await stack.member(org.id);
+  const open = async (name: string) =>
+    (await stack.api(ana.jar, "POST", "/uploads", { name, size: 10, space: "personal" })).body
+      .upload as StorageUpload;
+  const stuck = await open("stuck.bin");
+  const other = await open("other.bin");
+  for (const [upload, ago] of [
+    [stuck, 120_000],
+    [other, 60_000],
+  ] as const) {
+    await stack.db
+      .update(schema.storageUploads)
+      .set({ expiresAt: new Date(Date.now() - ago) })
+      .where(eq(schema.storageUploads.id, upload.id));
+  }
+  // Postgres itself refuses to delete the older one's row.
+  await stack.db.execute(
+    sql.raw(`
+      create function e2e_refuse_delete() returns trigger language plpgsql as
+        $$ begin raise exception 'e2e: this upload cannot be removed'; end $$;
+      create trigger e2e_refuse_delete before delete on storage_uploads for each row
+        when (old.id = '${stuck.id}') execute function e2e_refuse_delete();
+    `),
+  );
+  const left = async () =>
+    (
+      await stack.db
+        .select({ id: schema.storageUploads.id })
+        .from(schema.storageUploads)
+        .where(eq(schema.storageUploads.orgId, org.id))
+    ).map((row) => row.id);
+  try {
+    expect(await stack.cron("* * * * *")).toBe("exception");
+    expect(await left()).toEqual([stuck.id]);
+  } finally {
+    await stack.db.execute(
+      sql.raw(`
+        drop trigger e2e_refuse_delete on storage_uploads;
+        drop function e2e_refuse_delete();
+      `),
+    );
+  }
+  expect(await stack.cron("* * * * *")).toBe("ok");
+  expect(await left()).toEqual([]);
 });
 
 // Catches: Trash that never empties (bytes billed forever), a purge that takes what was trashed

@@ -3,6 +3,8 @@
 // above the plan's allowance is told to Stripe's meter, which bills the last value it heard in
 // the billing period. Stripe is asked, here and never on a request, whether the subscription has
 // a payment method; the answer is what lets uploads pass the allowance. Safe to run twice.
+// The daily job is an Effect program (ADR 0038 decision 2): each workspace is billed on its own,
+// a Stripe 429 or 5xx is retried in the run, and a workspace that still fails waits for tomorrow.
 import { usagePeriod } from "@omni/ai";
 import type { BillingConfig } from "@omni/auth";
 import {
@@ -13,7 +15,17 @@ import {
   type Db,
   type StorageBilledWorkspace,
 } from "@omni/db";
+import { Effect } from "effect";
 import type Stripe from "stripe";
+import {
+  attempt,
+  type JobError,
+  Permanent,
+  Retryable,
+  retried,
+  retryTransient,
+  within,
+} from "../job-effects.ts";
 import type { Logger } from "../log.ts";
 import { billsOverage, extraGb } from "./core.ts";
 
@@ -21,6 +33,8 @@ const GB = 1024 ** 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Stripe allows about 25 requests a second in test mode (100 live); stay well under. */
 const STRIPE_REQUEST_INTERVAL_MS = 100;
+/** One try at one workspace's Stripe calls; past it the try is abandoned and retried. */
+const STRIPE_TIME_LIMIT = "20 seconds";
 /**
  * How far into a billing period with nothing to bill the metered item is taken off again. Its
  * removal drops whatever that item has not been invoiced for, so it waits until the period
@@ -74,7 +88,7 @@ export async function meterEventIdentifier(input: {
  * can change the plan again), and tell the meter this period's value while the item is there.
  */
 async function billWorkspace(
-  input: { db: Db; stripe: Stripe; storage: NonNullable<BillingConfig["storage"]>; now: Date },
+  input: Pick<BillingRun, "db" | "stripe" | "storage" | "now">,
   workspace: StorageBilledWorkspace & { stripeCustomerId: string; stripeSubscriptionId: string },
   period: { start: Date; peakBytes: number },
   result: StorageBillingResult,
@@ -124,64 +138,99 @@ async function billWorkspace(
   result.reported++;
 }
 
+interface BillingRun {
+  db: Db;
+  stripe: Stripe;
+  storage: NonNullable<BillingConfig["storage"]>;
+  now: Date;
+  result: StorageBillingResult;
+  /** Stripe is asked at most once per `STRIPE_REQUEST_INTERVAL_MS`: when it next may be. */
+  pace: { next: number };
+}
+
 /**
  * The daily job. Nothing to do when the plan has no storage allowance. A workspace that fails
  * is logged and left for the next run: the peak only rises, and the meter keeps the last value.
  */
-export async function billStorage(input: {
+export function billStorage(input: {
   db: Db;
   stripe: Stripe;
   billing: BillingConfig;
   log: Logger;
   now?: Date;
-}): Promise<StorageBillingResult | null> {
+}): Effect.Effect<StorageBillingResult | null, JobError> {
   const { db, stripe, billing, log, now = new Date() } = input;
-  const storage = billing.storage;
-  if (!storage) return null;
-  const result: StorageBillingResult = {
-    workspaces: 0,
-    reported: 0,
-    itemsAdded: 0,
-    itemsRemoved: 0,
-    errors: 0,
-  };
-  let next = 0;
-  for (const workspace of await storageBilledWorkspaces(db)) {
-    if (!workspace.periodStart) continue;
-    try {
-      const { start } = usagePeriod(
-        {
-          periodStart: workspace.periodStart,
-          periodEnd: workspace.periodEnd,
-          interval: workspace.billingInterval,
-        },
-        now,
-      );
-      const peakBytes = await raiseStoragePeak(db, {
-        orgId: workspace.orgId,
-        periodStart: start,
-        bytes: workspace.bytes,
-      });
-      result.workspaces++;
-      // A trial, a yearly plan and a workspace Stripe does not know are capped at the allowance:
-      // nothing of theirs is billed, so Stripe is not asked.
-      const { stripeCustomerId } = workspace;
-      if (!stripeCustomerId || !billsOverage(workspace)) continue;
-      const wait = next - Date.now();
-      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-      next = Date.now() + STRIPE_REQUEST_INTERVAL_MS;
-      await billWorkspace(
-        { db, stripe, storage, now },
-        { ...workspace, stripeCustomerId },
-        { start, peakBytes },
-        result,
-      );
-    } catch (error) {
-      result.errors++;
-      log.warn("storage.billing.workspace_failed", { orgId: workspace.orgId, error });
-    }
-  }
-  return result;
+  return Effect.gen(function* () {
+    const storage = billing.storage;
+    if (!storage) return null;
+    const result: StorageBillingResult = {
+      workspaces: 0,
+      reported: 0,
+      itemsAdded: 0,
+      itemsRemoved: 0,
+      errors: 0,
+    };
+    const run: BillingRun = { db, stripe, storage, now, result, pace: { next: 0 } };
+    const workspaces = yield* retried("billed_workspaces", () => storageBilledWorkspaces(db));
+    // One at a time, paced for Stripe; a workspace that fails never stops the rest.
+    yield* Effect.forEach(
+      workspaces,
+      (workspace) =>
+        billOne(run, workspace).pipe(
+          // A bug for one workspace is that workspace's failure, as a thrown error was before.
+          Effect.catchDefect((cause) => Effect.fail(new Retryable({ step: "workspace", cause }))),
+          Effect.catch((failure) =>
+            Effect.sync(() => {
+              result.errors++;
+              log.warn("storage.billing.workspace_failed", {
+                orgId: workspace.orgId,
+                error: failure.cause,
+                step: failure.step,
+                permanent: failure instanceof Permanent,
+              });
+            }),
+          ),
+        ),
+      { concurrency: 1, discard: true },
+    );
+    return result;
+  });
+}
+
+/** One workspace: its peak, then, when extra storage may be billed, its Stripe half. */
+function billOne(
+  run: BillingRun,
+  workspace: StorageBilledWorkspace,
+): Effect.Effect<void, JobError> {
+  const { db, result, now } = run;
+  return Effect.gen(function* () {
+    const { periodStart } = workspace;
+    if (!periodStart) return;
+    const { start } = yield* Effect.try({
+      try: () =>
+        usagePeriod(
+          { periodStart, periodEnd: workspace.periodEnd, interval: workspace.billingInterval },
+          now,
+        ),
+      catch: (cause) => new Permanent({ step: "usage_period", cause }),
+    });
+    const peakBytes = yield* retried("raise_peak", () =>
+      raiseStoragePeak(db, { orgId: workspace.orgId, periodStart: start, bytes: workspace.bytes }),
+    );
+    result.workspaces++;
+    // A trial, a yearly plan and a workspace Stripe does not know are capped at the allowance:
+    // nothing of theirs is billed, so Stripe is not asked.
+    const { stripeCustomerId } = workspace;
+    if (!stripeCustomerId || !billsOverage(workspace)) return;
+    const wait = run.pace.next - Date.now();
+    if (wait > 0) yield* Effect.sleep(wait);
+    run.pace.next = Date.now() + STRIPE_REQUEST_INTERVAL_MS;
+    // Safe to try again: it reads the subscription afresh, and the meter event's identifier
+    // makes a repeated event one.
+    yield* attempt("stripe", () =>
+      billWorkspace(run, { ...workspace, stripeCustomerId }, { start, peakBytes }, result),
+    ).pipe(within("stripe", STRIPE_TIME_LIMIT), retryTransient);
+  });
 }
 
 /**

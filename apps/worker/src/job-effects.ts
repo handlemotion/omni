@@ -62,6 +62,11 @@ export function retryTransient<A, R>(self: Effect.Effect<A, JobError, R>) {
   );
 }
 
+/** `attempt`, with a retryable failure retried in this invocation (`retryTransient`). */
+export function retried<A>(step: string, run: () => Promise<A>): Effect.Effect<A, JobError> {
+  return retryTransient(attempt(step, run));
+}
+
 /**
  * Fails with `Retryable` when `self` runs past `limit`. The promise underneath is abandoned, not
  * cancelled; the run's database client closes when the run ends.
@@ -72,6 +77,19 @@ export function within(step: string, limit: Duration.Input) {
       Effect.timeout(limit),
       Effect.catchTag("TimeoutError", (cause) => Effect.fail(new Retryable({ step, cause }))),
     );
+}
+
+/**
+ * Runs a job at the Worker's edge, closing what it acquired. A failure rejects with the error
+ * that caused it, as the job's promise did before, so callers and Cloudflare see the same error.
+ */
+export function runJob<A>(job: Effect.Effect<A, JobError, Scope.Scope>): Promise<A> {
+  return Effect.runPromise(
+    job.pipe(
+      Effect.scoped,
+      Effect.mapError((failure) => failure.cause),
+    ),
+  );
 }
 
 /**
