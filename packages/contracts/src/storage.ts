@@ -350,6 +350,15 @@ export const desktopSyncStatusSchema = z.object({
   workspaces: z.array(desktopWorkspaceSyncSchema),
 });
 
+/**
+ * What `omni-sync` (the macOS shell's sync helper, ADR 0043 amendment 1) prints for
+ * `sign-in`: the authorize URL the shell opens in the app window.
+ */
+export const desktopSyncSignInSchema = z.object({ url: z.string() });
+
+/** What `omni-sync` prints for a command that answers only that it worked. */
+export const desktopSyncDoneSchema = z.object({ ok: z.literal(true) });
+
 /** The schemas the native sync providers are generated from, by the name their type takes. */
 export const STORAGE_SYNC_NATIVE_TYPES = {
   StorageNode: storageNodeSchema,
@@ -371,6 +380,8 @@ export const STORAGE_SYNC_NATIVE_TYPES = {
   DesktopSyncState: desktopSyncStateSchema,
   DesktopWorkspaceSync: desktopWorkspaceSyncSchema,
   DesktopSyncStatus: desktopSyncStatusSchema,
+  DesktopSyncSignIn: desktopSyncSignInSchema,
+  DesktopSyncDone: desktopSyncDoneSchema,
 } as const;
 
 export type StorageSpace = z.infer<typeof storageSpaceSchema>;

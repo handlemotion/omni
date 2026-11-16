@@ -35,7 +35,7 @@ with the Drive module. Nothing desktop exists in the repo. The full design is
 
 ## Consequences
 
-- A Rust toolchain and an Xcode project enter the repo, with their own `Desktop` CI workflow on
+- A Rust toolchain and a Swift package enter the repo, with their own `Desktop` CI workflow on
   macOS and Windows runners. `Checks` does not change for other work.
 - `scripts/check-tests.mjs` governs TypeScript tests only. Rust tests in `apps/desktop` follow the
   same rule in spirit: pure logic only, named for the bug they catch.
@@ -46,3 +46,21 @@ with the Drive module. Nothing desktop exists in the repo. The full design is
   replace carries the version it read; file versions (history) become the natural next step.
 - An installed desktop shell is long-lived. The `omni://` scheme, the bundle identifier, the app
   group and the `/sync` routes are public surface from the first release.
+
+## Amendment 1 (2026-11-16): the app's macOS sync work is a Swift helper
+
+The spec had Rust register the File Provider domain with `objc2-file-provider` and keep the sync
+token with the `keyring` crate. Building it showed two problems: `apps/desktop` forbids `unsafe`
+Rust, which every `objc2` call needs, and `keyring` writes to the login keychain, not the keychain
+access group the sandboxed extension reads. The founder chose the alternative:
+
+- `omni-sync`, a Swift command-line helper in `Contents/MacOS/`, registers and removes the domain,
+  runs the sync sign-in (PKCE), keeps the tokens in the shared keychain group, writes `sync.json`
+  (server, workspaces on, paused) in the App Group container, and signals the working set. The
+  Tauri shell runs it for each sync command and reads one line of JSON. The token and settings
+  code is the extension's own, so it exists once.
+- Its main bundle is the app, so `NSFileProviderManager` finds the embedded extension; it is
+  signed with the app's identifier and shared groups and relies on the app's provisioning
+  profile. Should macOS refuse a helper that way, the fallback is this ADR's original choice
+  with `unsafe` allowed in `src-tauri/src/sync/` alone.
+- The extension and helper are built by SwiftPM and a script, not an Xcode project.

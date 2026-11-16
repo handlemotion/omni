@@ -336,3 +336,13 @@ pub enum DesktopSyncState {
 
     Syncing,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DesktopSyncSignIn {
+    pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DesktopSyncDone {
+    pub ok: bool,
+}

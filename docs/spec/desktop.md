@@ -207,15 +207,16 @@ apps/desktop/
   src/                 the bundled local shell: server picker, offline screen (plain TS, no router)
   src-tauri/           Rust: windows, deep links, tray, updater, keychain, domain registration
     capabilities/      local.json (bundled shell), remote.json (the server origin, decision 2)
-  macos/               Xcode project: OmniFileProvider.appex (Swift), entitlements, signing script
+  macos/               Swift package: OmniFileProvider.appex, the omni-sync helper, build and signing script
   windows/             the Cloud Files provider (Rust crate, own binary), layer 7
   generated/           Swift and Rust types from @omni/contracts (decision 4)
 ```
 
 Libraries, all official Tauri plugins unless noted: `deep-link`, `single-instance` (with its
 `deep-link` feature, registered first), `updater`, `notification`, `autostart`, `window-state`,
-`opener`, `store` (the chosen server), `log`; `keyring` (crate) for credentials;
-`objc2-file-provider` (crate) to register domains and signal enumerators from Rust;
+`opener`, `store` (the chosen server), `log`. On macOS the domain, the sync token and the
+signals go through `omni-sync`, a Swift helper in `Contents/MacOS/` that Rust runs (ADR 0043,
+amendment 1); Windows keeps its credentials with the `keyring` crate;
 `tauri-plugin-decorum` or its maintained fork for Windows snap layouts on a custom title bar,
 after a spike. Swift side: Foundation and FileProvider only.
 
@@ -256,9 +257,11 @@ primitives, and add no text.
 
 ## Build, signing, release
 
-- **macOS.** `beforeBundleCommand` runs `xcodebuild` for the extension and signs it (Developer
-  ID, hardened runtime, its own entitlements and embedded provisioning profile). Tauri copies it
-  to `Contents/PlugIns/` (`bundle.macOS.files`), signs the app last and notarizes. Entitlements:
+- **macOS.** `beforeBundleCommand` (`tauri.macos.conf.json`) runs
+  `apps/desktop/macos/scripts/build-macos.sh`, which builds the extension and `omni-sync` with
+  SwiftPM and signs them (Developer ID, hardened runtime, their own entitlements, the extension's
+  embedded provisioning profile). Tauri copies them to `Contents/PlugIns/` and `Contents/MacOS/`
+  (`bundle.macOS.files`), signs the app last and notarizes. Entitlements:
   app sandbox and app group on the extension; the same app group and keychain access group on
   the app; associated domains on the app if passkeys are proven. Universal binary.
 - **Windows.** NSIS installer, signed with Azure Trusted Signing through `signCommand`. WebView2

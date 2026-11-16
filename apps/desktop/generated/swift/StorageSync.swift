@@ -23,6 +23,8 @@
 //   let desktopSyncState = try? JSONDecoder().decode(DesktopSyncState.self, from: jsonData)
 //   let desktopWorkspaceSync = try DesktopWorkspaceSync(json)
 //   let desktopSyncStatus = try DesktopSyncStatus(json)
+//   let desktopSyncSignIn = try DesktopSyncSignIn(json)
+//   let desktopSyncDone = try DesktopSyncDone(json)
 
 //
 // Hashable or Equatable:
@@ -1550,6 +1552,114 @@ public enum DesktopSyncState: String, Codable, Equatable {
     case paused = "paused"
     case synced = "synced"
     case syncing = "syncing"
+}
+
+//
+// Hashable or Equatable:
+// The compiler will not be able to synthesize the implementation of Hashable or Equatable
+// for types that require the use of JSONAny, nor will the implementation of Hashable be
+// synthesized for types that have collections (such as arrays or dictionaries).
+
+// MARK: - DesktopSyncSignIn
+public struct DesktopSyncSignIn: Codable, Equatable {
+    public let url: String
+
+    public enum CodingKeys: String, CodingKey {
+        case url = "url"
+    }
+
+    public init(url: String) {
+        self.url = url
+    }
+}
+
+// MARK: DesktopSyncSignIn convenience initializers and mutators
+
+public extension DesktopSyncSignIn {
+    init(data: Data) throws {
+        self = try newJSONDecoder().decode(DesktopSyncSignIn.self, from: data)
+    }
+
+    init(_ json: String, using encoding: String.Encoding = .utf8) throws {
+        guard let data = json.data(using: encoding) else {
+            throw NSError(domain: "JSONDecoding", code: 0, userInfo: nil)
+        }
+        try self.init(data: data)
+    }
+
+    init(fromURL url: URL) throws {
+        try self.init(data: try Data(contentsOf: url))
+    }
+
+    func with(
+        url: String? = nil
+    ) -> DesktopSyncSignIn {
+        return DesktopSyncSignIn(
+            url: url ?? self.url
+        )
+    }
+
+    func jsonData() throws -> Data {
+        return try newJSONEncoder().encode(self)
+    }
+
+    func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
+        return String(data: try self.jsonData(), encoding: encoding)
+    }
+}
+
+//
+// Hashable or Equatable:
+// The compiler will not be able to synthesize the implementation of Hashable or Equatable
+// for types that require the use of JSONAny, nor will the implementation of Hashable be
+// synthesized for types that have collections (such as arrays or dictionaries).
+
+// MARK: - DesktopSyncDone
+public struct DesktopSyncDone: Codable, Equatable {
+    public let ok: Bool
+
+    public enum CodingKeys: String, CodingKey {
+        case ok = "ok"
+    }
+
+    public init(ok: Bool) {
+        self.ok = ok
+    }
+}
+
+// MARK: DesktopSyncDone convenience initializers and mutators
+
+public extension DesktopSyncDone {
+    init(data: Data) throws {
+        self = try newJSONDecoder().decode(DesktopSyncDone.self, from: data)
+    }
+
+    init(_ json: String, using encoding: String.Encoding = .utf8) throws {
+        guard let data = json.data(using: encoding) else {
+            throw NSError(domain: "JSONDecoding", code: 0, userInfo: nil)
+        }
+        try self.init(data: data)
+    }
+
+    init(fromURL url: URL) throws {
+        try self.init(data: try Data(contentsOf: url))
+    }
+
+    func with(
+        ok: Bool? = nil
+    ) -> DesktopSyncDone {
+        return DesktopSyncDone(
+            ok: ok ?? self.ok
+        )
+    }
+
+    func jsonData() throws -> Data {
+        return try newJSONEncoder().encode(self)
+    }
+
+    func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
+        return String(data: try self.jsonData(), encoding: encoding)
+    }
 }
 
 // MARK: - Helper functions for creating encoders and decoders

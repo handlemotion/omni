@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeBundleCommand": "macos/scripts/build-macos.sh"
+  },
+  "bundle": {
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "entitlements": "../macos/build/Omni.entitlements",
+      "files": {
+        "MacOS/omni-sync": "../macos/build/omni-sync",
+        "PlugIns/OmniFileProvider.appex": "../macos/build/OmniFileProvider.appex"
+      }
+    }
+  }
+}

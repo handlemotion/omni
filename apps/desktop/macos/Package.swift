@@ -27,6 +27,12 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [.unsafeFlags(["-Xlinker", "-e", "-Xlinker", "_NSExtensionMain"])]
         ),
+        // `omni-sync`, the app's side: domain, token, settings, signals. Run by the Tauri shell.
+        .executableTarget(
+            name: "OmniSyncHelper",
+            dependencies: ["OmniSyncClient", "StorageSync"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
         .testTarget(name: "OmniSyncCoreTests", dependencies: ["OmniSyncCore", "StorageSync"]),
     ]
 )

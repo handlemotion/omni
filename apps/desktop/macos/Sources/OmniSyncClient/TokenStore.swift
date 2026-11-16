@@ -63,9 +63,16 @@ public final class TokenStore: AccessTokenSource {
         defer { lock.unlock() }
         guard let tokens = try read() else { throw TokenError.signedOut }
         if tokens.accessToken != rejected, !tokens.expiresSoon { return tokens.accessToken }
-        let fresh = try await exchange(tokens.refreshToken)
-        try write(fresh)
-        return fresh.accessToken
+        do {
+            let fresh = try await exchange(tokens.refreshToken)
+            try write(fresh)
+            return fresh.accessToken
+        } catch TokenError.signedOut {
+            // The server refused the grant (revoked, expired): it is gone here too, so the app
+            // reports `needs_attention` and turning sync on signs in again.
+            try? delete()
+            throw TokenError.signedOut
+        }
     }
 
     private func exchange(_ refreshToken: String) async throws -> SyncTokens {
@@ -73,28 +80,33 @@ public final class TokenStore: AccessTokenSource {
         var request = URLRequest(url: settings.origin.appendingPathComponent("api/auth/oauth2/token"))
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "content-type")
-        var form = URLComponents()
-        form.queryItems = [
-            URLQueryItem(name: "grant_type", value: "refresh_token"),
-            URLQueryItem(name: "refresh_token", value: refreshToken),
-            URLQueryItem(name: "client_id", value: "omni-desktop"),
-            URLQueryItem(name: "resource", value: settings.api.absoluteString),
-        ]
-        request.httpBody = Data((form.percentEncodedQuery ?? "").utf8)
+        request.httpBody = formBody([
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refreshToken),
+            ("client_id", "omni-desktop"),
+            ("resource", settings.api.absoluteString),
+        ])
         let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         // 400 invalid_grant: the grant was revoked or the refresh token reused. Sign in again.
         if (400..<500).contains(status) { throw TokenError.signedOut }
         guard status == 200 else { throw URLError(.badServerResponse) }
+        return try Self.tokens(from: data, keeping: refreshToken)
+    }
+
+    /// The token endpoint's answer as tokens; a refresh that sends no new refresh token keeps
+    /// the old one.
+    static func tokens(from data: Data, keeping refreshToken: String?) throws -> SyncTokens {
         struct Answer: Decodable {
             let access_token: String
             let refresh_token: String?
             let expires_in: Double
         }
         let answer = try JSONDecoder().decode(Answer.self, from: data)
+        guard let refresh = answer.refresh_token ?? refreshToken else { throw TokenError.signedOut }
         return SyncTokens(
             accessToken: answer.access_token,
-            refreshToken: answer.refresh_token ?? refreshToken,
+            refreshToken: refresh,
             expiresAt: Date().timeIntervalSince1970 + answer.expires_in
         )
     }
@@ -132,6 +144,12 @@ public final class TokenStore: AccessTokenSource {
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
         let added = SecItemAdd(add as CFDictionary, nil)
         guard added == errSecSuccess else { throw TokenError.keychain(added) }
+    }
+
+    /// Signing out: the grant leaves this computer.
+    public func delete() throws {
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw TokenError.keychain(status) }
     }
 }
 

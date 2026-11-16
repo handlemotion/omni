@@ -60,6 +60,7 @@ pub fn run() {
             deep_link::listen(app);
             startup::default_on(app);
             updater::start(app.handle());
+            sync::start(app.handle())?;
             Ok(())
         })
         .build(tauri::generate_context!())

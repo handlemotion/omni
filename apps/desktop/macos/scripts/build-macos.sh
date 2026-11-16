@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Builds OmniFileProvider.appex (docs/spec/desktop.md "Build, signing, release"): a universal
-# release build of the `OmniFileProvider` executable, wrapped in an extension bundle with its
-# Info.plist and entitlements, and signed. Tauri copies the result into Contents/PlugIns.
+# Builds the app's two Swift pieces (docs/spec/desktop.md "Build, signing, release"), universal
+# and signed, into OMNI_EXTENSION_OUT:
+#   OmniFileProvider.appex  the File Provider extension, for Contents/PlugIns
+#   omni-sync               the shell's sync helper, for Contents/MacOS (ADR 0043, amended)
 #
 # Config, all from the environment (apps/desktop/.env.example):
 #   OMNI_DESKTOP_BUNDLE_ID   the app's bundle id; the extension is <id>.fileprovider
@@ -9,6 +10,7 @@
 #   APPLE_TEAM_ID            the signing team; prefixes the keychain access group
 #   OMNI_SIGN_IDENTITY       a codesign identity; unset or "-" signs ad hoc (compiles, never loads)
 #   OMNI_EXTENSION_PROFILE   the extension's provisioning profile, embedded when set
+#                            (omni-sync uses the app's, which Tauri embeds in the app)
 #   OMNI_FILEPROVIDER_TESTING=1  adds the File Provider testing-mode entitlement (never in a release)
 #   OMNI_EXTENSION_OUT       output folder (default apps/desktop/macos/build)
 set -euo pipefail
@@ -23,7 +25,9 @@ ext_id="$bundle_id.fileprovider"
 keychain_group="${team:+$team.}$bundle_id"
 
 swift build --package-path "$here" -c release --arch arm64 --arch x86_64 --product OmniFileProvider
-binary="$(swift build --package-path "$here" -c release --arch arm64 --arch x86_64 --show-bin-path)/OmniFileProvider"
+swift build --package-path "$here" -c release --arch arm64 --arch x86_64 --product OmniSyncHelper
+bin_dir="$(swift build --package-path "$here" -c release --arch arm64 --arch x86_64 --show-bin-path)"
+binary="$bin_dir/OmniFileProvider"
 
 appex="$out/OmniFileProvider.appex"
 rm -rf "$appex"
@@ -82,4 +86,34 @@ fi
 
 codesign --force --options runtime --timestamp=none --entitlements "$entitlements" --sign "$identity" "$appex"
 codesign --verify --strict "$appex"
+
+# omni-sync runs as part of the app (its main bundle is the app, so NSFileProviderManager finds
+# the extension), with the app's identifier and the groups it shares with the extension.
+helper_entitlements="$out/omni-sync.entitlements"
+cat >"$helper_entitlements" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.application-groups</key><array><string>$app_group</string></array>
+  <key>keychain-access-groups</key><array><string>$keychain_group</string></array>
+PLIST
+if [[ -n "$team" ]]; then
+  cat >>"$helper_entitlements" <<PLIST
+  <key>com.apple.application-identifier</key><string>$team.$bundle_id</string>
+  <key>com.apple.developer.team-identifier</key><string>$team</string>
+PLIST
+fi
+echo "</dict></plist>" >>"$helper_entitlements"
+plutil -lint "$helper_entitlements" >/dev/null
+cp "$bin_dir/OmniSyncHelper" "$out/omni-sync"
+codesign --force --options runtime --timestamp=none --identifier "$bundle_id.sync" \
+  --entitlements "$helper_entitlements" --sign "$identity" "$out/omni-sync"
+codesign --verify --strict "$out/omni-sync"
+
+# The app's own entitlements, for Tauri's signing step (tauri.macos.conf.json): the groups it
+# shares with the extension, which omni-sync uses on its behalf.
+cp "$helper_entitlements" "$out/Omni.entitlements"
+
 echo "$appex"
+echo "$out/omni-sync"
