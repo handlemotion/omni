@@ -95,9 +95,9 @@ test("someone in no company lands in their Personal space's inbox, not in compan
 test("an empty Personal space offers to connect Google or set up a company", async () => {
   const page = await signedIn(`empty-${Date.now()}@gmail.test`, "/inbox");
   await page.getByText("No accounts yet").waitFor({ timeout: 15_000 });
-  // The switcher's All mark keeps its three discs with no mailbox to draw them from.
+  // The switcher's All mark keeps its two blank discs with no mailbox to draw them from.
   const trigger = page.getByRole("button", { name: /^Switch mailbox/ });
-  expect(await trigger.locator("[data-slot=avatar]").count()).toBe(3);
+  expect(await trigger.locator("[data-slot=avatar]").count()).toBe(2);
   // Google is not set up on this install: setting up a company is the one way on.
   expect(await page.getByRole("button", { name: "Connect Google" }).count()).toBe(0);
   await page.getByRole("button", { name: "Set up a company" }).click();
@@ -174,10 +174,12 @@ test("compose defaults to the active workspace's address, and still offers the o
   await grant(org.orgId, "zzz@company.test");
 
   await page.goto(new URL("/compose", String(worker.url)).toString());
-  const from = page.getByRole("radiogroup", { name: "From" });
-  await from.getByText("aaa@gmail.test").waitFor();
+  // The workspace's address is chosen; the menu still offers the Personal one.
+  await page.getByRole("button", { name: "From zzz@company.test" }).click();
+  const menu = page.getByRole("menu");
+  await menu.getByRole("menuitemradio", { name: "aaa@gmail.test" }).waitFor();
   await expect
-    .poll(() => from.getByRole("radio", { checked: true }).textContent())
+    .poll(() => menu.getByRole("menuitemradio", { checked: true }).textContent())
     .toBe("zzz@company.test");
 });
 
