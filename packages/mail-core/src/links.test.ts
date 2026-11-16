@@ -40,4 +40,18 @@ describe("linkSegments", () => {
       { text: "https://a.example/", href: "https://a.example/" },
     ]);
   });
+
+  it("keeps a trailing underscore, which ends real tokens", () => {
+    expect(links("Reset: https://a.example/reset?token=abc_").map((s) => s.text)).toEqual([
+      "https://a.example/reset?token=abc_",
+    ]);
+  });
+
+  it("trims a long run of closing brackets in linear time", () => {
+    const text = `https://a.example/${")".repeat(200_000)}`;
+    const started = performance.now();
+    expect(links(text).map((s) => s.text)).toEqual(["https://a.example/"]);
+    // Quadratic trimming took about 18s for 30,000; linear is a few milliseconds.
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
 });

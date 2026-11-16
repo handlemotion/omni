@@ -14,24 +14,34 @@ export interface TextSegment {
 const URL_START = /\bhttps?:\/\/[^\s<>"]+/giu;
 
 // Sentence punctuation after an address belongs to the sentence ("see https://a.example.").
-const TRAILING = /[.,;:!?'*_]+$/u;
+// Not `_`: it ends real tokens (`?token=abc_`), and cutting it opens the wrong address.
+const TRAILING = new Set([".", ",", ";", ":", "!", "?", "'", "*"]);
 
-const CLOSERS: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+const OPENERS: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
 
-/** Drops trailing punctuation, and a closing bracket that does not close one inside the URL. */
-function trimEnd(raw: string): string {
-  let url = raw;
-  for (;;) {
-    const before = url;
-    url = url.replace(TRAILING, "");
-    const last = url.at(-1) ?? "";
-    const open = CLOSERS[last];
-    if (open && count(url, open) < count(url, last)) url = url.slice(0, -1);
-    if (url === before) return url;
+/**
+ * Drops trailing punctuation, and closing brackets that close none inside the URL. One count of
+ * each bracket, then one walk back from the end: a run of `)` costs linear time, not quadratic.
+ */
+function trimEnd(url: string): string {
+  const counts = new Map<string, number>();
+  for (const char of url) {
+    if (char in OPENERS || Object.values(OPENERS).includes(char)) {
+      counts.set(char, (counts.get(char) ?? 0) + 1);
+    }
   }
+  let end = url.length;
+  while (end > 0) {
+    const last = url[end - 1] ?? "";
+    const open = OPENERS[last];
+    if (TRAILING.has(last)) end--;
+    else if (open && (counts.get(open) ?? 0) < (counts.get(last) ?? 0)) {
+      counts.set(last, (counts.get(last) ?? 0) - 1);
+      end--;
+    } else break;
+  }
+  return url.slice(0, end);
 }
-
-const count = (text: string, char: string) => text.split(char).length - 1;
 
 function webAddress(candidate: string): string | null {
   try {
