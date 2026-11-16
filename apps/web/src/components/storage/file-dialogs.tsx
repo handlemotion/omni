@@ -1,13 +1,10 @@
-// Storage's small dialogs: name a new folder, rename, pick where to move, confirm deleting for
-// good. Each takes the door it changes through: a shared link's (`shareId`), or the member's.
+// Storage's small dialogs: rename, pick where to move, confirm deleting for good. Each takes the
+// door it changes through: a shared link's (`shareId`), or the member's.
 import { useState } from "react";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
 import { IconFolder } from "@/components/icons/central";
-import {
-  SettingsFormDialog,
-  SettingsRenameDialog,
-} from "@/components/settings/kit/settings-stacked-dialog";
+import { SettingsRenameDialog } from "@/components/settings/kit/settings-stacked-dialog";
 import { Breadcrumbs, BreadcrumbsItem } from "@/components/ui/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,59 +15,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/field";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
-import { Input } from "@/components/ui/input";
-import { TextField } from "@/components/ui/text-field";
 import {
   useChangeNode,
-  useCreateFolder,
   useDeleteForever,
   useHasSharedFiles,
   useStorageLink,
   useStorageList,
 } from "@/hooks/use-storage.ts";
 import type { StorageNode, StoragePlace, StorageSpace } from "@/lib/storage.ts";
+import { NAME_MAX } from "@/lib/storage-names.ts";
 import { storageErrorToast } from "./storage-errors.ts";
 import { SPACE_LABEL } from "./storage-nav.tsx";
-
-/** The longest name the API takes. */
-export const NAME_MAX = 255;
-
-/** Mount it while open, so the field starts empty. */
-export function NewFolderDialog(props: {
-  place: StoragePlace;
-  shareId?: string | undefined;
-  onClose: () => void;
-}) {
-  const create = useCreateFolder();
-  const [value, setValue] = useState("");
-  const name = value.trim();
-  return (
-    <SettingsFormDialog
-      isOpen
-      onOpenChange={(open) => !open && props.onClose()}
-      title="New folder"
-      action="Create"
-      disabled={!name}
-      saving={create.isPending}
-      onSubmit={() =>
-        create.mutate(
-          { name, place: props.place, ...(props.shareId ? { shareId: props.shareId } : {}) },
-          {
-            onSuccess: props.onClose,
-            onError: (error) => storageErrorToast(error, "The folder was not created"),
-          },
-        )
-      }
-    >
-      <TextField isRequired autoFocus maxLength={NAME_MAX} value={value} onChange={setValue}>
-        <Label>Name</Label>
-        <Input autoComplete="off" />
-      </TextField>
-    </SettingsFormDialog>
-  );
-}
 
 export function RenameDialog(props: {
   node: StorageNode;

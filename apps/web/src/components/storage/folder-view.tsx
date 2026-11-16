@@ -7,10 +7,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
+import { useFolderDrafts } from "@/hooks/use-folder-drafts.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { useUploads } from "@/hooks/use-storage.ts";
 import type { StorageNode, StoragePlace } from "@/lib/storage.ts";
-import { MoveDialog, NewFolderDialog, RenameDialog, type MoveScope } from "./file-dialogs.tsx";
+import { MoveDialog, RenameDialog, type MoveScope } from "./file-dialogs.tsx";
 import { FolderBody, HeaderActions } from "./folder-body.tsx";
 import { PreviewPanel } from "./preview/preview-panel.tsx";
 import { ShareDialog } from "./share-dialog.tsx";
@@ -18,10 +19,7 @@ import { storageErrorToast } from "./storage-errors.ts";
 import { StorageFrame } from "./storage-frame.tsx";
 import { UploadsPanel } from "./uploads-panel.tsx";
 
-export type FolderDialog =
-  | { dialog: "new" }
-  | { dialog: "rename" | "move" | "share"; node: StorageNode }
-  | null;
+export type FolderDialog = { dialog: "rename" | "move" | "share"; node: StorageNode } | null;
 
 export interface FolderSource {
   /** The folder's own name, for the table and the drop target. */
@@ -75,6 +73,17 @@ export function FolderView(props: {
       storageErrorToast(error, `“${name}” was not uploaded`),
     );
   const open = useOpenFile(source.list);
+  // New folder shows the folder at once, its name ready to type (Finder's way, not a dialog).
+  const folders = useFolderDrafts({
+    place: source.place,
+    shareId: source.shareId,
+    nodes: source.list.nodes,
+    ready: !source.list.isPending && !source.list.isError,
+  });
+  const drafts = useMemo(
+    () => ({ list: folders.drafts, handlers: { finish: folders.finish, onType: folders.onType } }),
+    [folders.drafts, folders.finish, folders.onType],
+  );
   const menu = useCallback(
     (node: StorageNode) => source.menu(node, setDialog),
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- the menu builder is the dependency
@@ -111,18 +120,15 @@ export function FolderView(props: {
           title={props.title}
           sidebar={props.sidebar}
           actions={
-            <HeaderActions
-              canWrite={source.canWrite}
-              onNewFolder={() => setDialog({ dialog: "new" })}
-              onFiles={send}
-            />
+            <HeaderActions canWrite={source.canWrite} onNewFolder={folders.start} onFiles={send} />
           }
         >
           <FolderBody
             source={source}
             menu={menu}
             open={open}
-            onNewFolder={() => setDialog({ dialog: "new" })}
+            drafts={drafts}
+            onNewFolder={folders.start}
             onFiles={send}
           />
           <UploadsPanel />
@@ -169,9 +175,6 @@ export function FolderView(props: {
             shell={shell}
           />
         </div>
-      )}
-      {dialog?.dialog === "new" && (
-        <NewFolderDialog place={source.place} shareId={source.shareId} onClose={close} />
       )}
       {dialog?.dialog === "rename" && (
         <RenameDialog node={dialog.node} shareId={source.shareId} onClose={close} />

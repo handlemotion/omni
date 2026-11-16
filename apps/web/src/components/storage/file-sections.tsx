@@ -20,10 +20,12 @@ import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
+import type { FolderDraft } from "@/hooks/use-folder-drafts.ts";
 import { useStorageView, type StorageSection, type StorageView } from "@/hooks/use-storage-view.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { FileCard, FileCardBones, KEEP_IN_MENU } from "./file-card.tsx";
+import { DraftCard, DraftRow, type DraftHandlers } from "./folder-draft.tsx";
 import { FileTile, TypeBadge } from "./file-glyph.tsx";
 import { DAY } from "./file-table.tsx";
 
@@ -36,22 +38,32 @@ export interface FileSectionsProps {
   open: { id: string | undefined; onChange: (id: string | null) => void };
   menu: (node: StorageNode) => SettingsRowMenuItem[];
   loadMore?: (() => void) | undefined;
+  /** New folders not yet in the list, first in Folders (`use-folder-drafts.ts`). */
+  drafts?: Drafts | undefined;
+}
+
+/** New folders not yet in the list, and their fields' handlers. */
+export interface Drafts {
+  list: FolderDraft[];
+  handlers: DraftHandlers;
 }
 
 /** Memoized: the folder page re-renders as the preview opens and the panel resizes. */
 export const FileSections = memo(function FileSections(props: FileSectionsProps) {
   const folders = props.nodes.filter((n) => n.kind === "folder");
   const files = props.nodes.filter((n) => n.kind === "file");
+  const folderCount = folders.length + (props.drafts?.list.length ?? 0);
   const { open } = props;
   return (
     <div className="flex w-full flex-col pb-6">
-      {folders.length > 0 && (
-        <Section section="folders" label="Folders" count={folders.length} first>
+      {folderCount > 0 && (
+        <Section section="folders" label="Folders" count={folderCount} first>
           {(view) => (
             <Items
               view={view}
               label={`${props.label} folders`}
               nodes={folders}
+              drafts={props.drafts}
               href={props.href}
               fileUrl={props.fileUrl}
               menu={props.menu}
@@ -60,7 +72,7 @@ export const FileSections = memo(function FileSections(props: FileSectionsProps)
         </Section>
       )}
       {files.length > 0 && (
-        <Section section="files" label="Files" count={files.length} first={folders.length === 0}>
+        <Section section="files" label="Files" count={files.length} first={folderCount === 0}>
           {(view) => (
             <Items
               view={view}
@@ -150,49 +162,77 @@ type SelectionProps = Pick<
   "selectionMode" | "selectionBehavior" | "selectedKeys" | "onSelectionChange"
 >;
 
+/** A new folder's place among the items, keyed by its draft's key. */
+interface DraftItem {
+  id: string;
+  draft: FolderDraft;
+  handlers: DraftHandlers;
+}
+
 /** A section's items, as rows or as cards; folders are links, files are picked. */
 function Items(props: {
   view: StorageView;
   label: string;
   nodes: StorageNode[];
+  drafts?: Drafts | undefined;
   href: (node: StorageNode) => string;
   fileUrl: (node: StorageNode) => string;
   menu: (node: StorageNode) => SettingsRowMenuItem[];
   selection?: SelectionProps;
 }) {
   const href = (node: StorageNode) => (node.kind === "folder" ? props.href(node) : undefined);
+  const drafts = props.drafts?.list ?? [];
+  const handlers = props.drafts?.handlers;
+  const items: (StorageNode | DraftItem)[] = handlers
+    ? [...drafts.map((draft) => ({ id: draft.key, draft, handlers })), ...props.nodes]
+    : props.nodes;
+  const list = {
+    "aria-label": props.label,
+    items,
+    ...props.selection,
+    // While a name is typed, arrows and Home/End stay in its field rather than the list's.
+    ...(drafts.some((d) => d.step === "naming")
+      ? { keyboardNavigationBehavior: "tab" as const }
+      : {}),
+  };
   if (props.view === "cards") {
     return (
       <GridList
-        aria-label={props.label}
+        {...list}
         layout="grid"
-        items={props.nodes}
-        {...props.selection}
         // Cards 168px and up, 12px apart; the cards' own 6px inset puts their squares 20px from
         // the page's edges, like the rows' tiles.
         className="grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-x-3 gap-y-4 bg-transparent px-3.5"
       >
-        {(node) => (
-          <FileCard
-            node={node}
-            href={href(node)}
-            url={props.fileUrl(node)}
-            menu={props.menu(node)}
-          />
-        )}
+        {(node) =>
+          "draft" in node ? (
+            <DraftCard draft={node.draft} handlers={node.handlers} />
+          ) : (
+            <FileCard
+              node={node}
+              href={href(node)}
+              url={props.fileUrl(node)}
+              menu={props.menu(node)}
+            />
+          )
+        }
       </GridList>
     );
   }
   return (
     <RowHover>
       <GridList
-        aria-label={props.label}
-        items={props.nodes}
-        {...props.selection}
+        {...list}
         // Transparent: the hover highlight sits under the rows.
         className="bg-transparent"
       >
-        {(node) => <FileRow node={node} href={href(node)} menu={props.menu(node)} />}
+        {(node) =>
+          "draft" in node ? (
+            <DraftRow draft={node.draft} handlers={node.handlers} />
+          ) : (
+            <FileRow node={node} href={href(node)} menu={props.menu(node)} />
+          )
+        }
       </GridList>
     </RowHover>
   );

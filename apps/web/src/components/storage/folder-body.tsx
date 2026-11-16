@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/ui/drop-zone";
 import { FileTrigger } from "@/components/ui/file-trigger";
 import type { StorageNode } from "@/lib/storage.ts";
-import { FileSections, FileSectionsBones } from "./file-sections.tsx";
+import { FileSections, FileSectionsBones, type Drafts } from "./file-sections.tsx";
 import type { FolderSource, OpenFile } from "./folder-view.tsx";
 import { NodeMenu } from "./node-menu.tsx";
 
@@ -24,6 +24,7 @@ export function FolderBody(
     source: FolderSource;
     menu: (node: StorageNode) => SettingsRowMenuItem[];
     open: OpenFile;
+    drafts: Drafts;
   },
 ) {
   const { source } = props;
@@ -68,7 +69,7 @@ function Content(props: Parameters<typeof FolderBody>[0]) {
       </Centered>
     );
   }
-  if (!list.nodes.length) {
+  if (!list.nodes.length && !props.drafts.list.length) {
     return (
       <Centered>
         <EmptyState figure="drawer" {...source.empty}>
@@ -86,6 +87,7 @@ function Content(props: Parameters<typeof FolderBody>[0]) {
         fileUrl={source.fileUrl}
         open={selected}
         menu={props.menu}
+        drafts={props.drafts}
         loadMore={list.hasNextPage && !list.isFetchingNextPage ? fetchNext(list) : undefined}
       />
     </NodeMenu>
