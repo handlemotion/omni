@@ -84,13 +84,16 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "thread_tags",
       "uploads",
       // Storage (ADR 0034).
+      "storage_contents",
       "storage_grants",
       "storage_locks",
       "storage_nodes",
       "storage_overage",
       "storage_peaks",
+      "storage_upload_targets",
       "storage_uploads",
       "storage_usage",
+      "storage_versions",
       // Mail's participant index (ADR 0036 decision 4).
       "thread_participants",
       "thread_participants_backfill",
