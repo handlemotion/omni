@@ -18,6 +18,7 @@ export type StorageSpace = StorageNode["space"];
 /** Where a listing, a new folder or an upload goes: a space's root, or inside a folder. */
 export type StoragePlace = { space: StorageSpace } | { parentId: string };
 
+// `startup-fetch.ts` asks for a folder's first page at startup with this size too.
 const PAGE_SIZE = "100";
 
 /** A folder's contents, folders first, then by name. The first page carries the folder itself. */

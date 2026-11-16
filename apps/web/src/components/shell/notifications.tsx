@@ -29,6 +29,7 @@ import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { useMarkNotificationsRead, useNotifications } from "@/hooks/use-notifications.ts";
+import { useWhenIdle } from "@/hooks/use-when-idle.ts";
 import {
   closeNotificationsPanel,
   toggleNotificationsPanel,
@@ -86,6 +87,8 @@ export function NotificationsPanel() {
   const openSettings = useOpenSettings();
   const [view, setView] = useState<View>("all");
   const panel = useRef<HTMLElement>(null);
+  // The closed panel's list loads once startup is over, not during it, and at once if opened.
+  const listed = useWhenIdle(open);
 
   // Escape and a press anywhere outside close it; the bell toggles it on its own.
   useEffect(() => {
@@ -178,10 +181,10 @@ export function NotificationsPanel() {
             </Tab>
           </TabList>
           <TabPanel id="all" className="flex min-h-0 flex-col">
-            <NotificationList unread={false} />
+            {listed && <NotificationList unread={false} />}
           </TabPanel>
           <TabPanel id="unread" className="flex min-h-0 flex-col">
-            <NotificationList unread />
+            {listed && <NotificationList unread />}
           </TabPanel>
         </Tabs>
       </aside>

@@ -89,7 +89,7 @@ export const FileTable = memo(function FileTable(props: FileTableProps) {
                 <Muted>{when ? DAY.format(new Date(when)) : "–"}</Muted>
               </TableCell>
               <TableCell actions>
-                <SettingsRowMenu label={`Actions for ${node.name}`} items={props.menu(node)} />
+                <SettingsRowMenu label={`Actions for ${node.name}`} items={props.menu(node)} lazy />
               </TableCell>
             </TableRow>
           );

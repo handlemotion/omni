@@ -115,7 +115,8 @@ function useNear(ref: RefObject<HTMLElement | null>, root: RefObject<HTMLElement
     const element = ref.current;
     if (!element) return;
     const observer = new IntersectionObserver(
-      ([entry]) => setNear(entry?.isIntersecting ?? false),
+      // The latest entry: a busy page gets several at once, oldest first.
+      (entries) => setNear(entries.at(-1)?.isIntersecting ?? false),
       { root: root.current, rootMargin: AHEAD },
     );
     observer.observe(element);

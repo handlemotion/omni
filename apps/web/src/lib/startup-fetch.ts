@@ -1,5 +1,6 @@
 // The answers `index.html` preloads (session, shell data, the Inbox's first page) start with
-// the page, before any script runs. They are taken here as the app starts and each answers the
+// the page, before any script runs; a Drive folder's first page starts as this module does.
+// They are taken here as the app starts and each answers the
 // first GET for its URL, until the first screen has loaded or the session changes, whichever
 // comes first (`dropStartupResponses`). Left to the browser, an unused preload waits for the
 // page's whole life and answers a much later request with what was true at load: a sign-in that
@@ -11,6 +12,24 @@ for (const link of document.querySelectorAll<HTMLLinkElement>('link[rel="preload
   const response = fetch(link.href, { credentials: "include" });
   response.catch(() => {}); // A failure surfaces to the request that takes it.
   early.set(link.href, response);
+}
+
+// A Drive folder opened by its URL (ADR 0034): its first page starts here, beside the session
+// check its route waits on, instead of after it. The URL is the one `storageListQuery` asks for
+// (`lib/storage.ts`); a mismatch only means the request goes out again later.
+const drive = /^\/files\/(my|shared)(?:\/([^/]+))?\/?$/.exec(window.location.pathname);
+if (drive) {
+  const [, space, folder] = drive;
+  const query = new URLSearchParams(
+    folder
+      ? { parent: decodeURIComponent(folder) }
+      : { space: space === "my" ? "personal" : "shared" },
+  );
+  query.set("limit", "100");
+  const url = new URL(`/api/storage/nodes?${query}`, window.location.href).href;
+  const response = fetch(url, { credentials: "include" });
+  response.catch(() => {});
+  early.set(url, response);
 }
 
 /** The preloaded answer for this request, once; `undefined` sends it to the network. */

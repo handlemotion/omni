@@ -41,9 +41,8 @@ export function FileCard(props: {
       id={node.id}
       href={props.href}
       textValue={node.name}
-      // 6px around the square and the caption, so the hover and open fills frame both. Laid out
-      // only near the screen.
-      className="flex-col items-stretch gap-2 rounded-xl p-1.5 transition-[background-color,scale] duration-150 ease-out [contain-intrinsic-size:auto_15rem] [content-visibility:auto] hover:bg-hover active:scale-[.99] selected:bg-accent motion-reduce:transition-none"
+      // 6px around the square and the caption, so the hover and open fills frame both.
+      className="flex-col items-stretch gap-2 rounded-xl p-1.5 transition-[background-color,scale] duration-150 ease-out hover:bg-hover active:scale-[.99] selected:bg-accent motion-reduce:transition-none"
     >
       <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised">
         {type?.preview === "image" && type.raster ? (
@@ -56,7 +55,7 @@ export function FileCard(props: {
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1 gap-y-1 ps-0.5">
         <span className="truncate text-sm text-foreground">{node.name}</span>
         <span {...KEEP_IN_MENU} className="row-span-2 self-start">
-          <SettingsRowMenu label={`Actions for ${node.name}`} items={props.menu} />
+          <SettingsRowMenu label={`Actions for ${node.name}`} items={props.menu} lazy />
         </span>
         <span className="truncate text-xs text-muted-foreground tabular-nums">
           {type ? `${formatBytes(node.size)} · ${type.label}` : "Folder"}
@@ -102,8 +101,9 @@ function useSeen(ref: RefObject<HTMLElement | null>) {
     const element = ref.current;
     if (!element || seen) return;
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) setSeen(true);
+      // Any entry: a busy page gets several at once, and one that came into view counts.
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
       },
       { rootMargin: "100% 0px" },
     );

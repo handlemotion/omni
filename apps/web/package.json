@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:e2e": "vitest run --config vitest.e2e.mts",
-    "bench": "node scripts/bench.ts"
+    "bench": "node scripts/bench.ts",
+    "bench:drive": "node scripts/bench-drive.ts"
   },
   "dependencies": {
     "@chenglou/pretext": "1.0.0",

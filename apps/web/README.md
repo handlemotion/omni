@@ -27,6 +27,9 @@ opening a thread, loading older mail and scrolling in that Chromium against the 
 with the CPU slowed 4x (`scripts/bench.ts`). Run it before and after a performance change.
 `BENCH_LATENCY=80` adds a round trip to every request; `BENCH_H2=1` serves the app over HTTP/2 as
 production does (`wrangler dev` alone is HTTP/1.1, which queues the scripts six at a time).
+`pnpm bench:drive` does the same for Drive (`scripts/bench-drive.ts`): startup on My files,
+switching places, opening a folder, loading 3,000 files of a 5,000-file folder, scrolling them,
+and selecting one, against the seed's Drive (`perf:seed` makes it too).
 
 ## Layout
 

@@ -1,6 +1,6 @@
-// Seeds a throwaway database with inbox-scale mail for `EXPLAIN (ANALYZE, BUFFERS)` work:
-// 3 orgs, 20 mailboxes, 60k threads, 200k messages, their IMAP copies, attachments, per-member
-// read state and an outbox history. Rows are generated in Postgres, so a full seed takes about a
+// Seeds a throwaway database with inbox-scale mail for `EXPLAIN (ANALYZE, BUFFERS)` work and the
+// web benches: 3 orgs, 20 mailboxes, 60k threads, 200k messages, their IMAP copies, attachments,
+// per-member read state, an outbox history and a busy Drive (about 38k files and folders). Rows are generated in Postgres, so a full seed takes about a
 // minute. Never point this at a shared database: it drops and recreates `PERF_DATABASE`.
 //
 //   pnpm db:local:up
@@ -205,6 +205,79 @@ await step(
       'application/pdf', 1000 + floor(random() * 2000000)::int,
       m.org_id || '/' || m.mailbox_id || '/att/' || encode(sha256(convert_to(m.id, 'UTF8')), 'hex')
     from messages m where random() < 0.1;
+`,
+);
+
+// Storage (ADR 0034) at a busy company's scale: member-org1-1's My files holds 40 folders and
+// 3,000 files at its root, a 5,000-file folder, a chain of folders 12 deep and 3,000 items in
+// Trash; Shared holds 30 folders and 2,000 files; every other member has 1,000 files, and org2's
+// Shared 20,000, so the table is large around the drives the bench reads.
+await step(
+  "storage",
+  `
+  select setseed(0.48);
+  create function pg_temp.seed_file(n int) returns text language sql as $$
+    select (array['report','invoice','photo','scan','notes','deck','contract','budget','draft',
+      'export'])[1 + n % 10] || '-' || lpad(n::text, 5, '0') || (array['.pdf','.png','.docx',
+      '.xlsx','.jpg','.txt','.zip','.mp4','.csv','.pptx'])[1 + (n / 10) % 10] $$;
+  create function pg_temp.seed_mime(name text) returns text language sql as $$
+    select case split_part(name, '.', 2) when 'pdf' then 'application/pdf'
+      when 'png' then 'image/png' when 'jpg' then 'image/jpeg' when 'txt' then 'text/plain'
+      when 'mp4' then 'video/mp4' when 'csv' then 'text/csv' when 'zip' then 'application/zip'
+      else 'application/octet-stream' end $$;
+  create table seed_nodes (id text, org_id text, space storage_space, owner text, parent text,
+    kind storage_node_kind, name text, maker text, at timestamptz, trashed timestamptz);
+  -- Root folders of the main member's My files, and of org1's Shared.
+  insert into seed_nodes select uuidv7()::text, 'org1', 'personal', 'member-org1-1', null,
+    'folder', 'Folder ' || lpad(f::text, 2, '0'), 'member-org1-1', now() - f * interval '1 day', null
+    from generate_series(1, 40) f;
+  insert into seed_nodes select uuidv7()::text, 'org1', 'shared', null, null, 'folder',
+    'Team ' || lpad(f::text, 2, '0'), 'member-org1-' || (1 + f % 8), now() - f * interval '1 day', null
+    from generate_series(1, 30) f;
+  -- A chain 12 folders deep under "Folder 01", each level with 200 files.
+  do $$ declare parent text := (select id from seed_nodes where name = 'Folder 01'); child text;
+  begin for d in 1..12 loop
+    child := uuidv7()::text;
+    insert into seed_nodes values (child, 'org1', 'personal', 'member-org1-1', parent, 'folder',
+      'Level ' || d, 'member-org1-1', now(), null);
+    insert into seed_nodes select uuidv7()::text, 'org1', 'personal', 'member-org1-1', child,
+      'file', pg_temp.seed_file(f), 'member-org1-1', now() - f * interval '1 hour', null
+      from generate_series(1, 200) f;
+    parent := child;
+  end loop; end $$;
+  -- 3,000 files at the My files root, 5,000 in "Folder 02", 3,000 trashed.
+  insert into seed_nodes select uuidv7()::text, 'org1', 'personal', 'member-org1-1', null, 'file',
+    pg_temp.seed_file(f), 'member-org1-1', now() - f * interval '1 hour', null
+    from generate_series(1, 3000) f;
+  insert into seed_nodes select uuidv7()::text, 'org1', 'personal', 'member-org1-1',
+    (select id from seed_nodes where name = 'Folder 02'), 'file', pg_temp.seed_file(f),
+    'member-org1-1', now() - f * interval '1 hour', null from generate_series(1, 5000) f;
+  insert into seed_nodes select uuidv7()::text, 'org1', 'personal', 'member-org1-1', null, 'file',
+    'old-' || pg_temp.seed_file(f), 'member-org1-1', now() - interval '60 days',
+    now() - f * interval '10 minutes' from generate_series(1, 3000) f;
+  -- Shared: 2,000 files at its root from several members; org2's Shared, 20,000.
+  insert into seed_nodes select uuidv7()::text, 'org1', 'shared', null, null, 'file',
+    pg_temp.seed_file(f), 'member-org1-' || (1 + f % 8), now() - f * interval '1 hour', null
+    from generate_series(1, 2000) f;
+  insert into seed_nodes select uuidv7()::text, 'org2', 'shared', null, null, 'file',
+    pg_temp.seed_file(f), 'member-org2-1', now() - f * interval '1 minute', null
+    from generate_series(1, 20000) f;
+  -- Every other org1 member: 1,000 files in their My files.
+  insert into seed_nodes select uuidv7()::text, 'org1', 'personal', m.id, null, 'file',
+    pg_temp.seed_file(f), m.id, now() - f * interval '1 hour', null
+    from members m cross join generate_series(1, 1000) f
+    where m.organization_id = 'org1' and m.id <> 'member-org1-1';
+  insert into storage_nodes (id, org_id, space, owner_member_id, parent_id, kind, name, size,
+      mime_type, r2_key, created_by_member_id, created_at, updated_at, trashed_at)
+    select id, org_id, space, owner, parent, kind, name,
+      case when kind = 'file' then 1000 + floor(random() * 5000000)::bigint else 0 end,
+      case when kind = 'file' then pg_temp.seed_mime(name) end,
+      case when kind = 'file' then 'orgs/' || org_id || '/' || id end, maker, at, at, trashed
+    from seed_nodes order by parent nulls first;
+  insert into storage_usage (org_id, bytes)
+    select org_id, sum(size) from storage_nodes group by org_id;
+  drop table seed_nodes;
+  analyze storage_nodes;
 `,
 );
 

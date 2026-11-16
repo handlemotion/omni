@@ -1,6 +1,6 @@
 // Storage's Trash (ADR 0034 decision 5): what the member may restore, newest first, with Restore
 // and Delete forever on each row.
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { IconRestore, IconTrash } from "@/components/icons/central";
@@ -10,27 +10,37 @@ import { Heading } from "@/components/ui/heading";
 import { useRestoreNode, useStorageTrash } from "@/hooks/use-storage.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { DeleteForeverDialog } from "./file-dialogs.tsx";
-import { FileTable, FileTableBones } from "./file-table.tsx";
+import { FileTableBones } from "./file-table.tsx";
 import { NodeMenu } from "./node-menu.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 import { StorageFrame } from "./storage-frame.tsx";
 import { UploadsPanel } from "./uploads-panel.tsx";
+import { VirtualFileTable } from "./virtual-file-table.tsx";
+
+const DELETED = { title: "Deleted", of: (node: StorageNode) => node.trashedAt };
 
 export function TrashList() {
   const trash = useStorageTrash();
   const restore = useRestoreNode();
   const [deleting, setDeleting] = useState<StorageNode | null>(null);
-  const menu = (node: StorageNode): SettingsRowMenuItem[] => [
-    {
-      icon: IconRestore,
-      label: "Restore",
-      onAction: () =>
-        restore.mutate(node.id, {
-          onError: (error) => storageErrorToast(error, "It was not restored"),
-        }),
-    },
-    { icon: IconTrash, label: "Delete forever", danger: true, onAction: () => setDeleting(node) },
-  ];
+  const restoreNode = restore.mutate;
+  const fetchNextPage = trash.fetchNextPage;
+  const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
+  // Stable, so the table's rows render only when they change.
+  const menu = useCallback(
+    (node: StorageNode): SettingsRowMenuItem[] => [
+      {
+        icon: IconRestore,
+        label: "Restore",
+        onAction: () =>
+          restoreNode(node.id, {
+            onError: (error) => storageErrorToast(error, "It was not restored"),
+          }),
+      },
+      { icon: IconTrash, label: "Delete forever", danger: true, onAction: () => setDeleting(node) },
+    ],
+    [restoreNode],
+  );
   return (
     <StorageFrame
       title={<Heading className="truncate text-md">Trash</Heading>}
@@ -56,12 +66,12 @@ export function TrashList() {
           </div>
         ) : (
           <NodeMenu nodes={trash.nodes} menu={menu}>
-            <FileTable
+            <VirtualFileTable
               label="Trash"
               nodes={trash.nodes}
-              date={{ title: "Deleted", of: (node) => node.trashedAt }}
+              date={DELETED}
               menu={menu}
-              loadMore={trash.hasNextPage ? () => void trash.fetchNextPage() : undefined}
+              loadMore={trash.hasNextPage ? loadMore : undefined}
               isLoadingMore={trash.isFetchingNextPage}
             />
           </NodeMenu>
