@@ -54,7 +54,9 @@ export function TitleBar() {
       // icons' axis, 23.5px in.
       // Open: as wide as the sidebar, notifications and the workspace at its end, the mark centred
       // on the rows' trailing axis (the chevrons and counts, 21.5px in from the sidebar's edge).
-      className={`fixed start-0 top-0 z-20 flex h-12 items-center gap-1.5 ${desktop.platform === "mac" ? "ps-21" : "ps-[9.5px]"} ${open ? "w-(--sidebar-width) pe-[7.5px]" : "pe-1"}`}
+      // Closed: the toggle 2px before notifications. Over the notifications panel (z-30), whose
+      // header leaves it room; under popover backdrops (z-40) and dialogs.
+      className={`fixed start-0 top-0 z-35 flex h-12 items-center gap-0.5 ${desktop.platform === "mac" ? "ps-21" : "ps-[9.5px]"} ${open ? "w-(--sidebar-width) pe-[7.5px]" : "pe-1"}`}
     >
       <SidebarTrigger
         intent="ghost"
@@ -63,8 +65,10 @@ export function TitleBar() {
       >
         <IconSidebar />
       </SidebarTrigger>
-      {/* 2px apart: each button's hover fill already gives it room. */}
-      <span className={open ? "ms-auto flex items-center gap-0.5" : "flex items-center gap-0.5"}>
+      {/* Open: 2px apart, each button's hover fill gives it room. Closed: 6px, so the glyphs' ink
+          sits 15.5px apart, as the toggle's from notifications and the mark's from the page title
+          after it (16px; measured). */}
+      <span className={open ? "ms-auto flex items-center gap-0.5" : "flex items-center gap-1.5"}>
         <NotificationsButton />
         <WorkspaceSwitcher iconOnly />
       </span>

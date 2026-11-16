@@ -45,6 +45,7 @@ import {
 import type { Notification } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 import { CountBadge } from "./count-badge";
+import { TitleBarSpace } from "./title-bar";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
 /** Notifications, drawn as an inbox: opens and closes the panel, and wears your unread count. */
@@ -83,6 +84,7 @@ type View = "all" | "unread";
 export function NotificationsPanel() {
   const open = useNotificationsPanel();
   const { open: sidebarOpen, isMobile } = useSidebar();
+  const titleBarOver = !sidebarOpen && !isMobile;
   const { unread } = useNotifications();
   const markRead = useMarkNotificationsRead();
   const openSettings = useOpenSettings();
@@ -138,6 +140,8 @@ export function NotificationsPanel() {
         {/* The thread list's header height and insets: the title 20px in, actions 10px from the
             edge. No rule under it: the tabs' line closes the header. */}
         <header className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2.5">
+          {/* With the sidebar closed the panel starts at the window's edge, under the title bar. */}
+          {titleBarOver && <TitleBarSpace inset={20} />}
           <h2 className="min-w-0 flex-1 truncate text-sm font-medium">Notifications</h2>
           <div className="flex items-center gap-1">
             <HeaderAction

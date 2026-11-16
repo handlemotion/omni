@@ -229,20 +229,23 @@
   }
 }
 
-/* Intent UI: a 44px hit area around small controls on touch screens. */
+/* Intent UI: a 44px hit area around small controls on touch screens. Only there: with a mouse it
+   overlapped the next control (28px buttons 2px apart in the title bar took each other's clicks). */
 @utility touch-target {
   position: relative;
-  &::before {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 100%;
-    height: 100%;
-    min-height: 44px;
-    min-width: 44px;
-    z-index: 9999;
+  @media (pointer: coarse) {
+    &::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      min-height: 44px;
+      min-width: 44px;
+      z-index: 9999;
+    }
   }
 }
 

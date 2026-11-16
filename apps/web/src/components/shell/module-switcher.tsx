@@ -113,7 +113,9 @@ function ModuleMark({ module, className }: { module: Module; className?: string 
         className,
       )}
     >
-      <Icon className="size-3 text-module-foreground" />
+      {/* Its own layer: WebKit (Safari, the desktop app) otherwise snaps the glyph to a whole
+          pixel, and on the sidebar's half-pixel mark it sat 0.5px right of centre (measured). */}
+      <Icon className="size-3 transform-gpu text-module-foreground" />
     </span>
   );
 }
