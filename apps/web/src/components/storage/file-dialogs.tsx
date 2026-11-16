@@ -1,6 +1,8 @@
 // Storage's small dialogs: name a new folder, rename, pick where to move, confirm deleting for
 // good. Each takes the door it changes through: a shared link's (`shareId`), or the member's.
 import { useState } from "react";
+import { Collection } from "react-aria-components/Collection";
+import { GridListLoadMoreItem } from "react-aria-components/GridList";
 import { IconFolder } from "@/components/icons/central";
 import {
   SettingsFormDialog,
@@ -176,7 +178,19 @@ function useMoveBrowser(scope: MoveScope, node: StorageNode) {
     !!at && (folder?.id ?? null) === node.parentId && (!!link || at.space === node.space);
   const crumbs = crumbsFor({ link, at, setAt, hasShared });
   const { rows, enter } = rowsAt(at, folders, setAt);
-  return { place, here, crumbs, rows, enter, shareId: link?.shareId };
+  // Folders come first in every page, so the next page is needed only while this one ends in one.
+  const listing = link ? shared : member;
+  const loadMore = at && listing.hasNextPage ? () => void listing.fetchNextPage() : undefined;
+  return {
+    place,
+    here,
+    crumbs,
+    rows,
+    enter,
+    loadMore,
+    isLoadingMore: listing.isFetchingNextPage,
+    shareId: link?.shareId,
+  };
 }
 
 /** The trail from the top (a company's spaces, a space, or a link's folder) down to `at`. */
@@ -254,31 +268,37 @@ export function MoveDialog(props: { node: StorageNode; scope: MoveScope; onClose
         <DialogTitle className="truncate">Move “{props.node.name}”</DialogTitle>
       </DialogHeader>
       <DialogBody className="gap-2">
-        <Breadcrumbs aria-label="Folder" className="min-h-5 flex-wrap gap-y-1">
+        <Breadcrumbs aria-label="Folder" className="min-h-5 flex-wrap gap-y-1 px-2">
           {crumbs.map((crumb) => (
             <BreadcrumbsItem key={crumb.id} onPress={crumb.go}>
               {crumb.name}
             </BreadcrumbsItem>
           ))}
         </Breadcrumbs>
+        {/* The crumbs take the rows' 8px inset, so their labels line up; the list stays the
+            body's width (wider, the body would scroll sideways as focus moves into it). */}
         {/* Five rows tall whatever it holds, so the dialog keeps its size from folder to folder. */}
         <GridList
           aria-label="Folders"
-          className="-mx-2 h-45 overflow-y-auto"
-          items={browse.rows}
+          className="h-45 overflow-y-auto"
           onAction={(key) => browse.enter(String(key))}
           renderEmptyState={() => null}
         >
-          {(item) => (
-            <GridListItem
-              id={item.id}
-              textValue={item.name}
-              className="h-9 cursor-pointer gap-2.5 rounded-lg px-2 hover:bg-accent"
-            >
-              <IconFolder className="size-icon shrink-0 text-muted-foreground" />
-              <span className="truncate">{item.name}</span>
-            </GridListItem>
-          )}
+          <Collection items={browse.rows}>
+            {(item) => (
+              <GridListItem
+                id={item.id}
+                textValue={item.name}
+                // The list is a fixed-height column that scrolls: rows keep their height.
+                className="h-9 shrink-0 cursor-pointer gap-2.5 rounded-lg px-2 hover:bg-accent"
+              >
+                <IconFolder className="size-icon shrink-0 text-muted-foreground" />
+                <span className="truncate">{item.name}</span>
+              </GridListItem>
+            )}
+          </Collection>
+          {/* The next page as the end nears, as the main table loads its rows. */}
+          <GridListLoadMoreItem onLoadMore={browse.loadMore} isLoading={browse.isLoadingMore} />
         </GridList>
       </DialogBody>
       <DialogFooter>

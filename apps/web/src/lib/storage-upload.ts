@@ -22,12 +22,20 @@ export interface UploadRequest {
   onOpened: (uploadId: string) => void;
   /** Bytes the server has, plus those on their way. */
   onProgress: (sentBytes: number) => void;
+  /**
+   * Throws when the upload may no longer go out as whoever queued it (the session changed
+   * workspace or account). Called before every request that would create or add to it.
+   */
+  guard: () => void;
+  /** Like `guard`, but asks the server who the session is now: before a file is opened. */
+  confirm: () => Promise<void>;
 }
 
 /** Uploads `file` and answers the file it became. Rejects with `ApiError`, or `AbortError`. */
 export async function uploadFile(request: UploadRequest): Promise<StorageNode> {
   const { file, signal } = request;
   const door = uploadDoor(request.shareId);
+  await request.confirm();
   const upload =
     (await resumable(door, request.resumeId)) ?? (await door.open(file, request.place));
   request.onOpened(upload.id);
@@ -48,6 +56,7 @@ export async function uploadFile(request: UploadRequest): Promise<StorageNode> {
       if (n === undefined) return;
       const start = (n - 1) * upload.partSize;
       const part = file.slice(start, Math.min(start + upload.partSize, file.size));
+      request.guard();
       await sendPart(door.partUrl(upload.id, n), part, parts.signal, (sent) => {
         stored.set(n, sent);
         report();
@@ -67,6 +76,7 @@ export async function uploadFile(request: UploadRequest): Promise<StorageNode> {
     }
   }
   signal.throwIfAborted();
+  request.guard();
   const { node } = await door.complete(upload.id);
   return node;
 }

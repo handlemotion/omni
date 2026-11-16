@@ -6,6 +6,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { createOrgWithOwner, schema } from "@omni/db";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { chromium, type Browser, type BrowserContext } from "playwright-core";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
@@ -117,6 +119,60 @@ test("a link open to anyone downloads its file, byte for byte, for someone signe
   } finally {
     await signedOut.close();
   }
+}, 120_000);
+
+// Catches: files queued in one workspace going up into another after a workspace switch (the
+// queue lives outside React and outlived the session's reset), or an opened upload left holding
+// room in the workspace that was left.
+test("switching workspace mid-upload stops the queue and leaves nothing in either workspace", async () => {
+  const email = `switch-${Date.now()}@acme-files.test`;
+  const acme = await createOrgWithOwner(db, {
+    name: "Acme Files",
+    slug: `acme-files-${Date.now()}`,
+    ownerEmail: email,
+  });
+  await db.insert(schema.orgSetup).values({ orgId: acme.orgId, step: "complete" });
+  const page = await signedIn(email, "/files/my");
+  await page.getByRole("button", { name: "Upload", exact: true }).waitFor({ timeout: 15_000 });
+
+  // The first file's first part waits until the switch has begun, so the queue is mid-flight.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/storage/uploads/*/parts/1", async (route) => {
+    await held;
+    await route.continue().catch(() => {});
+  });
+  const names = ["one.bin", "two.bin", "three.bin"];
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles(
+      names.map((name) => ({
+        name,
+        mimeType: "application/octet-stream",
+        buffer: randomBytes(4096),
+      })),
+    );
+  await page.waitForRequest("**/api/storage/uploads/*/parts/1");
+
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: /^Workspace: Acme Files/ }).click();
+  await page.getByRole("menuitem", { name: "Personal" }).click();
+  await page.getByRole("button", { name: /^Workspace: Personal/ }).waitFor({ timeout: 15_000 });
+  release();
+  // Anything still going would have reached the server by now.
+  await page.waitForTimeout(1500);
+
+  const files = await db
+    .select({ name: schema.storageNodes.name, orgId: schema.storageNodes.orgId })
+    .from(schema.storageNodes)
+    .where(inArray(schema.storageNodes.name, names));
+  expect(files).toEqual([]);
+  const open = await db
+    .select({ name: schema.storageUploads.name })
+    .from(schema.storageUploads)
+    .where(and(eq(schema.storageUploads.orgId, acme.orgId), isNull(schema.storageUploads.nodeId)));
+  expect(open).toEqual([]);
 }, 120_000);
 
 /** Signed in as `email` (a magic link, so a new address signs up), on `path`. */

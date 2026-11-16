@@ -21,9 +21,19 @@ const BY_CODE: Partial<Record<ErrorCode, string>> = {
 };
 
 /** Refusals that would only repeat: an upload that met one offers no Retry. */
-const FINAL = new Set<string>(["storage_full", "billing_inactive", "file_too_large"]);
+const FINAL = new Set<string>([
+  "storage_full",
+  "billing_inactive",
+  "file_too_large",
+  "identity_changed",
+]);
 
-const codeOf = (error: unknown) => (error instanceof ApiError ? error.code : undefined);
+/** The API's code, or the client's own (`identity_changed`: the session switched since queueing). */
+const codeOf = (error: unknown) => {
+  if (error instanceof ApiError) return error.code;
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" ? code : undefined;
+};
 
 /** Why `error` refused the action, or `fallback` ("The folder was not created"). */
 export function storageErrorText(error: unknown, fallback: string) {

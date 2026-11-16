@@ -1,5 +1,6 @@
 // Workspace setup (ADR 0007): the workspace is a Better Auth organization; its domain and
 // mailboxes go through the Worker's `/api/onboarding` routes, which ask the mail service.
+import { cancelUploads } from "./storage-uploads.ts";
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
@@ -150,6 +151,8 @@ interface Reloadable {
  * so everything cached for the previous workspace is dropped (an identity change).
  */
 export async function createWorkspace(client: QueryClient, router: Reloadable, name: string) {
+  // Creating switches the session to the new workspace: uploads stop first (see `session.ts`).
+  await cancelUploads();
   const organization = await authCall(
     auth.organization.create({ name: name.trim(), slug: workspaceSlug(name) }),
   );

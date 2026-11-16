@@ -5,6 +5,7 @@ import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react
 import { dropStartupResponses } from "./startup-fetch.ts";
 import { api, ApiError, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
+import { cancelUploads } from "./storage-uploads.ts";
 import type { Member } from "./types.ts";
 
 /** What Better Auth's client methods return. */
@@ -66,6 +67,8 @@ interface Reloadable {
  * In-flight queries are aborted first so a late answer cannot land in the new cache.
  */
 export async function resetSession(client: QueryClient, router: Reloadable) {
+  // Already done before a switch; here for the rest (a 401): nothing goes on as someone else.
+  await cancelUploads();
   dropStartupResponses();
   await client.cancelQueries();
   client.clear();
@@ -128,6 +131,7 @@ export async function signInWithPasskey(client: QueryClient, router: Reloadable)
 }
 
 export async function signOut(client: QueryClient, router: Reloadable) {
+  await cancelUploads();
   await authCall(auth.signOut());
   await resetSession(client, router);
 }
@@ -156,6 +160,7 @@ export const deviceSessionsQuery = () =>
 
 /** Makes another signed-in account the active one; its data replaces everything cached. */
 export async function switchAccount(client: QueryClient, router: Reloadable, sessionToken: string) {
+  await cancelUploads();
   await authCall(auth.multiSession.setActive({ sessionToken }));
   await resetSession(client, router);
 }
@@ -167,6 +172,7 @@ export async function revokeDeviceSession(
   sessionToken: string,
 ) {
   const active = client.getQueryData<Session | null>(keys.session())?.session.token;
+  if (sessionToken === active) await cancelUploads();
   await authCall(auth.multiSession.revoke({ sessionToken }));
   if (sessionToken === active) await resetSession(client, router);
   else await client.invalidateQueries({ queryKey: keys.deviceSessions() });
@@ -177,6 +183,7 @@ export async function setActiveOrganization(
   router: Reloadable,
   organizationId: string,
 ) {
+  await cancelUploads();
   await authCall(auth.organization.setActive({ organizationId }));
   await resetSession(client, router);
 }

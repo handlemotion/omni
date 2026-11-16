@@ -21,6 +21,7 @@ import {
   storageSharingQuery,
 } from "../lib/storage-sharing.ts";
 import { addUploads, removeUpload, retryUpload, uploadsStore } from "../lib/storage-uploads.ts";
+import { useSession } from "./use-session.ts";
 import { useWorkspaces } from "./use-workspaces.ts";
 
 /**
@@ -78,6 +79,9 @@ export function useDeleteForever() {
  */
 export function useUploads() {
   const client = useQueryClient();
+  // Each upload is bound to the session it is queued under (`storage-uploads.ts`): keep it
+  // cached here too, on the link page outside the app shell.
+  useSession();
   const uploads = useSyncExternalStore(uploadsStore.subscribe, uploadsStore.get);
   const upload = useCallback(
     (

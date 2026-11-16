@@ -2,7 +2,15 @@
 // another folder keeps them going. One file goes up at a time, in the order they were added; a
 // failed one stays listed until it is retried (resuming from the parts the server has) or
 // removed. `hooks/use-storage.ts` subscribes.
+//
+// An upload belongs to whoever queued it: the signed-in user and the active workspace, or the user
+// and the link it goes through. Every switch of workspace or account cancels the queue first
+// (`cancelUploads`, while the old session can still free what it reserved), and each request
+// checks the session it would go out with, so a file never lands in another workspace.
 import type { QueryClient } from "@tanstack/react-query";
+import { api, call } from "./api.ts";
+import { keys } from "./query-keys.ts";
+import type { Session } from "./session.ts";
 import { storageChanged, type StoragePlace } from "./storage.ts";
 import { abortUpload, uploadFile } from "./storage-upload.ts";
 
@@ -17,8 +25,35 @@ export interface UploadItem {
   error?: unknown;
 }
 
+/** Thrown when the session changed since the file was queued: it is not sent, and not retried. */
+export class UploadIdentityChanged extends Error {
+  readonly code = "identity_changed";
+  constructor() {
+    super("the session changed since this upload was queued");
+  }
+}
+
+/** Who an upload goes out as: the user and the workspace, or the user and the shared link. */
+function identityOf(client: QueryClient, shareId: string | undefined) {
+  const session = client.getQueryData<Session | null>(keys.session());
+  if (!session) return null;
+  const place = shareId ? `link:${shareId}` : `org:${session.member?.orgId ?? ""}`;
+  return `${session.user.id}|${place}`;
+}
+
+/** Throws unless the session this tab knows is still the one `job` was queued under. */
+function guard(job: Job) {
+  const now = identityOf(job.client, job.shareId);
+  if (job.identity === null || now !== job.identity) throw new UploadIdentityChanged();
+}
+
 interface Job extends UploadItem {
   file: File;
+  /** Who queued it (`identityOf`), or null when no one was signed in. */
+  identity: string | null;
+  /** Being cancelled by `cancelUploads`, which frees what it opened. */
+  cancelled?: boolean;
+  running?: Promise<void>;
   place: StoragePlace;
   shareId: string | undefined;
   client: QueryClient;
@@ -58,7 +93,24 @@ async function run(job: Job) {
       onOpened: (uploadId) => {
         job.uploadId = uploadId;
         // Removed while it was opening: `removeUpload` had no id to free yet.
-        if (!jobs.includes(job)) void abortUpload(uploadId, job.shareId);
+        if (!jobs.includes(job) && !job.cancelled) void abortUpload(uploadId, job.shareId);
+      },
+      guard: () => guard(job),
+      // Another tab may have switched the session's workspace or account: this tab's cache
+      // would not know. Opening a file is what places it, so that asks the server first.
+      confirm: async () => {
+        // Cancellable: a switch or sign-out waits for this job, so a stalled read must not hold
+        // it. Cancelled, it throws; any other failure falls back to this tab's cached session.
+        const signal = job.controller!.signal;
+        const me = await call(api.me.$get(undefined, { init: { signal } })).catch(
+          (error: unknown) => {
+            if (signal.aborted) throw error;
+            return null;
+          },
+        );
+        if (!me) return guard(job);
+        const place = job.shareId ? `link:${job.shareId}` : `org:${me.orgId}`;
+        if (`${me.userId}|${place}` !== job.identity) throw new UploadIdentityChanged();
       },
       onProgress: (sent) => {
         job.sent = sent;
@@ -83,7 +135,7 @@ async function run(job: Job) {
 function pump() {
   if (jobs.some((job) => job.status === "uploading")) return;
   const next = jobs.find((job) => job.status === "queued");
-  if (next) void run(next);
+  if (next) next.running = run(next);
 }
 
 /** Queues `files` for `target` (a place, through a shared link's door when `shareId` is set). `onFailed` is told each file that did not make it, with why. */
@@ -103,6 +155,7 @@ export function addUploads(
       file,
       place: target.place,
       shareId: target.shareId,
+      identity: identityOf(client, target.shareId),
       client,
       onFailed,
     });
@@ -131,6 +184,26 @@ export function removeUpload(id: number) {
     void abortUpload(job.uploadId, job.shareId).then(() => storageChanged(job.client));
   publish();
   pump();
+}
+
+/**
+ * Stops every upload and empties the queue, freeing on the server what each had opened. Call it
+ * before the session changes workspace or account: the old session is the one that may free them.
+ */
+export async function cancelUploads() {
+  const all = jobs;
+  if (!all.length) return;
+  jobs = [];
+  publish();
+  for (const job of all) {
+    job.cancelled = true;
+    job.controller?.abort();
+  }
+  // An upload still opening learns its id when the request answers: wait for each to stop.
+  await Promise.allSettled(all.map((job) => job.running));
+  await Promise.allSettled(
+    all.flatMap((job) => (job.uploadId ? [abortUpload(job.uploadId, job.shareId)] : [])),
+  );
 }
 
 /** For `useSyncExternalStore`. */
