@@ -75,10 +75,6 @@ pub async fn disconnect(org_id: String) -> Result<DesktopWorkspaceSync, String> 
     call(vec!["disconnect".into(), org_id]).await
 }
 
-#[expect(
-    dead_code,
-    reason = "reached through `oauth_callback`, which the shell will call"
-)]
 pub async fn finish_sign_in<R: Runtime>(app: &AppHandle<R>, url: String) -> Result<(), String> {
     let _: DesktopSyncDone = call(vec!["finish-sign-in".into(), url]).await?;
     let pending = app

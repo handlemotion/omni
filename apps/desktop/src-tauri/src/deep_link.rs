@@ -5,6 +5,8 @@
 //!   and Better Auth's `expo` plugin adds the session's `Set-Cookie` as `cookie`. The cookie goes
 //!   into the window's cookie store for the server origin, then the window reloads.
 //! - `omni://open?path=/inbox/…`: show that page of the server in the window.
+//! - `omni://oauth/callback?code=…&state=…`: the end of storage sync's sign-in, handed to
+//!   `sync::oauth_callback`.
 //!
 //! Any site can open an `omni://` URL, so a session is only taken with a `state` this app handed
 //! out (`sign_in_callback`) and not yet used. Without it, a page could sign the window in to an
@@ -163,8 +165,8 @@ pub fn listen<R: Runtime>(app: &tauri::App<R>) {
 }
 
 /// Acts on `omni://` URLs from the deep-link plugin (cold start, or a second launch forwarded by
-/// single-instance).
-fn handle_urls<R: Runtime>(app: &AppHandle<R>, urls: Vec<Url>) {
+/// single-instance) and from the window's own navigations (`window::route`).
+pub fn handle_urls<R: Runtime>(app: &AppHandle<R>, urls: Vec<Url>) {
     crate::window::show(app);
     let Some(window) = app.get_webview_window("main") else {
         return;
@@ -172,6 +174,18 @@ fn handle_urls<R: Runtime>(app: &AppHandle<R>, urls: Vec<Url>) {
     let Some(server) = app.state::<Server>().current() else {
         return;
     };
+    for url in urls
+        .iter()
+        .filter(|url| crate::sync::is_oauth_callback(url.as_str()))
+    {
+        // Storage sync's sign-in: the helper checks its own state and PKCE verifier.
+        let (app, url) = (app.clone(), url.to_string());
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) = crate::sync::oauth_callback(app, url).await {
+                eprintln!("sync sign-in did not finish: {error}");
+            }
+        });
+    }
     for link in urls.iter().filter_map(parse) {
         match link {
             Link::SignIn { state, set_cookie } => {

@@ -17,7 +17,6 @@ use omni_sync_types::{DesktopSyncStatus, DesktopWorkspaceSync};
 use tauri::{AppHandle, Runtime};
 
 /// The redirect the `omni-desktop` OAuth client is registered with.
-#[expect(dead_code, reason = "the shell's deep-link handler (layer 2) calls it")]
 pub const OAUTH_CALLBACK: &str = "omni://oauth/callback";
 
 #[tauri::command]
@@ -63,14 +62,12 @@ pub async fn sync_disconnect(org_id: String) -> Result<DesktopWorkspaceSync, Str
 
 /// For the shell's deep-link and navigation handlers: true for the sync sign-in's redirect,
 /// which `oauth_callback` takes.
-#[expect(dead_code, reason = "the shell's deep-link handler (layer 2) calls it")]
 pub fn is_oauth_callback(url: &str) -> bool {
     url.starts_with(OAUTH_CALLBACK)
 }
 
 /// Finishes sync sign-in from `omni://oauth/callback?code=&state=`: stores the tokens, switches
 /// on the workspace that asked, and takes the window back to where it was.
-#[expect(dead_code, reason = "the shell's deep-link handler (layer 2) calls it")]
 pub async fn oauth_callback<R: Runtime>(app: AppHandle<R>, url: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     return helper::finish_sign_in(&app, url).await;

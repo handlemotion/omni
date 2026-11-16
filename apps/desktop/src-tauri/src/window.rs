@@ -109,6 +109,14 @@ pub fn change_server<R: Runtime>(app: &AppHandle<R>) {
 /// True when the window may load `url`. A new-window request never loads in this window: the app
 /// has one, so a web page asking for another opens in the default browser.
 fn route<R: Runtime>(app: &AppHandle<R>, url: &Url, local: &[Url], new_window: bool) -> bool {
+    // A page that sends the window to `omni://` (sync sign-in's consent page does) gets the same
+    // handling as a link the OS delivers; the window stays where it is. Off this callback's
+    // thread, since the handler may navigate the window.
+    if url.scheme() == crate::deep_link::SCHEME {
+        let (app, url) = (app.clone(), url.clone());
+        std::thread::spawn(move || crate::deep_link::handle_urls(&app, vec![url]));
+        return false;
+    }
     match destination(url, local) {
         Destination::Window if !new_window => true,
         Destination::Window | Destination::Browser
