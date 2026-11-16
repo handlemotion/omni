@@ -48,12 +48,13 @@ export function TitleBar() {
   return (
     <div
       ref={group}
-      // The sidebar toggle right after the traffic lights (the desktop app on macOS keeps them in
-      // the first 76px, on this row's centre line; elsewhere, the browser included, the toggle's glyph
-      // sits on the nav icons' axis, 23.5px in).
+      // The sidebar toggle after the traffic lights (the desktop app on macOS keeps them in the
+      // first 76px, on this row's centre line, the red one on the nav icons' axis), its glyph 16px
+      // clear of the green one; elsewhere, the browser included, the toggle's glyph sits on the nav
+      // icons' axis, 23.5px in.
       // Open: as wide as the sidebar, notifications and the workspace at its end, the mark centred
       // on the rows' trailing axis (the chevrons and counts, 21.5px in from the sidebar's edge).
-      className={`fixed start-0 top-0 z-20 flex h-12 items-center gap-1.5 ${desktop.platform === "mac" ? "ps-19" : "ps-[9.5px]"} ${open ? "w-(--sidebar-width) pe-[7.5px]" : "pe-1"}`}
+      className={`fixed start-0 top-0 z-20 flex h-12 items-center gap-1.5 ${desktop.platform === "mac" ? "ps-21" : "ps-[9.5px]"} ${open ? "w-(--sidebar-width) pe-[7.5px]" : "pe-1"}`}
     >
       <SidebarTrigger
         intent="ghost"
@@ -70,9 +71,13 @@ export function TitleBar() {
   );
 }
 
-/** The sidebar's first row: the title bar's, so its own rows start under it (not on a phone). */
+/**
+ * The sidebar's first row: the title bar's, so its own rows start under it (not on a phone). 24px,
+ * not a full 32px row: with the sidebar's padding the first row then sits as far below the title
+ * bar's centre line as the rows sit from each other.
+ */
 export function TitleBarRow() {
-  return useTitleBar() ? <div aria-hidden className="h-8 shrink-0" /> : null;
+  return useTitleBar() ? <div aria-hidden className="h-6 shrink-0" /> : null;
 }
 
 /**

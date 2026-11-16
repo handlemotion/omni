@@ -151,9 +151,29 @@ export const signInMethodsQuery = () =>
 /**
  * Leaves for Google's consent screen; Google returns through the Worker to `redirect` (a
  * same-origin path) or the inbox. A refused sign-in (no invitation, cancelled consent) comes back
- * to `/login?error=<code>`.
+ * to `/login?error=<code>`. In the desktop app the consent opens in the browser (Google refuses
+ * embedded sign-in) through Better Auth's Expo proxy, which gives that browser the flow's state
+ * cookie; the session comes back to the window through the shell's `omni://` callback, as a
+ * magic link's does.
  */
-export function signInWithGoogle(redirect?: string) {
+export async function signInWithGoogle(redirect?: string) {
+  const callback = desktop.isDesktop ? await desktop.signInCallback() : null;
+  if (callback) {
+    rememberSignInRedirect(safeRedirect(redirect));
+    const { url } = await authCall(
+      auth.signIn.social({
+        provider: "google",
+        callbackURL: callback,
+        errorCallbackURL: callback,
+        disableRedirect: true,
+      }),
+    );
+    if (!url) throw new ApiError(500, "Google sign-in did not start");
+    const proxy = new URL("/api/auth/expo-authorization-proxy", window.location.origin);
+    proxy.searchParams.set("authorizationURL", url);
+    desktop.openOutside(proxy.toString());
+    return;
+  }
   return authCall(
     auth.signIn.social({
       provider: "google",

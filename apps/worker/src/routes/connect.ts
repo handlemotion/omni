@@ -11,6 +11,7 @@ import {
 import { advanceOrgSetup, forUser } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
+import { createMiddleware } from "hono/factory";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { callMailService, MailServiceError } from "../mail-service.ts";
@@ -63,6 +64,26 @@ function googleMailboxes(c: Context<AppEnv>) {
   return forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId).googleAccounts();
 }
 
+/** A flow the desktop app started: its consent runs in the person's browser (ADR 0043). */
+const DESKTOP_STATE = "d.";
+/** Set on the callback once it is back in the app's window, so it is not sent back again. */
+const IN_APP = "in_app";
+
+/**
+ * Ahead of the member API. The desktop app opens Google's consent in the person's browser, which
+ * has neither the session nor the flow's cookie, so a desktop flow's callback is sent on to the
+ * app (`omni://open`), which loads the same callback in its own window, where both are.
+ */
+export const desktopGoogleReturn = createMiddleware<AppEnv>(async (c, next) => {
+  const url = new URL(c.req.url);
+  const state = url.searchParams.get("state") ?? "";
+  if (!state.startsWith(DESKTOP_STATE) || url.searchParams.has(IN_APP)) return next();
+  url.searchParams.set(IN_APP, "1");
+  const back = new URL("omni://open");
+  back.searchParams.set("path", `${url.pathname}${url.search}`);
+  return c.redirect(back.toString(), 302);
+});
+
 export const connect = new Hono<AppEnv>()
   /** Whether this install can connect Google (an OAuth client is set) and what is connected. */
   .get("/google", async (c) =>
@@ -79,12 +100,14 @@ export const connect = new Hono<AppEnv>()
   /**
    * Starts the consent flow: a top-level navigation here redirects to Google. The state and PKCE
    * verifier ride a short-lived signed cookie, bound to this member, scoped to these routes.
-   * `?return=onboarding` brings the browser back to setup instead of Settings.
+   * `?return=onboarding` brings the browser back to setup instead of Settings. `?desktop=1`
+   * (the desktop app) answers `{ url }` instead, for the app to open in the person's browser.
    */
   .get("/google/start", limitPerMember("provision"), async (c) => {
     const google = c.var.config.auth.google;
     if (!google) return apiError(c, "not_found", "Google is not configured");
-    const state = randomToken(24);
+    const desktop = c.req.query("desktop") === "1";
+    const state = `${desktop ? DESKTOP_STATE : ""}${randomToken(24)}`;
     const verifier = randomToken(48);
     const back: Return = c.req.query("return") === "onboarding" ? "onboarding" : "settings";
     // Pin setup where it stands before the mail service saves a mailbox: a workspace with a
@@ -119,7 +142,7 @@ export const connect = new Hono<AppEnv>()
       code_challenge: await challengeFor(verifier),
       code_challenge_method: "S256",
     }).toString();
-    return c.redirect(url.toString(), 302);
+    return desktop ? c.json({ url: url.toString() }) : c.redirect(url.toString(), 302);
   })
 
   /**

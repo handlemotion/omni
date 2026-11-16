@@ -185,6 +185,53 @@ describe("connecting a Google account", () => {
     );
   });
 
+  // Bug: the desktop app ran Google's consent inside its window, which Google refuses. In the
+  // browser there is no session and no flow cookie, so the callback has to go back to the app's
+  // window, and only there reach the mail service.
+  test("a flow the desktop app starts consents in the browser and finishes in the window", async () => {
+    const ana = await signedInMember("desktop@connect.test");
+    const started = await api("/connect/google/start?desktop=1", ana.session);
+    expect(started.status).toBe(200);
+    const consent = new URL(((await started.json()) as { url: string }).url);
+    const flow = started.headers
+      .getSetCookie()
+      .map((c) => c.split(";")[0]!)
+      .find((c) => c.startsWith("omni_google_connect="))!;
+    expect(flow).toBeDefined();
+    const state = consent.searchParams.get("state")!;
+    expect(state.startsWith("d.")).toBe(true);
+
+    // Google sends the browser back: no session, no flow cookie. It goes on to the app.
+    const before = mailService.requests.length;
+    const fromBrowser = await fetch(
+      new URL(
+        `/api/connect/google/callback?${new URLSearchParams({ code: "google-code", state })}`,
+        worker.url,
+      ),
+      { redirect: "manual" },
+    );
+    expect(fromBrowser.status).toBe(302);
+    const toApp = new URL(fromBrowser.headers.get("location")!);
+    expect(`${toApp.protocol}//${toApp.host}`).toBe("omni://open");
+    const path = toApp.searchParams.get("path")!;
+    expect(mailService.requests.length).toBe(before);
+
+    // The app loads that path in its window, which has the session and the flow cookie.
+    const inWindow = await api(path.replace(/^\/api/, ""), `${ana.session}; ${flow}`);
+    expect(inWindow.status).toBe(302);
+    const landed = new URL(inWindow.headers.get("location")!);
+    expect(landed.origin + landed.pathname).toBe(`${WEB_ORIGIN}/settings/accounts`);
+    expect(landed.searchParams.get("google")).toBe("connected");
+    await mailService.waitFor(before + 1);
+
+    // A web flow's callback without a session is not sent to the app.
+    const web = await fetch(
+      new URL(`/api/connect/google/callback?code=c&state=web-state`, worker.url),
+      { redirect: "manual" },
+    );
+    expect(web.status).toBe(401);
+  });
+
   test("a kept flow cookie cannot be replayed into unlimited mail service calls", async () => {
     // RATE_LIMIT_PROVISION is 30 an hour per member, shared with /start.
     const mallory = await signedInMember("replay@connect.test");

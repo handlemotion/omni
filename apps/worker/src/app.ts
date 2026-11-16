@@ -31,7 +31,7 @@ import { stripeWebhook } from "./routes/stripe-webhook.ts";
 import { compose } from "./routes/compose.ts";
 import { unsubscribe } from "./routes/unsubscribe.ts";
 import { handoff } from "./routes/handoff.ts";
-import { connect } from "./routes/connect.ts";
+import { connect, desktopGoogleReturn } from "./routes/connect.ts";
 import { folders } from "./routes/folders.ts";
 import { library } from "./routes/library.ts";
 import { mail } from "./routes/mail.ts";
@@ -220,6 +220,8 @@ export const app = new Hono<AppEnv>()
   .route("/api/storage/shared", storageShared)
   // Desktop sync (ADR 0043): a bearer token, not a session, so it too sits ahead of the member API.
   .route("/api/storage/sync", storageSync)
+  // Google's return to a Gmail connect the desktop app opened in the browser: on to the app.
+  .use("/api/connect/google/callback", desktopGoogleReturn)
   .route("/api", api)
   .onError(answerThrown);
 

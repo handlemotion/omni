@@ -23,7 +23,11 @@ beforeAll(async () => {
   const base = { databaseUrl: database.url, mailServiceUrl: mailService.url };
   withGoogle = await startWorker({
     ...base,
-    vars: { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET: "e2e-google-client-secret" },
+    vars: {
+      GOOGLE_CLIENT_ID,
+      GOOGLE_CLIENT_SECRET: "e2e-google-client-secret",
+      AUTH_TRUSTED_ORIGINS: `${WEB_ORIGIN},omni://`,
+    },
   });
   withoutGoogle = await startWorker(base);
 });
@@ -82,5 +86,41 @@ test("Google sign-in sends the browser to Google and a cancelled consent lands o
   expect(back.status).toBe(302);
   const landing = new URL(back.headers.get("location") ?? "", WEB_ORIGIN);
   expect(landing.pathname).toBe("/login");
+  expect(landing.searchParams.get("error")).toBe("access_denied");
+});
+
+// Bug: the desktop app showed Google's sign-in inside its window, which Google refuses for
+// embedded web views. The consent must open in the browser, which holds none of the window's
+// cookies, so the proxy has to give that browser the flow's state cookie, and the result has to
+// come back on the shell's `omni://` callback.
+test("desktop Google sign-in runs in the browser and returns to the app's omni:// callback", async () => {
+  const callbackURL = "omni://auth?state=desktop-state";
+  const started = await authPost(withGoogle, new CookieJar(), "/sign-in/social", {
+    provider: "google",
+    callbackURL,
+    errorCallbackURL: callbackURL,
+    disableRedirect: true,
+  });
+  expect(started.status).toBe(200);
+  const { url } = (await started.json()) as { url: string };
+  const state = new URL(url).searchParams.get("state");
+
+  // The browser: a fresh jar, opened on the proxy the app hands it.
+  const browser = new CookieJar();
+  const proxy = new URL("/api/auth/expo-authorization-proxy", withGoogle.url);
+  proxy.searchParams.set("authorizationURL", url);
+  const toGoogle = browser.store(await fetch(proxy, { redirect: "manual" }));
+  expect(toGoogle.status).toBe(302);
+  expect(toGoogle.headers.get("location")).toBe(url);
+
+  // A cancelled consent, in that browser, ends on the app's callback with its state and the error.
+  const back = await fetch(
+    new URL(`/api/auth/callback/google?error=access_denied&state=${state}`, withGoogle.url),
+    { redirect: "manual", headers: { cookie: browser.header } },
+  );
+  expect(back.status).toBe(302);
+  const landing = new URL(back.headers.get("location") ?? "");
+  expect(`${landing.protocol}//${landing.host}`).toBe("omni://auth");
+  expect(landing.searchParams.get("state")).toBe("desktop-state");
   expect(landing.searchParams.get("error")).toBe("access_denied");
 });

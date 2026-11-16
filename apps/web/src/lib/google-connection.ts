@@ -2,7 +2,8 @@
 // `/api/connect/google/start` leaves for Google's consent screen, and Google comes back through
 // the Worker to the page that started it with `?google=connected|error&reason=…`.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
-import { api, call } from "./api.ts";
+import { api, ApiError, call } from "./api.ts";
+import { desktop } from "./desktop.ts";
 import { keys } from "./query-keys.ts";
 
 /** `{ available, accounts: [{ mailboxId, address, status }] }`. */
@@ -15,8 +16,12 @@ export const googleAccountsQuery = () =>
 /** Where Google sends the browser back to: setup's inbox step, or Settings (the default). */
 export type GoogleReturn = "onboarding" | "settings";
 
-/** Leaves for Google's consent screen. Nothing after this runs: the page is gone. */
-export function startGoogleConnect(from: GoogleReturn) {
+/**
+ * Leaves for Google's consent screen. Nothing after this runs: the page is gone. In the desktop
+ * app the consent opens in the person's browser instead (Google refuses embedded sign-in), and
+ * the Worker sends Google's return back to this window through the shell's `omni://open`.
+ */
+export async function startGoogleConnect(from: GoogleReturn) {
   const url = new URL("/api/connect/google/start", window.location.origin);
   // The account goes where its address belongs (ADR 0024): the company that claimed its domain,
   // or the Personal space. Setup claims the company's domain before it connects anyone.
@@ -24,7 +29,15 @@ export function startGoogleConnect(from: GoogleReturn) {
   // Today's Worker places every account by address; a Worker from before that does so only with
   // this flag. Kept until no such Worker can serve this page.
   url.searchParams.set("place", "address");
-  window.location.assign(url.toString());
+  if (!desktop.isDesktop) {
+    window.location.assign(url.toString());
+    return;
+  }
+  url.searchParams.set("desktop", "1");
+  const response = await fetch(url, { credentials: "same-origin" });
+  if (!response.ok) throw new ApiError(response.status, "could not start Google");
+  const { url: consent } = (await response.json()) as { url: string };
+  desktop.openOutside(consent);
 }
 
 /** The outcome Google's return put in the address bar, if this load is one. */
