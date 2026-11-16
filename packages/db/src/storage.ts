@@ -117,6 +117,15 @@ export {
   type SigningCodeResult,
   type StorageSigningItem,
 } from "./storage/signer.ts";
+export {
+  recordStorageSeal,
+  sealedObject,
+  sealedName,
+  storageSealInput,
+  unsealedSignatureRequests,
+  type RecordSealResult,
+  type StorageSealInput,
+} from "./storage/seal.ts";
 export { handOverMemberStorage, type StorageHandOverResult } from "./storage/handover.ts";
 export {
   deletedStorageWorkspaces,

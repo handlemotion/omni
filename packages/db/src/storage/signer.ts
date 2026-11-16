@@ -8,6 +8,7 @@ import type { Db } from "../client.ts";
 import { members, organizations, users, verifications } from "../schema/auth.ts";
 import { storageNodes, storageSignatureRequests, storageSigners } from "../schema/storage.ts";
 import { grantAddresses } from "./access.ts";
+import { sealedObject } from "./seal.ts";
 import { chainOf, inTrash, toNode } from "./core.ts";
 import {
   appendSigningEvent,
@@ -34,6 +35,8 @@ export interface StorageSigningItem {
   sentBy: string | null;
   createdAt: Date;
   documentSha256: string;
+  /** The signed copy is ready: `sealedFile` serves it. */
+  sealed: boolean;
   signers: { name: string; signed: boolean }[];
   /** The person's own place in it. */
   me: { email: string; name: string; signedAt: Date | null };
@@ -86,6 +89,7 @@ const itemColumns = {
   contentVersion: storageSignatureRequests.contentVersion,
   createdAt: storageSignatureRequests.createdAt,
   documentSha256: storageSignatureRequests.documentSha256,
+  sealedNodeId: storageSignatureRequests.sealedNodeId,
   fileName: storageNodes.name,
   size: storageNodes.size,
   workspaceName: organizations.name,
@@ -135,6 +139,7 @@ async function items(ex: Db, rows: ItemRow[], addresses: string[]) {
         sentBy: row.sentBy,
         createdAt: row.createdAt,
         documentSha256: row.documentSha256,
+        sealed: row.sealedNodeId !== null,
         signers: all.map((signer) => ({ name: signer.name, signed: signer.signedAt !== null })),
         me: { email: me.email, name: me.name, signedAt: me.signedAt },
       },
@@ -206,6 +211,13 @@ export function signerOperations(db: Db, userId: string, scopeOrgId?: string | n
         email: found.signer.email,
       });
       return { status: "ok", file: toNode(sent.node), r2Key: sent.r2Key };
+    },
+
+    /** The signed copy with its audit page, once the request is sealed. */
+    async sealedFile(requestId: string): Promise<FileResult> {
+      const found = await mySigner(db, requestId);
+      const sealed = found && (await sealedObject(db, requestId));
+      return sealed ? { status: "ok", file: sealed.node, r2Key: sealed.r2Key } : NOT_FOUND;
     },
 
     /**

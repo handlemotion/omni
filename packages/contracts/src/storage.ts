@@ -336,6 +336,9 @@ export const storageSignatureRequestSchema = z.object({
   createdAt: isoDate,
   completedAt: isoDate.nullable(),
   voidedAt: isoDate.nullable(),
+  /** The signed copy (the PDF with its audit page), a locked file beside the original. */
+  sealedNodeId: z.string().nullable(),
+  sealedSha256: z.string().nullable(),
   signers: z.array(
     z.object({
       email: z.string(),
@@ -371,6 +374,8 @@ export const storageSigningItemSchema = z.object({
   sentBy: z.string().nullable(),
   createdAt: isoDate,
   documentSha256: z.string(),
+  /** The signed copy is ready at `GET /signing/:id/sealed`. */
+  sealed: z.boolean(),
   signers: z.array(z.object({ name: z.string(), signed: z.boolean() })),
   me: z.object({ email: z.string(), name: z.string(), signedAt: isoDate.nullable() }),
 });

@@ -8,6 +8,7 @@ import { deleteWorkspaceStorage, handOverMemberStorage } from "@omni/db";
 import { crmDaily } from "./crm/jobs.ts";
 import { mailMinute } from "./mail/jobs.ts";
 import { abortExpiredStorageUploads, storageDaily } from "./storage/jobs.ts";
+import { sealSignatures } from "./storage/seal.ts";
 import { cleanupExpiredUploads } from "./uploads.ts";
 
 export interface Module extends ModuleLifecycle {
@@ -27,8 +28,8 @@ const mail: Module = {
 
 const storage: Module = {
   name: "storage",
-  // Uploads nobody completed.
-  minute: abortExpiredStorageUploads,
+  // Uploads nobody completed, and signed documents the last signature left unsealed.
+  minute: (env) => Promise.all([abortExpiredStorageUploads(env), sealSignatures(env)]),
   daily: storageDaily,
   // Their My files stay with the company, with whoever removed them (ADR 0034 decision 1).
   memberRemoved: (db, { memberId, byMemberId }) =>

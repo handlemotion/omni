@@ -34,6 +34,7 @@ import { apiError } from "../errors.ts";
 import { checkRateLimit, clientIp, tooManyRequests } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
 import { announceDrives } from "./announce.ts";
+import { sealAfterResponse } from "./seal.ts";
 import { download, memberStorage, refused } from "./http.ts";
 
 const iso = (date: Date | null) => date?.toISOString() ?? null;
@@ -47,6 +48,8 @@ const wireRequest = (request: StorageSignatureRequest): WireRequest => ({
   createdAt: request.createdAt.toISOString(),
   completedAt: iso(request.completedAt),
   voidedAt: iso(request.voidedAt),
+  sealedNodeId: request.sealedNodeId,
+  sealedSha256: request.sealedSha256,
   signers: request.signers.map((signer) => ({
     email: signer.email,
     name: signer.name,
@@ -220,6 +223,9 @@ export const storageSigning = new Hono<AppEnv>()
     return c.json({ item: wireItem(item) } satisfies StorageSigningItemResponse);
   })
 
+  /** The signed copy with its audit page, once sealed; `404` until then. */
+  .get("/:id/sealed", async (c) => download(c, await signerDoor(c).sealedFile(c.req.param("id"))))
+
   /** The document as sent, as a download; each read is a `viewed` step in the audit trail. */
   .get("/:id/content", async (c) => {
     const origin = originOf(c, c.var.user.email);
@@ -270,5 +276,8 @@ export const storageSigning = new Hono<AppEnv>()
       origin: originOf(c, c.var.user.email),
     });
     if (signed.status !== "ok") return refusedSigning(c, signed.status);
+    if (signed.completed) {
+      sealAfterResponse(c, signed.item.id, (node) => announceDrives(c, [node]));
+    }
     return c.json({ item: wireItem(signed.item) } satisfies StorageSigningItemResponse);
   });

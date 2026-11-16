@@ -56,6 +56,9 @@ export interface StorageSignatureRequest {
   createdAt: Date;
   completedAt: Date | null;
   voidedAt: Date | null;
+  /** The signed copy with its audit page, once sealed; null until then. */
+  sealedNodeId: string | null;
+  sealedSha256: string | null;
   signers: StorageSigner[];
   events: StorageSignatureEvent[];
 }
@@ -113,6 +116,8 @@ const requestColumns = {
   createdAt: storageSignatureRequests.createdAt,
   completedAt: storageSignatureRequests.completedAt,
   voidedAt: storageSignatureRequests.voidedAt,
+  sealedNodeId: storageSignatureRequests.sealedNodeId,
+  sealedSha256: storageSignatureRequests.sealedSha256,
 };
 
 type RequestRow = Omit<StorageSignatureRequest, "signers" | "events">;
