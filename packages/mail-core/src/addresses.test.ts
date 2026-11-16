@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { companyFromAddress, domainOf, normalizeAddress, sameAddress } from "./addresses.ts";
+import {
+  companyFromAddress,
+  domainOf,
+  normalizeAddress,
+  parseAddress,
+  sameAddress,
+} from "./addresses.ts";
 
 describe("normalizeAddress", () => {
   // A Storage grant, a sign-in email and a CRM person join on this form: if one module kept the
@@ -9,6 +15,35 @@ describe("normalizeAddress", () => {
     const keys = ["ana@acme.com", "Ana@Acme.COM", "  ana@acme.com\n"].map(normalizeAddress);
     expect(new Set(keys)).toEqual(new Set(["ana@acme.com"]));
     expect(sameAddress(" ANA@acme.com", "ana@ACME.com ")).toBe(true);
+  });
+});
+
+describe("parseAddress", () => {
+  // CRM people are unique per address: "ana@acme.com." stored apart from "ana@acme.com" would make
+  // two people for one sender, and their mail would split between them.
+  test("every spelling of one address, trailing dot included, is one key", () => {
+    for (const spelling of ["ana@acme.com", "Ana@Acme.com", " ANA@ACME.COM ", "ana@acme.com."]) {
+      expect(parseAddress(spelling)).toBe("ana@acme.com");
+    }
+  });
+
+  // A malformed value stored as a key would never match a participant, and the record would look
+  // empty instead of the request failing.
+  test("anything that is not one address is refused", () => {
+    for (const bad of [
+      "",
+      "ana",
+      "@acme.com",
+      "ana@",
+      "ana@@acme.com",
+      "a@b@acme.com",
+      "ana @acme.com",
+      "ana@acme",
+      "ana@.acme.com",
+      "ana@acme..com",
+    ]) {
+      expect({ bad, parsed: parseAddress(bad) }).toEqual({ bad, parsed: null });
+    }
   });
 });
 

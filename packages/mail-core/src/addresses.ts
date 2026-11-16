@@ -19,6 +19,7 @@ export const WEBMAIL_DOMAINS: ReadonlySet<string> = new Set([
   "aol.com",
   "proton.me",
   "protonmail.com",
+  "pm.me",
   "gmx.com",
   "gmx.de",
   "mail.com",
@@ -31,6 +32,20 @@ export const WEBMAIL_DOMAINS: ReadonlySet<string> = new Set([
 /** The form every module stores and compares an address in: trimmed and lowercased. */
 export function normalizeAddress(address: string) {
   return address.trim().toLowerCase();
+}
+
+/**
+ * Input that must be exactly one address (`local@domain`: one `@`, no spaces, a dotted domain),
+ * in its normalized form with any trailing dot on the domain dropped; null when it is not one.
+ * For values a person types as a key, where a malformed one would be stored and never match.
+ */
+export function parseAddress(input: string): string | null {
+  const address = normalizeAddress(input);
+  const at = address.indexOf("@");
+  if (at <= 0 || at !== address.lastIndexOf("@") || /\s/.test(address)) return null;
+  const domain = address.slice(at + 1).replace(/\.$/, "");
+  if (!domain.includes(".") || domain.startsWith(".") || domain.includes("..")) return null;
+  return `${address.slice(0, at)}@${domain}`;
 }
 
 /** Whether two spellings are the same address. */
