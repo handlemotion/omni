@@ -63,7 +63,8 @@ export function TitleBar() {
       >
         <IconSidebar />
       </SidebarTrigger>
-      <span className={open ? "ms-auto flex items-center gap-1.5" : "flex items-center gap-1.5"}>
+      {/* 2px apart: each button's hover fill already gives it room. */}
+      <span className={open ? "ms-auto flex items-center gap-0.5" : "flex items-center gap-0.5"}>
         <NotificationsButton />
         <WorkspaceSwitcher iconOnly />
       </span>
