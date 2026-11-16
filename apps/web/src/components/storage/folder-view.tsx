@@ -18,8 +18,12 @@ import { ShareDialog } from "./share-dialog.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 import { StorageFrame } from "./storage-frame.tsx";
 import { UploadsPanel } from "./uploads-panel.tsx";
+import { VersionsDialog } from "./versions-dialog.tsx";
 
-export type FolderDialog = { dialog: "rename" | "move" | "share"; node: StorageNode } | null;
+export type FolderDialog = {
+  dialog: "rename" | "move" | "share" | "versions";
+  node: StorageNode;
+} | null;
 
 export interface FolderSource {
   /** The folder's own name, for the table and the drop target. */
@@ -176,15 +180,26 @@ export function FolderView(props: {
           />
         </div>
       )}
-      {dialog?.dialog === "rename" && (
-        <RenameDialog node={dialog.node} shareId={source.shareId} onClose={close} />
-      )}
-      {dialog?.dialog === "move" && (
-        <MoveDialog node={dialog.node} scope={source.move} onClose={close} />
-      )}
-      {dialog?.dialog === "share" && <ShareDialog node={dialog.node} onClose={close} />}
+      <FolderDialogs dialog={dialog} source={source} onClose={close} />
     </div>
   );
+}
+
+/** The dialog a row's action opened, if any. */
+function FolderDialogs(props: { dialog: FolderDialog; source: FolderSource; onClose: () => void }) {
+  const { dialog, source, onClose } = props;
+  if (!dialog) return null;
+  const { node } = dialog;
+  switch (dialog.dialog) {
+    case "rename":
+      return <RenameDialog node={node} shareId={source.shareId} onClose={onClose} />;
+    case "move":
+      return <MoveDialog node={node} scope={source.move} onClose={onClose} />;
+    case "share":
+      return <ShareDialog node={node} onClose={onClose} />;
+    case "versions":
+      return <VersionsDialog node={node} shareId={source.shareId} onClose={onClose} />;
+  }
 }
 
 export interface OpenFile {

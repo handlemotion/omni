@@ -144,6 +144,43 @@ export const storageUploadSchema = z.object({
 });
 export const storageUploadResponseSchema = z.object({ upload: storageUploadSchema });
 
+// --- Versions (ADR 0043 decision 1) ---
+
+/**
+ * `POST /files/:id/versions`: opens an upload of `size` bytes that becomes the file's new
+ * version. Answers `{ upload }`; the parts go up and it completes through `/uploads/:id` like
+ * any upload, and completing it answers the file. The content it replaces is kept `keepDays`
+ * and counts toward the workspace's storage until then. Only someone who may edit the file: a
+ * member who reaches it, or an Editor. A locked file answers `409 locked`.
+ */
+export const storageOpenVersionBodySchema = z.object({
+  size: z.number().int().nonnegative(),
+  mimeType: z.string().max(255).nullish(),
+  sha256: sha256.optional(),
+});
+
+/** Content a file has or had. `writtenByName` is null once its writer has left. */
+const storageContentSchema = z.object({
+  size: z.number().int().nonnegative(),
+  mimeType: z.string().nullable(),
+  writtenAt: isoDate,
+  writtenByName: z.string().nullable(),
+});
+export const storageVersionSchema = storageContentSchema.extend({ id, replacedAt: isoDate });
+
+/**
+ * `GET /files/:id/versions`: the file's current content and the versions it replaced, newest
+ * first. `GET /files/:id/versions/:versionId/content` downloads one, and
+ * `POST /files/:id/versions/:versionId/restore` makes it the current content again (answers
+ * `{ node }`); the content it displaces becomes a version. Editors only, like the upload.
+ */
+export const storageVersionsResponseSchema = z.object({
+  current: storageContentSchema,
+  versions: z.array(storageVersionSchema),
+  /** Days a replaced version is kept before it is deleted for good. */
+  keepDays: z.number().int().positive(),
+});
+
 /** `GET /usage`. */
 export const storageUsageSchema = z.object({
   /** Bytes stored, files in Trash included. */
@@ -412,6 +449,9 @@ export type StorageChangeNodeBody = z.infer<typeof storageChangeNodeBodySchema>;
 export type StorageOpenUploadBody = z.infer<typeof storageOpenUploadBodySchema>;
 export type StorageUpload = z.infer<typeof storageUploadSchema>;
 export type StorageUploadResponse = z.infer<typeof storageUploadResponseSchema>;
+export type StorageOpenVersionBody = z.infer<typeof storageOpenVersionBodySchema>;
+export type StorageVersion = z.infer<typeof storageVersionSchema>;
+export type StorageVersionsResponse = z.infer<typeof storageVersionsResponseSchema>;
 export type StorageUsage = z.infer<typeof storageUsageSchema>;
 export type StoragePerson = z.infer<typeof storagePersonSchema>;
 export type StorageSharing = z.infer<typeof storageSharingSchema>;

@@ -27,6 +27,14 @@ export interface Access {
   share: boolean;
 }
 
+/**
+ * Whether the holder may replace a file's content and see what it replaced (ADR 0043
+ * decision 1): a member who reaches it, or an editor, whether the grant is on the file itself or
+ * on a folder above it. Unlike `change`, which an editor has only inside the folder they were
+ * given: writing a document they were handed is what editing it means.
+ */
+export const editsContent = (access: Access) => access.role !== "viewer";
+
 export interface Door {
   kind: "member" | "grant" | "link";
   /**

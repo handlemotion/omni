@@ -1,0 +1,85 @@
+// A file's versions (ADR 0043 decision 1): open an upload that becomes the new version, list
+// what it replaced, download one, restore one. Written against `writeDoor` like the rest of
+// `changes.ts`, so a member and an Editor under a link use the same routes; a viewer and a link
+// alone reach none of them. The upload itself goes up and completes through `uploads.ts`.
+import {
+  storageOpenVersionBodySchema,
+  STORAGE_MAX_PARTS,
+  type StorageNodeResponse,
+  type StorageUploadResponse,
+  type StorageVersionsResponse,
+} from "@omni/contracts";
+import { STORAGE_VERSION_DAYS, type StorageContent } from "@omni/db";
+import { Hono } from "hono";
+import type { AppEnv } from "../context.ts";
+import { apiError } from "../errors.ts";
+import { zValidator } from "../validator.ts";
+import { announceDrives } from "./announce.ts";
+import { partCount, storageLimit, wireNode, wireUpload } from "./core.ts";
+import { download, refused, writeDoor } from "./http.ts";
+
+const wireContent = (content: StorageContent) => ({
+  size: content.size,
+  mimeType: content.mimeType,
+  writtenAt: content.writtenAt.toISOString(),
+  writtenByName: content.writtenByName,
+});
+
+export const storageVersions = new Hono<AppEnv>()
+  .post("/files/:id/versions", zValidator("json", storageOpenVersionBodySchema), async (c) => {
+    const { size, mimeType, sha256 } = c.req.valid("json");
+    const { db, config } = c.var;
+    const { files, orgId } = writeDoor(c);
+    if (size > config.STORAGE_MAX_FILE_BYTES || partCount(size) > STORAGE_MAX_PARTS) {
+      return apiError(c, "file_too_large", "the file is larger than one file may be");
+    }
+    const { limitBytes } = await storageLimit(db, config, orgId);
+    const opened = await files.openVersionUpload(c.req.param("id"), {
+      size,
+      mimeType,
+      sha256,
+      limitBytes,
+    });
+    if (opened.status !== "ok") return refused(c, opened.status);
+    const answer = (upload: typeof opened.upload) =>
+      c.json({ upload: wireUpload(upload) } satisfies StorageUploadResponse, 201);
+    if (size === 0) return answer(opened.upload);
+    try {
+      const multipart = await c.env.STORAGE_BUCKET.createMultipartUpload(opened.upload.r2Key);
+      const started = await files.startUpload(opened.upload.id, multipart.uploadId);
+      if (!started) throw new Error("storage: the upload was gone before it started");
+      return answer(started);
+    } catch (error) {
+      // Nothing may keep holding room for an upload that cannot receive a part.
+      await files.abortUpload(opened.upload.id);
+      throw error;
+    }
+  })
+
+  .get("/files/:id/versions", async (c) => {
+    const listed = await writeDoor(c).files.versions(c.req.param("id"));
+    if (listed.status !== "ok") return refused(c, listed.status);
+    return c.json({
+      current: wireContent(listed.current),
+      versions: listed.versions.map((version) => ({
+        ...wireContent(version),
+        id: version.id,
+        replacedAt: version.replacedAt.toISOString(),
+      })),
+      keepDays: STORAGE_VERSION_DAYS,
+    } satisfies StorageVersionsResponse);
+  })
+
+  /** A kept version's bytes, as a download under the file's name. */
+  .get("/files/:id/versions/:versionId/content", async (c) => {
+    const { id, versionId } = c.req.param();
+    return download(c, await writeDoor(c).files.versionFile(id, versionId));
+  })
+
+  .post("/files/:id/versions/:versionId/restore", async (c) => {
+    const { id, versionId } = c.req.param();
+    const restored = await writeDoor(c).files.restoreVersion(id, versionId);
+    if (restored.status !== "ok") return refused(c, restored.status);
+    announceDrives(c, [restored.node]);
+    return c.json({ node: wireNode(restored.node) } satisfies StorageNodeResponse);
+  });

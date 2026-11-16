@@ -1,8 +1,9 @@
 // A folder's page in My files or Shared (ADR 0034 decision 8), through the member's door: its
-// place in the title, and each row's Download, Share, Rename, Move and Move to trash.
+// place in the title, and each row's Download, Share, Rename, Move, Versions and Move to trash.
 import { useSearch } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 import {
+  IconClock3,
   IconDownload,
   IconFolderMove,
   IconPencil,
@@ -90,6 +91,15 @@ function useRowMenu() {
       { icon: IconUserAdd, label: "Share", onAction: () => open({ dialog: "share", node }) },
       { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },
       { icon: IconFolderMove, label: "Move", onAction: () => open({ dialog: "move", node }) },
+      ...(node.kind === "file"
+        ? [
+            {
+              icon: IconClock3,
+              label: "Versions",
+              onAction: () => open({ dialog: "versions", node }),
+            },
+          ]
+        : []),
       ...(node.space === "personal" || manager || node.createdByMemberId === member.id
         ? [
             {

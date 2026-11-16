@@ -1,12 +1,12 @@
 // Trusted background work for Storage (ADR 0034 decisions 5 and 7): the purge of old Trash, and
 // the usage counter's read and its daily repair. Callers have already resolved the workspace.
-import { and, eq, exists, inArray, isNotNull, lt, not, or, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, isNotNull, lt, not, or, sql, type AnyColumn } from "drizzle-orm";
 import { PAID_STATUSES } from "../billing.ts";
 import type { Db } from "../client.ts";
 import { isCompany } from "../personal-space.ts";
 import { organizations, subscriptions } from "../schema/auth.ts";
-import { storageNodes, storageUploads, storageUsage } from "../schema/storage.ts";
-import { deleteSubtree, lockTree, lockUsage } from "./core.ts";
+import { storageNodes, storageUploads, storageUsage, storageVersions } from "../schema/storage.ts";
+import { addUsage, deleteSubtree, lockTree, lockUsage } from "./core.ts";
 import { reservedBytes } from "./uploads.ts";
 
 /** Bytes a workspace stores (trashed files included) and has reserved for uploads in progress. */
@@ -19,7 +19,7 @@ export async function storageUsageOf(db: Db, orgId: string) {
 }
 
 /** SQL condition: the workspace in `orgId` may write, as ADR 0015 defines good standing. */
-function inGoodStanding(db: Db, orgId: typeof storageNodes.orgId) {
+function inGoodStanding(db: Db, orgId: AnyColumn) {
   return or(
     // A Personal space is free (ADR 0024).
     not(isCompany(db, orgId)),
@@ -77,7 +77,48 @@ export async function purgeStorageTrash(
 }
 
 /**
- * Sets a workspace's usage to what its nodes add up to, and returns whether it had drifted. The
+ * Deletes the versions replaced before `before` (ADR 0043 decision 1), rows first, and subtracts
+ * their bytes. Returns the objects the caller must now delete, and whether more is waiting. Each
+ * version goes in its own transaction, and one restored meanwhile is no longer there to delete.
+ * `keepReadOnly` is as for `purgeStorageTrash`: nothing is deleted for not paying.
+ */
+export async function purgeStorageVersions(
+  db: Db,
+  options: { before: Date; limit?: number; keepReadOnly?: boolean },
+) {
+  const limit = options.limit ?? 100;
+  const due = await db
+    .select({ id: storageVersions.id, orgId: storageVersions.orgId })
+    .from(storageVersions)
+    .where(
+      and(
+        lt(storageVersions.replacedAt, options.before),
+        options.keepReadOnly ? inGoodStanding(db, storageVersions.orgId) : undefined,
+      ),
+    )
+    .orderBy(storageVersions.replacedAt)
+    .limit(limit + 1);
+  const r2Keys: string[] = [];
+  for (const version of due.slice(0, limit)) {
+    const r2Key = await db.transaction(async (tx) => {
+      await lockUsage(tx, version.orgId);
+      const [gone] = await tx
+        .delete(storageVersions)
+        .where(
+          and(eq(storageVersions.id, version.id), lt(storageVersions.replacedAt, options.before)),
+        )
+        .returning({ size: storageVersions.size, r2Key: storageVersions.r2Key });
+      if (!gone) return null;
+      await addUsage(tx, version.orgId, -gone.size);
+      return gone.r2Key;
+    });
+    if (r2Key) r2Keys.push(r2Key);
+  }
+  return { r2Keys, more: due.length > limit };
+}
+
+/**
+ * Sets a workspace's usage to what its nodes and their kept versions add up to, and returns whether it had drifted. The
  * usage row is locked first, as every change to a file's bytes does, so nothing lands between
  * the sum and the write.
  */
@@ -88,7 +129,11 @@ async function recomputeOne(db: Db, orgId: string) {
       .select({ bytes: sql<string>`coalesce(sum(${storageNodes.size}), 0)` })
       .from(storageNodes)
       .where(eq(storageNodes.orgId, orgId));
-    const bytes = Number(row?.bytes ?? 0);
+    const [kept] = await tx
+      .select({ bytes: sql<string>`coalesce(sum(${storageVersions.size}), 0)` })
+      .from(storageVersions)
+      .where(eq(storageVersions.orgId, orgId));
+    const bytes = Number(row?.bytes ?? 0) + Number(kept?.bytes ?? 0);
     if (bytes === before) return false;
     await tx.update(storageUsage).set({ bytes }).where(eq(storageUsage.orgId, orgId));
     return true;

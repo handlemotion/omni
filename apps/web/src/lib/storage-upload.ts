@@ -14,6 +14,8 @@ const PART_TRIES = 3;
 export interface UploadRequest {
   file: File;
   place: StoragePlace;
+  /** The file this becomes a new version of (ADR 0043); absent, it becomes a file in `place`. */
+  replaces?: string | undefined;
   /** A shared link's door, for an Editor uploading into what was shared; else the member's. */
   shareId?: string | undefined;
   /** An earlier try's upload, to resume. */
@@ -38,7 +40,10 @@ export async function uploadFile(request: UploadRequest): Promise<StorageNode> {
   const door = uploadDoor(request.shareId);
   await request.confirm();
   const upload =
-    (await resumable(door, request.resumeId)) ?? (await door.open(file, request.place));
+    (await resumable(door, request.resumeId)) ??
+    (request.replaces
+      ? await door.openVersion(file, request.replaces)
+      : await door.open(file, request.place));
   request.onOpened(upload.id);
   signal.throwIfAborted();
   if (!upload.nodeId) {
@@ -97,6 +102,9 @@ const openBody = (file: File, place: StoragePlace) => ({
   ...place,
 });
 
+/** What opening a new version sends: the file keeps its own name and place. */
+const versionBody = (file: File) => ({ size: file.size, mimeType: file.type || null });
+
 /** The upload routes of the member's door, or of a shared link's (the same shapes under it). */
 function uploadDoor(shareId: string | undefined) {
   if (!shareId) {
@@ -104,6 +112,12 @@ function uploadDoor(shareId: string | undefined) {
     return {
       open: async (file: File, place: StoragePlace) =>
         (await call(uploads.$post({ json: openBody(file, place) }))).upload,
+      openVersion: async (file: File, id: string) =>
+        (
+          await call(
+            api.storage.files[":id"].versions.$post({ param: { id }, json: versionBody(file) }),
+          )
+        ).upload,
       get: async (id: string) => (await call(uploads[":id"].$get({ param: { id } }))).upload,
       partUrl: (id: string, n: number) => `${uploads[":id"].$url({ param: { id } })}/parts/${n}`,
       complete: (id: string) => call(uploads[":id"].complete.$post({ param: { id } })),
@@ -114,6 +128,15 @@ function uploadDoor(shareId: string | undefined) {
   return {
     open: async (file: File, place: StoragePlace) =>
       (await call(uploads.$post({ param: { shareId }, json: openBody(file, place) }))).upload,
+    openVersion: async (file: File, id: string) =>
+      (
+        await call(
+          api.storage.shared[":shareId"].files[":id"].versions.$post({
+            param: { shareId, id },
+            json: versionBody(file),
+          }),
+        )
+      ).upload,
     get: async (id: string) => (await call(uploads[":id"].$get({ param: { shareId, id } }))).upload,
     partUrl: (id: string, n: number) =>
       `${uploads[":id"].$url({ param: { shareId, id } })}/parts/${n}`,

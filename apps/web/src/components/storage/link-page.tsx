@@ -4,6 +4,7 @@
 // what is inside through the link's own door; sharing it on is the owner's, from Storage.
 import { useCallback, useMemo } from "react";
 import {
+  IconClock3,
   IconDownload,
   IconFile,
   IconFolderMove,
@@ -73,6 +74,15 @@ function SharedFolder(props: {
                 label: "Move",
                 onAction: () => open({ dialog: "move", node }),
               },
+              ...(node.kind === "file"
+                ? [
+                    {
+                      icon: IconClock3,
+                      label: "Versions",
+                      onAction: () => open({ dialog: "versions", node }),
+                    },
+                  ]
+                : []),
               {
                 icon: IconTrash,
                 label: "Move to trash",

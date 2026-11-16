@@ -20,7 +20,14 @@ import {
   storageSharedWithMeQuery,
   storageSharingQuery,
 } from "../lib/storage-sharing.ts";
-import { addUploads, removeUpload, retryUpload, uploadsStore } from "../lib/storage-uploads.ts";
+import {
+  addUploads,
+  removeUpload,
+  retryUpload,
+  uploadsStore,
+  type UploadTarget,
+} from "../lib/storage-uploads.ts";
+import { restoreVersionMutation, storageVersionsQuery } from "../lib/storage-versions.ts";
 import { useSession } from "./use-session.ts";
 import { useCurrentWorkspace } from "./use-workspaces.ts";
 
@@ -83,14 +90,21 @@ export function useUploads() {
   useSession();
   const uploads = useSyncExternalStore(uploadsStore.subscribe, uploadsStore.get);
   const upload = useCallback(
-    (
-      files: File[],
-      target: { place: StoragePlace; shareId?: string | undefined },
-      onFailed: (name: string, error: unknown) => void,
-    ) => addUploads(client, files, target, onFailed),
+    (files: File[], target: UploadTarget, onFailed: (name: string, error: unknown) => void) =>
+      addUploads(client, files, target, onFailed),
     [client],
   );
   return { uploads, upload, retry: retryUpload, remove: removeUpload };
+}
+
+/** A file's current content and the versions it replaced (whoever may edit the file only). */
+export function useStorageVersions(nodeId: string, shareId?: string) {
+  return useQuery(storageVersionsQuery(nodeId, shareId));
+}
+
+/** `mutate({ id, versionId, shareId? })` makes a kept version the file's content again. */
+export function useRestoreVersion() {
+  return useMutation(restoreVersionMutation(useQueryClient()));
 }
 
 /** Bytes stored, the limit and the allowance, and whether uploads are blocked. */

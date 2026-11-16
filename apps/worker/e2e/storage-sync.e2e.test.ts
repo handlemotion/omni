@@ -333,3 +333,43 @@ test("a change pings the drives it touched, on the sockets of those who sync the
   anaHears.socket.close();
   boHears.socket.close();
 });
+
+// Catches: a new version or a restore that changes a file's bytes without a revision (the
+// provider's feed never shows it, so the Mac keeps the old bytes), one without a ping (it waits
+// for its next poll), and a `contentVersion` that stays put (the provider sees a rename, not new
+// bytes, and never downloads them).
+test("a new version and a restore reach the provider as new bytes", async () => {
+  const acme = await stack.company(`versions-${randomUUID().slice(0, 6)}`);
+  const ana = await stack.member(acme.id);
+  const file = await stack.upload(ana.jar, { space: "personal" }, "plan.md", bytes("first"));
+  const token = await connect(ana);
+  const { cursor } = await drain(token, acme.id, "personal");
+  const hears = await listen(token, acme.id);
+
+  const body = bytes("second");
+  const opened = await stack.api(ana.jar, "POST", `/files/${file.id}/versions`, {
+    size: body.length,
+  });
+  expect(opened.status).toBe(201);
+  const uploadId = opened.body.upload.id as string;
+  const sent = await stack.putPart(ana.jar, uploadId, 1, body);
+  await sent.body?.cancel();
+  expect((await stack.api(ana.jar, "POST", `/uploads/${uploadId}/complete`)).status).toBe(200);
+  expect(await hears.until("personal")).toEqual([{ type: "storage.changed", space: "personal" }]);
+  const saved = await drain(token, acme.id, "personal", cursor);
+  expect(saved.changes.map((change) => [change.id, change.node.contentVersion])).toEqual([
+    [file.id, 2],
+  ]);
+
+  const listed = await stack.api(ana.jar, "GET", `/files/${file.id}/versions`);
+  const old = listed.body.versions[0].id as string;
+  const restored = await stack.api(ana.jar, "POST", `/files/${file.id}/versions/${old}/restore`);
+  expect(restored.status).toBe(200);
+  expect(await hears.until("personal")).toEqual([{ type: "storage.changed", space: "personal" }]);
+  const back = await drain(token, acme.id, "personal", saved.cursor);
+  expect(back.changes.map((change) => [change.id, change.node.size])).toEqual([[file.id, 5]]);
+  expect(back.changes[0].node.contentVersion).toBe(3);
+  expect(back.changes[0].node.revision).toBeGreaterThan(saved.changes[0].node.revision);
+
+  hears.socket.close();
+});

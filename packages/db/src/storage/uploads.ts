@@ -3,7 +3,7 @@
 import { and, eq, gt, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
-import { storageUploads, type StorageUploadPart } from "../schema/storage.ts";
+import { storageUploads, storageUploadTargets, type StorageUploadPart } from "../schema/storage.ts";
 import type { Door } from "./access.ts";
 import {
   addUsage,
@@ -20,9 +20,11 @@ import {
   resolvePlace,
   type Forbidden,
   type InvalidName,
+  type Locked,
   type NotFound,
   type StoragePlace,
 } from "./tree.ts";
+import { mayReplace, replaceContent } from "./versions.ts";
 
 /** An upload nobody completes is aborted after this long. */
 export const STORAGE_UPLOAD_TTL_MS = 24 * 60 * 60_000;
@@ -45,6 +47,13 @@ export type OpenUploadResult =
   | InvalidName
   | StorageFull;
 
+export type OpenVersionUploadResult =
+  | { status: "ok"; upload: StorageUpload }
+  | NotFound
+  | Forbidden
+  | Locked
+  | StorageFull;
+
 export type RecordPartResult =
   | { status: "ok"; upload: StorageUpload }
   | NotFound
@@ -58,6 +67,8 @@ export type CompleteUploadResult =
   | Forbidden
   /** The parts do not add up to the declared size. */
   | { status: "incomplete" }
+  /** The file it was a new version of was locked meanwhile. */
+  | Locked
   | StorageFull;
 
 export type AbortUploadResult =
@@ -83,6 +94,18 @@ export async function reservedBytes(ex: Db, orgId: string, exceptUploadId?: stri
   return Number(row?.bytes ?? 0);
 }
 
+/**
+ * The target of an upload that is a new version: `{ nodeId }`, null in it once the file was
+ * deleted for good. Null when the upload becomes a file of its own.
+ */
+async function targetOf(ex: Db, uploadId: string) {
+  const [row] = await ex
+    .select({ nodeId: storageUploadTargets.nodeId })
+    .from(storageUploadTargets)
+    .where(eq(storageUploadTargets.uploadId, uploadId));
+  return row ?? null;
+}
+
 /** Still in progress: not completed, not past its time. */
 const live = (upload: StorageUpload) => !upload.nodeId && upload.expiresAt > new Date();
 
@@ -99,12 +122,32 @@ export function uploadOperations(db: Db, door: Door) {
     // their uploads), and a folder trashed meanwhile is for `completeUpload` to refuse and clean
     // up. A completed upload is a file, which `completeUpload` resolves through the door itself.
     if (upload.nodeId || door.kind !== "grant") return upload;
+    const target = await targetOf(ex, upload.id);
+    if (target) {
+      // A new version is a write to the file itself, not into its folder.
+      if (!target.nodeId) return null;
+      return (await mayReplace(ex, door, target.nodeId)).status === "ok" ? upload : null;
+    }
     const at = await resolvePlace(
       ex,
       door,
       upload.parentId ? { parentId: upload.parentId } : { space: upload.space },
     );
     return at?.writable ? upload : null;
+  }
+
+  /** Call with the usage row locked: the answer when `size` more bytes would not fit. */
+  async function fullFor(
+    tx: Db,
+    orgId: string,
+    usedBytes: number,
+    size: number,
+    limit: number | null,
+  ) {
+    if (limit === null) return null;
+    const reserved = await reservedBytes(tx, orgId);
+    if (usedBytes + reserved + size <= limit) return null;
+    return { status: "full", usedBytes, reservedBytes: reserved, limitBytes: limit } as const;
   }
 
   return {
@@ -135,15 +178,8 @@ export function uploadOperations(db: Db, door: Door) {
         const actor = await door.actor(tx, orgId);
         if (!actor) return FORBIDDEN;
         const usedBytes = await lockUsage(tx, orgId);
-        const reserved = await reservedBytes(tx, orgId);
-        if (file.limitBytes !== null && usedBytes + reserved + file.size > file.limitBytes) {
-          return {
-            status: "full",
-            usedBytes,
-            reservedBytes: reserved,
-            limitBytes: file.limitBytes,
-          };
-        }
+        const full = await fullFor(tx, orgId, usedBytes, file.size, file.limitBytes);
+        if (full) return full;
         const id = uuidv7();
         const [upload] = await tx
           .insert(storageUploads)
@@ -161,6 +197,55 @@ export function uploadOperations(db: Db, door: Door) {
             expiresAt: new Date(Date.now() + STORAGE_UPLOAD_TTL_MS),
           })
           .returning();
+        return { status: "ok", upload: upload! };
+      });
+    },
+
+    /**
+     * Opens an upload that becomes a new version of a file the holder may edit (ADR 0043
+     * decision 1). It goes up and completes as any upload does; completing it replaces the
+     * file's content and keeps the old one. The replaced bytes stay stored, so the whole new
+     * size must fit the allowance.
+     */
+    async openVersionUpload(
+      nodeId: string,
+      file: {
+        size: number;
+        mimeType?: string | null;
+        limitBytes: number | null;
+        /** Hex SHA-256 the client computed while reading the file; kept on the file. */
+        sha256?: string | null;
+      },
+    ): Promise<OpenVersionUploadResult> {
+      return db.transaction(async (tx): Promise<OpenVersionUploadResult> => {
+        const found = await mayReplace(tx, door, nodeId);
+        if (found.status !== "ok") return found;
+        const { node } = found;
+        const actor = await door.actor(tx, node.orgId);
+        if (!actor) return FORBIDDEN;
+        const usedBytes = await lockUsage(tx, node.orgId);
+        const full = await fullFor(tx, node.orgId, usedBytes, file.size, file.limitBytes);
+        if (full) return full;
+        const id = uuidv7();
+        const [upload] = await tx
+          .insert(storageUploads)
+          .values({
+            id,
+            orgId: node.orgId,
+            memberId: actor,
+            space: node.space,
+            parentId: node.parentId,
+            name: node.name,
+            size: file.size,
+            mimeType: file.mimeType ?? null,
+            sha256: file.sha256 ?? null,
+            r2Key: storageObjectKey(node.orgId, id),
+            expiresAt: new Date(Date.now() + STORAGE_UPLOAD_TTL_MS),
+          })
+          .returning();
+        await tx
+          .insert(storageUploadTargets)
+          .values({ uploadId: id, orgId: node.orgId, nodeId: node.id });
         return { status: "ok", upload: upload! };
       });
     },
@@ -236,6 +321,26 @@ export function uploadOperations(db: Db, door: Door) {
         if (upload.parts.reduce((sum, part) => sum + part.size, 0) !== upload.size) {
           return { status: "incomplete" };
         }
+        const { limitBytes } = options;
+        const full = async (): Promise<StorageFull | null> => {
+          if (limitBytes === null || usedBytes + upload.size <= limitBytes) return null;
+          const reserved = await reservedBytes(tx, upload.orgId, upload.id);
+          return { status: "full", usedBytes, reservedBytes: reserved, limitBytes };
+        };
+        const target = await targetOf(tx, upload.id);
+        if (target) {
+          // The file it was a version of is gone: refused, never completed as a new file.
+          if (!target.nodeId) return NOT_FOUND;
+          const replaced =
+            (await full()) ?? (await replaceContent(tx, door, target.nodeId, upload));
+          if (replaced.status !== "ok") return replaced;
+          await addUsage(tx, upload.orgId, upload.size);
+          await tx
+            .update(storageUploads)
+            .set({ nodeId: replaced.node.id })
+            .where(eq(storageUploads.id, upload.id));
+          return { status: "ok", node: replaced.node, r2Key: upload.r2Key, created: true };
+        }
         const at = await resolvePlace(
           tx,
           door,
@@ -243,11 +348,8 @@ export function uploadOperations(db: Db, door: Door) {
         );
         if (!at) return NOT_FOUND;
         if (!at.writable) return FORBIDDEN;
-        const { limitBytes } = options;
-        if (limitBytes !== null && usedBytes + upload.size > limitBytes) {
-          const reserved = await reservedBytes(tx, upload.orgId, upload.id);
-          return { status: "full", usedBytes, reservedBytes: reserved, limitBytes };
-        }
+        const refusal = await full();
+        if (refusal) return refusal;
         const node = await insertNode(tx, {
           id: upload.id,
           drive: at.drive,
