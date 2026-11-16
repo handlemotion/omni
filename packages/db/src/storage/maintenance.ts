@@ -1,7 +1,8 @@
 // Trusted background work for Storage (ADR 0034 decisions 5 and 7): the purge of old Trash, and
 // the usage counter's read and its daily repair. Callers have already resolved the workspace.
-import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import { organizations } from "../schema/auth.ts";
 import { storageNodes, storageUsage } from "../schema/storage.ts";
 import { deleteSubtree, lockTree, lockUsage } from "./core.ts";
 import { reservedBytes } from "./uploads.ts";
@@ -81,4 +82,19 @@ export async function recomputeStorageUsage(db: Db, orgId?: string) {
     if (await recomputeOne(db, id)) repaired++;
   }
   return repaired;
+}
+
+/**
+ * For the bucket sweep: which of `orgIds` (read off object keys) name no workspace any more.
+ * An id only ever reaches a key from a workspace that existed, and ids are never reused, so one
+ * with no row is a deleted workspace whose objects nothing can reach.
+ */
+export async function deletedStorageWorkspaces(db: Db, orgIds: string[]) {
+  if (orgIds.length === 0) return [];
+  const rows = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(inArray(organizations.id, orgIds));
+  const alive = new Set(rows.map((row) => row.id));
+  return orgIds.filter((id) => !alive.has(id));
 }

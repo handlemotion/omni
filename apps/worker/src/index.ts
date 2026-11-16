@@ -10,6 +10,7 @@ import { loadConfig } from "./env.ts";
 import { alertSlas, wakeSnoozed } from "./sla.ts";
 import { createLogger } from "./log.ts";
 import { consumeQueue, type AiJob } from "./queue.ts";
+import { abortExpiredStorageUploads, storageDaily } from "./storage-cron.ts";
 import { cleanupExpiredUploads } from "./uploads.ts";
 
 export type { AppType } from "./app.ts";
@@ -51,10 +52,20 @@ const DAILY_CRON = "47 3 * * *";
 const MINUTE_CRON = "* * * * *";
 
 /**
+ * The every-minute cron: the helpdesk's clock, and Storage uploads nobody completed. Each runs
+ * even if the other fails; the run still fails so the error is visible.
+ */
+async function scheduledMinute(env: Env) {
+  const results = await Promise.allSettled([helpdeskClock(env), abortExpiredStorageUploads(env)]);
+  const failed = results.find((r) => r.status === "rejected");
+  if (failed) throw failed.reason;
+}
+
+/**
  * The helpdesk's clock: wakes snoozed conversations whose time has come, then raises SLA alerts
  * (a woken conversation may already be late). Safe to run twice.
  */
-async function scheduledMinute(env: Env) {
+async function helpdeskClock(env: Env) {
   const { db, close } = openDb(env);
   const log = createLogger({ component: "helpdesk", requestId: crypto.randomUUID() });
   try {
@@ -68,14 +79,15 @@ async function scheduledMinute(env: Env) {
 }
 
 /**
- * The daily cron: billing reconcile, the abandoned sign-up sweep and expired uploads. Each runs even if the other
- * fails; the run still fails so the error is visible.
+ * The daily cron: billing reconcile, the abandoned sign-up sweep, expired uploads and Storage's
+ * upkeep. Each runs even if another fails; the run still fails so the error is visible.
  */
 async function scheduledDaily(env: Env) {
   const results = await Promise.allSettled([
     scheduledReconcile(env),
     scheduledPrune(env),
     cleanupExpiredUploads(env),
+    storageDaily(env),
   ]);
   const failed = results.find((r) => r.status === "rejected");
   if (failed) throw failed.reason;

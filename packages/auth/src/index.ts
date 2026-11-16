@@ -17,6 +17,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
 import { resolveSignInEmails, signInEmails } from "./sign-in-emails.ts";
+import { handOverBeforeRemoval, storageHandover } from "./storage-handover.ts";
 import { ensurePersonalSpaceQuietly, personalSpaceHooks } from "./personal-space.ts";
 import { mcpPlugins } from "./mcp.ts";
 import {
@@ -550,6 +551,8 @@ export function createAuth(env: AuthEnv) {
         teams: { enabled: true, defaultTeam: { enabled: false } },
         organizationHooks: {
           ...personalSpaceHooks(env.db),
+          // Their My files stay with the company (ADR 0034).
+          beforeRemoveMember: handOverBeforeRemoval(env.db),
           // The invite step of onboarding, but only once the org has mailboxes: an invitation
           // sent from settings mid-setup must not skip the domain and mailbox steps.
           afterCreateInvitation: async ({ invitation }) => {
@@ -601,6 +604,8 @@ export function createAuth(env: AuthEnv) {
       signInEmails(env.db),
       // A session opened with a company's address stays in that company (ADR 0024).
       sessionScopeGuard(env.db),
+      // A member who leaves or is removed hands their files over first (ADR 0034).
+      storageHandover(env.db),
       // People's own agents over MCP (ADR 0029).
       ...(env.oauthProvider === false
         ? []

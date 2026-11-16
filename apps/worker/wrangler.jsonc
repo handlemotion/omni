@@ -48,6 +48,11 @@
     "BILLING_TRIAL_DAYS": "",
     "BILLING_TRIAGE_ALLOWANCE": "",
     "IMAGE_PROXY_DOH_URL": "https://cloudflare-dns.com/dns-query",
+    // Storage (ADR 0034). Largest file in bytes (empty: 5 GB); the most a Personal space and any
+    // one workspace may store, in GB (empty: no cap).
+    "STORAGE_MAX_FILE_BYTES": "",
+    "STORAGE_PERSONAL_GB": "",
+    "STORAGE_MAX_GB": "",
     // Rate limits as "<count>/<seconds>", or "off". Empty means the default shown. Sign-in steps
     // count per IP; magic links per address; invitations per inviting user; the rest per member.
     "RATE_LIMIT_AUTH": "60/60",
@@ -79,6 +84,13 @@
       "binding": "MAIL_BUCKET",
       "bucket_name": "omni-mail",
       "preview_bucket_name": "omni-mail-dev",
+    },
+    // Storage's files (ADR 0034). Its own bucket: these cannot be rebuilt from the mail host,
+    // so never give it a lifecycle rule that expires objects.
+    {
+      "binding": "STORAGE_BUCKET",
+      "bucket_name": "omni-storage",
+      "preview_bucket_name": "omni-storage-dev",
     },
   ],
   // AI jobs: the Worker produces them on new mail and consumes them itself. Jobs that use up
@@ -114,7 +126,10 @@
   // Every 6 hours: re-checks every verified domain's ownership record; a lost one pauses sending
   // (ADR 0010). Daily: reads every workspace's subscriptions back from Stripe (ADR 0015; nothing
   // with billing off), and deletes accounts that never joined or created a workspace and sat
-  // unused for 30 days. The daily one must match DAILY_CRON in src/index.ts.
+  // unused for 30 days; Storage's Trash older than 30 days is purged, its usage recounted and
+  // deleted workspaces' files swept (ADR 0034). The daily one must match DAILY_CRON in
+  // src/index.ts. Every minute: the helpdesk's clock, and uploads nobody completed in 24 hours
+  // are aborted.
   "triggers": { "crons": ["23 */6 * * *", "47 3 * * *", "* * * * *"] },
   "durable_objects": {
     "bindings": [

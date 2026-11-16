@@ -1,0 +1,253 @@
+// Storage's HTTP API (ADR 0034 decision 6), under `/api/storage` on the Worker: what the web
+// and iOS apps send and get back. The Worker validates requests with these schemas and types
+// its answers with them, so neither side redefines a shape. Dates travel as ISO 8601 strings,
+// sizes as bytes, cursors as opaque strings to pass back unchanged.
+import { z } from "zod";
+
+/** Bytes in every part of an upload but the last (R2 wants them uniform). */
+export const STORAGE_PART_BYTES = 16 * 1024 * 1024;
+/** R2's cap on the parts of one upload. */
+export const STORAGE_MAX_PARTS = 10_000;
+
+/** `personal` is the member's My files; `shared` is the company's shared drive. */
+export const storageSpaceSchema = z.enum(["personal", "shared"]);
+export const storageNodeKindSchema = z.enum(["folder", "file"]);
+/** `member` is someone in the node's space; `editor` and `viewer` come from a grant or a link. */
+export const storageRoleSchema = z.enum(["member", "editor", "viewer"]);
+export const storageGrantRoleSchema = z.enum(["viewer", "editor"]);
+export const storageLinkAccessSchema = z.enum(["restricted", "anyone"]);
+
+/** `code` on an error answer, beside `error` (the sentence). */
+export const storageErrorCodeSchema = z.enum([
+  "NOT_FOUND",
+  "FORBIDDEN",
+  "INVALID_NAME",
+  "NAME_TAKEN",
+  "TOO_DEEP",
+  "CYCLE",
+  "PARENT_TRASHED",
+  "NOT_TRASHED",
+  /** 402: the workspace has no room for the file. */
+  "STORAGE_FULL",
+  /** 402: the workspace is read-only until it has an active plan (ADR 0015). */
+  "BILLING_INACTIVE",
+  /** 413: one file may not be this large (`STORAGE_MAX_FILE_BYTES`). */
+  "FILE_TOO_LARGE",
+  /** The part's number or length is not the one the upload expects. */
+  "INVALID_PART",
+  /** The parts sent so far do not add up to the file. */
+  "UPLOAD_INCOMPLETE",
+  /** The upload already became a file. */
+  "UPLOAD_COMPLETE",
+  "INVALID_EMAIL",
+]);
+
+const isoDate = z.iso.datetime();
+const id = z.string().min(1);
+const name = z.string().min(1).max(255);
+
+export const storageNodeSchema = z.object({
+  id,
+  orgId: id,
+  space: storageSpaceSchema,
+  /** Whose My files it is in; null in Shared. */
+  ownerMemberId: id.nullable(),
+  /** Null at the root of its space. */
+  parentId: id.nullable(),
+  kind: storageNodeKindSchema,
+  name: z.string(),
+  /** 0 for a folder. */
+  size: z.number().int().nonnegative(),
+  mimeType: z.string().nullable(),
+  createdByMemberId: id.nullable(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+  /** Set on the node that was moved to Trash. */
+  trashedAt: isoDate.nullable(),
+});
+
+/** A node as its reader sees it. `path` runs from the highest folder they can open to the node. */
+export const storageNodeViewSchema = z.object({
+  node: storageNodeSchema,
+  role: storageRoleSchema,
+  path: z.array(z.object({ id, name: z.string() })),
+});
+
+const page = {
+  cursor: z.string().min(1).max(2048).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+};
+
+/** Inside a folder (`parentId`) or at the root of a space (`space`): exactly one. */
+const place = { parentId: id.optional(), space: storageSpaceSchema.optional() };
+const onePlace = [
+  (value: { parentId?: string; space?: string }) =>
+    (value.parentId === undefined) !== (value.space === undefined),
+  { message: "give either parentId or space" },
+] as const;
+
+/** `GET /nodes?space=&parent=`: a folder's contents, folders first, then by name. */
+export const storageListQuerySchema = z
+  .object({ space: storageSpaceSchema.optional(), parent: id.optional(), ...page })
+  .refine((query) => (query.parent === undefined) !== (query.space === undefined), {
+    message: "give either parent or space",
+  });
+export const storageListResponseSchema = z.object({
+  /** The folder listed; null at the root of a space. */
+  folder: storageNodeViewSchema.nullable(),
+  nodes: z.array(storageNodeSchema),
+  nextCursor: z.string().nullable(),
+});
+
+/** `POST /folders`. A taken name gets a number. Answers `{ node }`. */
+export const storageCreateFolderBodySchema = z.object({ name, ...place }).refine(...onePlace);
+
+/** `PATCH /nodes/:id`: a new name, or a new place in the same workspace. Answers `{ node }`. */
+export const storageChangeNodeBodySchema = z.union([
+  z.strictObject({ name }),
+  z.strictObject(place).refine(...onePlace),
+]);
+
+/** `DELETE /nodes/:id`: to Trash, or with `forever=1` out of Trash for good. */
+export const storageDeleteQuerySchema = z.object({ forever: z.literal("1").optional() });
+
+export const storageNodeResponseSchema = z.object({ node: storageNodeSchema });
+
+/** `GET /trash`: what the member may restore, newest first. */
+export const storagePageQuerySchema = z.object(page);
+export const storageTrashResponseSchema = z.object({
+  nodes: z.array(storageNodeSchema),
+  nextCursor: z.string().nullable(),
+});
+
+/** `POST /uploads`: opens an upload of `size` bytes. */
+export const storageOpenUploadBodySchema = z
+  .object({
+    name,
+    size: z.number().int().nonnegative(),
+    mimeType: z.string().max(255).nullish(),
+    ...place,
+  })
+  .refine(...onePlace);
+
+/**
+ * An upload in progress. The file goes up as `partCount` parts numbered from 1, each
+ * `partSize` bytes but the last, to `PUT /uploads/:id/parts/:n` (raw bytes, with
+ * `content-length`), in any order and several at once. `parts` are those already stored: after a
+ * dropped connection, `GET /uploads/:id` and send the rest. A part may be sent again.
+ */
+export const storageUploadSchema = z.object({
+  id,
+  name: z.string(),
+  size: z.number().int().nonnegative(),
+  mimeType: z.string().nullable(),
+  space: storageSpaceSchema,
+  parentId: id.nullable(),
+  partSize: z.number().int().positive(),
+  partCount: z.number().int().nonnegative(),
+  parts: z.array(z.object({ partNumber: z.number().int().positive(), size: z.number().int() })),
+  expiresAt: isoDate,
+  /** The file it became, once completed. */
+  nodeId: id.nullable(),
+});
+export const storageUploadResponseSchema = z.object({ upload: storageUploadSchema });
+
+/** `GET /usage`. */
+export const storageUsageSchema = z.object({
+  /** Bytes stored, files in Trash included. */
+  usedBytes: z.number().int().nonnegative(),
+  /** Declared bytes of uploads in progress; they count against the limit too. */
+  reservedBytes: z.number().int().nonnegative(),
+  /** Bytes the plan includes before extra storage is billed; null when there is no plan. */
+  allowanceBytes: z.number().nonnegative().nullable(),
+  /** Bytes nothing passes; null when there is no cap. */
+  limitBytes: z.number().nonnegative().nullable(),
+  /** Why an upload would be refused now, or null when it would not. */
+  uploadsBlocked: z.enum(["STORAGE_FULL", "BILLING_INACTIVE"]).nullable(),
+});
+
+// --- Sharing (ADR 0034 decision 4) ---
+
+export const storagePersonSchema = z.object({
+  email: z.string(),
+  role: storageGrantRoleSchema,
+  createdAt: isoDate,
+});
+
+/** `GET /nodes/:id/sharing`, and the answer to every change to it. */
+export const storageSharingSchema = z.object({
+  nodeId: id,
+  /** Null until the node is first shared. The link is `/s/<shareId>` in both modes. */
+  shareId: z.string().nullable(),
+  linkAccess: storageLinkAccessSchema,
+  people: z.array(storagePersonSchema),
+  /** People who reach the node through a folder above it. */
+  inherited: z.array(storagePersonSchema.extend({ nodeId: id, nodeName: z.string() })),
+});
+export const storageSharingResponseSchema = z.object({ sharing: storageSharingSchema });
+
+/** `PUT /nodes/:id/sharing/link`: set general access, or `reset` for a new link. */
+export const storageSetLinkBodySchema = z.union([
+  z.strictObject({ linkAccess: storageLinkAccessSchema }),
+  z.strictObject({ reset: z.literal(true) }),
+]);
+
+/** `PUT /nodes/:id/sharing/people/:email`: add the person, or change their role. */
+export const storagePutPersonBodySchema = z.object({ role: storageGrantRoleSchema });
+
+/** `GET /shared-with-me`: what was shared with the signed-in person, newest first. */
+export const storageSharedWithMeItemSchema = z.object({
+  node: storageNodeSchema,
+  role: storageGrantRoleSchema,
+  /** The node's link: `/s/<shareId>` opens it. */
+  shareId: z.string().nullable(),
+  /** The workspace it lives in. */
+  orgName: z.string(),
+  sharedAt: isoDate,
+});
+export const storageSharedWithMeResponseSchema = z.object({
+  items: z.array(storageSharedWithMeItemSchema),
+  nextCursor: z.string().nullable(),
+});
+
+/** `GET /shared/:shareId?node=`: the shared node, or a folder inside it. */
+export const storageSharedQuerySchema = z.object({ node: id.optional(), ...page });
+export const storageSharedResponseSchema = z.object({
+  /** The node opened: the shared one, or `node` inside it. */
+  item: storageNodeViewSchema,
+  /** Its contents when it is a folder; empty for a file. */
+  nodes: z.array(storageNodeSchema),
+  nextCursor: z.string().nullable(),
+});
+
+export type StorageSpace = z.infer<typeof storageSpaceSchema>;
+export type StorageNodeKind = z.infer<typeof storageNodeKindSchema>;
+export type StorageRole = z.infer<typeof storageRoleSchema>;
+export type StorageGrantRole = z.infer<typeof storageGrantRoleSchema>;
+export type StorageLinkAccess = z.infer<typeof storageLinkAccessSchema>;
+export type StorageErrorCode = z.infer<typeof storageErrorCodeSchema>;
+export type StorageNode = z.infer<typeof storageNodeSchema>;
+export type StorageNodeView = z.infer<typeof storageNodeViewSchema>;
+export type StorageListResponse = z.infer<typeof storageListResponseSchema>;
+export type StorageNodeResponse = z.infer<typeof storageNodeResponseSchema>;
+export type StorageTrashResponse = z.infer<typeof storageTrashResponseSchema>;
+export type StorageCreateFolderBody = z.infer<typeof storageCreateFolderBodySchema>;
+export type StorageChangeNodeBody = z.infer<typeof storageChangeNodeBodySchema>;
+export type StorageOpenUploadBody = z.infer<typeof storageOpenUploadBodySchema>;
+export type StorageUpload = z.infer<typeof storageUploadSchema>;
+export type StorageUploadResponse = z.infer<typeof storageUploadResponseSchema>;
+export type StorageUsage = z.infer<typeof storageUsageSchema>;
+export type StoragePerson = z.infer<typeof storagePersonSchema>;
+export type StorageSharing = z.infer<typeof storageSharingSchema>;
+export type StorageSharingResponse = z.infer<typeof storageSharingResponseSchema>;
+export type StorageSetLinkBody = z.infer<typeof storageSetLinkBodySchema>;
+export type StoragePutPersonBody = z.infer<typeof storagePutPersonBodySchema>;
+export type StorageSharedWithMeItem = z.infer<typeof storageSharedWithMeItemSchema>;
+export type StorageSharedWithMeResponse = z.infer<typeof storageSharedWithMeResponseSchema>;
+export type StorageSharedResponse = z.infer<typeof storageSharedResponseSchema>;
+/** Every error answer: the sentence, and a code where the client acts on it. */
+export interface StorageError {
+  error: string;
+  code?: StorageErrorCode;
+  requestId?: string;
+}

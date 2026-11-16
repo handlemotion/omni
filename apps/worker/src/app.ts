@@ -40,6 +40,7 @@ import { workspaceInboxes } from "./routes/workspace-inboxes.ts";
 import { workspaceInvitations } from "./routes/workspace-invitations.ts";
 import { onboarding } from "./routes/onboarding.ts";
 import { account as accountPicture, pictures, workspaceLogo } from "./routes/pictures.ts";
+import { storage } from "./routes/storage.ts";
 import { workspaces } from "./routes/workspaces.ts";
 import { join } from "./routes/join.ts";
 import { mcp } from "./routes/mcp.ts";
@@ -140,7 +141,8 @@ const api = new Hono<AppEnv>()
   .route("/workspace", workspaceLogo)
   .route("/", assets)
   .route("/", billing)
-  .route("/", billingCards);
+  .route("/", billingCards)
+  .route("/storage", storage);
 
 /** A resend, from the old web app, of an invitation already pending in the session's workspace. */
 async function isPendingResend(c: Context<AppEnv>) {

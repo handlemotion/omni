@@ -294,6 +294,7 @@ Bindings:
 | -------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `HYPERDRIVE`                                 | Hyperdrive              | `wrangler hyperdrive create omni --connection-string=postgres://... --origin-connection-limit=<n>` (see "Connection budget" below), then put the id in `wrangler.jsonc`. Locally, `localConnectionString` is the stack's Postgres.                                                                                   |
 | `MAIL_BUCKET`                                | R2                      | The bucket the mail service writes raw mail and attachments to (`wrangler r2 bucket create <name>`). The Worker reads attachments from it and stores profile pictures and workspace logos under `pictures/`.                                                                                                         |
+| `STORAGE_BUCKET`                             | R2                      | The bucket Storage keeps people's files in (ADR 0034): `wrangler r2 bucket create omni-storage`, or your own name in `wrangler.jsonc`. Separate from `MAIL_BUCKET` because these files cannot be rebuilt from the mail host: back it up, and never give it a lifecycle rule that expires objects.                    |
 | `AI_QUEUE`                                   | Queue                   | `wrangler queues create omni-ai` and `wrangler queues create omni-ai-dlq`; the Worker produces and consumes both. Failed jobs land in the DLQ after `max_retries`, and the Worker's DLQ consumer records them in `dead_letters` (see [Observability](#observability)). A DLQ is the source queue's name plus `-dlq`. |
 | `REPLAY_GUARD`                               | Durable Object (SQLite) | Created by the `migrations` block on first deploy. Remembers nonces of signed mail-service calls.                                                                                                                                                                                                                    |
 | `REALTIME`                                   | Durable Object (SQLite) | Same migration. One per org; holds each open app's hibernatable websocket (`GET /api/realtime`).                                                                                                                                                                                                                     |
@@ -337,6 +338,9 @@ to `.dev.vars`.
 | `DOMAIN_CONNECT_KEY_HOST`    | var    | no       | TXT host of the public key, for templates that require signed requests.                                                                                                         |
 | `DOMAIN_CONNECT_PRIVATE_KEY` | secret | no       | PKCS#8 PEM key that signs Domain Connect apply URLs.                                                                                                                            |
 | `IMAGE_PROXY_DOH_URL`        | var    | no       | DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse hosts that point at private addresses. Default Cloudflare's.                                                      |
+| `STORAGE_MAX_FILE_BYTES`     | var    | no       | Largest file Storage accepts, in bytes. Default 5 GB (`5368709120`).                                                                                                            |
+| `STORAGE_PERSONAL_GB`        | var    | no       | Most a Personal space may store, in GB (1024³ bytes; decimals allowed). Past it uploads answer `402 STORAGE_FULL`. Empty: no cap.                                               |
+| `STORAGE_MAX_GB`             | var    | no       | Ceiling on what any one workspace may store, in GB. Empty: none.                                                                                                                |
 | `ENVIRONMENT`                | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`. |
 
 | `RATE_LIMIT_*` | var | no | Rate limits, `<count>/<seconds>` or `off`. See [Rate limits](#rate-limits). |
@@ -345,7 +349,10 @@ to `.dev.vars`.
 The `triggers.crons` entry in `wrangler.jsonc` runs the domain re-check (ADR 0010) every six hours,
 and once a day the billing reconcile (ADR 0015) and a sweep that deletes accounts which never
 joined or created a workspace and have not signed in for 30 days (an invitation sent later lets
-them sign up again). It needs no setup beyond the deploy.
+them sign up again). For Storage (ADR 0034) the daily run also deletes what has been in Trash for
+30 days, recounts each workspace's usage, and removes deleted workspaces' files from
+`STORAGE_BUCKET`; the every-minute run, beside the helpdesk's clock, aborts uploads nobody
+completed in 24 hours. It needs no setup beyond the deploy.
 
 Magic links, invitations and domain notices are sent with Cloudflare Email Sending (the Worker's
 `EMAIL` binding, ADR 0020) from `SYSTEM_MAIL_FROM`, under `APP_NAME`. No mailbox is needed. Onboard

@@ -2,6 +2,9 @@
 // `signRequest` / `verifyRequest` from `@omni/crypto` over the exact path and body below.
 import { z } from "zod";
 
+// The Worker's Storage API as its clients see it (ADR 0034).
+export * from "./storage.ts";
+
 /** Worker → mail service: "the outbox or the mailbox list changed". Empty body. 202 or 401. */
 export const MAIL_PING_PATH = "/ping";
 

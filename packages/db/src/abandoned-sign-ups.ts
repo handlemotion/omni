@@ -9,6 +9,7 @@ import { isCompany } from "./personal-space.ts";
 import { invitations, members, organizations, sessions, users } from "./schema/auth.ts";
 import { mailboxes } from "./schema/mail.ts";
 import { personalSpaces, userEmails } from "./schema/identity.ts";
+import { storageNodes } from "./schema/storage.ts";
 
 /** How long an account with no workspace may sit unused before it is deleted. */
 export const ABANDONED_SIGN_UP_DAYS = 30;
@@ -20,10 +21,11 @@ export const ABANDONED_SIGN_UP_BATCH = 500;
  * Deletes accounts that have no workspace and nothing that would give them one, created and last
  * signed in to before `idleSince`, oldest first, at most `limit`. Answers what it deleted.
  *
- * Kept: anyone with a membership; anyone with a live invitation to their primary or any extra
- * sign-in email (they may still accept it); anyone who ever invited someone (they were a member,
- * and deleting them would cascade to those invitations); anyone with a session used since
- * `idleSince`. Safe to run twice and from two places at once: a row another run holds is skipped.
+ * Kept: anyone in a company, or whose Personal space holds a mailbox or a file; anyone with a
+ * live invitation to their primary or any extra sign-in email (they may still accept it); anyone
+ * who ever invited someone (they were a member, and deleting them would cascade to those
+ * invitations); anyone with a session used since `idleSince`. Safe to run twice and from two
+ * places at once: a row another run holds is skipped.
  */
 export async function deleteAbandonedSignUps(
   db: Db,
@@ -36,7 +38,8 @@ export async function deleteAbandonedSignUps(
     .where(
       and(
         lt(users.createdAt, idleSince),
-        // A Personal space (ADR 0024) alone is not a workspace until it holds a mailbox.
+        // A Personal space (ADR 0024) alone is not a workspace until it holds a mailbox or a
+        // file (ADR 0034): storage rows are the truth, so an idle account never loses them.
         notExists(
           db
             .select({ one: sql`1` })
@@ -47,6 +50,7 @@ export async function deleteAbandonedSignUps(
                 or(
                   isCompany(db, members.organizationId),
                   sql`exists (select 1 from ${mailboxes} mb where mb.org_id = ${members.organizationId})`,
+                  sql`exists (select 1 from ${storageNodes} sn where sn.org_id = ${members.organizationId})`,
                 ),
               ),
             ),

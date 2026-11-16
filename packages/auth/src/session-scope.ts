@@ -1,5 +1,6 @@
 // A login opens only the workspace it belongs to (ADR 0024 decision 3). Better Auth does not tell
-// a session hook which address signed in, so each auth request runs in a small per-request store:
+// a session hook which address signed in, so each auth request runs in a small per-request store
+// (which also carries who is acting, for organization hooks that are not told):
 // the magic-link verify and the Google profile note the address there, and the session hooks read
 // it to scope a session opened with a company's address to that company. Passkeys note nothing,
 // so their sessions are unscoped.
@@ -14,6 +15,8 @@ interface SignIn {
   address?: string;
   /** The company that address belongs to, once the session hook has looked. */
   scopeOrgId?: string | null;
+  /** The signed-in user this request acts as, for hooks Better Auth hands no session. */
+  actorUserId?: string;
 }
 
 const signIns = new AsyncLocalStorage<SignIn>();
@@ -44,6 +47,17 @@ export async function newSessionScope(db: Db): Promise<string | null> {
 export async function recordSessionScope(db: Db, sessionId: string) {
   const orgId = signIns.getStore()?.scopeOrgId;
   if (orgId) await scopeSession(db, sessionId, orgId);
+}
+
+/** Notes who the current auth request acts as. Outside a request, nothing. */
+export function noteRequestActor(userId: string) {
+  const store = signIns.getStore();
+  if (store) store.actorUserId = userId;
+}
+
+/** Who the current auth request acts as, when a hook noted it. */
+export function requestActor() {
+  return signIns.getStore()?.actorUserId;
 }
 
 function refuse(message: string): never {

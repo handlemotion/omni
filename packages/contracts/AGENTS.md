@@ -7,3 +7,5 @@ Extends the root `AGENTS.md`.
 - Zod only, no I/O, runs on Node and workerd.
 - Changes are additive while both sides deploy separately: new optional fields or new event
   types. A receiver ignores event types it does not know.
+- `src/storage.ts` is the exception to the first rule: Storage's client API (ADR 0034), what the
+  Worker answers the web and iOS apps under `/api/storage`. Same rules: zod only, additive.

@@ -24,6 +24,8 @@ const optionalText = z
   .optional()
   .transform((value) => value || undefined);
 
+const optionalGb = z.coerce.number<string | undefined>().positive().optional();
+
 /** `<count>/<seconds>`, e.g. `5/900` for five per 15 minutes; `off` disables the rule. */
 function rateLimit(fallback: string) {
   return z
@@ -95,6 +97,18 @@ const configSchema = z
         .positive()
         .default(25 * 1024 * 1024),
     ),
+    /** Largest file Storage accepts, in bytes (ADR 0034). 5 GB by default. */
+    STORAGE_MAX_FILE_BYTES: optionalText.pipe(
+      z.coerce
+        .number<string | undefined>()
+        .int()
+        .positive()
+        .default(5 * 1024 ** 3),
+    ),
+    /** Most a Personal space may store, in GB (1024³ bytes). Empty: no cap. */
+    STORAGE_PERSONAL_GB: optionalText.pipe(optionalGb),
+    /** Ceiling on what any one workspace may store, in GB. Empty: none. */
+    STORAGE_MAX_GB: optionalText.pipe(optionalGb),
     /** Optional: required only if the Expo project enforces push security. */
     EXPO_ACCESS_TOKEN: optionalText,
     // Rate limits (see rate-limiter.ts). Defaults leave room for real use; tighten per deploy.

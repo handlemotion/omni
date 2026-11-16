@@ -64,7 +64,13 @@ export type {
   StoragePerson,
   StorageSharing,
 } from "./storage/sharing.ts";
-export { purgeStorageTrash, recomputeStorageUsage, storageUsageOf } from "./storage/maintenance.ts";
+export { handOverMemberStorage, type StorageHandOverResult } from "./storage/handover.ts";
+export {
+  deletedStorageWorkspaces,
+  purgeStorageTrash,
+  recomputeStorageUsage,
+  storageUsageOf,
+} from "./storage/maintenance.ts";
 export type { StorageUploadPart } from "./schema/storage.ts";
 
 /**
