@@ -16,7 +16,7 @@ export type FileKind =
   | "other";
 
 /** How a file previews; `none` shows its type and Download. */
-export type PreviewKind = "image" | "video" | "audio" | "pdf" | "text" | "csv" | "none";
+export type PreviewKind = "image" | "video" | "audio" | "pdf" | "text" | "csv" | "sheet" | "none";
 
 /** Rasters a `Blob` may be re-typed as for `<img>`. Never SVG: it is a document (ADR 0040). */
 const RASTER: Record<string, string> = {
@@ -37,6 +37,8 @@ const DOCUMENT = new Set(["doc", "docx", "pages", "odt", "rtf"]);
 const PRESENTATION = new Set(["ppt", "pptx", "key", "odp"]);
 const PLAIN = new Set(["txt", "log", "text", "env"]);
 const CSV = new Set(["csv", "tsv"]);
+/** XLSX alone previews (ADR 0043 decision 7); XLS, Numbers and ODS stay download-only. */
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 /** Code extensions and the Shiki grammar each one reads with. */
 const CODE: Record<string, string> = {
@@ -120,6 +122,7 @@ const RULES: {
   { kind: "csv", preview: "csv", matches: (e, m) => CSV.has(e) || m === "text/csv" },
   { kind: "code", preview: "text", matches: (e) => e in CODE },
   { kind: "text", preview: "text", matches: (e, m) => PLAIN.has(e) || m.startsWith("text/") },
+  { kind: "spreadsheet", preview: "sheet", matches: (e, m) => e === "xlsx" || m === XLSX_MIME },
   { kind: "archive", preview: "none", matches: (e) => ARCHIVE.has(e) },
   { kind: "spreadsheet", preview: "none", matches: (e) => SPREADSHEET.has(e) },
   { kind: "document", preview: "none", matches: (e) => DOCUMENT.has(e) },
@@ -144,5 +147,7 @@ export function fileType(name: string, mimeType: string | null): FileType {
 export const IMAGE_PREVIEW_MAX_BYTES = 40 * 1024 * 1024;
 /** Text and CSV previews read this much of the file's start. */
 export const TEXT_PREVIEW_BYTES = 512 * 1024;
+/** XLSX is a zip read whole to preview; over this, its tile and Download stand in. */
+export const SHEET_PREVIEW_MAX_BYTES = 20 * 1024 * 1024;
 /** Grid thumbnails come from originals up to this size. */
 export const THUMBNAIL_MAX_BYTES = 20 * 1024 * 1024;

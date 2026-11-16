@@ -71,6 +71,69 @@ export const previewImageQuery = (source: PreviewSource, raster: string) =>
     ...KEEP,
   });
 
+/** What the XLSX worker is sent: the whole file, and how much of each sheet to return. */
+export interface SheetsRequest {
+  buffer: ArrayBuffer;
+  rows: number;
+  columns: number;
+}
+
+export interface PreviewSheet {
+  name: string;
+  /** The cells' displayed text, row by row, the first row first. */
+  rows: string[][];
+  /** The sheet has more rows than were read. */
+  partial: boolean;
+}
+
+export type SheetsResult = { sheets: PreviewSheet[] } | { error: true };
+
+/** Rows and columns read from each sheet: a preview, not a spreadsheet. */
+const SHEET_ROWS = 500;
+const SHEET_COLUMNS = 100;
+/** A workbook that takes longer than this to read (a zip bomb, a huge sheet) shows no preview. */
+const SHEET_TIMEOUT = 20_000;
+
+/** Parses off the main thread, in a worker of our own origin; ended when done or abandoned. */
+function readSheets(buffer: ArrayBuffer, signal: AbortSignal) {
+  return new Promise<PreviewSheet[]>((done, fail) => {
+    const worker = new Worker(new URL("./xlsx-worker.ts", import.meta.url), { type: "module" });
+    const end = (error?: Error, sheets?: PreviewSheet[]) => {
+      worker.terminate();
+      clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+      if (sheets) done(sheets);
+      else fail(error);
+    };
+    const abort = () => end(new DOMException("Aborted", "AbortError"));
+    const timer = setTimeout(
+      () => end(new Error("The workbook took too long to read")),
+      SHEET_TIMEOUT,
+    );
+    signal.addEventListener("abort", abort);
+    worker.addEventListener("message", (event: MessageEvent<SheetsResult>) =>
+      "sheets" in event.data
+        ? end(undefined, event.data.sheets)
+        : end(new Error("Not a workbook we can read")),
+    );
+    worker.addEventListener("error", () => end(new Error("The workbook reader failed")));
+    const request: SheetsRequest = { buffer, rows: SHEET_ROWS, columns: SHEET_COLUMNS };
+    worker.postMessage(request, [buffer]);
+  });
+}
+
+/** An XLSX's visible sheets, each its first rows as text. The whole file is read: it is a zip. */
+export const previewSheetsQuery = (source: PreviewSource) =>
+  queryOptions({
+    queryKey: keys.storagePreview("sheets", source.url, source.version),
+    queryFn: async ({ signal }) => {
+      const buffer = await (await bytes(source.url, signal)).arrayBuffer();
+      return readSheets(buffer, signal);
+    },
+    ...KEEP,
+    retry: false,
+  });
+
 /** The grid's tiles are at most ~300px wide; this covers them on a 2x screen. */
 const THUMBNAIL_WIDTH = 640;
 /** Originals fetched at once for thumbnails, so a folder of photos doesn't flood the Worker. */

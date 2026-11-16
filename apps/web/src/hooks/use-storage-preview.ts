@@ -1,7 +1,8 @@
-// A file's preview (ADR 0040): its text, its image, its grid thumbnail.
+// A file's preview (ADR 0040): its text, its sheets, its image, its grid thumbnail.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   previewImageQuery,
+  previewSheetsQuery,
   previewTextQuery,
   revokePreviewUrls,
   thumbnailQuery,
@@ -12,6 +13,11 @@ import {
 export function useFileText(source: PreviewSource) {
   revokePreviewUrls(useQueryClient());
   return useQuery(previewTextQuery(source));
+}
+
+/** An XLSX's visible sheets, each as rows of text cells. */
+export function useFileSheets(source: PreviewSource) {
+  return useQuery(previewSheetsQuery(source));
 }
 
 /** The whole image, re-typed as `raster`, as an object URL. */
