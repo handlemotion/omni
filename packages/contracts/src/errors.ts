@@ -99,6 +99,17 @@ export const ERROR_CODES = {
   upload_complete: spec(409, "conflict"),
   /** A guarded write (`ifRevision`, `ifContentVersion`) read a node that has changed since. */
   version_conflict: spec(409, "conflict"),
+  /** Only a PDF is sent for signature (ADR 0043 decision 6). */
+  not_a_pdf: spec(415, "validation"),
+  /** The file is already out for signature: void that request before sending it again. */
+  signature_open: spec(409, "conflict"),
+  /** The request was completed or voided: nothing more is signed or voided on it. */
+  signature_closed: spec(409, "conflict"),
+  already_signed: spec(409, "conflict"),
+  /** The one-time code is wrong, used up or expired: ask for a new one. */
+  invalid_code: spec(400, "validation"),
+  /** The consent sentence changed since the signer read it: show it again. */
+  consent_changed: spec(409, "conflict"),
   /** A sync cursor older than tombstone retention: enumerate the drive again from the start. */
   cursor_expired: spec(410, "not_found"),
   // CRM (ADR 0036).

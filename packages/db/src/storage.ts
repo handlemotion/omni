@@ -13,6 +13,8 @@ import { storagePeakOf } from "./storage/billing.ts";
 import { lockOperations } from "./storage/lock.ts";
 import { storageUsageOf } from "./storage/maintenance.ts";
 import { listSharedWith, sharingOperations, type SharedWithMeCursor } from "./storage/sharing.ts";
+import { signerOperations } from "./storage/signer.ts";
+import { signingOperations } from "./storage/signing.ts";
 import { listChanges, listSyncWorkspaces, type StorageSyncCursor } from "./storage/sync.ts";
 import { trashOperations } from "./storage/trash.ts";
 import { treeOperations } from "./storage/tree.ts";
@@ -88,6 +90,24 @@ export type {
   StoragePerson,
   StorageSharing,
 } from "./storage/sharing.ts";
+export {
+  STORAGE_MAX_SIGNERS,
+  STORAGE_PDF_MIME,
+  type SendForSignatureResult,
+  type SignatureRequestResult,
+  type StorageSignatureEvent,
+  type StorageSignatureEventKind,
+  type StorageSignatureRequest,
+  type StorageSignatureStatus,
+  type StorageSigner,
+  type StorageSigningOrigin,
+} from "./storage/signing.ts";
+export {
+  STORAGE_SIGNING_CODE_TTL_MS,
+  type SignResult,
+  type SigningCodeResult,
+  type StorageSigningItem,
+} from "./storage/signer.ts";
 export { handOverMemberStorage, type StorageHandOverResult } from "./storage/handover.ts";
 export {
   deletedStorageWorkspaces,
@@ -111,8 +131,8 @@ export type { StorageUploadPart } from "./schema/storage.ts";
 
 /**
  * The member door. Everything a member does in their workspace's Storage: browse and change
- * their own My files and (in a company) Shared, upload, trash and restore, share, and lock. No
- * function here reaches another member's My files, whatever the caller's role.
+ * their own My files and (in a company) Shared, upload, trash and restore, share, lock, and send
+ * for signature. No function here reaches another member's My files, whatever the caller's role.
  */
 export function memberStorage(db: Db, memberId: string) {
   // `db` may be a transaction: its operations then run inside it, as savepoints.
@@ -124,6 +144,7 @@ export function memberStorage(db: Db, memberId: string) {
     ...trashOperations(db, door, memberId),
     ...sharingOperations(db, door),
     ...lockOperations(db, door, memberId),
+    ...signingOperations(db, door, memberId),
     /**
      * A drive's change feed for a sync client (ADR 0043): the member's My files, or their
      * company's Shared. `not_found` when the member is gone or the workspace has no such drive.
@@ -168,6 +189,8 @@ export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) 
   };
   return {
     ...through(),
+    /** Signing as an address the person verified (ADR 0043 decision 6); no grant needed. */
+    ...signerOperations(db, userId, scopeOrgId),
     /**
      * The same, reaching only the node that carries the link `/s/<shareId>` and what is inside
      * it. Everything it reaches is in that node's workspace.

@@ -47,6 +47,7 @@ import { onboarding } from "./routes/onboarding.ts";
 import { account as accountPicture, pictures, workspaceLogo } from "./routes/pictures.ts";
 import { storage } from "./storage/routes.ts";
 import { storageShared } from "./storage/shared.ts";
+import { storageSigning } from "./storage/signing.ts";
 import { storageSync } from "./storage/sync.ts";
 import { workspaces } from "./routes/workspaces.ts";
 import { join } from "./routes/join.ts";
@@ -221,6 +222,8 @@ export const app = new Hono<AppEnv>()
   .route("/api/pictures", pictures)
   // Storage's link door (ADR 0034): a session is optional, so it sits ahead of the member API.
   .route("/api/storage/shared", storageShared)
+  // A signer is anyone signed in, member of the sender's workspace or not (ADR 0043 decision 6).
+  .route("/api/storage/signing", storageSigning)
   // Desktop sync (ADR 0043): a bearer token, not a session, so it too sits ahead of the member API.
   .route("/api/storage/sync", storageSync)
   // Google's return to a Gmail connect the desktop app opened in the browser: on to the app.

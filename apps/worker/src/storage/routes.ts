@@ -31,6 +31,7 @@ import {
   wireView,
 } from "./http.ts";
 import { storageSharing } from "./sharing.ts";
+import { storageSigningMember } from "./signing.ts";
 
 const trashCursor = z.object({ trashedAt: z.coerce.date(), id: z.string().min(1) });
 
@@ -115,4 +116,5 @@ export const storage = new Hono<AppEnv>()
   })
 
   .route("/", storageSharing)
+  .route("/", storageSigningMember)
   .route("/", storageChanges);
