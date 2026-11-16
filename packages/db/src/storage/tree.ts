@@ -137,6 +137,7 @@ async function moveInto(tx: Db, door: Door, nodeId: string, to: StoragePlace): P
   // Taking a node out of Shared is trashing it for everyone else, and a grant never reaches
   // past the drive it was made in.
   if (crossing && (door.kind !== "member" || !found.access.remove)) return FORBIDDEN;
+  if (crossing && !(await door.removesWhole(tx, node))) return FORBIDDEN;
   if (node.parentId === dest.parentId && !crossing) return { status: "ok", node: toNode(node) };
   if (
     node.kind === "folder" &&
@@ -257,7 +258,7 @@ export function treeOperations(db: Db, door: Door) {
       if (!found) return NOT_FOUND;
       if (found.node.trashedAt) return { status: "ok", node: toNode(found.node) };
       if (inTrash(found.chain)) return NOT_FOUND;
-      if (!found.access.remove) return FORBIDDEN;
+      if (!found.access.remove || !(await door.removesWhole(db, found.node))) return FORBIDDEN;
       const [row] = await db
         .update(storageNodes)
         .set({ trashedAt: new Date() })

@@ -1,7 +1,7 @@
 // A company keeps its files when someone leaves (ADR 0034 decision 1). `storage_nodes` has no
 // cascade from its owner, so before Better Auth deletes a member row their My files move to
 // whoever removed them, or to the workspace's owner when they left by themselves.
-import { handOverMemberStorage, schema, type Db } from "@omni/db";
+import { deleteWorkspaceStorage, handOverMemberStorage, schema, type Db } from "@omni/db";
 import type { BetterAuthPlugin } from "better-auth";
 import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { and, eq } from "drizzle-orm";
@@ -30,6 +30,16 @@ export function handOverBeforeRemoval(db: Db) {
       toMemberId: actor ? await memberOf(db, actor, member.organizationId) : null,
     });
   };
+}
+
+/**
+ * `organizationHooks.beforeDeleteOrganization`: runs once Better Auth has decided the workspace
+ * may be deleted, and before it deletes the members, who cannot go while they own files. There
+ * is nobody to hand them to: the files go with the workspace.
+ */
+export function deleteStorageBeforeWorkspace(db: Db) {
+  return ({ organization }: { organization: { id: string } }) =>
+    deleteWorkspaceStorage(db, organization.id);
 }
 
 /**

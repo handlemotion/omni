@@ -11,6 +11,8 @@ import { CookieJar, signIn } from "./support.ts";
 
 /** A Personal space may hold 2 MiB here. */
 const PERSONAL_BYTES = 2 * MIB;
+/** No workspace may hold more than 3 MiB here; a Personal space keeps the lower of the two. */
+const WORKSPACE_BYTES = 3 * MIB;
 
 let stack: StorageStack;
 beforeAll(async () => {
@@ -19,6 +21,7 @@ beforeAll(async () => {
       STRIPE_PRICE_MONTHLY: MONTHLY_PRICE,
       BILLING_TRIAGE_ALLOWANCE: "500",
       STORAGE_PERSONAL_GB: String(PERSONAL_BYTES / 1024 ** 3),
+      STORAGE_MAX_GB: String(WORKSPACE_BYTES / 1024 ** 3),
       STORAGE_MAX_FILE_BYTES: String(3 * MIB),
     },
     secrets: BILLING_SECRETS,
@@ -148,4 +151,104 @@ test("a read-only workspace still lists and downloads, and every change answers 
   expect(names((await stack.api(ana.jar, "GET", "/nodes?space=shared")).body)).toEqual([
     "report.pdf",
   ]);
+});
+
+/** Someone in no company, signed in: their Personal space is the active workspace. */
+async function soloPerson() {
+  const email = `solo-${crypto.randomUUID().slice(0, 8)}@personal.test`;
+  const jar = new CookieJar();
+  await signIn(stack.worker, stack.db, email, jar);
+  const [space] = await stack.db
+    .select({ orgId: schema.personalSpaces.orgId })
+    .from(schema.personalSpaces)
+    .innerJoin(schema.users, eq(schema.users.id, schema.personalSpaces.userId))
+    .where(eq(schema.users.email, email));
+  return { jar, orgId: space!.orgId };
+}
+
+// Catches: `STORAGE_MAX_GB` ignored for a company (only the Personal cap was ever exercised),
+// so the ceiling meant to stop a runaway script stops nothing.
+test("STORAGE_MAX_GB caps a company, which the Personal cap does not touch", async () => {
+  const org = await stack.company("capped");
+  const ana = await stack.member(org.id, "owner");
+  await stack.db.insert(schema.subscriptions).values({
+    id: crypto.randomUUID(),
+    plan: "omni",
+    orgId: org.id,
+    status: "trialing",
+    periodStart: new Date(),
+    periodEnd: new Date(Date.now() + 86_400_000),
+  });
+  const open = (name: string, size: number) =>
+    stack.api(ana.jar, "POST", "/uploads", { name, size, space: "shared" });
+
+  // Past what a Personal space may hold, and within the ceiling.
+  await stack.upload(ana.jar, { space: "shared" }, "big.bin", randomBytes(PERSONAL_BYTES + 10));
+  expect((await stack.api(ana.jar, "GET", "/usage")).body).toMatchObject({
+    usedBytes: PERSONAL_BYTES + 10,
+    limitBytes: WORKSPACE_BYTES,
+    uploadsBlocked: null,
+  });
+  expect(await open("over.bin", MIB - 9)).toMatchObject({
+    status: 402,
+    body: { code: "STORAGE_FULL" },
+  });
+  expect((await open("fits.bin", MIB - 10)).status).toBe(201);
+});
+
+// Catches: bytes left in the bucket by an upload that never became a file. `complete` stitches
+// the object before the row is written; when the row is then refused (the room went to
+// something else, the folder went to Trash), the object must go too, with no file and no usage.
+test("a complete refused after its object was stitched leaves no object, no file and no usage", async () => {
+  const { jar, orgId } = await soloPerson();
+  const bucket = await stack.bucket();
+  const stitched = async (place: object) => {
+    const opened = await stack.api(jar, "POST", "/uploads", { name: "x.bin", size: 100, ...place });
+    expect(opened.status).toBe(201);
+    const id = opened.body.upload.id as string;
+    expect((await stack.putPart(jar, id, 1, randomBytes(100))).status).toBe(200);
+    return id;
+  };
+  const nothingStored = async () => {
+    expect((await bucket.list({ prefix: `orgs/${orgId}/` })).objects).toEqual([]);
+    expect(
+      await stack.db
+        .select()
+        .from(schema.storageUploads)
+        .where(eq(schema.storageUploads.orgId, orgId)),
+    ).toEqual([]);
+    expect(
+      (
+        await stack.db
+          .select()
+          .from(schema.storageNodes)
+          .where(eq(schema.storageNodes.orgId, orgId))
+      ).filter((node) => node.kind === "file"),
+    ).toEqual([]);
+  };
+
+  // The room it was promised is gone by the time it completes.
+  const full = await stitched({ space: "personal" });
+  await stack.db
+    .update(schema.storageUsage)
+    .set({ bytes: PERSONAL_BYTES })
+    .where(eq(schema.storageUsage.orgId, orgId));
+  expect(await stack.api(jar, "POST", `/uploads/${full}/complete`)).toMatchObject({
+    status: 402,
+    body: { code: "STORAGE_FULL" },
+  });
+  await nothingStored();
+  expect(await stack.usedBytes(orgId)).toBe(PERSONAL_BYTES);
+  await stack.db
+    .update(schema.storageUsage)
+    .set({ bytes: 0 })
+    .where(eq(schema.storageUsage.orgId, orgId));
+
+  // The folder it was going into is in Trash by the time it completes.
+  const folder = await stack.api(jar, "POST", "/folders", { name: "Gone", space: "personal" });
+  const orphan = await stitched({ parentId: folder.body.node.id });
+  expect((await stack.api(jar, "DELETE", `/nodes/${folder.body.node.id}`)).status).toBe(200);
+  expect((await stack.api(jar, "POST", `/uploads/${orphan}/complete`)).status).toBe(404);
+  await nothingStored();
+  expect(await stack.usedBytes(orgId)).toBe(0);
 });

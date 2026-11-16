@@ -21,10 +21,14 @@ const PURGE_BATCHES = 20;
 const SWEEP_PREFIX_PAGES = 10;
 const SWEEP_DELETE_BATCHES = 20;
 const ORG_PREFIX = "orgs/";
+/** A page with this many workspaces, most of them unknown to the database, stops the sweep. */
+const SWEEP_GUARD_PREFIXES = 20;
 
 /**
  * The every-minute job: uploads nobody completed in 24 hours are aborted in the bucket, then
- * their rows removed, which gives back the room they held.
+ * their rows removed, which gives back the room they held. The parts may already have been
+ * stitched into the object by a `complete` that never wrote the file's row: once the row is gone
+ * as an upload nobody completed, no file owns that key, and the object goes too.
  */
 export async function abortExpiredStorageUploads(env: Env) {
   const { db, close } = openDb(env);
@@ -33,7 +37,9 @@ export async function abortExpiredStorageUploads(env: Env) {
     const expired = await expiredStorageUploads(db);
     for (const upload of expired) {
       await abortMultipart(env.STORAGE_BUCKET, upload.r2Key, upload.r2UploadId);
-      await removeStorageUpload(db, upload.id);
+      if (await removeStorageUpload(db, upload.id)) {
+        await deleteStorageObjects(env.STORAGE_BUCKET, [upload.r2Key], log);
+      }
     }
     if (expired.length) log.info("storage.uploads_expired", { count: expired.length });
   } finally {
@@ -60,7 +66,23 @@ interface Sweep {
   /** What the run has spent of `SWEEP_PREFIX_PAGES` and `SWEEP_DELETE_BATCHES`. */
   pages: number;
   batches: number;
+  /** Set when the database does not look like this bucket's: the run deletes nothing more. */
+  refused?: "no_workspaces" | "mostly_unknown";
 }
+
+/** The workspace ids on one page of the bucket's prefixes. */
+const workspaceIds = (listed: R2Objects) =>
+  listed.delimitedPrefixes
+    .map((prefix) => prefix.slice(ORG_PREFIX.length, -1))
+    .filter((id) => id.length > 0);
+
+/**
+ * A few deleted workspaces among many are what the sweep is for. Most of a page being unknown
+ * is a database that is not this bucket's (a second install on the same bucket, a restore from
+ * before these workspaces existed), and deleting would take live files that nothing brings back.
+ */
+const looksForeign = (listed: number, gone: number) =>
+  listed >= SWEEP_GUARD_PREFIXES && gone * 2 > listed;
 
 /** Deletes everything under a deleted workspace's prefix. False when the run's batches ran out. */
 async function deleteWorkspaceObjects(bucket: R2Bucket, orgId: string, sweep: Sweep) {
@@ -95,10 +117,13 @@ async function sweepStretch(
       // A cursor already says where to go on from.
       ...(cursor ? { cursor } : after ? { startAfter: after } : {}),
     });
-    const orgIds = listed.delimitedPrefixes
-      .map((prefix) => prefix.slice(ORG_PREFIX.length, -1))
-      .filter((id) => id.length > 0);
-    for (const orgId of await deletedStorageWorkspaces(db, orgIds)) {
+    const orgIds = workspaceIds(listed);
+    const gone = await deletedStorageWorkspaces(db, orgIds);
+    if (looksForeign(orgIds.length, gone.length)) {
+      sweep.refused = "mostly_unknown";
+      return false;
+    }
+    for (const orgId of gone) {
       sweep.workspaces++;
       if (!(await deleteWorkspaceObjects(bucket, orgId, sweep))) return false;
     }
@@ -120,15 +145,31 @@ async function sweepStretch(
  * around to the first prefix and reads up to where it started. Nothing is remembered between
  * runs: over many runs every prefix is read, and a bucket that fits in one run's pages is read
  * whole every run. Should a bucket ignore `startAfter`, the first stretch is the whole listing.
+ *
+ * The sweep trusts the database to say which workspaces are gone, so it refuses, deleting
+ * nothing, when the database does not look like this bucket's: it holds no workspace at all, or
+ * most of a page of the bucket's workspaces are unknown to it (`looksForeign`). The bucket's
+ * first page is checked before anything is deleted, since a stretch that starts late may list
+ * too few to tell.
  */
-export async function sweepDeletedWorkspaces(db: Db, bucket: R2Bucket) {
+export async function sweepDeletedWorkspaces(db: Db, bucket: R2Bucket, log: Logger) {
   const sweep: Sweep = { workspaces: 0, objects: 0, pages: 0, batches: 0 };
   const startId = await randomStorageSweepStart(db);
-  const start = startId ? `${ORG_PREFIX}${startId}/` : undefined;
+  const first = workspaceIds(await bucket.list({ prefix: ORG_PREFIX, delimiter: "/" }));
+  if (!startId) {
+    if (first.length > 0) sweep.refused = "no_workspaces";
+  } else if (looksForeign(first.length, (await deletedStorageWorkspaces(db, first)).length)) {
+    sweep.refused = "mostly_unknown";
+  }
+  const start = `${ORG_PREFIX}${startId}/`;
   const done =
+    startId !== null &&
+    !sweep.refused &&
     (await sweepStretch(db, bucket, sweep, { after: start })) &&
-    (start === undefined || (await sweepStretch(db, bucket, sweep, { until: start })));
-  return { workspaces: sweep.workspaces, objects: sweep.objects, more: !done };
+    (await sweepStretch(db, bucket, sweep, { until: start }));
+  if (sweep.refused) log.error("storage.sweep_refused", { reason: sweep.refused });
+  const { workspaces, objects, refused } = sweep;
+  return { workspaces, objects, more: !done && !refused && startId !== null, refused };
 }
 
 /**
@@ -144,7 +185,7 @@ export async function storageDaily(env: Env, now = new Date()) {
     const [purged, recounted, swept] = await Promise.allSettled([
       purgeTrash(db, bucket, log, now),
       recomputeStorageUsage(db),
-      sweepDeletedWorkspaces(db, bucket),
+      sweepDeletedWorkspaces(db, bucket, log),
     ]);
     log.info("storage.daily", {
       purgedObjects: purged.status === "fulfilled" ? purged.value : null,

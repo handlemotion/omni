@@ -125,7 +125,7 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
         const found = await reach(tx, door, nodeId);
         if (!found) return NOT_FOUND;
         if (!found.node.trashedAt) return { status: "not_trashed" };
-        if (!found.access.remove) return FORBIDDEN;
+        if (!found.access.remove || !(await door.removesWhole(tx, found.node))) return FORBIDDEN;
         const { r2Keys } = await deleteSubtree(tx, orgId, nodeId);
         return { status: "ok", r2Keys };
       });

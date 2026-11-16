@@ -13,7 +13,12 @@ import {
   userEmails,
   users,
 } from "../src/schema/index.ts";
-import { publicStorage, publicStorageNode, STORAGE_MAX_DEPTH } from "../src/storage.ts";
+import {
+  publicStorage,
+  publicStorageNode,
+  STORAGE_MAX_DEPTH,
+  STORAGE_NAME_MAX_LENGTH,
+} from "../src/storage.ts";
 import { addFile, addFolder, createPerson, setRole } from "./storage-support.ts";
 import { createMember, createOrg, createTestDatabase } from "./support.ts";
 
@@ -457,4 +462,95 @@ test("paged lists return every row once: a folder (folders first, by name), Tras
     trashCursor = { limit: 2, cursor: page.nextCursor };
   }
   expect(trashed.toSorted()).toEqual(["A.txt", "Alpha", "b.txt", "c.txt", "zeta"]);
+});
+
+// Catches: the "uploader, owners and admins" rule in Shared judged on the folder alone. A member
+// moved a colleague's file into a folder they made, then trashed the folder (the colleague saw
+// nothing in Trash and could restore nothing), took it into their own My files, or deleted it.
+test("in Shared a folder holding a colleague's file is not its maker's to trash, take out or delete", async () => {
+  const org = await createOrg(db, "shared-folders");
+  const ana = await createMember(db, org.id, "ana");
+  const ben = await createMember(db, org.id, "ben");
+  const admin = await createMember(db, org.id, "admin");
+  await setRole(db, admin.id, "admin");
+  const anaStorage = forMember(db, ana.id).storage;
+  const benStorage = forMember(db, ben.id).storage;
+  const adminStorage = forMember(db, admin.id).storage;
+
+  const file = await addFile(anaStorage, { space: "shared" }, "ana.txt");
+  const folder = await addFolder(benStorage, { space: "shared" }, "Ben's");
+  const inner = await addFolder(benStorage, { parentId: folder.id }, "Inner");
+  // Everyone writes in Shared: moving it is allowed, and gives no right over it.
+  expect((await benStorage.move(file.id, { parentId: inner.id })).status).toBe("ok");
+
+  expect((await benStorage.trash(folder.id)).status).toBe("forbidden");
+  expect((await benStorage.trash(inner.id)).status).toBe("forbidden");
+  expect((await benStorage.move(folder.id, { space: "personal" })).status).toBe("forbidden");
+  expect((await anaStorage.file(file.id)).status).toBe("ok");
+  // An admin trashes it; Ben still cannot delete for good what holds Ana's file.
+  expect((await adminStorage.trash(folder.id)).status).toBe("ok");
+  expect((await benStorage.deleteForever(folder.id)).status).toBe("forbidden");
+  expect((await adminStorage.restore(folder.id)).status).toBe("ok");
+
+  // Once the file is out, the folders are all Ben's again: his to take out, trash and delete.
+  expect((await anaStorage.move(file.id, { space: "shared" })).status).toBe("ok");
+  await addFile(benStorage, { parentId: inner.id }, "ben.txt");
+  expect((await benStorage.move(inner.id, { space: "personal" })).status).toBe("ok");
+  expect((await benStorage.trash(folder.id)).status).toBe("ok");
+  expect((await benStorage.deleteForever(folder.id)).status).toBe("ok");
+  expect((await anaStorage.file(file.id)).status).toBe("ok");
+});
+
+// Catches: a member giving their own address an editor grant on a Shared folder and trashing a
+// colleague's file through the grant door, which the member door refuses them.
+test("an editor grant gives a member of the workspace no more right to trash in Shared than membership does", async () => {
+  const org = await createOrg(db, "self-grant");
+  const ana = await createMember(db, org.id, "ana");
+  const ben = await createMember(db, org.id, "ben");
+  const anaStorage = forMember(db, ana.id).storage;
+  const benStorage = forMember(db, ben.id).storage;
+  const folder = await addFolder(anaStorage, { space: "shared" }, "Plans");
+  const file = await addFile(anaStorage, { parentId: folder.id }, "ana.txt");
+  const own = await addFile(benStorage, { parentId: folder.id }, "ben.txt");
+  const [benUser] = await db
+    .update(users)
+    .set({ emailVerified: true })
+    .where(eq(users.id, ben.userId))
+    .returning();
+  const outsider = await createPerson(db, "self-grant-editor@outside.test");
+
+  expect((await benStorage.putGrant(folder.id, benUser!.email, "editor")).status).toBe("ok");
+  await benStorage.putGrant(folder.id, outsider.email, "editor");
+  const benGrant = forUser(db, ben.userId).storage;
+  expect((await benGrant.node(file.id))?.role).toBe("editor");
+  expect((await benGrant.trash(file.id)).status).toBe("forbidden");
+  expect((await benGrant.rename(file.id, "renamed.txt")).status).toBe("ok");
+  // What he uploaded is his to trash through either door.
+  expect((await benGrant.trash(own.id)).status).toBe("ok");
+  // An editor from outside keeps what the ADR gives an editor.
+  expect((await forUser(db, outsider.id).storage.trash(file.id)).status).toBe("ok");
+});
+
+// Catches: the number a taken name gets pushing it past the longest name allowed, leaving a
+// node nobody can rename to what it is called.
+test("a taken name at the length limit is numbered without passing the limit", async () => {
+  const org = await createOrg(db, "long-names");
+  const ana = await createMember(db, org.id, "ana");
+  const storage = forMember(db, ana.id).storage;
+  const folderName = "n".repeat(STORAGE_NAME_MAX_LENGTH);
+  const fileName = `${"f".repeat(STORAGE_NAME_MAX_LENGTH - 4)}.pdf`;
+  await addFolder(storage, { space: "personal" }, folderName);
+  const folder = await addFolder(storage, { space: "personal" }, folderName);
+  await addFile(storage, { space: "personal" }, fileName);
+  const file = await addFile(storage, { space: "personal" }, fileName);
+
+  for (const [node, original] of [
+    [folder, folderName],
+    [file, fileName],
+  ] as const) {
+    expect(node.name).not.toBe(original);
+    expect(node.name.length).toBeLessThanOrEqual(STORAGE_NAME_MAX_LENGTH);
+    expect((await storage.rename(node.id, node.name)).status).toBe("ok");
+  }
+  expect(file.name.endsWith(" (1).pdf")).toBe(true);
 });

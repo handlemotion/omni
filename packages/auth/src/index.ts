@@ -17,7 +17,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { type BillingLog, cancelDuplicateSubscriptions } from "./one-subscription.ts";
 import { resolveSignInEmails, signInEmails } from "./sign-in-emails.ts";
-import { handOverBeforeRemoval, storageHandover } from "./storage-handover.ts";
+import {
+  deleteStorageBeforeWorkspace,
+  handOverBeforeRemoval,
+  storageHandover,
+} from "./storage-handover.ts";
 import { ensurePersonalSpaceQuietly, personalSpaceHooks } from "./personal-space.ts";
 import { mcpPlugins } from "./mcp.ts";
 import {
@@ -551,6 +555,12 @@ export function createAuth(env: AuthEnv) {
         teams: { enabled: true, defaultTeam: { enabled: false } },
         organizationHooks: {
           ...personalSpaceHooks(env.db),
+          // The Personal space's refusal first; then the files' rows, which would otherwise
+          // keep their owners' member rows from being deleted (ADR 0034).
+          beforeDeleteOrganization: async (input) => {
+            await personalSpaceHooks(env.db).beforeDeleteOrganization(input);
+            await deleteStorageBeforeWorkspace(env.db)(input);
+          },
           // Their My files stay with the company (ADR 0034).
           beforeRemoveMember: handOverBeforeRemoval(env.db),
           // The invite step of onboarding, but only once the org has mailboxes: an invitation

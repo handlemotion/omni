@@ -284,9 +284,14 @@ export async function expiredStorageUploads(db: Db, options: { now?: Date; limit
     .limit(options.limit ?? 100);
 }
 
-/** Deletes an upload nobody completed. A no-op when it is gone, or completed after all. */
+/**
+ * Deletes an upload nobody completed, and says whether it did. False when it is gone or was
+ * completed after all: only a true answer means no file owns the object at its key.
+ */
 export async function removeStorageUpload(db: Db, uploadId: string) {
-  await db
+  const removed = await db
     .delete(storageUploads)
-    .where(and(eq(storageUploads.id, uploadId), isNull(storageUploads.nodeId)));
+    .where(and(eq(storageUploads.id, uploadId), isNull(storageUploads.nodeId)))
+    .returning({ id: storageUploads.id });
+  return removed.length > 0;
 }

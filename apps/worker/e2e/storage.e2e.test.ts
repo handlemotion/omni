@@ -491,3 +491,117 @@ test("removing a member hands their My files to the admin who removed them; leav
   expect(stay.status).toBe(400);
   expect((await stack.api(owner.jar, "GET", "/nodes?space=personal")).body.nodes).toHaveLength(1);
 });
+
+// Catches: a workspace that cannot be deleted once anyone has a file in My files. Better Auth
+// deletes the members before the organization, and a member who still owns files cannot go.
+test("deleting a workspace through its endpoint works when its members have files, and the sweep then empties its prefix", async () => {
+  const bucket = await stack.bucket();
+  const org = await stack.company("closing");
+  const owner = await stack.member(org.id, "owner");
+  const ben = await stack.member(org.id);
+  const mine = await stack.upload(ben.jar, { space: "personal" }, "mine.txt", Buffer.from("ben"));
+  const ours = await stack.upload(owner.jar, { space: "shared" }, "ours.txt", Buffer.from("all"));
+  const open = await stack.api(ben.jar, "POST", "/uploads", {
+    name: "half.bin",
+    size: 5,
+    space: "personal",
+  });
+  expect(open.status).toBe(201);
+
+  const deleted = await authPost(stack.worker, owner.jar, "/organization/delete", {
+    organizationId: org.id,
+  });
+  expect(deleted.status).toBe(200);
+  expect(
+    await stack.db.select().from(schema.organizations).where(eq(schema.organizations.id, org.id)),
+  ).toEqual([]);
+  for (const table of [schema.storageNodes, schema.storageUploads, schema.storageUsage]) {
+    expect(await stack.db.select().from(table).where(eq(table.orgId, org.id))).toEqual([]);
+  }
+  // Rows first: the objects are still there until the daily sweep finds the workspace gone.
+  expect(await bucket.head(storageObjectKey(org.id, mine.id))).not.toBeNull();
+  expect(await bucket.head(storageObjectKey(org.id, ours.id))).not.toBeNull();
+  expect(await stack.cron("47 3 * * *")).toBe("ok");
+  expect((await bucket.list({ prefix: `orgs/${org.id}/` })).objects).toEqual([]);
+});
+
+// Catches: an object nobody can reach or delete, stored forever. The parts were stitched into
+// the object, the Worker died before the file's row was written, nobody asked again, and the
+// cron dropped the upload's row but left its object.
+test("an expired upload whose object was already stitched leaves nothing in the bucket, and files keep theirs", async () => {
+  const org = await stack.company("stitched");
+  const ana = await stack.member(org.id);
+  const bucket = await stack.bucket();
+  const kept = await stack.upload(ana.jar, { space: "personal" }, "kept.bin", randomBytes(20));
+  const opened = await stack.api(ana.jar, "POST", "/uploads", {
+    name: "lost.bin",
+    size: 10,
+    space: "personal",
+  });
+  const upload = opened.body.upload as StorageUpload;
+  expect((await stack.putPart(ana.jar, upload.id, 1, randomBytes(10))).status).toBe(200);
+  const [row] = await stack.db
+    .select()
+    .from(schema.storageUploads)
+    .where(eq(schema.storageUploads.id, upload.id));
+  // What `complete` does first, without the step that follows it.
+  await bucket
+    .resumeMultipartUpload(row!.r2Key, row!.r2UploadId!)
+    .complete(row!.parts.map(({ partNumber, etag }) => ({ partNumber, etag })));
+  expect(await bucket.head(row!.r2Key)).not.toBeNull();
+  // Both uploads are past their time: the abandoned one, and the one that became a file.
+  await stack.db
+    .update(schema.storageUploads)
+    .set({ expiresAt: new Date(Date.now() - 60_000) })
+    .where(eq(schema.storageUploads.orgId, org.id));
+
+  for (let run = 0; run < 2; run++) expect(await stack.cron("* * * * *")).toBe("ok");
+
+  expect(
+    await stack.db
+      .select()
+      .from(schema.storageUploads)
+      .where(eq(schema.storageUploads.orgId, org.id)),
+  ).toEqual([]);
+  expect((await bucket.list({ prefix: `orgs/${org.id}/` })).objects.map((o) => o.key)).toEqual([
+    storageObjectKey(org.id, kept.id),
+  ]);
+  expect((await stack.download(ana.jar, kept.id)).status).toBe(200);
+});
+
+// Catches: a refusal the client cannot tell apart (it shows a different message for each, and
+// retries none of them), or one that answers 500.
+test("a move too deep or into itself, and a restore under a trashed folder, answer their own 409 codes", async () => {
+  const org = await stack.company("codes");
+  const ana = await stack.member(org.id);
+  const folder = async (name: string, place: object) => {
+    const made = await stack.api(ana.jar, "POST", "/folders", { name, ...place });
+    expect(made.status).toBe(201);
+    return made.body.node as StorageNode;
+  };
+  let deepest = await folder("d1", { space: "personal" });
+  const top = deepest;
+  for (let depth = 2; depth <= 32; depth++) {
+    deepest = await folder(`d${depth}`, { parentId: deepest.id });
+  }
+  const deeper = await stack.api(ana.jar, "POST", "/folders", {
+    name: "d33",
+    parentId: deepest.id,
+  });
+  expect(deeper).toMatchObject({ status: 409, body: { code: "TOO_DEEP" } });
+  const other = await folder("other", { space: "personal" });
+  expect(
+    await stack.api(ana.jar, "PATCH", `/nodes/${other.id}`, { parentId: deepest.id }),
+  ).toMatchObject({ status: 409, body: { code: "TOO_DEEP" } });
+  expect(
+    await stack.api(ana.jar, "PATCH", `/nodes/${top.id}`, { parentId: deepest.id }),
+  ).toMatchObject({ status: 409, body: { code: "CYCLE" } });
+
+  const child = await folder("child", { parentId: other.id });
+  expect((await stack.api(ana.jar, "DELETE", `/nodes/${child.id}`)).status).toBe(200);
+  expect((await stack.api(ana.jar, "DELETE", `/nodes/${other.id}`)).status).toBe(200);
+  expect(await stack.api(ana.jar, "POST", `/nodes/${child.id}/restore`)).toMatchObject({
+    status: 409,
+    body: { code: "PARENT_TRASHED" },
+  });
+});

@@ -8,7 +8,7 @@ import { personalSpaces } from "../schema/identity.ts";
 import { storageGrants } from "../schema/storage.ts";
 import { companyForAddress } from "../session-scopes.ts";
 import { listSignInEmails } from "../sign-in-emails.ts";
-import { inTrash, type Drive, type NodeRow, type StorageSpace } from "./core.ts";
+import { holdsOthersWork, inTrash, type Drive, type NodeRow, type StorageSpace } from "./core.ts";
 
 /** `member` is someone in the node's space; the other two come from a grant or a link. */
 export type StorageRole = "member" | "editor" | "viewer";
@@ -34,6 +34,11 @@ export interface Door {
    * still reaches it there, so callers that need a live node check `inTrash` themselves.
    */
   access(ex: Db, chain: NodeRow[]): Promise<Access | null>;
+  /**
+   * Whether the holder may take `node` away with everything inside it: trash it, delete it for
+   * good, or move it out of its drive. Asked after `access` allowed `remove` on the node itself.
+   */
+  removesWhole(ex: Db, node: NodeRow): Promise<boolean>;
   /** The root of `space` for the holder: their My files, or their company's Shared. */
   root(ex: Db, space: StorageSpace): Promise<Drive | null>;
   /** The member recorded as having made a node or opened an upload in `orgId`. */
@@ -72,7 +77,9 @@ export async function loadMember(ex: Db, memberId: string): Promise<StorageMembe
 /**
  * A member reaches their own My files and, in a company, Shared. Nobody reaches another
  * member's My files, whatever their role. In Shared everyone writes, and only the uploader,
- * owners and admins move a node out of it (to Trash or to My files).
+ * owners and admins move a node out of it (to Trash or to My files); a folder's uploader only
+ * while everything inside it is theirs too, or moving a colleague's file into a folder of one's
+ * own would be a way to take it.
  */
 export function memberDoor(memberId: string): Door {
   return {
@@ -92,6 +99,12 @@ export function memberDoor(memberId: string): Door {
         remove: mine || member.admin || node.createdByMemberId === member.id,
         share: true,
       };
+    },
+    async removesWhole(ex, node) {
+      if (node.space !== "shared" || node.kind !== "folder") return true;
+      const member = await loadMember(ex, memberId);
+      if (!member) return false;
+      return member.admin || !(await holdsOthersWork(ex, node.id, member.id));
     },
     async root(ex, space) {
       const member = await loadMember(ex, memberId);
@@ -129,9 +142,20 @@ export async function grantAddresses(ex: Db, userId: string, scopeOrgId?: string
 /**
  * A grant on the node or on a folder above it, for one of the person's addresses. The strongest
  * role on the way up counts. An editor changes what is inside the folder they were given, not
- * the folder itself; nobody shares, restores or deletes for good through a grant.
+ * the folder itself; nobody shares, restores or deletes for good through a grant. In Shared, a
+ * grantee who is a member of the workspace takes away no more than their membership lets them:
+ * any member can share, so an editor grant to oneself would otherwise undo the member door's rule.
  */
 export function grantDoor(userId: string, scopeOrgId?: string | null): Door {
+  /** The person's own member door onto a Shared node of a workspace they belong to. */
+  async function asMember(ex: Db, node: NodeRow) {
+    if (node.space !== "shared") return null;
+    const [row] = await ex
+      .select({ id: members.id })
+      .from(members)
+      .where(and(eq(members.userId, userId), eq(members.organizationId, node.orgId)));
+    return row ? memberDoor(row.id) : null;
+  }
   return {
     kind: "grant",
     async access(ex, chain) {
@@ -158,14 +182,19 @@ export function grantDoor(userId: string, scopeOrgId?: string | null): Door {
       );
       const editorAbove = chain.slice(1).some((row) => editing.has(row.id));
       const editor = editorAbove || editing.has(node.id);
+      const member = editorAbove ? await asMember(ex, node) : null;
+      const memberRemoves = member ? ((await member.access(ex, chain))?.remove ?? false) : true;
       return {
         role: editor ? "editor" : "viewer",
         top: chain.findLastIndex((row) => granted.has(row.id)),
         inside: editor && node.kind === "folder",
         change: editorAbove,
-        remove: editorAbove,
+        remove: editorAbove && memberRemoves,
         share: false,
       };
+    },
+    async removesWhole(ex, node) {
+      return (await (await asMember(ex, node))?.removesWhole(ex, node)) ?? true;
     },
     root: async () => null,
     async actor(ex, orgId) {
@@ -206,6 +235,7 @@ export function linkDoor(shareId: string): Door {
       if (top < 0) return null;
       return { role: "viewer", top, inside: false, change: false, remove: false, share: false };
     },
+    removesWhole: async () => false,
     root: async () => null,
     actor: async () => null,
     ownsUpload: async () => false,

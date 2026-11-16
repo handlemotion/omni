@@ -17,6 +17,8 @@ export const STORAGE_MAX_DEPTH = 32;
  */
 export const MAX_WALK = 256;
 export const STORAGE_NAME_MAX_LENGTH = 255;
+/** A dot this close to the end of a file's name starts its extension, dot included. */
+const MAX_EXTENSION = 32;
 
 export type StorageSpace = (typeof storageNodes.space.enumValues)[number];
 export type StorageNodeKind = (typeof storageNodes.kind.enumValues)[number];
@@ -184,6 +186,21 @@ export async function subtreeOf(ex: Db, nodeId: string): Promise<SubtreeRow[]> {
   }));
 }
 
+/**
+ * True when something inside the node (not the node itself) was made by someone other than
+ * `memberId`: what keeps a folder in Shared from being its maker's alone to take away.
+ */
+export async function holdsOthersWork(ex: Db, nodeId: string, memberId: string) {
+  const [row] = await ex
+    .select({ id: storageNodes.id })
+    .from(storageNodes)
+    .where(
+      and(isInside(nodeId), sql`${storageNodes.createdByMemberId} is distinct from ${memberId}`),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
 /** Rows that sit side by side: the children of `parentId`, or a drive's root when it is null. */
 function siblings(drive: Drive, parentId: string | null) {
   return and(
@@ -241,10 +258,16 @@ export function freeName(
   kind: StorageNodeKind,
   exceptId?: string,
 ): SQL<string> {
-  // A file keeps its extension after the number; a folder has none.
+  // A file keeps its extension after the number; a folder has none, and neither has a file
+  // whose last dot is too far back to be one.
   const dot = kind === "file" ? name.lastIndexOf(".") : -1;
-  const base = dot > 0 ? name.slice(0, dot) : name;
-  const ext = dot > 0 ? name.slice(dot) : "";
+  const split = dot > 0 && name.length - dot <= MAX_EXTENSION;
+  const ext = split ? name.slice(dot) : "";
+  // A numbered name is a name too: the base gives way so it never passes the longest allowed.
+  const room = (suffix: number) => STORAGE_NAME_MAX_LENGTH - ext.length - suffix;
+  const whole = split ? name.slice(0, dot) : name;
+  const base = whole.slice(0, room(" (999)".length)).trimEnd();
+  const last = whole.slice(0, room(" ()".length + 36)).trimEnd();
   const except = exceptId ? sql` and s.id <> ${exceptId}` : sql``;
   return sql<string>`coalesce((
     select c.name from (
@@ -260,7 +283,7 @@ export function freeName(
         and lower(s.name) = lower(c.name) and s.trashed_at is null${except}
     )
     order by c.n limit 1
-  ), ${`${base} (${uuidv7()})${ext}`}::text)`;
+  ), ${`${last} (${uuidv7()})${ext}`}::text)`;
 }
 
 export interface NewNode {
@@ -301,7 +324,8 @@ export async function insertNode(tx: Db, input: NewNode): Promise<NodeRow> {
       .returning();
     if (row) return row;
   }
-  throw new Error(`storage: no free name for "${input.name}"`);
+  // Not the name: it is a person's, and this message reaches the logs.
+  throw new Error(`storage: no free name for node ${id}`);
 }
 
 /** Locks the workspace's usage row, creating it at zero, and returns its bytes. */

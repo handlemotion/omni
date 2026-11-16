@@ -25,7 +25,10 @@ interface Bucket {
   resumeMultipartUpload(
     key: string,
     uploadId: string,
-  ): { uploadPart(n: number, body: string): Promise<unknown> };
+  ): {
+    uploadPart(n: number, body: string): Promise<unknown>;
+    complete(parts: { partNumber: number; etag: string }[]): Promise<unknown>;
+  };
 }
 
 export type StorageStack = Awaited<ReturnType<typeof startStorageStack>>;

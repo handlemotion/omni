@@ -3,7 +3,7 @@
 import { and, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { organizations } from "../schema/auth.ts";
-import { storageNodes, storageUsage } from "../schema/storage.ts";
+import { storageNodes, storageUploads, storageUsage } from "../schema/storage.ts";
 import { deleteSubtree, lockTree, lockUsage } from "./core.ts";
 import { reservedBytes } from "./uploads.ts";
 
@@ -110,4 +110,21 @@ export async function randomStorageSweepStart(db: Db) {
     .orderBy(sql`random()`)
     .limit(1);
   return row?.id ?? null;
+}
+
+/**
+ * Removes a workspace's storage rows ahead of the workspace itself. Trusted: the caller has
+ * decided the workspace is being deleted. Its members are deleted before it is, and a member who
+ * still owns files cannot go (`storage_nodes.owner_member_id` has no cascade), so the files' rows
+ * go first; grants go with their nodes. Rows only: the daily sweep deletes the objects once the
+ * organization row is gone. Run again it finds nothing.
+ */
+export async function deleteWorkspaceStorage(db: Db, orgId: string) {
+  await db.transaction(async (tx) => {
+    await lockTree(tx, orgId);
+    await lockUsage(tx, orgId);
+    await tx.delete(storageUploads).where(eq(storageUploads.orgId, orgId));
+    await tx.delete(storageNodes).where(eq(storageNodes.orgId, orgId));
+    await tx.delete(storageUsage).where(eq(storageUsage.orgId, orgId));
+  });
 }
