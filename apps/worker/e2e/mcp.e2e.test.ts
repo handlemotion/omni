@@ -1060,6 +1060,7 @@ describe("the CRM", () => {
       company: Row | null;
       notes: { text: string }[];
       threads: { id: string; url: string }[];
+      activity: Record<string, unknown>[];
     })[];
     companies: (Row & { contracts: { id: string; status: string }[] })[];
     not_found?: string[];
@@ -1174,8 +1175,9 @@ describe("the CRM", () => {
   });
 
   // Catches: a write the agent is told succeeded but that the CRM does not hold, a fetch that
-  // drops the threads the person can open with that address, and `company_id: null` read as
-  // omitted, which files the person under their domain's company anyway.
+  // drops the threads the person can open with that address, a teammate's shared activity
+  // missing (or carrying the thread), and `company_id: null` read as omitted, which files the
+  // person under their domain's company anyway.
   test("crm_write adds a person that crm_fetch then reads, with their thread", async () => {
     const org = await createOrg(db, "crmwrite");
     const member = await createMember(db, org.id, "ivy@crmwrite.test");
@@ -1228,6 +1230,40 @@ describe("the CRM", () => {
     expect(new URL(fetched.data.people[0]!.threads[0]!.url).pathname).toBe(`/all/${threadId}`);
     expect(fetched.data.people[0]!.company).not.toBeNull();
     expect(fetched.data.not_found).toEqual([id]);
+    expect(fetched.data.people[0]!.activity).toEqual([]);
+
+    // A teammate's mailbox shares its activity (ADR 0039 decision 2): who and when, not the thread.
+    const zoe = await createMember(db, org.id, "zoe@crmwrite.test");
+    const zoeBox = await createMailbox(db, org.id, "zoe@crmwrite.test", "personal");
+    await db
+      .insert(schema.mailboxAccess)
+      .values({ orgId: org.id, mailboxId: zoeBox.id, memberId: zoe.id, role: "owner" });
+    const sentAt = new Date("2026-11-12T10:00:00.000Z");
+    const zoes = await seedMessage(db, zoeBox, {
+      subject: "Zoe's pricing",
+      fromAddress: "lena@bigco.test",
+      to: ["zoe@crmwrite.test"],
+      uid: 1,
+      sentAt,
+    });
+    const set = await forMember(db, zoe.id).setCrmSharing(zoeBox.id, "activity");
+    expect(set.status).toBe("ok");
+    const withActivity = await tool<Fetched>(access_token, "crm_fetch", {
+      records: [{ kind: "person", id }],
+    });
+    expect(withActivity.data.people[0]!.threads).toEqual([
+      expect.objectContaining({ id: threadId }),
+    ]);
+    expect(withActivity.data.people[0]!.activity).toEqual([
+      {
+        key: expect.any(String),
+        mailbox: { kind: "personal", name: "zoe@crmwrite.test" },
+        last_message_at: sentAt.toISOString(),
+        direction: "in",
+        subject: null,
+      },
+    ]);
+    expect(withActivity.text).not.toContain(zoes.threadId);
 
     // A company reads with its own contracts and none of another company's.
     const crm = forMember(db, member.id).crm;

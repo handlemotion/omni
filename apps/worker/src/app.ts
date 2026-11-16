@@ -35,6 +35,7 @@ import { folders } from "./routes/folders.ts";
 import { library } from "./routes/library.ts";
 import { mail } from "./routes/mail.ts";
 import { forwarding } from "./routes/forwarding.ts";
+import { mailCrmSharing } from "./mail/crm-sharing.ts";
 import { workspaceAdmin } from "./routes/workspace-admin.ts";
 import { aiSettings } from "./routes/ai-settings.ts";
 import { workspaceInboxes } from "./routes/workspace-inboxes.ts";
@@ -130,6 +131,7 @@ const api = new Hono<AppEnv>()
   })
   .route("/", mail)
   .route("/", forwarding)
+  .route("/mail", mailCrmSharing)
   .route("/", compose)
   .route("/", handoff)
   .route("/", folders)

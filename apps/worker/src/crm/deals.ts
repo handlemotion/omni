@@ -12,6 +12,7 @@ import {
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
+import { lastContactedAt, subjectOf } from "./mail.ts";
 import {
   announce,
   decodeCursor,
@@ -61,6 +62,7 @@ export const deals = new Hono<AppEnv>()
       people: found.people.map(wirePerson),
       // Deleted between the two reads: the deal answered, so no contracts.
       contracts: contracts.status === "ok" ? contracts.contracts.map(wireContract) : [],
+      lastContactedAt: await lastContactedAt(c, subjectOf(found.people)),
     } satisfies CrmDealDetailResponse);
   })
 

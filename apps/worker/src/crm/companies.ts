@@ -12,6 +12,7 @@ import {
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
+import { lastContactedAt, subjectOf } from "./mail.ts";
 import {
   announce,
   decodeCursor,
@@ -55,6 +56,7 @@ export const companies = new Hono<AppEnv>()
       domains: found.domains,
       people: found.people.map(wirePerson),
       deals: found.deals.map(wireDeal),
+      lastContactedAt: await lastContactedAt(c, subjectOf(found.people, found.domains)),
     } satisfies CrmCompanyDetailResponse);
   })
 

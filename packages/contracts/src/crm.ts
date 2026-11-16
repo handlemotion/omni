@@ -134,6 +134,27 @@ export const crmThreadSchema = z.object({
   url: z.string(),
 });
 
+/**
+ * A thread in a teammate's mailbox that shares its activity with the CRM (ADR 0039 decision 2),
+ * which the viewer cannot open: whose mailbox, the direction of its last message and, when that
+ * mailbox shares subjects, the subject. Never the thread itself.
+ */
+export const crmActivitySchema = z.object({
+  /** A personal mailbox shows its owner's name; a shared inbox its own. */
+  mailbox: z.object({ kind: z.enum(["personal", "shared"]), name: z.string() }),
+  /** `out`: the last message was sent from that mailbox. */
+  direction: z.enum(["in", "out"]),
+  /** Null unless the mailbox shares subjects. */
+  subject: z.string().nullable(),
+});
+
+/**
+ * When anyone in the workspace last corresponded with the record: the newest thread the viewer
+ * can open or the newest shared activity. Computed at read time; null when there is none.
+ * Optional only while an older Worker may answer.
+ */
+const lastContactedAt = isoDate.nullable().optional();
+
 // Requests -------------------------------------------------------------------------------------
 
 const page = {
@@ -319,6 +340,7 @@ export const crmCompanyDetailResponseSchema = z.object({
   domains: z.array(z.string()),
   people: z.array(crmPersonSchema),
   deals: z.array(crmDealSchema),
+  lastContactedAt,
 });
 export const crmDomainsResponseSchema = z.object({ domains: z.array(z.string()) });
 
@@ -327,6 +349,8 @@ export const crmPersonListResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 export const crmPersonResponseSchema = z.object({ person: crmPersonSchema });
+/** `GET /people/:id`. */
+export const crmPersonDetailResponseSchema = crmPersonResponseSchema.extend({ lastContactedAt });
 /** `POST /people`: 201 when made, 200 with `created: false` when the address had a person. */
 export const crmAddPersonResponseSchema = z.object({
   person: crmPersonSchema,
@@ -343,6 +367,7 @@ export const crmDealDetailResponseSchema = z.object({
   deal: crmDealSchema,
   people: z.array(crmPersonSchema),
   contracts: z.array(crmContractSchema),
+  lastContactedAt,
 });
 
 export const crmContractResponseSchema = z.object({ contract: crmContractSchema });
@@ -399,11 +424,18 @@ export const crmTimelineContractItemSchema = z.object({
     actorMemberId: id.nullable(),
   }),
 });
+/** Shared activity (ADR 0039 decision 2): `id` is opaque and stable, never a thread id. */
+export const crmTimelineActivityItemSchema = z.object({
+  kind: z.literal("activity"),
+  ...timelineItem,
+  activity: crmActivitySchema,
+});
 export const crmTimelineItemSchema = z.discriminatedUnion("kind", [
   crmTimelineEventItemSchema,
   crmTimelineNoteItemSchema,
   crmTimelineContractItemSchema,
   crmTimelineThreadItemSchema,
+  crmTimelineActivityItemSchema,
 ]);
 export const crmTimelineResponseSchema = z.object({
   items: z.array(crmTimelineItemSchema),
@@ -458,6 +490,8 @@ export type CrmCompanyDetailResponse = z.infer<typeof crmCompanyDetailResponseSc
 export type CrmDomainsResponse = z.infer<typeof crmDomainsResponseSchema>;
 export type CrmPersonListResponse = z.infer<typeof crmPersonListResponseSchema>;
 export type CrmPersonResponse = z.infer<typeof crmPersonResponseSchema>;
+export type CrmPersonDetailResponse = z.infer<typeof crmPersonDetailResponseSchema>;
+export type CrmActivity = z.infer<typeof crmActivitySchema>;
 export type CrmAddPersonResponse = z.infer<typeof crmAddPersonResponseSchema>;
 export type CrmDealListResponse = z.infer<typeof crmDealListResponseSchema>;
 export type CrmDealResponse = z.infer<typeof crmDealResponseSchema>;

@@ -6,12 +6,14 @@ import {
   crmPeopleQuerySchema,
   crmUpdatePersonBodySchema,
   type CrmAddPersonResponse,
+  type CrmPersonDetailResponse,
   type CrmPersonListResponse,
   type CrmPersonResponse,
 } from "@omni/contracts";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
+import { lastContactedAt, subjectOf } from "./mail.ts";
 import {
   announce,
   decodeCursor,
@@ -58,7 +60,10 @@ export const people = new Hono<AppEnv>()
   .get("/people/:id", async (c) => {
     const found = await memberCrm(c).person(c.req.param("id"));
     if (found.status !== "ok") return refused(c, found);
-    return c.json({ person: wirePerson(found.person) } satisfies CrmPersonResponse);
+    return c.json({
+      person: wirePerson(found.person),
+      lastContactedAt: await lastContactedAt(c, subjectOf([found.person])),
+    } satisfies CrmPersonDetailResponse);
   })
 
   /** Only the fields it names; `addresses` adds, removes and picks the primary one. */

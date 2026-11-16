@@ -9,6 +9,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import { memberCrmSharing } from "./crm-sharing.ts";
 import { participantQueries } from "./threads-with.ts";
 import { alias } from "drizzle-orm/pg-core";
 import {
@@ -256,7 +257,11 @@ const { searchVector: _searchVector, ...messageColumns } = getTableColumns(messa
  * grant or a grant that crosses orgs returns nothing. `forMember` spreads it.
  */
 export function memberMail(db: Db, memberId: string) {
-  return mailQueries(db, (grantee) => sql`${grantee} = ${memberId}`);
+  return {
+    ...mailQueries(db, (grantee) => sql`${grantee} = ${memberId}`),
+    // CRM activity sharing (ADR 0039 decision 2): the setting and what other mailboxes share.
+    ...memberCrmSharing(db, memberId),
+  };
 }
 
 /**

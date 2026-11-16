@@ -53,3 +53,11 @@ export {
   PARTICIPANT_SETTLE_MS,
 } from "./mail/thread-participants.ts";
 export { THREADS_WITH_MAX, type ThreadsWithOptions, type ThreadWith } from "./mail/threads-with.ts";
+export {
+  CRM_SHARING_LEVELS,
+  SHARED_ACTIVITY_MAX,
+  type CrmSharingLevel,
+  type CrmSharingResult,
+  type SharedActivity,
+  type SharedActivityOptions,
+} from "./mail/crm-sharing.ts";
