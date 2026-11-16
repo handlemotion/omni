@@ -146,13 +146,25 @@ Three tools on the MCP server (ADR 0029), through the same member door:
 
 | Tool         | Scope       | Does                                                                                           |
 | ------------ | ----------- | ---------------------------------------------------------------------------------------------- |
-| `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, stage kind or owner. Compact rows with `url`. |
+| `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, stage kind or owner. Compact rows.            |
 | `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, recent notes and thread ids.        |
 | `crm_write`  | `crm:write` | Adds or changes a person, company or deal, moves a stage, adds a note. Never deletes.           |
 
 Thread ids from `crm_fetch` go to the mail `fetch` tool, which applies mail's own access. Note
 text is written by teammates, and names and titles can come from mail: the server's
 instructions keep telling agents to treat it as data.
+
+- A token reaches the company workspaces its grant does: its one workspace, or every company
+  the person belongs to (`workspace` narrows a read; a write to one of several must name it). A
+  Personal space has no CRM, so a token that reaches only one gets a tool error.
+- Every row carries `kind`, `id` and `workspace`. A row gains a `url` (`/crm/people/<id>`,
+  `/crm/companies/<id>`, `/crm/deals/<id>`) only once the web app serves those paths (C5), so an
+  agent never cites a link that answers "Not found".
+- `crm_fetch` takes `records: [{ kind, id }]`. Its thread ids come from
+  `forUser(user, grant scope).threadsWith`, so they are threads the person can open.
+- `crm_write` takes exactly one of `person`, `company`, `deal` or `note`; with `id` it changes
+  that record, without it adds one. A deal's `stage` (name or id) moves it. It passes the
+  read-only billing gate, announces `crm.changed` and writes an `mcp.crm_write` audit row.
 
 ## Plan
 

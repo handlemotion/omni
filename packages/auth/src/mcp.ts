@@ -14,8 +14,18 @@ export const MAIL_READ_SCOPE = "mail:read";
 export const MAIL_TRIAGE_SCOPE = "mail:triage";
 /** Write drafts for the person to send: `draft_reply`. */
 export const MAIL_DRAFT_SCOPE = "mail:draft";
+/** Read the CRM of the person's company workspaces: `crm_search`, `crm_fetch` (ADR 0036). */
+export const CRM_READ_SCOPE = "crm:read";
+/** Add and change CRM records and notes, never delete: `crm_write` (ADR 0036). */
+export const CRM_WRITE_SCOPE = "crm:write";
 
-export const MCP_SCOPES = [MAIL_READ_SCOPE, MAIL_TRIAGE_SCOPE, MAIL_DRAFT_SCOPE] as const;
+export const MCP_SCOPES = [
+  MAIL_READ_SCOPE,
+  MAIL_TRIAGE_SCOPE,
+  MAIL_DRAFT_SCOPE,
+  CRM_READ_SCOPE,
+  CRM_WRITE_SCOPE,
+] as const;
 
 /** The access-token claim naming the one workspace a grant reaches; absent for every workspace. */
 export const WORKSPACE_CLAIM = "omni_workspace";

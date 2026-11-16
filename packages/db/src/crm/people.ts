@@ -42,8 +42,11 @@ export interface ListPeopleInput {
 export interface AddPersonInput {
   name: string;
   address: string;
-  /** The person's company. Without it, the company is found or made from the address's domain. */
-  companyId?: string;
+  /**
+   * The person's company. Null means none; left out, the company is found or made from the
+   * address's domain.
+   */
+  companyId?: string | null;
   jobTitle?: string | null;
   phone?: string | null;
 }
@@ -137,8 +140,8 @@ async function personWithAddress(ex: Ex, orgId: string, address: string) {
 
 /**
  * Adds a person once. An address that already has a person returns that person, archived or
- * not. Otherwise the person is made and, unless the address is webmail or `companyId` is given,
- * joins the company holding its domain, made and named by `companyFromAddress` when none does.
+ * not. Otherwise the person is made and, unless the address is webmail or `companyId` is given
+ * (null for none), joins the company holding its domain, made and named by `companyFromAddress` when none does.
  * Two adds of one address at once make one person: the address's unique key decides, and the
  * loser removes its own row and returns the winner's.
  */
@@ -158,7 +161,7 @@ export async function addPerson(
   if (input.companyId) {
     if (!(await loadCompany(tx, member.orgId, input.companyId))) return NOT_FOUND;
     companyId = input.companyId;
-  } else {
+  } else if (input.companyId === undefined) {
     const guess = companyFromAddress(address);
     if (guess.domain && guess.company) {
       companyId = await companyForDomain(tx, member, guess.domain, guess.company);

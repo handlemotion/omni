@@ -307,7 +307,8 @@ additive.
   `http://localhost/*` and `http://127.0.0.1/*` on any port (Claude Code),
   `https://chatgpt.com/connector_platform_oauth_redirect`.
 
-**Scopes.** `mail:read`, `mail:triage`, `mail:draft`, plus `openid`, `email`, `profile` and
+**Scopes.** `mail:read`, `mail:triage`, `mail:draft`, `crm:read` and `crm:write` (the CRM
+tools, `docs/spec/crm.md` "Agents"), plus `openid`, `email`, `profile` and
 `offline_access` (offered, never challenged). Consent lists the scopes the client asked for;
 Claude and ChatGPT ask for every advertised scope. A tool that needs a scope the token lacks answers HTTP 403 `error=
 "insufficient_scope"` naming every scope it needs, so the client can step up.

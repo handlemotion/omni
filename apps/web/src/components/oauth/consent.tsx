@@ -6,9 +6,12 @@ import { useState } from "react";
 import {
   IconArrowRotateClockwise,
   IconInbox,
+  IconKey,
   IconMail,
   IconPencil,
+  IconUserAdd,
   IconUserRound,
+  IconUsers,
 } from "@/components/icons/central";
 import { WorkspaceAvatar } from "@/components/settings/workspace-pages";
 import { Button } from "@/components/ui/button";
@@ -35,6 +38,8 @@ const SCOPE_LINES: { scopes: string[]; icon: Icon; label: string }[] = [
   { scopes: ["mail:read"], icon: IconMail, label: "Read your mail" },
   { scopes: ["mail:triage"], icon: IconInbox, label: "Sort and file your mail" },
   { scopes: ["mail:draft"], icon: IconPencil, label: "Write drafts for you to send" },
+  { scopes: ["crm:read"], icon: IconUsers, label: "Read your CRM" },
+  { scopes: ["crm:write"], icon: IconUserAdd, label: "Add and change CRM records" },
   {
     scopes: ["offline_access"],
     icon: IconArrowRotateClockwise,
@@ -50,8 +55,15 @@ export function Consent({ clientId, scope }: { clientId: string; scope: string }
     mutationFn: answerConsent,
     onError: () => appToast.error("The request expired. Start the connection again."),
   });
-  const requested = new Set(scope.split(" "));
-  const lines = SCOPE_LINES.filter((line) => line.scopes.some((s) => requested.has(s)));
+  const requested = new Set(scope.split(" ").filter(Boolean));
+  const known = new Set(SCOPE_LINES.flatMap((line) => line.scopes));
+  // A scope with no line is shown by its name, so nothing is approved unseen.
+  const lines = [
+    ...SCOPE_LINES.filter((line) => line.scopes.some((s) => requested.has(s))),
+    ...[...requested]
+      .filter((s) => !known.has(s))
+      .map((s) => ({ scopes: [s], icon: IconKey, label: s })),
+  ];
   const name = client.data?.client_name ?? "An app";
   const chosen = workspaces.find((w) => w.id === workspace);
   const decide = (accept: boolean) =>

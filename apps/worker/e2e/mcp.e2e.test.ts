@@ -4,7 +4,7 @@
 // signed by our provider and checked by the endpoint as a client would present them.
 import { createHash, randomBytes } from "node:crypto";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { schema } from "@omni/db";
+import { ensurePersonalSpace, forMember, schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
@@ -37,9 +37,15 @@ beforeAll(async () => {
   const started = await startWorker({
     databaseUrl: database.url,
     mailServiceUrl: mail.url,
-    // A rate limit low enough that one test can use it up with full triage batches, and thread
-    // links on the web app's origin whatever a local .dev.vars says.
-    vars: { SYSTEM_MAIL_FROM, RATE_LIMIT_ACTIONS: "60/60", WEB_APP_URL: WEB_ORIGIN },
+    // A rate limit low enough that one test can use it up with full triage batches, thread links
+    // on the web app's origin whatever a local .dev.vars says, and no per-address auth limit:
+    // many people sign in and connect from one address here.
+    vars: {
+      SYSTEM_MAIL_FROM,
+      RATE_LIMIT_ACTIONS: "60/60",
+      WEB_APP_URL: WEB_ORIGIN,
+      RATE_LIMIT_AUTH: "off",
+    },
   });
   worker = { url: started.url.toString() };
   cleanup = async () => {
@@ -1032,5 +1038,220 @@ describe("changing mail", () => {
 
     const elsewhere = await tool(token, "draft_reply", { thread_id: strangers, body: "Hi" });
     expect(elsewhere.isError).toBe(true);
+  });
+});
+
+describe("the CRM", () => {
+  interface Row {
+    kind: string;
+    id: string;
+    name: string;
+    url: string;
+    workspace: string;
+  }
+  interface Found {
+    people: (Row & { email: string | null })[];
+    companies: Row[];
+    deals: Row[];
+  }
+  interface Fetched {
+    people: (Row & {
+      email: string | null;
+      company: Row | null;
+      notes: { text: string }[];
+      threads: { id: string; url: string }[];
+    })[];
+    companies: (Row & { contracts: { id: string; status: string }[] })[];
+    not_found?: string[];
+  }
+
+  /** Another membership for `userId`, in `orgId`. */
+  async function join(orgId: string, userId: string) {
+    const [joined] = await db
+      .insert(schema.members)
+      .values({ id: crypto.randomUUID(), organizationId: orgId, userId, createdAt: new Date() })
+      .returning();
+    return joined!;
+  }
+
+  async function addPerson(memberId: string, name: string, address: string) {
+    const added = await forMember(db, memberId).crm.addPerson({ name, address });
+    if (added.status !== "ok") throw new Error(added.status);
+    return added.person;
+  }
+
+  // Catches: an agent granted mail only reading or changing the company's CRM, or a client never
+  // told which permission to ask for.
+  test("CRM tools ask a token without crm:read or crm:write to step up", async () => {
+    const org = await createOrg(db, "crmscope");
+    const member = await createMember(db, org.id, "gus@crmscope.test");
+    const person = await addPerson(member.id, "Ida Quinn", "ida@client.test");
+    const jar = new CookieJar();
+    await signIn(worker, db, "gus@crmscope.test", jar);
+    const mailOnly = (await connect(jar)).access_token;
+    const reader = (await connect(jar, { scope: "openid mail:read crm:read" })).access_token;
+
+    const note = { record: { kind: "person", id: person.id }, text: "Hi" };
+    const calls = [
+      [mailOnly, "crm_search", "crm:read", { query: "Ida" }],
+      [mailOnly, "crm_fetch", "crm:read", { records: [{ kind: "person", id: person.id }] }],
+      [reader, "crm_write", "crm:write", { note }],
+    ] as const;
+    for (const [token, name, scope, args] of calls) {
+      const response = await legacyCall(token, {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name, arguments: args },
+      });
+      expect(response.status).toBe(403);
+      expect(response.headers.get("www-authenticate")).toContain(`scope="${scope}"`);
+    }
+    const notes = await forMember(db, member.id).crm.notes({ personId: person.id });
+    expect(notes.status === "ok" && notes.items).toEqual([]);
+
+    // The scope it asked for is enough to read.
+    const found = await tool<Found>(reader, "crm_search", { query: "Ida" });
+    expect(found.isError).toBe(false);
+    expect(found.data.people.map((p) => p.id)).toEqual([person.id]);
+  });
+
+  // Catches: a one-workspace grant reading or writing another workspace's CRM, which the consent
+  // screen promised it would not reach, and a Personal-space grant failing instead of answering.
+  test("a grant for one workspace sees and changes only that workspace's records", async () => {
+    const work = await createOrg(db, "crmwork");
+    const side = await createOrg(db, "crmside");
+    const member = await createMember(db, work.id, "hal@crmwork.test");
+    const sideMember = await join(side.id, member.userId);
+    const atWork = await addPerson(member.id, "Pat Work", "pat@work-client.test");
+    const atSide = await addPerson(sideMember.id, "Pat Side", "pat@side-client.test");
+
+    const jar = new CookieJar();
+    await signIn(worker, db, "hal@crmwork.test", jar);
+    const scope = "openid mail:read crm:read crm:write";
+    const everything = (await connect(jar, { scope })).access_token;
+    const all = await tool<Found>(everything, "crm_search", { query: "Pat" });
+    expect(all.data.people.map((p) => p.name).sort()).toEqual(["Pat Side", "Pat Work"]);
+
+    const workOnly = (await connect(jar, { scope, workspace: work.id })).access_token;
+    const found = await tool<Found>(workOnly, "crm_search", { query: "Pat" });
+    expect(found.data.people).toEqual([
+      expect.objectContaining({ id: atWork.id, workspace: work.id }),
+    ]);
+    expect(found.text).not.toContain("Pat Side");
+
+    // No argument widens it: the other workspace's ids and name are refused by every tool.
+    const fetched = await tool(workOnly, "crm_fetch", {
+      records: [{ kind: "person", id: atSide.id }],
+    });
+    expect(fetched.isError).toBe(true);
+    expect(fetched.text).not.toContain("Pat Side");
+    const named = await tool(workOnly, "crm_search", { query: "Pat", workspace: side.id });
+    expect(named.isError).toBe(true);
+    for (const args of [
+      { note: { record: { kind: "person", id: atSide.id }, text: "From the wrong grant" } },
+      { person: { id: atSide.id, job_title: "Changed" } },
+      { person: { name: "New Side", email: "new@side-client.test" }, workspace: side.id },
+    ]) {
+      expect((await tool(workOnly, "crm_write", args)).isError).toBe(true);
+    }
+    const sideCrm = forMember(db, sideMember.id).crm;
+    const sideNotes = await sideCrm.notes({ personId: atSide.id });
+    expect(sideNotes.status === "ok" && sideNotes.items).toEqual([]);
+    const sidePerson = await sideCrm.person(atSide.id);
+    expect(sidePerson.status === "ok" && sidePerson.person.jobTitle).toBeNull();
+    const sidePeople = await sideCrm.listPeople();
+    expect(sidePeople.status === "ok" && sidePeople.people.map((p) => p.name)).toEqual([
+      "Pat Side",
+    ]);
+
+    // A grant for the Personal space has no CRM: a tool error, not a failure.
+    const personal = await ensurePersonalSpace(db, member.userId);
+    const personalOnly = (await connect(jar, { scope, workspace: personal })).access_token;
+    const none = await tool(personalOnly, "crm_search", { query: "Pat" });
+    expect(none.isError).toBe(true);
+    expect(none.text).toContain("Personal space");
+  });
+
+  // Catches: a write the agent is told succeeded but that the CRM does not hold, a fetch that
+  // drops the threads the person can open with that address, and `company_id: null` read as
+  // omitted, which files the person under their domain's company anyway.
+  test("crm_write adds a person that crm_fetch then reads, with their thread", async () => {
+    const org = await createOrg(db, "crmwrite");
+    const member = await createMember(db, org.id, "ivy@crmwrite.test");
+    const box = await createMailbox(db, org.id, "ivy@crmwrite.test", "personal");
+    await grant(db, org.id, box.id, member.id);
+    const { threadId } = await seedMessage(db, box, {
+      subject: "Proposal for Q3",
+      fromAddress: "Lena@BigCo.test",
+      to: ["ivy@crmwrite.test"],
+      uid: 1,
+    });
+    const jar = new CookieJar();
+    await signIn(worker, db, "ivy@crmwrite.test", jar);
+    const { access_token } = await connect(jar, { scope: "openid mail:read crm:read crm:write" });
+
+    const written = await tool<{ result: string; person: Row }>(access_token, "crm_write", {
+      person: { name: "Lena Ortiz", email: "lena@bigco.test", job_title: "CTO" },
+    });
+    expect(written.isError).toBe(false);
+    expect(written.data.result).toBe("added");
+    const id = written.data.person.id;
+    // No link until the web app serves `/crm/...`: an agent would cite a page that is not there.
+    expect(written.data.person).not.toHaveProperty("url");
+    // Address edits on an add are refused rather than dropped while answering "added".
+    const extra = await tool(access_token, "crm_write", {
+      person: { name: "Ola Ortiz", email: "ola@bigco.test", add_emails: ["ola@home.test"] },
+    });
+    expect(extra.isError).toBe(true);
+    const noted = await tool(access_token, "crm_write", {
+      note: { record: { kind: "person", id }, text: "Met at the conference." },
+    });
+    expect(noted.isError).toBe(false);
+
+    const fetched = await tool<Fetched>(access_token, "crm_fetch", {
+      records: [
+        { kind: "person", id },
+        { kind: "deal", id },
+      ],
+    });
+    expect(fetched.isError).toBe(false);
+    expect(fetched.data.people).toHaveLength(1);
+    expect(fetched.data.people[0]).toMatchObject({
+      id,
+      name: "Lena Ortiz",
+      email: "lena@bigco.test",
+      workspace: org.id,
+      notes: [{ text: "Met at the conference." }],
+      threads: [{ id: threadId }],
+    });
+    expect(new URL(fetched.data.people[0]!.threads[0]!.url).pathname).toBe(`/all/${threadId}`);
+    expect(fetched.data.people[0]!.company).not.toBeNull();
+    expect(fetched.data.not_found).toEqual([id]);
+
+    // A company reads with its own contracts and none of another company's.
+    const crm = forMember(db, member.id).crm;
+    const companyId = fetched.data.people[0]!.company!.id;
+    const other = await crm.createCompany({ name: "Elsewhere" });
+    if (other.status !== "ok") throw new Error(other.status);
+    const ours = await crm.createContract({ title: "MSA", companyId });
+    const theirs = await crm.createContract({ title: "NDA", companyId: other.company.id });
+    if (ours.status !== "ok" || theirs.status !== "ok") throw new Error("contract not made");
+    const company = await tool<Fetched>(access_token, "crm_fetch", {
+      records: [{ kind: "company", id: companyId }],
+    });
+    expect(company.data.companies[0]!.contracts).toEqual([
+      expect.objectContaining({ id: ours.contract.id, status: "draft" }),
+    ]);
+
+    // An explicit null is no company, not "work it out from the domain": Lena's BigCo is there,
+    // and a colleague added with company_id null stays out of it.
+    const loose = await tool<{ result: string; person: Row }>(access_token, "crm_write", {
+      person: { name: "Max Ortiz", email: "max@bigco.test", company_id: null },
+    });
+    expect(loose.isError).toBe(false);
+    const max = await crm.person(loose.data.person.id);
+    if (max.status !== "ok") throw new Error(max.status);
+    expect(max.person.companyId).toBeNull();
   });
 });
