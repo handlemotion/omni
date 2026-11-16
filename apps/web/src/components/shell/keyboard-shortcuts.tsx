@@ -10,6 +10,7 @@ import { Dialog, DialogBody, DialogHeader, DialogTitle } from "@/components/ui/d
 import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import { useAnnouncement, useShortcut, useShortcutListener } from "@/hooks/use-shortcuts.ts";
 import { keyLabel, SHORTCUT_IDS, SHORTCUTS, type KeySequence } from "@/lib/shortcuts.ts";
+import { useOpenModule } from "./module-switcher";
 
 /**
  * The app-wide keys: compose, go-to and `?`. List keys live on the thread list; `/` and ⌘K
@@ -24,6 +25,8 @@ export function KeyboardShortcuts() {
   useShortcut("goInbox", () => void navigate({ to: "/inbox" }));
   useShortcut("goLater", () => void navigate({ to: "/later" }));
   useShortcut("goAll", () => void navigate({ to: "/all" }));
+  const openModule = useOpenModule();
+  useShortcut("goDrive", () => openModule("files"));
   useShortcut("help", () => setHelp(true));
 
   return (

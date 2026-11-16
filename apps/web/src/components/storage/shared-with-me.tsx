@@ -22,7 +22,7 @@ const ROLE = { viewer: "Viewer", editor: "Editor" } as const;
 export function SharedWithMe() {
   const shared = useSharedWithMe();
   return (
-    <StorageFrame title={<Heading className="truncate">Shared with me</Heading>}>
+    <StorageFrame title={<Heading className="truncate text-md">Shared with me</Heading>}>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {shared.isPending ? (
           <Skeleton loading label="Loading shared files" skeleton={<FileTableBones />}>

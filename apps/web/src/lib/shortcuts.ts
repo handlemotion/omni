@@ -39,6 +39,7 @@ export const SHORTCUTS = {
   goInbox: { label: "Inbox", group: "Go to", keys: [["g", "i"]], command: true },
   goLater: { label: "Later", group: "Go to", keys: [["g", "l"]], command: true },
   goAll: { label: "All mail", group: "Go to", keys: [["g", "a"]], command: true },
+  goDrive: { label: "Drive", group: "Go to", keys: [["g", "f"]], command: true },
   compose: { label: "Compose", group: "General", keys: [["c"]], command: true },
   // Bound by the title-bar search popover, which listens for them itself; listed here so `?`
   // shows them. Nothing registers a handler, so the shared listener leaves them alone.

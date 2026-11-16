@@ -33,6 +33,7 @@ import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { cx } from "@/lib/primitive";
 import { FluidHoverHighlight } from "./fluid-hover-highlight";
 import { AriaButton as Button } from "./aria-button";
+import { Button as MenuButton, type ButtonProps as MenuButtonProps } from "./button";
 import { Link } from "./link";
 import { TooltipTrigger, Tooltip } from "./tooltip";
 
@@ -223,7 +224,7 @@ export function Sidebar({
           aria-label="Sidebar"
           data-slot="sidebar"
           data-intent="default"
-          className="entering:blur-in exiting:blur-out w-(--sidebar-width) [--sidebar-width:18rem] has-data-[slot=calendar]:[--sidebar-width:23rem]"
+          className="entering:blur-in exiting:blur-out bg-sidebar w-(--sidebar-width) [--sidebar-width:18rem] has-data-[slot=calendar]:[--sidebar-width:23rem]"
           position={side}
         >
           <Heading slot="title" className="sr-only">
@@ -439,6 +440,26 @@ export function SidebarItem({
         {...tooltip}
       />
     </TooltipTrigger>
+  );
+}
+
+/**
+ * A sidebar row that opens a menu (put it first in a `MenuTrigger`): a `SidebarItem`'s box,
+ * mark, label and hover highlight, as a button. Open shares the current row's accent fill, as a
+ * pressed menu trigger keeps its fill (React Aria holds it pressed while the menu is open).
+ */
+export function SidebarItemTrigger({ className, ...props }: MenuButtonProps) {
+  return (
+    <MenuButton
+      intent="plain"
+      data-slot="sidebar-item"
+      className={cn(
+        "group/sidebar-item h-8 w-full min-w-0 justify-start gap-2.5 rounded-lg px-2 text-start text-sm",
+        "aria-expanded:[--btn-bg:var(--sidebar-accent)] aria-expanded:[--btn-overlay:var(--sidebar-accent)] aria-expanded:*:[svg]:text-foreground",
+        className,
+      )}
+      {...props}
+    />
   );
 }
 

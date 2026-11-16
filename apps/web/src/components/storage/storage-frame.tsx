@@ -1,9 +1,9 @@
 // The frame every Storage screen shares, on the mail lists' grid: a 48px header (the title or the
 // breadcrumbs, an optional caption, then the screen's actions 10px from the right edge) over the
-// content, which scrolls on its own. A shared link's page has no app sidebar to toggle.
+// content, which scrolls on its own. In the app it starts with Back, Forward and the sidebar toggle;
+// a shared link's page has no app around it, so none.
 import type { ReactNode } from "react";
-import { IconSidebar } from "@/components/icons/sidebar";
-import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { PageNav } from "@/components/shell/page-nav";
 
 export function StorageFrame(props: {
   /** The header's leading part: a heading, or breadcrumbs. */
@@ -27,22 +27,8 @@ export function StorageFrame(props: {
   );
   return (
     <section className="relative flex h-svh min-h-0 min-w-0 flex-col">
-      {props.sidebar === false ? header(null, "ps-5") : <ShellHeader render={header} />}
+      {props.sidebar === false ? header(null, "ps-5") : header(<PageNav />, "ps-2.5")}
       {props.children}
     </section>
-  );
-}
-
-/** Collapsed, the sidebar's own toggle is gone with it: the header offers it instead. */
-function ShellHeader(props: { render: (toggle: ReactNode, inset: string) => ReactNode }) {
-  const sidebar = useSidebar();
-  const hidden = sidebar.isMobile || !sidebar.open;
-  return props.render(
-    hidden && (
-      <SidebarTrigger intent="ghost" size="sq-sm" aria-label="Open sidebar">
-        <IconSidebar />
-      </SidebarTrigger>
-    ),
-    hidden ? "ps-2.5" : "ps-5",
   );
 }

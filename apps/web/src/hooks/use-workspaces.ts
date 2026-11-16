@@ -31,7 +31,7 @@ export function useWorkspaceNames(mailbox?: string) {
 
 /**
  * `mutate(workspace)` makes it active and opens `/onboarding` when its setup is unfinished and
- * you can finish it (owner or admin), else `/inbox`.
+ * you can finish it (owner or admin), else the same place in the module on screen.
  */
 export function useOpenWorkspace() {
   const client = useQueryClient();

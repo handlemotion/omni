@@ -31,10 +31,10 @@ export function StorageUsageSection() {
           return (
             <SettingsGroup>
               {cap === null ? (
-                <SettingsValueRow label="Files" value={formatBytes(state.usedBytes)} />
+                <SettingsValueRow label="Drive" value={formatBytes(state.usedBytes)} />
               ) : (
                 <SettingsMeterRow
-                  label="Files"
+                  label="Drive"
                   amount={`${formatBytes(state.usedBytes)} of ${formatBytes(cap)}`}
                   value={state.usedBytes}
                   max={cap}

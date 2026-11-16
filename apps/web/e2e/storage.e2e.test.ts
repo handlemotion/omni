@@ -66,7 +66,10 @@ test("a file larger than one part uploads from the page and downloads byte for b
   page.on("request", (request) => {
     if (request.method() === "PUT") parts.push(request.url().split("/parts/")[1] ?? "");
   });
-  await page.getByRole("button", { name: "Upload", exact: true }).waitFor({ timeout: 15_000 });
+  await page
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
   await page
     .locator("input[type=file]")
     .first()
@@ -90,7 +93,10 @@ test("a file larger than one part uploads from the page and downloads byte for b
 test("a link open to anyone downloads its file, byte for byte, for someone signed out", async () => {
   const page = await signedIn(`link-${Date.now()}@gmail.test`, "/files/my");
   const bytes = randomBytes(300_000);
-  await page.getByRole("button", { name: "Upload", exact: true }).waitFor({ timeout: 15_000 });
+  await page
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
   await page
     .locator("input[type=file]")
     .first()
@@ -133,7 +139,10 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
   });
   await db.insert(schema.orgSetup).values({ orgId: acme.orgId, step: "complete" });
   const page = await signedIn(email, "/files/my");
-  await page.getByRole("button", { name: "Upload", exact: true }).waitFor({ timeout: 15_000 });
+  await page
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
 
   // The first file's first part waits until the switch has begun, so the queue is mid-flight.
   let release = () => {};

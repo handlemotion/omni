@@ -1,17 +1,14 @@
-import { useLocation, useRouter, useSearch } from "@tanstack/react-router";
+import { useLocation, useSearch } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import {
   IconBubble,
   IconBubbleAnnotation,
-  IconChevronLeft,
-  IconChevronRight,
   IconClock,
   IconEmail,
   IconHelp,
   IconSettings,
   IconInbox,
   IconPaperPlane,
-  IconSidebar,
   IconTrash,
   IconWarning,
   IconWrite,
@@ -22,6 +19,7 @@ import { SearchPopover } from "@/components/search/search-popover";
 import { StorageNav } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
+import { ModuleSwitcher, useCurrentModule } from "./module-switcher";
 import { CountBadge } from "./count-badge";
 import { NotificationsButton } from "./notifications";
 import {
@@ -31,11 +29,9 @@ import {
   SidebarDisclosurePanel,
   SidebarDisclosureTrigger,
   SidebarFooter,
-  SidebarHeader,
   SidebarItem,
   SidebarLabel,
   SidebarSection,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
@@ -87,59 +83,23 @@ const folders: NavItem[] = [
   { label: "Spam", icon: <IconWarning />, href: "/spam", current: { path: "/spam" } },
 ];
 
-// Figma: Omni, sidebar (node 1:3).
+// Figma: Omni, sidebar (node 1:3). One module at a time (ADR 0035), after Skiff: the top row is
+// the module, and its menu switches module and workspace; the rest is that module's own. Back,
+// Forward and the sidebar toggle start each page's header (`PageNav`).
 export function AppSidebar() {
-  const router = useRouter();
-  const { isMobile } = useSidebar();
-  const shown = useShownMailbox();
+  const module = useCurrentModule();
   // The links carry the URL's mailbox as it is, not the one found in the workspace list: right
   // after a switch that list is still loading, and a link built from it would drop the mailbox.
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
   return (
-    <Sidebar>
-      {/* The switcher fills the row up to the icons, as close as they sit to each other. 2px
-          down: the row's centre (24px) meets the list and reading headers' (23.5px), so the
-          sidebar's icons sit on the same line as their toolbars. */}
-      <SidebarHeader className="justify-between gap-0.5 pt-0.5">
-        <MailboxSwitcher />
-        <div className="flex items-center gap-0.5">
-          <Button
-            intent="ghost"
-            size="sq-sm"
-            aria-label="Back"
-            onPress={() => router.history.back()}
-          >
-            <IconChevronLeft />
-          </Button>
-          <Button
-            intent="ghost"
-            size="sq-sm"
-            aria-label="Forward"
-            onPress={() => router.history.forward()}
-          >
-            <IconChevronRight />
-          </Button>
-          <SidebarTrigger intent="ghost" size="sq-sm">
-            <IconSidebar />
-          </SidebarTrigger>
-        </div>
-      </SidebarHeader>
-
+    // The sheet on a phone closes from the page header's sidebar toggle: no second close mark.
+    <Sidebar closeButton={false}>
       <SidebarContent>
-        {/* The first group needs no heading: it's what the app opens to. The same rows for every
-            mailbox the switcher shows; a shared inbox adds its Mine. Every row
-            keeps the switcher's choice: a link never changes which mailbox is shown. */}
-        {/* Search first, as wide as the links under it, the content's 12px gap above them; its
-            box grows out to the right. */}
-        {/* On a phone the sidebar is a sheet that unmounts when closed: the list header holds
-            search there instead (one search mounted at a time, so keys open one panel). */}
-        {!isMobile && <SearchPopover side="start" />}
-        <SidebarSection>
-          <Items items={mail} mailbox={mailbox} />
-          {shown?.kind === "shared" && <HelpdeskItems mailboxId={shown.id} />}
-        </SidebarSection>
-        <Group label="Folders" items={folders} mailbox={mailbox} />
-        <StorageNav mailbox={mailbox} />
+        {/* First, in the list the hover highlight runs through, centred on the page headers'
+            middle (24px down: the sidebar's 8px padding and half the 32px row), so it sits on
+            the same line as their titles. */}
+        <ModuleSwitcher />
+        {module === "files" ? <StorageNav mailbox={mailbox} /> : <MailNav mailbox={mailbox} />}
       </SidebarContent>
 
       <SidebarFooter className="justify-between">
@@ -163,6 +123,29 @@ export function AppSidebar() {
         </div>
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+/** Mail's rows: search, the mailbox, the lists and the folders. */
+function MailNav({ mailbox }: { mailbox: string | undefined }) {
+  const { isMobile } = useSidebar();
+  const shown = useShownMailbox();
+  return (
+    <>
+      {/* Search first, as wide as the links under it, the content's 12px gap above them; its
+          box grows out to the right. On a phone the sidebar is a sheet that unmounts when
+          closed: the list header holds search there instead (one search mounted at a time, so
+          keys open one panel). */}
+      {!isMobile && <SearchPopover side="start" />}
+      {/* The mailbox row, then the same rows for every mailbox it shows; a shared inbox adds its
+          Mine. Every row keeps the mailbox chosen: a link never changes which one is shown. */}
+      <SidebarSection>
+        <MailboxSwitcher />
+        <Items items={mail} mailbox={mailbox} />
+        {shown?.kind === "shared" && <HelpdeskItems mailboxId={shown.id} />}
+      </SidebarSection>
+      <Group label="Folders" items={folders} mailbox={mailbox} />
+    </>
   );
 }
 

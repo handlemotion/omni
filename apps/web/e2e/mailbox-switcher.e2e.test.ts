@@ -254,6 +254,57 @@ test("switching mailbox keeps the list on screen", async () => {
   expect(new URL(page.url()).pathname).toBe("/later");
 });
 
+// Catches: a workspace switch from Drive throwing the person back to mail (or into a folder of
+// the workspace left behind), and a module switch that changes the workspace.
+test("switching workspace keeps the module; switching module keeps the workspace", async () => {
+  const { email, acme, beta } = await ana("modules");
+  const page = await openSwitcher(email);
+  await page.keyboard.press("Escape");
+  const active = () =>
+    page.evaluate(() =>
+      fetch("/api/workspaces")
+        .then((r) => r.json() as Promise<{ activeOrganizationId: string }>)
+        .then((w) => w.activeOrganizationId),
+    );
+  const before = await active();
+
+  await page.getByRole("button", { name: "Switch module, currently Mail" }).click();
+  await page.getByRole("menuitem", { name: "Drive" }).click();
+  await page.waitForURL((url) => url.pathname === "/files/my");
+  expect(await active()).toBe(before);
+  // Drive alone: mail's rows are gone.
+  expect(await page.getByRole("link", { name: "Later", exact: true }).count()).toBe(0);
+
+  await page.getByRole("link", { name: "Trash", exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/files/trash");
+  const other = before === acme.orgId ? "Beta" : "Acme";
+  await page.getByRole("button", { name: /^Switch workspace, currently / }).click();
+  await page.getByRole("menuitem", { name: other }).click();
+  await page.getByRole("button", { name: `Switch workspace, currently ${other}` }).waitFor();
+  await page.getByRole("button", { name: "Switch module, currently Drive" }).waitFor();
+  expect(new URL(page.url()).pathname).toBe("/files/trash");
+  expect(await active()).toBe(other === "Beta" ? beta.orgId : acme.orgId);
+});
+
+// Catches: `g` then `f` opening Drive without the mailbox shown, so coming back to Mail lands on
+// All mailboxes instead of the one that was chosen.
+test("g then f keeps the mailbox for the way back to Mail", async () => {
+  const { email, boxes } = await ana("gokeys");
+  const page = await openSwitcher(email);
+  await page.getByRole("menuitem", { name: /hello@beta-gokeys/ }).click();
+  await page.waitForURL((url) => url.searchParams.get("mailbox") === boxes.hello.id);
+  await page.getByRole("row").filter({ hasText: "Hello from Beta" }).waitFor();
+
+  await page.keyboard.press("g");
+  await page.keyboard.press("f");
+  await page.waitForURL((url) => url.pathname === "/files/my");
+  await page.getByRole("button", { name: "Switch module, currently Drive" }).click();
+  await page.getByRole("menuitem", { name: "Mail" }).click();
+  await page.waitForURL((url) => url.pathname === "/inbox");
+  expect(new URL(page.url()).searchParams.get("mailbox")).toBe(boxes.hello.id);
+  await page.getByRole("button", { name: /^Switch mailbox, currently Hello/ }).waitFor();
+});
+
 async function freePort() {
   const server = createServer();
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

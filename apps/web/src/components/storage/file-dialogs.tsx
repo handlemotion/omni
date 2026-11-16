@@ -209,7 +209,7 @@ function crumbsFor(props: {
       ...trail(at?.path ?? [], null),
     ];
   }
-  const top = props.hasShared ? [{ id: "top", name: "Files", go: () => setAt(null) }] : [];
+  const top = props.hasShared ? [{ id: "top", name: "Drive", go: () => setAt(null) }] : [];
   if (!at?.space) return top;
   const space = at.space;
   return [

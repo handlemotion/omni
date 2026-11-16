@@ -13,6 +13,7 @@ import {
 } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
+import { PageNav } from "@/components/shell/page-nav";
 import { MiddleTruncate } from "@/components/ui/middle-truncate";
 import { ShowMore } from "@/components/ui/show-more";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
@@ -387,8 +388,11 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
     // The reading column's top bar: the subject, then the actions. One row with the list's
     // header beside it, the same height and bottom line; end-2.5 matches that header's inset.
     <div
-      className={`flex h-12 shrink-0 items-center gap-3 border-b ps-5 pe-2.5 ${fullScreen ? "" : "border-s"}`}
+      className={`flex h-12 shrink-0 items-center gap-3 border-b pe-2.5 ${fullScreen ? "ps-2.5" : "ps-5 border-s"}`}
     >
+      {/* Full screen hides the list and its header: the page's Back, Forward and sidebar toggle
+          start this one instead. */}
+      {fullScreen && <PageNav />}
       {/* Full screen hides the list: switch threads from here, before the subject. */}
       {fullScreen && (
         <div className="-ms-2 flex max-w-[40%] shrink-0 items-center">

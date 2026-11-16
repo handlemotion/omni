@@ -60,7 +60,9 @@
   --tooltip: #2b2b2b; /* Coal: softer than the near-black foreground. */
   --navbar: var(--surface);
   --navbar-foreground: var(--foreground);
-  --sidebar: var(--surface);
+  /* The page's own white: the sidebar is not a surface raised on the canvas, its hairline
+     border is the only line between it and the content. */
+  --sidebar: var(--background);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary-subtle);
   --sidebar-primary-foreground: var(--primary);
@@ -71,9 +73,13 @@
   --secondary-foreground: var(--foreground);
   --accent-foreground: var(--foreground);
   --primary-subtle: color-mix(in oklab, var(--primary) 12%, transparent);
+  /* Each module's identity, on its mark in the sidebar's module switcher only, with the white
+     glyph on it. Both hold 3:1 against white and under the glyph: Mail is the brand blue
+     (4.5:1), Drive a green a step deeper than `success` (4.0:1). */
+  --module-mail: var(--primary);
+  --module-drive: #15924f;
+  --module-foreground: #ffffff;
   --primary-subtle-foreground: var(--primary);
-  /* The nav's unread count: a lighter, opaque brand tint, so it stays light on a row's fill. */
-  --unread-count: color-mix(in oklab, var(--primary) 8%, white);
   --chart-1: var(--primary);
   --chart-2: color-mix(in oklab, var(--primary) 80%, white);
   --chart-3: color-mix(in oklab, var(--primary) 60%, white);
@@ -140,7 +146,6 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-subtle: var(--primary-subtle);
   --color-primary-subtle-foreground: var(--primary-subtle-foreground);
-  --color-unread-count: var(--unread-count);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);
@@ -154,6 +159,9 @@
   --color-navbar: var(--navbar);
   --color-navbar-foreground: var(--navbar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-module-mail: var(--module-mail);
+  --color-module-drive: var(--module-drive);
+  --color-module-foreground: var(--module-foreground);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);

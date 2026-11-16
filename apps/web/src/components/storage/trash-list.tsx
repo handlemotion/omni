@@ -20,7 +20,7 @@ export function TrashList() {
   const [deleting, setDeleting] = useState<StorageNode | null>(null);
   return (
     <StorageFrame
-      title={<Heading className="truncate">Trash</Heading>}
+      title={<Heading className="truncate text-md">Trash</Heading>}
       // With rows to read it against; the empty state says it itself.
       caption={trash.nodes.length > 0 && "Deleted forever after 30 days"}
     >

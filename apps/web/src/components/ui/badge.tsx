@@ -22,6 +22,9 @@ export const badgeStyles = tv({
       danger:
         "[--badge-bg:var(--color-danger-subtle)] [--badge-foreground:var(--color-danger-subtle-foreground)] [--badge-overlay:var(--color-danger)]/20",
       outline: "[--badge-border:var(--color-border)] [--badge-overlay:var(--color-secondary)]/20",
+      /** The brand fill with white on it (4.5:1): a count that should catch the eye. */
+      solid:
+        "[--badge-bg:var(--color-primary)] [--badge-foreground:var(--color-primary-foreground)] [--badge-overlay:var(--color-primary)]",
     },
     isCircle: {
       true: "rounded-full px-[calc(--spacing(2)-1px)]",
@@ -35,7 +38,15 @@ export const badgeStyles = tv({
 });
 
 export interface BadgeProps extends React.ComponentProps<"span"> {
-  intent?: "primary" | "secondary" | "success" | "info" | "warning" | "danger" | "outline";
+  intent?:
+    | "primary"
+    | "secondary"
+    | "success"
+    | "info"
+    | "warning"
+    | "danger"
+    | "outline"
+    | "solid";
   isCircle?: boolean;
 }
 

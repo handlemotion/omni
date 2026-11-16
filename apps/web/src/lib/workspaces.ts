@@ -23,13 +23,38 @@ export const workspacesQuery = () =>
 const LISTS = ["/inbox", "/later", "/done", "/archive", "/all"] as const;
 type ListPath = (typeof LISTS)[number];
 
+/** Files' places a workspace switch keeps: each space's top, never a folder of the one left. */
+const FILE_PLACES = [
+  "/files/my",
+  "/files/shared",
+  "/files/shared-with-me",
+  "/files/trash",
+] as const;
+type FilePlace = (typeof FILE_PLACES)[number];
+
 /** A router: reruns loaders, and navigates. */
 interface Navigator {
   invalidate(): Promise<void>;
   navigate(
-    options: { to: "/onboarding" } | { to: ListPath; search?: { mailbox?: string; lane?: string } },
+    options:
+      | { to: "/onboarding" }
+      | { to: ListPath | FilePlace; search?: { mailbox?: string; lane?: string } },
   ): Promise<void>;
   state: { location: { pathname: string; search: object } };
+}
+
+/**
+ * Where a workspace switch lands: in Files, the same place at its top (a folder belongs to the
+ * workspace left behind; `/files/shared` sends a Personal space on to My files itself), so the
+ * module stays; anywhere else, mail's same list.
+ */
+function samePlace(router: Navigator) {
+  const { pathname } = router.state.location;
+  if (pathname === "/files" || pathname.startsWith("/files/")) {
+    const place = FILE_PLACES.find((p) => pathname === p || pathname.startsWith(`${p}/`));
+    return { to: place ?? "/files/my", search: {} } as const;
+  }
+  return sameList(router, undefined);
 }
 
 /**
@@ -51,13 +76,16 @@ async function activate(client: QueryClient, router: Navigator, orgId: string) {
   if (session?.member?.orgId !== orgId) await setActiveOrganization(client, router, orgId);
 }
 
-/** Switches to the workspace, then opens onboarding if you can finish its setup, else the same list. */
+/**
+ * Switches to the workspace, then opens onboarding if you can finish its setup, else the same
+ * place: the same list in mail, the same space in Files.
+ */
 export async function openWorkspace(
   client: QueryClient,
   router: Navigator,
   workspace: Pick<Workspace, "id" | "role" | "setup">,
 ) {
-  const target = sameList(router, undefined);
+  const target = samePlace(router);
   await activate(client, router, workspace.id);
   await router.navigate(needsSetup(workspace) ? { to: "/onboarding" } : target);
 }

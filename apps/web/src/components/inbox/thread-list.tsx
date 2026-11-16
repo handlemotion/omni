@@ -21,8 +21,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
-import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { IconSidebar } from "@/components/icons/sidebar";
+import { useSidebar } from "@/components/ui/sidebar";
+import { PageNav } from "@/components/shell/page-nav";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
@@ -202,9 +202,7 @@ export function List(
     () => ({ rows: threads, href: props.href, closeHref, view }),
     [threads, props.href, closeHref, view],
   );
-  // Collapsed, the sidebar's own toggle is gone with it: the list's header offers it instead.
   const sidebar = useSidebar();
-  const sidebarHidden = sidebar.isMobile || !sidebar.open;
 
   const rows = (
     <RowHover>
@@ -247,19 +245,13 @@ export function List(
           ref={listRef}
           className={`relative flex flex-1 flex-col ${split ? "min-w-80" : "min-w-0"} ${hideList ? "hidden" : ""}`}
         >
-          {/* 10px on the right, the same as the 28px controls' inset from the top. */}
-          <header
-            className={`flex h-12 shrink-0 items-center gap-2 border-b pe-2.5 ${sidebarHidden ? "ps-2.5" : "ps-5"}`}
-          >
-            {sidebarHidden && (
-              <SidebarTrigger intent="ghost" size="sq-sm" aria-label="Open sidebar">
-                <IconSidebar />
-              </SidebarTrigger>
-            )}
-            {/* Centred as laid out, with no nudge: its capitals sit on the icons' centre line,
-                like the sidebar's "All" and the subject beside it. It never shrinks: the
-                caption truncates and the search field narrows first. */}
-            <Heading className="shrink-0 whitespace-nowrap">{props.title}</Heading>
+          {/* 10px each side, the same as the 28px controls' inset from the top. */}
+          <header className="flex h-12 shrink-0 items-center gap-2 border-b ps-2.5 pe-2.5">
+            <PageNav />
+            {/* 14px. Centred as laid out, with no nudge: its capitals sit on the icons' centre
+                line. It never shrinks: the caption truncates and the search field narrows
+                first. */}
+            <Heading className="shrink-0 text-md whitespace-nowrap">{props.title}</Heading>
             <span className="min-w-0 flex-1 truncate text-xs text-subtle-foreground">
               {props.caption}
             </span>
