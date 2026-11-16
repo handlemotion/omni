@@ -86,6 +86,13 @@ export type {
   ListCompaniesInput,
   UpdateCompanyResult,
 } from "./crm/companies.ts";
+// System work for the CRM's daily job (ADR 0039 decision 4): no member, every workspace.
+export {
+  CONTRACT_EXPIRY_BATCH,
+  crmMembersOf,
+  endExpiredContracts,
+  type EndedContract,
+} from "./crm/contract-expiry.ts";
 export {
   changeContract,
   type ContractChange,

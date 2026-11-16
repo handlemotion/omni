@@ -5,6 +5,7 @@
 // Hono RPC infers `AppType` from the chain.
 import type { ModuleLifecycle } from "@omni/auth";
 import { deleteWorkspaceStorage, handOverMemberStorage } from "@omni/db";
+import { crmDaily } from "./crm/jobs.ts";
 import { mailMinute } from "./mail/jobs.ts";
 import { abortExpiredStorageUploads, storageDaily } from "./storage/jobs.ts";
 import { cleanupExpiredUploads } from "./uploads.ts";
@@ -36,4 +37,10 @@ const storage: Module = {
   workspaceDeleted: (db, { orgId }) => deleteWorkspaceStorage(db, orgId),
 };
 
-export const modules: readonly Module[] = [mail, storage];
+const crm: Module = {
+  name: "crm",
+  // Signed contracts past their end date end (ADR 0039 decision 4).
+  daily: crmDaily,
+};
+
+export const modules: readonly Module[] = [mail, storage, crm];

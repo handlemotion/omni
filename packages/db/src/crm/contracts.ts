@@ -152,7 +152,7 @@ async function loadContract(ex: Ex, orgId: string, id: string, lock = false) {
  * and a record's delete for good all take these first, so a contract cannot be made or signed
  * between a delete's check for signed contracts and its cascade. False when one is gone.
  */
-async function lockRecords(
+export async function lockRecords(
   tx: Ex,
   orgId: string,
   records: { companyId: string | null; dealId: string | null },
