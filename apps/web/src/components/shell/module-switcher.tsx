@@ -12,13 +12,13 @@
 // its centre and the label after it line up with the rows below. The glyph is 12px, 3px in.
 import { useLocation, useRouter, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
-import type { ComponentType, CSSProperties } from "react";
+import { useMemo, useRef, type ComponentType, type CSSProperties } from "react";
 import {
   IconCheck,
   IconChevronsUpDown,
-  IconFolder,
-  IconHandshake,
-  IconMail,
+  IconFolderFilled,
+  IconHandshakeFilled,
+  IconMailFilled,
   IconSettings,
 } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
@@ -49,7 +49,7 @@ interface Module {
 const MAIL: Module = {
   id: "mail",
   label: "Mail",
-  icon: IconMail,
+  icon: IconMailFilled,
   home: "/inbox",
   fill: "bg-module-mail",
 };
@@ -57,7 +57,7 @@ const MAIL: Module = {
 const DRIVE: Module = {
   id: "files",
   label: "Drive",
-  icon: IconFolder,
+  icon: IconFolderFilled,
   home: "/files/my",
   fill: "bg-module-drive",
 };
@@ -65,7 +65,7 @@ const DRIVE: Module = {
 const CRM: Module = {
   id: "crm",
   label: "CRM",
-  icon: IconHandshake,
+  icon: IconHandshakeFilled,
   home: "/crm/companies",
   fill: "bg-module-crm",
 };
@@ -146,11 +146,17 @@ export function ModuleSwitcher() {
   const current = BY_ID[useCurrentModule()];
   const open = useOpenModule();
   const modules = useHasCrm() ? MODULES : MODULES.filter((module) => module.id !== "crm");
+  // The menu lines up with the whole row, not the pill: the links' width, as the workspace's.
+  const row = useRef<HTMLDivElement>(null);
+  const rowBox = useMemo(
+    () => ({ getBoundingClientRect: () => row.current?.getBoundingClientRect() ?? new DOMRect() }),
+    [],
+  );
 
   return (
     // A row on the nav rows' grid: the mark in the 15px icon box, the label 10px after it, and
     // Switch, a round pill, at the row's end.
-    <div className="flex h-8 min-w-0 items-center gap-2.5 ps-2">
+    <div ref={row} className="flex h-8 min-w-0 items-center gap-2.5 ps-2">
       <span className="grid size-icon shrink-0 place-items-center">
         <span className="-m-[1.5px]">
           <ModuleMark module={current} />
@@ -167,12 +173,13 @@ export function ModuleSwitcher() {
           Switch
         </Button>
         <Menu
-          placement="top end"
+          placement="top start"
           popover={{
+            anchor: rowBox,
             offset: 4,
             // The row sits 8px from the window's edge: the menu keeps the same 8px.
             collisionPadding: 8,
-            className: "min-w-48 max-w-[min(18rem,calc(100vw-16px))]",
+            className: "w-(--anchor-width) min-w-(--anchor-width)",
           }}
         >
           {modules.map((module) => (

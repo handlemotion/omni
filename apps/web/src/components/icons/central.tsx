@@ -95,3 +95,7 @@ export { IconTable } from "central-icons-outlined/IconTable";
 export { IconSlidesWide as IconSlides } from "central-icons-outlined/IconSlidesWide";
 export { IconAlignmentJustify as IconRows } from "central-icons-outlined/IconAlignmentJustify";
 export { IconGrid as IconCards } from "central-icons-outlined/IconGrid";
+// Filled: the module marks only (a white glyph on the module's colour reads solid, not as a line).
+export { IconEmail1 as IconMailFilled } from "central-icons-filled/IconEmail1";
+export { IconFolder1 as IconFolderFilled } from "central-icons-filled/IconFolder1";
+export { IconHandshake as IconHandshakeFilled } from "central-icons-filled/IconHandshake";

@@ -13,8 +13,9 @@ export function PageNav() {
   const open = sidebar.isMobile ? sidebar.isOpenOnMobile : sidebar.open;
   return (
     // 4px more before the title than the header's own 8px gap, so the title reads as the start
-    // of the page, not a second button.
-    <div className="me-1 flex shrink-0 items-center">
+    // of the page, not a second button. 2px in from the header's 10px (optical): the glyph's ink
+    // then starts 20px from the pane's edge, on the content's line below it (measured).
+    <div className="ms-0.5 me-1 flex shrink-0 items-center">
       <SidebarTrigger
         intent="ghost"
         size="sq-sm"

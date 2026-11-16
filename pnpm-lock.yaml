@@ -388,6 +388,9 @@ importers:
       '@ui-sdk/react':
         specifier: 0.1.0-beta.1
         version: 0.1.0-beta.1(@types/react@19.3.0)(@ui-sdk/core@0.1.0-beta.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      central-icons-filled:
+        specifier: npm:@central-icons-react/round-filled-radius-3-stroke-1.5@1.2.39
+        version: '@central-icons-react/round-filled-radius-3-stroke-1.5@1.2.39(react@19.3.1)'
       central-icons-outlined:
         specifier: npm:@central-icons-react/round-outlined-radius-3-stroke-1.5@^1.2.27
         version: '@central-icons-react/round-outlined-radius-3-stroke-1.5@1.2.39(react@19.3.1)'
@@ -1318,6 +1321,11 @@ packages:
     peerDependencies:
       react: '>=14.0.0 <= 19'
       react-native: '*'
+
+  '@central-icons-react/round-filled-radius-3-stroke-1.5@1.2.39':
+    resolution: {integrity: sha512-AHM2Bc8HYetGuGZo5ja4NGe4xO9cResItIggXmQmajJ9IWmZp/YUmBFX3QaR3RvVkTxzE4TYneMzsAnnUebVHw==}
+    peerDependencies:
+      react: '>=16.6.0 <20'
 
   '@central-icons-react/round-outlined-radius-3-stroke-1.5@1.2.39':
     resolution: {integrity: sha512-B2DDXVVkRVoBNqeS96XOni85G/GC+rHH9lPxMZ9X+1FaNbxES/1hkWGOrg0Pc00knyjZw2yNvTAaMT3oooYr4A==}
@@ -7843,6 +7851,10 @@ snapshots:
       react: 19.3.0
       react-native: 0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2)
       react-native-svg: 15.16.0(react-native@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
+
+  '@central-icons-react/round-filled-radius-3-stroke-1.5@1.2.39(react@19.3.1)':
+    dependencies:
+      react: 19.3.1
 
   '@central-icons-react/round-outlined-radius-3-stroke-1.5@1.2.39(react@19.3.1)':
     dependencies:

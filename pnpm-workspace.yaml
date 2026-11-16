@@ -16,6 +16,7 @@ minimumReleaseAgeExclude:
 allowBuilds:
   # Central Icons: its only script is a license-key check at install. Skipped, as in transitive.
   "@central-icons-react/round-outlined-radius-3-stroke-1.5": false
+  "@central-icons-react/round-filled-radius-3-stroke-1.5": false
   "@central-icons-react-native/round-outlined-radius-3-stroke-1.5": false
   bun: true
   esbuild: true

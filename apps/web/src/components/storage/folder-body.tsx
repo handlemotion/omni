@@ -4,13 +4,11 @@
 import { useMemo, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
-import { IconFolderPlus, IconUpload } from "@/components/icons/central";
 import { ListFailed } from "@/components/inbox/thread-list";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/ui/drop-zone";
 import { FileTrigger } from "@/components/ui/file-trigger";
-import { useIsMobile } from "@/hooks/use-mobile.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { FileSections, FileSectionsBones } from "./file-sections.tsx";
 import type { FolderSource, OpenFile } from "./folder-view.tsx";
@@ -121,29 +119,16 @@ function EmptyActions(props: Actions) {
   );
 }
 
-/**
- * New folder and Upload, for whoever may write; on a phone their icons alone, so the
- * breadcrumbs keep the room.
- */
+/** New folder and Upload, for whoever may write: labels alone, as the page's text actions. */
 export function HeaderActions(props: Actions & { canWrite: boolean }) {
-  const phone = useIsMobile();
   if (!props.canWrite) return null;
   return (
     <>
-      <Button
-        intent="outline"
-        size={phone ? "sq-sm" : "sm"}
-        aria-label={phone ? "New folder" : undefined}
-        onPress={props.onNewFolder}
-      >
-        <IconFolderPlus />
-        {!phone && "New folder"}
+      <Button intent="outline" size="sm" onPress={props.onNewFolder}>
+        New folder
       </Button>
       <FileTrigger allowsMultiple onSelect={(files) => props.onFiles([...(files ?? [])])}>
-        <Button size={phone ? "sq-sm" : "sm"} aria-label={phone ? "Upload" : undefined}>
-          <IconUpload />
-          {!phone && "Upload"}
-        </Button>
+        <Button size="sm">Upload</Button>
       </FileTrigger>
     </>
   );

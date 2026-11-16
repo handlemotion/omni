@@ -52,8 +52,9 @@ export function FileCard(props: {
           <FileGlyph kind={type?.kind ?? "folder"} className="size-8 text-muted-foreground" />
         )}
       </div>
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1 ps-0.5">
-        <span className="truncate text-md text-foreground">{node.name}</span>
+      {/* The body's 13px over the 11px meta, 4px apart: two sizes, as the rows use. */}
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1 gap-y-1 ps-0.5">
+        <span className="truncate text-sm text-foreground">{node.name}</span>
         <span {...KEEP_IN_MENU} className="row-span-2 self-start">
           <SettingsRowMenu label={`Actions for ${node.name}`} items={props.menu} />
         </span>
