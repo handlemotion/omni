@@ -27,6 +27,18 @@ describe("parseAddress", () => {
     }
   });
 
+  // Real addresses carry atext punctuation; refusing them would keep a client out of the CRM.
+  test("an apostrophe, a plus tag and a hyphenated or punycode domain are addresses", () => {
+    for (const good of [
+      "o'brien@acme.ie",
+      "ana+crm@acme.com",
+      "a.b@mail.acme-x.co.uk",
+      "ana@xn--bcher-kva.de",
+    ]) {
+      expect(parseAddress(good)).toBe(good);
+    }
+  });
+
   // A malformed value stored as a key would never match a participant, and the record would look
   // empty instead of the request failing.
   test("anything that is not one address is refused", () => {
@@ -41,6 +53,15 @@ describe("parseAddress", () => {
       "ana@acme",
       "ana@.acme.com",
       "ana@acme..com",
+      "ana@acme.com,bob",
+      "<ana@acme.com>",
+      "Ana <ana@acme.com>",
+      "ana;bob@acme.com",
+      '"ana"@acme.com',
+      "ana@-acme.com",
+      "ana@acme_x.com",
+      ".ana@acme.com",
+      "ana..b@acme.com",
     ]) {
       expect({ bad, parsed: parseAddress(bad) }).toEqual({ bad, parsed: null });
     }

@@ -34,18 +34,29 @@ export function normalizeAddress(address: string) {
   return address.trim().toLowerCase();
 }
 
+/** One dot-separated atom of a local part: RFC 5322 `atext`. */
+const ATOM = /^[a-z0-9!#$%&'*+\-/=?^_`{|}~]+$/;
+/** One domain label: letters, digits and hyphens, not starting or ending with a hyphen. */
+const LABEL = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
+
 /**
- * Input that must be exactly one address (`local@domain`: one `@`, no spaces, a dotted domain),
- * in its normalized form with any trailing dot on the domain dropped; null when it is not one.
- * For values a person types as a key, where a malformed one would be stored and never match.
+ * Input that must be exactly one plain address (`local@domain`), in its normalized form with
+ * any trailing dot on the domain dropped; null when it is not one. The local part is dot-separated
+ * atoms (no quoted local parts); the domain is two or more letter-digit-hyphen labels, as mail
+ * headers carry it (an internationalized domain in its punycode form). For values a person types
+ * as a key, where a malformed one (`ana@acme.com,bob`, `<ana@acme.com>`) would be stored and never
+ * match.
  */
 export function parseAddress(input: string): string | null {
   const address = normalizeAddress(input);
   const at = address.indexOf("@");
-  if (at <= 0 || at !== address.lastIndexOf("@") || /\s/.test(address)) return null;
+  if (at <= 0 || at !== address.lastIndexOf("@")) return null;
+  const local = address.slice(0, at);
+  if (!local.split(".").every((atom) => ATOM.test(atom))) return null;
   const domain = address.slice(at + 1).replace(/\.$/, "");
-  if (!domain.includes(".") || domain.startsWith(".") || domain.includes("..")) return null;
-  return `${address.slice(0, at)}@${domain}`;
+  const labels = domain.split(".");
+  if (labels.length < 2 || !labels.every((label) => LABEL.test(label))) return null;
+  return `${local}@${domain}`;
 }
 
 /** Whether two spellings are the same address. */

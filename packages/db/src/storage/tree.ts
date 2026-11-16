@@ -245,21 +245,26 @@ export function treeOperations(db: Db, door: Door) {
     async rename(nodeId: string, name: string): Promise<RenameResult> {
       const clean = cleanName(name);
       if (!clean) return { status: "invalid_name" };
-      const found = await reach(db, door, nodeId);
-      if (!found || inTrash(found.chain)) return NOT_FOUND;
-      if (!found.access.change) return FORBIDDEN;
-      if (found.node.lockedAt) return LOCKED;
       try {
-        const [row] = await db
-          .update(storageNodes)
-          .set({ name: clean })
-          .where(
-            sql`${storageNodes.id} = ${nodeId} and ${storageNodes.trashedAt} is null and not exists (select 1 from ${storageLocks} where ${storageLocks.nodeId} = ${storageNodes.id})`,
-          )
-          .returning();
-        if (row) return { status: "ok", node: toNode(row) };
-        // Locked, trashed or gone since it was read.
-        return (await holdsLocked(db, nodeId)) ? LOCKED : NOT_FOUND;
+        return await db.transaction(async (tx): Promise<RenameResult> => {
+          const orgId = await orgOfNode(tx, nodeId);
+          if (!orgId) return NOT_FOUND;
+          // Under the tree lock, as a lock is taken: the guard below cannot see a lock row
+          // another transaction has not committed yet, so a rename waits for it.
+          await lockTree(tx, orgId);
+          const found = await reach(tx, door, nodeId);
+          if (!found || inTrash(found.chain)) return NOT_FOUND;
+          if (!found.access.change) return FORBIDDEN;
+          if (found.node.lockedAt) return LOCKED;
+          const [row] = await tx
+            .update(storageNodes)
+            .set({ name: clean })
+            .where(
+              sql`${storageNodes.id} = ${nodeId} and ${storageNodes.trashedAt} is null and not exists (select 1 from ${storageLocks} where ${storageLocks.nodeId} = ${storageNodes.id})`,
+            )
+            .returning();
+          return row ? { status: "ok", node: toNode(row) } : NOT_FOUND;
+        });
       } catch (error) {
         if (isUniqueViolation(error)) return { status: "name_taken" };
         throw error;
