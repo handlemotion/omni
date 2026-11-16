@@ -15,13 +15,11 @@ import { EmptyState } from "@/components/empty/empty-state";
 import { ThreadListEmpty } from "@/components/inbox/list-empty";
 import { FloatingCompose } from "@/components/compose/floating-actions";
 import { IconPencil } from "@/components/icons/central";
-import { IconSearch } from "@/components/icons/sidebar";
-import { openSearch, SearchPopover } from "@/components/search/search-popover";
+import { SearchPopover } from "@/components/search/search-popover";
 import { Button } from "@/components/ui/button";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListSection } from "@/components/ui/grid-list";
 import { Heading } from "@/components/ui/heading";
-import { useSidebar } from "@/components/ui/sidebar";
 import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
@@ -206,7 +204,6 @@ export function List(
     () => ({ rows: threads, href: props.href, closeHref, view }),
     [threads, props.href, closeHref, view],
   );
-  const sidebar = useSidebar();
 
   const rows = (
     <RowHover>
@@ -253,7 +250,7 @@ export function List(
           {/* 10px each side, the same as the 28px controls' inset from the top; 20px before a
               title that starts the header, as the reading column's subject has. */}
           <header
-            className={`flex h-12 shrink-0 items-center gap-2 pe-2.5 ${pageNav ? "ps-2.5" : "ps-5"}`}
+            className={`@container/list-head flex h-12 shrink-0 items-center gap-2 pe-2.5 ${pageNav ? "ps-2.5" : "ps-5"}`}
           >
             <PageNav />
             {/* 14px. Centred as laid out, with no nudge: its capitals sit on the icons' centre
@@ -270,15 +267,8 @@ export function List(
               </span>
             )}
             <div className="flex min-w-0 items-center gap-1 *:shrink-0 *:data-[search-field]:shrink">
-              {/* The same search as the sidebar's field (and `/`). On a phone the sidebar is a sheet
-                  that unmounts when closed, so the header holds the search field itself there. */}
-              {sidebar.isMobile ? (
-                <SearchPopover />
-              ) : (
-                <HeaderAction label="Search" onPress={openSearch}>
-                  <IconSearch />
-                </HeaderAction>
-              )}
+              {/* Mail's search field (and `/`): the page holds it, not the sidebar. */}
+              <SearchPopover />
               <MarkAllRead rows={threads} />
               <ReloadAction />
               {/* With no thread open, Compose floats at the list's foot instead. */}

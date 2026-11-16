@@ -69,13 +69,15 @@ const SIZE = {
 };
 // With no field on screen (a collapsed sidebar) the box opens centred, wider: a command bar.
 const CENTERED_WIDTH = 600;
+// The least room the box keeps from the window's edges.
+const EDGE = 16;
 
 /** What search opens holding: the words already searched, and the mailbox they were scoped to. */
 export interface SearchSeed {
   q: string;
   mailbox?: string | undefined;
 }
-/** Whatever search is mounted opens itself; set while it is (the sidebar's). */
+/** Whatever search is mounted opens itself; set while it is (the mail list header's). */
 let openMounted: ((seed?: SearchSeed) => void) | undefined;
 /**
  * Opens search from a control elsewhere (the list's search icon), as `/` does; with a `seed`, to
@@ -115,17 +117,23 @@ export function SearchPopover({ side = "end" }: { side?: "start" | "end" }) {
     // no size) while `/` and ⌘K still open search: the box then opens centred near the
     // window's top instead.
     if (!rect || rect.width === 0 || rect.right <= 0 || rect.left >= window.innerWidth) {
-      const width = Math.min(CENTERED_WIDTH, window.innerWidth - 32);
+      const width = Math.min(CENTERED_WIDTH, window.innerWidth - 2 * EDGE);
       setOpenWidth(width);
       setFieldWidth(width);
       setAnchor({ top: 64, left: (window.innerWidth - width) / 2 });
     } else {
-      setOpenWidth(SIZE.open.width);
+      const width = Math.min(SIZE.open.width, window.innerWidth - 2 * EDGE);
+      setOpenWidth(width);
       setFieldWidth(rect.width);
+      // Growing left from a field near the window's start (a narrow list beside an open thread)
+      // would run off screen: the box then grows right from the window's edge instead.
+      const fitsLeft = rect.right - width >= EDGE;
       setAnchor(
         side === "start"
           ? { top: rect.top, left: rect.left }
-          : { top: rect.top, right: window.innerWidth - rect.right },
+          : fitsLeft
+            ? { top: rect.top, right: window.innerWidth - rect.right }
+            : { top: rect.top, left: EDGE },
       );
     }
     setPhase("open");
@@ -177,16 +185,18 @@ export function SearchPopover({ side = "end" }: { side?: "start" | "end" }) {
           <span className="min-w-0 truncate">Search</span>
         </SidebarItemTrigger>
       ) : (
+        // In a list header under 448px (the sidebar closed and a thread open), the field is an
+        // icon like the header's other actions, so the row still fits the 320px list.
         <Button
           ref={triggerRef}
           onPress={() => open()}
           aria-label="Search"
           data-search-field
-          className={`flex h-7 w-60 min-w-24 cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 pe-1.25 text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70 ${phase === "closed" ? "" : "invisible"}`}
+          className={`flex h-7 w-60 min-w-24 cursor-text items-center gap-2 rounded-lg border border-input bg-background ps-2 pe-1.25 text-sm text-subtle-foreground outline-hidden hover:border-muted-foreground/30 focus-visible:border-ring/70 @max-md/list-head:w-7 @max-md/list-head:min-w-7 @max-md/list-head:cursor-default @max-md/list-head:justify-center @max-md/list-head:border-0 @max-md/list-head:bg-transparent @max-md/list-head:px-0 @max-md/list-head:hover:bg-accent ${phase === "closed" ? "" : "invisible"}`}
         >
           <IconSearch className="text-muted-foreground" />
-          <span className="flex-1 text-start">Search</span>
-          <Keyboard className="h-4 min-w-4">/</Keyboard>
+          <span className="flex-1 text-start @max-md/list-head:hidden">Search</span>
+          <Keyboard className="h-4 min-w-4 @max-md/list-head:hidden">/</Keyboard>
         </Button>
       )}
       <ModalOverlay

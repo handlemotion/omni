@@ -159,6 +159,8 @@ export function MailboxSwitcher() {
   const faces = mailboxes.map(face);
   // With no mailbox yet the cluster keeps two discs, blank, so All keeps its mark.
   const clusterFaces = faces.length > 0 ? faces : BLANK_FACES;
+  // One mailbox shown, or the only one: a single face, not a cluster.
+  const single = shown ? face(shown) : clusterFaces.length === 1 ? clusterFaces[0] : undefined;
 
   const triggerName = shown ? mailboxName(shown, you) : "All mailboxes";
 
@@ -189,13 +191,13 @@ export function MailboxSwitcher() {
         <span className="grid size-icon shrink-0 place-items-center">
           {pending ? (
             <Loader className="size-icon text-muted-foreground" />
-          ) : shown ? (
-            // 18px over the 15px box: the margin centres it on the nav icons' axis.
+          ) : single ? (
+            // One face, 18px over the 15px box: the margin centres it on the nav icons' axis.
             <span className="-m-[1.5px]">
-              <FaceAvatar face={face(shown)} size={18} />
+              <FaceAvatar face={single} size={18} />
             </span>
           ) : (
-            // 20px over the 15px box, centred on the same axis.
+            // Several, 20px over the 15px box, centred on the same axis.
             <span className="-m-[2.5px]">
               <Cluster
                 faces={clusterFaces}

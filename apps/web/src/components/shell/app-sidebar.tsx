@@ -12,14 +12,13 @@ import {
   IconWrite,
 } from "@/components/icons/sidebar";
 import { Badge } from "@/components/ui/badge";
-import { SearchPopover } from "@/components/search/search-popover";
 import { CrmNav } from "@/components/crm/crm-nav";
 import { StorageNav } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
 import { MailboxSwitcher } from "./mailbox-switcher";
 import { ModuleSwitcher, useCurrentModule, WorkspaceSwitcher } from "./module-switcher";
 import { CountBadge } from "./count-badge";
-import { TitleBarRow } from "./desktop-title-bar";
+import { TitleBarRow, useTitleBar } from "./title-bar";
 import { NotificationsButton } from "./notifications";
 import {
   Sidebar,
@@ -29,15 +28,10 @@ import {
   SidebarDisclosureTrigger,
   SidebarFooter,
   SidebarItem,
-  SidebarItemTrigger,
   SidebarLabel,
   SidebarSection,
-  useSidebar,
 } from "@/components/ui/sidebar";
-import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import { useConnectivity } from "@/hooks/use-connectivity.ts";
-import { desktop } from "@/lib/desktop.ts";
-import { ariaKeyShortcuts } from "@/lib/shortcuts.ts";
 import { useCounts } from "@/hooks/use-mail.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useWorkspaceSlug, useWorkspaces } from "@/hooks/use-workspaces.ts";
@@ -91,6 +85,7 @@ const folders: NavItem[] = [
 // (`PageNav`).
 export function AppSidebar() {
   const module = useCurrentModule();
+  const titleBar = useTitleBar();
   // The links carry the URL's mailbox as it is, not the one found in the workspace list: right
   // after a switch that list is still loading, and a link built from it would drop the mailbox.
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
@@ -102,10 +97,10 @@ export function AppSidebar() {
         {/* First, in the list the hover highlight runs through, centred on the page headers'
             middle (24px down: the sidebar's 8px padding and half the 32px row), so it sits on
             the same line as their titles. */}
-        {/* The workspace, hugging its mark and name, and the bell at the row's end. */}
-        {/* In the desktop app the title bar holds the workspace and notifications. */}
+        {/* The title bar holds the workspace and notifications; on a phone, the sheet's first row
+            does: the workspace, hugging its mark and name, and notifications at its end. */}
         <TitleBarRow />
-        {!desktop.isDesktop && <WorkspaceSwitcher end={<NotificationsButton />} />}
+        {!titleBar && <WorkspaceSwitcher end={<NotificationsButton />} />}
         {module === "files" ? (
           <StorageNav mailbox={mailbox} />
         ) : module === "crm" ? (
@@ -125,27 +120,16 @@ export function AppSidebar() {
   );
 }
 
-/** Mail's rows: search, the mailbox, the lists and the folders. */
+/** Mail's rows: the mailbox, the lists and the folders. Compose and search are the page's. */
 function MailNav({ mailbox }: { mailbox: string | undefined }) {
-  const { isMobile } = useSidebar();
   const shown = useShownMailbox();
-  const openCompose = useOpenCompose();
   return (
     <>
-      {/* Which mailbox you're in, then what you do: write and find. On a phone the sidebar is a
-          sheet that unmounts when closed, so the list header holds search there instead (one
-          search mounted at a time, so keys open one panel). */}
+      {/* Which mailbox you're in, then where its mail waits: the same rows for every mailbox the
+          switcher shows; a shared inbox adds its Mine. Every row keeps the mailbox chosen: a link
+          never changes which one is shown. */}
       <SidebarSection>
         <MailboxSwitcher />
-        <SidebarItemTrigger onPress={openCompose} aria-keyshortcuts={ariaKeyShortcuts("compose")}>
-          <IconWrite />
-          <span className="min-w-0 truncate">Compose</span>
-        </SidebarItemTrigger>
-        {!isMobile && <SearchPopover side="start" />}
-      </SidebarSection>
-      {/* Where mail waits, the same rows for every mailbox the switcher shows; a shared inbox adds
-          its Mine. Every row keeps the mailbox chosen: a link never changes which one is shown. */}
-      <SidebarSection>
         <Items items={mail} mailbox={mailbox} />
         {shown?.kind === "shared" && <HelpdeskItems mailboxId={shown.id} />}
       </SidebarSection>
@@ -215,8 +199,8 @@ function UnreadCount({ mailbox }: { mailbox: string | undefined }) {
     .filter((c) => !mailbox || c.mailboxId === mailbox)
     .reduce((sum, c) => sum + c.unread, 0);
   if (!unread) return null;
-  // 4px into the row's end padding: its centre lines up with the sidebar toggle's and the search
-  // field's `/` above it.
+  // 4px into the row's end padding: its centre lines up with the mailbox switcher's chevron above
+  // it (the rows' trailing axis).
   return <CountBadge count={unread} className="ms-auto -me-1" />;
 }
 

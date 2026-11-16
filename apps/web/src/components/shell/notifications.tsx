@@ -10,8 +10,8 @@ import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
+import { IconInbox } from "@/components/icons/sidebar";
 import {
-  IconBell,
   IconCircleAlert,
   IconClock3,
   IconMail,
@@ -47,11 +47,8 @@ import { pictureUrl } from "@/lib/urls.ts";
 import { CountBadge } from "./count-badge";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
-/**
- * The bell: opens and closes the panel, and wears your unread count. The desktop title bar draws
- * it with the inbox glyph (`icon`).
- */
-export function NotificationsButton({ icon = <IconBell /> }: { icon?: ReactNode }) {
+/** Notifications, drawn as an inbox: opens and closes the panel, and wears your unread count. */
+export function NotificationsButton() {
   const { unread } = useNotifications();
   const open = useNotificationsPanel();
   const { isMobile, setIsOpenOnMobile } = useSidebar();
@@ -71,7 +68,7 @@ export function NotificationsButton({ icon = <IconBell /> }: { icon?: ReactNode 
         }}
         className="relative"
       >
-        {icon}
+        <IconInbox />
         {/* Over the bell's top right, out of the flow so the footer doesn't shift. */}
         <CountBadge count={unread} className="pointer-events-none absolute -end-2 -top-2" />
       </Button>

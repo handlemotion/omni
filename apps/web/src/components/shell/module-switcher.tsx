@@ -131,6 +131,25 @@ function WorkspaceMark({ workspace, size }: { workspace: Workspace; size: number
   );
 }
 
+/**
+ * The switcher's mark: 18px over the nav icons' 15px box (the margin centres it on their axis),
+ * or alone a size up, 22px, in the title bar; a loader while a workspace opens.
+ */
+function TriggerMark(props: { workspace: Workspace; busy: boolean; large: boolean }) {
+  if (props.large && !props.busy) return <WorkspaceMark workspace={props.workspace} size={22} />;
+  return (
+    <span className="grid size-icon shrink-0 place-items-center">
+      {props.busy ? (
+        <Loader className="size-icon text-muted-foreground" />
+      ) : (
+        <span className="-m-[1.5px]">
+          <WorkspaceMark workspace={props.workspace} size={18} />
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** A row's name, with the check on the current one riding inside the label so it sits on the
  *  name's line, 6px in from the row's end (as the settings workspace chooser does). */
 function Label({ name, current }: { name: string; current: boolean }) {
@@ -298,16 +317,11 @@ export function WorkspaceSwitcher({
                 : "w-auto max-w-full shrink pe-2.25"
           }
         >
-          <span className="grid size-icon shrink-0 place-items-center">
-            {openWorkspace.isPending || pending ? (
-              <Loader className="size-icon text-muted-foreground" />
-            ) : (
-              // 18px over the 15px box: the margin centres it on the nav icons' axis.
-              <span className="-m-[1.5px]">
-                <WorkspaceMark workspace={active} size={18} />
-              </span>
-            )}
-          </span>
+          <TriggerMark
+            workspace={active}
+            busy={openWorkspace.isPending || pending}
+            large={iconOnly}
+          />
           {!iconOnly && <span className="min-w-0 truncate">{label(active)}</span>}
           {workspacesOnly && (
             <IconChevronsUpDown className="ms-auto -me-0.75 size-3.5 shrink-0 text-subtle-foreground group-hover/sidebar-item:text-foreground group-aria-expanded/sidebar-item:text-foreground" />
