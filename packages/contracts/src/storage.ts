@@ -44,6 +44,15 @@ export const storageNodeSchema = z.object({
    * from a Worker older than the lock.
    */
   lockedAt: isoDate.nullable().optional(),
+  /**
+   * Sync (ADR 0043): the drive's revision when the row last changed in any way. Absent from a
+   * Worker older than sync.
+   */
+  revision: z.number().int().nonnegative().optional(),
+  /** Goes up each time a file's bytes are replaced; constant for a folder. Absent as above. */
+  contentVersion: z.number().int().nonnegative().optional(),
+  /** Hex sha256 of the bytes, as the uploading client sent it; null when it sent none. */
+  contentSha256: z.string().nullable().optional(),
 });
 
 /** A node as its reader sees it. `path` runs from the highest folder they can open to the node. */
@@ -100,12 +109,15 @@ export const storageTrashResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 
-/** `POST /uploads`: opens an upload of `size` bytes. */
+const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
+
+/** `POST /uploads`: opens an upload of `size` bytes. `sha256` is the bytes' hash, if known. */
 export const storageOpenUploadBodySchema = z
   .object({
     name,
     size: z.number().int().nonnegative(),
     mimeType: z.string().max(255).nullish(),
+    sha256: sha256.optional(),
     ...place,
   })
   .refine(...onePlace);
@@ -224,6 +236,105 @@ export const storageSharedResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 
+// --- Sync (ADR 0043, docs/spec/desktop.md "The sync protocol") ---
+//
+// The desktop sync providers (File Provider on macOS, Cloud Files on Windows) call these with a
+// `storage:sync` bearer token. A token spans every workspace the person is in, so each route
+// below `/api/storage/sync` but `drives` names one: `/api/storage/sync/:orgId/...`. The routes
+// they share with the app (list, folders, rename, move, trash, uploads, download) answer the
+// shapes above, mounted again under that prefix. Swift and Rust types are generated from the
+// schemas in this section (`pnpm --filter @omni/contracts native-types`).
+
+/**
+ * A drive the person can sync, and its revision now. A provider compares it with the revision it
+ * last saw here to know the drive changed; a changes cursor is opaque and is not comparable.
+ */
+export const storageSyncDriveSchema = z.object({
+  space: storageSpaceSchema,
+  revision: z.number().int().nonnegative(),
+});
+
+export const storageSyncWorkspaceSchema = z.object({
+  orgId: id,
+  name: z.string(),
+  /** `personal`, and `shared` in a company. */
+  drives: z.array(storageSyncDriveSchema),
+});
+
+/** `GET /sync/drives`: every workspace the person belongs to, and its drives. */
+export const storageSyncDrivesResponseSchema = z.object({
+  workspaces: z.array(storageSyncWorkspaceSchema),
+});
+
+/** `GET /sync/:orgId/changes?space=&cursor=&limit=`. No cursor: the whole drive, paged. */
+export const storageSyncChangesQuerySchema = z.object({ space: storageSpaceSchema, ...page });
+
+/**
+ * One change to a drive, in revision order. `node` is the node as it is now. `inTrash` says
+ * whether it is in Trash, itself or under a trashed folder (only the folder trashed carries
+ * `trashedAt`): report it as a deletion, and a restore arrives later as a change with it false.
+ * `node: null` is a tombstone: the node left this drive for good (deleted forever, purged from
+ * Trash, or moved to the other space); `inTrash` is then false.
+ */
+export const storageSyncChangeSchema = z.object({
+  id,
+  revision: z.number().int().nonnegative(),
+  node: storageNodeSchema.nullable(),
+  inTrash: z.boolean(),
+});
+
+/**
+ * The page's changes and the cursor to store once they are applied. `more`: ask again with it
+ * now. A cursor older than tombstone retention answers `410 cursor_expired`: start over without
+ * one.
+ */
+export const storageSyncChangesResponseSchema = z.object({
+  changes: z.array(storageSyncChangeSchema),
+  nextCursor: z.string().min(1),
+  more: z.boolean(),
+});
+
+/**
+ * `POST /uploads` that replaces a file's bytes in place. On complete the node keeps its id, name
+ * and sharing, takes the new bytes, and its `contentVersion` goes up. `ifContentVersion` is the
+ * version the client read: a newer one on the server answers `409 version_conflict` and stores
+ * nothing.
+ */
+export const storageReplaceUploadBodySchema = z.strictObject({
+  replaces: id,
+  ifContentVersion: z.number().int().nonnegative(),
+  size: z.number().int().nonnegative(),
+  mimeType: z.string().max(255).nullish(),
+  sha256: sha256.optional(),
+});
+
+/**
+ * `PATCH /nodes/:id?ifRevision=` and `DELETE /nodes/:id?ifRevision=`: refuse with `409
+ * version_conflict` when the node's revision is no longer this one. Without it, unguarded.
+ */
+export const storageRevisionGuardQuerySchema = z.object({
+  ifRevision: z.coerce.number().int().nonnegative().optional(),
+});
+
+/** The schemas the native sync providers are generated from, by the name their type takes. */
+export const STORAGE_SYNC_NATIVE_TYPES = {
+  StorageNode: storageNodeSchema,
+  StorageNodeView: storageNodeViewSchema,
+  StorageListResponse: storageListResponseSchema,
+  StorageNodeResponse: storageNodeResponseSchema,
+  StorageCreateFolderBody: storageCreateFolderBodySchema,
+  StorageChangeNodeBody: storageChangeNodeBodySchema,
+  StorageOpenUploadBody: storageOpenUploadBodySchema,
+  StorageReplaceUploadBody: storageReplaceUploadBodySchema,
+  StorageUploadResponse: storageUploadResponseSchema,
+  StorageUsage: storageUsageSchema,
+  StorageSyncDrive: storageSyncDriveSchema,
+  StorageSyncWorkspace: storageSyncWorkspaceSchema,
+  StorageSyncDrivesResponse: storageSyncDrivesResponseSchema,
+  StorageSyncChange: storageSyncChangeSchema,
+  StorageSyncChangesResponse: storageSyncChangesResponseSchema,
+} as const;
+
 export type StorageSpace = z.infer<typeof storageSpaceSchema>;
 export type StorageNodeKind = z.infer<typeof storageNodeKindSchema>;
 export type StorageRole = z.infer<typeof storageRoleSchema>;
@@ -248,3 +359,10 @@ export type StoragePutPersonBody = z.infer<typeof storagePutPersonBodySchema>;
 export type StorageSharedWithMeItem = z.infer<typeof storageSharedWithMeItemSchema>;
 export type StorageSharedWithMeResponse = z.infer<typeof storageSharedWithMeResponseSchema>;
 export type StorageSharedResponse = z.infer<typeof storageSharedResponseSchema>;
+export type StorageSyncDrive = z.infer<typeof storageSyncDriveSchema>;
+export type StorageSyncWorkspace = z.infer<typeof storageSyncWorkspaceSchema>;
+export type StorageSyncDrivesResponse = z.infer<typeof storageSyncDrivesResponseSchema>;
+export type StorageSyncChangesQuery = z.infer<typeof storageSyncChangesQuerySchema>;
+export type StorageSyncChange = z.infer<typeof storageSyncChangeSchema>;
+export type StorageSyncChangesResponse = z.infer<typeof storageSyncChangesResponseSchema>;
+export type StorageReplaceUploadBody = z.infer<typeof storageReplaceUploadBodySchema>;

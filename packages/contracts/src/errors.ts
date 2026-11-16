@@ -94,6 +94,10 @@ export const ERROR_CODES = {
   upload_incomplete: spec(409, "conflict"),
   /** The upload already became a file. */
   upload_complete: spec(409, "conflict"),
+  /** A guarded write (`ifRevision`, `ifContentVersion`) read a node that has changed since. */
+  version_conflict: spec(409, "conflict"),
+  /** A sync cursor older than tombstone retention: enumerate the drive again from the start. */
+  cursor_expired: spec(410, "not_found"),
   // CRM (ADR 0036).
   /** A Personal space has no CRM. */
   no_crm: spec(404, "not_found"),

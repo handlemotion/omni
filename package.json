@@ -12,7 +12,7 @@
     "dev": "turbo run dev --ui=tui",
     "dev:stack": "node scripts/dev-stack.mjs",
     "check": "oxfmt --check . && oxlint . && pnpm check:policies",
-    "check:policies": "node scripts/check-tests.mjs && node scripts/check-workflows.mjs && node scripts/check-modules.mjs && node --test scripts/",
+    "check:policies": "node scripts/check-tests.mjs && node scripts/check-workflows.mjs && node scripts/check-modules.mjs && node packages/contracts/scripts/native-types.ts --check && node --test scripts/",
     "check-types": "bun check --build --no-script --no-pretty",
     "fix": "oxfmt . && oxlint --fix .",
     "format": "oxfmt .",

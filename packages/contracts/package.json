@@ -9,7 +9,14 @@
     "./errors": "./src/errors.ts",
     "./headers": "./src/headers.ts"
   },
+  "scripts": {
+    "native-types": "node scripts/native-types.ts",
+    "native-types:check": "node scripts/native-types.ts --check"
+  },
   "dependencies": {
     "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "quicktype-core": "26.0.0"
   }
 }
