@@ -38,7 +38,13 @@ pub fn create<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
                 window::show(tray.app_handle());
             }
         });
-    if let Some(icon) = app.default_window_icon() {
+    if cfg!(target_os = "macos") {
+        // A template image (the mark in black on clear): macOS draws it in the menu bar's own
+        // colour, light or dark, as it does its own icons.
+        tray = tray
+            .icon(tauri::include_image!("icons/tray.png"))
+            .icon_as_template(true);
+    } else if let Some(icon) = app.default_window_icon() {
         tray = tray.icon(icon.clone());
     }
     tray.build(app)?;
