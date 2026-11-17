@@ -67,7 +67,9 @@ export function Avatar({
           : "rounded-full *:rounded-full",
         className,
         // The tile is the avatar's own shape and clips the scaled logo's corners to it.
-        logoTile && "overflow-hidden [&>img]:scale-85 [&>img]:rounded-none [&>img]:object-contain",
+        // A hairline in the border token keeps a white or pale tile from melting into the page.
+        logoTile &&
+          "overflow-hidden outline-1 outline-border [&>img]:scale-85 [&>img]:rounded-none [&>img]:object-contain",
         logoTile === "light" && "bg-logo-tile",
       )}
     >
