@@ -1,7 +1,9 @@
 /** Every query key in the app, in one place, so invalidation can't miss one. */
 export const keys = {
-  mailboxes: () => ["mailboxes", "all"] as const,
-  counts: () => ["counts", "all"] as const,
-  threads: (mailboxId: string | undefined) => ["threads", "inbox", mailboxId ?? "all"] as const,
+  workspaces: () => ["workspaces"] as const,
+  mailboxes: () => ["mailboxes"] as const,
+  counts: () => ["counts"] as const,
+  threads: (page: string, mailboxId: string | undefined) =>
+    ["threads", page, mailboxId ?? "all"] as const,
   thread: (threadId: string) => ["thread", threadId] as const,
 };

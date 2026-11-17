@@ -6,8 +6,13 @@ Extends the root `AGENTS.md` and `DESIGN.md`. How to run it: `README.md`.
   `src/components/` and call `src/lib/`. Visual decisions belong to Rodrigo, as on the web.
 - Data comes only through `@omni/client` (`src/lib/api.ts`): the same typed routes and auth
   client as the web app. Never redefine a response shape; never call `fetch` on `/api` directly.
-- TanStack Query for every read, keyed in one place, with the web app's `scope: "all"` behaviour:
-  lists span every workspace the person belongs to.
+- TanStack Query for every read, keyed in one place. Every call names the app's workspace
+  (`omni-workspace`, `src/lib/workspace.ts`), as a web tab names the one in its URL; switching
+  workspace drops every cached answer but the workspace list.
+- **Navigation.** The modules (Mail, Drive, CRM) are a native tab bar (`expo-router/native-tabs`),
+  each tab a native stack. A module page's header (`ModuleToolbar`) holds two native menus: its
+  pages on the left (the web sidebar's rows), the workspace switcher and Log out on the right.
+  Native chrome draws SF Symbols; everything the app draws itself uses Central Icons.
 - **Tokens** live in `src/theme/tokens.ts` and mirror `apps/web/src/styles.css` under the same
   role names. Change the web value first. Screens use token names only: no hex values, no raw
   font sizes.

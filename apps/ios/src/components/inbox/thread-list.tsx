@@ -3,12 +3,13 @@ import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { IconInbox } from "@/components/icons.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
-import { mailboxName, useInbox } from "@/lib/mail.ts";
+import { MAIL_PAGES, mailboxName, useThreads, type MailPage } from "@/lib/mail.ts";
 import { colors, space } from "@/theme/tokens.ts";
 import { ThreadListSkeleton } from "./thread-list-skeleton.tsx";
 import { ThreadRow } from "./thread-row.tsx";
 
 export interface ThreadListProps {
+  page: MailPage;
   /** One mailbox, or every inbox the person can open. */
   mailboxId: string | undefined;
   mailboxes: Mailbox[];
@@ -16,9 +17,9 @@ export interface ThreadListProps {
   onOpenThread?: (thread: ThreadSummary) => void;
 }
 
-/** The inbox: newest first, older pages as you scroll, pull to refresh. */
-export function ThreadList({ mailboxId, mailboxes, you, onOpenThread }: ThreadListProps) {
-  const inbox = useInbox(mailboxId);
+/** A mail page's threads: newest first, older ones as you scroll, pull to refresh. */
+export function ThreadList({ page, mailboxId, mailboxes, you, onOpenThread }: ThreadListProps) {
+  const inbox = useThreads(page, mailboxId);
   if (inbox.isPending) return <ThreadListSkeleton />;
   if (inbox.isError && !inbox.data) {
     return (
@@ -34,6 +35,7 @@ export function ThreadList({ mailboxId, mailboxes, you, onOpenThread }: ThreadLi
   );
   return (
     <FlatList
+      contentInsetAdjustmentBehavior="automatic"
       data={inbox.data}
       keyExtractor={(thread) => thread.id}
       renderItem={({ item }) => (
@@ -45,7 +47,7 @@ export function ThreadList({ mailboxId, mailboxes, you, onOpenThread }: ThreadLi
       )}
       ItemSeparatorComponent={Separator}
       contentContainerStyle={inbox.data.length ? null : styles.fill}
-      ListEmptyComponent={<EmptyState icon={IconInbox} title="Inbox zero" />}
+      ListEmptyComponent={<EmptyState icon={IconInbox} title={MAIL_PAGES[page].empty} />}
       onEndReached={() => {
         if (inbox.hasNextPage && !inbox.isFetchingNextPage) void inbox.fetchNextPage();
       }}

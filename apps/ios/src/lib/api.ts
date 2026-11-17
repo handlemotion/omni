@@ -1,9 +1,16 @@
 import { expoClient } from "@better-auth/expo/client";
-import { createApi, createAuth, toApiError, type ApiErrorInfo } from "@omni/client";
+import {
+  WORKSPACE_HEADER,
+  createApi,
+  createAuth,
+  toApiError,
+  type ApiErrorInfo,
+} from "@omni/client";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { DetailedError, parseResponse, type ClientResponse } from "hono/client";
 import { config } from "./config.ts";
+import { currentWorkspaceId } from "./workspace-id.ts";
 
 /** Where the auth client keeps the session: `<prefix>_cookie` in SecureStore. */
 export const STORAGE_PREFIX = "omni";
@@ -15,9 +22,18 @@ export const auth = createAuth({
   ],
 });
 
-/** Typed Hono RPC calls with the session attached. Prefer `call()` to unwrap them. */
+/**
+ * Typed Hono RPC calls with the session attached, naming the app's workspace. Prefer `call()` to
+ * unwrap them.
+ */
 export const api = createApi({
   baseUrl: config.apiUrl,
+  headers: () => {
+    const headers: Record<string, string> = {};
+    const workspace = currentWorkspaceId();
+    if (workspace) headers[WORKSPACE_HEADER] = workspace;
+    return headers;
+  },
   fetch: async (input, init) => {
     if (Platform.OS === "web") return fetch(input, { ...init, credentials: "include" });
     const headers = new Headers(init?.headers);

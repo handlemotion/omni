@@ -8,6 +8,7 @@ import {
   type InfiniteData,
 } from "@tanstack/react-query";
 import type { Mailbox, ThreadPage } from "@omni/client";
+import type { SymbolName } from "./symbols.ts";
 import { ApiError, api, call, isAuthError } from "./api.ts";
 import { keys } from "./query-keys.ts";
 
@@ -17,8 +18,7 @@ const OLDER_PAGE_SIZE = 100;
 export const mailboxesQuery = () =>
   queryOptions({
     queryKey: keys.mailboxes(),
-    queryFn: ({ signal }) =>
-      call(api.mailboxes.$get({ query: { scope: "all" } }, { init: { signal } })),
+    queryFn: ({ signal }) => call(api.mailboxes.$get({ query: {} }, { init: { signal } })),
     select: (data) => data.mailboxes,
     staleTime: 5 * 60_000,
   });
@@ -27,22 +27,62 @@ export const mailboxesQuery = () =>
 export const countsQuery = () =>
   queryOptions({
     queryKey: keys.counts(),
-    queryFn: ({ signal }) =>
-      call(api.counts.$get({ query: { scope: "all" } }, { init: { signal } })),
+    queryFn: ({ signal }) => call(api.counts.$get({ query: {} }, { init: { signal } })),
     select: (data) => data.counts,
   });
 
-/** The inbox, newest first; without a mailbox, every inbox the person can open. */
-export const inboxQuery = (mailboxId: string | undefined) =>
+interface MailPageInfo {
+  label: string;
+  view: string;
+  lane?: string;
+  /** Its SF Symbol in the page menu. */
+  icon: SymbolName;
+  /** The list's title when it has nothing, as the web's empty state says it. */
+  empty: string;
+}
+
+/** Mail's pages, as the web sidebar lists them: a view of the threads, and for two, a lane. */
+export const MAIL_PAGES = {
+  inbox: { label: "Inbox", view: "inbox", icon: "tray", empty: "Inbox zero" },
+  later: { label: "Later", view: "later", icon: "clock", empty: "Nothing for later" },
+  needsReply: {
+    label: "Needs reply",
+    view: "inbox",
+    lane: "needs_reply",
+    icon: "bubble",
+    empty: "Nothing needs a reply",
+  },
+  awaitingReply: {
+    label: "Awaiting reply",
+    view: "inbox",
+    lane: "waiting_on_them",
+    icon: "ellipsis.bubble",
+    empty: "Not waiting on anyone",
+  },
+  all: { label: "All mail", view: "all", icon: "envelope", empty: "No mail yet" },
+  sent: { label: "Sent", view: "sent", icon: "paperplane", empty: "Nothing sent yet" },
+  trash: { label: "Trash", view: "trash", icon: "trash", empty: "Trash is empty" },
+  spam: { label: "Spam", view: "spam", icon: "exclamationmark.triangle", empty: "No spam" },
+} as const satisfies Record<string, MailPageInfo>;
+
+export type MailPage = keyof typeof MAIL_PAGES;
+
+export const isMailPage = (page: string | undefined): page is MailPage =>
+  !!page && Object.hasOwn(MAIL_PAGES, page);
+
+/** A page's threads, newest first; without a mailbox, every one the person can open here. */
+export const threadsQuery = (page: MailPage, mailboxId: string | undefined) =>
   infiniteQueryOptions({
-    queryKey: keys.threads(mailboxId),
-    queryFn: ({ pageParam, signal }) =>
-      call(
+    queryKey: keys.threads(page, mailboxId),
+    queryFn: ({ pageParam, signal }) => {
+      const { view, ...rest } = MAIL_PAGES[page];
+      const lane = "lane" in rest ? rest.lane : undefined;
+      return call(
         api.threads.$get(
           {
             query: {
-              scope: "all",
-              view: "inbox",
+              view,
+              ...(lane ? { lane } : {}),
               ...(mailboxId ? { mailboxId } : {}),
               ...(pageParam ? { cursor: pageParam } : {}),
               limit: String(pageParam ? OLDER_PAGE_SIZE : FIRST_PAGE_SIZE),
@@ -50,15 +90,17 @@ export const inboxQuery = (mailboxId: string | undefined) =>
           },
           { init: { signal } },
         ),
-      ),
+      );
+    },
     initialPageParam: null as string | null,
-    getNextPageParam: (page) => page.nextCursor,
-    select: (data) => data.pages.flatMap((page) => page.threads),
+    getNextPageParam: (last) => last.nextCursor,
+    select: (data) => data.pages.flatMap((one) => one.threads),
   });
 
 export const useMailboxes = () => useQuery(mailboxesQuery());
 export const useCounts = () => useQuery(countsQuery());
-export const useInbox = (mailboxId: string | undefined) => useInfiniteQuery(inboxQuery(mailboxId));
+export const useThreads = (page: MailPage, mailboxId: string | undefined) =>
+  useInfiniteQuery(threadsQuery(page, mailboxId));
 
 /** What a mailbox is called, as on the web: you, for your own; its local part for a shared one. */
 export function mailboxName(mailbox: Pick<Mailbox, "kind" | "address">, you: string) {

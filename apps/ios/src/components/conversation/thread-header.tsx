@@ -1,18 +1,9 @@
 import { StyleSheet, View } from "react-native";
-import { IconChevronLeft, IconShared } from "@/components/icons.ts";
-import { IconButton } from "@/components/ui/icon-button.tsx";
+import { IconShared } from "@/components/icons.ts";
 import { Text } from "@/components/ui/text.tsx";
 import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
 
-/** The top of a thread: back, then the subject and, for a shared inbox, which one. */
-export function ThreadToolbar({ onBack }: { onBack: () => void }) {
-  return (
-    <View style={styles.toolbar}>
-      <IconButton icon={IconChevronLeft} label="Back" onPress={onBack} />
-    </View>
-  );
-}
-
+/** The top of a thread: the subject and, for a shared inbox, which one. */
 export function ThreadTitle({ subject, sharedInbox }: { subject: string; sharedInbox?: string }) {
   return (
     <View style={styles.title}>
@@ -32,7 +23,6 @@ export function ThreadTitle({ subject, sharedInbox }: { subject: string; sharedI
 }
 
 const styles = StyleSheet.create({
-  toolbar: { flexDirection: "row", paddingHorizontal: space(2), paddingVertical: space(1) },
   title: { gap: space(2), alignItems: "flex-start" },
   inbox: {
     flexDirection: "row",

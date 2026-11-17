@@ -1,8 +1,8 @@
-import { router, useLocalSearchParams } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { MessageItem } from "@/components/conversation/message-item.tsx";
-import { ThreadTitle, ThreadToolbar } from "@/components/conversation/thread-header.tsx";
+import { ThreadTitle } from "@/components/conversation/thread-header.tsx";
 import { IconInbox } from "@/components/icons.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
@@ -13,8 +13,6 @@ import { mailboxName, useMarkRead, useThread } from "@/lib/mail.ts";
 import { useSession } from "@/lib/session.ts";
 import { space } from "@/theme/tokens.ts";
 
-const back = () => (router.canGoBack() ? router.back() : router.replace("/"));
-
 /** A conversation, read top to bottom. Opening it marks it read, as on the web. */
 export default function ThreadScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -24,8 +22,8 @@ export default function ThreadScreen() {
   useMarkReadOnOpen(id, thread.data?.read);
 
   return (
-    <Screen edges={["top"]}>
-      <ThreadToolbar onBack={back} />
+    <Screen edges={[]}>
+      <Stack.Screen options={{ title: "" }} />
       {thread.isPending ? (
         <View style={styles.content}>
           <Skeleton width="80%" height={24} />
@@ -37,7 +35,10 @@ export default function ThreadScreen() {
           <Button intent="plain" label="Try again" onPress={() => void thread.refetch()} />
         </EmptyState>
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={styles.content}
+        >
           <ThreadTitle
             subject={thread.data.messages[0]?.subject ?? ""}
             sharedInbox={
@@ -52,7 +53,7 @@ export default function ThreadScreen() {
               message={message}
               onShowFull={() =>
                 router.push({
-                  pathname: "/message/[threadId]/[messageId]",
+                  pathname: "/mail/message/[threadId]/[messageId]",
                   params: { threadId: id, messageId: message.id },
                 })
               }
