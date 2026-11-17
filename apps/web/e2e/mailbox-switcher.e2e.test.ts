@@ -420,7 +420,7 @@ test("a send from another workspace's address that goes out closes that workspac
   await page.keyboard.press("Escape");
   const betaSockets = watchSockets(page, beta.orgId);
   await sendNewMail(page, boxes.hello.address);
-  await expect.poll(() => betaSockets.length).toBeGreaterThan(0);
+  await betaSockets.opened;
   const action = await sentFrom(boxes.hello.id);
   // The mail service sends it and records that, as `actions.complete()` does: no event.
   await db
@@ -441,7 +441,11 @@ test("a send from another workspace's address that goes out closes that workspac
 // (`passTime` keeps the sockets' pings answered, so no reconnect asks the outbox instead.)
 test("a reply from another workspace that fails after its socket closed shows as not sent", async () => {
   const { email, beta, boxes, betaHello } = await ana("late");
-  const page = await openSwitcher(email, (p) => p.clock.install());
+  let pings: Pings | undefined;
+  const page = await openSwitcher(email, (p) => {
+    pings = trackPings(p);
+    return p.clock.install();
+  });
   await page.keyboard.press("Escape");
   const betaSockets = watchSockets(page, beta.orgId);
 
@@ -461,7 +465,7 @@ test("a reply from another workspace that fails after its socket closed shows as
   await page.getByRole("button", { name: "Switch workspace, currently Beta" }).click();
   await page.getByRole("menuitem", { name: "Acme" }).click();
   await page.getByRole("button", { name: "Switch workspace, currently Acme" }).waitFor();
-  await passTime(page, 130_000);
+  await passTime(page, pings!, 130_000);
   await expect.poll(() => betaSockets.every((socket) => socket.closed())).toBe(true);
 
   // The outbox gives up on it, with no event (none would reach a closed socket anyway).
@@ -469,7 +473,7 @@ test("a reply from another workspace that fails after its socket closed shows as
     .update(schema.mailActions)
     .set({ status: "failed", lastError: "550 mailbox unavailable" })
     .where(eq(schema.mailActions.id, action.id));
-  await passTime(page, 65_000);
+  await passTime(page, pings!, 65_000);
 
   // Back in the thread, the reply shows it was not sent.
   await page.goBack();
@@ -477,21 +481,59 @@ test("a reply from another workspace that fails after its socket closed shows as
   await page.getByText("Not sent: 550 mailbox unavailable").waitFor({ timeout: 10_000 });
 });
 
+type Pings = ReturnType<typeof trackPings>;
+
+/** The page's sockets' pings: `answered()` resolves once each open socket has its pongs. */
+function trackPings(page: Page) {
+  const sockets = new Set<{ unanswered: number; closed: boolean }>();
+  const waiters = new Set<() => void>();
+  const changed = () => {
+    for (const waiter of waiters) waiter();
+  };
+  page.on("websocket", (ws) => {
+    const socket = { unanswered: 0, closed: false };
+    sockets.add(socket);
+    ws.on("framesent", (frame) => {
+      if (frame.payload === "ping") socket.unanswered++;
+    });
+    ws.on("framereceived", (frame) => {
+      if (frame.payload !== "pong") return;
+      socket.unanswered = 0;
+      changed();
+    });
+    ws.on("close", () => {
+      socket.closed = true;
+      changed();
+    });
+  });
+  return {
+    async answered() {
+      const done = Promise.withResolvers<void>();
+      const check = () =>
+        [...sockets].every((s) => s.closed || s.unanswered === 0) && done.resolve();
+      waiters.add(check);
+      check();
+      await done.promise.finally(() => waiters.delete(check));
+    },
+  };
+}
+
 /**
- * Moves the page's installed clock on by `ms` in 5 s steps, giving each step real time for the
- * sockets' pongs to arrive: one jump would fire two pings with no pong between them, and the
- * reconnect that follows would ask the outbox about every reply, hiding what is under test.
+ * Moves the page's installed clock on by `ms` in 5 s steps, each once the sockets' pings so far
+ * have their pongs: one jump would fire two pings with no pong between them, and the reconnect
+ * that follows would ask the outbox about every reply, hiding what is under test.
  */
-async function passTime(page: Page, ms: number) {
+async function passTime(page: Page, pings: Pings, ms: number) {
   for (let passed = 0; passed < ms; passed += 5_000) {
     await page.clock.runFor(5_000);
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await pings.answered();
   }
 }
 
 /** Every socket the page opens for `orgId`: the frames it receives, and whether it closed. */
 function watchSockets(page: Page, orgId: string) {
   const sockets: { frames: string[]; closed: () => boolean }[] = [];
+  const first = Promise.withResolvers<void>();
   page.on("websocket", (socket) => {
     if (!socket.url().includes(`org=${orgId}`)) return;
     const frames: string[] = [];
@@ -499,8 +541,9 @@ function watchSockets(page: Page, orgId: string) {
     socket.on("framereceived", (frame) => frames.push(String(frame.payload)));
     socket.on("close", () => (closed = true));
     sockets.push({ frames, closed: () => closed });
+    first.resolve();
   });
-  return sockets;
+  return Object.assign(sockets, { opened: first.promise });
 }
 
 /** Sends a new email from `address` through the compose dialog, which closes on send. */

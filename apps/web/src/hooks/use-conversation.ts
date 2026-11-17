@@ -81,7 +81,7 @@ const PRIORITY_LABELS: Record<Priority, string> = {
 };
 
 /** What a change did, for the undo toast and the screen reader. */
-function describe(change: ConversationChange, client: QueryClient, mailboxId?: string) {
+function describeChange(change: ConversationChange, client: QueryClient, mailboxId?: string) {
   const assignee = (memberId: string | null) =>
     memberId
       ? (client
@@ -126,7 +126,7 @@ function useChange() {
     if (!inverse) return;
     const tag =
       inverse.type === "tag" ? before?.tags.find((t) => t.id === inverse.tagId) : undefined;
-    offerUndo(describe(change, client, before?.mailboxId), () =>
+    offerUndo(describeChange(change, client, before?.mailboxId), () =>
       mutation.mutate({ key: idempotencyKey(), threadId, change: inverse, tag, me }),
     );
   };
@@ -296,7 +296,7 @@ export function useBulkChange() {
       inverses.set(group, entry);
     }
     if (!inverses.size) return;
-    offerUndo(options.undo ?? describe(change, client, mailboxId), () => {
+    offerUndo(options.undo ?? describeChange(change, client, mailboxId), () => {
       for (const inverse of inverses.values())
         send(inverse.ids, inverse.change, mailboxId, inverse.tag);
     });

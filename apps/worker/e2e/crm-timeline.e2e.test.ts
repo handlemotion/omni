@@ -78,7 +78,7 @@ test("two members open one person's timeline: each sees the thread from the inbo
   ]);
   const beaCompany = await api(bea.jar, "GET", `/companies/${companyId}/timeline`);
   expect(threadsIn(beaCompany.body)).toEqual(["Login broken"]);
-}, 60_000);
+});
 
 test("paging a timeline in small pages returns every item once, newest first, across events, notes and threads", async () => {
   const { db, api } = stack;
@@ -123,4 +123,4 @@ test("paging a timeline in small pages returns every item once, newest first, ac
     cursor = page.body.nextCursor;
   } while (cursor);
   expect(paged).toEqual(whole.body.items.map((item: { id: string }) => item.id));
-}, 60_000);
+});

@@ -345,7 +345,7 @@ test("a thread moves between Needs reply and Awaiting reply as each side writes,
     "kickoff-3",
     "kickoff-4",
   ]);
-}, 120_000);
+});
 
 test("an FYI and an automated receipt land in neither reply lane", async () => {
   const reader = await setUpReader();
@@ -353,7 +353,7 @@ test("an FYI and an automated receipt land in neither reply lane", async () => {
     const thread = await triagedOn(reader.mailboxId, await arrives(fixture, reader));
     expect(await lanesOf(reader, thread.id)).toEqual(["fyi"]);
   }
-}, 60_000);
+});
 
 test("a redelivered job costs no model call and keeps a person's re-sort; the next message re-triages", async () => {
   const { db } = database;
@@ -397,4 +397,4 @@ test("a redelivered job costs no model call and keeps a person's re-sort; the ne
   const [after] = await db.select().from(schema.threads).where(eq(schema.threads.id, thread.id));
   expect(after).toMatchObject({ triage: "waiting_on_them", triageSource: "ai" });
   expect(await lanesOf(reader, thread.id)).toEqual(["waiting_on_them"]);
-}, 90_000);
+});

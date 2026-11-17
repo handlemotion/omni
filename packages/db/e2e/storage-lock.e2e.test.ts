@@ -5,7 +5,7 @@ import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
 import { storageLocks, storageNodes } from "../src/schema/index.ts";
 import { addFile, addFolder } from "./storage-support.ts";
-import { createMember, createOrg, createTestDatabase } from "./support.ts";
+import { createMember, createOrg, createTestDatabase, untilLockWaiters } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();
 afterAll(teardown);
@@ -76,9 +76,10 @@ test("a rename racing a lock that has not committed yet waits for it and is refu
   let renamed: Promise<{ status: string }> | undefined;
   await db.transaction(async (tx) => {
     expect((await forMember(tx, ana.id).storage.lock(file.id)).status).toBe("ok");
-    renamed = storage.rename(file.id, "msa-v2.pdf");
-    // Give the rename time to read the file and write, as it would without the tree lock.
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // The rename waits on the lock, or (without the tree lock) reads the file and writes.
+    let finished = false;
+    renamed = storage.rename(file.id, "msa-v2.pdf").finally(() => (finished = true));
+    await untilLockWaiters(db, 1, () => finished);
   });
   expect(await renamed).toEqual({ status: "locked" });
   const [row] = await db.select().from(storageNodes).where(eq(storageNodes.id, file.id));

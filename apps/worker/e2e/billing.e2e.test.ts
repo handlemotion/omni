@@ -211,7 +211,7 @@ test("the webhook drives the plan; a replayed or older event changes nothing", a
   expect(recorded.map((e) => e.id).toSorted()).toEqual(
     [created.id, activated.id, late.id, deleted.id].toSorted(),
   );
-}, 60_000);
+});
 
 test("an event whose write did not land is retried, not acknowledged; one Omni ignores is", async () => {
   const { org, customer } = await workspace();
@@ -258,7 +258,7 @@ test("an event whose write did not land is retried, not acknowledged; one Omni i
   );
   expect((await postStripeEvent(worker.url, stranger)).status).toBe(200);
   expect(await recorded(stranger.id)).toHaveLength(1);
-}, 60_000);
+});
 
 test("an unsigned or wrongly signed event is refused and recorded nowhere", async () => {
   const { org, customer } = await workspace();
@@ -400,7 +400,7 @@ test("a new workspace finishes setup only once it has a trial or a plan", async 
   expect(finished.status).toBe(200);
   expect(await finished.json()).toMatchObject({ setup: "complete" });
   expect(await billing(owner.cookie)).toMatchObject({ trialAvailable: false });
-}, 60_000);
+});
 
 test("one free trial per account: the same person's next workspace pays, even after deleting the first", async () => {
   const { db } = database;
@@ -462,7 +462,7 @@ test("one free trial per account: the same person's next workspace pays, even af
   });
   expect(taken.status).toBe(409);
   expect(await taken.text()).toContain("this workspace has had its free trial");
-}, 60_000);
+});
 
 /**
  * Checks there is no billing on `unbilled`: no plan in setup, no limits, no checkout, cards or
@@ -505,7 +505,7 @@ async function withoutBilling(unbilled: Awaited<ReturnType<typeof startWorker>>)
 test("with no Stripe configuration there is no billing: no webhook, no limits, all writable", async () => {
   unbilled = await startWorker({ databaseUrl: database.url, mailServiceUrl: mailService.url });
   expect(await withoutBilling(unbilled)).toEqual({ enabled: false });
-}, 60_000);
+});
 
 // Catches: `BILLING=off` ignored while Stripe is configured (setup still asks for a trial), or
 // the Worker refusing to start over Stripe settings it should leave unchecked.
@@ -523,7 +523,7 @@ test("BILLING=off turns billing off with every Stripe setting still in place", a
     secrets: BILLING_SECRETS,
   });
   expect(await withoutBilling(switchedOff)).toEqual({ enabled: false });
-}, 60_000);
+});
 
 // Catches: a Personal space (ADR 0024) shown as read-only, or one that spends its owner's
 // account-wide trial or buys a plan, when it is free.

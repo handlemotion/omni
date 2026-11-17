@@ -117,7 +117,7 @@ test("every write route is gated for an unpaid workspace unless the allowlist na
     allowed: true,
     gated: false,
   });
-}, 60_000);
+});
 
 test("a read-only workspace still reads every CRM route", async () => {
   const { db } = database;
@@ -166,4 +166,4 @@ test("a read-only workspace still reads every CRM route", async () => {
     body: JSON.stringify({ name: "Initech" }),
   });
   expect(write.status).toBe(402);
-}, 60_000);
+});

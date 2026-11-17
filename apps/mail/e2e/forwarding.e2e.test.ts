@@ -86,6 +86,15 @@ async function claim(id: string) {
   return asClaimed(db, id);
 }
 
+/** Every message in a GreenMail inbox but the one with `subject`, once that one has arrived. */
+async function arrivedAfter(box: MailboxConfig, subject: string) {
+  const all = await waitFor(async () => {
+    const found = await inbox(box);
+    return found.some((raw) => raw.includes(`Subject: ${subject}`)) && found;
+  });
+  return all.filter((raw) => !raw.includes(`Subject: ${subject}`));
+}
+
 /** Every message in a GreenMail inbox, raw. */
 function inbox(box: MailboxConfig) {
   return otherClient(box, async (client) => {
@@ -153,13 +162,11 @@ describe("CRM forwarding address", () => {
       expect(await actionRow(db, action.id)).toMatchObject({ status: "done" });
     }
 
-    const received = await waitFor(async () => {
-      const all = await inbox(crm);
-      return all.length >= 3 && all;
-    });
-    // Settle: a duplicate would land within GreenMail's delivery time.
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    expect(await inbox(crm)).toHaveLength(3);
+    // Mail sent to the CRM after every copy went out lands after them, so a duplicate copy
+    // would be in by the time it is.
+    await deliver(crm.address, "Barrier");
+    const received = await arrivedAfter(crm, "Barrier");
+    expect(received).toHaveLength(3);
 
     const ours = received.find((raw) => raw.includes("Here is our quote."));
     expect(ours).toContain(`From: ${box.address}`);
@@ -218,7 +225,7 @@ describe("CRM forwarding address", () => {
     const [queued] = await forwardCopies(box.id);
     await executor.execute(await claim(queued!.id));
     expect(await actionRow(db, queued!.id)).toMatchObject({ status: "done" });
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    expect(await inbox(crm)).toHaveLength(0);
+    await deliver(crm.address, "Barrier");
+    expect(await arrivedAfter(crm, "Barrier")).toHaveLength(0);
   });
 });

@@ -72,7 +72,11 @@ async function connect(cookie: string, query: Record<string, string> = {}) {
     headers: { cookie, origin: WEB_ORIGIN },
   } as unknown as string[]);
   const received: Record<string, unknown>[] = [];
-  socket.addEventListener("message", (e) => received.push(JSON.parse(String(e.data))));
+  const waiters = new Set<() => void>();
+  socket.addEventListener("message", (e) => {
+    received.push(JSON.parse(String(e.data)));
+    for (const waiter of waiters) waiter();
+  });
   await new Promise<void>((resolve, reject) => {
     socket.addEventListener("open", () => resolve());
     socket.addEventListener("error", () => reject(new Error("websocket failed to open")));
@@ -84,12 +88,11 @@ async function connect(cookie: string, query: Record<string, string> = {}) {
       socket.send(JSON.stringify({ type: "presence", threadId, state }));
     },
     async next(count: number) {
-      const deadline = Date.now() + 10_000;
-      while (received.length < count) {
-        if (Date.now() > deadline)
-          throw new Error(`expected ${count} events, got ${received.length}`);
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
+      const enough = Promise.withResolvers<void>();
+      const check = () => received.length >= count && enough.resolve();
+      waiters.add(check);
+      check();
+      await enough.promise.finally(() => waiters.delete(check));
       return received;
     },
   };
@@ -187,9 +190,13 @@ test("a send that failed for good is told to the member who sent it, and nobody 
   expect(await anaSocket.next(1)).toEqual([
     { type: "action", actionId: "ana-send", status: "failed", error: "550 mailbox unavailable" },
   ]);
-  // Bea shares the mailbox, so a leak by mailbox audience would have reached her by now.
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  expect(beaSocket.received).toEqual([]);
+  // Bea's own failure goes out after Ana's, so had Ana's leaked by mailbox audience Bea would
+  // have seen it first.
+  expect((await postMailEvents(worker, failed("bea-send", bea.id))).status).toBe(202);
+  expect(await beaSocket.next(1)).toEqual([
+    { type: "action", actionId: "bea-send", status: "failed", error: "550 mailbox unavailable" },
+  ]);
+  expect(beaSocket.received).toHaveLength(1);
 
   anaSocket.socket.close();
   beaSocket.socket.close();
@@ -330,8 +337,6 @@ async function supportDesk(slug: string) {
   return { org, inbox, ana, bea, carl, threadId };
 }
 
-const quiet = () => new Promise((resolve) => setTimeout(resolve, 300));
-
 test("presence reaches only teammates who can see the conversation, survives hibernation, and clears on close", async () => {
   const { db } = database;
   const desk = await supportDesk("presence");
@@ -362,16 +367,22 @@ test("presence reaches only teammates who can see the conversation, survives hib
   // Oversized and malformed messages are ignored.
   ana.presence(desk.threadId, "x".repeat(2000) as "viewing");
   ana.socket.send("not json");
-  await quiet();
-  expect(carl.received).toEqual([]);
-  expect(ana.received).toHaveLength(1);
-  expect(bea.received).toHaveLength(2);
-
-  // Closing the app tells the others Ana left.
-  ana.socket.close();
+  // Ana's socket is read in order, so once her next valid state reaches Bea the two before it
+  // were handled, and had either gone out Bea would have heard it first.
+  ana.presence(desk.threadId, "replying");
   expect(await bea.next(3)).toEqual([
     at(desk.ana.id, "viewing"),
     at(desk.ana.id, "viewing"),
+    at(desk.ana.id, "replying"),
+  ]);
+  expect(ana.received).toHaveLength(1);
+
+  // Closing the app tells the others Ana left.
+  ana.socket.close();
+  expect(await bea.next(4)).toEqual([
+    at(desk.ana.id, "viewing"),
+    at(desk.ana.id, "viewing"),
+    at(desk.ana.id, "replying"),
     at(desk.ana.id, "left"),
   ]);
   expect(carl.received).toEqual([]);
@@ -444,10 +455,15 @@ test("notes and assignments notify teammates live, as their preferences allow", 
   ).toBe(200);
 
   await bea.next(8);
-  await quiet();
+  // Ana opening the conversation reaches Bea through the same object after all of that, so a
+  // stray event from those fan-outs would be in by the time she hears it.
+  const anaSocket = await connect(anaCookie);
+  anaSocket.presence(desk.threadId, "viewing");
+  await bea.next(9);
+  expect(bea.received.at(-1)).toMatchObject({ type: "presence", memberId: desk.ana.id });
   // The two requests' fan-outs run after their responses, so they may interleave.
   const helpdesk = bea.received
-    .filter((e) => e.type !== "changed" && e.type !== "thread.changed")
+    .filter((e) => !["changed", "thread.changed", "presence"].includes(String(e.type)))
     .sort((a, b) => String(a.type).localeCompare(String(b.type)));
   expect(helpdesk).toEqual([
     { type: "note.created", mailboxId: desk.inbox.id, threadId: desk.threadId, noteId: note.id },
@@ -468,11 +484,14 @@ test("notes and assignments notify teammates live, as their preferences allow", 
     (await api(`/threads/${desk.threadId}/notes/${note.id}`, "DELETE", undefined)).status,
   ).toBe(204);
   await bea.next(seen + 3);
-  await quiet();
+  anaSocket.presence(desk.threadId, "left");
+  await bea.next(seen + 4);
+  expect(bea.received.at(-1)).toMatchObject({ type: "presence", state: "left" });
   expect(bea.received.slice(seen).filter((e) => e.type === "notification.removed")).toEqual([
     { type: "notification.removed", threadId: desk.threadId },
   ]);
   expect(await mentionsOf()).toEqual([]);
+  anaSocket.socket.close();
   bea.socket.close();
   carl.socket.close();
 });

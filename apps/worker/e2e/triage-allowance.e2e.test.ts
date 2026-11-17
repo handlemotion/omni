@@ -409,7 +409,7 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   expect(resumed).toMatchObject({ triagePausedUntil: null, triageSource: "ai" });
   expect(jev.hits).toContain("receipt-1");
   expect(await billing(reader.cookie)).toMatchObject({ triage: { used: 1, pausedUntil: null } });
-}, 120_000);
+});
 
 // Catches: a Personal space (ADR 0024) left without AI triage, or counted against an allowance,
 // because it has no plan while billing is on. It is free and keeps triage.

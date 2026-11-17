@@ -316,9 +316,11 @@ describe("rate limits", () => {
     expect(refused.status).toBe(429);
     // Another member has their own budget.
     expect((await search(beaCookie)).status).toBe(200);
-    // Once the window passes, the member gets in again.
-    await new Promise((resolve) => setTimeout(resolve, 5_100));
-    expect((await search(anaCookie)).status).toBe(200);
+    // Once the window passes, the member gets in again (refused tries do not count).
+    expect(Number(refused.headers.get("retry-after"))).toBeLessThanOrEqual(5);
+    await expect
+      .poll(async () => (await search(anaCookie)).status, { timeout: 10_000, interval: 250 })
+      .toBe(200);
 
     const post = (path: string, body: unknown, method: "POST" | "PATCH" = "POST") =>
       fetch(new URL(`/api${path}`, limited.url), {

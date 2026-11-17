@@ -15,7 +15,6 @@ beforeAll(async () => {
 afterAll(() => stack?.stop());
 
 const bytes = (text: string) => new TextEncoder().encode(text);
-const quiet = () => new Promise((resolve) => setTimeout(resolve, 500));
 
 /** The web app's realtime socket for `jar`, collecting what arrives. */
 async function connect(jar: CookieJar) {
@@ -25,7 +24,22 @@ async function connect(jar: CookieJar) {
     headers: { cookie: jar.header, origin: WEB_ORIGIN },
   } as unknown as string[]);
   const received: Record<string, unknown>[] = [];
-  socket.addEventListener("message", (e) => received.push(JSON.parse(String(e.data))));
+  const waiters = new Set<() => void>();
+  socket.addEventListener("message", (e) => {
+    received.push(JSON.parse(String(e.data)));
+    for (const waiter of waiters) waiter();
+  });
+  /** Resolves with the first event `match` finds, once one has arrived. */
+  const waitFor = <T>(match: () => T | undefined) => {
+    const arrived = Promise.withResolvers<T>();
+    const check = () => {
+      const found = match();
+      if (found !== undefined) arrived.resolve(found);
+    };
+    waiters.add(check);
+    check();
+    return arrived.promise.finally(() => waiters.delete(check));
+  };
   await new Promise<void>((resolve, reject) => {
     socket.addEventListener("open", () => resolve());
     socket.addEventListener("error", () => reject(new Error("websocket failed to open")));
@@ -39,14 +53,20 @@ async function connect(jar: CookieJar) {
     append(nodeId: string, ref: number, record: Record<string, unknown>, matchSeqNum?: number) {
       socket.send(JSON.stringify({ type: "doc.append", nodeId, ref, record, matchSeqNum }));
     },
-    async next(count: number) {
-      const deadline = Date.now() + 10_000;
-      while (received.length < count) {
-        if (Date.now() > deadline) throw new Error(`expected ${count}, got ${received.length}`);
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-      return received;
-    },
+    next: (count: number) => waitFor(() => (received.length >= count ? received : undefined)),
+    /** The answer to this socket's append `ref` on `nodeId`. */
+    answer: (nodeId: string, ref: number) =>
+      waitFor(() =>
+        received.find(
+          (e) =>
+            (e.type === "doc.appended" || e.type === "doc.refused") &&
+            e.nodeId === nodeId &&
+            e.ref === ref,
+        ),
+      ),
+    /** The first event `match` finds, once one has arrived. */
+    waitFor: (match: (event: Record<string, unknown>) => boolean) =>
+      waitFor(() => received.find(match)),
   };
 }
 
@@ -80,9 +100,8 @@ test("editing presence reaches those who see the file, survives hibernation, and
 
   // Bo's My files are his: Ana's claim to edit his file is dropped, and he hears nothing of it.
   anaHears.editing(bos.id, "editing");
-  await quiet();
-  expect(boHears.received).toHaveLength(2);
 
+  // Bo hears Ana leave next, and nothing of the claim she made before it.
   anaHears.socket.close();
   expect((await boHears.next(3))[2]).toEqual(at(ana.id, "left"));
   expect(boHears.received).toHaveLength(3);
@@ -98,16 +117,21 @@ test("a left sent while the editing check is still running wins", async () => {
   const doc = await stack.upload(ana.jar, { space: "shared" }, "doc.md", bytes("# Doc"));
   const [anaHears, boHears] = [await connect(ana.jar), await connect(bo.jar)];
 
+  const at = (state: string) => ({
+    type: "file.presence",
+    nodeId: doc.id,
+    memberId: ana.id,
+    state,
+  });
   anaHears.editing(doc.id, "editing");
   anaHears.editing(doc.id, "left");
-  await quiet();
-  expect(boHears.received).toEqual([]);
 
-  // A later heartbeat still lands as usual.
+  // A later heartbeat and close still land as usual, and they are all Bo hears: the first check
+  // started before them, so had it outlived the left it would have reached him first.
   anaHears.editing(doc.id, "editing");
-  expect(await boHears.next(1)).toEqual([
-    { type: "file.presence", nodeId: doc.id, memberId: ana.id, state: "editing" },
-  ]);
+  expect(await boHears.next(1)).toEqual([at("editing")]);
+  anaHears.editing(doc.id, "left");
+  expect(await boHears.next(2)).toEqual([at("editing"), at("left")]);
   anaHears.socket.close();
   boHears.socket.close();
 });
@@ -135,15 +159,14 @@ test("only a socket editing the file appends to its live document, and the other
 
   // Not editing it yet: refused.
   anaSocket.append(doc.id, 1, seed, 0);
-  await quiet();
+  await anaSocket.answer(doc.id, 1);
   expect(ofDoc(anaSocket.received)).toEqual([
     { type: "doc.refused", nodeId: doc.id, ref: 1, reason: "editing" },
   ]);
   // Editing Bo's own file, which she cannot see, is never checked: still refused.
   anaSocket.editing(bos.id, "editing");
   anaSocket.append(bos.id, 2, seed, 0);
-  await quiet();
-  expect(ofDoc(anaSocket.received).at(-1)).toEqual({
+  expect(await anaSocket.answer(bos.id, 2)).toEqual({
     type: "doc.refused",
     nodeId: bos.id,
     ref: 2,
@@ -155,20 +178,22 @@ test("only a socket editing the file appends to its live document, and the other
     more: false,
   });
 
-  // Both open the editor at once and seed: the first takes the tail, the second is told so.
+  // Both open the editor at once and seed: the first takes the tail, the second is told so. Each
+  // hears the other only once that one's access check passed.
+  const editingDoc = (memberId: string) => (e: Record<string, unknown>) =>
+    e.type === "file.presence" && e.nodeId === doc.id && e.memberId === memberId;
   anaSocket.editing(doc.id, "editing");
   boSocket.editing(doc.id, "editing");
-  await quiet();
+  await Promise.all([anaSocket.waitFor(editingDoc(bo.id)), boSocket.waitFor(editingDoc(ana.id))]);
   anaSocket.append(doc.id, 3, seed, 0);
-  await quiet();
-  boSocket.append(doc.id, 1, seed, 0);
-  await quiet();
-  expect(ofDoc(anaSocket.received).at(-1)).toEqual({
+  expect(await anaSocket.answer(doc.id, 3)).toEqual({
     type: "doc.appended",
     nodeId: doc.id,
     ref: 3,
     seqNum: 0,
   });
+  boSocket.append(doc.id, 1, seed, 0);
+  await boSocket.answer(doc.id, 1);
   expect(ofDoc(boSocket.received)).toEqual([
     { type: "doc.record", nodeId: doc.id, seqNum: 0, record: seed },
     { type: "doc.refused", nodeId: doc.id, ref: 1, reason: "tail" },
@@ -177,35 +202,38 @@ test("only a socket editing the file appends to its live document, and the other
   // Bo's update reaches Ana, not Cy, who sees the file but is not editing it.
   const update = { t: "update", e: 0, u: "AQ==" };
   boSocket.append(doc.id, 2, update);
-  await quiet();
-  expect(ofDoc(anaSocket.received).at(-1)).toEqual({
+  expect(await anaSocket.waitFor((e) => e.type === "doc.record" && e.seqNum === 1)).toEqual({
     type: "doc.record",
     nodeId: doc.id,
     seqNum: 1,
     record: update,
   });
-  expect(ofDoc(cySocket.received)).toEqual([]);
   // What a socket missed is read over HTTP, by anyone who sees the file.
   expect((await stack.api(cy.jar, "GET", `/files/${doc.id}/live?from=1`)).body).toEqual({
     enabled: true,
     entries: [{ seqNum: 1, record: update }],
     more: false,
   });
+  // Ana heard it before that round trip began, so a copy sent to Cy would be here by now.
+  expect(ofDoc(cySocket.received)).toEqual([]);
   expect((await stack.api(ana.jar, "GET", `/files/${bos.id}/live`)).status).toBe(404);
 
   // Ana takes the file into her My files while Bo still has it open: once his check is stale,
-  // his next record is refused for good, and nothing of his reaches her document.
+  // his next record is refused for good, and nothing of his reaches her document. Until then
+  // each record he sends expects a position the stream is not at, so none of them is written.
   const moved = await stack.api(ana.jar, "PATCH", `/nodes/${doc.id}`, { space: "personal" });
   expect(moved.status).toBe(200);
-  await new Promise((resolve) => setTimeout(resolve, 2100));
-  boSocket.append(doc.id, 3, update);
-  await quiet();
-  expect(ofDoc(boSocket.received).at(-1)).toEqual({
-    type: "doc.refused",
-    nodeId: doc.id,
-    ref: 3,
-    reason: "denied",
-  });
+  let ref = 3;
+  await expect
+    .poll(
+      async () => {
+        const sent = ref++;
+        boSocket.append(doc.id, sent, update, 1_000);
+        return (await boSocket.answer(doc.id, sent)).reason;
+      },
+      { timeout: 10_000, interval: 250 },
+    )
+    .toBe("denied");
   expect((await stack.api(ana.jar, "GET", `/files/${doc.id}/live?from=2`)).body).toEqual({
     enabled: true,
     entries: [],

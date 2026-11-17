@@ -495,12 +495,16 @@ test("the minute cron wakes a snooze that is over, and only that one", async () 
   expect(past.status).toBe(422);
 
   await post(`/threads/${soon.threadId}/snooze`, desk.anaCookie, {
-    until: new Date(Date.now() + 1500).toISOString(),
+    until: new Date(Date.now() + 60_000).toISOString(),
   });
   await post(`/threads/${later.threadId}/snooze`, desk.anaCookie, {
     until: new Date(Date.now() + 3_600_000).toISOString(),
   });
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  // The minute passes: Ana's snooze is now due, as if the clock had moved on.
+  await db
+    .update(schema.threads)
+    .set({ snoozedUntil: new Date(Date.now() - 1000) })
+    .where(eq(schema.threads.id, soon.threadId));
 
   const result = await worker.server.getWorker().scheduled({ cron: "* * * * *" });
   expect(result.outcome).toBe("ok");

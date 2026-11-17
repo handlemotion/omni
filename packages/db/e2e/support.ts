@@ -1,6 +1,7 @@
 // Each e2e file gets its own throwaway database, migrated from the committed migrations.
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { createDb } from "../src/client.ts";
@@ -74,4 +75,31 @@ export async function createMailbox(db: TestDb, orgId: string, address: string) 
 
 export async function grant(db: TestDb, orgId: string, mailboxId: string, memberId: string) {
   await db.insert(mailboxAccess).values({ orgId, mailboxId, memberId });
+}
+
+/** How many connections to the test's database are waiting for a lock right now. */
+async function lockWaiters(db: TestDb) {
+  const [row] = (await db.execute(sql`
+    select count(*)::int as waiting from pg_stat_activity
+    where datname = current_database() and wait_event_type = 'Lock'`)) as unknown as {
+    waiting: number;
+  }[];
+  return row?.waiting ?? 0;
+}
+
+/**
+ * Resolves once `count` connections wait for a lock, or `settled` says the wait is moot (the
+ * call under test finished without waiting). Postgres announces no lock wait, so this reads
+ * `pg_stat_activity` until it shows one.
+ */
+export async function untilLockWaiters(
+  db: TestDb,
+  count: number,
+  settled: () => boolean = () => false,
+) {
+  for (let attempt = 0; attempt < 500; attempt++) {
+    if (settled() || (await lockWaiters(db)) >= count) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`never saw ${count} lock waiter(s)`);
 }

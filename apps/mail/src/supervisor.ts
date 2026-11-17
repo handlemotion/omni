@@ -105,7 +105,7 @@ export class Supervisor {
     });
     if (this.options.onMessage) connection.on("message", this.options.onMessage);
     // Actions that failed while the mailbox was offline become runnable again on reconnect.
-    connection.on("connected", () => void this.ping());
+    connection.on("connected", () => void this.ping({ mailboxId: mailbox.id }));
     this.connections.set(mailbox.id, connection);
     void connection
       .start()
@@ -130,11 +130,11 @@ export class Supervisor {
     await Promise.all(this.inFlight);
   }
 
-  /** Runs the outbox now. The HTTP ping lands here. */
-  async ping(): Promise<void> {
+  /** Runs the outbox now. The HTTP ping lands here; `cause` names what asked, for the log. */
+  async ping(cause: Record<string, unknown> = {}): Promise<void> {
     if (!this.running) return;
     const drain = this.outbox.drain().then(
-      () => {},
+      (actions) => this.log.debug("outbox.drained", { actions, ...cause }),
       (error: unknown) => this.log.error("outbox.drain_failed", { error }),
     );
     this.inFlight.add(drain);

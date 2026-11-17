@@ -102,12 +102,28 @@ async function connect(cookie: string, org?: string) {
     headers: { cookie, origin: WEB_ORIGIN },
   } as unknown as string[]);
   const received: { type: string; mailboxId: string }[] = [];
-  socket.addEventListener("message", (e) => received.push(JSON.parse(String(e.data))));
+  const waiters = new Set<() => void>();
+  socket.addEventListener("message", (e) => {
+    received.push(JSON.parse(String(e.data)));
+    for (const waiter of waiters) waiter();
+  });
   await new Promise<void>((resolve, reject) => {
     socket.addEventListener("open", () => resolve());
     socket.addEventListener("error", () => reject(new Error("websocket failed to open")));
   });
-  return { socket, received };
+  return {
+    socket,
+    received,
+    /** Resolves once `count` events have arrived. */
+    async next(count: number) {
+      const enough = Promise.withResolvers<void>();
+      const check = () => received.length >= count && enough.resolve();
+      waiters.add(check);
+      check();
+      await enough.promise.finally(() => waiters.delete(check));
+      return received;
+    },
+  };
 }
 
 // Catches: "All mailboxes", its unread counts or its search reaching into a workspace other than
@@ -371,11 +387,7 @@ test("a realtime socket opens for any of the user's workspaces, and only for the
       })
     ).status,
   ).toBe(202);
-  const deadline = Date.now() + 10_000;
-  while (southSocket.received.length < 2 && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  expect(southSocket.received).toEqual([
+  expect(await southSocket.next(2)).toEqual([
     { type: "changed", mailboxId: southBox.id, threadIds: [thread.threadId] },
     { type: "thread.changed", mailboxId: southBox.id, threadIds: [thread.threadId] },
   ]);

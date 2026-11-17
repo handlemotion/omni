@@ -64,4 +64,4 @@ test("the daily cron ends an expired signed contract once and tells the workspac
     );
   expect(events).toHaveLength(1);
   beaSocket.close();
-}, 60_000);
+});

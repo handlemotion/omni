@@ -118,7 +118,7 @@ test("files and folders move by dragging them onto folders on the page and in th
   await drag(page, sidebar("Photos"), sidebar("Projects"), "bottom");
   await expect.poll(() => names(page, { space: "personal" })).toEqual(["Photos", "Projects"]);
   expect(await names(page, { parent: projects })).toEqual(["Drafts", "forest.png"]);
-}, 120_000);
+});
 
 /**
  * Drags with the mouse, as a person does: pressed, moved past the threshold, held, let go; over

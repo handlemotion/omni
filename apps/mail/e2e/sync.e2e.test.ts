@@ -345,8 +345,9 @@ describe("sync into Postgres against GreenMail", () => {
     const inbox = async (memberId: string) =>
       (await forMember(db, memberId).listThreads()).map((t) => t.id);
 
+    // Date headers have one-second precision: written a minute ago, the reply is visibly newer.
     let arrived = new Promise((resolve) => connection.once("message", resolve));
-    await deliver(box.address, "Contract");
+    await deliver(box.address, "Contract", { date: new Date(Date.now() - 60_000) });
     await arrived;
     const [first] = await stored(db, box.id, "INBOX");
     const [thread] = await forMember(db, ownerId).listThreads();
@@ -357,8 +358,6 @@ describe("sync into Postgres against GreenMail", () => {
     expect(await inbox(ownerId)).toEqual([]);
     expect(await inbox(teammate.id)).toEqual([thread!.id]);
 
-    // Date headers have one-second precision; the reply must be visibly newer.
-    await new Promise((resolve) => setTimeout(resolve, 1_100));
     arrived = new Promise((resolve) => connection.once("message", resolve));
     await deliver(box.address, "Re: Contract", { inReplyTo: first!.messageIdHeader });
     await arrived;
@@ -542,12 +541,16 @@ describe("sync into Postgres against GreenMail", () => {
       .set({ listUnsubscribe: [] })
       .where(eq(schema.messages.messageIdHeader, "<kept-receipt@outside.test>"));
 
-    // GreenMail derives UIDVALIDITY from the clock in seconds; let it tick so the new one differs.
-    await new Promise((resolve) => setTimeout(resolve, 1_100));
-    // Delete and recreate the folder: same path, new UIDVALIDITY, UIDs start over.
+    // Delete and recreate the folder: same path, new UIDVALIDITY, UIDs start over. GreenMail
+    // derives UIDVALIDITY from the clock in seconds, so recreate until it hands out a new one.
     await otherClient(box, async (client) => {
-      await client.mailboxDelete("Receipts");
-      await client.mailboxCreate("Receipts");
+      let validity;
+      do {
+        await client.mailboxDelete("Receipts");
+        await client.mailboxCreate("Receipts");
+        const status = await client.status("Receipts", { uidValidity: true });
+        validity = status && status.uidValidity;
+      } while (String(validity) === String(oldValidity));
       await client.append("Receipts", raw({ subject: "new receipt" }), []);
       await client.append("Receipts", kept, []);
     });

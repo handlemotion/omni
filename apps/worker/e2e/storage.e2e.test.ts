@@ -127,7 +127,7 @@ test("a 40 MiB file sent in three parts, out of order and resumed, downloads byt
   const past = await stack.download(ana.jar, nodeId, { range: `bytes=${bytes.length}-` });
   expect(past.status).toBe(416);
   expect(past.headers.get("content-range")).toBe(`bytes */${bytes.length}`);
-}, 120_000);
+});
 
 // Catches: an uploaded page or script rendering on our origin (stored XSS), a filename that
 // breaks out of its header or loses its accents, and an empty file that cannot be uploaded.

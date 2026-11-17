@@ -275,7 +275,11 @@ async function listen(token: string, orgId: string) {
     headers: { authorization: `Bearer ${token}` },
   } as unknown as string[]);
   const received: { type: string; space: string }[] = [];
-  socket.addEventListener("message", (e) => received.push(JSON.parse(String(e.data))));
+  const waiters = new Set<() => void>();
+  socket.addEventListener("message", (e) => {
+    received.push(JSON.parse(String(e.data)));
+    for (const waiter of waiters) waiter();
+  });
   await new Promise<void>((resolve, reject) => {
     socket.addEventListener("open", () => resolve());
     socket.addEventListener("error", () => reject(new Error("websocket failed to open")));
@@ -285,11 +289,11 @@ async function listen(token: string, orgId: string) {
     received,
     /** Waits for an event about `space`, and returns everything heard so far. */
     async until(space: string) {
-      const deadline = Date.now() + 10_000;
-      while (!received.some((event) => event.space === space)) {
-        if (Date.now() > deadline) throw new Error(`no storage.changed for ${space}`);
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
+      const heard = Promise.withResolvers<void>();
+      const check = () => received.some((event) => event.space === space) && heard.resolve();
+      waiters.add(check);
+      check();
+      await heard.promise.finally(() => waiters.delete(check));
       return received.splice(0);
     },
   };

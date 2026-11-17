@@ -44,7 +44,11 @@ export async function startCrmStack() {
       headers: { cookie: jar.header, origin: WEB_ORIGIN },
     } as unknown as string[]);
     const received: Record<string, unknown>[] = [];
-    ws.addEventListener("message", (e) => received.push(JSON.parse(String(e.data))));
+    const waiters = new Set<() => void>();
+    ws.addEventListener("message", (e) => {
+      received.push(JSON.parse(String(e.data)));
+      for (const waiter of waiters) waiter();
+    });
     await new Promise<void>((resolve, reject) => {
       ws.addEventListener("open", () => resolve());
       ws.addEventListener("error", () => reject(new Error("websocket failed to open")));
@@ -54,13 +58,14 @@ export async function startCrmStack() {
       close: () => ws.close(),
       /** Waits until an event matching `match` arrived. */
       async waitFor(match: (event: Record<string, unknown>) => boolean) {
-        const deadline = Date.now() + 10_000;
-        for (;;) {
+        const arrived = Promise.withResolvers<Record<string, unknown>>();
+        const check = () => {
           const found = received.find(match);
-          if (found) return found;
-          if (Date.now() > deadline) throw new Error("expected a realtime event");
-          await new Promise((resolve) => setTimeout(resolve, 50));
-        }
+          if (found) arrived.resolve(found);
+        };
+        waiters.add(check);
+        check();
+        return arrived.promise.finally(() => waiters.delete(check));
       },
     };
   }

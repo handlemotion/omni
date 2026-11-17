@@ -277,7 +277,7 @@ describe.runIf(requested)("Stripe test mode", () => {
     expect(await rows()).toMatchObject([
       { id: rowId, stripeSubscriptionId: subscription.id, status: "trialing" },
     ]);
-  }, 60_000);
+  });
 
   async function ownerOf(slug: string) {
     const { db } = database;
@@ -402,7 +402,7 @@ describe.runIf(requested)("Stripe test mode", () => {
     const open = await stripe.checkout.sessions.list({ customer, status: "open" });
     expect(open.data).toHaveLength(1);
     expect(open.data[0]!.id).not.toBe(opened!.id);
-  }, 60_000);
+  });
 
   test("two paid subscriptions for one workspace: the newer is canceled, the older kept", async () => {
     const { org, cookie } = await ownerOf("duplicate");

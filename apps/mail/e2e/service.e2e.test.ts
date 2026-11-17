@@ -21,6 +21,7 @@ import {
 import { parseKeyring, signRequest, verifyRequest } from "@omni/crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { sealCredentials } from "../src/credentials.ts";
+import { createLogger } from "../src/log.ts";
 import { deterministicMessageId } from "../src/outbox.ts";
 import { type MailService, type ServiceConfig, startService } from "../src/service.ts";
 import {
@@ -37,14 +38,7 @@ import {
   stored,
   type TestDb,
 } from "./support/db.ts";
-import {
-  deliver,
-  GREENMAIL_PASSWORD,
-  logger,
-  mailbox,
-  otherClient,
-  waitFor,
-} from "./support/greenmail.ts";
+import { deliver, GREENMAIL_PASSWORD, mailbox, otherClient, waitFor } from "./support/greenmail.ts";
 import { createTestBucket } from "./support/objects.ts";
 
 const secret = randomBytes(32).toString("hex");
@@ -61,10 +55,41 @@ let worker: Server;
 let workerUrl: string;
 /** Events the Worker accepted, in order. */
 let received: MailEvent[] = [];
+const eventWaiters = new Set<() => void>();
+
+/** Resolves once `check` holds, re-checked each time the Worker accepts events. */
+async function heard(check: () => boolean) {
+  const held = Promise.withResolvers<void>();
+  const test = () => check() && held.resolve();
+  eventWaiters.add(test);
+  test();
+  await held.promise.finally(() => eventWaiters.delete(test));
+}
 let workerRejected = 0;
 /** While true the Worker answers 503, as during a deploy or an outage. */
 let workerDown = false;
 let workerUnavailable = 0;
+
+/** Mailboxes whose connect-time outbox drain has finished, since the service last started. */
+let drained = new Set<string>();
+const drainWaiters = new Set<() => void>();
+/** Prints errors as the shared test logger does, and records each finished connect-time drain. */
+const serviceLogger = createLogger(
+  "debug",
+  {},
+  {
+    write(line) {
+      const entry = JSON.parse(line) as { level: string; event: string; mailboxId?: string };
+      if (entry.event === "outbox.drained" && entry.mailboxId) {
+        drained.add(entry.mailboxId);
+        for (const waiter of drainWaiters) waiter();
+      }
+      if (entry.level === "error" || process.env.E2E_LOG_LEVEL === "debug") {
+        process.stdout.write(`${line}\n`);
+      }
+    },
+  },
+);
 
 let service: MailService | null = null;
 let http: ReturnType<typeof serve> | null = null;
@@ -97,6 +122,7 @@ beforeAll(async () => {
       return;
     }
     received.push(...parsed.data.events);
+    for (const waiter of eventWaiters) waiter();
     res.writeHead(202).end();
   });
   await new Promise<void>((resolve) => worker.listen(0, "127.0.0.1", resolve));
@@ -138,7 +164,8 @@ async function startMailService(overrides: Partial<ServiceConfig> = {}) {
     MAILBOX_CONCURRENCY: 4,
     ...overrides,
   };
-  service = await startService(config, logger);
+  drained = new Set();
+  service = await startService(config, serviceLogger);
   const server = serve({ fetch: service.app.fetch, port: 0, hostname: "127.0.0.1" });
   http = server;
   await new Promise<void>((resolve) => server.once("listening", () => resolve()));
@@ -170,7 +197,11 @@ async function seedConnectable(kind: "personal" | "shared" = "personal") {
 /** Connected, first sync done, and the connect-time outbox drain has had its turn. */
 async function connected(mailboxId: string) {
   await waitFor(async () => (await mailboxStatus(db, mailboxId)) === "active");
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  const done = Promise.withResolvers<void>();
+  const check = () => drained.has(mailboxId) && done.resolve();
+  drainWaiters.add(check);
+  check();
+  await done.promise.finally(() => drainWaiters.delete(check));
 }
 
 async function ping(init: { headers?: Record<string, string>; path?: string } = {}) {
@@ -197,7 +228,7 @@ describe("mail service end to end", () => {
     const raw = await bucket.objects.get(row?.r2Key ?? "missing");
     expect(Buffer.from(raw ?? []).toString()).toContain("Subject: pipeline check");
 
-    await waitFor(() => received.length > 0);
+    await heard(() => received.length > 0);
     expect(received).toEqual([
       {
         type: "message.created",
@@ -223,20 +254,23 @@ describe("mail service end to end", () => {
     for (const n of [1, 2]) await deliver(box.address, `before restart ${n}`);
     await startMailService();
     await connected(box.id);
-    await waitFor(() => received.length === 2);
+    await heard(() => received.length === 2);
     await stopService();
 
     await deliver(box.address, "while down");
     received = [];
     await startMailService();
     await connected(box.id);
-    await waitFor(() => received.length >= 1);
-    // Let any stray duplicate arrive before counting.
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await heard(() => received.length >= 1);
+    // Mail delivered now is announced after anything the restart sent, so a stray duplicate
+    // would be in by the time its event is.
+    await deliver(box.address, "after restart");
+    await heard(() => received.length >= 2);
 
-    expect(received.map((e) => e.type)).toEqual(["message.created"]);
+    expect(received.map((e) => e.type)).toEqual(["message.created", "message.created"]);
     const rows = await messageRows(db, box.id);
     expect(rows.map((r) => r.subject).toSorted()).toEqual([
+      "after restart",
       "before restart 1",
       "before restart 2",
       "while down",
@@ -261,7 +295,7 @@ describe("mail service end to end", () => {
 
     workerDown = false;
     await startMailService();
-    await waitFor(() => received.length > 0);
+    await heard(() => received.length > 0);
     expect(received).toEqual([
       {
         type: "message.created",
@@ -298,7 +332,7 @@ describe("mail service end to end", () => {
 
     workerDown = false;
     await startMailService();
-    await waitFor(() => received.length > 0);
+    await heard(() => received.length > 0);
     expect(received).toEqual([
       {
         type: "action.failed",
@@ -335,9 +369,10 @@ describe("mail service end to end", () => {
       idempotencyKey: `undo-send-${box.id}`,
       payload: { from: box.address, to: [recipient.address], subject: "after undo", text: "hi" },
     });
+    const runAfter = new Date(Date.now() + 2_000);
     await db
       .update(schema.mailActions)
-      .set({ runAfter: new Date(Date.now() + 2_000) })
+      .set({ runAfter })
       .where(eq(schema.mailActions.id, action.id));
     const queuedAt = Date.now();
     const valid = await signRequest({
@@ -347,11 +382,12 @@ describe("mail service end to end", () => {
       nonce: randomUUID(),
     });
     expect((await ping({ headers: valid })).status).toBe(202);
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
-    expect((await actionRow(db, action.id)).status).toBe("pending");
 
     await waitFor(async () => (await actionRow(db, action.id)).status === "done", 10_000);
     expect(Date.now() - queuedAt).toBeLessThan(6_000);
+    // Not before its window: the SMTP server took it only once the window had ended.
+    const sent = await actionRow(db, action.id);
+    expect(sent.smtpAcceptedAt?.getTime()).toBeGreaterThanOrEqual(runAfter.getTime());
   });
 
   it("rejects forged, expired and replayed pings; a valid ping runs the outbox", async () => {
@@ -383,8 +419,7 @@ describe("mail service end to end", () => {
     expect((await ping({ headers: forged })).status).toBe(401);
     expect((await ping({ headers: expired })).status).toBe(401);
     expect((await ping({ headers: otherPath })).status).toBe(401);
-    // None of those ran the outbox.
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // None of those ran the outbox: a ping is refused before it reaches it.
     expect((await actionRow(db, action.id)).status).toBe("pending");
 
     const valid = await signRequest({
@@ -404,13 +439,18 @@ describe("mail service end to end", () => {
     expect(sent.map((r) => r.messageIdHeader)).toEqual([messageId]);
     expect((await messageRows(db, box.id)).map((r) => r.messageIdHeader)).toEqual([messageId]);
     // Its Sent copy carries \\Seen, so the new thread now reads as read: open apps refresh it.
-    await waitFor(() => received.length >= 2);
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(received).toHaveLength(2);
+    // Mail delivered now is announced after those, so a duplicate would be in before it.
+    await heard(() => received.length >= 2);
+    await deliver(box.address, "after the send");
+    await heard(() =>
+      received.some((e) => e.type === "message.created" && e.folderRole === "inbox"),
+    );
+    expect(received).toHaveLength(3);
     expect(received).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ folderRole: "sent", messageId: sent[0]?.messageId }),
         expect.objectContaining({ type: "threads.changed", threadIds: [sent[0]?.threadId] }),
+        expect.objectContaining({ type: "message.created", folderRole: "inbox" }),
       ]),
     );
     const inRecipient = await otherClient(recipient, async (client) => {
@@ -529,7 +569,7 @@ describe("what the app learns about its own actions", () => {
     // The thread gets the Sent copy under the id the app is already showing.
     expect((await stored(db, box.id, "Sent")).map((r) => r.messageIdHeader)).toEqual([chosen]);
 
-    await waitFor(() => received.some((e) => e.type === "action.failed"), 10_000);
+    await heard(() => received.some((e) => e.type === "action.failed"));
     expect((await actionRow(db, stale.id)).status).toBe("failed");
     expect(received.filter((e) => e.type === "action.failed")).toEqual([
       {
@@ -558,7 +598,7 @@ describe("what the app learns from other mail apps", () => {
       return rows.length > 0 && rows;
     });
     const threadId = row?.threadId ?? "missing";
-    await waitFor(() => received.length > 0);
+    await heard(() => received.length > 0);
     received = [];
     const changed = { type: "threads.changed", orgId, mailboxId: box.id, threadIds: [threadId] };
     const inOtherApp = (task: (client: ImapFlow) => Promise<unknown>) =>
@@ -574,7 +614,7 @@ describe("what the app learns from other mail apps", () => {
     // Read there: IDLE's FETCH brings the flag, and open apps hear about it. The poll is an
     // hour away, so only the live path can pass within 5s.
     await inOtherApp((client) => client.messageFlagsAdd("1:*", ["\\Seen"]));
-    await waitFor(() => received.length > 0, 5_000);
+    await heard(() => received.length > 0);
     expect(received).toEqual([changed]);
     const [state] = await db
       .select({ read: schema.threadState.read })
@@ -585,7 +625,7 @@ describe("what the app learns from other mail apps", () => {
     // Archived there: INBOX's EXPUNGE sends sync to Archive, where the copy now is.
     received = [];
     await inOtherApp((client) => client.messageMove("1:*", "Archive"));
-    await waitFor(() => received.length > 0, 5_000);
+    await heard(() => received.length > 0);
     expect(received).toEqual([changed]);
     const [thread] = await db
       .select({ archived: schema.threads.archived })
@@ -806,7 +846,7 @@ describe("a Google account's read state is Done (ADR 0044)", () => {
     await inGmail((client) => client.messageFlagsRemove("1:*", ["\\Seen"]));
     await waitFor(async () => (await state())?.doneThrough === null, 5_000);
     expect(await state()).toEqual({ read: false, doneThrough: null });
-    await waitFor(() => received.some((e) => e.type === "threads.changed"), 5_000);
+    await heard(() => received.some((e) => e.type === "threads.changed"));
 
     const position = await db
       .select({ uidvalidity: schema.mailboxFolders.uidvalidity })

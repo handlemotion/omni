@@ -53,7 +53,7 @@ describe("first sync on the smallest supported machine", () => {
     expect(result.peakRssMb).toBeLessThan(MACHINE_MB * 0.75);
     // Thrashing took a minute a message; a healthy import takes well under a second.
     expect(result.seconds / MESSAGES).toBeLessThan(0.5);
-  }, 180_000);
+  });
 });
 
 /** An 80 KB marketing mail: nested tables, inline styles, tracked links and remote images. */

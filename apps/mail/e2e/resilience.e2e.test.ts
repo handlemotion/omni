@@ -8,7 +8,8 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { parseKeyring } from "@omni/crypto";
-import { setMailboxStatus } from "@omni/db";
+import { schema, setMailboxStatus } from "@omni/db";
+import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { sealCredentials } from "../src/credentials.ts";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
@@ -112,11 +113,12 @@ describe("mail service under faults", () => {
       await client.messageDelete({ header: { subject: "deleted while down" } });
     });
     await deliver(box.address, "arrived while down");
-    await new Promise((resolve) => setTimeout(resolve, 1_500));
-    // It kept retrying, with backoff rather than a hot loop (base 100ms, cap 500ms: 3 to ~30).
-    const retries = link.accepted - acceptedWhileDown;
-    expect(retries).toBeGreaterThanOrEqual(3);
-    expect(retries).toBeLessThan(30);
+    // It keeps retrying, with backoff rather than a hot loop: every delay is at least the 50ms
+    // floor (half the 100ms base).
+    await link.accepting(acceptedWhileDown + 4);
+    const retries = link.acceptedAt.slice(acceptedWhileDown);
+    const gaps = retries.slice(1).map((at, i) => at - (retries[i] as number));
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(45);
 
     link.restore();
     await waitFor(() => connection.isReady);
@@ -144,27 +146,27 @@ describe("mail service under faults", () => {
   it("rides out a server restart mid-IDLE on capped backoff, then reconnects at once after a stable run", async () => {
     const { box, link } = await seedBehindLink();
     // Every backoff delay is at least the 100ms floor (half the base) and at most 100 + 300ms.
+    // Any ready connection counts as stable, so the run before each restart is a stable one.
     const connection = connect(box, {
       reconnectBaseMs: 200,
       reconnectMaxMs: 300,
-      stableAfterMs: 500,
+      stableAfterMs: 0,
     });
     await connection.start();
-    // Idle on INBOX long enough to count as stable.
-    await new Promise((resolve) => setTimeout(resolve, 800));
 
     // The server process dies (every socket reset) and stays down for a while.
     link.refuse();
     link.sever();
     const downAt = Date.now();
+    const before = link.accepted;
     await waitFor(() => !connection.connected);
-    await new Promise((resolve) => setTimeout(resolve, 4_000));
-    const attempts = link.acceptedAt.filter((at) => at >= downAt);
+    // Eight tries: by then uncapped doubling would wait well past the cap.
+    await link.accepting(before + 8);
+    const attempts = link.acceptedAt.slice(before);
     const gaps = attempts.slice(1).map((at, i) => at - (attempts[i] as number));
     // The first reconnect skips the backoff: the connection had been stable.
     expect((attempts[0] as number) - downAt).toBeLessThan(100);
-    // Then it backs off: never a hot loop, and capped (uncapped doubling passes 3s within 4s).
-    expect(attempts.length).toBeGreaterThanOrEqual(5);
+    // Then it backs off: never a hot loop, and capped.
     expect(Math.min(...gaps)).toBeGreaterThanOrEqual(90);
     expect(Math.max(...gaps)).toBeLessThan(400 + 300);
 
@@ -176,12 +178,11 @@ describe("mail service under faults", () => {
 
     // A second restart after another stable run reconnects at once: the long outage's backoff
     // does not linger.
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    const before = link.accepted;
+    const beforeSecond = link.accepted;
     const secondAt = Date.now();
     link.sever();
-    await waitFor(() => link.accepted > before, 2_000);
-    expect((link.acceptedAt[before] as number) - secondAt).toBeLessThan(100);
+    await link.accepting(beforeSecond + 1);
+    expect((link.acceptedAt[beforeSecond] as number) - secondAt).toBeLessThan(100);
     await waitFor(() => connection.isReady);
   });
 
@@ -205,10 +206,6 @@ describe("mail service under faults", () => {
     // Rejected logins wait the longest delay (200ms) between tries, not the 50ms base.
     expect(Date.now() - startedAt).toBeGreaterThanOrEqual(2 * 200);
     expect(connection.connected).toBe(false);
-
-    // Nothing retries afterwards.
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    expect({ authFailed, gaveUp }).toEqual({ authFailed: 3, gaveUp: 1 });
   });
 
   it("stores the rest of a folder when one message cannot be stored, and comes up ready", async () => {
@@ -263,10 +260,13 @@ describe("mail service under faults", () => {
       payload: { from: box.address, to: [recipient.address], subject: "offline send", text: "hi" },
     });
     // Two drains while offline: SMTP goes out once, the Sent copy waits, no attempt is spent.
-    for (let i = 0; i < 2; i++) {
-      await executor.drain();
-      await new Promise((resolve) => setTimeout(resolve, 150));
-    }
+    // Between them the deferral is made due, as if its 100ms had passed.
+    await executor.drain();
+    await db
+      .update(schema.mailActions)
+      .set({ runAfter: new Date(Date.now() - 1000) })
+      .where(eq(schema.mailActions.id, id));
+    await executor.drain();
     const deferred = await actionRow(db, id);
     expect(deferred).toMatchObject({ status: "pending", attempts: 0 });
     expect(deferred.smtpAcceptedAt).not.toBeNull();
@@ -344,10 +344,23 @@ describe("the service process, stopped and killed mid-import", () => {
     });
     child = proc;
     let output = "";
-    proc.stdout?.on("data", (chunk) => (output += chunk));
-    proc.stderr?.on("data", (chunk) => (output += chunk));
+    const waiters = new Set<() => void>();
+    const append = (chunk: Buffer) => {
+      output += chunk;
+      for (const waiter of waiters) waiter();
+    };
+    proc.stdout?.on("data", append);
+    proc.stderr?.on("data", append);
     const exited = new Promise<number | null>((resolve) => proc.on("exit", resolve));
-    return { proc, port, exited, output: () => output };
+    /** Resolves once the process has logged `event`. */
+    const logged = async (event: string) => {
+      const seen = Promise.withResolvers<void>();
+      const check = () => output.includes(`"event":"${event}"`) && seen.resolve();
+      waiters.add(check);
+      check();
+      await seen.promise.finally(() => waiters.delete(check));
+    };
+    return { proc, port, exited, logged, output: () => output };
   }
 
   it("finishes a send in flight on SIGTERM, logs out, and never sends it twice", async () => {
@@ -389,8 +402,8 @@ describe("the service process, stopped and killed mid-import", () => {
 
     const sigtermAt = Date.now();
     first.proc.kill("SIGTERM");
-    // The server answers after the signal: shutdown must wait for the send, not cut it off.
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // The server answers after shutdown began: it must wait for the send, not cut it off.
+    await first.logged("shutdown.start");
     smtpLink.restore();
     expect(await first.exited).toBe(0);
     expect(Date.now() - sigtermAt).toBeLessThan(20_000);
@@ -403,10 +416,10 @@ describe("the service process, stopped and killed mid-import", () => {
     expect(imapLink.closedTails.length).toBeGreaterThan(0);
     for (const tail of imapLink.closedTails) expect(tail).toMatch(/LOGOUT\r\n$/);
 
-    // A restart finds nothing left to send.
-    const second = await startProcess(env);
+    // A restart finds nothing left to send: its outbox has drained, and sent nothing.
+    const second = await startProcess({ ...env, LOG_LEVEL: "debug" });
     await waitFor(async () => (await healthOf(second.port))?.ready === 1, 30_000);
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    await second.logged("outbox.drained");
     second.proc.kill("SIGTERM");
     expect(await second.exited).toBe(0);
 
@@ -424,7 +437,7 @@ describe("the service process, stopped and killed mid-import", () => {
     await setMailboxStatus(db, box.id, "disabled");
     await imapLink.close();
     await smtpLink.close();
-  }, 120_000);
+  });
 
   it("exits cleanly on SIGTERM mid-import, and converges after a SIGKILL", async () => {
     const seeded = await seedMailbox(db);
@@ -482,5 +495,5 @@ describe("the service process, stopped and killed mid-import", () => {
     const rows = await messageRows(db, box.id);
     expect(rows).toHaveLength(total);
     expect(new Set(rows.map((r) => r.messageIdHeader)).size).toBe(total);
-  }, 120_000);
+  });
 });

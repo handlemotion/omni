@@ -153,7 +153,7 @@ test("a teammate sees shared activity on the timeline, never the thread, and las
   const after = await stack.api(bea.jar, "GET", `/people/${id}/timeline`);
   expect(after.body.items.map((item: { kind: string }) => item.kind)).not.toContain("activity");
   expect((await stack.api(bea.jar, "GET", `/people/${id}`)).body.lastContactedAt).toBeNull();
-}, 60_000);
+});
 
 // Catches: the timeline's cursor not carrying activity items (repeated or skipped on the next
 // page) when they interleave with threads and events.
@@ -192,4 +192,4 @@ test("activity pages with the rest of the timeline, each item once", async () =>
     cursor = page.body.nextCursor;
   } while (cursor);
   expect(seen).toEqual(["Thread 5", "Thread 4", "Thread 3", "Thread 2", "Thread 1"]);
-}, 60_000);
+});

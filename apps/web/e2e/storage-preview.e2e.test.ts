@@ -117,7 +117,7 @@ test("a box drawn on a PDF page is saved as that page's fractions and pinned the
   if (!drawn || !again) throw new Error("the pin was not drawn again");
   expect((drawn.x - again.x) / again.width).toBeCloseTo(0.5, 1);
   expect((drawn.y + drawn.height - again.y) / again.height).toBeCloseTo(0.3, 1);
-}, 120_000);
+});
 
 /** A real two-page PDF (US Letter), with a correct cross-reference table. */
 function twoPagePdf() {

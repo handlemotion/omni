@@ -104,7 +104,7 @@ test("two editors on one Markdown file see each other's typing, and the page is 
       { timeout: 20_000 },
     )
     .toMatch(/^# Notes\n\nStart\n\nFrom Ana\n\nFrom Bo\n*$/);
-}, 120_000);
+});
 
 async function edit(page: Page) {
   await page.getByRole("button", { name: "Edit" }).click();

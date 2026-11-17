@@ -87,7 +87,7 @@ test("a file larger than one part uploads from the page and downloads byte for b
   const saved = await readFile(await download.path());
   expect(saved.byteLength).toBe(bytes.byteLength);
   expect(sha256(saved)).toBe(sha256(bytes));
-}, 120_000);
+});
 
 // Catches: the link page reaching for a session (the member routes, a sign-in redirect) or
 // downloading through the member's door, so a link open to anyone fails for the people it is for;
@@ -132,7 +132,7 @@ test("a link open to anyone downloads its file, byte for byte, for someone signe
   } finally {
     await signedOut.close();
   }
-}, 120_000);
+});
 
 // Catches: the XLSX preview failing on the app's real CSP (its reader in a worker the policy
 // blocks, as SheetJS's or fflate's own blob workers would be), a sheet's cells showing raw values
@@ -176,7 +176,7 @@ test("an XLSX opens to its visible sheets' cells as the workbook shows them", as
   // B3: the grid's first column is the row numbers, so B is its third; its first row the letters.
   expect(await ana.getAttribute("aria-colindex")).toBe("3");
   expect(await ana.locator("..").getAttribute("aria-rowindex")).toBe("4");
-}, 120_000);
+});
 
 // Catches: files queued in one workspace going up into another after a workspace switch (the
 // queue lives outside React and outlived the session's reset), or an opened upload left holding
@@ -237,7 +237,7 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
     .from(schema.storageUploads)
     .where(and(eq(schema.storageUploads.orgId, acme.orgId), isNull(schema.storageUploads.nodeId)));
   expect(open).toEqual([]);
-}, 120_000);
+});
 
 // Catches: New folder's in-place name losing keys to the list around it (the arrows, Home and End
 // moving through the folders instead of the caret), one name creating two folders (Enter, then the
@@ -277,7 +277,7 @@ test("New folder is named in place, and each name creates one folder", async () 
     .where(eq(schema.storageNodes.kind, "folder"));
   expect(folders.map((f) => f.name).toSorted()).toEqual(["Q3 Plans final", "Untitled folder"]);
   expect(await field.count()).toBe(0);
-}, 60_000);
+});
 
 // Catches: Rename's in-place name ending as soon as it opens (the menu that started it handing
 // focus back to its button blurs the field), selecting a file's extension so typing replaces it,
@@ -328,7 +328,7 @@ test("Rename changes a name in place on a row and a card, once", async () => {
     .from(schema.storageNodes)
     .where(inArray(schema.storageNodes.name, ["notes.txt", "minutes.txt"]));
   expect(files).toEqual([{ name: "minutes.txt" }]);
-}, 60_000);
+});
 
 // Catches: the page editor saving something other than Markdown (its HTML, its JSON, the text
 // without its marks), a save that overwrites a teammate's newer version without asking, or "Keep
@@ -439,7 +439,7 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
   await leaving.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(content, { timeout: 15_000 }).toContain("- Second **point** mine again");
   await expect.poll(() => editor.count()).toBe(0);
-}, 120_000);
+});
 
 // Catches: a Markdown file with what the page cannot show (a table, an image) opening as a page,
 // whose save would write the file back without them.
@@ -477,7 +477,7 @@ test("a Markdown file the page cannot keep whole edits as text, and saves every 
       { timeout: 15_000 },
     )
     .toBe(text.replace("| Pro | 9 |", "| Pro | 9 | (monthly)"));
-}, 120_000);
+});
 
 /** Signed in as `email` (a magic link, so a new address signs up), on `path`. */
 async function signedIn(email: string, path: string) {

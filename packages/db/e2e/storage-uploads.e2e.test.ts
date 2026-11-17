@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
 import { storageNodes, storageUploads, storageUsage } from "../src/schema/index.ts";
@@ -12,7 +12,7 @@ import {
 } from "../src/storage.ts";
 import { lockTree, lockUsage } from "../src/storage/core.ts";
 import { addFile, addFolder, setRole } from "./storage-support.ts";
-import { createMember, createOrg, createTestDatabase } from "./support.ts";
+import { createMember, createOrg, createTestDatabase, untilLockWaiters } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();
 afterAll(teardown);
@@ -47,25 +47,6 @@ async function hold(take: (tx: typeof db) => Promise<unknown>) {
     released.resolve();
     await done;
   };
-}
-
-/** How many connections to this test's database are waiting for a lock right now. */
-async function lockWaiters() {
-  const [row] = (await db.execute(sql`
-    select count(*)::int as waiting from pg_stat_activity
-    where datname = current_database() and wait_event_type = 'Lock'`)) as unknown as {
-    waiting: number;
-  }[];
-  return row?.waiting ?? 0;
-}
-
-/** Resolves once `count` connections wait for a lock, or `settled` says the wait is moot. */
-async function untilLockWaiters(count: number, settled: () => boolean = () => false) {
-  for (let attempt = 0; attempt < 500; attempt++) {
-    if (settled() || (await lockWaiters()) >= count) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error(`storage e2e: never saw ${count} lock waiter(s)`);
 }
 
 test("completing an upload twice, even at once, makes one file and counts its bytes once", async () => {
@@ -328,13 +309,13 @@ test("an upload completing while its folder moves to another drive lands in the 
     }),
   );
   const completing = storage.completeUpload(id, { limitBytes: null });
-  await untilLockWaiters(1);
+  await untilLockWaiters(db, 1);
   let moved = false;
   const moving = storage.move(folder.id, { space: "personal" }).finally(() => {
     moved = true;
   });
   // The move either lands now, or waits its turn behind the completing upload.
-  await untilLockWaiters(2, () => moved);
+  await untilLockWaiters(db, 2, () => moved);
   await release();
 
   expect((await completing).status).toBe("ok");
@@ -359,7 +340,7 @@ test("a node restored and trashed again while a purge runs keeps its fresh 30 da
   const purging = purgeStorageTrash(db, {
     before: new Date(Date.now() - STORAGE_TRASH_DAYS * DAY_MS),
   });
-  await untilLockWaiters(1);
+  await untilLockWaiters(db, 1);
   // Restored and trashed again meanwhile: what a restore and a trash leave behind, written
   // directly because a restore now queues on the same lock.
   await db.update(storageNodes).set({ trashedAt: new Date() }).where(eq(storageNodes.id, file.id));
@@ -378,13 +359,13 @@ test("a restore racing a permanent delete cannot report success for a file that 
   // The delete has seen the node in Trash and waits for the usage row.
   const release = await hold((tx) => lockUsage(tx, org.id));
   const deleting = storage.deleteForever(file.id);
-  await untilLockWaiters(1);
+  await untilLockWaiters(db, 1);
   let restored = false;
   const restoring = storage.restore(file.id).finally(() => {
     restored = true;
   });
   // The restore either lands now (the bug), or waits its turn behind the delete.
-  await untilLockWaiters(2, () => restored);
+  await untilLockWaiters(db, 2, () => restored);
   await release();
 
   expect((await deleting).status).toBe("ok");

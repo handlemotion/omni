@@ -94,54 +94,47 @@ async function openApp(email: string, path: string): Promise<{ page: Page; tab: 
   return { page, tab };
 }
 
-test(
-  "after the Worker restarts the app reconnects by itself and shows what it missed",
-  { timeout: 90_000 },
-  async () => {
-    const org = await createOrg(db, "restart");
-    await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
-    const ana = await createMember(db, org.id, "ana@restart.test");
-    const box = await createMailbox(db, org.id, "ana@restart.test", "personal");
-    await grant(db, org.id, box.id, ana.id);
-    const first = await seedMessage(db, box, {
-      subject: "Status",
-      fromAddress: "pm@client.test",
-      uid: 1,
-      text: "Before the restart.",
-    });
+test("after the Worker restarts the app reconnects by itself and shows what it missed", async () => {
+  const org = await createOrg(db, "restart");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@restart.test");
+  const box = await createMailbox(db, org.id, "ana@restart.test", "personal");
+  await grant(db, org.id, box.id, ana.id);
+  const first = await seedMessage(db, box, {
+    subject: "Status",
+    fromAddress: "pm@client.test",
+    uid: 1,
+    text: "Before the restart.",
+  });
 
-    const { page } = await openApp("ana@restart.test", `/inbox/${first.threadId}`);
-    const sockets: { closed: boolean }[] = [];
-    page.on("websocket", (ws) => {
-      const socket = { closed: false };
-      sockets.push(socket);
-      ws.on("close", () => (socket.closed = true));
-    });
-    const open = () => sockets.filter((s) => !s.closed).length;
-    await page.locator("article").getByText("Before the restart.").waitFor();
-    await expect.poll(open).toBe(1);
+  const { page } = await openApp("ana@restart.test", `/inbox/${first.threadId}`);
+  const sockets: { closed: boolean }[] = [];
+  page.on("websocket", (ws) => {
+    const socket = { closed: false };
+    sockets.push(socket);
+    ws.on("close", () => (socket.closed = true));
+  });
+  const open = () => sockets.filter((s) => !s.closed).length;
+  await page.locator("article").getByText("Before the restart.").waitFor();
+  await expect.poll(open).toBe(1);
 
-    await stopApp();
-    await expect.poll(open).toBe(0);
-    // Mail arrives while the Worker is down: no event will ever announce it.
-    await seedMessage(db, box, {
-      subject: "Re: Status",
-      fromAddress: "pm@client.test",
-      uid: 2,
-      threadId: first.threadId,
-      text: "Sent while you were away.",
-    });
-    await startApp();
+  await stopApp();
+  await expect.poll(open).toBe(0);
+  // Mail arrives while the Worker is down: no event will ever announce it.
+  await seedMessage(db, box, {
+    subject: "Re: Status",
+    fromAddress: "pm@client.test",
+    uid: 2,
+    threadId: first.threadId,
+    text: "Sent while you were away.",
+  });
+  await startApp();
 
-    // No reload: the socket comes back on its own and the thread on screen is refetched. The wait
-    // covers the Worker's own rebuild and boot plus the socket's backoff, capped at 30 seconds.
-    await page
-      .locator("article")
-      .getByText("Sent while you were away.")
-      .waitFor({ timeout: 45_000 });
-    expect(open()).toBe(1);
-  },
-);
+  // No reload: the socket comes back on its own and the thread on screen is refetched. The wait
+  // covers the Worker's own rebuild and boot plus the socket's backoff, capped at 30 seconds.
+  await page.locator("article").getByText("Sent while you were away.").waitFor({ timeout: 45_000 });
+  expect(open()).toBe(1);
+});
 
 test("mail that arrives before the realtime socket first opens shows once it opens", async () => {
   const org = await createOrg(db, "late-socket");

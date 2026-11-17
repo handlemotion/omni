@@ -1,6 +1,16 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "promise", "vitest"],
+  "jsPlugins": [
+    {
+      "name": "landmines-testing",
+      "specifier": "@interfere/landmines/testing"
+    },
+    {
+      "name": "landmines-structure",
+      "specifier": "@interfere/landmines/structure"
+    }
+  ],
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
@@ -35,7 +45,31 @@
         "skipBlankLines": true,
         "skipComments": true
       }
-    ]
+    ],
+    "landmines-testing/no-fixed-sleep": [
+      "error",
+      {
+        "allow": {
+          "apps/worker/e2e/storage-billing-stripe.e2e.test.ts": 3
+        }
+      }
+    ],
+    "landmines-testing/no-flake-masking": [
+      "error",
+      {
+        "allow": {
+          "apps/mail/e2e/purelymail-live.e2e.test.ts": 4,
+          "apps/worker/e2e/billing-stripe.e2e.test.ts": 5,
+          "apps/worker/e2e/storage-billing-stripe.e2e.test.ts": 3
+        }
+      }
+    ],
+    "landmines-testing/no-test-doubles": "error",
+    "landmines-testing/no-unsignaled-poll": "error",
+    "landmines-testing/strict-msw": "error",
+    "landmines-structure/colocated-tests": "error",
+    "landmines-structure/package-exports": "error",
+    "landmines-structure/test-file-names": "error"
   },
   "overrides": [
     {

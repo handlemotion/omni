@@ -178,22 +178,19 @@ test("a cancelled send never leaves; one left alone goes out after the undo wind
 
   const kept = await reply("It ships Tuesday.");
   expect(kept.status).toBe(202);
-  const { actionId } = (await kept.json()) as { actionId: string };
-  // Held for the window: the outbox poll runs every 500ms but must not claim it yet.
-  await new Promise((resolve) => setTimeout(resolve, 1_000));
-  const [waiting] = await db
-    .select()
-    .from(schema.mailActions)
-    .where(eq(schema.mailActions.id, actionId));
-  expect(waiting?.status).toBe("pending");
+  const { actionId, undoUntil } = (await kept.json()) as { actionId: string; undoUntil: string };
 
-  await waitUntil(async () => {
+  const sent = await waitUntil(async () => {
     const [row] = await db
       .select()
       .from(schema.mailActions)
       .where(eq(schema.mailActions.id, actionId));
-    return row?.status === "done";
+    return row?.status === "done" && row;
   });
+  // Held for the window: the outbox poll runs every 500ms, yet the SMTP server took it only once
+  // the window it was given had passed.
+  expect(sent.runAfter.toISOString()).toBe(undoUntil);
+  expect(sent.smtpAcceptedAt?.getTime()).toBeGreaterThanOrEqual(new Date(undoUntil).getTime());
   const subjects = await waitUntil(async () => {
     const found = await inboxSubjects(customer);
     return found.length ? found : false;
@@ -205,4 +202,4 @@ test("a cancelled send never leaves; one left alone goes out after the undo wind
     .from(schema.mailActions)
     .where(eq(schema.mailActions.id, held.actionId));
   expect(gone).toBeUndefined();
-}, 60_000);
+});

@@ -36,20 +36,18 @@ test("crm.changed reaches a teammate's socket, no socket of another workspace, a
   expect(made.status).toBe(201);
   const event = await beaSocket.waitFor((e) => e.type === "crm.changed");
   expect(event).toEqual({ type: "crm.changed", kind: "company", ids: [made.body.company.id] });
-  // One send reaches every socket it names before Bea's arrives; Dan's had a moment more.
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  expect(danSocket.received.filter((e) => e.type === "crm.changed")).toEqual([]);
-
-  // A write in Beta reaches Cid, so by then anything Acme sent him would have arrived too.
+  // A write in Beta reaches Cid, so by then anything Acme sent him, or Dan, would have arrived
+  // too.
   const theirs = await stack.api(cid.jar, "POST", "/companies", { name: "Hooli" });
   await cidSocket.waitFor((e) => e.type === "crm.changed");
   expect(cidSocket.received.filter((e) => e.type === "crm.changed")).toEqual([
     { type: "crm.changed", kind: "company", ids: [theirs.body.company.id] },
   ]);
+  expect(danSocket.received.filter((e) => e.type === "crm.changed")).toEqual([]);
   beaSocket.close();
   danSocket.close();
   cidSocket.close();
-}, 60_000);
+});
 
 // Catches: a stage replace that returns before its announcement resolves the audience, so the
 // request's database pool closes under it and teammates never hear the pipeline changed.
@@ -70,7 +68,7 @@ test("replacing the stages tells a teammate's socket", async () => {
   const event = await beaSocket.waitFor((e) => e.type === "crm.changed");
   expect(event).toEqual({ type: "crm.changed", kind: "stages", ids: stages.map((s) => s.id) });
   beaSocket.close();
-}, 60_000);
+});
 
 test("lookup finds a person by an address in any letter case, and nothing from another workspace", async () => {
   const acme = await stack.company("acme-lookup");
@@ -105,7 +103,7 @@ test("lookup finds a person by an address in any letter case, and nothing from a
   );
   expect(theirs.body.people.map((p: { id: string }) => p.id)).toEqual([dora.id]);
   expect(theirs.body.deals).toEqual([]);
-}, 60_000);
+});
 
 test("adding an address twice answers the same person; giving it to someone else answers 409 with who holds it", async () => {
   const org = await stack.company("add-once");
@@ -137,7 +135,7 @@ test("adding an address twice answers the same person; giving it to someone else
     address: "carla@northwind.com",
     personId: first.body.person.id,
   });
-}, 60_000);
+});
 
 test("a Personal space answers 404 no_crm", async () => {
   const jar = new CookieJar();
@@ -145,4 +143,4 @@ test("a Personal space answers 404 no_crm", async () => {
   const listed = await stack.api(jar, "GET", "/companies");
   expect(listed.status).toBe(404);
   expect(listed.body).toMatchObject({ code: "NO_CRM" });
-}, 60_000);
+});

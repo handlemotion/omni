@@ -4,8 +4,10 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
-import { members, organizations, users } from "../src/schema/index.ts";
+import { schema } from "../src/index.ts";
 import { createMember, createOrg, createTestDatabase } from "./support.ts";
+
+const { members, organizations, users } = schema;
 
 const { db, url, teardown } = await createTestDatabase();
 afterAll(teardown);

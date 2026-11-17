@@ -88,11 +88,15 @@ test("while the DNS page is open, the domain is re-checked on its own and the re
     ).toMatchObject({ status: "verified" });
     expect((status.body.organization as { setup: string }).setup).toBe("dns_verified");
 
-    // Verified: the watch stops on its own, so no more pushes arrive.
-    const pushed = events.length;
-    await new Promise((resolve) => setTimeout(resolve, 11_000));
-    expect(events.length).toBe(pushed);
+    // Verified: the watch stops on its own and clears its storage, so no alarm is left to push.
+    const watch = await stack.worker.server
+      .getWorker()
+      .getDurableObjectStorage("DOMAIN_WATCH", { name: a.domainId });
+    await waitFor(
+      async () =>
+        (await watch.exec("SELECT name FROM sqlite_master WHERE name = '_cf_KV'")).length === 0,
+    );
   } finally {
     socket.close();
   }
-}, 60_000);
+});

@@ -21,6 +21,8 @@ export interface FaultyLink {
   readonly accepted: number;
   /** When each connection was accepted (`Date.now()`), including refused ones. */
   readonly acceptedAt: readonly number[];
+  /** Resolves once `count` connections have been accepted, including refused ones. */
+  accepting(count: number): Promise<void>;
   /** Connections relayed and still open. */
   readonly open: number;
   /** For each relayed connection that has closed: the last bytes its client sent. */
@@ -43,9 +45,11 @@ export async function faultyLink(target: { host: string; port: number }): Promis
   let stalling = false;
   const acceptedAt: number[] = [];
   const closedTails: string[] = [];
+  const waiters = new Set<() => void>();
 
   const server: Server = createServer((client) => {
     acceptedAt.push(Date.now());
+    for (const waiter of waiters) waiter();
     if (refusing) {
       client.resetAndDestroy();
       return;
@@ -88,6 +92,13 @@ export async function faultyLink(target: { host: string; port: number }): Promis
       return acceptedAt.length;
     },
     acceptedAt,
+    async accepting(count) {
+      const reached = Promise.withResolvers<void>();
+      const check = () => acceptedAt.length >= count && reached.resolve();
+      waiters.add(check);
+      check();
+      await reached.promise.finally(() => waiters.delete(check));
+    },
     get open() {
       return pairs.size;
     },

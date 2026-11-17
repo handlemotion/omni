@@ -5,7 +5,7 @@ import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
 import { crmCompanies, crmContracts, crmDeals, crmEvents } from "../src/schema/index.ts";
 import { addFile, addFolder, setRole } from "./storage-support.ts";
-import { createMember, createOrg, createTestDatabase } from "./support.ts";
+import { createMember, createOrg, createTestDatabase, untilLockWaiters } from "./support.ts";
 
 const { db, teardown } = await createTestDatabase();
 afterAll(teardown);
@@ -192,9 +192,10 @@ test("a company deleted while a contract on it is being made and signed keeps bo
       await inTx.createContract({ title: "MSA", companyId: client.id, documentNodeId: file.id }),
     ).contract;
     ok(await inTx.updateContract(made.id, { status: "signed" }));
-    // The delete starts before this commits, as a second request would.
-    deleted = crm.deleteCompany(client.id);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // The delete starts before this commits, as a second request would, and waits on it.
+    let finished = false;
+    deleted = crm.deleteCompany(client.id).finally(() => (finished = true));
+    await untilLockWaiters(db, 1, () => finished);
   });
   expect(await deleted).toEqual({ status: "contract_signed" });
   expect(ok(await crm.listContracts({ companyId: client.id })).contracts).toMatchObject([
@@ -213,8 +214,9 @@ test("a deal's folder call waits on the company before it holds the deal", async
   await db.transaction(async (tx) => {
     // As a contract write does: the company first.
     await tx.select().from(crmCompanies).where(eq(crmCompanies.id, client.id)).for("update");
-    folder = crm.dealFolder(deal.id);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    let finished = false;
+    folder = crm.dealFolder(deal.id).finally(() => (finished = true));
+    await untilLockWaiters(db, 1, () => finished);
     // The folder call is queued behind the company, so the deal is still free.
     const held = await tx
       .select()
