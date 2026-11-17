@@ -22,3 +22,19 @@ Go) to `AUTH_TRUSTED_ORIGINS`. The magic link opens in Safari and returns to the
 - `pnpm check-types` covers the app with the rest of the repo.
 - `npx expo export --platform web` renders the same screens in a browser, for screenshots at
   phone size. Serve it on a trusted origin with `/api` forwarded to the Worker so sign-in works.
+
+## Release to TestFlight
+
+On a Mac with Xcode signed in to the Apple account that owns the team, and the app created in App
+Store Connect under the same bundle ID:
+
+```bash
+EXPO_PUBLIC_OMNI_API_URL=https://<your-worker-origin> \
+OMNI_IOS_BUNDLE_ID=<bundle id> OMNI_IOS_TEAM_ID=<team id> OMNI_IOS_BUILD_NUMBER=<n> \
+  apps/ios/scripts/release-testflight.sh
+```
+
+It prebuilds the native project, archives a Release build, and uploads it (`UPLOAD=0` exports the
+`.ipa` to `apps/ios/ios/build/release` instead). The Worker must list the app's scheme
+(`omni://`) in `AUTH_TRUSTED_ORIGINS`, or sign-in links can't return to the app. CocoaPods must be
+installed (`brew install cocoapods`).
