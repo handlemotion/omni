@@ -9,6 +9,7 @@ export const SETTINGS_PAGES = [
   "notifications",
   "accounts",
   "forwarding",
+  "sync",
   "general",
   "people",
   "inboxes",

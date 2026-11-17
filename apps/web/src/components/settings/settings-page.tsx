@@ -12,6 +12,7 @@ import { HelpdeskPage } from "./helpdesk-pages";
 import { SettingsPageHeader } from "./kit/settings-layout";
 import { InboxesPage, SharedMailboxesPage } from "./mailbox-pages";
 import { NotificationsPage } from "./notification-pages";
+import { DriveSyncPage } from "./sync-pages";
 import { PipelinePage } from "./pipeline-page";
 import { GeneralPage, PeoplePage } from "./workspace-pages";
 import {
@@ -28,6 +29,7 @@ const BODIES: Record<SettingsPageId, () => ReactNode> = {
   notifications: () => <NotificationsPage />,
   accounts: () => <ConnectedAccountsPage />,
   forwarding: () => <ForwardingPage />,
+  sync: () => <DriveSyncPage />,
   general: () => <GeneralPage />,
   people: () => <PeoplePage />,
   inboxes: () => <InboxesPage />,

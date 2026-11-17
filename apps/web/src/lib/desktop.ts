@@ -47,6 +47,17 @@ export const desktop = {
     );
   },
 
+  /**
+   * Drive sync on this computer: the workspaces whose files the system's folder holds. Only the
+   * macOS app has a provider yet; elsewhere `available` is false. Turning one on without a sync
+   * grant takes this window through the server's authorize page and back.
+   */
+  sync: {
+    status: () => bridge().then((b) => b.syncStatus()),
+    connect: (orgId: string) => bridge().then((b) => b.syncConnect(orgId)),
+    disconnect: (orgId: string) => bridge().then((b) => b.syncDisconnect(orgId)),
+  },
+
   /** The Dock badge: a count, or none at zero. macOS and Linux; Windows has no count badge. */
   setBadge(count: number) {
     run("badge", (b) => b.setBadge(count));

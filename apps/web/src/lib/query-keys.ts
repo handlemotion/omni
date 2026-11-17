@@ -34,6 +34,8 @@ export const keys = {
   signInEmails: () => [...root, "sign-in-emails"] as const,
   /** The company a scoped sign-in may ask to join (ADR 0024). */
   join: () => [...root, "join"] as const,
+  /** Drive sync on this computer, as the desktop shell reports it (ADR 0043). */
+  desktopSync: () => [...root, "desktop-sync"] as const,
   /** A sender's avatar picture and its edge, by address or company domain. The same everywhere. */
   senderLogo: (who: string) => [...root, "sender-logo", who] as const,
   /** An agent asking to connect over OAuth (ADR 0029). */
