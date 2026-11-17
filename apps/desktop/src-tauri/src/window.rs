@@ -50,6 +50,10 @@ pub fn create<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         .inner_size(1280.0, 800.0)
         .min_inner_size(720.0, 480.0)
         .visible(!relaunched && !std::env::args().any(|arg| arg == HIDDEN_ARG))
+        // Tauri's file-drop handler claims every drag before WebKit sees it, so the page's HTML5
+        // drag and drop (Drive's moves, Finder files onto a folder) never fires. The page handles
+        // drops itself.
+        .disable_drag_drop_handler()
         .on_navigation(on_navigation)
         .on_new_window(on_new_window)
         // The destination arrives filled in: the Downloads folder, the suggested name, made unique.
