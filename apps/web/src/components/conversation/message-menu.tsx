@@ -3,21 +3,8 @@ import { IconEllipsis, IconForward, IconReply } from "@/components/icons/central
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import { quoteText } from "@/lib/reply.ts";
+import { menuButtonClass } from "../chat/chat-message.tsx";
 import { useComposerState } from "../compose/composer-state.tsx";
-
-/** Muted beside other actions; in a chat line, hidden until the message is hovered or focused. */
-function menuButtonClass(props: { visible?: boolean; island?: boolean; start?: boolean }) {
-  const shown = props.visible || props.island;
-  return [
-    shown ? "text-muted-foreground hover:text-foreground" : "-my-0.5",
-    props.start ? "order-first" : "",
-    // On the island, its hit area keeps to its own width (see the island's buttons).
-    props.island ? "before:min-w-0" : "",
-    shown
-      ? ""
-      : "opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100",
-  ].join(" ");
-}
 
 /**
  * The ⋯ beside a message or note in the timeline: reply to it in a hidden note (shared inboxes) or

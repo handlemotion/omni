@@ -27,6 +27,12 @@ import {
   uploadsStore,
   type UploadTarget,
 } from "../lib/storage-uploads.ts";
+import {
+  addCommentMutation,
+  changeCommentMutation,
+  deleteCommentMutation,
+  storageCommentsQuery,
+} from "../lib/storage-comments.ts";
 import { restoreVersionMutation, storageVersionsQuery } from "../lib/storage-versions.ts";
 import { useSession } from "./use-session.ts";
 import { useCurrentWorkspace } from "./use-workspaces.ts";
@@ -105,6 +111,26 @@ export function useStorageVersions(nodeId: string, shareId?: string) {
 /** `mutate({ id, versionId, shareId? })` makes a kept version the file's content again. */
 export function useRestoreVersion() {
   return useMutation(restoreVersionMutation(useQueryClient()));
+}
+
+/** A file's comments (a member, an Editor or a Commenter only). */
+export function useStorageComments(nodeId: string, shareId?: string) {
+  return useQuery(storageCommentsQuery(nodeId, shareId));
+}
+
+/** `mutate({ id, shareId?, body })` starts a thread, or replies with `parentId`. */
+export function useAddComment() {
+  return useMutation(addCommentMutation(useQueryClient()));
+}
+
+/** `mutate({ id, commentId, shareId?, change })` edits (`body`) or resolves (`resolved`). */
+export function useChangeComment() {
+  return useMutation(changeCommentMutation(useQueryClient()));
+}
+
+/** `mutate({ id, commentId, shareId? })` deletes one's own comment. */
+export function useDeleteComment() {
+  return useMutation(deleteCommentMutation(useQueryClient()));
 }
 
 /** Bytes stored, the limit and the allowance, and whether uploads are blocked. */

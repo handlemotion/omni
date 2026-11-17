@@ -1,21 +1,20 @@
 // The composer's Hidden mode (shared inboxes, ADR 0021): an internal note for the team, never
-// sent, written like a chat message. The box is the AI composer from handlemotion/dorks
-// (`ChatComposer.tsx`, the AI Elements prompt input) on Omni's primitives: one row that grows
-// into a box once the text wraps, a button at each bottom corner, Enter to send, Shift+Enter
-// for a new line, and a reply banner on top when answering a passage of the conversation.
+// sent, written like a chat message, in the app's chat box (`components/chat/chat-box.tsx`):
+// Mention at its bottom-left corner, and a reply banner on top when answering a passage of the
+// conversation.
 // Typing `@` (or the @ button) offers the inbox's teammates; each one picked is notified.
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { IconArrowUp, IconAt, IconReply, IconX } from "@/components/icons/central";
+import { useEffect, useRef, useState } from "react";
+import { IconAt } from "@/components/icons/central";
+import { ChatBox, ReplyBanner } from "@/components/chat/chat-box";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ListBox, ListBoxItem } from "@/components/ui/list-box";
 import { AriaPopover as Popover } from "@/components/ui/aria-popover";
-import { Textarea } from "@/components/ui/textarea";
 import { appToast } from "@/components/ui/toast";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAssignees } from "@/hooks/use-conversation.ts";
 import { useAddNote } from "@/hooks/use-notes.ts";
-import { replyLabel, withReply, type Reply } from "@/lib/reply.ts";
+import { withReply } from "@/lib/reply.ts";
 import type { Assignee, Thread } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 import { useComposerState } from "./composer-state.tsx";
@@ -34,26 +33,6 @@ function mentionAt(text: string, caret: number) {
   const word = match?.[2];
   if (word === undefined) return null;
   return { start: caret - word.length - 1, query: word.toLowerCase() };
-}
-
-/** Whether the text runs past one line; re-measured as it changes and as the box resizes. */
-function useWraps(ref: RefObject<HTMLTextAreaElement | null>, text: string) {
-  const [wraps, setWraps] = useState(false);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => {
-      const style = getComputedStyle(el);
-      const content =
-        el.scrollHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-      setWraps(content > parseFloat(style.lineHeight) * 1.5);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [ref, text]);
-  return wraps;
 }
 
 /**
@@ -86,8 +65,6 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
   const [highlight, setHighlight] = useState(0);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const box = useRef<HTMLDivElement>(null);
-  // One row until the text wraps; then the text takes the box and the buttons sit under it.
-  const stacked = useWraps(textarea, text);
 
   // Switching to Chat, or a new reply, puts the cursor in the box, ready to write.
   useEffect(() => {
@@ -177,15 +154,49 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
 
   return (
     <div className="flex flex-col">
-      {/* 12px corners: the reply banner 8px inside keeps 4px, concentric. Dotted with no fill, like
-          the hidden notes it adds. */}
-      <div
-        ref={box}
-        className="relative flex flex-col rounded-[12px] border border-dashed border-muted-foreground/40 focus-within:border-ring/70"
-      >
-        {reply && (
-          // The banner sits 8px inside the box (the buttons' inset), concentric with its corners.
-          <div className="px-2 pt-2">
+      <ChatBox
+        textareaRef={textarea}
+        boxRef={box}
+        dashed
+        label="Hidden note"
+        placeholder="Hidden note for your team, @ to mention"
+        sendLabel="Add hidden note"
+        canSend={canSend}
+        onSend={send}
+        value={text}
+        textareaProps={{ "aria-expanded": open, "aria-haspopup": "listbox" }}
+        onChange={(next, caret) => {
+          setText(next);
+          track(next, caret);
+        }}
+        onSelect={track}
+        onKeyDown={(event) => {
+          if (open) {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              const step = event.key === "ArrowDown" ? 1 : -1;
+              setHighlight((i) => (i + step + matches.length) % matches.length);
+              return;
+            }
+            if (event.key === "Enter" || event.key === "Tab") {
+              event.preventDefault();
+              const person = matches[highlight];
+              if (person) pick(person);
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setMention(null);
+              return;
+            }
+          }
+          if (event.key === "Escape" && reply) {
+            event.preventDefault();
+            clearReply();
+          }
+        }}
+        banner={
+          reply && (
             <ReplyBanner
               reply={reply}
               onClear={() => {
@@ -193,64 +204,9 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
                 textarea.current?.focus();
               }}
             />
-          </div>
-        )}
-        <Textarea
-          ref={textarea}
-          plain
-          aria-label="Hidden note"
-          placeholder="Hidden note for your team, @ to mention"
-          rows={1}
-          value={text}
-          aria-expanded={open}
-          aria-haspopup="listbox"
-          onChange={(event) => {
-            setText(event.target.value);
-            track(event.target.value, event.target.selectionStart);
-          }}
-          onSelect={(event) => {
-            const el = event.currentTarget;
-            track(el.value, el.selectionStart);
-          }}
-          onKeyDown={(event) => {
-            if (open) {
-              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                event.preventDefault();
-                const step = event.key === "ArrowDown" ? 1 : -1;
-                setHighlight((i) => (i + step + matches.length) % matches.length);
-                return;
-              }
-              if (event.key === "Enter" || event.key === "Tab") {
-                event.preventDefault();
-                const person = matches[highlight];
-                if (person) pick(person);
-                return;
-              }
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setMention(null);
-                return;
-              }
-            }
-            if (event.key === "Escape" && reply) {
-              event.preventDefault();
-              clearReply();
-              return;
-            }
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault();
-              send();
-            }
-          }}
-          // A 44px row: 12px above and below a 20px line. The text starts 42px in (past the 28px
-          // Mention button, its 8px edge, and 6px more) and ends 42px in (past Send).
-          // Stacked, the bottom inset makes room for the button row (16px gap, 28px button, 8px edge).
-          className={`max-h-[40vh] min-h-0 resize-none ps-[42px] pe-[42px] py-3 text-sm/5 sm:ps-[42px] sm:pe-[42px] sm:py-3 sm:text-sm/5 ${
-            stacked ? "pb-13 sm:pb-13" : ""
-          }`}
-        />
-        {/* The button keeps one spot, 8px from the bottom corners, one row or stacked. */}
-        <div className="absolute bottom-2 left-2 flex items-center gap-1">
+          )
+        }
+        leading={
           <TooltipTrigger delay={400}>
             <Button
               intent="ghost"
@@ -263,16 +219,8 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
             </Button>
             <Tooltip>Mention a teammate</Tooltip>
           </TooltipTrigger>
-        </div>
-        <div className="absolute right-2 bottom-2">
-          <TooltipTrigger delay={400}>
-            <Button size="sq-sm" aria-label="Add hidden note" isDisabled={!canSend} onPress={send}>
-              <IconArrowUp />
-            </Button>
-            <Tooltip>Add hidden note ↵</Tooltip>
-          </TooltipTrigger>
-        </div>
-      </div>
+        }
+      />
       <Popover
         triggerRef={box}
         isOpen={open}
@@ -312,39 +260,6 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
           )}
         </ListBox>
       </Popover>
-    </div>
-  );
-}
-
-/** The reply as one quiet line: who wrote it and the quoted words, cut to one line. */
-export function ReplyLine({ reply, className = "" }: { reply: Reply; className?: string }) {
-  return (
-    <span className={`flex min-w-0 items-center gap-2 ${className}`}>
-      <IconReply aria-hidden className="size-3.5 shrink-0" />
-      <span className="min-w-0 truncate">
-        {reply.from}: “{replyLabel(reply)}”
-      </span>
-    </span>
-  );
-}
-
-/** The chat box's banner: what the next message replies to, and an X to drop it. */
-function ReplyBanner({ reply, onClear }: { reply: Reply; onClear: () => void }) {
-  return (
-    <div className="flex h-8 w-full min-w-0 items-center gap-1 rounded-sm bg-accent ps-2.5 pe-1 text-[13px] text-muted-foreground">
-      <ReplyLine reply={reply} className="flex-1" />
-      <TooltipTrigger delay={400}>
-        <Button
-          intent="ghost"
-          size="sq-xs"
-          aria-label="Remove reply"
-          className="shrink-0 text-muted-foreground hover:text-foreground"
-          onPress={onClear}
-        >
-          <IconX />
-        </Button>
-        <Tooltip>Remove reply</Tooltip>
-      </TooltipTrigger>
     </div>
   );
 }

@@ -3,18 +3,15 @@
 // the inbox's assignees; someone who has since lost access reads as "A teammate".
 import { useState } from "react";
 import { IconLock, IconPencil, IconTrash } from "@/components/icons/central";
-import { Avatar } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { MenuItem, MenuLabel } from "@/components/ui/menu";
-import { Textarea } from "@/components/ui/textarea";
 import { appToast } from "@/components/ui/toast";
 import { useAssignees, useTags } from "@/hooks/use-conversation.ts";
 import { isPendingNote, useDeleteNote, useEditNote } from "@/hooks/use-notes.ts";
 import { useSession } from "@/hooks/use-session.ts";
-import { parseReply, withReply, type Reply } from "@/lib/reply.ts";
-import type { Assignee, ConversationEvent, Note, Priority } from "@/lib/types.ts";
+import { parseReply, withReply } from "@/lib/reply.ts";
+import type { ConversationEvent, Note, Priority } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
-import { ReplyLine } from "../compose/chat-composer.tsx";
+import { ChatEdit, ChatFace, ChatMessage, ChatText } from "../chat/chat-message.tsx";
 import { REPLY_SOURCE } from "../compose/selection-reply.tsx";
 import { messageTime } from "./message.tsx";
 import { MessageMenu } from "./message-menu.tsx";
@@ -180,26 +177,32 @@ export function NoteItem(props: { threadId: string; mailboxId: string; note: Not
   // A chat reply carries its quote in the body; it shows above the bubble instead.
   const { reply, body } = parseReply(note.body);
   const from = people.written(note.authorMemberId) ?? name;
+  // Edits the words only: a reply's quote stays as it was.
+  const edit = useEditNote();
 
   return (
     // On the right with the replies, since the team wrote it. The dotted outline, the lock and
     // "Hidden" tell it from a reply the customer got.
-    <article
-      aria-label={`Note from ${name}, ${messageTime(note.createdAt)}`}
-      className="group/item flex flex-col items-end gap-3"
-    >
-      <header className="flex items-center gap-2">
-        {!mine && <Face person={author} name={name} />}
-        <span className="text-sm">{name}</span>
+    <ChatMessage
+      label={`Note from ${name}, ${messageTime(note.createdAt)}`}
+      align="end"
+      dashed
+      name={name}
+      face={!mine && <ChatFace name={name} src={pictureUrl(author?.image ?? null)} />}
+      tag={
         <span className="flex items-center gap-1 text-xs text-subtle-foreground">
           <IconLock className="size-3" />
           Hidden
         </span>
-        <time dateTime={note.createdAt} className="text-xs text-subtle-foreground tabular-nums">
-          {messageTime(note.createdAt)}
-          {edited && " · edited"}
-        </time>
-        {!pending && !editing && (
+      }
+      createdAt={note.createdAt}
+      edited={edited}
+      pending={pending}
+      editing={editing}
+      bubbleProps={{ [REPLY_SOURCE]: from }}
+      menu={
+        !pending &&
+        !editing && (
           <MessageMenu
             start
             label="Note actions"
@@ -215,36 +218,26 @@ export function NoteItem(props: { threadId: string; mailboxId: string; note: Not
               )
             }
           />
-        )}
-      </header>
-      {reply && !editing && (
-        <div
-          title={reply.text}
-          className="flex max-w-[80%] justify-end text-xs text-muted-foreground"
-        >
-          <ReplyLine reply={reply} />
-        </div>
+        )
+      }
+      reply={reply}
+    >
+      {editing ? (
+        <ChatEdit
+          label="Edit note"
+          text={body}
+          onDone={() => setEditing(false)}
+          onSave={(next) =>
+            edit.mutate(
+              { threadId: props.threadId, noteId: note.id, body: withReply(reply, next) },
+              { onError: (error) => appToast.error(error.message) },
+            )
+          }
+        />
+      ) : (
+        <NoteBody body={body} names={note.mentions.flatMap((id) => people.written(id) ?? [])} />
       )}
-      <div
-        {...{ [REPLY_SOURCE]: from }}
-        // Hidden from the customer: a dotted outline with no fill, never a mail bubble.
-        className={`rounded-xl border border-dashed border-muted-foreground/40 px-3 py-2 text-foreground ${
-          editing ? "w-full" : "max-w-[80%]"
-        } ${pending ? "opacity-70" : ""}`}
-      >
-        {editing ? (
-          <EditNote
-            threadId={props.threadId}
-            note={note}
-            reply={reply}
-            body={body}
-            onDone={() => setEditing(false)}
-          />
-        ) : (
-          <NoteBody body={body} names={note.mentions.flatMap((id) => people.written(id) ?? [])} />
-        )}
-      </div>
-    </article>
+    </ChatMessage>
   );
 }
 
@@ -271,7 +264,7 @@ function NoteBody({ body, names }: { body: string; names: string[] }) {
     rest = rest.slice(at + hit.length);
   }
   return (
-    <p className="text-sm/5 break-words whitespace-pre-wrap">
+    <ChatText>
       {parts.map((p, i) =>
         p.mention ? (
           <span key={i} className="font-medium">
@@ -281,7 +274,7 @@ function NoteBody({ body, names }: { body: string; names: string[] }) {
           p.text
         ),
       )}
-    </p>
+    </ChatText>
   );
 }
 
@@ -308,67 +301,5 @@ function NoteActions(props: { threadId: string; noteId: string; onEdit: () => vo
         <MenuLabel>Delete</MenuLabel>
       </MenuItem>
     </>
-  );
-}
-
-/** Edits the words only: a reply's quote stays as it was. */
-function EditNote(props: {
-  threadId: string;
-  note: Note;
-  reply: Reply | undefined;
-  body: string;
-  onDone: () => void;
-}) {
-  const edit = useEditNote();
-  const [body, setBody] = useState(props.body);
-  const save = () => {
-    const next = body.trim();
-    if (!next || next === props.body) return props.onDone();
-    edit.mutate(
-      { threadId: props.threadId, noteId: props.note.id, body: withReply(props.reply, next) },
-      { onError: (error) => appToast.error(error.message) },
-    );
-    props.onDone();
-  };
-  return (
-    <div className="flex flex-col gap-2">
-      <Textarea
-        plain
-        autoFocus
-        aria-label="Edit note"
-        value={body}
-        rows={3}
-        onChange={(event) => setBody(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault();
-            save();
-          }
-          if (event.key === "Escape") props.onDone();
-        }}
-        className="resize-none py-0 sm:py-0"
-      />
-      <div className="flex justify-end gap-1">
-        <Button intent="plain" size="sm" onPress={props.onDone}>
-          Cancel
-        </Button>
-        <Button size="sm" isDisabled={!body.trim()} onPress={save}>
-          Save
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function Face({ person, name }: { person: Assignee | undefined; name: string }) {
-  return (
-    <Avatar
-      isSquare
-      size="xs"
-      src={pictureUrl(person?.image ?? null)}
-      initials={name.slice(0, 1).toUpperCase()}
-      // 18px: a step under the xs avatar, so the face sits with the 14px name, not over it.
-      className="bg-accent text-foreground outline-0 [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(4.5)]"
-    />
   );
 }

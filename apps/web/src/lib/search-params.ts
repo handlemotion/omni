@@ -39,8 +39,15 @@ export const crmDealsSearch = z.object({
   q: optional(z.string()),
   view: optional(z.enum(["board", "list"])),
 });
-/** A Storage folder's page: the mailbox the switcher keeps, and the file open in the preview. */
-export const filesSearch = z.object({ mailbox: optionalId, file: optionalId });
+/**
+ * A Storage folder's page: the mailbox the switcher keeps, and the file open in the preview or the
+ * file whose comments are open (one panel at a time).
+ */
+export const filesSearch = z.object({
+  mailbox: optionalId,
+  file: optionalId,
+  comments: optionalId,
+});
 
 export const draftsSearch = z.object({
   mailbox: optionalId,
@@ -64,4 +71,4 @@ export const verifySignInEmailSearch = z.object({ token: optional(z.string()) })
 
 /** A shared link's page: `node`, a folder inside what was shared. */
 /** A shared link: the folder inside it (`node`), and the file open in the preview. */
-export const linkSearch = z.object({ node: optionalId, file: optionalId });
+export const linkSearch = z.object({ node: optionalId, file: optionalId, comments: optionalId });
