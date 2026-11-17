@@ -279,6 +279,57 @@ test("New folder is named in place, and each name creates one folder", async () 
   expect(await field.count()).toBe(0);
 }, 60_000);
 
+// Catches: Rename's in-place name ending as soon as it opens (the menu that started it handing
+// focus back to its button blurs the field), selecting a file's extension so typing replaces it,
+// one name renaming twice (Enter, then the field's blur as it leaves), or Esc renaming anyway.
+test("Rename changes a name in place on a row and a card, once", async () => {
+  const page = await signedIn(`rename-${Date.now()}@gmail.test`, "/files/my");
+  await page
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hi") });
+  await page.getByRole("row", { name: /notes\.txt/ }).waitFor({ timeout: 15_000 });
+  await page.getByRole("button", { name: "New folder" }).first().click();
+  await page.keyboard.press("Enter");
+  await page.getByRole("row", { name: /Untitled folder/ }).waitFor();
+  const renames: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "PATCH") renames.push(request.postData() ?? "");
+  });
+  const field = page.getByRole("textbox", { name: "Name" });
+
+  // A file's row: its name up to the extension is selected, so typing keeps ".txt".
+  await page.getByRole("button", { name: "Actions for notes.txt" }).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  await field.waitFor();
+  // Past the menu's close, which would have blurred the field by now.
+  await page.waitForTimeout(300);
+  await page.keyboard.type("minutes");
+  await page.keyboard.press("Enter");
+  await page.getByRole("row", { name: /minutes\.txt/ }).waitFor();
+
+  // A folder's card: Esc leaves it as it was.
+  await page.getByRole("button", { name: "Actions for Untitled folder" }).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  await field.waitFor();
+  await page.keyboard.type("Never");
+  await page.keyboard.press("Escape");
+  expect(await field.count()).toBe(0);
+  // Anything sent twice would have reached the server by now.
+  await page.waitForTimeout(1000);
+
+  expect(renames).toEqual([JSON.stringify({ name: "minutes.txt" })]);
+  const files = await db
+    .select({ name: schema.storageNodes.name })
+    .from(schema.storageNodes)
+    .where(inArray(schema.storageNodes.name, ["notes.txt", "minutes.txt"]));
+  expect(files).toEqual([{ name: "minutes.txt" }]);
+}, 60_000);
+
 // Catches: the page editor saving something other than Markdown (its HTML, its JSON, the text
 // without its marks), a save that overwrites a teammate's newer version without asking, or "Keep
 // mine" losing the person's text instead of saving it over theirs.

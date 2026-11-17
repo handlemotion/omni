@@ -2,6 +2,9 @@
 // `@omni/db`): trimmed, at most 255 characters, no slash, backslash or control character, and
 // not "." or "..". Siblings compare without case, as the Worker's unique index does.
 
+/** How a name was finished: Enter, Esc, or leaving the field (a click, Tab, another page). */
+export type FinishedBy = "enter" | "escape" | "blur";
+
 /** The longest name the API takes. */
 export const NAME_MAX = 255;
 

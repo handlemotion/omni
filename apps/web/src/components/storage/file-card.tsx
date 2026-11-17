@@ -15,6 +15,7 @@ import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { FileGlyph } from "./file-glyph.tsx";
 import { FolderArt } from "./folder-art.tsx";
 import { DROP_TARGET } from "./node-drag.tsx";
+import { NodeName, type ItemName } from "./name-field.tsx";
 import { PdfStack } from "./pdf-stack.tsx";
 
 const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
@@ -40,6 +41,8 @@ export function FileCard(props: {
   fileUrl?: (node: StorageNode) => string;
   /** False through a shared link's door: its folders draw the bare pocket. */
   peek?: boolean;
+  /** Its name as a field, while it is renamed. */
+  name?: ItemName | undefined;
 }) {
   const { node } = props;
   const type = node.kind === "file" ? fileType(node.name, node.mimeType) : null;
@@ -66,7 +69,7 @@ export function FileCard(props: {
       )}
       {/* The body's 13px over the 11px meta, 4px apart: two sizes, as the rows use. */}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1 gap-y-1 ps-0.5">
-        <span className="truncate text-sm text-foreground">{node.name}</span>
+        <NodeName node={node} name={props.name} card />
         <span {...KEEP_IN_MENU} className="row-span-2 self-start">
           <SettingsRowMenu label={`Actions for ${node.name}`} items={props.menu} lazy />
         </span>

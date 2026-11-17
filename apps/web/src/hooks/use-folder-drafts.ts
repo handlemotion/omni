@@ -4,7 +4,7 @@
 // answers. Each draft steps naming → creating → created, and leaves once the list holds it.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { StorageNode, StoragePlace } from "@/lib/storage.ts";
-import { freeFolderName, nameProblem } from "@/lib/storage-names.ts";
+import { freeFolderName, nameProblem, type FinishedBy } from "@/lib/storage-names.ts";
 import { storageErrorText } from "@/components/storage/storage-errors.ts";
 import { appToast } from "@/components/ui/toast";
 import { useCreateFolder } from "./use-storage.ts";
@@ -23,9 +23,6 @@ export interface FolderDraft {
   /** Named from the keyboard: focus moves to the folder once it is in the list. */
   focus: boolean;
 }
-
-/** How a name was finished: Enter, Esc, or leaving the field (a click, Tab, another page). */
-export type FinishedBy = "enter" | "escape" | "blur";
 
 type Event =
   | { type: "start"; draft: FolderDraft }

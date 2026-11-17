@@ -1,10 +1,9 @@
-// Storage's small dialogs: rename, pick where to move, confirm deleting for good. Each takes the
+// Storage's small dialogs: pick where to move, confirm deleting for good. Each takes the
 // door it changes through: a shared link's (`shareId`), or the member's.
 import { useState } from "react";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
 import { IconFolder } from "@/components/icons/central";
-import { SettingsRenameDialog } from "@/components/settings/kit/settings-stacked-dialog";
 import { Breadcrumbs, BreadcrumbsItem } from "@/components/ui/breadcrumbs";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,36 +23,8 @@ import {
   useStorageList,
 } from "@/hooks/use-storage.ts";
 import type { StorageNode, StoragePlace, StorageSpace } from "@/lib/storage.ts";
-import { NAME_MAX } from "@/lib/storage-names.ts";
 import { storageErrorToast } from "./storage-errors.ts";
 import { SPACE_LABEL } from "./storage-nav.tsx";
-
-export function RenameDialog(props: {
-  node: StorageNode;
-  shareId?: string | undefined;
-  onClose: () => void;
-}) {
-  const change = useChangeNode();
-  return (
-    <SettingsRenameDialog
-      title="Rename"
-      label="Name"
-      maxLength={NAME_MAX}
-      name={props.node.name}
-      saving={change.isPending}
-      onClose={props.onClose}
-      onSave={(name) =>
-        change.mutate(
-          { id: props.node.id, name, ...(props.shareId ? { shareId: props.shareId } : {}) },
-          {
-            onSuccess: props.onClose,
-            onError: (error) => storageErrorToast(error, "It was not renamed"),
-          },
-        )
-      }
-    />
-  );
-}
 
 /** Asks before deleting from Trash for good; the button says what happens. */
 export function DeleteForeverDialog(props: { node: StorageNode; onClose: () => void }) {

@@ -10,10 +10,11 @@ import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row
 import { ResizeGrip, useStoredWidth } from "@/components/ui/resize-grip";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useFolderDrafts } from "@/hooks/use-folder-drafts.ts";
+import { useInlineRename, type RenameAt } from "@/hooks/use-inline-rename.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { useUploads } from "@/hooks/use-storage.ts";
 import type { StorageNode, StoragePlace } from "@/lib/storage.ts";
-import { MoveDialog, RenameDialog, type MoveScope } from "./file-dialogs.tsx";
+import { MoveDialog, type MoveScope } from "./file-dialogs.tsx";
 import { FolderIconDialog } from "./folder-icons.tsx";
 import { FolderBody, HeaderActions } from "./folder-body.tsx";
 import { PreviewPanel } from "./preview/preview-panel.tsx";
@@ -96,14 +97,23 @@ export function FolderView(props: {
     () => ({ list: folders.drafts, handlers: { finish: folders.finish, onType: folders.onType } }),
     [folders.drafts, folders.finish, folders.onType],
   );
-  const menu = useCallback(
-    (node: StorageNode) =>
-      source.menu(node, (next) =>
-        next?.dialog === "comments" ? comments.select(next.node.id) : setDialog(next),
-      ),
+  // Rename turns the name into a field where it is drawn: the item's card or row, or the open
+  // file's title when chosen from the preview's menu.
+  const { rename, start: startRename } = useInlineRename({
+    shareId: source.shareId,
+    nodes: source.list.nodes,
+  });
+  const menuAt = useCallback(
+    (at: RenameAt) => (node: StorageNode) =>
+      source.menu(node, (next) => {
+        if (next?.dialog === "comments") comments.select(next.node.id);
+        else if (next?.dialog === "rename") startRename(next.node, at);
+        else setDialog(next);
+      }),
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- the menu builder is the dependency
-    [source.menu],
+    [source.menu, startRename],
   );
+  const menu = useMemo(() => menuAt("list"), [menuAt]);
 
   // Beside the preview, the folder keeps at least its minimum; full screen or on a phone the
   // preview takes the whole width.
@@ -143,6 +153,7 @@ export function FolderView(props: {
             menu={menu}
             open={open}
             drafts={drafts}
+            rename={rename}
             onNewFolder={folders.start}
             onFiles={send}
           />
@@ -184,7 +195,8 @@ export function FolderView(props: {
             onOpen={(other) => open.select(other.id, true)}
             onClose={() => open.select(null)}
             onDownload={() => source.download(node)}
-            menu={menu(node)}
+            menu={menuAt("preview")(node)}
+            rename={rename}
             fullScreen={hideFolder}
             onFullScreen={toggleFullScreen}
             shell={shell}
@@ -218,8 +230,6 @@ function FolderDialogs(props: { dialog: FolderDialog; source: FolderSource; onCl
   if (!dialog) return null;
   const { node } = dialog;
   switch (dialog.dialog) {
-    case "rename":
-      return <RenameDialog node={node} shareId={source.shareId} onClose={onClose} />;
     case "move":
       return <MoveDialog node={node} scope={source.move} onClose={onClose} />;
     case "share":
@@ -229,7 +239,9 @@ function FolderDialogs(props: { dialog: FolderDialog; source: FolderSource; onCl
     case "icon":
       return <FolderIconDialog node={node} onClose={onClose} />;
     case "comments":
-      // A panel beside the folder, not a dialog (see `useCommentsPanel`).
+    // A panel beside the folder, not a dialog (see `useCommentsPanel`).
+    case "rename":
+      // The name itself, where it is drawn (see `useInlineRename`).
       return null;
     case "signatures":
       return <SignaturesDialog node={node} onClose={onClose} />;

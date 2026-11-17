@@ -9,6 +9,7 @@ import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/ui/drop-zone";
 import { FileTrigger } from "@/components/ui/file-trigger";
+import type { InlineRename } from "@/hooks/use-inline-rename.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { FileSections, FileSectionsBones, type Drafts } from "./file-sections.tsx";
 import type { FolderSource, OpenFile } from "./folder-view.tsx";
@@ -26,6 +27,7 @@ export function FolderBody(
     menu: (node: StorageNode) => SettingsRowMenuItem[];
     open: OpenFile;
     drafts: Drafts;
+    rename: InlineRename;
   },
 ) {
   const { source } = props;
@@ -104,6 +106,7 @@ function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {
         open={selected}
         menu={props.menu}
         drafts={props.drafts}
+        rename={props.rename}
         drag={props.drag}
         loadMore={list.hasNextPage && !list.isFetchingNextPage ? fetchNext(list) : undefined}
       />

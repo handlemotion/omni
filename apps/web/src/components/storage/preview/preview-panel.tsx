@@ -28,6 +28,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { Heading } from "@/components/ui/heading";
 import { MiddleTruncate } from "@/components/ui/middle-truncate";
+import type { InlineRename } from "@/hooks/use-inline-rename.ts";
 import { useRestoreVersion, useStorageComments, useStorageVersions } from "@/hooks/use-storage.ts";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFileEditors } from "@/hooks/use-file-presence.ts";
@@ -38,6 +39,7 @@ import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { storageVersionUrl, type StorageVersions } from "@/lib/storage-versions.ts";
 import { TypeBadge } from "../file-glyph.tsx";
 import { DAY } from "../file-table.tsx";
+import { FIELD_OFFSET, NameField } from "../name-field.tsx";
 import { storageErrorToast } from "../storage-errors.ts";
 import { CommentComposer } from "./comment-composer.tsx";
 import { PdfMarksContext, type PdfBox, type PdfMarks } from "./pdf-marks.tsx";
@@ -63,6 +65,8 @@ export function PreviewPanel(props: {
   canWrite: boolean;
   /** Opened through a shared link: its door for versions, comments and editing. */
   shareId?: string | undefined;
+  /** Rename from its menu turns the title into a field. */
+  rename?: InlineRename | undefined;
 }) {
   const { node } = props;
   const tools = usePreviewTools(node, props.shareId);
@@ -80,9 +84,7 @@ export function PreviewPanel(props: {
         className={`flex h-12 shrink-0 items-center gap-3 border-b pe-2.5 ${props.fullScreen ? "ps-2.5" : "border-s ps-5"}`}
       >
         {props.fullScreen && props.shell && <PageNav />}
-        <Heading level={2} className="min-w-0 flex-1 text-md" title={node.name}>
-          <MiddleTruncate text={node.name} />
-        </Heading>
+        <Title node={node} rename={props.rename} />
         <div className="flex shrink-0 items-center gap-1">
           {props.shell && <FileEditors nodeId={node.id} />}
           {session.editing ? (
@@ -396,4 +398,27 @@ function usePreviewTools(node: StorageNode, shareId: string | undefined) {
   };
 
   return { shown, marks, rail };
+}
+
+/** The file's name, cut in its middle; a field while Rename from the menu changes it. */
+function Title(props: { node: StorageNode; rename?: InlineRename | undefined }) {
+  const { node, rename } = props;
+  const renaming = rename?.renaming?.id === node.id && rename.renaming.at === "preview";
+  if (renaming && rename.renaming?.step === "naming") {
+    return (
+      <NameField
+        name={node.name}
+        label="Name"
+        select="stem"
+        className={FIELD_OFFSET.row}
+        onFinish={(value, by) => rename.finish(node, value, by)}
+      />
+    );
+  }
+  const name = renaming && rename.renaming ? rename.renaming.name : node.name;
+  return (
+    <Heading level={2} className="min-w-0 flex-1 text-md" title={name}>
+      <MiddleTruncate text={name} />
+    </Heading>
+  );
 }
