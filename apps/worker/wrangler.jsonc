@@ -69,6 +69,10 @@
     "STORAGE_MAX_FILE_BYTES": "",
     "STORAGE_PERSONAL_GB": "",
     "STORAGE_MAX_GB": "",
+    // Live co-editing on S2 (ADR 0043): the basin's API base ending in /v1, and its name. Empty:
+    // documents edit with checked saves only. The S2_ACCESS_TOKEN secret goes with them.
+    "S2_BASIN_URL": "",
+    "S2_BASIN": "",
     // Rate limits as "<count>/<seconds>", or "off". Empty means the default shown. Sign-in steps
     // count per IP; magic links per address; invitations per inviting user; Storage's link door
     // per IP; the rest per member.

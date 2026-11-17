@@ -56,6 +56,15 @@ STORAGE_PERSONAL_GB=
 # Optional. Ceiling on what any one workspace may store, in GB. Empty: none.
 STORAGE_MAX_GB=
 
+# --- Live co-editing (ADR 0043; S2, or s2-lite from compose.yml) ---
+# Optional. The basin's API base, ending in /v1. Empty: documents edit with checked saves only.
+# Local stack: http://localhost:8090/v1
+S2_BASIN_URL=
+# Optional (required with S2_BASIN_URL). The basin's name. Local stack: omni-docs-dev
+S2_BASIN=
+# Secret. An S2 access token for the basin's streams. s2-lite accepts any value.
+S2_ACCESS_TOKEN=
+
 # --- AI ---
 # Secret. Triage when TYPESAFE_API_KEY is empty. With neither key, threads stay
 # unsorted (only a wordless reply from you files itself, as FYI).

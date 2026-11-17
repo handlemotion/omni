@@ -104,6 +104,27 @@ R2's Infrequent Access class is a bucket lifecycle rule, not code. Its saving is
 alone, with a retrieval fee and a minimum duration, and previews, thumbnails and (later) search
 re-read old files. Revisit with real usage numbers; a self-hoster can set the rule today.
 
+## Amendment: the live layer goes through the Worker (Nov 17, 2026)
+
+Decision 3 step 2 said the Worker mints a stream-scoped S2 token for each editor. `s2-lite`, the
+server a self-hoster runs, has no access tokens, so a token minted for it would guard nothing. The
+browser never talks to S2 instead: each editor sends its records on the workspace's realtime
+socket, and the realtime Durable Object appends them to the file's stream (`docs/<nodeId>`) and
+relays them to the others editing the file. The access check is the one `editing` presence
+already makes (a socket may append only to the file its checked `editing` names, and not to a
+locked one), redone at most every two seconds while it appends so that access lost with the file
+open ends there. An editor that missed records reads them with `GET /files/:id/live`, under the usual
+member access.
+
+The stream is a series of epochs. A `seed` record holds the whole editor state made from the
+file at one content version; `update` records follow it, and a `fold` record says the epoch was
+saved as a new content version. An editor joins the latest epoch when its last content version is
+the file's, and otherwise appends a new seed only if the stream's tail is where it read it, so two
+editors opening at once agree on one seed. Folding is a checked save from the editor that typed
+last, two seconds after it stops; nothing folds on the server, so no Markdown is written by
+anyone who did not type it. Only `S2_BASIN_URL` and `S2_BASIN` (and S2's own token for the
+hosted service) configure it.
+
 ## Order
 
 Versions (here) → in-place editing of Markdown and text with checked saves → comments and the

@@ -416,6 +416,9 @@ importers:
       '@tauri-apps/plugin-opener':
         specifier: 2.7.3
         version: 2.7.3
+      '@tiptap/extension-collaboration':
+        specifier: 3.34.0
+        version: 3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0)(@tiptap/y-tiptap@3.3.0(prosemirror-model@1.25.13)(prosemirror-state@1.4.4)(prosemirror-view@1.42.9)(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33))(yjs@13.6.33)
       '@tiptap/extension-list':
         specifier: 3.34.0
         version: 3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0)
@@ -431,6 +434,9 @@ importers:
       '@tiptap/starter-kit':
         specifier: 3.34.0
         version: 3.34.0
+      '@tiptap/y-tiptap':
+        specifier: ^3.3.0
+        version: 3.3.0(prosemirror-model@1.25.13)(prosemirror-state@1.4.4)(prosemirror-view@1.42.9)(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33)
       '@ui-sdk/core':
         specifier: 0.1.0-beta.1
         version: 0.1.0-beta.1
@@ -515,6 +521,9 @@ importers:
       xlsx:
         specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
         version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+      yjs:
+        specifier: ^13.6.33
+        version: 13.6.33
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -3848,6 +3857,14 @@ packages:
     peerDependencies:
       '@tiptap/core': 3.34.0
 
+  '@tiptap/extension-collaboration@3.34.0':
+    resolution: {integrity: sha512-z4Cv6oi7d1QwUkbVAGOz+CMYG/JmIUac302S1ofrkWRvX9RLXOuh9bIsb1sxM6bMNXwotPoRi+dUDrqW22RnmA==}
+    peerDependencies:
+      '@tiptap/core': 3.34.0
+      '@tiptap/pm': 3.34.0
+      '@tiptap/y-tiptap': ^3.0.7
+      yjs: ^13
+
   '@tiptap/extension-document@3.34.0':
     resolution: {integrity: sha512-Mvs7AUGJkUWI4HfsCNvWQF2f4YdVqR1UHKYnkFdxCifuGPwFBc8bT7rNMT6NBFjRZADbf4HrE/UIQqVQA5Gfyw==}
     peerDependencies:
@@ -3965,6 +3982,15 @@ packages:
 
   '@tiptap/starter-kit@3.34.0':
     resolution: {integrity: sha512-SPlLjlGD8KpTBsUQJfNuRLprSCV8d69QACBloPZXCF0XGfpTmJWFzt1vGTfBzisRrI1iV/goXJJr8qw2SAIpiw==}
+
+  '@tiptap/y-tiptap@3.3.0':
+    resolution: {integrity: sha512-TLblfhvXCJK2bnow8nBdILh350UcxoGR8Wy3JoC/CPAhjLxdqSmv2dqs/lPA8JhiE+FxZDG9cDmcXbZV1yidbQ==}
+    peerDependencies:
+      prosemirror-model: ^1.7.1
+      prosemirror-state: ^1.2.3
+      prosemirror-view: ^1.9.10
+      y-protocols: ^1.0.1
+      yjs: ^13.6.13
 
   '@turbo/darwin-64@2.11.11':
     resolution: {integrity: sha512-HMMeUIEAsmyIbSYn1ySvF/4gGMa0joiTMq4dQDuloIAnOpbtFT3JEiVsYnASdTWDXvplbRbZlqjU1EBeSR9G1A==}
@@ -5628,6 +5654,9 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
+  isomorphic.js@0.2.5:
+    resolution: {integrity: sha512-PIeMbHqMt4DnUP3MA/Flc0HElYjMXArsw1qwJZcm9sqR8mq3l8NYizFMty0pWwE/tzIGH3EKK5+jes5mAr85yw==}
+
   jest-get-type@29.6.3:
     resolution: {integrity: sha512-zrteXnqYxfQh7l5FHyL38jL39di8H8rHoecLH3JNxH3BwOrBsNeabdap5e0I23lD4HHI8W5VFBZqG4Eaq5LNcw==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
@@ -5768,6 +5797,11 @@ packages:
   leven@3.1.0:
     resolution: {integrity: sha512-qsda+H8jTaUaN/x5vzW2rzc+8Rw4TAQ/4KjB46IwK5VH+IlVeeeje/EoZRpiXvIqjFgK84QffqPztGI3VBLG1A==}
     engines: {node: '>=6'}
+
+  lib0@0.2.120:
+    resolution: {integrity: sha512-/a2eRImR8sZbmMVKe2we1/KukDQkuPyPf8yol6epvCu2PH6hurjcRI3mdGFFAi0uGoRJGyns99JquZgxwW1tQg==}
+    engines: {node: '>=16'}
+    hasBin: true
 
   libbase64@1.4.1:
     resolution: {integrity: sha512-Nyh3H90B3gRtrcxIe56Ayy7635J0jmh6AbxbQgQae8wrSPQMH5wFqJChiMTB13yKG512L3YspbA5DzumhFTITA==}
@@ -7622,6 +7656,12 @@ packages:
   xmlchars@2.2.0:
     resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
 
+  y-protocols@1.0.7:
+    resolution: {integrity: sha512-YSVsLoXxO67J6eE/nV4AtFtT3QEotZf5sK5BHxFBXso7VDUT3Tx07IfA6hsu5Q5OmBdMkQVmFZ9QOA7fikWvnw==}
+    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
+    peerDependencies:
+      yjs: ^13.0.0
+
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
@@ -7641,6 +7681,10 @@ packages:
   yargs@17.7.3:
     resolution: {integrity: sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==}
     engines: {node: '>=12'}
+
+  yjs@13.6.33:
+    resolution: {integrity: sha512-q/UYvr1gOk4XII+Cu1CW2dINjYqJJFifTzogEaIARznrvX7uOlHsdTEXcnOBMuIsrCGEEKdNxi74kyMLZlKVfw==}
+    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
 
   yocto-spinner@1.2.2:
     resolution: {integrity: sha512-DODGl1wJjA/s5pnJFKau9lIYHT81lnhob1i3e1TjxZRxEhWRKl74nTbWE6H5KlkViQQTo/Z29YFdxzTZAMY3ng==}
@@ -10768,6 +10812,13 @@ snapshots:
     dependencies:
       '@tiptap/core': 3.34.0(@tiptap/pm@3.34.0)
 
+  '@tiptap/extension-collaboration@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0)(@tiptap/y-tiptap@3.3.0(prosemirror-model@1.25.13)(prosemirror-state@1.4.4)(prosemirror-view@1.42.9)(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33))(yjs@13.6.33)':
+    dependencies:
+      '@tiptap/core': 3.34.0(@tiptap/pm@3.34.0)
+      '@tiptap/pm': 3.34.0
+      '@tiptap/y-tiptap': 3.3.0(prosemirror-model@1.25.13)(prosemirror-state@1.4.4)(prosemirror-view@1.42.9)(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33)
+      yjs: 13.6.33
+
   '@tiptap/extension-document@3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))':
     dependencies:
       '@tiptap/core': 3.34.0(@tiptap/pm@3.34.0)
@@ -10913,6 +10964,16 @@ snapshots:
       '@tiptap/extension-underline': 3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))
       '@tiptap/extensions': 3.34.0(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0)
       '@tiptap/pm': 3.34.0
+
+  '@tiptap/y-tiptap@3.3.0(prosemirror-model@1.25.13)(prosemirror-state@1.4.4)(prosemirror-view@1.42.9)(y-protocols@1.0.7(yjs@13.6.33))(yjs@13.6.33)':
+    dependencies:
+      lib0: 0.2.120
+      prosemirror-model: 1.25.13
+      prosemirror-state: 1.4.4
+      prosemirror-transform: 1.12.5
+      prosemirror-view: 1.42.9
+      y-protocols: 1.0.7(yjs@13.6.33)
+      yjs: 13.6.33
 
   '@turbo/darwin-64@2.11.11':
     optional: true
@@ -12601,6 +12662,8 @@ snapshots:
 
   isexe@2.0.0: {}
 
+  isomorphic.js@0.2.5: {}
+
   jest-get-type@29.6.3: {}
 
   jest-util@29.7.0:
@@ -12734,6 +12797,10 @@ snapshots:
       lefthook-windows-x64: 2.2.2
 
   leven@3.1.0: {}
+
+  lib0@0.2.120:
+    dependencies:
+      isomorphic.js: 0.2.5
 
   libbase64@1.4.1: {}
 
@@ -14905,6 +14972,11 @@ snapshots:
 
   xmlchars@2.2.0: {}
 
+  y-protocols@1.0.7(yjs@13.6.33):
+    dependencies:
+      lib0: 0.2.120
+      yjs: 13.6.33
+
   y18n@5.0.8: {}
 
   yallist@3.1.1: {}
@@ -14922,6 +14994,10 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
+
+  yjs@13.6.33:
+    dependencies:
+      lib0: 0.2.120
 
   yocto-spinner@1.2.2:
     dependencies:

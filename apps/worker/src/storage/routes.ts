@@ -30,6 +30,7 @@ import {
   refused,
   wireView,
 } from "./http.ts";
+import { storageLive } from "./live.ts";
 import { storageSharing } from "./sharing.ts";
 import { storageSigningMember } from "./signing.ts";
 
@@ -121,6 +122,7 @@ export const storage = new Hono<AppEnv>()
     } satisfies StorageTrashResponse);
   })
 
+  .route("/", storageLive)
   .route("/", storageSharing)
   .route("/", storageSigningMember)
   .route("/", storageChanges);

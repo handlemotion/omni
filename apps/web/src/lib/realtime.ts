@@ -34,7 +34,20 @@ let sockets = new Map<string, Realtime>();
 const openListeners = new Set<(orgId: string) => void>();
 type MergedEvent = Extract<RealtimeEvent, { type: "merged" }>;
 const mergeListeners = new Set<(event: MergedEvent) => void>();
+type DocEvent = Extract<RealtimeEvent, { type: "doc.record" | "doc.appended" | "doc.refused" }>;
+const docListeners = new Set<(event: DocEvent) => void>();
 const listeners = new Set<() => void>();
+
+type StorageEvent = DocEvent | Extract<RealtimeEvent, { type: "file.presence" }>;
+const isStorageEvent = (event: RealtimeEvent): event is StorageEvent =>
+  event.type === "file.presence" || event.type.startsWith("doc.");
+
+function onStorageEvent(orgId: string, event: StorageEvent) {
+  // Someone has a Drive file open in their editor, or closed it.
+  if (event.type === "file.presence") return applyFilePresence(orgId, event);
+  // A live document's record, or the answer to one this tab sent.
+  for (const listener of docListeners) listener(event);
+}
 
 function setStatus(next: RealtimeStatus) {
   status = next;
@@ -100,6 +113,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string): Realtim
   };
 
   const onEvent = (orgId: string, event: RealtimeEvent) => {
+    if (isStorageEvent(event)) return onStorageEvent(orgId, event);
     switch (event.type) {
       // New mail, or the conversation's status, assignee, priority, tags or snooze changed.
       case "changed":
@@ -119,9 +133,6 @@ export function startRealtime(client: QueryClient, activeOrgId: string): Realtim
         return changed(event.mailboxId, [event.intoThreadId, ...event.fromThreadIds]);
       case "presence":
         return applyPresence(orgId, event);
-      // Someone has a Drive file open in their editor, or closed it.
-      case "file.presence":
-        return applyFilePresence(orgId, event);
       // You were assigned, mentioned, or a customer replied: refetch your notifications.
       case "notification":
       // One you had was withdrawn (its note was deleted).
@@ -235,6 +246,12 @@ export function sendRealtime(orgId: string, message: RealtimeClientMessage): boo
 export function onThreadsMerged(listener: (event: MergedEvent) => void): () => void {
   mergeListeners.add(listener);
   return () => mergeListeners.delete(listener);
+}
+
+/** Calls `listener(event)` for every live document event (ADR 0043), from any workspace. */
+export function onDocEvent(listener: (event: DocEvent) => void): () => void {
+  docListeners.add(listener);
+  return () => docListeners.delete(listener);
 }
 
 /** Calls `listener(orgId)` whenever a workspace's socket opens, including after a reconnect. */

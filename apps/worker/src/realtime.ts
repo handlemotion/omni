@@ -18,6 +18,7 @@ import { z } from "zod";
 import { openDb } from "./db.ts";
 import type { Config } from "./env.ts";
 import { createLogger } from "./log.ts";
+import { docAppendMessage, MAX_DOC_MESSAGE, onDocAppend } from "./realtime-docs.ts";
 import {
   filePresenceMessage,
   leaveFile,
@@ -77,7 +78,7 @@ const presenceMessage = z.object({
   state: z.enum(["viewing", "replying", "left"]),
 });
 /** What an app may send: conversation presence, or the file open in its editor. */
-const clientMessage = z.union([presenceMessage, filePresenceMessage]);
+const clientMessage = z.union([presenceMessage, filePresenceMessage, docAppendMessage]);
 /** Larger client messages are ignored unread. */
 const MAX_CLIENT_MESSAGE = 1024;
 
@@ -160,7 +161,10 @@ export class Realtime extends DurableObject<Env> {
    * with who is already there. Anything else is ignored; "ping" is answered by the auto-response.
    */
   override async webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer) {
-    if (typeof raw !== "string" || raw.length > MAX_CLIENT_MESSAGE) return;
+    if (typeof raw !== "string") return;
+    // Only a live document's record may be large (a seed is the document's whole state).
+    const doc = raw.startsWith('{"type":"doc.append"');
+    if (raw.length > (doc ? MAX_DOC_MESSAGE : MAX_CLIENT_MESSAGE)) return;
     let message;
     try {
       message = clientMessage.parse(JSON.parse(raw));
@@ -172,6 +176,10 @@ export class Realtime extends DurableObject<Env> {
     if (!memberId || memberId.startsWith("sync:") || memberId.startsWith("watch:")) return;
     if (message.type === "file.presence") {
       await onFilePresence(this.ctx, this.env, socket, memberId, message);
+      return;
+    }
+    if (message.type === "doc.append") {
+      await onDocAppend(this.ctx, this.env, socket, memberId, message);
       return;
     }
     const current = presenceOf(socket);

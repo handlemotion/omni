@@ -109,6 +109,16 @@ const configSchema = z
     STORAGE_PERSONAL_GB: optionalText.pipe(optionalGb),
     /** Ceiling on what any one workspace may store, in GB. Empty: none. */
     STORAGE_MAX_GB: optionalText.pipe(optionalGb),
+    /**
+     * Live co-editing (ADR 0043 decision 3 step 2): the S2 basin's API base, ending in `/v1`
+     * (`https://<basin>.b.aws.s2.dev/v1` on S2, `http://localhost:8090/v1` on s2-lite). Empty:
+     * documents edit with checked saves only.
+     */
+    S2_BASIN_URL: optionalText.pipe(z.url().optional()),
+    /** The basin's name; sent as `s2-basin`, which s2-lite needs to pick the basin. */
+    S2_BASIN: optionalText,
+    /** Secret. A token for that basin's streams; s2-lite takes any. */
+    S2_ACCESS_TOKEN: optionalText,
     /** Optional: required only if the Expo project enforces push security. */
     EXPO_ACCESS_TOKEN: optionalText,
     // Rate limits (see rate-limiter.ts). Defaults leave room for real use; tighten per deploy.
@@ -134,6 +144,10 @@ const configSchema = z
     RATE_LIMIT_STORAGE_LINK: rateLimit("300/60"),
     /** Per person and client: requests to the desktop sync API, `/api/storage/sync/*`. */
     RATE_LIMIT_STORAGE_SYNC: rateLimit("600/60"),
+  })
+  .refine((env) => !env.S2_BASIN_URL || !!env.S2_BASIN, {
+    path: ["S2_BASIN"],
+    message: "is required with S2_BASIN_URL",
   })
   .refine((env) => !env.IMAGE_PROXY_TEST_ALLOW_ORIGIN || env.ENVIRONMENT === "test", {
     path: ["IMAGE_PROXY_TEST_ALLOW_ORIGIN"],

@@ -17,7 +17,7 @@ Status: draft. Each unit adds its required services, bindings, and variables her
 
 ```bash
 pnpm install
-pnpm stack:up                         # Postgres, GreenMail, S3-compatible object store
+pnpm stack:up                         # Postgres, GreenMail, S3-compatible object store, s2-lite
 cp packages/db/.env.example packages/db/.env
 pnpm --filter @omni/db db:migrate     # create the schema
 cp apps/mail/.env.example apps/mail/.env
@@ -349,6 +349,7 @@ to `.dev.vars`.
 | `STORAGE_MAX_GB`             | var    | no       | Ceiling on what any one workspace may store, in GB. Empty: none.                                                                                                                            |
 | `ENVIRONMENT`                | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`.             |
 
+| `S2_BASIN_URL`, `S2_BASIN`, `S2_ACCESS_TOKEN` | both | no | Live co-editing of Markdown files (ADR 0043). See [Live co-editing](#live-co-editing-optional). |
 | `RATE_LIMIT_*` | var | no | Rate limits, `<count>/<seconds>` or `off`. See [Rate limits](#rate-limits). |
 | `STRIPE_*`, `BILLING_*` | both | no | Optional billing. Leave unset to self-host with no plan and no limits. See [Billing](#billing-optional). |
 
@@ -395,6 +396,24 @@ The browser lands on `<WEB_APP_URL>/settings/accounts?google=connected&mailboxId
 `?google=error&reason=expired|denied|failed|in_use`. `GET /api/connect/google` says whether
 Google is configured and lists the connected accounts; `DELETE /api/connect/google/:mailboxId`
 disconnects one.
+
+#### Live co-editing (optional)
+
+With an S2 basin, everyone editing a Markdown file in Drive types into the same page (ADR 0043
+decision 3 step 2, as amended). Without one, each editor saves on its own and a save that someone
+else's beat is refused, never overwritten. The browser never reaches S2: the Worker reads and
+appends for it.
+
+- **Self-hosted:** run `s2-lite` (`ghcr.io/s2-streamstore/s2`, `s2 lite`; `compose.yml` has the
+  local one) and give it a basin that creates streams on first append and read
+  (`create_stream_on_append`, `create_stream_on_read`). Set `S2_BASIN_URL` to its `/v1` URL and
+  `S2_BASIN` to the basin's name. It must be reachable from your Worker.
+- **S2 (s2.dev):** create the basin with the same two settings, set `S2_BASIN_URL` to
+  `https://<basin>.b.aws.s2.dev/v1` and `S2_BASIN`, and store an access token scoped to that
+  basin as the `S2_ACCESS_TOKEN` secret.
+
+A file's stream holds its live edits until the basin's retention drops them; the Markdown file
+stays the truth, and a stream lost early costs at most the edits since the last save.
 
 #### Rate limits
 

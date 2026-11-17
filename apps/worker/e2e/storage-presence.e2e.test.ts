@@ -1,5 +1,6 @@
 // "Ana is editing" (ADR 0043 decision 3) through the real Worker and its realtime Durable
 // Object: who hears it, that it survives hibernation, and that it clears when the app closes.
+// And the live document those editors share (step 2), on the local stack's s2-lite.
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startStorageStack, type StorageStack } from "./storage-support.ts";
@@ -7,7 +8,9 @@ import { WEB_ORIGIN, type CookieJar } from "./support.ts";
 
 let stack: StorageStack;
 beforeAll(async () => {
-  stack = await startStorageStack({});
+  stack = await startStorageStack({
+    vars: { S2_BASIN_URL: "http://127.0.0.1:8090/v1", S2_BASIN: "omni-docs-dev" },
+  });
 });
 afterAll(() => stack?.stop());
 
@@ -32,6 +35,9 @@ async function connect(jar: CookieJar) {
     received,
     editing(nodeId: string, state: "editing" | "left") {
       socket.send(JSON.stringify({ type: "file.presence", nodeId, state }));
+    },
+    append(nodeId: string, ref: number, record: Record<string, unknown>, matchSeqNum?: number) {
+      socket.send(JSON.stringify({ type: "doc.append", nodeId, ref, record, matchSeqNum }));
     },
     async next(count: number) {
       const deadline = Date.now() + 10_000;
@@ -104,4 +110,106 @@ test("a left sent while the editing check is still running wins", async () => {
   ]);
   anaHears.socket.close();
   boHears.socket.close();
+});
+
+// Catches: a socket that appends to a file's live document without the access check its
+// `editing` made (anyone in the workspace writing into a file they cannot see), a record the
+// other editors never hear (or that reaches a socket not editing the file), and two editors
+// both seeding the document when they open it at once (the stream's tail is the referee), and an
+// editor who lost access while the file was open still writing into it.
+test("only a socket editing the file appends to its live document, and the other editors hear it", async () => {
+  const org = await stack.company(`live-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const bo = await stack.member(org.id);
+  const cy = await stack.member(org.id);
+  const doc = await stack.upload(ana.jar, { space: "shared" }, "doc.md", bytes("# Doc"));
+  const bos = await stack.upload(bo.jar, { space: "personal" }, "bo.md", bytes("mine"));
+  const [anaSocket, boSocket, cySocket] = await Promise.all([
+    connect(ana.jar),
+    connect(bo.jar),
+    connect(cy.jar),
+  ]);
+  const seed = { t: "seed", cv: 1, u: "AA==" };
+  const ofDoc = (received: Record<string, unknown>[]) =>
+    received.filter((event) => String(event.type).startsWith("doc."));
+
+  // Not editing it yet: refused.
+  anaSocket.append(doc.id, 1, seed, 0);
+  await quiet();
+  expect(ofDoc(anaSocket.received)).toEqual([
+    { type: "doc.refused", nodeId: doc.id, ref: 1, reason: "editing" },
+  ]);
+  // Editing Bo's own file, which she cannot see, is never checked: still refused.
+  anaSocket.editing(bos.id, "editing");
+  anaSocket.append(bos.id, 2, seed, 0);
+  await quiet();
+  expect(ofDoc(anaSocket.received).at(-1)).toEqual({
+    type: "doc.refused",
+    nodeId: bos.id,
+    ref: 2,
+    reason: "editing",
+  });
+  expect((await stack.api(bo.jar, "GET", `/files/${bos.id}/live`)).body).toEqual({
+    enabled: true,
+    entries: [],
+    more: false,
+  });
+
+  // Both open the editor at once and seed: the first takes the tail, the second is told so.
+  anaSocket.editing(doc.id, "editing");
+  boSocket.editing(doc.id, "editing");
+  await quiet();
+  anaSocket.append(doc.id, 3, seed, 0);
+  await quiet();
+  boSocket.append(doc.id, 1, seed, 0);
+  await quiet();
+  expect(ofDoc(anaSocket.received).at(-1)).toEqual({
+    type: "doc.appended",
+    nodeId: doc.id,
+    ref: 3,
+    seqNum: 0,
+  });
+  expect(ofDoc(boSocket.received)).toEqual([
+    { type: "doc.record", nodeId: doc.id, seqNum: 0, record: seed },
+    { type: "doc.refused", nodeId: doc.id, ref: 1, reason: "tail" },
+  ]);
+
+  // Bo's update reaches Ana, not Cy, who sees the file but is not editing it.
+  const update = { t: "update", e: 0, u: "AQ==" };
+  boSocket.append(doc.id, 2, update);
+  await quiet();
+  expect(ofDoc(anaSocket.received).at(-1)).toEqual({
+    type: "doc.record",
+    nodeId: doc.id,
+    seqNum: 1,
+    record: update,
+  });
+  expect(ofDoc(cySocket.received)).toEqual([]);
+  // What a socket missed is read over HTTP, by anyone who sees the file.
+  expect((await stack.api(cy.jar, "GET", `/files/${doc.id}/live?from=1`)).body).toEqual({
+    enabled: true,
+    entries: [{ seqNum: 1, record: update }],
+    more: false,
+  });
+  expect((await stack.api(ana.jar, "GET", `/files/${bos.id}/live`)).status).toBe(404);
+
+  // Ana takes the file into her My files while Bo still has it open: once his check is stale,
+  // his next record is refused for good, and nothing of his reaches her document.
+  const moved = await stack.api(ana.jar, "PATCH", `/nodes/${doc.id}`, { space: "personal" });
+  expect(moved.status).toBe(200);
+  await new Promise((resolve) => setTimeout(resolve, 2100));
+  boSocket.append(doc.id, 3, update);
+  await quiet();
+  expect(ofDoc(boSocket.received).at(-1)).toEqual({
+    type: "doc.refused",
+    nodeId: doc.id,
+    ref: 3,
+    reason: "denied",
+  });
+  expect((await stack.api(ana.jar, "GET", `/files/${doc.id}/live?from=2`)).body).toEqual({
+    enabled: true,
+    entries: [],
+    more: false,
+  });
+  for (const hears of [anaSocket, boSocket, cySocket]) hears.socket.close();
 });

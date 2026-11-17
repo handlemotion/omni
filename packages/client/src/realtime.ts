@@ -3,7 +3,9 @@ import type {
   CrmChangedKind,
   HelpdeskRealtimeEvent,
   MailActionKind,
+  StorageDocEvent,
   StorageFilePresenceEvent,
+  StorageLiveRecord,
 } from "@omni/contracts";
 import type { schema } from "@omni/db";
 import type { Realtime as RealtimeObject } from "@omni/worker";
@@ -34,18 +36,27 @@ export type RealtimeEvent =
   | Parameters<RealtimeObject["broadcast"]>[1]
   | HelpdeskRealtimeEvent
   | NotificationEvent
-  | StorageFilePresenceEvent;
+  | StorageFilePresenceEvent
+  | StorageDocEvent;
 export type RealtimeStatus = "connecting" | "open" | "closed";
 
 /**
  * What an app sends on the socket. `presence`: this member is viewing or replying in a
  * conversation, or `left` it; the Durable Object adds the member and mailbox and tells the
  * inbox's other members (ADR 0021). `file.presence`: this socket has a Drive file open in its
- * editor, or closed it; those who see the file hear it (ADR 0043 decision 3).
+ * editor, or closed it; those who see the file hear it (ADR 0043 decision 3). `doc.append`: one
+ * record for the live document of the file this socket edits (`storageDocEventSchema`).
  */
 export type RealtimeClientMessage =
   | { type: "presence"; threadId: string; state: "viewing" | "replying" | "left" }
-  | { type: "file.presence"; nodeId: string; state: "editing" | "left" };
+  | { type: "file.presence"; nodeId: string; state: "editing" | "left" }
+  | {
+      type: "doc.append";
+      nodeId: string;
+      ref: number;
+      record: StorageLiveRecord;
+      matchSeqNum?: number;
+    };
 
 export interface RealtimeOptions {
   /** The Worker's origin; the socket is `/api/realtime` on it. */
@@ -324,15 +335,50 @@ function parseCrmEvent(event: Record<string, unknown>): CrmChangedEvent | undefi
   return { type: "crm.changed", kind: kind as CrmChangedKind, ids };
 }
 
-/** Drive (ADR 0043): who is editing a file. */
-function parseStorageEvent(event: Record<string, unknown>): StorageFilePresenceEvent | undefined {
-  const { nodeId } = event;
+const isSeqNum = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0;
+const DOC_REFUSALS = new Set(["tail", "editing", "denied", "locked", "unavailable"]);
+
+/** One record of a live document's stream (ADR 0043 decision 3 step 2), or undefined. */
+function parseLiveRecord(value: unknown): StorageLiveRecord | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const { t, cv, e, u } = value as Record<string, unknown>;
+  if (t === "seed" && isSeqNum(cv) && typeof u === "string") return { t, cv, u };
+  if (t === "update" && isSeqNum(e) && typeof u === "string") return { t, e, u };
+  const { s } = value as Record<string, unknown>;
+  if (t === "fold" && isSeqNum(e) && isSeqNum(cv) && isSeqNum(s)) return { t, e, cv, s };
+  return undefined;
+}
+
+/** Drive (ADR 0043): who is editing a file, and its live document's records and answers. */
+function parseStorageEvent(
+  event: Record<string, unknown>,
+): StorageFilePresenceEvent | StorageDocEvent | undefined {
+  const { nodeId, ref, seqNum } = event;
   if (!isId(nodeId)) return undefined;
   switch (event.type) {
     case "file.presence": {
       const { memberId, state } = event;
       if (!isId(memberId) || (state !== "editing" && state !== "left")) return;
       return { type: "file.presence", nodeId, memberId, state };
+    }
+    case "doc.appended":
+      if (!Number.isInteger(ref) || !isSeqNum(seqNum)) return;
+      return { type: "doc.appended", nodeId, ref: ref as number, seqNum };
+    case "doc.refused": {
+      const { reason } = event;
+      if (!Number.isInteger(ref) || !DOC_REFUSALS.has(reason as string)) return;
+      return {
+        type: "doc.refused",
+        nodeId,
+        ref: ref as number,
+        reason: reason as Extract<StorageDocEvent, { type: "doc.refused" }>["reason"],
+      };
+    }
+    case "doc.record": {
+      const record = parseLiveRecord(event.record);
+      if (!isSeqNum(seqNum) || !record) return;
+      return { type: "doc.record", nodeId, seqNum, record };
     }
   }
   return undefined;
