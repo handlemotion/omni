@@ -5,8 +5,6 @@ import {
   IconCheck,
   IconClock3,
   IconInbox,
-  IconMail,
-  IconMailOpen,
   IconMaximize,
   IconMinimize,
   IconX,
@@ -24,7 +22,6 @@ import { useAllMailboxes, useThread } from "@/hooks/use-mail.ts";
 import { useFollowMerge } from "@/hooks/use-realtime.ts";
 import {
   useMarkDone,
-  useMarkRead,
   useMarkReadOnOpen,
   useMarkUndone,
   useMoveToLater,
@@ -375,11 +372,11 @@ function Entry({ children }: { children: ReactNode }) {
 
 /**
  * The actions at the right of the bar over the conversation, the same on every thread (ADR 0032):
- * done and later (yours alone), read state and full screen. A shared conversation's team state
+ * done and later (yours alone) and full screen. Opening a thread marks it read, so read state
+ * has no button here; the row menu and the shortcut still mark a thread unread. A shared conversation's team state
  * (status, owner, priority, tags) is the rail under its title.
  */
 function Actions({ thread, subject }: { thread: Thread; subject: string }) {
-  const markRead = useMarkRead();
   const [fullScreen, toggleFullScreen] = useFullScreen();
   const pageNav = usePageNavShown();
   const navigate = useNavigate();
@@ -407,12 +404,6 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
       </Heading>
       <div className="flex shrink-0 items-center gap-1">
         <TriageActions thread={thread} />
-        <Action
-          label={thread.read ? "Mark unread" : "Mark read"}
-          onPress={() => markRead.mutate({ threadId: thread.id, read: !thread.read })}
-        >
-          {thread.read ? <IconMail /> : <IconMailOpen />}
-        </Action>
         <Action label={fullScreen ? "Side by side" : "Full screen"} onPress={toggleFullScreen}>
           {fullScreen ? <IconMinimize /> : <IconMaximize />}
         </Action>
