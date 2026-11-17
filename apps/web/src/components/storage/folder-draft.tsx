@@ -39,9 +39,7 @@ export function DraftCard(props: { draft: FolderDraft; handlers: DraftHandlers }
       // As FileCard lays a folder out, so nothing moves when the folder replaces it.
       className="flex-col items-stretch gap-2 rounded-xl p-1.5"
     >
-      <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised">
-        <FolderArt />
-      </div>
+      <FolderArt />
       <div className="flex min-w-0 flex-col gap-1 ps-0.5">
         {draft.step === "naming" ? (
           <NameField draft={draft} handlers={props.handlers} multiline />

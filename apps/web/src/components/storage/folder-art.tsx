@@ -1,8 +1,8 @@
-// A folder card's square, layered over the card's own surface: a loose stack of what the folder
-// holds, with no folder drawn, because the stack is the folder. Its first files come first (an
-// image or PDF shows its thumbnail, anything else its glyph), then its subfolders (a solid blue
-// folder), three at most; an empty folder is one dashed card. The contents come from the folder's own first page, read once
-// the card nears the screen, so opening the folder afterwards finds it cached.
+// A folder card's square: a loose stack of what the folder holds, on the card's own surface, with
+// no folder drawn, because the stack is the folder. Its first files come first (an image or PDF
+// shows its thumbnail, anything else its glyph), then its subfolders (a solid blue folder), three
+// at most; an empty folder's square itself is dashed. The contents come from the folder's own
+// first page, read once the card nears the screen, so opening the folder finds it cached.
 import { useRef, useState, type CSSProperties } from "react";
 import { IconFolderFilled } from "@/components/icons/central";
 import { useStorageList } from "@/hooks/use-storage.ts";
@@ -45,19 +45,24 @@ export function FolderArt(props: {
   const contents = useStorageList({ parentId: node?.id ?? "" }, { enabled });
   const cards = enabled ? pick(contents.nodes) : [];
   const spots = STACK[cards.length - 1] ?? [];
+  // Empty once its listing says so (not while it loads, so a full folder never flashes dashed),
+  // and always for a folder still being named.
+  const empty = !node || (contents.isSuccess && contents.nodes.length === 0);
   return (
-    <div aria-hidden className="absolute inset-0 bg-surface">
+    <div
+      aria-hidden
+      // Empty: no fill, and a dashed edge a step stronger than the solid one so the dashes read.
+      className={`relative aspect-square overflow-hidden rounded-lg border ${empty ? "border-dashed border-muted-foreground/40" : "bg-surface shadow-raised"}`}
+    >
       <span ref={anchor} className="absolute inset-0" />
-      {!fileUrl || cards.length === 0 ? (
-        <div style={place(EMPTY)} className="absolute rounded-md border border-dashed" />
-      ) : (
+      {fileUrl &&
+        cards.length > 0 &&
         // Drawn back to front, so the first card lands on top.
         cards
           .map((card, i) => (
             <Card key={card.id} node={card} url={fileUrl(card)} style={place(spots[i] ?? EMPTY)} />
           ))
-          .toReversed()
-      )}
+          .toReversed()}
     </div>
   );
 }

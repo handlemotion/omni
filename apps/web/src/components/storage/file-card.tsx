@@ -50,17 +50,19 @@ export function FileCard(props: {
       // 6px around the square and the caption, so the hover and open fills frame both.
       className="flex-col items-stretch gap-2 rounded-xl p-1.5 transition-[background-color,scale] duration-150 ease-out hover:bg-hover active:scale-[.99] selected:bg-accent motion-reduce:transition-none"
     >
-      <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised">
-        {type?.preview === "image" && type.raster ? (
-          <Thumbnail node={node} url={props.url} raster={type.raster} />
-        ) : type?.preview === "pdf" ? (
-          <PdfStack node={node} url={props.url} />
-        ) : node.kind === "folder" ? (
-          <FolderArt node={node} peek={props.peek} fileUrl={props.fileUrl} />
-        ) : (
-          <FileGlyph kind={type?.kind ?? "folder"} className="size-8 text-muted-foreground" />
-        )}
-      </div>
+      {node.kind === "folder" ? (
+        <FolderArt node={node} peek={props.peek} fileUrl={props.fileUrl} />
+      ) : (
+        <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised">
+          {type?.preview === "image" && type.raster ? (
+            <Thumbnail node={node} url={props.url} raster={type.raster} />
+          ) : type?.preview === "pdf" ? (
+            <PdfStack node={node} url={props.url} />
+          ) : (
+            <FileGlyph kind={type?.kind ?? "folder"} className="size-8 text-muted-foreground" />
+          )}
+        </div>
+      )}
       {/* The body's 13px over the 11px meta, 4px apart: two sizes, as the rows use. */}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1 gap-y-1 ps-0.5">
         <span className="truncate text-sm text-foreground">{node.name}</span>
