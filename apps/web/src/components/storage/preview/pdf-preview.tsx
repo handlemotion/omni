@@ -39,7 +39,11 @@ export default function PdfPreview(props: { url: string; onDownload: () => void 
   const [failed, setFailed] = useState(false);
   if (failed) return <NoPreview kind="pdf" onDownload={props.onDownload} />;
   return (
-    <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <div
+      ref={scroller}
+      data-preview-stage
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+    >
       <Document
         file={props.url}
         options={OPTIONS}
