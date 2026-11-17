@@ -10,6 +10,7 @@ import {
   storageTrashQuery,
   storageUsageQuery,
   trashNodeMutation,
+  type StorageNode,
   type StoragePlace,
   type StorageSpace,
 } from "../lib/storage.ts";
@@ -48,6 +49,22 @@ export function useStorageList(place: StoragePlace, options: { enabled?: boolean
   const query = useInfiniteQuery({ ...storageListQuery(place), enabled: options.enabled ?? true });
   const nodes = useMemo(() => query.data?.pages.flatMap((page) => page.nodes) ?? [], [query.data]);
   return { ...query, nodes, folder: query.data?.pages[0]?.folder ?? null };
+}
+
+/**
+ * Starts reading a folder's first page as the pointer rests on its row, so opening it finds it
+ * cached. A card's stack already reads it as the card nears the screen; a fresh page is not
+ * asked again.
+ */
+export function usePrefetchFolder() {
+  const client = useQueryClient();
+  return useCallback(
+    (node: StorageNode) => {
+      if (node.kind === "folder")
+        void client.prefetchInfiniteQuery(storageListQuery({ parentId: node.id }));
+    },
+    [client],
+  );
 }
 
 /** What you may restore from Trash, newest first. */

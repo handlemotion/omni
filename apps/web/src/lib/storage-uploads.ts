@@ -11,8 +11,9 @@ import type { QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 import type { Session } from "./session.ts";
-import { storageChanged, type StoragePlace } from "./storage.ts";
+import { storageChanged, type StorageNode, type StoragePlace } from "./storage.ts";
 import { abortUpload, uploadFile } from "./storage-upload.ts";
+import { storageNodeChanged } from "./storage-cache.ts";
 
 export interface UploadTarget {
   place: StoragePlace;
@@ -120,7 +121,7 @@ async function run(job: Job) {
   job.controller = new AbortController();
   publish();
   try {
-    await uploadFile({
+    const node = await uploadFile({
       file: job.file,
       place: job.place,
       replaces: job.replaces,
@@ -140,7 +141,7 @@ async function run(job: Job) {
       },
     });
     jobs = jobs.filter((j) => j !== job);
-    void storageChanged(job.client);
+    void uploaded(job, node);
   } catch (error) {
     // Removed while it ran: `removeUpload` already dropped it.
     if (jobs.includes(job)) {
@@ -151,6 +152,17 @@ async function run(job: Job) {
   }
   publish();
   pump();
+}
+
+/**
+ * A new file shows in its folder's cached list at once, and usage grows. A new version of a file
+ * changes what hangs off it (its versions, its comments' content version, its signatures), and a
+ * link's door has lists of its own: both refetch all of Storage.
+ */
+async function uploaded(job: Job, node: StorageNode) {
+  if (job.shareId || job.replaces) return storageChanged(job.client);
+  await storageNodeChanged(job.client, node);
+  void job.client.invalidateQueries({ queryKey: keys.storageUsage() });
 }
 
 /** Starts the next queued file, unless one is on its way. */

@@ -22,6 +22,7 @@ import { GridList, GridListItem } from "@/components/ui/grid-list";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFluidHoverList } from "@/hooks/use-fluid-hover-list";
+import { usePrefetchFolder } from "@/hooks/use-storage.ts";
 import type { FolderDraft } from "@/hooks/use-folder-drafts.ts";
 import { useStorageView, type StorageSection, type StorageView } from "@/hooks/use-storage-view.ts";
 import { fileType } from "@/lib/file-kind.ts";
@@ -258,6 +259,7 @@ function Items(props: {
                 href={href(node)}
                 url={props.fileUrl(node)}
                 menu={props.menu(node)}
+                prefetch={props.peek !== false}
               />
             )
           }
@@ -272,15 +274,20 @@ function FileRow(props: {
   href: string | undefined;
   /** Where its bytes are read, for an image's or a PDF's tile. */
   url: string;
+  /** Folders read their contents on hover; off through a shared link's door. */
+  prefetch: boolean;
   menu: SettingsRowMenuItem[];
 }) {
   const { node } = props;
   const type = node.kind === "file" ? fileType(node.name, node.mimeType) : null;
+  const prefetch = usePrefetchFolder();
   return (
     <GridListItem
       id={node.id}
       href={props.href}
       textValue={node.name}
+      // Not through a shared link's door: a folder's own list is the member's.
+      onHoverStart={props.prefetch ? () => prefetch(node) : undefined}
       // The open file keeps the accent fill, as the open thread's row does. 48px: a 32px tile,
       // 8px above and below.
       className={`mx-2.5 h-12 gap-3 rounded-lg ps-2 pe-1 selected:bg-accent ${DROP_TARGET}`}

@@ -1,5 +1,7 @@
 // Storage (ADR 0034): the active workspace's My files and Shared, Trash, usage, and the changes,
-// by the member's door or a shared link's. Lists are paged by the server's cursor. Nothing here is realtime in v1: every change refetches the lists.
+// by the member's door or a shared link's. Lists are paged by the server's cursor. Nothing here is
+// realtime in v1: a change through the member's door writes its answer into the cached lists it
+// touches and asks only those again (`storage-cache.ts`); a link's door refetches all of Storage.
 import {
   infiniteQueryOptions,
   mutationOptions,
@@ -10,6 +12,7 @@ import type { Api } from "@omni/client";
 import type { InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
+import { storageFolderMade, storageNodeChanged, storageNodeRemoved } from "./storage-cache.ts";
 
 export type StorageListPage = InferResponseType<Api["storage"]["nodes"]["$get"], 200>;
 export type StorageNode = StorageListPage["nodes"][number];
@@ -64,7 +67,10 @@ export const storageTrashQuery = () =>
     getNextPageParam: (page) => page.nextCursor,
   });
 
-/** Every change moves rows between lists (a folder, Trash), so all of Storage refetches. */
+/**
+ * A change whose answer does not say what moved (a link's door, a version, a signature): all of
+ * Storage refetches.
+ */
 export const storageChanged = (client: QueryClient) =>
   client.invalidateQueries({ queryKey: keys.storage() });
 
@@ -91,7 +97,11 @@ export const createFolderMutation = (client: QueryClient) =>
       shareId
         ? call(sharedDoor().folders.$post({ param: { shareId }, json: { name, ...place } }))
         : call(api.storage.folders.$post({ json: { name, ...place } })),
-    onSuccess: () => storageChanged(client),
+    onSuccess: ({ node }, { shareId }) => {
+      if (shareId) return storageChanged(client);
+      storageFolderMade(client, node);
+      return storageNodeChanged(client, node);
+    },
   });
 
 /** `mutate({ id, name })` renames; `mutate({ id, place })` moves within the workspace. */
@@ -116,7 +126,12 @@ export const changeNodeMutation = (client: QueryClient) =>
         ? call(sharedDoor().nodes[":id"].$patch({ param: { shareId, id: change.id }, json }))
         : call(api.storage.nodes[":id"].$patch({ param: { id: change.id }, json }));
     },
-    onSuccess: () => storageChanged(client),
+    onSuccess: ({ node }, change) =>
+      change.shareId
+        ? storageChanged(client)
+        : "icon" in change
+          ? client.invalidateQueries({ queryKey: keys.storageIcons(node.space) })
+          : storageNodeChanged(client, node),
   });
 
 /** `mutate({ id, shareId? })` moves a file or folder to Trash. */
@@ -127,7 +142,8 @@ export const trashNodeMutation = (client: QueryClient) =>
       shareId
         ? call(sharedDoor().nodes[":id"].$delete({ param: { shareId, id }, query: {} }))
         : call(api.storage.nodes[":id"].$delete({ param: { id }, query: {} })),
-    onSuccess: () => storageChanged(client),
+    onSuccess: (_, { id, shareId }) =>
+      shareId ? storageChanged(client) : storageNodeRemoved(client, id),
   });
 
 /** `mutate(id)` puts a trashed file or folder back where it was. */
@@ -135,7 +151,7 @@ export const restoreNodeMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
     mutationFn: (id: string) => call(api.storage.nodes[":id"].restore.$post({ param: { id } })),
-    onSuccess: () => storageChanged(client),
+    onSuccess: ({ node }) => storageNodeChanged(client, node),
   });
 
 /** `mutate(id)` deletes something in Trash for good. */
@@ -144,7 +160,7 @@ export const deleteForeverMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: (id: string) =>
       call(api.storage.nodes[":id"].$delete({ param: { id }, query: { forever: "1" } })),
-    onSuccess: () => storageChanged(client),
+    onSuccess: (_, id) => storageNodeRemoved(client, id),
   });
 
 /** Bytes stored, the limit and the allowance (`GET /usage`). */
