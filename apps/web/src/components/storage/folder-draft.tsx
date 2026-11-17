@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import type { FinishedBy, FolderDraft } from "@/hooks/use-folder-drafts.ts";
 import { NAME_MAX, typedName } from "@/lib/storage-names.ts";
 import { KEEP_IN_MENU } from "./file-card.tsx";
-import { FileGlyph, FileTile } from "./file-glyph.tsx";
+import { FileTile } from "./file-glyph.tsx";
+import { FolderArt } from "./folder-art.tsx";
 
 export interface DraftHandlers {
   finish: (key: string, value: string, by: FinishedBy) => "stay" | "done";
@@ -39,7 +40,7 @@ export function DraftCard(props: { draft: FolderDraft; handlers: DraftHandlers }
       className="flex-col items-stretch gap-2 rounded-xl p-1.5"
     >
       <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised">
-        <FileGlyph kind="folder" className="size-8 text-muted-foreground" />
+        <FolderArt />
       </div>
       <div className="flex min-w-0 flex-col gap-1 ps-0.5">
         {draft.step === "naming" ? (

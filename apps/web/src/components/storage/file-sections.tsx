@@ -43,6 +43,8 @@ export interface FileSectionsProps {
   loadMore?: (() => void) | undefined;
   /** New folders not yet in the list, first in Folders (`use-folder-drafts.ts`). */
   drafts?: Drafts | undefined;
+  /** Folder cards show a few of their files; off through a shared link's door. */
+  peek?: boolean | undefined;
 }
 
 /** New folders not yet in the list, and their fields' handlers. */
@@ -70,6 +72,7 @@ export const FileSections = memo(function FileSections(props: FileSectionsProps)
               href={props.href}
               fileUrl={props.fileUrl}
               menu={props.menu}
+              peek={props.peek}
             />
           )}
         </Section>
@@ -182,6 +185,7 @@ function Items(props: {
   fileUrl: (node: StorageNode) => string;
   menu: (node: StorageNode) => SettingsRowMenuItem[];
   selection?: SelectionProps;
+  peek?: boolean | undefined;
 }) {
   const href = (node: StorageNode) => (node.kind === "folder" ? props.href(node) : undefined);
   const drafts = props.drafts?.list ?? [];
@@ -215,6 +219,8 @@ function Items(props: {
                   node={node}
                   href={href(node)}
                   url={props.fileUrl(node)}
+                  fileUrl={props.fileUrl}
+                  peek={props.peek}
                   menu={props.menu(node)}
                 />
               )

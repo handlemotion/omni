@@ -13,6 +13,7 @@ import { useThumbnail } from "@/hooks/use-storage-preview.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { FileGlyph } from "./file-glyph.tsx";
+import { FolderArt } from "./folder-art.tsx";
 
 const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
 /**
@@ -33,6 +34,10 @@ export function FileCard(props: {
   /** Where its bytes are read, for an image's thumbnail. */
   url: string;
   menu: SettingsRowMenuItem[];
+  /** Where a folder's contents' bytes are read, for the sheets in its pocket. */
+  fileUrl?: (node: StorageNode) => string;
+  /** False through a shared link's door: its folders draw the bare pocket. */
+  peek?: boolean;
 }) {
   const { node } = props;
   const type = node.kind === "file" ? fileType(node.name, node.mimeType) : null;
@@ -49,6 +54,8 @@ export function FileCard(props: {
           <Thumbnail node={node} url={props.url} of={{ raster: type.raster }} />
         ) : type?.preview === "pdf" ? (
           <Thumbnail node={node} url={props.url} of="pdf" />
+        ) : node.kind === "folder" ? (
+          <FolderArt node={node} peek={props.peek} fileUrl={props.fileUrl} />
         ) : (
           <FileGlyph kind={type?.kind ?? "folder"} className="size-8 text-muted-foreground" />
         )}
@@ -105,7 +112,7 @@ function Thumbnail(props: { node: StorageNode; url: string; of: { raster: string
 }
 
 /** True once the element comes within a screen of the viewport, and from then on. */
-function useSeen(ref: RefObject<HTMLElement | null>) {
+export function useSeen(ref: RefObject<HTMLElement | null>) {
   const [seen, setSeen] = useState(false);
   useEffect(() => {
     const element = ref.current;

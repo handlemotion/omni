@@ -85,6 +85,7 @@ function Content(props: Parameters<typeof FolderBody>[0]) {
         nodes={list.nodes}
         href={source.folderHref}
         fileUrl={source.fileUrl}
+        peek={!source.shareId}
         open={selected}
         menu={props.menu}
         drafts={props.drafts}
