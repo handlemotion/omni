@@ -189,16 +189,20 @@ export const thumbnailQuery = (source: PreviewSource, raster: string) =>
     retry: false,
   });
 
-/** A PDF's first page for a grid tile. pdf.js reads only that page's bytes, so no size cap. */
+/**
+ * A PDF's tile: its first page as `url` (what a folder's stack shows), the next two as `more`,
+ * and the first page's shape. pdf.js reads only those pages' bytes, so no size cap.
+ */
 export const pdfThumbnailQuery = (source: PreviewSource) =>
   queryOptions({
     queryKey: keys.storagePreview("pdf-thumbnail", source.url, source.version),
     queryFn: ({ signal }) =>
       slot(async () => {
         signal.throwIfAborted();
-        const { firstPage } = await import("./pdf-thumbnail.ts");
-        const blob = await firstPage(source.url, THUMBNAIL_WIDTH, workspaceHeaders(), signal);
-        return { url: URL.createObjectURL(blob) };
+        const { firstPages } = await import("./pdf-thumbnail.ts");
+        const pdf = await firstPages(source.url, THUMBNAIL_WIDTH, workspaceHeaders(), signal);
+        const [url = "", ...more] = pdf.pages.map((page) => URL.createObjectURL(page));
+        return { url, more, ratio: pdf.ratio, count: pdf.count };
       }),
     enabled: source.size > 0,
     staleTime: Infinity,
@@ -214,7 +218,8 @@ export function revokePreviewUrls(client: QueryClient) {
   tracked.add(client);
   client.getQueryCache().subscribe((event) => {
     if (event.type !== "removed" || event.query.queryKey[1] !== "preview") return;
-    const data = event.query.state.data as { url?: unknown } | undefined;
+    const data = event.query.state.data as { url?: unknown; more?: unknown } | undefined;
     if (typeof data?.url === "string") URL.revokeObjectURL(data.url);
+    if (Array.isArray(data?.more)) for (const url of data.more) URL.revokeObjectURL(String(url));
   });
 }

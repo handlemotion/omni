@@ -14,6 +14,7 @@ import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { FileGlyph } from "./file-glyph.tsx";
 import { FolderArt } from "./folder-art.tsx";
+import { PdfStack } from "./pdf-stack.tsx";
 
 const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
 /**
@@ -51,9 +52,9 @@ export function FileCard(props: {
     >
       <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised">
         {type?.preview === "image" && type.raster ? (
-          <Thumbnail node={node} url={props.url} of={{ raster: type.raster }} />
+          <Thumbnail node={node} url={props.url} raster={type.raster} />
         ) : type?.preview === "pdf" ? (
-          <Thumbnail node={node} url={props.url} of="pdf" />
+          <PdfStack node={node} url={props.url} />
         ) : node.kind === "folder" ? (
           <FolderArt node={node} peek={props.peek} fileUrl={props.fileUrl} />
         ) : (
@@ -74,26 +75,21 @@ export function FileCard(props: {
   );
 }
 
-/** An image's thumbnail or a PDF's first page, faded in over its glyph once it has decoded. */
-function Thumbnail(props: { node: StorageNode; url: string; of: { raster: string } | "pdf" }) {
+/** An image's thumbnail, faded in over its glyph once it has decoded. */
+function Thumbnail(props: { node: StorageNode; url: string; raster: string }) {
   // Fetched only once the card nears the screen: a mounted card off screen fetches nothing.
   const anchor = useRef<HTMLSpanElement>(null);
   const near = useSeen(anchor);
   const thumb = useThumbnail(
     { url: props.url, version: props.node.updatedAt, size: props.node.size },
-    props.of,
+    { raster: props.raster },
     near,
   );
   const [shown, setShown] = useState(false);
   return (
     <>
       <span ref={anchor} aria-hidden className="absolute inset-0" />
-      {!shown && (
-        <FileGlyph
-          kind={props.of === "pdf" ? "pdf" : "image"}
-          className="size-8 text-muted-foreground"
-        />
-      )}
+      {!shown && <FileGlyph kind="image" className="size-8 text-muted-foreground" />}
       {thumb.data && (
         <img
           src={thumb.data.url}
@@ -101,10 +97,7 @@ function Thumbnail(props: { node: StorageNode; url: string; of: { raster: string
           decoding="async"
           draggable={false}
           onLoad={() => setShown(true)}
-          // A photo fills the square. A PDF's page is a sheet laid on it: its top-left corner in
-          // from the square's, the rest running off the right and bottom edges. Hovering the card
-          // lifts the sheet toward that corner, a touch larger.
-          className={`absolute ${props.of === "pdf" ? "start-[12%] top-[12%] w-full max-w-none origin-top-left rounded-ss-sm border-s border-t border-foreground/10 group-hover:-translate-x-[4%] group-hover:-translate-y-[4%] group-hover:scale-[1.04]" : "inset-0 size-full object-cover"} transition-[opacity,translate,scale] duration-200 ease-out motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 size-full object-cover transition-opacity duration-200 ease-out motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`}
         />
       )}
     </>

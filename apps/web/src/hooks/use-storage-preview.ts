@@ -37,6 +37,17 @@ export function useThumbnail(
   enabled: boolean,
 ) {
   revokePreviewUrls(useQueryClient());
-  const options = of === "pdf" ? pdfThumbnailQuery(source) : thumbnailQuery(source, of.raster);
+  // A PDF's entry is the same cache entry its card reads (`usePdfPages`); its `url` is page 1.
+  const options =
+    of === "pdf"
+      ? (pdfThumbnailQuery(source) as unknown as ReturnType<typeof thumbnailQuery>)
+      : thumbnailQuery(source, of.raster);
+  return useQuery({ ...options, enabled: enabled && options.enabled !== false });
+}
+
+/** A PDF's tile: its first pages and its shape, once `enabled` (the tile is on screen). */
+export function usePdfPages(source: PreviewSource, enabled: boolean) {
+  revokePreviewUrls(useQueryClient());
+  const options = pdfThumbnailQuery(source);
   return useQuery({ ...options, enabled: enabled && options.enabled !== false });
 }
