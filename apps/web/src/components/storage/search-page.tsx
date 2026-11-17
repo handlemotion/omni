@@ -16,6 +16,7 @@ import type { StorageNode } from "@/lib/storage.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
 import { useStorageHref } from "./file-list.tsx";
 import { FileSections, FileSectionsBones } from "./file-sections.tsx";
+import type { NodeDrag } from "./node-drag.tsx";
 import { NodeMenu } from "./node-menu.tsx";
 import { StorageFrame } from "./storage-frame.tsx";
 import { UploadsPanel } from "./uploads-panel.tsx";
@@ -100,10 +101,14 @@ function Results({ q }: { q: string }) {
         fileUrl={fileUrl}
         open={open}
         menu={menu}
+        drag={SEARCH_DRAG}
       />
     </NodeMenu>
   );
 }
+
+/** Results drag onto a folder among them or in the sidebar; Search is no folder to drop into. */
+const SEARCH_DRAG: NodeDrag = { door: { canWrite: true }, here: null };
 
 /** A folder's page; a file in its folder, open in the preview (`?file=`). */
 function useNodeHref() {

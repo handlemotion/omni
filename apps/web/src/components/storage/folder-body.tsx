@@ -13,6 +13,7 @@ import type { StorageNode } from "@/lib/storage.ts";
 import { FileSections, FileSectionsBones, type Drafts } from "./file-sections.tsx";
 import type { FolderSource, OpenFile } from "./folder-view.tsx";
 import { NodeMenu } from "./node-menu.tsx";
+import { dropOperation, useDropInto, type NodeDrag } from "./node-drag.tsx";
 
 interface Actions {
   onNewFolder: () => void;
@@ -28,26 +29,40 @@ export function FolderBody(
   },
 ) {
   const { source } = props;
+  const drag = useFolderDrag(source);
+  const into = useDropInto();
   return (
-    // The whole page under the header takes a drop, the empty folder included, and scrolls.
+    // The whole page under the header takes a drop, the empty folder included, and scrolls:
+    // files from the computer upload here, and files and folders dragged from elsewhere in Drive
+    // (the sidebar, Search) move here.
     <DropZone
       bare
       aria-label={`Upload to ${source.label}`}
       isDisabled={!source.canWrite}
       // A block that scrolls: content starts at the top, not centred by the drop zone's flex.
       className="block min-h-0 min-w-0 flex-1 overflow-y-auto"
-      onDrop={(event) =>
-        void Promise.all(
-          event.items.flatMap((item) => (item.kind === "file" ? [item.getFile()] : [])),
-        ).then(props.onFiles)
-      }
+      getDropOperation={() => (drag.here ? dropOperation(drag.here) : "cancel")}
+      onDrop={(event) => {
+        if (drag.here) void into(drag.here, event.items);
+      }}
     >
-      <Content {...props} />
+      <Content {...props} drag={drag} />
     </DropZone>
   );
 }
 
-function Content(props: Parameters<typeof FolderBody>[0]) {
+/** The page's door and folder, for its items' drags and the drops it takes. */
+function useFolderDrag(source: FolderSource): NodeDrag {
+  const { place, shareId, canWrite } = source;
+  return useMemo(() => {
+    const door = { shareId, canWrite };
+    return { door, here: { ...door, place } };
+    // The place is a new object each render; its folder or space is what changes.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareId, canWrite, "parentId" in place ? place.parentId : place.space]);
+}
+
+function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {
   const { source, open } = props;
   const { list } = source;
   const { select } = open;
@@ -89,6 +104,7 @@ function Content(props: Parameters<typeof FolderBody>[0]) {
         open={selected}
         menu={props.menu}
         drafts={props.drafts}
+        drag={props.drag}
         loadMore={list.hasNextPage && !list.isFetchingNextPage ? fetchNext(list) : undefined}
       />
     </NodeMenu>

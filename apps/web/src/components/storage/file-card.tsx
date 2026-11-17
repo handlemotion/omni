@@ -14,6 +14,7 @@ import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { FileGlyph } from "./file-glyph.tsx";
 import { FolderArt } from "./folder-art.tsx";
+import { DROP_TARGET } from "./node-drag.tsx";
 import { PdfStack } from "./pdf-stack.tsx";
 
 const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
@@ -48,7 +49,7 @@ export function FileCard(props: {
       href={props.href}
       textValue={node.name}
       // 6px around the square and the caption, so the hover and open fills frame both.
-      className="flex-col items-stretch gap-2 rounded-xl p-1.5 transition-[background-color,scale] duration-150 ease-out hover:bg-hover active:scale-[.99] selected:bg-accent motion-reduce:transition-none"
+      className={`flex-col items-stretch gap-2 rounded-xl p-1.5 transition-[background-color,scale] duration-150 ease-out hover:bg-hover active:scale-[.99] selected:bg-accent motion-reduce:transition-none ${DROP_TARGET}`}
     >
       {node.kind === "folder" ? (
         <FolderArt node={node} peek={props.peek} fileUrl={props.fileUrl} />
