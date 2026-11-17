@@ -3,6 +3,8 @@
 // first pages' bytes. Only pages near the screen are drawn; the rest hold their height. Box
 // comments sit over each page (`pdf-marks.tsx`).
 // Loaded on its own chunk with pdf.js, the first time a PDF opens.
+// First: pdf.js iterates streams, which WebKit cannot without it.
+import "@/lib/stream-iterator.ts";
 import "react-pdf/dist/Page/TextLayer.css";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
