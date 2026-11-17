@@ -14,7 +14,7 @@ import type { StorageNode } from "@/lib/storage.ts";
 import { FileSections, FileSectionsBones, type Drafts } from "./file-sections.tsx";
 import type { FolderSource, OpenFile } from "./folder-view.tsx";
 import { NodeMenu } from "./node-menu.tsx";
-import { dropOperation, useDropInto, type NodeDrag } from "./node-drag.tsx";
+import { dropOperation, useDropInto, useRoomDrop, type NodeDrag } from "./node-drag.tsx";
 
 interface Actions {
   onNewFolder: () => void;
@@ -33,10 +33,11 @@ export function FolderBody(
   const { source } = props;
   const drag = useFolderDrag(source);
   const into = useDropInto();
+  const room = useRoomDrop("page", drag.here);
   return (
     // The whole page under the header takes a drop, the empty folder included, and scrolls:
-    // files from the computer upload here, and files and folders dragged from elsewhere in Drive
-    // (the sidebar, Search) move here.
+    // files from the computer upload here, and files and folders lifted from elsewhere in Drive
+    // (the sidebar) move here.
     <DropZone
       bare
       aria-label={`Upload to ${source.label}`}
@@ -48,7 +49,9 @@ export function FolderBody(
         if (drag.here) void into(drag.here, event.items);
       }}
     >
-      <Content {...props} drag={drag} />
+      <div ref={room} className="flex min-h-full flex-col">
+        <Content {...props} drag={drag} />
+      </div>
     </DropZone>
   );
 }
@@ -127,7 +130,7 @@ function fetchNext(list: FolderSource["list"]) {
 
 /** Fills the page under the header, so an empty state sits where the mail lists' do. */
 function Centered({ children }: { children: ReactNode }) {
-  return <div className="flex h-full flex-col">{children}</div>;
+  return <div className="flex flex-1 flex-col">{children}</div>;
 }
 
 /** An empty folder's way on, as the mail lists' empty states offer theirs: Upload first. */

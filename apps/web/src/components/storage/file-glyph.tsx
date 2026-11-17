@@ -61,6 +61,8 @@ export function AttachmentGlyph(props: { name: string; mimeType?: string | null 
 }
 
 const TILE = {
+  // A dragged item's 24px square, in the pill that follows the pointer (`drive-drag.tsx`).
+  xs: "size-6 rounded-md *:size-3.5",
   // The list's 32px square, its 15px glyph centred.
   sm: "size-8 rounded-lg *:size-icon",
   // The grid's and the preview's 88px square, a 32px glyph.

@@ -14,7 +14,7 @@ import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { FileGlyph } from "./file-glyph.tsx";
 import { FolderArt } from "./folder-art.tsx";
-import { DROP_TARGET } from "./node-drag.tsx";
+import { CARD_DROP_TARGET, LIFTED, useSurfaceDrag, type NodeDrag } from "./node-drag.tsx";
 import { NodeName, type ItemName } from "./name-field.tsx";
 import { PdfStack } from "./pdf-stack.tsx";
 
@@ -40,19 +40,24 @@ export function FileCard(props: {
   /** Where a folder's contents' bytes are read, for the sheets in its pocket. */
   fileUrl?: (node: StorageNode) => string;
   /** False through a shared link's door: its folders draw the bare pocket. */
-  peek?: boolean;
+  peek?: boolean | undefined;
   /** Its name as a field, while it is renamed. */
   name?: ItemName | undefined;
+  /** Lifting it onto folders, and folders taking drops (`node-drag.tsx`); off without it. */
+  drag?: NodeDrag | undefined;
 }) {
   const { node } = props;
   const type = node.kind === "file" ? fileType(node.name, node.mimeType) : null;
+  const lift = useSurfaceDrag(node, "card", props.drag);
   return (
     <GridListItem
+      ref={lift.ref}
+      {...lift.props}
       id={node.id}
       href={props.href}
       textValue={node.name}
       // 6px around the square and the caption, so the hover and open fills frame both.
-      className={`flex-col items-stretch gap-2 rounded-xl p-1.5 transition-[background-color,scale] duration-150 ease-out hover:bg-hover active:scale-[.99] selected:bg-accent motion-reduce:transition-none ${DROP_TARGET}`}
+      className={`flex-col items-stretch gap-2 rounded-xl p-1.5 transition-[background-color,scale] duration-150 ease-out hover:bg-hover active:scale-[.99] selected:bg-accent motion-reduce:transition-none ${CARD_DROP_TARGET} ${LIFTED}`}
     >
       {node.kind === "folder" ? (
         <FolderArt node={node} peek={props.peek} fileUrl={props.fileUrl} />

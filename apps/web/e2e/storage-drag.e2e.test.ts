@@ -1,6 +1,7 @@
-// Drag and drop in Drive (`components/storage/node-drag.tsx`), in a real Chromium, on the web app
-// built and served by the real Worker under `wrangler dev`, on a real Postgres: files and folders
-// move by dragging them onto a folder, on the page and across to the sidebar.
+// Drag and drop in Drive (`components/storage/node-drag.tsx`, `drive-drag.tsx`), in a real
+// Chromium, on the web app built and served by the real Worker under `wrangler dev`, on a real
+// Postgres: files and folders move by lifting them onto a folder, on the page and across to the
+// sidebar, and beside a sidebar folder by its edge.
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import {
@@ -51,7 +52,7 @@ afterAll(async () => {
 });
 
 // Catches: a drop that does not move what was dragged, or moves it to the wrong place: a folder
-// card's drop going to the page's own folder, a sidebar row not taking drags from the page (the
+// card's drop (or a file from the computer dropped on it) going to the page's own folder, a sidebar row not taking drags from the page (the
 // two are separate drop targets), or a sidebar row dragging its link's address instead of its
 // folder; and a folder offered a drop into a folder inside it.
 test("files and folders move by dragging them onto folders on the page and in the sidebar", async () => {
@@ -81,6 +82,20 @@ test("files and folders move by dragging them onto folders on the page and in th
   );
   await expect.poll(() => names(page, { parent: photos })).toEqual(["sunset.png"]);
 
+  // A file from the computer onto a folder's card: it uploads into that folder, not the page's.
+  await page.getByRole("row", { name: /Photos/ }).evaluate((card) => {
+    const files = new DataTransfer();
+    files.items.add(new File(["dropped"], "dropped.txt", { type: "text/plain" }));
+    for (const type of ["dragenter", "dragover", "drop"]) {
+      card.dispatchEvent(
+        new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: files }),
+      );
+    }
+  });
+  await expect
+    .poll(() => names(page, { parent: photos }), { timeout: 30_000 })
+    .toEqual(["dropped.txt", "sunset.png"]);
+
   // A file's row onto a folder in the sidebar.
   await drag(page, page.getByRole("row", { name: /forest\.png/ }), sidebar("Projects"));
   await expect.poll(() => names(page, { parent: projects })).toEqual(["Drafts", "forest.png"]);
@@ -96,52 +111,28 @@ test("files and folders move by dragging them onto folders on the page and in th
     .poll(() => names(page, { parent: projects }))
     .toEqual(["Drafts", "Photos", "forest.png"]);
   expect(await names(page, { space: "personal" })).toEqual(["Projects"]);
-  expect(await names(page, { parent: photos })).toEqual(["sunset.png"]);
+  expect(await names(page, { parent: photos })).toEqual(["dropped.txt", "sunset.png"]);
+
+  // Beside a cluster, by the bottom edge of its sidebar row: Photos out of Projects, back to the
+  // top of the space, not into Projects again.
+  await drag(page, sidebar("Photos"), sidebar("Projects"), "bottom");
+  await expect.poll(() => names(page, { space: "personal" })).toEqual(["Photos", "Projects"]);
+  expect(await names(page, { parent: projects })).toEqual(["Drafts", "forest.png"]);
 }, 120_000);
 
-// Catches: the sidebar's folders not taking a keyboard drag (React Aria moves focus between drop
-// targets, so a target that cannot take focus is skipped), leaving the page-to-sidebar move to
-// the mouse alone.
-test("a file moves to a sidebar folder with the keyboard", async () => {
-  const page = await signedIn(`keys-${Date.now()}@gmail.test`, "/files/my");
-  await page
-    .getByRole("button", { name: "Upload", exact: true })
-    .first()
-    .waitFor({ timeout: 15_000 });
-  const archive = await folder(page, { name: "Archive", space: "personal" });
-  await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("notes") });
-  await page.getByRole("row", { name: /notes\.txt/ }).waitFor({ timeout: 30_000 });
-  await page.reload();
-  const sidebar = page.getByRole("link", { name: "Archive", exact: true });
-  await sidebar.waitFor();
-
-  // The row's drag handle starts the drag; Tab walks the drop targets until the sidebar's folder.
-  await page
-    .getByRole("row", { name: /notes\.txt/ })
-    .getByRole("button", { name: /drag/i })
-    .focus();
-  await page.keyboard.press("Enter");
-  for (let i = 0; i < 20; i++) {
-    if (await sidebar.evaluate((el) => el === document.activeElement)) break;
-    await page.keyboard.press("Tab");
-  }
-  expect(await sidebar.evaluate((el) => el === document.activeElement)).toBe(true);
-  await page.keyboard.press("Enter");
-  await expect.poll(() => names(page, { parent: archive })).toEqual(["notes.txt"]);
-}, 120_000);
-
-/** Drags with the mouse, as a person does: pressed, moved past the threshold, held, let go. */
-async function drag(page: Page, from: Locator, to: Locator) {
+/**
+ * Drags with the mouse, as a person does: pressed, moved past the threshold, held, let go; over
+ * the target's middle, or its bottom edge.
+ */
+async function drag(page: Page, from: Locator, to: Locator, at: "middle" | "bottom" = "middle") {
   const a = await from.boundingBox();
   const b = await to.boundingBox();
   if (!a || !b) throw new Error("nothing to drag, or nowhere to drop");
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
   await page.mouse.down();
   await page.mouse.move(a.x + a.width / 2 + 10, a.y + a.height / 2 + 10, { steps: 5 });
-  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 15 });
+  const y = at === "middle" ? b.y + b.height / 2 : b.y + b.height - 2;
+  await page.mouse.move(b.x + b.width / 2, y, { steps: 15 });
   await page.mouse.up();
 }
 

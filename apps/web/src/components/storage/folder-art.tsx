@@ -51,6 +51,7 @@ export function FolderArt(props: {
   return (
     <div
       aria-hidden
+      data-slot="folder-art"
       className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised"
     >
       <span ref={anchor} className="absolute inset-0" />

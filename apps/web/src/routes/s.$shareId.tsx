@@ -3,6 +3,7 @@
 // the page is then the not-found, inside the link page's frame.
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { EmptyState } from "../components/empty/empty-state.tsx";
+import { DriveDragProvider } from "../components/storage/drive-drag.tsx";
 import { LinkFrame } from "../components/storage/link-frame.tsx";
 import { LinkPage } from "../components/storage/link-page.tsx";
 import { ApiError } from "../lib/api.ts";
@@ -40,5 +41,10 @@ export const Route = createFileRoute("/s/$shareId")({
 function Link() {
   const { shareId } = Route.useParams();
   const { node } = Route.useSearch();
-  return <LinkPage key={`${shareId}:${node ?? ""}`} shareId={shareId} nodeId={node} />;
+  return (
+    // A shared folder's items lift and move too, outside the workspace's shell.
+    <DriveDragProvider>
+      <LinkPage key={`${shareId}:${node ?? ""}`} shareId={shareId} nodeId={node} />
+    </DriveDragProvider>
+  );
 }

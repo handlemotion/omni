@@ -1,43 +1,55 @@
-// Drag and drop in Drive: files and folders move by dragging them onto a folder, wherever either
-// is drawn. A folder page's cards and rows drag, and take a drop on a folder or on the page itself
-// (the folder it shows); the sidebar's clusters and their folders drag too, and they and the
-// Team and Personal groups take drops. Files dragged in from the computer upload wherever they are
-// dropped. React Aria's drag and drop, the collections' own: native drags (so they cross from the
-// page to the sidebar), a keyboard alternative, and what a screen reader hears.
+// Drag and drop in Drive: files and folders move by picking them up and letting go over a folder,
+// wherever either is drawn. A folder page's cards and rows lift, and the sidebar's clusters and
+// their folders; a folder takes a drop into it, the page a drop into the folder it shows, and a
+// sidebar row's top or bottom edge a drop beside it. Files dragged in from the computer upload
+// wherever they are dropped.
 //
-// A drag carries its nodes as JSON under `NODE_TYPE`, read at the drop. While one of ours is under
-// way its nodes are kept here too: a drop target is asked whether it takes a drag before the drop,
-// and the browser only shows a drag's data at the drop.
-import { useMemo } from "react";
-import type { DropItem, DropOperation, Key } from "react-aria-components";
-import { useDragAndDrop } from "react-aria-components/useDragAndDrop";
-import { isFileDropItem, isTextDropItem } from "react-aria-components/useDrop";
-import { z } from "zod";
-import { useChangeNode, useUploads } from "@/hooks/use-storage.ts";
-import { fileType } from "@/lib/file-kind.ts";
+// Our own drags are pointer drags (dnd-kit, `drive-drag.tsx`), not the browser's: the item itself
+// lifts and follows the pointer, in its own colours, with no ghost, and they work the same in the
+// desktop app, whose window takes the browser's drags for files. The computer's files still come
+// as the browser's drags, and React Aria's drop zones take them.
+import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { DropItem, DropOperation } from "react-aria-components";
+import { isFileDropItem } from "react-aria-components/useDrop";
+import { useUploads } from "@/hooks/use-storage.ts";
+import { compareNodes } from "@/lib/storage-cache.ts";
 import type { StorageNode, StoragePlace, StorageSpace } from "@/lib/storage.ts";
-import { FileTile } from "./file-glyph.tsx";
+import { useDriveDrag } from "./drive-drag-state.ts";
 import { storageErrorToast } from "./storage-errors.ts";
 
-/** A folder a drag hovers over, when it takes the drop: the drop zone's tint, and its edge. */
+/** A folder a drag held over would drop into: the drop zone's tint, and its edge. */
 export const DROP_TARGET =
-  "drop-target:bg-primary/10 drop-target:inset-ring drop-target:inset-ring-primary";
+  "data-drive-target:bg-primary/10 data-drive-target:inset-ring data-drive-target:inset-ring-primary";
 
-/** Our drags' data type: only Drive reads it. */
-const NODE_TYPE = "application/x-omni-storage-node";
+/** A folder card a drag would drop into: its preview alone, as Finder marks a folder's icon. */
+export const CARD_DROP_TARGET =
+  "data-drive-target:bg-transparent! data-drive-target:**:data-[slot=folder-art]:border-primary data-drive-target:**:data-[slot=folder-art]:bg-primary/5";
 
-const draggedSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  kind: z.enum(["file", "folder"]),
-  space: z.enum(["personal", "shared"]),
-  parentId: z.string().nullable(),
-  mimeType: z.string().nullable(),
-  shareId: z.string().optional(),
-});
+/**
+ * Where a lifted item was: its content hidden and a dashed edge where its hover fill sits, in the
+ * same rounding; while it lands, nothing.
+ */
+export const LIFTED =
+  "data-lifted:bg-transparent! data-lifted:*:invisible data-[lifted=origin]:outline-1 data-[lifted=origin]:-outline-offset-1 data-[lifted=origin]:outline-dashed data-[lifted=origin]:outline-border";
+
+/** The room a drag opens where its item will land: a dashed edge in the brand's blue, tinted. */
+export const GAP =
+  "rounded-lg bg-primary/5 outline-1 -outline-offset-1 outline-dashed outline-primary";
+
+/** How an item is drawn, so its lifted copy keeps the shape. */
+export type Look = "card" | "row" | "tree";
 
 /** A node being dragged, and the door it moves through (a shared link's, or the member's). */
-export type Dragged = z.infer<typeof draggedSchema>;
+export interface Dragged {
+  node: StorageNode;
+  shareId?: string | undefined;
+}
+
+/** What a drag picked up: the node, and how the item it lifted from was drawn. */
+export interface DragSource extends Dragged {
+  look: Look;
+}
 
 /** Where a drop goes: a folder or a space's top, through a door; `within` its known ancestors. */
 export interface DropPlace {
@@ -50,37 +62,22 @@ export interface DropPlace {
   within?: string[] | undefined;
 }
 
-/** A drag's item: its data by type, as React Aria's `DragItem` is. */
-type DragItem = Record<string, string>;
-
-let dragging: Dragged[] = [];
-
-export const startDrag = (nodes: Dragged[]) => {
-  dragging = nodes;
-};
-export const endDrag = () => {
-  dragging = [];
-};
-
-export function draggedOf(node: StorageNode, shareId: string | undefined): Dragged {
-  return {
-    id: node.id,
-    name: node.name,
-    kind: node.kind,
-    space: node.space,
-    parentId: node.parentId,
-    mimeType: node.mimeType,
-    ...(shareId ? { shareId } : {}),
-  };
+/** What a drop target takes: into `to`; held at its top or bottom edge, `beside`, its parent. */
+export interface DropData {
+  to: DropPlace;
+  /** A folder highlights while a drop would go into it; a page or list does not. */
+  folder: boolean;
+  beside?: DropPlace | undefined;
 }
 
-/** The drag's items: ours, and its name as plain text for anything else it is dropped on. */
-export const dragItems = (nodes: Dragged[]): DragItem[] =>
-  nodes.map((node) => ({ [NODE_TYPE]: JSON.stringify(node), "text/plain": node.name }));
+/** A place's key: two places are one when their keys match. */
+export const placeKey = (place: StoragePlace) =>
+  "parentId" in place ? `folder:${place.parentId}` : `space:${place.space}`;
 
-/** Whether `node` can move to `to`: through the same door, not into itself, not where it is. */
-function canMove(node: Dragged, to: DropPlace) {
-  if (!to.canWrite || (node.shareId ?? null) !== (to.shareId ?? null)) return false;
+/** Whether `dragged` can move to `to`: through the same door, not into itself, not where it is. */
+export function canMove(dragged: Dragged, to: DropPlace) {
+  const { node } = dragged;
+  if (!to.canWrite || (dragged.shareId ?? null) !== (to.shareId ?? null)) return false;
   const into = "parentId" in to.place ? to.place.parentId : null;
   if (into === node.id || to.within?.includes(node.id)) return false;
   const space = "space" in to.place ? to.place.space : to.space;
@@ -88,45 +85,155 @@ function canMove(node: Dragged, to: DropPlace) {
 }
 
 /**
- * What a drop at `to` would do: move our drag there, upload files from the computer, or nothing.
- * Anything not ours is taken for files; a drop without any uploads nothing.
+ * Where a list showing `place` opens its gap for the drag: the index the dragged node lands at
+ * among `nodes`, in the Worker's order; none unless it lands here and is not here already.
  */
-export function dropOperation(to: DropPlace): DropOperation {
-  if (!dragging.length) return to.canWrite ? "copy" : "cancel";
-  return dragging.every((node) => canMove(node, to)) ? "move" : "cancel";
+export function useGapAt(
+  place: StoragePlace | null | undefined,
+  nodes: StorageNode[],
+  kind: StorageNode["kind"],
+) {
+  const { source, aim } = useDriveDrag();
+  if (!place || !source || !aim || placeKey(aim.to.place) !== placeKey(place)) return null;
+  const { node } = source;
+  if (node.kind !== kind || nodes.some((each) => each.id === node.id)) return null;
+  const at = nodes.findIndex((each) => compareNodes(node, each) < 0);
+  return at < 0 ? nodes.length : at;
 }
 
-/** Our nodes in a drop's items; none for a drop from anywhere else. */
-async function nodesIn(items: DropItem[]) {
-  const texts = items.filter((item) => isTextDropItem(item) && item.types.has(NODE_TYPE));
-  const read = await Promise.all(
-    texts.map(async (item) => {
-      if (!isTextDropItem(item)) return null;
-      const parsed = draggedSchema.safeParse(JSON.parse(await item.getText(NODE_TYPE)));
-      return parsed.success ? parsed.data : null;
-    }),
+/**
+ * An item that lifts (given `source`) and takes drops (given `drop`). `id` is unique on the page:
+ * the same folder can be drawn on the page and in the sidebar.
+ */
+export function useNodeDrag(id: string, source: DragSource | null, drop: DropData | null) {
+  const drag = useDraggable({ id, data: source ?? undefined, disabled: !source });
+  const target = useDroppable({ id, data: drop ?? undefined, disabled: !drop });
+  const { setNodeRef: dragRef } = drag;
+  const { setNodeRef: dropRef } = target;
+  const ref = useCallback(
+    (element: HTMLElement | null) => {
+      dragRef(element);
+      dropRef(element);
+    },
+    [dragRef, dropRef],
   );
-  return read.filter((node) => node !== null);
+  const state = useDriveDrag();
+  const lifted = state.from === id ? state.phase : undefined;
+  return {
+    ref,
+    props: {
+      onPointerDown: drag.listeners?.onPointerDown as React.PointerEventHandler | undefined,
+      "data-drive-drag": source ? "" : undefined,
+      "data-lifted": lifted,
+      "data-drive-target": state.aim?.over === id || undefined,
+    },
+  };
 }
 
-/** Drops at a place: our nodes move there, the computer's files upload there. */
-export function useDropInto() {
-  const change = useChangeNode();
+/** A surface's drags: its door, and the folder it shows (none for Search's results). */
+export interface NodeDrag {
+  door: { shareId?: string | undefined; canWrite: boolean };
+  here: DropPlace | null;
+}
+
+/** What `node` lifts as, and takes, on a surface whose drags are `drag`. */
+export function useSurfaceDrag(node: StorageNode, look: Look, drag: NodeDrag | undefined) {
+  const door = drag?.door;
+  const source = useMemo<DragSource | null>(
+    () => (door?.canWrite ? { node, look, shareId: door.shareId } : null),
+    [node, look, door?.canWrite, door?.shareId],
+  );
+  const drop = useMemo<DropData | null>(
+    () =>
+      door && node.kind === "folder"
+        ? { to: { ...door, place: { parentId: node.id }, space: node.space }, folder: true }
+        : null,
+    [node.id, node.kind, node.space, door],
+  );
+  const lift = useNodeDrag(`${look}:${node.id}`, source, drop);
+  const files = useFilesDropOn(drop?.to ?? null);
+  const { ref: liftRef } = lift;
+  const { ref: filesRef } = files;
+  const ref = useCallback(
+    (element: HTMLElement | null) => {
+      liftRef(element);
+      filesRef(element);
+    },
+    [liftRef, filesRef],
+  );
+  const target = lift.props["data-drive-target"] ?? files.over ?? undefined;
+  return { ref, props: { ...lift.props, "data-drive-target": target } };
+}
+
+/**
+ * A folder's card or row as a drop target for the computer's files: they upload into it, not into
+ * the page's folder around it, and it highlights while they are held over it. Its own listeners:
+ * React Aria's items pass no drag events through.
+ */
+function useFilesDropOn(to: DropPlace | null) {
+  const [element, setElement] = useState<HTMLElement | null>(null);
+  const [over, setOver] = useState(false);
   const { upload } = useUploads();
-  const move = change.mutateAsync;
+  useEffect(() => {
+    if (!element || !to?.canWrite) return;
+    let depth = 0;
+    const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes("Files");
+    const enter = (event: DragEvent) => {
+      if (!carriesFiles(event)) return;
+      depth += 1;
+      setOver(true);
+    };
+    const leave = () => {
+      depth = Math.max(0, depth - 1);
+      if (!depth) setOver(false);
+    };
+    const hover = (event: DragEvent) => {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    };
+    const drop = (event: DragEvent) => {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      depth = 0;
+      setOver(false);
+      const list = [...(event.dataTransfer?.files ?? [])];
+      if (list.length) {
+        upload(list, { place: to.place, shareId: to.shareId }, (name, error) =>
+          storageErrorToast(error, `“${name}” was not uploaded`),
+        );
+      }
+    };
+    element.addEventListener("dragenter", enter);
+    element.addEventListener("dragleave", leave);
+    element.addEventListener("dragover", hover);
+    element.addEventListener("drop", drop);
+    return () => {
+      element.removeEventListener("dragenter", enter);
+      element.removeEventListener("dragleave", leave);
+      element.removeEventListener("dragover", hover);
+      element.removeEventListener("drop", drop);
+    };
+  }, [element, to, upload]);
+  return { ref: setElement, over: over || undefined };
+}
+
+/** A page or list as a drop target: a drop on it, not on one of its folders, lands in `to`. */
+export function useRoomDrop(id: string, to: DropPlace | null) {
+  const data = useMemo<DropData | undefined>(() => (to ? { to, folder: false } : undefined), [to]);
+  return useDroppable({ id, data, disabled: !to }).setNodeRef;
+}
+
+/** What a drop of the computer's files at `to` does: copies them there, if it may be written. */
+export const dropOperation = (to: DropPlace): DropOperation => (to.canWrite ? "copy" : "cancel");
+
+/** Drops of the computer's files at a place: they upload there. */
+export function useDropInto() {
+  const { upload } = useUploads();
   return useMemo(
     () => async (to: DropPlace, items: DropItem[]) => {
-      const nodes = await nodesIn(items);
-      if (nodes.length) {
-        for (const node of nodes.filter((each) => canMove(each, to))) {
-          await move({
-            id: node.id,
-            place: to.place,
-            ...(to.shareId ? { shareId: to.shareId } : {}),
-          }).catch((error: unknown) => storageErrorToast(error, `“${node.name}” was not moved`));
-        }
-        return;
-      }
       if (!to.canWrite) return;
       const files = await Promise.all(items.filter(isFileDropItem).map((item) => item.getFile()));
       if (files.length) {
@@ -135,75 +242,6 @@ export function useDropInto() {
         );
       }
     },
-    [move, upload],
-  );
-}
-
-/** Who drags on a surface: through which door, and whether they may change anything. */
-export interface DragDoor {
-  shareId?: string | undefined;
-  canWrite: boolean;
-}
-
-/** A surface's drags: its door, and the folder it shows (none for Search's results). */
-export interface NodeDrag {
-  door: DragDoor;
-  here: DropPlace | null;
-}
-
-/**
- * A surface's cards or rows as a drag source and a drop target: each item drags; a folder takes
- * a drop into it, and the list's empty room a drop into the folder the page shows.
- */
-export function useNodeDragAndDrop(nodes: StorageNode[], drag: NodeDrag | undefined) {
-  const into = useDropInto();
-  const byId = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
-  const door = drag?.door ?? { canWrite: false };
-  const here = drag?.here ?? null;
-  const folderAt = (key: Key): DropPlace | null => {
-    const node = byId.get(String(key));
-    if (node?.kind !== "folder") return null;
-    return { ...door, place: { parentId: node.id }, space: node.space };
-  };
-  const draggedAt = (keys: Set<Key>) =>
-    [...keys].flatMap((key) => {
-      const node = byId.get(String(key));
-      return node ? [draggedOf(node, door.shareId)] : [];
-    });
-  return useDragAndDrop<StorageNode>({
-    isDisabled: !door.canWrite,
-    getItems: (keys) => dragItems(draggedAt(keys)),
-    getAllowedDropOperations: () => ["move"],
-    onDragStart: (event) => startDrag(draggedAt(event.keys)),
-    onDragEnd: endDrag,
-    renderDragPreview: (items) => <DragPreview items={items} />,
-    shouldAcceptItemDrop: (target) => !!folderAt(target.key),
-    getDropOperation: (target) => {
-      const to = target.type === "root" ? here : folderAt(target.key);
-      return to ? dropOperation(to) : "cancel";
-    },
-    onItemDrop: (event) => {
-      const folder = folderAt(event.target.key);
-      if (folder) void into(folder, event.items);
-    },
-    onRootDrop: (event) => {
-      if (here) void into(here, event.items);
-    },
-  });
-}
-
-/** What follows the pointer: the first item's tile and name, and how many more come with it. */
-export function DragPreview(props: { items: DragItem[] }) {
-  const parsed = draggedSchema.safeParse(JSON.parse(props.items[0]?.[NODE_TYPE] ?? "null"));
-  if (!parsed.success) return <span />;
-  const node = parsed.data;
-  const kind = node.kind === "folder" ? "folder" : fileType(node.name, node.mimeType).kind;
-  const more = props.items.length - 1;
-  return (
-    <span className="flex h-10 max-w-64 items-center gap-2 rounded-lg border bg-surface ps-1 pe-3 text-sm text-foreground shadow-overlay">
-      <FileTile kind={kind} />
-      <span className="truncate">{node.name}</span>
-      {more > 0 && <span className="text-muted-foreground tabular-nums">+{more}</span>}
-    </span>
+    [upload],
   );
 }

@@ -3,11 +3,12 @@
 // folders inside it, and the sidebar stops there. Deeper folders and files are on the pages.
 // Groups start open; clusters start closed (their contents load the first time).
 //
-// Every row takes a drop (`node-drag.tsx`): files and folders dragged from the page, or another
-// row, move into it, and files from the computer upload there. Held over a closed row, a drag
-// opens it. Clusters and their folders drag too; the groups are the spaces themselves and stay.
-import { useLayoutEffect, useRef, type DragEvent, type ReactNode } from "react";
-import { useDrag } from "react-aria-components/useDrag";
+// Every row takes a drop (`node-drag.tsx`): files and folders lifted from the page, or another
+// row, move into it, and files from the computer upload there; a row's top or bottom edge drops
+// beside it, and its level opens a gap where the folder will land. Held over a closed row, a drag
+// opens it. Clusters and their folders lift too; the groups are the spaces themselves and stay.
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, type ReactNode } from "react";
 import { useDrop } from "react-aria-components/useDrop";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarSection } from "@/components/ui/sidebar";
@@ -15,13 +16,16 @@ import { useSidebarExpanded } from "@/hooks/use-sidebar-expanded.ts";
 import { useFolderIcons, useStorageList } from "@/hooks/use-storage.ts";
 import type { StorageNode, StorageSpace } from "@/lib/storage.ts";
 import { FolderIcon } from "./folder-icons.tsx";
+import { GAP_MS, useDriveDrag } from "./drive-drag-state.ts";
 import {
-  dragItems,
-  draggedOf,
+  GAP,
   dropOperation,
-  endDrag,
-  startDrag,
+  placeKey,
   useDropInto,
+  useGapAt,
+  useNodeDrag,
+  type DragSource,
+  type DropData,
   type DropPlace,
 } from "./node-drag.tsx";
 import { SPACE_ICON, SPACE_LABEL, SPACE_PATH } from "./storage-nav.tsx";
@@ -36,10 +40,11 @@ export function SidebarGroup(props: { space: StorageSpace; search: string }) {
   const closed = useSidebarExpanded("drive-groups-closed", space);
   const open = { value: !closed.value, toggle: closed.toggle };
   const { place: pathname, href } = useWorkspacePaths();
+  const to = useMemo<DropPlace>(() => ({ place: { space }, canWrite: true }), [space]);
   return (
     // 4px under a group's last row, so Team and Personal read as two groups.
     <SidebarSection className="pb-1">
-      <DragRow to={{ place: { space }, canWrite: true }} expand={open}>
+      <DragRow to={to} expand={open}>
         <SidebarTreeRow
           href={href(SPACE_PATH[space] + props.search)}
           isCurrent={pathname === SPACE_PATH[space]}
@@ -58,10 +63,17 @@ export function SidebarGroup(props: { space: StorageSpace; search: string }) {
 function Clusters(props: { space: StorageSpace; search: string }) {
   const root = useStorageList({ space: props.space });
   const { icons } = useFolderIcons(props.space);
+  const shown = folders(root.nodes);
+  const gap = useGapAt(root.isPending ? null : { space: props.space }, shown, "folder");
   if (root.isPending) return <SidebarTreeBones depth={1} />;
-  return folders(root.nodes).map((node) => (
-    <Cluster key={node.id} node={node} icon={icons[node.id]} search={props.search} />
-  ));
+  return (
+    <WithGap
+      gap={gap}
+      rows={shown.map((node) => (
+        <Cluster key={node.id} node={node} icon={icons[node.id]} search={props.search} />
+      ))}
+    />
+  );
 }
 
 function Cluster(props: { node: StorageNode; icon: string | undefined; search: string }) {
@@ -82,10 +94,17 @@ function Cluster(props: { node: StorageNode; icon: string | undefined; search: s
 
 function ClusterFolders(props: { node: StorageNode; search: string }) {
   const list = useStorageList({ parentId: props.node.id });
+  const shown = folders(list.nodes);
+  const gap = useGapAt(list.isPending ? null : { parentId: props.node.id }, shown, "folder");
   if (list.isPending) return <SidebarTreeBones depth={2} />;
-  return folders(list.nodes).map((node) => (
-    <FolderRow key={node.id} node={node} depth={2} search={props.search} within={[props.node.id]} />
-  ));
+  return (
+    <WithGap
+      gap={gap}
+      rows={shown.map((node) => (
+        <FolderRow key={node.id} node={node} depth={2} search={props.search} cluster={props.node} />
+      ))}
+    />
+  );
 }
 
 function FolderRow(props: {
@@ -95,18 +114,31 @@ function FolderRow(props: {
   depth: number;
   search: string;
   expand?: { value: boolean; toggle: () => void };
-  /** The cluster a folder is in. */
-  within?: string[];
+  /** The cluster a folder is in; none for a cluster. */
+  cluster?: StorageNode;
 }) {
-  const { node } = props;
+  const { node, cluster } = props;
   const { place: pathname, href: inWorkspace } = useWorkspacePaths();
   const href = `${SPACE_PATH[node.space]}/${encodeURIComponent(node.id)}`;
+  const to = useMemo<DropPlace>(
+    () => ({
+      place: { parentId: node.id },
+      space: node.space,
+      canWrite: true,
+      within: cluster ? [cluster.id] : undefined,
+    }),
+    [node.id, node.space, cluster],
+  );
+  // Beside a folder is in its cluster; beside a cluster, at the top of its space.
+  const beside = useMemo<DropPlace>(
+    () =>
+      cluster
+        ? { place: { parentId: cluster.id }, space: node.space, canWrite: true }
+        : { place: { space: node.space }, canWrite: true },
+    [cluster, node.space],
+  );
   return (
-    <DragRow
-      to={{ place: { parentId: node.id }, space: node.space, canWrite: true, within: props.within }}
-      node={node}
-      expand={props.expand}
-    >
+    <DragRow to={to} beside={beside} node={node} expand={props.expand}>
       <SidebarTreeRow
         href={inWorkspace(href + props.search)}
         isCurrent={pathname === href}
@@ -121,74 +153,98 @@ function FolderRow(props: {
   );
 }
 
-/** A row the drop zone's tint marks while a drag held over it would drop there. */
-const DROP_TARGET = "data-drop-target:**:data-[slot=sidebar-item]:bg-primary/10";
+/** The row's link, tinted while a drag held over it would drop there. */
+const DROP_TARGET =
+  "data-drop-target:**:data-[slot=sidebar-item]:bg-primary/10 data-drive-target:**:data-[slot=sidebar-item]:bg-primary/10 data-drive-target:**:data-[slot=sidebar-item]:inset-ring data-drive-target:**:data-[slot=sidebar-item]:inset-ring-primary";
+
+/** A lifted row's place: a dashed edge where its fill sits; while it lands, nothing. */
+const LIFTED =
+  "data-lifted:**:data-[slot=sidebar-item]:bg-transparent! data-lifted:**:data-[slot=sidebar-item]:*:invisible data-lifted:**:[button]:invisible data-[lifted=origin]:**:data-[slot=sidebar-item]:outline-1 data-[lifted=origin]:**:data-[slot=sidebar-item]:-outline-offset-1 data-[lifted=origin]:**:data-[slot=sidebar-item]:outline-dashed data-[lifted=origin]:**:data-[slot=sidebar-item]:outline-border";
+
+/** How long a drag rests on a closed row before it opens. */
+const OPEN_AFTER_MS = 600;
 
 /**
- * A row as a drop target for its folder or space, and (given `node`) a drag source. The row's
- * own link would drag its address: the whole row drags instead, as the picture under the pointer.
- * A pointer's drag lands on the row; a keyboard or screen reader drag moves focus between drop
- * targets, so the row's link (focusable, a role) is the target React Aria registers for those.
+ * A row as a drop target for its folder or space, and (given `node`) a lifted item. Its top and
+ * bottom edges drop `beside` it, into its parent; files from the computer upload into it.
  */
 function DragRow(props: {
   to: DropPlace;
+  beside?: DropPlace | undefined;
   node?: StorageNode;
   expand?: { value: boolean; toggle: () => void } | undefined;
   children: ReactNode;
 }) {
-  const { to, node, expand } = props;
+  const { to, beside, node, expand } = props;
   const ref = useRef<HTMLDivElement>(null);
-  const link = useRef<HTMLElement>(null);
-  // Before `useDrop`'s own layout effect, which registers `link.current`.
-  useLayoutEffect(() => {
-    link.current = ref.current?.querySelector<HTMLElement>("[data-slot=sidebar-item]") ?? null;
-  });
   const into = useDropInto();
   const { dropProps, isDropTarget } = useDrop({
-    ref: link,
+    ref,
     getDropOperation: () => dropOperation(to),
     onDrop: (event) => void into(to, event.items),
     onDropActivate: () => expand && !expand.value && expand.toggle(),
   });
-  const dragged = node ? [draggedOf(node, undefined)] : [];
-  const { dragProps } = useDrag({
-    isDisabled: !node,
-    getItems: () => dragItems(dragged),
-    getAllowedDropOperations: () => ["move"],
-    onDragStart: () => startDrag(dragged),
-    onDragEnd: endDrag,
-  });
-  const { "aria-describedby": described, ...rowDropProps } = dropProps;
-  // What a keyboard drag's target says it does, on the link that takes focus, beside what the
-  // link is already described by (its tooltip), which comes back when the drag ends.
-  useLayoutEffect(() => {
-    const element = link.current;
-    const own = element?.getAttribute("aria-describedby");
-    if (!element || !described) return;
-    element.setAttribute("aria-describedby", own ? `${own} ${described}` : described);
-    return () => {
-      if (own) element.setAttribute("aria-describedby", own);
-      else element.removeAttribute("aria-describedby");
-    };
-  }, [described]);
+  const source = useMemo<DragSource | null>(() => (node ? { node, look: "tree" } : null), [node]);
+  const drop = useMemo<DropData>(() => ({ to, folder: true, beside }), [to, beside]);
+  const lift = useNodeDrag(`tree:${placeKey(to.place)}`, source, drop);
+  const held = lift.props["data-drive-target"] === true;
+  const closed = !!expand && !expand.value;
+  const open = useEffectEvent(() => expand && !expand.value && expand.toggle());
+  // Held over a closed row, a drag opens it, to drop among what is inside.
+  useEffect(() => {
+    if (!held || !closed) return;
+    const timer = setTimeout(open, OPEN_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [held, closed]);
+  const { "aria-describedby": _described, ...rowDropProps } = dropProps;
+  // In the capture phase: the link's press handling keeps the pointer down from bubbling here.
+  const { onPointerDown, ...liftProps } = lift.props;
+  const setRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      ref.current = element;
+      lift.ref(element);
+    },
+    [lift.ref],
+  );
   return (
     <div
-      ref={ref}
+      ref={setRef}
       {...rowDropProps}
-      {...dragProps}
-      onDragStart={(event: DragEvent<HTMLDivElement>) => {
-        dragProps.onDragStart?.(event);
-        const row = ref.current;
-        if (!row) return;
-        const box = row.getBoundingClientRect();
-        event.dataTransfer.setDragImage(row, event.clientX - box.left, event.clientY - box.top);
-      }}
+      {...liftProps}
+      onPointerDownCapture={onPointerDown}
       data-drop-target={isDropTarget || undefined}
-      className={DROP_TARGET}
+      className={`${DROP_TARGET} ${LIFTED}`}
     >
       {props.children}
     </div>
   );
+}
+
+/** The room a drag opens among a level's rows, where its folder will land. */
+function TreeGap() {
+  const { phase } = useDriveDrag();
+  const reduce = useReducedMotion();
+  // It closes at once as the drop lands: the folder itself takes its place.
+  const instant = reduce || phase !== "origin";
+  return (
+    <motion.div
+      data-drive-gap
+      initial={{ height: instant ? 32 : 0 }}
+      animate={{ height: 32 }}
+      exit={{ height: 0 }}
+      transition={instant ? { duration: 0 } : { duration: GAP_MS / 1000, ease: "easeOut" }}
+      className="overflow-hidden"
+    >
+      <div className={`h-8 ${GAP}`} />
+    </motion.div>
+  );
+}
+
+/** A level's folder rows, with the gap a drag opens among them. */
+function WithGap(props: { gap: number | null; rows: ReactNode[] }) {
+  const rows = [...props.rows];
+  if (props.gap !== null) rows.splice(props.gap, 0, <TreeGap key="drive-drag-gap" />);
+  return <AnimatePresence initial={false}>{rows}</AnimatePresence>;
 }
 
 const folders = (nodes: StorageNode[]) =>

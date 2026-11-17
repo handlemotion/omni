@@ -5,6 +5,7 @@ import { ModuleBoundary } from "../../components/errors/error-boundary.tsx";
 import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
 import { SettingsNav } from "../../components/settings/settings-nav.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
+import { DriveDragProvider } from "../../components/storage/drive-drag.tsx";
 import { TitleBar } from "../../components/shell/title-bar.tsx";
 import { CommandMenu } from "../../components/search/command-menu.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
@@ -104,19 +105,22 @@ function Shell() {
     <ResizableSidebarProvider className="h-svh overflow-hidden">
       {/* Above the sidebar too: its search sweeps the list when smart search runs. */}
       <ListSweepProvider>
-        {/* Settings is a page: its nav takes the sidebar's place. */}
-        {settings ? <SettingsNav /> : <AppSidebar />}
-        <NotificationsPanel />
-        {/* `/` and ⌘K. Inside the sweep: its smart search sweeps the list. */}
-        <CommandMenu />
-        {/* Starts after the closed sidebar's island, while it shows. */}
-        <SidebarInset className="ps-(--sidebar-island-width)">
-          <SidebarResizeGrip />
-          {/* A module's failure takes its pane only: the sidebar and title bar stay. */}
-          <ModuleBoundary>
-            <Outlet />
-          </ModuleBoundary>
-        </SidebarInset>
+        {/* Drive's drags cross from its pages to the sidebar (`drive-drag.tsx`). */}
+        <DriveDragProvider>
+          {/* Settings is a page: its nav takes the sidebar's place. */}
+          {settings ? <SettingsNav /> : <AppSidebar />}
+          <NotificationsPanel />
+          {/* `/` and ⌘K. Inside the sweep: its smart search sweeps the list. */}
+          <CommandMenu />
+          {/* Starts after the closed sidebar's island, while it shows. */}
+          <SidebarInset className="ps-(--sidebar-island-width)">
+            <SidebarResizeGrip />
+            {/* A module's failure takes its pane only: the sidebar and title bar stay. */}
+            <ModuleBoundary>
+              <Outlet />
+            </ModuleBoundary>
+          </SidebarInset>
+        </DriveDragProvider>
       </ListSweepProvider>
       <TitleBar />
       <KeyboardShortcuts />

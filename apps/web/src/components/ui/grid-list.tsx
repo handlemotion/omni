@@ -48,7 +48,11 @@ export function GridListHeader({
   );
 }
 
-export function GridListItem({ className, children, ...props }: GridListItemProps) {
+export function GridListItem({
+  className,
+  children,
+  ...props
+}: GridListItemProps & { ref?: React.Ref<HTMLDivElement> }) {
   const textValue = typeof children === "string" ? children : undefined;
   return (
     <GridListItemPrimitive

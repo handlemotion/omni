@@ -26,7 +26,7 @@ const holds = (place: StoragePlace, node: StorageNode) =>
     : node.parentId === null && place.space === node.space;
 
 /** The Worker's order: folders first, then by lowercased name, then by id. */
-function compare(a: StorageNode, b: StorageNode) {
+export function compareNodes(a: StorageNode, b: StorageNode) {
   if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
   const an = a.name.toLowerCase();
   const bn = b.name.toLowerCase();
@@ -51,7 +51,7 @@ function withNode(data: ListData, node: StorageNode): ListData {
   const at = rest.pages.findIndex(
     (page, i) =>
       (i === rest.pages.length - 1 && page.nextCursor === null) ||
-      page.nodes.some((n) => compare(node, n) < 0),
+      page.nodes.some((n) => compareNodes(node, n) < 0),
   );
   if (at < 0) return rest;
   return {
@@ -59,7 +59,7 @@ function withNode(data: ListData, node: StorageNode): ListData {
     pages: rest.pages.map((page, i) => {
       if (i !== at) return page;
       const nodes = [...page.nodes];
-      const before = nodes.findIndex((n) => compare(node, n) < 0);
+      const before = nodes.findIndex((n) => compareNodes(node, n) < 0);
       nodes.splice(before < 0 ? nodes.length : before, 0, node);
       return { ...page, nodes };
     }),
