@@ -1,9 +1,5 @@
 "use client";
 
-// Ported from transitive (`packages/ui/src/components/ui/dialog.tsx`) onto React Aria: a flat
-// black scrim (no blur), a white card with a 1px line and no shadow, 16px in, that fades and
-// grows from 95% in 100ms, and a footer that is an action rail along its bottom edge. Dialogs
-// stack: one opened from another dims the one below again.
 import { XMarkIcon } from "@heroicons/react/16/solid";
 import { cn } from "cn";
 import {
@@ -28,8 +24,6 @@ const sizes = {
   "3xl": "sm:max-w-3xl",
   "4xl": "sm:max-w-4xl",
   "5xl": "sm:max-w-5xl",
-  // The whole screen: no scrim to see through, no edge. It settles from 105% while the app
-  // under it recedes (the caller scales the app), so it reads as a layer stacked on top.
   full: "h-dvh max-h-none rounded-none border-0",
 };
 
@@ -62,9 +56,7 @@ export function Dialog({
       className={cn(
         "fixed inset-0 z-50 flex items-center justify-center",
         full
-          ? // An identity animation of the panel's length: React Aria keeps the overlay (and so
-            // the panel's exit) mounted only while the overlay itself animates.
-            "entering:animate-in exiting:animate-out entering:duration-300 exiting:duration-200 motion-reduce:animate-none"
+          ? "entering:animate-in exiting:animate-out entering:duration-300 exiting:duration-200 motion-reduce:animate-none"
           : "entering:animate-in entering:fade-in-0 exiting:animate-out exiting:fade-out-0 bg-scrim p-4 duration-100 motion-reduce:animate-none",
       )}
       {...props}

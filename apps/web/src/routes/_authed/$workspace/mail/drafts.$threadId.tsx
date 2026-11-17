@@ -11,7 +11,6 @@ export const Route = createFileRoute("/_authed/$workspace/mail/drafts/$threadId"
   component: DraftThread,
 });
 
-/** The conversation with its draft in the composer, as it was left. */
 function DraftThread() {
   const { threadId } = Route.useParams();
   const { mailbox } = Route.useSearch();

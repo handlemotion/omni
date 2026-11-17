@@ -1,8 +1,3 @@
-// Adds a mailbox, or replaces its credentials: `pnpm --filter @omni/mail mailbox:add ...`.
-// The app password is read from stdin (never argv, which lands in shell history), or created
-// through the Purelymail API with --create-app-password. It is encrypted with the keyring, bound
-// to the mailbox id, and stored with an owner grant. A running service connects it on the next
-// signed ping (sent here when MAIL_SERVICE_URL is set) or sync interval.
 import { randomUUIDv7 } from "node:crypto";
 import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -73,7 +68,6 @@ if (!config.success) {
   fail(`missing or invalid: ${config.error.issues.map((i) => i.path.join(".")).join(", ")}`);
 }
 
-// `pnpm mailbox:add -- --org ...` forwards the `--` itself; drop it.
 const argv = process.argv.slice(2);
 const { values } = parseArgs({
   args: argv[0] === "--" ? argv.slice(1) : argv,

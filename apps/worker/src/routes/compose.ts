@@ -1,6 +1,3 @@
-// Writing mail (ADR 0021): staged uploads, new mail, replies and forwards. Sends go to the outbox
-// like every other action; the mail service streams attachments from R2 into the MIME. On a
-// shared inbox the mail is from the inbox's address with the agent's name.
 import type { SendAttachment, SendPayload } from "@omni/contracts";
 import {
   applyAgentReply,
@@ -42,7 +39,6 @@ import { assertLatest, basedOnMessageId, StaleThread } from "./reply-preconditio
 import { attachmentResponse } from "./assets.ts";
 import { idempotencyHeader, notFound, outboxKey, pingLater, type ActionMailbox } from "./mail.ts";
 
-/** An upload nobody sends is deleted after this long. */
 const UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
 
 const address = z.email();
@@ -64,10 +60,8 @@ const replyBody = z.object({
   text: z.string().min(1).max(1_000_000),
   html: z.string().max(2_000_000).optional(),
   replyAll: z.boolean().default(false),
-  /** The message replied to (`messages.id`); the thread's latest when absent. */
   messageId: z.string().min(1).optional(),
   basedOnMessageId,
-  /** Recipients the composer edited; absent means the reply (or reply-all) defaults. */
   to: recipients.min(1).optional(),
   cc: recipients.optional(),
   bcc: recipients.optional(),
@@ -75,7 +69,6 @@ const replyBody = z.object({
 });
 
 const forwardBodySchema = z.object({
-  /** The message forwarded (`messages.id`); the thread's latest when absent. */
   messageId: z.string().min(1).optional(),
   basedOnMessageId,
   to: recipients.min(1),
@@ -83,9 +76,7 @@ const forwardBodySchema = z.object({
   bcc: recipients.optional(),
   text: z.string().max(1_000_000).default(""),
   html: z.string().max(2_000_000).optional(),
-  /** Keep the original's files (not its inline images). On by default. */
   includeAttachments: z.boolean().default(true),
-  /** Files added to the forward. */
   attachments: attachmentList,
 });
 
@@ -113,10 +104,8 @@ export function sendResponse(action: {
 }) {
   return {
     actionId: action.id,
-    /** The workspace the send runs in: where its result (sent, failed) is announced. */
     orgId: action.orgId,
     messageIdHeader: (action.payload as SendPayload).messageId ?? null,
-    /** Until when `POST /actions/:id/cancel` can still stop it. */
     undoUntil: action.runAfter,
   };
 }
@@ -166,7 +155,6 @@ export async function enqueueSend(
     },
     attachments,
     {
-      // Held for the member's undo window; cancelling inside it deletes the row (ADR 0021 §7).
       delaySeconds: await undoSendSeconds(c.var.db, c.var.member.id),
       ...(draftId ? { draftId } : {}),
     },
@@ -179,11 +167,6 @@ export async function enqueueSend(
   return result.action;
 }
 
-/**
- * The helpdesk side of a reply (ADR 0021), once the send is queued: an open conversation goes
- * pending, an unassigned one is claimed by whoever replied, and the first reply records the
- * first response. A retried request changes nothing more; personal mailboxes are left alone.
- */
 async function afterAgentReply(c: Context<AppEnv>, threadId: string) {
   const result = await applyAgentReply(c.var.db, {
     threadId,
@@ -247,7 +230,6 @@ type SendBody = z.output<typeof sendBody>;
 type ReplyBody = z.output<typeof replyBody>;
 type ForwardBody = z.output<typeof forwardBodySchema>;
 
-/** New mail from one of the member's mailboxes. */
 async function sendNew(c: Context<AppEnv>, body: SendBody, key: string, draftId?: string) {
   const { mailboxId, cc, bcc, ...message } = body;
   const mailbox = await memberMailbox(c.var.db, c.var.member.id, mailboxId);
@@ -269,7 +251,6 @@ async function sendReply(
   draftId?: string,
 ) {
   const { found, message } = await threadMessage(c, threadId, body);
-  // Replying to our own message continues to the same people.
   const defaults = replyRecipients(message, found.mailboxAddress, body.replyAll);
   const defaultTo = defaults.to;
   const defaultCc = defaults.cc;
@@ -334,8 +315,6 @@ async function sendForward(
       ...optionalList("bcc", body.bcc),
       subject: forwardSubject(message.subject),
       ...content,
-      // No In-Reply-To (it is new mail to the recipient), but References keeps the forward in
-      // the original's thread when Omni re-indexes it from IMAP.
       references: [...message.references, message.messageIdHeader],
       inReplyToMessageId: message.id,
       attachments: [...kept, ...body.attachments],
@@ -362,13 +341,10 @@ const draftContent = z.object({
 const createDraftBody = draftContent.partial().extend({
   mailboxId: z.string().min(1),
   kind: z.enum(["new", "reply", "forward"]),
-  /** Required for a reply or forward. */
   threadId: z.string().min(1).optional(),
-  /** The message replied to or forwarded; a forward without one takes the thread's latest. */
   sourceMessageId: z.string().min(1).optional(),
 });
 const saveDraftBody = draftContent.partial().extend({
-  /** The version the editor loaded; a teammate's newer save answers 409 with theirs. */
   version: z.number().int().positive(),
 });
 
@@ -385,10 +361,8 @@ function toSendAttachments(list: { uploadId?: string; attachmentId?: string }[])
 
 const addresses = (list: { address: string }[]) => list.map((a) => a.address);
 
-/** A draft send's optional body; absent sends as before. */
 const draftSendBody = z.object({ basedOnMessageId });
 
-/** A draft sent the way its kind sends (new mail, reply or forward); the send deletes it. */
 async function sendDraft(
   c: Context<AppEnv>,
   draft: NonNullable<Awaited<ReturnType<typeof getDraft>>>,
@@ -432,7 +406,6 @@ async function sendDraft(
             replyAll: false,
             ...(draft.sourceMessageId ? { messageId: draft.sourceMessageId } : {}),
             basedOnMessageId,
-            // An untouched reply draft keeps the default recipient; CC added to it stays.
             ...(draft.to.length ? { to: addresses(draft.to), cc: content.cc } : {}),
             ...(!draft.to.length && content.cc.length ? { cc: content.cc } : {}),
             bcc: content.bcc,
@@ -452,7 +425,6 @@ async function sendDraft(
             bcc: content.bcc,
             text: draft.bodyText,
             ...(html ? { html } : {}),
-            // The draft already lists the original's files the agent kept.
             includeAttachments: false,
             attachments: content.attachments,
           },
@@ -462,11 +434,6 @@ async function sendDraft(
 }
 
 export const compose = new Hono<AppEnv>()
-  /**
-   * Stages a file for a send: the raw request body (with its `content-type` and a
-   * `content-length` up to `UPLOAD_MAX_BYTES`) is streamed into R2. Unsent uploads expire after
-   * a day. Answers the upload to list in a send's `attachments` as `{ kind: "upload", uploadId }`.
-   */
   .post("/uploads", limitPerMember("actions"), zValidator("query", uploadQuery), async (c) => {
     const { mailboxId, filename } = c.req.valid("query");
     const size = Number(c.req.header("content-length"));
@@ -489,8 +456,6 @@ export const compose = new Hono<AppEnv>()
     const r2Key = uploadKey({ orgId: mailbox.orgId, mailboxId, id });
     const mimeType =
       c.req.header("content-type")?.split(";")[0]?.trim() || "application/octet-stream";
-    // A fixed-length stream errors if the body is longer or shorter than declared, so the cap
-    // holds whatever the client sends.
     const { readable, writable } = new FixedLengthStream(size);
     const [stored] = await Promise.all([
       c.env.MAIL_BUCKET.put(r2Key, readable, { httpMetadata: { contentType: mimeType } }),
@@ -520,7 +485,6 @@ export const compose = new Hono<AppEnv>()
     );
   })
 
-  /** A staged file, for the composer's preview. Downloads unless it is a raster image. */
   .get("/uploads/:id", async (c) => {
     const upload = await memberUpload(c.var.db, c.var.member.id, c.req.param("id"));
     if (!upload) notFound();
@@ -529,7 +493,6 @@ export const compose = new Hono<AppEnv>()
     return attachmentResponse(object, upload);
   })
 
-  /** Removes a staged file the composer dropped. A file a send already took stays. */
   .delete("/uploads/:id", async (c) => {
     const r2Key = await deleteUnsentUpload(c.var.db, c.var.member.id, c.req.param("id"));
     if (!r2Key) notFound();
@@ -552,12 +515,6 @@ export const compose = new Hono<AppEnv>()
     },
   )
 
-  /**
-   * Replies to `messageId` (default: the latest message) with In-Reply-To and References so it
-   * threads everywhere. Recipients default to the sender (reply) or everyone on it (reply all);
-   * `to`, `cc` and `bcc` replace them when the composer changed them. 409 with `messages` when
-   * the thread has messages newer than `basedOnMessageId`.
-   */
   .post(
     "/threads/:id/reply",
     limitPerMember("send"),
@@ -571,12 +528,6 @@ export const compose = new Hono<AppEnv>()
     },
   )
 
-  /**
-   * Forwards `messageId` (default: the latest message) with what the agent wrote above it and,
-   * unless `includeAttachments` is false, its files by reference: the mail service copies them
-   * from R2, nothing is uploaded again. Threads with the original in Omni, not for the recipient.
-   * 409 with `messages` when the thread has messages newer than `basedOnMessageId`.
-   */
   .post(
     "/threads/:id/forward",
     limitPerMember("send"),
@@ -590,18 +541,12 @@ export const compose = new Hono<AppEnv>()
     },
   )
 
-  /**
-   * Stops a send inside its undo window: the outbox row is deleted before the mail service can
-   * claim it, and its uploads are free again. Answers the payload so the composer can reopen
-   * it; 409 once the mail is on its way.
-   */
   .post("/actions/:id/cancel", async (c) => {
     const result = await cancelSend(c.var.db, c.var.member.id, c.req.param("id"));
     if (!result) notFound();
     if (result === "too_late") {
       return apiError(c, "conflict", "already sent");
     }
-    // A hand-off's send: its shared conversation came back to the team (ADR 0030).
     if (result.handoff?.changed) {
       if (result.handoff.queuedActions > 0) pingLater(c);
       const { mailboxId, id, orgId } = result.handoff.conversation;
@@ -620,10 +565,6 @@ export const compose = new Hono<AppEnv>()
     return c.json({ cancelled: true, payload: result.payload });
   })
 
-  /**
-   * Drafts of an inbox or a conversation, shared with everyone on the inbox; with neither, the
-   * drafts of every inbox the member is on (the Drafts page).
-   */
   .get(
     "/drafts",
     zValidator(
@@ -640,10 +581,6 @@ export const compose = new Hono<AppEnv>()
     return c.json(draft);
   })
 
-  /**
-   * Starts a draft. A forward with no `attachments` starts with the original's files (not its
-   * inline images), which the agent can remove.
-   */
   .post("/drafts", zValidator("json", createDraftBody), async (c) => {
     const body = c.req.valid("json");
     let { attachments } = body;
@@ -668,13 +605,11 @@ export const compose = new Hono<AppEnv>()
     return c.json(draft, 201);
   })
 
-  /** Autosave. 409 with the current draft when a teammate saved a newer version first. */
   .put("/drafts/:id", zValidator("json", saveDraftBody), async (c) => {
     const { version, ...content } = c.req.valid("json");
     const saved = await saveDraft(c.var.db, c.var.member.id, c.req.param("id"), version, content);
     if (!saved) notFound();
     if ("conflict" in saved) {
-      // The teammate's draft rides beside the error, at the top level in both shapes.
       return c.json({ ...errorBody(c, "conflict", "draft changed"), draft: saved.conflict }, 409);
     }
     return c.json(saved.draft);
@@ -685,11 +620,6 @@ export const compose = new Hono<AppEnv>()
     return c.body(null, 204);
   })
 
-  /**
-   * Sends a draft the way its kind sends (new mail, reply or forward), then deletes it. A retry
-   * under the same idempotency key answers the send it already made. A reply or forward draft
-   * with `basedOnMessageId` answers 409 with `messages` like `/threads/:id/reply`; the draft stays.
-   */
   .post(
     "/drafts/:id/send",
     limitPerMember("send"),
@@ -703,7 +633,6 @@ export const compose = new Hono<AppEnv>()
         return c.json(sendResponse(earlier), 202);
       }
       const { basedOnMessageId } = await optionalJsonBody(c, draftSendBody);
-      // The draft goes with the send, in its transaction.
       return sendUnlessStale(c, key, () => sendDraft(c, draft, key, basedOnMessageId));
     },
   );

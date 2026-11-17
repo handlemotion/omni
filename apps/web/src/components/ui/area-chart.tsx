@@ -61,7 +61,6 @@ export function AreaChart({
 
   areaProps,
 
-  // Components
   tooltip = true,
   tooltipProps,
 
@@ -74,12 +73,10 @@ export function AreaChart({
 
   valueFormatter = (value: number) => value.toString(),
 
-  // XAxis
   displayEdgeLabelsOnly = false,
   hideXAxis = false,
   xAxisProps,
 
-  // YAxis
   hideYAxis = false,
   yAxisProps,
 

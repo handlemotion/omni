@@ -1,7 +1,3 @@
-// What the Worker's background jobs share in Effect (ADR 0038 decision 2): failures typed as
-// retryable or permanent, one bounded in-invocation retry, and the per-run database
-// client as a scoped resource. The work itself stays plain async functions, wrapped here at the
-// edge (ADR 0009); longer waits belong to Queues and the next cron run.
 import type { Db } from "@omni/db";
 import { Data, Effect, Schedule, type Scope } from "effect";
 import { openDb } from "./db.ts";
@@ -14,28 +10,19 @@ export class Permanent extends Data.TaggedError("Permanent")<{ step: string; cau
 
 export type JobError = Retryable | Permanent;
 
-/**
- * HTTP statuses that say the request itself is wrong. Not 401/403 (a key the operator fixes),
- * 408, 409 or 429: the same request may pass later.
- */
 const PERMANENT_STATUSES = new Set([400, 402, 404, 405, 410, 413, 415, 422]);
 
-/** How many `cause` links to follow: Drizzle wraps the driver's error in a `DrizzleQueryError`. */
 const CAUSE_DEPTH = 5;
 
 function isPermanent(cause: unknown) {
   let error = cause;
   for (let depth = 0; depth < CAUSE_DEPTH && error && typeof error === "object"; depth++) {
     const { name, code, status, statusCode } = error as Record<string, unknown>;
-    // Class 22 is a data exception (a malformed id, a value out of range): no retry fixes it.
-    // Anything else from Postgres (a lost connection, a deadlock, a failover) may pass next time.
     if (name === "PostgresError" && typeof code === "string") return code.startsWith("22");
-    // Anthropic and TypeSafe errors carry `status`; Stripe's carry `statusCode`.
     const http = typeof status === "number" ? status : statusCode;
     if (typeof http === "number") return PERMANENT_STATUSES.has(http);
     error = (error as { cause?: unknown }).cause;
   }
-  // Unknown failures, bugs included, are retried as before: Queues and the next run bound them.
   return false;
 }
 

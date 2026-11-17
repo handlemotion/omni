@@ -33,7 +33,6 @@ export function ComposeDialog() {
       bare
       isOpen={open}
       onOpenChange={(next) => !next && close()}
-      // Tall enough to write in, short of the window's edges.
       className="h-[min(--spacing(160),calc(100dvh-2rem))]"
     >
       <ComposeDialogBody onSent={close} />
@@ -43,13 +42,10 @@ export function ComposeDialog() {
 
 function ComposeDialogBody({ onSent }: { onSent: () => void }) {
   const mailboxes = useComposeMailboxes();
-  // From the mailbox the switcher shows, when it shows one.
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
-  // Read once, as the dialog opens: an undone send's content, if that is why it opened.
   const [restored] = useState(takeComposeDraft);
   return (
     <>
-      {/* 12px in, where the composer's rows start; the dialog's close sits at the row's end. */}
       <div className="flex h-12 shrink-0 items-center border-b px-3 pe-12">
         <DialogTitle>New email</DialogTitle>
       </div>

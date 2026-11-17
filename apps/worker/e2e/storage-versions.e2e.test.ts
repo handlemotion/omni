@@ -1,5 +1,3 @@
-// File versions (ADR 0043 decision 1) over the real Worker, its local R2 bucket and Postgres:
-// the bytes each version answers with, who reaches them, and what leaves the bucket when.
 import { randomUUID } from "node:crypto";
 import type { StorageNode, StorageUpload, StorageVersionsResponse } from "@omni/contracts";
 import { forMember, schema } from "@omni/db";
@@ -16,7 +14,6 @@ afterAll(() => stack?.stop());
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 
-/** Opens a new version of `nodeId` and sends its bytes; the caller completes it. */
 async function sendVersion(jar: CookieJar, nodeId: string, text: string, base = "") {
   const body = bytes(text);
   const opened = await stack.api(jar, "POST", `${base}/files/${nodeId}/versions`, {
@@ -41,8 +38,6 @@ const text = async (response: Response) => [response.status, await response.text
 const objectCount = async (orgId: string) =>
   (await (await stack.bucket()).list({ prefix: `orgs/${orgId}/` })).objects.length;
 
-// Catches: a version whose download serves the current object (or the reverse), a restore that
-// points the file at the wrong bytes, and version objects left in the bucket when the file goes.
 test("each version downloads its own bytes, a restore swaps them, and deleting the file empties the bucket", async () => {
   const org = await stack.company(`versions-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -86,8 +81,6 @@ test("each version downloads its own bytes, a restore swaps them, and deleting t
   expect(await stack.usedBytes(org.id)).toBe(0);
 });
 
-// Catches: the version routes skipping the door (a viewer reading replaced content or
-// overwriting the file), and an Editor given one file being unable to save it.
 test("under a link an Editor saves and restores versions; a Viewer and an anonymous reader get none of it", async () => {
   const org = await stack.company(`versions-shared-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -121,7 +114,6 @@ test("under a link an Editor saves and restores versions; a Viewer and an anonym
     await stack.api(viewer.jar, "POST", `${viewer.base}${old}/restore`),
     await saveVersion(viewer.jar, file.id, "viewer was here", viewer.base),
   ].map((answer) => answer.status);
-  // The download answers as for any file the reader cannot have: it is not there.
   expect(refusals).toEqual([403, 404, 403, 403]);
 
   await stack.api(ana.jar, "PUT", `/nodes/${file.id}/sharing/link`, { linkAccess: "anyone" });
@@ -140,8 +132,6 @@ test("under a link an Editor saves and restores versions; a Viewer and an anonym
   expect(await text(await stack.download(ana.jar, file.id))).toEqual([200, "v1"]);
 });
 
-// Catches: a signed file's bytes changing under its lock, and the refused upload's object
-// staying in the bucket with no row to ever delete it.
 test("a locked file answers 409 locked to a new version and a restore, and the refused bytes leave the bucket", async () => {
   const org = await stack.company(`versions-locked-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -170,8 +160,6 @@ test("a locked file answers 409 locked to a new version and a restore, and the r
   expect(await stack.usedBytes(org.id)).toBe(11);
 });
 
-// Catches: the daily job never purging versions (storage billed for ever), or purging one that
-// is still inside its 30 days.
 test("the daily job deletes versions replaced more than 30 days ago, rows and objects, and no others", async () => {
   const org = await stack.company(`versions-purge-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -199,16 +187,12 @@ test("the daily job deletes versions replaced more than 30 days ago, rows and ob
   expect(await text(await stack.download(ana.jar, file.id))).toEqual([200, "three"]);
 });
 
-// Catches: a checked save that silently overwrites a teammate's newer save, a refusal that does
-// not name the content the file holds now (the editor cannot merge), and a refused save whose
-// bytes stay in the bucket, billed and never seen.
 test("a checked save on stale content answers 409 with the file's content version, and stores nothing", async () => {
   const org = await stack.company(`versions-checked-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
   const file = await stack.upload(ana.jar, { space: "shared" }, "doc.md", bytes("one"));
   expect(file.contentVersion).toBe(1);
 
-  /** Opens a save of `content` based on `base`, and sends its bytes. */
   async function open(content: string, base: number) {
     const body = bytes(content);
     const opened = await stack.api(ana.jar, "POST", `/files/${file.id}/versions`, {

@@ -1,5 +1,3 @@
-// Workspace setup (ADR 0007): the workspace is a Better Auth organization; its domain and
-// mailboxes go through the Worker's `/api/onboarding` routes, which ask the mail service.
 import { cancelUploads } from "./storage-uploads.ts";
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, auth, call } from "./api.ts";
@@ -113,8 +111,6 @@ export function pageDone(page: OnboardingPage, data: Onboarding | undefined) {
     case "Inbox":
       return !!data?.mailboxes.length;
     case "Team":
-      // Inviting nobody is fine, so only a later step proves it was passed: invitations sent,
-      // setup finished, or the plan (the step after it) set.
       return (
         org?.setup === "invites_sent" ||
         org?.setup === "complete" ||
@@ -131,7 +127,6 @@ export function resumePage(data: Onboarding) {
   return (pages.find((p) => !pageDone(p, data)) ?? pages.at(-1) ?? "Team") satisfies OnboardingPage;
 }
 
-/** Lowercase letters and digits joined by dashes, plus a random tail so slugs never collide. */
 function workspaceSlug(name: string) {
   const base = name
     .normalize("NFKD")
@@ -151,7 +146,6 @@ interface Reloadable {
  * so everything cached for the previous workspace is dropped (an identity change).
  */
 export async function createWorkspace(client: QueryClient, router: Reloadable, name: string) {
-  // Creating switches the session to the new workspace: uploads stop first (see `session.ts`).
   await cancelUploads();
   const organization = await authCall(
     auth.organization.create({ name: name.trim(), slug: workspaceSlug(name) }),
@@ -191,21 +185,15 @@ function rememberChallenge(domain: OnboardingDomain) {
   try {
     if (domain.challenge?.value)
       localStorage.setItem(challengeKey(domain.id), domain.challenge.value);
-    // Forgotten only once DNS serves it. Not on the claim's flag alone: a fresh value would be
-    // dropped the moment it was made, and lost on the next refetch (switching apps).
     if (domain.challenge?.diagnostic?.status === "ok" && !domain.challenge.value) {
       localStorage.removeItem(challengeKey(domain.id));
     }
-  } catch {
-    // Storage blocked (private window): the page still works, minus surviving a reload.
-  }
+  } catch {}
 }
 
-/** Writes a domain's latest state into the cached onboarding status. */
 function storeDomain(client: QueryClient, domain: OnboardingDomain) {
   rememberChallenge(domain);
   client.setQueryData<Onboarding>(keys.onboarding(), (data) =>
-    // A Personal space has domains too, with no organization to set up (ADR 0042).
     data ? { ...data, domains: [...data.domains.filter((d) => d.id !== domain.id), domain] } : data,
   );
 }
@@ -214,7 +202,6 @@ function storeDomain(client: QueryClient, domain: OnboardingDomain) {
 export const addDomainMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
-    /** A domain, or `{ domain, host: "gmail" }` for one whose mail stays at Google (ADR 0024). */
     mutationFn: (input: string | { domain: string; host: "gmail" }) =>
       call(
         api.onboarding.domains.$post({
@@ -237,9 +224,7 @@ export const removeDomainMutation = (client: QueryClient) =>
     onSuccess: (_, id) => {
       try {
         localStorage.removeItem(challengeKey(id));
-      } catch {
-        // Storage blocked: nothing was kept.
-      }
+      } catch {}
       client.setQueryData<Onboarding>(keys.onboarding(), (data) =>
         data ? { ...data, domains: data.domains.filter((d) => d.id !== id) } : data,
       );

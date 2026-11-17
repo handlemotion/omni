@@ -1,8 +1,3 @@
-// A navigation list whose rows pick what a panel beside it shows (settings' pages): grouped
-// under small labels, one row current. React Aria's ListBox does the keyboard work (arrows,
-// typeahead, sections); the rows look like the app sidebar's (`SidebarItem`): 32px, 8px in,
-// a 15px muted icon 10px before the label, the current row on the `accent` fill. One hover
-// highlight springs between rows, as in the sidebar.
 import { Header } from "react-aria-components/Header";
 import {
   ListBox,

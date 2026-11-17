@@ -1,4 +1,3 @@
-// The local stack's S3-compatible gateway (`pnpm stack:up`), one bucket per e2e file.
 import { randomUUID } from "node:crypto";
 import { AwsClient } from "aws4fetch";
 import { createS3Store, type S3Options } from "../../src/objects.ts";

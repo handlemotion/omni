@@ -1,7 +1,3 @@
-// What each module does when a member leaves or a workspace is deleted (ADR 0035 decision 3).
-// Better Auth deletes the member and organization rows; a module whose rows would keep that
-// delete from happening, or would be orphaned by it, registers a hook in the Worker's
-// `modules.ts`, and this runs them in order. It names no module.
 import type { Db } from "@omni/db";
 import { schema } from "@omni/db";
 import type { BetterAuthPlugin } from "better-auth";

@@ -1,6 +1,3 @@
-// Write operations, as `mutationOptions` with optimistic updates. Every variables object carries
-// its idempotency `key`: TanStack's automatic retries reuse the same variables, so a retried
-// request never becomes a second action. The hooks in `src/hooks` mint the key per user intent.
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { api, ApiError, call } from "./api.ts";
 import {
@@ -18,24 +15,9 @@ export interface Keyed {
   key: string;
 }
 
-/**
- * Retry only when the request may never have arrived; a 4xx/5xx answer will not change. A request
- * without an answer also marks the app offline (`connectivity.ts`), so the retry waits, paused,
- * until the API answers again: a send made offline goes out once the connection is back. The cap
- * only stops a request that fails while everything else gets through.
- */
 const retry = (failureCount: number, error: Error) =>
   error instanceof ApiError && error.status === 0 && failureCount < 10;
 
-/**
- * Every mail action shares one scope, so they run one at a time in the order they were made:
- * queued offline, "later" then "done" still lands in that order when they flush.
- *
- * Their callbacks start refetches but never return them. A returned promise keeps the action
- * pending, and with it every action queued behind it, until the refetch ends. A refetch paused
- * offline resumes only after TanStack resumes the paused actions, which wait on that pending
- * action: back online, nothing would ever run again.
- */
 const scope = { id: "mail-actions" };
 
 const header = (key: string) => ({ "idempotency-key": key });
@@ -55,7 +37,6 @@ export const markReadMutation = (client: QueryClient) =>
       ),
     onMutate: async ({ threadId, read }) => {
       const snapshot = await snapshotThread(client, threadId);
-      // List rows carry `unread` as well as `read`; patch both so the dot goes at once.
       patchThread(client, threadId, { read, unread: !read });
       return { snapshot };
     },
@@ -162,7 +143,6 @@ export const trashMutation = (client: QueryClient) =>
       return { snapshot };
     },
     onError: (_error, _vars, context) => restore(client, context?.snapshot),
-    // The Trash list gains the thread once the mail has moved; the next sync's event refetches it.
     onSettled: (_data, _error, { threadId }) => void invalidateThread(client, threadId),
   });
 
@@ -223,7 +203,6 @@ export const replyMutation = (client: QueryClient) =>
       });
     },
     onSuccess: ({ actionId, messageIdHeader }, { threadId, key }) => {
-      // A null Message-ID (should not happen for a reply) leaves the entry until the user discards it.
       updatePending(client, threadId, key, {
         status: "queued",
         actionId,

@@ -18,14 +18,12 @@ export function NodeMenu(props: {
   const items = node ? props.menu(node) : [];
 
   const pick = (event: SyntheticEvent, from: Element | null) => {
-    // The nearest key that is an item's: a table's cells carry keys of their own.
     let at = from?.closest("[data-key]");
     while (at && !props.nodes.some((n) => n.id === at?.getAttribute("data-key"))) {
       at = at.parentElement?.closest("[data-key]");
     }
     const key = at?.getAttribute("data-key");
     if (key) setTarget(key);
-    // Not on an item: nothing to act on, so the menu stays shut.
     else event.stopPropagation();
   };
 
@@ -41,11 +39,9 @@ export function NodeMenu(props: {
       >
         {props.children}
       </div>
-      {/* At the pointer, 2px off it, so the first item is not under the click. */}
       <Menu aria-label={node ? `Actions for ${node.name}` : "Actions"} popover={{ offset: 2 }}>
         {items.map(({ icon: Icon, ...item }, index) => (
           <Fragment key={item.label}>
-            {/* What can't be taken back sits apart, as mail's Move to trash does. */}
             {item.danger && index > 0 && <MenuSeparator />}
             <MenuItem
               textValue={item.label}

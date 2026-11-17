@@ -1,14 +1,3 @@
-// The title-bar group, in the browser and the desktop app alike (docs/spec/desktop.md, "Navigation
-// changes in the web app"; the browser matches it so both read the same):
-// the sidebar toggle beside the macOS traffic lights, then notifications (as an inbox) and the
-// workspace switcher as its mark, on the window's top 48px row. With the sidebar open the last two
-// sit at the sidebar's end, the mark on the rows' trailing axis, and the sidebar's own rows start
-// under this row. With it closed all three follow the traffic lights and page headers leave room
-// for them. Back and forward are keys only (⌘[ ⌘]). Not in Figma: built
-// from the sidebar's own switcher and bell and the page headers' 28px ghost buttons, nothing
-// added. In the desktop app the rest of the row moves the window (`routeTitleBarDrags`); in a
-// browser there are no traffic lights and the toggle starts the row. Not drawn on a phone, where
-// the sidebar is a sheet and page headers keep their own toggle.
 import { useLayoutEffect, useRef } from "react";
 import { IconSidebar } from "@/components/icons/sidebar";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
@@ -16,7 +5,6 @@ import { desktop } from "@/lib/desktop.ts";
 import { WorkspaceSwitcher } from "./module-switcher";
 import { NotificationsButton } from "./notifications";
 
-/** The group's width, for the rows it sits over to leave room: `var(--title-bar-width)`. */
 const WIDTH_VAR = "--title-bar-width";
 
 /** Whether the title row is drawn: everywhere but a phone. */
@@ -48,14 +36,6 @@ export function TitleBar() {
   return (
     <div
       ref={group}
-      // The sidebar toggle after the traffic lights (the desktop app on macOS keeps them in the
-      // first 76px, on this row's centre line, the red one on the nav icons' axis), its glyph 16px
-      // clear of the green one; elsewhere, the browser included, the toggle's glyph sits on the nav
-      // icons' axis, 23.5px in.
-      // Open: as wide as the sidebar, notifications and the workspace at its end, the mark centred
-      // on the rows' trailing axis (the chevrons and counts, 21.5px in from the sidebar's edge).
-      // Closed: the toggle 2px before notifications. Over the notifications panel (z-30), whose
-      // header leaves it room; under popover backdrops (z-40) and dialogs.
       className={`fixed start-0 top-0 z-35 flex h-12 items-center gap-0.5 ${desktop.platform === "mac" ? "ps-21" : "ps-[9.5px]"} ${open ? "w-(--sidebar-width) pe-[7.5px]" : "pe-1"}`}
     >
       <SidebarTrigger
@@ -65,9 +45,6 @@ export function TitleBar() {
       >
         <IconSidebar />
       </SidebarTrigger>
-      {/* Open: 2px apart, each button's hover fill gives it room. Closed: 6px, so the glyphs' ink
-          sits 15.5px apart, as the toggle's from notifications and the mark's from the page title
-          after it (16px; measured). */}
       <span className={open ? "ms-auto flex items-center gap-0.5" : "flex items-center gap-1.5"}>
         <NotificationsButton />
         <WorkspaceSwitcher iconOnly />
@@ -95,8 +72,6 @@ export function TitleBarSpace({
   inset: number;
   afterIsland?: boolean;
 }) {
-  // Less the closed sidebar's island, which a page already starts after; not for a row that starts
-  // at the window's edge over it (the notifications panel).
   const island = afterIsland ? " - var(--sidebar-island-width, 0px)" : "";
   return (
     <div

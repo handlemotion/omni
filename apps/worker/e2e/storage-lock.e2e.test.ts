@@ -1,6 +1,3 @@
-// The Storage file lock (ADR 0036 decision 6) over the real Worker, its local R2 bucket and
-// Postgres: what a locked file refuses through each door, who unlocks it, and that deleting the
-// workspace still takes it. Files are locked through the member door, as the CRM does.
 import { randomUUID } from "node:crypto";
 import type { StorageNode } from "@omni/contracts";
 import { forMember, schema, storageObjectKey } from "@omni/db";
@@ -26,7 +23,6 @@ async function lock(person: Person, nodeId: string) {
   if (locked.status !== "ok") throw new Error(`lock: ${locked.status}`);
 }
 
-/** Rename, move, trash and delete for good, as `jar` at `base`: what a lock must refuse. */
 async function tryEverything(jar: CookieJar, nodeId: string, moveTo: string, base = "") {
   return [
     await stack.api(jar, "PATCH", `${base}/nodes/${nodeId}`, { name: "renamed.pdf" }),
@@ -36,9 +32,6 @@ async function tryEverything(jar: CookieJar, nodeId: string, moveTo: string, bas
   ].map((answer) => [answer.status, answer.body?.code]);
 }
 
-// Catches: a lock checked on one route and not another, a lock the grant door walks past (an
-// editor by grant reaches the same changes through `/shared/<shareId>`), and a refusal that
-// reads as `forbidden` or `not_trashed`, which a client would show as the wrong reason.
 test("a locked file answers 409 locked to rename, move, trash and delete for good, for members and for editors by grant", async () => {
   const org = await stack.company(`locked-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -61,7 +54,6 @@ test("a locked file answers 409 locked to rename, move, trash and delete for goo
   const listed = await stack.api(ana.jar, "GET", `/nodes?parent=${deals.id}`);
   expect(listed.body.nodes).toMatchObject([{ name: "signed.pdf", lockedAt: expect.any(String) }]);
 
-  // An editor by grant on the folder may change what is inside it, but not a locked file.
   const editorEmail = `editor-${randomUUID().slice(0, 8)}@outside.test`;
   const shared = await stack.api(
     ana.jar,
@@ -82,7 +74,6 @@ test("a locked file answers 409 locked to rename, move, trash and delete for goo
     [409, "LOCKED"],
     [409, "LOCKED"],
     [409, "LOCKED"],
-    // Trash is its space's members' alone: a grant never deletes for good, locked or not.
     [404, "NOT_FOUND"],
   ]);
   expect(
@@ -90,8 +81,6 @@ test("a locked file answers 409 locked to rename, move, trash and delete for goo
   ).toMatchObject([{ name: "signed.pdf", parentId: deals.id, trashedAt: null }]);
 });
 
-// Catches: a plain member undoing what signing a contract locked, and an unlock that leaves the
-// file half-locked (still refusing a rename) or loses track of it.
 test("a member cannot unlock; an admin can, and the file is then an ordinary file", async () => {
   const org = await stack.company(`unlock-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -117,8 +106,6 @@ test("a member cannot unlock; an admin can, and the file is then an ordinary fil
   expect((await stack.api(ana.jar, "DELETE", `/nodes/${file.id}`)).status).toBe(200);
 });
 
-// Catches: a lock that outlives its workspace. Better Auth deletes the members first, so the
-// member who locked a file must be able to go, and the locked rows and their objects must go too.
 test("deleting the workspace still removes locked files and their objects", async () => {
   const bucket = await stack.bucket();
   const org = await stack.company(`closing-${randomUUID().slice(0, 8)}`);

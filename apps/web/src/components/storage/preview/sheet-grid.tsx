@@ -1,13 +1,9 @@
-// One XLSX sheet as a spreadsheet grid (ADR 0043 decision 7): column letters across the top and
-// row numbers down the side, both frozen, columns sized to their text and resizable, and only
-// the cells on screen rendered (react-data-grid). Read-only: no editors, cells are React text.
 import "react-data-grid/lib/styles.css";
 import { memo, useMemo, type CSSProperties, type ReactNode } from "react";
 import { DataGrid, type Column } from "react-data-grid";
 
 type Row = { n: number; cells: string[] };
 
-/** 0 → "A", 25 → "Z", 26 → "AA". */
 function columnLetter(index: number) {
   let name = "";
   for (let i = index + 1; i > 0; i = Math.floor((i - 1) / 26)) {
@@ -16,9 +12,7 @@ function columnLetter(index: number) {
   return name;
 }
 
-/** Rows read to size a column: enough to see its widest values without walking the sheet. */
 const SAMPLE = 100;
-/** Approximate width of a character at the grid's 13px, plus the cell's padding. */
 const CHAR = 8.4;
 const PAD = 24;
 
@@ -28,8 +22,6 @@ function widthFor(rows: string[][], c: number) {
   return Math.round(Math.min(320, Math.max(72, longest * CHAR + PAD)));
 }
 
-// react-data-grid's own styles sit in a CSS layer declared after the app's, so its variables are
-// set inline (inline beats every layer), from the app's tokens.
 const THEME = {
   "--rdg-font-size": "13px",
   "--rdg-color": "var(--foreground)",
@@ -45,8 +37,6 @@ const THEME = {
   minHeight: 0,
 } as CSSProperties;
 
-/** Letters and numbers: centred, muted, at the cell's own weight. Classes go on content, since
- * the grid's layer outranks utilities on its cells. */
 function Muted(props: { children: ReactNode }) {
   return (
     <span className="block text-center text-xs font-normal text-muted-foreground">

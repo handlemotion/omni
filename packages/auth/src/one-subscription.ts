@@ -1,7 +1,3 @@
-// One paid subscription per workspace (ADR 0015). Checkout expires a workspace's other open
-// sessions, but two can still both complete (a session paid while the next one is created), and
-// Stripe would then bill the workspace's customer twice. After each subscription event this
-// keeps the oldest paid subscription in Stripe and cancels the rest, without refunding.
 import type { Db } from "@omni/db";
 import { isPaid, PAID_STATUSES, schema } from "@omni/db";
 import { and, eq, inArray } from "drizzle-orm";
@@ -72,8 +68,6 @@ export async function cancelDuplicateSubscriptions(
     .toSorted((a, b) => a.created - b.created || (a.id < b.id ? -1 : 1));
   if (!kept) return;
   for (const duplicate of duplicates) {
-    // Touch the survivor first: its `customer.subscription.updated` re-points the plugin's row
-    // at it if a completed Checkout had pointed that row at the duplicate.
     await stripe.subscriptions.update(kept.id, {
       metadata: { omniCanceledDuplicate: duplicate.id },
     });
@@ -90,7 +84,6 @@ export async function cancelDuplicateSubscriptions(
       keptSubscriptionId: kept.id,
       canceledSubscriptionId: duplicate.id,
       canceledStatus: duplicate.status,
-      // What a person refunds, if it was paid.
       latestInvoiceId:
         typeof duplicate.latest_invoice === "string"
           ? duplicate.latest_invoice

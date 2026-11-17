@@ -1,5 +1,3 @@
-// Reply and Forward, floating at the reading column's bottom right over an open thread; Compose,
-// at the list's bottom right while no thread is open (with one open, the list header's pen).
 import { verificationCode } from "@omni/mail-core/verification-code";
 import { type ReactNode, type Ref, useMemo, useRef } from "react";
 import {
@@ -15,7 +13,6 @@ import { useClipboard } from "@/hooks/use-clipboard";
 import type { Thread } from "@/lib/types.ts";
 import { useComposerState } from "./composer-state.tsx";
 
-// Raised over whatever scrolls under it: the overlay shadow, as a menu or popover would.
 const FLOAT = "shadow-(--shadow-overlay)";
 
 /**
@@ -27,12 +24,9 @@ const FLOAT = "shadow-(--shadow-overlay)";
  */
 export function FloatingReply({ thread, messageId }: { thread: Thread; messageId?: string }) {
   const composer = useComposerState();
-  // The email on screen, in the email view; the latest otherwise.
   const latest = thread.messages.find((m) => m.id === messageId) ?? thread.messages.at(-1);
-  // Back once no composer shows: also after a send from the email view, whose notes stay away.
   const composing = composer.chatOpen || (composer.email && composer.mode === "public");
   const pair = useRef<HTMLDivElement>(null);
-  // Both buttons as one box, read when the menu places itself.
   const pairBox = useMemo(
     () => ({ getBoundingClientRect: () => pair.current?.getBoundingClientRect() ?? new DOMRect() }),
     [],
@@ -45,7 +39,6 @@ export function FloatingReply({ thread, messageId }: { thread: Thread; messageId
     [latest],
   );
   if (!latest || composing) return null;
-  // A shared inbox answers everyone outside the team, as a message's own Reply does.
   const reply = () => composer.openReply(composer.chat ? "replyAll" : "reply", messageId);
   const forward = () => composer.forward(latest.id);
   if (code) {
@@ -56,7 +49,6 @@ export function FloatingReply({ thread, messageId }: { thread: Thread; messageId
             <IconReply />
             Respond
           </Button>
-          {/* Over the pair: from Respond's start edge, as wide as both buttons. */}
           <Menu
             placement="top start"
             popover={{ anchor: pairBox, className: "w-(--anchor-width)" }}
@@ -89,7 +81,6 @@ export function FloatingReply({ thread, messageId }: { thread: Thread; messageId
   );
 }
 
-/** Puts the code on the clipboard; its icon is a check for a moment after, as a snippet's is. */
 function CopyCode({ code }: { code: string }) {
   const { copy, copied } = useClipboard();
   return (
@@ -112,7 +103,6 @@ export function FloatingCompose({ onPress }: { onPress: () => void }) {
   );
 }
 
-/** Sits 20px over the top of its (sticky, bottom) parent and 20px in from its end. */
 function Floating({ children, ref }: { children: ReactNode; ref?: Ref<HTMLDivElement> }) {
   return (
     <div

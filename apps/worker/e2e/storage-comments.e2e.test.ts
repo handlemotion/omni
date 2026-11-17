@@ -1,5 +1,3 @@
-// Comments on a file and the Commenter role (ADR 0043 decisions 4 and 5) over the real Worker
-// and Postgres: who reads and writes them through which door, and how threads hold together.
 import { randomUUID } from "node:crypto";
 import type {
   StorageComment,
@@ -39,9 +37,6 @@ const list = async (jar: CookieJar, nodeId: string, base = "") => {
   return answer.body as StorageCommentsResponse;
 };
 
-// Catches: the comment routes skipping the door (a Viewer or an anonymous link reading what
-// people said, or anyone writing through a link alone), a Commenter treated as an Editor (the
-// role sits between the two), and one person editing or deleting another's comment.
 test("a Commenter reads and writes comments and nothing more; a Viewer and a link alone reach none", async () => {
   const org = await stack.company(`comments-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -81,7 +76,6 @@ test("a Commenter reads and writes comments and nothing more; a Viewer and a lin
       .body.comment,
   ).toMatchObject({ body: "Done", editedAt: expect.any(String) });
 
-  // A Commenter is not an Editor: no new version, no rename.
   const refused = [
     await stack.api(commenter.jar, "PATCH", `${commenter.base}${at(root.id)}`, {
       body: "mine now",
@@ -107,7 +101,6 @@ test("a Commenter reads and writes comments and nothing more; a Viewer and a lin
       .status,
   ).toBe(403);
 
-  // The owner sees the reply as the Commenter's, and may not change it either.
   const mine = await list(ana.jar, file.id);
   expect(mine.comments.map((comment) => [comment.body, comment.authorName, comment.mine])).toEqual([
     ["Page 2 needs the new numbers", ana.email, true],
@@ -115,7 +108,6 @@ test("a Commenter reads and writes comments and nothing more; a Viewer and a lin
   ]);
   expect((await stack.api(ana.jar, "DELETE", at(answer.id))).status).toBe(403);
 
-  // Removing the grant takes the comments away; the link open to anyone still shows the file.
   await stack.api(
     ana.jar,
     "DELETE",
@@ -126,10 +118,6 @@ test("a Commenter reads and writes comments and nothing more; a Viewer and a lin
   ).toBe(403);
 });
 
-// Catches: a reply to a reply starting a nested thread the UI cannot show, a reply that leaves a
-// resolved thread closed, a comment that bumps the file's revision (every sync client would
-// download it again), a thread that loses the content version it was made on once the file
-// changes, and a deleted root leaving orphan replies.
 test("threads stay one level deep, follow resolve and reply, and keep the content version they were made on", async () => {
   const org = await stack.company(`threads-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -167,7 +155,6 @@ test("threads stay one level deep, follow resolve and reply, and keep the conten
     resolvedByName: null,
   });
 
-  // Saving new content moves the file on; the thread still names the content it was made on.
   const body = bytes("one\ntwo\nthree");
   const opened = await stack.api(ana.jar, "POST", `/files/${file.id}/versions`, {
     size: body.length,
@@ -179,7 +166,6 @@ test("threads stay one level deep, follow resolve and reply, and keep the conten
   expect([now.contentVersion, now.comments[0]!.contentVersion]).toEqual([2, 1]);
   const later = await post(ben.jar, { body: "Whole file looks good" });
   expect(later).toMatchObject({ contentVersion: 2, anchor: { kind: "file" } });
-  // Ben read version 1 before Ana saved: his anchor stays on the lines he saw.
   const stale = await post(ben.jar, {
     body: "Line 1 typo",
     anchor: { kind: "lines", start: 1, end: 1 },
@@ -192,7 +178,6 @@ test("threads stay one level deep, follow resolve and reply, and keep the conten
   });
   expect([ahead.status, ahead.body.code]).toEqual([409, "VERSION_CONFLICT"]);
 
-  // Bad anchors and a reply carrying one never reach the database.
   const invalid = [
     { body: "x", anchor: { kind: "lines", start: 3, end: 1 } },
     { body: "x", anchor: { kind: "pdf", page: 1, x: 0.8, y: 0, width: 0.5, height: 0.1 } },
@@ -210,9 +195,6 @@ test("threads stay one level deep, follow resolve and reply, and keep the conten
   ]);
 });
 
-// Catches: a comment that tells nobody (or tells its own author), a reply that skips the people
-// already in the thread, a notification that cannot find its file again, and someone from
-// outside the workspace getting a notification that would open a Storage page they cannot see.
 test("a comment notifies the file's owner and the thread's writers, never its author or an outsider", async () => {
   const org = await stack.company(`notify-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -238,7 +220,6 @@ test("a comment notifies the file's owner and the thread's writers, never its au
     return answer.body.comment as StorageComment;
   };
 
-  // Shared drive: Ana uploaded it, so she hears about Ben's comment; Ben does not hear his own.
   const file = await stack.upload(ana.jar, { space: "shared" }, "plan.md", bytes("plan"));
   const root = await post(ben.jar, { body: "Can we   move\nthis to Tuesday?" });
   expect(await notes(ana.jar)).toEqual([
@@ -256,19 +237,16 @@ test("a comment notifies the file's owner and the thread's writers, never its au
   ]);
   expect(await notes(ben.jar)).toEqual([]);
 
-  // Cal replies: Ana (owner) and Ben (wrote in the thread) hear, Cal does not.
   await post(cal.jar, { body: "Tuesday works", parentId: root.id });
   expect([(await notes(ana.jar)).length, (await notes(ben.jar)).length]).toEqual([2, 1]);
   expect(await notes(cal.jar)).toEqual([]);
 
-  // An outside Commenter writes in the thread: they never get one, the workspace still does.
   const outsider = await grant(ana.jar, file.id, "commenter");
   await post(outsider.jar, { body: "From outside", parentId: root.id }, outsider.base);
   expect((await notes(cal.jar)).length).toBe(1);
   await post(ana.jar, { body: "Thanks all", parentId: root.id });
   expect(await notes(outsider.jar)).toEqual([]);
 
-  // Moved since: opening the notification asks where the file is now, and gets its new folder.
   const folder = await stack.api(ana.jar, "POST", "/folders", { name: "Team", space: "shared" });
   expect(folder.status).toBe(201);
   const folderId = folder.body.node.id as string;
@@ -281,6 +259,5 @@ test("a comment notifies the file's owner and the thread's writers, never its au
     folderId,
     "shared",
   ]);
-  // Someone the workspace never let in learns nothing about where it is.
   expect((await stack.api(outsider.jar, "GET", `/nodes/${file.id}`)).status).toBe(404);
 });

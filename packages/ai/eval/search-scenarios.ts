@@ -1,6 +1,3 @@
-// The search scenarios in `fixtures/search/threads.json`: invented threads, and queries a person
-// might type with the thread they are after. Candidates go to Jev newest first, the order a
-// full-text match of a common word comes back in, so the recorded answers have to do the work.
 import { readFileSync } from "node:fs";
 import type { SearchCandidate } from "../src/search.ts";
 

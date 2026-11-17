@@ -1,10 +1,3 @@
-// Billing against Stripe itself, in test mode. Runs only when asked for: STRIPE_E2E=1 and a
-// test-mode STRIPE_SECRET_KEY (`doppler run -p omni -c dev_worker -- env STRIPE_E2E=1 pnpm
-// --filter @omni/worker test:e2e billing-stripe`); never in `pnpm test` or CI. It refuses a
-// live key. It uses the plan's prices from STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY when set,
-// else creates them in the test account on first run (lookup keys `omni-e2e-monthly` /
-// `omni-e2e-yearly`). Events are the ones Stripe really emitted, read back
-// from its API and re-signed for this Worker, so no tunnel (`stripe listen`) is needed.
 import { randomUUID } from "node:crypto";
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -27,7 +20,6 @@ const key = process.env.STRIPE_SECRET_KEY ?? "";
 const requested = process.env.STRIPE_E2E === "1";
 const WEBHOOK_SECRET = `whsec_live_e2e_${randomUUID().replaceAll("-", "")}`;
 const TRIAL_DAYS = 7;
-/** The daily billing cron in wrangler.jsonc. */
 const RECONCILE_CRON = "47 3 * * *";
 
 describe.runIf(requested)("Stripe test mode", () => {
@@ -52,7 +44,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     return created.id;
   }
 
-  /** Stripe's own events about `objectId` since `since`, oldest first, forwarded to the Worker. */
   async function forwardEvents(objectId: string, since: number, types: string[]) {
     const deadline = Date.now() + 20_000;
     for (;;) {
@@ -91,8 +82,6 @@ describe.runIf(requested)("Stripe test mode", () => {
         STRIPE_PRICE_YEARLY: prices.yearly,
         BILLING_TRIAL_DAYS: String(TRIAL_DAYS),
         BILLING_TRIAGE_ALLOWANCE: "500",
-        // The Worker only hands this to Stripe.js in the browser; here the SetupIntent is confirmed
-        // with the secret key instead, as Stripe.js would.
         STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY || "pk_test_omnie2e",
       },
       secrets: { STRIPE_SECRET_KEY: key, STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET },
@@ -123,7 +112,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     await db.update(schema.members).set({ role: "owner" }).where(eq(schema.members.id, member.id));
     const cookie = await signIn(worker, db, email);
 
-    // Checkout: a real Stripe Checkout Session for the workspace, with the trial and no card.
     const started = await api("/billing/checkout", cookie, { interval: "year" });
     expect(started.status).toBe(200);
     const { url } = (await started.json()) as { url: string };
@@ -139,14 +127,11 @@ describe.runIf(requested)("Stripe test mode", () => {
       mode: "subscription",
       client_reference_id: org.id,
       payment_method_collection: "if_required",
-      // Friends redeem a promotion code (100% off) here.
       allow_promotion_codes: true,
     });
     const items = await stripe.checkout.sessions.listLineItems(sessions.data[0]!.id);
     expect(items.data[0]?.price?.id).toBe(prices.yearly);
 
-    // Completing Checkout needs a browser; the subscription it creates is made here instead, the
-    // same way: the workspace's customer, the plan's price, the trial, no card.
     const since = Math.floor(Date.now() / 1000) - 5;
     const subscription = await stripe.subscriptions.create({
       customer,
@@ -164,7 +149,6 @@ describe.runIf(requested)("Stripe test mode", () => {
       triage: { used: 0, allowance: 500 },
     });
 
-    // Replaying Stripe's real event changes nothing.
     const before = await db
       .select()
       .from(schema.subscriptions)
@@ -175,14 +159,12 @@ describe.runIf(requested)("Stripe test mode", () => {
       await db.select().from(schema.subscriptions).where(eq(schema.subscriptions.orgId, org.id)),
     ).toEqual(before);
 
-    // The customer portal for that workspace.
     const portal = await api("/billing/portal", cookie, {});
     expect(portal.status).toBe(200);
     expect(((await portal.json()) as { url: string }).url).toMatch(
       /^https:\/\/billing\.stripe\.com\//,
     );
 
-    // Canceled in Stripe: the workspace turns read-only.
     const canceledSince = Math.floor(Date.now() / 1000) - 1;
     await stripe.subscriptions.cancel(subscription.id);
     await forwardEvents(subscription.id, canceledSince, ["customer.subscription.deleted"]);
@@ -192,7 +174,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     });
   }, 90_000);
 
-  /** A workspace that is a Stripe customer, as its first checkout leaves it. */
   async function billedWorkspace(slug: string) {
     const org = await createOrg(database.db, slug);
     const customer = await stripe.customers.create({ metadata: { organizationId: org.id } });
@@ -215,7 +196,6 @@ describe.runIf(requested)("Stripe test mode", () => {
       metadata,
     });
 
-  /** The daily billing cron, run the way Cloudflare runs it. */
   async function reconcile() {
     const result = await worker.server.getWorker().scheduled({ cron: RECONCILE_CRON });
     expect(result.outcome).toBe("ok");
@@ -224,7 +204,6 @@ describe.runIf(requested)("Stripe test mode", () => {
   test("the daily reconcile follows Stripe when no webhook arrives, and a rerun changes nothing", async () => {
     const { org, customer, rows } = await billedWorkspace("reconcile");
 
-    // A subscription made in Stripe whose webhook never reached Omni: the cron creates its row.
     const subscription = await trial(customer, { referenceId: org.id });
     await reconcile();
     expect(await rows()).toMatchObject([
@@ -241,7 +220,6 @@ describe.runIf(requested)("Stripe test mode", () => {
       },
     ]);
 
-    // Changed in Stripe (set to cancel at the trial's end): the row follows; a rerun is a no-op.
     await stripe.subscriptions.update(subscription.id, { cancel_at_period_end: true });
     await reconcile();
     const pending = await rows();
@@ -250,7 +228,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     await reconcile();
     expect(await rows()).toEqual(pending);
 
-    // Canceled in Stripe: the row turns canceled, so the workspace is read-only; then it settles.
     await stripe.subscriptions.cancel(subscription.id);
     await reconcile();
     const canceled = await rows();
@@ -262,8 +239,6 @@ describe.runIf(requested)("Stripe test mode", () => {
 
   test("a checkout whose completion never arrived is linked to the row checkout made, not duplicated", async () => {
     const { org, customer, rows } = await billedWorkspace("reconcile-checkout");
-    // What the plugin writes when checkout starts: a row that does not know its Stripe id yet,
-    // whose id rides in the subscription's metadata.
     const rowId = randomUUID();
     await database.db.insert(schema.subscriptions).values({
       id: rowId,
@@ -309,7 +284,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     expect(plan.trialAvailable).toBe(true);
     expect(plan.prices.month).toEqual({ amount: monthly.unit_amount, currency: monthly.currency });
 
-    // Choosing the plan starts its trial at once: setup can move on without waiting for Stripe.
     const since = Math.floor(Date.now() / 1000) - 5;
     const started = await api("/billing/trial", cookie, { interval: "year" });
     expect(await started.json()).toEqual({ started: true });
@@ -329,7 +303,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     expect(inStripe.data).toHaveLength(1);
     expect(inStripe.data[0]).toMatchObject({ status: "trialing", default_payment_method: null });
 
-    // A double click, then Stripe's own event for it: still one trial, one row.
     expect(await (await api("/billing/trial", cookie, { interval: "year" })).json()).toEqual({
       started: false,
     });
@@ -340,8 +313,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     expect(await rows()).toHaveLength(1);
     expect((await stripe.subscriptions.list({ customer, status: "all" })).data).toHaveLength(1);
 
-    // The trial ends without a card (here, canceled in Stripe): the plan step is back, with no
-    // second trial, and Checkout charges the first month now and returns to setup.
     const endedSince = Math.floor(Date.now() / 1000) - 1;
     await stripe.subscriptions.cancel(inStripe.data[0]!.id);
     await forwardEvents(inStripe.data[0]!.id, endedSince, ["customer.subscription.deleted"]);
@@ -357,8 +328,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     expect(decodeURIComponent(session!.success_url ?? "")).toContain("/onboarding");
     expect(session!.cancel_url).toMatch(/\/onboarding$/);
 
-    // The same person makes a second workspace: their trial is spent, so it pays from day one,
-    // and Checkout grants no trial of its own.
     const [owned] = await db
       .select({ userId: schema.members.userId })
       .from(schema.members)
@@ -384,7 +353,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     ).toBe(200);
     const [paid] = (await stripe.checkout.sessions.list({ customer: await customerOf(next.id) }))
       .data;
-    // A trial would make the first charge 0.
     expect(paid!.amount_total).toBe(monthly.unit_amount);
   }, 90_000);
 
@@ -409,7 +377,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     expect((await api("/billing/checkout", cookie, { interval: "month" })).status).toBe(200);
     const customer = await customerOf(org.id);
 
-    // Both checkouts completing, as Stripe's API does it: same customer, plan and trial.
     const since = Math.floor(Date.now() / 1000) - 5;
     const subscribe = () =>
       stripe.subscriptions.create({
@@ -429,7 +396,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     expect(created.every((r) => r.status === 200)).toBe(true);
     expect((await stripe.subscriptions.retrieve(older.id)).status).toBe("trialing");
     expect((await stripe.subscriptions.retrieve(newer.id)).status).toBe("canceled");
-    // Not refunded automatically: an error a person sees, naming what to refund.
     expect(
       workerEvents(worker).filter((e) => e.event === "billing.duplicate_subscription_canceled"),
     ).toEqual([
@@ -442,7 +408,6 @@ describe.runIf(requested)("Stripe test mode", () => {
       }),
     ]);
 
-    // What the cancel made Stripe send: the newer one deleted, the older one touched.
     const deleted = await forwardEvents(newer.id, since, ["customer.subscription.deleted"]);
     const touched = await forwardEvents(older.id, since, [
       "customer.subscription.created",
@@ -454,7 +419,6 @@ describe.runIf(requested)("Stripe test mode", () => {
       subscription: { status: "trialing" },
     });
 
-    // Replaying every event again cancels nothing more: the survivor stays.
     for (const event of all) {
       await postStripeEvent(worker.url, event, { secret: WEBHOOK_SECRET });
     }
@@ -477,7 +441,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     const cards = async () => (await (await api("/billing/cards", cookie)).json()) as Cards;
     expect(await cards()).toEqual({ cards: [], addCard: true });
 
-    /** What the add-card dialog does: a SetupIntent, confirmed by Stripe, then reported. */
     async function addCard(token: string) {
       const setup = await api("/billing/cards/setup", cookie, {});
       expect(setup.status).toBe(200);
@@ -495,18 +458,15 @@ describe.runIf(requested)("Stripe test mode", () => {
       subscription: (await stripe.subscriptions.retrieve(trialing!.id)).default_payment_method,
     });
 
-    // The first card becomes the one the trial charges: without it the trial would cancel at its end.
     const visa = await addCard("pm_card_visa");
     expect(visa.cards).toMatchObject([
       { id: visa.id, brand: "visa", last4: "4242", isDefault: true },
     ]);
     expect(await charged()).toEqual({ customer: visa.id, subscription: visa.id });
 
-    // The plan needs a card: the only one cannot go.
     const lonely = await api(`/billing/cards/${visa.id}`, cookie, undefined, "DELETE");
     expect(lonely.status).toBe(409);
 
-    // A second card is saved but charges nothing until made the default.
     const mastercard = await addCard("pm_card_mastercard");
     expect(mastercard.cards.map((c) => [c.brand, c.isDefault])).toEqual([
       ["visa", true],
@@ -519,14 +479,12 @@ describe.runIf(requested)("Stripe test mode", () => {
     });
     expect(await charged()).toEqual({ customer: mastercard.id, subscription: mastercard.id });
 
-    // Another workspace's owner cannot touch this workspace's cards.
     const stranger = await ownerOf("cards-stranger");
     expect(
       (await api(`/billing/cards/${visa.id}`, stranger.cookie, undefined, "DELETE")).status,
     ).toBe(404);
     expect((await api(`/billing/cards/${visa.id}/default`, stranger.cookie, {})).status).toBe(404);
 
-    // Removing the card being charged moves the plan onto the one left, so the renewal still pays.
     const removed = await api(`/billing/cards/${mastercard.id}`, cookie, undefined, "DELETE");
     expect(removed.status).toBe(200);
     expect(((await removed.json()) as Cards).cards).toMatchObject([
@@ -535,7 +493,6 @@ describe.runIf(requested)("Stripe test mode", () => {
     expect(await charged()).toEqual({ customer: visa.id, subscription: visa.id });
     expect((await stripe.paymentMethods.retrieve(mastercard.id)).customer).toBeNull();
 
-    // The trial's own $0 invoice, with Stripe's page and PDF.
     const { invoices } = (await (await api("/billing/invoices", cookie)).json()) as {
       invoices: { status: string; total: number; url: string | null; pdfUrl: string | null }[];
     };

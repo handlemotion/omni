@@ -27,7 +27,6 @@ export function SettingsAddRow({
         settingsRowClassName,
         settingsRowTextEndClassName,
         settingsRowInteractiveClassName,
-        // The plus takes a row icon's slot, so it centres on the avatars and the label lines up.
         "min-h-11 gap-3 text-sm/4 text-muted-foreground hover:text-foreground disabled:opacity-50 pending:opacity-50",
       )}
       isDisabled={disabled}

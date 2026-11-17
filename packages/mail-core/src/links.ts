@@ -1,28 +1,15 @@
-// The web addresses in a plain-text mail, so a reader can open them with a click. Pure
-// (`@omni/mail-core/links`), for the web app and iOS.
-//
-// Only http and https become links: a `javascript:` or `data:` address in someone's mail stays
-// text. The result is text and hrefs, never markup, so the reader renders it as text nodes.
-
 export interface TextSegment {
   text: string;
   /** Set when `text` is a web address: the URL to open. */
   href?: string;
 }
 
-// Stops at whitespace and at the characters plain-text mail wraps an address in (`<url>`, "url").
 const URL_START = /\bhttps?:\/\/[^\s<>"]+/giu;
 
-// Sentence punctuation after an address belongs to the sentence ("see https://a.example.").
-// Not `_`: it ends real tokens (`?token=abc_`), and cutting it opens the wrong address.
 const TRAILING = new Set([".", ",", ";", ":", "!", "?", "'", "*"]);
 
 const OPENERS: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
 
-/**
- * Drops trailing punctuation, and closing brackets that close none inside the URL. One count of
- * each bracket, then one walk back from the end: a run of `)` costs linear time, not quadratic.
- */
 function trimEnd(url: string) {
   const counts = new Map<string, number>();
   for (const char of url) {

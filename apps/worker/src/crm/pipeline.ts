@@ -1,5 +1,3 @@
-// The workspace's pipeline and CRM settings: `/api/crm/stages` and `/api/crm/settings`. Both are
-// made on first read. Replacing the stages is for owners and admins.
 import {
   crmPutSettingsBodySchema,
   crmPutStagesBodySchema,
@@ -18,7 +16,6 @@ export const pipeline = new Hono<AppEnv>()
     return c.json({ stages: found.stages } satisfies CrmStagesResponse);
   })
 
-  /** The whole list in order: rename, add, reorder, remove. A stage holding deals stays. */
   .put("/stages", zValidator("json", crmPutStagesBodySchema), async (c) => {
     const replaced = await memberCrm(c).replaceStages(c.req.valid("json").stages);
     if (replaced.status !== "ok") return refused(c, replaced);

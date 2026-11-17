@@ -1,10 +1,3 @@
-// Onboarding's provider work (ADR 0007): add a domain at the mail host and read back its DNS
-// checks, and create a mailbox (a login issued by the host, or an existing IMAP login), store it
-// encrypted and start syncing it. The Worker decides who may ask; `planMailboxProvision` re-checks
-// the domain claim before anything touches the host. Host specifics live in `hosting/`.
-//
-// Idempotent on natural keys: the domain name, and (org, address) for a mailbox. Running a call
-// twice adds nothing at the provider the first run already added.
 import { randomUUIDv7 } from "node:crypto";
 import type {
   ProvisionDomainResult,
@@ -46,11 +39,8 @@ export function createProvisioner(deps: {
 }) {
   const { db, keyring, logger } = deps;
   const { host } = deps;
-  // One provisioning run per address at a time, so a double submit cannot create two app
-  // passwords. This service runs as one machine (ADR 0004); the natural keys cover the rest.
   const running = new Map<string, Promise<ProvisionMailboxResult>>();
 
-  /** The host's answer; a bad request becomes a 422, a host failure or outage a 502. */
   async function hosted<T>(task: () => Promise<T>) {
     try {
       return await task();
@@ -87,7 +77,6 @@ export function createProvisioner(deps: {
 
     let credentials: PasswordCredentials;
     if (input.login.provider === "purelymail") {
-      // The plan refuses a hosted mailbox when no host is configured.
       if (!host) throw new ProvisionError(409, "Purelymail is not configured here");
       credentials = await hosted(() => host.issueLogin(address));
       logger.info("provision.login_issued", { orgId, address });
@@ -108,20 +97,16 @@ export function createProvisioner(deps: {
       address,
       kind: input.kind,
       provider: input.login.provider,
-      // Bound to the mailbox id: copied to another row, it fails to decrypt.
       credentialsEnc: await sealCredentials(keyring, mailboxId, credentials),
       ownerMemberId: input.ownerMemberId,
     });
     logger.info("provision.mailbox_saved", { orgId, mailboxId, provider: input.login.provider });
-    // Connects it now (a new login replaces the old connection); the first sync imports its
-    // history in the background.
     void deps
       .connect(mailboxId)
       .catch((error: unknown) => logger.error("mailbox.connect_failed", { mailboxId, error }));
     return { mailboxId, address, created: true };
   };
 
-  /** The stored login is this one already: nothing to save or reconnect. */
   async function sameLogin(
     existing: { id: string; credentialsEnc: string },
     next: PasswordCredentials,

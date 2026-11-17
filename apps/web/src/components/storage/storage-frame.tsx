@@ -1,7 +1,3 @@
-// The frame every Storage screen shares, on the mail lists' grid: a 48px header with no line under
-// it, as mail's list header has none (the title or the breadcrumbs, an optional caption, then the screen's actions 10px from the right edge) over the
-// content, which scrolls on its own. In the app it starts with Back, Forward and the sidebar toggle;
-// a shared link's page has no app around it, so none.
 import type { ReactNode } from "react";
 import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
 
@@ -26,7 +22,6 @@ export function StorageFrame(props: {
     </header>
   );
   return (
-    // Outside the shell it fills what the link page's bar leaves.
     <section
       className={`relative flex min-h-0 min-w-0 flex-col ${props.sidebar === false ? "flex-1" : "h-svh"}`}
     >
@@ -36,8 +31,6 @@ export function StorageFrame(props: {
   );
 }
 
-/** The header in the app shell: the sidebar toggle starts it while the sidebar is closed; with
- *  none, the title starts 20px in. */
 function ShellHeader(props: { header: (toggle: ReactNode, inset: string) => ReactNode }) {
   const shown = usePageNavShown();
   return props.header(<PageNav />, shown ? "ps-2.5" : "ps-5");

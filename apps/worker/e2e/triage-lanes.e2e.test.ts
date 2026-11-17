@@ -1,9 +1,3 @@
-// Needs reply and Awaiting reply, end to end. Real mail goes through GreenMail in both directions:
-// the other side over SMTP, the reader the way a desktop client does it (SMTP, then a copy
-// appended to Sent). The real mail service syncs it into Postgres and signs events to the real
-// Worker, whose queue consumer triages each thread, and the lanes are read back through the
-// member API. TypeSafe is the one outside service: an HTTP server answers with the Jev responses
-// recorded live in `fixtures/triage/recordings`, and answers nothing it has no recording for.
 import { randomBytes, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -39,7 +33,6 @@ const greenmail = {
   imapPort: Number(process.env.GREENMAIL_IMAP_PORT ?? 3143),
   smtpPort: Number(process.env.GREENMAIL_SMTP_PORT ?? 3025),
 };
-/** The reader in the fixtures; each run swaps in a fresh GreenMail address. */
 const FIXTURE_READER = "sam@example.com";
 const keyring = parseKeyring(`k1:${randomBytes(32).toString("base64")}`);
 
@@ -48,7 +41,6 @@ let jev: Awaited<ReturnType<typeof startJevReplay>>;
 let worker: Awaited<ReturnType<typeof startWorker>>;
 let mail: { service: MailService; http: ReturnType<typeof serve> };
 
-/** Answers each recorded request with its recorded response; anything else is a 500. */
 async function startJevReplay() {
   const dir = new URL("triage/recordings/", fixtures);
   const recordings = readdirSync(dir).map((file) => ({
@@ -136,7 +128,6 @@ beforeAll(async () => {
       S3_REGION: bucket.region,
       IMAGE_PROXY_URL: "/api/image-proxy",
       ATTACHMENT_URL: "/api/attachments",
-      // INBOX is live through IDLE; Sent is picked up by this periodic sync.
       SYNC_INTERVAL_MS: 500,
       OUTBOX_INTERVAL_MS: 60 * 60_000,
       MAILBOX_CONCURRENCY: 2,
@@ -146,8 +137,6 @@ beforeAll(async () => {
   const http = serve({ fetch: service.app.fetch, port: mailPort, hostname: "127.0.0.1" });
   mail = { service, http };
 
-  // Magic links go out from a disabled mailbox in its own org, which the mail service leaves
-  // alone; sign-in reads the link from the outbox, so it never has to be sent.
   const system = await createOrg(database.db, "system");
   const systemBox = await createMailbox(database.db, system.id, SYSTEM_MAIL_FROM);
   await database.db
@@ -164,12 +153,10 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-/** A connected GreenMail mailbox for the reader, a member who can read it, and a session. */
 async function setUpReader() {
   const { db } = database;
   const address = `reader-${randomUUID().slice(0, 8)}@omni.test`;
   const imap = { host: greenmail.host, port: greenmail.imapPort, secure: false };
-  // A desktop client's Sent folder, there before the mail service first connects.
   await withImap(address, (client) => client.mailboxCreate("Sent").then(() => undefined));
 
   const org = await createOrg(db, "studio");
@@ -215,7 +202,6 @@ async function withImap<T>(user: string, task: (client: ImapFlow) => Promise<T>)
   }
 }
 
-/** A fixture with the reader's address swapped in. */
 function eml(name: string, reader: string) {
   return readFileSync(new URL(`eml/${name}`, fixtures), "utf8").replaceAll(FIXTURE_READER, reader);
 }
@@ -237,14 +223,12 @@ async function smtp(raw: string, from: string, to: string) {
   }
 }
 
-/** The other side writes to the reader. */
 async function arrives(name: string, reader: { address: string }) {
   const raw = eml(name, reader.address);
   await smtp(raw, "lucia@northwind.example", reader.address);
   return header(raw, "Message-ID");
 }
 
-/** The reader replies from a desktop client: SMTP out, then a copy into Sent. */
 async function readerSends(name: string, reader: { address: string }) {
   const raw = eml(name, reader.address);
   await smtp(raw, reader.address, "lucia@northwind.example");
@@ -267,7 +251,6 @@ async function waitUntil<T>(check: () => Promise<T | false | undefined>, timeout
   }
 }
 
-/** Waits until the thread holding `messageIdHeader` is triaged on that message; returns it. */
 async function triagedOn(mailboxId: string, messageIdHeader: string) {
   const { db } = database;
   return waitUntil(async () => {
@@ -291,7 +274,6 @@ async function triagedOn(mailboxId: string, messageIdHeader: string) {
 
 const LANES = ["needs_reply", "waiting_on_them", "fyi", "noise", "unsure"] as const;
 
-/** Every lane the member API lists the thread in. */
 async function lanesOf(reader: { cookie: string; mailboxId: string }, threadId: string) {
   const found: string[] = [];
   for (const lane of LANES) {
@@ -309,7 +291,6 @@ async function lanesOf(reader: { cookie: string; mailboxId: string }, threadId: 
 test("a thread moves between Needs reply and Awaiting reply as each side writes, and out when the reader closes it", async () => {
   const reader = await setUpReader();
 
-  // Lucía asks for two things: the reader owes a reply.
   const first = await triagedOn(
     reader.mailboxId,
     await arrives("triage-inbound-request.eml", reader),
@@ -317,7 +298,6 @@ test("a thread moves between Needs reply and Awaiting reply as each side writes,
   expect(first).toMatchObject({ triage: "needs_reply", triageSource: "ai" });
   expect(await lanesOf(reader, first.id)).toEqual(["needs_reply"]);
 
-  // The reader answers with a question of their own: now they wait on her.
   const second = await triagedOn(
     reader.mailboxId,
     await readerSends("triage-reader-question.eml", reader),
@@ -325,11 +305,9 @@ test("a thread moves between Needs reply and Awaiting reply as each side writes,
   expect(second.id).toBe(first.id);
   expect(await lanesOf(reader, first.id)).toEqual(["waiting_on_them"]);
 
-  // She answers and asks something back: it's the reader's turn again.
   await triagedOn(reader.mailboxId, await arrives("triage-inbound-answer-asks.eml", reader));
   expect(await lanesOf(reader, first.id)).toEqual(["needs_reply"]);
 
-  // The reader answers and thanks her, asking nothing: the thread leaves both lanes.
   const closed = await triagedOn(
     reader.mailboxId,
     await readerSends("triage-reader-thanks.eml", reader),
@@ -337,7 +315,6 @@ test("a thread moves between Needs reply and Awaiting reply as each side writes,
   expect(closed).toMatchObject({ triage: "fyi", triageSource: "ai" });
   expect(await lanesOf(reader, first.id)).toEqual(["fyi"]);
 
-  // One Jev call per message, each one recorded for exactly this thread state.
   expect(jev.unmatched).toEqual([]);
   expect(jev.hits.filter((id) => id.startsWith("kickoff-"))).toEqual([
     "kickoff-1",
@@ -364,13 +341,11 @@ test("a redelivered job costs no model call and keeps a person's re-sort; the ne
   );
   const calls = jev.hits.length;
 
-  // A person decides it's only an FYI.
   await db
     .update(schema.threads)
     .set({ triage: "fyi", triageSource: "person" })
     .where(eq(schema.threads.id, thread.id));
 
-  // The mail service may deliver the same event again after a timeout.
   const event: MailEventsBody = {
     events: [
       {
@@ -392,7 +367,6 @@ test("a redelivered job costs no model call and keeps a person's re-sort; the ne
   expect(jev.hits.length).toBe(calls);
   expect(await lanesOf(reader, thread.id)).toEqual(["fyi"]);
 
-  // New mail on the thread is a new question: the re-sort covered the old message only.
   await triagedOn(reader.mailboxId, await readerSends("triage-reader-question.eml", reader));
   const [after] = await db.select().from(schema.threads).where(eq(schema.threads.id, thread.id));
   expect(after).toMatchObject({ triage: "waiting_on_them", triageSource: "ai" });

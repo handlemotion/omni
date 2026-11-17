@@ -272,9 +272,7 @@ export function NavbarMobile({ className, ref, ...props }: React.ComponentProps<
       className={cn(
         "group/navbar-mobile flex items-center gap-x-3 px-4 py-2.5 md:hidden",
         "group-has-data-navbar-sticky/navbar:sticky group-has-data-navbar-sticky/navbar:bg-navbar",
-        // top
         "group-has-data-navbar-sticky/navbar:group-has-placement-top/navbar:top-0 group-has-data-navbar-sticky/navbar:group-has-placement-top/navbar:border-b",
-        // bottom
         "group-has-data-navbar-sticky/navbar:group-has-placement-bottom/navbar:bottom-0 group-has-data-navbar-sticky/navbar:group-has-placement-bottom/navbar:border-t",
         className,
       )}

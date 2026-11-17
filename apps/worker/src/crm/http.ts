@@ -1,7 +1,3 @@
-// What the CRM's route files share (ADR 0036 decision 7): the member door, the error answer for
-// every refusal the door can give, the wire shapes, opaque cursors and the `crm.changed`
-// announcement. Access is decided in `@omni/db` (`forMember(...).crm`); nothing here queries a
-// table.
 import {
   ERROR_CODES,
   type CrmChangedKind,
@@ -112,7 +108,6 @@ const FILES_STATUSES = new Set([
 const isFilesRefusal = (refusal: CrmRefusal): refusal is FilesRefusal =>
   FILES_STATUSES.has(refusal.status);
 
-/** The code, sentence and field of each refusal, and the ids a client acts on beside `error`. */
 function answerFor(refusal: CrmRefusal) {
   if (isFilesRefusal(refusal)) return filesAnswerFor(refusal) satisfies Answer;
   switch (refusal.status) {

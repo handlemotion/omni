@@ -1,9 +1,3 @@
-// CRM (ADR 0036): companies, people and deals of a company workspace. These rows are the truth,
-// not an index: nothing rebuilds a deal or a note. Access is decided only in `src/crm.ts`.
-//
-// Foreign keys inside the module that cascade go through `(id, org_id)`, so a child row can never
-// sit in another workspace from its parent. Nullable links that are set null on delete (a person's
-// company, a deal's company, a folder) name the id alone: a composite key would null `org_id` too.
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
@@ -39,11 +33,6 @@ const orgId = () =>
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
-/**
- * Written by the app in milliseconds, so a timeline cursor (a JS `Date`) compares exactly with
- * the row it came from; Postgres's own `now()` has microseconds a cursor would lose. `updated_at`
- * comes from the same clock, so a new row never reads as updated before it was created.
- */
 const createdAt = () =>
   timestamptz("created_at")
     .notNull()
@@ -56,11 +45,9 @@ const updatedAt = () =>
     .$defaultFn(() => new Date())
     .$onUpdate(() => new Date());
 
-/** A member's rows survive them (ADR 0036 decision 2): every member reference is set null. */
 const memberRef = (name: string) =>
   text(name).references(() => members.id, { onDelete: "set null" });
 
-/** A record's folder in Shared. Deleting the folder leaves the record without one. */
 const folderRef = (name: string) =>
   text(name).references(() => storageNodes.id, { onDelete: "set null" });
 
@@ -88,7 +75,6 @@ export const crmCompanies = pgTable(
   },
   (t) => [
     unique("crm_companies_id_org_id_unique").on(t.id, t.orgId),
-    // The list by name, cursor on (name, id).
     index("crm_companies_name_idx").on(t.orgId, sql`lower(${t.name})`, t.id),
   ],
 );
@@ -153,7 +139,6 @@ export const crmPersonEmails = pgTable(
       foreignColumns: [crmPeople.id, crmPeople.orgId],
     }).onDelete("cascade"),
     index("crm_person_emails_person_id_idx").on(t.personId),
-    // At most one primary address per person.
     uniqueIndex("crm_person_emails_primary_key")
       .on(t.personId)
       .where(sql`${t.isPrimary}`),
@@ -202,7 +187,6 @@ export const crmDeals = pgTable(
   },
   (t) => [
     unique("crm_deals_id_org_id_unique").on(t.id, t.orgId),
-    // No cascade: a stage that holds deals cannot be removed (`stage_in_use`).
     foreignKey({
       name: "crm_deals_stage_org_fk",
       columns: [t.stageId, t.orgId],
@@ -244,7 +228,6 @@ export const crmDealPeople = pgTable(
   ],
 );
 
-/** The three record links shared by notes and events, each cascading with its record. */
 interface RecordLinkColumns {
   orgId: AnyPgColumn;
   companyId: AnyPgColumn;
@@ -287,7 +270,6 @@ export const crmNotes = pgTable(
   },
   (t) => [
     ...recordLinks("crm_notes", t),
-    // A record's timeline page, newest first.
     index("crm_notes_company_timeline_idx")
       .on(t.companyId, t.createdAt.desc().nullsFirst(), t.id.desc().nullsFirst())
       .where(sql`${t.companyId} is not null`),

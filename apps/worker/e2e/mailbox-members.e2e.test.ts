@@ -1,6 +1,3 @@
-// Shared-mailbox access through Better Auth teams (ADR 0008), over the real Worker and Postgres:
-// team membership decides whose `/api/threads` shows a shared mailbox, personal mailboxes and
-// per-person read state are untouched, and nothing crosses orgs.
 import { randomUUID } from "node:crypto";
 import { backfillMailboxTeams, saveMailbox, schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
@@ -98,10 +95,6 @@ async function grants(mailboxId: string) {
   return rows.map((r) => r.memberId).toSorted();
 }
 
-/**
- * An org whose owner Ana has a personal mailbox and creates support@ the way the CLI and
- * onboarding do (`saveMailbox`), plus Bea, a plain member. One thread in each mailbox.
- */
 async function workspace(slug: string) {
   const { db } = database;
   const org = await createOrg(db, slug);
@@ -161,7 +154,6 @@ test("adding a member shows the shared mailbox in their threads, removing hides 
   const w = await workspace("access");
   expect(await threadIds(w.bea.cookie)).toEqual([]);
 
-  // Twice: the second add changes nothing.
   for (let i = 0; i < 2; i++)
     expect((await put(w.ana.cookie, w.support.id, w.bea.id)).status).toBe(200);
   expect(await threadIds(w.bea.cookie)).toEqual([w.supportThread]);
@@ -174,7 +166,6 @@ test("adding a member shows the shared mailbox in their threads, removing hides 
   expect(await grants(w.support.id)).toEqual([w.ana.id, w.bea.id].toSorted());
   expect(await listed(w.bea.cookie, w.support.id)).toEqual([w.ana.id, w.bea.id].toSorted());
 
-  // Support is not Bea's only inbox, so she can come off it (ADR 0026).
   const other = await createMailbox(database.db, w.org.id, "other@access.test", "shared");
   await grant(database.db, w.org.id, other.id, w.bea.id);
   for (let i = 0; i < 2; i++)
@@ -184,7 +175,6 @@ test("adding a member shows the shared mailbox in their threads, removing hides 
   expect(await listed(w.bea.cookie, w.support.id)).toBe(404);
   expect(await team(w.support.id)).toMatchObject({ memberCount: 1, userIds: [w.ana.userId] });
 
-  // Ana's personal mailbox never showed up for Bea and is still Ana's alone.
   expect((await threadIds(w.ana.cookie)).toSorted()).toEqual(
     [w.personalThread, w.supportThread].toSorted(),
   );
@@ -215,13 +205,10 @@ test("only owners and admins change the list, and nothing crosses orgs", async (
   const a = await workspace("orga");
   const b = await workspace("orgb");
 
-  // A plain member can neither add nor remove, even themselves.
   expect((await put(a.bea.cookie, a.support.id, a.bea.id)).status).toBe(403);
-  // Another org's owner cannot see, add to, or remove from org A's mailbox.
   expect(await listed(b.ana.cookie, a.support.id)).toBe(404);
   expect((await put(b.ana.cookie, a.support.id, b.bea.id)).status).toBe(404);
   expect((await remove(b.ana.cookie, a.support.id, a.ana.id)).status).toBe(404);
-  // Org A's owner cannot add a member of org B.
   expect((await put(a.ana.cookie, a.support.id, b.bea.id)).status).toBe(404);
 
   expect(await grants(a.support.id)).toEqual([a.ana.id]);
@@ -242,7 +229,6 @@ test("Better Auth's own team endpoints keep access in step and cannot delete a m
   });
   expect(added.status).toBe(200);
   expect(await threadIds(w.bea.cookie)).toEqual([w.supportThread]);
-  // The same person through our endpoint is not a second team row.
   expect((await put(w.ana.cookie, w.support.id, w.bea.id)).status).toBe(200);
   expect(await team(w.support.id)).toMatchObject({
     memberCount: 2,
@@ -290,11 +276,9 @@ test("backfill gives an existing shared mailbox a team from its grants, and a se
   ).toHaveLength(1);
   expect(await grants(hello.id)).toEqual([ana.id, bea.id].toSorted());
 
-  // From here the team decides.
   const anaCookie = await signIn(worker, db, "ana@legacy.test");
   const beaCookie = await signIn(worker, db, "bea@legacy.test");
   expect(await threadIds(beaCookie)).toEqual([thread.threadId]);
-  // Not Bea's only inbox, so she can come off it (ADR 0026).
   await grant(
     db,
     org.id,

@@ -4,7 +4,6 @@ import { cn } from "cn";
 import { Loader } from "./loader";
 import { Tooltip, TooltipTrigger } from "./tooltip";
 
-/** A well: sunk into its surface, no border; hover deepens it one step. */
 const WELL = [
   "flex h-8 w-full min-w-0 items-stretch overflow-hidden rounded-lg bg-well text-start text-sm outline-hidden",
   "transition-colors duration-150 ease-out hover:bg-well-hover focus-visible:ring-1 focus-visible:ring-ring",

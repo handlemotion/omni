@@ -1,7 +1,3 @@
-// The triage truth tables. Jev supplies the judgments; this file decides the bucket. Which table
-// runs depends on who wrote the latest message, a fact code already knows: `TRIAGE_TABLE` when
-// someone else did, `SENT_TABLE` when the reader did.
-
 import {
   JUDGMENTS,
   NOUL_NO,
@@ -36,19 +32,15 @@ export interface Row<J extends string = string> {
  * row (see decide.test.ts). `needs_reply` lives only here: it means someone else wrote last.
  */
 export const TRIAGE_TABLE: readonly Row<Judgment>[] = [
-  // A person is asking the reader for something.
   { when: { expects_reply: "yes", automated: "no", bulk: "no" }, bucket: "needs_reply" },
-  // A person owes the reader something and asks nothing back.
   {
     when: { promises_follow_up: "yes", expects_reply: "no", automated: "no", bulk: "no" },
     bucket: "waiting_on_them",
   },
-  // Bulk or automated mail: worth reading only when it concerns the reader.
   { when: { bulk: "yes", concerns_reader: "no" }, bucket: "noise" },
   { when: { automated: "yes", concerns_reader: "no" }, bucket: "noise" },
   { when: { bulk: "yes", concerns_reader: "yes" }, bucket: "fyi" },
   { when: { automated: "yes", concerns_reader: "yes" }, bucket: "fyi" },
-  // A person writes to inform, with nothing asked and nothing promised.
   {
     when: { expects_reply: "no", promises_follow_up: "no", automated: "no", bulk: "no" },
     bucket: "fyi",
@@ -80,11 +72,6 @@ function matches<J extends string>(row: Row<J>, readings: Readings<J>) {
   return Object.entries(row.when).every(([j, want]) => readings[j as J] === want);
 }
 
-/**
- * Confidence is the weakest link: the lowest probability, among the judgments the row relies
- * on, that the judgment really reads the way the row needs it to. Jev's Nouls are calibrated,
- * so "every deciding judgment is at least 85% likely" is what the 0.85 auto-file bar means.
- */
 function weakestLink<J extends string>(row: Row<J>, judgments: Record<J, number>) {
   return Math.min(
     ...Object.entries(row.when).map(([j, want]) => {
@@ -109,8 +96,6 @@ function decideWith<J extends string>(
       row: index,
     } satisfies Decision;
 
-  // Unsettled: a judgment some row needed sat between the bands. Guess with each judgment
-  // rounded to its likelier side, and cap the confidence so a person sorts it.
   const rounded = Object.fromEntries(
     keys.map((j) => [j, judgments[j] >= 0.5 ? "yes" : "no"]),
   ) as Readings<J>;

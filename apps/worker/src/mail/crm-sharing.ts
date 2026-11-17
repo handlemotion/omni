@@ -1,8 +1,3 @@
-// A mailbox's CRM activity sharing (ADR 0039 decision 2): `off`, `activity` (who corresponded
-// with a client, and when) or `subjects` (and each thread's subject). A personal mailbox's owner
-// sets it, and nobody else, admins included; a shared inbox's workspace owners and admins. The
-// rule is decided at Mail's door (`forMember(...).crmSharing`); a write passes the read-only gate
-// like any other. Mail has no client contract file, so the body is declared here.
 import { CRM_SHARING_LEVELS, forMember, type CrmSharingResult } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
@@ -10,7 +5,6 @@ import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { zValidator } from "../validator.ts";
 
-/** `PUT /api/mail/mailboxes/:id/crm-sharing`; `GET` answers the same shape. */
 const crmSharingBody = z.object({ level: z.enum(CRM_SHARING_LEVELS) });
 export type CrmSharingBody = z.infer<typeof crmSharingBody>;
 

@@ -1,4 +1,3 @@
-// Storage (ADR 0034): a folder's contents, Trash, Search, the changes, and uploads.
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import {
@@ -117,8 +116,6 @@ export function useDeleteForever() {
  */
 export function useUploads() {
   const client = useQueryClient();
-  // Each upload is bound to the session it is queued under (`storage-uploads.ts`): keep it
-  // cached here too, on the link page outside the app shell.
   useSession();
   const uploads = useSyncExternalStore(uploadsStore.subscribe, uploadsStore.get);
   const upload = useCallback(

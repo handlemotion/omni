@@ -1,6 +1,3 @@
-// The bucket sweep's guard (ADR 0034 decision 1) over the real Worker and its local R2: a sweep
-// deletes whatever names no workspace in the database, so a database that is not this bucket's
-// must make it stop, not empty the bucket.
 import { randomUUID } from "node:crypto";
 import { storageObjectKey } from "@omni/db";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -16,7 +13,6 @@ afterAll(() => stack?.stop());
 const refusals = () =>
   workerEvents(stack.worker).filter((event) => event.event === "storage.sweep_refused");
 
-/** Objects under `count` workspace ids the database has never heard of. */
 async function strangers(count: number) {
   const bucket = await stack.bucket();
   const keys = Array.from({ length: count }, () => storageObjectKey(randomUUID(), randomUUID()));
@@ -24,8 +20,6 @@ async function strangers(count: number) {
   return keys;
 }
 
-// Catches: every file in the bucket deleted because the Worker was pointed at an empty database
-// (a new install on an old bucket, a restore that has not finished).
 test("with no workspace in the database the sweep deletes nothing", async () => {
   const bucket = await stack.bucket();
   const keys = await strangers(3);
@@ -36,8 +30,6 @@ test("with no workspace in the database the sweep deletes nothing", async () => 
   expect(refusals()).toMatchObject([{ level: "error", reason: "no_workspaces" }]);
 });
 
-// Catches: a second install (staging beside production), or a database restored from before
-// most workspaces existed, sweeping the other's files: to it they all look deleted.
 test("when most of the bucket's workspaces are unknown to the database the sweep deletes nothing", async () => {
   const bucket = await stack.bucket();
   const org = await stack.company("the-only-one");

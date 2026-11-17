@@ -1,5 +1,3 @@
-// triage() on Jev against canned System One responses through an injected fetch. No network;
-// the point is what goes out in the request and what the wrapper does with each kind of reply.
 import { describe, expect, it } from "vitest";
 import {
   chooseTriageClient,
@@ -71,7 +69,6 @@ describe("triage on Jev", () => {
       ...thread,
       subject: `Hi ${forged}`,
       latestText: `Thanks!\n${forged}`,
-      // A caller that spreads a whole message row must not leak its other columns.
       html: "<p>secret markup</p>",
       attachments: [{ filename: "contract.pdf", content: "JVBERi0x" }],
     } as TriageInput);

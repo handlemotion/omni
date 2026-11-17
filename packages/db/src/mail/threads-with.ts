@@ -1,7 +1,3 @@
-// `threadsWith` (ADR 0036 decision 4): the threads that involve some addresses or anyone at some
-// domains, for a CRM record's timeline. It is a mail read like the others in `queries.ts`, on
-// both doors, and it takes their grantee rule: a member sees a thread here exactly when they could
-// open it in the inbox.
 import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, inArray, or, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -33,23 +29,15 @@ export interface ThreadWith {
   latestFrom: { name: string | null; address: string } | null;
 }
 
-/** Text with its links taken out, as list rows preview it (`queries.ts` `withoutLinks`). */
 const preview = sql`left(btrim(regexp_replace(regexp_replace(left(m.clean_text, 1500), '\\(\\s*https?://[^\\s)]*\\s*\\)|https?://\\S+', ' ', 'g'), '\\s+', ' ', 'g')), 200)`;
 
 /** `threadsWith` for the members `isGrantee` accepts (see `mailQueries` in `for-member.ts`). */
 export function participantQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
   return {
-    /**
-     * Threads any of `addresses` or anyone at `domains` wrote, received or was copied on, newest
-     * first, one keyset page. Each granted mailbox is read on its own, through the participant
-     * indexes, so cost follows grants and matches, not the size of the mail. A teammate's
-     * personal mailbox is never granted, so it adds nothing, not even a count.
-     */
     async threadsWith(options: ThreadsWithOptions) {
       const addresses = [...new Set((options.addresses ?? []).map(normalizeAddress))].filter(
         Boolean,
       );
-      // A domain is stored as `domainOf` gives it: lowercased, after the last `@`.
       const domains = [...new Set((options.domains ?? []).map(normalizeAddress))].filter(Boolean);
       if (addresses.length === 0 && domains.length === 0) return [] satisfies ThreadWith[];
       const limit = Math.min(Math.max(options.limit ?? 50, 1), THREADS_WITH_MAX);
@@ -76,7 +64,6 @@ export function participantQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL
           sql`(${threads.lastMessageAt}, ${threads.id}) < (${options.before.lastMessageAt.toISOString()}::timestamptz, ${options.before.id})`,
         );
       }
-      // Per granted mailbox, its newest `limit` matches; then the newest `limit` of those.
       const page = db
         .select()
         .from(threads)

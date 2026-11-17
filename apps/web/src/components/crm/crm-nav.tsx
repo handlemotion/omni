@@ -1,9 +1,3 @@
-// The CRM's sidebar (ADR 0039 decision 1), shown alone while the CRM is open (ADR 0035), on
-// Drive's pattern: the lists (Companies, People, Deals); then the pipeline, each stage with its
-// deals' count, leading to the board; then the companies as a tree whose rows open to their
-// deals. A record's page keeps its list's row current. The tree and the counts read the deals the
-// board loads (one cache), so the sidebar costs no request of its own beyond the first page of
-// companies.
 import { useMemo, type ReactNode } from "react";
 import {
   IconBuildings,
@@ -32,7 +26,6 @@ const ROWS: { list: keyof typeof CRM_LISTS; icon: ReactNode }[] = [
   { list: "deals", icon: <IconHandshake className="size-icon" /> },
 ];
 
-/** A stage's glyph by what it means: still open, won (or done), lost. */
 const STAGE_GLYPH: Record<CrmStageKind, ReactNode> = {
   open: <IconCircle className="size-icon" />,
   won: <IconCircleCheck className="size-icon" />,
@@ -40,13 +33,11 @@ const STAGE_GLYPH: Record<CrmStageKind, ReactNode> = {
   lost: <IconCircleX className="size-icon" />,
 };
 
-/** Companies the tree shows; the Companies list has the rest. */
 const COMPANIES_SHOWN = 12;
 
 /** A nav link that keeps showing `mailbox`, the switcher's choice, for the way back to mail. */
 export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
   const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
-  // Every deal, as the board loads them: the stage counts and the companies' deals.
   const { deals, isPending } = useCrmDeals("", { all: true });
   const byCompany = useMemo(() => {
     const map = new Map<string, CrmDeal[]>();
@@ -87,7 +78,6 @@ export function CrmLists({ mailbox }: { mailbox: string | undefined }) {
   });
 }
 
-/** The stages in order, each with how many deals sit in it; each leads to the board. */
 function Pipeline(props: { deals: CrmDeal[]; pending: boolean; search: string }) {
   const { href } = useWorkspacePaths();
   const stages = useCrmStages().data ?? [];
@@ -114,7 +104,6 @@ function Pipeline(props: { deals: CrmDeal[]; pending: boolean; search: string })
   );
 }
 
-/** The first companies by name; each opens to its deals. */
 function Companies(props: { byCompany: Map<string, CrmDeal[]>; search: string }) {
   const { companies, isPending } = useCrmCompanies();
   if (!isPending && companies.length === 0) return null;
@@ -151,7 +140,6 @@ function Company(props: { company: CrmCompany; deals: CrmDeal[]; search: string 
         depth={0}
         icon={<IconBuildings className="size-icon" />}
         label={company.name}
-        // Only a company with deals opens.
         expand={deals.length > 0 ? open : undefined}
       />
       {open.value &&

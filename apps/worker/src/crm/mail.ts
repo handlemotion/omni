@@ -1,8 +1,3 @@
-// What a record shows of the workspace's mail, read through Mail's door (ADR 0036 decision 3,
-// ADR 0039 decision 2): the threads the viewer can open (`threadsWith`, as the viewer, in their
-// session's scope) and the activity teammates' mailboxes share (`sharedActivityWith`, as the
-// member, in the active company). A thread the viewer can open is never also activity: Mail
-// leaves the mailboxes they can open out of the second read.
 import { forMember, forUser, type SharedActivity, type ThreadWith } from "@omni/db";
 import type { Context } from "hono";
 import type { AppEnv } from "../context.ts";

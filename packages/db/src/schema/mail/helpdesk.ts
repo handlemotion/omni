@@ -1,5 +1,3 @@
-// Mail's helpdesk (ADR 0021, ADR 0035): conversation events, notes, tags, canned replies, SLA
-// policies, business hours and customers.
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -135,7 +133,6 @@ export const threadTags = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.threadId, t.tagId] }),
-    // The "by tag" view starts from the tag.
     index("thread_tags_tag_idx").on(t.tagId, t.threadId),
   ],
 );

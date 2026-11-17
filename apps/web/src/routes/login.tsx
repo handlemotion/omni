@@ -7,7 +7,6 @@ import { signInMethodsQuery } from "../lib/session.ts";
 export const Route = createFileRoute("/login")({
   validateSearch: loginSearch,
   beforeLoad: ({ context, search }) => redirectIfMember(context.queryClient, search.redirect),
-  // Known before render, so the Google button never pops in. A failure only hides the button.
   loader: ({ context }) => context.queryClient.prefetchQuery(signInMethodsQuery()),
   component: Login,
 });

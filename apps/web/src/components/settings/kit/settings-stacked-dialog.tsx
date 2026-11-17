@@ -1,6 +1,3 @@
-// Dialogs stacked over the settings dialog (transitive's member and revoke dialogs): a form that
-// edits one thing, and a confirmation for what can't be undone. Rows never grow inline forms;
-// they open one of these.
 import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/field";

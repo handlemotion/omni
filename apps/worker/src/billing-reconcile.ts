@@ -1,8 +1,3 @@
-// The daily billing reconcile (ADR 0015). Subscription state arrives through Stripe's webhook,
-// and a missed or failed event leaves a workspace wrong until the next one: a paying workspace
-// read-only, or a canceled one writable. Once a day this reads every workspace's subscriptions
-// back from Stripe, the source of truth, and writes what the plugin's handlers would have
-// written. It only converges: running it twice changes nothing the second time.
 import { PLAN_NAME, type BillingConfig } from "@omni/auth";
 import {
   applyStripeSubscription,
@@ -16,7 +11,6 @@ import {
 import type Stripe from "stripe";
 import type { Logger } from "./log.ts";
 
-/** Stripe allows about 25 requests a second in test mode (100 live); stay well under. */
 const STRIPE_REQUEST_INTERVAL_MS = 100;
 
 export interface ReconcileResult {
@@ -51,10 +45,10 @@ export async function reconcileSubscriptions(input: {
     const row = byStripeId.get(subscription.id) ?? checkoutRow(subscription, orgId);
     if (row && isSettled(row)) return;
     const fields = subscriptionFields(subscription, billing);
-    if (!fields) return; // not this plan's subscription
+    if (!fields) return;
     result.checked++;
     if (row) {
-      byId.delete(row.id); // linked now: a second subscription naming it gets its own row
+      byId.delete(row.id);
       if (await applyStripeSubscription(db, row, fields)) result.changed++;
     } else if (orgId && fields.plan) {
       if (await createStripeSubscription(db, orgId, { ...fields, plan: fields.plan })) {
@@ -63,18 +57,11 @@ export async function reconcileSubscriptions(input: {
     }
   };
 
-  /**
-   * The row checkout created for this subscription, before Stripe knew its id: the plugin puts
-   * that row's id in the subscription's metadata and fills in the Stripe id on
-   * `checkout.session.completed`. Linking it, rather than creating a second row, is what that
-   * event would have done.
-   */
   const checkoutRow = (subscription: Stripe.Subscription, orgId: string | null) => {
     const row = byId.get(subscription.metadata?.subscriptionId ?? "");
     return row && row.orgId === orgId && !row.stripeSubscriptionId ? row : undefined;
   };
 
-  // Every workspace customer's subscriptions: finds the ones Omni has no row for.
   for (const workspace of await billedWorkspaces(db)) {
     try {
       for (let after: string | undefined; ;) {
@@ -95,7 +82,6 @@ export async function reconcileSubscriptions(input: {
     }
   }
 
-  // Rows whose subscription the listing did not cover (another customer, or a failed listing).
   for (const row of rows) {
     const id = row.stripeSubscriptionId;
     if (!id || seen.has(id) || isSettled(row)) continue;
@@ -153,10 +139,8 @@ export const subscriptionFields: (
 
 const fromSeconds = (seconds: number) => new Date(seconds * 1000);
 const maybeDate = (seconds: number | null) => (seconds ? fromSeconds(seconds) : null);
-/** Stripe sends a related object as its id, or expanded. */
 const idOf = (ref: string | { id: string }) => (typeof ref === "string" ? ref : ref.id);
 
-/** Resolves no sooner than `intervalMs` after the previous call resolved. */
 function pacer(intervalMs: number) {
   let next = 0;
   return async () => {

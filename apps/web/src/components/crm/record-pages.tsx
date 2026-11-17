@@ -1,6 +1,3 @@
-// The record pages at `/crm/companies/$id`, `/crm/people/$id` and `/crm/deals/$id` (ADR 0039
-// decision 1): details edited in place (each change a `PATCH` of that one field), related
-// records, and the tabs. A company and a deal have Files and Contracts; a person has the timeline.
 import { useState } from "react";
 import { IconPencil, IconPlus } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
@@ -48,8 +45,6 @@ function EditButton(props: { label: string; onPress: () => void }) {
     </Button>
   );
 }
-
-// Company -------------------------------------------------------------------------------------
 
 export function CompanyPage({ id }: { id: string }) {
   const query = useCrmCompany(id);
@@ -174,14 +169,11 @@ function DealsSection(props: { deals: CrmDealDetail["deal"][]; onAdd?: () => voi
   );
 }
 
-/** A company's name by id, for a person's or a deal's company field. */
 function useCompanyName(companyId: string | null) {
   const company = useCrmCompany(companyId ?? "", { enabled: !!companyId });
   if (!companyId) return null;
   return company.data ? { id: companyId, name: company.data.company.name } : null;
 }
-
-// Person --------------------------------------------------------------------------------------
 
 export function PersonPage({ id }: { id: string }) {
   const query = useCrmPerson(id);
@@ -257,8 +249,6 @@ export function PersonPage({ id }: { id: string }) {
     </>
   );
 }
-
-// Deal ----------------------------------------------------------------------------------------
 
 export function DealPage({ id }: { id: string }) {
   const query = useCrmDeal(id);

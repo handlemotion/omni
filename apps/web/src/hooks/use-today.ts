@@ -11,7 +11,6 @@ export function useToday() {
     const sync = () => setToday(new Date().toDateString());
     const now = new Date();
     const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    // A second past midnight, so the new day has begun when it fires.
     const timer = setTimeout(sync, nextMidnight.getTime() - now.getTime() + 1000);
     document.addEventListener("visibilitychange", sync);
     return () => {

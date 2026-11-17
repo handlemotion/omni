@@ -1,5 +1,3 @@
-// Seeding for the Storage suites: files are made the way the Worker makes them, through an
-// upload, so usage and names are what production would have written.
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { members, users } from "../src/schema/index.ts";

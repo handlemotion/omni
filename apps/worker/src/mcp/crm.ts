@@ -1,7 +1,3 @@
-// What the CRM tools share (ADR 0036 decision 7): which workspaces a call reaches, the compact
-// rows agents get, record links, and plain sentences for the door's refusals. Records are read and
-// written only through the member door (`forMember(...).crm`), as the token's user's member in
-// each company workspace the grant reaches; a Personal space has no CRM.
 import type { CrmChangedKind } from "@omni/contracts";
 import {
   forMember,

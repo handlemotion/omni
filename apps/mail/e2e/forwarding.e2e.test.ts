@@ -1,4 +1,3 @@
-// CRM forwarding address (ADR 0032) against GreenMail: what reaches the CRM, from whom, and once.
 import { schema } from "@omni/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -73,7 +72,6 @@ function forwardCopies(mailboxId: string) {
     .orderBy(asc(schema.mailActions.createdAt));
 }
 
-/** Claims one action, as `PgActionSource.claim` would, so the executor can complete it. */
 async function claim(id: string) {
   await db
     .update(schema.mailActions)
@@ -86,7 +84,6 @@ async function claim(id: string) {
   return asClaimed(db, id);
 }
 
-/** Every message in a GreenMail inbox but the one with `subject`, once that one has arrived. */
 async function arrivedAfter(box: MailboxConfig, subject: string) {
   const all = await waitFor(async () => {
     const found = await inbox(box);
@@ -95,7 +92,6 @@ async function arrivedAfter(box: MailboxConfig, subject: string) {
   return all.filter((raw) => !raw.includes(`Subject: ${subject}`));
 }
 
-/** Every message in a GreenMail inbox, raw. */
 function inbox(box: MailboxConfig) {
   return otherClient(box, async (client) => {
     const lock = await client.getMailboxLock("INBOX");
@@ -119,7 +115,6 @@ describe("CRM forwarding address", () => {
       const rows = await stored(db, box.id, "INBOX");
       return rows.length === 2 && rows;
     });
-    // Nobody has written back yet: nothing is the CRM's business.
     expect(await forwardCopies(box.id)).toHaveLength(0);
 
     const reply = await enqueue(db, seeded, {
@@ -138,7 +133,6 @@ describe("CRM forwarding address", () => {
     await executor.execute(await claim(reply.id));
     expect(await actionRow(db, reply.id)).toMatchObject({ status: "done" });
 
-    // The reply queued the message it answers; the newsletter stays out.
     const afterReply = await forwardCopies(box.id);
     expect(afterReply.map((a) => a.payload)).toEqual([{ messageId: quote!.messageId }]);
 
@@ -157,13 +151,10 @@ describe("CRM forwarding address", () => {
 
     for (const action of await forwardCopies(box.id)) {
       await executor.execute(await claim(action.id));
-      // The worker died before `complete` landed: the copy runs again and sends nothing.
       await executor.execute(await asClaimed(db, action.id));
       expect(await actionRow(db, action.id)).toMatchObject({ status: "done" });
     }
 
-    // Mail sent to the CRM after every copy went out lands after them, so a duplicate copy
-    // would be in by the time it is.
     await deliver(crm.address, "Barrier");
     const received = await arrivedAfter(crm, "Barrier");
     expect(received).toHaveLength(3);
@@ -181,7 +172,6 @@ describe("CRM forwarding address", () => {
     expect(copies.join("\n")).toContain("body of Quote request");
     expect(copies.join("\n")).not.toContain("Weekly newsletter");
 
-    // The person you wrote to never learns the CRM's address.
     const theirs = await waitFor(async () => {
       const all = await inbox({
         ...box,

@@ -1,8 +1,3 @@
-// The web app in a real Chromium, built and served by the real Worker under `wrangler dev`,
-// on a real Postgres; sends go out through the real mail service outbox to GreenMail. Nothing is
-// mocked: the Worker really stops and starts and the browser really goes offline. The faults
-// injected are requests that get no answer (a reply the Worker handled, a counts refetch) and
-// realtime sockets closed by the browser before they reach the Worker.
 import { createServer } from "node:net";
 import { schema } from "@omni/db";
 import { and, asc, eq } from "drizzle-orm";
@@ -37,7 +32,6 @@ let connections: MailboxConnection[] = [];
 let port: number;
 let origin: string;
 
-/** The Worker on a fixed port, so a restart comes back where the open page expects it. */
 async function startApp() {
   worker = await startWorkerWithNetwork({
     databaseUrl: database.url,
@@ -59,7 +53,6 @@ beforeAll(async () => {
   port = await freePort();
   origin = `http://127.0.0.1:${port}`;
   await startApp();
-  // Playwright's own Chromium where it is installed; otherwise the machine's Chrome (CI runners).
   browser = await chromium.launch().catch(() => chromium.launch({ channel: "chrome" }));
 });
 
@@ -77,7 +70,6 @@ afterEach(async () => {
   connections = [];
 });
 
-/** A member signed in, with the app open on `path`. */
 async function openApp(email: string, path: string) {
   if (!worker) throw new Error("the Worker is not running");
   const cookie = await signIn({ url: new URL(origin) }, db, email);
@@ -120,7 +112,6 @@ test("after the Worker restarts the app reconnects by itself and shows what it m
 
   await stopApp();
   await expect.poll(open).toBe(0);
-  // Mail arrives while the Worker is down: no event will ever announce it.
   await seedMessage(db, box, {
     subject: "Re: Status",
     fromAddress: "pm@client.test",
@@ -130,8 +121,6 @@ test("after the Worker restarts the app reconnects by itself and shows what it m
   });
   await startApp();
 
-  // No reload: the socket comes back on its own and the thread on screen is refetched. The wait
-  // covers the Worker's own rebuild and boot plus the socket's backoff, capped at 30 seconds.
   await page.locator("article").getByText("Sent while you were away.").waitFor({ timeout: 45_000 });
   expect(open()).toBe(1);
 });
@@ -149,8 +138,6 @@ test("mail that arrives before the realtime socket first opens shows once it ope
     text: "Loaded before the socket.",
   });
 
-  // Every socket is closed before it reaches the Worker, as when the Worker goes down during the
-  // handshake: the thread loads over HTTP, but no socket has ever been open.
   const { page, tab } = await openApp("ana@late-socket.test", "/");
   let refuse = true;
   let refused = 0;
@@ -163,7 +150,6 @@ test("mail that arrives before the realtime socket first opens shows once it ope
   await page.locator("article").getByText("Loaded before the socket.").waitFor();
   await expect.poll(() => refused).toBeGreaterThan(0);
 
-  // Mail arrives while no socket is listening: no event will ever announce it.
   await seedMessage(db, box, {
     subject: "Re: Kickoff",
     fromAddress: "pm@client.test",
@@ -173,7 +159,6 @@ test("mail that arrives before the realtime socket first opens shows once it ope
   });
   refuse = false;
 
-  // The first socket to open follows failed attempts, so the thread on screen is refetched.
   await page.locator("article").getByText("Sent before the socket opened.").waitFor();
 });
 
@@ -181,11 +166,9 @@ test("replies written offline go out once each, in order, when the connection is
   const org = await createOrg(db, "offline");
   await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
   const ana = await createMember(db, org.id, "ana@offline.test");
-  // No undo window: the outbox below must be able to claim the replies right away.
   await db
     .insert(schema.memberPreferences)
     .values({ memberId: ana.id, orgId: org.id, undoSendSeconds: 0 });
-  // A real GreenMail mailbox, synced by the real mail service.
   const box = { ...mailbox(), orgId: org.id };
   await db.insert(schema.mailboxes).values({
     id: box.id,
@@ -212,9 +195,6 @@ test("replies written offline go out once each, in order, when the connection is
     .where(eq(schema.threads.mailboxId, box.id));
   if (!thread) throw new Error("the delivered message was not indexed");
 
-  // Opening the unread thread marks it read. The counts refetches after that get no answer, and
-  // only once the browser is offline. Mark-read is the first mail action, so the replies queue
-  // behind it: they must still go out when the connection is back.
   const { page, tab } = await openApp("ana@offline.test", "/");
   let markedRead = false;
   let isOffline = false;
@@ -235,7 +215,6 @@ test("replies written offline go out once each, in order, when the connection is
   await page.locator("article").getByText("body of Plans").waitFor();
   await expect.poll(() => countsHeld).toBeGreaterThan(0);
 
-  // The Worker handles the first reply that reaches it, but its answer never gets back.
   let replyRequests = 0;
   await page.route("**/api/threads/*/reply", async (route) => {
     replyRequests++;
@@ -249,7 +228,6 @@ test("replies written offline go out once each, in order, when the connection is
   wentOffline();
   await page.getByRole("status").filter({ hasText: "Offline" }).waitFor();
   const reply = async (text: string) => {
-    // Reply opens the composer; a send that turns the thread into a conversation closes it.
     const box = page.getByRole("textbox", { name: "Reply" });
     if (!(await box.isVisible())) {
       await page.getByRole("button", { name: "Reply", exact: true }).last().click();
@@ -260,7 +238,6 @@ test("replies written offline go out once each, in order, when the connection is
   await reply("First, offline.");
   await reply("Second, offline.");
   await page.getByRole("status").filter({ hasText: "Offline · 2 queued" }).waitFor();
-  // Both show in the thread right away, and nothing has left the browser.
   await page.locator("article").getByText("First, offline.").waitFor();
   await page.locator("article").getByText("Second, offline.").waitFor();
   expect(replyRequests).toBe(0);
@@ -281,7 +258,6 @@ test("replies written offline go out once each, in order, when the connection is
     .getByRole("status")
     .filter({ hasText: "Offline" })
     .waitFor({ state: "detached", timeout: 30_000 });
-  // The first reply was sent again after its answer was lost, under the same key.
   expect(replyRequests).toBe(3);
   const queued = await sends();
   expect(queued.map((row) => (row.payload as { text: string }).text)).toEqual([
@@ -292,7 +268,6 @@ test("replies written offline go out once each, in order, when the connection is
     .poll(() => page.locator("article").getByText("Queued", { exact: true }).count())
     .toBe(2);
 
-  // The mail service's outbox sends them: the sender of "Plans" gets each reply once.
   const actions = new PgActionSource({ db });
   const executor = new OutboxExecutor({
     actions,

@@ -1,5 +1,3 @@
-// Join requests (ADR 0024): a sign-in with a company's address reaches only that company, so
-// someone who is not its member asks to join, and its owners and admins accept or decline.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";

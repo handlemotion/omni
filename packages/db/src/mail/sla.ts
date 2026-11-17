@@ -1,9 +1,3 @@
-// SLA targets and clocks (ADR 0023). A conversation carries two clocks: `response_clock_at`, when
-// the customer started waiting for the reply we owe, and `resolution_clock_at`, when its current
-// open stretch began. Its due times are those clocks plus the inbox's targets for its priority,
-// counted in business hours. The workflow in `conversations.ts` starts and stops the clocks; this
-// file turns them into due times, holds the per-inbox settings, and finds the alerts the minute
-// cron owes.
 import type { SlaTarget } from "@omni/contracts";
 import { addBusinessMinutes, type BusinessSchedule } from "@omni/mail-core/business-hours";
 import { and, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
@@ -50,7 +44,6 @@ interface Targets {
   schedule: BusinessSchedule | null;
 }
 
-/** The inbox's targets for this priority, or null when it has none. */
 async function targetsFor(tx: Executor, mailboxId: string, priority: Priority) {
   const [row] = await tx
     .select({
@@ -190,15 +183,6 @@ export async function refreshInboxDueTimes(db: Executor, mailboxId: string) {
   return rows.length;
 }
 
-// Settings: one inbox's targets per priority and its business hours. Owners and admins of the
-// inbox's org change them (the route checks the role); the mailbox must be a shared one in it.
-
-/**
- * Changes a shared inbox's settings with `change`, then recomputes its due times, in one
- * transaction holding the mailbox row: concurrent changes run one after the other, so the due
- * times always match the settings that end up stored. False when it is not a shared inbox of
- * the org.
- */
 async function changeInboxSettings(
   db: Db,
   orgId: string,
@@ -206,7 +190,6 @@ async function changeInboxSettings(
   change: (tx: Tx) => Promise<unknown>,
 ) {
   return db.transaction(async (tx) => {
-    // No key update: it does not block the foreign-key checks of rows written for the inbox.
     const [row] = await tx
       .select({ id: mailboxes.id })
       .from(mailboxes)
@@ -292,9 +275,6 @@ export async function deleteBusinessHours(db: Db, orgId: string, mailboxId: stri
   );
 }
 
-// Alerts: the minute cron's half. Each (conversation, target, due time) alerts at risk once and
-// breached once; a new due time (a priority change, a new customer message) can alert again.
-
 export interface SlaAlert {
   orgId: string;
   mailboxId: string;
@@ -322,10 +302,8 @@ function alertKey(kind: SlaAlert["kind"], target: SlaTarget, dueAt: Date) {
   return `${kind}:${target}:${dueAt.toISOString()}`;
 }
 
-/** Whether the alert for one due column is owed at `now` and not yet written, as SQL. */
 function owedAlert(target: SlaTarget, column: AnyPgColumn, now: Date, horizon: Date) {
   const at = sql`${now.toISOString()}::timestamptz`;
-  // Same text as alertKey: Date#toISOString is UTC with milliseconds.
   const key = sql`(case when ${column} <= ${at} then 'sla_breached' else 'sla_at_risk' end)
     || ${`:${target}:`} || to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
   return sql`(${column} <= ${horizon.toISOString()}::timestamptz and not exists (
@@ -345,7 +323,6 @@ export const emitSlaAlerts: (db: Db, now: Date, limit?: number) => Promise<SlaAl
   limit = 1000,
 ) => {
   const horizon = new Date(now.getTime() + SLA_AT_RISK_MINUTES * 60_000);
-  // Newest due first: long-breached conversations sit at the end and cannot crowd out new alerts.
   const candidates = await db
     .select({
       id: threads.id,
@@ -360,8 +337,6 @@ export const emitSlaAlerts: (db: Db, now: Date, limit?: number) => Promise<SlaAl
       and(
         eq(threads.status, "open"),
         sql`${slaDueAt(threads)} <= ${horizon.toISOString()}::timestamptz`,
-        // Skip conversations whose alerts were all delivered before the limit, so a backlog of
-        // already-alerted rows can never hide a newly owed alert.
         or(...TARGETS.map(([target, column]) => owedAlert(target, threads[column], now, horizon))),
       ),
     )
@@ -402,7 +377,6 @@ export const emitSlaAlerts: (db: Db, now: Date, limit?: number) => Promise<SlaAl
   for (const alert of owed) {
     if (seen.has(`${alert.row.id} ${alert.key}`)) continue;
     const written = await db.transaction(async (tx) => {
-      // Recheck under the row lock: an agent may have replied or resolved since the scan.
       const [row] = await tx
         .select({
           status: threads.status,
@@ -429,7 +403,6 @@ export const emitSlaAlerts: (db: Db, now: Date, limit?: number) => Promise<SlaAl
         .onConflictDoNothing()
         .returning({ id: conversationEvents.id });
       if (!event) return null;
-      // The assignee owns it; nobody does yet, so the whole inbox hears.
       const recipients = row.assigneeMemberId
         ? [row.assigneeMemberId]
         : (

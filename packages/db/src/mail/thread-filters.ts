@@ -1,8 +1,3 @@
-// Filters an agent's `search` narrows threads by (ADR 0029). Each one is a SQL condition on a
-// message or a thread row that the `forMember` reads add to their own access-checked queries, so
-// a filter can only narrow what the grant already shows. Addresses and domains are validated
-// before they get here (letters, digits, `.`, `-`, `_`, `+`, `@`), so a LIKE pattern built from
-// one holds no wildcard of its own.
 import { sql, type SQL } from "drizzle-orm";
 
 /** Conditions on the messages of a thread: some message must match all of them. */
@@ -38,7 +33,6 @@ function messageOnly({ from, participant, after, before, hasAttachments, fromMe 
   return { from, participant, after, before, hasAttachments, fromMe };
 }
 
-/** `address` matches `who`: the same address, or an address at the domain or a subdomain. */
 const addressMatches: (address: SQL, who: string) => SQL = (address, who) => {
   const target = who.toLowerCase();
   if (target.includes("@")) return sql`lower(${address}) = ${target}`;

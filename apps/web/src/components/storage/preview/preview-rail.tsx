@@ -1,9 +1,3 @@
-// The preview's tools on a small island under the stage: Mail's closed-sidebar island turned on
-// its side (`sidebar-island.tsx`: the sidebar's fill and border, lines edge to edge between
-// groups), kept small: 2px round 26px squares. On a PDF or an image, Cursor (just reading) and
-// Comment (a target: a drag on the file opens the comment bar beside its box); on other files
-// Comment opens the bar for the whole file over the island. Then the file's versions as
-// "‹ v3 ›", whose label lists every version, and Restore while an older one is shown.
 import { Fragment, type ReactNode } from "react";
 import {
   IconChevronLeft,
@@ -88,8 +82,6 @@ export function PreviewRail(props: {
   if (props.versions) groups.push(<Versions {...props.versions} />);
   if (groups.length === 0) return null;
   return (
-    // In flow under the stage, on its fill, so it never covers the file's last lines. The comment
-    // bar floats 8px over it, alone (no card around it), on the overlay shadow so it reads over the page.
     <div className="relative flex shrink-0 justify-center px-5 pb-2.5">
       {comment?.open && !comment.isDisabled && (
         <div className="absolute inset-x-5 bottom-full mx-auto mb-2 max-w-md rounded-[12px] shadow-(--shadow-overlay)">
@@ -103,7 +95,6 @@ export function PreviewRail(props: {
       >
         {groups.map((group, index) => (
           <Fragment key={index}>
-            {/* Top to bottom, through the island's 2px padding. */}
             {index > 0 && (
               <Separator
                 orientation="vertical"
@@ -146,7 +137,6 @@ function Versions(props: NonNullable<Parameters<typeof PreviewRail>[0]["versions
           {current?.label}
         </Button>
         <Menu
-          // Out of the island: in place, an open menu could widen it.
           popover={{ container: document.body }}
           placement="top"
           aria-label="Versions"

@@ -1,9 +1,3 @@
-// A folder's page, whichever door it is opened through (a member's My files or Shared, or a
-// shared link): the folder as a list or a grid, files dropped anywhere on it uploaded here, the
-// upload actions for whoever may write, the dialogs its rows open, and the open file's preview
-// beside it (ADR 0040), or instead a file's comments (ADR 0043), narrower. The open file is the
-// URL's `?file=` and the commented one its `?comments=`, so Back closes either; opening one closes
-// the other.
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row-menu";
@@ -59,13 +53,10 @@ export interface FolderSource {
   empty: { title: string; description?: string };
 }
 
-// The preview keeps the width the person dragged it to (560px until then); the folder takes the
-// rest, never under 320px, as the inbox does beside an open thread.
 const PREVIEW_WIDTH = 560;
 const PREVIEW_MIN = 360;
 const PREVIEW_MAX = 4096;
 const FOLDER_MIN = 320;
-// Comments are a column of chat, not a document: a fixed 360px.
 const COMMENTS_WIDTH = 360;
 
 export function FolderView(props: {
@@ -86,7 +77,6 @@ export function FolderView(props: {
     );
   const open = useOpenFile(source.list);
   const comments = useCommentsPanel(source.list);
-  // New folder shows the folder at once, its name ready to type (Finder's way, not a dialog).
   const folders = useFolderDrafts({
     place: source.place,
     shareId: source.shareId,
@@ -97,8 +87,6 @@ export function FolderView(props: {
     () => ({ list: folders.drafts, handlers: { finish: folders.finish, onType: folders.onType } }),
     [folders.drafts, folders.finish, folders.onType],
   );
-  // Rename turns the name into a field where it is drawn: the item's card or row, or the open
-  // file's title when chosen from the preview's menu.
   const { rename, start: startRename } = useInlineRename({
     shareId: source.shareId,
     nodes: source.list.nodes,
@@ -115,8 +103,6 @@ export function FolderView(props: {
   );
   const menu = useMemo(() => menuAt("list"), [menuAt]);
 
-  // Beside the preview, the folder keeps at least its minimum; full screen or on a phone the
-  // preview takes the whole width.
   const [fullScreen, toggleFullScreen] = useFullScreen();
   const phone = useIsMobile();
   const node = open.node;
@@ -161,13 +147,10 @@ export function FolderView(props: {
         </StorageFrame>
       </div>
       {node && (
-        // Split, a fixed width that still gives way to the folder's minimum in a narrow window.
         <div
           style={split ? { width: preview.width } : undefined}
           className={`relative flex min-w-0 ${split ? "shrink" : "flex-1"}`}
           onKeyDown={(event) => {
-            // ← and → step through the folder's files, Esc closes; not while a control (a
-            // video's scrubber, a menu) has them.
             if (event.defaultPrevented || isControl(event.target)) return;
             const step = { ArrowLeft: open.previous, ArrowRight: open.next }[event.key];
             if (step) open.select(step.id, true);
@@ -210,7 +193,6 @@ export function FolderView(props: {
           style={phone ? undefined : { width: COMMENTS_WIDTH }}
           className={`flex min-w-0 ${phone ? "flex-1" : "shrink"}`}
         >
-          {/* Keyed: a reply or a draft on one file never carries over to the next. */}
           <CommentsPanel
             key={comments.node.id}
             node={comments.node}
@@ -224,7 +206,6 @@ export function FolderView(props: {
   );
 }
 
-/** The dialog a row's action opened, if any. */
 function FolderDialogs(props: { dialog: FolderDialog; source: FolderSource; onClose: () => void }) {
   const { dialog, source, onClose } = props;
   if (!dialog) return null;
@@ -239,9 +220,7 @@ function FolderDialogs(props: { dialog: FolderDialog; source: FolderSource; onCl
     case "icon":
       return <FolderIconDialog node={node} onClose={onClose} />;
     case "comments":
-    // A panel beside the folder, not a dialog (see `useCommentsPanel`).
     case "rename":
-      // The name itself, where it is drawn (see `useInlineRename`).
       return null;
     case "signatures":
       return <SignaturesDialog node={node} onClose={onClose} />;
@@ -257,10 +236,6 @@ export interface OpenFile {
   select: (id: string | null, replace?: boolean) => void;
 }
 
-/**
- * The URL's open file, the files either side of it, and the way to change it. A file past the
- * folder's loaded pages (a bookmarked or shared `?file=`) loads the next pages until it is found.
- */
 const useOpenFile: (list: FolderSource["list"]) => OpenFile = (list) => {
   const { nodes } = list;
   const { file } = useSearch({ strict: false }) as { file?: string };
@@ -292,7 +267,6 @@ const useOpenFile: (list: FolderSource["list"]) => OpenFile = (list) => {
   }, [nodes, file, select]);
 };
 
-/** Loads the folder's next pages until `id` (a bookmarked or shared URL's) is among its nodes. */
 function useLoadUntilFound(list: FolderSource["list"], id: string | undefined) {
   const { nodes, hasNextPage, isFetchingNextPage, fetchNextPage } = list;
   const loaded = !id || nodes.some((n) => n.id === id);
@@ -301,7 +275,6 @@ function useLoadUntilFound(list: FolderSource["list"], id: string | undefined) {
   }, [loaded, hasNextPage, isFetchingNextPage, fetchNextPage]);
 }
 
-/** The URL's commented file (a file of this folder), and the way to open or close its comments. */
 function useCommentsPanel(list: FolderSource["list"]) {
   const { nodes } = list;
   const { comments } = useSearch({ strict: false }) as { comments?: string };
@@ -323,7 +296,6 @@ function useCommentsPanel(list: FolderSource["list"]) {
   return { node, select };
 }
 
-/** Keys inside these belong to them: fields, editors, media controls and open menus. */
 function isControl(target: EventTarget) {
   return (
     target instanceof Element &&

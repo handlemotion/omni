@@ -1,8 +1,3 @@
-// `fetch`: read threads (ADR 0029), in the shape ChatGPT's deep research expects
-// (`{ id, title, url, text, metadata }`), up to 10 per call. `text` is the conversation as plain
-// text with quoted history and signatures already stripped (`clean_text`), so a long thread costs
-// its new words only, and links over 100 characters (tracking redirects) are dropped. Over the size budget the oldest messages give way first: the latest one is
-// what an agent most needs.
 import type { McpServer } from "@modelcontextprotocol/server";
 import { schema } from "@omni/db";
 import { withoutLongLinks } from "@omni/mail-core/display";
@@ -95,7 +90,6 @@ function kilobytes(size: number) {
   return size < 1024 ? `${size} B` : `${Math.round(size / 1024)} KB`;
 }
 
-/** One message's header lines; its body is kept apart so the budget can cut it. */
 function header(message: Message) {
   const files = message.attachments.filter((a) => !a.inline);
   return [
@@ -127,13 +121,11 @@ interface Block {
   body: string;
   sentAt: number;
   latest: boolean;
-  /** Left out entirely: the thread says how many earlier messages it skipped. */
   dropped: boolean;
 }
 
 const SEPARATOR = "\n\n---\n\n";
 
-/** One thread's `text`, exactly as `fetch` returns it. */
 function render(blocks: Block[], thread: number) {
   const own = blocks.filter((b) => b.thread === thread);
   const dropped = own.filter((b) => b.dropped).length;
@@ -146,12 +138,6 @@ function render(blocks: Block[], thread: number) {
   return parts.join(SEPARATOR);
 }
 
-/**
- * Fits the call's text under `budget` characters, measured as rendered (headers, separators and
- * notices included): earlier messages' bodies give way first, oldest first, then earlier messages
- * altogether, then the latest message of each thread shares what is left. Only the latest
- * messages' headers always stay. Returns which threads were cut.
- */
 function fit(blocks: Block[], threadCount: number, budget: number) {
   const size = () =>
     Array.from({ length: threadCount }, (_, i) => render(blocks, i).length).reduce(
@@ -187,7 +173,6 @@ function fit(blocks: Block[], threadCount: number, budget: number) {
   return cut;
 }
 
-/** Names for the members a conversation mentions (assignee, note authors). */
 async function memberNames(context: ToolContext, ids: string[]) {
   if (!ids.length) return new Map<string, string>();
   const rows = await context.db

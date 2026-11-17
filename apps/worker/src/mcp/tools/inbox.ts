@@ -1,6 +1,3 @@
-// `inbox`: everything an agent needs to start, in one call (ADR 0029). Who the person is, their
-// workspaces and inboxes with counts, the threads that need them most, and unread notifications.
-// Every read is a `forUser` read, run in parallel.
 import { listUserWorkspaces, schema } from "@omni/db";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { eq } from "drizzle-orm";

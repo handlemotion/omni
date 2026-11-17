@@ -1,7 +1,3 @@
-// The read-only gate's contract (ADR 0015) over the real Worker with billing on: every write
-// route under `/api` that the app has today answers 402 to a workspace that never subscribed,
-// unless `READ_ONLY_ALLOWED` names it, and every route it names is not gated. The routes come
-// from the app itself, so a new write route fails here until someone decides which side it is on.
 import { randomUUID } from "node:crypto";
 import { forMember, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -18,8 +14,6 @@ import {
   createMailbox,
 } from "./support.ts";
 
-// The Worker's own route table and allowlist, loaded by Vitest. The specifiers are not literals
-// so this Node-typed project does not type-check Worker source against the Workers runtime.
 const source = (path: string) => import(/* @vite-ignore */ new URL(path, import.meta.url).href);
 const { app } = (await source("../src/app.ts")) as {
   app: { routes: { method: string; path: string }[] };
@@ -55,7 +49,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-/** Every distinct write route the app registers under `/api` (middleware is method `ALL`). */
 function writeRoutes() {
   const seen = new Set<string>();
   return app.routes
@@ -64,7 +57,6 @@ function writeRoutes() {
     .map((r) => ({
       method: r.method,
       pattern: r.path,
-      // Any id will do: the gate answers before a handler looks anything up.
       path: r.path.replace(/:\w+(\{[^}]*\})?/g, randomUUID()).replace(/\*$/, "x"),
     }));
 }
@@ -83,9 +75,6 @@ test("every write route is gated for an unpaid workspace unless the allowlist na
   for (const route of routes) {
     const response = await fetch(new URL(route.path, worker.url), {
       method: route.method,
-      // A body no route accepts: what gets past the gate stops at validation or a missing
-      // record (the workspace has no Stripe customer), so nothing here sends mail, changes the
-      // workspace or dials Stripe.
       headers: { cookie, "content-type": "application/json", "idempotency-key": randomUUID() },
       body: "{not json",
     });
@@ -96,17 +85,13 @@ test("every write route is gated for an unpaid workspace unless the allowlist na
       gated: response.status === 402,
     });
   }
-  // One assertion over the whole table, so a failure names every route on the wrong side.
   expect(answers.filter((a) => a.allowed === a.gated)).toEqual([]);
-  // Both sides are exercised: mail writes are gated, billing stays open.
   expect(answers).toContainEqual({
     route: "POST /api/threads/:id/archive",
     allowed: false,
     gated: true,
   });
-  // The CRM's writes are in the walk (ADR 0036): a read-only workspace changes no record.
   expect(answers).toContainEqual({ route: "POST /api/crm/people", allowed: false, gated: true });
-  // Inviting stays open (ADR 0015), now that invitations go through the Worker (ADR 0026).
   expect(answers).toContainEqual({
     route: "POST /api/workspace/invitations/:id/resend",
     allowed: true,
@@ -125,7 +110,6 @@ test("a read-only workspace still reads every CRM route", async () => {
   const email = `member-${randomUUID().slice(0, 8)}@omni.test`;
   const member = await createMember(db, org.id, email);
   const cookie = await signIn(worker, db, email);
-  // Records made below the gate, as a workspace that was paid once would have them.
   const crm = forMember(db, member.id).crm;
   const added = await crm.addPerson({ name: "Carla", address: "carla@northwind.com" });
   if (added.status !== "ok" || !added.person.companyId) throw new Error("no person");
@@ -159,7 +143,6 @@ test("a read-only workspace still reads every CRM route", async () => {
     answers.push({ route: pattern, status: response.status });
   }
   expect(answers.filter((a) => a.status !== 200)).toEqual([]);
-  // And a CRM write is gated (the first test walks every one).
   const write = await fetch(new URL("/api/crm/companies", worker.url), {
     method: "POST",
     headers: { cookie, "content-type": "application/json" },

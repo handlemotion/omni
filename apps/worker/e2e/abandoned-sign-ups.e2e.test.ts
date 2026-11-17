@@ -1,5 +1,3 @@
-// The daily sweep of abandoned sign-ups, run through the real Worker's cron against Postgres and
-// its local R2 bucket: who is deleted, who must never be, and that the picture goes too.
 import { randomUUID } from "node:crypto";
 import { ensurePersonalSpace, forMember, schema } from "@omni/db";
 import { eq, inArray } from "drizzle-orm";
@@ -46,7 +44,6 @@ async function bucket() {
   return env.MAIL_BUCKET;
 }
 
-/** A user who signed up `createdDaysAgo` days ago and never joined anything. */
 async function signUp(name: string, createdDaysAgo: number) {
   const id = randomUUID();
   const email = `${name}-${id}@people.test`;
@@ -97,17 +94,11 @@ async function runDaily() {
   expect(result.outcome).toBe("ok");
 }
 
-// Catches: deleting someone who can still get in (a live invitation, even to an extra address
-// or in another case), a member, someone who just signed in, or someone whose deletion would
-// cascade to invitations they sent; and an abandoned account, its sign-in data or its picture
-// left behind forever.
 test("the daily cron deletes only accounts with no workspace, no way into one, and no recent use", async () => {
   const org = await createOrg(database.db, "sweep");
   const owner = await createMember(database.db, org.id, `owner-${randomUUID()}@sweep.test`);
   const r2 = await bucket();
 
-  // Abandoned: opened an invitation that has since expired, signed in once long ago, uploaded a
-  // picture, added an extra sign-in email.
   const gone = await signUp("gone", 45);
   await invite(org.id, owner.userId, gone.email, daysAgo(38));
   await session(gone.id, 44);
@@ -121,7 +112,6 @@ test("the daily cron deletes only accounts with no workspace, no way into one, a
     .insert(schema.userEmails)
     .values({ userId: gone.id, email: `extra-${gone.id}@people.test`, verifiedAt: daysAgo(44) });
 
-  // Kept, each for one reason.
   const fresh = await signUp("fresh", 3);
   const active = await signUp("active", 90);
   await session(active.id, 2);
@@ -155,7 +145,6 @@ test("the daily cron deletes only accounts with no workspace, no way into one, a
   const left = await remaining(everyone);
   expect(left.has(gone.id)).toBe(false);
   expect([...left].toSorted()).toEqual(everyone.filter((id) => id !== gone.id).toSorted());
-  // Its rows went with it, and so did its picture.
   expect(
     await database.db.select().from(schema.sessions).where(eq(schema.sessions.userId, gone.id)),
   ).toEqual([]);
@@ -164,13 +153,10 @@ test("the daily cron deletes only accounts with no workspace, no way into one, a
   ).toEqual([]);
   expect(await r2.head(pictureKey)).toBeNull();
 
-  // A second run changes nothing.
   await runDaily();
   expect(await remaining(everyone)).toEqual(left);
 });
 
-// Catches: an abandoned account's Personal space (ADR 0024) left behind owned by nobody, or a
-// Personal space that holds mail or files (ADR 0034) counted as abandoned and deleted with them.
 test("an abandoned account's empty Personal space goes with it; one holding mail or a file keeps its owner", async () => {
   const { db } = database;
   const gone = await signUp("personal-gone", 45);

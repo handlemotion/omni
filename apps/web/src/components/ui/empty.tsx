@@ -1,4 +1,3 @@
-// shadcn's Empty, as dorks (handlemotion/dorks, packages/ui) ships it, on Omni's tokens.
 import type { ComponentProps } from "react";
 import { cn } from "cn";
 

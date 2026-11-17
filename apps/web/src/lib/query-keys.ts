@@ -1,25 +1,3 @@
-// Every query key in the app, in one tree, so invalidation can target a branch:
-//
-//   omni
-//   ├─ session · device-sessions · sessions · sign-in-methods · sign-in-emails · workspaces
-//   │        · sender-logo(address or domain)
-//   ├─ org ─ organizations · members · invitations · invitation(id) · passkeys · onboarding
-//   │        · billing · billing-cards · billing-invoices
-//   ├─ mail ─ mailboxes(·all) · google-accounts · workspace-mailboxes · mailbox-members(id) · counts · threads(filter)
-//   │        · thread(id) ─ conversation · search(q) · action(id) · tags(mailbox)
-//   │        · assignees(mailbox) · conversations(filter) · conversation-counts
-//   │        · notifications ─ { unread } · sla(mailbox)
-//   ├─ storage ─ list(place) · trash · search(q) · icons(space) · usage · node(id) · sharing(id) · versions(id) · comments(id) · signatures(id) · signing(id) · shared-with-me · link(share, node)
-//   │                                                                  (ADR 0034)
-//   ├─ crm ─ companies(q) · people(q) · deals(q) · company(id) · person(id) · deal(id) · stages
-//   │        · timeline(kind, id) · contracts(where) · find(q)                  (ADR 0036)
-//   ├─ preview ─ (kind, file, version)   a file's preview bytes; outside `storage` so a list's
-//   │                                    refetch never refetches them (ADR 0040)
-//   └─ local ─ pending(threadId) · failures       (client-only state, never fetched)
-//
-// The `org`, `mail`, `storage` and `crm` branches sit under the workspace's id
-// (`["omni", <orgId>, "mail", …]`, ADR 0043); the rest is the person's. Switching account clears
-// the whole cache (see `session.ts`).
 import { currentWorkspaceId } from "./current-workspace.ts";
 import type { ConversationFilter, ThreadFilter } from "./types.ts";
 
@@ -28,10 +6,6 @@ export interface NotificationFilter {
 }
 
 const root = ["omni"] as const;
-/**
- * A workspace's data sits under its id (this tab's, ADR 0043): two workspaces never share a key,
- * so one's answers can never show in the other's screens, and switching back is instant.
- */
 const scoped = <const B extends string>(branch: B) =>
   [...root, currentWorkspaceId() ?? "", branch] as const;
 const mail = () => scoped("mail");
@@ -41,7 +15,6 @@ const crm = () => scoped("crm");
 const local = [...root, "local"] as const;
 const preview = [...root, "preview"] as const;
 
-/** A filter with absent fields dropped, so `{ mailbox: undefined }` and `{}` share a key. */
 function normalize(filter: ThreadFilter) {
   return {
     view: filter.view,

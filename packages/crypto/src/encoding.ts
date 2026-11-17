@@ -1,10 +1,7 @@
-// Byte helpers on globals that exist in both Workers and Node (TextEncoder, btoa, atob).
-
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false });
 
 export function utf8(text: string) {
-  // Always a fresh ArrayBuffer; workers-types widens the return type to ArrayBufferLike.
   return encoder.encode(text) as Uint8Array<ArrayBuffer> satisfies Uint8Array<ArrayBuffer>;
 }
 

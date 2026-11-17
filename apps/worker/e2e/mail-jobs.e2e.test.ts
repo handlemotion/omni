@@ -1,6 +1,3 @@
-// Mail's minute job (`src/mail/jobs.ts`, registered on the mail module in `src/modules.ts`) run
-// through the real Worker's cron under workerd, against Postgres: the `thread_participants`
-// backfill (ADR 0036 decision 4) beside the helpdesk's clock.
 import { randomUUID } from "node:crypto";
 import { createThread, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -32,21 +29,16 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-/** A UUIDv7 made `agoMs` ago, as the mail service would have given a message stored then. */
 function uuidv7Ago(agoMs: number) {
   const hex = (Date.now() - agoMs).toString(16).padStart(12, "0");
   const rest = randomUUID().replaceAll("-", "");
   return `${hex.slice(0, 8)}-${hex.slice(8)}-7${rest.slice(0, 3)}-8${rest.slice(3, 6)}-${rest.slice(6, 18)}`;
 }
 
-// Catches: mail stored before `thread_participants` existed (or by an older mail service) never
-// reaching a CRM timeline, because the minute cron does not run mail's job, or its Effect
-// program fails under workerd; and a run that indexes the same mail again.
 test("the minute cron indexes the participants of mail stored without them, then finds nothing to do", async () => {
   const { db } = database;
   const org = await createOrg(db, "backfill");
   const box = await createMailbox(db, org.id, "inbox@backfill.test");
-  // As an older mail service stored it an hour ago: the messages, no participant rows.
   for (let i = 1; i <= 3; i++) {
     const sentAt = new Date(Date.now() - 3_600_000 + i);
     const threadId = await createThread(db, {

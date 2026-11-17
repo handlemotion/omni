@@ -23,7 +23,6 @@ declare module "@tanstack/react-query" {
 /** Shows a failed action's message: the app's error toast, one per kind at a time. */
 export type ShowFailure = (message: string, failure: Failure) => void;
 
-/** A query is retried only when the same request may succeed later (ADR 0046). */
 function shouldRetry(failureCount: number, error: unknown) {
   const { kind, retryable } = classify(error);
   return retryable && kind !== "unauthenticated" && kind !== "permission" && failureCount < 2;
@@ -67,7 +66,6 @@ export function createQueryClient(onSessionLost: () => void, showFailure: ShowFa
       },
     },
   });
-  // Client-only state (pending sends, failures) is never fetched and must not expire unseen.
   client.setQueryDefaults(keys.local(), { staleTime: Infinity, gcTime: Infinity });
   return client;
 }

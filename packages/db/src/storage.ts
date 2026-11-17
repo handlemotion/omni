@@ -1,11 +1,3 @@
-// Storage (ADR 0034): the one place access to files and folders is decided. A node is reached
-// through exactly one of three doors, and routes never query the storage tables themselves:
-//
-// 1. Member: `forMember(db, memberId).storage`. Their own My files and, in a company, Shared.
-// 2. Grant: `forUser(db, userId, scopeOrgId).storage`. Nodes granted to an address they verified.
-// 3. Link: `publicStorage(db, shareId)`. Nodes under a link open to anyone. No session.
-//
-// The parts live in `./storage/`: `access.ts` is the doors, the rest is what goes through them.
 import type { Db } from "./client.ts";
 import { grantAddresses, grantDoor, linkDoor, loadMember, memberDoor } from "./storage/access.ts";
 import type { StorageListCursor, StorageSpace } from "./storage/core.ts";
@@ -156,7 +148,6 @@ export type { StorageUploadPart } from "./schema/storage.ts";
  * for signature. No function here reaches another member's My files, whatever the caller's role.
  */
 export function memberStorage(db: Db, memberId: string) {
-  // `db` may be a transaction: its operations then run inside it, as savepoints.
   const door = memberDoor(memberId);
   return {
     ...treeOperations(db, door),
@@ -169,10 +160,6 @@ export function memberStorage(db: Db, memberId: string) {
     ...sharingOperations(db, door),
     ...lockOperations(db, door, memberId),
     ...signingOperations(db, door, memberId),
-    /**
-     * A drive's change feed for a sync client (ADR 0043): the member's My files, or their
-     * company's Shared. `not_found` when the member is gone or the workspace has no such drive.
-     */
     async changes(
       space: StorageSpace,
       page: { cursor?: StorageSyncCursor | null; limit?: number } = {},
@@ -180,15 +167,10 @@ export function memberStorage(db: Db, memberId: string) {
       const drive = await door.root(db, space);
       return drive ? listChanges(db, drive, page) : ({ status: "not_found" } as const);
     },
-    /** The workspace's bytes stored and reserved, or null when the member is gone. */
     async usage() {
       const member = await loadMember(db, memberId);
       return member ? storageUsageOf(db, member.orgId) : null;
     },
-    /**
-     * The workspace's recorded peak for the usage month starting at `periodStart` (0 when none),
-     * or null when the member is gone.
-     */
     async peak(periodStart: Date) {
       const member = await loadMember(db, memberId);
       return member ? storagePeakOf(db, member.orgId, periodStart) : null;
@@ -214,19 +196,9 @@ export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) 
   };
   return {
     ...through(),
-    /** Signing as an address the person verified (ADR 0043 decision 6); no grant needed. */
     ...signerOperations(db, userId, scopeOrgId),
-    /**
-     * The same, reaching only the node that carries the link `/s/<shareId>` and what is inside
-     * it. Everything it reaches is in that node's workspace.
-     */
     under: (shareId: string) => through(shareId),
-    /**
-     * Every workspace the person belongs to, with the drives a sync client keeps for them there
-     * and each drive's revision (ADR 0043).
-     */
     syncWorkspaces: () => listSyncWorkspaces(db, userId, scopeOrgId),
-    /** "Shared with me": every live node granted to the person, newest grant first. */
     async sharedWithMe(page: { cursor?: SharedWithMeCursor | null; limit?: number } = {}) {
       return listSharedWith(db, await grantAddresses(db, userId, scopeOrgId), page);
     },
@@ -240,9 +212,7 @@ export function userStorage(db: Db, userId: string, scopeOrgId?: string | null) 
 export function publicStorage(db: Db, shareId: string) {
   const { node, nodeByShareId, list, file } = treeOperations(db, linkDoor(shareId));
   return {
-    /** The shared node itself, or a node inside it. Null when the link opens nothing. */
     node: (nodeId?: string) => (nodeId ? node(nodeId) : nodeByShareId(shareId)),
-    /** The contents of the shared folder, or of a folder inside it. */
     async list(page: { parentId?: string; cursor?: StorageListCursor | null; limit?: number }) {
       const parentId = page.parentId ?? (await nodeByShareId(shareId))?.node.id;
       return parentId ? list({ parentId }, page) : ({ status: "not_found" } as const);

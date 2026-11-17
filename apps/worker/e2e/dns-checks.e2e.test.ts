@@ -1,7 +1,3 @@
-// Fast, explained DNS checks end to end (ADR 0011): per-record verdicts read from the domain's
-// own nameservers (the local authoritative DNS server), and the auto-check that re-checks while
-// the DNS page is open and pushes each result over the realtime socket. Real Worker (with its
-// Durable Objects and alarms), real mail service, Postgres; nothing mocked.
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { type OnboardingStack, startOnboardingStack, waitFor } from "./onboarding-stack.ts";
 import { WEB_ORIGIN, type CookieJar } from "./support.ts";
@@ -20,17 +16,14 @@ type Diagnostic = { status: string; message: string; found: string[] };
 test("each check says why the record is not passing yet, from what the nameservers hold now", async () => {
   const a = await stack.workspaceWithClaim();
   const challenge = a.claim.challenge as Challenge;
-  // Read at claim time, before anything is published.
   expect(challenge.diagnostic).toMatchObject({ status: "missing", message: "Not found yet." });
 
-  // An earlier value left at the DNS host: shown as found but wrong, with what was found.
   stack.dns.set(challenge.name, "TXT", ["omni-challenge=an-old-value"]);
   expect(((await check(a.jar, a.domainId)).body.challenge as Challenge).diagnostic).toMatchObject({
     status: "wrong_value",
     found: ["omni-challenge=an-old-value"],
   });
 
-  // A CNAME at the name hides any TXT there: the member must remove it first.
   stack.dns.set(challenge.name, "TXT", []);
   stack.dns.set(challenge.name, "CNAME", ["verify.elsewhere.test"]);
   const conflict = await check(a.jar, a.domainId);
@@ -38,14 +31,12 @@ test("each check says why the record is not passing yet, from what the nameserve
     status: "cname_conflict",
     found: ["verify.elsewhere.test"],
   });
-  // The verdict is stored: a reload shows it without checking again.
   const status = await api(a.jar, "GET", "/onboarding");
   const listed = (status.body.domains as { id: string; challenge: Challenge }[]).find(
     (d) => d.id === a.domainId,
   );
   expect(listed?.challenge.diagnostic?.status).toBe("cname_conflict");
 
-  // Fixed: the next check verifies it, seconds after the record changed.
   stack.dns.set(challenge.name, "CNAME", []);
   stack.publishChallenge(a.claim);
   expect((await check(a.jar, a.domainId)).body).toMatchObject({
@@ -58,7 +49,6 @@ test("while the DNS page is open, the domain is re-checked on its own and the re
   const a = await stack.workspaceWithClaim();
   const url = new URL("/api/realtime", stack.worker.url);
   url.protocol = "ws:";
-  // Node's WebSocket (undici) takes headers: the session cookie and the web app's Origin.
   const socket = new WebSocket(url, {
     headers: { cookie: a.jar.header, origin: WEB_ORIGIN },
   } as unknown as string[]);
@@ -71,12 +61,10 @@ test("while the DNS page is open, the domain is re-checked on its own and the re
   try {
     const watched = await api(a.jar, "POST", `/onboarding/domains/${a.domainId}/watch`, {});
     expect(watched).toMatchObject({ status: 200, body: { watching: true } });
-    // The first check is about five seconds out: soon enough to feel live, not a flood.
     const firstAt = Date.parse(watched.body.nextCheckAt as string);
     expect(firstAt - Date.now()).toBeGreaterThan(3_000);
     expect(firstAt - Date.now()).toBeLessThanOrEqual(5_000);
 
-    // The member saves the record at their DNS host and does nothing else.
     stack.publishChallenge(a.claim);
     await waitFor(
       async () => events.some((e) => e.type === "domain" && e.domainId === a.domainId),
@@ -88,7 +76,6 @@ test("while the DNS page is open, the domain is re-checked on its own and the re
     ).toMatchObject({ status: "verified" });
     expect((status.body.organization as { setup: string }).setup).toBe("dns_verified");
 
-    // Verified: the watch stops on its own and clears its storage, so no alarm is left to push.
     const watch = await stack.worker.server
       .getWorker()
       .getDurableObjectStorage("DOMAIN_WATCH", { name: a.domainId });

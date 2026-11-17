@@ -1,5 +1,3 @@
-// The addresses a person signs in with (ADR 0014): list, add (mails a link), confirm, make
-// primary, remove.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addSignInEmailMutation,

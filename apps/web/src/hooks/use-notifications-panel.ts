@@ -1,5 +1,3 @@
-// The notifications panel beside the sidebar: the bell toggles it, a desktop notification about
-// the workspace opens it. One store, so every opener reaches it without props.
 import { useSyncExternalStore } from "react";
 
 let open = false;

@@ -1,6 +1,3 @@
-// The Companies, People and Deals lists (ADR 0039 decision 1): archived records hidden, `?q=`
-// searched on the server, and a New action each. Deals open on the board; the toggle beside
-// search switches it to the list.
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { IconBoard, IconList } from "@/components/icons/central";
@@ -30,7 +27,6 @@ import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 const day = (iso: string | null) => (iso ? DAY.format(new Date(iso)) : null);
 
-/** When the record was last written to or from, else when it was added. */
 const lastContactedColumn = {
   title: "Last contacted",
   className: "w-36 max-md:hidden",
@@ -94,7 +90,6 @@ export function StageBadge({ stage, deal }: { stage: CrmStage | undefined; deal:
   );
 }
 
-/** What the list needs of an infinite query. */
 interface PagedQuery {
   isPending: boolean;
   isError: boolean;

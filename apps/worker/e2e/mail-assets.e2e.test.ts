@@ -15,7 +15,6 @@ import {
   SYSTEM_MAIL_FROM,
 } from "./support.ts";
 
-// 1x1 transparent PNG.
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
   "base64",
@@ -64,7 +63,6 @@ describe("attachments and message HTML", () => {
       fromAddress: "x@client.test",
       uid: 1,
     });
-    // The Worker's real local R2 binding, which the mail service's bucket is in production.
     const env = await worker.server
       .getWorker<{ MAIL_BUCKET: { put(key: string, body: string | Buffer): Promise<unknown> } }>()
       .getEnv();
@@ -104,7 +102,6 @@ describe("attachments and message HTML", () => {
       await download.body?.cancel();
     }
 
-    // Bea has no access to Ana's mailbox; a valid hash tells her nothing.
     expect((await get(`/attachments/${png}`, beaCookie)).status).toBe(404);
     expect((await get(`/attachments/${png}`, "")).status).toBe(401);
 

@@ -1,6 +1,3 @@
-// Undo send against the real consumer: a reply waits in the outbox for the member's undo window,
-// a cancel inside it means the mail never leaves, and a send left alone goes out once the window
-// passes. Real Worker (workerd), real mail service polling its outbox, real GreenMail and Postgres.
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -63,7 +60,6 @@ beforeAll(async () => {
       IMAGE_PROXY_URL: "/api/image-proxy",
       ATTACHMENT_URL: "/api/attachments",
       SYNC_INTERVAL_MS: 60 * 60_000,
-      // The Worker's ping comes before the window ends; the poll is what claims the held send.
       OUTBOX_INTERVAL_MS: 500,
       MAILBOX_CONCURRENCY: 2,
     },
@@ -92,7 +88,6 @@ async function waitUntil<T>(check: () => Promise<T | false | undefined> | T, tim
   }
 }
 
-/** Subjects in a GreenMail INBOX (users are created on first delivery; the password is the address). */
 async function inboxSubjects(address: string) {
   const client = new ImapFlow({
     host: greenmail.host,
@@ -187,15 +182,12 @@ test("a cancelled send never leaves; one left alone goes out after the undo wind
       .where(eq(schema.mailActions.id, actionId));
     return row?.status === "done" && row;
   });
-  // Held for the window: the outbox poll runs every 500ms, yet the SMTP server took it only once
-  // the window it was given had passed.
   expect(sent.runAfter.toISOString()).toBe(undoUntil);
   expect(sent.smtpAcceptedAt?.getTime()).toBeGreaterThanOrEqual(new Date(undoUntil).getTime());
   const subjects = await waitUntil(async () => {
     const found = await inboxSubjects(customer);
     return found.length ? found : false;
   });
-  // Only the send left alone reached the customer.
   expect(subjects).toEqual(["Re: Order"]);
   const [gone] = await db
     .select()

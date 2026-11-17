@@ -1,6 +1,3 @@
-// File versions (ADR 0043 decision 1) on real Postgres: a new version keeps what it replaces,
-// the bytes are counted while they are kept, and everything that deletes a file takes its
-// versions' objects with it.
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { forMember, forUser } from "../src/for-member.ts";
@@ -28,7 +25,6 @@ async function workspace(slug: string) {
   return { org, member, storage: forMember(db, member.id).storage };
 }
 
-/** Uploads `size` bytes as a new version of the file, the way the Worker does. */
 async function addVersion(
   storage: Pick<
     MemberStorage | SharedStorage,
@@ -48,8 +44,6 @@ async function addVersion(
 
 const bytesOf = async (orgId: string) => (await storageUsageOf(db, orgId)).bytes;
 
-// Catches: a new version that overwrites the old content's key (nothing to restore), usage that
-// forgets the kept bytes (free storage by re-uploading), and a second `complete` counting twice.
 test("a new version keeps the old content, counts both, and completing twice counts once", async () => {
   const { org, storage } = await workspace("versions-keep");
   const file = await addFile(storage, { space: "personal" }, "plan.md", 10);
@@ -77,12 +71,9 @@ test("a new version keeps the old content, counts both, and completing twice cou
   const kept = await storage.versionFile(file.id, listed.versions[0]!.id);
   expect(kept).toMatchObject({ status: "ok", r2Key: original.r2Key, file: { size: 10 } });
 
-  // The recount agrees with the counter: versions are part of what a workspace stores.
   expect(await recomputeStorageUsage(db, org.id)).toBe(0);
 });
 
-// Catches: a restore that copies instead of swapping (bytes counted twice), or that loses the
-// content it displaces.
 test("restoring a version swaps it with the current content and stores no more bytes", async () => {
   const { org, storage } = await workspace("versions-restore");
   const file = await addFile(storage, { space: "personal" }, "notes.txt", 10);
@@ -102,20 +93,15 @@ test("restoring a version swaps it with the current content and stores no more b
     r2Key: second.r2Key,
   });
   expect(await bytesOf(org.id)).toBe(50);
-  // Each kept version names the content version it was: 1 was replaced by the upload, 2 by the
-  // restore, which made the file's content version 3.
   const kept = await db
     .select({ size: storageVersions.size, contentVersion: storageVersions.contentVersion })
     .from(storageVersions)
     .where(eq(storageVersions.nodeId, file.id));
   expect(kept).toEqual([{ size: 40, contentVersion: 2 }]);
   expect(await storage.file(file.id)).toMatchObject({ file: { contentVersion: 3 } });
-  // The same version cannot be restored twice: it is the current content now.
   expect(await storage.restoreVersion(file.id, old!.id)).toEqual({ status: "not_found" });
 });
 
-// Catches: a signed contract whose bytes change under its lock, by upload or by restore, and an
-// upload opened before the lock that completes after it.
 test("a locked file takes no new version and no restore", async () => {
   const { org, storage } = await workspace("versions-locked");
   const file = await addFile(storage, { space: "shared" }, "contract.pdf", 10);
@@ -138,8 +124,6 @@ test("a locked file takes no new version and no restore", async () => {
   expect(await bytesOf(org.id)).toBe(30);
 });
 
-// Catches: objects left in the bucket for ever (a delete that returns only the node's key), and
-// a usage counter that keeps charging for versions that are gone.
 test("deleting a file for good, and the 30-day purge, free its versions' bytes and name their objects", async () => {
   const { org, storage } = await workspace("versions-delete");
   const folder = await addFolder(storage, { space: "personal" }, "Docs");
@@ -159,7 +143,6 @@ test("deleting a file for good, and the 30-day purge, free its versions' bytes a
   await addVersion(storage, other.id, 3);
   expect(await bytesOf(org.id)).toBe(70);
 
-  // Not yet due: a version is kept 30 days from when it was replaced.
   const cutoff = new Date(Date.now() - STORAGE_VERSION_DAYS * DAY_MS);
   expect(await purgeStorageVersions(db, { before: cutoff })).toEqual({ r2Keys: [], more: false });
 
@@ -170,7 +153,6 @@ test("deleting a file for good, and the 30-day purge, free its versions' bytes a
   expect(await bytesOf(org.id)).toBe(10);
 
   const purged = await purgeStorageVersions(db, { before: new Date(Date.now() + DAY_MS) });
-  // The purge is every workspace's: other tests' versions are due by then too.
   expect(purged.r2Keys).toContain(otherFirst.r2Key);
   const live = await storage.file(other.id);
   expect(purged.r2Keys).not.toContain(live.status === "ok" && live.r2Key);
@@ -182,8 +164,6 @@ test("deleting a file for good, and the 30-day purge, free its versions' bytes a
   expect(await recomputeStorageUsage(db, org.id)).toBe(0);
 });
 
-// Catches: a viewer reading what an editor took back, a viewer overwriting a file, an editor
-// given one file being unable to edit it, and a colleague reaching another's My files.
 test("only someone who may edit a file writes a version or sees the old ones", async () => {
   const { org, storage: ana } = await workspace("versions-access");
   const bea = forMember(db, (await createMember(db, org.id, "bea")).id).storage;
@@ -213,7 +193,6 @@ test("only someone who may edit a file writes a version or sees the old ones", a
   expect(await addVersion(edits, file.id, 14)).toMatchObject({ status: "ok", node: { size: 14 } });
   expect(await edits.versions(file.id)).toMatchObject({ versions: [{ size: 12 }, { size: 10 }] });
 
-  // An editor made a viewer while their upload is on its way no longer completes it.
   const pending = await edits.openVersionUpload(file.id, { size: 2, limitBytes: null });
   if (pending.status !== "ok") throw new Error(pending.status);
   await ana.putGrant(file.id, "editor@outside.test", "viewer");
@@ -222,7 +201,6 @@ test("only someone who may edit a file writes a version or sees the old ones", a
   });
 });
 
-// Catches: versions as a way past the quota, since the replaced bytes stay stored.
 test("a new version must fit the allowance on top of what it replaces", async () => {
   const { org, storage } = await workspace("versions-full");
   const file = await addFile(storage, { space: "personal" }, "big.bin", 60);
@@ -235,8 +213,6 @@ test("a new version must fit the allowance on top of what it replaces", async ()
   expect(await bytesOf(org.id)).toBe(100);
 });
 
-// Catches: a version upload whose file was deleted for good meanwhile completing as a brand-new
-// file, bringing back what was deleted under another id.
 test("a new version of a file deleted for good is refused, not made a new file", async () => {
   const { org, storage } = await workspace("versions-target-gone");
   const file = await addFile(storage, { space: "personal" }, "gone.md", 10);
@@ -253,9 +229,6 @@ test("a new version of a file deleted for good is refused, not made a new file",
   expect(await bytesOf(org.id)).toBe(0);
 });
 
-// Catches: a checked save that overwrites a save made since it was based (the other person's
-// work is gone from the current content), refused on open but not on complete (the window while
-// the parts go up), and a refusal that does not say which content the file holds now.
 test("a checked save based on content the file no longer has is refused, on open and on complete", async () => {
   const { org, storage } = await workspace("versions-checked");
   const file = await addFile(storage, { space: "personal" }, "doc.md", 10);
@@ -263,7 +236,6 @@ test("a checked save based on content the file no longer has is refused, on open
   if (based.status !== "ok") throw new Error(based.status);
   expect(based.file.contentVersion).toBe(1);
 
-  // Two editors read version 1; the first opens its save, the second saves first.
   const mine = await storage.openVersionUpload(file.id, {
     size: 7,
     limitBytes: null,
@@ -294,7 +266,6 @@ test("a checked save based on content the file no longer has is refused, on open
   expect(await storage.file(file.id)).toMatchObject({ file: { size: 20, contentVersion: 2 } });
   expect(await bytesOf(org.id)).toBe(30);
 
-  // Merged on top of version 2, it goes through; without a base, a save is not checked.
   expect(await addVersion(storage, file.id, 9, null, 2).then((done) => done.status)).toBe("ok");
   expect(await addVersion(storage, file.id, 4).then((done) => done.status)).toBe("ok");
 });

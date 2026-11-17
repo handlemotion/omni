@@ -1,22 +1,3 @@
-// A contract's status rules (ADR 0036 decision 6) in one place, so a route and an agent cannot
-// disagree. Pure: no I/O. The caller writes what it answers and locks `lock` in the same
-// transaction.
-//
-//   draft  -> sent, signed     Signed straight from draft: the executed copy is attached.
-//   sent   -> draft, signed    Back to draft when the client asks for changes.
-//   signed -> ended            Expired or terminated.
-//   ended  -> (none)
-//
-// - Once signed, always signed: a signed or ended contract never goes back, its document never
-//   changes and it is never deleted (`contract_signed`). Its dates and title may still change.
-// - The document is replaced while `draft`, or by the change that moves a `sent` contract back
-//   to draft or marks it signed (the executed copy). A `sent` contract otherwise keeps its
-//   document: what the client has is what it shows (`invalid_transition` from sent to sent).
-// - `signed` needs a document, and marking it signed locks that file in Storage.
-// - `signedAt` is set on signing (now, unless the change names the day it was signed). It may be
-//   corrected on a signed or ended contract and is refused on any other.
-// - A change to the status the contract has changes nothing and writes no event.
-
 export type ContractStatus = "draft" | "sent" | "signed" | "ended";
 
 export interface ContractState {
@@ -68,9 +49,7 @@ export const CONTRACT_SIGNED = { status: "contract_signed" } as const;
 /** Signed now or before: what can no longer be undone. */
 export const wasSigned = (status: ContractStatus) => status === "signed" || status === "ended";
 
-/** Why the document may not change from `from` to `to`, or null when it may. */
 function documentRefusal(from: ContractStatus, to: ContractStatus) {
-  // From `sent`, only with a move: back to draft, or signed with the executed copy.
   if (from === "draft" || (from === "sent" && to !== "sent")) return null;
   return wasSigned(from) ? CONTRACT_SIGNED : ({ status: "invalid_transition", from, to } as const);
 }

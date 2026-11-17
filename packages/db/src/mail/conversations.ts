@@ -1,11 +1,3 @@
-// Helpdesk conversation workflow (ADR 0021): every change to a shared conversation's status,
-// assignee, priority or tags, with its `conversation_events` row, in one transaction. The status
-// rules are `nextConversationState` from `@omni/mail-core`; nothing here decides a status itself.
-//
-// Callers: the Worker's conversation routes (as a member), the `message.created` ingest, the
-// reply route (`applyAgentReply`), the AI queue (noise auto-resolve) and the snooze cron. Each
-// may run twice, so every function is idempotent: a change that leaves the conversation as it was
-// writes no event and queues nothing.
 import type { MessageTarget } from "@omni/contracts";
 import { nextConversationState, type ConversationEvent } from "@omni/mail-core/conversation-status";
 import { and, asc, eq, gt, gte, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
@@ -47,7 +39,6 @@ export {
   type Status,
 } from "./conversation-core.ts";
 
-/** Every IMAP copy of the thread's messages, grouped by folder, as outbox targets. */
 async function folderTargets(tx: Tx, threadId: string) {
   const rows = await tx
     .select({
@@ -81,11 +72,6 @@ async function folderTargets(tx: Tx, threadId: string) {
  */
 export const ARCHIVE_DELAY_SECONDS = 10;
 
-/**
- * Resolve files the mail (ADR 0021 §5): the INBOX copies are archived, and leaving resolved moves
- * the archived copies back to INBOX. Sent, Junk, Trash and other folders are left where they are.
- * Keyed by the status event, so each transition queues its moves once.
- */
 async function fileMail(
   tx: Tx,
   row: ConversationRow,
@@ -99,7 +85,6 @@ async function fileMail(
     .set({ archived: direction === "archive", updatedAt: new Date() })
     .where(eq(threads.id, row.id));
   if (direction === "unarchive") {
-    // An archive still waiting out its delay never runs: the mail has not left INBOX yet.
     await tx
       .delete(mailActions)
       .where(
@@ -149,7 +134,6 @@ async function fileMail(
         payload: action.payload,
         idempotencyKey: `conversation:${row.id}:${eventId}:${action.kind}:${action.folder}`,
         requestId: requestId ?? null,
-        // A resolve can be undone for a while before the mail moves (the web app's undo).
         runAfter:
           action.kind === "archive"
             ? new Date(Date.now() + ARCHIVE_DELAY_SECONDS * 1000)
@@ -214,14 +198,12 @@ export async function applyStatus(
       dedupeKey: options.dedupeKey,
     },
   ]);
-  // A dedupe key that already exists: another run applied this transition.
   if (!written) {
     const result: Applied = { row, changed: false, queuedActions: 0 };
     return result;
   }
   let queuedActions = 0;
   if (updated.status === "resolved" && row.status !== "resolved") {
-    // Resolved: nobody is waiting on us any more (ADR 0023).
     Object.assign(
       updated,
       await setSlaClocks(tx, updated, { responseClockAt: null, resolutionClockAt: null }),
@@ -248,7 +230,6 @@ export async function applyStatus(
   return result;
 }
 
-/** Whether `memberId` can see `mailboxId` (and is in its org). */
 async function canSee(tx: Tx, memberId: string, mailboxId: string, orgId: string) {
   const [row] = await tx
     .select({ one: sql`1` })
@@ -424,7 +405,6 @@ export async function applyConversationChange(
             dedupeKey,
           },
         ]);
-        // The new priority's targets apply to the clocks already running.
         applied = {
           row: await setSlaClocks(tx, { ...row, priority: change.priority }),
           changed: true,
@@ -541,7 +521,6 @@ async function recordFirstResponse(
 }
 
 export type InboundResult =
-  /** `fresh`: this is the message's first delivery (a personal mailbox, say); false on a replay. */
   | { applied: false; fresh: boolean }
   | {
       applied: true;
@@ -555,20 +534,12 @@ export type InboundResult =
       autoAssigned: string | null;
     };
 
-/**
- * The inbox's next member in turn, by member id after the last one handed a conversation, among
- * those who can see the inbox. Null when the inbox does not auto-assign or nobody sees it. The
- * mailbox row lock makes concurrent ingests take turns instead of picking the same member.
- */
 async function nextInTurn(tx: Tx, row: ConversationRow) {
-  // Most inboxes don't auto-assign: read the flag before taking any lock.
   const [flag] = await tx
     .select({ on: mailboxes.autoAssign })
     .from(mailboxes)
     .where(eq(mailboxes.id, row.mailboxId));
   if (!flag?.on) return null;
-  // "No key update" serializes turns without blocking the key-share locks that inserts referencing
-  // the inbox (messages, events) take, so concurrent ingests cannot deadlock on it.
   const [inbox] = await tx
     .select({ on: mailboxes.autoAssign, last: mailboxes.autoAssignLastMemberId })
     .from(mailboxes)
@@ -646,9 +617,6 @@ export async function applyInboundMessage(
         null,
         { data: { messageId: input.messageId } },
       );
-      // The customer is waiting from when they wrote (never later than now). Mail sent before the
-      // inbox was connected is history: a first sync must not start, and breach, every clock, nor
-      // hand the backlog out.
       const live =
         !message.automated && mailbox !== undefined && message.sentAt >= mailbox.createdAt;
       let autoAssigned: string | null = null;
@@ -667,9 +635,7 @@ export async function applyInboundMessage(
           resolutionClockAt: applied.row.resolutionClockAt ?? since,
         });
       }
-      // The assignee hears when their customer writes back (not for an auto-reply).
       const notified =
-        // (Not when it was just handed to them: they hear `assigned` instead.)
         applied.row.assigneeMemberId && !message.automated && !autoAssigned
           ? await notify(tx, applied.row, {
               memberIds: [applied.row.assigneeMemberId],
@@ -703,14 +669,11 @@ export async function applyInboundMessage(
         ),
       )
       .limit(1);
-    // A Sent copy indexed after the customer already answered is history: the status stays, but
-    // it was still a response, so the first response is recorded.
     const status = newer
       ? { row, changed: false, queuedActions: 0 }
       : await applyStatus(tx, row, { type: "agent_reply" }, now, null, {
           data: { messageId: input.messageId },
         });
-    // Only a reply after a customer message responds to someone.
     const [asked] = await tx
       .select({ id: messages.id })
       .from(messages)
@@ -727,8 +690,6 @@ export async function applyInboundMessage(
           messageId: input.messageId,
         })
       : { row: status.row, changed: false };
-    // Our reply stops the response clock. A late Sent copy answers only what came before it: the
-    // customer has been waiting since their first counted message after it.
     const clock = responded.row.responseClockAt;
     let responseClockAt: Date | null = null;
     if (newer && clock && clock >= message.sentAt) responseClockAt = clock;
@@ -766,15 +727,6 @@ export async function applyInboundMessage(
   });
 }
 
-/**
- * The `discarded` test for the thread `t` (a `threads` alias in the enclosing query): an open,
- * pending or snoozed shared conversation whose mail was all deleted or junked in another mail app
- * (Apple Mail's delete moves to Trash). None of its messages has a copy in INBOX or the archive,
- * one has a copy in Trash or Junk, and that copy arrived after a teammate last changed its
- * status, so a teammate who reopens it in Omni afterwards keeps it open. Status changes Omni made
- * itself (a customer reply that went straight to Junk reopening it) do not count. Our replies in Sent do
- * not count either way. A new message from the customer lands in INBOX and fails the test.
- */
 const discarded = sql`t.status <> 'resolved'
   and exists (
     select 1 from ${messages} m
@@ -797,7 +749,7 @@ export async function discardedConversations(db: Executor, mailboxId: string) {
     select t.id from ${threads} t
     join ${mailboxes} mb on mb.id = t.mailbox_id and mb.kind = 'shared'
     where t.mailbox_id = ${mailboxId} and ${discarded}
-    order by t.id`)) as unknown as { id: string }[]; // postgres-js: the rows themselves
+    order by t.id`)) as unknown as { id: string }[];
   return rows.map((r) => r.id) satisfies string[];
 }
 
@@ -846,7 +798,6 @@ export async function setAutoAssign(db: Executor, orgId: string, mailboxId: stri
         eq(mailboxes.id, mailboxId),
         eq(mailboxes.orgId, orgId),
         eq(mailboxes.kind, "shared"),
-        // Already in that state: keep the turn.
         ne(mailboxes.autoAssign, on),
       ),
     )

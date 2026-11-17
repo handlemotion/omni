@@ -1,8 +1,3 @@
-// Personal Gmail through Google OAuth (ADR 0023). The mail service is the only holder of the
-// tokens: it exchanges the authorization code the Worker forwards, stores the refresh token
-// encrypted in the mailbox's credentials, and mints short-lived access tokens for XOAUTH2 on
-// IMAP and SMTP. Endpoints follow Google's OAuth 2.0 web-server flow
-// (https://developers.google.com/identity/protocols/oauth2/web-server).
 import { randomUUIDv7 } from "node:crypto";
 import type {
   GoogleConnectBody,
@@ -46,7 +41,6 @@ const MAIL_SCOPE = "https://mail.google.com/";
  * Worker's consent redirect asks for the same three.
  */
 export const GOOGLE_MAIL_SCOPES = [MAIL_SCOPE, "openid", "email"] as const;
-/** An access token this close to expiry is refreshed before use, so a login never races it. */
 const REFRESH_MARGIN_MS = 5 * 60_000;
 
 /** Google refused the refresh token: the person revoked access, or it expired. Only reconnecting fixes it. */
@@ -126,7 +120,6 @@ export function createGoogleOAuth(
     if (!response.ok) {
       const error = errorResponse.safeParse(json);
       const code = error.success ? error.data.error : `http_${response.status}`;
-      // RFC 6749 §5.2: the grant (code or refresh token) is invalid, expired or revoked.
       if (code === "invalid_grant") throw new GoogleGrantRevoked("Google refused the grant");
       throw new GoogleOAuthError(code, error.success ? (error.data.error_description ?? "") : "");
     }
@@ -143,7 +136,6 @@ export function createGoogleOAuth(
         redirect_uri: redirectUri,
         ...(codeVerifier ? { code_verifier: codeVerifier } : {}),
       });
-      // A person can untick Gmail on the consent screen; the sign-in scopes alone are useless here.
       const granted = new Set((data.scope ?? "").split(" "));
       if (!granted.has(MAIL_SCOPE)) {
         throw new ProvisionError(422, "Omni needs access to Gmail: allow it on Google's screen");
@@ -155,8 +147,6 @@ export function createGoogleOAuth(
         );
       }
       if (!data.id_token) throw new GoogleOAuthError("bad_response", "no id_token");
-      // Received straight from Google's token endpoint over TLS, so the signature check can be
-      // skipped (OpenID Connect Core §3.1.3.7); the audience and issuer still must match.
       const claims = idTokenClaims.safeParse(decodeJwtPayload(data.id_token));
       if (!claims.success || claims.data.aud !== client.clientId) {
         throw new GoogleOAuthError("bad_response", "id_token is not for this client");
@@ -192,7 +182,6 @@ export async function revokeGoogleToken(value: string, fetchImpl: typeof fetch =
     body: new URLSearchParams({ token: value }),
     signal: AbortSignal.timeout(20_000),
   });
-  // 400 invalid_token: already revoked or expired, which is the state we wanted.
   if (!response.ok && response.status !== 400) {
     throw new GoogleOAuthError(`http_${response.status}`, "revoke failed");
   }
@@ -256,7 +245,6 @@ export async function connectGoogle(
     grant = await oauth.exchangeCode(input);
   } catch (error) {
     if (error instanceof ProvisionError) throw error;
-    // A used, expired or mistyped code: the person starts again from the Connect button.
     if (error instanceof GoogleGrantRevoked) {
       throw new ProvisionError(400, "Google refused the sign-in code: connect again");
     }
@@ -264,8 +252,6 @@ export async function connectGoogle(
     throw new ProvisionError(502, "Google could not be reached: try again");
   }
 
-  // One save per Google account at a time, across workspaces: two consent flows finishing together
-  // would otherwise both pass the "connected elsewhere" check, or race on (org, address).
   const key = grant.email;
   const previous = saving.get(key) ?? Promise.resolve();
   const run = previous.catch(() => {}).then(() => save(deps, input, grant));
@@ -277,7 +263,6 @@ export async function connectGoogle(
   }
 }
 
-/** Saves in flight per Google account. This service runs as one machine (ADR 0004). */
 const saving = new Map<string, Promise<GoogleConnectResult>>();
 
 async function save(
@@ -288,8 +273,6 @@ async function save(
   const { db, keyring, logger } = deps;
   const address = grant.email;
   input = await placeByAddress(db, input, address);
-  // One Google account syncs into one workspace: two would each archive, delete and send as the
-  // same person without seeing the other's changes until the next sync.
   const elsewhere = await findGmailMailboxes(db, address);
   if (elsewhere.some((row) => row.orgId !== input.orgId)) {
     throw new ProvisionError(409, `${address} is connected in another workspace`);
@@ -298,8 +281,6 @@ async function save(
   if (existing && existing.provider !== "gmail") {
     throw new ProvisionError(409, `${address} is already a mailbox in this workspace`);
   }
-  // A personal mailbox has one owner. Another member consenting with the same Google account
-  // must not gain access to it, nor restore access after its owner's grant was revoked.
   if (existing) {
     const owners = await mailboxOwnerIds(db, existing.id);
     if (!owners.includes(input.memberId)) {
@@ -342,11 +323,6 @@ const PLACEMENT_REFUSALS = {
   outside_scope: "belongs elsewhere: sign in another way to connect it",
 } as const;
 
-/**
- * With `userId`, where the account goes is decided by its address (ADR 0024): the company that
- * locked its domain, if the person is a member there, else their Personal space. Without it, the
- * caller's `orgId` and `memberId` stand, as before.
- */
 const placeByAddress: (
   db: Db,
   input: GoogleConnectBody,
@@ -382,7 +358,6 @@ export const disconnectGoogle: (
 ) => Promise<z.infer<typeof googleDisconnectResultSchema>> = async (deps, input) => {
   const { db, logger } = deps;
   if (input.userId) {
-    // The person's own account, in whichever workspace it lives (ADR 0024).
     const owned = (await forUser(db, input.userId).googleAccounts()).find(
       (account) => account.id === input.mailboxId,
     );
@@ -399,15 +374,12 @@ export const disconnectGoogle: (
   ) {
     throw new ProvisionError(404, "No such Google account");
   }
-  // Disabled first, so a reconcile running now does not connect it again.
   await setMailboxStatus(db, mailbox.id, "disabled");
   await deps.stop(mailbox.id);
   try {
     const credentials = await openCredentials(deps.keyring, mailbox.id, mailbox.credentialsEnc);
     if ("oauth" in credentials) await revokeGoogleToken(credentials.refreshToken);
   } catch (error) {
-    // Deleting the only copy of the token is what protects the account; a revoke Google did not
-    // take leaves a grant nobody holds, which the person can also remove in their Google account.
     logger.warn("google.revoke_failed", { mailboxId: mailbox.id, error });
   }
   await deleteMailbox(db, mailbox.id);

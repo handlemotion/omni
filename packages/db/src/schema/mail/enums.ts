@@ -1,10 +1,7 @@
-// Mail's Postgres enums (ADR 0035), in one file that imports no table, so every mail schema
-// file can use them at load time whatever order the files load in.
 import { pgEnum } from "drizzle-orm/pg-core";
 
 export const mailboxKind = pgEnum("mailbox_kind", ["personal", "shared"]);
 
-// `imap` is any standards-based host with no provider API; `purelymail` adds its optional admin API.
 export const mailProvider = pgEnum("mail_provider", ["purelymail", "gmail", "microsoft", "imap"]);
 
 /** What a mailbox copies to its forwarding address (ADR 0032). */
@@ -73,12 +70,7 @@ export const conversationEventKind = pgEnum("conversation_event_kind", [
   "first_response",
   "sla_at_risk",
   "sla_breached",
-  /** Another thread was merged into this one: `{ fromThreadId }`. */
   "merged",
-  /**
-   * A teammate replied from their personal mailbox and took the conversation one-to-one
-   * (ADR 0030): `{ mailboxId, address, actionId, previous: { status, assigneeMemberId } }`.
-   */
   "handoff",
 ]);
 

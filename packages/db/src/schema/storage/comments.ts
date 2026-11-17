@@ -1,5 +1,3 @@
-// Comments on a file (ADR 0043 decision 4): rows, never bytes. A comment names the content it was
-// made on and where in it, so one model serves every viewer and a signed file is never touched.
 import { foreignKey, index, integer, jsonb, pgTable, text, unique } from "drizzle-orm/pg-core";
 import { members } from "../auth.ts";
 import { createdAt, id, orgId, timestamptz } from "../columns.ts";
@@ -50,7 +48,6 @@ export const storageComments = pgTable(
     }),
   },
   (t) => [
-    // Target for a reply's composite key, which pins it to its root's workspace.
     unique("storage_comments_id_org_id_unique").on(t.id, t.orgId),
     foreignKey({
       name: "storage_comments_node_org_fk",
@@ -62,7 +59,6 @@ export const storageComments = pgTable(
       columns: [t.parentId, t.orgId],
       foreignColumns: [t.id, t.orgId],
     }).onDelete("cascade"),
-    // A file's comments, oldest first.
     index("storage_comments_node_id_idx").on(t.nodeId, t.createdAt, t.id),
     index("storage_comments_parent_id_idx").on(t.parentId),
     index("storage_comments_author_member_id_idx").on(t.authorMemberId),

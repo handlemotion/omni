@@ -1,7 +1,3 @@
-// Storage (ADR 0034): a folder tree per workspace, with a private side (My files, per member)
-// and, in a company, a shared side. These rows are the truth, not an index: a lost node loses
-// the file even though its bytes are still in the bucket. Access is decided only in
-// `src/storage.ts`.
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -100,7 +96,6 @@ export const storageNodes = pgTable(
     contentSha256: text("content_sha256"),
   },
   (t) => [
-    // Target for composite foreign keys that pin a row to its node's org.
     unique("storage_nodes_id_org_id_unique").on(t.id, t.orgId),
     foreignKey({
       name: "storage_nodes_parent_org_fk",
@@ -112,8 +107,6 @@ export const storageNodes = pgTable(
       sql`(${t.space} = 'personal') = (${t.ownerMemberId} is not null)`,
     ),
     check("storage_nodes_file_key", sql`(${t.kind} = 'file') = (${t.r2Key} is not null)`),
-    // Among live siblings a name is unique, whatever its case. `coalesce` because a root has no
-    // parent and Shared has no owner, and nulls would never collide.
     uniqueIndex("storage_nodes_sibling_name_key")
       .on(
         t.orgId,
@@ -123,7 +116,6 @@ export const storageNodes = pgTable(
         sql`lower(${t.name})`,
       )
       .where(sql`${t.trashedAt} is null`),
-    // A folder's page: folders first, then by name, ties by id.
     index("storage_nodes_list_idx").on(
       t.orgId,
       t.space,
@@ -133,15 +125,12 @@ export const storageNodes = pgTable(
       sql`lower(${t.name})`,
       t.id,
     ),
-    // The walk down a subtree (move, delete, purge) and the parent foreign key's cascade.
     index("storage_nodes_parent_id_idx").on(t.parentId),
-    // The member foreign key's check, and the move of a removed member's files.
     index("storage_nodes_owner_member_id_idx").on(t.ownerMemberId),
     unique("storage_nodes_share_id_unique").on(t.shareId),
     index("storage_nodes_trash_idx")
       .on(t.orgId, t.trashedAt)
       .where(sql`${t.trashedAt} is not null`),
-    // A drive's change feed, in revision order, and its current revision.
     index("storage_nodes_sync_idx").on(
       t.orgId,
       t.space,
@@ -233,11 +222,8 @@ export const storageVersions = pgTable(
       columns: [t.nodeId, t.orgId],
       foreignColumns: [storageNodes.id, storageNodes.orgId],
     }).onDelete("cascade"),
-    // A file's versions, newest first.
     index("storage_versions_node_id_idx").on(t.nodeId, t.replacedAt.desc().nullsFirst(), t.id),
-    // The daily purge of versions past their time.
     index("storage_versions_replaced_at_idx").on(t.replacedAt),
-    // The usage recount's sum.
     index("storage_versions_org_id_idx").on(t.orgId),
     index("storage_versions_written_by_member_id_idx").on(t.writtenByMemberId),
   ],
@@ -341,7 +327,6 @@ export const storageGrants = pgTable(
       foreignColumns: [storageNodes.id, storageNodes.orgId],
     }).onDelete("cascade"),
     unique("storage_grants_node_id_email_unique").on(t.nodeId, t.email),
-    // "Shared with me": every grant to one of a person's addresses.
     index("storage_grants_email_idx").on(t.email),
   ],
 );
@@ -387,9 +372,7 @@ export const storageUploads = pgTable(
       columns: [t.nodeId, t.orgId],
       foreignColumns: [storageNodes.id, storageNodes.orgId],
     }).onDelete("cascade"),
-    // The quota's sum of uploads in progress.
     index("storage_uploads_org_id_idx").on(t.orgId),
-    // The sweep of uploads nobody completed.
     index("storage_uploads_expires_at_idx").on(t.expiresAt),
     index("storage_uploads_member_id_idx").on(t.memberId),
   ],
@@ -409,8 +392,6 @@ export const storageUploadTargets = pgTable(
       .primaryKey()
       .references(() => storageUploads.id, { onDelete: "cascade" }),
     orgId: orgId(),
-    // Not the composite `(node_id, org_id)` key the other tables use: `set null` on that would
-    // null `org_id` too. The upload row pins the workspace.
     nodeId: text("node_id").references(() => storageNodes.id, { onDelete: "set null" }),
   },
   (t) => [index("storage_upload_targets_node_id_idx").on(t.nodeId)],
@@ -452,6 +433,5 @@ export const storageOverage = pgTable("storage_overage", {
   checkedAt: timestamptz("checked_at").notNull().defaultNow(),
 });
 
-// Comments and signing (ADR 0043 decisions 4 and 6), split out by concern.
 export * from "./storage/comments.ts";
 export * from "./storage/signing.ts";

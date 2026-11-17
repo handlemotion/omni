@@ -28,7 +28,6 @@ import {
 export function useRealtimeConnection(orgId: string, options: { memberId?: string } = {}) {
   const client = useQueryClient();
   const { threadId } = useParams({ strict: false }) as { threadId?: string };
-  // The reader's own query (same key), so this adds no request.
   const threadOrg = useQuery({
     ...threadQuery(threadId ?? ""),
     enabled: !!threadId,
@@ -39,10 +38,8 @@ export function useRealtimeConnection(orgId: string, options: { memberId?: strin
     outstandingSends.get,
     outstandingSends.get,
   );
-  // Rechecks move it on, so a send's socket closes `SEND_SOCKET_MS` after it.
   const [now, setNow] = useState(() => Date.now());
   const fresh = sending.filter((s) => now - s.since < SEND_SOCKET_MS).map((s) => s.orgId);
-  // A string, so a re-render with the same orgs leaves the sockets alone.
   const others = [...new Set([threadId ? threadOrg : undefined, ...fresh])]
     .filter((id): id is string => !!id && id !== orgId)
     .sort()
@@ -64,8 +61,6 @@ export function useRealtimeConnection(orgId: string, options: { memberId?: strin
     followed.current = others;
     connections.current?.follow(others ? others.split(",") : []);
   }, [others]);
-  // Nothing announces a send that went out: ask the outbox while any is waiting, every 10 s
-  // while one is fresh, then every minute, until each has its result.
   const waiting = sending.length > 0;
   useEffect(() => {
     if (!waiting) return;
@@ -80,7 +75,6 @@ export function useRealtimeConnection(orgId: string, options: { memberId?: strin
     timer = setTimeout(tick, RECHECK_SENDS_FAST_MS);
     return () => clearTimeout(timer);
   }, [client, waiting]);
-  // A thread opened again asks about its replies still queued: a new socket is not a reconnect.
   useEffect(() => {
     if (threadId) void recheckPendingSends(client, threadId);
   }, [client, threadId]);

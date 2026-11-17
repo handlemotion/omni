@@ -1,5 +1,3 @@
-// A verification email's Copy code button in a real Chromium, on the web app served by the real
-// Worker and a real Postgres: the code reaches the clipboard, and Reply stays within reach.
 import { createOrgWithOwner } from "@omni/db";
 import { chromium, type Browser } from "playwright-core";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -37,8 +35,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Catches: a code mail that copies nothing (or the wrong text), one that loses Reply and Forward
-// behind the new button, and ordinary mail losing its Reply button to the code check.
 test("a verification email offers Copy code, with Reply and Forward under Respond", async () => {
   const email = "ana@codes.test";
   const system = await createOrg(db, "codes-system");
@@ -88,7 +84,6 @@ test("a verification email offers Copy code, with Reply and Forward under Respon
   await page.getByRole("button", { name: "Send" }).waitFor();
 
   await page.goto(new URL(`/inbox/${plain.threadId}`, origin).toString());
-  // The floating button, by its visible label: the header's icon buttons carry none.
   await page
     .getByRole("button", { name: "Reply", exact: true })
     .filter({ hasText: "Reply" })

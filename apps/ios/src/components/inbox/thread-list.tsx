@@ -27,7 +27,6 @@ export function ThreadList({ mailboxId, mailboxes, you, onOpenThread }: ThreadLi
       </EmptyState>
     );
   }
-  // In "All mailboxes", a thread from a shared inbox says which one.
   const shared = new Map(
     mailboxId
       ? []
@@ -68,7 +67,6 @@ function Separator() {
 
 const styles = StyleSheet.create({
   fill: { flexGrow: 1 },
-  // Inset past the avatar, so rows read as one list rather than boxes.
   separator: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,

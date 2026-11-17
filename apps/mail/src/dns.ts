@@ -1,8 +1,3 @@
-// Authoritative DNS lookups for domain verification (ADR 0010). Public resolvers cache answers,
-// including "no such record", for minutes to hours, so a record someone just saved can read as
-// missing long after it is live. This asks the zone's own nameservers instead: find the zone's NS
-// records (through an ordinary resolver; those rarely change), resolve their addresses, then query
-// them directly. Each lookup uses a fresh resolver, so nothing is cached between checks.
 import { promises as dns } from "node:dns";
 import type { DnsAnswer, DnsLookupBody, DnsLookupResult, DnsQueryType } from "@omni/contracts";
 import type { Logger } from "./log.ts";
@@ -53,7 +48,6 @@ export const createDnsLookup: (options: DnsOptions) => DnsLookup = (options) => 
           values = (await r.resolveNs(name)).map(host);
           break;
       }
-      // An answer holding only a CNAME parses as no records of the asked type.
       return values.length > 0 ? { status: "found", values } : { status: "nodata" };
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code ?? "UNKNOWN";
@@ -63,7 +57,6 @@ export const createDnsLookup: (options: DnsOptions) => DnsLookup = (options) => 
     }
   };
 
-  /** The closest enclosing zone with NS records, walking up from `domain`. */
   async function findZone(recursive: dns.Resolver, domain: string) {
     const labels = domain.split(".");
     for (let i = 0; i < labels.length - 1; i++) {
@@ -105,7 +98,6 @@ export const createDnsLookup: (options: DnsOptions) => DnsLookup = (options) => 
       queries.map(async ({ name, type }) => {
         if (authoritative) {
           const answer = await query(authoritative, name, type);
-          // A nameserver that did not answer says nothing; a public resolver may still know.
           if (answer.status !== "error")
             return { name, type, source: "authoritative" as const, answer };
         }

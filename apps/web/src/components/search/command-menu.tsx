@@ -50,13 +50,6 @@ import { workspaceHref } from "@/lib/workspaces.ts";
 import { CRM_PAGES, drivePages, MAIL_PAGES, type Page } from "./command-pages";
 import { RecordGroups, ResultBones } from "./command-results.tsx";
 
-// The command menu: a centred cmdk modal over the dimmed app (transitive's workspace search as
-// the reference). "/" or ⌘K opens it from anywhere in a workspace; ⌘K closes it again. Its pills
-// scope it to a module (Mail, Drive, CRM) or to Settings, as transitive's do. Typing finds Drive's
-// files and folders, the CRM's records and mail by name, from the cache at once and from the
-// server as it answers (`useCommandSearch`); "Smart search" asks the server for mail and shows the
-// results in the main list, at `/<workspace>/mail/search?q=`.
-
 export type Scope = "all" | "mail" | "files" | "crm" | "settings";
 
 /**
@@ -68,7 +61,6 @@ export interface SearchSeed {
   mailbox?: string | undefined;
   scope?: Scope | undefined;
 }
-/** The mounted menu's opener; set while it is (the workspace shell mounts one). */
 let openMounted: ((seed?: SearchSeed) => void) | undefined;
 /**
  * Opens the menu from a control elsewhere (the list's search field), as `/` does; with a `seed`,
@@ -76,7 +68,6 @@ let openMounted: ((seed?: SearchSeed) => void) | undefined;
  */
 export const openSearch = (seed?: SearchSeed) => openMounted?.(seed);
 
-// Every command row leads with an icon (DESIGN.md, Menus). Go-to keys show on their pages.
 const COMMAND_ICONS: Partial<Record<ShortcutId, ReactNode>> = {
   compose: <IconWrite />,
   reply: <IconReply />,
@@ -108,13 +99,8 @@ const FOOTER = [
   { keys: "Esc", label: "Close" },
 ];
 
-/** A shortcut's first key sequence as key caps: `G` `I`, or `⌘` `K`. */
 const keysOf = (id: ShortcutId) => (SHORTCUTS[id].keys[0] ?? []).flatMap(keyLabel);
 
-// Rows match on their keywords (title, sender), not on their value, which is just a unique id.
-// Smart search always matches: it searches the server for whatever was typed. Records are
-// already the matches for the text (`useCommandSearch`), some by a field the row doesn't show
-// (a company's domain), so they aren't filtered again.
 const SMART = "smart-search";
 const RECORD = /^(node|company|person|deal|thread):/;
 const filter = (value: string, search: string, keywords?: string[]) =>
@@ -124,7 +110,6 @@ const filter = (value: string, search: string, keywords?: string[]) =>
 export function CommandMenu() {
   const [open, setOpen] = useState(false);
   const [seed, setSeed] = useState<SearchSeed | undefined>();
-  // Each opening mounts a fresh panel, even one made while the last is still animating out.
   const [opening, setOpening] = useState(0);
   const show = (next?: SearchSeed) => {
     setSeed(next);
@@ -147,11 +132,6 @@ export function CommandMenu() {
   );
 }
 
-/**
- * What each pill shows. All holds every module's places and the commands; records, mail and
- * settings join it once there's a query (transitive's All waits for one too). A module's pill
- * holds that module only; Mail's lists its inbox before any query.
- */
 function sections(scope: Scope, query: string) {
   const all = scope === "all";
   return {
@@ -165,7 +145,6 @@ function sections(scope: Scope, query: string) {
   };
 }
 
-/** The menu's content, mounted only while the menu is (so each opening starts fresh). */
 function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: () => void }) {
   const navigate = useNavigate();
   const workspace = useWorkspaceSlug();
@@ -187,8 +166,6 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
   const query = q.trim();
   const show = sections(scope, query);
 
-  // A command runs once the menu is gone: run now, the closing modal would take focus back from
-  // whatever the command focuses (the reply composer).
   const afterClose = useRef<(() => void) | null>(null);
   useEffect(
     () => () => {
@@ -211,14 +188,12 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
   };
   const openThread = (threadId: string) => {
     onClose();
-    // A found thread may be anywhere: one in the inbox opens there, any other in All mail.
     const inInbox = inbox.some((thread) => thread.id === threadId);
     const to = inInbox ? "/$workspace/mail/inbox/$threadId" : "/$workspace/mail/all/$threadId";
     void navigate({ to, params: { workspace, threadId } });
   };
   const openNode = (node: FileHit) => {
     onClose();
-    // Shared with the member from elsewhere: its link opens it.
     if (node.shareId) {
       void router.navigate({ href: `/s/${encodeURIComponent(node.shareId)}` });
       return;
@@ -232,7 +207,6 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
     void router.navigate({ href: `${folder}${folder.includes("?") ? "&" : "?"}${file}` });
   };
 
-  // Loads the results first, so the sweep reveals a full list rather than a loading one.
   const smartSearch = async () => {
     if (!query || searching) return;
     setSearching(true);
@@ -251,7 +225,6 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
     );
   };
 
-  // No vim keys: cmdk would take Ctrl+K (previous row), which closes the menu off a Mac.
   return (
     <Command label="Search and commands" loop filter={filter} vimBindings={false}>
       <CommandInput ref={input} autoFocus value={q} onValueChange={setQ} placeholder="Search…" />
@@ -264,7 +237,6 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
         }}
       />
       <CommandList>
-        {/* Nothing found fills the list, centred, as every empty state in the app is. */}
         <CommandEmpty className={hits.searching ? undefined : "absolute inset-0 flex py-0"}>
           {hits.searching ? (
             <ResultBones />
@@ -303,8 +275,6 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
         {show.settings && (
           <SettingsGroup pages={settingsPages} onOpen={(id) => go(`/settings/${id}`)} />
         )}
-        {/* Last: cmdk orders rows within a group, not the groups, so Enter takes the first match
-            above and smart search is the fallback when nothing here matches. */}
         {show.smart && (
           <CommandGroup>
             <CommandItem value={SMART} onSelect={() => void smartSearch()}>
@@ -321,7 +291,6 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
   );
 }
 
-/** A module's places, headed by the module's name. */
 function PageGroup(props: { heading: string; pages: Page[]; onOpen: (page: Page) => void }) {
   return (
     <CommandGroup heading={props.heading}>
@@ -341,7 +310,6 @@ function PageGroup(props: { heading: string; pages: Page[]; onOpen: (page: Page)
   );
 }
 
-/** Settings pages, found by title and by the words on them, as the settings nav's search does. */
 function SettingsGroup(props: { pages: PageDefinition[]; onOpen: (id: string) => void }) {
   return (
     <CommandGroup heading="Settings">

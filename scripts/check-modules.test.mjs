@@ -1,4 +1,3 @@
-// Each case is a way code could slip past a module's door and the check stay green.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { check, findProblems } from "./check-modules.mjs";

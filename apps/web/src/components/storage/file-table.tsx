@@ -1,8 +1,3 @@
-// The table Storage's lists share (ADR 0034 decision 8), laid out as the Figma list frame: each
-// row leads with its 32px type tile and the name, then the type badge, the size and a date, and
-// the row's menu. `page` variant with 56px rows: cells from the page's 20px gutter, so the tile
-// starts where the header's title does, and the menu 10px in, under the header's actions.
-// Dates and sizes are muted, in tabular figures, so the names carry the row.
 import { memo } from "react";
 import { TableLoadMoreItem } from "react-aria-components/Table";
 import { SkeletonBox } from "skullet/react";
@@ -28,7 +23,6 @@ export const DAY = new Intl.DateTimeFormat(undefined, {
   year: "numeric",
 });
 
-// Column widths; the kind and date columns leave on a phone, where the name needs the room.
 export const COLUMN = {
   kind: "w-24 max-md:hidden",
   date: "w-36 max-sm:hidden",

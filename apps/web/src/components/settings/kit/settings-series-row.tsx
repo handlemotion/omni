@@ -1,5 +1,3 @@
-// One series of a chart, as a row under it in the same group (transitive's `UsageSeriesRow`): the
-// rows are the chart's legend. Its name with its chart colour beside it, and its total.
 import type { CSSProperties, ReactNode } from "react";
 import { SettingsRow, settingsRowTextEndClassName } from "./settings-row";
 

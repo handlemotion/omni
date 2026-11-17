@@ -1,6 +1,3 @@
-// What one tool call may read (ADR 0029): the grant's workspace, or the one the call names when
-// the grant reaches every workspace. Every read is `forUser` for the token's user, so membership is
-// checked live on each call.
 import { forUser } from "@omni/db";
 import type { ToolContext } from "./server.ts";
 
@@ -12,8 +9,6 @@ export const readsFor: (
   workspace: string | undefined,
 ) => { reads: Reads; scope: string | null } | { error: string } = (context, workspace) => {
   const granted = context.caller.workspace;
-  // A one-workspace grant always reads that workspace; any other value, empty included, is
-  // refused rather than allowed to widen it.
   if (granted !== null) {
     if (workspace !== undefined && workspace !== granted) {
       return {
@@ -22,7 +17,6 @@ export const readsFor: (
     }
     return { reads: forUser(context.db, context.caller.userId, granted), scope: granted };
   }
-  // An empty id names no workspace; `forUser` would read it as every workspace.
   const scope = workspace || null;
   return { reads: forUser(context.db, context.caller.userId, scope), scope };
 };

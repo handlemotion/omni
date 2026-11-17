@@ -1,6 +1,3 @@
-// Copies of received mail for a mailbox's CRM forwarding address (ADR 0032). A copy is a plain
-// forward from the mailbox's own address, the form CRMs like Attio accept from their members and
-// file on the original's participants.
 import { forwardCopySource, forwardTarget, type Db } from "@omni/db";
 import { parseMessage } from "@omni/mail-core";
 import { forwardBody, forwardSubject } from "@omni/mail-core/compose";
@@ -60,7 +57,6 @@ export async function composeForwardCopy(
     subject: forwardSubject(message.subject),
     text: body.text.trimStart(),
     messageId: envelope.messageId,
-    // Keeps it findable as part of the original's conversation.
     references: [...message.references, message.messageId],
     attachments: message.attachments.flatMap((meta, i) =>
       meta.inline

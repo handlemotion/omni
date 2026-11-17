@@ -1,6 +1,3 @@
-// The helpdesk triage scenarios in `fixtures/triage/helpdesk.json`: a customer's messages to a
-// shared support inbox, with its tags and teammates, each step turned into the exact `TriageInput`
-// the queue builds (tags in name order, teammates in role order, as `@omni/db` loads them).
 import { readFileSync } from "node:fs";
 import { parseMessage } from "@omni/mail-core";
 import { cleanMessage } from "@omni/mail-core/clean";
@@ -52,7 +49,6 @@ export async function helpdeskSteps() {
   const manifest = helpdeskManifest();
   const isUs = (address: string) => address.toLowerCase() === manifest.inbox;
   const helpdesk = {
-    // Tag ids and member ids never reach the model; names and keys stand in for them here.
     tags: manifest.tags.map((t) => ({ id: t.name, name: t.name, description: t.description })),
     teammates: manifest.teammates.map((t) => ({ id: t.key, role: t.role })),
   };

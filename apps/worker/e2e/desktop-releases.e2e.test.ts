@@ -1,5 +1,3 @@
-// The desktop updater's feed (docs/spec/desktop.md, "Build, signing, release"): what an
-// installed app reads every six hours, served from the release bucket ahead of the web app.
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { createTestDatabase, startMailServiceEndpoint, startWorker } from "./support.ts";
 
@@ -23,16 +21,12 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Bug: without `/desktop/*` in `run_worker_first`, the web app's index.html answers 200 for the
-// feed; the updater cannot parse it and every installed app silently stops updating.
 test("before any release the feed is a 404, not the web app", async () => {
   const response = await fetch(new URL("/desktop/latest.json", worker.url));
   expect(response.status).toBe(404);
   expect(response.headers.get("content-type") ?? "").not.toContain("text/html");
 });
 
-// Bug: the manifest or the signed archive is served from the wrong key or with a long cache, so
-// apps keep seeing the last release or download a file the signature does not match.
 test("a published release is what the updater and the installer link get", async () => {
   const bucket = (await worker.server.getWorker<{ DESKTOP_BUCKET: Bucket }>().getEnv())
     .DESKTOP_BUCKET;

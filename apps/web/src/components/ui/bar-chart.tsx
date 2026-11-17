@@ -37,7 +37,6 @@ export function BarChart({
   children,
   layout = "horizontal",
 
-  // Components
   tooltip = true,
   tooltipProps,
 
@@ -54,12 +53,10 @@ export function BarChart({
 
   valueFormatter = (value: number) => value.toString(),
 
-  // XAxis
   displayEdgeLabelsOnly = false,
   xAxisProps,
   hideXAxis = false,
 
-  // YAxis
   yAxisProps,
   hideYAxis = false,
 

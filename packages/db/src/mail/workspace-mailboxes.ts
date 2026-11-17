@@ -1,7 +1,3 @@
-// Every mailbox of a workspace, for its owners and admins to see what exists and whether it syncs
-// (settings: shared mailboxes, members' inboxes). Facts about each mailbox only: its address,
-// kind, health, who owns a personal one and how many people see a shared one. Never its mail:
-// nothing here reads threads or messages, and nothing grants access.
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, mailboxFolders, members, users } from "../schema/index.ts";
@@ -69,8 +65,6 @@ export async function listWorkspaceMailboxes(db: Db, orgId: string) {
           )
           .innerJoin(users, eq(users.id, members.userId))
           .where(inArray(mailboxAccess.mailboxId, personal))
-          // A personal mailbox's one grant is its owner (spec); `owner` sorts first if there
-          // were ever more.
           .orderBy(asc(mailboxAccess.role), asc(mailboxAccess.createdAt));
   const ownerOf = new Map<string, (typeof owners)[number]>();
   for (const owner of owners)

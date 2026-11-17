@@ -1,9 +1,3 @@
-// The chat input every chat in the app writes in: the AI composer from handlemotion/dorks
-// (`ChatComposer.tsx`, the AI Elements prompt input) on Omni's primitives. One row that grows
-// into a box once the text wraps (up to 40% of the viewport, then it scrolls), an optional button
-// at the bottom-left corner, Send at the bottom-right, Enter to send, Shift+Enter for a new line,
-// and an optional banner on top (the reply being answered). Used by a shared inbox's hidden notes
-// and by a file's comments.
 import {
   useLayoutEffect,
   useState,
@@ -17,7 +11,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { replyLabel, type Reply } from "@/lib/reply.ts";
 
-/** Whether the text runs past one line; re-measured as it changes and as the box resizes. */
 function useWraps(ref: RefObject<HTMLTextAreaElement | null>, text: string) {
   const [wraps, setWraps] = useState(false);
   useLayoutEffect(() => {
@@ -66,12 +59,10 @@ export function ChatBox(props: {
   /** For a picker the box drives (the mention list). */
   textareaProps?: { "aria-expanded"?: boolean; "aria-haspopup"?: "listbox" };
 }) {
-  // One row until the text wraps; then the text takes the box and the buttons sit under it.
   const stacked = useWraps(props.textareaRef, props.value);
   const lead = props.leading !== undefined;
   const compact = props.compact === true;
   return (
-    // 12px corners: a banner 8px inside keeps 4px, concentric.
     <div
       ref={props.boxRef}
       className={`relative flex flex-col border focus-within:border-ring/70 ${
@@ -101,11 +92,6 @@ export function ChatBox(props: {
             if (props.canSend) props.onSend();
           }
         }}
-        // A 44px row: 12px above and below a 20px line. The text ends 42px in (past Send, its
-        // 8px edge and 6px more) and, with a leading button, starts 42px in too. Stacked, the
-        // bottom inset makes room for the button row (16px gap, 28px button, 8px edge).
-        // Compact, a 32px row: 6px above and below the line, Send 20px with 6px edges, the text
-        // 10px in and ending 32px in; stacked, 10px gap over Send.
         className={`max-h-[40vh] min-h-0 resize-none text-sm/5 sm:text-sm/5 ${
           compact
             ? `ps-2.5 pe-8 py-1.5 sm:ps-2.5 sm:pe-8 sm:py-1.5 ${stacked ? "pb-9 sm:pb-9" : ""}`
@@ -114,7 +100,6 @@ export function ChatBox(props: {
               } ${stacked ? "pb-13 sm:pb-13" : ""}`
         }`}
       />
-      {/* The buttons keep one spot, 8px from the bottom corners, one row or stacked. */}
       {lead && (
         <div className="absolute bottom-2 left-2 flex items-center gap-1">{props.leading}</div>
       )}

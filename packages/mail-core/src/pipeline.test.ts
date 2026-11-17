@@ -1,4 +1,3 @@
-// Every fixture through parse → strip → sanitize, asserting the outputs the product shows.
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { BLOCKED_SRC_ATTR, cleanMessage, isLongForm, sanitizeHtml } from "./html.ts";
@@ -64,24 +63,19 @@ describe("clean_text", () => {
       "Hola Sam,\n\nConfirmo la reunión de mañana a las 10:00. El presupuesto es de 1.200 € más IVA.\n\nUn saludo,\nIñigo",
     ],
     ["no-message-id.eml", "The window moves to Saturday 06:00 UTC. Nothing else changes."],
-    // Outlook for iOS: signature link, then a "From: … Sent: …" block under a rule.
     ["outlook-mobile-reply.eml", "Cleared the cache and it shows euros now. Thank you!"],
-    // Spanish Outlook labels the date "Enviado el:"; the whole history leaked into the reply.
     [
       "outlook-desktop-reply-spanish.eml",
       "Buenos días,\n\nYa está añadido el registro SPF y desde esta mañana llegan bien.\n\nUn saludo,\nJosé María",
     ],
-    // iOS Mail quotes its own "On … at 5:45 PM, … wrote:" line, with a narrow no-break space.
     [
       "ios-mail-reply.eml",
       "Yes, please use the new address from next month on. The VAT number stays the same.",
     ],
-    // Gmail with no text part, a signature above the quote, and a Spanish attribution line.
     [
       "gmail-reply-html-only.eml",
       "Hola,\n\nLo he vuelto a exportar y la columna sigue sin salir. Es el informe de octubre.\n\nGracias",
     ],
-    // An out-of-office has no history to cut; stripping must leave all of it.
     [
       "auto-reply-outlook-out-of-office.eml",
       "I am out of the office until November 16 with limited access to email. For urgent matters, contact operations@logisticanord.example.net.\n\nMarc",
@@ -95,8 +89,6 @@ describe("clean_text", () => {
     expect(result).toEqual({ cleanText: expected, forwarded: null });
   });
 
-  // The text part is what we normally strip; these prove the HTML-only path cuts the same
-  // quoted history when a client sends no text part.
   test.each([
     "gmail-reply.eml",
     "outlook-desktop-reply.eml",
@@ -123,7 +115,6 @@ describe("clean_text", () => {
       },
     };
     expect(cleanMessage(message)).toEqual(expected);
-    // Gmail puts the forward inside .gmail_quote; HTML-only stripping must not delete it.
     const fromHtml = cleanMessage({ ...message, text: null });
     expect(fromHtml.cleanText).toBe(expected.cleanText);
     expect(fromHtml.forwarded?.from).toBe(expected.forwarded.from);
@@ -155,8 +146,6 @@ describe("parseMessage", () => {
   });
 
   test("decodes encoded words split mid-character, and RFC 2231 filenames", async () => {
-    // The subject's two B-encoded words split the bytes of "—"; decoding each word on its own
-    // leaves replacement characters. The From name carries a comma inside an encoded word.
     const message = await parse("encoded-word-headers.eml");
     expect(message.subject).toBe("Re: Factura nº 2026/118 — cobro duplicado 💳");
     expect(normalizeSubject(message.subject)).toBe("factura nº 2026/118 — cobro duplicado 💳");
@@ -178,7 +167,6 @@ describe("parseMessage", () => {
     expect(message.attachments).toEqual([
       expect.objectContaining({ mimeType: "text/calendar", inline: false }),
     ]);
-    // A person sent it: Outlook's X-Auto-Response-Suppress must not mark it automated.
     expect(message.automated).toBeNull();
   });
 
@@ -199,7 +187,6 @@ describe("parseMessage", () => {
     expect(first.messageIdSynthesized).toBe(true);
     expect(first.messageId).toMatch(/^<[0-9a-f]{40}@omni\.invalid>$/);
     expect(again.messageId).toBe(first.messageId);
-    // Same headers, different body: two automated messages must not collapse into one row.
     const other = new TextDecoder().decode(raw).replace("Saturday", "Sunday");
     expect((await parseMessage(other)).message.messageId).not.toBe(first.messageId);
   });
@@ -225,7 +212,6 @@ describe("parseMessage", () => {
     expect(attachmentContents.map((c) => c.byteLength)).toEqual([70, 125]);
     expect(new TextDecoder().decode(attachmentContents[1]?.subarray(0, 8))).toBe("%PDF-1.4");
 
-    // keepCidLinks: mailparser would otherwise inline the image as a data: URI.
     const { html } = sanitizeHtml(message.html ?? "", sanitizeOptions);
     expect(html).toContain(
       'src="https://omni.test/attachments/logo-mark%40studionorte.example.org"',
@@ -256,7 +242,6 @@ describe("sanitizeHtml", () => {
     expect(html).not.toMatch(/\son\w+\s*=/i);
     expect(html).not.toMatch(/javascript:/i);
     expect(html).not.toMatch(/@import/i);
-    // Any remaining URL that loads by itself points at our proxy or our attachments.
     for (const [, url] of html.matchAll(/(?:\ssrc=|url\()\s*["']?([^"')\s>]+)/gi)) {
       expect(url).toMatch(/^https:\/\/(?:img\.)?omni\.test\//);
     }
@@ -270,11 +255,8 @@ describe("sanitizeHtml", () => {
     expect(html).toContain(
       `${BLOCKED_SRC_ATTR}="${PROXY}${encodeURIComponent("https://t.pixelweekly.example.com/open.gif?id=7731")}"`,
     );
-    // Protocol-relative URLs are remote too.
     expect(html).toContain(encodeURIComponent("https://t.pixelweekly.example.com/open2.gif"));
-    // A sender cannot pre-fill the attribute the client swaps into src.
     expect(html).not.toContain("sneaky.gif");
-    // CSS backgrounds cannot be swapped in later, so blocked means removed.
     expect(html).not.toContain("hero.jpg");
     expect(html).not.toContain("bg-track.gif");
     expect(html).not.toContain("bg.jpg");
@@ -332,7 +314,6 @@ describe("phishing hints", () => {
         hrefHost: "bank.example.com.verify-session.attacker.example",
       },
     ]);
-    // Both tracking URLs are left unterminated; browsers would still load them.
     expect(html).not.toContain("attacker.example/open.gif");
     expect(html).not.toContain("attacker.example/p.gif");
   });
@@ -345,7 +326,6 @@ describe("isLongForm", () => {
       isLongForm({ cleanText: cleanMessage(newsletter).cleanText, html: newsletter.html }),
     ).toBe(true);
 
-    // Gmail and Outlook replies carry tables only in quoted history, if at all.
     for (const name of ["gmail-reply.eml", "outlook-desktop-reply.eml"]) {
       const message = await parse(name);
       expect(isLongForm({ cleanText: cleanMessage(message).cleanText, html: message.html })).toBe(

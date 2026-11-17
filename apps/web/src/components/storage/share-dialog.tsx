@@ -1,9 +1,3 @@
-// Sharing a file or folder (ADR 0034 decision 4), after Figma's and Gamma's share dialogs: add
-// someone by address with a role, then who has access, then general access and the link.
-//
-// Geometry: three groups 20px apart in the dialog body; within a group, rows 8px apart. A person
-// is a 40px row: a 24px avatar, the address 10px after it (with the folder they come through
-// under it when the access is inherited), the role at the end.
 import { useState } from "react";
 import { Skeleton } from "skullet/react";
 import {
@@ -63,7 +57,6 @@ export function ShareDialog(props: { node: StorageNode; onClose: () => void }) {
           label="Loading sharing"
         >
           {(state) => (
-            // Its own column: the loading wrapper would otherwise take the body's gap.
             <div className="flex flex-col gap-5">
               <People sharing={state} />
               <GeneralAccess sharing={state} />
@@ -83,14 +76,12 @@ const SAMPLE: StorageSharing = {
   inherited: [],
 };
 
-/** The address, its role, and Invite: one line, the way people are added. */
 function AddPerson({ nodeId }: { nodeId: string }) {
   const put = usePutStoragePerson();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<StorageGrantRole>("viewer");
   const address = email.trim();
   return (
-    // One line; on a phone the address takes a line of its own, role and Invite under it.
     <form
       className="flex flex-wrap items-end gap-2"
       onSubmit={(event) => {
@@ -153,7 +144,6 @@ function RoleSelect(props: {
   );
 }
 
-/** Everyone it is shared with: their role and the way to remove them; inherited ones read-only. */
 function People({ sharing }: { sharing: StorageSharing }) {
   const put = usePutStoragePerson();
   const remove = useRemoveStoragePerson();
@@ -197,7 +187,6 @@ function People({ sharing }: { sharing: StorageSharing }) {
           <span className="w-28 shrink-0 ps-2.5 text-sm text-muted-foreground">
             {roleLabel(person.role)}
           </span>
-          {/* Holds the remove button's place, so roles line up with the rows above. */}
           <span aria-hidden className="size-6.5 shrink-0" />
         </PersonRow>
       ))}
@@ -223,7 +212,6 @@ function PersonRow(props: { email: string; from?: string; children: React.ReactN
   );
 }
 
-/** Restricted or anyone with the link, the link itself, and a new one in its place. */
 function GeneralAccess({ sharing }: { sharing: StorageSharing }) {
   const setLink = useSetStorageLink();
   const anyone = sharing.linkAccess === "anyone";
@@ -280,7 +268,6 @@ function GeneralAccess({ sharing }: { sharing: StorageSharing }) {
   );
 }
 
-/** The link, read-only, with Copy inside it: the tick shows on the press, no toast. */
 function LinkField({ url }: { url: string }) {
   const { copy, copied } = useClipboard();
   return (

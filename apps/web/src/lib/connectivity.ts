@@ -1,11 +1,3 @@
-// Whether the API can be reached right now, as TanStack Query's `onlineManager` sees it. While it
-// is false, queries keep their data and mutations wait (paused, their optimistic update already
-// on screen); when it comes back, the paused mutations run in order with the variables, so the
-// idempotency keys, they started with (see `mail-mutations.ts`).
-//
-// The browser's own `navigator.onLine` only knows about the network interface. A request that got
-// no answer at all (captive portal, the Worker unreachable) also counts as offline, until
-// something answers again: any API response, the realtime socket opening, or a probe of `/api`.
 import { onlineManager } from "@tanstack/react-query";
 
 const PROBE_MIN_MS = 1_000;
@@ -32,7 +24,6 @@ function onNetworkChange() {
   void probe();
 }
 
-/** Back in front after a while: timers were throttled and the socket may be long dead. */
 function onVisible() {
   if (document.visibilityState === "visible") wake();
 }
@@ -77,10 +68,6 @@ export function reportAnswer() {
   wake();
 }
 
-/**
- * Asks the API with jittered backoff until it answers. Stops while the browser is offline; its
- * `online` event starts it again.
- */
 async function probe() {
   if (probing) return;
   probing = true;
@@ -94,10 +81,6 @@ async function probe() {
   }
 }
 
-/**
- * Any answer from the Worker counts, a 401 included. A 5xx is a proxy that could not reach it
- * (Vite's in dev, the edge's in production).
- */
 async function workerAnswers() {
   try {
     const response = await fetch("/api/me", { cache: "no-store" });

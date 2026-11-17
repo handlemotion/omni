@@ -1,6 +1,3 @@
-// The one "Connect Google" button, for setup's inbox step and Settings, Connected accounts. It
-// leaves for Google's consent screen; Google comes back to the page named by `from`, which reads
-// the outcome with `useGoogleReturn`.
 import { Google } from "@ridemountainpig/svgl-react";
 import { Button } from "@/components/ui/button";
 import { useConnectGoogle } from "@/hooks/use-google-connection";

@@ -1,6 +1,3 @@
-// A request to sign (ADR 0043 decision 6): `/sign/<requestId>`, the link in the mail a signer
-// gets. Signed in with an address the request names, or it is the not-found: the API answers 404
-// to anyone else, as it does for a request that does not exist.
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { LinkFrame } from "../../components/storage/link-frame.tsx";
 import { SignPage } from "../../components/storage/sign-page.tsx";

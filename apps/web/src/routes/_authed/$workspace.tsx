@@ -55,29 +55,22 @@ export const Route = createFileRoute("/_authed/$workspace")({
     const workspace = workspaceBySlug(workspaces, params.workspace);
     if (!workspace) {
       const home = homeWorkspace(workspaces);
-      // No workspace at all: the member guard knows where to go (join, onboarding, sign-in).
       if (!home) await requireMember(client, location);
       const moved = home && legacyPath(home.slug, location.pathname);
       const href = moved ? `${moved}${location.searchStr}` : home && workspaceHome(home.slug);
       throw redirect({ href: href ?? "/", replace: true });
     }
-    // A mailbox (`?mailbox=`) or thread of another of the user's workspaces is opened there:
-    // the Worker would read it as that workspace's member, under this one's name.
     const { mailbox } = location.search as { mailbox?: string };
     const owner = mailbox && workspaceOfMailbox(workspaces, mailbox);
     if (owner && owner.id !== workspace.id) {
       throw redirect({ href: inOtherWorkspace(location.href, owner.slug), replace: true });
     }
-    // A link into another workspace is not preloaded: entering it is what a click does, and
-    // a hover must not move this tab (TanStack Router drops a preload that is not found).
     if (preload && workspace.id !== currentWorkspaceId()) throw notFound();
     await enterWorkspace(client, workspace);
     const { member } = await requireMember(client, location);
     return { member, workspace };
   },
   loader: ({ context }) => {
-    // Not awaited: settings' nav shows Billing only where the install bills, and this has the
-    // answer ready long before anyone opens settings.
     void context.queryClient.prefetchQuery(billingQuery());
     return Promise.all([
       context.queryClient.ensureQueryData(mailboxesQuery()),
@@ -100,22 +93,14 @@ function Shell() {
   const settings = useSettingsLocation();
   useShortcut("settings", useToggleSettings());
   return (
-    // The page itself never scrolls: it is the window's size, and the list and the open thread
-    // scroll on their own inside it.
     <ResizableSidebarProvider className="h-svh overflow-hidden">
-      {/* Above the sidebar too: its search sweeps the list when smart search runs. */}
       <ListSweepProvider>
-        {/* Drive's drags cross from its pages to the sidebar (`drive-drag.tsx`). */}
         <DriveDragProvider>
-          {/* Settings is a page: its nav takes the sidebar's place. */}
           {settings ? <SettingsNav /> : <AppSidebar />}
           <NotificationsPanel />
-          {/* `/` and ⌘K. Inside the sweep: its smart search sweeps the list. */}
           <CommandMenu />
-          {/* Starts after the closed sidebar's island, while it shows. */}
           <SidebarInset className="ps-(--sidebar-island-width)">
             <SidebarResizeGrip />
-            {/* A module's failure takes its pane only: the sidebar and title bar stay. */}
             <ModuleBoundary>
               <Outlet />
             </ModuleBoundary>
@@ -129,7 +114,6 @@ function Shell() {
   );
 }
 
-/** Whether a settings page is open; anywhere else is remembered as where its Back returns. */
 function useSettingsLocation() {
   const { pathname, href } = useLocation();
   const settings = isSettingsPath(pathname);

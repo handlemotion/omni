@@ -1,6 +1,3 @@
-// The MCP endpoint and its OAuth discovery (ADR 0029). `/mcp` serves MCP 2026-07-28 and, on the
-// same endpoint, 2025-era clients (still how Claude and ChatGPT connect), statelessly: no
-// sessions, no streams, one JSON answer per request. Discovery documents come from Better Auth.
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
@@ -8,12 +5,10 @@ import { authenticate, insufficientScope } from "../mcp/auth.ts";
 import { checkRateLimit, type RateLimitRule } from "../rate-limiter.ts";
 import { createServer, TOOL_SCOPES } from "../mcp/server.ts";
 
-/** Browsers may call from our own origins only; native clients send no `Origin`. */
 function originAllowed(origin: string | undefined, allowed: string[]) {
   return origin === undefined || allowed.includes(origin);
 }
 
-/** The scope a `tools/call` body needs beyond `mail:read`, if any. */
 function toolScope(body: unknown) {
   if (typeof body !== "object" || body === null) return undefined;
   const { method, params } = body as { method?: unknown; params?: { name?: unknown } };
@@ -31,7 +26,6 @@ export const mcp = new Hono<AppEnv>()
     }
     const caller = await authenticate(c.req.raw, auth, db, baseURL);
     if (caller instanceof Response) return caller;
-    // A writing tool needs its own scope: answer 403 before it runs, so the client can step up.
     const needed = toolScope(
       await c.req.raw
         .clone()
@@ -50,7 +44,6 @@ export const mcp = new Hono<AppEnv>()
       config,
       webAppURL: config.auth.webAppURL,
       log: c.var.log,
-      // Per person, across their agents: a key apart from the app's per-member limits.
       rateLimit: (rule: RateLimitRule, cost?: number) =>
         checkRateLimit(c.env, config, rule, `mcp:${caller.userId}`, cost),
     };
@@ -67,11 +60,7 @@ export const mcp = new Hono<AppEnv>()
         expiresAt: caller.expiresAt,
       },
     });
-    // 2025-era requests are answered as a stream even with one message in it. Read it to the end
-    // here: the request's database connection closes once this handler returns.
     return new Response(await response.arrayBuffer(), response);
   })
-  // No sessions and no server-sent stream: there is nothing to GET or DELETE.
   .on(["GET", "DELETE"], "/mcp", (c) => c.body(null, 405, { allow: "POST" }))
-  // RFC 9728 and RFC 8414 / OIDC discovery, at the root where clients look for them.
   .get("/.well-known/*", (c) => c.var.auth.handler(c.req.raw));

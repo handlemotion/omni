@@ -1,13 +1,3 @@
-// Signing (ADR 0043 decision 6, the flow of ADR 0037 decision 4). Two sides:
-//
-// - `storageSigningMember`, under `/api/storage` for members: send a PDF for signature, see its
-//   requests and void one. Sending hashes the bytes here, streaming them from the bucket, so the
-//   hash on record is one we computed, never the uploader's claim.
-// - `storageSigning`, at `/api/storage/signing` for anyone signed in: what they were asked to
-//   sign, by an address they verified. Mounted ahead of the member API: a signer need not be a
-//   member of the sender's workspace, and their own workspace's plan has nothing to do with it.
-//
-// Every mail goes through the system mail path and links only to our own origin (ADR 0037).
 import {
   STORAGE_SIGNING_CONSENT,
   storageSendForSignatureBodySchema,
@@ -71,7 +61,6 @@ const originOf: (c: Context<AppEnv>, email: string) => StorageSigningOrigin = (c
   return { email, ip: clientIp(c.req.raw), userAgent: c.req.header("user-agent") ?? null };
 };
 
-/** Hex SHA-256 of an object's bytes, streamed, and whether it starts as a PDF does. */
 async function hashObject(bucket: R2Bucket, key: string) {
   const head = await bucket.get(key, { range: { offset: 0, length: 5 } });
   const isPdf = head !== null && (await head.text()) === "%PDF-";
@@ -101,7 +90,6 @@ function refusedSigning(
   return apiError(c, code, message);
 }
 
-/** The link a signer opens: the web app's signing page for the request. */
 const signingUrl = (c: Context<AppEnv>, requestId: string) =>
   new URL(`/sign/${requestId}`, c.var.config.auth.webAppURL).toString();
 
@@ -111,12 +99,6 @@ function sendMail(c: Context<AppEnv>, message: { to: string; subject: string; te
 }
 
 export const storageSigningMember = new Hono<AppEnv>()
-  /**
-   * Sends the file for signature and mails each signer. Counts one share mail per signer against
-   * `RATE_LIMIT_STORAGE_SHARE`. When a mail cannot be sent the request is voided, so sending
-   * again is a clean retry. An install with no `SYSTEM_MAIL_FROM` mails nobody, as sharing does:
-   * a signer finds the request under `/api/storage/signing`, though no code can reach them.
-   */
   .post(
     "/files/:id/signatures",
     zValidator("json", storageSendForSignatureBodySchema),
@@ -187,7 +169,6 @@ export const storageSigningMember = new Hono<AppEnv>()
     } satisfies StorageSignatureRequestsResponse);
   })
 
-  /** Voids a request still out. The file stays locked; an owner or admin unlocks it. */
   .post("/signatures/:requestId/void", async (c) => {
     const voided = await memberStorage(c).voidSignature(
       c.req.param("requestId"),
@@ -199,7 +180,6 @@ export const storageSigningMember = new Hono<AppEnv>()
     } satisfies StorageSignatureRequestResponse);
   });
 
-/** Signed in, with or without a workspace: a client may have nothing but this request. */
 const signedIn = createMiddleware<AppEnv>(async (c, next) => {
   const session = await resolveSession(c);
   if (!session) return apiError(c, "unauthorized", "sign in first");
@@ -213,7 +193,6 @@ const signerDoor = (c: Context<AppEnv>) =>
 export const storageSigning = new Hono<AppEnv>()
   .use(signedIn)
 
-  /** Every request naming one of the person's addresses, newest first. */
   .get("/", async (c) => {
     const items = await signerDoor(c).toSign();
     return c.json({ items: items.map(wireItem) } satisfies StorageSigningListResponse);
@@ -228,19 +207,13 @@ export const storageSigning = new Hono<AppEnv>()
     } satisfies StorageSigningItemResponse);
   })
 
-  /** The signed copy with its audit page, once sealed; `404` until then. */
   .get("/:id/sealed", async (c) => download(c, await signerDoor(c).sealedFile(c.req.param("id"))))
 
-  /** The document as sent, as a download; each read is a `viewed` step in the audit trail. */
   .get("/:id/content", async (c) => {
     const origin = originOf(c, c.var.user.email);
     return download(c, await signerDoor(c).signingFile(c.req.param("id"), origin));
   })
 
-  /**
-   * Mails a one-time code to the address this person signs as, replacing any earlier one. Counts
-   * against `RATE_LIMIT_STORAGE_SHARE` per person.
-   */
   .post("/:id/code", async (c) => {
     const { config, user } = c.var;
     if (!config.SYSTEM_MAIL_FROM) {

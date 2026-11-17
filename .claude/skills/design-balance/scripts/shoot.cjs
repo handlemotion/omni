@@ -1,12 +1,4 @@
 #!/usr/bin/env node
-// Screenshots one element of the running app at 4x, for ink.py.
-//
-//   node shoot.cjs <url> <selector> <out.png> [--click <selector>] [--hover <selector>]
-//                  [--nth <n>] [--settle <ms>]
-//
-// --click opens something first (a menu trigger); --hover parks the pointer on an element (a
-// row, to measure its hover state); without --hover the pointer is parked in a far corner, so
-// no hover state leaks into the shot. --nth picks the nth match of <selector> (default 0).
 const { chromium } = require("playwright");
 
 const [url, selector, out, ...rest] = process.argv.slice(2);

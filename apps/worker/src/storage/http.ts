@@ -1,5 +1,3 @@
-// What Storage's route files share: the doors a request goes through, the API's error answers,
-// cursors and the one way a file is served.
 import type { ErrorCode, StorageNodeView, StorageSpace } from "@omni/contracts";
 import {
   forMember,
@@ -129,7 +127,6 @@ export async function download(c: Context<AppEnv>, found: FileResult) {
     { range: c.req.header("range"), ifRange: c.req.header("if-range") },
   );
   if (response) return response;
-  // The row is the truth and its bytes are gone: someone must know.
   c.var.log.error("storage.object_missing", { orgId: found.file.orgId, nodeId: found.file.id });
   return refused(c, "not_found");
 }

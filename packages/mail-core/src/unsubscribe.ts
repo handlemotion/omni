@@ -16,7 +16,6 @@ export const unsubscribeMethod: (
   oneClick: boolean,
 ) => Unsubscribe | null = (uris, oneClick) => {
   const https = uris.map((uri) => webUrl(uri, ["https:"])).find((url) => url !== null);
-  // RFC 8058: one-click is only an https URI.
   if (oneClick && https) return { kind: "post", url: https };
   for (const uri of uris) {
     const mail = mailto(uri);
@@ -34,10 +33,8 @@ function webUrl(uri: string, protocols: string[]) {
 const mailto: (uri: string) => Unsubscribe | null = (uri) => {
   const url = parse(uri);
   if (url?.protocol !== "mailto:") return null;
-  // `mailto:a@x,b@x`: the first address does.
   const to = decode(url.pathname.split(",")[0] ?? "");
   if (!/^[^\s@]+@[^\s@]+$/.test(to)) return null;
-  // URLSearchParams reads `+` as a space, which mailto does not; keep it.
   const params = new URLSearchParams(url.search.replaceAll("+", "%2B"));
   return {
     kind: "mail",

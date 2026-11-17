@@ -1,5 +1,3 @@
-// Large mail goes through temp files instead of memory: a 25 MB attachment fetched, parsed and
-// uploaded whole costs over ten times its size in RSS, more than the service's VM has.
 import { createHash, randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { rm } from "node:fs/promises";

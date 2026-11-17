@@ -1,8 +1,3 @@
-// Hand-off (ADR 0030): a reply to a shared conversation from the member's own personal mailbox.
-// The mail threads for the customer (In-Reply-To and References point at the shared thread's
-// message), but it is sent, filed and answered on the personal mailbox, so the conversation goes
-// on one-to-one there. The shared conversation is assigned to the sender and resolved in the
-// same transaction; cancelling the send inside its undo window puts it back.
 import { MAX_SEND_ATTACHMENTS } from "@omni/contracts";
 import { enqueueHandoff, forMember, undoSendSeconds } from "@omni/db";
 import { replySubject } from "@omni/mail-core/compose";
@@ -26,18 +21,14 @@ import { idempotencyHeader, notFound, outboxKey, pingLater } from "./mail.ts";
 import { basedOnMessageId } from "./reply-precondition.ts";
 
 const handoffBody = z.object({
-  /** The member's own personal mailbox to send from, in the conversation's workspace. */
   mailboxId: z.string().min(1),
-  /** What the composer shows: a hand-off has no default recipients. */
   to: recipients.min(1),
   cc: recipients.optional(),
   bcc: recipients.optional(),
   text: z.string().min(1).max(1_000_000),
   html: z.string().max(2_000_000).optional(),
-  /** The message replied to (`messages.id`); the thread's latest when absent. */
   messageId: z.string().min(1).optional(),
   basedOnMessageId,
-  /** Uploads staged on the personal mailbox (`POST /uploads?mailboxId=`). */
   attachments: attachmentList,
 });
 
@@ -51,7 +42,6 @@ async function sendHandoff(
   if (found.mailboxKind !== "shared") {
     throw new HTTPException(409, { message: "only a shared conversation can be handed off" });
   }
-  // The member's own (owner grant), connected, personal mailbox in the conversation's workspace.
   const mailbox = (await forMember(c.var.db, c.var.member.id).listMailboxes()).find(
     (m) =>
       m.id === body.mailboxId &&
@@ -88,14 +78,12 @@ async function sendHandoff(
         ...(body.html ? { html: body.html } : {}),
         inReplyTo: message.messageIdHeader,
         references: [...message.references, message.messageIdHeader],
-        // No `inReplyToMessageId`: the Sent copy belongs in the personal mailbox's own thread.
         ...(body.attachments.length ? { attachments: body.attachments } : {}),
         handoffThreadId: threadId,
         messageId: newMessageId(mailbox.address),
       },
     },
     attachments: body.attachments,
-    // Held for the member's undo window, like every send (ADR 0021 §7).
     delaySeconds: await undoSendSeconds(c.var.db, c.var.member.id),
   });
   if (!result.ok) {
@@ -114,24 +102,15 @@ async function sendHandoff(
   return result.action;
 }
 
-export const handoff = new Hono<AppEnv>()
-  /**
-   * Replies to a shared conversation from one of the member's own personal mailboxes (ADR 0030)
-   * and hands it off to them: assigned to them and resolved, with a `handoff` event. Answers like
-   * a reply (`actionId`, `messageIdHeader`, `undoUntil`); cancelling it with
-   * `POST /actions/:id/cancel` inside the window puts the conversation back. 404 for a mailbox
-   * that is not theirs to send from; 409 for a personal thread, or with `messages` when the
-   * thread has messages newer than `basedOnMessageId`.
-   */
-  .post(
-    "/threads/:id/handoff",
-    limitPerMember("send"),
-    zValidator("header", idempotencyHeader),
-    zValidator("json", handoffBody),
-    (c) => {
-      const key = c.req.valid("header")["idempotency-key"];
-      return sendUnlessStale(c, key, () =>
-        sendHandoff(c, c.req.param("id"), c.req.valid("json"), key),
-      );
-    },
-  );
+export const handoff = new Hono<AppEnv>().post(
+  "/threads/:id/handoff",
+  limitPerMember("send"),
+  zValidator("header", idempotencyHeader),
+  zValidator("json", handoffBody),
+  (c) => {
+    const key = c.req.valid("header")["idempotency-key"];
+    return sendUnlessStale(c, key, () =>
+      sendHandoff(c, c.req.param("id"), c.req.valid("json"), key),
+    );
+  },
+);

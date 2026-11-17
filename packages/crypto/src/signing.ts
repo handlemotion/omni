@@ -1,26 +1,3 @@
-// HMAC-SHA256 request signing for Worker <-> mail service calls. This is the one verifier;
-// never hand-roll a second one (AGENTS.md).
-//
-// Canonical string, one field per line:
-//
-//   omni-v1
-//   <METHOD uppercased>
-//   <path including the query string, exactly as sent>
-//   <timestamp, unix seconds>
-//   <nonce, or empty>
-//   <hex sha256 of the raw body bytes>
-//   <request id>                       (only when the request carries one)
-//
-// The signature covers every field, so changing any of them (or the body) fails verification.
-// Timestamps outside `maxAgeSeconds` in either direction are rejected, which bounds replay to
-// that window. For full replay protection, send a unique `nonce` and have the receiver remember
-// nonces it accepted for `maxAgeSeconds`; this package signs the nonce but keeps no state.
-//
-// A request ID (for tracing one action across processes) travels in REQUEST_ID_HEADER and is
-// signed as a seventh line when present. Without one the canonical string is exactly the six
-// lines above, so senders that never set it verify unchanged; with one, stripping, adding or
-// swapping the header fails verification like any other tampering.
-
 import { toHex, fromHex, utf8 } from "./encoding.ts";
 
 export const SIGNATURE_HEADER = "x-omni-signature";
@@ -131,7 +108,6 @@ export const verifyRequest: (input: VerifyRequestInput) => Promise<VerifyResult>
     input.body,
     requestId,
   );
-  // subtle.verify compares in constant time.
   const valid = await crypto.subtle.verify("HMAC", key, mac, utf8(canonical));
   return valid ? { ok: true, timestamp, nonce, requestId } : { ok: false, reason: "bad_signature" };
 };

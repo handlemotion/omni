@@ -1,6 +1,3 @@
-// The command menu's records: Drive's files and folders, the CRM's companies, people and deals,
-// and mail, found by name (`useCommandSearch`). Rows match on their names, as cmdk's filter keeps
-// only rows whose keywords fit what was typed.
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { IconBuildings, IconHandshake, IconUserRound } from "@/components/icons/central";
 import { IconEmail } from "@/components/icons/sidebar";

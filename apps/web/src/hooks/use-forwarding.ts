@@ -1,4 +1,3 @@
-// CRM forwarding settings (ADR 0032): list, set, turn off.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   clearForwardingMutation,

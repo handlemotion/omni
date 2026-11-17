@@ -1,6 +1,3 @@
-// An agent asking to connect (ADR 0029): who it is, and the person's answer. Better Auth's OAuth
-// provider sends them here with the signed authorization request in the query; the answer goes
-// back to it with that query, and the browser follows the URL it returns to the agent.
 import { queryOptions } from "@tanstack/react-query";
 import { api, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";

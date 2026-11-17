@@ -9,10 +9,6 @@ export const buttonStyles = tv({
     "[--btn-border:var(--color-foreground)]/15 [--btn-icon-active:var(--btn-foreground)] [--btn-outline:var(--btn-bg)] [--btn-radius:calc(var(--radius-lg)-1px)]",
     "bg-(--btn-bg) text-(--btn-foreground) outline-(--btn-outline) hover:bg-(--btn-overlay) active:bg-(--btn-overlay) pressed:bg-(--btn-overlay)",
     "relative isolate inline-flex items-center justify-center border border-(--btn-border) hover:no-underline",
-    // Tactile press: a short squeeze a quick second press retargets. Driven by native `:active`
-    // (shadcn's press), not React Aria's `pressed`, so it never waits on a React render. Off on
-    // menu triggers (a squeezed trigger looks narrower than its open menu), when disabled or
-    // pending, and under reduced motion.
     "transition-[scale,background-color] duration-150 ease-out motion-safe:[&:active]:not-aria-[haspopup]:scale-97 disabled:[&:active]:scale-100 pending:[&:active]:scale-100",
     "focus:outline-0 focus-visible:outline focus-visible:outline-offset-2",
     "forced-colors:[--btn-icon:ButtonText] forced-colors:hover:[--btn-icon:ButtonText] *:[svg]:shrink-0 *:[svg]:self-center *:[svg]:text-(--btn-icon) hover:*:[svg]:text-(--btn-icon-active) active:*:[svg]:text-(--btn-icon-active) pressed:*:[svg]:text-(--btn-icon-active) focus-visible:*:[svg]:text-(--btn-icon-active)/80",
@@ -22,10 +18,6 @@ export const buttonStyles = tv({
   ],
   variants: {
     intent: {
-      // Every button shares the danger button's build: an edge a step darker than its fill, a
-      // faint top highlight inside (`--shadow-button`), no outer drop.
-      // Disabled, a primary button goes grey (the secondary fill, muted text), not a faded blue:
-      // blue means it can be pressed. Its edge fades to near the canvas, so the grey reads as off.
       primary: [
         "shadow-(--shadow-button) [--btn-bg:var(--color-primary-button)] [--btn-border:color-mix(in_oklab,var(--color-primary-button)_85%,black)] [--btn-foreground:var(--color-primary-foreground)] [--btn-icon-active:var(--primary-foreground)] [--btn-icon:var(--primary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-primary-foreground)_10%,var(--color-primary-button)_90%)]",
         "disabled:opacity-100 disabled:[--btn-bg:var(--color-secondary)] disabled:[--btn-border:color-mix(in_oklab,var(--color-secondary)_50%,var(--color-background))] disabled:[--btn-foreground:var(--color-muted-foreground)] disabled:[--btn-icon:var(--color-muted-foreground)] disabled:[--btn-icon-active:var(--color-muted-foreground)] disabled:[--btn-overlay:var(--color-secondary)]",
@@ -34,29 +26,21 @@ export const buttonStyles = tv({
         "shadow-(--shadow-button) [--btn-border:color-mix(in_oklab,var(--color-secondary)_88%,black)] [--btn-bg:var(--color-secondary)] [--btn-foreground:var(--color-secondary-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-secondary-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-secondary-foreground)_4%,var(--color-secondary))]",
       warning:
         "shadow-(--shadow-button) [--btn-border:color-mix(in_oklab,var(--color-warning)_80%,black)] [--btn-bg:var(--color-warning)] [--btn-foreground:var(--color-warning-foreground)] [--btn-icon:var(--color-warning-foreground)]/60 [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-warning)_90%)]",
-      // Filled red with a 1px darker edge and a faint top highlight (onboarding reference).
       danger:
         "[--btn-bg:var(--color-danger)] [--btn-border:color-mix(in_oklab,var(--color-danger)_80%,black)] [--btn-foreground:var(--color-danger-foreground)] [--btn-icon:var(--color-danger-foreground)] [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-danger)_90%)] shadow-(--shadow-button)",
       success:
         "shadow-(--shadow-button) [--btn-border:color-mix(in_oklab,var(--color-success)_80%,black)] [--btn-bg:var(--color-success)] [--btn-foreground:var(--color-success-foreground)] [--btn-icon:color-mix(in_oklab,var(--color-success-foreground)_60%,var(--success)_40%)] [--btn-overlay:color-mix(in_oklab,var(--color-white)_10%,var(--color-success)_90%)]",
-      // Raised: a crisp 1px drop under the border, so it reads as something to press. Hover and
-      // press are a quiet 4% wash of the foreground (as on secondary), not a grey fill.
       outline:
         "shadow-(--shadow-button) border-border [--btn-bg:var(--color-background)] [--btn-foreground:var(--color-black)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:color-mix(in_oklab,var(--color-foreground)_4%,var(--color-background))]",
-      // Plain until hovered, then a borderless grey backdrop: toolbars of icon actions. On
-      // (`aria-pressed`, a tool in use) it keeps the accent fill and a foreground icon.
       ghost:
         "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)] aria-pressed:[--btn-bg:var(--color-accent)] aria-pressed:[--btn-icon:var(--color-foreground)]",
       plain:
         "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:transparent]",
     },
-    // The control scale: sm 28px, md 32px, lg 40px. Icons grow with the button, so a glyph's ink
-    // balances the 13px label beside it: 14px at sm, 16px at md, 18px at lg.
     size: {
       sm: ["h-7 gap-x-2 px-2.5 text-sm", "*:[svg]:size-3.5", "*:data-[slot=loader]:size-3.5"],
       md: ["h-8 gap-x-2.5 px-2.5 text-sm", "*:[svg]:size-4", "*:data-[slot=loader]:size-4"],
       lg: ["h-10 gap-x-2.5 px-3 text-sm", "*:[svg]:size-4.5", "*:data-[slot=loader]:size-4.5"],
-      // 20px: a quiet action inside a line of text (a message's ⋯).
       "sq-2xs": [
         "touch-target size-5 shrink-0",
         "*:[svg]:size-icon",
@@ -67,9 +51,6 @@ export const buttonStyles = tv({
         "*:[svg]:size-icon",
         "*:data-[slot=loader]:size-icon",
       ],
-      // Icon-only squares on the same scale: 28, 32 and 40px. `sq-sm` (28px, 16px glyph) is the
-      // one icon button for toolbars and the sidebar's top and bottom rows; the smaller squares
-      // above are for actions inside a row or a line of text.
       "sq-sm": ["touch-target size-7 shrink-0", "*:[svg]:size-4", "*:data-[slot=loader]:size-4"],
       "sq-md": ["touch-target size-8 shrink-0", "*:[svg]:size-4", "*:data-[slot=loader]:size-4"],
       "sq-lg": [
@@ -78,7 +59,6 @@ export const buttonStyles = tv({
         "*:data-[slot=loader]:size-4.5",
       ],
       inset: "size-4.5 shrink-0 border-0",
-      // No box of its own: a toggle inside a line of text (a message's "to …").
       text: ["gap-x-1 p-0 text-xs", "*:[svg]:size-3"],
     },
 
@@ -129,8 +109,6 @@ export function Button({
   isPending = false,
   ...props
 }: ButtonProps & { onClick?: ButtonPrimitiveProps["onClick"] }) {
-  // A wrapping trigger (a tooltip's, a menu's) hands its own `onClick` in through `props`: run
-  // both, so wrapping a button never swallows its `onPress`.
   const { onClick: forwardedClick, ...rest } = props;
   return (
     <ButtonPrimitive

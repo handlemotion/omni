@@ -1,6 +1,3 @@
-// The ⌘K command menu in a real Chromium, on the web app served by the real Worker and a real
-// Postgres: it opens from any module, finds a thread by its subject, and runs a thread command
-// on the thread that is open.
 import { createOrgWithOwner } from "@omni/db";
 import { chromium, type Browser } from "playwright-core";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -36,10 +33,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Catches: ⌘K bound only where the mail list is mounted (Drive had no menu), Drive's Search not
-// opening the menu on Drive, a folder the menu can't find by name until it was listed, a module's page or
-// a settings page the menu can't reach, a scope pill that keeps focus so typing goes nowhere, and
-// a command row that closes the menu without running its shortcut's handler.
 test("⌘K opens the command menu anywhere, finds a thread and marks it done", async () => {
   const email = "ana@menu.test";
   const org = await createOrgWithOwner(db, { name: "Acme", slug: "menu", ownerEmail: email });
@@ -64,7 +57,6 @@ test("⌘K opens the command menu anywhere, finds a thread and marks it done", a
   const page = await context.newPage();
   const menu = page.getByRole("dialog", { name: "Search and commands" });
 
-  // Drive mounts no mail list, so this is the shell's binding, not the list header's.
   await page.goto(new URL("/menu/files/my", origin).toString());
   await page.getByRole("main").waitFor();
   await page.keyboard.press("Control+k");
@@ -72,8 +64,6 @@ test("⌘K opens the command menu anywhere, finds a thread and marks it done", a
   await page.keyboard.press("Control+k");
   await menu.waitFor({ state: "hidden" });
 
-  // A Drive page from the All pill, then a settings page from the Settings pill, found by a
-  // word on the page rather than its title.
   await page.keyboard.press("/");
   await page.keyboard.type("shared with me");
   await page.keyboard.press("Enter");
@@ -89,8 +79,6 @@ test("⌘K opens the command menu anywhere, finds a thread and marks it done", a
   const row = page.getByText("Quarterly freight rates").first();
   await row.waitFor();
   await page.keyboard.press("/");
-  // The Mail pill lists the inbox before any query, and hands the keyboard back to the field, so
-  // typing still filters.
   await menu.getByRole("radio", { name: "Mail" }).click();
   await menu.getByRole("option", { name: /Quarterly freight rates/ }).waitFor();
   await page.keyboard.type("freight");
@@ -100,7 +88,6 @@ test("⌘K opens the command menu anywhere, finds a thread and marks it done", a
 
   await page.keyboard.press("Control+k");
   await page.keyboard.type("mark done");
-  // Leaving the page before Done's request is sent would cancel it, so wait for its answer.
   const done = page.waitForResponse(
     (res) => res.request().method() === "POST" && /\/threads\/[^/]+\/done$/.test(res.url()),
   );
@@ -111,8 +98,6 @@ test("⌘K opens the command menu anywhere, finds a thread and marks it done", a
   await page.getByRole("main").waitFor();
   await expect.poll(() => page.getByText("Quarterly freight rates").count()).toBe(0);
 
-  // Drive's Search opens the menu on its Drive pill, and finds a folder by a word of its name. The
-  // folder sits inside another the page never listed, so only the server's name search has it.
   await page.goto(new URL("/menu/files/my", origin).toString());
   await page.getByRole("main").waitFor();
   const chowId = await page.evaluate(async () => {

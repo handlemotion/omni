@@ -1,7 +1,3 @@
-// Personal spaces in the web app (ADR 0024 step 5), in a real Chromium, on the web app built and
-// served by the real Worker under `wrangler dev`, on a real Postgres: someone in no company works
-// in their Personal space instead of being sent to create one, and its settings leave out the
-// pages only a company has.
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { acceptJoinRequest, createOrgWithOwner, schema } from "@omni/db";
@@ -19,7 +15,6 @@ import {
   type TestDb,
 } from "../../worker/e2e/support.ts";
 
-/** Where a URL is inside its workspace: `/mail/inbox` for `/<slug>/mail/inbox` (ADR 0043). */
 const place = (url: URL | string) => `/${new URL(url).pathname.split("/").slice(2).join("/")}`;
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -57,7 +52,6 @@ afterEach(async () => {
   context = undefined;
 });
 
-/** Signed in as `email` (a magic link, so a new address signs up), on `path`. */
 async function signedIn(email: string, path: string) {
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, email);
@@ -73,7 +67,6 @@ async function signedIn(email: string, path: string) {
   return page satisfies Page;
 }
 
-/** The settings nav's workspace pages, by title. */
 async function settingsPages(page: Page) {
   const link = (title: string) => page.getByRole("link", { name: title, exact: true });
   await link("Inboxes").waitFor();
@@ -85,29 +78,22 @@ async function settingsPages(page: Page) {
   return shown;
 }
 
-// Catches: a new person forced through creating a company before they can read their own mail.
 test("someone in no company lands in their Personal space's inbox, not in company setup", async () => {
   const page = await signedIn(`solo-${Date.now()}@gmail.test`, "/");
-  // The inbox shell's switcher renders only once the member guards let the page stay (a
-  // redirect to setup passes through `/inbox` on its way, so the URL alone proves nothing).
   await page.getByRole("button", { name: /^Switch mailbox/ }).waitFor({ timeout: 15_000 });
   expect(place(page.url())).toBe("/mail/inbox");
 });
 
-// Catches: a new Personal space showing an empty list with no way to bring mail in.
 test("an empty Personal space offers to connect Google or set up a company", async () => {
   const page = await signedIn(`empty-${Date.now()}@gmail.test`, "/inbox");
   await page.getByText("No accounts yet").waitFor({ timeout: 15_000 });
-  // The switcher's All mark keeps its two blank discs with no mailbox to draw them from.
   const trigger = page.getByRole("button", { name: /^Switch mailbox/ });
   expect(await trigger.locator("[data-slot=avatar]").count()).toBe(2);
-  // Google is not set up on this install: setting up a company is the one way on.
   expect(await page.getByRole("button", { name: "Connect Google" }).count()).toBe(0);
   await page.getByRole("button", { name: "Set up a company" }).click();
   await page.waitForURL((url) => url.pathname === "/onboarding");
 });
 
-// Catches: a Personal space offering team, shared-inbox and helpdesk settings it can never use.
 test("a Personal space's settings leave out the company pages; a company's keep them", async () => {
   const personal = await signedIn(`me-${Date.now()}@gmail.test`, "/settings");
   expect(await settingsPages(personal)).toEqual(["General", "Inboxes"]);
@@ -125,8 +111,6 @@ test("a Personal space's settings leave out the company pages; a company's keep 
   ]);
 });
 
-// Catches: switching settings to the Personal space while on People still rendering People, with
-// an invite form the server refuses.
 test("switching settings from a company's People page to the Personal space falls back", async () => {
   const email = `switch-${Date.now()}@company.test`;
   await createOrgWithOwner(db, {
@@ -144,8 +128,6 @@ test("switching settings from a company's People page to the Personal space fall
   expect(await page.getByRole("heading", { name: "People" }).count()).toBe(0);
 });
 
-// Catches: compose without `?mailbox=` sending a company's mail from a personal address that
-// happens to sort first among every address the person can open.
 test("compose defaults to the active workspace's address, and still offers the others", async () => {
   const email = `sender-${Date.now()}@company.test`;
   const org = await createOrgWithOwner(db, {
@@ -172,12 +154,10 @@ test("compose defaults to the active workspace's address, and still offers the o
       .insert(schema.mailboxAccess)
       .values({ orgId, mailboxId: box.id, memberId: member!.id, role: "owner" });
   };
-  // The Personal address sorts first.
   await grant(space!.orgId, "aaa@gmail.test");
   await grant(org.orgId, "zzz@company.test");
 
   await page.goto(new URL("/compose", String(worker.url)).toString());
-  // The workspace's address is chosen; the menu still offers the Personal one.
   await page.getByRole("button", { name: "From zzz@company.test" }).click();
   const menu = page.getByRole("menu");
   await menu.getByRole("menuitemradio", { name: "aaa@gmail.test" }).waitFor();
@@ -186,8 +166,6 @@ test("compose defaults to the active workspace's address, and still offers the o
     .toBe("zzz@company.test");
 });
 
-// Catches: offering company setup to someone who cannot create one (a sign-in scoped to a
-// company), whose button would only bounce them back.
 test("the empty state offers company setup only to someone who can create a company", async () => {
   const email = `scoped-${Date.now()}@empty-co.test`;
   const company = await createOrgWithOwner(db, {
@@ -207,7 +185,6 @@ test("the empty state offers company setup only to someone who can create a comp
   expect(await page.getByRole("button", { name: "Set up a company" }).count()).toBe(0);
 });
 
-// Catches: a work-address sign-in by someone outside the company bouncing back to sign-in.
 test("signing in with a company's address as an outsider opens a join screen to ask", async () => {
   const tag = Date.now();
   const company = await createOrgWithOwner(db, {
@@ -226,7 +203,6 @@ test("signing in with a company's address as an outsider opens a join screen to 
   await requested.waitFor();
   expect(await requested.isDisabled()).toBe(true);
 
-  // Accepted: the page notices on its next check and opens the inbox, as the company's member.
   const [request] = await db
     .select({ id: schema.joinRequests.id })
     .from(schema.joinRequests)

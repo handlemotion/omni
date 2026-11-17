@@ -1,6 +1,3 @@
-// Connecting a personal Gmail (ADR 0023). The Worker runs OAuth: a top-level navigation to its
-// `/api/connect/google/start` leaves for Google's consent screen, and Google comes back through
-// the Worker to the page that started it with `?google=connected|error&reason=…`.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, ApiError, call } from "./api.ts";
 import { desktop } from "./desktop.ts";
@@ -23,11 +20,7 @@ export type GoogleReturn = "onboarding" | "settings";
  */
 export async function startGoogleConnect(from: GoogleReturn) {
   const url = new URL("/api/connect/google/start", window.location.origin);
-  // The account goes where its address belongs (ADR 0024): the company that claimed its domain,
-  // or the Personal space. Setup claims the company's domain before it connects anyone.
   if (from === "onboarding") url.searchParams.set("return", "onboarding");
-  // Today's Worker places every account by address; a Worker from before that does so only with
-  // this flag. Kept until no such Worker can serve this page.
   url.searchParams.set("place", "address");
   if (!desktop.isDesktop) {
     window.location.assign(url.toString());

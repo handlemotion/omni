@@ -59,7 +59,6 @@ const styles = StyleSheet.create({
   lg: { height: 52, paddingHorizontal: space(5) },
   primary: {
     backgroundColor: colors.primaryButton,
-    // The darker edge gives a button its depth; no outer drop.
     borderWidth: 1,
     borderColor: colors.primary,
   },

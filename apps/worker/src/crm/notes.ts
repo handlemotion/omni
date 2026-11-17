@@ -1,5 +1,3 @@
-// Notes on one company, person or deal: `/api/crm/notes`. Every member writes one; only its
-// author edits or deletes it.
 import {
   crmCreateNoteBodySchema,
   crmUpdateNoteBodySchema,
@@ -12,7 +10,6 @@ import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
 import { announce, memberCrm, refused, wireNote } from "./http.ts";
 
-/** The note's record changed too: its timeline has the note. */
 async function announceNote(c: Context<AppEnv>, note: CrmNote) {
   await announce(c, "note", [note.id]);
   const [kind, id]: [CrmChangedKind, string | null] = note.companyId

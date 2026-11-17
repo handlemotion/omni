@@ -1,5 +1,3 @@
-// Inboxes former members left behind (ADR 0026), for owners and admins on People: nobody can open
-// them and they don't sync until one is given to someone, made shared, or removed.
 import { IconTrash, IconUserRound, IconUsers } from "@/components/icons/central";
 import { useState } from "react";
 import { appToast } from "@/components/ui/toast";
@@ -74,7 +72,6 @@ export function UnassignedInboxesSection() {
   );
 }
 
-/** Gives a former member's inbox to one person, or makes it a shared inbox they are on. */
 function AssignInboxDialog(props: {
   inbox: OrgMailbox;
   shared: boolean;
@@ -110,7 +107,6 @@ function AssignInboxDialog(props: {
 
 function RemoveInboxDialog(props: { inbox: OrgMailbox | undefined; onClose: () => void }) {
   const remove = useRemoveInbox();
-  // Kept while the dialog animates out, so its title doesn't change under it.
   const [shown, setShown] = useState(props.inbox);
   if (props.inbox && props.inbox !== shown) setShown(props.inbox);
   return (

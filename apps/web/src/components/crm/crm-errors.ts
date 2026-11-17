@@ -1,5 +1,3 @@
-// Every sentence a refused CRM request shows, keyed by the Worker's `code` (never the message's
-// text). Anything else falls back to what the action was ("The deal was not moved").
 import type { ErrorCode } from "@omni/client";
 import { appToast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api.ts";

@@ -1,8 +1,3 @@
-// A file's marks, by what it is (`lib/file-kind.ts`): its glyph, the tile the glyph sits in, and
-// the type badge. The tile is the list rows' 32px square from the Figma list frame and the grid's
-// larger one, on our tokens: a raised background square, the border and the crisp drop.
-// Documents a brand owns (PDF, Word, Excel, PowerPoint) show that brand's mark from svgl, in its
-// own colours, the way Finder and Drive show them; the rest are Central glyphs (DESIGN.md).
 import {
   MicrosoftExcel,
   MicrosoftPowerPoint,
@@ -27,7 +22,6 @@ import { fileType, type FileKind } from "@/lib/file-kind.ts";
 
 type Glyph = ComponentType<{ className?: string }>;
 
-/** The kinds a brand owns, drawn with its mark. */
 const BRAND = {
   pdf: PDF,
   document: MicrosoftWord,
@@ -61,11 +55,8 @@ export function AttachmentGlyph(props: { name: string; mimeType?: string | null 
 }
 
 const TILE = {
-  // A dragged item's 24px square, in the pill that follows the pointer (`drive-drag.tsx`).
   xs: "size-6 rounded-md *:size-3.5",
-  // The list's 32px square, its 15px glyph centred.
   sm: "size-8 rounded-lg *:size-icon",
-  // The grid's and the preview's 88px square, a 32px glyph.
   lg: "size-22 rounded-xl *:size-8",
 } as const;
 

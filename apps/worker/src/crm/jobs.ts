@@ -1,12 +1,8 @@
-// The CRM's background work in the Worker (ADR 0035 decision 3), run at the edge in Effect (ADR
-// 0038 decision 2) with the shared helpers in `job-effects.ts`. Safe to run twice and bounded per
-// run; what one run leaves, the next takes.
 import { crmMembersOf, endExpiredContracts, type Db, type EndedContract } from "@omni/db";
 import { Effect } from "effect";
 import { retried, runJob, scopedDb } from "../job-effects.ts";
 import { createLogger, type Logger } from "../log.ts";
 
-/** Batches of `CONTRACT_EXPIRY_BATCH` contracts one daily run ends at most. */
 const EXPIRY_MAX_BATCHES = 20;
 
 /**
@@ -27,11 +23,6 @@ export function endContracts(db: Db, log: Logger, now?: Date) {
   });
 }
 
-/**
- * Tells each affected workspace's members which contracts ended (`crm.changed`, kind
- * `contract`), as a member's change is announced. The audience is read now. A socket that is down
- * never fails the job: the contracts have ended either way, and the next read shows it.
- */
 function announceEnded(env: Env, db: Db, log: Logger, ended: EndedContract[]) {
   const byOrg = Map.groupBy(ended, (contract) => contract.orgId);
   return Effect.forEach(

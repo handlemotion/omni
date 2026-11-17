@@ -1,17 +1,10 @@
-// The virtualized cards' layout: React Aria's grid, placed exactly as the CSS grid it replaces
-// (`repeat(auto-fill, 11.5rem)`, 12px across and 16px down, 14px in from each side, nothing above
-// the first row). Cards are one fixed size: stretched to fill the row, they grew and shrank
-// whenever the folder's width changed, as when opening a file opens the preview beside it. React Aria's own `GridLayout` puts its gap outside the grid too
-// and a row's gap above it, so the cards would sit a pixel or two off the rows'.
 import { GridLayout, Size, type GridLayoutOptions } from "react-aria-components/Virtualizer";
 import type { LayoutInfo } from "react-aria-components/Virtualizer";
 
-/** A card's width, whatever the folder's width: more room is more columns, not bigger cards. */
 const CARD = 184;
 const GAP_X = 12;
 const GAP_Y = 16;
 const INSET = 14;
-/** A first guess at what a card adds to its width (its caption), until one is measured. */
 const GUESS_EXTRA = 48;
 
 export const CARDS_LAYOUT: GridLayoutOptions = {
@@ -26,7 +19,6 @@ export const CARDS_LAYOUT: GridLayoutOptions = {
  * out again, and measuring every card was most of a folder's first render.
  */
 export class CardsLayout<T> extends GridLayout<T> {
-  /** What a card adds to its width, once the first card has been measured. */
   private extra: number | null = null;
   private width = 0;
 
@@ -41,7 +33,6 @@ export class CardsLayout<T> extends GridLayout<T> {
     const full = this.virtualizer?.size.width ?? 0;
     const inner = full - INSET * 2;
     const columns = Math.max(1, Math.floor((inner + GAP_X) / (CARD + GAP_X)));
-    // Narrower than one card, the one card fits the folder.
     const width = Math.min(CARD, inner);
     this.width = width;
     const height = width + (this.extra ?? GUESS_EXTRA);
@@ -59,7 +50,6 @@ export class CardsLayout<T> extends GridLayout<T> {
       info.rect.y = Math.floor(index / columns) * (height + GAP_Y);
       info.rect.width = width;
       info.rect.height = height;
-      // Only the first card is measured, once.
       info.estimatedSize = this.extra === null && index === 0;
       index += 1;
     }

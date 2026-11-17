@@ -1,5 +1,3 @@
-// People and their addresses, under `/api/crm/people`. Adding is "add once" (ADR 0036
-// decision 4): an address that already has a person answers that person.
 import {
   crmAddPersonBodySchema,
   crmDeleteQuerySchema,
@@ -41,14 +39,12 @@ export const people = new Hono<AppEnv>()
     } satisfies CrmPersonListResponse);
   })
 
-  /** 201 with the new person (and their company, made from the domain); 200 when they existed. */
   .post("/people", zValidator("json", crmAddPersonBodySchema), async (c) => {
     const added = await memberCrm(c).addPerson(c.req.valid("json"));
     if (added.status !== "ok") return refused(c, added);
     const { person, created } = added;
     if (created) {
       await announce(c, "person", [person.id]);
-      // Its company gained a person, or was made for it.
       await announce(c, "company", [person.companyId]);
     }
     return c.json(
@@ -66,7 +62,6 @@ export const people = new Hono<AppEnv>()
     } satisfies CrmPersonDetailResponse);
   })
 
-  /** Only the fields it names; `addresses` adds, removes and picks the primary one. */
   .patch("/people/:id", zValidator("json", crmUpdatePersonBodySchema), async (c) => {
     const crm = memberCrm(c);
     const id = c.req.param("id");
@@ -74,14 +69,12 @@ export const people = new Hono<AppEnv>()
     const changed = await crm.updatePerson(id, c.req.valid("json"));
     if (changed.status !== "ok") return refused(c, changed);
     await announce(c, "person", [id]);
-    // A move between companies changes both companies' people.
     const was = before.status === "ok" ? before.person.companyId : null;
     if (was !== changed.person.companyId)
       await announce(c, "company", [was, changed.person.companyId]);
     return c.json({ person: wirePerson(changed.person) } satisfies CrmPersonResponse);
   })
 
-  /** Archives; `?forever=1` deletes for good with their addresses and notes (owners and admins). */
   .delete("/people/:id", zValidator("query", crmDeleteQuerySchema), async (c) => {
     const id = c.req.param("id");
     const crm = memberCrm(c);

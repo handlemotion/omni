@@ -1,18 +1,3 @@
-// Mail activity sharing (ADR 0039 decision 2): a mailbox may show the workspace's CRM who
-// corresponded with a client, and when (`activity`), and each thread's subject too (`subjects`).
-// Mail owns the setting (`mailbox_crm_sharing`; no row is `off`) and the read; the CRM reaches
-// both only through `forMember`.
-//
-// - Who sets it: a personal mailbox's owner and nobody else, admins included; a shared inbox's
-//   workspace owners and admins. Reading the level follows the same rule.
-// - `sharedActivityWith` answers, per thread in a sharing mailbox of the member's company
-//   workspace that the member cannot open: the mailbox (its owner's name, or the inbox's name),
-//   the last message time, its direction and, at `subjects`, the subject. Never the thread id, a
-//   url, a snippet, a body or an attachment. Threads the member can open come from `threadsWith`
-//   instead, so a thread is never both.
-// - `key` is a thread's stable, opaque id for paging: a UUID-shaped SHA-256 of a fixed prefix
-//   and the thread id. It cannot be turned back into the thread id (74 random bits in a UUIDv7),
-//   needs no secret, and is the same on every read, so a cursor holds across requests.
 import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -63,12 +48,10 @@ export type CrmSharingResult =
   | { status: "ok"; level: CrmSharingLevel }
   | { status: "not_found" }
   | { status: "forbidden" }
-  /** A Personal space has no CRM to share with. */
   | { status: "no_crm" };
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 
-/** The member's workspace and role, and whether it is a Personal space; null when gone. */
 async function memberOf(db: Db, memberId: string) {
   const [row] = await db
     .select({
@@ -79,12 +62,10 @@ async function memberOf(db: Db, memberId: string) {
     .from(members)
     .where(eq(members.id, memberId));
   if (!row) return null;
-  // Better Auth stores several roles as a comma-separated list.
   const admin = row.role.split(",").some((role) => ADMIN_ROLES.has(role.trim()));
   return { orgId: row.orgId, personal: row.personal, admin };
 }
 
-/** Whether the member may read and set the mailbox's level, or why not. */
 async function mayManage(db: Db, memberId: string, mailboxId: string) {
   const member = await memberOf(db, memberId);
   if (!member) return { status: "not_found" } as const;
@@ -110,7 +91,6 @@ async function levelOf(db: Db, mailboxId: string) {
   return (row?.level ?? "off") satisfies CrmSharingLevel;
 }
 
-/** A thread's `key`: UUID-shaped hex of SHA-256 over a fixed prefix and its id. */
 const activityKey = (threadId: SQL | string) => sql`(
   select substr(h, 1, 8) || '-' || substr(h, 9, 4) || '-8' || substr(h, 14, 3) || '-a'
     || substr(h, 18, 3) || '-' || substr(h, 21, 12)
@@ -130,10 +110,6 @@ interface ActivityRow {
   subject: string | null;
 }
 
-/**
- * The mailboxes of `orgId` that share with the CRM and `memberId` cannot open, then per mailbox
- * its newest `limit` matching threads (through the participant index), then the newest `limit`.
- */
 async function activityRows(
   db: Db,
   input: { orgId: string; memberId: string; addresses: string[]; domains: string[] },
@@ -184,10 +160,9 @@ async function activityRows(
     ) lm on true
     order by p.last_message_at desc, p.key desc
     limit ${limit}
-  `)) as unknown as ActivityRow[]; // postgres-js: the rows themselves
+  `)) as unknown as ActivityRow[];
 }
 
-/** `a or b`, skipping nulls; with neither (the caller returns before), nothing matches. */
 const or: (a: SQL | null, b: SQL | null) => SQL = (a, b) => {
   if (a && b) return sql`(${a} or ${b})`;
   return a ?? b ?? sql`false`;
@@ -196,14 +171,12 @@ const or: (a: SQL | null, b: SQL | null) => SQL = (a, b) => {
 /** The member door's sharing setting and read (ADR 0039 decision 2). `forMember` spreads it. */
 export function memberCrmSharing(db: Db, memberId: string) {
   return {
-    /** The mailbox's level: for its owner (personal) or the workspace's owners and admins. */
     async crmSharing(mailboxId: string) {
       const allowed = await mayManage(db, memberId, mailboxId);
       if (allowed.status !== "ok") return allowed satisfies CrmSharingResult;
       return { status: "ok", level: await levelOf(db, mailboxId) } satisfies CrmSharingResult;
     },
 
-    /** Sets the level, under the same rule. `off` hides the mailbox's activity on the next read. */
     async setCrmSharing(mailboxId: string, level: CrmSharingLevel) {
       const allowed = await mayManage(db, memberId, mailboxId);
       if (allowed.status !== "ok") return allowed satisfies CrmSharingResult;
@@ -217,14 +190,8 @@ export function memberCrmSharing(db: Db, memberId: string) {
       return { status: "ok", level } satisfies CrmSharingResult;
     },
 
-    /**
-     * Threads involving `addresses` or anyone at `domains` in the sharing mailboxes of the
-     * member's company workspace that they cannot open, newest first, one keyset page. Nothing in
-     * a Personal space, or for a member who is gone.
-     */
     async sharedActivityWith(options: SharedActivityOptions) {
       const addresses = normalized(options.addresses);
-      // A domain is stored as `domainOf` gives it: lowercased, after the last `@`.
       const domains = normalized(options.domains);
       if (addresses.length === 0 && domains.length === 0) return [] satisfies SharedActivity[];
       const member = await memberOf(db, memberId);

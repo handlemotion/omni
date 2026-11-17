@@ -14,8 +14,6 @@ import {
 } from "./dns-diagnostics.ts";
 import { purelymailDnsRecords } from "./domains.ts";
 
-// Recorded answers (fixtures/dns/README.md), read the way the mail service's `node:dns` lookups
-// return them: answers of the asked type only, TXT strings joined, hosts without the dot.
 const TYPES: Record<string, number> = { TXT: 16, MX: 15, CNAME: 5, NS: 2 };
 const recorded: (name: string, type: keyof typeof TYPES) => DnsAnswer = (name, type) => {
   const doh = JSON.parse(
@@ -41,12 +39,10 @@ const settings = JSON.parse(
   ),
 ) as unknown;
 
-// What Purelymail asks a domain to carry, as onboarding shows it.
 const want = (domain: string, check: string) =>
   purelymailDnsRecords(domain, "purelymail_ownership_proof=abc").find((r) => r.check === check)!;
 
 describe("diagnose: records that already exist", () => {
-  // A second SPF record makes receivers ignore both: SPF fails and mail lands in spam.
   test("an existing SPF record is merged, never doubled", () => {
     const spf = want("google.com", "spf");
     const verdict = diagnose(spf, {
@@ -72,8 +68,6 @@ describe("diagnose: records that already exist", () => {
     });
   });
 
-  // Telling someone their MX is "missing" when it points at their current host hides that mail
-  // moves the moment they change it.
   test("MX pointing at another host says mail moves, and shows where it goes now", () => {
     const verdict = diagnose(want("google.com", "mx"), {
       MX: recorded("google.com", "MX"),
@@ -90,11 +84,9 @@ describe("diagnose: records that already exist", () => {
     expect(verdict).toMatchObject({ status: "mx_extra", found: ["10 smtp.google.com"] });
   });
 
-  // www.github.com is a CNAME: a TXT or MX added beside it is rejected or ignored by DNS hosts.
   test("a CNAME at a name that needs TXT is a conflict, whatever the CNAME's target holds", () => {
     const ownership = { ...want("www.github.com", "ownership") };
     const verdict = diagnose(ownership, {
-      // c-ares follows the CNAME, so the TXT query returns github.com's records.
       TXT: recorded("www.github.com", "TXT"),
       CNAME: recorded("www.github.com", "CNAME"),
     });
@@ -112,8 +104,6 @@ describe("diagnose: records that already exist", () => {
 });
 
 describe("diagnose: values", () => {
-  // google.com carries a dozen unrelated `x=y` verifications; calling them "wrong" would tell
-  // the member to delete records other services need.
   test("unrelated TXT records at the name read as not found, not wrong", () => {
     expect(
       diagnose(want("google.com", "ownership"), {
@@ -148,7 +138,6 @@ describe("diagnose: values", () => {
 });
 
 describe("mergeSpf", () => {
-  // The existing policy (here a strict -all) is the domain owner's choice: keep it.
   test("keeps the first record's all, drops duplicates", () => {
     expect(
       mergeSpf(
@@ -163,14 +152,12 @@ describe("detectDnsProvider", () => {
   test("knows the host from its nameservers", () => {
     const ns = (name: string) => (recorded(name, "NS") as { values: string[] }).values;
     expect(detectDnsProvider(ns("discord.com"))?.id).toBe("cloudflare");
-    // Mixed NS1 and Route 53: the one we have steps for.
     expect(detectDnsProvider(ns("github.com"))?.id).toBe("route53");
     expect(detectDnsProvider(["ns0.wikimedia.org"])).toBeNull();
   });
 });
 
 describe("Domain Connect", () => {
-  // A wrong discovery result sends the member to a URL that is not their DNS host.
   test("discovers the host's API from _domainconnect, and nothing where there is none", () => {
     const found = recorded("_domainconnect.discord.com", "TXT") as { values: string[] };
     expect(domainConnectHost(found.values)).toBe("api.cloudflare.com/client/v4/dns/domainconnect");

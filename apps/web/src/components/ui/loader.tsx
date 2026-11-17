@@ -1,7 +1,6 @@
 import { ProgressBar } from "react-aria-components/ProgressBar";
 import { cn } from "cn";
 
-// One arc that spins: a ring with a gap, no track. Same stroke weight as the Figma icons.
 function Ring({ className, ...props }: React.SVGProps<SVGSVGElement>) {
   return (
     <svg

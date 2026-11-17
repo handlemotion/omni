@@ -1,7 +1,3 @@
-// A shared inbox's helpdesk views (ADR 0021). The sidebar shows only the one mail's own rows
-// don't already cover, Mine, in the same group as Inbox and Later, for the shared inbox the
-// mailbox switcher shows. The Inbox holds every conversation until you mark it done (ADR 0032),
-// so it is already the team's whole queue.
 import { useLocation, useSearch } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { IconCircleCheck, IconUserCog } from "@/components/icons/central";
@@ -45,7 +41,6 @@ export function HelpdeskItems(props: { mailboxId: string }) {
     search.mailbox === props.mailboxId &&
     !search.tag;
   return VIEW_NAV.flatMap(({ view, label, icon }) => {
-    // The only view mail's own rows don't already cover.
     if (view !== "mine") return [];
     const count = counts?.views[view] ?? 0;
     return (

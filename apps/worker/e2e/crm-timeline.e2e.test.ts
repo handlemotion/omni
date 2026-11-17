@@ -1,6 +1,3 @@
-// A CRM record's timeline over the real Worker (docs/spec/crm.md "The timeline"): its events,
-// notes and the threads involving its addresses, merged newest first. Mail is stored the way the
-// mail service stores it (`upsertMessage`, which also fills `thread_participants`).
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startCrmStack, type CrmStack } from "./crm-support.ts";
 import { createMailbox, grant, seedMessage } from "./support.ts";
@@ -41,7 +38,6 @@ test("two members open one person's timeline: each sees the thread from the inbo
     to: ["carla@northwind.com"],
     uid: 1,
   });
-  // Anyone else at the company's domain shows on the company, not on Carla.
   await seedMessage(db, sales, {
     subject: "Invoice question",
     fromAddress: "dan@northwind.com",
@@ -70,7 +66,6 @@ test("two members open one person's timeline: each sees the thread from the inbo
   const beaView = await api(bea.jar, "GET", `/people/${id}/timeline`);
   expect(threadsIn(beaView.body)).toEqual(["Login broken"]);
 
-  // The company adds its domain: Ana sees Dan's thread there too, Bea still only hers.
   const anaCompany = await api(ana.jar, "GET", `/companies/${companyId}/timeline`);
   expect(threadsIn(anaCompany.body).toSorted()).toEqual([
     "Invoice question",
@@ -92,7 +87,6 @@ test("paging a timeline in small pages returns every item once, newest first, ac
   for (const body of ["first", "second", "third"]) {
     notes.push((await api(ana.jar, "POST", "/notes", { personId: person.id, body })).body.note);
   }
-  // Threads at the very millisecond of a note, and around it: ties are broken by id alone.
   let uid = 1;
   for (const note of notes) {
     const at = new Date(note.createdAt);
@@ -108,7 +102,6 @@ test("paging a timeline in small pages returns every item once, newest first, ac
 
   const whole = await api(ana.jar, "GET", `/people/${person.id}/timeline?limit=50`);
   expect(whole.body.nextCursor).toBeNull();
-  // One event (created), three notes, nine threads.
   expect(whole.body.items).toHaveLength(13);
   const order = whole.body.items.map((item: { at: string; id: string }) => `${item.at} ${item.id}`);
   expect(order).toEqual(order.toSorted().toReversed());

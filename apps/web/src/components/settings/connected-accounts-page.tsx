@@ -1,6 +1,3 @@
-// Connected accounts: the personal Gmail accounts you read and answer in Omni (ADR 0023). Connect
-// leaves for Google's consent screen and comes back here (`/settings/accounts`) with the outcome,
-// shown as a toast. Disconnecting revokes Omni's access at Google and removes that inbox.
 import { Google } from "@ridemountainpig/svgl-react";
 import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "skullet/react";
@@ -30,7 +27,6 @@ const STATUS: Record<string, string> = {
   disabled: "Paused",
 };
 
-/** Google's way back, said once as a toast. */
 function useGoogleReturnToast() {
   const outcome = useGoogleReturn();
   const said = useRef(false);
@@ -50,8 +46,6 @@ export function ConnectedAccountsPage() {
   const [leaving, setLeaving] = useState<{ mailboxId: string; address: string } | null>(null);
 
   const accounts = google.data?.accounts;
-  // Without an OAuth client nothing new connects, but accounts made before stay listed, so they
-  // can still be disconnected (the mail service needs no client for that).
   const available = google.data?.available !== false;
   return (
     <SettingsSections>
@@ -131,7 +125,6 @@ export function ConnectedAccountsPage() {
   );
 }
 
-/** Google's mark in the row's icon slot, in its own colours. */
 function GoogleGlyph(props: { className?: string }) {
   return <Google aria-hidden className={props.className} />;
 }

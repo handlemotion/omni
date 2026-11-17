@@ -1,4 +1,3 @@
-// Small forms a record page opens: pick its company, add a domain, add a person to a deal.
 import { useState } from "react";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";
 import { ComboBox, ComboBoxContent, ComboBoxInput, ComboBoxItem } from "@/components/ui/combo-box";

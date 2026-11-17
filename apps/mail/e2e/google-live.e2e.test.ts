@@ -1,11 +1,3 @@
-// A Google account against Gmail itself (ADR 0023). GreenMail cannot be Gmail, so this runs only
-// when asked for, against a dedicated test account, never in `pnpm test` or CI:
-//
-//   doppler run -p omni -c dev_mail -- env GMAIL_E2E=1 pnpm --filter @omni/mail test:e2e google-live
-//
-// It needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (the OAuth client), GMAIL_E2E_ADDRESS (the
-// test account) and GMAIL_E2E_REFRESH_TOKEN (its grant: `google:connect --pipe-refresh-token |
-// doppler secrets set GMAIL_E2E_REFRESH_TOKEN -p omni -c dev_mail`). It sends mail from the test account to itself.
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -60,7 +52,6 @@ describe.runIf(requested)("Gmail itself", () => {
     database = await createTestDatabase();
     db = database.db;
     bucket = await createTestBucket();
-    // Accepts the service's mail events; what they say is covered by service.e2e.test.ts.
     worker = createServer((_req, res) => res.writeHead(202).end());
     await new Promise<void>((resolve) => worker.listen(0, "127.0.0.1", resolve));
   });
@@ -105,9 +96,7 @@ describe.runIf(requested)("Gmail itself", () => {
     serviceUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   }
 
-  /** A mailbox row for the test account holding only its refresh token, as after a restart. */
   async function seedGoogle(token: string) {
-    // Each test gets its own org, so the same address can be seeded twice.
     const seeded = await seedMailbox(db, { address });
     const { box } = seeded;
     await setCredentials(
@@ -142,7 +131,6 @@ describe.runIf(requested)("Gmail itself", () => {
     });
     await fetch(`${serviceUrl}${MAIL_PING_PATH}`, { method: "POST", headers });
     await waitFor(async () => (await actionRow(db, send.id)).status === "done", 60_000);
-    // Gmail delivers it back to the inbox; IDLE picks it up.
     const arrived = await waitFor(
       async () => (await stored(db, seeded.box.id, "INBOX")).find((r) => r.subject === subject),
       60_000,
@@ -156,7 +144,6 @@ describe.runIf(requested)("Gmail itself", () => {
     await start();
     await waitFor(async () => (await mailboxStatus(db, mailboxId)) === "active", 60_000);
 
-    // Labels, Starred and Important are views of All Mail: not synced (ADR 0023).
     const folders = await db
       .select({ path: schema.mailboxFolders.path, role: schema.mailboxFolders.role })
       .from(schema.mailboxFolders)
@@ -208,7 +195,6 @@ describe.runIf(requested)("Gmail itself", () => {
       60_000,
     );
 
-    // One Omni thread, carrying Gmail's X-GM-THRID.
     expect(replyRow.threadId).toBe(inbound.threadId);
     const [thread] = await db
       .select({ providerThreadId: schema.threads.providerThreadId })
@@ -216,14 +202,12 @@ describe.runIf(requested)("Gmail itself", () => {
       .where(eq(schema.threads.id, inbound.threadId));
     expect(thread?.providerThreadId).toMatch(/^\d+$/);
 
-    // Gmail filed each send in Sent itself; Omni appended no second copy.
     await service?.supervisor.connection(mailboxId)?.syncFolder(pathOf("sent"));
     const sentCopies = (await stored(db, mailboxId, pathOf("sent"))).filter((r) =>
       r.subject?.endsWith(subject),
     );
     expect(sentCopies).toHaveLength(2);
 
-    // Archive takes the Inbox label off: the message stays only in All Mail.
     const position = await getFolderPosition(db, mailboxId, "INBOX");
     const archive = await enqueue(db, seeded, {
       kind: "archive",
@@ -249,7 +233,6 @@ describe.runIf(requested)("Gmail itself", () => {
     const seeded = await seedGoogle(`1//revoked-${randomUUID()}`);
     await start();
     await waitFor(async () => (await mailboxStatus(db, seeded.box.id)) === "error", 30_000);
-    // Retrying cannot fix a revoked grant: the connection stops instead of hammering Google.
     expect(service?.supervisor.connection(seeded.box.id)?.connected).toBe(false);
   });
 });

@@ -4,9 +4,6 @@ import { SenderAvatar, byAddress } from "@/components/avatar/sender-avatar";
 import { GridListHeader, GridListItem } from "@/components/ui/grid-list";
 import type { ListRow } from "@/components/inbox/thread-list";
 
-// Undivided floating rows, inset from the list's edges, on the reference's order: unread dot,
-// sender, avatar, subject with its message count, preview, time. The hover highlight takes the
-// row's radius, so the lit row floats too.
 export function ThreadRow({
   thread,
   href,
@@ -23,9 +20,6 @@ export function ThreadRow({
       id={thread.id}
       href={href}
       textValue={`${sender} ${thread.subject}`}
-      // The open thread's row keeps the accent fill; a checked row takes the brand tint. The
-      // checkbox and the avatar multiply, so their edge and fill still show on either. 10px in
-      // from each side: the virtualizer sizes rows to the whole list and ignores its padding.
       className={`mx-2.5 h-10 gap-3 rounded-lg px-3 selected:bg-primary-subtle **:data-[slot=indicator]:mix-blend-multiply ${isCurrent ? "bg-accent" : ""}`}
     >
       <span className="flex w-1.5 shrink-0 justify-center">
@@ -38,8 +32,6 @@ export function ThreadRow({
         name={sender}
         className="shrink-0 bg-accent text-foreground outline-0 mix-blend-multiply [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(5)]"
       />
-      {/* The subject column; the count sits at its end, so counts line up down the list. Beside
-          an open thread the preview goes and the subject takes its room. */}
       <span className="ms-3 flex w-[min(--spacing(64),30%)] shrink-0 items-center gap-2 @max-2xl:min-w-0 @max-2xl:flex-1">
         <span className={`min-w-0 flex-1 truncate ${tone}`}>
           {thread.subject || "(no subject)"}
@@ -75,8 +67,6 @@ export function DateHeader(props: { label: string; count: number; first: boolean
   return (
     <GridListHeader
       data-fluid-hover-skip
-      // Its text 20px from the pane's edge, on the line of the header's sidebar toggle above it
-      // (the rows' own 12px inset would put it 2px right of the toggle; measured).
       className={`mx-2.5 flex items-end gap-1.5 ps-2.5 pe-3 pb-3 text-sm text-muted-foreground ${props.first ? "h-9" : "h-12"}`}
     >
       {label}

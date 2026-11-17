@@ -1,9 +1,3 @@
-// Mail domains: claims, locks and their audit trail (ADR 0007, ADR 0010).
-//
-// A claim is an org's attempt to prove it controls a domain: a pending `domain_claims` row with the
-// hash of a challenge TXT value. The first org whose challenge shows up in the domain's DNS locks
-// it: a `mail_domains` row, unique on the domain. Only a lock lets mailboxes be created, and only
-// the conditional statements below create, move or remove one, so two orgs racing never both win.
 import {
   and,
   asc,
@@ -56,7 +50,6 @@ export type MailDomain = {
 
 export type DomainClaim = typeof domainClaims.$inferSelect;
 
-/** A domain as onboarding sees it: the org's claim on it, its lock, or both. */
 /**
  * A domain's setup always has a claim, a lock, or both: a claim with no lock is waiting for its
  * challenge, and a lock with no claim predates claims (ADR 0010: those keep their lock).
@@ -65,10 +58,8 @@ export type DomainSetup =
   | { claim: DomainClaim; lock: MailDomain | null }
   | { claim: null; lock: MailDomain };
 
-/** Postgres advisory locks key on a bigint; `hashtext` folds the text into one. */
 const advisoryLock = (key: string) => sql`select pg_advisory_xact_lock(hashtext(${key}))`;
 
-/** The domains a lock on any of them covers `domain`: itself and every parent. */
 function coveringDomains(domain: string) {
   const labels = domain.split(".");
   const out = [domain];
@@ -109,7 +100,6 @@ export async function openClaim(
 ) {
   const now = input.now ?? new Date();
   return db.transaction<{ claim: DomainClaim; created: boolean } | { error: "cap" }>(async (tx) => {
-    // A Personal space may own its person's domain too (ADR 0042).
     await tx.execute(advisoryLock(`claims:${input.orgId}`));
     const [existing] = await tx
       .select()
@@ -213,7 +203,6 @@ export type LockResult =
 export async function lockClaim(db: Db, claim: DomainClaim, now = new Date()) {
   return db
     .transaction(async (tx) => {
-      // Parent and child claims race too (acme.com vs mail.acme.com): one key for both.
       await tx.execute(advisoryLock(`lock:${claim.domain.split(".").slice(-2).join(".")}`));
       const conflict = await conflictingLock(tx as unknown as Db, claim.orgId, claim.domain);
       if (conflict) {
@@ -221,19 +210,15 @@ export async function lockClaim(db: Db, claim: DomainClaim, now = new Date()) {
         return result;
       }
 
-      // The mail host already serves the domain: its own IMAP host (ADR 0007), or Google, where
-      // the company's Gmail accounts connect one by one (ADR 0024).
       const imap = claim.provider === "imap" || claim.provider === "gmail";
       const [inserted] = await tx
         .insert(mailDomains)
         .values({
-          // The lock shares the claim's id, so the id the app holds stays valid after verifying.
           id: claim.id,
           orgId: claim.orgId,
           domain: claim.domain,
           provider: claim.provider,
           dnsRecords: claim.dnsRecords,
-          // Without a provider API the mail host already serves the domain (ADR 0007).
           addedAt: imap ? now : null,
           verifiedAt: imap ? now : null,
           checkedAt: now,
@@ -269,7 +254,6 @@ export async function lockClaim(db: Db, claim: DomainClaim, now = new Date()) {
           .from(domainClaims)
           .where(eq(domainClaims.id, claim.id));
         if (current?.status !== "verified") {
-          // Expired (or released) while the check ran: undo the insert with the transaction.
           tx.rollback();
         }
       }
@@ -303,15 +287,12 @@ export const saveMailDomain: (
   },
 ) => Promise<MailDomain | null> = async (db, input) => {
   const now = new Date();
-  // A raw Date in a `sql` template is not typed for the driver: pass it as a timestamptz.
   const at = sql`${now.toISOString()}::timestamptz`;
   const [row] = await db
     .update(mailDomains)
     .set({
       provider: input.provider,
       dnsRecords: input.dnsRecords,
-      // Follows the provider: a domain it does not list (one just moved from its own host to
-      // Purelymail) is not added, whatever an earlier provider said.
       addedAt: input.added ? sql`coalesce(${mailDomains.addedAt}, ${at})` : null,
       verifiedAt: input.verified ? sql`coalesce(${mailDomains.verifiedAt}, ${at})` : null,
       checkedAt: now,
@@ -402,7 +383,6 @@ export async function transferDomain(
 ) {
   const now = input.now ?? new Date();
   return db.transaction<HandOverResult>(async (tx) => {
-    // Domains belong to companies (ADR 0024).
     if ((await workspaceKind(tx, input.toOrgId)) === "personal") {
       return { ok: false, reason: "personal_space" } as const;
     }
@@ -456,8 +436,6 @@ export async function sendingPaused(db: Db, domain: string) {
   return row !== undefined;
 }
 
-// Member-scoped reads: only owners and admins see their org's domains; others get nothing.
-
 const adminOf = (
   memberId: string,
   orgColumn: typeof mailDomains.orgId | typeof domainClaims.orgId | typeof auditEvents.orgId,
@@ -499,8 +477,6 @@ export async function findMemberDomain(db: Db, memberId: string, id: string) {
   return setups.find((s) => s.claim?.id === id || s.lock?.id === id) ?? null;
 }
 
-// Trusted reads for the mail service, which acts only on what the Worker already authorized.
-
 /** `orgId`'s lock on `domain`, or null if it has none. */
 export async function findOrgDomain(db: Db, orgId: string, domain: string) {
   const [row] = await db
@@ -529,8 +505,6 @@ export async function roleInOrg(db: Db, userId: string, orgId: string) {
     .where(and(eq(members.userId, userId), eq(members.organizationId, orgId)));
   return row?.role ?? null;
 }
-
-// Audit log.
 
 export type DomainAuditAction =
   | "domain.claimed"

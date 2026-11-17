@@ -1,6 +1,3 @@
-// The iOS app signs in with a magic link that ends on its own scheme (`omni://`). Better Auth's
-// expo plugin hands the session cookie over in that redirect; the app keeps it and sends it as a
-// `Cookie` header with no Origin, like any native client.
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
   createMember,
@@ -34,7 +31,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-/** What the app's auth client sends: no Origin, the app's scheme in `expo-origin`. */
 function requestLink(email: string, callbackURL: string) {
   return fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
     method: "POST",
@@ -43,7 +39,6 @@ function requestLink(email: string, callbackURL: string) {
   });
 }
 
-/** Opens the last link mailed to `email` the way Safari does, without following the redirect. */
 async function openLink(email: string) {
   const link = (await sentMail(worker, email)).at(-1)?.text.match(/https?:\/\/\S+/)?.[0];
   expect(link).toBeDefined();
@@ -51,7 +46,6 @@ async function openLink(email: string) {
   return fetch(new URL(url.pathname + url.search, worker.url), { redirect: "manual" });
 }
 
-/** A `Set-Cookie` header, as the redirect carries it, turned into a `Cookie` header. */
 function cookieHeader(setCookie: string) {
   return [...setCookie.matchAll(/(?:^|,\s*)((?:__Secure-)?better-auth\.[\w.]+)=([^;]*)/g)]
     .map(([, name, value]) => `${name}=${value}`)
@@ -72,7 +66,6 @@ test("a magic link opened on the phone hands the app a session it can call the A
   const setCookie = location.searchParams.get("cookie");
   expect(setCookie).toContain("session_token");
 
-  // The app's later calls: the cookie it kept, and no Origin header.
   const me = await fetch(new URL("/api/me", worker.url), {
     headers: { cookie: cookieHeader(setCookie!) },
   });
@@ -85,7 +78,6 @@ test("a link that ends on an untrusted app scheme never carries a session", asyn
   const org = await createOrg(db, "evil");
   await createMember(db, org.id, "ben@evil.test");
 
-  // Better Auth refuses a callback outside AUTH_TRUSTED_ORIGINS before any link is mailed.
   const requested = await requestLink("ben@evil.test", "evil://steal");
   expect(requested.status).toBe(403);
   expect(await sentMail(worker, "ben@evil.test")).toEqual([]);

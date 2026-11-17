@@ -1,5 +1,3 @@
-// CRM forwarding (ADR 0032): one row per personal mailbox you own, in every workspace, with where
-// its mail is copied and whether that is working. The row's menu sets it up, edits or turns it off.
 import { useState } from "react";
 import { Skeleton } from "skullet/react";
 import { IconForward, IconMail, IconPencil, IconX } from "@/components/icons/central";

@@ -1,7 +1,3 @@
-// Profile pictures (the signed-in user's `users.image`) and workspace logos (the active org's
-// `organizations.logo`). The bytes live in MAIL_BUCKET under `pictures/`, keyed by owner and
-// content hash, and are served back through `/api/pictures/...` on our own origin: a new upload
-// is a new URL, so a served picture never changes and caches for a year.
 import { setOrganizationLogo, setUserImage } from "@omni/db";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -18,10 +14,6 @@ export const MAX_PICTURE_BYTES = 2 * 1024 * 1024;
 
 type Owner = "users" | "orgs";
 
-/**
- * The image type from the file's first bytes, or null. The declared type is the client's word;
- * these are the only types we serve inline on our origin, so they are checked, never trusted.
- */
 function sniffImageType(bytes: Uint8Array) {
   const starts = (sig: number[], at = 0) => sig.every((b, i) => bytes[at + i] === b);
   if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
@@ -55,7 +47,6 @@ export function pictureKeyOf(url: string | null | undefined, owner: Owner, owner
   return pictureKey(owner, ownerId, sha256);
 }
 
-/** The multipart field `file`; the body cap leaves room for the multipart envelope. */
 const upload = [
   bodyLimit({
     maxSize: MAX_PICTURE_BYTES + 64 * 1024,
@@ -68,7 +59,6 @@ const upload = [
   ),
 ] as const;
 
-/** Checks the upload, stores it, and returns its URL. */
 async function storePicture(c: Context<AppEnv>, file: File, owner: Owner, ownerId: string) {
   if (file.size > MAX_PICTURE_BYTES) {
     throw new HTTPException(413, { message: "the picture is larger than 2 MB" });
@@ -85,7 +75,6 @@ async function storePicture(c: Context<AppEnv>, file: File, owner: Owner, ownerI
   return pictureUrl(owner, ownerId, sha256);
 }
 
-/** Deletes the object behind the replaced URL, unless it is the one now in use. */
 async function dropReplaced(
   c: Context<AppEnv>,
   previous: string | null | undefined,
@@ -94,11 +83,9 @@ async function dropReplaced(
   ownerId: string,
 ) {
   const key = previous !== current && pictureKeyOf(previous, owner, ownerId);
-  // R2 deletes are idempotent: a key already gone is not an error.
   if (key) await c.env.MAIL_BUCKET.delete(key);
 }
 
-/** The signed-in user, organization or not. 401 when signed out. */
 const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   const resolved = await resolveSession(c);
   if (!resolved) throw new HTTPException(401, { message: "sign in first" });
@@ -113,7 +100,6 @@ function canManage(role: string) {
 /** `/api/account`: the signed-in user's own picture. Works before they join an organization. */
 export const account = new Hono<AppEnv>()
   .use(requireUser)
-  /** Sets your picture from multipart `file` (PNG, JPEG, WebP or GIF, at most 2 MB). */
   .put("/picture", ...upload, async (c) => {
     const { id } = c.var.user;
     const image = await storePicture(c, c.req.valid("form").file, "users", id);
@@ -121,7 +107,6 @@ export const account = new Hono<AppEnv>()
     await dropReplaced(c, previous, image, "users", id);
     return c.json({ image });
   })
-  /** Clears your picture. Idempotent. */
   .delete("/picture", async (c) => {
     const { id } = c.var.user;
     const previous = await setUserImage(c.var.db, id, null);
@@ -140,7 +125,6 @@ export const workspaceLogo = new Hono<AppEnv>()
     }
     await next();
   })
-  /** Sets the logo from multipart `file` (PNG, JPEG, WebP or GIF, at most 2 MB). */
   .put("/logo", ...upload, async (c) => {
     const { orgId } = c.var.member;
     const logo = await storePicture(c, c.req.valid("form").file, "orgs", orgId);
@@ -148,7 +132,6 @@ export const workspaceLogo = new Hono<AppEnv>()
     await dropReplaced(c, previous, logo, "orgs", orgId);
     return c.json({ logo });
   })
-  /** Clears the logo. Idempotent. */
   .delete("/logo", async (c) => {
     const { orgId } = c.var.member;
     const previous = await setOrganizationLogo(c.var.db, orgId, null);

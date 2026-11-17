@@ -31,7 +31,6 @@ export function LineChart({
   config,
   children,
 
-  // Components
   tooltip = true,
   tooltipProps,
 
@@ -42,12 +41,10 @@ export function LineChart({
 
   valueFormatter = (value: number) => value.toString(),
 
-  // XAxis
   displayEdgeLabelsOnly = false,
   xAxisProps,
   hideXAxis = false,
 
-  // YAxis
   yAxisProps,
   hideYAxis = false,
 

@@ -1,6 +1,3 @@
-// The workspace and account switcher's data (`GET /api/workspaces`), entering the workspace a
-// URL names (ADR 0043), and the moves the switcher makes: open a workspace (onboarding while its
-// setup is unfinished) or one of its mailboxes.
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, auth, call } from "./api.ts";
 import { currentWorkspaceId, setCurrentWorkspaceId } from "./current-workspace.ts";
@@ -17,7 +14,6 @@ import type { Workspace, Workspaces } from "./types.ts";
 export const workspacesQuery = () =>
   queryOptions({
     queryKey: keys.workspaces(),
-    // With the user's Personal space (ADR 0024), each workspace saying its `kind`.
     queryFn: ({ signal }) =>
       call(api.workspaces.$get({ query: { include: "personal" } }, { init: { signal } })),
   });
@@ -89,16 +85,13 @@ export async function enterWorkspace(client: QueryClient, workspace: Pick<Worksp
   if (before) await cancelUploads();
   setCurrentWorkspaceId(workspace.id);
   const session = await client.ensureQueryData(sessionQuery());
-  // Both at once: the member here, and the session's workspace made this one.
   await Promise.all([
-    // No member yet counts too: it may be an answer read for another workspace or identity.
     session &&
       session.member?.orgId !== workspace.id &&
       client.fetchQuery({ ...sessionQuery(), staleTime: 0 }),
     session &&
       session.session.activeOrganizationId !== workspace.id &&
       authCall(auth.organization.setActive({ organizationId: workspace.id })).then(() =>
-        // The workspace list says which one is the session's; it is now this one.
         client.setQueryData<Workspaces>(
           keys.workspaces(),
           (data) => data && { ...data, activeOrganizationId: workspace.id },
@@ -124,12 +117,6 @@ const CRM_PLACES = ["/crm/companies", "/crm/people", "/crm/deals"];
 
 const under = (place: string, path: string) => place === path || place.startsWith(`${path}/`);
 
-/**
- * Where a workspace switch lands, inside the workspace: in Files, the same place at its top (a
- * folder belongs to the workspace left behind; `/files/shared` sends a Personal space on to My
- * files itself); in the CRM, the same list (a record belongs to the workspace left behind); in
- * settings, the same page; anywhere else, mail's same list.
- */
 function samePlace(router: Navigator) {
   const place = placeInWorkspace(router.state.location.pathname);
   if (under(place, "/files")) return FILE_PLACES.find((p) => under(place, p)) ?? "/files/my";
@@ -138,11 +125,6 @@ function samePlace(router: Navigator) {
   return sameList(router, undefined);
 }
 
-/**
- * The same list (and Inbox lane) as now, scoped to `mailbox`. An open thread, a shared inbox's
- * helpdesk view and its tag belong to the mailbox left behind, so they go; anywhere that is not
- * a list opens the Inbox.
- */
 function sameList(router: Navigator, mailbox: string | undefined) {
   const place = placeInWorkspace(router.state.location.pathname);
   const search = router.state.location.search as { lane?: string; view?: string };
@@ -171,7 +153,6 @@ export async function openWorkspace(
   workspace: Pick<Workspace, "id" | "slug" | "role" | "setup">,
 ) {
   if (needsSetup(workspace)) {
-    // Onboarding works on the session's workspace: make it this one first.
     await enterWorkspace(client, workspace);
     await router.navigate({ href: "/onboarding" });
     return;

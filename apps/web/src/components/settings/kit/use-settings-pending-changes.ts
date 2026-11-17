@@ -1,6 +1,3 @@
-// Ported from transitive's settings kit. Settings edits are saved from one place: while a form has
-// unsaved changes, a prompt toast stays on screen with Save and Discard. It leaves once the form
-// is clean again or the page unmounts. Rows never carry their own Save or Edit button.
 import { useEffect, useId, useRef } from "react";
 import { appToast } from "@/components/ui/toast";
 

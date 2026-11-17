@@ -11,31 +11,16 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-// The sweep that reveals smart search results, confined to the mail list's rows: the sidebar and
-// the list's header stay still. GlimmScope reveals a change by wiping the box's old content away
-// behind its band, so it has to outlive the change. Every list route (inbox, search, ...) mounts
-// its own `List`, so the scope lives in the app shell instead, in a node each `List` moves into
-// its rows slot and renders its rows into. Under reduced motion GlimmScope applies the change
-// with no sweep.
-
 interface ListSweep {
   scope: RefObject<GlimmScopeHandle | null>;
-  /** The scope's DOM, moved into whichever list's rows slot is mounted. */
   host: HTMLDivElement;
-  /** Inside the scope: where the mounted list renders its rows. */
   rows: HTMLDivElement | null;
 }
 
 const ListSweepContext = createContext<ListSweep | null>(null);
 
-// glimm's `azure` stops (cyan, blue, indigo) with blue doubled so it carries most of the band,
-// then a short violet tail so the band isn't one flat blue. Violet rather than green: green
-// reads as "done". A shader palette takes colors, not CSS tokens.
 const BAND = accentChain(["#00C0E8", "#0088FF", "#0088FF", "#6155F5", "#9B4DF5"]);
 
-// glimm fades a contained band out over its last 24px towards each edge (its `auto` feather).
-// The scope reaches that far past the list's sides, where the slot clips it, so the band runs
-// to the real edges (the sidebar's border, the window's edge) instead of fading short of them.
 const FEATHER = 24;
 
 export function ListSweepProvider({ children }: { children: ReactNode }) {
@@ -50,22 +35,14 @@ export function ListSweepProvider({ children }: { children: ReactNode }) {
     <ListSweepContext value={{ scope, host, rows }}>
       {children}
       {createPortal(
-        // Top to bottom from the top edge, as the popover closes above it. `curve`: glimm's
-        // starting point for a whole view.
         <GlimmScope
           ref={scope}
           direction="ttb"
           palette={BAND}
           curve={0.12}
-          // Off: on HTML-in-Canvas (Chrome 157+) the rows would be drawn through a WebGL canvas,
-          // which paints them black once the list changes width (a thread opening beside it).
-          // The plain sweep over the rows stays.
           pageEffect={false}
           style={{ position: "absolute", inset: `0 -${FEATHER}px` }}
         >
-          {/* Filled: the sweep reveals by wiping away a frozen copy of the old rows, which has to
-              hide the new ones under it (the list itself is transparent). Inset by the overhang,
-              so the rows sit where the slot is. */}
           <div
             ref={setRows}
             className="flex h-full flex-col bg-background"
@@ -101,6 +78,5 @@ export function ListSweepSlot({ children }: { children: ReactNode }) {
 /** Runs `change` (a navigation) and reveals the rows it brings with a sweep down the list. */
 export function useListSweep() {
   const { scope } = useListSweepContext();
-  // A returned promise (the route change) holds the band until the new rows have painted.
   return (change: () => void | Promise<unknown>) => scope.current?.play({ change });
 }

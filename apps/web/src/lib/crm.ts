@@ -1,7 +1,3 @@
-// The CRM (ADR 0036, ADR 0039 decision 1): the active company workspace's companies, people and
-// deals, their timelines and contracts, and the pipeline's stages, read through `/api/crm`. Lists
-// are paged by the server's cursor. Realtime keeps them current: `crm.changed` marks the whole
-// CRM branch stale (`realtime.ts`), and every change here does the same when it settles.
 import {
   infiniteQueryOptions,
   queryOptions,
@@ -51,7 +47,6 @@ export type CrmTimelineItem = KnownTimelineItem | CrmActivityItem;
 export type CrmRecordKind = "companies" | "people" | "deals";
 
 const PAGE_SIZE = "50";
-/** The board shows every live deal: it pages through them in large pages. */
 const BOARD_PAGE_SIZE = "200";
 
 const pageQuery = (q: string, cursor: string | null, limit = PAGE_SIZE) => ({

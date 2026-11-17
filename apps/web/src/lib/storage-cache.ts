@@ -1,9 +1,3 @@
-// Storage's cached folder contents kept exact as changes land (ADR 0034). A change answers with
-// the node as it now is, so it is written straight into every cached listing it touches: added
-// where it lives now, dropped wherever it was, and a new folder is cached as the empty folder it
-// is. A folder card's stack reads the same cache, so it shows the change the moment the Worker
-// answers. Only the listings the change touched are then asked again, so the server's order and
-// anything another tab did converge without refetching every folder on screen.
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
 import { currentWorkspaceId } from "./current-workspace.ts";
 import { keys } from "./query-keys.ts";
@@ -42,10 +36,6 @@ const without: (data: ListData, id: string) => ListData = (data, id) => {
   };
 };
 
-/**
- * `data` with `node` in its place by the Worker's order. Past the loaded pages (more to load) it
- * is left out: its own page brings it.
- */
 const withNode: (data: ListData, node: StorageNode) => ListData = (data, node) => {
   const rest = without(data, node.id);
   const at = rest.pages.findIndex(
@@ -66,7 +56,6 @@ const withNode: (data: ListData, node: StorageNode) => ListData = (data, node) =
   };
 };
 
-/** The folder's own listing and those inside it, renamed: its new name in their paths. */
 const withFolder: (data: ListData, node: StorageNode) => ListData = (data, node) => {
   const [first, ...rest] = data.pages;
   const folder = first?.folder;
@@ -80,24 +69,14 @@ const withFolder: (data: ListData, node: StorageNode) => ListData = (data, node)
 
 const shows = (data: ListData | undefined, id: string) =>
   !!data?.pages.some((page) => page.nodes.some((n) => n.id === id));
-/** Lists of folder `id` itself or a folder inside it: their path names it. */
 const within = (data: ListData | undefined, id: string) =>
   !!data?.pages[0]?.folder?.path.some((step) => step.id === id);
 
-/** Lists that show `id`, or are `id` or a folder inside it. */
 const touching = (client: QueryClient, id: string) =>
   lists(client).flatMap(([key, data]) => (shows(data, id) || within(data, id) ? [key] : []));
 
-/** Where a listing sits in a Storage key: `["omni", <workspace>, "storage", "list", place]`. */
 const BRANCH = keys.storageLists().length - 1;
 
-/**
- * Asked again, in the background: the change already shows. The folder lists the change touched,
- * and everything in Storage that is not a folder list (Search, Trash, usage, a shared link's
- * view, sharing, Shared with me, the cluster glyphs): each of those may name the node, and only
- * the ones on screen refetch. Folder lists it did not touch are left alone; refetching all of
- * those is what made every change reload every folder card on screen.
- */
 const refresh = (client: QueryClient, touched: QueryKey[]) =>
   Promise.all([
     ...touched.map((queryKey) => client.invalidateQueries({ queryKey, exact: true })),
@@ -107,10 +86,6 @@ const refresh = (client: QueryClient, touched: QueryKey[]) =>
     }),
   ]);
 
-/**
- * A request still on its way for a listing about to change would land after the change with
- * what was there before it: stopped first, it is asked again after.
- */
 const settle = (client: QueryClient, queryKeys: QueryKey[]) =>
   Promise.all(queryKeys.map((queryKey) => client.cancelQueries({ queryKey, exact: true })));
 
@@ -119,8 +94,6 @@ const settle = (client: QueryClient, queryKeys: QueryKey[]) =>
  * its place, out of every other, and its own listing's title and path renamed.
  */
 export async function storageNodeChanged(client: QueryClient, node: StorageNode) {
-  // Answered after the tab moved to another workspace: the keys below are that one's, so the
-  // workspace it came from refetches its Storage instead.
   if (node.orgId !== currentWorkspaceId()) {
     return client.invalidateQueries({ queryKey: [...keys.root, node.orgId, "storage"] });
   }

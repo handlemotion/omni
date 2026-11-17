@@ -1,7 +1,3 @@
-// The stage: the file through the renderer its kind calls for (ADR 0040). PDF, code, CSV and XLSX
-// renderers load on their own chunks (pdf.js, Shiki, Papa Parse and SheetJS stay off the app's
-// entry), and each is keyed by the file, so stepping to the next file starts it fresh. A renderer
-// that fails (its chunk, or the file) leaves the file's tile and Download in its place.
 import { lazy, Suspense } from "react";
 import { Contain } from "@/components/errors/error-boundary.tsx";
 import { fileType, IMAGE_PREVIEW_MAX_BYTES, SHEET_PREVIEW_MAX_BYTES } from "@/lib/file-kind.ts";

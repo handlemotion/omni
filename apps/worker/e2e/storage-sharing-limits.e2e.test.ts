@@ -1,6 +1,3 @@
-// What bounds sharing (ADR 0034 decisions 4, 6 and 7) over the real Worker with billing on and
-// invitation-only sign-up: the share-mail and link-door rate limits, the read-only gate by the
-// shared item's workspace, and a grant that is not an invitation.
 import { randomBytes, randomUUID } from "node:crypto";
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -28,7 +25,6 @@ const address = (name: string) => `${name}-${randomUUID().slice(0, 8)}@outside.t
 const person = (nodeId: string, email: string) =>
   `/nodes/${nodeId}/sharing/people/${encodeURIComponent(email)}`;
 
-/** A company on a plan (`status`), and its owner signed in. */
 async function company(status: "trialing" | "canceled" = "trialing") {
   const org = await stack.company(`co-${randomUUID().slice(0, 8)}`);
   const [subscription] = await stack.db
@@ -45,10 +41,6 @@ async function company(status: "trialing" | "canceled" = "trialing") {
   return { org, owner: await stack.member(org.id, "owner"), subscriptionId: subscription!.id };
 }
 
-/**
- * A call to the link door from `ip`. The link limit counts per IP, so each test comes from its
- * own address and none uses up another's.
- */
 async function door(ip: string, jar: CookieJar, method: string, path: string, body?: unknown) {
   const response = await fetch(new URL(`/api/storage/shared/${path}`, stack.worker.url), {
     method,
@@ -74,8 +66,6 @@ async function sharedFolder(owner: Person) {
   return { folderId, shareId: opened.body.sharing.shareId as string };
 }
 
-// Catches: a member (or a script with their cookie) mailing strangers without end from the
-// install's own no-reply address, and a limit that also blocks changing someone's role.
 test("adding people past RATE_LIMIT_STORAGE_SHARE answers 429 and adds nobody; a role change still works", async () => {
   const { owner } = await company();
   const { folderId } = await sharedFolder(owner);
@@ -95,7 +85,6 @@ test("adding people past RATE_LIMIT_STORAGE_SHARE answers 429 and adds nobody; a
   await refused.body?.cancel();
   expect(await sentMail(stack.worker, third)).toEqual([]);
 
-  // Someone already there costs nothing: their role changes, limit or not.
   const changed = await add(first, "editor");
   expect(changed.status).toBe(200);
   expect(
@@ -106,8 +95,6 @@ test("adding people past RATE_LIMIT_STORAGE_SHARE answers 429 and adds nobody; a
   ]);
 });
 
-// Catches: the one route family that answers without a sign-in having no limit at all, or one
-// IP's requests locking every other visitor out.
 test("the link door answers 429 past RATE_LIMIT_STORAGE_LINK for that IP only", async () => {
   const { owner } = await company();
   const { shareId } = await sharedFolder(owner);
@@ -127,15 +114,11 @@ test("the link door answers 429 past RATE_LIMIT_STORAGE_LINK for that IP only", 
   expect((await door("203.0.113.8", visitor, "GET", shareId)).status).toBe(200);
 });
 
-// Catches: an unpaid company's links going dark (nothing is taken away for not paying), an
-// unpaid company still being written to or re-shared through a side door, and the gate reading
-// the visitor's workspace instead of the item's.
 test("a read-only workspace still serves its link; changes and sharing answer 402, by the item's workspace", async () => {
   const lapsed = await company();
   const { folderId, shareId } = await sharedFolder(lapsed.owner);
   const bytes = randomBytes(2000);
   const file = await stack.upload(lapsed.owner.jar, { parentId: folderId }, "report.pdf", bytes);
-  // The editor is the owner of another company, in good standing.
   const paying = await company();
   const editor = paying.owner;
   expect(
@@ -152,7 +135,6 @@ test("a read-only workspace still serves its link; changes and sharing answer 40
     .set({ status: "canceled" })
     .where(eq(schema.subscriptions.id, lapsed.subscriptionId));
 
-  // Reads go on: the visitor's download, the editor's listing, the owner's view of who has it.
   const download = await door(
     "203.0.113.20",
     new CookieJar(),
@@ -169,7 +151,6 @@ test("a read-only workspace still serves its link; changes and sharing answer 40
       name: "New",
       parentId: folderId,
     }),
-    // The owner's own link is no way round the gate either.
     await door("203.0.113.24", lapsed.owner.jar, "POST", `${shareId}/folders`, {
       name: "Mine",
       parentId: folderId,
@@ -198,7 +179,6 @@ test("a read-only workspace still serves its link; changes and sharing answer 40
   const listed = await stack.api(lapsed.owner.jar, "GET", `/nodes?parent=${folderId}`);
   expect(listed.body.nodes.map((node: { name: string }) => node.name)).toEqual(["report.pdf"]);
 
-  // The other way round: the lapsed company's owner still edits what a paying one shared.
   const made = await door("203.0.113.23", lapsed.owner.jar, "POST", `${other.shareId}/folders`, {
     name: "From the lapsed",
     parentId: other.folderId,
@@ -206,7 +186,6 @@ test("a read-only workspace still serves its link; changes and sharing answer 40
   expect(made.status).toBe(201);
 });
 
-// Catches: sharing with an address quietly becoming a way into an invitation-only install.
 test("with SIGN_UP=invitation a grant is not an invitation: the share mail goes out, a magic link does not", async () => {
   const { owner } = await company();
   const { folderId } = await sharedFolder(owner);

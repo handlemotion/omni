@@ -1,14 +1,3 @@
-// A file's comments (ADR 0043 decisions 4 and 5) beside its folder, where the preview opens, and
-// narrower. Drawn as the notifications panel draws its events, not as a chat: a 48px top bar
-// ("Comments", the file's name, Close), Open and Resolved tabs, and full-width rows ruled like the
-// notification rows, one per thread. Inside a row the thread reads as Notion draws a discussion:
-// every message on the same level, a thin line joining their squircles, and Reply's field at
-// the end. Resolve (✓, on hover) moves the row to Resolved and Reopen brings it back; a reply
-// reopens it too (the API's rule). A new thread starts in the document itself, from its toolbar,
-// so the panel has no box of its own.
-//
-// Geometry: rows 20px from the sides and 16px from their rules; text 12px past the squircle;
-// messages 20px apart.
 import { EmptyState } from "@/components/empty/empty-state";
 import { useLayoutEffect, useRef, useState, type Key, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
@@ -76,7 +65,6 @@ const withShare = ({ id, shareId }: Door) => ({ id, ...(shareId ? { shareId } : 
 
 type View = "open" | "resolved";
 
-/** Keeps the newest comment in view as the list loads and grows, unless they scrolled up. */
 function useStickToBottom(count: number) {
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
@@ -100,7 +88,6 @@ export function CommentsPanel(props: {
   const door = { id: node.id, shareId };
   const comments = useStorageComments(node.id, shareId);
   const [view, setView] = useState<View>("open");
-  // The row whose Reply field is open; one at a time.
   const [replying, setReplying] = useState<string | null>(null);
   const all = comments.data?.comments ?? [];
   const open = threadsOf(all, false).length;
@@ -110,8 +97,6 @@ export function CommentsPanel(props: {
       aria-label={`Comments on ${node.name}`}
       className="flex min-w-0 flex-1 flex-col border-s bg-background"
     >
-      {/* One row with the folder's header beside it: the same height. The tabs' line closes it,
-          as in the notifications panel. */}
       <div className="flex h-12 shrink-0 items-center gap-2 ps-5 pe-2.5">
         <Heading level={2} className="shrink-0 text-md">
           Comments
@@ -142,7 +127,6 @@ export function CommentsPanel(props: {
           <Tab id="resolved">Resolved</Tab>
         </TabList>
       </Tabs>
-      {/* Nothing in this tab: the app's empty state, in the middle of the panel. */}
       {comments.data && threadsOf(comments.data.comments, view === "resolved").length === 0 ? (
         <EmptyState
           figure="dish"
@@ -177,15 +161,9 @@ export function CommentsPanel(props: {
   );
 }
 
-/** A 24px squircle, as tall as the name's line beside it. */
 const AVATAR =
   "shrink-0 bg-accent text-foreground outline-0 [--avatar-radius:var(--radius-md)] [--avatar-size:--spacing(6)]";
 
-/**
- * One thread as Notion draws a discussion: every message on the same level (a 24px squircle, the
- * name and time, the text under the name), a thin line joining the squircles down the thread,
- * and Reply's field at its end, behind the replier's own squircle.
- */
 function CommentRow(props: {
   door: Door;
   thread: StorageThread;
@@ -220,7 +198,6 @@ function CommentRow(props: {
                     intent="ghost"
                     size="sq-2xs"
                     aria-label={resolved ? "Reopen" : "Resolve"}
-                    // Shown on hover or focus, as the ⋯ beside it (always on touch screens).
                     className={menuButtonClass({})}
                     onPress={() => resolve(!resolved)}
                   >
@@ -235,7 +212,6 @@ function CommentRow(props: {
         ))}
         {props.replying && (
           <li className="flex gap-3">
-            {/* Centred on the box's one 32px row. */}
             <span className="pt-1">
               <Avatar isSquare initials={me.slice(0, 1).toUpperCase()} className={AVATAR} />
             </span>
@@ -249,10 +225,6 @@ function CommentRow(props: {
   );
 }
 
-/**
- * One message of a thread: the squircle, and under it the line down to the next one when
- * `joined`; beside it who wrote it and when with its actions at the end, then what they wrote.
- */
 function Message(props: {
   door: Door;
   comment: StorageComment;
@@ -334,14 +306,10 @@ function Message(props: {
   );
 }
 
-/** The app's chat box, one compact row, for a reply. Esc closes it. What was typed while one was
- * on its way stays when it lands. */
 function ReplyBox(props: { door: Door; parentId: string; onCancel: () => void }) {
   const textarea = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
   const add = useAddComment();
-  // Nothing goes twice: Enter while the last one is on its way sends nothing. The ref holds it
-  // from the first keypress; `isPending` reaches the render only a tick later.
   const sending = useRef(false);
   useLayoutEffect(() => {
     textarea.current?.focus();

@@ -1,12 +1,7 @@
-// Comments on a file (ADR 0043 decisions 4 and 5), under `/api/storage` and again under
-// `/api/storage/shared/:shareId` for a person the file was shared with. Split out of
-// `storage.ts` by concern. A member, an Editor and a Commenter read and write them; a Viewer and
-// a link alone get `403`.
 import { z } from "zod";
 
 const isoDate = z.iso.datetime();
 const id = z.string().min(1);
-/** A fraction of a PDF page's width or height. */
 const fraction = z.number().min(0).max(1);
 const line = z.number().int().positive();
 
@@ -28,7 +23,6 @@ export const storageCommentAnchorSchema = z.discriminatedUnion("kind", [
     .refine((box) => box.x + box.width <= 1 && box.y + box.height <= 1, {
       message: "the box must fit on the page",
     }),
-  // A box on an image, in fractions of it.
   z
     .object({
       kind: z.literal("image"),

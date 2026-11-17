@@ -1,13 +1,3 @@
-// Storage billing against Stripe itself, in test mode (ADR 0034 "Verification"). Runs only when
-// asked for: STRIPE_E2E=1 and a test-mode STRIPE_SECRET_KEY (`doppler run -p omni -c dev_worker
-// -- env STRIPE_E2E=1 pnpm --filter @omni/worker test:e2e e2e/storage-billing-stripe`); never in
-// `pnpm test` or CI. It refuses a live key. It uses STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY /
-// STRIPE_PRICE_STORAGE / STRIPE_STORAGE_METER_EVENT when set, else creates the plan's prices (lookup
-// keys `omni-e2e-monthly` / `omni-e2e-yearly`), a `last` meter (event `omni_e2e_storage_gb`) and its
-// metered price (lookup key `omni-e2e-storage`) in the test account on first run.
-//
-// Meter events are processed asynchronously, so what was billed is read back from the meter's
-// event summaries and the subscription's invoice preview, polled until they settle.
 import { randomUUID } from "node:crypto";
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -20,10 +10,8 @@ const requested = process.env.STRIPE_E2E === "1";
 const GIB = 1024 ** 3;
 const DAY_MS = 86_400_000;
 const METER_EVENT = "omni_e2e_storage_gb";
-/** The plan includes 1 GB here. */
 const INCLUDED_GB = 1;
 
-/** Polls `read` until `done` holds of its value, for up to `ms`. */
 async function settle<T>(read: () => Promise<T>, done: (value: T) => boolean, ms = 90_000) {
   const deadline = Date.now() + ms;
   for (;;) {
@@ -114,15 +102,10 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
 
   afterAll(async () => {
     for (const id of customers) await stripe?.customers.del(id).catch(() => {});
-    // Deleting a test clock deletes its customers and their subscriptions.
     for (const id of clocks) await stripe?.testHelpers.testClocks.del(id).catch(() => {});
     await stack?.stop();
   });
 
-  /**
-   * A company that pays `priceId` with a test card, as a paid Checkout leaves it: the workspace's
-   * customer, its default card, the subscription. Its row is written by the daily reconcile.
-   */
   async function payingWorkspace(slug: string, priceId: string, storedBytes: number) {
     const org = await stack.company(slug);
     const customer = await stripe.customers.create({
@@ -145,11 +128,6 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
     return { org, customer: customer.id, subscription };
   }
 
-  /**
-   * What a workspace stores: one Shared file row of `bytes` and the counter to match. The daily
-   * recount runs beside the billing and sums the file rows, so a counter alone would be reset.
-   * No object is uploaded: nothing here reads it.
-   */
   async function store(orgId: string, bytes: number) {
     const [file] = await stack.db
       .select({ id: schema.storageNodes.id })
@@ -176,7 +154,6 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
       .onConflictDoUpdate({ target: schema.storageUsage.orgId, set: { bytes } });
   }
 
-  /** The daily billing cron, run the way Cloudflare runs it: reconcile, then Storage's meter. */
   async function daily() {
     expect(await stack.cron("47 3 * * *")).toBe("ok");
   }
@@ -186,7 +163,6 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
       (item) => item.price.id === prices.storage,
     );
 
-  /** The meter's value for `customer` from `since` on: the `last` value Stripe holds. */
   async function meterValue(customer: string, since: Date) {
     const summaries = await stripe.billing.meters.listEventSummaries(meter.id, {
       customer,
@@ -196,7 +172,6 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
     return summaries.data.at(-1)?.aggregated_value ?? null;
   }
 
-  /** Quantity of the storage line on the subscription's next invoice. */
   async function previewQuantity(customer: string, subscription: string) {
     const preview = await stripe.invoices.createPreview({ customer, subscription });
     const line = preview.lines.data.find((l) => l.pricing?.price_details?.price === prices.storage);
@@ -205,7 +180,6 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
 
   test("the daily job run twice for one workspace bills its peak once, and a lower day bills the peak", async () => {
     const since = new Date(Date.now() - 60_000);
-    // 3.5 GB above the 1 GB included: 3 whole GB.
     const stored = (INCLUDED_GB + 3.5) * GIB;
     const { org, customer, subscription } = await payingWorkspace(
       "metered",
@@ -215,7 +189,6 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
 
     await daily();
     await daily();
-    // The item went on once, and is a monthly metered item next to the plan's.
     expect(await storageItems(subscription.id)).toHaveLength(1);
     const [peak] = await stack.db
       .select()
@@ -235,14 +208,12 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
       ),
     ).toBe(3);
 
-    // Files deleted: what is billed is still the month's peak.
     await store(org.id, INCLUDED_GB * GIB);
     await daily();
     await new Promise((resolve) => setTimeout(resolve, 20_000));
     expect(await meterValue(customer, since)).toBe(3);
     expect(await previewQuantity(customer, subscription.id)).toBe(3);
 
-    // A higher peak the same day is a new value, not a duplicate of the first.
     await store(org.id, (INCLUDED_GB + 5) * GIB);
     await daily();
     expect(
@@ -278,10 +249,6 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
     });
   }, 180_000);
 
-  // Confirms two things the ADR left to Stripe (ADR 0034 "Verification"): a monthly metered item
-  // on a monthly classic subscription bills the last value of its period, and a period in which
-  // nothing was reported bills 0, not the previous period's value. Meter events are sent here
-  // directly (the daily job stamps them with the real time, which a test clock's time is not).
   test("on a test clock, a `last` meter bills each period's last value, and a silent period bills nothing", async () => {
     const start = Math.floor(Date.now() / 1000);
     const clock = await stripe.testHelpers.testClocks.create({ frozen_time: start });
@@ -304,11 +271,9 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
       });
     await send(4, `e2e-${randomUUID()}`, start + 60);
     await send(2, `e2e-${randomUUID()}`, start + 120);
-    // A duplicate identifier is dropped (or refused): the value stays 2.
     const repeated = `e2e-${randomUUID()}`;
     await send(7, repeated, start + 180);
     await send(7, repeated, start + 180).catch(() => {});
-    // Stripe's note on test clocks: let events aggregate before advancing.
     await new Promise((resolve) => setTimeout(resolve, 90_000));
 
     async function advance(to: number) {
@@ -328,11 +293,9 @@ describe.runIf(requested)("Storage billing in Stripe test mode", () => {
       return line ? line.quantity : null;
     };
 
-    // One month and a day on: the first period's invoice bills the last value, 7.
     const firstEnd = subscription.items.data[0]!.current_period_end;
     await advance(firstEnd + DAY_MS / 1000);
     expect(await storageQuantity(start)).toBe(7);
-    // Another month with no event: the second period bills 0.
     await advance(firstEnd + 32 * (DAY_MS / 1000));
     expect(await storageQuantity(firstEnd)).toBe(0);
   }, 600_000);

@@ -1,6 +1,3 @@
-// An XLSX, view only (ADR 0043 decision 7): each visible sheet's first rows as a spreadsheet grid
-// of text cells, with a tab per sheet when there is more than one. SheetJS reads it in a worker, on its
-// own chunk.
 import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
 import { useFileSheets } from "@/hooks/use-storage-preview.ts";
 import type { PreviewSource } from "@/lib/storage-preview.ts";

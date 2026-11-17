@@ -42,7 +42,6 @@ import { twJoin, cn } from "cn";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cx } from "@/lib/primitive";
 
-// #region Chart Types
 export type ChartType = "default" | "stacked" | "percent";
 export type ChartLayout = "horizontal" | "vertical" | "radial";
 export type IntervalType = "preserveStartEnd" | "equidistantPreserveStart";
@@ -169,7 +168,6 @@ export interface BaseChartProps extends React.HTMLAttributes<HTMLDivElement> {
   xAxisProps?: XAxisPropsPrimitive;
   yAxisProps?: YAxisPrimitiveProps;
 
-  // XAxis
   displayEdgeLabelsOnly?: boolean;
 
   hideGridLines?: boolean;

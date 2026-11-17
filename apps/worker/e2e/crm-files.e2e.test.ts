@@ -1,6 +1,3 @@
-// A record's folder and contracts over the real Worker (ADR 0036 decisions 5 and 6): the CRM
-// makes the folder, the file goes up through `/api/storage`, and signing the contract locks it
-// there. One flow proves the two modules connect.
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startStorageStack, type StorageStack } from "./storage-support.ts";
@@ -23,9 +20,6 @@ async function crm(jar: CookieJar, method: string, path: string, body?: unknown)
   return { status: response.status, body: (text ? JSON.parse(text) : null) as any };
 }
 
-// Catches: two folders from two first calls over HTTP, a contract signed without its file being
-// locked in Storage (or a lock Storage's routes do not honour), and a signed contract deleted
-// through the API.
 test("a deal's folder takes an upload, and signing its contract locks the file against /api/storage", async () => {
   const org = await stack.company(`crm-files-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id, "owner");
@@ -67,7 +61,6 @@ test("a deal's folder takes an upload, and signing its contract locks the file a
     [409, "CONTRACT_SIGNED"],
   ]);
 
-  // The deal reads with its contract, and its timeline shows the contract's own items.
   const read = await crm(ana.jar, "GET", `/deals/${dealId}`);
   expect(read.body.contracts).toMatchObject([{ id: contractId, documentNodeId: file.id }]);
   const timeline = await crm(ana.jar, "GET", `/deals/${dealId}/timeline`);

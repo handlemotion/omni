@@ -1,5 +1,3 @@
-// Shows new mail and your notifications, from every workspace you're in, as system notifications
-// when this device has them on (Settings → Notifications). Mount once, in the signed-in shell.
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
@@ -20,7 +18,6 @@ export function useDesktopNotifications() {
   const workspaces = useWorkspaces({ enabled: on }).data?.workspaces;
   const latest = useRef(workspaces);
   latest.current = workspaces;
-  // A string, so a refetched list with the same workspaces leaves the sockets alone.
   const ids = (workspaces ?? [])
     .map((w) => w.id)
     .toSorted()

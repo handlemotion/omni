@@ -1,5 +1,3 @@
-// Storage's small dialogs: pick where to move, confirm deleting for good. Each takes the
-// door it changes through: a shared link's (`shareId`), or the member's.
 import { useState } from "react";
 import { Collection } from "react-aria-components/Collection";
 import { GridListLoadMoreItem } from "react-aria-components/GridList";
@@ -74,17 +72,12 @@ export type MoveScope =
       path: { id: string; name: string }[];
     };
 
-/** Where the dialog is looking: a space (or the link's top) and the folders below it. */
 type Browse = { space: StorageSpace | null; path: { id: string; name: string }[] } | null;
 
 const SPACES = ["personal", "shared"] as const;
 
 type Crumb = { id: string; name: string; go: () => void };
 
-/**
- * What the move dialog shows as it is browsed: where it is (`at`, null at a company's top level
- * of spaces), the place a move there goes to, the folders inside it, and the trail back up.
- */
 function useMoveBrowser(scope: MoveScope, node: StorageNode) {
   const link = scope.kind === "link" ? scope : null;
   const hasShared = useHasSharedFiles();
@@ -96,16 +89,13 @@ function useMoveBrowser(scope: MoveScope, node: StorageNode) {
   const place = placeAt(at, folder);
   const member = useStorageList(place ?? { space: "personal" }, { enabled: !link && !!place });
   const shared = useStorageLink(...linkArgs(link, folder));
-  // Itself is no place to move a folder to, and the API pages folders first.
   const folders = (link ? shared.nodes : member.nodes).filter(
     (n) => n.kind === "folder" && n.id !== node.id,
   );
-  // Where it already is: the same folder (or root), in the same space.
   const here =
     !!at && (folder?.id ?? null) === node.parentId && (!!link || at.space === node.space);
   const crumbs = crumbsFor({ link, at, setAt, hasShared });
   const { rows, enter } = rowsAt(at, folders, setAt);
-  // Folders come first in every page, so the next page is needed only while this one ends in one.
   const listing = link ? shared : member;
   const loadMore = at && listing.hasNextPage ? () => void listing.fetchNextPage() : undefined;
   return {
@@ -120,7 +110,6 @@ function useMoveBrowser(scope: MoveScope, node: StorageNode) {
   };
 }
 
-/** The trail from the top (a company's spaces, a space, or a link's folder) down to `at`. */
 const crumbsFor: (props: {
   link: Extract<MoveScope, { kind: "link" }> | null;
   at: Browse;
@@ -146,7 +135,6 @@ const crumbsFor: (props: {
   ];
 };
 
-/** What to list through a link: its top folder is the link itself, without `node`. */
 const linkArgs: (
   link: Extract<MoveScope, { kind: "link" }> | null,
   folder: { id: string } | undefined,
@@ -159,7 +147,6 @@ const linkArgs: (
   ];
 };
 
-/** The rows at `at` (a company's spaces at the top, else the folders) and opening one. */
 function rowsAt(at: Browse, folders: StorageNode[], setAt: (at: Browse) => void) {
   if (!at) {
     return {
@@ -176,7 +163,6 @@ function rowsAt(at: Browse, folders: StorageNode[], setAt: (at: Browse) => void)
   };
 }
 
-/** The place a move to `at` goes: inside its last folder, or a space's root. */
 const placeAt: (at: Browse, folder: { id: string } | undefined) => StoragePlace | null = (
   at,
   folder,
@@ -205,9 +191,6 @@ export function MoveDialog(props: { node: StorageNode; scope: MoveScope; onClose
             </BreadcrumbsItem>
           ))}
         </Breadcrumbs>
-        {/* The crumbs take the rows' 8px inset, so their labels line up; the list stays the
-            body's width (wider, the body would scroll sideways as focus moves into it). */}
-        {/* Five rows tall whatever it holds, so the dialog keeps its size from folder to folder. */}
         <GridList
           aria-label="Folders"
           className="h-45 overflow-y-auto"
@@ -219,7 +202,6 @@ export function MoveDialog(props: { node: StorageNode; scope: MoveScope; onClose
               <GridListItem
                 id={item.id}
                 textValue={item.name}
-                // The list is a fixed-height column that scrolls: rows keep their height.
                 className="h-9 shrink-0 cursor-pointer gap-2.5 rounded-lg px-2 hover:bg-accent"
               >
                 <IconFolder className="size-icon shrink-0 text-muted-foreground" />
@@ -227,7 +209,6 @@ export function MoveDialog(props: { node: StorageNode; scope: MoveScope; onClose
               </GridListItem>
             )}
           </Collection>
-          {/* The next page as the end nears, as the main table loads its rows. */}
           <GridListLoadMoreItem onLoadMore={browse.loadMore} isLoading={browse.isLoadingMore} />
         </GridList>
       </DialogBody>

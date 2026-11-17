@@ -1,5 +1,3 @@
-// The CRM's daily job (`src/crm/jobs.ts`, registered on the crm module in `src/modules.ts`) run
-// through the real Worker's daily cron under workerd, against Postgres (ADR 0039 decision 4).
 import { schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -20,9 +18,6 @@ afterAll(async () => {
 const daily = async () =>
   (await stack.worker.server.getWorker().scheduled({ cron: DAILY_CRON })).outcome;
 
-// Catches: the daily cron not running the CRM's job (the module never registered, or its Effect
-// program failing under workerd), teammates never told the contract ended, and a second run
-// writing the end again.
 test("the daily cron ends an expired signed contract once and tells the workspace", async () => {
   const acme = await stack.company("acme-expiry");
   const ana = await stack.member(acme.id);
@@ -30,7 +25,6 @@ test("the daily cron ends an expired signed contract once and tells the workspac
   const client = await stack.api(ana.jar, "POST", "/companies", { name: "Initech" });
   expect(client.status).toBe(201);
   const companyId: string = client.body.company.id;
-  // Signed last year and over yesterday, as a member would have left it.
   const [contract] = await stack.db
     .insert(schema.crmContracts)
     .values({

@@ -1,10 +1,7 @@
-// Column helpers every schema file shares: UUIDv7 ids, the org and member keys, timestamps.
 import { customType, text, timestamp } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
 import { members, organizations } from "./auth.ts";
 
-// Text ids holding a UUIDv7: time-ordered (index friendly) and generated in the app, so a row's
-// id is known before the insert and can double as an idempotency handle.
 export const id = () =>
   text("id")
     .primaryKey()

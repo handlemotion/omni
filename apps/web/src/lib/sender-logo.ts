@@ -1,7 +1,3 @@
-// A sender's avatar picture: their company's logo, or a webmail sender's Gravatar, through the
-// Worker (which caches it for a week). The image is decoded once here and its edge read, so the
-// avatar knows whether to inset it on a tile of its own colour; the browser's HTTP cache serves
-// the bytes again when the avatar draws it.
 import { domainOf, isWebmailDomain } from "@omni/mail-core/addresses";
 import { logoEdge, type LogoEdge } from "@omni/mail-core/sender-logo";
 import { queryOptions } from "@tanstack/react-query";
@@ -16,7 +12,6 @@ export interface SenderLogo {
   edge: LogoEdge | { kind: "photo" };
 }
 
-/** Side of the bitmap the edge is read from: enough to see a tile's colour, cheap to scan. */
 const SAMPLE = 32;
 
 export function senderLogoQuery(who: SenderLogoFor) {
@@ -37,7 +32,6 @@ const loadSenderLogo: (who: SenderLogoFor) => Promise<SenderLogo | null> = async
   try {
     await image.decode();
   } catch {
-    // 404 (no logo) or unreadable: the avatar keeps its initials.
     return null;
   }
   const domain = "address" in who ? domainOf(who.address) : null;

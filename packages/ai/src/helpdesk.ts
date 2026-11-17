@@ -1,7 +1,3 @@
-// Helpdesk triage: what a customer's message on a shared inbox adds to the bucket. Jev supplies the
-// judgments (`PRIORITY_QUESTIONS`, one `tagQuestion` per tag); this file decides the priority and
-// which tags fit. Claude answers the same two things directly in its structured output.
-
 import { read } from "./decide.ts";
 import {
   MAX_SUGGESTED_TAGS,

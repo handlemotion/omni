@@ -1,6 +1,3 @@
-// New company, person and deal: small forms over the list (Storage's form dialog). Each opens the
-// record it made. A person's company is found or made from their address unless one is picked; a
-// deal starts in the pipeline's first open stage.
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";

@@ -1,6 +1,3 @@
-// "Ana is editing" (ADR 0043 decision 3) through the real Worker and its realtime Durable
-// Object: who hears it, that it survives hibernation, and that it clears when the app closes.
-// And the live document those editors share (step 2), on the local stack's s2-lite.
 import { randomUUID } from "node:crypto";
 import { untilLockWaiters } from "@omni/db/testing";
 import { sql } from "drizzle-orm";
@@ -18,7 +15,6 @@ afterAll(() => stack?.stop());
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 
-/** The web app's realtime socket for `jar`, collecting what arrives. */
 async function connect(jar: CookieJar) {
   const url = new URL("/api/realtime", stack.worker.url);
   url.protocol = "ws:";
@@ -31,7 +27,6 @@ async function connect(jar: CookieJar) {
     received.push(JSON.parse(String(e.data)));
     for (const waiter of waiters) waiter();
   });
-  /** Resolves with the first event `match` finds, once one has arrived. */
   const waitFor = <T>(match: () => T | undefined) => {
     const arrived = Promise.withResolvers<T>();
     const check = () => {
@@ -56,7 +51,6 @@ async function connect(jar: CookieJar) {
       socket.send(JSON.stringify({ type: "doc.append", nodeId, ref, record, matchSeqNum }));
     },
     next: (count: number) => waitFor(() => (received.length >= count ? received : undefined)),
-    /** The answer to this socket's append `ref` on `nodeId`. */
     answer: (nodeId: string, ref: number) =>
       waitFor(() =>
         received.find(
@@ -66,16 +60,11 @@ async function connect(jar: CookieJar) {
             e.ref === ref,
         ),
       ),
-    /** The first event `match` finds, once one has arrived. */
     waitFor: (match: (event: Record<string, unknown>) => boolean) =>
       waitFor(() => received.find(match)),
   };
 }
 
-// Catches: an editing claim on a file the member cannot reach (it names the file to people who
-// cannot see it, or tells its owner a stranger has it open), presence lost when the object
-// hibernates (a second editor never learns the first is there), and a closed app that stays
-// "editing" on everyone's screen.
 test("editing presence reaches those who see the file, survives hibernation, and clears on close", async () => {
   const org = await stack.company(`presence-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -92,7 +81,6 @@ test("editing presence reaches those who see the file, survives hibernation, and
 
   anaHears.editing(doc.id, "editing");
   expect(await boHears.next(1)).toEqual([at(ana.id, "editing")]);
-  // Kept on Ana's socket, not in memory: a hibernated object still knows she is there.
   await stack.worker.server
     .getWorker()
     .evictDurableObject("Realtime", { name: org.id, webSockets: "hibernate" });
@@ -100,18 +88,14 @@ test("editing presence reaches those who see the file, survives hibernation, and
   expect(await boHears.next(2)).toEqual([at(ana.id, "editing"), at(ana.id, "editing")]);
   expect(await anaHears.next(1)).toEqual([at(bo.id, "editing")]);
 
-  // Bo's My files are his: Ana's claim to edit his file is dropped, and he hears nothing of it.
   anaHears.editing(bos.id, "editing");
 
-  // Bo hears Ana leave next, and nothing of the claim she made before it.
   anaHears.socket.close();
   expect((await boHears.next(3))[2]).toEqual(at(ana.id, "left"));
   expect(boHears.received).toHaveLength(3);
   boHears.socket.close();
 });
 
-// Catches: an `editing` whose access check finishes after the app already sent `left` (closed
-// the editor), which would show the member editing a file they have closed until they reconnect.
 test("a left sent while the editing check is still running wins", async () => {
   const org = await stack.company(`presence-race-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -126,8 +110,6 @@ test("a left sent while the editing check is still running wins", async () => {
   });
   const seed = { t: "seed", cv: 1, u: "AA==" };
 
-  // The editing check reads the file, so a lock on the table holds it in flight until the left
-  // is in: the doc.append behind the left is refused only once the left has been handled.
   const held = Promise.withResolvers<void>();
   const taken = Promise.withResolvers<void>();
   const locked = stack.db.transaction(async (tx) => {
@@ -153,14 +135,12 @@ test("a left sent while the editing check is still running wins", async () => {
   }
   await expect.poll(() => backendAlive(check)).toBe(false);
 
-  // Had the check outlived the left, Ana would be editing again and this append would land.
   anaHears.append(doc.id, 2, seed);
   expect(await anaHears.answer(doc.id, 2)).toMatchObject({
     type: "doc.refused",
     reason: "editing",
   });
 
-  // A later heartbeat and close land as usual, and they are all Bo hears.
   anaHears.editing(doc.id, "editing");
   expect(await boHears.next(1)).toEqual([at("editing")]);
   anaHears.editing(doc.id, "left");
@@ -169,7 +149,6 @@ test("a left sent while the editing check is still running wins", async () => {
   boHears.socket.close();
 });
 
-/** The backend of the one query waiting for a lock, once there is one. */
 async function stuckCheck() {
   await untilLockWaiters(stack.db, 1);
   const [row] = (await stack.db.execute(sql`
@@ -188,11 +167,6 @@ async function backendAlive(pid: number) {
   return rows.length > 0;
 }
 
-// Catches: a socket that appends to a file's live document without the access check its
-// `editing` made (anyone in the workspace writing into a file they cannot see), a record the
-// other editors never hear (or that reaches a socket not editing the file), and two editors
-// both seeding the document when they open it at once (the stream's tail is the referee), and an
-// editor who lost access while the file was open still writing into it.
 test("only a socket editing the file appends to its live document, and the other editors hear it", async () => {
   const org = await stack.company(`live-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id);
@@ -209,13 +183,11 @@ test("only a socket editing the file appends to its live document, and the other
   const ofDoc = (received: Record<string, unknown>[]) =>
     received.filter((event) => String(event.type).startsWith("doc."));
 
-  // Not editing it yet: refused.
   anaSocket.append(doc.id, 1, seed, 0);
   await anaSocket.answer(doc.id, 1);
   expect(ofDoc(anaSocket.received)).toEqual([
     { type: "doc.refused", nodeId: doc.id, ref: 1, reason: "editing" },
   ]);
-  // Editing Bo's own file, which she cannot see, is never checked: still refused.
   anaSocket.editing(bos.id, "editing");
   anaSocket.append(bos.id, 2, seed, 0);
   expect(await anaSocket.answer(bos.id, 2)).toEqual({
@@ -230,8 +202,6 @@ test("only a socket editing the file appends to its live document, and the other
     more: false,
   });
 
-  // Both open the editor at once and seed: the first takes the tail, the second is told so. Each
-  // hears the other only once that one's access check passed.
   const editingDoc = (memberId: string) => (e: Record<string, unknown>) =>
     e.type === "file.presence" && e.nodeId === doc.id && e.memberId === memberId;
   anaSocket.editing(doc.id, "editing");
@@ -251,7 +221,6 @@ test("only a socket editing the file appends to its live document, and the other
     { type: "doc.refused", nodeId: doc.id, ref: 1, reason: "tail" },
   ]);
 
-  // Bo's update reaches Ana, not Cy, who sees the file but is not editing it.
   const update = { t: "update", e: 0, u: "AQ==" };
   boSocket.append(doc.id, 2, update);
   expect(await anaSocket.waitFor((e) => e.type === "doc.record" && e.seqNum === 1)).toEqual({
@@ -260,19 +229,14 @@ test("only a socket editing the file appends to its live document, and the other
     seqNum: 1,
     record: update,
   });
-  // What a socket missed is read over HTTP, by anyone who sees the file.
   expect((await stack.api(cy.jar, "GET", `/files/${doc.id}/live?from=1`)).body).toEqual({
     enabled: true,
     entries: [{ seqNum: 1, record: update }],
     more: false,
   });
-  // Ana heard it before that round trip began, so a copy sent to Cy would be here by now.
   expect(ofDoc(cySocket.received)).toEqual([]);
   expect((await stack.api(ana.jar, "GET", `/files/${bos.id}/live`)).status).toBe(404);
 
-  // Ana takes the file into her My files while Bo still has it open: once his check is stale,
-  // his next record is refused for good, and nothing of his reaches her document. Until then
-  // each record he sends expects a position the stream is not at, so none of them is written.
   const moved = await stack.api(ana.jar, "PATCH", `/nodes/${doc.id}`, { space: "personal" });
   expect(moved.status).toBe(200);
   let ref = 3;

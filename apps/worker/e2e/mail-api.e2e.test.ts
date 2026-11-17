@@ -54,9 +54,7 @@ describe("member isolation", () => {
 
     const anaBox = await createMailbox(db, org.id, "ana@acme.test", "personal");
     await grant(db, org.id, anaBox.id, ana.id);
-    // Same org, not granted to Ana.
     const beaBox = await createMailbox(db, org.id, "bea@acme.test", "personal");
-    // Another org entirely.
     const globexBox = await createMailbox(db, other.id, "hello@globex.test");
 
     const mine = await seedMessage(db, anaBox, {
@@ -116,7 +114,6 @@ describe("member isolation", () => {
     });
     expect(send.status).toBe(404);
 
-    // Nothing reached the outbox for mailboxes Ana cannot see, and nobody else's state changed.
     const leaked = await db
       .select()
       .from(schema.mailActions)
@@ -142,7 +139,6 @@ describe("outbox", () => {
       fromAddress: "billing@vendor.test",
       uid: 42,
     });
-    // The same message also sits in another folder (copied there in Apple Mail).
     const projects = await upsertFolder(db, {
       orgId: org.id,
       mailboxId: box.id,
@@ -246,7 +242,6 @@ describe("outbox", () => {
       return { actionId, messageIdHeader };
     };
     const { actionId, messageIdHeader } = await sendReply();
-    // The app shows the pending message under this id; a retry must not hand out another.
     expect(messageIdHeader).toMatch(/^<[0-9a-f-]{36}@hooli\.test>$/);
     expect(await sendReply()).toEqual({ actionId, messageIdHeader });
 
@@ -271,7 +266,6 @@ describe("outbox", () => {
       references: ["<first@client.test>", "<second@client.test>"],
     });
 
-    // After a reconnect the app asks how its send went; nobody else can.
     expect(await get(`/actions/${actionId}`, cookie)).toMatchObject({
       id: actionId,
       kind: "send",
@@ -317,8 +311,6 @@ test("a thread reads as chat: who wrote it, bubble or card, who was added, no st
     `/threads/${first.threadId}`,
     cookie,
   );
-  // The reply came from the shared address but not from Ana in Omni (no `sent_by_member_id`, as
-  // when another mail app sent it): the team's, not hers.
   expect(thread.messages).toMatchObject([
     { fromTeam: false, fromMe: false, display: "card", hasHtml: true, addedParticipants: [] },
     {

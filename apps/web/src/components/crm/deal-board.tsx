@@ -1,12 +1,3 @@
-// The deals board (ADR 0039 decision 1), after Attio's and Square's pipelines: one column per
-// stage, in the pipeline's order, on a sunk ground; each deal a raised card with its name and
-// value. Dragging a card to another column moves the deal there at once (`useMoveDeal` patches
-// every deals list) and puts it back if the request fails. React Aria's drag and drop gives it
-// the keyboard and screen readers too: a focused card's handle starts a move.
-//
-// Geometry: columns are 272px with 8px between them and 20px from the page's edges (the header's
-// gutter); a column's 8px padding holds its cards 8px apart, so a card's 12px padding puts its
-// text 20px in from the column's edge, under the column's title.
 import {
   useDragAndDrop,
   type DragAndDropHooks,
@@ -20,7 +11,6 @@ import { formatMoney, type CrmDeal, type CrmStage } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
-/** The drag type a card carries: the deal's id. */
 const DEAL_TYPE = "application/x-omni-deal";
 
 export function DealBoard(props: {
@@ -102,7 +92,6 @@ function Column({ stage, deals }: { stage: CrmStage; deals: CrmDeal[] }) {
   );
 }
 
-/** A column's cards drag out, and cards from any column drop in (on a card or between them). */
 function useColumnDragAndDrop(stage: CrmStage, deals: CrmDeal[]) {
   const move = useMoveDeal();
   const take = async (items: DropItem[]) => {
@@ -130,7 +119,6 @@ function useColumnDragAndDrop(stage: CrmStage, deals: CrmDeal[]) {
   return dragAndDropHooks satisfies DragAndDropHooks<CrmDeal>;
 }
 
-/** The column's total, when its deals with a value share one currency. */
 function sumValues(deals: CrmDeal[]) {
   const valued = deals.filter((deal) => deal.valueMinor !== null);
   if (!valued.length) return null;

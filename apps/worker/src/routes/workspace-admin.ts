@@ -1,7 +1,3 @@
-// The workspace admin surface for inboxes (ADR 0026): who is in the company and which inboxes
-// each can open, issuing a personal inbox to someone, and shared inboxes with their people. Owners
-// and admins of a company only; a member gets 403, a Personal space 404. Nothing here returns mail
-// or adds a grant on someone else's personal inbox: seeing that an inbox exists is not access.
 import {
   addMailboxMember,
   hasSharedGrant,
@@ -28,7 +24,6 @@ const manager: (c: Context<AppEnv>) => MailboxMembersActor = (c) => {
   return { memberId: id, orgId, manage: true };
 };
 
-/** The member of the active workspace named in the path, or 404. */
 async function pathMember(c: Context<AppEnv>) {
   const member = await orgMember(c.var.db, c.var.member.orgId, c.req.param("memberId") ?? "");
   if (!member) throw new HTTPException(404, { message: "no such member in this workspace" });
@@ -59,7 +54,6 @@ export async function keepLastInbox(c: Context<AppEnv>, mailboxId: string, membe
 }
 
 const sharedInboxBody = mailboxPlacement.extend({
-  /** The people who see it; at least one. */
   memberIds: z.array(z.string().min(1)).min(1).max(500),
 });
 
@@ -69,22 +63,16 @@ export const workspaceAdmin = new Hono<AppEnv>()
   .use("/workspace/inboxes", requireCompanyManager)
   .use("/workspace/shared-inboxes", requireCompanyManager)
 
-  /** Every member, oldest first, with the inboxes each can open. One call for People. */
   .get("/workspace/members", async (c) =>
     c.json({ members: await listWorkspaceMembers(c.var.db, c.var.member.orgId) }),
   )
 
-  /** One member's personal inboxes. */
   .get("/workspace/members/:memberId/inboxes", async (c) => {
     const member = await pathMember(c);
     const everyone = await listWorkspaceMembers(c.var.db, c.var.member.orgId);
     return c.json({ inboxes: everyone.find((m) => m.id === member.id)?.inboxes ?? [] });
   })
 
-  /**
-   * Issues a personal inbox to the member: they get the owner grant, the caller none. A member
-   * may have several. Idempotent per address; 409 when the address is someone else's or shared.
-   */
   .post(
     "/workspace/members/:memberId/inboxes",
     limitPerMember("provision"),
@@ -105,10 +93,6 @@ export const workspaceAdmin = new Hono<AppEnv>()
     },
   )
 
-  /**
-   * Every mailbox of the workspace. `orphaned` marks a personal inbox whose owner left: nobody
-   * can open it until an owner or admin deals with it.
-   */
   .get("/workspace/inboxes", async (c) => {
     const mailboxes = await listWorkspaceMailboxes(c.var.db, c.var.member.orgId);
     return c.json({
@@ -116,10 +100,6 @@ export const workspaceAdmin = new Hono<AppEnv>()
     });
   })
 
-  /**
-   * Creates a shared inbox seen by `memberIds`, who must be members here. Idempotent per address
-   * (a retry adds no one twice); 409 when the address is someone's personal inbox.
-   */
   .post(
     "/workspace/shared-inboxes",
     limitPerMember("provision"),
@@ -133,8 +113,6 @@ export const workspaceAdmin = new Hono<AppEnv>()
           throw new HTTPException(404, { message: "no such member in this workspace" });
         }
       }
-      // The first person takes the seat the mail service seeds the team with, so the caller is
-      // on it only if they named themselves.
       const result = await provisionMailbox(c, placement, {
         kind: "shared",
         ownerMemberId: first,
@@ -152,10 +130,6 @@ export const workspaceAdmin = new Hono<AppEnv>()
     },
   )
 
-  /**
-   * Who sees a shared inbox, oldest first: for owners and admins, and for anyone on it (as the
-   * route it replaces allowed). 404 for a personal one, or one the caller cannot see.
-   */
   .get("/workspace/shared-inboxes/:id/people", async (c) => {
     const { id, orgId, role } = c.var.member;
     const actor = { memberId: id, orgId, manage: canManage(role) };
@@ -164,7 +138,6 @@ export const workspaceAdmin = new Hono<AppEnv>()
     return c.json({ people });
   })
 
-  /** Adds someone. Idempotent: adding someone already on it changes nothing. */
   .put("/workspace/shared-inboxes/:id/people/:memberId", requireCompanyManager, async (c) =>
     answerMembership(
       c,
@@ -172,7 +145,6 @@ export const workspaceAdmin = new Hono<AppEnv>()
     ),
   )
 
-  /** Removes someone, unless it is the only inbox they can open. Idempotent otherwise. */
   .delete("/workspace/shared-inboxes/:id/people/:memberId", requireCompanyManager, async (c) => {
     const mailboxId = c.req.param("id");
     const memberId = c.req.param("memberId");

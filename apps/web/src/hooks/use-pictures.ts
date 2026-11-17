@@ -1,5 +1,3 @@
-// Your profile picture and the active workspace's logo. Each change refetches the session,
-// members and workspaces, so the new picture shows everywhere.
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   removeProfilePictureMutation,

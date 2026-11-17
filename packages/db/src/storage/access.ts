@@ -1,6 +1,3 @@
-// The three doors of Storage (ADR 0034 decision 3). A door is handed a node's chain (the node
-// and its ancestors) and answers what its holder may do with the node, or null when it opens
-// nothing. Every storage operation asks a door; nothing else decides access.
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
@@ -88,7 +85,6 @@ export const loadMember: (ex: Db, memberId: string) => Promise<StorageMember | n
     .from(members)
     .where(eq(members.id, memberId));
   if (!row) return null;
-  // Better Auth stores several roles as a comma-separated list.
   const admin = row.role.split(",").some((role) => ADMIN_ROLES.has(role.trim()));
   return { id: row.id, orgId: row.orgId, admin, personal: row.personal };
 };
@@ -172,7 +168,6 @@ export const grantDoor: (
   scopeOrgId?: string | null,
   underShareId?: string,
 ) => Door = (userId, scopeOrgId, underShareId) => {
-  /** The person's own member door onto a Shared node of a workspace they belong to. */
   async function asMember(ex: Db, node: NodeRow) {
     if (node.space !== "shared") return null;
     const [row] = await ex
@@ -225,7 +220,6 @@ export const grantDoor: (
     },
     root: async () => null,
     async actor(ex, orgId) {
-      // Their member in the node's workspace when they have one, else their oldest membership.
       const [row] = await ex
         .select({ id: members.id })
         .from(members)

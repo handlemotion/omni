@@ -1,6 +1,3 @@
-// Records live Jev answers for the triage scenarios: `pnpm --filter @omni/ai record` (under
-// Doppler, or with TYPESAFE_API_KEY set). Never part of `test` or CI. Sends only the invented
-// fixture threads in `fixtures/eml/triage-*.eml`; costs a fraction of a cent per run.
 /* oxlint-disable no-console -- a CLI report */
 import { writeFileSync } from "node:fs";
 import { createJevClient, jevTriageRequest, laneFor, triage } from "../src/index.ts";

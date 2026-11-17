@@ -1,7 +1,3 @@
-// Large, realistic mail built in memory for the benchmark. Shapes follow what real senders
-// emit: ESP newsletters (tables, inline styles, tracking pixels, base64 HTML), Outlook reply
-// chains (a header block per reply, no ">" quoting), Gmail chains (nested blockquotes), and
-// messages carrying many attachments.
 import { Buffer } from "node:buffer";
 
 const CRLF = "\r\n";

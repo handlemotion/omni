@@ -1,6 +1,3 @@
-// AI (ADR 0033): what each person in the workspace handles, which triage reads to hand a shared
-// inbox's customer messages to the right teammate, and what each shared inbox's tags are for.
-// Owners and admins only, like People. Tags themselves are added and renamed on Helpdesk.
 import { IconPencil, IconTrash } from "@/components/icons/central";
 import { useId, useState } from "react";
 import { Skeleton } from "skullet/react";
@@ -21,7 +18,6 @@ import { SettingsRow } from "./kit/settings-row";
 import { SettingsRowMenu } from "./kit/settings-row-menu";
 import { SettingsFormDialog } from "./kit/settings-stacked-dialog";
 
-/** The API's cap on a role or a tag's description. */
 const MAX_DESCRIPTION = 500;
 
 type Person = AiSettings["members"][number];
@@ -30,7 +26,6 @@ type Tag = Inbox["tags"][number];
 
 type Editing = { kind: "role"; person: Person } | { kind: "tag"; inbox: Inbox; tag: Tag } | null;
 
-// Skeleton stand-ins, the shape of what loads.
 const SAMPLE = {
   members: ["Ana Ortiz", "Bo Lindqvist", "Cy Mensah"].map((name, i) => ({
     id: `sample-${i}`,
@@ -173,7 +168,6 @@ function TagRow({ inbox, tag, onEdit }: { inbox: Inbox; tag: Tag; onEdit: () => 
   );
 }
 
-/** One long text over settings: a label and a writing area, Cancel and Save. */
 function DescriptionDialog(props: {
   title: string;
   label: string;

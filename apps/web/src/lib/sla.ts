@@ -1,7 +1,3 @@
-// A shared inbox's SLA settings (ADR 0023): response and resolution targets per priority, the
-// business hours they count in, and round-robin auto-assign. Anyone who sees the inbox reads
-// them; only owners and admins change them (403 otherwise). A change moves open conversations'
-// due times on the server, so their lists, counts and details refetch when it settles.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
@@ -12,14 +8,9 @@ export const slaSettingsQuery = (mailboxId: string) =>
     queryKey: keys.sla(mailboxId),
     queryFn: ({ signal }) =>
       call(api.mailboxes[":id"].sla.$get({ param: { id: mailboxId } }, { init: { signal } })),
-    // Settings change rarely, and the change that does invalidates this.
     staleTime: 5 * 60_000,
   });
 
-/**
- * A settings change: shown at once in the cached settings, put back if the request fails. `dues`
- * says whether it moves conversations' due times (targets and hours do; auto-assign does not).
- */
 function settingsMutation<V extends { mailboxId: string }>(
   client: QueryClient,
   request: (vars: V) => Promise<unknown>,

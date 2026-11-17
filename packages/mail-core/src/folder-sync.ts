@@ -1,7 +1,3 @@
-// Deciding how much of an IMAP folder a sync must read, from the position stored after the last
-// complete sync and what the server reports on SELECT. Pure, so the CONDSTORE shortcuts (which
-// GreenMail, our e2e server, does not advertise) are tested here.
-
 /** What the last complete sync saw. `highestModseq` is null when the server lacks CONDSTORE. */
 export interface FolderPosition {
   highestModseq: bigint | null;

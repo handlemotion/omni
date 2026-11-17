@@ -1,4 +1,3 @@
-// The workspace admin surface for inboxes (ADR 0026), for owners and admins.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createSharedInboxMutation,

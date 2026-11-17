@@ -20,7 +20,6 @@ export const callStructured: <S extends z.ZodType>(
   const message = await client.messages.create({
     model: request.model,
     max_tokens: request.maxTokens,
-    // Haiku 5.5 thinks adaptively by default; low effort keeps classification cheap.
     output_config: { effort: "low", format },
     system: request.system,
     messages: [{ role: "user", content: request.user }],

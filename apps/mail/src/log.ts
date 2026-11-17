@@ -1,9 +1,3 @@
-// One JSON line per event on stdout, for whatever log collector the host runs. Never log credentials or message bodies.
-//
-// Every line has `time`, `level` and `event`; children add `component`, `requestId`, `orgId`,
-// ids and `durationMs`. The Worker writes the same shape (`apps/worker/src/log.ts`), so one
-// request ID finds its lines in both.
-
 import { scrubString } from "@omni/mail-core/telemetry";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
@@ -50,9 +44,6 @@ export function createLogger(
 const replacer: (_key: string, value: unknown) => unknown = (_key, value) => {
   if (typeof value === "bigint") return value.toString();
   if (value instanceof Error) {
-    // `code` (ECONNRESET, ETIMEOUT, ...) tells a network fault from a server refusal at a glance.
-    // Nothing else: ImapFlow and Nodemailer errors can carry the server's full response. The
-    // message is scrubbed like a Sentry event: no addresses, query strings or database params.
     const { code } = value as { code?: unknown };
     return {
       name: value.name,

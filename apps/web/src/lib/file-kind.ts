@@ -1,6 +1,3 @@
-// What a stored file is, for its icon, its type badge and how it previews (ADR 0040). Read from
-// the name's extension first (what the person sees), then the type the browser gave at upload.
-
 export type FileKind =
   | "image"
   | "video"
@@ -18,7 +15,6 @@ export type FileKind =
 /** How a file previews; `none` shows its type and Download. */
 export type PreviewKind = "image" | "video" | "audio" | "pdf" | "text" | "csv" | "sheet" | "none";
 
-/** Rasters a `Blob` may be re-typed as for `<img>`. Never SVG: it is a document (ADR 0040). */
 const RASTER: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
@@ -37,10 +33,8 @@ const DOCUMENT = new Set(["doc", "docx", "pages", "odt", "rtf"]);
 const PRESENTATION = new Set(["ppt", "pptx", "key", "odp"]);
 const PLAIN = new Set(["txt", "log", "text", "env"]);
 const CSV = new Set(["csv", "tsv"]);
-/** XLSX alone previews (ADR 0043 decision 7); XLS, Numbers and ODS stay download-only. */
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-/** Code extensions and the Shiki grammar each one reads with. */
 const CODE: Record<string, string> = {
   js: "javascript",
   mjs: "javascript",
@@ -110,7 +104,6 @@ export function extensionOf(name: string) {
   return name.toLowerCase() === "dockerfile" ? "dockerfile" : "";
 }
 
-/** Checked in order: the first a file matches decides its kind and how it previews. */
 const RULES: {
   kind: FileKind;
   preview: PreviewKind;
@@ -127,7 +120,6 @@ const RULES: {
   { kind: "spreadsheet", preview: "none", matches: (e) => SPREADSHEET.has(e) },
   { kind: "document", preview: "none", matches: (e) => DOCUMENT.has(e) },
   { kind: "presentation", preview: "none", matches: (e) => PRESENTATION.has(e) },
-  // SVG and other image types: an image, with no preview (ADR 0040).
   { kind: "image", preview: "none", matches: (_, m) => m.startsWith("image/") },
 ];
 

@@ -1,5 +1,3 @@
-// Reading mail. Each hook subscribes to one query from `lib/mail-queries.ts`; route loaders
-// prefetch the same queries, so a hook on a freshly loaded route renders from cache.
 import {
   useInfiniteQuery,
   useQuery,
@@ -78,7 +76,6 @@ export function usePendingSends(threadId: string) {
 
 /** Mail search: one row per thread, best match first. Disabled for an empty query. */
 export function useSearch(q: string, mailbox?: string) {
-  // Keep the previous results on screen while the next query loads, so lists don't flash empty.
   return useQuery({ ...searchQuery(q, mailbox), placeholderData: keepPreviousData });
 }
 

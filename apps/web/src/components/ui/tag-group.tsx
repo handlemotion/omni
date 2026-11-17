@@ -30,7 +30,6 @@ export function Tag({ children, className, ...props }: TagProps) {
     <PrimitiveTag
       textValue={textValue}
       className={cx(
-        // A grey fill, no edge: recipients and picked options read as pills, not fields.
         "bg-accent outline-hidden",
         "inline-flex items-center gap-x-1.5 py-0.5 text-xs/5 forced-colors:outline",
         "*:[svg]:size-3 *:[svg]:shrink-0",
@@ -46,7 +45,6 @@ export function Tag({ children, className, ...props }: TagProps) {
         <>
           {children}
           {allowsRemoving && (
-            // A light × on the grey pill: muted until hovered.
             <Button slot="remove" className="text-muted-foreground hover:text-foreground">
               <IconX className="-me-0.5 size-3" />
             </Button>

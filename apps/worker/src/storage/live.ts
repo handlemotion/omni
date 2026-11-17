@@ -1,6 +1,3 @@
-// A file's live document (ADR 0043 decision 3 step 2): the records of its S2 stream, read by an
-// editor that joins or has missed some. Members only: the records go out over the workspace's
-// realtime socket, which a shared link's person does not have.
 import {
   storageLiveReadQuerySchema,
   storageLiveRecordSchema,
@@ -25,7 +22,6 @@ export const storageLive = new Hono<AppEnv>().get(
     const read = await basin.read(docStream(found.file.id), c.req.valid("query").from ?? 0);
     const entries: StorageLiveEntry[] = [];
     for (const { seqNum, body } of read.records) {
-      // Every record went through the socket's schema; one that does not parse is skipped.
       let parsed;
       try {
         parsed = storageLiveRecordSchema.safeParse(JSON.parse(body));

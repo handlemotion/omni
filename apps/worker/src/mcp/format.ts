@@ -1,6 +1,3 @@
-// Shapes every MCP tool returns (ADR 0029): people as `{ name, address }`, ISO times, a deep link
-// on every thread, and nothing internal (storage keys, other members' state). Results go out as
-// `structuredContent` plus the same JSON as text, which the spec and ChatGPT both ask for.
 import { TRIAGE_AUTO_FILE_CONFIDENCE, type Lane, type Participant } from "@omni/db";
 import { z } from "zod";
 

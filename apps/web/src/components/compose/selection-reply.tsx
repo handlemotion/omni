@@ -1,9 +1,3 @@
-// Selecting text in a message or note opens a small box on the selection: the passage, quoted,
-// and a field for the answer. Enter (or the arrow) puts the passage in a hidden reply, with
-// anything typed as its text; Cmd/Ctrl+Enter sends it to the team right away. Copied from
-// handlemotion/dorks (`Reply.tsx`, `SelectionReply`) onto Omni's primitives. The passage stays
-// highlighted (CSS Custom Highlight) while the box is open, since focusing the field clears the
-// real selection.
 import { useEffect, useRef, useState } from "react";
 import { IconArrowUp } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
@@ -35,7 +29,6 @@ export function SelectionReply({ threadId }: { threadId: string }) {
     if (!enabled) return;
     const onUp = (event: PointerEvent) => {
       if (event.button !== 0) return;
-      // The selection settles after pointerup (a double click selects the word then).
       requestAnimationFrame(() => {
         const selection = window.getSelection();
         if (!selection || selection.isCollapsed || !selection.rangeCount) return;
@@ -43,11 +36,9 @@ export function SelectionReply({ threadId }: { threadId: string }) {
         const source = (node: Node) =>
           (node instanceof Element ? node : node.parentElement)?.closest(`[${REPLY_SOURCE}]`);
         const start = source(range.startContainer);
-        // One message at a time: a passage across two has no single author to reply to.
         if (!start || start !== source(range.endContainer)) return;
         const quoted = quoteText(selection.toString());
         if (!quoted) return;
-        // Anchored on the selection's first line, so a long passage keeps the box on screen.
         const rect = range.getClientRects()[0] ?? range.getBoundingClientRect();
         setText("");
         setTarget({
@@ -122,7 +113,6 @@ export function SelectionReply({ threadId }: { threadId: string }) {
               value={text}
               onChange={(event) => setText(event.target.value)}
               onKeyDown={(event) => {
-                // Enter that confirms an IME candidate is part of typing, not a reply.
                 if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
                 event.preventDefault();
                 if (event.metaKey || event.ctrlKey) send();
@@ -130,7 +120,6 @@ export function SelectionReply({ threadId }: { threadId: string }) {
               }}
             />
             <TooltipTrigger delay={400}>
-              {/* Quiet: it attaches by default, so it is not the blue send. */}
               <Button
                 intent="ghost"
                 size="inset"

@@ -1,4 +1,3 @@
-// The workspace's AI settings (ADR 0033), for owners and admins.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { aiSettingsQuery, setRoleMutation, setTagDescriptionMutation } from "../lib/ai-settings.ts";
 

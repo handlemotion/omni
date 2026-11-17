@@ -68,40 +68,21 @@ import { useRealtimeConnection } from "@/hooks/use-realtime";
 import { useSession, useSignOut } from "@/hooks/use-session";
 import type { DnsRecord, Onboarding as OnboardingStatus, OnboardingDomain } from "@/lib/types";
 
-// Workspace setup in four short steps, one column each, the progress dots at the bottom:
-//
-// 1. Welcome: the workspace's name, the only field.
-// 2. Connect your inbox: one "Connect Google" button, which leaves for Google's consent screen and
-//    comes back here connected. A quiet "Use your own domain instead" opens the domain path: the
-//    domain, its DNS (Omni's ownership record, ADR 0010, then the mail records), then a mailbox.
-//    A domain that stays on its own mail host has no mail records, and its mailbox asks for the
-//    host's servers and the mailbox's password.
-// 3. Invite your team: emails, or skip.
-// 4. Plan, only where billing is on (ADR 0015): start the trial, then the inbox opens.
-//
-// Each step calls the API (ADR 0007), which saves how far setup got; an unfinished workspace
-// resumes on the first step not done.
-
 export function Onboarding() {
   const status = useOnboarding();
   const google = useGoogleAccounts();
-  // Google's way back to the inbox step, read once on this load.
   const googleReturn = useGoogleReturn();
-  // Decided once, from what the route loaded: finish the active workspace, or start a new one.
   const [resuming, setResuming] = useState(() => needsSetup(status.data?.organization));
-  // Only the workspace being set up: a new one has nothing saved until its first step.
   const data = resuming ? status.data : undefined;
   const pages = onboardingPages(status.data);
   const [page, setPage] = useState<OnboardingPage>(() => {
     if (!resuming || !status.data) return "Workspace";
     return googleReturn ? "Inbox" : resumePage(status.data);
   });
-  // The domain the Domain step chose, else the newest one: Records and Inboxes follow it.
   const [domainId, setDomainId] = useState<string>();
   const domains = data?.domains ?? [];
   const domain = domains.find((d) => d.id === domainId) ?? domains.at(-1);
   const finish = useFinish();
-  // One flat list: Continue is the next step, Back the one before, nothing in between.
   const index = pages.indexOf(page);
   const next = () => {
     const after = pages[index + 1];
@@ -136,7 +117,6 @@ export function Onboarding() {
   );
 }
 
-/** One step's page; each one's Continue calls `onDone` (or its own `on…`), Back the frame's. */
 function Step(props: {
   page: OnboardingPage;
   data: OnboardingStatus | undefined;
@@ -163,7 +143,6 @@ function Step(props: {
         />
       );
     case "Records":
-      // Reached only after a domain is chosen; a fresh load without one asks for it here.
       return domain ? (
         <DomainForm
           domain={domain}
@@ -212,7 +191,6 @@ function Step(props: {
   }
 }
 
-/** Marks setup complete and opens the inbox: the last step's button. */
 function useFinish() {
   const navigate = useNavigate();
   const finishSetup = useFinishSetup();
@@ -225,18 +203,8 @@ function useFinish() {
 
 const BackContext = createContext<(() => void) | undefined>(undefined);
 
-/**
- * Validation and failures go to a toast (top centre during setup), never under a field, so
- * nothing on the page shifts (dorks' onboarding). The buttons stay enabled: pressing one with
- * something missing says what. The same message twice replaces itself instead of stacking.
- */
 const notify = (message: string) => setupToast(message);
 
-/**
- * The frame every page shares, after dorks' onboarding: no rail or app chrome, one column in the
- * middle, the progress dots at the bottom, and the account in the top corner as the way out. The
- * dots and the column read the same `current`, so they cannot disagree.
- */
 function OnboardingPage(props: {
   pages: readonly OnboardingPage[];
   current: OnboardingPage;
@@ -250,8 +218,6 @@ function OnboardingPage(props: {
         <AccountSwitcher />
       </div>
       <BackContext.Provider value={props.onBack}>
-        {/* Keyed by page so each page enters on its own instead of morphing out of the last.
-            450px of content, as in dorks. */}
         <main
           key={props.current}
           className="mx-auto flex w-full max-w-136.5 flex-1 flex-col justify-center px-4 pt-20 pb-24 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-300 md:px-12"
@@ -278,11 +244,6 @@ function OnboardingPage(props: {
   );
 }
 
-/**
- * The signed-in account in the top corner, as the app sidebar's switcher: a plain trigger (avatar,
- * name, chevron) whose menu is the way out: back to the inbox or a workspace that's ready (setup
- * stays saved and resumes), and Log out.
- */
 function AccountSwitcher() {
   const session = useSession();
   const signOut = useSignOut();
@@ -295,11 +256,8 @@ function AccountSwitcher() {
       <Button
         intent="plain"
         aria-label={`Account, ${name}`}
-        // The sidebar switcher's trigger: hover, pressed and open share the accent fill.
         className="h-7 max-w-60 min-w-0 justify-start gap-2.5 rounded-sm px-1.5 [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]"
       >
-        {/* 16px: at that size an initial is a speck, so a person without a picture gets a plain
-            disc. */}
         <Avatar
           src={user.image ?? null}
           className="bg-accent outline-0 [--avatar-size:--spacing(4)]"
@@ -325,19 +283,12 @@ function AccountSwitcher() {
   );
 }
 
-/**
- * Heading, an optional line or two under it, the fields, then the step's buttons: Back (when there
- * is a page behind) and the primary one, both Omni's 32px buttons, centred (dorks' onboarding layout). The primary button is
- * never disabled: a page that isn't ready says why when it is pressed.
- */
 function PageForm(props: {
   title: string;
   description?: ReactNode;
   submit: string;
-  /** A second action, an outline button beside the primary one. Back then moves under them. */
   secondary?: ReactNode;
   isPending?: boolean;
-  /** Why the last submit failed. */
   problem?: string | null;
   onSubmit: () => void;
   children: ReactNode;
@@ -361,7 +312,6 @@ function PageForm(props: {
         </header>
         {props.children}
       </div>
-      {/* 40px over the buttons. Errors are toasts (`notify`), so nothing here moves. */}
       <div className="h-10" />
       <div className="flex items-center justify-center gap-2">
         {onBack && !props.secondary && (
@@ -385,7 +335,6 @@ function PageForm(props: {
   );
 }
 
-/** The workspace's name: the welcome page's only field. Read-only once the workspace exists. */
 function WorkspaceForm(props: { existing?: string; onDone: () => void }) {
   const createWorkspace = useCreateWorkspace();
   const [name, setName] = useState(props.existing ?? "");
@@ -417,13 +366,10 @@ function WorkspaceForm(props: { existing?: string; onDone: () => void }) {
   );
 }
 
-/** The domain's mail stays where it is: its own IMAP host, or Google (no mail records here). */
 const keepsHost = (d: OnboardingDomain) => d.provider === "imap" || d.provider === "gmail";
 
-/** Where a domain's mail is: at Google, or moving to Omni. */
 type Host = "google" | "omni";
 
-/** Lowercase, without a scheme, path or trailing dot: how the Worker stores a domain. */
 const plainDomain = (text: string) =>
   text
     .trim()
@@ -432,11 +378,6 @@ const plainDomain = (text: string) =>
     .replace(/\/.*$/, "")
     .replace(/\.$/, "");
 
-/**
- * The company's domain and where its mail is: at Google (its accounts connect one by one), or
- * moving to Omni. Editable on every visit: a different domain, or a different choice for one not
- * verified yet, replaces the claim; a verified one stays and the new one is added beside it.
- */
 function DomainStep(props: {
   domain: OnboardingDomain | undefined;
   googleAvailable: boolean;
@@ -446,7 +387,6 @@ function DomainStep(props: {
   const removeDomain = useRemoveDomain();
   const current = props.domain;
   const [text, setText] = useState(current?.domain ?? "");
-  // Until chosen: the domain's own, else Google where it is set up (known once that loads).
   const [chosen, setHost] = useState<Host>();
   const host: Host =
     chosen ??
@@ -474,7 +414,6 @@ function DomainStep(props: {
       );
     }
     try {
-      // A claim still waiting for DNS goes, so setup follows the new answer.
       if (current && current.status !== "verified") await removeDomain.mutateAsync(current.id);
       const added = await addDomain.mutateAsync(
         host === "google" ? { domain: name, host: "gmail" } : name,
@@ -521,10 +460,6 @@ function DomainStep(props: {
 const googleProblem = (outcome: GoogleOutcome | null) =>
   outcome?.kind === "error" ? googleErrorText(outcome.reason) : null;
 
-/**
- * The domain's inboxes: at Google, its accounts connect one by one and land here by address
- * (ADR 0024); moving to Omni (or on its own host), its mailboxes are created on the domain.
- */
 function InboxStep(props: {
   domain: OnboardingDomain | undefined;
   mailboxes: OnboardingStatus["mailboxes"];
@@ -552,10 +487,6 @@ function InboxStep(props: {
   );
 }
 
-/**
- * Says where an account connected from setup went when it is not this company's: its address is
- * on no domain the company claimed, so it opened in the person's Personal space (ADR 0024).
- */
 function useGoogleElsewhere(
   outcome: GoogleOutcome | null,
   mailboxes: OnboardingStatus["mailboxes"],
@@ -575,19 +506,12 @@ function useGoogleElsewhere(
   }, [told, id, mailboxes, domain]);
 }
 
-/**
- * The company's Google accounts, each connected with Google, then listed. Personal Gmail only
- * (ADR 0023): a shared support@ address goes through your own domain, so the copy doesn't promise
- * one.
- */
 function ConnectInboxForm(props: {
   mailboxes: OnboardingStatus["mailboxes"];
   problem: string | null;
   onDone: () => void;
 }) {
   const connect = useConnectGoogle("onboarding");
-  // An island of rows (dorks' connect step): each inbox connected, then rows to add one, at least
-  // three rows in all and always one to add, so the card never changes shape as it fills.
   const open = Math.max(1, 3 - props.mailboxes.length);
   return (
     <PageForm
@@ -622,7 +546,6 @@ function ConnectInboxForm(props: {
               disabled={connect.isPending}
               onClick={() => connect.mutate()}
             >
-              {/* No provider's mark until one is connected: Google is the first of several. */}
               <IconPlus aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate">Add account</span>
               <span className="text-muted-foreground transition-colors group-hover/row:text-foreground">
@@ -636,7 +559,6 @@ function ConnectInboxForm(props: {
   );
 }
 
-/** What each check is for. Ownership comes first: the domain is locked to you, and Purelymail adds it, only then. */
 const PURPOSES: { check: DnsRecord["check"]; purpose: string }[] = [
   { check: "ownership", purpose: "Prove you own it" },
   { check: "mx", purpose: "Receive mail" },
@@ -647,7 +569,6 @@ const PURPOSES: { check: DnsRecord["check"]; purpose: string }[] = [
 
 type Diagnostic = NonNullable<DnsRecord["diagnostic"]>;
 
-/** One record as the page shows it. Omni's challenge has no value once its one showing is gone. */
 interface ShownRecord {
   check: DnsRecord["check"];
   type: DnsRecord["type"];
@@ -656,11 +577,9 @@ interface ShownRecord {
   priority?: number;
   verified: boolean;
   challenge?: boolean;
-  /** What the domain's nameservers held at the last check, and why it is not passing yet. */
   diagnostic: Diagnostic | null;
 }
 
-/** Passing: the domain's own nameservers serve it (or, unchecked yet, the provider saw it). */
 const passes = (r: ShownRecord) => recordPasses(r);
 
 function shownRecords(domain: OnboardingDomain) {
@@ -681,7 +600,6 @@ function shownRecords(domain: OnboardingDomain) {
   return shown;
 }
 
-/** The domain's records by purpose, in order, and the first group not passing yet (-1: none). */
 function recordGroups(domain: OnboardingDomain) {
   const records = shownRecords(domain);
   const groups = PURPOSES.map((p) => ({
@@ -691,7 +609,6 @@ function recordGroups(domain: OnboardingDomain) {
   return { groups, current: groups.findIndex((g) => !g.records.every(passes)) };
 }
 
-/** Why a group isn't passing yet: the provider's refusal, then what the nameservers hold. */
 function groupProblems(
   domain: OnboardingDomain,
   group: ReturnType<typeof recordGroups>["groups"][number],
@@ -699,18 +616,11 @@ function groupProblems(
   return [
     ...(group.check === "ownership" && domain.addError ? [domain.addError] : []),
     ...group.records
-      // "Not found yet" is what the toast's title already says; only other reasons add to it.
       .filter((r) => r.diagnostic && !passes(r) && r.diagnostic.status !== "missing")
       .map((r) => diagnosticText(r.diagnostic!)),
   ];
 }
 
-/**
- * The domain's DNS, one page in two stages: its ownership records, then the provider's mail
- * records once ownership passes (Purelymail adds the domain only then). Every record of the open
- * stage is listed with its status; Continue checks, opens the next stage when ownership passes,
- * and moves on only when all pass.
- */
 function DomainForm(props: {
   domain: OnboardingDomain;
   organizationId: string;
@@ -724,22 +634,15 @@ function DomainForm(props: {
   const { groups } = recordGroups(domain);
   const ownershipRecords = groups.filter((g) => g.check === "ownership").flatMap((g) => g.records);
   const mailRecords = groups.filter((g) => g.check !== "ownership").flatMap((g) => g.records);
-  // A domain on its own mail host has no mail records; one moving to Purelymail gets them.
   const mailStage = !keepsHost(domain) || mailRecords.length > 0;
-  // Re-checked on its own while this page is open; results arrive over realtime.
   useRealtimeConnection(props.organizationId);
   useDomainWatch(domain.id, !domainReady(domain));
-  // Continue checks first: it moves on once every record passes, else a toast says which isn't
-  // passing yet and why. Nothing moves on without it.
   const checkAndContinue = () => {
     setProblem(null);
-    // A domain on its own host is checked even when it passes: the check is what moves it to
-    // Purelymail once this install has a Purelymail token (then its mail records open here).
     if (domainReady(domain) && domain.provider !== "imap") return props.onDone();
     checkDomain.mutate(domain.id, {
       onSuccess: (fresh) => {
         if (domainReady(fresh)) return props.onDone();
-        // Ownership just passed: the mail records stage opens, and says what to add.
         if (!owned && ownershipReady(fresh)) return;
         const group = recordGroups(fresh).groups.find((g) => !g.records.every(passes));
         if (!group) return;
@@ -756,8 +659,6 @@ function DomainForm(props: {
     setProblem(null);
     rotateChallenge.mutate(domain.id, { onError: (error) => setProblem(error.message) });
   };
-  // Domain Connect: the one-click URL carries the challenge value, which exists only while it is
-  // fresh; otherwise a new value (and URL) is made first.
   const setUpAutomatically = () => {
     setProblem(null);
     if (domain.domainConnect?.url) return window.location.assign(domain.domainConnect.url);
@@ -773,7 +674,6 @@ function DomainForm(props: {
     });
   };
 
-  // One stage at a time: ownership, then (once it passes) the mail records it unlocks.
   const mailOpen = owned && mailStage;
   const records = mailOpen ? mailRecords : ownershipRecords;
 
@@ -806,15 +706,11 @@ function DomainForm(props: {
       <DnsRecordsTable
         {...tableData(records)}
         renderValue={(record) => {
-          // Omni's ownership value is kept only as a hash: in DNS already, there is nothing to copy
-          // or replace; missing or wrong, the field makes a new one.
           const shown = records.find((r) => r.challenge);
           if (!shown || shown.name !== record.name || shown.value !== null) return undefined;
           return passes(shown) ? (
             <span className="text-xs/4 text-foreground">In your DNS</span>
           ) : (
-            // Styled like every other value, with its action where their copy button sits:
-            // the line's 12px gap, then a 26px icon button.
             <span className="flex min-w-0 items-center justify-end gap-3">
               <span className="text-xs/4 text-foreground">Hidden</span>
               <TooltipTrigger delay={300}>
@@ -838,7 +734,6 @@ function DomainForm(props: {
   );
 }
 
-/** The stage's records and their problems, in the records table's shape (Domain SDK's). */
 function tableData(records: ShownRecord[]) {
   const rows = records.map((record) => {
     const done = passes(record);
@@ -849,8 +744,7 @@ function tableData(records: ShownRecord[]) {
       value:
         record.value === null
           ? ""
-          : // A merged SPF record replaces the one already there.
-            (record.diagnostic?.suggestion ??
+          : (record.diagnostic?.suggestion ??
             (record.priority !== undefined ? `${record.priority} ${record.value}` : record.value)),
       purpose: record.check === "ownership" ? "ownership" : "routing",
       required: true,
@@ -875,11 +769,6 @@ function tableData(records: ShownRecord[]) {
   } satisfies { records: TableRecord[]; issues: DomainIssue[] };
 }
 
-/**
- * The DNS host's name in the description, linking to its own guide, with where records are added
- * there in a tooltip (hover or focus). It explains the records the user is about to add, so it
- * lives in the sentence that asks for them, not as a paragraph of its own.
- */
 function DnsHostLink(props: { host: NonNullable<OnboardingDomain["dnsHost"]> }) {
   return (
     <TooltipTrigger delay={300}>
@@ -891,7 +780,6 @@ function DnsHostLink(props: { host: NonNullable<OnboardingDomain["dnsHost"]> }) 
   );
 }
 
-/** DNS hosts' logos (svgl) for the one-click button; a host without one shows its name only. */
 const PROVIDER_LOGOS: Record<string, typeof Cloudflare> = { Cloudflare };
 
 function ProviderLogo(props: { name: string }) {
@@ -899,16 +787,10 @@ function ProviderLogo(props: { name: string }) {
   return Logo ? <Logo width={15} height={15} aria-hidden /> : null;
 }
 
-/** Why a record is not passing yet, and what the nameservers hold instead. */
 function diagnosticText({ message, found }: Diagnostic) {
   return found.length > 0 ? `${message} Found: ${found.join(", ")}` : message;
 }
 
-/**
- * Asks the Worker to keep checking the domain while this page is open: once on open, again about
- * every minute (the watch lapses without it), and with a reset when the tab comes back into focus,
- * since that is when someone has just saved a record at their DNS host.
- */
 function useDomainWatch(domainId: string, pending: boolean) {
   useEffect(() => {
     if (!pending) return;
@@ -930,16 +812,12 @@ function useDomainWatch(domainId: string, pending: boolean) {
 
 function MailboxesForm(props: {
   domain: OnboardingDomain;
-  /** The domain stays on its own mail host: the mailbox signs in to its servers, with its password. */
   ownHost: boolean;
-  /** Mailboxes saved earlier: setup that resumes or comes back here shows the first, fixed. */
   created: { address: string }[];
   onDone: () => void;
 }) {
   const createMailboxes = useCreateMailboxes();
   const suffix = `@${props.domain.domain}`;
-  // Setup makes one mailbox; more come later, from settings. One made already is shown as it is
-  // and not sent again.
   const [saved] = useState(() =>
     props.created.find((m) => m.address.endsWith(suffix))?.address.slice(0, -suffix.length),
   );
@@ -1020,10 +898,6 @@ function MailboxesForm(props: {
 
 type Billing = Extract<NonNullable<ReturnType<typeof useBilling>["data"]>, { enabled: true }>;
 
-/**
- * Monthly and yearly, at Stripe's own prices, so the page shows what will be charged. Without a
- * price (Stripe unreachable just now) the plan is still offered; its amount shows on Stripe.
- */
 function planChoices(billing: Billing) {
   const { month, year } = billing.prices;
   const choices: { id: Interval; label: string; description: string }[] = [
@@ -1034,7 +908,6 @@ function planChoices(billing: Billing) {
     },
   ];
   if ((billing.intervals as readonly string[]).includes("year")) {
-    // Months of the monthly price the yearly one saves, when it saves whole months.
     const free = month && year ? Math.floor((month.amount * 12 - year.amount) / month.amount) : 0;
     choices.push({
       id: "year",
@@ -1047,18 +920,11 @@ function planChoices(billing: Billing) {
   return choices;
 }
 
-/** Stands in for the plan's prices while they load, so the skeleton has the page's shape. */
 const SAMPLE_CHOICES = [
   { id: "month", label: "Monthly", description: "$19 a month" },
   { id: "year", label: "Yearly", description: "$190 a year, 2 months free" },
 ] as const;
 
-/**
- * The plan (ADR 0015). Every new workspace starts on the free trial of the plan it picks: no card,
- * no Stripe page, setup just moves on, and a card is due before the trial ends. A workspace that
- * has had its trial (or a deployment without one) pays on Stripe's page, which returns here.
- * Shown only while the workspace has no plan; the page is passed over otherwise.
- */
 function PlanForm(props: { finishing: boolean; finishProblem: string | null; onDone: () => void }) {
   const billing = useBilling();
   const startTrial = useStartTrial();
@@ -1093,9 +959,6 @@ function PlanForm(props: { finishing: boolean; finishProblem: string | null; onD
       >
         {(choices) => (
           <ChoiceBox
-            // Optical: other pages' first field starts with a label's text (and its line slack);
-            // this one starts with a border. 4px more puts 35px of ink under the description, as
-            // there.
             className="mt-1"
             aria-label="Plan"
             selectionMode="single"
@@ -1117,28 +980,19 @@ function PlanForm(props: { finishing: boolean; finishProblem: string | null; onD
   );
 }
 
-/**
- * Invites each address into the new workspace, each with their own inbox on a domain on Omni's
- * host, or skips. On the
- * last step (no plan to pick), setup finishes and the inbox opens.
- */
 function InviteForm(props: {
   finishing: boolean;
   finishProblem: string | null;
   onDone: () => void;
 }) {
   const invite = useInviteWithInbox();
-  // On a domain on Omni's host, each teammate gets their own inbox at the name they're invited
-  // with (ADR 0026); elsewhere they connect theirs after joining.
   const setup = useOnboarding().data;
   const hosted = setup?.domains.find(
     (d) => d.provider === "purelymail" && d.status === "verified" && d.added,
   );
-  // Otherwise the shared inboxes set up here are the team's, and an invitation needs one.
   const sharedInboxIds = hosted
     ? []
     : (setup?.mailboxes ?? []).filter((m) => m.kind === "shared").map((m) => m.id);
-  // Three fields to start: most teams invite a few people at once.
   const [emails, setEmails] = useState(["", "", ""]);
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -1152,7 +1006,6 @@ function InviteForm(props: {
     if (wrong) return notify(`${wrong} isn't an email address.`);
     setSending(true);
     try {
-      // Each address leaves the list once invited, so a retry after an error sends only the rest.
       for (const email of emails.map((e) => e.trim()).filter(Boolean)) {
         const localPart = email.split("@")[0] ?? "";
         await invite.mutateAsync({
@@ -1197,7 +1050,6 @@ function InviteForm(props: {
             aria-label={`Email ${i + 1}`}
             value={value}
             onChange={set}
-            // The first field on arrival; a field just added after that.
             autoFocus={emails.length <= 3 ? i === 0 : i === emails.length - 1}
           >
             <Input placeholder="teammate@acme.com" />
@@ -1208,7 +1060,6 @@ function InviteForm(props: {
   );
 }
 
-/** A labeled list of inputs; the step's "Add another" button grows it. */
 function InputList(props: {
   label: string;
   optional?: boolean;

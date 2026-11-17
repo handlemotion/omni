@@ -1,6 +1,3 @@
-// Internal notes on a helpdesk conversation (ADR 0021): never sent, shown in the timeline to
-// everyone who sees the inbox. A note lives in its conversation's `notes`, so each change edits
-// that one cache entry at once and puts it back if the request fails.
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
@@ -9,7 +6,6 @@ import type { Conversation, Note } from "./types.ts";
 /** Marks a note shown before the server answered; its id is not a real note's yet. */
 export const PENDING_NOTE_PREFIX = "pending:";
 
-/** Notes go out in the order they were written, behind any conversation change still queued. */
 const scope = { id: "mail-actions" };
 
 async function snapshotConversation(client: QueryClient, threadId: string) {
@@ -24,7 +20,6 @@ function setNotes(client: QueryClient, threadId: string, fn: (notes: Note[]) => 
   );
 }
 
-/** Puts the conversation back as it was before the change, if it was loaded. */
 function restoreConversation(
   client: QueryClient,
   threadId: string,
@@ -80,7 +75,6 @@ export const addNoteMutation = (client: QueryClient) =>
       setNotes(client, threadId, (notes) =>
         notes.map((n) => (n.id === `${PENDING_NOTE_PREFIX}${localId}` ? note : n)),
       ),
-    // The timeline's note event and the list's activity come from the server.
     onSettled: (_data, _error, { threadId }) =>
       void client.invalidateQueries({ queryKey: keys.thread(threadId) }),
   });
@@ -131,7 +125,6 @@ export const deleteNoteMutation = (client: QueryClient) =>
       restoreConversation(client, threadId, context?.before),
     onSettled: (_data, _error, { threadId }) => {
       void client.invalidateQueries({ queryKey: keys.thread(threadId) });
-      // A mention notification about it is gone too.
       void client.invalidateQueries({ queryKey: keys.notifications() });
     },
   });

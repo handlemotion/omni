@@ -1,5 +1,3 @@
-// URLs the UI puts straight into the DOM (iframe `src`, download links), built from the typed
-// client so a renamed route is a type error here. All are same-origin and use the session cookie.
 import { api } from "./api.ts";
 import { withWorkspace } from "./current-workspace.ts";
 
@@ -36,7 +34,6 @@ export function attachmentUrl(threadId: string, attachmentId: string) {
 
 /** A stored file's bytes (ADR 0034): always a download, never rendered on our origin. */
 export function storageFileUrl(fileId: string) {
-  // Downloads and previews load it themselves, with no header: the URL names the workspace.
   return withWorkspace(api.storage.files[":id"].content.$url({ param: { id: fileId } }).toString());
 }
 

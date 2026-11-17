@@ -18,10 +18,8 @@ import {
 } from "@/hooks/use-session.ts";
 import { isServerPath, safeRedirect } from "@/lib/session.ts";
 
-/** How long the same address waits before Continue mails it another link. */
 const RESEND_AFTER_MS = 30_000;
 
-// Figma: Omni, frame "/" (node 1:13).
 export function SignIn({ redirect }: { redirect?: string }) {
   const router = useRouter();
   const magicLink = useSignInMagicLink();
@@ -29,14 +27,10 @@ export function SignIn({ redirect }: { redirect?: string }) {
   const methods = useSignInMethods();
   const google = useSignInGoogle();
   const [email, setEmail] = useState("");
-  // The address a link was last asked for, and when. A second Continue (or Enter) while the
-  // first is still sending, or just after, would mail a second, different link: the form shows no
-  // sent state, so a person who sees nothing happen presses again.
   const lastSend = useRef<{ email: string; at: number } | null>(null);
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-surface">
-      {/* The bottom padding lifts the card a little above center, where it looks centered. */}
       <div className="flex h-137.5 w-100 flex-col pb-12">
         <Card className="flex-1 justify-between gap-0 p-6">
           <div className="flex flex-col gap-5">
@@ -55,11 +49,7 @@ export function SignIn({ redirect }: { redirect?: string }) {
                 const last = lastSend.current;
                 if (last?.email === email && Date.now() - last.at < RESEND_AFTER_MS) return;
                 lastSend.current = { email, at: Date.now() };
-                magicLink.mutate(
-                  { email, redirect },
-                  // A failed send can be retried at once.
-                  { onError: () => (lastSend.current = null) },
-                );
+                magicLink.mutate({ email, redirect }, { onError: () => (lastSend.current = null) });
               }}
             >
               <TextField
@@ -102,7 +92,6 @@ export function SignIn({ redirect }: { redirect?: string }) {
                 <IconKey />
                 Using a Passkey
               </Button>
-              {/* Shown only when the deployment has a Google OAuth client configured. */}
               {methods.data?.google && (
                 <Button
                   intent="outline"

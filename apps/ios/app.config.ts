@@ -1,7 +1,5 @@
 import type { ExpoConfig } from "expo/config";
 
-// Everything install-specific comes from the environment (see `.env.example`), so a self-hosted
-// build only sets variables. The scheme must be listed in the Worker's AUTH_TRUSTED_ORIGINS.
 const scheme = process.env.OMNI_IOS_SCHEME || "omni";
 
 const config: ExpoConfig = {

@@ -1,8 +1,3 @@
-// Who hears about a new comment (ADR 0043 decision 4): the file's owner (My files) or uploader
-// (Shared), and everyone who already wrote in the comment's thread, each only while a member of
-// the file's workspace, since the notification opens the file from that workspace's Storage. The
-// author is never told about their own comment. One notification per comment per person, however
-// often it runs.
 import { and, eq, inArray, or } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
@@ -44,7 +39,6 @@ export const notifyComment: (
         .from(storageComments)
         .where(or(eq(storageComments.id, input.rootId), eq(storageComments.parentId, input.rootId)))
     : [];
-  // My files is its owner's alone: the thread's other writers reached it through a grant.
   const candidates = [owner, ...(node.space === "shared" ? writers.map((w) => w.id) : [])];
   const wanted = [
     ...new Set(candidates.filter((id): id is string => !!id && id !== input.authorMemberId)),

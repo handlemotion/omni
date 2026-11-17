@@ -1,8 +1,3 @@
-// The file lock (ADR 0036 decision 6), for members only. A locked file cannot be renamed, moved,
-// trashed or deleted for good, and a folder holding one cannot be trashed: `tree.ts` and
-// `trash.ts` refuse those with `locked`. A lock is a row in `storage_locks`. Storage does not know
-// why a file is locked; a caller such as a signed contract does. Deleting the workspace still
-// deletes locked files: the lock cascades with its node.
 import { eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageLocks, storageNodes } from "../schema/storage.ts";
@@ -11,7 +6,6 @@ import { inTrash, lockTree, orgOfNode, toNode } from "./core.ts";
 import { nextRevision } from "./revision.ts";
 import { keepUpdatedAt, reach, type NodeResult } from "./tree.ts";
 
-/** A lock taken or lifted changes what a sync client may do with the file: a new revision. */
 async function bump(tx: Db, orgId: string, nodeId: string) {
   const revision = await nextRevision(tx, orgId);
   await tx
@@ -21,26 +15,17 @@ async function bump(tx: Db, orgId: string, nodeId: string) {
   return revision;
 }
 
-export type StorageLockResult =
-  | NodeResult
-  /** Only a file is locked. */
-  | { status: "not_a_file" };
+export type StorageLockResult = NodeResult | { status: "not_a_file" };
 
 const NOT_FOUND = { status: "not_found" } as const;
 const FORBIDDEN = { status: "forbidden" } as const;
 
 export function lockOperations(db: Db, door: Door, memberId: string) {
   return {
-    /**
-     * Locks a live file the member reaches. Locking it again changes nothing and keeps who
-     * locked it first. To lock in the same transaction as another write, call it on the member
-     * door opened with that transaction: `forMember(tx, memberId).storage.lock(nodeId)`.
-     */
     lock(nodeId: string) {
       return db.transaction<StorageLockResult>(async (tx) => {
         const orgId = await orgOfNode(tx, nodeId);
         if (!orgId) return NOT_FOUND satisfies StorageLockResult;
-        // The tree lock orders it with a trash or move that checked for locked files.
         await lockTree(tx, orgId);
         const found = await reach(tx, door, nodeId);
         if (!found || inTrash(found.chain)) return NOT_FOUND satisfies StorageLockResult;
@@ -62,7 +47,6 @@ export function lockOperations(db: Db, door: Door, memberId: string) {
       });
     },
 
-    /** Makes it an ordinary file again. Owners and admins only; unlocking twice is fine. */
     unlock(nodeId: string) {
       return db.transaction<NodeResult>(async (tx) => {
         const orgId = await orgOfNode(tx, nodeId);

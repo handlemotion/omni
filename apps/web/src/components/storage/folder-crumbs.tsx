@@ -1,6 +1,3 @@
-// A folder page's title is its place: the top (a space, or the shared folder a link opens), then
-// each folder down to this one, in the title's size. Past three levels the middle folds into a
-// menu, and the last crumb gives way first when the header runs out of room.
 import { useNavigate } from "@tanstack/react-router";
 import { IconEllipsis, IconFolder } from "@/components/icons/central";
 import { Breadcrumbs, BreadcrumbsItem } from "@/components/ui/breadcrumbs";

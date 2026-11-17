@@ -1,5 +1,3 @@
-// System writers for the mail service. They are not member-scoped: only trusted background code
-// calls them, never a route handling a member's request. Each one is idempotent.
 import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import type { ActionPayload, MailActionKind } from "@omni/contracts";
@@ -79,8 +77,6 @@ export async function upsertMessage(db: Db, input: NewMessage & { attachments?: 
       .insert(messages)
       .values({
         ...message,
-        // Our own send: the teammate who queued it. Read from the outbox rather than passed in,
-        // so the Sent copy found by a sync (or a full re-sync) records it as well.
         sentByMemberId: sql`(select ${mailActions.memberId} from ${mailActions}
           where ${mailActions.mailboxId} = ${message.mailboxId} and ${mailActions.kind} = 'send'
             and ${mailActions.payload} ->> 'messageId' = ${message.messageIdHeader}

@@ -1,6 +1,3 @@
-// What sanitized mail HTML loads: remote images through the proxy, inline (cid:) images and
-// attachments by content hash, and the HTML document itself. All need a signed-in member; mail
-// objects are served only when `forMember` (or its member-scoped helpers) can see them.
 import { findMemberAttachmentByHash, findMemberMessageHtml } from "@omni/db";
 import { codeForStatus } from "@omni/contracts";
 import { domainLogoSource, logoSource } from "@omni/mail-core/sender-logo";
@@ -46,7 +43,6 @@ export const assets = new Hono<AppEnv>()
       const result = await proxyImage(c.req.valid("query").url, {
         dohUrl: config.IMAGE_PROXY_DOH_URL,
         testAllowOrigin: config.IMAGE_PROXY_TEST_ALLOW_ORIGIN,
-        // Each miss is an outbound fetch on the member's behalf; cached images are free.
         beforeFetch: () => checkRateLimit(c.env, config, "imageProxy", member.id),
       });
       if (result instanceof Response) return result;
@@ -55,10 +51,6 @@ export const assets = new Hono<AppEnv>()
     },
   )
 
-  /**
-   * A sender's avatar picture: `?address=` (their company's logo, or their Gravatar for webmail)
-   * or `?domain=` (a company's logo). 404 when there is none; the caller shows initials.
-   */
   .get(
     "/sender-logo",
     zValidator(
@@ -96,7 +88,6 @@ export const assets = new Hono<AppEnv>()
     return attachmentResponse(object, file);
   })
 
-  /** The sanitized HTML of one message, for a sandboxed iframe. No script can run in it. */
   .get("/threads/:id/messages/:messageId/html", async (c) => {
     const htmlR2Key = await findMemberMessageHtml(
       c.var.db,
@@ -113,11 +104,6 @@ export const assets = new Hono<AppEnv>()
         "content-type": "text/html; charset=utf-8",
         "x-content-type-options": "nosniff",
         "referrer-policy": "no-referrer",
-        // Images only from our proxy and attachments; inline styles are the sanitizer's output.
-        // The sandbox keeps our origin (allow-same-origin) so those image requests carry the
-        // session cookie; an opaque origin is cross-site, gets no cookie, and every image 401s.
-        // Nothing can run with that origin: no allow-scripts, no script-src, and the HTML was
-        // sanitized on save. Forms, plugins and top-level navigation stay off.
         "content-security-policy": `default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors ${frameAncestors}; sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox`,
         "cache-control": "private, max-age=3600",
       },

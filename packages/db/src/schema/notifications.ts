@@ -1,4 +1,3 @@
-// Platform (ADR 0035): a member's preferences, their phones, and their notifications.
 import { sql } from "drizzle-orm";
 import { index, integer, jsonb, pgEnum, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 import { members } from "./auth.ts";
@@ -12,14 +11,8 @@ export const notificationKind = pgEnum("notification_kind", [
   "customer_reply",
   "sla_at_risk",
   "sla_breached",
-  /** A teammate left a note on a shared conversation you take part in (assignee, earlier notes). */
   "note",
-  /** Someone joined your workspace; no thread. `actor_member_id` is the new member. */
   "member_joined",
-  /**
-   * Someone commented on a file you own or on a comment thread you take part in (ADR 0043
-   * decision 4); no thread. `data` names the file and the comment.
-   */
   "comment",
 ]);
 

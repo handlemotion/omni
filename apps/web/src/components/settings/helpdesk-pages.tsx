@@ -1,11 +1,3 @@
-// Settings for a shared inbox's helpdesk (ADR 0021, ADR 0023), one inbox at a time:
-// - Assignment: round-robin new customer conversations among the people on the inbox.
-// - Response targets: per priority, how soon the first reply, each next reply and the resolution
-//   are due. A priority without targets has no due times.
-// - Business hours: when the targets count, or around the clock.
-// - Tags: the inbox's labels for conversations.
-// Everyone on the inbox reads these; owners and admins change assignment, targets and hours (the
-// API answers 403 otherwise). Anyone on the inbox manages its tags.
 import { IconPencil, IconTrash } from "@/components/icons/central";
 import { parseTime, Time } from "@internationalized/date";
 import { useMemo, useState } from "react";
@@ -54,7 +46,6 @@ import { SettingsToggleRow } from "./kit/settings-toggle-row";
 import { SettingsValueRow } from "./kit/settings-value-row";
 import { isManager } from "./workspace-pages";
 
-/** Most urgent first, as an agent reads them. */
 const PRIORITY_ORDER: readonly Priority[] = ["urgent", "high", "normal", "low"];
 const PRIORITY_LABELS: Record<Priority, string> = {
   urgent: "Urgent",
@@ -63,7 +54,6 @@ const PRIORITY_LABELS: Record<Priority, string> = {
   low: "Low",
 };
 
-/** The shared inboxes the signed-in member is on, in the active workspace. */
 function useSharedInboxes() {
   const { member } = useMember();
   const mailboxes = useMailboxes();
@@ -102,7 +92,6 @@ export function HelpdeskPage() {
               value={inbox.id}
               options={inboxes.map((candidate) => ({
                 value: candidate.id,
-                // The full address: two domains can share a local part ("support").
                 label: candidate.address,
               }))}
               onValueChange={setChosen}
@@ -115,7 +104,6 @@ export function HelpdeskPage() {
   );
 }
 
-// Skeleton stand-ins, the shape of what loads.
 const SAMPLE_SETTINGS = {
   autoAssign: false,
   businessHours: null,
@@ -332,8 +320,6 @@ function InboxSettings({ mailboxId }: { mailboxId: string }) {
   );
 }
 
-// Durations -------------------------------------------------------------------------------------
-
 type Unit = "minutes" | "hours" | "days";
 const UNIT_MINUTES: Record<Unit, number> = { minutes: 1, hours: 60, days: 1440 };
 const UNITS: { value: Unit; label: string }[] = [
@@ -342,7 +328,6 @@ const UNITS: { value: Unit; label: string }[] = [
   { value: "days", label: "days" },
 ];
 
-/** Minutes as the fewest words: "30 min", "4 h", "1 h 30 min", "2 d". */
 function formatMinutes(total: number) {
   const days = Math.floor(total / 1440);
   const hours = Math.floor((total % 1440) / 60);
@@ -354,7 +339,6 @@ function formatMinutes(total: number) {
   );
 }
 
-/** "First reply 1 h · Resolve 2 d": the targets that are set, in the order they fall due. */
 function targetsSummary(policy: SlaPolicy) {
   const parts = [
     policy.firstResponseMinutes && `First reply ${formatMinutes(policy.firstResponseMinutes)}`,
@@ -364,7 +348,6 @@ function targetsSummary(policy: SlaPolicy) {
   return parts.length ? parts.join(" · ") : "None";
 }
 
-/** A target as the dialog edits it: a whole number of the largest unit that fits exactly. */
 const toAmount: (minutes: number | null | undefined) => { amount: number; unit: Unit } = (
   minutes,
 ) => {
@@ -384,7 +367,6 @@ const TARGET_FIELDS = [
 ] as const;
 type TargetKey = (typeof TARGET_FIELDS)[number]["key"];
 
-/** One priority's three targets; all empty stops tracking it. */
 function TargetsDialog(props: {
   mailboxId: string;
   priority: Priority;
@@ -468,10 +450,7 @@ function TargetsDialog(props: {
   );
 }
 
-// Business hours --------------------------------------------------------------------------------
-
 type BusinessHours = NonNullable<SlaSettings["businessHours"]>;
-/** Monday first, as a work week reads; the API counts from Sunday (0). */
 const WEEK = [
   { day: 1, label: "Monday", short: "Mon" },
   { day: 2, label: "Tuesday", short: "Tue" },
@@ -482,10 +461,8 @@ const WEEK = [
   { day: 0, label: "Sunday", short: "Sun" },
 ] as const;
 
-/** "Mon–Fri 9:00–17:00", "Always", or each distinct day listed. */
 function hoursSummary(hours: BusinessHours | null) {
   if (!hours) return "Always";
-  // Days that share hours read as one run: "Mon–Fri 9:00–17:00 · Sat 10:00–14:00".
   const runs: { from: string; to: string; span: string }[] = [];
   for (const { day, short } of WEEK) {
     const windows = hours.windows.filter((w) => w.day === day);
@@ -503,7 +480,6 @@ function hoursSummary(hours: BusinessHours | null) {
 
 const trimHour = (time: string) => time.replace(/^0(\d)/, "$1");
 
-/** Every IANA zone the browser knows, the inbox's own first if the browser lacks it. */
 function useTimeZones(current: string) {
   return useMemo(() => {
     const zones = Intl.supportedValuesOf("timeZone");
@@ -518,17 +494,12 @@ interface DayHours {
   end: Time;
 }
 
-/** "24:00" (the end of the day) edits as midnight, and midnight as an end saves as "24:00". */
 const toTime = (value: string) => (value === "24:00" ? new Time(0, 0) : parseTime(value));
 const fromTime = (time: Time, end: boolean) => {
   const text = `${String(time.hour).padStart(2, "0")}:${String(time.minute).padStart(2, "0")}`;
   return end && text === "00:00" ? "24:00" : text;
 };
 
-/**
- * When the inbox is open: a time zone and one span per day, or around the clock. A day with
- * split hours (two windows) edits as its first; saving keeps the holidays.
- */
 function HoursDialog(props: {
   mailboxId: string;
   hours: BusinessHours | null;
@@ -561,8 +532,6 @@ function HoursDialog(props: {
     start: fromTime(days[day]!.start, false),
     end: fromTime(days[day]!.end, true),
   }));
-  // No open day isn't "never open": the SLA math counts every minute for an empty schedule
-  // (`addBusinessMinutes`), so ask for a day or around the clock instead.
   const invalid = windows.length === 0 || windows.some((w) => w.start >= w.end);
   const options = {
     onSuccess: props.onClose,
@@ -650,8 +619,6 @@ function HoursDialog(props: {
     </SettingsFormDialog>
   );
 }
-
-// Tags ------------------------------------------------------------------------------------------
 
 function AddTagDialog({ mailboxId, onClose }: { mailboxId: string; onClose: () => void }) {
   const create = useCreateTag();

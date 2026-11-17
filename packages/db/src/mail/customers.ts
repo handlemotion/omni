@@ -1,6 +1,3 @@
-// Customers (ADR 0021): the people who write to an org's shared inboxes, keyed by address and
-// filled on ingest. Members see a customer only through a conversation they can see, so the
-// profile, the history and autocomplete never reveal who wrote to an inbox they are not on.
 import { companyFromAddress, normalizeAddress, sameAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, exists, ilike, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -48,8 +45,6 @@ export async function recordCustomer(db: Db, event: { messageId: string }) {
     .onConflictDoUpdate({
       target: [customers.orgId, customers.address],
       set: {
-        // The name from the newest message that had one wins, in whatever order mail arrives;
-        // a message without a name changes nothing.
         name: sql`case when ${newer} then excluded.name else ${customers.name} end`,
         nameSeenAt: sql`case when ${newer} then excluded.name_seen_at else ${customers.nameSeenAt} end`,
         firstSeenAt: sql`least(${customers.firstSeenAt}, ${seen}::timestamptz)`,
@@ -65,7 +60,6 @@ export async function recordCustomer(db: Db, event: { messageId: string }) {
   return customer!.id;
 }
 
-/** The customer has a conversation in a mailbox the member can see. */
 function knownTo(db: Db, memberId: string) {
   return exists(
     db

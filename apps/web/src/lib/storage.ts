@@ -1,7 +1,3 @@
-// Storage (ADR 0034): the active workspace's My files and Shared, Trash, usage, and the changes,
-// by the member's door or a shared link's. Lists are paged by the server's cursor. Nothing here is
-// realtime in v1: a change through the member's door writes its answer into the cached lists it
-// touches and asks only those again (`storage-cache.ts`); a link's door refetches all of Storage.
 import {
   infiniteQueryOptions,
   mutationOptions,
@@ -21,7 +17,6 @@ export type StorageSpace = StorageNode["space"];
 /** Where a listing, a new folder or an upload goes: a space's root, or inside a folder. */
 export type StoragePlace = { space: StorageSpace } | { parentId: string };
 
-// `startup-fetch.ts` asks for a folder's first page at startup with this size too.
 const PAGE_SIZE = "100";
 
 /** A folder's sidebar glyph, as `PATCH /nodes/:id` takes it. */
@@ -74,11 +69,6 @@ export const storageTrashQuery = () =>
 export const storageChanged = (client: QueryClient) =>
   client.invalidateQueries({ queryKey: keys.storage() });
 
-/**
- * Changes go through one of two doors: the member's own (`shareId` absent), or a shared link's
- * (`/api/storage/shared/:shareId/...`), where an Editor changes what is inside the shared folder.
- * The link door takes places by `parentId` alone: a link has no space.
- */
 const sharedDoor = () => api.storage.shared[":shareId"];
 
 /** `mutate({ name, place, shareId? })` makes a folder; a taken name gets a number. */
@@ -181,6 +171,5 @@ export function formatBytes(bytes: number) {
     unit += 1;
   }
   const digits = unit > 0 && value < 10 ? 1 : 0;
-  // "1 GB", not "1.0 GB".
   return `${Number(value.toFixed(digits))} ${UNITS[unit]}`;
 }

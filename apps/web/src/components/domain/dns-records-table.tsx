@@ -1,17 +1,3 @@
-// The DNS records a domain needs, one row each: its type, name and value, whether DNS serves it,
-// and a copy button on each value. Started from Domain SDK's DNS records table
-// (domain-sdk.dev/docs/components/dns-records-table) and kept to its parts and behaviour (its
-// status badges, copy announcements, issue lines, `renderValue` for Omni's ownership value, of
-// which only a hash is kept), laid out as a list so it fits a single form column at any width.
-//
-// Geometry: each record is its own island. Every line (Type, Name, Value) is one 24px row with
-// each mark centred on it, so the label, the value and the copy glyph can't drift apart whatever
-// their fonts. Values stay on one line, truncated: the copy button is how the whole value is taken.
-// Labels sit on the island's 16px inset in a 48px column, values 12px after it, the copy glyphs'
-// ink on the right inset. The record's state is a banner attached to the island's foot, in the
-// status's fill, its glyph on the labels' axis.
-// `pt-2 pb-3`: a 24px row leaves 4px over its text and less under it, so the lines' ink sits
-// 16px from the island's top and 17px above the banner (measured).
 import * as React from "react";
 import type { ReactNode } from "react";
 import {
@@ -43,7 +29,6 @@ export interface DnsRecordsTableProps {
   renderValue?(record: DnsRecord): ReactNode;
 }
 
-/** Each status's banner: its fill, its glyph, and what it means, in a few words. */
 const statusMeta = {
   valid: {
     icon: IconCircleCheck,
@@ -67,15 +52,12 @@ const statusMeta = {
   },
 } as const;
 
-/** One line of a record: label, content, trailing mark, centred on one row of at least 24px. */
 function Line(props: { label: string; children: ReactNode; trailing?: ReactNode }) {
   return (
     <div className="flex min-h-6 items-center gap-3">
       <dt className="w-12 shrink-0 text-xs/4 text-muted-foreground">{props.label}</dt>
       <dd className="flex min-w-0 flex-1 items-center justify-between gap-3">
         <span className="min-w-0 flex-1 text-end text-xs/4">{props.children}</span>
-        {/* A line without a button keeps its place (26px less the -6px pull), so every value's
-            right edge lines up; `null` means the content brings its own button. */}
         {props.trailing === undefined ? (
           <span aria-hidden className="w-5 shrink-0" />
         ) : (
@@ -86,17 +68,11 @@ function Line(props: { label: string; children: ReactNode; trailing?: ReactNode 
   );
 }
 
-/**
- * The record's state, as a banner attached to the foot of its island: the status's fill, its glyph
- * and one short line saying what it means, never wrapping. The full reason (what DNS holds
- * instead) is the banner's tooltip.
- */
 function StatusBanner(props: { status: DnsRecord["status"]; messages: string[] }) {
   const meta = statusMeta[props.status];
   const Icon = meta.icon;
   return (
     <p
-      // `px-4`: the glyph on the labels' axis (both 16px in from the island's border).
       className="flex items-center gap-2 px-4 py-2.5 text-xs/4"
       title={props.messages.length > 0 ? props.messages.join(" ") : undefined}
     >
@@ -112,8 +88,6 @@ function CopyButton(props: { label: string; copied: boolean; onPress: () => void
       <Button
         intent="plain"
         size="sq-xs"
-        // The 26px button keeps the 24px line (`-my-px`), and its glyph's ink (not the
-        // button's box) sits on the row's right inset, under the badge's edge.
         className="-my-px -me-1.5 text-muted-foreground *:[svg]:size-3.25 hover:text-foreground"
         aria-label={props.label}
         onPress={props.onPress}
@@ -163,8 +137,6 @@ export function DnsRecordsTable({
   const copyable = (record: DnsRecord, field: DnsRecordCopyField) => ({
     children: (
       <span
-        // Inter like the labels, not the system monospace (a different font on every machine,
-        // each at its own height): one font keeps one baseline. Copy takes the exact value.
         className="block truncate text-xs/4 text-foreground"
         translate="no"
         title={record[field]}
@@ -193,10 +165,6 @@ export function DnsRecordsTable({
           const key = `${record.type}:${record.name}:${record.value}`;
           const shown = renderValue?.(record);
           return (
-            // One island per record: its lines, then its status banner attached at the foot.
-            // The island: bordered, the status's fill showing as the banner at its foot. The record's
-            // lines sit on a white surface flush with it (`-m-px`: its border lies on the island's,
-            // so top and sides show one), rounded like the island, so its foot curves into the banner.
             <li
               key={key}
               className={`overflow-hidden rounded-lg border border-border ${statusMeta[record.status].className}`}
@@ -206,7 +174,6 @@ export function DnsRecordsTable({
                   <span>{record.type}</span>
                 </Line>
                 <Line label="Name" {...copyable(record, "name")} />
-                {/* A value that can't be shown takes the content and trailing place. */}
                 <Line
                   label="Value"
                   {...(shown === undefined

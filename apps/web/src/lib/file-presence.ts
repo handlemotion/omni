@@ -1,6 +1,3 @@
-// Who else has a Drive file open in their editor ("Ana is editing", ADR 0043 decision 3). Realtime
-// `file.presence` events fill it; nothing is fetched. Each entry expires unless the teammate's app
-// repeats it, so a closed laptop that never said `left` stops showing within `FILE_TTL_MS`.
 import type { RealtimeEvent } from "./types.ts";
 
 type FilePresenceEvent = Extract<RealtimeEvent, { type: "file.presence" }>;
@@ -18,7 +15,6 @@ export const FILE_TTL_MS = 90_000;
 export const FILE_REPEAT_MS = 30_000;
 
 const EMPTY: readonly FileEditor[] = [];
-// nodeId → editors. Snapshots are replaced, never mutated, for useSyncExternalStore.
 let byNode = new Map<string, readonly FileEditor[]>();
 const listeners = new Set<() => void>();
 let sweep: ReturnType<typeof setTimeout> | undefined;
@@ -52,7 +48,6 @@ function replace(keep: (editor: FileEditor) => boolean) {
 
 function expire() {
   const now = Date.now();
-  // Nothing expired yet (a timer that fired early): wait again.
   if (!replace((editor) => now - editor.at < FILE_TTL_MS)) schedule();
 }
 

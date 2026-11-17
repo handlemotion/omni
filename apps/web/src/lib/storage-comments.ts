@@ -1,6 +1,3 @@
-// A file's comments (ADR 0043 decisions 4 and 5), by the member's door or a shared link's: the
-// threads, and adding, editing, resolving and deleting. Comments are not the file's content: a
-// change refetches this file's comments only, never the folder lists.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import type { Api } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";

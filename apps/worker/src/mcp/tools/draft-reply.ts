@@ -1,6 +1,3 @@
-// `draft_reply`: write a reply for the person to review (ADR 0029). It becomes an Omni draft on
-// the thread, where the composer opens it; nothing is sent. The person sends it, edits it or
-// discards it in Omni.
 import type { McpServer } from "@modelcontextprotocol/server";
 import { createDraft, schema } from "@omni/db";
 import { replyRecipients, replySubject } from "@omni/mail-core/compose";
@@ -67,7 +64,6 @@ async function draft(context: ToolContext, input: z.infer<typeof inputSchema>) {
     subject: thread.id,
     data: { via: "mcp", clientId: context.caller.clientId, draftId: created.id },
   });
-  // Open apps show the new draft on the thread.
   context.waitUntil(
     fanOut(
       context.env,

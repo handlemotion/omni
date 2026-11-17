@@ -1,4 +1,3 @@
-// Identity: the session, signing in and out, organizations, invitations.
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { invitationQuery, organizationsQuery } from "../lib/org-queries.ts";

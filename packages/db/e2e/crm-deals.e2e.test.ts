@@ -1,4 +1,3 @@
-// Deals, the pipeline and its stage rules (ADR 0036 decision 2).
 import { and, eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
@@ -34,7 +33,6 @@ test("moving a deal to Won twice sets won_at once and writes one event", async (
   const deal = ok(await crm.createDeal({ name: "Rebrand" })).deal;
   expect([deal.stageId, deal.wonAt, deal.closedAt]).toEqual([byName("Lead").id, null, null]);
 
-  // At once, as two members dragging the same card would.
   await Promise.all([
     crm.updateDeal(deal.id, { stageId: byName("Won").id }),
     crm.updateDeal(deal.id, { stageId: byName("Won").id }),
@@ -44,11 +42,9 @@ test("moving a deal to Won twice sets won_at once and writes one event", async (
   expect(won.stageKind).toBe("won");
   expect(await stageMoves(deal.id)).toHaveLength(1);
 
-  // A bulk move to the same stage is a repeat too.
   expect(ok(await crm.moveDeals({ dealIds: [deal.id], stageId: byName("Won").id })).moved).toEqual(
     [],
   );
-  // Delivered closes it; reopening clears that and keeps the first won date.
   const done = ok(await crm.updateDeal(deal.id, { stageId: byName("Delivered").id })).deal;
   expect(done.closedAt).not.toBeNull();
   const reopened = ok(await crm.updateDeal(deal.id, { stageId: byName("Lead").id })).deal;
@@ -57,7 +53,6 @@ test("moving a deal to Won twice sets won_at once and writes one event", async (
   expect(wonAgain.wonAt).toEqual(won.wonAt);
   expect(await stageMoves(deal.id)).toHaveLength(4);
 
-  // A job that names its move writes it once however often it runs.
   const lost = byName("Lost").id;
   ok(await crm.updateDeal(deal.id, { stageId: lost, dedupeKey: "job-1" }));
   ok(await crm.updateDeal(deal.id, { stageId: byName("Lead").id, dedupeKey: "job-1" }));
@@ -68,7 +63,6 @@ test("a bulk move that names a missing deal moves none of them", async () => {
   const { crm } = await company("crm-bulk-missing");
   const won = ok(await crm.stages()).stages.find((stage) => stage.name === "Won")!;
   const deal = ok(await crm.createDeal({ name: "Kept in Lead" })).deal;
-  // Sorts after every real UUIDv7, so the real deal comes first in the move order.
   const missing = "ffffffff-ffff-7fff-bfff-ffffffffffff";
 
   expect((await crm.moveDeals({ dealIds: [deal.id, missing], stageId: won.id })).status).toBe(
@@ -101,7 +95,6 @@ test("replacing stages refuses to drop a stage holding deals or to leave a kind 
   const deal = ok(await crm.createDeal({ name: "Held", stageId: progress!.id })).deal;
   await crm.archiveDeal(deal.id);
 
-  // An archived deal still holds its stage.
   const withoutProgress = [lead!, won!, delivered!, lost!].map(({ id, name }) => ({ id, name }));
   expect(await crm.replaceStages(withoutProgress)).toEqual({
     status: "stage_in_use",
@@ -115,7 +108,6 @@ test("replacing stages refuses to drop a stage holding deals or to leave a kind 
   const unchanged = await db.select().from(crmStages).where(eq(crmStages.orgId, org.id));
   expect(unchanged).toHaveLength(5);
 
-  // Rename, reorder, add and remove an empty stage, in one replace.
   const replaced = ok(
     await crm.replaceStages([
       { id: progress!.id, name: "Doing" },
@@ -133,7 +125,6 @@ test("replacing stages refuses to drop a stage holding deals or to leave a kind 
     ["Lost", "lost"],
   ]);
 
-  // Only owners and admins edit stages.
   const member = forMember(db, (await createMember(db, org.id, "ben")).id).crm;
   expect((await member.replaceStages(replaced.map(({ id, name }) => ({ id, name })))).status).toBe(
     "forbidden",

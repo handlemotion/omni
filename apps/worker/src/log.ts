@@ -1,6 +1,3 @@
-// One JSON line per event, which Workers Logs indexes field by field. Same shape as the mail
-// service's (`apps/mail/src/log.ts`): `time`, `level`, `event`, then `component`, `requestId`,
-// `orgId`, `durationMs` and ids. Never mail content, addresses or credentials.
 import * as Sentry from "@sentry/cloudflare";
 import { isValidRequestId } from "@omni/crypto";
 import { scrubString } from "@omni/mail-core/telemetry";
@@ -49,7 +46,6 @@ export function createLogger(base: Record<string, unknown> = {}) {
   return logger;
 }
 
-/** No-op unless `withSentry` initialized a client (SENTRY_DSN set). */
 function report(event: string, fields: Record<string, unknown>) {
   if (!Sentry.getClient()) return;
   const { error, ...rest } = fields;
@@ -63,7 +59,6 @@ function report(event: string, fields: Record<string, unknown>) {
 
 const replacer: (_key: string, value: unknown) => unknown = (_key, value) => {
   if (typeof value === "bigint") return value.toString();
-  // Database and SMTP errors can quote bound values and recipients: scrubbed like Sentry events.
   if (value instanceof Error) return { name: value.name, message: scrubString(value.message) };
   return value;
 };

@@ -1,4 +1,3 @@
-// Presence: who else has a conversation open, and who is replying in it.
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { presenceStore, REPEAT_MS, type Presence } from "../lib/presence.ts";
 import { onRealtimeOpen, sendRealtime } from "../lib/realtime.ts";
@@ -32,7 +31,6 @@ export function useReportPresence(
     latest.current = state;
   });
 
-  // Per conversation: repeat, say it again after a reconnect, and say `left` when it closes.
   useEffect(() => {
     if (!orgId || !threadId) return;
     const say = () => {
@@ -48,7 +46,6 @@ export function useReportPresence(
     };
   }, [orgId, threadId]);
 
-  // A change of state (viewing → replying) is sent at once, without a `left` in between.
   useEffect(() => {
     if (!orgId || !threadId) return;
     sendRealtime(orgId, { type: "presence", threadId, state: state ?? "left" });

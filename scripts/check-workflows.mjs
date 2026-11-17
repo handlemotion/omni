@@ -1,10 +1,3 @@
-// Workflow policy (supply chain). Fails when a GitHub Actions workflow or composite action uses
-// an action by a mutable ref. Every `uses:` must be one of:
-//
-// 1. `owner/repo[/path]@<40-char commit SHA> # <version>`: the comment keeps Dependabot and
-//    reviewers able to tell what the SHA is.
-// 2. A local action (`./path`).
-// 3. A Docker image pinned by digest (`docker://image@sha256:<64 hex>`).
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
@@ -25,7 +18,7 @@ for (const file of files) {
   try {
     source = readFileSync(file, "utf8");
   } catch {
-    continue; // deleted in the working tree
+    continue;
   }
   source.split("\n").forEach((line, index) => {
     const match = USES.exec(line);

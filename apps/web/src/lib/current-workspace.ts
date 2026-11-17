@@ -1,6 +1,3 @@
-// The workspace this tab is in: the one its URL names (`/<slug>/…`, ADR 0043). Every API call
-// names it (`omni-workspace`), so the Worker answers for this tab's workspace even after another
-// tab switched the session's. Set by the `$workspace` route before anything below it loads.
 import { WORKSPACE_HEADER, WORKSPACE_PARAM } from "@omni/client";
 
 let current: string | undefined;

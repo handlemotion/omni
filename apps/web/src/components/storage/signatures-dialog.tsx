@@ -1,9 +1,3 @@
-// Signatures on a PDF (ADR 0043 decision 6), for a member who reaches it: who to ask (a name and
-// an address per signer) and Send, while no request is out; then each request, newest first,
-// with its signers and where each stands, Void while it is out, and the signed copy once sealed.
-//
-// Geometry follows the share dialog: groups 20px apart in the body, rows 8px apart, a signer a
-// 40px row (a 24px avatar, the name with the address under it, the state at the end).
 import { useState } from "react";
 import { Skeleton } from "skullet/react";
 import { IconDownload, IconPlus, IconX } from "@/components/icons/central";
@@ -63,7 +57,6 @@ export function SignaturesDialog(props: { node: StorageNode; onClose: () => void
         label="Loading signatures"
       >
         {(state) =>
-          // A file is out for signature once at a time: Send shows only while none is.
           !state.some((request) => request.status === "sent") ? (
             <SendForm node={node} requests={state} />
           ) : (
@@ -85,7 +78,6 @@ interface Draft {
   email: string;
 }
 
-/** Who signs, in order, and Send; earlier requests under it. */
 function SendForm(props: { node: StorageNode; requests: StorageSignatureRequest[] }) {
   const send = useSendForSignature();
   const [next, setNext] = useState(1);
@@ -111,7 +103,6 @@ function SendForm(props: { node: StorageNode; requests: StorageSignatureRequest[
       <DialogBody className="gap-5">
         <ul className="flex flex-col gap-2">
           {drafts.map((draft, index) => (
-            // One line; on a phone the address takes a line of its own.
             <li key={draft.key} className="flex flex-wrap items-center gap-2">
               <TextField
                 aria-label={`Name of signer ${index + 1}`}
@@ -166,7 +157,6 @@ function SendForm(props: { node: StorageNode; requests: StorageSignatureRequest[
   );
 }
 
-/** One request: when it was sent and its state, each signer, and its one action. */
 function RequestGroup({ request }: { request: StorageSignatureRequest }) {
   const voiding = useVoidSignature();
   const status = STATUS[request.status];

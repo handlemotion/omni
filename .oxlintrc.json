@@ -13,6 +13,10 @@
     {
       "name": "landmines-types",
       "specifier": "@interfere/landmines/types"
+    },
+    {
+      "name": "landmines-style",
+      "specifier": "@interfere/landmines/style"
     }
   ],
   "categories": {
@@ -74,7 +78,8 @@
     "landmines-structure/colocated-tests": "error",
     "landmines-structure/package-exports": "error",
     "landmines-structure/test-file-names": "error",
-    "landmines-types/no-explicit-return-types": "error"
+    "landmines-types/no-explicit-return-types": "error",
+    "landmines-style/no-comments": "error"
   },
   "overrides": [
     {

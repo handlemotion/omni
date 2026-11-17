@@ -1,8 +1,3 @@
-// Sharing (ADR 0034 decision 4), under `/api/storage`: who an item is shared with, its one link,
-// and what was shared with the signed-in person. Managing an item's sharing goes through the
-// member door alone, so only someone who can write it there does: a person it was shared with,
-// Editor or not, gets `404` here. A change is a write, so a read-only workspace answers it `402`
-// in `requireWritableWorkspace`.
 import {
   storageEmailSchema,
   storagePageQuerySchema,
@@ -37,17 +32,11 @@ function answer(c: Context<AppEnv>, sharing: SharingRow) {
   return c.json({ sharing: wire } satisfies StorageSharingResponse);
 }
 
-/** `:email` as a grant stores it, or null when it is not an address. */
 function emailParam(c: Context<AppEnv>) {
   const parsed = storageEmailSchema.safeParse(c.req.param("email"));
   return parsed.success ? parsed.data : null;
 }
 
-/**
- * The one mail a person gets when something is shared with them: who, what, and its link. An
- * install with no `SYSTEM_MAIL_FROM` sends no mail at all: the person is added all the same, and
- * finds the item under Shared with me.
- */
 async function sendShareMail(c: Context<AppEnv>, to: string, node: StorageNode, shareId: string) {
   const { config, user, log } = c.var;
   if (!config.SYSTEM_MAIL_FROM) {
@@ -78,7 +67,6 @@ export const storageSharing = new Hono<AppEnv>()
     return answer(c, found.sharing);
   })
 
-  /** General access: `restricted` or `anyone`; or `reset` for a new link that kills the old. */
   .put("/nodes/:id/sharing/link", zValidator("json", storageSetLinkBodySchema), async (c) => {
     const body = c.req.valid("json");
     const id = c.req.param("id");
@@ -90,11 +78,6 @@ export const storageSharing = new Hono<AppEnv>()
     return answer(c, changed.sharing);
   })
 
-  /**
-   * Adds a person, or changes their role. Adding sends them one mail and counts against
-   * `RATE_LIMIT_STORAGE_SHARE`; a role change does neither. A person whose mail could not be
-   * sent is not added, so trying again sends it (with no system mail configured, none is sent).
-   */
   .put(
     "/nodes/:id/sharing/people/:email",
     zValidator("json", storagePutPersonBodySchema),
@@ -125,7 +108,6 @@ export const storageSharing = new Hono<AppEnv>()
     },
   )
 
-  /** Removes a person. Their next request finds nothing. */
   .delete("/nodes/:id/sharing/people/:email", async (c) => {
     const files = memberStorage(c);
     const id = c.req.param("id");
@@ -138,11 +120,6 @@ export const storageSharing = new Hono<AppEnv>()
     return answer(c, after.sharing);
   })
 
-  /**
-   * What was shared with the signed-in person, in any workspace, newest first. Through
-   * `forUser`, so a session scoped to a company (ADR 0024) sees only what was shared with an
-   * address on that company's domains.
-   */
   .get("/shared-with-me", zValidator("query", storagePageQuerySchema), async (c) => {
     const { cursor, limit } = c.req.valid("query");
     const { db, user } = c.var;

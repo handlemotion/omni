@@ -1,7 +1,3 @@
-// Storage on the plan (ADR 0034 decision 7 and its amendment) over the real Worker with billing
-// on and no Stripe: the daily job's peaks and the Trash a read-only workspace keeps, who is
-// capped at the allowance and who may pass it, and the card Stripe's webhook reports. The Stripe
-// half of the daily job runs only in `storage-billing-stripe.e2e.test.ts`.
 import { randomBytes, randomUUID } from "node:crypto";
 import { usagePeriod } from "@omni/ai";
 import { schema, storageObjectKey } from "@omni/db";
@@ -20,7 +16,6 @@ import { CookieJar, signIn } from "./support.ts";
 
 const GIB = 1024 ** 3;
 const DAY_MS = 86_400_000;
-/** The plan includes 2 MiB here, no workspace may pass 5, and a Personal space holds 1. */
 const ALLOWANCE = 2 * MIB;
 const CEILING = 5 * MIB;
 const PERSONAL = MIB;
@@ -46,15 +41,12 @@ afterAll(() => stack?.stop());
 interface Plan {
   status: string;
   interval?: "month" | "year";
-  /** The Stripe subscription, when Stripe has one. */
   stripeId?: string;
-  /** Stripe showed this subscription with a payment method. */
   cardOn?: string;
   periodStart?: Date;
   periodEnd?: Date;
 }
 
-/** A company on `plan`, written the way the webhook and the daily job leave it, and its owner. */
 async function company(plan: Plan | null) {
   const org = await stack.company(`co-${randomUUID().slice(0, 8)}`);
   if (plan) {
@@ -88,11 +80,6 @@ const usage = async (person: Person) => (await stack.api(person.jar, "GET", "/us
 const peaks = (orgId: string) =>
   stack.db.select().from(schema.storagePeaks).where(eq(schema.storagePeaks.orgId, orgId));
 
-// First in the file: the daily cron also reconciles with Stripe, and so far no row names a
-// Stripe subscription or customer, so nothing is dialed.
-// Catches: a workspace that stopped paying losing its Trash after 30 days, a peak that follows
-// usage down or is counted twice by a second run, a new usage month that keeps raising the old
-// month's peak, and a peak recorded for a workspace with no plan.
 test("the daily job records each paying workspace's peak per usage month and leaves a read-only workspace's Trash alone", async () => {
   const bucket = await stack.bucket();
   const old = new Date(Date.now() - 31 * DAY_MS);
@@ -136,7 +123,6 @@ test("the daily job records each paying workspace's peak per usage month and lea
     { orgId: measured.org.id, periodStart: start, peakBytes: 1000 },
   ]);
 
-  // Deleted before the invoice: the month's peak stays what it was.
   await stack.api(measured.owner.jar, "DELETE", `/nodes/${first.id}`);
   await stack.api(measured.owner.jar, "DELETE", `/nodes/${first.id}?forever=1`);
   await stack.upload(measured.owner.jar, { space: "shared" }, "next.bin", randomBytes(200));
@@ -145,8 +131,6 @@ test("the daily job records each paying workspace's peak per usage month and lea
     { orgId: measured.org.id, periodStart: start, peakBytes: 1000 },
   ]);
 
-  // The period ended and the renewal's webhook has not landed: the next usage month has begun
-  // all the same, and its peak starts from what is stored now.
   const stale = {
     periodStart: new Date(Date.now() - 45 * DAY_MS),
     periodEnd: new Date(Date.now() - 15 * DAY_MS),
@@ -165,9 +149,6 @@ test("the daily job records each paying workspace's peak per usage month and lea
   ]);
 });
 
-// Catches: overage nobody can be billed for (a trial, a yearly plan, no card, another
-// subscription's card), a paying workspace stopped at the allowance, the ceiling not holding
-// for a paying workspace, and the plan's allowance leaking into a Personal space.
 test("the allowance caps a trial, a yearly plan and a workspace with no card; a paying monthly workspace with a card passes it, up to the ceiling", async () => {
   const capped: Plan[] = [
     { status: "trialing", stripeId: "sub_trial", cardOn: "sub_trial" },
@@ -195,7 +176,6 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
       overage: null,
       uploadsBlocked: null,
     });
-    // Nothing came of the refused one.
     const uploads = await stack.db
       .select({ size: schema.storageUploads.size })
       .from(schema.storageUploads)
@@ -210,7 +190,6 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
     cardOn: "sub_paying",
     periodStart: start,
   });
-  // Really uploaded, so the check when an upload completes passes the allowance too.
   await stack.upload(paying.owner.jar, { space: "shared" }, "big.bin", randomBytes(ALLOWANCE + 1));
   expect(await usage(paying.owner)).toEqual({
     usedBytes: ALLOWANCE + 1,
@@ -223,8 +202,6 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
   expect((await open(paying.owner, CEILING - ALLOWANCE)).status).toBe(402);
   expect((await open(paying.owner, CEILING - ALLOWANCE - 1)).status).toBe(201);
 
-  // What is billed is the month's peak, in whole GB above the allowance, rounded down: a GB
-  // counts once it is full.
   const peak = (peakBytes: number) =>
     stack.db
       .insert(schema.storagePeaks)
@@ -238,14 +215,12 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
   await peak(ALLOWANCE + 3 * GIB);
   expect((await usage(paying.owner)).overage).toEqual({ extraGb: 3 });
 
-  // A card that is failing is still a card: Stripe is retrying it.
   await stack.db
     .update(schema.subscriptions)
     .set({ status: "past_due" })
     .where(eq(schema.subscriptions.orgId, paying.org.id));
   expect((await usage(paying.owner)).limitBytes).toBe(CEILING);
 
-  // A Personal space has its own cap and no plan.
   const jar = new CookieJar();
   await signIn(stack.worker, stack.db, `solo-${randomUUID().slice(0, 8)}@personal.test`, jar);
   expect((await stack.api(jar, "GET", "/usage")).body).toMatchObject({
@@ -253,7 +228,6 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
     allowanceBytes: null,
     overage: null,
   });
-  // A company that never subscribed is read-only, as before.
   const none = await company(null);
   expect(await usage(none.owner)).toMatchObject({
     limitBytes: ALLOWANCE,
@@ -261,8 +235,6 @@ test("the allowance caps a trial, a yearly plan and a workspace with no card; a 
   });
 });
 
-// Catches: an upload through a share counted against the visitor's own (uncapped) workspace
-// instead of the one that stores the file.
 test("an editor's upload into a shared folder is held to the limit of the folder's workspace", async () => {
   const host = await company({ status: "trialing" });
   const guestHome = await company({ status: "active", stripeId: "sub_guest", cardOn: "sub_guest" });
@@ -283,13 +255,9 @@ test("an editor's upload into a shared folder is held to the limit of the folder
     code: "STORAGE_FULL",
   });
   expect((await open(guestHome.owner, ALLOWANCE, door, into)).status).toBe(201);
-  // At home the same person may pass the allowance.
   expect((await open(guestHome.owner, ALLOWANCE + 1)).status).toBe(201);
 });
 
-// Last in the file: its rows name a Stripe customer, which the daily cron would look up.
-// Catches: a workspace that paid in Checkout (or added a card) still stopped at the allowance
-// until the next daily job, and a card on a trial unlocking overage before anything is paid.
 test("a subscription event that carries a payment method lets the workspace pass the allowance at once", async () => {
   const { org, owner } = await company(null);
   const customer = `cus_e2e_${randomUUID().slice(0, 8)}`;
@@ -324,20 +292,16 @@ test("a subscription event that carries a payment method lets the workspace pass
 
   expect((await event("created", "trialing", 0, null)).body).toMatchObject({ applied: true });
   expect((await open(owner, ALLOWANCE + 1)).status).toBe(402);
-  // The card is added during the trial: still a trial, still capped.
   expect((await event("updated", "trialing", 10, "pm_e2e_card")).body).toMatchObject({
     applied: true,
   });
   expect((await open(owner, ALLOWANCE + 1)).status).toBe(402);
-  // The trial ends and the plan is paid: extra storage is billed from here on.
   expect((await event("updated", "active", 20, "pm_e2e_card")).body).toMatchObject({
     applied: true,
   });
   expect((await open(owner, ALLOWANCE + 1)).status).toBe(201);
   expect(await usage(owner)).toMatchObject({ limitBytes: CEILING, overage: { extraGb: 0 } });
 
-  // The daily job added the metered item, listed first: the plan is still read from the plan's
-  // own item, not from whichever comes first.
   const sub = subscriptionObject({
     id: `sub_e2e_${org.id.slice(0, 8)}`,
     customer,

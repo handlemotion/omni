@@ -1,6 +1,3 @@
-// What picture stands for a sender: a webmail address's own Gravatar, anyone else's company
-// logo. The Worker fetches the candidates; the web app samples the logo's edge for the tile
-// behind it. Pure; imported as `@omni/mail-core/sender-logo`.
 import { domainOf, isWebmailDomain, normalizeAddress } from "./addresses.ts";
 
 /** Where a sender's picture comes from: their own face, or their company's mark. */
@@ -21,7 +18,6 @@ export const domainLogoSource: (domain: string) => LogoSource | null = (domain) 
   return { kind: "domain", domain: registrableDomain(host) };
 };
 
-/** Two-letter second levels under a country code: `acme.co.uk`, `acme.com.br`. */
 const SECOND_LEVELS = new Set(["co", "com", "net", "org", "gov", "ac", "edu", "ne", "or", "go"]);
 
 /**
@@ -123,7 +119,6 @@ function icoWidth(bytes: Uint8Array, u16le: (at: number) => number) {
   const count = u16le(4);
   let widest = 0;
   for (let i = 0; i < count && 6 + i * 16 < bytes.length; i++) {
-    // A width byte of 0 means 256.
     widest = Math.max(widest, bytes[6 + i * 16] || 256);
   }
   return widest || null;
@@ -143,7 +138,6 @@ function jpegWidth(bytes: Uint8Array, u16be: (at: number) => number) {
   let at = 2;
   while (at + 9 < bytes.length && bytes[at] === 0xff) {
     const marker = bytes[at + 1]!;
-    // Start-of-frame markers (C0–CF, except DHT C4, JPG C8 and DAC CC) carry the size.
     if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
       return u16be(at + 7);
     }
@@ -154,11 +148,8 @@ function jpegWidth(bytes: Uint8Array, u16be: (at: number) => number) {
 
 /** What surrounds the mark at the icon's edge, which decides how the avatar draws it. */
 export type LogoEdge =
-  /** A see-through edge: the mark sits on a plain light tile. */
   | { kind: "transparent" }
-  /** One flat colour: the tile takes it, so the scaled-down icon seems to fill the avatar. */
   | { kind: "solid"; color: string }
-  /** A picture to the edge (a photo, a gradient): it fills the avatar uncropped. */
   | { kind: "busy" };
 
 /**
@@ -178,7 +169,6 @@ export function logoEdge(rgba: Uint8ClampedArray | Uint8Array, width: number, he
   const far = opaque.filter((p) =>
     [0, 1, 2].some((c) => Math.abs(rgba[p * 4 + c]! - mean[c]!) > 24),
   );
-  // A few stray pixels (anti-aliased corners, a mark touching the edge) still read as one colour.
   if (far.length > opaque.length * 0.1) return { kind: "busy" } satisfies LogoEdge;
   const hex = mean.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
   return { kind: "solid", color: `#${hex}` } satisfies LogoEdge;

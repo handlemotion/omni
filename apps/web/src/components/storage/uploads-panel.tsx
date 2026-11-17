@@ -1,10 +1,3 @@
-// The uploads in progress, floating at the screen's bottom right over the list: each file's name,
-// how far it is, and the way to stop it. A failed one says why where its bar was, and offers
-// Retry (it resumes) unless the refusal would only repeat.
-//
-// Geometry: a 320px card, 16px from the screen's bottom and right edges, 12px in on every side;
-// each file is a 24px line (name, then the percent and a 20px action) with the bar, or the
-// reason, 6px under it, and 12px between files.
 import { IconArrowRotateClockwise, IconX } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { ProgressBar, ProgressBarTrack } from "@/components/ui/progress-bar";
@@ -58,7 +51,6 @@ function Row(props: {
           <IconX />
         </Button>
       </div>
-      {/* A failed upload has no progress to show: what it sent may never have arrived. */}
       {failed ? (
         <span className="truncate text-xs text-muted-foreground">
           {storageErrorText(item.error, "Not uploaded")}

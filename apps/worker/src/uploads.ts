@@ -1,4 +1,3 @@
-// Files staged for a send that no send took (ADR 0021): deleted once they expire.
 import { takeExpiredUploads } from "@omni/db";
 import { openDb } from "./db.ts";
 import { createLogger } from "./log.ts";

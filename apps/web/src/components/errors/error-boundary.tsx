@@ -1,7 +1,3 @@
-// Where a failure stops (ADR 0046). The root route's `errorComponent` takes the whole window; a
-// module's content pane has its own boundary, so a crash there keeps the sidebar and title bar;
-// a part that loads on its own chunk (a preview, a chart) falls back in place. Every boundary
-// starts over when the location changes.
 import { CatchBoundary, isNotFound, useLocation, useRouter } from "@tanstack/react-router";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { classify, reportFailure } from "@/lib/failure.ts";
@@ -19,7 +15,6 @@ export function ModuleBoundary(props: { children: ReactNode }) {
       getResetKey={() => href}
       errorComponent={ErrorScreen}
       onCatch={(error, info) => {
-        // A route's not-found belongs to the router's not-found handling, above this.
         if (isNotFound(error)) throw error;
         router.options.defaultOnCatch?.(error, info);
       }}
@@ -53,7 +48,6 @@ interface InlineState {
   resetKey: string;
 }
 
-// React has no hook for catching render errors; this is the one class component it takes.
 class InlineBoundary extends Component<InlineProps, InlineState> {
   override state: InlineState = { failed: false, resetKey: this.props.resetKey };
 

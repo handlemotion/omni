@@ -1,5 +1,3 @@
-// The signed-in person's sign-in emails (ADR 0014): list, add (by a link mailed to the address),
-// verify, make primary, remove. Per user, not per member, so it works before any organization.
 import {
   listSignInEmails,
   removeSignInEmail,
@@ -25,8 +23,6 @@ import { zValidator } from "../validator.ts";
 const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   const resolved = await resolveSession(c);
   if (!resolved) throw new HTTPException(401, { message: "sign in first" });
-  // A session opened with a company's address may read its sign-in emails but not change them:
-  // a new one would be a lasting way in that is not scoped to that company (ADR 0024).
   if (resolved.user.scopeOrgId && c.req.method !== "GET") {
     throw new HTTPException(403, { message: "signed in with a work address: sign in another way" });
   }
@@ -34,10 +30,6 @@ const requireUser = createMiddleware<AppEnv>(async (c, next) => {
   await next();
 });
 
-/**
- * Counts against the per-IP sign-in budget, and with `magicLink` also against the address's: each
- * add mails the address, as a magic link does.
- */
 const limit = (perAddress?: "magicLink") =>
   createMiddleware<AppEnv>(async (c, next) => {
     const checks: [RateLimitRule, Promise<number>][] = [
@@ -62,13 +54,8 @@ const emailBody = z.object({ email: z.email().max(320) });
 export const account = new Hono<AppEnv>()
   .use(requireUser)
 
-  /** Every address this person signs in with, the primary first. */
   .get("/emails", async (c) => c.json({ emails: await listSignInEmails(c.var.db, c.var.user.id) }))
 
-  /**
-   * Mails a confirmation link to a new address. Answers the same whether or not someone else has
-   * the address (and then mails nothing), so this cannot be used to find out who has an account.
-   */
   .post("/emails", zValidator("json", emailBody), limit("magicLink"), async (c) => {
     const user: SessionUser = c.var.user;
     const email = normalizeAddress(c.req.valid("json").email);
@@ -98,7 +85,6 @@ export const account = new Hono<AppEnv>()
     return c.json({ status: "sent" as const, email });
   })
 
-  /** Confirms an address from its link. Only the user who asked for it can use the link. */
   .post(
     "/emails/verify",
     zValidator("json", z.object({ token: z.string().min(1).max(200) })),
@@ -123,7 +109,6 @@ export const account = new Hono<AppEnv>()
     },
   )
 
-  /** Makes a verified address the primary. Idempotent. */
   .post("/emails/primary", zValidator("json", emailBody), async (c) => {
     const result = await setPrimarySignInEmail(c.var.db, {
       userId: c.var.user.id,
@@ -135,7 +120,6 @@ export const account = new Hono<AppEnv>()
     return c.json({ ok: true as const });
   })
 
-  /** Removes an extra address. The primary, and the last verified address, stay. */
   .delete("/emails/:email", async (c) => {
     const result = await removeSignInEmail(c.var.db, {
       userId: c.var.user.id,

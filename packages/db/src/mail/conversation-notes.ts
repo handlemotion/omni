@@ -1,6 +1,3 @@
-// Internal notes (ADR 0021): in the timeline, never sent, never on IMAP. @mentions notify, and
-// so does every note on a conversation you take part in (its assignee, earlier note authors).
-
 import { and, eq, exists, inArray, isNotNull, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import {
@@ -64,7 +61,6 @@ export async function createNote(
       dedupeKey: `mention:${note!.id}`,
       noteId: note!.id,
     });
-    // The mentioned already heard; everyone else taking part hears about the note itself.
     const participants = (await participantsOf(tx, row)).filter((m) => !mentions.includes(m));
     const followed = await notify(tx, row, {
       memberIds: participants,
@@ -77,10 +73,6 @@ export async function createNote(
   });
 }
 
-/**
- * Who takes part in a shared conversation: its assignee and whoever left a note on it before,
- * among those who can still see the inbox.
- */
 async function participantsOf(
   tx: Executor,
   row: { id: string; orgId: string; mailboxId: string; assigneeMemberId: string | null },
@@ -149,7 +141,6 @@ export async function deleteNote(
   input: { threadId: string; noteId: string; memberId: string },
 ) {
   return db.transaction(async (tx) => {
-    // Who was notified about it: those notifications go with the note (cascade).
     const notified = await tx
       .select({ memberId: notifications.memberId })
       .from(notifications)

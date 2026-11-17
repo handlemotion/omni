@@ -1,5 +1,3 @@
-// Join requests (ADR 0024): asking to join the company a sign-in is scoped to, and its owners'
-// and admins' answers.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   answerJoinRequestMutation,

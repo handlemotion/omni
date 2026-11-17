@@ -1,7 +1,3 @@
-// Storage in the web app (ADR 0034 step 6), in a real Chromium, on the web app built and served by
-// the real Worker under `wrangler dev` (its local R2), on a real Postgres: a file larger than one
-// part goes up through the page's own file input and comes back byte for byte, and a link open to
-// anyone downloads it for someone signed out.
 import { createHash, randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -55,13 +51,9 @@ afterAll(async () => {
 
 const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
-// Catches: the browser's upload client cutting parts wrong (an off-by-one slice, a last part of
-// the wrong length, a part skipped when several go at once), so a file over one part never
-// completes or downloads corrupted.
 test("a file larger than one part uploads from the page and downloads byte for byte", async () => {
   const page = await signedIn(`files-${Date.now()}@gmail.test`, "/files/my");
 
-  // Two full parts and a short third: 16 MiB, 16 MiB, 1234 bytes.
   const bytes = randomBytes(2 * 16 * 1024 * 1024 + 1234);
   const parts: string[] = [];
   page.on("request", (request) => {
@@ -89,9 +81,6 @@ test("a file larger than one part uploads from the page and downloads byte for b
   expect(sha256(saved)).toBe(sha256(bytes));
 });
 
-// Catches: the link page reaching for a session (the member routes, a sign-in redirect) or
-// downloading through the member's door, so a link open to anyone fails for the people it is for;
-// or its Sign in losing the way back to the link.
 test("a link open to anyone downloads its file, byte for byte, for someone signed out", async () => {
   const page = await signedIn(`link-${Date.now()}@gmail.test`, "/files/my");
   const bytes = randomBytes(300_000);
@@ -117,7 +106,6 @@ test("a link open to anyone downloads its file, byte for byte, for someone signe
   try {
     const anonymous = await signedOut.newPage();
     await anonymous.goto(link);
-    // Sign in comes back to this link, not to the inbox.
     const signInLink = anonymous.getByRole("link", { name: "Sign in" });
     expect(await signInLink.getAttribute("href")).toBe(
       `/login?redirect=${encodeURIComponent(new URL(link).pathname)}`,
@@ -134,10 +122,6 @@ test("a link open to anyone downloads its file, byte for byte, for someone signe
   }
 });
 
-// Catches: the XLSX preview failing on the app's real CSP (its reader in a worker the policy
-// blocks, as SheetJS's or fflate's own blob workers would be), a sheet's cells showing raw values
-// instead of the text the workbook displays, a hidden sheet getting a tab, or a sheet whose used
-// range starts past A1 shifted up and left (its B3 shown at A1).
 test("an XLSX opens to its visible sheets' cells as the workbook shows them", async () => {
   const page = await signedIn(`xlsx-${Date.now()}@gmail.test`, "/files/my");
   const book = utils.book_new();
@@ -147,7 +131,6 @@ test("an XLSX opens to its visible sheets' cells as the workbook shows them", as
   ]);
   if (pipeline.B2) pipeline.B2.z = '"$"#,##0.00';
   utils.book_append_sheet(book, pipeline, "Pipeline");
-  // As Excel writes a sheet whose first cell is B2: its used range starts there, not at A1.
   const accounts: WorkSheet = {
     "!ref": "B2:B3",
     B2: { t: "s", v: "Owner" },
@@ -173,14 +156,10 @@ test("an XLSX opens to its visible sheets' cells as the workbook shows them", as
   await page.getByRole("tab", { name: "Accounts" }).click();
   const ana = page.getByRole("gridcell", { name: "Ana" });
   await ana.waitFor({ timeout: 5000 });
-  // B3: the grid's first column is the row numbers, so B is its third; its first row the letters.
   expect(await ana.getAttribute("aria-colindex")).toBe("3");
   expect(await ana.locator("..").getAttribute("aria-rowindex")).toBe("4");
 });
 
-// Catches: files queued in one workspace going up into another after a workspace switch (the
-// queue lives outside React and outlived the session's reset), or an opened upload left holding
-// room in the workspace that was left.
 test("switching workspace mid-upload stops the queue and leaves nothing in either workspace", async () => {
   const email = `switch-${Date.now()}@acme-files.test`;
   const acme = await createOrgWithOwner(db, {
@@ -195,7 +174,6 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
     .first()
     .waitFor({ timeout: 15_000 });
 
-  // The first file's first part waits until the switch has begun, so the queue is mid-flight.
   let release = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
   await page.route("**/api/storage/uploads/*/parts/1", async (route) => {
@@ -215,7 +193,6 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
     );
   await page.waitForRequest("**/api/storage/uploads/*/parts/1");
 
-  // Settings is in the sidebar's workspace menu.
   await page.getByRole("button", { name: /^Switch workspace/ }).click();
   await page.getByRole("menuitem", { name: "Workspace settings" }).click();
   await page.getByRole("button", { name: /^Switch workspace, currently Acme Files/ }).click();
@@ -224,7 +201,6 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
     .getByRole("button", { name: /^Switch workspace, currently .*Workspace$/ })
     .waitFor({ timeout: 15_000 });
   release();
-  // Anything still going would have reached the server by now.
   await page.waitForTimeout(1500);
 
   const files = await db
@@ -239,9 +215,6 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
   expect(open).toEqual([]);
 });
 
-// Catches: New folder's in-place name losing keys to the list around it (the arrows, Home and End
-// moving through the folders instead of the caret), one name creating two folders (Enter, then the
-// field's blur as it leaves), or Esc creating nothing instead of keeping the name it was given.
 test("New folder is named in place, and each name creates one folder", async () => {
   const page = await signedIn(`folders-${Date.now()}@gmail.test`, "/files/my");
   const newFolder = page.getByRole("button", { name: "New folder" }).first();
@@ -254,10 +227,8 @@ test("New folder is named in place, and each name creates one folder", async () 
   await page.keyboard.press("Escape");
   await page.getByRole("row", { name: "Untitled folder" }).waitFor();
 
-  // As rows, where the list moves through its rows with the arrows, Home and End.
   await page.getByRole("radio", { name: "Rows" }).first().click();
   await newFolder.click();
-  // It opens with its name selected: the first key replaces it.
   await page.keyboard.type("Plns");
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowLeft");
@@ -268,7 +239,6 @@ test("New folder is named in place, and each name creates one folder", async () 
   await page.keyboard.type(" final");
   await page.keyboard.press("Enter");
   await page.getByRole("row", { name: "Q3 Plans final" }).waitFor();
-  // Anything sent twice would have reached the server by now.
   await page.waitForTimeout(1000);
 
   const folders = await db
@@ -279,9 +249,6 @@ test("New folder is named in place, and each name creates one folder", async () 
   expect(await field.count()).toBe(0);
 });
 
-// Catches: Rename's in-place name ending as soon as it opens (the menu that started it handing
-// focus back to its button blurs the field), selecting a file's extension so typing replaces it,
-// one name renaming twice (Enter, then the field's blur as it leaves), or Esc renaming anyway.
 test("Rename changes a name in place on a row and a card, once", async () => {
   const page = await signedIn(`rename-${Date.now()}@gmail.test`, "/files/my");
   await page
@@ -302,24 +269,20 @@ test("Rename changes a name in place on a row and a card, once", async () => {
   });
   const field = page.getByRole("textbox", { name: "Name" });
 
-  // A file's row: its name up to the extension is selected, so typing keeps ".txt".
   await page.getByRole("button", { name: "Actions for notes.txt" }).click();
   await page.getByRole("menuitem", { name: "Rename" }).click();
   await field.waitFor();
-  // Past the menu's close, which would have blurred the field by now.
   await page.waitForTimeout(300);
   await page.keyboard.type("minutes");
   await page.keyboard.press("Enter");
   await page.getByRole("row", { name: /minutes\.txt/ }).waitFor();
 
-  // A folder's card: Esc leaves it as it was.
   await page.getByRole("button", { name: "Actions for Untitled folder" }).click();
   await page.getByRole("menuitem", { name: "Rename" }).click();
   await field.waitFor();
   await page.keyboard.type("Never");
   await page.keyboard.press("Escape");
   expect(await field.count()).toBe(0);
-  // Anything sent twice would have reached the server by now.
   await page.waitForTimeout(1000);
 
   expect(renames).toEqual([JSON.stringify({ name: "minutes.txt" })]);
@@ -330,9 +293,6 @@ test("Rename changes a name in place on a row and a card, once", async () => {
   expect(files).toEqual([{ name: "minutes.txt" }]);
 });
 
-// Catches: the page editor saving something other than Markdown (its HTML, its JSON, the text
-// without its marks), a save that overwrites a teammate's newer version without asking, or "Keep
-// mine" losing the person's text instead of saving it over theirs.
 test("a Markdown file is edited as a page, saved as Markdown, and a newer save is never overwritten unasked", async () => {
   const page = await signedIn(`edit-${Date.now()}@gmail.test`, "/files/my");
   await page
@@ -348,7 +308,6 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
         mimeType: "text/markdown",
         buffer: Buffer.from("# Plan\n\n- First point\n"),
       },
-      // A neighbour that ← and → would step to, were they not the editor's.
       { name: "zz.txt", mimeType: "text/plain", buffer: Buffer.from("next") },
     ]);
   await page.getByRole("row", { name: /plan\.md/ }).click();
@@ -363,8 +322,6 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
   const content = () =>
     page.evaluate(async (at) => (await fetch(at)).text(), `/api/storage/files/${id}/content`);
 
-  // ProseMirror reads where a click or an arrow put the caret on the browser's next
-  // `selectionchange`; a key pressed sooner (as no person types) would act at the old caret.
   const caretAtEndOf = async (text: string) => {
     await expect
       .poll(() =>
@@ -383,7 +340,6 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
       .toBe(`${text}|${text.length}`);
   };
 
-  // After the last list item, a new one: it saves as a second bullet, not as HTML.
   await editor.getByText("First point").click();
   await page.keyboard.press("End");
   await caretAtEndOf("First point");
@@ -396,7 +352,6 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
     .toMatch(/^# Plan\n\n- First point\n- Second \*\*point\*\*\n*$/);
   await expect.poll(() => save.isDisabled()).toBe(true);
 
-  // A teammate's save lands while this editor is open, through the same routes the app uses.
   const theirs = await page.evaluate(async (fileId) => {
     const text = "# Theirs\n";
     const opened = await fetch(`/api/storage/files/${fileId}/versions`, {
@@ -417,12 +372,10 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
   await save.click();
   const conflict = page.getByRole("alertdialog", { name: "Someone saved a newer version" });
   await conflict.waitFor({ timeout: 15_000 });
-  // Nothing was written over theirs while the person was asked.
   expect(await content()).toBe("# Theirs\n");
   await conflict.getByRole("button", { name: "Keep mine" }).click();
   await expect.poll(content, { timeout: 15_000 }).toContain("- Second **point** mine");
 
-  // Arrows move the caret, not to the next file; closing with unsaved text asks, and saves it.
   await editor.getByText("mine").click();
   await page.keyboard.press("End");
   await caretAtEndOf("Second point mine");
@@ -430,7 +383,6 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
   const leaving = page.getByRole("alertdialog", { name: "Save your changes?" });
   for (const key of ["ArrowRight", "ArrowLeft", "Escape"]) {
     await page.keyboard.press(key);
-    // Long enough for a step to another file to have asked.
     await page.waitForTimeout(300);
     expect(await leaving.count()).toBe(0);
   }
@@ -441,8 +393,6 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
   await expect.poll(() => editor.count()).toBe(0);
 });
 
-// Catches: a Markdown file with what the page cannot show (a table, an image) opening as a page,
-// whose save would write the file back without them.
 test("a Markdown file the page cannot keep whole edits as text, and saves every line", async () => {
   const page = await signedIn(`edit-table-${Date.now()}@gmail.test`, "/files/my");
   await page
@@ -479,7 +429,6 @@ test("a Markdown file the page cannot keep whole edits as text, and saves every 
     .toBe(text.replace("| Pro | 9 |", "| Pro | 9 | (monthly)"));
 });
 
-/** Signed in as `email` (a magic link, so a new address signs up), on `path`. */
 async function signedIn(email: string, path: string) {
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, email);

@@ -1,4 +1,3 @@
-// The `org:create` CLI as an operator runs it: a real process against a real database.
 import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";

@@ -1,8 +1,3 @@
-// The open file beside its folder, as an open thread sits beside the inbox: a 48px top bar (the
-// name, cut in its middle, then who is editing it, Edit or Save and Done, Previous, Next,
-// Download, the file's menu, Full screen and Close), the stage with the tools' island under it
-// (Comment, the area tool on a PDF, the versions), and the file's details on one line at the
-// foot. Open threads' boxes show over a PDF's pages; reading the threads is the comments sidebar's.
 import type { ReactNode } from "react";
 import {
   IconCheck,
@@ -68,15 +63,11 @@ export function PreviewPanel(props: {
   const { node } = props;
   const tools = usePreviewTools(node, props.shareId);
   const shown = tools.shown;
-  // An older version on the stage downloads that version, not the current content.
   const download = shown ? () => window.location.assign(shown.url) : props.onDownload;
   const session = useEditSession(node, props.url, props.shareId);
-  // Only the current content is edited, never an older version on the stage.
   const canEdit = props.canWrite && canEditFile(node) && !shown;
   return (
     <section aria-label={node.name} className="flex min-w-0 flex-1 flex-col bg-background">
-      {/* One row with the folder's header beside it: the same height and bottom line, 10px from
-          the end as that header's actions are. */}
       <div
         className={`flex h-12 shrink-0 items-center gap-3 border-b pe-2.5 ${props.fullScreen ? "ps-2.5" : "border-s ps-5"}`}
       >
@@ -123,7 +114,6 @@ export function PreviewPanel(props: {
           <Action label="Download" onPress={download}>
             <IconDownload />
           </Action>
-          {/* Moving, renaming or trashing the file would drop what is not saved: save first. */}
           {!session.dirty && (
             <SettingsRowMenu label={`Actions for ${node.name}`} items={props.menu} />
           )}
@@ -152,7 +142,6 @@ export function PreviewPanel(props: {
   );
 }
 
-/** Kind, size and dates on one line under the stage, each value after its muted label. */
 function Details(props: { node: StorageNode; border: boolean }) {
   const { node } = props;
   const rows: [string, ReactNode][] = [
@@ -177,7 +166,6 @@ function Details(props: { node: StorageNode; border: boolean }) {
   );
 }
 
-/** The others editing the file: their pictures, each named on hover. */
 function FileEditors(props: { nodeId: string }) {
   const me = useMember().member.id;
   const editors = useFileEditors(props.nodeId).filter((editor) => editor.memberId !== me);
@@ -228,7 +216,6 @@ function Action(props: {
   );
 }
 
-/** The file, or the older version picked, with the PDF's boxes over it and the island under it. */
 function Stage(props: {
   node: StorageNode;
   url: string;
@@ -240,7 +227,6 @@ function Stage(props: {
     <>
       <PdfMarksContext value={marks}>
         <PreviewBody
-          // A replaced file loads again, so a box is drawn on the content its comment names.
           key={shown?.key ?? `current:${contentVersion ?? ""}`}
           node={shown?.node ?? props.node}
           url={shown?.url ?? props.url}
@@ -252,7 +238,6 @@ function Stage(props: {
   );
 }
 
-/** The file's name, cut in its middle; a field while Rename from the menu changes it. */
 function Title(props: { node: StorageNode; rename?: InlineRename | undefined }) {
   const { node, rename } = props;
   const renaming = rename?.renaming?.id === node.id && rename.renaming.at === "preview";

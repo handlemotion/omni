@@ -1,4 +1,3 @@
-// Each e2e file gets its own throwaway database, migrated from the committed migrations.
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { sql } from "drizzle-orm";
@@ -77,7 +76,6 @@ export async function grant(db: TestDb, orgId: string, mailboxId: string, member
   await db.insert(mailboxAccess).values({ orgId, mailboxId, memberId });
 }
 
-/** How many connections to the test's database are waiting for a lock right now. */
 async function lockWaiters(db: TestDb) {
   const [row] = (await db.execute(sql`
     select count(*)::int as waiting from pg_stat_activity

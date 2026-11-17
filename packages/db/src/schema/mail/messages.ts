@@ -1,5 +1,3 @@
-// Mail (ADR 0035): threads, messages, where each sits on IMAP, attachments, and each member's
-// triage of a thread.
 import { sql, type SQL } from "drizzle-orm";
 import {
   type AnyPgColumn,
@@ -69,8 +67,6 @@ export const threads = pgTable(
      * one join its thread, so a conversation is the same one the provider shows.
      */
     providerThreadId: text("provider_thread_id"),
-    // Helpdesk conversation state (ADR 0021): shared by everyone who can see the inbox. Read
-    // state stays per member in `thread_state`. Personal mailboxes ignore these columns.
     status: conversationStatus("status").notNull().default("open"),
     assigneeMemberId: text("assignee_member_id").references(() => members.id, {
       onDelete: "set null",
@@ -110,10 +106,6 @@ export const threads = pgTable(
     }).onDelete("cascade"),
     index("threads_mailbox_list_idx").on(t.mailboxId, t.archived, t.lastMessageAt.desc()),
     index("threads_mailbox_triage_idx").on(t.mailboxId, t.triage, t.lastMessageAt.desc()),
-    // Thread lists read the top of one mailbox at a time in exact keyset order (ties broken by
-    // id), so each mailbox costs `limit` index entries however big it is. `nulls first` matches
-    // what `order by ... desc` means; the two indexes above (Drizzle's default `desc nulls last`)
-    // cannot serve that order, and can be dropped once these ship.
     index("threads_mailbox_page_idx").on(
       t.mailboxId,
       t.archived,
@@ -127,25 +119,19 @@ export const threads = pgTable(
       t.lastMessageAt.desc().nullsFirst(),
       t.id.desc().nullsFirst(),
     ),
-    // Views that ignore `archived` (All mail, Done) page each mailbox in the same keyset order.
     index("threads_mailbox_all_page_idx").on(
       t.mailboxId,
       t.lastMessageAt.desc().nullsFirst(),
       t.id.desc().nullsFirst(),
     ),
-    // Subject threading looks up recent threads by normalized subject for every new message.
     index("threads_mailbox_subject_key_idx").on(
       t.mailboxId,
       t.subjectKey,
       t.lastMessageAt.desc().nullsFirst(),
     ),
-    // Deleting a message sets this to null; without an index every deleted message scans
-    // `threads`, which makes removing a mailbox quadratic.
     index("threads_summary_message_id_idx")
       .on(t.summaryMessageId)
       .where(sql`${t.summaryMessageId} is not null`),
-    // Helpdesk views page one inbox at a time in the same keyset order as the lists above:
-    // Open, Pending, Snoozed, Resolved by status; Mine and Unassigned (null) by assignee.
     index("threads_mailbox_status_page_idx").on(
       t.mailboxId,
       t.status,
@@ -159,24 +145,19 @@ export const threads = pgTable(
       t.lastMessageAt.desc().nullsFirst(),
       t.id.desc().nullsFirst(),
     ),
-    // SLA clocks run while a conversation is open. The per-inbox "SLA at risk" view and the
-    // per-minute cron both read the soonest due time.
     index("threads_mailbox_sla_due_idx")
       .on(t.mailboxId, slaDueAt(t))
       .where(sql`${t.status} = 'open'`),
     index("threads_sla_due_idx")
       .on(slaDueAt(t))
       .where(sql`${t.status} = 'open'`),
-    // The snooze cron wakes conversations whose time has come.
     index("threads_snoozed_until_idx")
       .on(t.snoozedUntil)
       .where(sql`${t.status} = 'snoozed'`),
     index("threads_customer_idx").on(t.customerId, t.lastMessageAt.desc().nullsFirst()),
-    // Deleting a member sets this to null; index it so that is not a scan.
     index("threads_assignee_member_id_idx")
       .on(t.assigneeMemberId)
       .where(sql`${t.assigneeMemberId} is not null`),
-    // Every Gmail message looks its thread up by X-GM-THRID; one Omni thread per Gmail thread.
     uniqueIndex("threads_mailbox_provider_thread_unique")
       .on(t.mailboxId, t.providerThreadId)
       .where(sql`${t.providerThreadId} is not null`),
@@ -204,7 +185,6 @@ export const messages = pgTable(
     threadId: text("thread_id")
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
-    // Null until the message exists in an IMAP folder (e.g. a send before the Sent append).
     folderId: text("folder_id").references(() => mailboxFolders.id, { onDelete: "set null" }),
     imapUid: bigint("imap_uid", { mode: "number" }),
     /** Message-ID header, or a hash of the headers when the message has none. */
@@ -280,11 +260,8 @@ export const messages = pgTable(
     unique("messages_mailbox_id_message_id_header_unique").on(t.mailboxId, t.messageIdHeader),
     index("messages_thread_id_sent_at_idx").on(t.threadId, t.sentAt),
     index("messages_search_vector_idx").using("gin", t.searchVector),
-    // Threading asks which stored messages reply to a new one, for every message that starts a
-    // thread; without these an import scans the mailbox once per message.
     index("messages_mailbox_id_in_reply_to_idx").on(t.mailboxId, t.inReplyTo),
     index("messages_references_idx").using("gin", t.references),
-    // Search walks each mailbox newest first when a term is common, instead of ranking every hit.
     index("messages_notify_pending_idx")
       .on(t.mailboxId)
       .where(sql`${t.notifyPending}`),
@@ -293,10 +270,7 @@ export const messages = pgTable(
       t.sentAt.desc().nullsFirst(),
       t.id.desc().nullsFirst(),
     ),
-    // An agent's "mail from this address" (ADR 0029) finds its messages directly, and Postgres
-    // keeps statistics on the expression, so it can tell a rare sender from a common one.
     index("messages_mailbox_from_address_idx").on(t.mailboxId, sql`lower(${t.fromAddress})`),
-    // The participant backfill reads a mailbox's messages in id (time) order from its cursor.
     index("messages_mailbox_id_id_idx").on(t.mailboxId, t.id),
   ],
 );
@@ -358,7 +332,6 @@ export const attachments = pgTable(
   },
   (t) => [
     index("attachments_message_id_idx").on(t.messageId),
-    // The content hash in `<org>/<mailbox>/att/<sha256>`, which the image proxy looks up by.
     index("attachments_content_hash_idx").on(sql`split_part(${t.r2Key}, '/att/', 2)`),
   ],
 );
@@ -387,10 +360,6 @@ export const threadState = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.threadId, t.memberId] }),
-    // Later checks each candidate thread against the member's Later rows. Those are a
-    // sliver of `thread_state`, so probing this instead of the primary key reads a few pages and
-    // answers from the index alone (perf:explain: 41k buffers down to 8k). The two trailing
-    // columns are only there for that; Drizzle has no `include`.
     index("thread_state_member_deferred_idx")
       .on(t.memberId, t.threadId, t.snoozedUntil, t.doneThrough)
       .where(sql`${t.snoozedUntil} is not null`),
@@ -399,7 +368,6 @@ export const threadState = pgTable(
 
 export const assignments = pgTable("assignments", {
   orgId: orgId(),
-  // One assignee per thread: the first to reply or claim it.
   threadId: text("thread_id")
     .primaryKey()
     .references(() => threads.id, { onDelete: "cascade" }),

@@ -1,5 +1,3 @@
-// Mail (ADR 0035): mailboxes, their folders, who can open them, and inboxes made with an
-// invitation.
 import {
   bigint,
   boolean,
@@ -76,7 +74,6 @@ export const mailboxes = pgTable(
   (t) => [
     unique("mailboxes_org_id_address_unique").on(t.orgId, t.address),
     unique("mailboxes_team_id_unique").on(t.teamId),
-    // Target for composite foreign keys that pin a child row to its mailbox's org.
     unique("mailboxes_id_org_id_unique").on(t.id, t.orgId),
   ],
 );
@@ -118,7 +115,6 @@ export const mailboxFolders = pgTable(
     role: folderRole("role").notNull().default("other"),
     uidvalidity: bigint("uidvalidity", { mode: "number" }),
     uidnext: bigint("uidnext", { mode: "number" }),
-    // MODSEQ is a 63-bit counter; keep it exact.
     highestModseq: bigint("highest_modseq", { mode: "bigint" }),
     syncedAt: timestamptz("synced_at"),
     createdAt: createdAt(),

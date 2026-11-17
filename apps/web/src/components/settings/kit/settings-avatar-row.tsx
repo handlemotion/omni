@@ -44,7 +44,6 @@ export function SettingsAvatarRow({
       control={
         <>
           {busy && <Loader className="size-icon text-muted-foreground" />}
-          {/* One hidden picker, opened by the image or by the menu's Upload. */}
           <FileTrigger
             ref={input}
             acceptedFileTypes={SETTINGS_AVATAR_ACCEPT}

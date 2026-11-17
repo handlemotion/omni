@@ -1,8 +1,5 @@
 "use client";
 
-// Ported from transitive (`packages/ui/src/components/ui/command.tsx`) onto our Dialog and
-// tokens: a cmdk command menu in a centred modal over the scrim. The list's fluid hover follows
-// cmdk's selected row (keyboard or pointer), so rows carry no fill of their own.
 import { Command as CommandPrimitive } from "cmdk";
 import { cn } from "cn";
 import type { ReactNode } from "react";
@@ -41,11 +38,7 @@ export function CommandDialog({
       aria-label={label}
       bare
       closeButton={false}
-      className={cn(
-        // Optical centre: a little above the true middle, as transitive's sits.
-        "-translate-y-6 rounded-2xl sm:max-w-[min(calc(100vw-24px),640px)]",
-        className,
-      )}
+      className={cn("-translate-y-6 rounded-2xl sm:max-w-[min(calc(100vw-24px),640px)]", className)}
       {...props}
     >
       {children}

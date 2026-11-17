@@ -1,5 +1,3 @@
-// Postgres side of the mail e2e suites: one throwaway, migrated database per file (from
-// `@omni/db/testing`), plus readers that show what the service stored.
 import { enqueueAction, schema, type MailActionRequest } from "@omni/db";
 import { createMember, createOrg, createTestDatabase } from "@omni/db/testing";
 import { and, asc, eq } from "drizzle-orm";

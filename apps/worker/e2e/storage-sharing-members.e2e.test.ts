@@ -1,5 +1,3 @@
-// The link door for the people of the item's own workspace (ADR 0034 decision 6), and sharing
-// on an install that sends no system mail, over the real Worker, Postgres and local R2.
 import { randomBytes, randomUUID } from "node:crypto";
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -23,9 +21,6 @@ const linkOf = async (jar: CookieJar, nodeId: string) => {
   return set.body.sharing.shareId as string;
 };
 
-// Catches: "Copy link" handing teammates a dead link (a Restricted link that opens only for
-// people added by address), and the fix for it opening a link for a member of some other
-// workspace or showing an admin another member's My files.
 test("a Restricted link opens for a teammate who reaches the item as a member, and for nobody else", async () => {
   const org = await stack.company(`team-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id, "member");
@@ -44,7 +39,6 @@ test("a Restricted link opens for a teammate who reaches the item as a member, a
   const file = (jar: CookieJar, shareId: string, nodeId: string) =>
     stack.get(jar, `/shared/${shareId}/files/${nodeId}/content`);
 
-  // Bo was never added by address: the company's Shared is his as a member.
   const opened = await stack.api(bo.jar, "GET", `/shared/${plansLink}`);
   expect(opened).toMatchObject({
     status: 200,
@@ -53,16 +47,13 @@ test("a Restricted link opens for a teammate who reaches the item as a member, a
   const got = await file(bo.jar, plansLink, roadmap.id);
   expect(got.status).toBe(200);
   expect(Buffer.from(await got.arrayBuffer())).toEqual(bytes);
-  // Through the link he changes what a member may, as on the member routes.
   const added = await stack.api(bo.jar, "POST", `/shared/${plansLink}/folders`, {
     name: "From Bo",
     parentId: plans,
   });
   expect(added).toMatchObject({ status: 201, body: { node: { space: "shared", orgId: org.id } } });
-  // Ana's own file opens for her by its link.
   expect((await file(ana.jar, diaryLink, diary.id)).status).toBe(200);
 
-  // A member of another workspace, a visitor, and an admin at another member's My files: 404.
   for (const jar of [outsider.jar, new CookieJar()]) {
     expect((await stack.api(jar, "GET", `/shared/${plansLink}`)).status).toBe(404);
     expect((await file(jar, plansLink, roadmap.id)).status).toBe(404);
@@ -70,20 +61,16 @@ test("a Restricted link opens for a teammate who reaches the item as a member, a
   for (const jar of [admin.jar, bo.jar]) {
     expect((await stack.api(jar, "GET", `/shared/${diaryLink}`)).status).toBe(404);
     expect((await file(jar, diaryLink, diary.id)).status).toBe(404);
-    // Nor by naming it under a link that does open for them.
     expect((await file(jar, plansLink, diary.id)).status).toBe(404);
   }
 });
 
-// Catches: an install with no SYSTEM_MAIL_FROM (sign-in by passkey or Google) on which nobody
-// can be added to anything, because the share mail has no sender.
 test("with no SYSTEM_MAIL_FROM a person is added without a mail and finds the item under Shared with me", async () => {
   const org = await stack.company(`quiet-${randomUUID().slice(0, 8)}`);
   const ana = await stack.member(org.id, "owner");
   const made = await stack.api(ana.jar, "POST", "/folders", { name: "Quiet", space: "personal" });
   const guestEmail = `guest-${randomUUID().slice(0, 8)}@outside.test`;
 
-  // The same install (database, auth secret) as a Worker configured to send no system mail.
   const quiet = await startWorker({
     databaseUrl: stack.database.url,
     mailServiceUrl: "http://127.0.0.1:9",

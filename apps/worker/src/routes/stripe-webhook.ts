@@ -1,8 +1,3 @@
-// Stripe's webhook (ADR 0015), in front of Better Auth's Stripe plugin. Verifies Stripe's
-// signature, then applies each event at most once and never an older one over a newer: the
-// plugin writes each event's snapshot as-is, so a replayed or late event would roll state back.
-// The plugin answers 200 even when its write failed (it logs and swallows the error), so an event
-// counts as applied only once its effect is in the database; otherwise Stripe is told to retry.
 import { createStripeClient, type BillingConfig } from "@omni/auth";
 import {
   recordStripeEvent,
@@ -23,7 +18,6 @@ const cryptoProvider = Stripe.createSubtleCryptoProvider();
 
 type StripeObject = Record<string, unknown>;
 
-/** The workspace an event is about, from the metadata the plugin puts on checkout and subscriptions. */
 function referencedOrg(object: StripeObject) {
   const metadata = object.metadata as Record<string, string> | null | undefined;
   const reference =
@@ -31,12 +25,6 @@ function referencedOrg(object: StripeObject) {
   return typeof reference === "string" && reference ? reference : null;
 }
 
-/**
- * What the plugin should leave in `subscriptions` once it handles `event`: a row with this Stripe
- * subscription id (and status), or nothing, with the reason it ignores the event. Mirrors the
- * lookups the plugin makes, so an event it is meant to ignore is never retried forever. Runs
- * before the plugin, which changes what those lookups see.
- */
 const expectedEffect: (
   db: Db,
   billing: BillingConfig,
@@ -54,7 +42,6 @@ const expectedEffect: (
     if (object.mode !== "subscription" || typeof object.subscription !== "string") {
       return { ignored: "not a subscription checkout" };
     }
-    // The plugin only completes a checkout it started, by updating the row it created for it.
     if (!referencedOrg(object) || !ourId) return { ignored: "checkout not started by Omni" };
     if (!(await storedSubscriptions(db, { id: ourId })).length) {
       return { ignored: "no pending subscription for the checkout" };
@@ -77,8 +64,6 @@ const expectedEffect: (
         .from(schema.organizations)
         .where(eq(schema.organizations.stripeCustomerId, customer))
     : [];
-  // A subscription Omni would have stored when it was created; if the row is missing, the
-  // `created` event has not landed yet (Stripe does not deliver in order), so retry.
   const belongsHere = org !== undefined && matchesPlan;
   const byOurId = async () =>
     storedSubscriptions(db, ourId ? { id: ourId } : { stripeSubscriptionId: id });
@@ -92,7 +77,6 @@ const expectedEffect: (
     return { stripeSubscriptionId: id, status };
   }
   if (kind === "updated") {
-    // The plugin needs one item: one matching a plan, or the only one.
     if (!matchesPlan && items.length !== 1) return { ignored: "price matches no plan" };
     if ((await byOurId()).length) return { stripeSubscriptionId: id, status };
     const ofCustomer = customer
@@ -150,7 +134,6 @@ export const stripeWebhook = new Hono<AppEnv>().post("/", async (c) => {
   };
   const disposition = await stripeEventDisposition(c.var.db, ref);
   if (disposition !== "new") {
-    // Stale events are recorded too, so a replay of one is a plain duplicate.
     await recordStripeEvent(c.var.db, ref);
     c.var.log.info("stripe.event_skipped", { eventId: event.id, type: event.type, disposition });
     return c.json({ received: true, applied: false, reason: disposition });
@@ -161,7 +144,6 @@ export const stripeWebhook = new Hono<AppEnv>().post("/", async (c) => {
     new Request(c.req.raw.url, { method: "POST", headers: c.req.raw.headers, body: payload }),
   );
   const fields = { eventId: event.id, type: event.type, status: response.status, orgId: ref.orgId };
-  // A non-2xx makes Stripe retry, so only a handled event is marked applied.
   if (!response.ok) {
     c.var.log.info("stripe.event", fields);
     return response;

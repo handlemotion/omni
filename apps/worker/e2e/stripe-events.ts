@@ -1,11 +1,7 @@
-// Stripe webhook events for the e2e suites, signed with Stripe's own library exactly as Stripe
-// signs them, and posted to the real Worker. The payloads carry only the fields Stripe sends that
-// the plugin reads; the live suite (`billing-stripe.e2e.test.ts`) covers events Stripe itself sent.
 import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
 
 export const BILLING_SECRETS = {
-  // Never dialed by these suites: the events below need no Stripe API call.
   STRIPE_SECRET_KEY: "sk_test_e2e_never_dialed",
   STRIPE_WEBHOOK_SECRET: "whsec_e2e_webhook_secret_e2e_webhook_secret",
 };
@@ -98,8 +94,6 @@ export async function postStripeEvent(
   let body: unknown = text;
   try {
     body = JSON.parse(text);
-  } catch {
-    // not JSON
-  }
+  } catch {}
   return { status: response.status, body };
 }

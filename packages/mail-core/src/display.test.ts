@@ -15,9 +15,7 @@ test("addedParticipants announces a person once, against the whole thread, ignor
   const bea = { name: "Bea", address: "bea@example.com" };
   const added = addedParticipants([
     { fromAddress: "ana@example.com", to: [luis], cc: [] },
-    // Luis replies to Ana only: Luis was on the first message, so nobody is added.
     { fromAddress: "luis@example.com", to: [ana], cc: [] },
-    // Ana adds Bea, and re-includes Luis (seen two messages back, upper-cased here).
     { fromAddress: "Ana@Example.com", to: [{ ...luis, address: "LUIS@example.com" }], cc: [bea] },
     { fromAddress: "bea@example.com", to: [ana, luis], cc: [] },
   ]);

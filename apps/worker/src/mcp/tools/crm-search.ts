@@ -1,6 +1,3 @@
-// `crm_search`: find people, companies and deals (ADR 0036 decision 7). Words match the start of
-// a name or one of its words, a person's address or a company's domain; a stage kind or an owner
-// narrows to deals. Compact rows; `crm_fetch` reads them whole.
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { CrmCompany, CrmDeal, CrmPerson } from "@omni/db";
 import { z } from "zod";
@@ -47,7 +44,6 @@ const outputSchema = z.object({
 
 type Found = { people: CrmPerson[]; companies: CrmCompany[]; deals: CrmDeal[] };
 
-/** One workspace's matches, or a refusal sentence. */
 async function findIn(context: ToolContext, workspace: CrmWorkspace, input: Input) {
   const crm = crmOf(context, workspace);
   const dealsOnly = input.stage_kind !== undefined || input.owner !== undefined;
@@ -61,7 +57,6 @@ async function findIn(context: ToolContext, workspace: CrmWorkspace, input: Inpu
   const q = input.query.trim();
   const found: Found = { people: [], companies: [], deals: [] };
 
-  // Words alone: the search pickers use, matching addresses and domains too.
   if (q && !dealsOnly) {
     const matches = await crm.search({ q, limit: input.limit });
     if (matches.status !== "ok")
@@ -86,7 +81,6 @@ async function findIn(context: ToolContext, workspace: CrmWorkspace, input: Inpu
   }
   if (wants("deal")) {
     const owner = input.owner ? await teammate(context, workspace, input.owner) : undefined;
-    // An owner who is not in this workspace owns nothing here.
     if (owner === null) return found satisfies Found | { error: string };
     const deals = await crm.listDeals({
       q,

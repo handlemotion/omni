@@ -1,10 +1,3 @@
-// A file's versions (ADR 0043 decision 1): the current content first, then what it replaced,
-// newest first; each kept version downloads or is restored from its "⋯", and Upload new version
-// replaces the content through the uploads queue.
-//
-// Geometry: rows 8px apart, each a 40px row: when it was written with who wrote it under, then
-// its size in tabular figures at the end, then a 24px slot for the "⋯" (empty on the current
-// row, so the sizes line up).
 import { Skeleton } from "skullet/react";
 import { IconDownload, IconRestore } from "@/components/icons/central";
 import { SettingsRowMenu } from "@/components/settings/kit/settings-row-menu";

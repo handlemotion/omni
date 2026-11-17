@@ -1,7 +1,3 @@
-// Billing (ADR 0015) over the real Worker and Postgres: Stripe's signed webhook drives the
-// workspace's plan through Better Auth's Stripe plugin, a replayed or out-of-order event changes
-// nothing, a workspace without a plan in good standing reads its mail but writes none, and an
-// install with no Stripe configuration has no billing at all.
 import { randomUUID } from "node:crypto";
 import { PLAN_NAME } from "@omni/auth";
 import { schema } from "@omni/db";
@@ -75,7 +71,6 @@ function api(base: { url: string | URL }, path: string, cookie: string, init: Re
   });
 }
 
-/** A workspace with a Stripe customer, an owner signed in, and one thread they can read. */
 async function workspace(role = "owner") {
   const { db } = database;
   const org = await createOrg(db, "billed");
@@ -109,7 +104,6 @@ async function billing(cookie: string, base: { url: string | URL } = worker) {
   return (await response.json()) as Billing;
 }
 
-/** A mail write: archiving the thread. 402 means the workspace is read-only. */
 async function archive(cookie: string, threadId: string, base: { url: string | URL } = worker) {
   const response = await api(base, `/threads/${threadId}/archive`, cookie, {
     method: "POST",
@@ -140,7 +134,6 @@ test("the webhook drives the plan; a replayed or older event changes nothing", a
     });
   const at = (offsetSeconds: number) => new Date(t0.getTime() + offsetSeconds * 1000);
 
-  // Never subscribed: mail stays readable, writes are refused.
   expect(await billing(cookie)).toMatchObject({
     enabled: true,
     readOnly: true,
@@ -170,13 +163,10 @@ test("the webhook drives the plan; a replayed or older event changes nothing", a
   expect(afterActivation).toHaveLength(1);
   expect(afterActivation[0]).toMatchObject({ status: "active", stripeSubscriptionId: sub({}).id });
 
-  // Stripe retries and replays: the same event again is acknowledged and ignored.
   expect(await postStripeEvent(worker.url, activated)).toMatchObject({
     status: 200,
     body: { applied: false, reason: "duplicate" },
   });
-  // Stripe does not deliver in order: an event created before the one applied would roll the
-  // plan back to its snapshot (here, past_due); it is skipped.
   const late = stripeEvent("customer.subscription.updated", sub({ status: "past_due" }), at(5));
   expect((await postStripeEvent(worker.url, late)).body).toMatchObject({
     applied: false,
@@ -187,7 +177,6 @@ test("the webhook drives the plan; a replayed or older event changes nothing", a
   });
   expect(await subscriptionRows(org.id)).toEqual(afterActivation);
 
-  // Canceled (or a trial that ended without a card): read-only again, mail still readable.
   const deleted = stripeEvent(
     "customer.subscription.deleted",
     sub({ status: "canceled", trialEnd: undefined }),
@@ -227,8 +216,6 @@ test("an event whose write did not land is retried, not acknowledged; one Omni i
   const recorded = async (id: string) =>
     database.db.select().from(schema.stripeEvents).where(eq(schema.stripeEvents.id, id));
 
-  // Stripe does not deliver in order: the update arrives before the subscription exists here.
-  // The plugin cannot find the row, logs, and answers 200; the webhook must not.
   const activated = stripeEvent(
     "customer.subscription.updated",
     { ...sub, status: "active", trial_start: null, trial_end: null },
@@ -238,7 +225,6 @@ test("an event whose write did not land is retried, not acknowledged; one Omni i
   expect(await recorded(activated.id)).toEqual([]);
   expect(await subscriptionRows(org.id)).toEqual([]);
 
-  // The creation lands, and Stripe's retry of the update now applies it.
   const created = stripeEvent("customer.subscription.created", sub, t0);
   expect((await postStripeEvent(worker.url, created)).body).toMatchObject({ applied: true });
   expect(await postStripeEvent(worker.url, activated)).toMatchObject({
@@ -250,7 +236,6 @@ test("an event whose write did not land is retried, not acknowledged; one Omni i
   ]);
   expect(await recorded(activated.id)).toHaveLength(1);
 
-  // A subscription for a customer that is no workspace's is acknowledged, not retried forever.
   const stranger = stripeEvent(
     "customer.subscription.updated",
     { ...sub, id: `sub_e2e_${randomUUID().slice(0, 8)}`, customer: "cus_e2e_nobody" },
@@ -299,7 +284,6 @@ test("checkout and the portal are for the workspace's owners and admins only", a
     (await api(worker, "/billing/portal", member.cookie, { method: "POST", body: "{}" })).status,
   ).toBe(403);
   expect(await billing(member.cookie)).toMatchObject({ canManage: false });
-  // Cards and invoices too, refused before Stripe is asked anything.
   for (const [method, path] of [
     ["GET", "/billing/cards"],
     ["POST", "/billing/cards/setup"],
@@ -315,7 +299,6 @@ test("checkout and the portal are for the workspace's owners and admins only", a
     expect({ method, path, status: response.status }).toEqual({ method, path, status: 403 });
   }
 
-  // The plugin's own endpoints would let anyone subscribe for themselves: closed.
   const direct = await api(worker, "/auth/subscription/upgrade", member.cookie, {
     method: "POST",
     headers: { origin: "http://localhost:5173" },
@@ -323,7 +306,6 @@ test("checkout and the portal are for the workspace's owners and admins only", a
   });
   expect(direct.status).toBe(404);
 
-  // An owner whose workspace is already paid is sent to the portal, not into a second plan.
   const owner = await workspace("owner");
   await postStripeEvent(
     worker.url,
@@ -345,7 +327,6 @@ test("checkout and the portal are for the workspace's owners and admins only", a
 test("a new workspace finishes setup only once it has a trial or a plan", async () => {
   const { db } = database;
   const owner = await workspace("owner");
-  // Mailboxes made, invitations next: the step the plan page comes before.
   await db
     .insert(schema.orgSetup)
     .values({ orgId: owner.org.id, step: "mailboxes_created" })
@@ -367,7 +348,6 @@ test("a new workspace finishes setup only once it has a trial or a plan", async 
   expect(await refused.json()).toMatchObject({ code: "BILLING_REQUIRED" });
   expect(await billing(owner.cookie)).toMatchObject({ trialAvailable: true, trialDays: 14 });
 
-  // Checkout's way back must stay in the app: another origin is refused before Stripe is asked.
   for (const returnPath of ["//evil.example/x", "https://evil.example", "/\\evil.example"]) {
     const away = await api(worker, "/billing/checkout", owner.cookie, {
       method: "POST",
@@ -376,8 +356,6 @@ test("a new workspace finishes setup only once it has a trial or a plan", async 
     expect({ returnPath, status: away.status }).toEqual({ returnPath, status: 400 });
   }
 
-  // The trial starts (Stripe's event, as after Checkout): setup can finish, and the workspace's
-  // one trial is spent.
   const start = new Date(Math.floor(Date.now() / 1000) * 1000);
   const end = new Date(start.getTime() + 14 * 86_400_000);
   await postStripeEvent(
@@ -410,10 +388,8 @@ test("one free trial per account: the same person's next workspace pays, even af
     .from(schema.members)
     .where(eq(schema.members.organizationId, first.org.id));
   const userId = owned!.userId;
-  // They started the first workspace's trial (what POST /billing/trial records before Stripe).
   await db.insert(schema.trialClaims).values({ orgId: first.org.id, userId: userId });
 
-  // Their own new workspace, opened in the same session.
   const second = await createOrg(db, "second");
   await db.insert(schema.members).values({
     id: randomUUID(),
@@ -426,8 +402,6 @@ test("one free trial per account: the same person's next workspace pays, even af
     .update(schema.sessions)
     .set({ activeOrganizationId: second.id })
     .where(eq(schema.sessions.userId, userId));
-  // That write stands in for `set-active`, which also renews the session cookie cache: drop the
-  // cached copy so the next request reads the session as the database now has it.
   first.cookie = first.cookie
     .split("; ")
     .filter((cookie) => !cookie.includes("session_data"))
@@ -443,13 +417,10 @@ test("one free trial per account: the same person's next workspace pays, even af
   expect(refused.status).toBe(409);
   expect(await refused.text()).toContain("another workspace");
 
-  // Deleting the first workspace does not hand the trial back.
   await db.delete(schema.organizations).where(eq(schema.organizations.id, first.org.id));
   expect(await billing(first.cookie)).toMatchObject({ trialAvailable: false });
   expect((await trial()).status).toBe(409);
 
-  // Someone else in that new workspace cannot start one either once it is claimed: a workspace
-  // gets one trial, whoever starts it.
   const other = `admin-${randomUUID().slice(0, 8)}@omni.test`;
   const admin = await createMember(db, second.id, other);
   await db.update(schema.members).set({ role: "admin" }).where(eq(schema.members.id, admin.id));
@@ -464,10 +435,6 @@ test("one free trial per account: the same person's next workspace pays, even af
   expect(await taken.text()).toContain("this workspace has had its free trial");
 });
 
-/**
- * Checks there is no billing on `unbilled`: no plan in setup, no limits, no checkout, cards or
- * webhook. Answers what `/api/billing` says, for the test to assert.
- */
 async function withoutBilling(unbilled: Awaited<ReturnType<typeof startWorker>>) {
   const { db } = database;
   const org = await createOrg(db, "self-hosted");
@@ -483,7 +450,6 @@ async function withoutBilling(unbilled: Awaited<ReturnType<typeof startWorker>>)
   const cookie = await signIn(unbilled, db, email);
 
   const answer = await billing(cookie, unbilled);
-  // Setup has no plan page and nothing to pay.
   expect(await (await api(unbilled, "/onboarding", cookie)).json()).toMatchObject({
     billing: { enabled: false },
     organization: { needsPlan: false },
@@ -507,8 +473,6 @@ test("with no Stripe configuration there is no billing: no webhook, no limits, a
   expect(await withoutBilling(unbilled)).toEqual({ enabled: false });
 });
 
-// Catches: `BILLING=off` ignored while Stripe is configured (setup still asks for a trial), or
-// the Worker refusing to start over Stripe settings it should leave unchecked.
 test("BILLING=off turns billing off with every Stripe setting still in place", async () => {
   switchedOff = await startWorker({
     databaseUrl: database.url,
@@ -525,8 +489,6 @@ test("BILLING=off turns billing off with every Stripe setting still in place", a
   expect(await withoutBilling(switchedOff)).toEqual({ enabled: false });
 });
 
-// Catches: a Personal space (ADR 0024) shown as read-only, or one that spends its owner's
-// account-wide trial or buys a plan, when it is free.
 test("a Personal space is free: no plan, no trial, no checkout, and writable", async () => {
   const { db } = database;
   const email = `personal-${randomUUID().slice(0, 8)}@omni.test`;
@@ -536,7 +498,6 @@ test("a Personal space is free: no plan, no trial, no checkout, and writable", a
     .select({ orgId: schema.personalSpaces.orgId })
     .from(schema.personalSpaces)
     .where(eq(schema.personalSpaces.userId, user!.id));
-  // Stands in for `set-active`; drop the cached session so the next request reads it.
   await db
     .update(schema.sessions)
     .set({ activeOrganizationId: space!.orgId })
@@ -559,8 +520,6 @@ test("a Personal space is free: no plan, no trial, no checkout, and writable", a
   ).toEqual([]);
   expect(await subscriptionRows(space!.orgId)).toEqual([]);
 
-  // With no plan there is nothing to manage; one that exists anyway can still be managed (and
-  // cancelled) through the portal, while starting another stays refused.
   const portal = () =>
     api(worker, "/billing/portal", cookie, {
       method: "POST",

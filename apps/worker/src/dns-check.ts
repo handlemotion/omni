@@ -1,8 +1,3 @@
-// A domain's DNS as the member's host serves it right now (ADR 0011): one batch of authoritative
-// lookups (through the mail service) for Omni's challenge and every provider record, read into
-// per-record verdicts, plus which DNS host this is and whether it offers Domain Connect for our
-// template. Stored as the claim's `last_check`, so a reload, iOS and the realtime push all show
-// the same verdicts.
 import type { DnsAnswer } from "@omni/contracts";
 import { challengeMatches, signDomainConnectQuery } from "@omni/crypto";
 import type { DomainCheck, DomainRecordDiagnostic, MailDomainRecord, schema } from "@omni/db";
@@ -115,11 +110,6 @@ export async function inspectDomain(
   } satisfies { check: DomainCheck; challengeFound: boolean | null };
 }
 
-/**
- * The host's Domain Connect settings, if it offers the standard and has our template. Off unless
- * DOMAIN_CONNECT_PROVIDER_ID is set. Any failure (no TXT, a host that does not answer, a template
- * it has not onboarded) reads as "not offered": the member adds the records by hand.
- */
 const discoverDomainConnect: (
   deps: DomainDeps,
   input: { domain: string; zone: string; txt: DnsAnswer | undefined; serviceId?: string },
@@ -128,7 +118,6 @@ const discoverDomainConnect: (
   if (!providerId || !input.serviceId) return null;
   try {
     let txt = input.txt;
-    // `_domainconnect` lives on the zone; a claimed subdomain asks its zone.
     if (input.zone !== input.domain) {
       const name = `_domainconnect.${input.zone}`;
       const zoneAnswer = await lookupDns(deps, {
@@ -190,8 +179,6 @@ export async function domainConnectUrl(
   const { config } = deps;
   const serviceId = DOMAIN_CONNECT_SERVICES[input.provider];
   if (!dc || !input.challengeValue || !config.DOMAIN_CONNECT_PROVIDER_ID || !serviceId) return null;
-  // The templates fix each TXT value's prefix (docs/domain-connect), so only the part after it
-  // travels as a variable.
   const challenge = afterPrefix(input.challengeValue, "omni-challenge=");
   const ownershipValue = input.records.find((r) => r.check === "ownership")?.value;
   const ownership = ownershipValue && afterPrefix(ownershipValue, "purelymail_ownership_proof=");
@@ -219,7 +206,6 @@ export async function domainConnectUrl(
   });
 }
 
-/** The text after `prefix`, or null when the value does not start with it. */
 function afterPrefix(value: string, prefix: string) {
   const trimmed = value.trim();
   return trimmed.startsWith(prefix) ? trimmed.slice(prefix.length) : null;

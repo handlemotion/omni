@@ -1,6 +1,3 @@
-// The whole mail service in-process against the real local stack: Postgres, GreenMail, the S3
-// gateway, and real HTTP in both directions. The Worker side is a plain HTTP server that checks
-// signatures and bodies with the same `@omni/crypto` and `@omni/contracts` code the Worker uses.
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
@@ -53,11 +50,9 @@ let db: TestDb;
 let bucket: Awaited<ReturnType<typeof createTestBucket>>;
 let worker: Server;
 let workerUrl: string;
-/** Events the Worker accepted, in order. */
 let received: MailEvent[] = [];
 const eventWaiters = new Set<() => void>();
 
-/** Resolves once `check` holds, re-checked each time the Worker accepts events. */
 async function heard(check: () => boolean) {
   const held = Promise.withResolvers<void>();
   const test = () => check() && held.resolve();
@@ -66,14 +61,11 @@ async function heard(check: () => boolean) {
   await held.promise.finally(() => eventWaiters.delete(test));
 }
 let workerRejected = 0;
-/** While true the Worker answers 503, as during a deploy or an outage. */
 let workerDown = false;
 let workerUnavailable = 0;
 
-/** Mailboxes whose connect-time outbox drain has finished, since the service last started. */
 let drained = new Set<string>();
 const drainWaiters = new Set<() => void>();
-/** Prints errors as the shared test logger does, and records each finished connect-time drain. */
 const serviceLogger = createLogger(
   "debug",
   {},
@@ -158,7 +150,6 @@ async function startMailService(overrides: Partial<ServiceConfig> = {}) {
     S3_REGION: bucket.options.region,
     IMAGE_PROXY_URL: "/api/image-proxy",
     ATTACHMENT_URL: "/api/attachments",
-    // Long enough that only IDLE and pings drive work during a test.
     SYNC_INTERVAL_MS: 60 * 60_000,
     OUTBOX_INTERVAL_MS: 60 * 60_000,
     MAILBOX_CONCURRENCY: 4,
@@ -180,7 +171,6 @@ async function stopService() {
   service = null;
 }
 
-/** A mailbox row whose credentials the service must decrypt to connect. */
 async function seedConnectable(kind: "personal" | "shared" = "personal") {
   const seeded = await seedMailbox(db, { kind });
   const { box } = seeded;
@@ -194,7 +184,6 @@ async function seedConnectable(kind: "personal" | "shared" = "personal") {
   return seeded;
 }
 
-/** Connected, first sync done, and the connect-time outbox drain has had its turn. */
 async function connected(mailboxId: string) {
   await waitFor(async () => (await mailboxStatus(db, mailboxId)) === "active");
   const done = Promise.withResolvers<void>();
@@ -241,7 +230,6 @@ describe("mail service end to end", () => {
     ]);
     expect(workerRejected).toBe(0);
 
-    // A reply from outside joins the thread.
     await deliver(box.address, "Re: pipeline check", { inReplyTo: row?.messageIdHeader });
     const reply = await waitFor(async () =>
       (await stored(db, box.id, "INBOX")).find((r) => r.subject === "Re: pipeline check"),
@@ -262,8 +250,6 @@ describe("mail service end to end", () => {
     await startMailService();
     await connected(box.id);
     await heard(() => received.length >= 1);
-    // Mail delivered now is announced after anything the restart sent, so a stray duplicate
-    // would be in by the time its event is.
     await deliver(box.address, "after restart");
     await heard(() => received.length >= 2);
 
@@ -289,7 +275,6 @@ describe("mail service end to end", () => {
       return rows.length > 0 && rows;
     });
     await waitFor(() => workerUnavailable > 0);
-    // The process goes away before the Worker ever accepted the event.
     await stopService();
     expect(received).toEqual([]);
 
@@ -306,7 +291,6 @@ describe("mail service end to end", () => {
         folderRole: "inbox",
       },
     ]);
-    // Accepted, so the next start sends nothing again.
     await waitFor(async () => (await messageRows(db, box.id))[0]?.notifyPending === false);
   });
 
@@ -317,7 +301,6 @@ describe("mail service end to end", () => {
     await startMailService();
     await connected(box.id);
 
-    // Its folder was reset since the app saw it: it fails for good on the first attempt.
     const stale = await enqueue(db, seeded, {
       kind: "move",
       idempotencyKey: `stale-move-outage-${box.id}`,
@@ -326,7 +309,6 @@ describe("mail service end to end", () => {
     await service?.supervisor.ping();
     expect((await actionRow(db, stale.id)).status).toBe("failed");
     await waitFor(() => workerUnavailable > 0);
-    // The process goes away before the Worker ever accepted the event.
     await stopService();
     expect(received).toEqual([]);
 
@@ -344,7 +326,6 @@ describe("mail service end to end", () => {
         requestId: null,
       },
     ]);
-    // Accepted, so nothing is left to send again.
     await waitFor(
       async () =>
         (
@@ -363,7 +344,6 @@ describe("mail service end to end", () => {
     await startMailService();
     await connected(box.id);
 
-    // The Worker queues it with a 2 s undo window and pings at once (the poll here is an hour).
     const action = await enqueue(db, seeded, {
       kind: "send",
       idempotencyKey: `undo-send-${box.id}`,
@@ -385,7 +365,6 @@ describe("mail service end to end", () => {
 
     await waitFor(async () => (await actionRow(db, action.id)).status === "done", 10_000);
     expect(Date.now() - queuedAt).toBeLessThan(6_000);
-    // Not before its window: the SMTP server took it only once the window had ended.
     const sent = await actionRow(db, action.id);
     expect(sent.smtpAcceptedAt?.getTime()).toBeGreaterThanOrEqual(runAfter.getTime());
   });
@@ -419,7 +398,6 @@ describe("mail service end to end", () => {
     expect((await ping({ headers: forged })).status).toBe(401);
     expect((await ping({ headers: expired })).status).toBe(401);
     expect((await ping({ headers: otherPath })).status).toBe(401);
-    // None of those ran the outbox: a ping is refused before it reaches it.
     expect((await actionRow(db, action.id)).status).toBe("pending");
 
     const valid = await signRequest({
@@ -429,17 +407,14 @@ describe("mail service end to end", () => {
       nonce: randomUUID(),
     });
     expect((await ping({ headers: valid })).status).toBe(202);
-    expect((await ping({ headers: valid })).status).toBe(401); // same nonce again
+    expect((await ping({ headers: valid })).status).toBe(401);
 
     await waitFor(async () => (await actionRow(db, action.id)).status === "done", 10_000);
 
-    // The Sent copy is indexed exactly once, and the Worker hears about it once.
     const messageId = deterministicMessageId(action.idempotencyKey, box.address);
     const sent = await stored(db, box.id, "Sent");
     expect(sent.map((r) => r.messageIdHeader)).toEqual([messageId]);
     expect((await messageRows(db, box.id)).map((r) => r.messageIdHeader)).toEqual([messageId]);
-    // Its Sent copy carries \\Seen, so the new thread now reads as read: open apps refresh it.
-    // Mail delivered now is announced after those, so a duplicate would be in before it.
     await heard(() => received.length >= 2);
     await deliver(box.address, "after the send");
     await heard(() =>
@@ -482,13 +457,11 @@ describe("mail service end to end", () => {
     const first = await mailboxAdd(args, "app-password-1");
     expect(first).toMatchObject({ code: 0, stderr: expect.not.stringContaining("mailbox:add:") });
     const { mailboxId } = JSON.parse(first.stdout) as { mailboxId: string };
-    // The CLI pinged the service, which decrypted the credentials and connected.
     expect(first.stderr).toContain("mail service pinged");
     await connected(mailboxId);
     await deliver(address, "first onboarded mail");
     await waitFor(async () => (await stored(db, mailboxId, "INBOX")).length === 1);
 
-    // Running it again replaces the credentials in place: same mailbox, one owner grant.
     const second = await mailboxAdd(args, "app-password-2");
     expect(second).toMatchObject({ code: 0, stderr: expect.not.stringContaining("mailbox:add:") });
     expect(JSON.parse(second.stdout)).toMatchObject({ mailboxId });
@@ -497,7 +470,6 @@ describe("mail service end to end", () => {
       expect.objectContaining({ memberId: owner.memberId, role: "owner" }),
     ]);
 
-    // An owner outside the org is refused and writes nothing.
     const stranger = await mailboxAdd(
       [...args.slice(0, 3), `other-${address}`, "--owner", "nobody@example.test", ...args.slice(6)],
       "pw",
@@ -508,7 +480,6 @@ describe("mail service end to end", () => {
   });
 });
 
-/** Runs the real `mailbox:add` script with the password on stdin. */
 function mailboxAdd(args: string[], password: string) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
     const child = spawn(process.execPath, ["src/cli/mailbox-add.ts", ...args], {
@@ -551,7 +522,6 @@ describe("what the app learns about its own actions", () => {
         messageId: chosen,
       },
     });
-    // Its folder was reset since the app saw it: retrying can never succeed.
     const stale = await enqueue(db, seeded, {
       kind: "move",
       idempotencyKey: `stale-move-${box.id}`,
@@ -566,7 +536,6 @@ describe("what the app learns about its own actions", () => {
     expect((await ping({ headers })).status).toBe(202);
 
     await waitFor(async () => (await actionRow(db, send.id)).status === "done", 10_000);
-    // The thread gets the Sent copy under the id the app is already showing.
     expect((await stored(db, box.id, "Sent")).map((r) => r.messageIdHeader)).toEqual([chosen]);
 
     await heard(() => received.some((e) => e.type === "action.failed"));
@@ -579,7 +548,6 @@ describe("what the app learns about its own actions", () => {
         actionId: stale.id,
         memberId: seeded.ownerId,
         error: expect.stringContaining("UIDVALIDITY"),
-        // Enqueued straight into Postgres here, not through a Worker request.
         requestId: null,
       },
     ]);
@@ -611,8 +579,6 @@ describe("what the app learns from other mail apps", () => {
         }
       });
 
-    // Read there: IDLE's FETCH brings the flag, and open apps hear about it. The poll is an
-    // hour away, so only the live path can pass within 5s.
     await inOtherApp((client) => client.messageFlagsAdd("1:*", ["\\Seen"]));
     await heard(() => received.length > 0);
     expect(received).toEqual([changed]);
@@ -622,7 +588,6 @@ describe("what the app learns from other mail apps", () => {
       .where(eq(schema.threadState.memberId, ownerId));
     expect(state?.read).toBe(true);
 
-    // Archived there: INBOX's EXPUNGE sends sync to Archive, where the copy now is.
     received = [];
     await inOtherApp((client) => client.messageMove("1:*", "Archive"));
     await heard(() => received.length > 0);
@@ -639,9 +604,6 @@ describe("a Google account (ADR 0023)", () => {
   it("logs in with XOAUTH2 on IMAP and SMTP, and waits for the OAuth client when it is missing", async () => {
     const seeded = await seedMailbox(db);
     const { box } = seeded;
-    // GreenMail speaks XOAUTH2 like Gmail. The token is the one the code exchange stored, still
-    // valid, so nothing asks Google for a new one (refreshing is proven against Google itself in
-    // google-live.e2e.test.ts).
     await setCredentials(
       db,
       box.id,
@@ -656,7 +618,6 @@ describe("a Google account (ADR 0023)", () => {
       }),
     );
 
-    // A self-hoster who has not set the Google client yet sees the mailbox in error, not a crash.
     await startMailService();
     await waitFor(async () => (await mailboxStatus(db, box.id)) === "error");
     await stopService();
@@ -708,7 +669,6 @@ describe("a Google account (ADR 0023)", () => {
       await sealCredentials(keyring, box.id, {
         oauth: "google",
         user: box.user,
-        // Not a grant Google issued: revoking it is refused, which must not block disconnecting.
         refreshToken: `1//e2e-${randomUUID()}`,
         accessToken: `ya29.e2e-${randomUUID()}`,
         accessTokenExpiresAt: Date.now() + 60 * 60_000,
@@ -741,7 +701,6 @@ describe("a Google account (ADR 0023)", () => {
       return { status: response.status, json: (await response.json()) as unknown };
     };
 
-    // A teammate in the same workspace cannot cut someone's personal Gmail.
     const teammate = await createMember(db, orgId, "teammate");
     expect((await disconnect(teammate.id)).status).toBe(404);
     expect(await mailboxStatus(db, box.id)).toBe("active");
@@ -750,7 +709,6 @@ describe("a Google account (ADR 0023)", () => {
     expect(service.supervisor.has(box.id)).toBe(false);
     expect(await mailboxStatus(db, box.id)).toBeUndefined();
     expect(await messageRows(db, box.id)).toEqual([]);
-    // The Worker retries on a timeout; the second call finds nothing left to do.
     expect(await disconnect(ownerId)).toEqual({ status: 200, json: { mailboxId: box.id } });
   });
 });
@@ -826,12 +784,10 @@ describe("a Google account's read state is Done (ADR 0044)", () => {
         }
       });
 
-    // Read while the mailbox was still an ordinary one: read, not done.
     await inGmail((client) => client.messageFlagsAdd("1:*", ["\\Seen"]));
     await waitFor(async () => (await state())?.read === true, 5_000);
     expect((await state())?.doneThrough).toBeNull();
 
-    // The same mailbox as a Google account: connecting finds the mail Gmail already shows read.
     await stopService();
     await db
       .update(schema.mailboxes)
@@ -841,7 +797,6 @@ describe("a Google account's read state is Done (ADR 0044)", () => {
     await connected(box.id);
     await waitFor(async () => (await state())?.doneThrough != null, 5_000);
 
-    // Marked unread in Gmail: back in the Inbox within seconds, and open apps hear about it.
     received = [];
     await inGmail((client) => client.messageFlagsRemove("1:*", ["\\Seen"]));
     await waitFor(async () => (await state())?.doneThrough === null, 5_000);
@@ -879,13 +834,10 @@ describe("a Google account's read state is Done (ADR 0044)", () => {
         return found.map((message) => [...(message.flags ?? [])]);
       });
 
-    // A Worker from before this rule still queues a plain mark_read when a thread is opened.
-    // On a Google account that must not reach Gmail, or opening would mean Done.
     await run("gmail-opened", target);
     expect(await flags()).toEqual([[]]);
     expect((await state())?.doneThrough).toBeNull();
 
-    // Done in Omni: the mail is read in Gmail, still in INBOX, and done here.
     await run("gmail-done", { ...target, done: true });
     await waitFor(async () => (await state())?.doneThrough != null, 10_000);
     expect(await flags()).toEqual([["\\Seen"]]);
@@ -893,7 +845,6 @@ describe("a Google account's read state is Done (ADR 0044)", () => {
 });
 
 describe("a mailbox finds its home (ADR 0024)", () => {
-  /** A connectable GreenMail mailbox at `address`, in a Personal space of its own owner. */
   async function personalMailbox(address: string) {
     const seeded = await seedMailbox(db, { address });
     const { box } = seeded;
@@ -918,13 +869,11 @@ describe("a mailbox finds its home (ADR 0024)", () => {
   it("moves a member's mailbox into the company that locks its domain, state and all", async () => {
     const domain = `home-${randomUUID().slice(0, 8)}.omni.test`;
     const ana = await personalMailbox(`ana@${domain}`);
-    // Bea is not a member of the company: her mailbox on the same domain stays in her space.
     const bea = await personalMailbox(`bea@${domain}`);
     const running = await startMailService();
     await connected(ana.box.id);
     await deliver(ana.box.address, "before the claim");
     await waitFor(async () => (await stored(db, ana.box.id, "INBOX")).length > 0);
-    // Read and done exist only in Omni (ADR 0013): Ana read and filed this thread.
     const [oldThread] = await db
       .select({ id: schema.threads.id, lastMessageAt: schema.threads.lastMessageAt })
       .from(schema.threads)
@@ -957,18 +906,15 @@ describe("a mailbox finds its home (ADR 0024)", () => {
     await db.insert(schema.mailDomains).values({ orgId: company.id, domain, provider: "imap" });
     await running.reconcileMailboxes();
 
-    // First the company gets its own copy, owned by Ana's member there, while the old one runs on.
     const [moved] = await mailboxesOf(db, company.id);
     expect(moved).toMatchObject({ address: ana.box.address, kind: "personal" });
     expect((await accessRows(db, moved!.id)).map((row) => [row.memberId, row.role])).toEqual([
       [member!.id, "owner"],
     ]);
     expect(await mailboxStatus(db, ana.box.id)).toBe("active");
-    // Its login came along, re-sealed for the new id: it connects and indexes the mail again.
     await connected(moved!.id);
     await waitFor(async () => (await stored(db, moved!.id, "INBOX")).length > 0);
 
-    // Once the copy has synced, the state goes over and the old copy and its mail are gone.
     await running.reconcileMailboxes();
     expect(await mailboxStatus(db, ana.box.id)).toBeUndefined();
     expect(await messageRows(db, ana.box.id)).toEqual([]);
@@ -982,7 +928,6 @@ describe("a mailbox finds its home (ADR 0024)", () => {
       );
     expect(carried).toEqual([{ read: true, done: oldThread!.lastMessageAt }]);
 
-    // A second run finds nothing to move.
     await running.reconcileMailboxes();
     expect(await mailboxesOf(db, company.id)).toHaveLength(1);
     expect((await mailboxesOf(db, bea.orgId)).map((row) => row.id)).toEqual([bea.box.id]);
@@ -1011,7 +956,6 @@ describe("a mailbox finds its home (ADR 0024)", () => {
     };
     await join(cara.userId);
     const teamMember = await join(team.userId);
-    // The company already runs team@ as a shared inbox, with team's owner on it.
     const [shared] = await db
       .insert(schema.mailboxes)
       .values({ orgId: company.id, address: team.box.address, kind: "shared", credentialsEnc: "x" })
@@ -1026,18 +970,15 @@ describe("a mailbox finds its home (ADR 0024)", () => {
     await db.insert(schema.mailDomains).values({ orgId: company.id, domain, provider: "imap" });
 
     await running.reconcileMailboxes();
-    // Cara's draft would go with the old copy: she stays put, draft and all.
     expect(await mailboxStatus(db, cara.box.id)).toBe("active");
     expect(
       await db.select().from(schema.drafts).where(eq(schema.drafts.id, draft!.id)),
     ).toHaveLength(1);
-    // team@ stays in its Personal space, and the shared inbox keeps its kind and login.
     expect((await mailboxesOf(db, team.orgId)).map((row) => row.id)).toEqual([team.box.id]);
     expect(
       (await mailboxesOf(db, company.id)).map((row) => [row.address, row.kind, row.credentialsEnc]),
     ).toEqual([[team.box.address, "shared", "x"]]);
 
-    // Once the draft is gone, Cara moves: a copy first, then the old one once the copy synced.
     await db.delete(schema.drafts).where(eq(schema.drafts.id, draft!.id));
     await running.reconcileMailboxes();
     const copy = (await mailboxesOf(db, company.id)).find(

@@ -1,8 +1,3 @@
-// The app's glyphs: Central Icons (round outlined, radius 3, stroke 1.5). Each export keeps the
-// name its call sites use, so swapping a glyph is a one-line change here; size and colour come from
-// the caller's classes. Decorative by default (aria-hidden): name the control around it instead.
-// Licensed for closed-source use only: never publish this package's glyphs in public code.
-
 export { IconAiBotHead as IconAi } from "central-icons-outlined/IconAiBotHead";
 export { IconArrowLeft } from "central-icons-outlined/IconArrowLeft";
 export { IconArrowRotateClockwise } from "central-icons-outlined/IconArrowRotateClockwise";
@@ -110,7 +105,6 @@ export { IconTable } from "central-icons-outlined/IconTable";
 export { IconSlidesWide as IconSlides } from "central-icons-outlined/IconSlidesWide";
 export { IconAlignmentJustify as IconRows } from "central-icons-outlined/IconAlignmentJustify";
 export { IconGrid as IconCards } from "central-icons-outlined/IconGrid";
-// Filled: the module marks only (a white glyph on the module's colour reads solid, not as a line).
 export { IconEmail1 as IconMailFilled } from "central-icons-filled/IconEmail1";
 export { IconFolder1 as IconFolderFilled } from "central-icons-filled/IconFolder1";
 export { IconFolderOpen as IconFolderOpenFilled } from "central-icons-filled/IconFolderOpen";
@@ -119,5 +113,4 @@ export { IconArrowUpCircle as IconUpgrade } from "central-icons-outlined/IconArr
 export { IconConnectors1 as IconConnections } from "central-icons-outlined/IconConnectors1";
 export { IconChatBubbleSimple as IconCommentPlain } from "central-icons-outlined/IconChatBubbleSimple";
 export { IconCursor1 as IconCursor } from "central-icons-outlined/IconCursor1";
-// Filled: the current choice's mark in a menu, in the brand colour.
 export { IconCircleCheck as IconCircleCheckFilled } from "central-icons-filled/IconCircleCheck";

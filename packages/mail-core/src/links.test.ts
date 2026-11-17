@@ -9,7 +9,6 @@ describe("linkSegments", () => {
       "https://omnidirectional.app/api/auth/magic-link/verify?token=abc&callbackURL=omni%3A%2F%2Fauth%3Fstate%3D1";
     const text = `Open this link to sign in to Omnidirectional:\n\n${url}\n\nIf you did not ask for it, ignore this email.`;
     expect(links(text)).toEqual([{ text: url, href: url }]);
-    // Nothing is lost or reordered around the link.
     expect(
       linkSegments(text)
         .map((s) => s.text)
@@ -35,7 +34,6 @@ describe("linkSegments", () => {
 
   it("never links other schemes or a bare scheme", () => {
     expect(links("javascript:alert(1) data:text/html,x ftp://a.example https://")).toEqual([]);
-    // A URL's own text can't smuggle in markup: the href is the parsed, encoded URL.
     expect(links('https://a.example/"><img src=x>')).toEqual([
       { text: "https://a.example/", href: "https://a.example/" },
     ]);
@@ -51,7 +49,6 @@ describe("linkSegments", () => {
     const text = `https://a.example/${")".repeat(200_000)}`;
     const started = performance.now();
     expect(links(text).map((s) => s.text)).toEqual(["https://a.example/"]);
-    // Quadratic trimming took about 18s for 30,000; linear is a few milliseconds.
     expect(performance.now() - started).toBeLessThan(1000);
   });
 });

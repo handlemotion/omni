@@ -1,6 +1,3 @@
-// Writing mail (ADR 0021): staged uploads, signatures, canned replies, recipient autocomplete,
-// shared drafts, and sends that wait out the undo window. Queries and mutations only; the
-// hooks in `hooks/use-compose.ts` expose them.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import type { Api } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
@@ -29,7 +26,6 @@ export type Queued = InferResponseType<Api["send"]["$post"], 202>;
 
 const retry = (failureCount: number, error: Error) =>
   error instanceof ApiError && error.status === 0 && failureCount < 10;
-// One queue with the other mail actions, so sends made offline leave in order (`mail-mutations.ts`).
 const scope = { id: "mail-actions" };
 const header = (key: string) => ({ "idempotency-key": key });
 
@@ -47,7 +43,6 @@ export function uploadFile(
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url.pathname + url.search);
     xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
-    // The tab's workspace, as every API call names it (ADR 0043).
     for (const [name, value] of Object.entries(workspaceHeaders()))
       xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (event) => {
@@ -146,10 +141,6 @@ export const draftsQuery = (where: { threadId: string } | { mailboxId?: string |
 
 export const createDraft = (json: NewDraft) => call(api.drafts.$post({ json }));
 
-/**
- * Autosave. A teammate's newer save answers 409; the error carries their draft so the composer
- * can take it over instead of overwriting it.
- */
 type SavedDraft = { conflict: Draft } | { draft: Draft };
 
 export async function saveDraft(id: string, version: number, content: DraftContent) {
@@ -374,7 +365,6 @@ export function forgetPending(client: QueryClient, threadId: string, key: string
   removePending(client, threadId, key);
 }
 
-/** Drops empty lists and undefined fields, so payloads match what the routes expect. */
 function compact<T extends Record<string, unknown>>(value: T) {
   return Object.fromEntries(
     Object.entries(value).filter(

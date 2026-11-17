@@ -1,8 +1,3 @@
-// A saved card's network, drawn the way wallets show it: the network's logo on a small card.
-// Logos from svg-credit-card-payment-icons by Aaron Fagan, "logo" variant (Apache-2.0,
-// https://github.com/marcovoliveira/svg-credit-card-payment-icons), as transitive ships them. Each
-// draws on a 780×500 canvas. Their fills are the networks' own colours, part of the artwork, not
-// design tokens; the marks belong to their networks and only identify a card's brand.
 import { CreditCardIcon } from "@heroicons/react/16/solid";
 import { cn } from "cn";
 import { useId, type ReactNode } from "react";
@@ -175,7 +170,6 @@ function VisaLogo() {
   );
 }
 
-// Keyed by Stripe's `card.brand`.
 const LOGOS: Record<string, () => ReactNode> = {
   amex: AmericanExpressLogo,
   diners: DinersClubLogo,

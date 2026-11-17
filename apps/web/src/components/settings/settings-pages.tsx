@@ -1,7 +1,3 @@
-// Settings' pages: what the nav lists and searches, and the page header names. Their bodies are in
-// `settings-page.tsx`, which loads with the settings route. Your account's pages, then the active
-// workspace's (Billing only where the install bills, no company pages in a Personal space, the
-// manager pages for owners and admins). Each page body is transitive's settings kit (`./kit`).
 import {
   IconAi,
   IconClock3,
@@ -34,7 +30,6 @@ export interface PageDefinition {
   terms: string[];
 }
 
-/** A Central icon (round outlined, stroke 1.5) at the nav's 15px icon size. */
 const glyph = (Icon: ComponentType<{ className?: string }>) => <Icon className="size-icon" />;
 
 export const useAccountPages: () => PageDefinition[] = () => {
@@ -45,8 +40,6 @@ export const useAccountPages: () => PageDefinition[] = () => {
       {
         id: "profile",
         title: name,
-        // At 15px initials are specks: a plain disc unless there's a picture, in `muted` so it
-        // still reads on the current row's accent fill.
         icon: (
           <Avatar
             src={user.image ?? null}
@@ -59,7 +52,6 @@ export const useAccountPages: () => PageDefinition[] = () => {
       {
         id: "security",
         title: "Security",
-        // A shield, not a key: the page is passkeys and the devices you're signed in on.
         icon: glyph(IconShield),
         terms: ["passkeys", "sign in", "fingerprint", "face", "devices", "sessions", "sign out"],
       },
@@ -104,7 +96,6 @@ export const WORKSPACE_PAGES: PageDefinition[] = [
     id: "people",
     title: "People",
     icon: glyph(IconUsersRound),
-    // Owners and admins also find each person's personal inbox here.
     terms: [
       "members",
       "invite",
@@ -168,7 +159,6 @@ export const WORKSPACE_PAGES: PageDefinition[] = [
 
 /** Pages only a company has: a Personal space has no team, shared inboxes or plan (ADR 0024). */
 export const COMPANY_PAGES = new Set(["people", "shared", "helpdesk", "pipeline", "ai", "billing"]);
-/** Pages only owners and admins see: the API answers anyone else 403. */
 const MANAGER_PAGES = new Set(["ai", "pipeline"]);
 
 /**

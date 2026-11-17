@@ -1,4 +1,3 @@
-// Managing the active organization (members, invitations) and the user's passkeys.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addPasskeyMutation,
@@ -23,7 +22,6 @@ export function useInvitations() {
   return useQuery(invitationsQuery());
 }
 
-/** `mutate({ email, role? })` emails an invitation to `/invite/<id>`. */
 /** `mutate(invitationId)`. */
 export function useCancelInvitation() {
   return useMutation(cancelInvitationMutation(useQueryClient()));
@@ -63,7 +61,6 @@ export function useResendInvitation() {
   return useMutation(resendInvitationMutation(useQueryClient()));
 }
 
-/** `mutate(name)` renames the active workspace. */
 /** `mutate(handle)` changes the active workspace's handle; refused when another has it. */
 export function useChangeWorkspaceHandle() {
   return useMutation(changeOrganizationHandleMutation(useQueryClient()));

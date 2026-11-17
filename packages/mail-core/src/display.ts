@@ -1,6 +1,3 @@
-// How a thread renders as chat. Pure and free of mailparser, so the Worker can import it
-// (`@omni/mail-core/display`) to shape the thread for web and iOS alike.
-
 /** Spec "Rendering rules": over about 120 words renders as a card. */
 export const CARD_MIN_WORDS = 121;
 

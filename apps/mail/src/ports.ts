@@ -1,9 +1,3 @@
-// Storage ports. The IMAP/SMTP engine talks to storage only through these two interfaces, so the
-// `@omni/db` + R2 implementation can replace the e2e in-memory one without touching the engine.
-//
-// Every method must be idempotent: the engine may repeat any call after a crash or a reconnect,
-// and the IMAP server stays the source of truth (a full re-sync must converge).
-
 import type { SpooledFile } from "./spool.ts";
 
 export type FolderRole = "inbox" | "sent" | "archive" | "trash" | "drafts" | "junk" | "other";
@@ -87,11 +81,6 @@ export interface MailStore {
   reportDiscarded(mailboxId: string): Promise<number>;
 }
 
-// Outbox (`mail_actions`). UIDs mean nothing without their folder's UIDVALIDITY, so every action
-// that targets existing messages carries it; a mismatch fails the action instead of touching the
-// wrong message.
-
-// Payload shapes live in `@omni/contracts`, shared with the Worker that writes them.
 export type {
   ForwardCopyPayload,
   MessageTarget,

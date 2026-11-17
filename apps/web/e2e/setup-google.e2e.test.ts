@@ -1,6 +1,3 @@
-// Company setup with Google (ADR 0024), in a real Chromium, on the web app built and served by
-// the real Worker under `wrangler dev`, on a real Postgres: a company's Google accounts land in it
-// by their address, so setup asks for the company's domain before it leaves for Google.
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { openClaim, schema } from "@omni/db";
@@ -34,7 +31,6 @@ beforeAll(async () => {
     databaseUrl: database.url,
     mailServiceUrl: mailService.url,
     port,
-    // Google is set up on this install, so setup offers it.
     vars: { BETTER_AUTH_URL: `http://127.0.0.1:${port}`, GOOGLE_CLIENT_ID: "e2e-google-client" },
     secrets: { GOOGLE_CLIENT_SECRET: "e2e-google-secret" },
   });
@@ -72,22 +68,17 @@ async function signedIn(email: string, path: string) {
 
 const heading = (page: Page, name: string) => page.getByRole("heading", { name }).waitFor();
 
-/** The claims on `domain`, by provider. */
 const claims = (domain: string) =>
   db
     .select({ provider: schema.domainClaims.provider, status: schema.domainClaims.status })
     .from(schema.domainClaims)
     .where(eq(schema.domainClaims.domain, domain));
 
-// Catches: setup leaving for Google before the company owns its domain (every account would open
-// in its owner's Personal space), Back jumping to a step that wasn't the one before, and a domain
-// that can't be changed once entered.
 test("setup walks one step list: the domain first, Back one step at a time, the domain editable", async () => {
   const page = await signedIn(`founder-${Date.now()}@gmail.test`, "/onboarding");
   await page.getByLabel("Workspace name").fill("Acme");
   await page.getByRole("button", { name: "Continue" }).click();
 
-  // The domain comes before any account; at Google by default where Google is set up.
   await heading(page, "Your company's domain");
   await page.getByText("Google Workspace", { exact: true }).waitFor();
   const first = `acme-${Date.now()}.test`;
@@ -96,7 +87,6 @@ test("setup walks one step list: the domain first, Back one step at a time, the 
   await heading(page, `Verify you own ${first}`);
   expect(await claims(first)).toEqual([{ provider: "gmail", status: "pending" }]);
 
-  // Back is the step before, with what was entered: the domain, ready to change.
   await page.getByRole("button", { name: "Back" }).click();
   await heading(page, "Your company's domain");
   expect(await page.getByRole("textbox", { name: "Domain" }).inputValue()).toBe(first);
@@ -104,11 +94,9 @@ test("setup walks one step list: the domain first, Back one step at a time, the 
   await page.getByRole("textbox", { name: "Domain" }).fill(second);
   await page.getByRole("button", { name: "Continue" }).click();
   await heading(page, `Verify you own ${second}`);
-  // The first claim, still waiting for DNS, gave way to the second.
   expect(await claims(first)).toEqual([{ provider: "gmail", status: "released" }]);
   expect(await claims(second)).toEqual([{ provider: "gmail", status: "pending" }]);
 
-  // Back twice is the workspace, never a step out of order.
   await page.getByRole("button", { name: "Back" }).click();
   await heading(page, "Your company's domain");
   await page.getByRole("button", { name: "Back" }).click();
@@ -116,7 +104,6 @@ test("setup walks one step list: the domain first, Back one step at a time, the 
   expect(new URL(page.url()).host).toBe(new URL(String(worker.url)).host);
 });
 
-// Catches: switching a domain from Omni to Google leaving setup on the old domain's records.
 test("a domain claimed for Omni can be switched to Google from the domain step", async () => {
   const name = `Duo ${Date.now()}`;
   const page = await signedIn(`duo-${Date.now()}@gmail.test`, "/onboarding");
@@ -141,7 +128,6 @@ test("a domain claimed for Omni can be switched to Google from the domain step",
     dnsRecords: [],
   });
 
-  // Setup resumes on that domain's records; Back opens the domain step with it, at Omni.
   await page.reload();
   await heading(page, `Verify you own ${domain}`);
   await page.getByRole("button", { name: "Back" }).click();
@@ -150,7 +136,6 @@ test("a domain claimed for Omni can be switched to Google from the domain step",
   await page.getByText("Google Workspace", { exact: true }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await heading(page, `Verify you own ${domain}`);
-  // The same domain's claim, now at Google.
   expect(await claims(domain)).toEqual([{ provider: "gmail", status: "pending" }]);
 });
 

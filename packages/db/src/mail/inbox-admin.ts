@@ -1,7 +1,3 @@
-// What owners and admins do with a company's inboxes when someone leaves (ADR 0026): a personal
-// inbox whose owner left the org is orphaned (nobody can open it, and the mail service stops
-// syncing it). It can be given to a member or turned into a shared inbox. Every inbox action is
-// recorded in `audit_events`, without mail content, so "admins cannot read it" is checkable.
 import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { recordAudit } from "../domains.ts";
@@ -60,7 +56,6 @@ export function listInboxEvents(db: Db, orgId: string, limit = 200) {
     .limit(limit);
 }
 
-/** A grant on the mailbox held by a member of its own org. */
 const ownedInOrg = sql`exists (
   select 1 from ${mailboxAccess}
   join ${members} on ${members.id} = ${mailboxAccess.memberId}
@@ -76,7 +71,6 @@ export const syncableMailbox = or(eq(mailboxes.kind, "shared"), ownedInOrg);
 
 export type OrphanResult = "ok" | "not_found" | "not_orphaned" | "member_not_found";
 
-/** The org's mailbox, locked for the rest of the transaction, with whether it is orphaned. */
 async function lockOrgMailbox(tx: Db, orgId: string, mailboxId: string) {
   const [row] = await tx
     .select({
@@ -156,8 +150,6 @@ export const shareOrphanedInbox: (
       if (mailbox.owned) return { result: "not_orphaned" as const };
       await tx.update(mailboxes).set({ kind: "shared" }).where(eq(mailboxes.id, mailboxId));
     }
-    // Grants first: a new team is seeded from them. On an inbox that already has its team, the
-    // sync below would drop them again, so they are added to the team after it.
     await tx
       .insert(mailboxAccess)
       .values(

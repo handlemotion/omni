@@ -1,8 +1,3 @@
-// Error reporting for the mail service: Sentry when SENTRY_DSN is set, nothing otherwise.
-// Errors only (no tracing). The SDK collects no headers, cookies, bodies, query strings or user
-// info (`PRIVATE_DATA_COLLECTION`), and every event and breadcrumb is scrubbed of mail content,
-// addresses and credentials before it leaves (`@omni/mail-core/telemetry`). Local variables stay
-// off: an IMAP or SMTP frame can hold a password or a message.
 import * as Sentry from "@sentry/node";
 import {
   PRIVATE_DATA_COLLECTION,

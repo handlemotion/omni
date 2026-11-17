@@ -1,5 +1,3 @@
-// Profile pictures and workspace logos over the real Worker, its local R2 bucket and Postgres:
-// what an upload stores and serves, what it refuses, and who may change a workspace's logo.
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -14,7 +12,6 @@ import {
   SYSTEM_MAIL_FROM,
 } from "./support.ts";
 
-// 1x1 transparent PNG and 1x1 GIF.
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
   "base64",
@@ -43,7 +40,6 @@ function send(path: string, cookie: string, init: RequestInit = {}) {
   return fetch(new URL(path, worker.url), { ...init, headers: { cookie, ...init.headers } });
 }
 
-/** A browser's multipart upload of `bytes` as the form field `file`. */
 function upload(path: string, cookie: string, bytes: Buffer, type: string, name = "picture") {
   const form = new FormData();
   form.set("file", new Blob([new Uint8Array(bytes)], { type }), name);
@@ -74,8 +70,6 @@ async function person(slug: string, name: string, role = "member") {
 }
 
 describe("profile pictures", () => {
-  // Catches: the field not being set, a URL the browser cannot load, bytes served under a type
-  // an <img> will not render, and a replaced or removed picture left in the bucket forever.
   test("upload sets your picture, its URL serves those bytes, and replace and remove clean up", async () => {
     const ana = await person("pics", "ana");
 
@@ -89,7 +83,6 @@ describe("profile pictures", () => {
     expect(served.headers.get("content-type")).toBe("image/png");
     expect(served.headers.get("cache-control")).toContain("immutable");
     expect(Buffer.from(await served.arrayBuffer()).equals(PNG)).toBe(true);
-    // Not public: a signed-out request gets nothing.
     expect((await fetch(new URL(image, worker.url))).status).toBe(401);
 
     const second = await upload("/api/account/picture", ana.cookie, GIF, "image/gif");
@@ -102,12 +95,9 @@ describe("profile pictures", () => {
     expect(await removed.json()).toEqual({ image: null });
     expect(await userImage(ana.member.userId)).toBeNull();
     expect((await send(replaced, ana.cookie)).status).toBe(404);
-    // Idempotent: removing again is fine.
     expect((await send("/api/account/picture", ana.cookie, { method: "DELETE" })).status).toBe(200);
   });
 
-  // Catches: serving a sender-chosen type (HTML, SVG) inline on our origin because the client
-  // said `image/png`, and unbounded uploads filling the bucket.
   test("refuses a non-image whatever type it claims, an SVG, and anything over 2 MB", async () => {
     const bea = await person("refuse", "bea");
     const html = Buffer.from("<html><script>alert(1)</script></html>");
@@ -122,8 +112,6 @@ describe("profile pictures", () => {
     expect(await userImage(bea.member.userId)).toBeNull();
   });
 
-  // Catches: removing a picture deleting whatever object `users.image` points at. Better Auth's
-  // `updateUser` lets anyone set their image to any string, such as someone else's picture URL.
   test("removing your picture never deletes another person's", async () => {
     const ana = await person("owner-only", "ana");
     const eve = await person("owner-only-eve", "eve");
@@ -141,7 +129,6 @@ describe("profile pictures", () => {
 });
 
 describe("workspace logos", () => {
-  // Catches: a plain member rebranding the workspace, and a logo the switcher never shows.
   test("only an owner or admin changes the logo; the switcher shows it; remove clears it", async () => {
     const admin = await person("logo", "ada", "admin");
     await createMember(database.db, admin.org.id, "pat@logo.test");
@@ -156,7 +143,6 @@ describe("workspace logos", () => {
     const { logo } = (await set.json()) as { logo: string };
     expect(await orgLogo(admin.org.id)).toBe(logo);
 
-    // Every member sees it, through the switcher's data and the served URL.
     const listed = (await (await send("/api/workspaces", plainCookie)).json()) as {
       workspaces: { id: string; logo: string | null }[];
     };

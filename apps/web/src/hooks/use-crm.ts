@@ -1,4 +1,3 @@
-// The CRM (ADR 0036, ADR 0039): lists, records, timelines, contracts, stages and the changes.
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import {

@@ -1,9 +1,3 @@
-// The active workspace's plan (ADR 0015): one plan card at the top (name, price, where it
-// stands, and the one thing to do about it), this month's AI triage against the allowance, then
-// the saved cards and the invoices: for owners and admins (transitive's payment details, read from
-// Stripe through `/api/billing/cards` and `/api/billing/invoices`); members see those two sections
-// say they're for owners and admins. A workspace always has a plan
-// (setup starts its trial), so there is no "no plan" page; one that ended can subscribe again.
 import { IconPlus } from "@/components/icons/central";
 import {
   ArrowDownTrayIcon,
@@ -52,7 +46,6 @@ type Subscription = NonNullable<EnabledBilling["subscription"]>;
 type Triage = NonNullable<EnabledBilling["triage"]>;
 type Interval = EnabledBilling["intervals"][number];
 
-/** Where Stripe's Checkout and portal send people back: this page. */
 const RETURN_PATH = "/settings/billing";
 
 const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -61,7 +54,6 @@ const NUMBER = new Intl.NumberFormat();
 const day = (iso: string) => DAY.format(new Date(iso));
 const shortDay = (iso: string) => SHORT_DAY.format(new Date(iso));
 
-// Skeleton stand-ins: an active monthly plan part way through its month, two cards, two invoices.
 const SAMPLE_PLAN: Billing = {
   enabled: true,
   readOnly: false,
@@ -115,10 +107,6 @@ const INTERVAL_LABELS: Record<Interval, string> = { month: "Monthly", year: "Yea
 
 type Intent = "success" | "info" | "warning" | "danger" | "secondary";
 
-/**
- * Where the plan stands, in the card's own words: a badge only when it is not simply running,
- * and the one date that matters now.
- */
 const planState: (subscription: Subscription | null) => {
   badge?: { label: string; intent: Intent };
   date?: string;
@@ -156,7 +144,6 @@ export function BillingPage() {
   const data = billing.data;
   const enabled = data?.enabled ? data : undefined;
   const triage = enabled?.triage;
-  // Cards and invoices are Stripe's, shown to the people who manage billing.
   const manager = data === undefined || enabled?.canManage === true;
   const failed = billing.isError && (
     <SettingsEmptyState title="Billing didn't load" description="Try again in a moment." />
@@ -188,10 +175,8 @@ export function BillingPage() {
           title="AI triage"
           info="Each email the AI sorts counts once. Past the allowance, new mail waits untriaged until the reset; everything else keeps working."
         >
-          {/* Only a plan in good standing has an allowance to count against. */}
           <Skeleton
             id="settings-billing-triage"
-            // Wrapped: skullet reads a bare null as "not loaded yet".
             data={enabled ? { usage: triage ?? null } : undefined}
             sample={{ usage: SAMPLE_TRIAGE }}
             label="Loading usage"
@@ -219,8 +204,6 @@ export function BillingPage() {
             <InvoicesSection ready={enabled !== undefined} />
           </>
         ) : (
-          // Stripe's cards and invoices are for owners and admins: the sections stay, saying so,
-          // and their routes (403 for members) are never called.
           <>
             <SettingsSection title="Payment methods">
               <SettingsEmptyState
@@ -242,7 +225,6 @@ export function BillingPage() {
   );
 }
 
-/** The plan at a glance: what it is, what it costs, where it stands, and the one action. */
 function PlanCard({ billing }: { billing: EnabledBilling }) {
   const { subscription, readOnly, canManage } = billing;
   const state = planState(subscription);
@@ -278,11 +260,9 @@ function PlanCard({ billing }: { billing: EnabledBilling }) {
   );
 }
 
-/** For a plan that ended: Checkout again (its one trial is spent), monthly or yearly. */
 function SubscribeButton({ billing }: { billing: EnabledBilling }) {
   const checkout = useStartCheckout();
   const [choosing, setChoosing] = useState(false);
-  // Pending until the browser has left for Stripe, not just until the URL came back.
   const leaving = checkout.isPending || checkout.isSuccess;
   const start = (interval: Interval) =>
     checkout.mutate(
@@ -311,7 +291,6 @@ function SubscribeButton({ billing }: { billing: EnabledBilling }) {
   );
 }
 
-/** Monthly or yearly, at Stripe's prices, before Checkout; promo codes go in on Stripe's page. */
 function IntervalDialog(props: {
   billing: EnabledBilling;
   saving: boolean;
@@ -360,7 +339,6 @@ function IntervalDialog(props: {
   );
 }
 
-/** Stripe's customer portal: billing interval and cancellation. */
 function PortalButton({ primary }: { primary: boolean }) {
   const portal = useOpenBillingPortal();
   return (
@@ -410,17 +388,14 @@ const BRANDS: Record<string, string> = {
   visa: "Visa",
 };
 
-/** "Visa •••• 4242". */
 const cardLabel = (card: Pick<Card, "brand" | "last4">) =>
   `${BRANDS[card.brand] ?? "Card"} •••• ${card.last4}`;
 
-/** True once the card's expiry month is over. */
 function cardExpired(card: Pick<Card, "expMonth" | "expYear">, now = new Date()) {
   const year = now.getFullYear();
   return card.expYear < year || (card.expYear === year && card.expMonth < now.getMonth() + 1);
 }
 
-/** "Expires 04/2030", or "Expired 04/2024". */
 function cardExpiry(card: Pick<Card, "expMonth" | "expYear">) {
   const date = `${String(card.expMonth).padStart(2, "0")}/${card.expYear}`;
   return cardExpired(card) ? `Expired ${date}` : `Expires ${date}`;
@@ -434,7 +409,6 @@ function CardsSection({ billing }: { billing: EnabledBilling | undefined }) {
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Card | null>(null);
   const busy = makeDefault.isPending || remove.isPending;
-  // Without a publishable key the card is added on Stripe's portal instead.
   const addCard = (inPage: boolean) =>
     inPage
       ? setAdding(true)
@@ -563,7 +537,6 @@ const INVOICE_STATUS: Partial<Record<Invoice["status"], { label: string; intent:
   void: { label: "Void", intent: "secondary" },
 };
 
-/** "$19", or "$19.50", from Stripe's smallest unit. */
 const amount = (invoice: Pick<Invoice, "total" | "currency">) =>
   formatPrice({ amount: invoice.total, currency: invoice.currency });
 

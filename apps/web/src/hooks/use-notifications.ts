@@ -1,5 +1,3 @@
-// Your notifications: assigned to you, @mentioned in a note, a customer replied. They refetch
-// when the realtime socket says a new one arrived.
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { markNotificationsReadMutation, notificationsQuery } from "../lib/notifications.ts";

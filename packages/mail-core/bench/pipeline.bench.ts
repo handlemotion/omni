@@ -1,5 +1,3 @@
-// `pnpm --filter @omni/mail-core bench`: parse → strip → sanitize on large realistic mail.
-// Not part of `pnpm test`. Numbers for the record live in the PR that changed them.
 import { test } from "vitest";
 import { cleanMessage, isLongForm, sanitizeHtml } from "../src/html.ts";
 import { parseMessage } from "../src/parse.ts";
@@ -10,13 +8,10 @@ const options = {
   proxyUrl: (src: string) => `https://img.omni.test/p?u=${encodeURIComponent(src)}`,
   cidUrl: (id: string) => `https://omni.test/attachments/${encodeURIComponent(id)}`,
 };
-// Heavy cases: a few runs each is enough to see the shape.
 const runs = { iterations: 3, warmupIterations: 1, time: 0, warmupTime: 0 };
 
 const CORPUS = {
-  // Under MAX_HTML_LENGTH, so before and after do the same work.
   "newsletter 900 KB": newsletter(900 * 1024),
-  // Over it: sanitizing and text extraction read the first MAX_HTML_LENGTH characters.
   "newsletter 2 MB": newsletter(2 * MB),
   "newsletter 10 MB": newsletter(10 * MB),
   "outlook chain 500 deep": outlookChain(500),
@@ -28,7 +23,6 @@ for (const [name, raw] of Object.entries(CORPUS)) {
   const { message } = await parseMessage(raw);
   const cleanText = cleanMessage(message).cleanText;
 
-  // A benchmark measures; it has nothing to assert.
   // oxlint-disable-next-line vitest/expect-expect
   test(`${name}`, async ({ bench }) => {
     const { html } = message;

@@ -1,5 +1,3 @@
-// Calls from the mail service. Each is HMAC-signed with a timestamp and a nonce; the nonce is
-// claimed in the ReplayGuard Durable Object, so a request is accepted once at most.
 import { DEFAULT_MAX_AGE_SECONDS, verifyRequest } from "@omni/crypto";
 import {
   MAIL_EVENTS_PATH,
@@ -33,7 +31,6 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   if (!verified.nonce) return apiError(c, "unauthorized", "missing_nonce");
 
   const guard = c.env.REPLAY_GUARD.get(c.env.REPLAY_GUARD.idFromName("mail-service"));
-  // Keep the nonce until its timestamp could no longer pass verification.
   const expiresAt = (verified.timestamp + DEFAULT_MAX_AGE_SECONDS + 1) * 1000;
   if (!(await guard.claim(verified.nonce, expiresAt))) {
     return apiError(c, "unauthorized", "replayed");
@@ -48,7 +45,6 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   if (!parsed.success) {
     return apiError(c, "bad_request", "invalid body", { details: { issues: parsed.error.issues } });
   }
-  // Event types this Worker does not know yet are ignored (packages/contracts/AGENTS.md).
   const events: MailEvent[] = [];
   for (const raw of parsed.data.events) {
     if (!knownTypes.has(raw.type)) continue;
@@ -65,7 +61,6 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   const jobs = aiJobsFor(events, c.var.requestId);
   const failed = events.filter((e) => e.type === "action.failed");
   log.info("mail_events.received", { events: events.length, jobs: jobs.length });
-  // The original request's ID, so a failed send traces back to the click that asked for it.
   for (const event of failed) {
     log.warn("action.failed", {
       actionId: event.actionId,
@@ -74,7 +69,6 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
       actionRequestId: event.requestId ?? null,
     });
   }
-  // A Queue takes at most 100 messages per `sendBatch`; one prune can name 500 threads.
   for (let i = 0; i < jobs.length; i += QUEUE_BATCH_MAX) {
     await c.env.AI_QUEUE.sendBatch(jobs.slice(i, i + QUEUE_BATCH_MAX).map((body) => ({ body })));
   }
@@ -83,13 +77,8 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
   try {
     const created = events.filter((e) => e.type === "message.created");
     for (const event of created) await recordCustomer(db, event);
-    // The helpdesk status rule, once per message and in order (ADR 0021): a customer message
-    // reopens, our own reply goes pending. A failure answers 500, so the mail service retries.
     let queuedActions = 0;
-    // A replayed event (the mail service retries until we answer) is fanned out again, which is
-    // harmless, but pushes only for mail seen here for the first time.
     const fresh = new Set<string>();
-    // Messages filed in an inbox for the first time: the candidates for a desktop notification.
     const landed: string[] = [];
     for (const event of created) {
       const applied = await applyInboundMessage(db, {
@@ -123,19 +112,15 @@ export const internal = new Hono<AppEnv>().post(MAIL_EVENTS_PATH, async (c) => {
       const arrived = await newArrivals(db, landed);
       await fanOut(c.env, db, config, changedThreads(created), { push: fresh, arrived });
     }
-    // Deleted mail: open apps refetch those threads (some are gone); no push for a removal.
     const pruned = events.filter((e) => e.type === "messages.pruned");
     if (pruned.length) await fanOut(c.env, db, config, listedThreads(pruned));
-    // Read, flagged, archived or moved in another mail app: open apps refetch; no push, no AI.
     const changed = events.filter((e) => e.type === "threads.changed");
     if (changed.length) await fanOut(c.env, db, config, listedThreads(changed));
-    // Merged threads: the survivor and the ids that are gone refresh, and readers follow.
     const merged = events.filter((e) => e.type === "threads.merged");
     if (merged.length) {
       await fanOut(c.env, db, config, mergedThreads(merged));
       await announceMerges(c.env, db, merged);
     }
-    // Deleted or junked in another mail app: resolve what still qualifies, then refresh.
     const discarded = events.filter((e) => e.type === "threads.discarded");
     if (discarded.length) {
       const resolved = new Map<string, Set<string>>();
@@ -202,10 +187,6 @@ function mergedThreads(events: Extract<MailEvent, { type: "threads.merged" }>[])
   return byMailbox;
 }
 
-/**
- * One AI job per thread that got a new message or lost one (its latest message may differ now);
- * flag changes need no AI. A job for a thread that is gone ends as `missing`.
- */
 function aiJobsFor(events: MailEvent[], requestId: string) {
   const threads = new Map<string, AiJob>();
   const add = (event: { orgId: string; mailboxId: string }, threadId: string) =>
@@ -220,7 +201,6 @@ function aiJobsFor(events: MailEvent[], requestId: string) {
   for (const event of events) {
     if (event.type === "message.created") add(event, event.threadId);
     if (event.type === "messages.pruned") for (const id of event.threadIds) add(event, id);
-    // The survivor's summary was cleared; the job writes one for the whole conversation.
     if (event.type === "threads.merged") add(event, event.intoThreadId);
   }
   return [...threads.values()] satisfies AiJob[];

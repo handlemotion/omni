@@ -1,10 +1,3 @@
-// Storage on the bill (ADR 0034 decision 7 and its amendment). Once a day each workspace's peak
-// for its usage month is raised to what it stores, and what a paying monthly workspace stored
-// above the plan's allowance is told to Stripe's meter, which bills the last value it heard in
-// the billing period. Stripe is asked, here and never on a request, whether the subscription has
-// a payment method; the answer is what lets uploads pass the allowance. Safe to run twice.
-// The daily job is an Effect program (ADR 0038 decision 2): each workspace is billed on its own,
-// a Stripe 429 or 5xx is retried in the run, and a workspace that still fails waits for tomorrow.
 import { usagePeriod } from "@omni/ai";
 import type { BillingConfig } from "@omni/auth";
 import {
@@ -23,18 +16,8 @@ import { billsOverage, extraGb } from "./core.ts";
 
 const GB = 1024 ** 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** Stripe allows about 25 requests a second in test mode (100 live); stay well under. */
 const STRIPE_REQUEST_INTERVAL_MS = 100;
-/**
- * Each Stripe request's own timeout. Stripe's fetch client aborts the request when it runs out,
- * so the call has ended before any retry starts (an `Effect.timeout` would leave it running).
- */
 const STRIPE_TIMEOUT_MS = 20_000;
-/**
- * How far into a billing period with nothing to bill the metered item is taken off again. Its
- * removal drops whatever that item has not been invoiced for, so it waits until the period
- * before is long invoiced (an invoice stays a draft for an hour, or the account's grace period).
- */
 const ITEM_KEPT_MS = 7 * DAY_MS;
 
 export interface StorageBillingResult {
@@ -50,7 +33,6 @@ export interface StorageBillingResult {
 
 const idOf = (ref: string | { id: string }) => (typeof ref === "string" ? ref : ref.id);
 
-/** Whether Stripe has something to charge for `subscription` (its customer expanded). */
 function hasPaymentMethod(subscription: Stripe.Subscription) {
   const customer = subscription.customer;
   const ofCustomer =
@@ -60,7 +42,6 @@ function hasPaymentMethod(subscription: Stripe.Subscription) {
   return Boolean(subscription.default_payment_method ?? ofCustomer);
 }
 
-/** The idempotency key of the storage item's add to `subscriptionId` on the day of `now`. */
 function storageItemKey(subscriptionId: string, priceId: string, periodStart: Date, now: Date) {
   const day = now.toISOString().slice(0, 10);
   return `omni-storage-item-${subscriptionId}-${priceId}-${periodStart.toISOString()}-${day}`;
@@ -82,12 +63,6 @@ export async function meterEventIdentifier(input: {
   return `omni-storage-${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
-/**
- * The Stripe half for one workspace whose row says extra storage could be billed: learn whether
- * it has a card, put the metered item on its subscription the first time it stores more than
- * the allowance (and take it off in a later period that stays under it, so the customer portal
- * can change the plan again), and tell the meter this period's value while the item is there.
- */
 async function billWorkspace(
   input: Pick<BillingRun, "db" | "stripe" | "storage" | "now">,
   workspace: StorageBilledWorkspace & { stripeCustomerId: string; stripeSubscriptionId: string },
@@ -109,12 +84,6 @@ async function billWorkspace(
   const extra = extraGb(period.peakBytes, Math.floor(storage.includedGb * GB));
   let item = subscription.items.data.find((i) => i.price.id === storage.priceId);
   if (!item && billable && extra > 0) {
-    // Before the event: on a classic subscription an item added mid-period is billed only for
-    // what is reported after it was added.
-    // One key per subscription, price, period and day: a retry, or a second run beside this one,
-    // gets this add's answer instead of a second item. Stripe keeps a key for 24 hours and refuses
-    // it with other parameters; these never change for the key. Within a period the peak only
-    // rises, so the item is never taken off and needed again under the same key.
     const updated = await stripe.subscriptions.update(
       subscription.id,
       { items: [{ price: storage.priceId }], proration_behavior: "none" },
@@ -126,7 +95,6 @@ async function billWorkspace(
     item = updated.items.data.find((i) => i.price.id === storage.priceId);
     result.itemsAdded++;
   } else if (item && extra === 0 && now.getTime() - period.start.getTime() >= ITEM_KEPT_MS) {
-    // Keyed too: a retry after a removal Stripe made gets its answer, not "no such item".
     await stripe.subscriptionItems.del(
       item.id,
       { proration_behavior: "none" },
@@ -136,8 +104,6 @@ async function billWorkspace(
     result.itemsRemoved++;
   }
   if (!item) return;
-  // Every day, 0 included: the meter bills the last value of the period, and a period nobody
-  // reported in has none.
   await stripe.billing.meterEvents.create(
     {
       event_name: storage.meterEvent,
@@ -148,8 +114,6 @@ async function billWorkspace(
         day: now.toISOString().slice(0, 10),
         extraGb: extra,
       }),
-      // Stamped when sent, not when the job started: an item added above in this run would
-      // otherwise exist only after its first event, and that event would not be billed.
       timestamp: Math.floor(Math.max(now.getTime(), Date.now()) / 1000),
     },
     { timeout: STRIPE_TIMEOUT_MS },
@@ -163,7 +127,6 @@ interface BillingRun {
   storage: NonNullable<BillingConfig["storage"]>;
   now: Date;
   result: StorageBillingResult;
-  /** Stripe is asked at most once per `STRIPE_REQUEST_INTERVAL_MS`: when it next may be. */
   pace: { next: number };
 }
 
@@ -191,12 +154,10 @@ export function billStorage(input: {
     };
     const run: BillingRun = { db, stripe, storage, now, result, pace: { next: 0 } };
     const workspaces = yield* retried("billed_workspaces", () => storageBilledWorkspaces(db));
-    // One at a time, paced for Stripe; a workspace that fails never stops the rest.
     yield* Effect.forEach(
       workspaces,
       (workspace) =>
         billOne(run, workspace).pipe(
-          // A bug for one workspace is that workspace's failure, as a thrown error was before.
           Effect.catchDefect((cause) => Effect.fail(new Retryable({ step: "workspace", cause }))),
           Effect.catch((failure) =>
             Effect.sync(() => {
@@ -216,7 +177,6 @@ export function billStorage(input: {
   }) satisfies Effect.Effect<StorageBillingResult | null, JobError>;
 }
 
-/** One workspace: its peak, then, when extra storage may be billed, its Stripe half. */
 function billOne(run: BillingRun, workspace: StorageBilledWorkspace) {
   const { db, result, now } = run;
   return Effect.gen(function* () {
@@ -234,16 +194,11 @@ function billOne(run: BillingRun, workspace: StorageBilledWorkspace) {
       raiseStoragePeak(db, { orgId: workspace.orgId, periodStart: start, bytes: workspace.bytes }),
     );
     result.workspaces++;
-    // A trial, a yearly plan and a workspace Stripe does not know are capped at the allowance:
-    // nothing of theirs is billed, so Stripe is not asked.
     const { stripeCustomerId } = workspace;
     if (!stripeCustomerId || !billsOverage(workspace)) return;
     const wait = run.pace.next - Date.now();
     if (wait > 0) yield* Effect.sleep(wait);
     run.pace.next = Date.now() + STRIPE_REQUEST_INTERVAL_MS;
-    // Safe to try again once a try has ended (each request times itself out): it reads the
-    // subscription afresh, the item add and removal are keyed, and the meter event's identifier
-    // makes a repeated event one.
     yield* retried("stripe", () =>
       billWorkspace(run, { ...workspace, stripeCustomerId }, { start, peakBytes }, result),
     );

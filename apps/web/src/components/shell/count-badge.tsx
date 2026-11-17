@@ -1,6 +1,3 @@
-// The unread count, as the sidebar's Inbox row shows it: square, 18px a side for one digit and
-// wider only for more, white on the solid brand blue (4.5:1), no border. Nothing at zero. Every
-// unread count in the app uses this one.
 import { cn } from "cn";
 import { Badge } from "@/components/ui/badge";
 

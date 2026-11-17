@@ -1,6 +1,3 @@
-// SLA due times (ADR 0023): a target in minutes counts only while the inbox is staffed. Pure; the
-// Worker calls it whenever a conversation's SLA clock starts or its priority or policy changes.
-
 export interface BusinessHoursWindow {
   /** 0 is Sunday. */
   day: 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -19,7 +16,6 @@ export interface BusinessSchedule {
 }
 
 const MINUTE = 60_000;
-/** How many days in a row without staffed time before giving up (a schedule of only holidays). */
 const MAX_CLOSED_DAYS = 400;
 
 /**
@@ -45,13 +41,11 @@ export const addBusinessMinutes: (
   let cursor = start.getTime();
   let remaining = minutes * MINUTE;
   let day = localDate(start, schedule.timezone);
-  // However long the target, give up only after a long run of days with no staffed time.
   for (let closed = 0; closed < MAX_CLOSED_DAYS; closed++, day = nextDay(day)) {
     const iso = isoDate(day);
     if (holidays.has(iso)) continue;
     const weekday = new Date(Date.UTC(day.y, day.m - 1, day.d)).getUTCDay();
     for (const window of byDay.get(weekday) ?? []) {
-      // Overlapping windows count once: the cursor only moves forward.
       const opens = Math.max(cursor, zonedTime(day, window.start, schedule.timezone));
       const closes = zonedTime(day, window.end, schedule.timezone);
       if (opens >= closes) continue;
@@ -134,7 +128,6 @@ function localDate(at: Date, zone: string) {
   return { y: p.year, m: p.month, d: p.day } satisfies LocalDate;
 }
 
-/** The zone's offset from UTC at `at`, in milliseconds. */
 function offsetAt(at: number, zone: string) {
   const p = wallClock(at, zone);
   return (
@@ -142,15 +135,8 @@ function offsetAt(at: number, zone: string) {
   );
 }
 
-/**
- * The instant the zone's clocks read `minutes` past midnight on `day`. A time skipped by a DST
- * jump moves forward by the jump; a repeated one takes its first occurrence.
- */
 function zonedTime(day: LocalDate, minutes: number, zone: string) {
   const wall = Date.UTC(day.y, day.m - 1, day.d) + minutes * MINUTE;
-  // The offsets in force half a day either side cover any transition near this time: each gives
-  // a candidate instant. Those whose clock reads `wall` are real; the earliest is the first
-  // occurrence. None is real when the time was skipped: the later candidate is after the jump.
   const candidates = [
     ...new Set([12, -12].map((h) => wall - offsetAt(wall + h * 3_600_000, zone))),
   ];

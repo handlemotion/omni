@@ -1,5 +1,3 @@
-// Reads and writes for the Worker's AI queue consumer: trusted background code, not
-// member-scoped. Every write is idempotent and none overrides a person's decision.
 import { and, asc, eq, isNull, notExists, or, sql, type Column } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "../client.ts";
@@ -81,7 +79,6 @@ export async function saveTriage(
           eq(threads.triageSource, "ai"),
           isDistinctFrom(threads.triageMessageId, result.messageId),
         ),
-        // Same order as `loadThreadForAi`: nothing in the thread sorts after `messageId`.
         notExists(
           db
             .select({ id: messages.id })

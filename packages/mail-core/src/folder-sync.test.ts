@@ -10,8 +10,6 @@ describe("planFolderSync", () => {
     });
   });
 
-  // An expunge on another client lowers EXISTS but keeps UIDNEXT; skipping the UID list here
-  // would leave the deleted message in Omni forever.
   test("lists UIDs when a message was expunged elsewhere, even with UIDNEXT unchanged", () => {
     const plan = planFolderSync(synced, { uidNext: 51, exists: 49, highestModseq: 101n }, 50);
     expect(plan).toEqual({ mode: "condstore", listUids: true, changedSince: 100n });
@@ -27,7 +25,6 @@ describe("planFolderSync", () => {
     expect(plan).toEqual({ mode: "condstore", listUids: false, changedSince: 100n });
   });
 
-  // A store that lost rows (failed imports) has fewer than EXISTS: re-list to retry them.
   test("lists UIDs when the stored count is behind the server", () => {
     const plan = planFolderSync(synced, { uidNext: 51, exists: 50, highestModseq: 100n }, 48);
     expect(plan).toMatchObject({ mode: "condstore", listUids: true });

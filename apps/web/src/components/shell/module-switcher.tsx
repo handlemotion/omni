@@ -1,15 +1,3 @@
-// The sidebar's two switchers. At its top, the workspace (a company or your Personal space) as one
-// row like the mailbox switcher's, whose menu switches workspace. At its foot, the module on
-// screen (ADR 0035), Mail, Drive or (in a company) CRM, with Switch, whose menu switches module. The sidebar shows one
-// module's rows at a time; the module follows the route. Each module has an identity colour
-// (`--module-*`), used on its mark here and nowhere else.
-//
-// - Switching module keeps the workspace and the mailbox shown in mail.
-// - Switching workspace keeps the module: Drive opens the same space's top, the CRM the same list,
-//   mail the same list (`openWorkspace`); an owner or admin of a workspace still being set up goes to onboarding.
-//
-// Geometry: the mark is an 18px tile on the nav icons' 15px axis (1.5px out on every side), so
-// its centre and the label after it line up with the rows below. The glyph is 12px, 3px in.
 import { useLocation, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import { useMemo, useRef, type ComponentType, type CSSProperties, type ReactNode } from "react";
@@ -49,9 +37,7 @@ interface Module {
   id: ModuleId;
   label: string;
   icon: ComponentType<{ className?: string }>;
-  /** Where switching to the module lands. */
   home: "/$workspace/mail/inbox" | "/$workspace/files/my" | "/$workspace/crm/companies";
-  /** Its identity colour, as a fill. */
   fill: string;
 }
 
@@ -62,7 +48,6 @@ const MAIL: Module = {
   home: "/$workspace/mail/inbox",
   fill: "bg-module-mail",
 };
-/** Storage (ADR 0034), called Drive; its paths stay `/<workspace>/files/*`. */
 const DRIVE: Module = {
   id: "files",
   label: "Drive",
@@ -70,7 +55,6 @@ const DRIVE: Module = {
   home: "/$workspace/files/my",
   fill: "bg-module-drive",
 };
-/** The CRM (ADR 0036, ADR 0039): a company workspace's only; a Personal space has none. */
 const CRM: Module = {
   id: "crm",
   label: "CRM",
@@ -113,14 +97,11 @@ function ModuleMark({ module, className }: { module: Module; className?: string 
         className,
       )}
     >
-      {/* Its own layer: WebKit (Safari, the desktop app) otherwise snaps the glyph to a whole
-          pixel, and on the sidebar's half-pixel mark it sat 0.5px right of centre (measured). */}
       <Icon className="size-3 transform-gpu text-module-foreground" />
     </span>
   );
 }
 
-/** A workspace's square mark: its logo, or its initial on a grey a step under the hover fill. */
 function WorkspaceMark({ workspace, size }: { workspace: Workspace; size: number }) {
   return (
     <Avatar
@@ -133,10 +114,6 @@ function WorkspaceMark({ workspace, size }: { workspace: Workspace; size: number
   );
 }
 
-/**
- * The switcher's mark: 18px over the nav icons' 15px box (the margin centres it on their axis),
- * or alone a size up, 22px, in the title bar; a loader while a workspace opens.
- */
 function TriggerMark(props: { workspace: Workspace; busy: boolean; large: boolean }) {
   if (props.large && !props.busy) return <WorkspaceMark workspace={props.workspace} size={22} />;
   return (
@@ -152,11 +129,8 @@ function TriggerMark(props: { workspace: Workspace; busy: boolean; large: boolea
   );
 }
 
-/** A row's name, with the check on the current one riding inside the label so it sits on the
- *  name's line, 6px in from the row's end (as the settings workspace chooser does). */
 function Label({ name, current }: { name: string; current: boolean }) {
   return (
-    // To the item's end (past the grid's empty columns), so the check sits at the far edge.
     <MenuLabel className="col-[2/-1] flex min-w-0 items-center justify-between gap-3">
       <span className="truncate">{name}</span>
       {current && <IconCircleCheckFilled className="size-4 shrink-0 text-primary" />}
@@ -188,7 +162,6 @@ export function ModuleSwitcher() {
   const current = BY_ID[useCurrentModule()];
   const open = useOpenModule();
   const modules = useHasCrm() ? MODULES : MODULES.filter((module) => module.id !== "crm");
-  // The menu lines up with the whole row, not the pill: the links' width, as the workspace's.
   const row = useRef<HTMLDivElement>(null);
   const rowBox = useMemo(
     () => ({ getBoundingClientRect: () => row.current?.getBoundingClientRect() ?? new DOMRect() }),
@@ -196,8 +169,6 @@ export function ModuleSwitcher() {
   );
 
   return (
-    // A row on the nav rows' grid: the mark in the 15px icon box, the label 10px after it, and
-    // Switch, a round pill, at the row's end.
     <div ref={row} className="flex h-8 min-w-0 items-center gap-2.5 ps-2">
       <span className="grid size-icon shrink-0 place-items-center">
         <span className="-m-[1.5px]">
@@ -219,7 +190,6 @@ export function ModuleSwitcher() {
           popover={{
             anchor: rowBox,
             offset: 4,
-            // The row sits 8px from the window's edge: the menu keeps the same 8px.
             collisionPadding: 8,
             className: "w-(--anchor-width) min-w-(--anchor-width)",
           }}
@@ -230,10 +200,8 @@ export function ModuleSwitcher() {
               id={module.id}
               textValue={module.label}
               onAction={() => module.id !== current.id && open(module.id)}
-              // 6px in, as above and below the 18px mark; the check 6px from the end to match.
               className="ps-1.5 pe-1.5"
             >
-              {/* The menu's icon gap after it, which it gives only to its own marks. */}
               <ModuleMark module={module} className="me-(--me-icon)" />
               <Label name={module.label} current={module.id === current.id} />
             </MenuItem>
@@ -281,7 +249,6 @@ export function WorkspaceSwitcher({
   const signOut = useSignOut();
   const navigate = useNavigate();
   const canCreate = useOnboarding().data?.canCreateOrganization === true;
-  // Only for those who'd see Billing: a company's owners and admins.
   const active = workspaces.find((w) => w.id === member.orgId);
   const team = !!active && active.kind !== "personal" && isManager(member.role);
   const row = useRef<HTMLDivElement>(null);
@@ -303,14 +270,8 @@ export function WorkspaceSwitcher({
   return (
     <div ref={row} className="flex min-w-0 items-center justify-between gap-1">
       <MenuTrigger>
-        {/* The mark in the nav icons' 15px box and the name 10px after it, as the rows under it;
-            the trigger hugs them. */}
         <SidebarItemTrigger
           aria-label={`Switch workspace, currently ${label(active)}`}
-          // 9px after the name against the mark's 6.5px from the start (optical, measured): the
-          // text's soft end needs a little more room than the mark's hard edge to look even. In
-          // settings it is a full row with the mailbox switcher's chevron, as a chooser.
-          // In the desktop title bar, the mark in the same 28px square as the arrows beside it.
           className={
             iconOnly
               ? "size-7 shrink-0 justify-center px-0"
@@ -333,11 +294,8 @@ export function WorkspaceSwitcher({
           placement="bottom start"
           popover={{
             anchor: rowBox,
-            // 2px in settings, on the next row's top edge: that row can be the current page's grey
-            // fill, and any wider gap shows its edge as a stripe (measured).
             offset: workspacesOnly ? 2 : 4,
             collisionPadding: 8,
-            // The sidebar's width: a touch past the links, never narrower than the row.
             className: "w-60 min-w-(--anchor-width) max-w-[calc(100vw-16px)]",
           }}
         >
@@ -347,8 +305,6 @@ export function WorkspaceSwitcher({
               id={workspace.id}
               textValue={label(workspace)}
               onAction={() => choose(workspace)}
-              // 6px in, as above and below the 20px mark: balanced (the items' 10px is for 14px
-              // icons). The name runs to the end, the check 6px from it, as the mark from the start.
               className="ps-1.5 pe-1.5"
             >
               <WorkspaceMark workspace={workspace} size={20} />
@@ -373,7 +329,6 @@ export function WorkspaceSwitcher({
   );
 }
 
-/** The workspace menu's way into settings, a company's Invite and Upgrade, and Log out. */
 function SettingsItems(props: { team: boolean; onLogOut: () => void }) {
   const { team } = props;
   const billing = useBilling({ enabled: team }).data;

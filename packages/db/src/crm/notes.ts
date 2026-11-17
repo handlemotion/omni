@@ -1,5 +1,3 @@
-// Notes on one record, and the CRM side of a record's timeline: its events and its notes, each
-// paged newest first. Mail joins the timeline in a later layer, merged by the Worker.
 import { and, desc, eq, sql } from "drizzle-orm";
 import { crmEvents, crmNotes } from "../schema/crm.ts";
 import {
@@ -82,7 +80,6 @@ const cleanBody = (body: string) => {
   return text.length > 0 && text.length <= CRM_NOTE_MAX_LENGTH ? text : null;
 };
 
-/** Exactly one record, as the check constraint wants it. */
 const target = (record: CrmRecordRef) => ({
   companyId: "companyId" in record ? record.companyId : null,
   personId: "personId" in record ? record.personId : null,
@@ -152,7 +149,6 @@ export interface TimelinePage {
 
 type Table = typeof crmNotes | typeof crmEvents;
 
-/** The record's column in `table`, and the rows older than the cursor. */
 function timelineWhere(
   table: Table,
   orgId: string,

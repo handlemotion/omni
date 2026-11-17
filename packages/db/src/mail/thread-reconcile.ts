@@ -1,6 +1,3 @@
-// Thread state derived from IMAP: where a thread's copies are and how they are flagged. Every
-// sync writer calls this, so a change made in Omni, in another mail app, or by a full re-sync
-// ends in the same rows (spec, "Sync rules").
 import { sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import {
@@ -62,7 +59,6 @@ export async function reconcileThreads(
     on conflict (thread_id, member_id) do update set read = excluded.read, updated_at = now()
     where ${threadState}.read is distinct from excluded.read
     returning thread_id as id, read, xmax = 0 as inserted`);
-  // Google accounts. Read in Gmail: done through the newest message, unless it already is.
   const done = await db.execute(sql`
     insert into ${threadState} (org_id, thread_id, member_id, read, done_through)
     select t.org_id, t.id, a.member_id, true, t.last_message_at
@@ -76,8 +72,6 @@ export async function reconcileThreads(
     where ${threadState}.done_through is null
       or ${threadState}.done_through < excluded.done_through
     returning thread_id as id`);
-  // Unread in Gmail: a done thread reopens, and new unread mail shows as unread. No row already
-  // means both.
   const reopened = await db.execute(sql`
     update ${threadState} ts set done_through = null, read = false, updated_at = now()
     from (${summary}) s
@@ -90,7 +84,6 @@ export async function reconcileThreads(
         select 1 from ${messages} n where n.id in (${messageIds}) and n.created_at > ts.updated_at
       )))
     returning ts.thread_id as id`);
-  // postgres-js returns the rows themselves. A new row that says unread shows what no row did.
   type ReadRow = { id: string; read: boolean; inserted: boolean };
   const changed = [
     ...(archived as unknown as { id: string }[]),

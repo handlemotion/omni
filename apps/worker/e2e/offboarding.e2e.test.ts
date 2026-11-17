@@ -1,7 +1,3 @@
-// When someone leaves a company (ADR 0026), on the onboarding stack: real Worker, real mail
-// service, GreenMail and Postgres. Their inbox stays with the company, nobody can open it and it
-// stops syncing, until an owner or admin gives it away, shares it, or removes it. Every step is
-// in the activity log, and none of it lets anyone read mail they were not given.
 import { listServiceMailboxes, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -50,7 +46,6 @@ async function grantsOn(mailboxId: string) {
   return rows.map((row) => row.memberId).toSorted();
 }
 
-/** A company with a domain, its owner, and Ben (a member with his own inbox) removed again. */
 async function benLeft() {
   const owner = await stack.workspaceWithDomain();
   const ben = await teammate(owner.orgId, "member");
@@ -77,13 +72,11 @@ test("a departed member's inbox is orphaned, stops syncing, and can be given to 
 
   const listed = await api(owner.jar, "GET", "/workspace/inboxes");
   expect(listed.body.inboxes).toMatchObject([{ id: inboxId, owner: null, orphaned: true }]);
-  // Bug caught: a mailbox nobody can read still syncing (and still costing a connection).
   expect(await syncing()).not.toContain(inboxId);
   expect(await visibleIds(owner.jar)).not.toContain(inboxId);
 
   const give = (memberId: string) =>
     api(owner.jar, "POST", `/workspace/inboxes/${inboxId}/owner`, { memberId });
-  // Bug caught: a plain member handing themselves a departed colleague's mail.
   const self = await api(cy.jar, "POST", `/workspace/inboxes/${inboxId}/owner`, {
     memberId: cy.id,
   });
@@ -92,14 +85,11 @@ test("a departed member's inbox is orphaned, stops syncing, and can be given to 
   expect((await give(cy.id)).status).toBe(200);
   expect(await grantsOn(inboxId)).toEqual([cy.id]);
   expect(await visibleIds(cy.jar)).toContain(inboxId);
-  // The admin who gave it still cannot open it.
   expect(await visibleIds(owner.jar)).not.toContain(inboxId);
   expect(await syncing()).toContain(inboxId);
-  // A retry is fine; giving it on to someone else now is not: it is Cy's.
   expect((await give(cy.id)).status).toBe(200);
   expect((await give(dee.id)).status).toBe(409);
   expect(await grantsOn(inboxId)).toEqual([cy.id]);
-  // Bug caught: an admin turning a current member's inbox into a shared one they could join.
   const share = await api(owner.jar, "POST", `/workspace/inboxes/${inboxId}/shared`, {
     memberIds: [dee.id],
   });
@@ -122,16 +112,13 @@ test("a departed member's inbox can become a shared inbox for the people named",
   const share = () =>
     api(owner.jar, "POST", `/workspace/inboxes/${inboxId}/shared`, { memberIds: [cy.id, dee.id] });
   expect((await share()).status).toBe(200);
-  // Idempotent: a retry adds no one twice.
   expect((await share()).status).toBe(200);
   expect(await grantsOn(inboxId)).toEqual([cy.id, dee.id].toSorted());
   const people = await api(owner.jar, "GET", `/workspace/shared-inboxes/${inboxId}/people`);
-  // Bug caught: grants with no team, so the next team sync would wipe them.
   expect((people.body.people as { memberId: string }[]).map((p) => p.memberId).toSorted()).toEqual(
     [cy.id, dee.id].toSorted(),
   );
   expect(await syncing()).toContain(inboxId);
-  // Shared now: it cannot be handed to one person as their private inbox.
   const give = await api(owner.jar, "POST", `/workspace/inboxes/${inboxId}/owner`, {
     memberId: cy.id,
   });
@@ -149,7 +136,6 @@ test("any inbox can be removed, but not someone's only one", async () => {
     placement(owner.domainId, `ana${tag()}`),
   );
   const anas = issued.body.mailboxId as string;
-  // 204 has no body, so not through `api`.
   const remove = async (jar: CookieJar, id: string) =>
     (
       await fetch(new URL(`/api/workspace/inboxes/${id}`, stack.worker.url), {
@@ -159,7 +145,6 @@ test("any inbox can be removed, but not someone's only one", async () => {
     ).status;
 
   expect(await remove(ana.jar, anas)).toBe(403);
-  // Bug caught: leaving Ana with nothing to open.
   expect(await remove(owner.jar, anas)).toBe(409);
 
   const second = await api(
@@ -169,7 +154,6 @@ test("any inbox can be removed, but not someone's only one", async () => {
     placement(owner.domainId, `ana2${tag()}`),
   );
   expect(second.status).toBe(200);
-  // An IMAP inbox, which the hosted-only route could never remove.
   expect(await remove(owner.jar, anas)).toBe(204);
   expect(
     await db.select().from(schema.mailboxes).where(eq(schema.mailboxes.id, anas)),

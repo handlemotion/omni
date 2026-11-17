@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { scrubBreadcrumb, scrubEvent } from "./telemetry.ts";
 
-// Each case is a way mail content or a secret could ride an error event out to Sentry.
 describe("scrubEvent", () => {
   it("removes addresses from exception messages, like an SMTP rejection", () => {
     const event = scrubEvent({

@@ -1,4 +1,3 @@
-// Mail's tables (ADR 0035), split by concern under `mail/`. No table was renamed in the split.
 export * from "./mail/enums.ts";
 export * from "./mail/mailboxes.ts";
 export * from "./mail/messages.ts";

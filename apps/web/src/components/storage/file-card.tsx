@@ -1,7 +1,3 @@
-// One file or folder as a card, the same for both: a square preview (an image's thumbnail, else
-// its kind's glyph on the card's surface), then the name with its menu beside it, and under it
-// what it is ("585 KB · PNG", "Folder"). Hovered the card washes; the open file's card keeps the
-// accent fill; a press squeezes it a touch (cards squeeze least).
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { SkeletonBox } from "skullet/react";
 import {
@@ -56,7 +52,6 @@ export function FileCard(props: {
       id={node.id}
       href={props.href}
       textValue={node.name}
-      // 6px around the square and the caption, so the hover and open fills frame both.
       className={`flex-col items-stretch gap-2 rounded-xl p-1.5 transition-[background-color,scale] duration-150 ease-out hover:bg-hover active:scale-[.99] selected:bg-accent motion-reduce:transition-none ${CARD_DROP_TARGET} ${LIFTED}`}
     >
       {node.kind === "folder" ? (
@@ -72,7 +67,6 @@ export function FileCard(props: {
           )}
         </div>
       )}
-      {/* The body's 13px over the 11px meta, 4px apart: two sizes, as the rows use. */}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1 gap-y-1 ps-0.5">
         <NodeName node={node} name={props.name} card />
         <span {...KEEP_IN_MENU} className="row-span-2 self-start">
@@ -86,9 +80,7 @@ export function FileCard(props: {
   );
 }
 
-/** An image's thumbnail, faded in over its glyph once it has decoded. */
 function Thumbnail(props: { node: StorageNode; url: string; raster: string }) {
-  // Fetched only once the card nears the screen: a mounted card off screen fetches nothing.
   const anchor = useRef<HTMLSpanElement>(null);
   const near = useSeen(anchor);
   const thumb = useThumbnail(
@@ -122,7 +114,6 @@ export function useSeen(ref: RefObject<HTMLElement | null>) {
     const element = ref.current;
     if (!element || seen) return;
     const observer = new IntersectionObserver(
-      // Any entry: a busy page gets several at once, and one that came into view counts.
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
       },

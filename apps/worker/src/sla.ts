@@ -1,7 +1,3 @@
-// The helpdesk's clock, run by the every-minute cron (ADR 0021, ADR 0023): wakes snoozed
-// conversations whose time has come and raises SLA alerts. Every step is idempotent: the status
-// rule wakes a conversation only while its current snooze is over, and each alert is keyed by its
-// target and due time, so a late or doubled run changes nothing twice.
 import { applyConversationChange, dueSnoozes, emitSlaAlerts, type Db } from "@omni/db";
 import { openDb } from "./db.ts";
 import { loadConfig, type Config } from "./env.ts";

@@ -1,15 +1,10 @@
-// Desktop app releases (docs/spec/desktop.md, "Build, signing, release"): the updater's manifest
-// and the installers, read from `DESKTOP_BUCKET`, where `apps/desktop/scripts/release-macos.sh`
-// publishes them. Public: the updater checks before anyone signs in, and every file is signed.
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
 
-/** What `/desktop/download/:platform` serves: the bucket key and the name it saves as. */
 const INSTALLERS: Record<string, { key: string; filename: string; type: string }> = {
   macos: { key: "download/macos.dmg", filename: "Omni.dmg", type: "application/x-apple-diskimage" },
 };
 
-/** Release files are named by version (`releases/<version>/<file>`), so they never change. */
 const RELEASE_FILE = /^[0-9A-Za-z.+-]+\/[0-9A-Za-z._-]+$/;
 
 function serve(object: R2ObjectBody, type: string, cache: string, filename?: string) {
@@ -24,7 +19,6 @@ function serve(object: R2ObjectBody, type: string, cache: string, filename?: str
 }
 
 export const desktop = new Hono<AppEnv>()
-  // The updater asks every six hours; a new release reaches it within a minute.
   .get("/latest.json", async (c) => {
     const object = await c.env.DESKTOP_BUCKET.get("latest.json");
     if (!object) return c.notFound();

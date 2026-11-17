@@ -1,6 +1,3 @@
-// Who is signed in, and the transitions that change it (sign in, sign out, switch organization).
-// Any change of identity clears the whole cache and reloads the routes, so no data from one
-// member or organization is ever shown to another.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { dropStartupResponses } from "./startup-fetch.ts";
 import { api, ApiError, auth, call } from "./api.ts";
@@ -38,8 +35,6 @@ export const sessionQuery = () =>
   queryOptions({
     queryKey: keys.session(),
     queryFn: async ({ signal }) => {
-      // Both read the session cookie, so they go out together: every route waits on this, and
-      // one round trip instead of two is what startup saves. Signed out, `/me` is ignored.
       const me = call(api.me.$get(undefined, { init: { signal } })).then(
         (member) => ({ member }),
         (error: unknown) => ({ error }),
@@ -54,7 +49,6 @@ export const sessionQuery = () =>
           member: result.member,
         } satisfies Session | null;
       const { error } = result;
-      // Signed in but not a member of any organization (yet): an invitation can fix that.
       if (error instanceof ApiError && error.status === 403) {
         return { user: data.user, session: data.session, member: null } satisfies Session | null;
       }
@@ -75,23 +69,18 @@ interface Reloadable {
  */
 export async function resetSession(client: QueryClient, router: Reloadable) {
   const before = client.getQueryData<Session | null>(keys.session())?.user.id;
-  // Already done before a switch; here for the rest (a 401): nothing goes on as someone else.
   await cancelUploads();
   dropStartupResponses();
-  // A new identity's calls must not name the old one's workspace (a 403 would read as "no
-  // member"); the next workspace route names its own.
   setCurrentWorkspaceId(undefined);
   await client.cancelQueries();
   client.clear();
   await router.invalidate();
-  // A workspace switch keeps waiting for the person's sends; a new person (or none) does not.
   const after = client.getQueryData<Session | null>(keys.session())?.user.id;
   if (!after || after !== before) forgetOutstanding();
 }
 
 /** Only same-origin paths: `?redirect=https://evil.example` must not become an open redirect. */
 export function safeRedirect(to: string | undefined) {
-  // `//host` and `/\host` are both protocol-relative to a browser.
   return to && /^\/(?![/\\])/.test(to) ? to : "/";
 }
 
@@ -120,16 +109,12 @@ export async function signInWithMagicLink(email: string, redirect?: string) {
   );
 }
 
-// The shell reloads the window at `/` once a desktop sign-in lands, so the destination the sign-in
-// started from waits here (this window's storage) for `/` to resume it.
 const SIGN_IN_REDIRECT = "omni.sign-in-redirect";
 
 function rememberSignInRedirect(to: string) {
   try {
     localStorage.setItem(SIGN_IN_REDIRECT, to);
-  } catch {
-    // Storage blocked: the sign-in still lands, on the inbox.
-  }
+  } catch {}
 }
 
 /** The destination a desktop sign-in started from, once; null when there is none. */
@@ -148,7 +133,6 @@ export const signInMethodsQuery = () =>
   queryOptions({
     queryKey: keys.signInMethods(),
     queryFn: ({ signal }) => call(api["sign-in-methods"].$get(undefined, { init: { signal } })),
-    // Server config: it changes only on a redeploy.
     staleTime: Infinity,
   });
 

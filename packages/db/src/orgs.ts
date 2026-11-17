@@ -1,6 +1,3 @@
-// Organization bootstrap for trusted operator tooling (the `org:create` CLI). Members after the
-// first join through Better Auth invitations; this is only how an organization and its owner
-// come to exist.
 import { and, eq, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
@@ -41,7 +38,6 @@ export async function createOrgWithOwner(
       .from(users)
       .where(eq(sql`lower(${users.email})`, email));
     if (!user) {
-      // Unverified until the first magic-link sign-in proves the address.
       [user] = await tx
         .insert(users)
         .values({ id: uuidv7(), name: input.ownerName ?? email.split("@")[0]!, email })

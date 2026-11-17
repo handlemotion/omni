@@ -1,6 +1,3 @@
-// Connecting a Gmail account over the real Worker: the consent redirect carries PKCE and a state
-// bound to this browser and member, and only a matching callback reaches the mail service, signed,
-// with the code and the verifier. The Worker never sees a Google token.
 import { placeForAddress, schema } from "@omni/db";
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
@@ -36,8 +33,6 @@ beforeAll(async () => {
     }
     const { code, orgId, memberId, userId } = JSON.parse(body) as Record<string, string>;
     if (code === "personal-code") {
-      // As the real mail service does with `userId` (ADR 0024): a gmail.com address has no
-      // company, so it goes to the person's Personal space.
       const place = await placeForAddress(database.db, {
         userId: userId!,
         address: "me@gmail.com",
@@ -65,7 +60,6 @@ beforeAll(async () => {
       };
     }
     if (code === "saving-code") {
-      // As the real mail service does: the Gmail mailbox exists before the Worker hears back.
       const mailbox = await createMailbox(database.db, orgId!, `${orgId}@gmail.com`, "personal");
       await grant(database.db, orgId!, mailbox.id, memberId!);
       return {
@@ -105,7 +99,6 @@ function api(path: string, cookie: string, init: RequestInit = {}) {
   });
 }
 
-/** Starts the flow: Google's consent URL and the flow cookie the browser now holds. */
 async function start(session: string, from?: "onboarding") {
   const query = new URLSearchParams(from ? { return: from } : {}).toString();
   const response = await api(`/connect/google/start${query ? `?${query}` : ""}`, session);
@@ -146,7 +139,6 @@ describe("connecting a Google account", () => {
     expect(state.length).toBeGreaterThanOrEqual(32);
 
     const before = mailService.requests.length;
-    // A forged callback without the flow cookie, and one with a different state, go nowhere.
     expect((await callback(ana.session, { code: "c-1", state })).searchParams.get("reason")).toBe(
       "expired",
     );
@@ -154,7 +146,6 @@ describe("connecting a Google account", () => {
     expect(
       (await callback(withFlow, { code: "c-1", state: `${state}x` })).searchParams.get("reason"),
     ).toBe("expired");
-    // Another member's session holding Ana's flow cookie can't finish her flow.
     const bob = await signedInMember("bob@connect.test");
     expect(
       (await callback(`${bob.session}; ${flow}`, { code: "c-1", state })).searchParams.get(
@@ -179,15 +170,11 @@ describe("connecting a Google account", () => {
       code: "google-code",
       redirectUri: REDIRECT_URI,
     });
-    // The verifier is the one behind the challenge Google saw, so Google accepts the exchange.
     expect(createHash("sha256").update(body.codeVerifier!).digest("base64url")).toBe(
       params.get("code_challenge"),
     );
   });
 
-  // Bug: the desktop app ran Google's consent inside its window, which Google refuses. In the
-  // browser there is no session and no flow cookie, so the callback has to go back to the app's
-  // window, and only there reach the mail service.
   test("a flow the desktop app starts consents in the browser and finishes in the window", async () => {
     const ana = await signedInMember("desktop@connect.test");
     const started = await api("/connect/google/start?desktop=1", ana.session);
@@ -201,7 +188,6 @@ describe("connecting a Google account", () => {
     const state = consent.searchParams.get("state")!;
     expect(state.startsWith("d.")).toBe(true);
 
-    // Google sends the browser back: no session, no flow cookie. It goes on to the app.
     const before = mailService.requests.length;
     const fromBrowser = await fetch(
       new URL(
@@ -216,7 +202,6 @@ describe("connecting a Google account", () => {
     const path = toApp.searchParams.get("path")!;
     expect(mailService.requests.length).toBe(before);
 
-    // The app loads that path in its window, which has the session and the flow cookie.
     const inWindow = await api(path.replace(/^\/api/, ""), `${ana.session}; ${flow}`);
     expect(inWindow.status).toBe(302);
     const landed = new URL(inWindow.headers.get("location")!);
@@ -224,7 +209,6 @@ describe("connecting a Google account", () => {
     expect(landed.searchParams.get("google")).toBe("connected");
     await mailService.waitFor(before + 1);
 
-    // A web flow's callback without a session is not sent to the app.
     const web = await fetch(
       new URL(`/api/connect/google/callback?code=c&state=web-state`, worker.url),
       { redirect: "manual" },
@@ -233,7 +217,6 @@ describe("connecting a Google account", () => {
   });
 
   test("a kept flow cookie cannot be replayed into unlimited mail service calls", async () => {
-    // RATE_LIMIT_PROVISION is 30 an hour per member, shared with /start.
     const mallory = await signedInMember("replay@connect.test");
     const { consent, flow } = await start(mallory.session);
     const state = consent.searchParams.get("state")!;
@@ -270,7 +253,6 @@ describe("connecting a Google account", () => {
 
   test("started in setup, it returns to setup, and only a connected account lets setup finish", async () => {
     const dee = await signedInMember("dee@connect.test");
-    // Setting up a workspace is its owner's job.
     await database.db
       .update(schema.members)
       .set({ role: "owner" })
@@ -299,7 +281,6 @@ describe("connecting a Google account", () => {
     });
     expect(landed.origin + landed.pathname).toBe(`${WEB_ORIGIN}/onboarding`);
     expect(landed.searchParams.get("google")).toBe("connected");
-    // Still in setup (invitations and the plan come next), not taken for a finished workspace.
     expect(await setup()).toBe("mailboxes_created");
     expect((await api("/onboarding/complete", dee.session, { method: "POST" })).status).toBe(200);
   });
@@ -339,7 +320,6 @@ describe("disconnecting a Google account", () => {
     const [sent] = (await mailService.waitFor(before + 1)).slice(before);
     expect(sent!.path).toBe("/connect/google/disconnect");
     expect(sent!.verified.ok).toBe(true);
-    // `userId` lets the mail service find the account wherever it lives (ADR 0024).
     expect(JSON.parse(sent!.body)).toEqual({
       orgId: dan.org.id,
       memberId: dan.member.id,
@@ -350,7 +330,6 @@ describe("disconnecting a Google account", () => {
 });
 
 describe("where a connected account goes (ADR 0024)", () => {
-  // Catches: an account joining whichever workspace is open instead of the one its address picks.
   test("a gmail.com account lands in Personal, not the open workspace", async () => {
     const eve = await signedInMember("eve@place.test");
     const users = await database.db
@@ -366,7 +345,6 @@ describe("where a connected account goes (ADR 0024)", () => {
           .from(schema.orgSetup)
           .where(eq(schema.orgSetup.orgId, eve.org.id))
       )[0]?.step;
-    // The Worker sends who is connecting, and the account lands in Personal.
     const placed = await start(eve.session);
     const stepBefore = await setupStep();
     const at = mailService.requests.length;
@@ -389,10 +367,8 @@ describe("where a connected account goes (ADR 0024)", () => {
       google: "connected",
       workspaceId: space!.orgId,
     });
-    // It did not land here, so this workspace's setup did not move.
     expect(await setupStep()).toBe(stepBefore);
 
-    // Settings lists it from the open workspace, and disconnecting it says whose it is.
     const listed = await api("/connect/google", eve.session);
     const accounts = ((await listed.json()) as { accounts: { mailboxId: string }[] }).accounts;
     const mailboxId = new URL(landed).searchParams.get("mailboxId")!;
@@ -401,7 +377,6 @@ describe("where a connected account goes (ADR 0024)", () => {
     const removed = await api(`/connect/google/${mailboxId}`, eve.session, { method: "DELETE" });
     expect(removed.status).toBe(204);
     const [disconnect] = (await mailService.waitFor(disconnectAt + 1)).slice(disconnectAt);
-    // The account's own workspace and member, so a mail service from before ADR 0024 finds it.
     const [owner] = await database.db
       .select({ id: schema.members.id })
       .from(schema.members)
@@ -445,7 +420,6 @@ describe("where a connected account goes (ADR 0024)", () => {
     });
     const personal = await placeForAddress(db, { userId, address: "fay@gmail.com" });
     expect(personal).toMatchObject({ ok: true, kind: "personal" });
-    // A session scoped to Fay's company cannot put anything in her Personal space.
     expect(
       await placeForAddress(db, { userId, address: "fay@gmail.com", scopeOrgId: fay.org.id }),
     ).toMatchObject({ ok: false, reason: "outside_scope" });

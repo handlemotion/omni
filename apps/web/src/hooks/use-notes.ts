@@ -1,5 +1,3 @@
-// Internal notes on a helpdesk conversation. Each change shows at once and rolls back if the
-// request fails. Read notes from `useConversation(threadId).data.notes`.
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { memberInInbox } from "../lib/conversations.ts";
 import {

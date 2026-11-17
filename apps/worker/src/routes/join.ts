@@ -1,7 +1,3 @@
-// Join requests (ADR 0024 decision 3). A sign-in with an address on a company's claimed domain
-// reaches only that company; someone who is not its member gets nothing else, so they ask to
-// join here, and the company's owners and admins accept or decline. Mounted ahead of the member
-// API: the person asking has no member yet.
 import {
   acceptJoinRequest,
   declineJoinRequest,
@@ -16,7 +12,6 @@ import { HTTPException } from "hono/http-exception";
 import { resolveSession, systemMailSender, type AppEnv } from "../context.ts";
 import { notifyMembers } from "../realtime.ts";
 
-/** The signed-in person and the company their sign-in is scoped to, when they are not its member. */
 async function asker(c: Context<AppEnv>) {
   const resolved = await resolveSession(c);
   if (!resolved) throw new HTTPException(401, { message: "sign in first" });
@@ -25,7 +20,6 @@ async function asker(c: Context<AppEnv>) {
   return { user: resolved.user, orgId };
 }
 
-/** The active workspace's owner or admin, who decides on requests. */
 async function decider(c: Context<AppEnv>) {
   const resolved = await resolveSession(c);
   if (!resolved) throw new HTTPException(401, { message: "sign in first" });
@@ -36,7 +30,6 @@ async function decider(c: Context<AppEnv>) {
   return member;
 }
 
-/** Tells the company's owners someone asked. Best effort: the request stands either way. */
 async function tellOwners(c: Context<AppEnv>, orgId: string, company: string, who: string) {
   const send = systemMailSender({ email: c.env.EMAIL, config: c.var.config, log: c.var.log });
   const app = c.var.config.auth.appName;
@@ -50,21 +43,18 @@ async function tellOwners(c: Context<AppEnv>, orgId: string, company: string, wh
   }
 }
 
-/** Tells the workspace its new member joined: a notification each, and a live refetch. */
 async function announceJoin(c: Context<AppEnv>, orgId: string, userId: string) {
   const memberIds = await notifyMemberJoined(c.var.db, { orgId, userId });
   await notifyMembers(c.env, c.var.db, { orgId, threadId: null, memberIds, kind: "member_joined" });
 }
 
 export const join = new Hono<AppEnv>()
-  /** `{ company: { id, name }, requested }` for a scoped sign-in that is not a member; else 404. */
   .get("/", async (c) => {
     const { user, orgId } = await asker(c);
     const status = await joinStatus(c.var.db, { orgId, userId: user.id });
     if (!status) throw new HTTPException(404, { message: "nothing to join" });
     return c.json(status);
   })
-  /** Asks to join; asking again changes nothing and tells nobody twice. */
   .post("/", async (c) => {
     const { user, orgId } = await asker(c);
     const status = await joinStatus(c.var.db, { orgId, userId: user.id });
@@ -75,7 +65,6 @@ export const join = new Hono<AppEnv>()
     }
     return c.json({ company: status.company, requested: true });
   })
-  /** The requests waiting in the active workspace, for its owners and admins. */
   .get("/requests", async (c) => {
     const member = await decider(c);
     return c.json({ requests: await listJoinRequests(c.var.db, member.orgId) });

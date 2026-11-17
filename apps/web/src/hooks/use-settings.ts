@@ -1,6 +1,3 @@
-// Settings is a page in the app shell: `/<workspace>/settings/<page>`, its nav in the sidebar's place. ⌘., the
-// workspace menu and the bell's settings button open it; its Back row (and ⌘. again) returns to
-// where the app was. Both places are remembered here, outside React, so any opener can use them.
 import { useLocation, useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { useWorkspaceSlug } from "./use-workspaces.ts";
@@ -31,9 +28,7 @@ export function isSettingsPage(page: string): page is SettingsPageId {
 /** `/<workspace>/settings/…` (ADR 0043). */
 export const isSettingsPath = (pathname: string) => pathname.split("/")[2] === "settings";
 
-/** The settings page shown last: `/settings` and ⌘. open it. */
 let lastPage: SettingsPageId = "profile";
-/** Where the app was before settings opened: Back returns here. */
 let appHref = "/";
 
 export function rememberSettingsPage(page: SettingsPageId) {

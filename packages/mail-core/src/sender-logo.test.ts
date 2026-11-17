@@ -2,8 +2,6 @@ import { describe, expect, test } from "vitest";
 import { iconLinks, imageWidth, logoCandidates, logoEdge, logoSource } from "./sender-logo.ts";
 
 describe("logoSource", () => {
-  // Every Gmail sender would wear Gmail's logo, and everyone at `bounce.acme.co.uk` would miss
-  // Acme's: a subdomain that only sends mail serves no site and no icon.
   test("webmail asks Gravatar; a company address asks its site's domain", () => {
     expect(logoSource("Ana@Gmail.com")).toEqual({ kind: "gravatar", address: "ana@gmail.com" });
     expect(logoSource("news@bounce.acme.co.uk")).toEqual({ kind: "domain", domain: "acme.co.uk" });
@@ -13,8 +11,6 @@ describe("logoSource", () => {
 });
 
 describe("iconLinks", () => {
-  // Taking the first `<link rel=icon>` gives a 16px favicon blown up to a blurry tile, and an SVG
-  // or Safari's mask icon is refused by the raster-only proxy, leaving initials.
   test("the largest raster icon comes first; SVG and the mask icon are left out", () => {
     const html = `
       <link rel="icon" type="image/svg+xml" href="/icon.svg">
@@ -42,8 +38,6 @@ describe("iconLinks", () => {
 });
 
 describe("imageWidth", () => {
-  // A favicon.ico holding 16, 32 and 64px images read as its first entry (16) is passed over for
-  // a worse icon, or kept as the best when it is not.
   test("an ICO's widest image counts; 0 means 256", () => {
     const ico = new Uint8Array(6 + 16 * 3);
     ico.set([0, 0, 1, 0, 3, 0]);
@@ -72,8 +66,6 @@ describe("logoEdge", () => {
   };
   const orange = [244, 129, 32, 255];
 
-  // An app icon's rounded corners are see-through: read as transparent, its orange tile would sit
-  // on white, with a white ring around the scaled-down icon instead of one filled avatar.
   test("a solid tile with rounded corners reads as its colour", () => {
     const corner = (x: number, y: number) => (x < 2 || x > 29) && (y < 2 || y > 29);
     const rgba = bitmap(32, (x, y) => (corner(x, y) ? [0, 0, 0, 0] : orange));

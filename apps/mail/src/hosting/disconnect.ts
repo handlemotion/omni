@@ -1,7 +1,3 @@
-// Removing a mailbox from Omni (decided 2026-11-13: disconnect, keep the mail; ADR 0026 for any
-// provider). Omni stops syncing, revokes the app password it holds and forgets the mailbox. The user at the host
-// and every message stay: Postgres is only an index, and adding the address again reconnects it
-// with a new app password. Deleting the host's user is never done here.
 import type { HostedDisconnectBody } from "@omni/contracts";
 import type { Keyring } from "@omni/crypto";
 import { type Db, deleteMailbox, findOrgMailboxById, setMailboxStatus } from "@omni/db";
@@ -45,7 +41,6 @@ export const disconnectMailbox: (
   const mailbox = await findOrgMailboxById(db, input.orgId, input.mailboxId);
   if (!mailbox) return { mailboxId: input.mailboxId };
 
-  // Disabled first, so a reconcile running now does not connect it again.
   await setMailboxStatus(db, mailbox.id, "disabled");
   await deps.stop(mailbox.id);
   try {
@@ -54,8 +49,6 @@ export const disconnectMailbox: (
     else if (mailbox.provider === "purelymail")
       await deps.host?.revokeLogin(login.user, login.pass);
   } catch (error) {
-    // Forgetting the only copy is what matters; a login the host kept is unused and can be
-    // removed in the host's own settings.
     logger.warn("mailbox.disconnect_revoke_failed", { mailboxId: mailbox.id, error });
   }
   await deleteMailbox(db, mailbox.id);

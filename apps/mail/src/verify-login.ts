@@ -15,7 +15,6 @@ export async function verifyImapLogin(credentials: PasswordCredentials) {
     connectionTimeout: 15_000,
     greetingTimeout: 10_000,
   });
-  // A failed login also emits `error`; without a listener it would crash the process.
   client.on("error", () => {});
   try {
     await client.connect();

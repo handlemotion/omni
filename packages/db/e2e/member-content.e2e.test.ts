@@ -1,7 +1,3 @@
-// Isolation for the member reads and writes that sit beside `forMember` (packages/db/AGENTS.md):
-// compose, library, customers, drafts and preferences. Each one checks the member's grant on the
-// row's mailbox in the row's org (`grantFor`), so a teammate without the inbox and a member of
-// another org holding a forged grant must both find nothing.
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
@@ -37,8 +33,6 @@ import { createMailbox, createMember, createOrg, createTestDatabase, grant } fro
 const { db, teardown } = await createTestDatabase();
 afterAll(teardown);
 
-// Org A: ana sees support@, bo is in org A without it. Org B: cy holds a forged grant on
-// org A's support@ (a buggy or malicious write must not open another org's data).
 let ana: string, bo: string, cy: string;
 let orgAId: string;
 let supportId: string;

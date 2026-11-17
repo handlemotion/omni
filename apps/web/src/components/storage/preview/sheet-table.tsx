@@ -1,5 +1,3 @@
-// Rows of text cells as a table, the first row as its sticky header: a CSV's and each XLSX
-// sheet's preview (ADR 0040, ADR 0043 decision 7). Cells are React text, never markup.
 import { memo } from "react";
 
 export const SheetTable = memo(function SheetTable(props: { rows: string[][] }) {

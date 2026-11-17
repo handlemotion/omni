@@ -1,6 +1,3 @@
-// Signing (ADR 0043 decision 6, the flow of ADR 0037 decision 4): a simple electronic signature
-// made on one locked version of a PDF, by an address, recorded as rows. The CRM's contracts use
-// it; any file can.
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -74,7 +71,6 @@ export const storageSignatureRequests = pgTable(
     conservation: jsonb("conservation").$type<StorageSignatureConservation>(),
   },
   (t) => [
-    // Target for the signers' and events' composite keys.
     unique("storage_signature_requests_id_org_id_unique").on(t.id, t.orgId),
     foreignKey({
       name: "storage_signature_requests_node_org_fk",
@@ -125,7 +121,6 @@ export const storageSigners = pgTable(
       "storage_signers_signed",
       sql`(${t.signedAt} is null) = (${t.typedName} is null) and (${t.signedAt} is null) = (${t.consentVersion} is null) and (${t.signedAt} is null) = (${t.documentSha256} is null)`,
     ),
-    // "Waiting for my signature": every request to one of a person's addresses.
     index("storage_signers_email_idx").on(t.email),
     index("storage_signers_user_id_idx").on(t.userId),
   ],

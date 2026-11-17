@@ -1,5 +1,3 @@
-// Writing mail over the real Worker, its local R2 bucket and Postgres: staged uploads, replies
-// and forwards from a shared inbox under the agent's name, and signatures.
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -78,7 +76,6 @@ async function action(id: string) {
   return row!;
 }
 
-/** A shared inbox with Ana and Bea on its team, and Cy in the same org without access. */
 async function team(slug: string) {
   const { db } = database;
   const org = await createOrg(db, slug);
@@ -111,18 +108,15 @@ describe("uploads", () => {
     const file = (await created.json()) as { id: string; size: number; mimeType: string };
     expect(file).toMatchObject({ size: 40_000, mimeType: "application/x-logs" });
 
-    // A teammate on the inbox can open it (the composer is shared); downloads, never inline.
     const read = await api(`/uploads/${file.id}`, bea.cookie);
     expect(read.status).toBe(200);
     expect(read.headers.get("content-disposition")).toMatch(/^attachment;/);
     expect(new Uint8Array(await read.arrayBuffer())).toEqual(bytes);
 
-    // Not on the inbox: no upload to it, no reading it, no deleting it.
     expect((await upload(cy.cookie, inbox.id, "x.txt", bytes, "text/plain")).status).toBe(404);
     expect((await api(`/uploads/${file.id}`, cy.cookie)).status).toBe(404);
     expect((await api(`/uploads/${file.id}`, cy.cookie, { method: "DELETE" })).status).toBe(404);
 
-    // Over the cap is refused before anything is stored.
     const big = await upload(
       ana.cookie,
       inbox.id,
@@ -137,7 +131,6 @@ describe("uploads", () => {
       .where(eq(schema.uploads.mailboxId, inbox.id));
     expect(rows.map((r) => r.id)).toEqual([file.id]);
 
-    // Dropped from the composer: the row and the object go.
     expect((await api(`/uploads/${file.id}`, ana.cookie, { method: "DELETE" })).status).toBe(204);
     expect((await api(`/uploads/${file.id}`, ana.cookie)).status).toBe(404);
   });
@@ -174,7 +167,6 @@ describe("replies and forwards", () => {
       )
     ).json()) as { id: string };
 
-    // Another org's mailbox and its attachment: a send must not pull its file into this mail.
     const other = await createOrg(db, "globex");
     const otherBox = await createMailbox(db, other.id, "hello@globex.test");
     const foreign = await seedMessage(db, otherBox, {
@@ -211,7 +203,6 @@ describe("replies and forwards", () => {
     expect(sent.payload).toMatchObject({
       from: "support@reply.test",
       fromName: "Ana from Acme",
-      // To Luis, who wrote the chosen (older) message, threaded under it.
       to: ["luis@client.test"],
       subject: "Re: Refund for order 12",
       inReplyTo: "<first@client.test>",
@@ -219,14 +210,12 @@ describe("replies and forwards", () => {
       inReplyToMessageId: first.messageId,
       attachments: [{ kind: "upload", uploadId: file.id }],
     });
-    // The refused request queued nothing.
     const queued = await db
       .select({ id: schema.mailActions.id })
       .from(schema.mailActions)
       .where(eq(schema.mailActions.mailboxId, inbox.id));
     expect(queued.map((a) => a.id)).toEqual([actionId]);
 
-    // Taken by the send: the expiry cleanup and the composer's delete leave it alone.
     const [used] = await db
       .select({ usedAt: schema.uploads.usedAt })
       .from(schema.uploads)
@@ -234,8 +223,6 @@ describe("replies and forwards", () => {
     expect(used?.usedAt).not.toBeNull();
     expect((await api(`/uploads/${file.id}`, ana.cookie, { method: "DELETE" })).status).toBe(404);
 
-    // The helpdesk side: the reply took the open conversation to pending, Ana claimed it by
-    // replying, and the first response is on record.
     const [conversation] = await db
       .select()
       .from(schema.threads)
@@ -243,7 +230,6 @@ describe("replies and forwards", () => {
     expect(conversation).toMatchObject({ status: "pending", assigneeMemberId: ana.id });
     expect(conversation?.firstRespondedAt).toBeInstanceOf(Date);
 
-    // A retry (lost response) answers with the same send, though the upload is now used.
     const retried = await post(`/threads/${first.threadId}/reply`, ana.cookie, "reply-luis-1", {
       text: "Refund is on its way.",
       messageId: first.messageId,
@@ -262,7 +248,6 @@ describe("replies and forwards", () => {
       uid: 1,
       sentAt: new Date("2026-11-01T10:00:00Z"),
     });
-    // Ana opened the thread on Luis's first message; while she typed, he wrote again.
     const followUp = await seedMessage(db, inbox, {
       subject: "Re: Cancel my plan",
       fromAddress: "luis@client.test",
@@ -284,7 +269,6 @@ describe("replies and forwards", () => {
       basedOnMessageId: asked.messageId,
     });
     expect(forward.status).toBe(409);
-    // Nothing was queued, and the conversation was not touched as if she had answered.
     const outbox = () =>
       db
         .select({ id: schema.mailActions.id })
@@ -297,7 +281,6 @@ describe("replies and forwards", () => {
       .where(eq(schema.threads.id, asked.threadId));
     expect(untouched).toMatchObject({ assigneeMemberId: null, firstRespondedAt: null });
 
-    // Having read the follow-up, she sends.
     const sent = await post(`/threads/${asked.threadId}/reply`, ana.cookie, "stale-reply-2", {
       text: "Cancelled, and no charge this month.",
       basedOnMessageId: followUp.messageId,
@@ -305,8 +288,6 @@ describe("replies and forwards", () => {
     expect(sent.status).toBe(202);
     const { actionId } = (await sent.json()) as { actionId: string };
 
-    // Her response was lost and Luis wrote a third time: the retry answers the send already
-    // queued, not 409, so the app cannot offer to send it twice.
     await seedMessage(db, inbox, {
       subject: "Re: Cancel my plan",
       fromAddress: "luis@client.test",
@@ -396,7 +377,6 @@ describe("replies and forwards", () => {
       inReplyToMessageId: original.messageId,
       attachments: [{ kind: "attachment", attachmentId: pdf!.id }],
     });
-    // A forward starts a new conversation for the recipient: no reply headers.
     expect(payload).not.toHaveProperty("inReplyTo");
     expect(payload.text).toBe(
       [
@@ -420,8 +400,6 @@ describe("replies and forwards", () => {
       (await action(((await bare.json()) as { actionId: string }).actionId)).payload,
     ).not.toHaveProperty("attachments");
 
-    // With 50 more files on the original, the forward would carry 51: the mail service would
-    // reject that payload for good, so the Worker refuses it up front and queues nothing.
     await db.insert(schema.attachments).values(
       Array.from({ length: 50 }, (_, i) => ({
         orgId: org.id,
@@ -455,7 +433,6 @@ describe("signatures", () => {
 
     expect((await put(ana.cookie, "inbox", "— The Acme support team")).status).toBe(200);
     expect((await put(ana.cookie, "mine", "Ana, Acme support")).status).toBe(200);
-    // Saving again replaces, never adds a second row.
     expect((await put(ana.cookie, "mine", "Ana P., Acme support")).status).toBe(200);
 
     const read = async (cookie: string) =>
@@ -472,7 +449,6 @@ describe("signatures", () => {
       mine: null,
     });
 
-    // Not on the inbox: cannot read or change its signature.
     expect((await api(`/mailboxes/${inbox.id}/signature`, cy.cookie)).status).toBe(404);
     expect((await put(cy.cookie, "inbox", "hacked")).status).toBe(404);
 

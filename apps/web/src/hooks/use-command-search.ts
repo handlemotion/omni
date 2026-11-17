@@ -1,13 +1,3 @@
-// What the ⌘K menu finds by name: Drive's files and folders, the CRM's companies, people and
-// deals, and mail. Two sources, so the first results never wait on the network:
-//
-// - local: everything already in the query cache (every folder listing, CRM list and mail list
-//   the member opened, plus what the menu warms when it opens), matched as each key is typed;
-// - server: Drive's and the CRM's name searches, asked once typing pauses for a beat, their hits
-//   merged in under the local ones as they arrive (the last answer stays up while the next loads).
-//
-// Mail has no per-keystroke server search: its search judges relevance with a model and is rate
-// limited, so it stays the menu's "Smart search" row.
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { crmCompaniesQuery, crmDealsQuery, crmFindQuery, crmPeopleQuery } from "../lib/crm.ts";
@@ -20,15 +10,12 @@ import { senderLabel } from "../lib/threads.ts";
 import type { ThreadSummary } from "../lib/types.ts";
 import { useDebouncedValue } from "./use-debounced-value.ts";
 
-/** Most hits of one kind the menu lists; the rest are a narrower query away. */
 const LIMIT = 8;
-/** How long typing pauses before the server is asked: short, as the local hits already show. */
 const SERVER_DELAY_MS = 120;
 
 /** A file or folder; one shared with the member from elsewhere carries the link that opens it. */
 export type FileHit = StorageNode & { shareId?: string };
 
-/** What Shared with me lists: the node, and its `/s/<shareId>` link (none: it can't be opened). */
 type SharedItem = { node: StorageNode; shareId: string | null };
 
 export interface CommandHits {
@@ -41,11 +28,8 @@ export interface CommandHits {
   searching: boolean;
 }
 
-/** Every array named `field` in the cached answers under `prefix`, infinite lists included. */
 function cached<T>(client: QueryClient, prefix: readonly unknown[], field: string) {
   const out: T[] = [];
-  // An invalidated answer may hold what has since gone (a folder's files after it went to Trash)
-  // until it is fetched again; the server's search covers what it leaves out meanwhile.
   for (const query of client.getQueryCache().findAll({ queryKey: prefix })) {
     if (query.state.isInvalidated) continue;
     const data: unknown = query.state.data;
@@ -62,11 +46,6 @@ function cached<T>(client: QueryClient, prefix: readonly unknown[], field: strin
   return out satisfies T[];
 }
 
-/**
- * The first `LIMIT` of the cached `items` whose text holds `needle`, then the server's `found`,
- * one per id, in order. The server's are kept as it matched them (the CRM matches each word on
- * its own, so "an sm" finds Ann Smith), not filtered again.
- */
 function pick<T extends { id: string }>(
   items: Iterable<T>,
   found: readonly T[] | undefined,
@@ -85,7 +64,6 @@ function pick<T extends { id: string }>(
   return out satisfies T[];
 }
 
-/** A number that changes whenever a query in the cache gets new data or goes stale, so hits read it again. */
 function useCacheVersion(client: QueryClient) {
   const [version, setVersion] = useState(0);
   useEffect(
@@ -123,10 +101,6 @@ export function useWarmCommandSearch(company: boolean) {
   }, [client, company]);
 }
 
-/**
- * A server answer, split: the one for this very text is kept as the server matched it; an older
- * one (still on screen while the next loads) counts only where its names hold the text.
- */
 function split<T>(query: { data?: T | undefined; isPlaceholderData: boolean }, fresh: boolean) {
   return fresh && !query.isPlaceholderData
     ? { found: query.data, stale: undefined }
@@ -181,14 +155,13 @@ export function useCommandSearch(text: string, company: boolean) {
   });
 
   return useMemo(() => {
-    void version; // read again whenever the cache gets new data
+    void version;
     if (!needle) {
       return { files: [], companies: [], people: [], deals: [], threads: [], searching: false };
     }
     const fresh = settled === needle;
     const drive = split(files, fresh);
     return {
-      // The server's own answers come after the cache's, so what showed first stays put.
       files: pick(
         [
           ...cached<StorageNode>(client, [...keys.storage(), "list"], "nodes"),

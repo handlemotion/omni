@@ -1,8 +1,3 @@
-// The composer (fan-out item R2): an inline reply or forward under the conversation, and new
-// mail on the compose page. Both share the frame below: recipients, the body with the
-// signature, files, canned replies, a shared draft that saves as you type, Cmd/Ctrl+Enter to
-// send, and the undo-send toast. No Figma frame exists yet; this is a proposal built from the
-// primitives.
 import type { NewMessageDraft } from "@/hooks/use-compose-pane.ts";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { DropZone } from "react-aria-components/DropZone";
@@ -43,14 +38,11 @@ import { RecipientField } from "./recipient-field.tsx";
 import { Toolbar } from "./toolbar.tsx";
 import { offerUndoSend } from "./undo-send.ts";
 
-/** The RFC 3676 signature separator, so mail clients can fold it. */
 const SIG_SEPARATOR = "-- \n";
 
-/** A fresh body: two empty lines to write in, then the signature. */
 const startingBody = (signature: string | null) =>
   signature ? `\n\n${SIG_SEPARATOR}${signature}` : "";
 
-/** True when the body has words of its own, not only the signature. */
 function hasWords(text: string, signature: string | null) {
   const own = signature ? text.replace(`${SIG_SEPARATOR}${signature}`, "") : text;
   return own.trim().length > 0;
@@ -101,7 +93,6 @@ export const filesFromDraft: (draft: Draft, messages?: Message[]) => ComposerFil
   });
 };
 
-/** The original's own files (not inline images), for a forward to carry. */
 const originalFiles: (message: Message | undefined) => ComposerFile[] = (message) => {
   return (message?.attachments ?? [])
     .filter((a) => !a.inline)
@@ -116,16 +107,11 @@ const originalFiles: (message: Message | undefined) => ComposerFile[] = (message
     }));
 };
 
-/** Who the server replies to by default: the sender, or for our (or a teammate's) last message, whoever we wrote to. */
 const replyRecipients: (message: Message | undefined) => string[] = (message) => {
   if (!message) return [];
   return message.fromTeam ? message.to.map((a) => a.address) : [message.fromAddress];
 };
 
-/**
- * Who a reply starts addressed to: everyone outside the team on the thread (each sender, and
- * whoever was in To or Cc), the latest sender first. Teammates add more by hand.
- */
 function customerRecipients(messages: Message[], inbox: string) {
   const ours = new Set([inbox.toLowerCase()]);
   for (const m of messages) if (m.fromTeam) ours.add(m.fromAddress.toLowerCase());
@@ -143,7 +129,6 @@ function customerRecipients(messages: Message[], inbox: string) {
 
 type Mode = "reply" | "forward";
 
-/** Whom a reply starts addressed to, by kind: the latest sender, or everyone outside the team. */
 function recipientsFor(kind: ReplyKind, thread: Thread, source: Message | undefined) {
   return (
     kind === "replyAll"
@@ -164,16 +149,11 @@ export function ReplyComposer({ thread, docked = false }: { thread: Thread; dock
   const showing = state.email && state.mode === "public";
   const box = useRef<HTMLDivElement>(null);
   const key = `${thread.id}:${state.forwardId ? `forward:${state.forwardId}` : `reply:${state.replyToId ?? ""}`}:${state.generation}`;
-  // In the thread, the email being written is its next message: brought into view where it opens.
   useLayoutEffect(() => {
     if (showing && !docked) box.current?.scrollIntoView({ block: "nearest" });
   }, [showing, docked, key]);
-  // Kept mounted while Hidden shows after a send, so its undo can hand the text back.
   if (!state.email) return null;
   return (
-    // Docked (the email view): floating 16px off the pane's bottom, like the notes; the email
-    // scrolls under it.
-    // In the conversation: your next message, under your name like the ones you sent.
     <div
       ref={box}
       hidden={!showing}
@@ -184,7 +164,6 @@ export function ReplyComposer({ thread, docked = false }: { thread: Thread; dock
           <span className="text-sm">You</span>
         </header>
       )}
-      {/* A fresh composer per reply or forwarded message: its own recipients, body and draft. */}
       <div className="relative w-full">
         <ModeComposer
           key={key}
@@ -197,24 +176,17 @@ export function ReplyComposer({ thread, docked = false }: { thread: Thread; dock
   );
 }
 
-function ModeComposer(props: {
-  thread: Thread;
-  mode: Mode;
-  /** The message to forward; a reply answers the latest. */
-  sourceId: string | undefined;
-}) {
+function ModeComposer(props: { thread: Thread; mode: Mode; sourceId: string | undefined }) {
   const { thread, mode } = props;
   const state = useComposerState();
   const latest = thread.messages.at(-1);
   const { signature, isLoading: signatureLoading } = useSignature(thread.mailboxId);
-  // A reply can leave the shared inbox from one of your own mailboxes: a hand-off (ADR 0030).
   const fromOptions = useReplyFromMailboxes({
     id: thread.mailboxId,
     address: thread.mailboxAddress,
   });
   const [fromId, setFromId] = useState(thread.mailboxId);
   const handingOff = mode === "reply" && fromId !== thread.mailboxId;
-  // Files are staged on the mailbox that sends them.
   const files = useComposerFiles(handingOff ? fromId : thread.mailboxId);
   const reply = useComposeReply();
   const forward = useForward();
@@ -229,13 +201,10 @@ function ModeComposer(props: {
   const [bcc, setBcc] = useState<string[]>([]);
   const [text, setText] = useState("");
   const [showCopies, setShowCopies] = useState(false);
-  // The message replied to or forwarded: the latest, or the one a resumed draft was written for.
   const [sourceId, setSourceId] = useState(props.sourceId ?? latest?.id);
   const source = thread.messages.find((m) => m.id === sourceId) ?? latest;
-  // Read only until the draft and signature are in, so they can't replace what was typed.
   const [ready, setReady] = useState(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
-  // What the composer holds now, for an undo that comes back later.
   const current = useRef(text);
   current.current = text;
 
@@ -251,11 +220,9 @@ function ModeComposer(props: {
         load(theirs);
         appToast.message("A teammate changed this draft. You're now editing their version.");
       },
-      // Reply on a chosen message resumes only a draft answering that message.
       matchSource: mode === "forward" || !!props.sourceId,
     },
   );
-  // Whether this composer is still on screen, for an undo that comes back after it was replaced.
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -264,8 +231,6 @@ function ModeComposer(props: {
     };
   }, []);
 
-  // Start from the shared draft when there is one, else from the signature (and, for a forward,
-  // the original's files). Once: typing must never be replaced by a refetch.
   const started = useRef(false);
   const load = (saved: Draft) => {
     setText(saved.bodyText);
@@ -280,7 +245,6 @@ function ModeComposer(props: {
     if (started.current || draft.isLoading || signatureLoading) return;
     started.current = true;
     setReady(true);
-    // Opened for an undone send whose own composer had gone: it comes back here, as a draft.
     const handed = state.takeHandBack();
     if (handed) {
       setText(handed.text);
@@ -303,23 +267,18 @@ function ModeComposer(props: {
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- runs once, when both have loaded
   }, [draft.isLoading, signatureLoading]);
 
-  // Only what the agent changed is saved: opening Forward must not leave an empty draft behind.
   const touched = useRef(false);
   const edited = (next: Partial<{ text: string; to: string[]; cc: string[]; bcc: string[] }>) => {
-    // A hand-off is your own mail, not the team's: it is not kept in the inbox's shared draft,
-    // which would also resume as a reply from the inbox.
     if (!started.current || handingOff) return;
     touched.current = true;
     draft.save({
       bodyText: next.text ?? text,
-      // A reply left to its default recipients saves none, so it follows the conversation.
       to: asDraftAddresses(next.to ?? to),
       cc: asDraftAddresses(next.cc ?? cc),
       bcc: asDraftAddresses(next.bcc ?? bcc),
       attachments: draftFiles(files.files),
     });
   };
-  // Files change outside the handlers above (uploads finish later): save when they settle.
   const fileIds = draftFiles(files.files)
     .map((f) => ("uploadId" in f ? f.uploadId : f.attachmentId))
     .join();
@@ -332,8 +291,6 @@ function ModeComposer(props: {
     !files.busy &&
     to.length > 0 &&
     (mode === "forward" || hasWords(text, signature)) &&
-    // Replies queue (offline they wait their turn, each as a pending bubble), so another can be
-    // written and sent while one is in flight; the box clears on send, so nothing goes twice.
     !forward.isPending &&
     !handoff.isPending;
 
@@ -341,17 +298,13 @@ function ModeComposer(props: {
     if (!canSend) return;
     const before = { text, to, cc, bcc, files: files.files };
     const attachments = files.attachments;
-    // Sent explicitly unless they are exactly whom the server would reply to on its own.
     const recipientsChanged =
       mode === "forward" ||
       to.join() !== replyRecipients(source).join() ||
       cc.length > 0 ||
       bcc.length > 0;
     const restore = () => {
-      // Replaced by Reply on another message: a fresh composer takes it, unless an email is
-      // being written there, which falls to the clipboard below.
       if (!alive.current && state.handBack({ mode, sourceId, ...before })) return;
-      // Something new was written since: keep it, and hand back the stopped one on the clipboard.
       if (!alive.current || hasWords(current.current, signature)) {
         void navigator.clipboard?.writeText(before.text).catch(() => undefined);
         appToast.message("Send stopped", { description: "Its text is on your clipboard." });
@@ -364,12 +317,9 @@ function ModeComposer(props: {
       setBcc(before.bcc);
       files.reset(before.files);
       textarea.current?.focus();
-      // The send deleted the draft; what came back is a draft again.
       edited({ text: before.text, to: before.to, cc: before.cc, bcc: before.bcc });
     };
     const handedOver = draft.detach();
-    // Sent detached: the reply's pending bubble can turn a single email into a conversation,
-    // which mounts a new composer in place of this one before the send settles.
     const sent = (queued: Parameters<typeof offerUndoSend>[0], pending?: { key: string }) => {
       void handedOver.then(draft.remove);
       offerUndoSend(queued, async () => {
@@ -386,7 +336,6 @@ function ModeComposer(props: {
       restore();
     };
 
-    // Clear at once, like a chat: the reply shows in the thread as a pending send.
     touched.current = false;
     setText(startingBody(signature));
     files.reset();
@@ -408,7 +357,6 @@ function ModeComposer(props: {
           text,
           attachments,
         },
-        // No pending bubble: the mail lands in your own mailbox's thread, not this one.
         { onSuccess: (queued) => sent(queued), onError: failed },
       );
     } else if (mode === "reply") {
@@ -422,7 +370,6 @@ function ModeComposer(props: {
         },
         {
           onSuccess: (queued, variables) => sent(queued, variables),
-          // A failed reply stays in the thread as a failed pending send with its text.
           onError: (error) => appToast.error(error.message),
         },
       );
@@ -443,7 +390,6 @@ function ModeComposer(props: {
     }
   };
 
-  // Reply and Reply all keep what was written and swap the recipients; Forward is its own draft.
   const switchTo = (next: ReplyKind | "forward") => {
     if (next === "forward") return state.forward(source?.id ?? latest?.id ?? "");
     state.openReply(next);
@@ -453,7 +399,6 @@ function ModeComposer(props: {
     edited({ to: recipients });
   };
 
-  // Throws the draft and its uploads away and closes the composer.
   const discard = () => {
     touched.current = false;
     void draft.detach().then(draft.remove);
@@ -467,7 +412,6 @@ function ModeComposer(props: {
       const el = textarea.current;
       const at = el ? el.selectionStart : 0;
       const end = el ? el.selectionEnd : 0;
-      // Into the empty lines above the signature when the caret is still at the start.
       const next = text.slice(0, at) + rendered.text + text.slice(end);
       setText(next);
       edited({ text: next });
@@ -491,7 +435,6 @@ function ModeComposer(props: {
         mailboxes={mode === "reply" ? fromOptions : fromOptions.slice(0, 1)}
         value={handingOff ? fromId : thread.mailboxId}
         onChange={(next) => {
-          // A staged file belongs to the mailbox it was uploaded for; another can't send it.
           if (files.files.length) {
             for (const file of files.files) files.remove(file.id);
             appToast.message("Attachments removed", {
@@ -529,7 +472,6 @@ function ModeComposer(props: {
           edited({ text: next });
         }}
         onSend={send}
-        // Opened by Reply: ready to write.
         autoFocus={mode === "reply"}
       />
       <ComposerFiles files={files.files} onRemove={files.remove} />
@@ -570,12 +512,10 @@ const KINDS = {
 } as const;
 type Kind = keyof typeof KINDS;
 
-/** What the composer sends, and the menu that changes it: Reply, Reply all or Forward. */
 function KindMenu({ kind, onChange }: { kind: Kind; onChange: (next: Kind) => void }) {
   const current = KINDS[kind];
   return (
     <MenuTrigger>
-      {/* Tertiary: an edge and no fill, so it reads as a choice, apart from the icon tools. */}
       <Button intent="outline" size="sm" className="px-2" aria-label={`${current.label}, change`}>
         <current.icon />
         {current.label}
@@ -664,7 +604,6 @@ function NewMessage(props: {
     if (started.current || signatureLoading) return;
     started.current = true;
     setReady(true);
-    // A handed-back draft already holds its signature and files.
     if (restored) return resetFiles(restored.files);
     setText(startingBody(signature));
   }, [signature, signatureLoading, restored, resetFiles]);
@@ -691,8 +630,6 @@ function NewMessage(props: {
             offerUndoSend(queued, async () => {
               const stopped = await cancelSend(queued.actionId);
               if (stopped && !onUndone?.({ mailboxId, ...before })) {
-                // A new message is open in its place: keep it, and hand this one back as the
-                // reply composer does.
                 void navigator.clipboard?.writeText(before.text).catch(() => undefined);
                 appToast.message("Send stopped", { description: "Its text is on your clipboard." });
               }
@@ -723,7 +660,6 @@ function NewMessage(props: {
         mailboxes={props.mailboxes}
         value={mailboxId}
         onChange={(next) => {
-          // A staged file belongs to the mailbox it was uploaded for; another can't send it.
           if (files.files.length) {
             for (const file of files.files) files.remove(file.id);
             appToast.message("Attachments removed", {
@@ -776,7 +712,6 @@ function NewMessage(props: {
   );
 }
 
-/** New mail's From row, laid out like To: the address, and a menu to switch it when there are more. */
 function FromRow(props: {
   mailboxes: { id: string; address: string }[];
   value: string;
@@ -791,8 +726,6 @@ function FromRow(props: {
       <span className="w-8 shrink-0 text-sm text-muted-foreground">From</span>
       {props.mailboxes.length > 1 ? (
         <MenuTrigger>
-          {/* Grey on hover, like the composer's other menus. -2px: the button's 10px padding
-              puts the address 8px in, where the To pills' text starts. */}
           <Button
             intent="ghost"
             size="sm"
@@ -820,17 +753,12 @@ function FromRow(props: {
           </Menu>
         </MenuTrigger>
       ) : (
-        // 8px in: the To pills' text starts there, inside their fill.
         <span className="min-w-0 truncate ps-2 text-sm">{address}</span>
       )}
     </div>
   );
 }
 
-/**
- * What a composer sits in. Dropping files anywhere on it attaches them. `flat`: part of the
- * pane, not a card in it (new mail, replies); `fill`: it takes the pane's spare height (new mail).
- */
 function ComposerFrame(props: {
   onFiles: (files: File[]) => void;
   flat?: boolean | undefined;
@@ -849,20 +777,14 @@ function ComposerFrame(props: {
       }}
       className={({ isDropTarget }) =>
         [
-          // White, unpadded: each row keeps its own 12px sides, so dividers run the full width.
           "flex flex-col bg-background outline-hidden",
           props.flat ? "" : "rounded-xl border shadow-raised",
           props.fill ? "min-h-0 flex-1" : "",
-          // Row height: 52px on the full-page composer, a more compact 48px on a reply under the
-          // conversation.
           props.fill ? "[--composer-row:--spacing(13)]" : "[--composer-row:--spacing(12)]",
-          // Flat there is no border to light up, so a drop rings its inside edge.
           isDropTarget ? (props.flat ? "ring-1 ring-ring ring-inset" : "border-ring") : "",
         ].join(" ")
       }
     >
-      {/* A press anywhere below the header that isn't on a control writes: it focuses the body,
-          not only a press on its text. */}
       <div className="contents" onMouseDown={focusBody} onClick={focusBody}>
         {props.children}
       </div>
@@ -877,8 +799,6 @@ function focusBody(event: React.MouseEvent<HTMLElement>) {
   if (event.button !== 0 || (event.target as HTMLElement).closest(CONTROLS)) return;
   const body = event.currentTarget.querySelector<HTMLTextAreaElement>("[data-composer-body]");
   if (!body || body.readOnly) return;
-  // The mouse press would move focus away, and the drop zone around it would focus its own
-  // hidden button on click: neither gets the event. Then the caret goes at the end.
   event.stopPropagation();
   event.preventDefault();
   body.focus();
@@ -903,7 +823,6 @@ function Recipients(props: {
         onChange={(to) => props.onChange({ to })}
         end={
           !props.showCopies && (
-            // -8px: the button's own padding; its ink ends 12px in, like the row's start.
             <Button
               intent="plain"
               size="sm"
@@ -938,7 +857,6 @@ function Body(props: {
   rows?: number;
   readOnly?: boolean;
   autoFocus?: boolean;
-  /** Take the frame's spare height, so the tools sit at its bottom and writing room stays long. */
   fill?: boolean;
 }) {
   return (
@@ -959,7 +877,6 @@ function Body(props: {
         }
       }}
       data-composer-body
-      // 12px under the divider, the same as its 12px sides, so Write doesn't crowd the line.
       className={`${props.fill ? "min-h-24 flex-1" : "max-h-[min(24rem,30vh)] min-h-24"} resize-none px-3 pt-3 pb-1 sm:px-3 sm:pt-3 sm:pb-1`}
     />
   );

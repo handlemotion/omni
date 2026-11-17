@@ -72,7 +72,6 @@ export function TabList<T extends object>({
         {...props}
         className={composeRenderProps(className, (className, { orientation }) =>
           cn([
-            // `--tab-list-pb` is the space between the tabs and the rule under them.
             "[--tab-list-gutter:--spacing(1)] [--tab-list-pb:var(--tab-list-gutter)]",
             "relative flex forced-color-adjust-none",
             orientation === "horizontal" &&

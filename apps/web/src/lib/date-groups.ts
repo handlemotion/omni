@@ -1,10 +1,5 @@
-// Relative date groups for a list sorted newest first: Today, Yesterday, This week, Last week,
-// This month, then each month ("October", or "October 2025" for an earlier year).
-
 const MONTH = new Intl.DateTimeFormat(undefined, { month: "long" });
 const MONTH_YEAR = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
-/** Local midnight `days` after `date`'s day, by the calendar: a day across a clock change is
- *  23 or 25 hours, so counting in fixed milliseconds misplaces mail around it. */
 function midnight(date: Date, days = 0) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 }

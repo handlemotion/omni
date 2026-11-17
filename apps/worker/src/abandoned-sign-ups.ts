@@ -1,6 +1,3 @@
-// The daily sweep of abandoned sign-ups (`deleteAbandonedSignUps` in `@omni/db`): accounts that
-// never joined or created a workspace and have sat unused for a month. Their rows go with the
-// user; their uploaded profile picture goes from the bucket here.
 import { ABANDONED_SIGN_UP_DAYS, deleteAbandonedSignUps, type Db } from "@omni/db";
 import type { Logger } from "./log.ts";
 import { pictureKeyOf } from "./routes/pictures.ts";
@@ -26,7 +23,6 @@ export async function pruneAbandonedSignUps({
   const deleted = await deleteAbandonedSignUps(db, { idleSince });
   const pictures = deleted.flatMap(({ id, image }) => pictureKeyOf(image, "users", id) ?? []);
   if (pictures.length) {
-    // One call deletes up to 1000 keys; a batch is at most 500 accounts.
     await bucket.delete(pictures).catch((error: unknown) => {
       log.warn("accounts.pictures_left", { count: pictures.length, error: String(error) });
     });

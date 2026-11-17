@@ -1,5 +1,3 @@
-// A mailbox's CRM forwarding address (ADR 0032): what the mail service copies there, and the
-// owner's settings for it.
 import { sameAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, lt, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -16,13 +14,8 @@ import {
 export type ForwardScope = (typeof forwardScope.enumValues)[number];
 type FolderRole = (typeof folderRole.enumValues)[number];
 
-/**
- * A message's Date header is the sender's clock, to the second: mail dated up to this long before
- * forwarding was turned on still counts as new.
- */
 const CLOCK_SLACK_MS = 5 * 60_000;
 
-/** Received messages one reply forwards at most, when it is your first in a long thread. */
 const THREAD_BACKFILL_LIMIT = 25;
 
 /** Where a mailbox's sends are BCC'd, or null when forwarding is off. */
@@ -116,7 +109,6 @@ interface ForwardContext {
   automated: boolean;
 }
 
-/** Received mail: never machine mail, the CRM's own, junk or trash; then the scope decides. */
 async function receivedQualifies(db: Db, row: ForwardContext, role: FolderRole) {
   if (row.automated || sameAddress(row.from, row.forwardAddress ?? "")) return false;
   switch (row.scope) {
@@ -144,11 +136,6 @@ async function wroteInThread(db: Db, row: ForwardContext) {
   return mine !== undefined;
 }
 
-/**
- * Your message in a `conversations` thread: the received mail before it, so the CRM record shows
- * the whole exchange (the reply itself went out with the BCC). Ids already queued are skipped by
- * their idempotency key.
- */
 async function threadBackfill(db: Db, row: ForwardContext, ownMessageId: string) {
   if (row.scope !== "conversations") return [];
   const received = await db
@@ -214,15 +201,10 @@ export function forwardingFor(db: Db, userId: string, scopeOrgId?: string | null
         .orderBy(mailboxes.address);
       return rows.map(({ latestStatus, latestError, ...row }) => ({
         ...row,
-        // The newest copy's failure, while it is still failing; a later success clears it.
         lastError: row.forwardAddress && latestStatus !== "done" ? latestError : null,
       }));
     },
 
-    /**
-     * Turns forwarding on or changes it. A new address starts from now: nothing older is sent to
-     * it. Changing only the scope keeps the start. False when the user does not own the mailbox.
-     */
     async set(mailboxId: string, settings: { address: string; scope: ForwardScope }) {
       const rows = await db
         .update(mailboxes)
@@ -237,7 +219,6 @@ export function forwardingFor(db: Db, userId: string, scopeOrgId?: string | null
       return rows.length > 0;
     },
 
-    /** Turns forwarding off. Copies already queued find no address and are dropped. */
     async clear(mailboxId: string) {
       const rows = await db
         .update(mailboxes)

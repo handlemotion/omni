@@ -1,5 +1,3 @@
-// Platform (ADR 0035): domains a workspace claimed and locked (ADR 0007, ADR 0010). Mail sets
-// mailboxes up on them, and a sign-in with their address is scoped to the workspace (ADR 0024).
 import { index, jsonb, pgEnum, pgTable, text, unique } from "drizzle-orm/pg-core";
 import { members } from "./auth.ts";
 import { id, orgId, timestamptz, createdAt, updatedAt } from "./columns.ts";

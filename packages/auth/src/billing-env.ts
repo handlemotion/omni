@@ -1,8 +1,5 @@
-// Billing's environment variables (ADR 0015, ADR 0034 decision 7): which are read, how they
-// must be set together, and the billing config they make. Part of `authEnvSchema`.
 import { z } from "zod";
 
-// Blank lines in a .env file arrive as "", which means unset.
 export const optionalText = z
   .string()
   .optional()
@@ -66,7 +63,6 @@ type BillingEnv = z.output<typeof billingEnvSchema>;
 
 /** Half a billing setup is a mistake, not "billing off": names what is missing or mismatched. */
 export function checkBillingEnv(env: BillingEnv, ctx: z.RefinementCtx) {
-  // Switched off: whatever Stripe settings remain are kept for later and not checked.
   if (env.BILLING === "off") return;
   if (!env.STRIPE_SECRET_KEY) {
     const stray = [
@@ -95,7 +91,6 @@ export function checkBillingEnv(env: BillingEnv, ctx: z.RefinementCtx) {
       });
     }
   }
-  // Storage on the plan is all three or none: an allowance with no price could bill nobody.
   const storage = STORAGE_BILLING.filter((name) => env[name] !== undefined);
   if (storage.length > 0 && storage.length < STORAGE_BILLING.length) {
     for (const name of STORAGE_BILLING.filter((n) => env[n] === undefined)) {
@@ -106,7 +101,6 @@ export function checkBillingEnv(env: BillingEnv, ctx: z.RefinementCtx) {
       });
     }
   }
-  // A test key with a live publishable key (or the reverse) takes cards no subscription sees.
   const mode = (key: string) => (/^[a-z]+_live_/.test(key) ? "live" : "test");
   if (
     env.STRIPE_PUBLISHABLE_KEY &&
@@ -134,7 +128,6 @@ export function billingConfig(env: BillingEnv) {
         publishableKey: env.STRIPE_PUBLISHABLE_KEY,
         trialDays: env.BILLING_TRIAL_DAYS,
         triageAllowance: env.BILLING_TRIAGE_ALLOWANCE!,
-        /** Absent: the plan has no storage allowance and nothing is metered. */
         storage:
           env.BILLING_STORAGE_INCLUDED_GB !== undefined &&
           env.STRIPE_PRICE_STORAGE &&

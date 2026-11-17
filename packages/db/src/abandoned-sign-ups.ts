@@ -1,8 +1,3 @@
-// Abandoned sign-ups: people who signed up and never joined or created a workspace. Sign-up is
-// invitation-only, so these are mostly invitations someone opened (which creates the user) and
-// never accepted. Without a workspace the account reaches nothing, so after a quiet spell it goes,
-// with its sessions, passkeys, linked accounts and sign-in emails (all `on delete cascade`). An
-// invitation sent later lets the person sign up again.
 import { and, asc, eq, gt, gte, inArray, lt, notExists, or, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { orgHasMailbox } from "./mail.ts";
@@ -39,8 +34,6 @@ export async function deleteAbandonedSignUps(
     .where(
       and(
         lt(users.createdAt, idleSince),
-        // A Personal space (ADR 0024) alone is not a workspace until it holds a mailbox or a
-        // file (ADR 0034): storage rows are the truth, so an idle account never loses them.
         notExists(
           db
             .select({ one: sql`1` })
@@ -62,7 +55,6 @@ export async function deleteAbandonedSignUps(
             .from(invitations)
             .where(eq(invitations.inviterId, users.id)),
         ),
-        // A grant is addressed to an address, and opens for whoever verified it (ADR 0034).
         notExists(
           db
             .select({ one: sql`1` })
@@ -121,8 +113,6 @@ export async function deleteAbandonedSignUps(
       await tx.select({ id: users.id }).from(users).where(inArray(users.id, abandoned))
     ).map((row) => row.id);
     if (ids.length === 0) return [];
-    // Their empty Personal spaces (ADR 0024) go with them: the user's delete cascades only to
-    // the `personal_spaces` row, which would leave the organization behind, owned by nobody.
     await tx
       .delete(organizations)
       .where(

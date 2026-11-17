@@ -1,5 +1,3 @@
-// Customers over the real Worker and Postgres: filled from the mail service's events, linked to
-// their conversations, and visible only through conversations a member can see.
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -39,7 +37,6 @@ function api(path: string, cookie: string) {
   return fetch(new URL(`/api${path}`, worker.url), { headers: { cookie } });
 }
 
-/** A message the mail service indexed, announced to the Worker the way it does. */
 async function deliver(
   mailbox: { id: string; orgId: string },
   message: Parameters<typeof seedMessage>[2],
@@ -80,7 +77,6 @@ describe("customers", () => {
       uid: 1,
       sentAt: new Date("2026-11-01T10:00:00Z"),
     });
-    // The same person writes to another inbox later, with a fuller name.
     const second = await deliver(billing, {
       subject: "Invoice",
       fromAddress: "luis@client.test",
@@ -88,9 +84,7 @@ describe("customers", () => {
       uid: 1,
       sentAt: new Date("2026-11-05T10:00:00Z"),
     });
-    // Redelivered (at least once): nothing changes.
     expect((await postMailEvents(worker, { events: [first.event] })).status).toBe(202);
-    // The inbox's own reply in the thread is not a customer.
     await deliver(support, {
       subject: "Re: Refund",
       fromAddress: "support@ingest.test",
@@ -111,7 +105,6 @@ describe("customers", () => {
     expect(await threadCustomer(first.threadId)).toBe(rows[0]!.id);
     expect(await threadCustomer(second.threadId)).toBe(rows[0]!.id);
 
-    // A webmail address is a person, not a company.
     await deliver(support, { subject: "Hi", fromAddress: "maria@gmail.com", uid: 3 });
     const [maria] = await db
       .select()
@@ -119,8 +112,6 @@ describe("customers", () => {
       .where(eq(schema.customers.address, "maria@gmail.com"));
     expect(maria).toMatchObject({ domain: null, company: null });
 
-    // Indexed out of order: a later message without a name, then an older one with a new name.
-    // The name follows the newest message that had one, not the newest message.
     await deliver(support, {
       subject: "Again",
       fromAddress: "ana@shop.test",
@@ -164,7 +155,6 @@ describe("customers", () => {
       uid: 1,
     });
     await deliver(hr, { subject: "My salary", fromAddress: "luis@client.test", uid: 1 });
-    // Someone who only ever wrote to hr@, which Ana is not on.
     await deliver(hr, { subject: "Complaint", fromAddress: "lucia@other.test", uid: 2 });
     const customerId = (await threadCustomer(refund.threadId))!;
 
@@ -177,7 +167,6 @@ describe("customers", () => {
     expect(await search("lu")).toEqual(["luis@client.test"]);
     expect(await search("pér")).toEqual(["luis@client.test"]);
     expect(await search("lucia")).toEqual([]);
-    // LIKE wildcards are literal.
     expect(await search("%")).toEqual([]);
 
     const profile = (await (await api(`/customers/${customerId}`, cookie)).json()) as {

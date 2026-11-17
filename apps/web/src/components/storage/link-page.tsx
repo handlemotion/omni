@@ -1,8 +1,3 @@
-// What `/s/<shareId>` opens (ADR 0034 decision 8, after Salesforce's shared file page), signed in
-// or not: a file is a card with its name, size and Download; a folder is its page, with its
-// place inside what was shared in the title. An Editor (or a member of its workspace) changes
-// what is inside through the link's own door, and a Commenter comments on files; sharing it on
-// is the owner's, from Storage.
 import { useCallback, useMemo, useState } from "react";
 import {
   IconClock3,
@@ -30,7 +25,6 @@ import { storageErrorToast } from "./storage-errors.ts";
 export function LinkPage({ shareId, nodeId }: { shareId: string; nodeId?: string | undefined }) {
   const link = useStorageLink(shareId, nodeId);
   const item = link.item;
-  // The route's loader waited for it; a link that opens nothing never renders this page.
   if (!item) return null;
   if (item.node.kind === "file") {
     return <FileCard shareId={shareId} node={item.node} canComment={item.role !== "viewer"} />;
@@ -52,12 +46,9 @@ function SharedFolder(props: {
 }) {
   const { shareId, item } = props;
   const canWrite = item.role === "member" || item.role === "editor";
-  // A Commenter reads and writes comments and changes nothing else (ADR 0043 decision 5).
   const canComment = item.role !== "viewer";
   const trash = useTrashNode();
-  // `path` runs from what was shared down to this folder.
   const [top = { id: item.node.id, name: item.node.name }, ...below] = item.path;
-  // Stable, so the memoized table and grid render only when their rows change.
   const fileUrl = useCallback((node: StorageNode) => sharedFileUrl(shareId, node.id), [shareId]);
   const folderHref = useCallback((node: StorageNode) => linkHref(shareId, node.id), [shareId]);
   const download = useCallback(
@@ -149,12 +140,6 @@ function SharedFolder(props: {
   );
 }
 
-/**
- * One shared file: a card a little above the page's middle, its name, its size, Download.
- * Geometry: a 360px card, 24px in; the 20px file mark, then 12px to the name, 2px to the size,
- * 20px to the button; for someone who may comment, Comments 8px under it, which opens the
- * comments beside the card (360px, as in a folder; the whole width on a phone).
- */
 function FileCard(props: { shareId: string; node: StorageNode; canComment: boolean }) {
   const [comments, setComments] = useState(false);
   const phone = useIsMobile();

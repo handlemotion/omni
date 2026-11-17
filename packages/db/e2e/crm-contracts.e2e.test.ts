@@ -1,5 +1,3 @@
-// A record's folder and its contracts (ADR 0036 decisions 5 and 6): folders are made through
-// Storage's member door, and a signed contract's file is locked in the same transaction.
 import { and, eq, like } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
@@ -32,8 +30,6 @@ const statusEvents = (dealId: string) =>
     .from(crmEvents)
     .where(and(eq(crmEvents.dealId, dealId), like(crmEvents.kind, "contract_status%")));
 
-// Catches: find-or-create without the row lock (two first calls make two folders), and a stored
-// folder id answered after the folder went to Trash.
 test("two first folder calls to one deal at once make one folder, and a trashed one is replaced", async () => {
   const { crm, storage } = await company("crm-folders");
   const client = ok(await crm.createCompany({ name: "Northwind / EU" })).company;
@@ -55,8 +51,6 @@ test("two first folder calls to one deal at once make one folder, and a trashed 
   expect(await names(storage, companyFolder)).toEqual(["Website"]);
 });
 
-// Catches: the contract marked signed while Storage refused the lock (two writes that do not
-// land together), and a folder accepted as a contract's document.
 test("marking a contract signed locks its file in the same transaction; a refused lock leaves it unsigned", async () => {
   const { crm, storage } = await company("crm-sign");
   const deal = ok(await crm.createDeal({ name: "Rebrand" })).deal;
@@ -68,7 +62,6 @@ test("marking a contract signed locks its file in the same transaction; a refuse
   ).contract;
   expect(contract).toMatchObject({ status: "draft", companyId: null, dealId: deal.id });
 
-  // The file went to Trash after it was attached: the lock is refused, and so is the signing.
   ok(await storage.trash(file.id));
   expect(await crm.updateContract(contract.id, { status: "signed" })).toEqual({
     status: "invalid_contract",
@@ -95,8 +88,6 @@ test("marking a contract signed locks its file in the same transaction; a refuse
   ]);
 });
 
-// Catches: signing that checks Shared only when the document is attached, so a member moves the
-// file to their My files and signs, locking a contract's file where nobody else can see it.
 test("a document moved to My files after it was attached cannot be signed", async () => {
   const { crm, storage } = await company("crm-sign-moved");
   const deal = ok(await crm.createDeal({ name: "Audit" })).deal;
@@ -117,8 +108,6 @@ test("a document moved to My files after it was attached cannot be signed", asyn
   expect(await statusEvents(deal.id)).toEqual([]);
 });
 
-// Catches: `document_node_id` without `on delete set null`, which would make Storage's purge of
-// a draft's trashed file fail on the foreign key.
 test("purging a draft's trashed file leaves the contract without a document", async () => {
   const { crm, storage } = await company("crm-purge");
   const client = ok(await crm.createCompany({ name: "Acme" })).company;
@@ -134,8 +123,6 @@ test("purging a draft's trashed file leaves the contract without a document", as
   expect(row).toMatchObject({ status: "draft", documentNodeId: null });
 });
 
-// Catches: deleting a signed contract, undoing its signature, swapping its file, and deleting its
-// company or deal for good, which would cascade to it.
 test("a signed contract keeps its status, its document and its row, and outlives its records", async () => {
   const { crm, storage } = await company("crm-signed");
   const client = ok(await crm.createCompany({ name: "Initech" })).company;
@@ -144,10 +131,8 @@ test("a signed contract keeps its status, its document and its row, and outlives
   const executed = await addFile(storage, { parentId: folder }, "executed.pdf");
   const later = await addFile(storage, { parentId: folder }, "v2.pdf");
   const contract = ok(await crm.createContract({ title: "Support", dealId: deal.id })).contract;
-  // On the deal's company too, so the company's contracts list it.
   expect(contract.companyId).toBe(client.id);
   ok(await crm.updateContract(contract.id, { status: "sent" }));
-  // A sent contract keeps the document the client has, unless it is signed with the executed copy.
   expect(await crm.updateContract(contract.id, { documentNodeId: later.id })).toMatchObject({
     status: "invalid_transition",
   });
@@ -160,7 +145,6 @@ test("a signed contract keeps its status, its document and its row, and outlives
   expect(await crm.deleteDeal(deal.id)).toEqual(signed);
   expect(await crm.deleteCompany(client.id)).toEqual(signed);
 
-  // Ended is still signed history.
   ok(await crm.updateContract(contract.id, { status: "ended" }));
   expect(await crm.deleteContract(contract.id)).toEqual(signed);
   expect(await crm.deleteDeal(deal.id)).toEqual(signed);
@@ -168,14 +152,11 @@ test("a signed contract keeps its status, its document and its row, and outlives
     { id: contract.id, status: "ended", documentNodeId: executed.id },
   ]);
 
-  // A record without a signed contract is still deleted for good, its drafts with it.
   const draftOnly = ok(await crm.createDeal({ name: "Pilot" })).deal;
   ok(await crm.createContract({ title: "Pilot", dealId: draftOnly.id }));
   expect(await crm.deleteDeal(draftOnly.id)).toEqual({ status: "ok" });
 });
 
-// Catches: a delete for good that checks for signed contracts without locking the record, so a
-// contract created and signed by another transaction meanwhile is cascaded away with it.
 test("a company deleted while a contract on it is being made and signed keeps both", async () => {
   const org = await createOrg(db, "crm-sign-delete-race");
   const ana = await createMember(db, org.id, "ana");
@@ -192,7 +173,6 @@ test("a company deleted while a contract on it is being made and signed keeps bo
       await inTx.createContract({ title: "MSA", companyId: client.id, documentNodeId: file.id }),
     ).contract;
     ok(await inTx.updateContract(made.id, { status: "signed" }));
-    // The delete starts before this commits, as a second request would, and waits on it.
     let finished = false;
     deleted = crm.deleteCompany(client.id).finally(() => (finished = true));
     await untilLockWaiters(db, 1, () => finished);
@@ -203,8 +183,6 @@ test("a company deleted while a contract on it is being made and signed keeps bo
   ]);
 });
 
-// Catches: a deal's folder call that locks the deal before its company, the opposite of contract
-// writes (company, then deal), so a folder request and a signing on one deal deadlock.
 test("a deal's folder call waits on the company before it holds the deal", async () => {
   const { crm } = await company("crm-folder-lock-order");
   const client = ok(await crm.createCompany({ name: "Initech" })).company;
@@ -212,12 +190,10 @@ test("a deal's folder call waits on the company before it holds the deal", async
 
   let folder: Promise<{ status: string }> | undefined;
   await db.transaction(async (tx) => {
-    // As a contract write does: the company first.
     await tx.select().from(crmCompanies).where(eq(crmCompanies.id, client.id)).for("update");
     let finished = false;
     folder = crm.dealFolder(deal.id).finally(() => (finished = true));
     await untilLockWaiters(db, 1, () => finished);
-    // The folder call is queued behind the company, so the deal is still free.
     const held = await tx
       .select()
       .from(crmDeals)

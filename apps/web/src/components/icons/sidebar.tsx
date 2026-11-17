@@ -1,6 +1,3 @@
-// Generated from the Figma file's icon SVGs. Paths are unchanged; the color is `currentColor`, so
-// an icon takes the text color of what holds it (muted by default, foreground when hovered or
-// current). Decorative: give the control around it the accessible name.
 import type { SVGProps } from "react";
 
 type IconProps = SVGProps<SVGSVGElement>;

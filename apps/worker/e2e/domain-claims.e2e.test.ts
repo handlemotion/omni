@@ -1,7 +1,3 @@
-// Domain claims end to end (ADR 0010): Omni's `_omni-challenge` TXT read from the domain's own
-// nameservers (the local authoritative DNS server), the lock, lookalikes, limits, lost DNS pausing
-// real sends through GreenMail, and hand-overs between workspaces. Real Worker, real mail service,
-// Postgres; nothing mocked.
 import { randomUUID } from "node:crypto";
 import { enqueueAction, placeForAddress, schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
@@ -25,7 +21,6 @@ const api: OnboardingStack["api"] = (...args) => stack.api(...args);
 const check = (jar: Parameters<typeof api>[0], id: string) =>
   api(jar, "POST", `/onboarding/domains/${id}/check`);
 
-/** Domain notices the Worker sent to `to` through its EMAIL binding (not sign-in links). */
 async function mailTo(to: string) {
   return (await sentMail(stack.worker, to)).filter(
     (m) => m.from.includes(SYSTEM_MAIL_FROM) && !m.subject.startsWith("Sign in"),
@@ -41,7 +36,6 @@ async function auditOf(orgId: string, domain: string) {
   return rows.map((r) => r.action);
 }
 
-/** The cron trigger, run the way Cloudflare runs it. */
 async function runScheduledRecheck() {
   const result = await stack.worker.server.getWorker().scheduled({ cron: "23 */6 * * *" });
   expect(result.outcome).toBe("ok");
@@ -50,21 +44,17 @@ async function runScheduledRecheck() {
 test("a domain locks to the first workspace whose own challenge shows up in the domain's nameservers", async () => {
   const a = await stack.workspaceWithClaim();
   const b = await stack.signedInOwner();
-  // A pending claim blocks nobody: B may claim the same domain while A waits.
   const bClaim = await api(b.jar, "POST", "/onboarding/domains", { domain: a.domain });
   expect(bClaim).toMatchObject({ status: 200, body: { status: "pending", domain: a.domain } });
   expect(bClaim.body.challenge).not.toEqual(a.claim.challenge);
 
-  // Nothing published yet: still pending.
   expect((await check(a.jar, a.domainId)).body).toMatchObject({
     status: "pending",
     challenge: { verified: false },
   });
 
-  // B publishes B's value. It does not verify A's claim, however the record is found.
   stack.publishChallenge(bClaim.body);
   expect((await check(a.jar, a.domainId)).body).toMatchObject({ status: "pending" });
-  // It was read from the zone's nameserver: an NS lookup, then the TXT asked directly.
   expect(stack.dns.queries).toEqual(
     expect.arrayContaining([
       { name: a.domain, type: "NS" },
@@ -77,7 +67,6 @@ test("a domain locks to the first workspace whose own challenge shows up in the 
     body: { status: "verified", added: true, challenge: { verified: true } },
   });
 
-  // A publishes too, too late: the lock is B's.
   stack.dns.set(`_omni-challenge.${a.domain}`, "TXT", [
     (a.claim.challenge as { value: string }).value,
     (bClaim.body.challenge as { value: string }).value,
@@ -87,11 +76,9 @@ test("a domain locks to the first workspace whose own challenge shows up in the 
     body: { error: `${a.domain} was set up by another workspace first` },
   });
 
-  // Claiming again returns the same claim without a new value: the published one stays valid.
   const again = await api(b.jar, "POST", "/onboarding/domains", { domain: a.domain });
   expect(again.body).toMatchObject({ id: bClaim.body.id, challenge: { value: null } });
 
-  // Only a hash is stored.
   const [stored] = await stack.database.db
     .select({ hash: schema.domainClaims.challengeHash })
     .from(schema.domainClaims)
@@ -102,7 +89,6 @@ test("a domain locks to the first workspace whose own challenge shows up in the 
 
   expect(await auditOf(b.orgId, a.domain)).toEqual(["domain.claimed", "domain.verified"]);
   expect(await auditOf(a.orgId, a.domain)).toEqual(["domain.claimed", "domain.claim_refused"]);
-  // Owners and admins read the same history through the API.
   const events = await api(b.jar, "GET", `/onboarding/domains/${bClaim.body.id}/events`);
   expect((events.body.events as { action: string }[]).map((e) => e.action)).toEqual([
     "domain.claimed",
@@ -110,8 +96,6 @@ test("a domain locks to the first workspace whose own challenge shows up in the 
   ]);
 });
 
-// Catches: a company whose mail stays at Google never owning its domain, so the Gmail accounts it
-// connects in setup go to each person's Personal space instead (ADR 0024).
 test("a domain whose mail stays at Google locks on its challenge alone; its addresses are the company's", async () => {
   const owner = await stack.signedInOwner();
   const domain = `gws-${randomUUID().slice(0, 8)}.test`;
@@ -121,7 +105,6 @@ test("a domain whose mail stays at Google locks on its challenge alone; its addr
     status: 200,
     body: { domain, provider: "gmail", status: "pending", verified: false },
   });
-  // Only Omni's challenge: the mail records stay Google's.
   expect(added.body).toMatchObject({ records: [], challenge: { type: "TXT" } });
 
   stack.publishChallenge(added.body);
@@ -131,7 +114,6 @@ test("a domain whose mail stays at Google locks on its challenge alone; its addr
     added: true,
     verified: true,
   });
-  // The re-check keeps it at Google.
   await runScheduledRecheck();
   const [lock] = await stack.database.db
     .select({ provider: schema.mailDomains.provider, orgId: schema.mailDomains.orgId })
@@ -145,7 +127,6 @@ test("a domain whose mail stays at Google locks on its challenge alone; its addr
 
 test("lookalike names, claims past the cap and checks past the rate limit are refused", async () => {
   const owner = await stack.workspaceWithClaim();
-  // A Cyrillic "а" in "pаypal": it reads as a name some other workspace may own.
   expect(await api(owner.jar, "POST", "/onboarding/domains", { domain: "pаypal.com" })).toEqual({
     status: 400,
     body: {
@@ -157,7 +138,6 @@ test("lookalike names, claims past the cap and checks past the rate limit are re
     },
   });
 
-  // Five pending claims at once, then no more until one finishes or expires.
   for (let i = 1; i < 5; i++) {
     const added = await api(owner.jar, "POST", "/onboarding/domains", {
       domain: `parked-${i}-${randomUUID().slice(0, 6)}.test`,
@@ -170,10 +150,6 @@ test("lookalike names, claims past the cap and checks past the rate limit are re
     }),
   ).toMatchObject({ status: 409, body: { error: expect.stringContaining("5 domains waiting") } });
 
-  // Checks are limited per workspace (30 a minute): a script looping on the button stops. The
-  // limiter counts in fixed one-minute windows, so a run that crosses a window boundary starts
-  // counting again: the first 30 always pass, and within 61 a refusal must come, since at most
-  // one boundary falls inside a run this short.
   const statuses: number[] = [];
   while (statuses.length < 61 && !statuses.includes(429)) {
     statuses.push((await check(owner.jar, owner.domainId)).status);
@@ -204,10 +180,8 @@ test("a verified domain whose challenge leaves DNS pauses its mail until it is b
     return row?.status === "active";
   });
 
-  // The record is removed at the DNS host; the scheduled re-check finds it gone.
   stack.dns.set(`_omni-challenge.${a.domain}`, "TXT", []);
   await runScheduledRecheck();
-  // Run twice, as a retried cron would: one change, one audit event, one email.
   await runScheduledRecheck();
   const [lock] = await db
     .select({ dnsLostAt: schema.mailDomains.dnsLostAt, orgId: schema.mailDomains.orgId })
@@ -230,7 +204,6 @@ test("a verified domain whose challenge leaves DNS pauses its mail until it is b
     challenge: { verified: false },
   });
 
-  // A send from the domain waits: not sent, not failed, no attempt spent.
   const subject = `Paused ${randomUUID().slice(0, 8)}`;
   const to = `reader-${randomUUID().slice(0, 8)}@outside.test`;
   const action = await enqueueAction(db, {
@@ -247,14 +220,12 @@ test("a verified domain whose challenge leaves DNS pauses its mail until it is b
   await waitFor(async () => (await actionRow()).runAfter.getTime() > Date.now() + 60_000);
   expect(await actionRow()).toMatchObject({ status: "pending", attempts: 0, smtpAcceptedAt: null });
 
-  // The record is back: the next re-check restores sending and says so.
   stack.publishChallenge(a.claim);
   await runScheduledRecheck();
   expect((await mailTo(a.email)).map((m) => m.subject)).toEqual([
     `Sending from ${a.domain} is paused`,
     `Sending from ${a.domain} is back on`,
   ]);
-  // Due now (instead of in five minutes), the held send goes out.
   await db
     .update(schema.mailActions)
     .set({ runAfter: new Date() })
@@ -280,7 +251,6 @@ test("a verified domain whose challenge leaves DNS pauses its mail until it is b
 
 test("an owner moves a domain to another workspace they run or releases it, and owners are told", async () => {
   const a = await stack.workspaceWithDomain();
-  // To a workspace the caller is not in: refused.
   const stranger = await stack.signedInOwner();
   expect(
     (
@@ -290,7 +260,6 @@ test("an owner moves a domain to another workspace they run or releases it, and 
     ).status,
   ).toBe(403);
 
-  // To the owner's first workspace: the lock moves, with its verified challenge.
   const moved = await api(a.jar, "POST", `/onboarding/domains/${a.domainId}/transfer`, {
     organizationId: a.homeOrgId,
   });
@@ -302,10 +271,8 @@ test("an owner moves a domain to another workspace they run or releases it, and 
     "domain.transferred_out",
   ]);
   expect(await auditOf(a.homeOrgId, a.domain)).toEqual(["domain.transferred_in"]);
-  // The same person owns both, so they get one email for each side.
   expect((await mailTo(a.email)).filter((m) => m.subject.includes("moved"))).toHaveLength(2);
 
-  // In the first workspace it is verified already and can be released.
   const active = await authPost(stack.worker, a.jar, "/organization/set-active", {
     organizationId: a.homeOrgId,
   });
@@ -318,7 +285,6 @@ test("an owner moves a domain to another workspace they run or releases it, and 
   expect(released).toEqual({ status: 200, body: { released: true } });
   expect((await mailTo(a.email)).map((m) => m.subject)).toContain(`${a.domain} was released`);
 
-  // Released: the stranger's workspace can now claim and verify it.
   const claimed = await api(stranger.jar, "POST", "/onboarding/domains", { domain: a.domain });
   expect(claimed.body).toMatchObject({ status: "pending" });
   stack.publishChallenge(claimed.body);

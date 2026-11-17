@@ -1,14 +1,3 @@
-// Scrubs error-tracking events (Sentry) before they leave a process: no message bodies, mail
-// addresses, credentials or query strings. Pure and structural, so the Worker, the mail service
-// and the web app share one rule without depending on a Sentry package here.
-//
-// Rules, applied to every string and key anywhere in the event:
-// - Keys that name content or credentials are replaced by "[redacted]" (see SENSITIVE_KEY).
-// - Mail addresses inside any string become "[email]".
-// - URLs lose their query string and fragment (search terms and tokens live there).
-// - Database errors lose their bound parameters.
-// - `user` keeps only `id`; request cookies, headers, bodies and query strings are dropped.
-
 const REDACTED = "[redacted]";
 
 /**
@@ -26,17 +15,12 @@ export const PRIVATE_DATA_COLLECTION = {
   genAI: { inputs: false, outputs: false },
 } as const;
 
-/**
- * Keys whose values are message content, contact details or secrets. Matched on the whole key,
- * case-insensitively, ignoring `_` and `-`.
- */
 const SENSITIVE_KEY =
   /^(body|text|html|cleantext|snippet|subject|payload|raw|content|from|to|cc|bcc|replyto|address|addresses|email|emails|recipient|recipients|participants|password|pass|passwd|secret|token|apikey|authorization|cookie|cookies|setcookie|credentials|credentialsenc|dsn|key|signature|nonce|querystring|query)$/;
 
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
 const URL_QUERY = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s?#"']+|(?<![\w/])\/[^\s?#"']*)[?#][^\s"']*/gi;
 
-/** Any key that merely contains one of these (`MAIL_SERVICE_HMAC_SECRET`, `x-api-key`). */
 const CREDENTIAL_PART = /(secret|token|password|apikey|credential|cookie|authorization|dsn)/;
 
 function isSensitiveKey(key: string) {
@@ -44,7 +28,6 @@ function isSensitiveKey(key: string) {
   return SENSITIVE_KEY.test(normalized) || CREDENTIAL_PART.test(normalized);
 }
 
-/** Drizzle's query errors end with `params: <every bound value>`: search terms, addresses. */
 const QUERY_PARAMS = /\nparams: [\s\S]*$/;
 
 export function scrubString(value: string) {
@@ -90,7 +73,6 @@ export function scrubEvent<E extends object>(event: E) {
   const scrubbed = scrubFields(rest) as Record<string, unknown>;
   if (user && user.id !== undefined) scrubbed.user = { id: user.id };
   if (request) {
-    // Method and path only: headers carry cookies, and bodies and query strings carry content.
     scrubbed.request = {
       ...(typeof request.method === "string" ? { method: request.method } : {}),
       ...(typeof request.url === "string" ? { url: scrubString(request.url) } : {}),

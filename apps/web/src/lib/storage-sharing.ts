@@ -1,5 +1,3 @@
-// Sharing (ADR 0034 decision 4): who a file or folder is shared with and its one link, what was
-// shared with the signed-in person, and what a link opens (`/s/<shareId>`), signed in or not.
 import {
   infiniteQueryOptions,
   mutationOptions,
@@ -32,7 +30,6 @@ export const storageSharingQuery = (nodeId: string) =>
       call(api.storage.nodes[":id"].sharing.$get({ param: { id: nodeId } }, { init: { signal } })),
   });
 
-/** Each change answers with the sharing as it is now; the cache takes it as it comes. */
 const sharingChanged =
   (client: QueryClient) =>
   ({ sharing }: { sharing: StorageSharing }) =>
@@ -107,7 +104,6 @@ export const storageLinkQuery = (shareId: string, nodeId?: string) =>
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.nextCursor,
-    // A link that opens nothing to this reader says so at once: trying again won't open it.
     retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 3,
   });
 

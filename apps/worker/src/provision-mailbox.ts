@@ -1,7 +1,3 @@
-// Creating one mailbox on a verified domain of the member's workspace, for onboarding and for the
-// workspace admin routes (ADR 0017, ADR 0026). The caller decides its kind and who owns it; this
-// checks the domain and the address, refuses to change whose an existing address is, and asks the
-// mail service to provision it. The Worker never holds the mailbox's login beyond this request.
 import {
   PROVISION_MAILBOX_PATH,
   provisionMailboxResultSchema,
@@ -38,7 +34,6 @@ export const mailboxPlacement = z.object({
 });
 export type MailboxPlacement = z.infer<typeof mailboxPlacement>;
 
-/** 993 and 465 speak TLS from the first byte; any other port upgrades with STARTTLS if offered. */
 const endpoint = (s: z.infer<typeof server>) => ({
   host: s.host,
   port: s.port,
@@ -52,7 +47,6 @@ export function fromMailService(error: unknown): never {
   throw error;
 }
 
-/** The verified domain and the full address a placement names, or an HTTP refusal. */
 async function resolveAddress(c: Context<AppEnv>, placement: MailboxPlacement) {
   const setup = await findMemberDomain(c.var.db, c.var.member.id, placement.domainId);
   if (!setup) throw new HTTPException(404, { message: "no such domain" });
@@ -71,7 +65,6 @@ async function resolveAddress(c: Context<AppEnv>, placement: MailboxPlacement) {
   return { domain, address };
 }
 
-/** The login the mail service provisions with: none on Omni's host, a checked one on `imap`. */
 const loginFor: (
   domain: { provider: string; domain: string; addedAt: Date | null },
   address: string,
@@ -90,8 +83,6 @@ const loginFor: (
   if (domain.provider === "imap") {
     if (!placement.login)
       throw new HTTPException(400, { message: `Enter the password for ${address}.` });
-    // Passed through to the mail service, which checks and encrypts it. Never stored or logged
-    // here (ADR 0007).
     return {
       provider: "imap",
       user: placement.login.user ?? address,
@@ -112,15 +103,11 @@ const loginFor: (
 export async function provisionMailbox(
   c: Context<AppEnv>,
   placement: MailboxPlacement,
-  /** `ownerMemberId` null: a personal inbox waiting for an invitee, with no grant yet. */
   target: { kind: ProvisionMailboxBody["kind"] | "by-address"; ownerMemberId: string | null },
 ) {
   const { db, member, user } = c.var;
   const { domain, address } = await resolveAddress(c, placement);
   const login = loginFor(domain, address, placement);
-  // Onboarding's rule (ADR 0007): the creator's own address is their personal inbox, the rest
-  // (hello@, a teammate's before they join) are shared. A Personal space has only its owner, so
-  // every address on its domain is theirs (ADR 0042).
   const kind =
     target.kind === "by-address"
       ? address === user.email.toLowerCase() ||

@@ -1,6 +1,3 @@
-// A cluster's glyph in Drive's sidebar (ADR 0047): a space's top-level folder may pick one of
-// `STORAGE_FOLDER_ICONS`. Kept in `storage_folder_icons`, read only by the sidebar, so the node
-// queries never depend on it.
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageFolderIcons, storageNodes } from "../schema/storage.ts";
@@ -15,7 +12,6 @@ export type IconResult = { status: "ok"; node: StorageNode } | typeof NOT_FOUND 
 
 export function iconOperations(db: Db, door: Door) {
   return {
-    /** Sets a top-level folder's glyph, or clears it with null. Not a change to the node. */
     async setIcon(nodeId: string, icon: string | null) {
       const found = await reach(db, door, nodeId);
       if (!found || inTrash(found.chain)) return NOT_FOUND satisfies IconResult;
@@ -33,7 +29,6 @@ export function iconOperations(db: Db, door: Door) {
       return { status: "ok", node: toNode(node) } satisfies IconResult;
     },
 
-    /** The glyphs of a drive's top-level folders, by folder id. Empty when there is no drive. */
     async folderIcons(space: StorageSpace) {
       const drive = await door.root(db, space);
       if (!drive) return {} satisfies Record<string, string>;

@@ -1,8 +1,3 @@
-// The monthly AI triage allowance (ADR 0015), end to end. Real mail arrives over GreenMail, the
-// real mail service syncs it and signs events to the real Worker, and the queue consumer triages
-// with Jev answers replayed from `fixtures/triage/recordings`. The workspace's plan comes from a
-// signed Stripe webhook. Each AI-triaged email counts once; past the allowance mail still
-// arrives and reads, triage pauses with the date it resumes, and the next period triages again.
 import { randomBytes, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -37,7 +32,6 @@ import {
 } from "./stripe-events.ts";
 
 const ALLOWANCE = 2;
-/** Stripe timestamps are whole seconds. */
 const second = (ms: number) => new Date(Math.floor(ms / 1000) * 1000);
 const fixtures = new URL("../../../fixtures/", import.meta.url);
 const greenmail = {
@@ -53,7 +47,6 @@ let jev: Awaited<ReturnType<typeof startJevReplay>>;
 let worker: Awaited<ReturnType<typeof startWorker>>;
 let mail: { service: MailService; http: ReturnType<typeof serve> };
 
-/** Answers each recorded Jev request with its recorded response; anything else is a 500. */
 async function startJevReplay() {
   const dir = new URL("triage/recordings/", fixtures);
   const recordings = readdirSync(dir).map((file) => ({
@@ -166,7 +159,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-/** A paid workspace with a live GreenMail inbox, its owner signed in. */
 async function setUpWorkspace(options: { personal?: boolean } = {}) {
   const { db } = database;
   const address = `reader-${randomUUID().slice(0, 8)}@omni.test`;
@@ -230,7 +222,6 @@ async function arrives(name: string, reader: { address: string; mailboxId: strin
     transport.close();
   }
   const messageIdHeader = raw.match(/^Message-ID: *(.+)$/im)![1]!.trim();
-  // Stored by the mail service: the email arrived, whatever triage does next.
   return waitUntil(async () => {
     const [message] = await database.db
       .select({ id: schema.messages.id, threadId: schema.messages.threadId })
@@ -270,7 +261,6 @@ async function billing(cookie: string) {
   };
 }
 
-/** Delivers the thread's AI job again, the way a queue redelivery or a re-sync would. */
 async function redeliver(
   reader: { orgId: string; mailboxId: string },
   message: { id: string; threadId: string },
@@ -321,18 +311,13 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   );
   expect(subscribed.body).toMatchObject({ applied: true });
 
-  // 1. Triaged and counted.
   const request = await arrives("triage-inbound-request.eml", reader);
   await waitUntil(async () => (await threadRow(request.threadId)).triageMessageId === request.id);
   expect(await usageRows(reader.orgId)).toEqual([
     { periodStart: firstStart, messageId: request.id },
   ]);
 
-  // A redelivered job for an email already triaged costs nothing and counts nothing...
   await redeliver(reader, request);
-  // ...and a job retried after the model ran but before the triage was saved runs again without
-  // counting twice: forget the saved triage (and the done marker written after it) to put the
-  // thread back in that state.
   await database.db
     .update(schema.threads)
     .set({ triageMessageId: null, summaryMessageId: null })
@@ -342,14 +327,12 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   expect(jev.hits.filter((id) => id === "kickoff-1")).toHaveLength(2);
   expect(await usageRows(reader.orgId)).toHaveLength(1);
 
-  // 2. The second email uses the rest of the allowance.
   const fyi = await arrives("triage-inbound-fyi.eml", reader);
   await waitUntil(async () => (await threadRow(fyi.threadId)).triageMessageId === fyi.id);
   expect(await billing(reader.cookie)).toMatchObject({
     triage: { used: 2, allowance: ALLOWANCE, pausedUntil: firstEnd.toISOString() },
   });
 
-  // 3. Over the allowance: the email is synced and readable, not triaged, and says until when.
   const receipt = await arrives("triage-automated-receipt.eml", reader);
   const paused = await waitUntil(async () => {
     const thread = await threadRow(receipt.threadId);
@@ -366,12 +349,10 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
     headers: { cookie: reader.cookie },
   });
   expect(read.status).toBe(200);
-  // What the inbox shows: "AI triage paused until <date>".
   expect(await read.json()).toMatchObject({
     triage: null,
     triagePausedUntil: firstEnd.toISOString(),
   });
-  // Mail writes still work: paid, only triage is paused.
   const archived = await fetch(new URL(`/api/threads/${receipt.threadId}/archive`, worker.url), {
     method: "POST",
     headers: {
@@ -383,8 +364,6 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   });
   expect(archived.status).toBe(200);
 
-  // 4. The subscription renews: a new period, a fresh allowance, and the paused thread triages
-  // on its next job.
   const renewed = await postStripeEvent(
     worker.url,
     stripeEvent(
@@ -393,7 +372,6 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
         id: subscriptionId,
         customer: reader.customer,
         status: "active",
-        // Renewed early, as if the month were over: the period starts now.
         periodStart: second(Date.now() - 1000),
         periodEnd: second(Date.now() + 30 * 86_400_000),
       }),
@@ -411,8 +389,6 @@ test("each triaged email counts once; past the allowance mail arrives untriaged 
   expect(await billing(reader.cookie)).toMatchObject({ triage: { used: 1, pausedUntil: null } });
 });
 
-// Catches: a Personal space (ADR 0024) left without AI triage, or counted against an allowance,
-// because it has no plan while billing is on. It is free and keeps triage.
 test("a Personal space is triaged with billing on and no plan, and nothing is counted", async () => {
   const reader = await setUpWorkspace({ personal: true });
   const request = await arrives("triage-inbound-request.eml", reader);

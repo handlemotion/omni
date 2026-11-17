@@ -1,11 +1,3 @@
-// A record's folder in Shared (ADR 0036 decision 5): `Shared / Clients / <company> / <deal>`, a
-// deal with no company directly under `Clients`. The record stores the folder's node id, so a
-// rename or move in Storage changes nothing here; a folder that was deleted or trashed, or moved
-// out of Shared, is replaced by a new one on the next call.
-//
-// Find-or-create runs under a row lock on the record (and on `crm_settings` for `Clients`), so
-// two first calls at once make one folder. Folders are made only through Storage's member door,
-// opened on this transaction (ADR 0035 decision 4): a taken name gets Storage's own number.
 import { eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { crmCompanies, crmDeals, crmSettings } from "../schema/crm.ts";
@@ -26,7 +18,6 @@ export type DealFolderResult =
   | { status: "ok"; nodeId: string; created: boolean; companyId: string | null }
   | Exclude<FolderResult, { status: "ok" }>;
 
-/** A record's name as a folder name: Storage refuses slashes and control characters. */
 function folderName(name: string) {
   const clean = name
     .replaceAll(/[/\\]/g, "-")
@@ -36,14 +27,12 @@ function folderName(name: string) {
   return clean === "" || clean === "." || clean === ".." ? "-" : clean;
 }
 
-/** Whether `nodeId` is a live folder in Shared that the member reaches. */
 async function isLiveFolder(storage: MemberStorage, nodeId: string | null) {
   if (!nodeId) return false;
   const listed = await storage.list({ parentId: nodeId }, { limit: 1 });
   return listed.status === "ok" && listed.folder?.node.space === "shared";
 }
 
-/** `Clients`, found or made at the root of Shared. */
 const rootFolder: (
   tx: Ex,
   member: CrmMember,
@@ -102,8 +91,6 @@ export const dealFolder: (
   id: string,
 ) => Promise<DealFolderResult> = async (tx, member, id) => {
   const storage = memberStorage(tx as Db, member.id);
-  // Lock order is company, then deal, as contract writes take them (`contracts.ts`), so a folder
-  // request and a signing on the same deal never wait on each other in a cycle.
   const peek = await loadDeal(tx, member.orgId, id);
   if (!peek) return NOT_FOUND;
   if (peek.companyId) await loadCompany(tx, member.orgId, peek.companyId, true);

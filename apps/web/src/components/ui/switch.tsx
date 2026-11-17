@@ -26,8 +26,6 @@ export function Switch({ children, className, ...props }: SwitchButtonProps) {
   return (
     <SwitchButton
       className={cx(
-        // On is the brand colour (DESIGN.md: selected controls), edged a step darker; the knob
-        // takes the text colour that sits on it.
         "[--switch-bg:var(--color-primary)] [--switch-bg-ring:transparent] [--switch:var(--color-primary-foreground)]",
         "[--switch-ring:transparent] [--switch-shadow:color-mix(in_oklab,var(--color-primary)_85%,black)]",
         "group relative grid cursor-default gap-x-6 gap-y-1 ltr:grid-cols-[1fr_auto] rtl:grid-cols-[auto_1fr]",

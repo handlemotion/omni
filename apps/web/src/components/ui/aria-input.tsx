@@ -1,6 +1,3 @@
-// React Aria's input, kept only for the React Aria hosts not yet moved to UI SDK (combo box,
-// number field). They wire their input through React Aria's InputContext; everything else uses
-// `Input` from ./input.
 import { Group, type GroupProps } from "react-aria-components/Group";
 import { Input as InputPrimitive, type InputProps } from "react-aria-components/Input";
 import { cx } from "@/lib/primitive";

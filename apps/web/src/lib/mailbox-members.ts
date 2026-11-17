@@ -1,6 +1,3 @@
-// Who can see a shared mailbox (ADR 0008): its Better Auth team, managed through the Worker so
-// the team and the access grants change together. Owners and admins add and remove; anyone on
-// the mailbox can list. Pick people to add from `membersQuery` (the organization's members).
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
@@ -29,10 +26,6 @@ export interface MailboxMemberChange {
   memberId: string;
 }
 
-/**
- * Access decides which mailboxes and threads someone sees, and the actor may have changed their
- * own. Refetch the list, the mailboxes and everything mail-related on screen.
- */
 const settle = (client: QueryClient, mailboxId: string) =>
   Promise.all([
     client.invalidateQueries({ queryKey: keys.mailboxMembers(mailboxId) }),

@@ -27,8 +27,6 @@ export function Unsubscribe({ threadId, message }: { threadId: string; message: 
       isPending={leave.isPending}
       isDisabled={done}
       onPress={press}
-      // Colour through the button's own variable, which a text class would not override; done
-      // reads grey, not faded red.
       className={
         done
           ? "shrink-0 [--btn-foreground:var(--color-muted-foreground)] disabled:opacity-100"

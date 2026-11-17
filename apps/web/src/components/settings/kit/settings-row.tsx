@@ -1,15 +1,3 @@
-// The settings row (from transitive's kit): text on the left, the control on the right. Typed
-// rows (toggle, select, input, button, link, collapsible, value, add, ...) build on it.
-//
-// Geometry, so every row reads at the same rhythm:
-// - Text starts 16px from the card's edge. A control ends 12px from it: its own border and
-//   padding carry the rest, so its label sits about as far in as the row's text. A row that ends
-//   in text or a glyph (value, chevron) ends 16px in, like it starts.
-// - Rows are at least 52px: a 32px control with 10px above and below. A two-line block is the
-//   13/16 label, 2px, then the 11/16 description (34px), so neither line is clipped.
-// - A 32px avatar is as far from the row's left as from its top (10px), as in the mailbox
-//   switcher, so an avatar row starts 10px in. A leading icon (18px) is centred in a box the
-//   avatar's size at the same place, so icons and avatars line up down a card.
 import { cn } from "cn";
 import type { ComponentType, ReactNode } from "react";
 

@@ -1,6 +1,3 @@
-// The reply-collision precondition (sync plan B1): a reply or forward names the latest message
-// its composer showed, and is refused while the thread has a newer one. It guards teammates'
-// sends only; nothing in Omni sends to customers on its own.
 import type { forMember } from "@omni/db";
 import { z } from "zod";
 import { notFound } from "./mail.ts";

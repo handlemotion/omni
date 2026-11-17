@@ -1,6 +1,3 @@
-// Join requests (ADR 0024 decision 3) on the real Worker and Postgres: a sign-in with an address
-// on a company's claimed domain reaches only that company, so someone who is not its member asks
-// to join; its owners hear of it once and accept or decline. Nobody else can see or answer it.
 import { randomUUID } from "node:crypto";
 import { createOrgWithOwner, schema } from "@omni/db";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -39,7 +36,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-/** What these routes answer, loosely: each test reads the fields its route returns. */
 interface Answer {
   company?: { id: string; name: string };
   requested?: boolean;
@@ -56,7 +52,6 @@ async function call(jar: CookieJar, method: "GET" | "POST", path: string) {
   return { status: response.status, body: (text ? JSON.parse(text) : null) as Answer };
 }
 
-/** A company claiming `domain`, its owner signed in. */
 async function company(name: string, domain: string) {
   const ownerEmail = `owner-${randomUUID().slice(0, 8)}@owners.test`;
   const org = await createOrgWithOwner(database.db, {
@@ -78,22 +73,18 @@ async function signedIn(email: string) {
   return jar;
 }
 
-// Catches: a work-address sign-in by someone outside the company dead-ending on sign-in, or a
-// request anyone could answer.
 test("someone outside the company asks to join; only its owners hear and decide", async () => {
   const tag = randomUUID().slice(0, 8);
   const acme = await company("Acme", `acme-${tag}.test`);
   const other = await company("Other", `other-${tag}.test`);
   const ana = await signedIn(`ana@acme-${tag}.test`);
 
-  // Scoped to Acme and not its member: no workspace, but Acme to ask.
   expect((await call(ana, "GET", "/me")).status).toBe(403);
   expect((await call(ana, "GET", "/join")).body).toEqual({
     company: { id: acme.orgId, name: "Acme" },
     requested: false,
   });
 
-  // Asking twice is one request, and the owners hear once.
   expect((await call(ana, "POST", "/join")).body).toMatchObject({ requested: true });
   expect((await call(ana, "POST", "/join")).body).toMatchObject({ requested: true });
   await expect
@@ -109,12 +100,10 @@ test("someone outside the company asks to join; only its owners hear and decide"
   ]);
   const requestId = listed.body.requests![0]!.id;
 
-  // Neither Ana nor another company's owner can answer it, or even see it.
   expect((await call(ana, "POST", `/join/requests/${requestId}/accept`)).status).toBe(403);
   expect((await call(other.jar, "GET", "/join/requests")).body).toEqual({ requests: [] });
   expect((await call(other.jar, "POST", `/join/requests/${requestId}/accept`)).status).toBe(404);
 
-  // Accepted: Ana's same session opens Acme, as its member.
   expect((await call(acme.jar, "POST", `/join/requests/${requestId}/accept`)).status).toBe(204);
   expect((await call(ana, "GET", "/me")).body).toMatchObject({ orgId: acme.orgId, role: "member" });
   expect((await call(ana, "GET", "/join")).status).toBe(404);

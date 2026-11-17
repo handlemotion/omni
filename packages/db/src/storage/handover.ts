@@ -1,6 +1,3 @@
-// A company keeps its files when someone leaves (ADR 0034 decision 1): before a member row goes,
-// their My files in that company move into a folder in someone else's My files. Trusted: the
-// caller has already decided the member is leaving and who removed them.
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
@@ -9,14 +6,11 @@ import { insertNode, lockTree, STORAGE_NAME_MAX_LENGTH, type Drive } from "./cor
 import { leaveTombstones, nextRevision } from "./revision.ts";
 
 export type StorageHandOverResult =
-  /** `folderId` is the new `Files from <name>` folder; null when there was nothing to move. */
   | { status: "ok"; moved: number; folderId: string | null; toMemberId: string | null }
-  /** Nobody else in the workspace can take the files; nothing changed. */
   | { status: "no_recipient" };
 
 const isOwner = sql`'owner' = any(string_to_array(replace(${members.role}, ' ', ''), ','))`;
 
-/** The folder's name: a person's name may hold what a node's name may not. */
 function folderName(person: string) {
   // oxlint-disable-next-line no-control-regex
   const clean = person.replaceAll(/[/\\\u0000-\u001f\u007f]/g, " ").trim();
@@ -100,18 +94,14 @@ export async function handOverMemberStorage(
       name: folderName(leaving.name || leaving.email),
       createdByMemberId: owner.id,
     });
-    // The leaving member's drive sees everything go; the recipient's sees it all arrive.
     const revision = await nextRevision(tx, leaving.orgId);
     await leaveTombstones(tx, owned, revision);
-    // One statement: what was a root goes into the folder, everything changes owner. Names
-    // cannot collide: the folder is new, and siblings below it all change owner together.
     const moved = await tx
       .update(storageNodes)
       .set({
         ownerMemberId: owner.id,
         parentId: sql`coalesce(${storageNodes.parentId}, ${folder.id})`,
         revision,
-        // Changing hands is not an edit: "Modified" stays what it was.
         updatedAt: sql`${storageNodes.updatedAt}`,
       })
       .where(owned)

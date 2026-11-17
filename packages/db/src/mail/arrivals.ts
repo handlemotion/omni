@@ -1,6 +1,3 @@
-// New mail worth a desktop notification: of the messages an ingest just indexed for the first
-// time, the ones someone else wrote to the mailbox lately. A first sync's backlog, a list or an
-// auto-reply, and the mailbox's own sends are left out.
 import { and, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import type { Executor } from "./conversation-core.ts";
 import { mailboxes, messages } from "../schema/index.ts";

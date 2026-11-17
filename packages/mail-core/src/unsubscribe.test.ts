@@ -5,12 +5,10 @@ test("unsubscribeMethod posts only to an https one-click URI, else mails, else l
   const mail = "mailto:leave-ab12@lists.example.com?subject=unsubscribe";
   const page = "https://news.example.com/u/ab12";
   expect(unsubscribeMethod([mail, page], true)).toEqual({ kind: "post", url: page });
-  // No one-click: the mailto unsubscribes without leaving the app.
   expect(unsubscribeMethod([page, mail], false)).toMatchObject({
     kind: "mail",
     to: "leave-ab12@lists.example.com",
   });
-  // One-click over plain http is not RFC 8058: open the page instead of posting.
   expect(unsubscribeMethod(["http://news.example.com/u/ab12"], true)).toEqual({
     kind: "link",
     url: "http://news.example.com/u/ab12",

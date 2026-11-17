@@ -1,5 +1,3 @@
-// "Ana is editing" (ADR 0043 decision 3): who else has a Drive file open in their editor, and
-// telling them you do.
 import { useEffect, useSyncExternalStore } from "react";
 import { FILE_REPEAT_MS, filePresenceStore, type FileEditor } from "../lib/file-presence.ts";
 import { onRealtimeOpen, sendRealtime } from "../lib/realtime.ts";

@@ -1,6 +1,3 @@
-// Sharing (ADR 0034 decisions 3, 4 and 6) over the real Worker, Postgres and local R2, with real
-// sign-ins: people added by address, the one link, the link door, the share mail and session
-// scope. Limits and the read-only gate are in `storage-sharing-limits.e2e.test.ts`.
 import { randomBytes, randomUUID } from "node:crypto";
 import type { StorageNode } from "@omni/contracts";
 import { schema } from "@omni/db";
@@ -21,7 +18,6 @@ const anonymous = new CookieJar();
 const names = (body: { nodes: StorageNode[] }) => body.nodes.map((node) => node.name);
 const address = (name: string) => `${name}-${randomUUID().slice(0, 8)}@outside.test`;
 
-/** Signs in with an address by magic link: someone new to Omni gets their account this way. */
 async function signedIn(email: string) {
   const jar = new CookieJar();
   await signIn(stack.worker, stack.db, email, jar);
@@ -34,7 +30,6 @@ async function folder(person: Person, place: object, name: string) {
   return made.body.node as StorageNode;
 }
 
-/** Adds `email` to `nodeId` as `person`, and answers the item's link id. */
 async function share(person: Person, nodeId: string, email: string, role = "viewer") {
   const put = await stack.api(
     person.jar,
@@ -54,10 +49,6 @@ async function ana() {
   return { org, ana: await stack.member(org.id, "owner") };
 }
 
-// Catches: a grant that opens only the folder it is on and not what is inside, one that opens
-// for any signed-in person, a removed person who keeps reading, a share mail that is never
-// sent, sent twice or sent again on a role change, and a newcomer whose sign-up from that mail
-// finds nothing.
 test("a grant on a folder opens a file two levels down for that address only, by one mail, until it is removed", async () => {
   const { ana: owner } = await ana();
   const top = await folder(owner, { space: "personal" }, "Top");
@@ -66,14 +57,12 @@ test("a grant on a folder opens a file two levels down for that address only, by
   const deep = await stack.upload(owner.jar, { parentId: mid.id }, "deep.bin", bytes);
   const guestEmail = address("guest");
 
-  // Typed with capitals and spaces: stored, mailed and matched as the plain address.
   const shareId = await share(owner, top.id, `  ${guestEmail.toUpperCase()} `);
   expect(shareId).toMatch(/^[A-Za-z0-9_-]{22}$/);
   const [mail, ...more] = await shareMail(guestEmail);
   expect(more).toEqual([]);
   expect(mail!.subject).toBe(`${owner.email} shared "Top" with you on Omni`);
   expect(mail!.text).toContain(`${WEB_ORIGIN}/s/${shareId}\n`);
-  // A role change is not news: no second mail.
   expect(await share(owner, top.id, guestEmail, "editor")).toBe(shareId);
   expect(await share(owner, top.id, guestEmail, "viewer")).toBe(shareId);
   expect(await shareMail(guestEmail)).toHaveLength(1);
@@ -85,7 +74,6 @@ test("a grant on a folder opens a file two levels down for that address only, by
     inherited: [{ email: guestEmail, role: "viewer", nodeId: top.id, nodeName: "Top" }],
   });
 
-  // The guest is new to Omni: the magic link makes their account, and the item is there.
   const guest = await signedIn(guestEmail);
   const mine = await stack.api(guest, "GET", "/shared-with-me");
   expect(mine.body.items).toMatchObject([
@@ -104,7 +92,6 @@ test("a grant on a folder opens a file two levels down for that address only, by
   expect(got.status).toBe(200);
   expect(Buffer.from(await got.arrayBuffer())).toEqual(bytes);
 
-  // Nobody else: not another signed-in person, not a visitor, and not by the member routes.
   const stranger = await signedIn(address("stranger"));
   for (const jar of [stranger, anonymous]) {
     expect((await stack.api(jar, "GET", `/shared/${shareId}`)).status).toBe(404);
@@ -116,7 +103,6 @@ test("a grant on a folder opens a file two levels down for that address only, by
   expect((await stack.download(guest, deep.id)).status).toBe(404);
   expect((await stack.api(guest, "GET", `/nodes?parent=${top.id}`)).status).toBe(404);
 
-  // Removed, the very next request finds nothing.
   const removed = await stack.api(
     owner.jar,
     "DELETE",
@@ -129,9 +115,6 @@ test("a grant on a folder opens a file two levels down for that address only, by
   expect((await stack.api(guest, "GET", "/shared-with-me")).body.items).toEqual([]);
 });
 
-// Catches: a Restricted link that answers a visitor (or says it exists), a link that serves
-// other bytes or renders in the browser, a visitor who can write, see who else has access or
-// walk out of the shared folder, and an old link that still opens after a reset.
 test("a Restricted link is 404 to a visitor; Anyone lists and downloads and nothing more; reset, the old link is 404", async () => {
   const { ana: owner } = await ana();
   const kit = await folder(owner, { space: "personal" }, "Press kit");
@@ -151,7 +134,6 @@ test("a Restricted link is 404 to a visitor; Anyone lists and downloads and noth
 
   expect((await stack.api(anonymous, "GET", `/shared/${shareId}`)).status).toBe(404);
   expect((await content(shareId)).status).toBe(404);
-  // A write on a link that is not open says no more than a read does.
   expect(
     (
       await stack.api(anonymous, "POST", `/shared/${shareId}/folders`, {
@@ -173,7 +155,6 @@ test("a Restricted link is 404 to a visitor; Anyone lists and downloads and noth
     path: [{ id: kit.id, name: "Press kit" }],
   });
   expect(names(listed.body)).toEqual(["logo.svg"]);
-  // No address of anyone it is shared with, no object key, no link id beyond the one they hold.
   const raw = JSON.stringify(listed.body);
   expect(raw).not.toContain(pressEmail);
   expect(raw).not.toMatch(/r2Key|shareId|linkAccess|orgs\//);
@@ -187,7 +168,6 @@ test("a Restricted link is 404 to a visitor; Anyone lists and downloads and noth
   expect(slice.status).toBe(206);
   expect(Buffer.from(await slice.arrayBuffer())).toEqual(bytes.subarray(100, 200));
 
-  // Nothing beside the shared folder, and no way to change or inspect it.
   expect((await content(shareId, payroll.id)).status).toBe(404);
   expect((await stack.api(anonymous, "GET", `/shared/${shareId}?node=${payroll.id}`)).status).toBe(
     404,
@@ -223,14 +203,10 @@ test("a Restricted link is 404 to a visitor; Anyone lists and downloads and noth
   expect((await stack.api(anonymous, "GET", `/shared/${shareId}`)).status).toBe(404);
   expect((await content(shareId)).status).toBe(404);
   expect((await content(fresh)).status).toBe(200);
-  // Back to Restricted closes the new one at once.
   await stack.api(owner.jar, "PUT", `/nodes/${kit.id}/sharing/link`, { linkAccess: "restricted" });
   expect((await content(fresh)).status).toBe(404);
 });
 
-// Catches: an Editor who cannot actually upload, one who can write beside the folder they were
-// given or take over its sharing, a Viewer who can write, and an upload through a grant that
-// lands in (or is counted against) the wrong workspace.
 test("an Editor uploads and changes inside the granted folder and nowhere else; a Viewer only reads; neither manages sharing", async () => {
   const { org, ana: owner } = await ana();
   const project = await folder(owner, { space: "personal" }, "Project");
@@ -258,7 +234,6 @@ test("an Editor uploads and changes inside the granted folder and nowhere else; 
     undefined,
     base,
   );
-  // It is the owner's file, in the owner's workspace, counted there.
   expect(uploaded).toMatchObject({ orgId: org.id, space: "personal", ownerMemberId: owner.id });
   expect(await stack.usedBytes(org.id)).toBe(4010);
   const mine = await stack.download(owner.jar, uploaded.id);
@@ -279,7 +254,6 @@ test("an Editor uploads and changes inside the granted folder and nowhere else; 
   expect((await stack.api(editor, "DELETE", `${base}/nodes/${uploaded.id}`)).status).toBe(200);
   expect(names((await stack.api(owner.jar, "GET", "/trash")).body)).toEqual(["final.bin"]);
 
-  // Outside the folder nothing exists for the Editor, as a target or as a destination.
   const outside = [
     await stack.api(editor, "POST", `${base}/folders`, { name: "x", parentId: other.id }),
     await stack.api(editor, "POST", `${base}/folders`, { name: "x", space: "personal" }),
@@ -288,7 +262,6 @@ test("an Editor uploads and changes inside the granted folder and nowhere else; 
     await stack.api(editor, "PATCH", `${base}/nodes/${made.body.node.id}`, { parentId: other.id }),
     await stack.api(editor, "DELETE", `${base}/nodes/${secret.id}`),
     await stack.api(editor, "DELETE", `${base}/nodes/${uploaded.id}?forever=1`),
-    // The member routes are for members: a grant opens nothing there.
     await stack.api(editor, "POST", "/folders", { name: "x", parentId: project.id }),
     await stack.api(editor, "GET", `/nodes/${project.id}/sharing`),
     await stack.api(editor, "PUT", `/nodes/${project.id}/sharing/link`, { linkAccess: "anyone" }),
@@ -298,7 +271,6 @@ test("an Editor uploads and changes inside the granted folder and nowhere else; 
     await stack.api(editor, "DELETE", `/nodes/${project.id}/sharing/people/${viewerEmail}`),
   ];
   expect(outside.map((answer) => answer.status)).toEqual(outside.map(() => 404));
-  // The folder they were given is not theirs to rename or trash.
   expect(
     (await stack.api(editor, "PATCH", `${base}/nodes/${project.id}`, { name: "Mine" })).status,
   ).toBe(403);
@@ -334,9 +306,6 @@ test("an Editor uploads and changes inside the granted folder and nowhere else; 
   });
 });
 
-// Catches: an upload opened as Editor that keeps taking parts, completes into a file, or is
-// aborted after the person was made a Viewer, because the upload routes checked only that the
-// upload was theirs and not that they may still write where it lands.
 test("an Editor made Viewer mid-upload can no longer add parts to it, complete it or abort it", async () => {
   const { ana: owner } = await ana();
   const project = await folder(owner, { space: "personal" }, "Project");
@@ -361,15 +330,12 @@ test("an Editor made Viewer mid-upload can no longer add parts to it, complete i
     [],
   );
 
-  // Made Editor again, the same upload is theirs to finish: refusing it removed nothing.
   await share(owner, project.id, email, "editor");
   expect((await stack.putPart(guest, id, 1, bytes, base)).status).toBe(200);
   const done = await stack.api(guest, "POST", `${base}/uploads/${id}/complete`);
   expect(done).toMatchObject({ status: 200, body: { node: { name: "late.bin" } } });
 });
 
-// Catches: whoever controls a company's mail (and so can sign in as its addresses) reaching what
-// was shared with a person's own address.
 test("a session scoped to a company does not see or open a grant addressed to the person's personal address", async () => {
   const { db } = stack;
   const { ana: owner } = await ana();
@@ -412,8 +378,6 @@ test("a session scoped to a company does not see or open a grant addressed to th
   expect((await stack.api(scoped, "GET", `/shared/${personalLink}`)).status).toBe(404);
   expect(await opens(scoped, personalLink, toPersonal.id)).toBe(404);
 
-  // Pat is also a member of the owner's company: its Shared opens by link for the session that
-  // reaches every workspace, and not for the one scoped to the other company.
   await db.insert(schema.members).values({
     id: randomUUID(),
     organizationId: owner.organizationId,
@@ -435,7 +399,6 @@ test("a session scoped to a company does not see or open a grant addressed to th
   expect(await opens(full, workLink, toWork.id)).toBe(200);
 });
 
-// Catches: something its owner threw away still downloadable by the people and the link it had.
 test("a shared item in Trash answers 404 through its grant and its link, and comes back when restored", async () => {
   const { ana: owner } = await ana();
   const kit = await folder(owner, { space: "personal" }, "Kit");
@@ -454,14 +417,12 @@ test("a shared item in Trash answers 404 through its grant and its link, and com
   };
   expect(await statuses()).toEqual([200, 200, 200, 200]);
 
-  // The file inside goes first, then the folder that carries the link.
   expect((await stack.api(owner.jar, "DELETE", `/nodes/${file.id}`)).status).toBe(200);
   expect(await statuses()).toEqual([200, 404, 200, 404]);
   expect((await stack.api(owner.jar, "POST", `/nodes/${file.id}/restore`)).status).toBe(200);
   expect((await stack.api(owner.jar, "DELETE", `/nodes/${kit.id}`)).status).toBe(200);
   expect(await statuses()).toEqual([404, 404, 404, 404]);
   expect((await stack.api(guest, "GET", "/shared-with-me")).body.items).toEqual([]);
-  // Sharing is for what is live: in Trash it cannot be opened wider.
   expect(
     (await stack.api(owner.jar, "PUT", `/nodes/${kit.id}/sharing/link`, { linkAccess: "anyone" }))
       .status,

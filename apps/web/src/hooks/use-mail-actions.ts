@@ -1,6 +1,3 @@
-// Changing mail. Every action updates the screen at once and undoes itself if the request fails;
-// the outbox then carries it out on IMAP/SMTP. Call `mutate({ ... })` without a key: one is made
-// per call.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import {

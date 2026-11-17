@@ -1,7 +1,3 @@
-// Whether the new-mail dialog is open. One value for the whole app: Compose (the sidebar row, the
-// floating button) and the `c` key open it over whatever is on screen; its close button, Escape
-// and a send close it. Not remembered across reloads. An undone send reopens it holding the
-// draft it sent, since the dialog (and its composer) closed with the send.
 import { useCallback, useSyncExternalStore } from "react";
 import type { ComposerFile } from "./use-compose.ts";
 

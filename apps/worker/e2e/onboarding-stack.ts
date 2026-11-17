@@ -1,7 +1,3 @@
-// The onboarding stack for e2e suites: a migrated database, the real Worker under workerd, the
-// real mail service in-process (no Purelymail token, as a self-hoster runs it) on GreenMail, the
-// local S3 gateway, and the local authoritative DNS server (`dns-server.ts`) that the mail
-// service's resolver finds through NS records. Plus the calls the web app makes.
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -54,7 +50,6 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
   const keyring = parseKeyring(`k1:${randomBytes(32).toString("base64")}`);
   const database = await createTestDatabase();
   const dns: DnsServer = await startDnsServer();
-  // Auth and notification mail goes out from this mailbox, which the service connects too.
   const system = await createOrg(database.db, "system");
   const systemId = randomUUID();
   await database.db.insert(schema.mailboxes).values({
@@ -66,8 +61,6 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
     credentialsEnc: await sealCredentials(keyring, systemId, login(SYSTEM_MAIL_FROM, "unused")),
   });
 
-  // The Worker and the mail service each need the other's URL: listen first, attach the
-  // service once the Worker is up.
   let handle: ((req: IncomingMessage, res: ServerResponse) => void) | null = null;
   const mailHttp = createServer((req, res) =>
     handle ? handle(req, res) : res.writeHead(503).end(),
@@ -91,7 +84,6 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
       SYNC_INTERVAL_MS: 60 * 60_000,
       OUTBOX_INTERVAL_MS: options.outboxIntervalMs ?? 60 * 60_000,
       MAILBOX_CONCURRENCY: 4,
-      // NS discovery and the nameservers themselves are the local DNS server.
       DNS_RESOLVERS: [dns.address],
       DNS_NAMESERVER_PORT: dns.port,
       DNS_TIMEOUT_MS: 1_000,
@@ -100,7 +92,6 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
   );
   handle = getRequestListener(service.app.fetch);
 
-  /** A same-origin JSON call from the web app. */
   async function api(
     jar: CookieJar,
     method: "GET" | "POST" | "PUT" | "DELETE",
@@ -115,7 +106,6 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
     return { status: response.status, body: (await response.json()) as Record<string, unknown> };
   }
 
-  /** An owner of an existing workspace, signed in (the default policy lets owners make more). */
   async function signedInOwner() {
     const slug = `home-${randomUUID().slice(0, 8)}`;
     const owner = await createOrgWithOwner(database.db, {
@@ -128,13 +118,11 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
     return { ...owner, email: `owner@${slug}.test`, jar };
   }
 
-  /** Publishes a claim's challenge at the domain's DNS host, the way the member copies it there. */
   function publishChallenge(body: Record<string, unknown>) {
     const challenge = body.challenge as { name: string; value: string };
     dns.set(challenge.name, "TXT", [challenge.value]);
   }
 
-  /** A new workspace (its owner also owns a first one) with a domain claimed but not verified. */
   async function workspaceWithClaim() {
     const owner = await signedInOwner();
     const suffix = randomUUID().slice(0, 8);
@@ -146,7 +134,6 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
     const orgId = ((await created.json()) as { id: string }).id;
     const domain = `acme-${suffix}.test`;
     dns.addZone(domain);
-    // Typed the way people paste it; stored the one way every spelling normalizes to.
     const added = await api(owner.jar, "POST", "/onboarding/domains", {
       domain: `https://ACME-${suffix}.test/`,
     });
@@ -168,7 +155,6 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
     });
     return {
       ...owner,
-      /** The owner's first workspace; `orgId` is the new one, which is now active. */
       homeOrgId: owner.orgId,
       orgId,
       domain,
@@ -177,7 +163,6 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
     };
   }
 
-  /** A new workspace with its domain verified on the mail host, as the first two steps leave it. */
   async function workspaceWithDomain() {
     const workspace = await workspaceWithClaim();
     publishChallenge(workspace.claim);

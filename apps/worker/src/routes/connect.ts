@@ -1,7 +1,3 @@
-// Connecting a personal Google account (helpdesk plan G3). The Worker runs the browser side of
-// OAuth: it sends the member to Google's consent screen with PKCE and, on the callback, hands the
-// one-time code to the mail service over a signed call. The mail service exchanges it and keeps
-// the refresh token; the Worker never holds a Google token.
 import {
   GOOGLE_CONNECT_PATH,
   GOOGLE_DISCONNECT_PATH,
@@ -19,12 +15,10 @@ import { limitPerMember } from "../rate-limiter.ts";
 import { notFound } from "./mail.ts";
 
 const GOOGLE_AUTHORIZE = "https://accounts.google.com/o/oauth2/v2/auth";
-/** Full IMAP and SMTP access (XOAUTH2), and the address to name the mailbox by. */
 const SCOPES = ["https://mail.google.com/", "openid", "email"];
 const COOKIE = "omni_google_connect";
 const COOKIE_PATH = "/api/connect/google";
 
-/** Base64url without padding, as PKCE and OAuth state use. */
 function toBase64Url(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes))
     .replaceAll("+", "-")
@@ -36,11 +30,9 @@ function redirectUri(c: Context<AppEnv>) {
   return new URL(`${COOKIE_PATH}/callback`, c.var.config.auth.baseURL).toString();
 }
 
-/** Where a flow can return to: onboarding's inbox step, or Settings, Connected accounts. */
 const RETURNS = { onboarding: "/onboarding", settings: "/settings/accounts" } as const;
 type Return = keyof typeof RETURNS;
 
-/** Where the browser lands afterwards: the page that started the flow, with the outcome. */
 function backToApp(c: Context<AppEnv>, back: Return, outcome: Record<string, string>) {
   const url = new URL(RETURNS[back], c.var.config.auth.webAppURL);
   for (const [key, value] of Object.entries(outcome)) url.searchParams.set(key, value);
@@ -56,17 +48,11 @@ async function challengeFor(verifier: string) {
   return toBase64Url(new Uint8Array(digest));
 }
 
-/**
- * The person's Google accounts, in every workspace they connected one to (ADR 0024), or only in
- * the company a scoped session reaches.
- */
 function googleMailboxes(c: Context<AppEnv>) {
   return forUser(c.var.db, c.var.user.id, c.var.user.scopeOrgId).googleAccounts();
 }
 
-/** A flow the desktop app started: its consent runs in the person's browser (ADR 0043). */
 const DESKTOP_STATE = "d.";
-/** Set on the callback once it is back in the app's window, so it is not sent back again. */
 const IN_APP = "in_app";
 
 /**
@@ -85,7 +71,6 @@ export const desktopGoogleReturn = createMiddleware<AppEnv>(async (c, next) => {
 });
 
 export const connect = new Hono<AppEnv>()
-  /** Whether this install can connect Google (an OAuth client is set) and what is connected. */
   .get("/google", async (c) =>
     c.json({
       available: c.var.config.auth.google !== undefined,
@@ -97,12 +82,6 @@ export const connect = new Hono<AppEnv>()
     }),
   )
 
-  /**
-   * Starts the consent flow: a top-level navigation here redirects to Google. The state and PKCE
-   * verifier ride a short-lived signed cookie, bound to this member, scoped to these routes.
-   * `?return=onboarding` brings the browser back to setup instead of Settings. `?desktop=1`
-   * (the desktop app) answers `{ url }` instead, for the app to open in the person's browser.
-   */
   .get("/google/start", limitPerMember("provision"), async (c) => {
     const google = c.var.config.auth.google;
     if (!google) return apiError(c, "not_found", "Google is not configured");
@@ -110,9 +89,6 @@ export const connect = new Hono<AppEnv>()
     const state = `${desktop ? DESKTOP_STATE : ""}${randomToken(24)}`;
     const verifier = randomToken(48);
     const back: Return = c.req.query("return") === "onboarding" ? "onboarding" : "settings";
-    // Pin setup where it stands before the mail service saves a mailbox: a workspace with a
-    // mailbox and no setup row reads as finished (`orgSetupStep`), which would skip the rest of
-    // setup. An org that already has a mailbox keeps the step it reads as now.
     await advanceOrgSetup(c.var.db, c.var.member.orgId, "created");
     await setSignedCookie(
       c,
@@ -123,7 +99,6 @@ export const connect = new Hono<AppEnv>()
         path: COOKIE_PATH,
         httpOnly: true,
         secure: new URL(c.var.config.auth.baseURL).protocol === "https:",
-        // Lax: sent on Google's top-level redirect back, never on a cross-site subrequest.
         sameSite: "Lax",
         maxAge: 600,
       },
@@ -134,7 +109,6 @@ export const connect = new Hono<AppEnv>()
       redirect_uri: redirectUri(c),
       response_type: "code",
       scope: SCOPES.join(" "),
-      // A refresh token, every time: the mail service needs one to sync while nobody is here.
       access_type: "offline",
       prompt: "consent",
       include_granted_scopes: "false",
@@ -145,11 +119,6 @@ export const connect = new Hono<AppEnv>()
     return desktop ? c.json({ url: url.toString() }) : c.redirect(url.toString(), 302);
   })
 
-  /**
-   * Google sends the browser back here. The state must match the cookie this browser got from
-   * `/start` for this same member; then the code goes to the mail service, signed. Counted with
-   * `/start`, so a kept copy of the cookie cannot be replayed into unlimited mail service calls.
-   */
   .get("/google/callback", limitPerMember("provision"), async (c) => {
     const raw = await getSignedCookie(c, c.var.config.auth.secret, COOKIE);
     deleteCookie(c, COOKIE, { path: COOKIE_PATH });
@@ -182,8 +151,6 @@ export const connect = new Hono<AppEnv>()
         {
           orgId: c.var.member.orgId,
           memberId: c.var.member.id,
-          // Who is connecting: the account goes where its address belongs, the company that
-          // locked its domain or their Personal space (ADR 0024), within the session's scope.
           userId: c.var.user.id,
           ...(c.var.user.scopeOrgId ? { scopeOrgId: c.var.user.scopeOrgId } : {}),
           code,
@@ -192,8 +159,6 @@ export const connect = new Hono<AppEnv>()
         },
         googleConnectResultSchema,
       );
-      // A connected Gmail is an inbox to read: this workspace's setup can finish now, if that is
-      // where it landed.
       const landed = connected.orgId ?? c.var.member.orgId;
       if (landed === c.var.member.orgId) {
         await advanceOrgSetup(c.var.db, c.var.member.orgId, "mailboxes_created");
@@ -212,13 +177,10 @@ export const connect = new Hono<AppEnv>()
     }
   })
 
-  /** Disconnects one of the member's Google accounts: revoked at Google, no longer synced. */
   .delete("/google/:mailboxId", limitPerMember("provision"), async (c) => {
     const mailboxId = c.req.param("mailboxId");
     const account = (await googleMailboxes(c)).find((m) => m.id === mailboxId);
     if (!account) notFound();
-    // The account's own workspace and member, so a mail service from before ADR 0024 (which
-    // ignores `userId`) finds it too. Its refusals answer with their status (errors.ts).
     await callMailService(
       c.var,
       GOOGLE_DISCONNECT_PATH,

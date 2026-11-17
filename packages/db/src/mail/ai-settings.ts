@@ -1,6 +1,3 @@
-// The workspace's AI settings (ADR 0033): what each member handles. Read by the settings page and
-// by the AI queue. Tags and their descriptions are read through `forMember` (the member's inboxes).
-
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, memberRoleDescriptions, members } from "../schema/index.ts";

@@ -10,8 +10,6 @@ import { useMailboxes } from "../../../../hooks/use-mail.ts";
 export const Route = createFileRoute("/_authed/$workspace/mail/inbox")({
   validateSearch: inboxSearch,
   loaderDeps: ({ search: { mailbox, lane, view, tag } }) => ({ mailbox, lane, view, tag }),
-  // A shared inbox's helpdesk view (`?mailbox=…&view=…`) lists conversations; the rest, threads.
-  // Not awaited, like every list and thread: the screen opens at once and its rows follow.
   loader: ({ context, deps: { mailbox, lane, view, tag } }) =>
     void (mailbox && view
       ? context.queryClient.prefetchInfiniteQuery(conversationsQuery({ mailbox, view, tag }))
@@ -19,7 +17,6 @@ export const Route = createFileRoute("/_authed/$workspace/mail/inbox")({
   component: Inbox,
 });
 
-// The sidebar's names for the lanes it links to.
 const LANE_TITLES: Partial<Record<string, string>> = {
   needs_reply: "Needs reply",
   waiting_on_them: "Awaiting reply",
@@ -35,9 +32,7 @@ function Inbox() {
       params: { workspace, threadId },
       search,
     }).href;
-  // The active workspace's: one with none shows the empty state, whatever other workspaces hold.
   const mailboxes = useMailboxes().data;
-  // A shared inbox's Mine (`?view=`) lists conversations; its Inbox, threads.
   if (search.mailbox && search.view) {
     return (
       <ConversationList

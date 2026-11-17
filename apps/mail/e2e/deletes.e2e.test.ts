@@ -1,6 +1,3 @@
-// Deletes made in another mail app reach Omni (ADR 0013: the index converges from IMAP). A message
-// deleted on the server goes from Postgres with its thread once a full sync finds it nowhere; a
-// message moved to Trash leaves the inbox; a move another app made is never mistaken for a delete.
 import { schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
@@ -41,14 +38,12 @@ async function connected(kind: "personal" | "shared") {
   return { ...seeded, connection };
 }
 
-/** Delivers each subject, then imports them with one sync. */
 async function arrive(connection: MailboxConnection, mail: Parameters<typeof deliver>[]) {
   for (const args of mail) await deliver(...args);
   await connection.start();
   await connection.syncAll();
 }
 
-/** Moves (or with no destination, deletes) INBOX messages with this subject, as Apple Mail would. */
 async function inOtherApp(
   connection: MailboxConnection,
   subject: string,
@@ -91,7 +86,6 @@ it.for(["personal", "shared"] as const)(
     expect(deleted).not.toBeNull();
 
     await inOtherApp(connection, "Delete me", null);
-    // The first pass sees the copies gone; the next one finds them nowhere and deletes the rows.
     await connection.syncAll();
     await connection.syncAll();
 
@@ -115,11 +109,9 @@ it("deleting the latest reply in another app reports its thread, so the Worker r
   await connection.syncAll();
 
   expect(await subjects(box.id)).toEqual(["Order 7"]);
-  // The summary still describes the deleted reply until the Worker hears about it.
   expect(pruned.filter((p) => p.mailboxId === box.id)).toEqual([
     { orgId: thread!.orgId, mailboxId: box.id, threadIds: [thread!.id] },
   ]);
-  // Queued with the delete, so the event survives a crash before delivery.
   const queued = await db
     .select({ event: schema.pendingMailEvents.event })
     .from(schema.pendingMailEvents)
@@ -143,8 +135,6 @@ it("a thread moved to Trash in another app leaves the inbox and keeps its messag
 });
 
 it("a thread in Junk leaves the inbox once a re-sync first detects Junk as junk", async () => {
-  // Junk was stored with role `other` before junk was a role. Detecting it later must move the
-  // threads already filed there out of the inbox, not only mail that arrives after.
   const { box, connection } = await connected("shared");
   await arrive(connection, [[box.address, "Cheap watches"]]);
   await inOtherApp(connection, "Cheap watches", "Junk");
@@ -167,7 +157,6 @@ it("a move seen from INBOX before its destination is synced keeps the same messa
   const [before] = await messageRows(db, box.id);
 
   await inOtherApp(connection, "Filed elsewhere", "Projects");
-  // IDLE-driven INBOX sync: the copy is gone from INBOX and the new folder is not synced yet.
   await connection.syncFolder("INBOX");
   expect(await store.orphanedMessages(box.id)).toEqual([before!.id]);
   await connection.syncAll();

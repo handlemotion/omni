@@ -38,9 +38,7 @@ import { AddedLine, MessageItem, PendingItem, scrollToMessage } from "./message.
 import { Properties } from "./properties.tsx";
 import { ThreadSwitcher } from "./thread-switcher.tsx";
 
-/** Past this many messages, the middle of a thread folds behind one button. */
 const FOLD_OVER = 12;
-/** What stays open around the fold: the opening message and the latest ones. */
 const KEEP_FIRST = 1;
 const KEEP_LAST = 8;
 
@@ -52,9 +50,7 @@ export function Conversation({ threadId }: { threadId: string }) {
   const { thread, pending, error } = useThread(threadId);
   useMarkReadOnOpen(thread);
   const shared = useAllMailboxes().data?.find((m) => m.id === thread?.mailboxId)?.kind === "shared";
-  // Notes and activity: shared inboxes only (a personal thread has no helpdesk state).
   const { data: helpdesk } = useConversation(threadId, { enabled: shared });
-  // Merged into another conversation: show that one, from the same list.
   const navigate = useNavigate();
   useFollowMerge(
     threadId,
@@ -68,24 +64,16 @@ export function Conversation({ threadId }: { threadId: string }) {
   );
   const [fullScreen] = useFullScreen();
   const scroller = useRef<HTMLDivElement>(null);
-  // A single email reads as an email, anything more as a conversation, until the rail's toggle
-  // (or starting a chat) picks one for this thread.
   const reader = useReaderView(threadId, thread, isSingleEmail(thread, pending.length, helpdesk));
   const single = reader.view === "email";
-  // Whether the reader sat at the bottom before this render: new mail follows them only then.
   const atBottom = useRef(true);
 
-  // To the very end, so the newest message sits just above the docked composer. A single
-  // email is a page, read from its top.
   const toEnd = () =>
     scroller.current?.scrollTo({ top: single ? 0 : scroller.current.scrollHeight });
-  // A conversation opens at its newest message, like a chat; each email from its top.
   useLayoutEffect(() => {
     atBottom.current = true;
     toEnd();
-    // Paging is the email view's alone: in the conversation, new mail keeps the guard below.
   }, [threadId, reader.view, single ? reader.email?.id : undefined]);
-  // A new message or reply keeps the newest in view, unless they scrolled up to read.
   useLayoutEffect(() => {
     if (atBottom.current) toEnd();
   }, [thread?.messages.length, pending.length, helpdesk?.notes.length]);
@@ -94,10 +82,6 @@ export function Conversation({ threadId }: { threadId: string }) {
     if (el) atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
-  // The screen opens before the thread arrives (the route doesn't wait): a skeleton of it until
-  // then, which skullet holds back 150 ms, so a thread warmed by hovering its row never shows one.
-  // A thread that failed to load (gone, no access, retries spent) goes to the route's error
-  // screen, as it did when the loader waited for it, rather than a skeleton that never ends.
   if (error && !thread) throw error;
   if (!thread) return <ConversationSkeleton />;
   const subject = thread.messages.at(-1)?.subject || thread.messages[0]?.subject || "";
@@ -105,9 +89,6 @@ export function Conversation({ threadId }: { threadId: string }) {
   return (
     <section aria-label="Conversation" className={SECTION}>
       <Actions thread={thread} subject={subject} />
-      {/* The divider from the list runs beside the messages only; the toolbar row stays open,
-          continuing the list's header row. */}
-      {/* Per conversation: the timeline's menus and selections steer the composer under it. */}
       <ComposerProvider
         key={threadId}
         threadId={threadId}
@@ -116,24 +97,19 @@ export function Conversation({ threadId }: { threadId: string }) {
         chatOpen={!single}
         onStartChat={() => reader.setView("conversation")}
       >
-        {/* A shared conversation's status, owner, priority and tags, under the title. */}
         {shared && <PropertiesRow thread={thread} view={reader.view} onView={reader.setView} />}
         <SelectionReply threadId={threadId} />
         <div
           ref={scroller}
           onScroll={onScroll}
-          // Full screen, the sidebar's own edge is the only line: a second beside it doubles up.
           className={`${SCROLLER} overflow-y-auto overscroll-none ${fullScreen ? "" : "border-s"}`}
         >
-          {/* Grows to fill a short thread, so the composer stays at the pane's bottom. */}
-          {/* A shared inbox leaves room at the end for the properties pill over the composer. */}
           <div className={columnClass(single)}>
             <Timeline
               key={threadId}
               threadId={threadId}
               mailboxId={thread.mailboxId}
               mailboxAddress={thread.mailboxAddress}
-              // The email view: the one email paged to, without the team's notes and activity.
               messages={reader.shown}
               helpdesk={shared && !single ? helpdesk : undefined}
               flat={single}
@@ -141,7 +117,6 @@ export function Conversation({ threadId }: { threadId: string }) {
             {pending.map((send) => (
               <PendingItem key={send.key} send={send} />
             ))}
-            {/* An email being written: the thread's next message, after the ones on their way. */}
             {!single && <ReplyComposer thread={thread} />}
           </div>
           <Foot thread={thread} reader={single ? reader : undefined} />
@@ -151,10 +126,6 @@ export function Conversation({ threadId }: { threadId: string }) {
   );
 }
 
-/**
- * A shared conversation's status, owner, priority and tags, in a row of its own under the top
- * bar, ending with the toggle between the conversation and its emails.
- */
 function PropertiesRow(props: {
   thread: Thread;
   view: ReaderView;
@@ -162,12 +133,10 @@ function PropertiesRow(props: {
 }) {
   const composer = useComposerState();
   return (
-    // 52px, as tall as a list row.
     <div className="flex h-13 shrink-0 items-center border-s border-b px-3">
       <Properties thread={props.thread}>
         <ViewToggle
           view={props.view}
-          // Into the conversation the team's chat opens, as Start conversation did.
           onChange={(view) => (view === "conversation" ? composer.startChat() : props.onView(view))}
         />
       </Properties>
@@ -175,17 +144,11 @@ function PropertiesRow(props: {
   );
 }
 
-/**
- * The pane's bottom edge, full width; the messages scroll above it. Reply and Forward float over
- * it until a composer opens; across from them, the email view's chevrons. On a shared
- * conversation, the hidden notes' composer floats here too.
- */
 function Foot({
   thread,
   reader,
 }: {
   thread: Thread;
-  /** The email view's place in the thread; unset in the conversation view. */
   reader: { index: number; email: Message | undefined; move: (step: number) => void } | undefined;
 }) {
   return (
@@ -194,45 +157,29 @@ function Foot({
         <FloatingPager index={reader.index} count={thread.messages.length} onMove={reader.move} />
       )}
       <FloatingReply thread={thread} messageId={reader?.email?.id} />
-      {/* The email view's email composer floats here, as the notes' does in the conversation. */}
       {reader && <ReplyComposer thread={thread} docked />}
       <ChatDock thread={thread} />
     </div>
   );
 }
 
-/**
- * A single email reads as the page: full width, no card, read from its top. A reply or a
- * note makes it a conversation again.
- */
 function isSingleEmail(
   thread: Thread | undefined,
   pending: number,
-  /** Unset on a personal thread, which has none. */
   helpdesk: HelpdeskState | undefined,
 ) {
   return thread?.messages.length === 1 && !pending && !helpdesk?.notes.length;
 }
 
-// The reader's layout, shared by the conversation and its skeleton so the two line up.
 const SECTION = "flex min-w-0 flex-1 flex-col";
 const SCROLLER = "flex min-h-0 flex-1 flex-col";
-// 40px under the last message: more than the 24px between messages, so the newest one doesn't
-// sit on the composer when scrolled to the end.
 const COLUMN = "mx-auto flex w-full max-w-3xl grow flex-col gap-6 px-5 pt-6 pb-10";
-// A single email: the column without its width cap.
 const PAGE = "flex w-full grow flex-col gap-6 px-5 pt-5 pb-6";
 
-/** The messages' column, with room at the end for what floats over the composer. */
 function columnClass(single: boolean) {
-  // Room at the end for the floating Reply and Forward (and a shared inbox's properties pill).
   return `${single ? PAGE : COLUMN} pb-20`;
 }
 
-/**
- * The thread while it loads: the toolbar, a subject and a few messages, drawn from skullet's
- * boxes in the reader's own layout. Not measured from sample messages, which cost every open.
- */
 function ConversationSkeleton() {
   return (
     <section aria-label="Conversation" className={SECTION}>
@@ -242,8 +189,6 @@ function ConversationSkeleton() {
         className={SECTION}
         skeleton={
           <>
-            {/* The top bar: the subject, then 28px buttons with 16px icons, as `Actions` lays them
-                out. */}
             <div className="flex h-12 shrink-0 items-center gap-3 border-s border-b ps-5 pe-4">
               <span className="min-w-0 flex-1">
                 <SkeletonBox width="45%" height={14} />
@@ -268,7 +213,6 @@ function ConversationSkeleton() {
   );
 }
 
-/** A message as a bubble: the sender's line over it, on the left (or yours, on the right). */
 function MessageBones({ width, ours = false }: { width: string; ours?: boolean }) {
   return (
     <div className={`flex flex-col gap-3 ${ours ? "items-end" : "items-start"}`}>
@@ -282,15 +226,9 @@ function MessageBones({ width, ours = false }: { width: string; ours?: boolean }
   );
 }
 
-/**
- * The messages, and on a shared inbox its notes and activity between them, oldest first. A long
- * thread folds its middle until asked, so a hundred-message thread mounts ten; each entry also
- * skips layout and paint while off screen (`content-visibility`).
- */
 function Timeline(props: {
   threadId: string;
   mailboxId: string;
-  /** The inbox's own address: it reads as "You" among a message's recipients. */
   mailboxAddress: string;
   messages: Message[];
   helpdesk: HelpdeskState | undefined;
@@ -298,14 +236,12 @@ function Timeline(props: {
 }) {
   const { threadId, mailboxId, mailboxAddress, messages, helpdesk, flat } = props;
   const [unfolded, setUnfolded] = useState(false);
-  // A message folded away mounts once the fold opens, then scrolls into view.
   const show = (id: string) => {
     if (scrollToMessage(id)) return;
     setUnfolded(true);
     requestAnimationFrame(() => requestAnimationFrame(() => scrollToMessage(id)));
   };
   const lines = useEventLines(mailboxId, helpdesk?.events ?? []);
-  // Each message by its Message-ID, for the one a team reply answered.
   const byHeader = new Map(messages.map((m) => [m.messageIdHeader, m]));
   const entries: { at: string; key: string; node: ReactNode }[] = [
     ...messages.map((message) => ({
@@ -336,7 +272,6 @@ function Timeline(props: {
       node: <EventLine event={event} text={text} />,
     })),
   ];
-  // Stable: a message and the event it caused keep their order (the message first).
   entries.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 
   const fold = !unfolded && entries.length > FOLD_OVER;
@@ -359,10 +294,6 @@ function Timeline(props: {
 }
 
 function Entry({ children }: { children: ReactNode }) {
-  // Off-screen messages keep a guessed height instead of laying out; `auto` remembers the real
-  // one once seen, so scrolling back does not jump. `content-visibility` clips paint to the box,
-  // so 6px of padding on every side (taken back by the margin) leaves room for the header's
-  // buttons and their 5px focus ring, which reach past the article's edges.
   return (
     <div className="-m-1.5 flex flex-col gap-3 p-1.5 [contain-intrinsic-size:auto_160px] [content-visibility:auto]">
       {children}
@@ -370,12 +301,6 @@ function Entry({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * The actions at the right of the bar over the conversation, the same on every thread (ADR 0032):
- * done and later (yours alone) and full screen. Opening a thread marks it read, so read state
- * has no button here; the row menu and the shortcut still mark a thread unread. A shared conversation's team state
- * (status, owner, priority, tags) is the rail under its title.
- */
 function Actions({ thread, subject }: { thread: Thread; subject: string }) {
   const [fullScreen, toggleFullScreen] = useFullScreen();
   const pageNav = usePageNavShown();
@@ -383,22 +308,15 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
   const closeHref = useOpenList()?.closeHref;
 
   return (
-    // The reading column's top bar: the subject, then the actions. One row with the list's
-    // header beside it, the same height and bottom line; end-2.5 matches that header's inset.
     <div
       className={`flex h-12 shrink-0 items-center gap-3 border-b pe-2.5 ${fullScreen && pageNav ? "ps-2.5" : "ps-5"} ${fullScreen ? "" : "border-s"}`}
     >
-      {/* Full screen hides the list and its header: the page's sidebar toggle (while the
-          sidebar is closed) starts this one instead. */}
       {fullScreen && <PageNav />}
-      {/* Full screen hides the list: switch threads from here, before the subject. */}
       {fullScreen && (
         <div className="-ms-2 flex max-w-[40%] shrink-0 items-center">
           <ThreadSwitcher threadId={thread.id} />
         </div>
       )}
-      {/* 14px, cut in its middle: a long subject keeps its start and its end. Centred as laid
-          out, like the list's title beside it: the capitals sit on the icons' centre line. */}
       <Heading level={2} className="min-w-0 flex-1 text-md" title={subject || undefined}>
         <MiddleTruncate text={subject || "(no subject)"} />
       </Heading>
@@ -407,7 +325,6 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
         <Action label={fullScreen ? "Side by side" : "Full screen"} onPress={toggleFullScreen}>
           {fullScreen ? <IconMinimize /> : <IconMaximize />}
         </Action>
-        {/* Back to the list alone, as Esc and a click on the open row do. */}
         {closeHref && (
           <Action label="Close" onPress={() => void navigate({ href: closeHref })}>
             <IconX />
@@ -418,16 +335,11 @@ function Actions({ thread, subject }: { thread: Thread; subject: string }) {
   );
 }
 
-/**
- * Done and Later, which act for you alone, on a personal thread and on a shared conversation
- * alike (ADR 0032): a teammate's Done, reply, assignment or status never clears it for you.
- */
 function TriageActions({ thread }: { thread: Thread }) {
   const threadId = thread.id;
   const moveToLater = useMoveToLater();
   const markDone = useMarkDone();
   const markUndone = useMarkUndone();
-  // Taken out of the list behind it, the thread gives way to the next row, as `e` and `h` do.
   const leave = useLeaveOpenThread();
   return (
     <>

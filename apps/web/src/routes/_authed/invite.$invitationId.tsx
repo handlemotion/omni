@@ -1,5 +1,3 @@
-// Placeholder UI: accept or decline an invitation. Signed-in users only; they may not belong to
-// any organization yet.
 import { createFileRoute } from "@tanstack/react-router";
 import {
   useAcceptInvitation,
@@ -23,7 +21,6 @@ function Invite() {
   const accept = useAcceptInvitation();
   const reject = useRejectInvitation();
 
-  // The loader fetched it; a failed load renders the route's error boundary instead.
   if (!invitation.data) return null;
   return (
     <main>

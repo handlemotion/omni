@@ -1,6 +1,3 @@
-// Prompts. Email text is untrusted data: it goes in the user turn inside one <email_data> block,
-// the system prompt says so, and nothing inside the block can close it early or fake a field.
-
 import { truncateToTokens } from "./policy.ts";
 import { MAX_TAG_QUESTIONS, MAX_TEAMMATE_QUESTIONS } from "./questions.ts";
 import type { TriageInput } from "./types.ts";
@@ -45,7 +42,6 @@ export function escapeUntrusted(text: string) {
   );
 }
 
-/** Header-like fields stay on one line so they can't forge another field. */
 function field(text: string) {
   return escapeUntrusted(text).replace(/\s+/g, " ").trim().slice(0, 300);
 }

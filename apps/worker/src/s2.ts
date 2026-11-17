@@ -1,6 +1,3 @@
-// S2, the durable stream store behind live co-editing (ADR 0043 decision 3 step 2), over its REST
-// API: S2 itself, or s2-lite (the same API, MIT) for a self-hoster and the local stack. Records
-// are written as text (`s2-format: raw`); the basin creates a stream on its first append or read.
 import type { Config } from "./env.ts";
 
 export interface S2Record {
@@ -39,10 +36,6 @@ export function s2Basin(config: Config) {
     return body as T;
   };
   return {
-    /**
-     * Appends one record. With `matchSeqNum`, only if it would be that record's number (the
-     * stream's tail): null when it would not.
-     */
     async append(stream: string, body: string, matchSeqNum?: number) {
       try {
         const done = await call<{ start: { seq_num: number } }>(records(stream), {
@@ -61,10 +54,6 @@ export function s2Basin(config: Config) {
         throw error;
       }
     },
-    /**
-     * The records from `from` on, at most `count`, oldest first. `more` when there may be others
-     * after them (a full batch).
-     */
     async read(stream: string, from: number, count = 1000) {
       try {
         const { records: batch } = await call<{ records: { seq_num: number; body?: string }[] }>(
@@ -75,7 +64,6 @@ export function s2Basin(config: Config) {
           more: batch.length === count,
         };
       } catch (error) {
-        // At or past the tail: nothing yet.
         if (error instanceof S2Error && error.status === 416) return { records: [], more: false };
         throw error;
       }

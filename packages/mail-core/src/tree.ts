@@ -1,7 +1,3 @@
-// A light HTML tree (parse5, the parser jsdom uses) for the read-only passes over mail HTML.
-// jsdom builds a full DOM and re-parses every `style` attribute through cssstyle, which made
-// it about 20x slower than parse5 on a 2 MB newsletter. Every walk here is iterative: mail
-// nests deep enough to overflow the stack of a recursive one.
 import { type DefaultTreeAdapterTypes, parse, parseFragment, serialize } from "parse5";
 
 export type Element = DefaultTreeAdapterTypes.Element;

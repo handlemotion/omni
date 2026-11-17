@@ -1,5 +1,3 @@
-// What agents reuse when they write (ADR 0021): signatures and canned replies, an inbox's or
-// their own, the customers they write to, and each member's own settings and phones.
 import {
   createCannedReply,
   customerProfile,
@@ -28,7 +26,6 @@ import { zValidator } from "../validator.ts";
 import { notFound } from "./mail.ts";
 
 const scopeQuery = z.object({
-  /** `inbox`: the mailbox's signature, for everyone on it. `mine`: this member's own. */
   scope: z.enum(["inbox", "mine"]),
 });
 
@@ -41,14 +38,11 @@ const cannedFields = z.object({
   title: z.string().trim().min(1).max(200),
   bodyText: z.string().min(1).max(100_000),
   bodyHtml: z.string().max(500_000).nullable().default(null),
-  /** Applied when the reply is used (through the conversation routes). */
   setStatus: z.enum(["open", "pending", "snoozed", "resolved"]).nullable().default(null),
-  /** The inbox's tags (`tags.id`) to add when used. A personal reply adds none. */
   addTagIds: z.array(z.string().min(1)).max(20).default([]),
 });
 
 const createCanned = cannedFields.extend({
-  /** The inbox the reply belongs to; null (or absent) for the member's own. */
   mailboxId: z.string().min(1).nullable().default(null),
 });
 
@@ -70,10 +64,6 @@ function writeFailed(error: CannedReplyWriteError): never {
 }
 
 export const library = new Hono<AppEnv>()
-  /**
-   * The inbox's signature and the member's own on it (each null when unset). The composer
-   * inserts the member's own when there is one, else the inbox's.
-   */
   .get("/mailboxes/:mailboxId/signature", async (c) => {
     const found = await memberSignatures(c.var.db, c.var.member.id, c.req.param("mailboxId"));
     if (!found) notFound();
@@ -110,7 +100,6 @@ export const library = new Hono<AppEnv>()
     return c.json(await memberSignatures(c.var.db, c.var.member.id, mailboxId));
   })
 
-  /** The inbox's replies (with `mailboxId`) and the member's own, by title. */
   .get(
     "/canned-replies",
     zValidator("query", z.object({ mailboxId: z.string().min(1).optional() })),
@@ -142,12 +131,6 @@ export const library = new Hono<AppEnv>()
     return c.body(null, 204);
   })
 
-  /**
-   * The reply filled in for one conversation: `{{customer.first_name}}`, `{{agent.name}}` and the
-   * rest (`TEMPLATE_VARIABLES`). `missing` lists variables with no value and no fallback, so the
-   * composer can flag them. `setStatus` and `addTagIds` are for the client to apply through the
-   * conversation routes when it sends.
-   */
   .post(
     "/canned-replies/:id/render",
     zValidator("json", z.object({ threadId: z.string().min(1) })),
@@ -157,7 +140,6 @@ export const library = new Hono<AppEnv>()
         templateContext(c.var.db, c.var.member.id, c.req.valid("json").threadId),
       ]);
       if (!reply || !context) notFound();
-      // An inbox's reply is for its own conversations.
       if (reply.mailboxId && reply.mailboxId !== context.mailboxId) notFound();
       const values = {
         "customer.name": context.customer?.name ?? null,
@@ -182,7 +164,6 @@ export const library = new Hono<AppEnv>()
     },
   )
 
-  /** Recipient autocomplete: customers of conversations the member can see, by address or name. */
   .get(
     "/customers",
     zValidator(
@@ -198,17 +179,14 @@ export const library = new Hono<AppEnv>()
     },
   )
 
-  /** The customer sidebar: profile and past conversations across the inboxes the member sees. */
   .get("/customers/:id", async (c) => {
     const profile = await customerProfile(c.var.db, c.var.member.id, c.req.param("id"));
     if (!profile) notFound();
     return c.json(profile);
   })
 
-  /** The member's settings, every default filled in. */
   .get("/preferences", async (c) => c.json(await memberSettings(c.var.db, c.var.member.id)))
 
-  /** Changes what the body names; a notification kind merges channel by channel. */
   .patch(
     "/preferences",
     zValidator(
@@ -228,7 +206,6 @@ export const library = new Hono<AppEnv>()
     async (c) => c.json(await updateMemberSettings(c.var.db, c.var.member.id, c.req.valid("json"))),
   )
 
-  /** Registers this phone's Expo push token for the member (moving it from anyone before). */
   .post(
     "/push-tokens",
     zValidator(
@@ -244,7 +221,6 @@ export const library = new Hono<AppEnv>()
     },
   )
 
-  /** Signing out on a phone: its token stops getting this member's pushes. */
   .delete("/push-tokens/:token", async (c) => {
     const removed = await unregisterPushToken(c.var.db, c.var.member.id, c.req.param("token"));
     if (!removed) notFound();

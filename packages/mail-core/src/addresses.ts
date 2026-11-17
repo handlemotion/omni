@@ -1,8 +1,3 @@
-// What "the same address" and "a company's domain" mean, for every module (ADR 0035 decision 5).
-// Mail participants, Storage grants, sign-in emails, helpdesk customers and CRM people are all
-// keyed by the address this normalises, and companies by its domain. Pure; imported as
-// `@omni/mail-core/addresses`.
-
 /** Mail hosts shared by many unrelated people: their domain says nothing about a company. */
 export const WEBMAIL_DOMAINS: ReadonlySet<string> = new Set([
   "gmail.com",
@@ -34,9 +29,7 @@ export function normalizeAddress(address: string) {
   return address.trim().toLowerCase();
 }
 
-/** One dot-separated atom of a local part: RFC 5322 `atext`. */
 const ATOM = /^[a-z0-9!#$%&'*+\-/=?^_`{|}~]+$/;
-/** One domain label: letters, digits and hyphens, not starting or ending with a hyphen. */
 const LABEL = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
 
 /**
@@ -81,7 +74,6 @@ export function isWebmailDomain(domain: string) {
 export function companyFromAddress(address: string) {
   const domain = domainOf(address);
   if (!domain || isWebmailDomain(domain)) return { domain: null, company: null };
-  // `mail.acme.co.uk` → "Acme": the label before the public suffix, roughly.
   const labels = domain.split(".");
   const short = labels.length > 2 && labels.at(-2)!.length <= 3 ? labels.at(-3) : labels.at(-2);
   const company = short ? short[0]!.toUpperCase() + short.slice(1) : null;

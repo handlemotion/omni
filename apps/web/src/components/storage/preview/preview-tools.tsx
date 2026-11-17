@@ -1,8 +1,3 @@
-// The island's state for the open file: the comment tool, the box drawn with it and its bar, the
-// threads pinned on the file, and the version on the stage. On a PDF or an image, Comment is a
-// targeting mode (Cursor turns it off): a drag draws a box and opens the bar beside it; on any
-// other file Comment opens the bar for the whole file over the island. Stepping to another file
-// starts it over.
 import { useState } from "react";
 import { useRestoreVersion, useStorageComments, useStorageVersions } from "@/hooks/use-storage.ts";
 import { fileType, IMAGE_PREVIEW_MAX_BYTES } from "@/lib/file-kind.ts";
@@ -14,18 +9,14 @@ import { CommentComposer } from "./comment-composer.tsx";
 import type { PdfBox, PdfMarks, PdfPin } from "./pdf-marks.tsx";
 import type { PreviewRail, RailVersion } from "./preview-rail.tsx";
 
-/** The version on the stage when it is not the current content. */
 interface ShownVersion {
   key: string;
   url: string;
-  /** The file as that version had it: its size, type and when it was written. */
   node: StorageNode;
 }
 
-/** What a box is drawn on: a PDF's pages, or an image (its one "page"). */
 type Surface = "pdf" | "image";
 
-/** "v3" down to "v1": the current content leads, numbered from the oldest kept version. */
 function railVersions(data: StorageVersions) {
   const count = data.versions.length + 1;
   return [
@@ -39,13 +30,11 @@ function railVersions(data: StorageVersions) {
   ] satisfies RailVersion[];
 }
 
-/** The anchor a box drawn on `surface` is sent as. */
 const anchorOf: (surface: Surface, box: PdfBox) => StorageCommentAnchor = (surface, box) => {
   const { page, ...rest } = box;
   return surface === "pdf" ? { kind: "pdf", page, ...rest } : { kind: "image", ...rest };
 };
 
-/** A thread's box on `surface`, if it has one there; an image's is on its one page. */
 const boxOf: (surface: Surface, anchor: StorageCommentAnchor | null) => PdfBox | null = (
   surface,
   anchor,
@@ -55,7 +44,6 @@ const boxOf: (surface: Surface, anchor: StorageCommentAnchor | null) => PdfBox |
   return null;
 };
 
-/** Open threads made on the content on the stage; a box on replaced content points nowhere. */
 function pinsOf(surface: Surface, data: { contentVersion: number; comments: StorageComment[] }) {
   return data.comments.flatMap((comment) => {
     const box = boxOf(surface, comment.anchor);
@@ -73,19 +61,16 @@ function pinsOf(surface: Surface, data: { contentVersion: number; comments: Stor
   }) satisfies PdfPin[];
 }
 
-/** What the stage draws boxes on; a file it shows no preview for keeps the whole-file bar. */
 const surfaceOf: (node: StorageNode) => Surface | null = (node) => {
   const type = fileType(node.name, node.mimeType);
   if (node.size === 0) return null;
   if (type.preview === "pdf") return "pdf";
-  // As `PreviewBody` decides: a raster within the preview's limit.
   if (type.preview === "image" && type.raster && node.size <= IMAGE_PREVIEW_MAX_BYTES) {
     return "image";
   }
   return null;
 };
 
-/** An older version on the stage: the file as that version had it. */
 function shownOf(
   node: StorageNode,
   kept: StorageVersions["versions"][number],
@@ -109,10 +94,7 @@ export function usePreviewTools(node: StorageNode, shareId: string | undefined) 
   const [composing, setComposing] = useState(false);
   const [targeting, setTargeting] = useState(false);
   const [draft, setDraft] = useState<PdfBox | null>(null);
-  // The content the box was drawn on, so a replacement before Send can't take the comment.
   const [draftVersion, setDraftVersion] = useState<number | undefined>(undefined);
-  // The stage could not show it after all (an image that fails to decode): the whole-file bar.
-  // Which content it failed on: a replacement gets its own try.
   const [unshownAt, setUnshownAt] = useState<number | null>(null);
   if (fileId !== node.id) {
     setFileId(node.id);
@@ -123,7 +105,6 @@ export function usePreviewTools(node: StorageNode, shareId: string | undefined) 
     setDraft(null);
   }
 
-  // Each answers 403 to whoever may not: a Viewer gets neither, a Commenter no versions.
   const versions = useStorageVersions(node.id, shareId);
   const comments = useStorageComments(node.id, shareId);
   const restore = useRestoreVersion();
@@ -149,7 +130,6 @@ export function usePreviewTools(node: StorageNode, shareId: string | undefined) 
   );
 
   const data = comments.data;
-  // A comment belongs to the current content: none while an older version is on the stage.
   const marks: PdfMarks | null =
     surface && !shown && data
       ? {
@@ -162,7 +142,6 @@ export function usePreviewTools(node: StorageNode, shareId: string | undefined) 
             setTargeting(false);
             setDraft(null);
           },
-          // Comment stays on until Cursor: each drag moves the bar to its box.
           onDraw: (box) => {
             setDraft(box);
             setDraftVersion(data.contentVersion);
@@ -178,7 +157,6 @@ export function usePreviewTools(node: StorageNode, shareId: string | undefined) 
             isDisabled: !!shown,
             onChange: (on: boolean) => {
               setTargeting(on);
-              // Cursor is for reading: a box's comment not sent goes with it.
               if (!on) setDraft(null);
             },
           }

@@ -1,18 +1,3 @@
-// A record's timeline (docs/spec/crm.md "The timeline"): its events, its notes, the threads
-// that involve its addresses and the activity teammates share about them, merged newest first.
-// The threads come from Mail's own door as the viewer (`forUser(...).threadsWith`), so each
-// member sees exactly the mail they can open in the inbox, from every mailbox in their session's
-// scope. Shared activity (ADR 0039 decision 2) comes from Mail's member door
-// (`sharedActivityWith`): who in the company corresponded with them and when, from mailboxes the
-// member cannot open, never a thread itself. A thread is one or the other, never both.
-//
-// A contract's events (`contract_*` in `crm_events`, written on its deal or else its company)
-// are `contract` items, never repeated as `event` items.
-//
-// Paging: every item is ordered by `(at, id)`, newest first; ids are UUIDs (an activity's is its
-// UUID-shaped key), unique across the sources. The cursor is the last item's `(at, id)`. Each
-// source is asked for one page strictly older than it, the pages are merged and cut to the
-// limit, so an item is never shown twice or skipped, whichever source it came from.
 import type { CrmTimelineItem, CrmTimelineResponse } from "@omni/contracts";
 import { crmContractStatusSchema, crmTimelineQuerySchema } from "@omni/contracts";
 import type { CrmEvent, CrmRecordRef } from "@omni/db";
@@ -38,10 +23,8 @@ const timelineCursor = z.object({ at: z.iso.datetime(), id: z.string().min(1) })
 
 type RecordKind = "companies" | "people" | "deals";
 
-/** What the timeline asks the sources about: the record, and the addresses Mail is asked for. */
 type Subject = ({ status: "ok"; ref: CrmRecordRef } & MailSubject) | CrmRefusal;
 
-/** A person's own addresses; a deal's people's; a company's people's plus its domains. */
 const recordSubject: (
   c: Context<AppEnv>,
   kind: RecordKind,
@@ -75,14 +58,12 @@ const contractChange = (kind: string) =>
     ? CONTRACT_CHANGES[kind as keyof typeof CONTRACT_CHANGES]
     : null;
 
-/** What every contract event carries (`@omni/db`'s `contractEvent`). */
 const contractData = z.object({
   contractId: z.string().min(1),
   title: z.string(),
   status: crmContractStatusSchema,
 });
 
-/** An event as its timeline item: a contract's own events are `contract` items. */
 const eventItem: (event: CrmEvent) => CrmTimelineItem = (event) => {
   const at = event.createdAt.toISOString();
   const change = contractChange(event.kind);
@@ -107,14 +88,12 @@ async function timeline(c: Context<AppEnv>, kind: RecordKind, id: string, page: 
   const cursor = decoded ? { at: new Date(decoded.at), id: decoded.id } : null;
   const crm = memberCrm(c);
   const crmPage = { cursor: cursor && { createdAt: cursor.at, id: cursor.id }, limit };
-  // Mail's sources are asked for one more than `limit`, to tell whether more exist.
   const [events, notes, threads, activity] = await Promise.all([
     crm.events(subject.ref, crmPage),
     crm.notes(subject.ref, crmPage),
     threadsOf(c, subject, cursor, limit + 1),
     activityOf(c, subject, cursor, limit + 1),
   ]);
-  // The record was there a moment ago; deleted since, it is gone.
   if (events.status !== "ok") return refused(c, events);
   if (notes.status !== "ok") return refused(c, notes);
 

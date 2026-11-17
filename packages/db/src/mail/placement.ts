@@ -1,6 +1,3 @@
-// Where a mailbox lives (ADR 0024 decision 2): its address decides, not the workspace that happens
-// to be open. An address on a company's locked domain belongs to that company; any other address
-// belongs to the connecting person's Personal space.
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { ensurePersonalSpace } from "../personal-space.ts";
@@ -69,9 +66,6 @@ export interface MisplacedMailbox {
  *   An owner who has no Personal space yet gets one at their next sign-in, and it moves then.
  */
 export async function listMisplacedMailboxes(db: Db) {
-  // The closest company lock on each Personal-space mailbox's domain first, then the owner's
-  // membership in that company: a member of a parent's company must not take a subdomain that
-  // another company locked.
   const rows = (await db.execute(sql`
     with closest as (
       select distinct on (m.id) m.id as mailbox_id, d.org_id
@@ -118,7 +112,7 @@ export async function listMisplacedMailboxes(db: Db) {
     credentials_enc: string;
     target_org_id: string;
     target_member_id: string;
-  }[]; // postgres-js: the rows themselves
+  }[];
   return rows.map((row) => ({
     id: row.id,
     orgId: row.org_id,

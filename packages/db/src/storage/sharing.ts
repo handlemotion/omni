@@ -1,6 +1,3 @@
-// Sharing (ADR 0034 decision 4): people added by address, and the one link every shared node
-// has. Only a member who can write the node shares it; every request checks the grant, so a
-// change here is immediate.
 import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -31,7 +28,6 @@ export interface StorageSharing {
 
 export type SharingResult = { status: "ok"; sharing: StorageSharing } | NotFound | Forbidden;
 export type PutGrantResult =
-  /** `created` is false when the person was already there and only their role changed. */
   | { status: "ok"; created: boolean; shareId: string; person: StoragePerson; node: StorageNode }
   | NotFound
   | Forbidden
@@ -80,7 +76,6 @@ async function readSharing(ex: Db, chain: NodeRow[]) {
 }
 
 export function sharingOperations(db: Db, door: Door) {
-  /** A live node the holder may share, or why not. */
   async function shareable(ex: Db, nodeId: string) {
     const found = await reach(ex, door, nodeId);
     if (!found || inTrash(found.chain)) return NOT_FOUND;
@@ -88,7 +83,6 @@ export function sharingOperations(db: Db, door: Door) {
     return { status: "ok" as const, ...found };
   }
 
-  /** Changes the node's link under a row lock, so the first share makes exactly one `share_id`. */
   function changeLink(
     nodeId: string,
     change: (node: NodeRow) => { shareId: string; linkAccess?: StorageLinkAccess },
@@ -115,14 +109,12 @@ export function sharingOperations(db: Db, door: Door) {
   }
 
   return {
-    /** Who has access: the people on the node, those on folders above it, and its link. */
     async sharing(nodeId: string) {
       const found = await shareable(db, nodeId);
       if (found.status !== "ok") return found satisfies SharingResult;
       return { status: "ok", sharing: await readSharing(db, found.chain) } satisfies SharingResult;
     },
 
-    /** `anyone` opens the link to whoever holds it; `restricted` closes it again at once. */
     setLinkAccess(nodeId: string, linkAccess: StorageLinkAccess) {
       return changeLink(nodeId, (node) => ({
         shareId: node.shareId ?? newShareId(),
@@ -130,12 +122,10 @@ export function sharingOperations(db: Db, door: Door) {
       })) satisfies Promise<SharingResult>;
     },
 
-    /** Gives the node a new link. The old one opens nothing from now on. */
     resetLink(nodeId: string) {
       return changeLink(nodeId, () => ({ shareId: newShareId() })) satisfies Promise<SharingResult>;
     },
 
-    /** Adds a person by address, or changes their role. */
     putGrant(nodeId: string, email: string, role: StorageGrantRole) {
       const address = normalizeAddress(email);
       if (!/^[^@\s]+@[^@\s]+$/.test(address))
@@ -163,7 +153,6 @@ export function sharingOperations(db: Db, door: Door) {
             email: address,
             role,
             createdByMemberId: await door.actor(tx, node.orgId),
-            // From this clock, not the database's: a cursor compares it at millisecond precision.
             createdAt: new Date(),
           })
           .onConflictDoUpdate({
@@ -188,7 +177,6 @@ export function sharingOperations(db: Db, door: Door) {
       });
     },
 
-    /** Removes a person. Their next request finds nothing. */
     async removeGrant(nodeId: string, email: string) {
       const found = await shareable(db, nodeId);
       if (found.status !== "ok") return found satisfies RemoveGrantResult;
@@ -228,7 +216,6 @@ export async function listSharedWith(
 ) {
   if (addresses.length === 0) return { items: [] as SharedWithMeItem[], nextCursor: null };
   const limit = pageSize(page.limit);
-  // Null when the node, or a folder above it, is in Trash: a grant opens nothing there.
   const live = sql`not exists (
     with recursive up(parent_id, trashed_at, depth) as (
       select n.parent_id, n.trashed_at, 0 from ${storageNodes} n where n.id = ${storageGrants.nodeId}

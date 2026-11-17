@@ -1,5 +1,3 @@
-// Settings pages about you: your name and the accounts on this browser, how you sign in and where
-// you are signed in, and the keyboard shortcuts.
 import {
   IconPlus,
   IconKey,
@@ -102,7 +100,6 @@ export function NameInputRow(props: {
 }) {
   const [draft, setDraft] = useState(props.saved);
   const next = (props.finalize ?? ((value: string) => value))(draft.trim());
-  // Once a save lands (or someone else changes it), the field shows the saved value.
   useEffect(() => setDraft(props.saved), [props.saved]);
   useSettingsPendingChanges({
     dirty: next !== "" && next !== props.saved,
@@ -183,7 +180,6 @@ export function ProfilePage() {
         title="Accounts on this browser"
         info="Sign in to another account from the sign-in page to switch between them here."
       >
-        {/* One skeleton for the whole card: a wrapper inside it would break the hairlines. */}
         <Skeleton id="settings-accounts" data={others} sample={[]} label="Loading accounts">
           {(accounts) => (
             <SettingsGroup>
@@ -193,7 +189,6 @@ export function ProfilePage() {
                 hint="current"
                 description={user.name ? user.email : undefined}
                 control={
-                  // Red at Rodrigo's call, though signing out can be undone by signing back in.
                   <Button
                     intent="danger"
                     isPending={signOut.isPending}
@@ -242,7 +237,6 @@ export function ProfilePage() {
   );
 }
 
-/** A label people can tell apart in the list; the authenticator gives none (transitive's). */
 function devicePasskeyName() {
   const agent = navigator.userAgent;
   if (/iPhone/.test(agent)) return "Passkey on iPhone";
@@ -255,7 +249,6 @@ function devicePasskeyName() {
   return "Passkey";
 }
 
-/** "Safari on iPhone" and the glyph for its kind of device, from a session's user agent. */
 const describeDevice: (agent: string | null | undefined) => {
   name: string;
   icon: SettingsRowIcon;
@@ -300,7 +293,6 @@ const describeDevice: (agent: string | null | undefined) => {
   return { name, icon };
 };
 
-/** What a stacked dialog over the Security page is doing, if anything. */
 type SecurityDialog =
   | { kind: "rename-passkey"; id: string; name: string }
   | { kind: "remove-passkey"; id: string; name: string }
@@ -408,8 +400,6 @@ export function SecurityPage() {
             <SettingsGroup>
               {list.map((entry) => {
                 const current = entry.token === session.token;
-                // This device is this browser, whatever agent signed the session in (a script, an
-                // app webview); the others are what their sessions recorded.
                 const device = describeDevice(current ? navigator.userAgent : entry.userAgent);
                 const seen = current ? "Active now" : `Last active ${ago(entry.updatedAt)}`;
                 return (
@@ -419,7 +409,6 @@ export function SecurityPage() {
                     label={device.name}
                     hint={current ? "this device" : undefined}
                     description={entry.ipAddress ? `${seen} · ${entry.ipAddress}` : seen}
-                    // The current device has no menu: signing it out is Log out, on Profile.
                     className={current ? settingsRowTextEndClassName : undefined}
                     control={
                       !current && (
@@ -530,7 +519,6 @@ export function ShortcutsPage() {
         <SettingsSection key={group} title={group}>
           <SettingsGroup>
             {SHORTCUT_IDS.filter((id) => SHORTCUTS[id].group === group).map((id) => (
-              // One line and a 20px cap: 44px rows keep 12px above and below the caps.
               <SettingsRow
                 key={id}
                 className={`min-h-11 ${settingsRowTextEndClassName}`}
@@ -545,7 +533,6 @@ export function ShortcutsPage() {
   );
 }
 
-/** Each alternative's keys as caps; "then" joins a sequence, "or" the alternatives. */
 function ShortcutKeys({ keys }: { keys: ShortcutDefinition["keys"] }) {
   return (
     <span className="flex items-center gap-1.5 text-xs text-subtle-foreground">
@@ -557,7 +544,6 @@ function ShortcutKeys({ keys }: { keys: ShortcutDefinition["keys"] }) {
               {j > 0 && <span>then</span>}
               <span className="flex gap-0.5">
                 {keyLabel(key).map((part) => (
-                  // Foreground on the cap: the keys are what this page is for.
                   <Keyboard key={part} className="text-foreground">
                     {part}
                   </Keyboard>

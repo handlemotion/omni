@@ -1,6 +1,3 @@
-// The workspace's one pipeline and its settings row, both made on first use. The settings row is
-// the seed's lock: whoever inserts it seeds the stages in the same transaction, and a racing
-// first use waits on that insert and then finds the stages committed.
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { crmDeals, crmSettings, crmStages } from "../schema/crm.ts";
 import {
@@ -95,9 +92,7 @@ export type ReplaceStagesResult =
   | NotFound
   | Forbidden
   | { status: "invalid_name" }
-  /** A stage left out of the list still holds deals (archived ones too). */
   | { status: "stage_in_use"; stageIds: string[] }
-  /** The list leaves a kind with no stage. */
   | { status: "stage_kind_required"; kinds: StageKind[] };
 
 /** Replaces the pipeline: rename, add, reorder and remove. Owners and admins only. */
@@ -108,7 +103,6 @@ export const replaceStages: (
 ) => Promise<ReplaceStagesResult> = async (tx, member, input) => {
   if (!member.admin) return FORBIDDEN;
   await ensureCrm(tx, member.orgId);
-  // Serializes replaces of one workspace's pipeline.
   await tx
     .select({ orgId: crmSettings.orgId })
     .from(crmSettings)
@@ -135,10 +129,8 @@ export const replaceStages: (
       .where(and(eq(crmDeals.orgId, member.orgId), inArray(crmDeals.stageId, removed)));
     if (inUse.length > 0) return { status: "stage_in_use", stageIds: inUse.map((r) => r.stageId) };
     try {
-      // In a savepoint, so the refusal leaves the transaction usable.
       await tx.transaction((sp) => sp.delete(crmStages).where(inArray(crmStages.id, removed)));
     } catch (error) {
-      // A deal moved into a removed stage after the check above.
       if (isForeignKeyViolation(error)) return { status: "stage_in_use", stageIds: removed };
       throw error;
     }

@@ -1,8 +1,3 @@
-// A shared inbox's SLA settings: targets per priority, business hours and auto-assign. Every
-// change shows at once and rolls back if the request fails (403 for members who are not owners or
-// admins). A conversation's own due times are on `useConversation(threadId).data`
-// (`firstResponseDueAt`, `nextResponseDueAt`, `resolutionDueAt`), and list rows carry the soonest
-// as `slaDueAt`.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteBusinessHoursMutation,

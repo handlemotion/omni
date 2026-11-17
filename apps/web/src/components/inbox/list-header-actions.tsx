@@ -1,4 +1,3 @@
-// The icon actions in a list's header: search, mark all read, reload, compose.
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { IconArrowRotateClockwise, IconMailOpen } from "@/components/icons/central";
@@ -46,8 +45,6 @@ export function ReloadAction() {
       isPending={pending}
       onPress={() => {
         setPending(true);
-        // Server data only: client-only state (pending and failed sends) has nothing to fetch,
-        // and refetching it would clear it.
         void client
           .refetchQueries({
             type: "active",

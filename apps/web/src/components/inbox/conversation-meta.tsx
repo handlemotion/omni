@@ -1,5 +1,3 @@
-// What a helpdesk row shows after its subject: status (where the view mixes them), tags,
-// priority (only when it is raised), the SLA clock, a paperclip, the assignee and the time.
 import { useSyncExternalStore } from "react";
 import { IconPaperclip } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
@@ -24,8 +22,6 @@ const STATUS_LABELS: Record<ConversationStatus, string> = {
   resolved: "Resolved",
 };
 
-// One clock for every row's SLA timer: a tick a minute, so a long list re-renders once, not once
-// a row, and only the timers re-render.
 const clock = (() => {
   let now = Date.now();
   const listeners = new Set<() => void>();
@@ -49,7 +45,6 @@ const clock = (() => {
   };
 })();
 
-/** "12m", "3h", "2d": the larger unit, rounded down, from a span in milliseconds. */
 function span(ms: number) {
   const minutes = Math.max(1, Math.floor(Math.abs(ms) / 60_000));
   if (minutes < 60) return `${minutes}m`;
@@ -57,10 +52,8 @@ function span(ms: number) {
   return hours < 48 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
 }
 
-/** Same as the API's at-risk window (`SLA_AT_RISK_MINUTES`). */
 const AT_RISK_MS = 30 * 60_000;
 
-/** Time left until the next SLA due time: quiet while there is room, amber near, red past. */
 function SlaTimer({ due }: { due: string }) {
   const now = useSyncExternalStore(clock.subscribe, clock.get);
   const left = new Date(due).getTime() - now;
@@ -103,9 +96,6 @@ export function ConversationMeta({ info }: { info: ConversationRowInfo }) {
           {STATUS_LABELS[info.status]}
         </Badge>
       )}
-      {/* Beside an open conversation the list is narrow: priority, SLA and time stay; status,
-          paperclip and assignee need a wider list, tags wider still, so the subject keeps room. */}
-      {/* Tags only where the list is wide enough to keep the subject readable. */}
       {info.tags.slice(0, 2).map((tag) => (
         <Badge
           key={tag.id}

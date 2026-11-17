@@ -1,5 +1,3 @@
-// One MCP server per request (ADR 0029): stateless, so every call is verified and read afresh, and
-// the tools listed are the ones the token's scopes allow.
 import { CRM_READ_SCOPE, CRM_WRITE_SCOPE, MAIL_DRAFT_SCOPE, MAIL_TRIAGE_SCOPE } from "@omni/auth";
 import type { Db } from "@omni/db";
 import { McpServer } from "@modelcontextprotocol/server";

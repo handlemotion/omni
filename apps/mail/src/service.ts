@@ -1,5 +1,3 @@
-// Assembles the mail service: Postgres storage, one supervised connection per mailbox, HTTP.
-// `main.ts` runs it as a process; e2e suites run it in-process against the real local stack.
 import {
   createDb,
   listServiceMailboxes,
@@ -76,8 +74,6 @@ export interface MailService {
 }
 
 export async function startService(config: ServiceConfig, log: Logger) {
-  // A fixed share of the database's connection budget, next to Hyperdrive's origin limit
-  // (docs/self-hosting.md, "Connection budget"); postgres-js would otherwise open up to 10.
   const { db, close } = createDb(config.DATABASE_URL, { max: 5 });
   const google =
     config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
@@ -92,24 +88,16 @@ export async function startService(config: ServiceConfig, log: Logger) {
     logger: log,
     onDelivered: async (delivered) => {
       const pendingIds = delivered.flatMap((d) => (d.pendingId ? [d.pendingId] : []));
-      // Left in place, the sweep sends them again: at least once, and every receiver is idempotent.
       await deletePendingMailEvents(db, pendingIds).catch((error: unknown) =>
         log.warn("notify.pending_delete_failed", { events: pendingIds.length, error }),
       );
       const events = delivered.map((d) => d.event);
       const ids = events.flatMap((e) => (e.type === "message.created" ? [e.messageId] : []));
-      // Left pending, the sweep sends them again (at least once). The Worker does not dedupe
-      // yet, so a failed write here can repeat a push for that message; rare, and better than
-      // a lost one.
       await markNotified(db, ids).catch((error: unknown) =>
         log.warn("notify.mark_failed", { events: ids.length, error }),
       );
     },
   });
-  /**
-   * Sends what the Worker has not accepted yet: `message.created` for new rows, and the events sync
-   * queued in `pending_mail_events` with the change they report (merge, prune, failed action).
-   */
   const sweepNotifications = async () => {
     const rows = await pendingNotifications(db, 500);
     if (rows.length > 0) log.info("notify.sweep", { pending: rows.length });
@@ -125,12 +113,10 @@ export async function startService(config: ServiceConfig, log: Logger) {
       else unreadable.push(row.id);
     }
     if (unreadable.length > 0) {
-      // Never accepted by any Worker: retrying would block nothing but would log forever.
       log.error("notify.pending_unreadable", { events: unreadable.length });
       await deletePendingMailEvents(db, unreadable);
     }
   };
-  /** Delivers queued events now rather than at the next sweep. Concurrent calls share one run. */
   let delivering: Promise<void> | null = null;
   let deliverAgain = false;
   const deliverPending = () => {
@@ -160,11 +146,9 @@ export async function startService(config: ServiceConfig, log: Logger) {
     db,
     onIngested: ({ folder: _folder, ...message }) =>
       notifier.push({ type: "message.created", ...message }),
-    // Pruning and merging queue their events in `pending_mail_events`; send them now.
     onPruned: deliverPending,
     onMerged: deliverPending,
     onChanged: deliverPending,
-    // Not queued: the next full sync finds the same conversations again.
     onDiscarded: ({ threadIds, ...discarded }) => {
       for (let i = 0; i < threadIds.length; i += MAX_PRUNED_THREADS_PER_EVENT) {
         const chunk = threadIds.slice(i, i + MAX_PRUNED_THREADS_PER_EVENT);
@@ -188,7 +172,6 @@ export async function startService(config: ServiceConfig, log: Logger) {
     concurrency: config.MAILBOX_CONCURRENCY,
   });
 
-  // The host Omni operates, when configured: provisions hosted mailboxes and heals their logins.
   const host = config.PURELYMAIL_API_TOKEN
     ? createPurelymailHost(createPurelymailClient(config.PURELYMAIL_API_TOKEN), log)
     : undefined;
@@ -208,15 +191,12 @@ export async function startService(config: ServiceConfig, log: Logger) {
       })
     : undefined;
 
-  // One reconcile at a time; a request during one runs once more after it.
   let reconciling: Promise<void> | null = null;
   let again = false;
   let stopping = false;
   const gmailSyncDays = config.GMAIL_SYNC_DAYS ?? 7;
   async function reconcileOnce() {
     if (stopping) return;
-    // Mailboxes whose address a company has since locked move there first (ADR 0024), so the
-    // list below connects them where they now live.
     await rehomeMailboxes({
       db,
       keyring: config.MAIL_CREDENTIALS_KEY,
@@ -251,7 +231,6 @@ export async function startService(config: ServiceConfig, log: Logger) {
         address: row.address,
         kind: row.kind,
         provider: row.provider,
-        // A Google account indexes from a few days before it was connected (ADR 0045).
         ...(row.provider === "gmail" && gmailSyncDays > 0
           ? { syncSince: new Date(row.createdAt.getTime() - gmailSyncDays * DAY_MS) }
           : {}),
@@ -265,11 +244,8 @@ export async function startService(config: ServiceConfig, log: Logger) {
           log.warn("mailbox.status_failed", { mailboxId: row.id, error }),
         );
       connection.on("connected", () => void setStatus("active"));
-      // Shows the app a mailbox whose app password or Google access was revoked; retrying
-      // continues until the connection gives up.
       connection.on("auth_failed", () => {
         void setStatus("error");
-        // A hosted login Omni can replace itself (plan H-4); others wait for their owner.
         if (row.provider === "purelymail") void rotateLogin?.rotate(row);
       });
     }
@@ -290,7 +266,6 @@ export async function startService(config: ServiceConfig, log: Logger) {
     return reconciling;
   }
 
-  /** Connects a mailbox with its stored credentials, replacing a connection it already has. */
   const reconnect = async (mailboxId: string) => {
     if (supervisor.has(mailboxId)) await supervisor.remove(mailboxId);
     await reconcileMailboxes();
@@ -317,7 +292,6 @@ export async function startService(config: ServiceConfig, log: Logger) {
     ),
   );
 
-  // Credit moves slowly; hourly is plenty and costs one API call.
   void credit?.check();
   const creditLoop = credit ? every(60 * 60_000, () => credit.check()) : undefined;
 
@@ -347,8 +321,6 @@ export async function startService(config: ServiceConfig, log: Logger) {
             ),
         }
       : {}),
-    // Works without the OAuth client too: revoking needs none, and a self-hoster who removed it
-    // can still let people disconnect.
     disconnectGoogle: (input) =>
       disconnectGoogle(
         {
@@ -359,7 +331,6 @@ export async function startService(config: ServiceConfig, log: Logger) {
         },
         input,
       ),
-    // Works without a host too: a hosted mailbox can still be forgotten, with nothing to revoke.
     disconnectHosted: (input) => disconnectHostedMailbox(disconnectDeps, input),
     disconnectMailbox: (input) => disconnectMailbox(disconnectDeps, input),
     log: httpLog,
@@ -375,14 +346,10 @@ export async function startService(config: ServiceConfig, log: Logger) {
     }),
     onPing: ({ requestId }) => {
       httpLog.info("outbox.pinged", { requestId });
-      // A ping means the Worker changed something: new actions, or a mailbox added.
       void reconcileMailboxes()
         .catch((error: unknown) => log.error("mailbox.reconcile_failed", { error }))
         .then(() => supervisor.ping());
     },
-    // Ready means this process can do its job: not shutting down, and Postgres answers. IMAP is
-    // reported but does not fail the check: a mail host outage must not fail deploys or make the
-    // host cycle a machine that would only reconnect to the same outage.
     health: async () => {
       const database = stopping ? false : await databaseAnswers();
       return {
@@ -392,7 +359,6 @@ export async function startService(config: ServiceConfig, log: Logger) {
         mailboxes: supervisor.mailboxCount,
         connected: supervisor.connectedCount,
         ready: supervisor.readyCount,
-        // Only the state, never the amount: /health is public.
         ...(credit ? { hostCredit: credit.state() } : {}),
       };
     },

@@ -1,7 +1,3 @@
-// An image, fitted to the stage. Its bytes are fetched once and shown as an allow-listed raster
-// `blob:` URL, never under the type it was uploaded with (ADR 0040). It is sized to the stage in
-// script, so the comment pins and the box being drawn (`PageMarks`, page 1) sit on the image
-// itself, not on the stage around it.
 import { use, useEffect, useRef, useState, type RefObject } from "react";
 import { useFileImage } from "@/hooks/use-storage-preview.ts";
 import type { PreviewSource } from "@/lib/storage-preview.ts";
@@ -26,7 +22,6 @@ export function ImagePreview(props: {
   }, [failed, onUnshown]);
   if (failed) return <NoPreview kind="image" onDownload={props.onDownload} />;
   if (!image.data) return <StageLoading label="Loading image" />;
-  // Never past its own size; until it has loaded, the browser's own fit.
   const scale =
     natural && room ? Math.min(room.width / natural.width, room.height / natural.height, 1) : null;
   return (
@@ -61,7 +56,6 @@ export function ImagePreview(props: {
   );
 }
 
-/** The stage's inner size, inside its padding. */
 function useRoom(ref: RefObject<HTMLDivElement | null>, ready: boolean) {
   const [room, setRoom] = useState<{ width: number; height: number } | null>(null);
   useEffect(() => {

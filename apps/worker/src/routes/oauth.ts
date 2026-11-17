@@ -1,9 +1,3 @@
-// The two steps of an agent's OAuth sign-in that are ours, not Better Auth's (ADR 0029).
-//
-// - Login: the provider sends a signed-out person to `GET /api/oauth/login` with the authorization
-//   request. We send them to the web app's own `/login`, which returns them to that same request
-//   at `/api/auth/oauth2/authorize` once they are in, by any sign-in method.
-// - Workspace: the consent screen records which workspace the grant reaches before accepting.
 import { chooseOAuthWorkspace } from "@omni/db";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -11,16 +5,11 @@ import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
 
-/**
- * Query parameters the provider adds to sign its redirect (`sig`, `exp`, `ba_*`), not part of the
- * client's request: authorize signs it again.
- */
 function isSignatureParam(key: string) {
   return key === "sig" || key === "exp" || key.startsWith("ba_");
 }
 
 const workspaceBody = z.object({
-  /** The workspace id, or null for every workspace. */
   workspace: z.string().min(1).nullable(),
 });
 

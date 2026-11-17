@@ -1,11 +1,3 @@
-// Hand-off (ADR 0030): a teammate answers a shared conversation from their own personal mailbox,
-// and the conversation leaves the team. The send is queued on the personal mailbox, and in the
-// same transaction the shared conversation is assigned to the sender, resolved, and gets a
-// `handoff` event. Cancelling the send inside its undo window puts the conversation back.
-//
-// Status changes go through `applyStatus` and `assign` (conversations.ts), so the rules of
-// `nextConversationState` hold here too. Both functions are idempotent: a retried request finds
-// its send and its event and changes nothing more.
 import type { SendAttachment } from "@omni/contracts";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -20,7 +12,6 @@ import { applyStatus, assign } from "./conversations.ts";
 import { conversationEvents } from "../schema/index.ts";
 import type { NewMailAction } from "./writers.ts";
 
-/** What a `handoff` event remembers, so a cancelled send can put the conversation back. */
 interface HandoffData {
   mailboxId: string;
   address: string;
@@ -47,7 +38,6 @@ export async function enqueueHandoff(
 ) {
   const now = input.now ?? new Date();
   return db.transaction(async (tx) => {
-    // Locked first, so a teammate's change to the conversation waits for the hand-off or wins.
     const locked = await lockConversation(tx, input.threadId, input.memberId);
     if (!locked) return { ok: false as const, reason: "not_found" as const };
     const { kind, ...row } = locked;
@@ -55,9 +45,7 @@ export async function enqueueHandoff(
     const queued = await enqueueSendWithAttachments(tx, input.send, input.attachments, {
       delaySeconds: input.delaySeconds,
     });
-    // Nothing was written: the attachments are not the personal mailbox's to send.
     if ("invalid" in queued) return { ok: false as const, reason: "invalid_attachments" as const };
-    // Only a draft send can find its draft gone, and a hand-off sends no draft.
     if (!("action" in queued)) return { ok: false as const, reason: "not_found" as const };
     const applied = await applyHandoff(tx, row, input.memberId, queued.action.id, input.send, now);
     return { ok: true as const, action: queued.action, ...applied };
@@ -90,8 +78,6 @@ async function applyHandoff(
     })
     .onConflictDoNothing()
     .returning({ id: conversationEvents.id });
-  // A retry of the same request: the hand-off is already applied, and a teammate may have
-  // changed the conversation since. Leave it.
   if (!written) return { conversation: row, changed: false, queuedActions: 0 };
   const cause = { cause: "handoff" };
   const assigned = await assign(tx, row, memberId, memberId, now, cause);
@@ -150,7 +136,6 @@ export async function undoHandoff(
     conversation: reassigned.row,
     changed: reopened.changed || reassigned.changed,
     queuedActions: reopened.queuedActions,
-    /** Whoever had it before and got an `assigned` notification back: tell them in realtime. */
     notified: reassigned.notified ?? [],
   };
 }

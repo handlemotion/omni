@@ -1,5 +1,3 @@
-// Helpdesk triage on Jev: the priority table and tag picking, and that a recorded-shape response
-// maps each tag's Noul back to the right tag. No network: answers come through an injected fetch.
 import { describe, expect, it } from "vitest";
 import {
   createJevClient,
@@ -28,9 +26,7 @@ describe("assignee", () => {
   it.each([
     ["the one whose role reads yes", [0.1, 0.9], "needs_reply", "bo"],
     ["the most likely of two yeses", [0.95, 0.8], "needs_reply", "ana"],
-    // Between the bands is not a yes: it stays for a person to pick up.
     ["nobody when no role is a settled yes", [0.6, 0.5], "needs_reply", null],
-    // A receipt that matches Billing still asks nothing of anyone.
     ["nobody when the message waits on no one", [0.95, 0.1], "fyi", null],
     ["nobody for noise", [0.95, 0.1], "noise", null],
   ] as const)("picks %s", (_, nouls, bucket, expected) => {
@@ -49,7 +45,6 @@ describe("priority table", () => {
     ],
     ["a double charge", { money_at_stake: 0.9 }, "needs_reply", "high"],
     ["an angry follow-up", { sender_upset: 0.9 }, "needs_reply", "high"],
-    // Bulk mail shouting URGENT must not jump the queue.
     [
       "a promotion that claims urgency",
       { sender_blocked: 0.9, time_sensitive: 0.95 },

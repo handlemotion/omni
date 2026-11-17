@@ -1,12 +1,3 @@
-// The bundled local shell (docs/spec/desktop.md, "The shell"). It decides which Omni server the
-// window shows, then hands over to Rust (`open_server`), which keeps the choice, grants that
-// origin the remote capability and loads it: the stored choice, else the build's default, else
-// the server picker. A server that does not answer gets the offline screen. It never calls
-// `/api`; the one request it makes is a no-cors probe of the server's root. Until it knows what to
-// show, and while the server's page loads after, it shows the loading screen.
-//
-// `?resume=<path>` comes from Rust when the window's page died (`recovery.rs`): reopen that page
-// once the server answers. `?offline` is the same after too many in a row: wait for a click.
 import { invoke } from "@tauri-apps/api/core";
 
 const PROBE_TIMEOUT_MS = 8000;
@@ -17,10 +8,8 @@ const input = picker.querySelector<HTMLInputElement>("input")!;
 const loading = document.querySelector<HTMLElement>("#loading")!;
 const params = new URLSearchParams(window.location.search);
 
-/** True when the server answers at all. An opaque response is enough: it is reachable. */
 async function reachable(origin: string) {
   try {
-    // HEAD: an answer is all it needs, not the page.
     await fetch(new URL("/", origin), {
       method: "HEAD",
       mode: "no-cors",
@@ -33,7 +22,6 @@ async function reachable(origin: string) {
   }
 }
 
-/** The address as Rust will store it, or null when it is not one (Rust checks again). */
 function toOrigin(value: string) {
   const text = value.trim();
   try {
@@ -97,13 +85,11 @@ document.querySelector("#change")!.addEventListener("click", () => {
   show(picker);
 });
 
-// Coming back online retries by itself, so a laptop waking up needs no click.
 window.addEventListener("online", () => {
   if (!offline.hidden) offline.requestSubmit();
 });
 
 async function start() {
-  // `?pick` comes from the app menu's "Change Server…": always ask.
   if (params.has("pick")) return show(picker);
   const stored = await invoke<string | null>("server_origin");
   const origin = toOrigin(stored ?? import.meta.env.OMNI_DESKTOP_ORIGIN ?? "");

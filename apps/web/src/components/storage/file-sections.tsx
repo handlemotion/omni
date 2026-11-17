@@ -1,13 +1,3 @@
-// A folder's contents as two sections, Folders then Files, each laid out its own way, rows or
-// cards (folders default to cards, files to rows; `use-storage-view.ts`). A section's header
-// carries its label and count, and at its far end the two layout icons, shown while the section
-// is hovered or focused. Rows float as the mail list's do: undivided, inset 10px, rounded, one
-// hover highlight springing between them. The open file is the Files section's one selected
-// item: a click or the arrow keys select a file and its preview follows.
-//
-// One page scroll for both sections. Each section is virtualized against it: only the rows and
-// cards near the screen are rendered, however many pages of the folder have loaded, and the
-// next page loads as the end nears.
 import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Selection } from "react-aria-components";
 import { ListLayout, Virtualizer } from "react-aria-components/Virtualizer";
@@ -67,7 +57,6 @@ export interface Drafts {
 export const FileSections = memo(function FileSections(props: FileSectionsProps) {
   const folders = props.nodes.filter((n) => n.kind === "folder");
   const files = props.nodes.filter((n) => n.kind === "file");
-  // While a drag would land in this folder, a gap opens where it will be (`node-drag.tsx`).
   const here = props.drag?.here?.place;
   const folderGap = useGapAt(here, folders, "folder");
   const fileGap = useGapAt(here, files, "file");
@@ -125,7 +114,6 @@ export const FileSections = memo(function FileSections(props: FileSectionsProps)
   );
 });
 
-/** A section: its header, with the layout icons at its end, over its items in that layout. */
 function Section(props: {
   section: StorageSection;
   label: string;
@@ -136,15 +124,12 @@ function Section(props: {
   const [view, setView] = useStorageView(props.section);
   return (
     <section aria-label={props.label} className="group/section flex flex-col">
-      {/* 48px, the room above each section; the first 36px, close under the page's title. The
-          icons sit 10px in from the end, under the header's actions. */}
       <div
         className={`flex items-end gap-1.5 ps-5 pe-2.5 pb-2 text-sm text-muted-foreground ${props.first ? "h-9" : "h-12"}`}
       >
         {props.label}
         <span className="text-subtle-foreground tabular-nums">{props.count}</span>
         <span className="flex-1" />
-        {/* Shown while the section is hovered or holds focus; always on touch. */}
         <div className="-mb-1 opacity-0 transition-opacity duration-150 group-focus-within/section:opacity-100 group-hover/section:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none">
           <ToggleGroup
             bare
@@ -188,14 +173,12 @@ type SelectionProps = Pick<
   "selectionMode" | "selectionBehavior" | "selectedKeys" | "onSelectionChange"
 >;
 
-/** A new folder's place among the items, keyed by its draft's key. */
 interface DraftItem {
   id: string;
   draft: FolderDraft;
   handlers: DraftHandlers;
 }
 
-/** The room a drag opens where its item will land. */
 interface GapItem {
   id: typeof GAP_KEY;
   gap: true;
@@ -203,7 +186,6 @@ interface GapItem {
 
 const GAP_KEY = "drive-drag-gap";
 
-/** A section's items, as rows or as cards; folders are links, files are picked. */
 function Items(props: {
   view: StorageView;
   label: string;
@@ -216,7 +198,6 @@ function Items(props: {
   selection?: SelectionProps;
   peek?: boolean | undefined;
   drag?: NodeDrag | undefined;
-  /** Where a drag would land among the nodes, if it lands here. */
   gap?: number | null;
 }) {
   const href = (node: StorageNode) => (node.kind === "folder" ? props.href(node) : undefined);
@@ -232,7 +213,6 @@ function Items(props: {
     : nodes;
   const top = useRevealDraft(drafts.find((d) => d.step === "naming")?.key);
   const shifting = useShifting();
-  // The item being renamed here, if it is one of this section's.
   const renaming = props.rename?.renaming;
   const named =
     renaming?.at === "list" && props.nodes.some((n) => n.id === renaming.id) ? renaming : null;
@@ -245,18 +225,13 @@ function Items(props: {
     "aria-label": props.label,
     items,
     disabledKeys: [GAP_KEY],
-    // A file is picked as the press ends, not as it starts: picking it up to drag it opens nothing.
     shouldSelectOnPressUp: true,
-    // Items render again when the name being changed does (they are cached by their node).
     dependencies: [named],
     ...props.selection,
-    // While a name is typed, arrows and Home/End stay in its field rather than the list's.
     ...(typing ? { keyboardNavigationBehavior: "tab" as const } : {}),
   };
   if (props.view === "cards") {
     return (
-      // Cards 184px, 12px apart, 14px in (`cards-layout.ts`); the cards' own 6px inset
-      // puts their squares 20px from the page's edges, like the rows' tiles.
       <>
         {top}
         <Virtualizer layout={CardsLayout} layoutOptions={CARDS_LAYOUT}>
@@ -288,12 +263,7 @@ function Items(props: {
     <RowHover>
       {top}
       <Virtualizer layout={ListLayout} layoutOptions={ROWS_LAYOUT}>
-        <GridList
-          {...list}
-          // Transparent: the hover highlight sits under the rows. The virtualizer gives its sizer
-          // and row wrappers no width, so they take the list's (as the mail list's do).
-          className={`bg-transparent *:w-full *:*:w-full ${shifting}`}
-        >
+        <GridList {...list} className={`bg-transparent *:w-full *:*:w-full ${shifting}`}>
           {(node) =>
             "gap" in node ? (
               <GapRow />
@@ -320,12 +290,9 @@ function Items(props: {
 function FileRow(props: {
   node: StorageNode;
   href: string | undefined;
-  /** Where its bytes are read, for an image's or a PDF's tile. */
   url: string;
-  /** Folders read their contents on hover; off through a shared link's door. */
   prefetch: boolean;
   menu: SettingsRowMenuItem[];
-  /** Its name as a field, while it is renamed. */
   name?: ItemName | undefined;
   drag: NodeDrag | undefined;
 }) {
@@ -340,16 +307,11 @@ function FileRow(props: {
       id={node.id}
       href={props.href}
       textValue={node.name}
-      // Not through a shared link's door: a folder's own list is the member's.
       onHoverStart={props.prefetch ? () => prefetch(node) : undefined}
-      // The open file keeps the accent fill, as the open thread's row does. 48px: a 32px tile,
-      // 8px above and below.
       className={`mx-2.5 h-12 gap-3 rounded-lg ps-2 pe-1 selected:bg-accent ${DROP_TARGET} ${LIFTED}`}
     >
       <RowTile node={node} url={props.url} />
       <NodeName node={node} name={props.name} />
-      {/* The secondary columns, muted, in tabular figures; they leave as the list narrows, and
-          a lifted row leaves them behind. */}
       <span data-drag-trim className="w-16 shrink-0 @max-xl:hidden">
         {type && <TypeBadge label={type.label} />}
       </span>
@@ -362,7 +324,6 @@ function FileRow(props: {
       >
         {DAY.format(new Date(node.updatedAt))}
       </span>
-      {/* Shown on the row's hover and focus, and while its menu is open; always on touch. */}
       <span
         {...KEEP_IN_MENU}
         data-drag-trim
@@ -374,7 +335,6 @@ function FileRow(props: {
   );
 }
 
-/** The room a drag opens among the rows. */
 function GapRow() {
   return (
     <GridListItem id={GAP_KEY} textValue="" className={`mx-2.5 h-12 ${GAP}`} data-drive-gap>
@@ -383,7 +343,6 @@ function GapRow() {
   );
 }
 
-/** The room a drag opens among the cards: a card's square and caption, in outline. */
 function GapCard() {
   return (
     <GridListItem
@@ -393,7 +352,6 @@ function GapCard() {
       data-drive-gap
     >
       <div className="aspect-square" />
-      {/* As tall as a card's two caption lines, so the cards keep their measured size. */}
       <div className="invisible flex flex-col gap-1 text-sm">
         <span>&nbsp;</span>
         <span className="text-xs">&nbsp;</span>
@@ -402,10 +360,6 @@ function GapCard() {
   );
 }
 
-/**
- * While a drag is under way, and as it settles, items glide to their new places: aside for a
- * gap, and together as one closes. The virtualizer places each item, so its wrappers move.
- */
 function useShifting() {
   const { phase } = useDriveDrag();
   const [settling, setSettling] = useState(false);
@@ -433,12 +387,6 @@ export function RowHover({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * A mark at the top of a section's items, scrolled into view (with the section's label above
- * it) when a new folder's name starts being typed there. The draft is the first item, and a
- * virtualized list renders only the items near the screen: scrolled past it, its field would
- * not be there to take focus.
- */
 function useRevealDraft(naming: string | undefined) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -450,7 +398,6 @@ function useRevealDraft(naming: string | undefined) {
 /** Rows are 48px, as `FileRow` draws them. */
 export const ROWS_LAYOUT = { rowSize: 48, loaderSize: 0 };
 
-/** Asks for the folder's next page when this nears the screen (two screens ahead). */
 function LoadMore(props: { onLoadMore: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const load = useRef(props.onLoadMore);
@@ -459,8 +406,6 @@ function LoadMore(props: { onLoadMore: () => void }) {
     const element = ref.current;
     if (!element) return;
     const observer = new IntersectionObserver(
-      // The latest entry: a busy page gets several at once, oldest first, and reading the first
-      // one missed that the end had come into view, leaving the list stuck there.
       (entries) => entries.at(-1)?.isIntersecting && load.current(),
       { rootMargin: "200% 0px" },
     );

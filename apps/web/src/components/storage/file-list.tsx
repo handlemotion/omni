@@ -1,5 +1,3 @@
-// A folder's page in My files or Shared (ADR 0034 decision 8), through the member's door: its
-// place in the title, and each row's Download, Share, Rename, Move, Comments, Versions and Move to trash.
 import { useSearch } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 import {
@@ -49,7 +47,6 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
   const href = useStorageHref();
   const menu = useRowMenu();
   const path = list.folder?.path ?? [];
-  // Stable, so the memoized table and grid render only when their rows change.
   const folderHref = useMemo(() => (node: StorageNode) => href(node.space, node.id), [href]);
   return (
     <FolderView
@@ -76,11 +73,9 @@ export function FileList({ space, folderId }: { space: StorageSpace; folderId?: 
   );
 }
 
-/** Where a file's bytes are: Download, and the preview's read of them (ADR 0040). */
 const fileUrl = (node: StorageNode) => storageFileUrl(node.id);
 const download = (node: StorageNode) => window.location.assign(fileUrl(node));
 
-/** A row's actions. In Shared, Trash is for whoever added the item, owners and admins. */
 function useRowMenu() {
   const { member } = useMember();
   const trash = useTrashNode();
@@ -94,7 +89,6 @@ function useRowMenu() {
           : []),
         { icon: IconUserAdd, label: "Share", onAction: () => open({ dialog: "share", node }) },
         { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },
-        // A cluster (a top-level folder) picks its sidebar glyph; nested folders stay folders.
         ...(node.kind === "folder" && node.parentId === null
           ? [
               {

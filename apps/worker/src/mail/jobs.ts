@@ -1,15 +1,10 @@
-// Mail's background work in the Worker (ADR 0035 decision 3), run at the edge in Effect (ADR 0038
-// decision 2) with the shared helpers in `job-effects.ts`. Each job is safe to run twice and
-// bounded per run; what one run leaves, the next takes.
 import { indexParticipants, type Db } from "@omni/db";
 import { Effect, Result } from "effect";
 import { attempt, type JobError, retried, runJob, scopedDb } from "../job-effects.ts";
 import { createLogger, type Logger } from "../log.ts";
 import { helpdeskClock } from "../sla.ts";
 
-/** Batches one run takes at most (each `PARTICIPANT_BATCH` messages, one short transaction). */
 const BACKFILL_MAX_BATCHES = 20;
-/** Wall time after which a run starts no new batch and leaves the rest to the next minute. */
 const BACKFILL_BUDGET_MS = 20_000;
 
 /**
@@ -31,8 +26,6 @@ export function backfillParticipants(db: Db, log: Logger, now?: Date) {
     }
     if (total.messages > 0) log.info("mail.participants_indexed", total);
     return total;
-    // No `Effect.timeout` around this: it would abandon a batch's transaction, not stop it, and
-    // the next minute's run would start beside it (ADR 0038). The budget above bounds the run.
   });
 }
 

@@ -1,7 +1,3 @@
-// `for await (… of readableStream)` for WebKit (Safari, and so the macOS desktop app), which
-// lacks `ReadableStream.prototype[Symbol.asyncIterator]`. pdf.js reads a page's text that way,
-// so without it every PDF preview failed there while thumbnails, which read no text, drew.
-// Imported for its effect by `pdf-preview.tsx`, before pdf.js runs.
 async function* iterate<T>(this: ReadableStream<T>) {
   const reader = this.getReader();
   try {

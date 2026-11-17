@@ -1,8 +1,3 @@
-// Signing, the sender's side (ADR 0043 decision 6, the flow of ADR 0037 decision 4): a member
-// sends one locked PDF to signers by address, sees where it stands, and voids it. The signer's
-// side is `signer.ts`. A request names the content it was sent on (`content_version`) and the hash
-// the Worker computed streaming those bytes; the file is locked in the same transaction, so the
-// content a signer is shown is the content that was hashed.
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { organizations } from "../schema/auth.ts";
@@ -73,17 +68,13 @@ export type SendForSignatureResult =
       workspaceName: string;
     }
   | { status: "not_found" }
-  /** Only a PDF is sent for signature. */
   | { status: "not_a_pdf" }
-  /** The file changed after its bytes were hashed: hash it again. */
   | { status: "version_conflict" }
-  /** The file is already out for signature: void that request first. */
   | { status: "signature_open" };
 
 export type SignatureRequestResult =
   | { status: "ok"; request: StorageSignatureRequest }
   | { status: "not_found" }
-  /** Completed or voided already. */
   | { status: "signature_closed" };
 
 const NOT_FOUND = { status: "not_found" } as const;
@@ -164,7 +155,6 @@ export const withSigners: (
   }));
 };
 
-/** One request just written, with its signers and trail. */
 async function written(ex: Db, row: RequestRow | undefined) {
   const [full] = row ? await withSigners(ex, [row]) : [];
   if (!full) throw new Error("storage: a signature request just written is gone");
@@ -198,7 +188,6 @@ export async function appendSigningEvent(
 }
 
 export function signingOperations(db: Db, door: Door, memberId: string) {
-  /** A live file the member reaches, or null. */
   async function reachFile(ex: Db, nodeId: string) {
     const found = await reach(ex, door, nodeId);
     if (!found || inTrash(found.chain) || found.node.kind !== "file") return null;
@@ -206,12 +195,6 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
   }
 
   return {
-    /**
-     * Sends a PDF for signature: locks it (ADR 0036 decision 6), and records the request, its
-     * signers and the `sent` step, all or nothing. `contentVersion` and `sha256` are what the
-     * caller read and hashed; a file that moved on since is refused, never sent on bytes nobody
-     * hashed. A file is out for signature once at a time.
-     */
     sendForSignature(
       nodeId: string,
       input: {
@@ -228,8 +211,6 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
             const result: SendForSignatureResult = NOT_FOUND;
             return result;
           }
-          // Taking the lock first takes the tree lock too, so nothing replaces the content between
-          // this check and the request row.
           const locked = await lockOperations(tx, door, memberId).lock(nodeId);
           if (locked.status !== "ok") {
             const result: SendForSignatureResult = NOT_FOUND;
@@ -237,7 +218,6 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
           }
           const { node } = locked;
           if (node.mimeType !== STORAGE_PDF_MIME) {
-            // The lock rolls back with the transaction.
             throw new Refusal({ status: "not_a_pdf" });
           }
           if (node.contentVersion !== input.contentVersion) {
@@ -267,7 +247,6 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
           if (!row) throw new Error("storage: the signature request was not written");
           const request = row;
           await tx.insert(storageSigners).values(
-            // UUIDv7 ids are made in order, so listing by id keeps the order the sender named.
             input.signers.map((signer) => ({
               orgId,
               requestId: request.id,
@@ -292,7 +271,6 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
         .catch(refused<SendForSignatureResult>) satisfies Promise<SendForSignatureResult>;
     },
 
-    /** Every request made on a file the member reaches, newest first. */
     async signatureRequests(nodeId: string) {
       const found = await reachFile(db, nodeId);
       if (!found) return NOT_FOUND;
@@ -304,10 +282,6 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
       return { status: "ok" as const, requests: await withSigners(db, rows) };
     },
 
-    /**
-     * Voids a request still out for signature. The file stays locked: it was the file sent, and
-     * only an owner or admin makes it an ordinary file again (`unlock`).
-     */
     voidSignature(requestId: string, origin: StorageSigningOrigin) {
       return db.transaction<SignatureRequestResult>(async (tx) => {
         const request = await loadRequest(tx, requestId, true);
@@ -328,7 +302,6 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
   };
 }
 
-/** A refusal thrown out of a transaction so everything it wrote, the lock included, rolls back. */
 class Refusal<T> extends Error {
   readonly result: T;
   constructor(result: T) {

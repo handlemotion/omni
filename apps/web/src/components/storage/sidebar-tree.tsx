@@ -1,12 +1,3 @@
-// Storage's folder groups below its places, after Skiff Drive's: a group (Team, Personal) links
-// to its space and opens to its clusters, the space's top-level folders; a cluster opens to the
-// folders inside it, and the sidebar stops there. Deeper folders and files are on the pages.
-// Groups start open; clusters start closed (their contents load the first time).
-//
-// Every row takes a drop (`node-drag.tsx`): files and folders lifted from the page, or another
-// row, move into it, and files from the computer upload there; a row's top or bottom edge drops
-// beside it, and its level opens a gap where the folder will land. Held over a closed row, a drag
-// opens it. Clusters and their folders lift too; the groups are the spaces themselves and stay.
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, type ReactNode } from "react";
 import { useDrop } from "react-aria-components/useDrop";
@@ -31,18 +22,15 @@ import {
 import { SPACE_ICON, SPACE_LABEL, SPACE_PATH } from "./storage-nav.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
-/** A level shows this many folders; the folder's page has the rest. */
 const SHOWN = 40;
 
 export function SidebarGroup(props: { space: StorageSpace; search: string }) {
   const { space } = props;
-  // Stored as closed, so a group nobody has touched is open.
   const closed = useSidebarExpanded("drive-groups-closed", space);
   const open = { value: !closed.value, toggle: closed.toggle };
   const { place: pathname, href } = useWorkspacePaths();
   const to = useMemo<DropPlace>(() => ({ place: { space }, canWrite: true }), [space]);
   return (
-    // 4px under a group's last row, so Team and Personal read as two groups.
     <SidebarSection className="pb-1">
       <DragRow to={to} expand={open}>
         <SidebarTreeRow
@@ -109,12 +97,10 @@ function ClusterFolders(props: { node: StorageNode; search: string }) {
 
 function FolderRow(props: {
   node: StorageNode;
-  /** A cluster's chosen glyph; a folder inside one has none. */
   icon?: string | undefined;
   depth: number;
   search: string;
   expand?: { value: boolean; toggle: () => void };
-  /** The cluster a folder is in; none for a cluster. */
   cluster?: StorageNode;
 }) {
   const { node, cluster } = props;
@@ -129,7 +115,6 @@ function FolderRow(props: {
     }),
     [node.id, node.space, cluster],
   );
-  // Beside a folder is in its cluster; beside a cluster, at the top of its space.
   const beside = useMemo<DropPlace>(
     () =>
       cluster
@@ -146,28 +131,20 @@ function FolderRow(props: {
         icon={<FolderIcon icon={props.icon} className="size-icon" />}
         label={node.name}
         {...(props.expand ? { expand: props.expand } : {})}
-        // Opening a cluster's page opens it in the tree too; only the chevron closes it.
         onPress={() => props.expand && !props.expand.value && props.expand.toggle()}
       />
     </DragRow>
   );
 }
 
-/** The row's link, tinted while a drag held over it would drop there. */
 const DROP_TARGET =
   "data-drop-target:**:data-[slot=sidebar-item]:bg-primary/10 data-drive-target:**:data-[slot=sidebar-item]:bg-primary/10 data-drive-target:**:data-[slot=sidebar-item]:inset-ring data-drive-target:**:data-[slot=sidebar-item]:inset-ring-primary";
 
-/** A lifted row's place: a dashed edge where its fill sits; while it lands, nothing. */
 const LIFTED =
   "data-lifted:**:data-[slot=sidebar-item]:bg-transparent! data-lifted:**:data-[slot=sidebar-item]:*:invisible data-lifted:**:[button]:invisible data-[lifted=origin]:**:data-[slot=sidebar-item]:outline-1 data-[lifted=origin]:**:data-[slot=sidebar-item]:-outline-offset-1 data-[lifted=origin]:**:data-[slot=sidebar-item]:outline-dashed data-[lifted=origin]:**:data-[slot=sidebar-item]:outline-border";
 
-/** How long a drag rests on a closed row before it opens. */
 const OPEN_AFTER_MS = 600;
 
-/**
- * A row as a drop target for its folder or space, and (given `node`) a lifted item. Its top and
- * bottom edges drop `beside` it, into its parent; files from the computer upload into it.
- */
 function DragRow(props: {
   to: DropPlace;
   beside?: DropPlace | undefined;
@@ -190,14 +167,12 @@ function DragRow(props: {
   const held = lift.props["data-drive-target"] === true;
   const closed = !!expand && !expand.value;
   const open = useEffectEvent(() => expand && !expand.value && expand.toggle());
-  // Held over a closed row, a drag opens it, to drop among what is inside.
   useEffect(() => {
     if (!held || !closed) return;
     const timer = setTimeout(open, OPEN_AFTER_MS);
     return () => clearTimeout(timer);
   }, [held, closed]);
   const { "aria-describedby": _described, ...rowDropProps } = dropProps;
-  // In the capture phase: the link's press handling keeps the pointer down from bubbling here.
   const { onPointerDown, ...liftProps } = lift.props;
   const setRef = useCallback(
     (element: HTMLDivElement | null) => {
@@ -220,11 +195,9 @@ function DragRow(props: {
   );
 }
 
-/** The room a drag opens among a level's rows, where its folder will land. */
 function TreeGap() {
   const { phase } = useDriveDrag();
   const reduce = useReducedMotion();
-  // It closes at once as the drop lands: the folder itself takes its place.
   const instant = reduce || phase !== "origin";
   return (
     <motion.div
@@ -240,7 +213,6 @@ function TreeGap() {
   );
 }
 
-/** A level's folder rows, with the gap a drag opens among them. */
 function WithGap(props: { gap: number | null; rows: ReactNode[] }) {
   const rows = [...props.rows];
   if (props.gap !== null) rows.splice(props.gap, 0, <TreeGap key="drive-drag-gap" />);

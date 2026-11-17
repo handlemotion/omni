@@ -1,5 +1,3 @@
-// Names the app uses for API shapes. Every type comes from the Worker's routes through
-// `@omni/client`; nothing here redefines a response by hand.
 import type { Api } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 
@@ -42,7 +40,6 @@ export const LANES = [
   "unsure",
 ] as const satisfies readonly Lane[];
 
-// Fails to compile when the API gains a lane that `LANES` leaves out (`?lane=` would ignore it).
 type NoneMissing<Missing extends never> = Missing;
 export type LanesListed = NoneMissing<Exclude<Lane, (typeof LANES)[number]>>;
 

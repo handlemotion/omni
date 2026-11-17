@@ -1,5 +1,3 @@
-// Billing as the rest of the Worker sees it (ADR 0015). With billing off (no STRIPE_SECRET_KEY)
-// every workspace is unlimited and writable, exactly as before billing existed.
 import { usagePeriod } from "@omni/ai";
 import {
   claimTriage,
@@ -54,7 +52,6 @@ export const workspaceBilling: (
   now?: Date,
 ) => Promise<WorkspaceBilling> = async (db, config, orgId, now = new Date()) => {
   const billing = config.auth.billing;
-  // A Personal space is free (ADR 0024): billing does not apply to it.
   if (!billing || (await workspaceKind(db, orgId)) === "personal") return { enabled: false };
   const subscription = await workspaceSubscription(db, orgId);
   const paid = subscription !== null && isPaid(subscription.status);
@@ -93,7 +90,6 @@ export const gateTriage: (
 ) => Promise<TriageGate> = async (db, config, input, now = new Date()) => {
   const billing = config.auth.billing;
   if (!billing) return { run: true };
-  // A Personal space is free and keeps AI triage, with no plan and no allowance (ADR 0024).
   if ((await workspaceKind(db, input.orgId)) === "personal") return { run: true };
   const subscription = await workspaceSubscription(db, input.orgId);
   const window = subscription && isPaid(subscription.status) ? period(subscription, now) : null;
@@ -112,25 +108,16 @@ export const gateTriage: (
 /** A subscription in good standing (or billing off): the workspace may write and use AI. */
 export async function inGoodStanding(db: Db, config: Config, orgId: string) {
   if (!config.auth.billing) return true;
-  // A Personal space is free (ADR 0024).
   if ((await workspaceKind(db, orgId)) === "personal") return true;
   const subscription = await workspaceSubscription(db, orgId);
   return subscription !== null && isPaid(subscription.status);
 }
 
-/**
- * The writes under `/api` an unpaid workspace may still make (ADR 0015: "setup, members,
- * invitations and billing stay open so an owner can always fix it"). Everything else is denied.
- * A path matches an entry when it is the entry or below it; `:param` matches one segment.
- * `e2e/billing-gate.e2e.test.ts` sends every write route in `app` and holds this list to it.
- */
 /** What a write in a workspace without a plan in good standing is told (`billing_inactive`). */
 export const READ_ONLY_MESSAGE = "this workspace is read-only until it has an active plan";
 
 export const READ_ONLY_ALLOWED = [
-  // Inside the member API: `requireWritableWorkspace` lets these through.
   { path: "/api/billing", reason: "checkout and the portal are how a workspace becomes paid" },
-  // The workspace inbox API (ADR 0026): who has which inbox, and inviting people with one.
   { path: "/api/workspace/members", reason: "giving a member an inbox is setup, not mail" },
   { path: "/api/workspace/shared-inboxes", reason: "who can see a mailbox is access, not mail" },
   { path: "/api/workspace/inboxes", reason: "who owns a former member's inbox is access" },
@@ -139,7 +126,6 @@ export const READ_ONLY_ALLOWED = [
     path: "/api/push-tokens",
     reason: "a person's phone, not the workspace: signing out must stop pushes",
   },
-  // Mounted ahead of the member API in app.ts, so the gate never runs for them.
   { path: "/api/auth", reason: "sign-in, invitations, organizations and Stripe's webhook" },
   { path: "/api/onboarding", reason: "workspace setup: domains and mailboxes" },
   { path: "/api/workspaces", reason: "which workspaces the user belongs to" },

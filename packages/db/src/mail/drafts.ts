@@ -1,7 +1,3 @@
-// Shared drafts and undo send (ADR 0021). Drafts live in Postgres only, shared with everyone on
-// the inbox; `version` makes a stale autosave fail instead of overwriting a teammate's newer one.
-// A send waits in the outbox for the member's undo window (`run_after`), and cancelling deletes
-// the row before the mail service can claim it.
 import { and, desc, eq, exists, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { memberMailbox } from "./compose.ts";
@@ -68,7 +64,6 @@ export async function cancelSend(db: Db, memberId: string, actionId: string) {
       a.kind === "upload" ? [a.uploadId] : [],
     );
     if (uploadIds.length) {
-      // Back to unsent, with a fresh day before the cleanup takes them.
       await tx
         .update(uploads)
         .set({
@@ -126,7 +121,6 @@ export async function listDrafts(
   return db
     .select({
       ...draftColumns,
-      /** A reply's or forward's conversation, by its latest subject (a reply saves none). */
       threadSubject: sql<
         string | null
       >`(select m.subject from ${messages} m where m.thread_id = "drafts"."thread_id" order by m.sent_at desc, m.id desc limit 1)`,

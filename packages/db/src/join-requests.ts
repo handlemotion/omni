@@ -1,5 +1,3 @@
-// Join requests (ADR 0024 decision 3): a sign-in with a company's address reaches only that
-// company, so someone who is not its member asks to join, and an owner or admin decides.
 import { and, asc, eq, like } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";

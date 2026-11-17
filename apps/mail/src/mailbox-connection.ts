@@ -14,7 +14,6 @@ import type {
 import { discard, isSpooled, spool } from "./spool.ts";
 import { backoff } from "./timing.ts";
 
-/** Where mail moved out of INBOX lands; a copy there archives its thread (ADR 0013). */
 const FILED_ROLES = new Set<FolderRole>(["archive", "trash", "junk"]);
 
 export interface ServerEndpoint {
@@ -158,7 +157,6 @@ export class ImapAuthFailed extends Data.TaggedError("ImapAuthFailed")<{ cause: 
 /** Connecting or the first sync failed: network, TLS, a timeout, storage. Retried with backoff. */
 export class ImapConnectFailed extends Data.TaggedError("ImapConnectFailed")<{ cause: unknown }> {}
 
-/** A ready connection closed before it counted as stable (`stableAfterMs`). Retried with backoff. */
 class ImapDropped extends Data.TaggedError("ImapDropped")<{}> {}
 
 type SessionError = ImapAuthFailed | ImapConnectFailed | ImapDropped;
@@ -168,12 +166,10 @@ export class MailboxUnavailableError extends Error {
   override name = "MailboxUnavailableError";
 }
 
-/** `stop()` was called while a sync was running. Nothing past the last stored message is lost. */
 class StoppedError extends Error {
   override name = "StoppedError";
 }
 
-/** Consecutive messages that fail to store before a folder sync gives up (storage is likely down). */
 const MAX_CONSECUTIVE_STORE_FAILURES = 5;
 
 const ROLE_BY_SPECIAL_USE: Record<string, FolderRole> = {
@@ -212,9 +208,7 @@ export class MailboxConnection extends EventEmitter<Events> {
   private ready = false;
   private readySince = 0;
   private authFailures = 0;
-  /** Runs `lifecycle()`: connect, serve, reconnect. Interrupting it closes the socket. */
   private fiber: Fiber.Fiber<void> | null = null;
-  /** Settles `start()`: on the first ready connection, a give-up, or `stop()`. */
   private started: PromiseWithResolvers<void> | null = null;
   private syncingAll: Promise<FolderSyncResult[]> | null = null;
   private inboxSyncQueued = false;
@@ -285,7 +279,6 @@ export class MailboxConnection extends EventEmitter<Events> {
    * everywhere: the pass ends by deleting it (and a thread left empty).
    */
   syncAll() {
-    // Each folder is its own queue task, so an outbox action waits for one folder, not the pass.
     this.syncingAll ??= (async () => {
       try {
         const { orphans, ordered } = await this.enqueue(async () => {
@@ -303,7 +296,6 @@ export class MailboxConnection extends EventEmitter<Events> {
             if (result.failed > 0) clean = false;
             results.push(result);
           } catch (error) {
-            // The connection itself is gone: the reconnect resyncs everything.
             if (error instanceof StoppedError || !this.connected) throw error;
             clean = false;
             this.log.warn("sync.folder_failed", { folder: folder.path, error });
@@ -315,8 +307,6 @@ export class MailboxConnection extends EventEmitter<Events> {
           );
           if (pruned.messages > 0) this.log.info("sync.pruned", pruned);
         }
-        // Every folder's copies are known now: a conversation deleted in another mail app is
-        // only in Trash. Not on a partial pass, which may not have seen INBOX or the archive.
         if (clean) {
           const discarded = await this.store.reportDiscarded(this.mailbox.id);
           if (discarded > 0) this.log.info("sync.discarded", { threads: discarded });
@@ -358,13 +348,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     }) satisfies Promise<T>;
   }
 
-  /**
-   * Connection sessions, forever. A session that fails (or drops before it was stable) is retried
-   * on a jittered, capped exponential backoff; a stable one that drops reconnects at once with the
-   * backoff reset. Rejected logins wait the longest delay, and after `maxAuthFailures` in a row the
-   * loop stops. Defects (bugs in the sync code) are retried like failures: one mailbox's bug must
-   * not end its loop or reach the process.
-   */
   private lifecycle() {
     const schedule = backoff({
       baseMs: this.reconnectBaseMs,
@@ -376,7 +359,6 @@ export class MailboxConnection extends EventEmitter<Events> {
         ({ input }) =>
           !(input instanceof ImapAuthFailed) || this.authFailures < this.maxAuthFailures,
       ),
-      // Wrong credentials will not fix themselves in a second: wait the longest.
       Schedule.modifyDelay(({ input, duration }) =>
         Effect.succeed(
           input instanceof ImapAuthFailed ? Duration.millis(this.reconnectMaxMs) : duration,
@@ -404,7 +386,6 @@ export class MailboxConnection extends EventEmitter<Events> {
       Effect.tapError((error) =>
         Effect.sync(() => {
           if (!(error instanceof ImapAuthFailed)) return;
-          // The token may have been revoked or rotated under us: mint a new one next attempt.
           if (this.mailbox.auth.kind === "oauth2") this.mailbox.auth.token.invalidate();
           this.authFailures++;
           this.emit("auth_failed");
@@ -426,14 +407,8 @@ export class MailboxConnection extends EventEmitter<Events> {
     ) satisfies Effect.Effect<void>;
   }
 
-  /**
-   * One connection, from socket to close. The client is a scoped resource: however the session
-   * ends (dropped, failed, interrupted by `stop()`), its finalizer logs out if it can and closes
-   * the socket, so no attempt leaves a connection behind against the server's connection cap.
-   */
   private session() {
     const result: Effect.Effect<void, SessionError> = Effect.gen({ self: this }, function* () {
-      // A revoked Google grant is a rejected login; a token endpoint outage is a failed connect.
       const login = yield* Effect.tryPromise({
         try: () => loginFor(this.mailbox),
         catch: (cause) =>
@@ -464,9 +439,6 @@ export class MailboxConnection extends EventEmitter<Events> {
       this.emit("connected", this.capabilities as Capabilities);
       this.log.info("imap.connected");
       this.started?.resolve();
-      // INBOX is in; every other folder follows behind whatever the app asks for first. The
-      // import takes a `gate` permit like a connect does, so a fleet reconnecting at once imports
-      // `concurrency` archives at a time, not all of them.
       void Effect.runPromise(
         Semaphore.withPermit(
           this.gate,
@@ -482,8 +454,6 @@ export class MailboxConnection extends EventEmitter<Events> {
       if (this.client === client) this.client = null;
       this.ready = false;
       this.emit("disconnected");
-      // A drop right after a connect counts as a failed attempt, so a server that accepts the
-      // login and then hangs up is not hammered.
       if (Date.now() - this.readySince < this.stableAfterMs) return yield* new ImapDropped();
       this.log.warn("imap.disconnected", { wasReady: true, failures: 0 });
     }).pipe(Effect.scoped);
@@ -499,7 +469,6 @@ export class MailboxConnection extends EventEmitter<Events> {
       auth,
       logger: false,
       clientInfo: { name: "omni" },
-      // Start IDLE soon after our own commands finish, and restart it before NATs drop it.
       autoIdleDelay: 1_000,
       maxIdleTime: 4 * 60_000,
       socketTimeout: this.socketTimeoutMs,
@@ -507,16 +476,10 @@ export class MailboxConnection extends EventEmitter<Events> {
       connectionTimeout: 60_000,
     });
     client.on("error", (error: Error) => this.log.warn("imap.error", { error }));
-    // New mail, and mail deleted, moved, read or flagged in another app while IDLE watches
-    // INBOX: catch up now rather than at the next poll. The sync finds what changed.
     for (const name of ["exists", "expunge", "flags"] as const) {
       client.on(name, (event: { path: string }) => {
         if (event.path !== this.inbox()?.path) return;
         this.requestInboxSync();
-        // Mail leaving INBOX was deleted or moved: the folders it lands in tell which, and
-        // whether the thread is archived now (ADR 0013).
-        // Gmail keeps a second copy of every message in All Mail, and read there is Done here
-        // (ADR 0044): fetch that copy's flag now too, not at the next poll.
         if (name === "expunge" || (name === "flags" && this.capabilities?.gmail)) {
           this.requestFiledSync();
         }
@@ -525,10 +488,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     return client satisfies ImapFlow;
   }
 
-  /**
-   * Logs in and syncs INBOX, which is all a person needs to start working; `session` syncs the
-   * other folders once the connection is ready. Throws when either fails or the socket closes.
-   */
   private async connect(client: ImapFlow) {
     try {
       await client.connect();
@@ -539,8 +498,6 @@ export class MailboxConnection extends EventEmitter<Events> {
         await this.discoverFolders();
         const inbox = this.inbox();
         if (inbox) await this.syncFolderNow(inbox.path);
-        // A sync reports only flags that changed. Mail already read in Gmail when Omni started
-        // treating that as Done is found here (ADR 0044).
         if (inbox && this.mailbox.provider === "gmail") {
           await this.store.reconcileFolder(this.mailbox.id, inbox.path);
         }
@@ -552,7 +509,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     }
   }
 
-  /** Finalizer: LOGOUT when the connection still works (a silent server gets 5s), then close. */
   private release(client: ImapFlow) {
     return Effect.promise(async () => {
       if (this.client === client) this.client = null;
@@ -580,7 +536,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     return run satisfies Promise<T>;
   }
 
-  /** Leaving INBOX moves IDLE elsewhere, so mail may have arrived unseen: go back and catch up. */
   private async returnToInbox() {
     const client = this.client;
     const inbox = this.inbox();
@@ -602,7 +557,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     });
   }
 
-  /** Syncs the archive, trash and junk folders soon, once however many expunges asked for it. */
   private requestFiledSync() {
     if (this.filedSyncQueued) return;
     this.filedSyncQueued = true;
@@ -632,14 +586,11 @@ export class MailboxConnection extends EventEmitter<Events> {
     this.folders = listed
       .filter((f) => !f.flags.has("\\Noselect") && !f.flags.has("\\NonExistent"))
       .map((f) => {
-        // One folder per role; a second "Sent Messages" next to "Sent" is just another folder.
         let role = roleOf(f, gmail);
         if (role !== "other" && taken.has(role)) role = "other";
         taken.add(role);
         return { path: f.path, role };
       })
-      // Gmail's labels (and Starred, Important) are views of All Mail: syncing them only adds
-      // copies of messages All Mail already has (ADR 0023).
       .filter((f) => !gmail || f.role !== "other");
     await this.store.saveFolders(this.mailbox.id, this.folders);
   }
@@ -652,11 +603,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     return (this.folders.find((f) => f.path === path) ?? { path, role }) satisfies FolderInfo;
   }
 
-  /**
-   * Brings one folder's stored state in line with the server. New messages are fetched newest
-   * first in batches, so the first import shows recent mail early and a crash mid-import resumes
-   * from what is already stored. Must run inside the queue.
-   */
   private async syncFolderNow(path: string) {
     const client = this.requireClient();
     this.throwIfStopped();
@@ -691,7 +637,6 @@ export class MailboxConnection extends EventEmitter<Events> {
       result.flagsChanged = added.flagsChanged;
       await this.importMessages(client, path, added.uids, result);
 
-      // A message that failed to store keeps the old UIDNEXT, so the next sync diffs UIDs again.
       await this.store.saveSyncPosition(this.mailbox.id, path, {
         uidValidity: box.uidValidity,
         highestModseq: serverModseq,
@@ -706,10 +651,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     }
   }
 
-  /**
-   * The folder's stored position, reset when the server's UIDVALIDITY changed. A new position
-   * is saved before anything is imported, so a crash mid-import still detects a later reset.
-   */
   private async startPosition(path: string, box: MailboxObject, result: FolderSyncResult) {
     const mailboxId = this.mailbox.id;
     const stored = await this.store.getSyncPosition(mailboxId, path);
@@ -728,14 +669,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     return position satisfies SyncPosition;
   }
 
-  /**
-   * Every UID the index should hold; the stored index stands in when the plan says nothing moved.
-   *
-   * With `syncSince` that is the folder from its oldest message dated on or after it (the floor),
-   * plus whatever is already stored. The floor is read from the server on every sync, so a wiped
-   * index rebuilds the same set, and mail below it is never listed: it cannot look deleted. Mail
-   * that enters the folder later gets a higher UID, so it is indexed whatever its date.
-   */
   private async listServerUids(
     client: ImapFlow,
     box: MailboxObject,
@@ -751,14 +684,9 @@ export class MailboxConnection extends EventEmitter<Events> {
     const floor = recent.reduce((low, uid) => Math.min(low, uid), box.uidNext);
     const from = lowestUid(index, floor);
     const listed = (await client.search({ uid: `${from}:*` }, { uid: true })) || [];
-    // `n:*` always matches the newest message, even one below `n`.
     return listed.filter((uid) => uid >= floor || index.has(uid)) satisfies number[];
   }
 
-  /**
-   * Drops expunged messages and applies flag changes. Returns the counts and the UIDs still to
-   * import, newest first.
-   */
   private async applyServerChanges(
     client: ImapFlow,
     path: string,
@@ -783,14 +711,12 @@ export class MailboxConnection extends EventEmitter<Events> {
     };
   }
 
-  /** Stored messages whose flags differ on the server (only those changed since, with CONDSTORE). */
   private async changedFlags(
     client: ImapFlow,
     index: Map<number, string[]>,
     changedSince: bigint | undefined,
   ) {
     const changes: FlagChange[] = [];
-    // Nothing below the lowest stored UID is indexed, so its flags are not read.
     for await (const msg of client.fetch(
       `${lowestUid(index, 1)}:*`,
       { uid: true, flags: true },
@@ -805,7 +731,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     return changes satisfies FlagChange[];
   }
 
-  /** Fetches and stores `uids` (newest first) in bounded batches, counting into `result`. */
   private async importMessages(
     client: ImapFlow,
     path: string,
@@ -821,11 +746,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     }
   }
 
-  /**
-   * Stores one fetched message. One unparseable or unstorable message must not block the
-   * folder: it stays out of the index, so the next sync's UID diff retries it. A run of
-   * failures means storage is down, so the folder gives up rather than walking the mailbox.
-   */
   private messageStorer(path: string, result: FolderSyncResult) {
     const mailboxId = this.mailbox.id;
     const role = this.folders.find((f) => f.path === path)?.role ?? "other";
@@ -846,7 +766,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     };
   }
 
-  /** One message too big to hold in memory: streamed to a temp file, never buffered. */
   private async importLarge(
     client: ImapFlow,
     path: string,
@@ -876,7 +795,6 @@ export class MailboxConnection extends EventEmitter<Events> {
       ...(this.capabilities?.gmail ? { threadId: true } : {}),
     };
     for await (const msg of client.fetch(batch.join(","), query, { uid: true })) {
-      // Finish the message in hand, then stop; the rest of the batch is fetched next start.
       if (this.stopped || !msg.source) continue;
       await store({ ...fetchedFields(path, msg), raw: msg.source });
     }
@@ -886,12 +804,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     if (this.stopped) throw new StoppedError(`mailbox ${this.mailbox.id} is stopping`);
   }
 
-  /**
-   * Splits `uids` (newest first) into fetch batches of at most `batchSize` messages and
-   * `batchBytes` bytes, so memory stays bounded however big the mail is: a message larger than
-   * the byte budget is fetched on its own, and one above `streamAboveBytes` is marked `large`
-   * to be streamed. Sizes come from one cheap RFC822.SIZE fetch per chunk.
-   */
   private async *sizedBatches(client: ImapFlow, uids: number[]) {
     const SIZE_CHUNK = 500;
     let batch: number[] = [];
@@ -907,7 +819,6 @@ export class MailboxConnection extends EventEmitter<Events> {
         sizes.set(msg.uid, msg.size ?? 0);
       }
       for (const uid of chunk) {
-        // Expunged since the UID search: nothing to fetch.
         if (!sizes.has(uid)) continue;
         const size = sizes.get(uid) ?? 0;
         if (size > this.streamAboveBytes) {
@@ -929,7 +840,6 @@ export class MailboxConnection extends EventEmitter<Events> {
     if (batch.length > 0) yield { uids: batch, large: false };
   }
 
-  /** A message's fields, then its bytes streamed to a temp file. Null if it was expunged. */
   private async fetchLarge(client: ImapFlow, path: string, uid: number) {
     const msg = await client.fetchOne(
       String(uid),
@@ -975,7 +885,6 @@ function detectCapabilities(client: ImapFlow) {
 
 const roleOf: (folder: ListResponse, gmail: boolean) => FolderRole = (folder, gmail) => {
   if (folder.path.toUpperCase() === "INBOX") return "inbox";
-  // Gmail archives by removing the Inbox label, which leaves the message in All Mail only.
   if (gmail && folder.specialUse === "\\All") return "archive";
   return (folder.specialUse && ROLE_BY_SPECIAL_USE[folder.specialUse]) || "other";
 };
@@ -991,7 +900,6 @@ function fetchedFields(path: string, msg: FetchMessageObject) {
   } satisfies Omit<FetchedMessage, "raw">;
 }
 
-/** The lowest stored UID, or `fallback` when it is lower or nothing is stored. */
 function lowestUid(index: Map<number, string[]>, fallback: number) {
   let lowest = fallback;
   for (const uid of index.keys()) lowest = Math.min(lowest, uid);

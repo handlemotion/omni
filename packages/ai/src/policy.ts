@@ -1,13 +1,7 @@
-// Pure decisions around the model: when to skip it, where its answer lands, what it may see.
-
 import { NO_USAGE, type Bucket, type TriageInput, type TriageResult } from "./types.ts";
 
 export const DEFAULT_AUTO_FILE_THRESHOLD = 0.85;
 
-/**
- * Conservative chars-per-token estimate for budgeting untrusted text. Real tokenizers average
- * closer to 4 for English, so this errs toward sending less.
- */
 const CHARS_PER_TOKEN = 3;
 const TRUNCATION_MARKER = "\n[truncated]";
 
@@ -45,7 +39,6 @@ export function truncateToTokens(text: string, maxTokens: number) {
   const maxChars = Math.max(0, Math.floor(maxTokens * CHARS_PER_TOKEN));
   if (text.length <= maxChars) return text;
   let cut = text.slice(0, Math.max(0, maxChars - TRUNCATION_MARKER.length));
-  // Never leave half a surrogate pair at the end.
   if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
   const space = cut.search(/\s\S*$/);
   if (space > cut.length * 0.8) cut = cut.slice(0, space);

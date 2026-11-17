@@ -27,7 +27,6 @@ const TriageOutput = z.object({
   confidence: z.number().min(0).max(1),
 });
 
-/** The reader wrote last: someone else can't be waiting on them, so `needs_reply` is off the table. */
 const SentOutput = z.object({
   bucket: z.enum(["waiting_on_them", "fyi"]),
   confidence: z.number().min(0).max(1),
@@ -91,7 +90,6 @@ const triageWithClaude: (
     system: TRIAGE_SYSTEM,
     user,
     schema: input.latestFromUs ? SentOutput : TriageOutput,
-    // Room for adaptive thinking ahead of a ~20-token answer.
     maxTokens: 1_024,
   });
 
@@ -99,10 +97,6 @@ const triageWithClaude: (
   return { ...result.data, source: "ai", usage: result.usage };
 };
 
-/**
- * A customer's message on a shared inbox: the bucket plus priority and tags in one call. Tags are
- * an enum of the inbox's own names, so the model cannot invent one; each maps back to its id.
- */
 const triageHelpdeskWithClaude: (
   client: ModelClient,
   helpdesk: HelpdeskInput,
@@ -131,7 +125,6 @@ const triageHelpdeskWithClaude: (
   if (!result.ok) return { bucket: "fyi", confidence: 0, source: "fallback", usage: result.usage };
   const { bucket, confidence, priority } = result.data;
   const tagIds = [...new Set(result.data.tags.map((label) => byLabel.get(label)!))];
-  // As on Jev: only a message that waits on the team is handed to anyone.
   const assignee = team.find((t) => t.label === result.data.assignee);
   return {
     bucket,

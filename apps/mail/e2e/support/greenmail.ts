@@ -1,6 +1,3 @@
-// Helpers for the local GreenMail from `pnpm stack:up`. Auth is disabled there: any user logs in.
-// Other sessions and suites share this server, so tests never purge it: each one uses fresh
-// addresses instead.
 import { randomUUID } from "node:crypto";
 import { ImapFlow } from "imapflow";
 import { createTransport } from "nodemailer";

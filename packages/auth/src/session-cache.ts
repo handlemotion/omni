@@ -18,10 +18,8 @@ export function refreshSessionCacheOnOrgChange() {
         {
           matcher: (ctx) => ctx.path?.startsWith("/organization/") === true,
           handler: createAuthMiddleware(async (ctx) => {
-            // Reads (list, get-full-organization) change nothing.
             if (ctx.request?.method !== "POST") return;
             const cacheName = ctx.context.authCookies.sessionData.name;
-            // `set-active` renews it itself.
             const renewing = ctx.context.responseHeaders
               ?.getSetCookie()
               .some(

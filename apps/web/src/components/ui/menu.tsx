@@ -40,11 +40,6 @@ import { FluidHoverHighlight } from "./fluid-hover-highlight";
 import { toSideAlign, type Placement } from "./placement";
 import { popupSurface } from "./popover";
 
-// Menus on UI SDK's menu, keeping React Aria's shape so call sites read the same:
-//   <MenuTrigger><Button/><Menu onAction selectionMode selectedKeys>{items}</Menu></MenuTrigger>
-// Plain items are `menuitem`s; `selectionMode="single"` makes them `menuitemradio`s in one group,
-// `"multiple"` makes them `menuitemcheckbox`es that keep the menu open.
-
 type Key = string;
 
 interface MenuState {
@@ -52,7 +47,6 @@ interface MenuState {
   selected: Set<Key>;
   onAction?: (key: Key) => void;
   onSelectionChange?: (keys: Set<Key>) => void;
-  /** Per-item `onAction`s, for radio items, which UI SDK reports through their group. */
   actions: Map<Key, () => void>;
 }
 
@@ -61,7 +55,6 @@ const MenuStateContext = createContext<MenuState>({
   selected: new Set(),
   actions: new Map(),
 });
-/** Inside a `MenuSubMenu`, a `<Menu>` is that submenu's content. */
 const SubmenuContext = createContext(false);
 
 export interface MenuTriggerProps {
@@ -139,23 +132,13 @@ export interface MenuProps<T> {
 }
 
 export const menuStyles = tv({
-  // `minmax(0,1fr)`: the label column may shrink below its text, so a long label truncates
-  // at the menu's max width instead of widening it.
   base: "grid max-h-[inherit] grid-cols-[auto_minmax(0,1fr)] gap-y-0 overflow-x-hidden overflow-y-auto overscroll-contain p-1 outline-hidden [&>[data-slot=menu-section]+[data-slot=menu-section]:not([class*='mt-']):not([class*='my-'])]:mt-3",
 });
 
-/** Every row a menu renders, submenu triggers included. */
 const MENU_ITEM_SELECTOR = "[role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox']";
 
-/**
- * The widest row sets the menu's width (fit-content): the longest label, then 36px to the edge
- * (the menu's 4px padding plus the row's 32px end padding); icons sit 12px in. Short menus keep a 132px floor so
- * they don't look pinched; past 240px labels truncate. Don't fix a menu's width; a menu whose
- * rows carry more (an avatar and two lines) raises only the cap with `max-w-*`.
- */
 const MENU_WIDTH = "w-max min-w-33 max-w-60";
 
-/** Where the menu opens: beside its trigger (a submenu places itself), 8px off, 16px from edges. */
 function positionProps(
   nested: boolean,
   popover: MenuProps<object>["popover"],
@@ -170,7 +153,6 @@ function positionProps(
   };
 }
 
-/** A group around items that keeps them on the menu's grid. */
 const ON_GRID = "col-span-full grid grid-cols-subgrid";
 
 export function Menu<T extends { id?: Key }>({
@@ -189,9 +171,6 @@ export function Menu<T extends { id?: Key }>({
   const nested = useContext(SubmenuContext);
   const actions = useRef(new Map<Key, () => void>()).current;
   const selected = new Set(selectedKeys ?? []);
-  // One highlight springs between the rows (transitive's fluid hover). UI SDK marks the row it
-  // highlights (pointer or keys) with `data-highlighted`; an open submenu's trigger stays lit
-  // while the pointer is in the submenu.
   const hover = useFluidHoverList({
     itemSelector: MENU_ITEM_SELECTOR,
     highlightedSelector: "[data-highlighted]",
@@ -260,7 +239,6 @@ export interface MenuItemProps extends VariantProps<typeof dropdownItemStyles> {
   children?: ReactNode;
 }
 
-/** 32px after the label (36px to the menu's edge with its padding): see `MENU_WIDTH`. */
 const ITEM_END = "pe-8";
 
 export function MenuItem({
@@ -279,7 +257,6 @@ export function MenuItem({
     <>
       {typeof children === "string" ? <MenuLabel>{children}</MenuLabel> : children}
       {menu.selectionMode !== "none" && (
-        // At the row's end, inside its 32px end padding, centred on the first line.
         <MenuItemIndicator
           render={
             <CheckIcon
@@ -295,7 +272,6 @@ export function MenuItem({
     label,
     disabled: isDisabled,
     "data-intent": intent,
-    // The fluid hover highlight is the row's fill; the row paints none of its own.
     className: (state: { highlighted: boolean; disabled: boolean; checked?: boolean }) =>
       dropdownItemStyles({
         intent,

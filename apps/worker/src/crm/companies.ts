@@ -1,4 +1,3 @@
-// Companies and their domains, under `/api/crm/companies` (docs/spec/crm.md "API").
 import {
   crmCompaniesQuerySchema,
   crmCreateCompanyBodySchema,
@@ -67,7 +66,6 @@ export const companies = new Hono<AppEnv>()
     return c.json({ company: wireCompany(changed.company) } satisfies CrmCompanyResponse);
   })
 
-  /** Archives; `?forever=1` deletes for good (owners and admins), leaving its files in Storage. */
   .delete("/companies/:id", zValidator("query", crmDeleteQuerySchema), async (c) => {
     const id = c.req.param("id");
     const crm = memberCrm(c);

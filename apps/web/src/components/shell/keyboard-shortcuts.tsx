@@ -51,8 +51,6 @@ export function KeyboardShortcuts() {
   );
 }
 
-// Layout not in Figma yet: the Dialog and DescriptionList primitives as they are, one row per
-// shortcut in definition order. Like the ⌘K menu, it lists only the keys that work here.
 function ShortcutList(props: { isOpen: boolean; onOpenChange: (open: boolean) => void }) {
   const available = useAvailableShortcuts();
   return (

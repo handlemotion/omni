@@ -1,6 +1,3 @@
-// Thread writes shared by the member routes and the MCP `triage` tool (ADR 0029), so a change an
-// agent makes is the same change the app makes: the same rows, the same outbox actions under the
-// same idempotency keys. Callers ping the mail service when actions were queued.
 import {
   enqueueAction,
   forMember,
@@ -59,7 +56,6 @@ export async function markRead(writer: ThreadWriter, threadId: string, read: boo
 
 type Found = NonNullable<Awaited<ReturnType<typeof threadActionTargets>>>;
 
-/** `done`: the flag is Done reaching a Google account, the only flag change it accepts. */
 function enqueueFlag(
   writer: ThreadWriter,
   found: Found,
@@ -95,15 +91,12 @@ export async function setTriage(
 ) {
   const state = await forMember(writer.db, writer.memberId).setThreadState(threadId, patch);
   if (!state) return null;
-  // `done: false` after asking for done: a newer message arrived, and Gmail keeps it unread.
   const kind = state.done ? "mark_read" : patch.doneThrough === null ? "mark_unread" : null;
   if (!kind) return { state, actionIds: [] };
   const found = await threadActionTargets(
     writer.db,
     writer.memberId,
     threadId,
-    // Read only what Done covers: a reply indexed since `setThreadState` stays unread in Gmail,
-    // so it reopens the thread instead of being swept into Done unseen.
     kind === "mark_unread" ? "newest" : (state.doneThrough ?? undefined),
   );
   const actionIds =

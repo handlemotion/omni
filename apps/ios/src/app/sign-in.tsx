@@ -10,8 +10,6 @@ import { config } from "@/lib/config.ts";
 import { requestSignInLink, useSession } from "@/lib/session.ts";
 import { space } from "@/theme/tokens.ts";
 
-// The web's sign-in (Figma "/", node 1:13) on a phone: the same words, one email field and
-// Continue. The link opens from Mail on this phone and comes back into the app.
 export default function SignIn() {
   const session = useSession();
   const { error } = useLocalSearchParams<{ error?: string }>();

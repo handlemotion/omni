@@ -1,10 +1,3 @@
-// Seeds the local stack with a workspace you can use: `pnpm --filter @omni/mail dev:seed`.
-// Local only: it points mailboxes at GreenMail (`pnpm stack:up`), which takes any password.
-// Creates the "Omni Dev" company owned by dev@example.com with an active subscription, a personal
-// inbox (dev@example.com) and a shared one (support@example.com), and fills each GreenMail INBOX
-// from fixtures/eml/ the first time. Safe to run again: the company, member, subscription and
-// mailboxes are reused, and mail is appended only to an empty INBOX. Sign in afterwards with a
-// magic link to dev@example.com.
 import { randomUUIDv7 } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -19,7 +12,6 @@ import { type PasswordCredentials, sealCredentials } from "../credentials.ts";
 
 const OWNER = "dev@example.com";
 const fixtures = join(import.meta.dirname, "../../../../fixtures/eml");
-// Helpdesk-style mail goes to the shared inbox; everything else to the owner's own.
 const MAILBOXES = [
   { address: OWNER, kind: "personal", fixtures: (f: string) => !isSupport(f) },
   { address: "support@example.com", kind: "shared", fixtures: isSupport },
@@ -51,8 +43,6 @@ try {
     ownerEmail: OWNER,
     ownerName: "Dev",
   });
-  // An active subscription, so triage runs and thread actions are not refused (402). It has no
-  // Stripe ids, so billing reconciliation never touches it. `PLAN_NAME` in @omni/auth.
   const [subscribed] = await db
     .select({ id: subscriptions.id })
     .from(subscriptions)
@@ -90,7 +80,6 @@ try {
 await pingMailService();
 process.stdout.write(`dev:seed: done. Sign in as ${OWNER}.\n`);
 
-/** Appends the matching fixtures to an empty INBOX; returns how many it added. */
 async function fillInbox(credentials: PasswordCredentials, wanted: (file: string) => boolean) {
   const client = new ImapFlow({
     host: credentials.imap.host,
@@ -111,7 +100,6 @@ async function fillInbox(credentials: PasswordCredentials, wanted: (file: string
   }
 }
 
-/** A running mail service connects new mailboxes at once; otherwise on its next sync interval. */
 async function pingMailService() {
   const { MAIL_SERVICE_URL: url, MAIL_SERVICE_HMAC_SECRET: secret } = env;
   if (!url || !secret) return;

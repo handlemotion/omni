@@ -1,6 +1,3 @@
-// A file's versions (ADR 0043 decision 1), by the member's door or a shared link's: the current
-// content and what it replaced, a version's download, and the restore. A new version is an
-// upload (`storage-upload.ts`, with `replaces`).
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import type { Api } from "@omni/client";
 import type { InferResponseType } from "hono/client";
@@ -35,7 +32,6 @@ export function storageVersionUrl(id: string, versionId: string, shareId?: strin
       [":versionId"].content.$url({ param: { shareId, id, versionId } })
       .toString();
   }
-  // Downloads and previews load it themselves, with no header: the URL names the workspace.
   return withWorkspace(
     memberDoor()[":versionId"].content.$url({ param: { id, versionId } }).toString(),
   );

@@ -36,14 +36,11 @@ import { useMember } from "@/hooks/use-session.ts";
 import { useWorkspaceSlug, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import { workspaceHref } from "@/lib/workspaces.ts";
 
-/** A nav row. No `href`: the frame shows it, but the app has no view for it yet. */
 interface NavItem {
   label: string;
   icon: ReactNode;
   href?: string;
-  /** Path inside the workspace (and lane, for inbox lanes) that marks this row current. */
   current?: { path: string; lane?: string; exact?: boolean };
-  /** Shows the inbox's unread threads at the row's end. */
   unread?: boolean;
 }
 
@@ -78,18 +75,11 @@ const folders: NavItem[] = [
   { label: "Spam", icon: <IconWarning />, href: "/mail/spam", current: { path: "/mail/spam" } },
 ];
 
-// Figma: Omni, sidebar (node 1:3). One module at a time (ADR 0035), after Skiff: the top row is
-// the module, and its menu switches module and workspace; the rest is that module's own. The
-// sidebar's toggle closes it from the footer; closed, the toggle starts each page's header
-// (`PageNav`).
 export function AppSidebar() {
   const module = useCurrentModule();
   const titleBar = useTitleBar();
-  // The links carry the URL's mailbox as it is, not the one found in the workspace list: right
-  // after a switch that list is still loading, and a link built from it would drop the mailbox.
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
   const { open, isMobile } = useSidebar();
-  // Closed, the module's places stay at hand as icons (`SidebarIsland`).
   if (!open && !isMobile) {
     return (
       <SidebarIsland
@@ -107,15 +97,8 @@ export function AppSidebar() {
     );
   }
   return (
-    // The sheet on a phone closes from the page header's sidebar toggle: no second close mark.
     <Sidebar closeButton={false}>
-      {/* Rows keep their height when the content runs long (a deep folder tree): it scrolls. */}
       <SidebarContent className="*:shrink-0">
-        {/* First, in the list the hover highlight runs through, centred on the page headers'
-            middle (24px down: the sidebar's 8px padding and half the 32px row), so it sits on
-            the same line as their titles. */}
-        {/* The title bar holds the workspace and notifications; on a phone, the sheet's first row
-            does: the workspace, hugging its mark and name, and notifications at its end. */}
         <TitleBarRow />
         {!titleBar && <WorkspaceSwitcher end={<NotificationsButton />} />}
         {module === "files" ? (
@@ -127,8 +110,6 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      {/* The foot: the module and its Switch. Settings is in the workspace's menu, the bell
-          beside it, and the sidebar's toggle at the start of every page header. */}
       <SidebarFooter className="flex-col items-stretch">
         <OfflineBadge />
         <ModuleSwitcher />
@@ -137,13 +118,9 @@ export function AppSidebar() {
   );
 }
 
-/** Mail's rows: the mailbox, the lists and the folders. Compose and search are the page's. */
 function MailNav({ mailbox }: { mailbox: string | undefined }) {
   return (
     <>
-      {/* Which mailbox you're in, then where its mail waits: the same rows for every mailbox the
-          switcher shows; a shared inbox adds its Mine. Every row keeps the mailbox chosen: a link
-          never changes which one is shown. */}
       <SidebarSection>
         <MailboxSwitcher />
         <MailItems mailbox={mailbox} />
@@ -153,7 +130,6 @@ function MailNav({ mailbox }: { mailbox: string | undefined }) {
   );
 }
 
-/** Where the shown mailbox's mail waits: the lists, and a shared inbox's Mine. */
 function MailItems({ mailbox }: { mailbox: string | undefined }) {
   const shown = useShownMailbox();
   return (
@@ -164,7 +140,6 @@ function MailItems({ mailbox }: { mailbox: string | undefined }) {
   );
 }
 
-/** The mailbox the switcher shows, in the active workspace (none: all of them). */
 function useShownMailbox() {
   const { member } = useMember();
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
@@ -173,13 +148,11 @@ function useShownMailbox() {
   return boxes.find((box) => box.id === mailbox);
 }
 
-/** A nav link that keeps showing `mailbox`, the switcher's choice. */
 function withMailbox(href: string, mailbox: string | undefined) {
   if (!mailbox) return href;
   return `${href}${href.includes("?") ? "&" : "?"}mailbox=${encodeURIComponent(mailbox)}`;
 }
 
-/** A titled run of rows. The title is a plain label: the group always shows its rows. */
 function Group(props: { label: string; items: NavItem[]; mailbox: string | undefined }) {
   return (
     <SidebarSection label={props.label}>
@@ -195,7 +168,6 @@ function Items({ items, mailbox }: { items: NavItem[]; mailbox: string | undefin
   const isCurrent = ({ current }: NavItem) => {
     if (!current) return false;
     const path = workspaceHref(workspace, current.path);
-    // A helpdesk view lives under /mail/inbox too; its own row is the current one.
     return (
       !view &&
       (current.exact ? pathname === path : pathname.startsWith(path)) &&
@@ -221,23 +193,15 @@ function Items({ items, mailbox }: { items: NavItem[]; mailbox: string | undefin
   ));
 }
 
-/** Unread threads in the inbox, across the shown mailbox (or all of them); nothing at zero. */
 function UnreadCount({ mailbox }: { mailbox: string | undefined }) {
   const counts = useCounts().data?.counts ?? [];
   const unread = counts
     .filter((c) => !mailbox || c.mailboxId === mailbox)
     .reduce((sum, c) => sum + c.unread, 0);
   if (!unread) return null;
-  // 4px into the row's end padding: its centre lines up with the mailbox switcher's chevron above
-  // it (the rows' trailing axis).
   return <CountBadge count={unread} className="ms-auto -me-1" />;
 }
 
-/**
- * Shown only while the API cannot be reached. Not in the Figma frame: the smallest thing that
- * says what is going on, from the existing badge and its warning tokens. Actions taken meanwhile
- * are queued and counted.
- */
 function OfflineBadge() {
   const { online, queued } = useConnectivity();
   if (online) return null;

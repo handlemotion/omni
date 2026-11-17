@@ -1,7 +1,3 @@
-// Every empty state, as dorks draws them (handlemotion/dorks, apps/web/src/components/EmptyState):
-// a Hairline figure (`@lucasmarkes/hairline`), an isometric line drawing of an object holding
-// nothing, then one or two lines of text and the actions. The figures answer the pointer, follow
-// the theme on their own and rest still under reduced motion.
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Cabinet, Dish, Drawer, Exploded, Loupe, Padlock, Plug } from "@lucasmarkes/hairline/react";
@@ -14,7 +10,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 
-/** The figures in use. Add one here before using a new one. */
 const FIGURES = {
   cabinet: Cabinet,
   dish: Dish,
@@ -41,7 +36,6 @@ export function EmptyState(props: {
 }) {
   const Figure = FIGURES[props.figure];
   return (
-    // A little above the true middle, where an empty page reads as centered.
     <Empty className={cn("gap-6 p-8 pb-24", props.className)}>
       <EmptyHeader className="gap-1">
         <EmptyMedia className="mb-5 w-52 [&_svg]:pointer-events-auto">

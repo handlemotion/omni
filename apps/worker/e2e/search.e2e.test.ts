@@ -1,8 +1,3 @@
-// Search through the member API: the real Worker under workerd over a real Postgres. The mail is
-// the invented threads in `fixtures/search/threads.json`, dated relative to now as they are to
-// the fixture's `now`. TypeSafe is the one outside service: an HTTP server answers each
-// relevance question with the Noul Jev gave live for that query and thread subject
-// (`fixtures/search/recordings`), and can be switched to fail or to hang.
 import { readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -37,7 +32,6 @@ interface Question {
   instructions: { thread: { subject: string } };
 }
 
-/** query → thread subject → the recorded Noul. */
 function recordedJudgments() {
   const dir = new URL("recordings/", fixtures);
   const byQuery = new Map<string, Map<string, number>>();
@@ -55,7 +49,6 @@ function recordedJudgments() {
   return byQuery;
 }
 
-/** Answers from the recordings, fails, or hangs; a question it has no recording for is a 500. */
 async function startJev() {
   const judgments = recordedJudgments();
   const state = { mode: "replay" as "replay" | "fail" | "hang", requests: 0 };
@@ -63,7 +56,7 @@ async function startJev() {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk as Buffer);
     state.requests++;
-    if (state.mode === "hang") return; // never answers; the Worker has to give up
+    if (state.mode === "hang") return;
     const body = JSON.parse(Buffer.concat(chunks).toString()) as {
       model: string;
       state: { query: string };
@@ -102,7 +95,6 @@ let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
 let jev: Awaited<ReturnType<typeof startJev>>;
 let worker: Awaited<ReturnType<typeof startWorker>>;
 let cookie: string;
-/** Fixture thread id → stored thread id. */
 const threadIds = new Map<string, string>();
 
 beforeAll(async () => {
@@ -136,7 +128,6 @@ beforeAll(async () => {
     });
     threadIds.set(thread.id, seeded.threadId);
   }
-  // An earlier message in the contract thread that also matches: still one row for the thread.
   await seedMessage(db, box, {
     subject: "Website redesign proposal",
     fromAddress: fixture.mailbox,
@@ -195,7 +186,6 @@ describe("search", () => {
     const contract = await search("who asked about the contract");
     expect(contract.results[0]).toMatchObject({
       threadId: threadIds.get("brightside-contract-question"),
-      // The best-matching message, not the earlier one in the same thread.
       from: { name: "Lena Park" },
       messageCount: 2,
     });
@@ -212,13 +202,11 @@ describe("search", () => {
   });
 
   test("a query finds mail by what it means when none of its words are in the mail", async () => {
-    // No thread says "otp": the sign-in code is found among the newest threads, by Jev alone.
     const { ranking, results } = await search("otp");
     expect(ranking).toBe("jev");
     expect(results.map((r) => r.threadId)).toEqual([threadIds.get("fernway-sign-in-code")]);
     expect(results[0]!.snippet).toContain("Enter 482913 to finish signing in");
 
-    // Without Jev there is nothing to judge meaning with: only word matches, here none.
     jev.state.mode = "fail";
     expect((await search("one time passcode otp")).results).toEqual([]);
   });

@@ -1,6 +1,3 @@
-// React Aria's button, kept only for the React Aria components not yet moved to UI SDK
-// (select, combo box, date picker, file trigger, dialog close...). Their trigger and slot
-// wiring needs a React Aria pressable; everything else uses `Button` from ./button.
 import {
   Button as ButtonPrimitive,
   type ButtonProps as ButtonPrimitiveProps,

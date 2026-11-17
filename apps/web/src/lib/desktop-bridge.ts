@@ -1,4 +1,3 @@
-// Tauri's JS API, loaded only inside the desktop app (`desktop.ts` imports this dynamically).
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -6,7 +5,6 @@ import { onAction, sendNotification } from "@tauri-apps/plugin-notification";
 
 export const openOutside = (url: string) => openUrl(url);
 
-// `undefined` removes the badge.
 export const setBadge = (count: number) =>
   getCurrentWindow().setBadgeCount(count > 0 ? count : undefined);
 
@@ -25,7 +23,6 @@ export async function focusWindow() {
   await window.setFocus();
 }
 
-/** What a click on each notification shown this run does, by its id; the oldest drop first. */
 const clicks = new Map<number, () => void>();
 const MAX_CLICKS = 200;
 let nextId = 1;

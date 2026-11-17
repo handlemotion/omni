@@ -1,5 +1,3 @@
-// Mail's HTTP API as its clients see it (ADR 0035 decision 3), for routes that cross into another
-// module: what the web and iOS apps send under `/api/mail`. Error codes are rows in `ERROR_CODES`.
 import { z } from "zod";
 
 /**

@@ -1,6 +1,3 @@
-// Canned replies (ADR 0021): an inbox's, shared with everyone on it, or one member's own. Every
-// read and write checks the member's grant on the inbox (`grantFor`), and a member's own replies
-// are reachable only by that member.
 import { and, desc, eq, exists, inArray, ne, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { memberMailbox, senderIdentity } from "./compose.ts";
@@ -27,7 +24,6 @@ function withScope(row: ReplyRow) {
   return { ...row, scope: (row.mailboxId ? "inbox" : "personal") as CannedReplyScope };
 }
 
-/** A reply the member may use and change: their own, or an inbox's they can see. */
 function visibleTo(db: Db, memberId: string) {
   return or(
     eq(cannedReplies.ownerMemberId, memberId),
@@ -78,7 +74,6 @@ export interface CannedReplyFields {
   addTagIds: string[];
 }
 
-/** Tags of `mailboxId` among `tagIds`; anything else is refused by the caller. */
 async function inboxTags(db: Db, mailboxId: string, tagIds: string[]) {
   if (!tagIds.length) return [];
   const rows = await db

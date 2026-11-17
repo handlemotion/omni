@@ -1,5 +1,3 @@
-// Trusted background work for Storage (ADR 0034 decisions 5 and 7): the purge of old Trash, and
-// the usage counter's read and its daily repair. Callers have already resolved the workspace.
 import { and, eq, exists, inArray, isNotNull, lt, not, or, sql, type AnyColumn } from "drizzle-orm";
 import { PAID_STATUSES } from "../billing.ts";
 import type { Db } from "../client.ts";
@@ -18,10 +16,8 @@ export async function storageUsageOf(db: Db, orgId: string) {
   return { bytes: row?.bytes ?? 0, reservedBytes: await reservedBytes(db, orgId) };
 }
 
-/** SQL condition: the workspace in `orgId` may write, as ADR 0015 defines good standing. */
 function inGoodStanding(db: Db, orgId: AnyColumn) {
   return or(
-    // A Personal space is free (ADR 0024).
     not(isCompany(db, orgId)),
     exists(
       db
@@ -63,8 +59,6 @@ export async function purgeStorageTrash(
   for (const node of due.slice(0, limit)) {
     const deleted = await db.transaction(async (tx) => {
       await lockTree(tx, node.orgId);
-      // Still there and still due: it may have been restored (and trashed again, which starts
-      // its 30 days over), or gone with its folder.
       const [still] = await tx
         .select({ id: storageNodes.id })
         .from(storageNodes)
@@ -117,11 +111,6 @@ export async function purgeStorageVersions(
   return { r2Keys, more: due.length > limit };
 }
 
-/**
- * Sets a workspace's usage to what its nodes and their kept versions add up to, and returns whether it had drifted. The
- * usage row is locked first, as every change to a file's bytes does, so nothing lands between
- * the sum and the write.
- */
 async function recomputeOne(db: Db, orgId: string) {
   return db.transaction(async (tx) => {
     const before = await lockUsage(tx, orgId);

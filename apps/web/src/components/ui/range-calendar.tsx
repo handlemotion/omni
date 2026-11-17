@@ -56,13 +56,9 @@ export function RangeCalendar<T extends DateValue>({
                             ? "bg-primary text-primary-foreground group-invalid/calendar-cell:bg-danger group-invalid/calendar-cell:text-danger-foreground forced-colors:bg-[Highlight] forced-colors:text-[HighlightText] forced-colors:group-invalid/calendar-cell:bg-[Mark]"
                             : isSelected
                               ? [
-                                  // hover
                                   "group-hover/calendar-cell:bg-primary/15",
-                                  // pressed
                                   "group-pressed/calendar-cell:bg-(--cell)",
-                                  // invalid
                                   "group-invalid/calendar-cell:text-danger-subtle-foreground group-invalid/calendar-cell:group-hover/calendar-cell:bg-danger/15 group-invalid/calendar-cell:group-pressed/calendar-cell:bg-danger/30",
-                                  // forced-colors
                                   "forced-colors:text-[HighlightText] forced-colors:group-pressed/calendar-cell:bg-[Highlight] forced-colors:group-hover/calendar-cell:bg-[Highlight] forced-colors:group-invalid/calendar-cell:group-pressed/calendar-cell:bg-[Mark] forced-colors:group-invalid:group-hover/calendar-cell:bg-[Mark]",
                                 ]
                               : "group-hover/calendar-cell:bg-secondary-foreground/15 group-pressed/calendar-cell:bg-secondary-foreground/20 forced-colors:group-pressed/calendar-cell:bg-[Highlight]",

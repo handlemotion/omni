@@ -1,5 +1,3 @@
-// Shared drafts and undo send over the real Worker and Postgres: autosave that never overwrites a
-// teammate, sending a draft, and cancelling a send inside its window.
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -111,7 +109,6 @@ describe("undo send", () => {
     );
     expect(reply.status).toBe(202);
     const sent = (await reply.json()) as { actionId: string; undoUntil: string };
-    // Default window: 5 seconds. The mail service's claim skips the row until then.
     const held = new Date(sent.undoUntil).getTime() - before;
     expect(held).toBeGreaterThan(4_000);
     expect(held).toBeLessThan(7_000);
@@ -119,7 +116,6 @@ describe("undo send", () => {
       new Date(sent.undoUntil).toISOString(),
     );
 
-    // Only the sender can cancel it.
     expect(
       (await api(`/actions/${sent.actionId}/cancel`, bea.cookie, { method: "POST" })).status,
     ).toBe(404);
@@ -130,14 +126,12 @@ describe("undo send", () => {
       payload: { text: "Fixed, see attached.", to: ["luis@client.test"] },
     });
     expect(await actionRow(sent.actionId)).toBeNull();
-    // The upload is unsent again, so the composer can send it next time.
     const [upload] = await db.select().from(schema.uploads).where(eq(schema.uploads.id, file.id));
     expect(upload?.usedAt).toBeNull();
     expect(
       (await api(`/actions/${sent.actionId}/cancel`, ana.cookie, { method: "POST" })).status,
     ).toBe(404);
 
-    // Once the mail service has claimed a send, cancel answers 409 and the row stays.
     const second = (await (
       await api(
         `/threads/${thread.threadId}/reply`,
@@ -154,7 +148,6 @@ describe("undo send", () => {
     ).toBe(409);
     expect(await actionRow(second.actionId)).not.toBeNull();
 
-    // A member who turned undo off sends at once.
     await db
       .insert(schema.memberPreferences)
       .values({ memberId: bea.id, orgId: inbox.orgId, undoSendSeconds: 0 });
@@ -189,7 +182,6 @@ describe("drafts", () => {
     const draft = (await created.json()) as Draft;
     expect(draft.version).toBe(1);
 
-    // Bea sees it on the conversation and saves first; Ana's autosave from version 1 then loses.
     const listed = (await (
       await api(`/drafts?threadId=${thread.threadId}`, bea.cookie)
     ).json()) as { drafts: Draft[] };
@@ -197,7 +189,6 @@ describe("drafts", () => {
     const beaSave = await api(
       `/drafts/${draft.id}`,
       bea.cookie,
-      // Keeps the default recipient and copies Marta in.
       json("PUT", {
         version: 1,
         bodyText: "Hi Luis, the fix is out.",
@@ -215,14 +206,12 @@ describe("drafts", () => {
       draft: { version: 2, bodyText: "Hi Luis, the fix is out." },
     });
 
-    // Not on the inbox: invisible.
     expect((await api(`/drafts/${draft.id}`, cy.cookie)).status).toBe(404);
     expect(
       (await api(`/drafts/${draft.id}/send`, cy.cookie, { method: "POST", key: "cy-send-1" }))
         .status,
     ).toBe(404);
 
-    // Ana and Bea both click Send on the shared draft at once: one email, the other finds it gone.
     const send = (who: { cookie: string }, key: string) =>
       api(`/drafts/${draft.id}/send`, who.cookie, { method: "POST", key });
     const raced = await Promise.all([send(ana, "draft-send-1"), send(bea, "draft-send-bea")]);
@@ -241,7 +230,6 @@ describe("drafts", () => {
       inReplyTo: "<invoice@client.test>",
     });
     expect((await api(`/drafts/${draft.id}`, ana.cookie)).status).toBe(404);
-    // A retried click (lost response) answers the same send instead of 404 or a second mail.
     const retry = await send(winner.who, winner.key);
     expect(((await retry.json()) as { actionId: string }).actionId).toBe(actionId);
     const sends = await db
@@ -277,7 +265,6 @@ describe("drafts", () => {
     expect(
       ((await stale.json()) as { messages: { id: string }[] }).messages.map((m) => m.id),
     ).toEqual([followUp.messageId]);
-    // Nothing went out, and the draft is still there to finish.
     const sends = () =>
       db.select().from(schema.mailActions).where(eq(schema.mailActions.mailboxId, inbox.id));
     expect(await sends()).toEqual([]);
@@ -314,7 +301,6 @@ describe("drafts", () => {
     ).json()) as Draft;
     expect(draft.attachments).toEqual([{ attachmentId: pdf!.id }]);
 
-    // Sending with no recipient is refused and keeps the draft.
     expect(
       (await api(`/drafts/${draft.id}/send`, ana.cookie, { method: "POST", key: "fwd-draft-0" }))
         .status,

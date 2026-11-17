@@ -1,7 +1,3 @@
-// What owners and admins do with a company inbox that outlived its owner, and removing any inbox
-// (ADR 0026). A removed member's personal inbox stays with the company, orphaned: nobody can open
-// it and it stops syncing. It can be given to a member, turned into a shared inbox, or removed.
-// Every action is recorded; `GET /workspace/events` lists them, without mail content.
 import {
   HOSTED_DISCONNECT_PATH,
   hostedDisconnectResultSchema,
@@ -72,7 +68,6 @@ export const workspaceInboxes = new Hono<AppEnv>()
     removeInbox(c, c.req.param("id"), false),
   )
 
-  /** Gives an orphaned inbox to a member: theirs from now on, old mail included. Idempotent. */
   .post(
     "/workspace/inboxes/:id/owner",
     zValidator("json", z.object({ memberId: z.string().min(1) })),
@@ -94,7 +89,6 @@ export const workspaceInboxes = new Hono<AppEnv>()
     },
   )
 
-  /** Turns an orphaned inbox into a shared inbox seen by `memberIds`. Idempotent. */
   .post(
     "/workspace/inboxes/:id/shared",
     zValidator("json", z.object({ memberIds: people })),
@@ -113,7 +107,6 @@ export const workspaceInboxes = new Hono<AppEnv>()
     },
   )
 
-  /** The workspace's inbox actions, newest first: who did what to which address. */
   .get("/workspace/events", async (c) =>
     c.json({ events: await listInboxEvents(c.var.db, c.var.member.orgId) }),
   );

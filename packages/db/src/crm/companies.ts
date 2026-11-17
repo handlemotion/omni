@@ -1,5 +1,3 @@
-// Companies and their domains. A domain is one company's in a workspace; webmail domains are
-// never a company's (ADR 0036 decision 4).
 import { isWebmailDomain } from "@omni/mail-core/addresses";
 import { and, asc, eq, sql, type AnyColumn } from "drizzle-orm";
 import { crmCompanies, crmCompanyDomains, crmDeals, crmPeople, crmStages } from "../schema/crm.ts";
@@ -86,7 +84,6 @@ export async function listCompanies(ex: Ex, member: CrmMember, input: ListCompan
   const rows = await ex
     .select({
       ...companyColumns,
-      // One of its domains (the first by name), for the row's logo.
       domain: sql<string | null>`(select ${crmCompanyDomains.domain} from ${crmCompanyDomains}
         where ${crmCompanyDomains.orgId} = ${crmCompanies.orgId}
           and ${crmCompanyDomains.companyId} = ${crmCompanies.id}
@@ -135,7 +132,6 @@ export const getCompany: (
   };
 };
 
-/** A domain as it may be added, or why not. */
 const checkDomain: (input: string) => { domain: string } | DomainRefusal = (input) => {
   const domain = normalizeDomain(input);
   if (!domain) return { status: "invalid_domain" };
@@ -143,10 +139,6 @@ const checkDomain: (input: string) => { domain: string } | DomainRefusal = (inpu
   return { domain };
 };
 
-/**
- * Gives `domain` to the company. The unique key decides a race: a domain another company holds
- * is refused, one this company holds already is fine.
- */
 async function claimDomain(tx: Ex, member: CrmMember, companyId: string, domain: string) {
   const made = await tx
     .insert(crmCompanyDomains)

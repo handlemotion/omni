@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// `pnpm dev:stack`: the whole product locally, ready to click through at http://localhost:5173.
-//
-//   1. Docker services (Postgres, GreenMail, object store). Containers another checkout or
-//      worktree already runs under the same names are used as they are, once healthy.
-//   2. Database migrations.
-//   3. Seed: the "Omni Dev" company with GreenMail inboxes full of fixture mail (dev:seed).
-//   4. The web app (5173), the Worker (8787) and the mail service (8788). The Worker's
-//      BETTER_AUTH_URL is Vite's origin, so magic links open the hot-reloading app.
-//
-// Sign in as dev@example.com. Secrets come from Doppler, like each unit's own `dev` script.
 import { spawn, spawnSync } from "node:child_process";
 import { join } from "node:path";
 
@@ -63,15 +53,12 @@ function start(args) {
 }
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => stop(0));
 
-// The Worker first: Vite forwards /api to it and the mail service posts events to it, so both
-// start once it answers.
 start(["--filter", "@omni/worker", "dev", "--var", `BETTER_AUTH_URL:${WEB_ORIGIN}`]);
 const workerUp = () =>
   fetch(`${WORKER_ORIGIN}/health`).then(
     (r) => r.ok,
     () => false,
   );
-// `exiting` flips in the exit handler while this waits.
 for (const deadline = Date.now() + 120_000; Date.now() < deadline;) {
   if (exiting || (await workerUp())) break;
   await new Promise((resolve) => setTimeout(resolve, 500));

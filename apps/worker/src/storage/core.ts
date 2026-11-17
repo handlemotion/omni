@@ -1,5 +1,3 @@
-// Storage (ADR 0034) as the Worker's routes and crons share it: how much a workspace may store,
-// how a file is served, and how objects leave the bucket. Access is decided in `@omni/db`.
 import { STORAGE_PART_BYTES, type StorageNode, type StorageUpload } from "@omni/contracts";
 import {
   storageOverageOf,
@@ -163,7 +161,6 @@ export const parseRange: (
   const match = header ? /^bytes=(\d*)-(\d*)$/.exec(header.trim()) : null;
   if (!match || (match[1] === "" && match[2] === "")) return null;
   if (match[1] === "") {
-    // The last N bytes.
     const length = Math.min(Number(match[2]), size);
     return length > 0 ? { offset: size - length, length } : "unsatisfiable";
   }
@@ -205,7 +202,6 @@ export const fileResponse: (
     "cache-control": "private, no-store",
   });
   let range = parseRange(request.range, file.size);
-  // A resumed download names the version it has; when the file is another, it starts over.
   if (range && request.ifRange !== undefined) {
     const head = await bucket.head(file.r2Key);
     if (head?.httpEtag !== request.ifRange) range = null;

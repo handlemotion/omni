@@ -1,6 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { StyleSheet, View } from "react-native";
-// Extensionless, so Metro picks `html-view.web.tsx` on the web target.
 import { HtmlView } from "@/components/conversation/html-view";
 import { IconChevronLeft, IconInbox } from "@/components/icons.ts";
 import { Button } from "@/components/ui/button.tsx";

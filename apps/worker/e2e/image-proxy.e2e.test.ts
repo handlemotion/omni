@@ -13,7 +13,6 @@ import {
   SYSTEM_MAIL_FROM,
 } from "./support.ts";
 
-// 1x1 transparent PNG.
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
   "base64",
@@ -26,10 +25,6 @@ let origin: string;
 let originServer: Server;
 const originHits: { path: string; headers: IncomingHttpHeaders }[] = [];
 
-/**
- * A real HTTP server standing in for the remote web: images, redirects, and a DNS-over-HTTPS
- * JSON endpoint whose answer for `rebind.example.com` points at loopback.
- */
 async function startOrigin() {
   const server = createServer((req, res) => {
     const path = req.url ?? "/";
@@ -52,7 +47,6 @@ async function startOrigin() {
       case "/page":
         return res.writeHead(200, { "content-type": "text/html" }).end("<h1>hi</h1>");
       case "/big.png":
-        // No content-length: the cap must hold while streaming.
         res.writeHead(200, { "content-type": "image/png" });
         return res.end(Buffer.alloc(6 * 1024 * 1024));
       case "/to-loopback":
@@ -136,13 +130,11 @@ describe("image proxy", () => {
       ["http://[::ffff:127.0.0.1]/a.png", 403],
       ["http://[fd00::1]/a.png", 403],
       ["http://[fe80::1]/a.png", 403],
-      // Numeric forms the URL parser turns into 127.0.0.1.
       ["http://0x7f000001/a.png", 403],
       ["http://2130706433/a.png", 403],
       ["http://localhost/a.png", 403],
       ["http://printer.local/a.png", 403],
       ["http://metadata.google.internal/computeMetadata/v1/", 403],
-      // A public name whose DNS answer is loopback (DNS rebinding).
       ["http://rebind.example.com/a.png", 403],
       ["http://93.184.216.34:8080/a.png", 403],
       ["http://user:pass@93.184.216.34/a.png", 403],
@@ -155,7 +147,6 @@ describe("image proxy", () => {
       const response = await proxy(url, cookie);
       expect({ url, status: response.status }).toEqual({ url, status });
     }
-    // Nothing above reached a server.
     expect(originHits.filter((h) => !h.path.startsWith("/dns-query")).length).toBe(hitsBefore);
   });
 
@@ -186,7 +177,6 @@ describe("image proxy", () => {
     expect(hits[0]!.headers.cookie).toBeUndefined();
     expect(hits[0]!.headers.referer).toBeUndefined();
 
-    // Served from the Cache API the second time.
     expect((await proxy(`${origin}/ok.png?fresh=1`, cookie)).status).toBe(200);
     expect(originHits.filter((h) => h.path === "/ok.png?fresh=1")).toHaveLength(1);
   });
@@ -199,7 +189,6 @@ test("the test-only origin exemption cannot be switched on outside ENVIRONMENT=t
     vars: { ENVIRONMENT: "production", IMAGE_PROXY_TEST_ALLOW_ORIGIN: origin },
   });
   try {
-    // Config validation fails, so no request is served at all, let alone proxied.
     const response = await fetch(
       new URL(
         `/api/image-proxy?url=${encodeURIComponent(`${origin}/ok.png?deployed=1`)}`,

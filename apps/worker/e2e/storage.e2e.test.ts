@@ -1,5 +1,3 @@
-// Storage's member routes (ADR 0034) over the real Worker, its local R2 bucket and Postgres:
-// upload in parts, download with Range, the folder tree and Trash, and who can reach what.
 import { randomBytes, randomUUID } from "node:crypto";
 import { STORAGE_PART_BYTES, type StorageNode, type StorageUpload } from "@omni/contracts";
 import { schema, storageObjectKey } from "@omni/db";
@@ -16,10 +14,6 @@ afterAll(() => stack?.stop());
 
 const names = (body: { nodes: StorageNode[] }) => body.nodes.map((node) => node.name);
 
-// Catches: parts stitched in the wrong order or at the wrong offsets, a part sent twice counted
-// twice or keeping its first bytes, a resume that cannot tell what arrived, a file made from an
-// upload with a hole in it, a second complete making a second file or billing the bytes twice,
-// and a Range answer that is the wrong slice or lies about its length.
 test("a 40 MiB file sent in three parts, out of order and resumed, downloads byte-identical and honours Range", async () => {
   const org = await stack.company("big-file");
   const ana = await stack.member(org.id);
@@ -34,10 +28,8 @@ test("a 40 MiB file sent in three parts, out of order and resumed, downloads byt
   expect(opened.status).toBe(201);
   const upload = opened.body.upload as StorageUpload;
   expect(upload).toMatchObject({ partSize: 16 * MIB, partCount: 3, parts: [], nodeId: null });
-  // Nothing about where the bytes live reaches the client.
   expect(JSON.stringify(opened.body)).not.toMatch(/r2|orgs\//i);
 
-  // The last part first, with the second beside it; the second arrives twice, wrong bytes first.
   const sent = await Promise.all([
     stack.putPart(ana.jar, upload.id, 3, part(3)),
     stack.putPart(ana.jar, upload.id, 2, randomBytes(STORAGE_PART_BYTES)),
@@ -45,14 +37,12 @@ test("a 40 MiB file sent in three parts, out of order and resumed, downloads byt
   expect(sent.map((response) => response.status)).toEqual([200, 200]);
   expect((await stack.putPart(ana.jar, upload.id, 2, part(2))).status).toBe(200);
 
-  // A part of the wrong length, or past the end, is refused before it reaches the bucket.
   const short = await stack.putPart(ana.jar, upload.id, 1, part(1).subarray(0, 100));
   expect(short.status).toBe(400);
   expect(await short.json()).toMatchObject({ code: "INVALID_PART" });
   expect((await stack.putPart(ana.jar, upload.id, 4, part(3))).status).toBe(400);
   expect((await stack.putPart(ana.jar, upload.id, 0, part(3))).status).toBe(400);
 
-  // The connection "dropped": the upload says what it has, and it is not a file yet.
   const resumed = await stack.api(ana.jar, "GET", `/uploads/${upload.id}`);
   expect(resumed.body.upload.parts).toEqual([
     { partNumber: 2, size: 16 * MIB },
@@ -63,7 +53,6 @@ test("a 40 MiB file sent in three parts, out of order and resumed, downloads byt
   expect(names((await stack.api(ana.jar, "GET", "/nodes?space=personal")).body)).toEqual([]);
 
   expect((await stack.putPart(ana.jar, upload.id, 1, part(1))).status).toBe(200);
-  // Completed twice at once, as a retry racing its first try would.
   const [first, second] = await Promise.all([
     stack.api(ana.jar, "POST", `/uploads/${upload.id}/complete`),
     stack.api(ana.jar, "POST", `/uploads/${upload.id}/complete`),
@@ -85,7 +74,6 @@ test("a 40 MiB file sent in three parts, out of order and resumed, downloads byt
     overage: null,
     uploadsBlocked: null,
   });
-  // A part sent after the fact has nothing to join.
   expect((await stack.putPart(ana.jar, upload.id, 1, part(1))).status).toBe(409);
 
   const nodeId = first.body.node.id as string;
@@ -95,7 +83,6 @@ test("a 40 MiB file sent in three parts, out of order and resumed, downloads byt
   expect(whole.headers.get("accept-ranges")).toBe("bytes");
   expect(sha256(new Uint8Array(await whole.arrayBuffer()))).toBe(sha256(bytes));
 
-  // A slice across the seam between part 1 and part 2.
   const from = STORAGE_PART_BYTES - 6;
   const slice = await stack.download(ana.jar, nodeId, { range: `bytes=${from}-${from + 11}` });
   expect(slice.status).toBe(206);
@@ -113,7 +100,6 @@ test("a 40 MiB file sent in three parts, out of order and resumed, downloads byt
   const open = await stack.download(ana.jar, nodeId, { range: `bytes=${bytes.length - 3}-` });
   expect(open.headers.get("content-length")).toBe("3");
   expect(Buffer.from(await open.arrayBuffer())).toEqual(bytes.subarray(-3));
-  // A resumed download whose file changed since starts over instead of splicing two versions.
   const stale = await stack.download(ana.jar, nodeId, { range: "bytes=0-9", "if-range": '"old"' });
   expect(stale.status).toBe(200);
   await stale.body?.cancel();
@@ -129,8 +115,6 @@ test("a 40 MiB file sent in three parts, out of order and resumed, downloads byt
   expect(past.headers.get("content-range")).toBe(`bytes */${bytes.length}`);
 });
 
-// Catches: an uploaded page or script rendering on our origin (stored XSS), a filename that
-// breaks out of its header or loses its accents, and an empty file that cannot be uploaded.
 test("whatever was uploaded leaves as a download: octet-stream, attachment, nosniff, the name intact", async () => {
   const org = await stack.company("download-headers");
   const ana = await stack.member(org.id);
@@ -156,14 +140,11 @@ test("whatever was uploaded leaves as a download: octet-stream, attachment, nosn
   expect(nothing.status).toBe(200);
   expect(nothing.headers.get("content-length")).toBe("0");
   expect((await nothing.arrayBuffer()).byteLength).toBe(0);
-  // Signed out, there is nothing to download.
   expect(
     (await fetch(new URL(`/api/storage/files/${page.id}/content`, stack.worker.url))).status,
   ).toBe(401);
 });
 
-// Catches: an owner or admin (or any colleague) reading, changing or writing into someone's
-// My files by id, and taking over an upload that is not theirs.
 test("nobody but its member reaches a My files folder, file or upload over HTTP: not a colleague, not an admin", async () => {
   const org = await stack.company("private");
   const ana = await stack.member(org.id);
@@ -205,14 +186,12 @@ test("nobody but its member reaches a My files folder, file or upload over HTTP:
     expect((await stack.putPart(other.jar, uploadId, 1, Buffer.from("abc"))).status).toBe(404);
     expect(names((await stack.api(other.jar, "GET", "/trash")).body)).toEqual([]);
   }
-  // Untouched, and still Ana's.
   expect((await stack.api(ana.jar, "GET", `/nodes?parent=${folder.id}`)).body).toMatchObject({
     folder: { node: { id: folder.id }, role: "member", path: [{ id: folder.id, name: "Private" }] },
     nodes: [{ id: file.id, name: "letter.txt", trashedAt: null }],
   });
   expect(Buffer.from(await (await stack.download(ana.jar, file.id)).arrayBuffer())).toEqual(secret);
 
-  // Shared is the company's: once Ana moves the file there, Ben reads it; another company never.
   const moved = await stack.api(ana.jar, "PATCH", `/nodes/${file.id}`, { space: "shared" });
   expect(moved.body.node).toMatchObject({ space: "shared", parentId: null, ownerMemberId: null });
   expect((await stack.download(ben.jar, file.id)).status).toBe(200);
@@ -221,9 +200,6 @@ test("nobody but its member reaches a My files folder, file or upload over HTTP:
   expect(names((await stack.api(outsider.jar, "GET", "/nodes?space=shared")).body)).toEqual([]);
 });
 
-// Catches: a retried "complete" deleting the bytes of a file that still exists. The uploader's
-// client lost the answer and asks again after an admin took the file out of Shared: the uploader
-// no longer reaches it (404), and the handler treated that like an upload that came to nothing.
 test("completing again after the file left the uploader's reach answers 404 and leaves its bytes alone", async () => {
   const org = await stack.company("retry-after-move");
   const ana = await stack.member(org.id);
@@ -234,7 +210,6 @@ test("completing again after the file left the uploader's reach answers 404 and 
   const moved = await stack.api(admin.jar, "PATCH", `/nodes/${file.id}`, { space: "personal" });
   expect(moved.body.node).toMatchObject({ space: "personal", ownerMemberId: admin.id });
 
-  // The upload's id is the file's id.
   expect((await stack.api(ana.jar, "POST", `/uploads/${file.id}/complete`)).status).toBe(404);
   expect((await stack.api(ana.jar, "DELETE", `/uploads/${file.id}`)).status).toBe(404);
 
@@ -244,9 +219,6 @@ test("completing again after the file left the uploader's reach answers 404 and 
   expect(await stack.usedBytes(org.id)).toBe(bytes.length);
 });
 
-// Catches: a taken name overwriting its sibling, a rename colliding silently, a page boundary
-// that drops or repeats a row, Trash that still lists or cannot give back, "delete forever"
-// reaching a live file, and a deleted file whose bytes stay in the bucket and on the bill.
 test("folders, names, paging, and Trash: restore puts it back, delete forever removes the object and frees the bytes", async () => {
   const org = await stack.company("tree");
   const ana = await stack.member(org.id);
@@ -272,7 +244,6 @@ test("folders, names, paging, and Trash: restore puts it back, delete forever re
   const renamed = await stack.api(ana.jar, "PATCH", `/nodes/${twin.id}`, { name: "b.txt" });
   expect(renamed.body.node.name).toBe("b.txt");
 
-  // Folders first, then by name, two at a time: every row once.
   const seen: string[] = [];
   let cursor: string | null = null;
   do {
@@ -299,7 +270,6 @@ test("folders, names, paging, and Trash: restore puts it back, delete forever re
     "b.txt",
   ]);
   expect(names((await stack.api(ana.jar, "GET", "/trash")).body)).toEqual(["a.txt"]);
-  // Trashed files still count, and can come back.
   expect(await stack.usedBytes(org.id)).toBe(6);
   const restored = await stack.api(ana.jar, "POST", `/nodes/${a.id}/restore`);
   expect(restored.body.node).toMatchObject({ parentId: docs.id, trashedAt: null });
@@ -307,7 +277,6 @@ test("folders, names, paging, and Trash: restore puts it back, delete forever re
     "aaaa",
   );
 
-  // The whole folder, for good: rows, bytes and objects.
   await stack.api(ana.jar, "DELETE", `/nodes/${docs.id}`);
   expect((await stack.api(ana.jar, "DELETE", `/nodes/${docs.id}?forever=1`)).status).toBe(204);
   expect(await bucket.head(key)).toBeNull();
@@ -318,8 +287,6 @@ test("folders, names, paging, and Trash: restore puts it back, delete forever re
   expect((await stack.api(ana.jar, "DELETE", `/nodes/${docs.id}?forever=1`)).status).toBe(404);
 });
 
-// Catches: an abandoned upload holding quota and bucket space forever, the cron touching one
-// still in progress, and an aborted upload that can still be completed into a file.
 test("the minute cron aborts an upload nobody completed in 24 hours, and only that one", async () => {
   const org = await stack.company("expired-upload");
   const ana = await stack.member(org.id);
@@ -342,7 +309,6 @@ test("the minute cron aborts an upload nobody completed in 24 hours, and only th
   const inBucket = (await stack.bucket()).resumeMultipartUpload(row!.r2Key, row!.r2UploadId!);
   await expect(inBucket.uploadPart(2, "probe")).resolves.toBeDefined();
 
-  // Past its time it is already gone to its owner, before the cron has run.
   expect((await stack.api(ana.jar, "POST", `/uploads/${stale.id}/complete`)).status).toBe(404);
   for (let run = 0; run < 2; run++) expect(await stack.cron("* * * * *")).toBe("ok");
 
@@ -353,12 +319,10 @@ test("the minute cron aborts an upload nobody completed in 24 hours, and only th
   expect(rows).toEqual([{ id: fresh.id }]);
   expect((await stack.api(ana.jar, "GET", `/uploads/${stale.id}`)).status).toBe(404);
   expect((await stack.putPart(ana.jar, stale.id, 1, randomBytes(10))).status).toBe(404);
-  // Aborted in the bucket too: its parts are gone, and it takes no more.
   await expect(inBucket.uploadPart(2, "probe")).rejects.toThrow("does not exist");
   expect((await stack.api(ana.jar, "GET", "/usage")).body.reservedBytes).toBe(10);
   expect((await (await stack.bucket()).list({ prefix: `orgs/${org.id}/` })).objects).toEqual([]);
 
-  // The one still in time finishes; one its owner drops is gone at once.
   expect((await stack.putPart(ana.jar, fresh.id, 1, randomBytes(10))).status).toBe(200);
   expect((await stack.api(ana.jar, "POST", `/uploads/${fresh.id}/complete`)).status).toBe(200);
   const dropped = await open("dropped.bin");
@@ -367,8 +331,6 @@ test("the minute cron aborts an upload nobody completed in 24 hours, and only th
   expect((await stack.api(ana.jar, "GET", "/usage")).body.reservedBytes).toBe(0);
 });
 
-// Catches: one expired upload that cannot be removed holding up every other one, minute after
-// minute (it sorts first), and that failure going unseen.
 test("an expired upload the cron cannot remove does not hold up the others, and the run fails", async () => {
   const org = await stack.company("stuck-upload");
   const ana = await stack.member(org.id);
@@ -386,7 +348,6 @@ test("an expired upload the cron cannot remove does not hold up the others, and 
       .set({ expiresAt: new Date(Date.now() - ago) })
       .where(eq(schema.storageUploads.id, upload.id));
   }
-  // Postgres itself refuses to delete the older one's row.
   await stack.db.execute(
     sql.raw(`
       create function e2e_refuse_delete() returns trigger language plpgsql as
@@ -417,10 +378,6 @@ test("an expired upload the cron cannot remove does not hold up the others, and 
   expect(await left()).toEqual([]);
 });
 
-// Catches: Trash that never empties (bytes billed forever), a purge that takes what was trashed
-// yesterday or leaves the object behind, a usage counter that stays wrong, and a sweep that
-// leaves a deleted workspace's files in the bucket (also one sorted before where this run's
-// listing started) or deletes a live workspace's.
 test("the daily cron purges Trash after 30 days, recounts usage, and sweeps only deleted workspaces from the bucket", async () => {
   const bucket = await stack.bucket();
   const org = await stack.company("daily");
@@ -433,7 +390,6 @@ test("the daily cron purges Trash after 30 days, recounts usage, and sweeps only
     .update(schema.storageNodes)
     .set({ trashedAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000) })
     .where(eq(schema.storageNodes.id, old.id));
-  // A counter that drifted.
   await stack.db
     .update(schema.storageUsage)
     .set({ bytes: 5 })
@@ -442,9 +398,6 @@ test("the daily cron purges Trash after 30 days, recounts usage, and sweeps only
   const gone = await stack.company("closed");
   const cy = await stack.member(gone.id);
   const lost = await stack.upload(cy.jar, { space: "shared" }, "lost.bin", randomBytes(9));
-  // The sweep starts after a random live workspace and wraps around: two more closed
-  // workspaces, whose ids sort before and after every id a live one can have, so one is only
-  // ever reached by the wrap-around and the other by the first stretch.
   const closed = [{ org: gone, file: lost }];
   for (const id of [`0-first-${randomUUID()}`, `~last-${randomUUID()}`]) {
     const [org] = await stack.db
@@ -459,7 +412,6 @@ test("the daily cron purges Trash after 30 days, recounts usage, and sweeps only
     await stack.db.delete(schema.organizations).where(eq(schema.organizations.id, shut.id));
     expect(await bucket.head(storageObjectKey(shut.id, file.id))).not.toBeNull();
   }
-  // Not ours to sweep: a key outside `orgs/`.
   await bucket.put(`other/${randomUUID()}`, "x");
 
   for (let run = 0; run < 2; run++) expect(await stack.cron("47 3 * * *")).toBe("ok");
@@ -477,9 +429,6 @@ test("the daily cron purges Trash after 30 days, recounts usage, and sweeps only
   expect((await bucket.list({ prefix: "other/" })).objects).toHaveLength(1);
 });
 
-// Catches: a removal that fails because the member still owns files (the owner foreign key has
-// no cascade), a company losing a departed member's files, those files landing with someone who
-// did not remove them, and an upload left open blocking the removal.
 test("removing a member hands their My files to the admin who removed them; leaving hands them to the owner", async () => {
   const org = await stack.company("leavers");
   const owner = await stack.member(org.id, "owner");
@@ -517,13 +466,10 @@ test("removing a member hands their My files to the admin who removed them; leav
   const download = await stack.download(admin.jar, file.id);
   expect(download.status).toBe(200);
   expect(Buffer.from(await download.arrayBuffer())).toEqual(contract);
-  // Only the admin who removed him: not the owner, and no longer Ben.
   expect((await stack.download(owner.jar, file.id)).status).toBe(404);
-  // (Ben's session still names the company he is no longer in: 403, not a member.)
   expect((await stack.download(ben.jar, file.id)).status).toBe(403);
   expect(await stack.usedBytes(org.id)).toBe(contract.length);
 
-  // Cy leaves by herself: the owner gets her files.
   const notes = await stack.upload(cy.jar, { space: "personal" }, "notes.txt", Buffer.from("cy"));
   const left = await authPost(stack.worker, cy.jar, "/organization/leave", {
     organizationId: org.id,
@@ -535,7 +481,6 @@ test("removing a member hands their My files to the admin who removed them; leav
   expect((await stack.download(owner.jar, notes.id)).status).toBe(200);
   expect((await stack.download(admin.jar, notes.id)).status).toBe(404);
 
-  // The only owner cannot leave, and trying moves nothing of theirs.
   const stay = await authPost(stack.worker, owner.jar, "/organization/leave", {
     organizationId: org.id,
   });
@@ -543,8 +488,6 @@ test("removing a member hands their My files to the admin who removed them; leav
   expect((await stack.api(owner.jar, "GET", "/nodes?space=personal")).body.nodes).toHaveLength(1);
 });
 
-// Catches: a workspace that cannot be deleted once anyone has a file in My files. Better Auth
-// deletes the members before the organization, and a member who still owns files cannot go.
 test("deleting a workspace through its endpoint works when its members have files, and the sweep then empties its prefix", async () => {
   const bucket = await stack.bucket();
   const org = await stack.company("closing");
@@ -569,16 +512,12 @@ test("deleting a workspace through its endpoint works when its members have file
   for (const table of [schema.storageNodes, schema.storageUploads, schema.storageUsage]) {
     expect(await stack.db.select().from(table).where(eq(table.orgId, org.id))).toEqual([]);
   }
-  // Rows first: the objects are still there until the daily sweep finds the workspace gone.
   expect(await bucket.head(storageObjectKey(org.id, mine.id))).not.toBeNull();
   expect(await bucket.head(storageObjectKey(org.id, ours.id))).not.toBeNull();
   expect(await stack.cron("47 3 * * *")).toBe("ok");
   expect((await bucket.list({ prefix: `orgs/${org.id}/` })).objects).toEqual([]);
 });
 
-// Catches: an object nobody can reach or delete, stored forever. The parts were stitched into
-// the object, the Worker died before the file's row was written, nobody asked again, and the
-// cron dropped the upload's row but left its object.
 test("an expired upload whose object was already stitched leaves nothing in the bucket, and files keep theirs", async () => {
   const org = await stack.company("stitched");
   const ana = await stack.member(org.id);
@@ -595,12 +534,10 @@ test("an expired upload whose object was already stitched leaves nothing in the 
     .select()
     .from(schema.storageUploads)
     .where(eq(schema.storageUploads.id, upload.id));
-  // What `complete` does first, without the step that follows it.
   await bucket
     .resumeMultipartUpload(row!.r2Key, row!.r2UploadId!)
     .complete(row!.parts.map(({ partNumber, etag }) => ({ partNumber, etag })));
   expect(await bucket.head(row!.r2Key)).not.toBeNull();
-  // Both uploads are past their time: the abandoned one, and the one that became a file.
   await stack.db
     .update(schema.storageUploads)
     .set({ expiresAt: new Date(Date.now() - 60_000) })
@@ -620,8 +557,6 @@ test("an expired upload whose object was already stitched leaves nothing in the 
   expect((await stack.download(ana.jar, kept.id)).status).toBe(200);
 });
 
-// Catches: a refusal the client cannot tell apart (it shows a different message for each, and
-// retries none of them), or one that answers 500.
 test("a move too deep or into itself, and a restore under a trashed folder, answer their own 409 codes", async () => {
   const org = await stack.company("codes");
   const ana = await stack.member(org.id);

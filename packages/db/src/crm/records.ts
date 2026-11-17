@@ -1,5 +1,3 @@
-// The record shapes the door answers with, and the loaders every operation shares. Every loader
-// takes the member's org and finds nothing outside it.
 import { parseAddress } from "@omni/mail-core/addresses";
 import { and, asc, eq, inArray, isNull, sql, type AnyColumn } from "drizzle-orm";
 import {
@@ -168,7 +166,6 @@ export async function loadPerson(ex: Ex, orgId: string, id: string, lock = false
 
 export async function loadDeal(ex: Ex, orgId: string, id: string, lock = false) {
   if (lock) {
-    // Locked on its own first, so the read below sees the row as the last writer left it.
     const locked = await ex
       .select({ id: crmDeals.id })
       .from(crmDeals)

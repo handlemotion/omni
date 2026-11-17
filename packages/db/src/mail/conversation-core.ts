@@ -1,7 +1,3 @@
-// Shared internals of the conversation workflow (ADR 0021): row shape, locking, events and
-// notifications. Used by conversations.ts, conversation-notes.ts and friends; not exported
-// from the package except for the types re-exported by conversations.ts.
-
 import { type ConversationState } from "@omni/mail-core/conversation-status";
 import { and, eq, exists, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
@@ -26,17 +22,10 @@ export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export type Executor = Db | Tx;
 
 export type ConversationChange =
-  /** `reason` is kept on the event, e.g. `ai_noise` when triage resolved it. */
   | { type: "resolve"; reason?: string }
   | { type: "reopen" }
   | { type: "snooze"; until: Date }
-  /** The snooze cron: wakes it only if its current snooze is over. */
   | { type: "snooze_expired" }
-  /**
-   * `null` unassigns. The assignee must be able to see the inbox. With `expectedAssignee`
-   * (a member id, or `null` for unassigned) it changes nothing unless the conversation is still
-   * assigned that way when locked, so two teammates claiming at once cannot both win.
-   */
   | {
       type: "assign";
       memberId: string | null;
@@ -44,21 +33,15 @@ export type ConversationChange =
       /** `ai`: triage handed it to the teammate whose role fits (ADR 0033). */
       source?: "ai";
     }
-  /** `source: "ai"` marks a change triage made, so a member's later correction can be learned from. */
   | { type: "priority"; priority: Priority; source?: "ai" }
   | { type: "tag"; tagId: string; add: boolean; source?: "ai" };
 
 export type ChangeFailure =
   | "not_found"
-  /** Conversation actions are for shared inboxes; personal mailboxes keep ADR 0007. */
   | "personal_mailbox"
-  /** The assignee cannot see this inbox. */
   | "not_assignable"
-  /** The tag is not one of this inbox's. */
   | "unknown_tag"
-  /** A snooze to a time already past. */
   | "invalid_snooze"
-  /** `expectedAssignee` no longer holds: someone else assigned it first. */
   | "assignee_changed";
 
 export type ChangeResult =

@@ -1,7 +1,3 @@
-// "All mailboxes" and workspace isolation (ADR 0014, amended 2026-11-16): one user in two
-// organizations lists, counts and searches only the active one's mail, whatever `scope` says, and
-// still opens and acts on a thread from the other by id. Never a mailbox none of their members was
-// granted.
 import { ensurePersonalSpace, schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -55,7 +51,6 @@ type Row = { id: string; orgId: string; subject: string; read: boolean };
 type Counts = { counts: { orgId: string; mailboxId: string; inbox: number; unread: number }[] };
 type Hits = { results: { threadId: string; orgId: string }[] };
 
-/** Makes `orgId` the session's active workspace, as the web app's switch does. */
 async function activate(jar: CookieJar, orgId: string) {
   const switched = await authPost(worker, jar, "/organization/set-active", {
     organizationId: orgId,
@@ -63,7 +58,6 @@ async function activate(jar: CookieJar, orgId: string) {
   if (switched.status !== 200) throw new Error(`set-active answered ${switched.status}`);
 }
 
-/** The subjects a list shows, with and without the old `scope=all`: both must agree. */
 async function subjects(jar: CookieJar, query = "") {
   const lists = await Promise.all(
     [query, `${query}${query ? "&" : ""}scope=all`].map((q) =>
@@ -74,7 +68,6 @@ async function subjects(jar: CookieJar, query = "") {
   return lists[0]!.threads.map((t) => t.subject);
 }
 
-/** Search hits as `[orgId, threadId]`, with and without the old `scope=all`. */
 async function searched(jar: CookieJar, q: string) {
   const runs = await Promise.all(
     ["", "&scope=all"].map((scope) =>
@@ -85,7 +78,6 @@ async function searched(jar: CookieJar, q: string) {
   return runs[0]!.results.map((r) => [r.orgId, r.threadId]).sort();
 }
 
-/** Inbox counts as `[mailboxId, inbox, unread]`, with and without the old `scope=all`. */
 async function counted(jar: CookieJar) {
   const runs = await Promise.all(
     ["", "?scope=all"].map((scope) => get<Counts>(`/counts${scope}`, jar.header)),
@@ -94,7 +86,6 @@ async function counted(jar: CookieJar) {
   return runs[0]!.counts.map((c) => [c.mailboxId, c.inbox, c.unread]).sort();
 }
 
-/** Opens the realtime socket as the web app does, optionally for one of the user's orgs. */
 async function connect(cookie: string, org?: string) {
   const url = new URL(`/api/realtime${org ? `?org=${org}` : ""}`, worker.url);
   url.protocol = "ws:";
@@ -114,7 +105,6 @@ async function connect(cookie: string, org?: string) {
   return {
     socket,
     received,
-    /** Resolves once `count` events have arrived. */
     async next(count: number) {
       const enough = Promise.withResolvers<void>();
       const check = () => received.length >= count && enough.resolve();
@@ -126,8 +116,6 @@ async function connect(cookie: string, org?: string) {
   };
 }
 
-// Catches: "All mailboxes", its unread counts or its search reaching into a workspace other than
-// the active one (the old `scope=all`), for new clients and for old tabs that still send it.
 test("a person in two workspaces sees only the active one's mail under All, its counts and its search", async () => {
   const { db } = database;
   const acme = await createOrg(db, "acme");
@@ -135,7 +123,6 @@ test("a person in two workspaces sees only the active one's mail under All, its 
   const initech = await createOrg(db, "initech");
   await createMailbox(db, acme.id, SYSTEM_MAIL_FROM);
 
-  // Uma: a member of Acme (her first, so the active org) and of Globex.
   const umaAcme = await createMember(db, acme.id, "uma@acme.test");
   const umaGlobex = crypto.randomUUID();
   await db.insert(schema.members).values({
@@ -169,7 +156,6 @@ test("a person in two workspaces sees only the active one's mail under All, its 
   const jar = new CookieJar();
   await signIn(worker, db, "uma@acme.test", jar);
 
-  // Acme active: its threads only, newest first, paged by cursor.
   expect(await subjects(jar)).toEqual(["Acme new", "Acme old"]);
   const first = await get<{ threads: Row[]; nextCursor: string }>(
     "/threads?scope=all&limit=1",
@@ -193,8 +179,6 @@ test("a person in two workspaces sees only the active one's mail under All, its 
   );
   for (const q of ["Globex", "Gus private", "Initech"]) expect(await searched(jar, q)).toEqual([]);
 
-  // A Globex thread still opens and takes actions by id while Acme stays active, as Uma's Globex
-  // member: a link to it keeps working.
   const thread = await get<{ id: string; orgId: string }>(
     `/threads/${globexMid.threadId}`,
     jar.header,
@@ -221,7 +205,6 @@ test("a person in two workspaces sees only the active one's mail under All, its 
   const { actionIds } = (await archived.json()) as { actionIds: string[] };
   expect(actionIds).toHaveLength(1);
 
-  // Her note on it is hers to edit and delete from here too (the thread's member, not Acme's).
   const created = await write(`/threads/${globexMid.threadId}/notes`, "POST", {
     body: "Call back",
   });
@@ -244,7 +227,6 @@ test("a person in two workspaces sees only the active one's mail under All, its 
   expect(action).toMatchObject({ kind: "archive", memberId: umaGlobex, orgId: globex.id });
   expect(await get(`/actions/${actionIds[0]}`, jar.header)).toMatchObject({ id: actionIds[0] });
 
-  // Globex active: its threads only, with the state she set from Acme; Acme's are gone.
   await activate(jar, globex.id);
   expect(await subjects(jar)).toEqual(["Globex late"]);
   expect(await subjects(jar, "view=done")).toEqual(["Globex mid"]);
@@ -258,7 +240,6 @@ test("a person in two workspaces sees only the active one's mail under All, its 
   );
   for (const q of ["Acme", "Gus private", "Initech"]) expect(await searched(jar, q)).toEqual([]);
 
-  // Mailboxes no member of Uma's was granted: not readable, not writable, by any route.
   for (const hidden of [gusNewest, initechNewest]) {
     expect((await api(`/threads/${hidden.threadId}`, jar.header)).status).toBe(404);
     expect((await write(`/threads/${hidden.threadId}/archive`, "POST")).status).toBe(404);
@@ -277,14 +258,11 @@ test("a person in two workspaces sees only the active one's mail under All, its 
         ),
       ),
   ).toEqual([]);
-  // The Acme thread is still read as Acme's member.
   expect((await get<{ orgId: string }>(`/threads/${acmeOld.threadId}`, jar.header)).orgId).toBe(
     acme.id,
   );
 });
 
-// Catches: a Personal space with no mailboxes of its own listing, counting or finding the
-// company's mail under "All" (the founder's report, 2026-11-16), in any view or lane.
 test("the Personal space with no mailboxes shows none of the company's mail", async () => {
   const { db } = database;
   const acme = await createOrg(db, "acme-personal");
@@ -294,7 +272,6 @@ test("the Personal space with no mailboxes shows none of the company's mail", as
   const box = await createMailbox(db, acme.id, "ana@acme-personal.test", "personal");
   await grant(db, acme.id, box.id, ana.id);
 
-  // Acme's mail in every place the sidebar lists: the inbox and both reply lanes, Sent, All mail.
   const seed = (subject: string, uid: number, folder?: string) =>
     seedMessage(db, box, {
       subject,
@@ -329,7 +306,6 @@ test("the Personal space with no mailboxes shows none of the company's mail", as
     "view=trash",
     "view=spam",
   ];
-  // Acme active, as a control: the seeded mail is where the lists look.
   expect(await subjects(jar, "view=inbox&lane=needs_reply")).toEqual(["Acme asks"]);
   expect(await subjects(jar, "view=inbox&lane=waiting_on_them")).toEqual(["Acme waits"]);
   expect(await subjects(jar, "view=sent")).toEqual(["Acme sent"]);
@@ -366,10 +342,8 @@ test("a realtime socket opens for any of the user's workspaces, and only for the
   });
 
   const cookie = await signIn(worker, db, "noa@north.test");
-  // An org she does not belong to is refused.
   await expect(connect(cookie, elsewhere.id)).rejects.toThrow("websocket failed to open");
 
-  // North is active; the South socket still gets South's mail.
   const southSocket = await connect(cookie, south.id);
   expect(
     (
@@ -394,9 +368,6 @@ test("a realtime socket opens for any of the user's workspaces, and only for the
   southSocket.socket.close();
 });
 
-// Catches: a tab's lists showing another workspace's mail after a second tab switched the
-// session's active workspace (ADR 0043). Each request names its tab's workspace; one the user is
-// not a member of is refused, never answered from the session's.
 test("a request that names its workspace is answered for it, whichever one the session has active", async () => {
   const { db } = database;
   const north = await createOrg(db, "north");
@@ -432,7 +403,6 @@ test("a request that names its workspace is answered for it, whichever one the s
     return ((await response.json()) as { threads: Row[] }).threads.map((t) => t.subject);
   };
 
-  // Two tabs, one per workspace, while the session has North active and then South.
   for (const active of [north.id, south.id]) {
     await activate(jar, active);
     expect(await listed(north.id)).toEqual(["North"]);
@@ -440,13 +410,10 @@ test("a request that names its workspace is answered for it, whichever one the s
     const me = await tab(south.id, "/me");
     expect(((await me.response.json()) as { orgId: string }).orgId).toBe(south.id);
   }
-  // A download or preview the browser loads itself names it in the URL instead.
   const byUrl = await get<{ threads: Row[] }>(`/threads?workspace=${north.id}`, jar.header);
   expect(byUrl.threads.map((t) => t.subject)).toEqual(["North"]);
-  // Without either (iOS, old tabs): the session's, as before.
   expect(await subjects(jar)).toEqual(["South"]);
 
-  // A workspace the user is not a member of: refused, not the session's mail.
   const foreign = await tab(elsewhere.id, "/threads");
   expect(foreign.response.status).toBe(403);
   expect(foreign.answeredFor).toBeNull();

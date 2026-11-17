@@ -1,7 +1,3 @@
-// Billing reads and writes (ADR 0015). Subscriptions are written by Better Auth's Stripe plugin
-// and, when its webhook missed something, by the daily reconcile; this file reads them, counts
-// AI-triaged emails against the monthly allowance, and remembers which Stripe events were
-// applied. Trusted code: callers have already resolved the workspace.
 import { and, count, desc, eq, gt, isNotNull, or, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "./client.ts";
@@ -80,7 +76,6 @@ export async function claimTrial(db: Db, input: { orgId: string; userId: string 
   return otherClaim(db, input);
 }
 
-/** A claim on this workspace or by this account, other than this exact pair. */
 async function otherClaim(db: Db, input: { orgId: string; userId: string }) {
   const claims = await db
     .select({ orgId: trialClaims.orgId, userId: trialClaims.userId })

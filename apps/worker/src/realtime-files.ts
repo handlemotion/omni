@@ -1,7 +1,3 @@
-// "Ana is editing" (ADR 0043 decision 3): a socket names the file open in its editor, and the
-// others who see that file hear it. Held in the socket's attachment beside its conversation
-// presence (`realtime.ts`), so it survives hibernation. A hint, not a lock: the checked save is
-// what keeps one person from overwriting another.
 import type { StorageFilePresenceEvent, StorageSpace } from "@omni/contracts";
 import { forMember } from "@omni/db";
 import { z } from "zod";
@@ -47,12 +43,6 @@ export function setConversation(socket: WebSocket, presence: object | null) {
   socket.serializeAttachment(Object.keys(next).length > 0 ? next : null);
 }
 
-/**
- * Each socket's latest presence message. The access check awaits Postgres, and the object takes
- * the socket's next message meanwhile, so a check that finishes after a newer message (a `left`,
- * another file, the socket closing) is dropped instead of undoing it. Memory only: a hibernated
- * object has no check in flight.
- */
 const latest = new WeakMap<WebSocket, number>();
 const nextTurn = (socket: WebSocket) => {
   const turn = (latest.get(socket) ?? 0) + 1;
@@ -83,13 +73,10 @@ function sendAll(sockets: WebSocket[], message: string) {
   for (const socket of sockets) {
     try {
       socket.send(message);
-    } catch {
-      // Closing; the runtime drops it.
-    }
+    } catch {}
   }
 }
 
-/** Whether the member still edits the file on a socket other than `except`. */
 function stillEditing(
   ctx: DurableObjectState,
   memberId: string,
@@ -167,8 +154,6 @@ export async function onFilePresence(
   if (latest.get(socket) !== turn) return;
   const current = editingOf(socket);
   if (!at) {
-    // The file they edit is no longer theirs to edit (moved to someone's My files, trashed): off
-    // it. A claim to another file they cannot reach is dropped whole.
     if (current?.nodeId === message.nodeId) leaveFile(ctx, socket, memberId);
     return;
   }

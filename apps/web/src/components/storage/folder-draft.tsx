@@ -1,5 +1,3 @@
-// A new folder in the list before the Worker has it (`use-folder-drafts.ts`): a card or a row
-// like the folder it becomes, its name a field while it is being named (`name-field.tsx`).
 import { GridListItem } from "@/components/ui/grid-list";
 import type { FolderDraft } from "@/hooks/use-folder-drafts.ts";
 import type { FinishedBy } from "@/lib/storage-names.ts";
@@ -18,7 +16,6 @@ export function DraftCard(props: { draft: FolderDraft; handlers: DraftHandlers }
     <GridListItem
       id={draft.key}
       textValue={draft.name}
-      // As FileCard lays a folder out, so nothing moves when the folder replaces it.
       className="flex-col items-stretch gap-2 rounded-xl p-1.5"
     >
       <FolderArt />
@@ -52,7 +49,6 @@ export function DraftRow(props: { draft: FolderDraft; handlers: DraftHandlers })
   );
 }
 
-/** Enter or leaving it creates the folder; Esc keeps the name it was given. */
 function DraftName(props: { draft: FolderDraft; handlers: DraftHandlers; multiline?: boolean }) {
   const { draft, handlers } = props;
   return (

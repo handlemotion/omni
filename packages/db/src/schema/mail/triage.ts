@@ -1,4 +1,3 @@
-// Mail (ADR 0035): what AI triage learned from people and what it used.
 import { bigint, date, index, pgTable, primaryKey, text } from "drizzle-orm/pg-core";
 import { id, orgId, memberId, createdAt } from "../columns.ts";
 import { triageBucket } from "./enums.ts";

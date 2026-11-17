@@ -1,7 +1,3 @@
-// CSS scans for the sanitizer (`./html.ts`): plain string passes, no DOM.
-
-// CSS escapes can spell `url(` in ways a scan cannot see; image-set(), image(), src() take
-// URLs outside url(); expression() is old IE script. All rare in mail: drop such CSS.
 export const CSS_UNSAFE = /\\|image-set\s*\(|\bimage\s*\(|\bsrc\s*\(|expression\s*\(/i;
 
 /**
@@ -31,9 +27,6 @@ export function dropUnsafeRules(css: string) {
   }
   return out + css.slice(copied);
 }
-
-// Both scans jump past each match, so they stay linear on hostile input (the regexes they
-// replace were quadratic on a run of "url(").
 
 /** Removes `@import` rules, each up to its `;` (or the end of the CSS). */
 export function removeImports(css: string) {

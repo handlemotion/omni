@@ -1,7 +1,3 @@
-// A chart inside a settings group (transitive's usage chart): stacked columns, one per category on
-// the x axis, a series per key. Quiet: no grid, a short y axis, the tooltip on hover. No legend:
-// the group's series rows under the chart (`SettingsSeriesRow`) say whose each colour is, with
-// its total. Colours are the chart tokens in config order.
 import type { CSSProperties } from "react";
 import { type ChartConfig, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart } from "@/components/ui/bar-chart";
@@ -48,7 +44,6 @@ export function SettingsChart({
   );
 }
 
-/** A series in the tooltip as its row says it under the chart: swatch, name, number. */
 function TooltipRow({ color, label, value }: { color: string; label: string; value: number }) {
   if (value === 0) return null;
   return (

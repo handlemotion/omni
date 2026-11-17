@@ -1,18 +1,3 @@
-// The fluid hover for lists whose rows a primitive owns (the sidebar's links, the mail list's
-// grid rows), ported from transitive (`packages/ui/src/hooks/use-fluid-hover-list.ts`). The
-// container finds its rows by selector instead of asking each row to register, and one highlight
-// springs between them:
-//
-//   const hover = useFluidHoverList({ itemSelector: "[role='row']" });
-//   <div className="relative" {...hover.containerProps}>
-//     <FluidHoverHighlight {...hover.highlightProps} />
-//     {rows}
-//   </div>
-//
-// Rects are read from the live layout on every pick, so rows inside a scroller stay correct, and
-// the primitive's own highlighted row (keyboard navigation) drives the highlight whenever the
-// pointer is not. A row is lit only while the pointer is really on it (or within `maxDistance`
-// of it): empty space, headers and disabled rows never look hovered.
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /** A row's box in the container's padding-box coordinates. */
@@ -56,15 +41,12 @@ export interface UseFluidHoverListReturn {
   };
 }
 
-/** Rows the pointer never lights: disabled, or opted out with `data-fluid-hover-skip`. */
 const SKIP_SELECTOR =
   "[data-disabled]:not([data-disabled='false']), [aria-disabled='true'], [data-fluid-hover-skip]";
 
-/** Controls between the rows keep their own clicks. */
 const CONTROL_SELECTOR =
   "input, textarea, select, button, a, summary, [contenteditable], [role='textbox'], [role='searchbox'], [role='button']";
 
-/** The attributes whose changes can move what is lit. */
 const WATCHED_ATTRIBUTES = [
   "data-focus-visible",
   "data-highlighted",
@@ -81,26 +63,18 @@ interface Bounds {
   bottom: number;
 }
 
-/** Overlays a row can open: a menu, a listbox, a dialog. */
 const OVERLAY_SELECTOR = "[role='menu'], [role='listbox'], [role='dialog']";
 
-/** Whether the event is the list's own: in its DOM (React also bubbles a portal's events through
- *  its tree) and not inside an overlay a row opened in place (the sidebar's menus render inline).
- *  An overlay around the container (a menu's own rows) or holding the list's rows (a nav list's
- *  listbox inside its container) is the list itself, not one a row opened. */
 function isOwn(container: HTMLElement | null, target: EventTarget | null, itemSelector: string) {
   if (!container || !(target instanceof Element) || !container.contains(target)) return false;
   const overlay = target.closest(OVERLAY_SELECTOR);
   return !overlay || overlay.contains(container) || overlay.querySelector(itemSelector) !== null;
 }
 
-/** Touch screens fire mouse events on a tap; a tap is not a hover. */
 function canHover() {
   return typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches;
 }
 
-/** The row's viewport box, clipped by any scroller from it up to and including the container.
- *  `null` when the row has no box or is scrolled out of view. */
 const visibleBounds: (element: HTMLElement, container: HTMLElement) => Bounds | null = (
   element,
   container,
@@ -124,8 +98,6 @@ const visibleBounds: (element: HTMLElement, container: HTMLElement) => Bounds | 
   return right > left && bottom > top ? { left, top, right, bottom } : null;
 };
 
-/** Viewport bounds in the container's padding-box coordinates, the space an absolutely
- *  positioned child is laid out in. Factors out an ancestor `scale` (a popover mid zoom-in). */
 function toContainerRect(bounds: Bounds, container: HTMLElement) {
   const box = container.getBoundingClientRect();
   const scaleX = container.offsetWidth > 0 ? box.width / container.offsetWidth : 1;
@@ -138,7 +110,6 @@ function toContainerRect(bounds: Bounds, container: HTMLElement) {
   } satisfies ItemRect;
 }
 
-/** Whether the point lies strictly inside the container's viewport box. */
 function isInside(container: HTMLElement, point: { clientX: number; clientY: number }) {
   const box = container.getBoundingClientRect();
   return (
@@ -163,7 +134,6 @@ function contains(bounds: Bounds | null, point: { x: number; y: number }) {
   );
 }
 
-/** The skipped row (disabled, opted out) under the pointer, if any. */
 const skippedRowUnder: (
   container: HTMLElement,
   itemSelector: string,
@@ -176,7 +146,6 @@ const skippedRowUnder: (
   );
 };
 
-/** The row under the pointer, else the nearest within `maxDistance`. */
 const pickRow: (
   container: HTMLElement,
   itemSelector: string,
@@ -203,7 +172,6 @@ const pickRow: (
 
 interface LitRow {
   element: HTMLElement | null;
-  /** Lit by the pointer's position, so a click in a gap may land on it. */
   picked: boolean;
   rect: ItemRect | null;
   radius: string | undefined;
@@ -232,11 +200,7 @@ export function useFluidHoverList({
   const [lit, setLit] = useState<LitRow>(NOTHING_LIT);
   const [session, setSession] = useState(0);
   const litRef = useRef<LitRow>(NOTHING_LIT);
-  // While the pointer is inside it decides; otherwise (it left, or a key moved the primitive's
-  // highlight) the primitive's highlighted row does.
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
-  // The primitive stopped the container taking pointer events (a modal overlay drawn over it):
-  // the pointer is still over the container, which only hears it again once events come back.
   const blockedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
 
@@ -250,16 +214,12 @@ export function useFluidHoverList({
     const container = containerRef.current;
     if (!container) return;
     const pointer = pointerRef.current;
-    // A pointer resting on a disabled row lights nothing: not its neighbour, not the primitive's
-    // highlight.
     const onSkipped = pointer ? skippedRowUnder(container, itemSelector, pointer) : null;
     const picked =
       pointer && !onSkipped ? pickRow(container, itemSelector, pointer, maxDistance) : null;
     const held = heldSelector
       ? (rowsOf(container, itemSelector).find((row) => row.matches(heldSelector)) ?? null)
       : null;
-    // The pointer, when it is over the list, decides alone: away from every row nothing is lit.
-    // Only once it has left does the keyboard's row (or a held one) show.
     const element = onSkipped ? null : pointer ? picked : (highlightedRow() ?? held);
     const bounds = element ? visibleBounds(element, container) : null;
     const next: LitRow =
@@ -292,8 +252,6 @@ export function useFluidHoverList({
     });
   }, [refresh]);
 
-  // Rows come and go (a new page of threads), scroll, resize, and the primitive moves its own
-  // highlight on keys: each re-picks.
   useEffect(() => {
     if (!container) return;
     scheduleRefresh();
@@ -307,7 +265,6 @@ export function useFluidHoverList({
             record.target.matches(highlightedSelector) &&
             record.target.matches(itemSelector),
         );
-      // A key moved the primitive's highlight: it leads until the pointer moves again.
       if (keyboardMoved) {
         const row = highlightedRow();
         const pointer = pointerRef.current;
@@ -326,7 +283,6 @@ export function useFluidHoverList({
     const resize =
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleRefresh);
     resize?.observe(container);
-    // The rows move under a resting pointer as the list (or the page) scrolls.
     window.addEventListener("scroll", scheduleRefresh, { capture: true, passive: true });
     return () => {
       mutations.disconnect();
@@ -336,8 +292,6 @@ export function useFluidHoverList({
     };
   }, [container, highlightedRow, highlightedSelector, itemSelector, scheduleRefresh]);
 
-  // While blocked the container hears nothing, so the window tells it when the pointer really
-  // leaves.
   useEffect(() => {
     if (!container) return;
     const onPointerMove = (event: PointerEvent) => {
@@ -350,19 +304,15 @@ export function useFluidHoverList({
     return () => window.removeEventListener("pointermove", onPointerMove);
   }, [container, scheduleRefresh]);
 
-  // The lit row carries `data-fluid-hover-active`.
   useEffect(() => {
     const element = lit.element;
     element?.setAttribute(ACTIVE_ATTR, "");
     return () => element?.removeAttribute(ACTIVE_ATTR);
   }, [lit.element]);
 
-  // Heard on the way down, so a control inside a row that stops its own moves cannot hide the
-  // pointer.
   const onMouseMoveCapture = useCallback(
     (event: React.MouseEvent) => {
       if (!canHover()) return;
-      // A pointer over a row's open menu is not over the list.
       if (!isOwn(containerRef.current, event.target, itemSelector)) return;
       pointerRef.current = { x: event.clientX, y: event.clientY };
       scheduleRefresh();
@@ -370,9 +320,6 @@ export function useFluidHoverList({
     [itemSelector, scheduleRefresh],
   );
 
-  // Entering picks from the entry point at once: a pointer that comes back without moving (an
-  // overlay drawn over it went away) still lights the row it rests on. A fresh session fades in
-  // only when nothing is lit; from a lit row the highlight slides on.
   const onMouseEnter = useCallback(
     (event: React.MouseEvent) => {
       if (!canHover()) return;
@@ -384,8 +331,6 @@ export function useFluidHoverList({
     [scheduleRefresh],
   );
 
-  // A leave that lands inside the container is something blocking events, not the pointer
-  // leaving: the lit row holds.
   const onMouseLeave = useCallback(
     (event: React.MouseEvent) => {
       const container = containerRef.current;
@@ -399,14 +344,11 @@ export function useFluidHoverList({
     [scheduleRefresh],
   );
 
-  // A click in a gap lands on the lit row, so what is lit is what a click hits. Clicks inside a
-  // row or on a control between rows are theirs.
   const onClick = useCallback(
     (event: React.MouseEvent) => {
       const container = containerRef.current;
       const target = event.target as Element | null;
       if (!container || !target?.isConnected || !pointerRef.current) return;
-      // A click in a row's open menu is the menu's, not a gap's.
       if (!isOwn(container, target, itemSelector)) return;
       if (target.closest(itemSelector) || target.closest(CONTROL_SELECTOR)) return;
       const { element, picked } = litRef.current;

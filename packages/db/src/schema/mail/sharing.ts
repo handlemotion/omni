@@ -1,5 +1,3 @@
-// What a mailbox shows the CRM beyond the members who can open it (ADR 0039 decision 2). Mail owns
-// the setting; the CRM reads its effect only through Mail's door (`sharedActivityWith`).
 import { foreignKey, pgEnum, pgTable, text } from "drizzle-orm/pg-core";
 import { members } from "../auth.ts";
 import { orgId, updatedAt } from "../columns.ts";

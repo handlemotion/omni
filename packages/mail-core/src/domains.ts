@@ -1,6 +1,3 @@
-// Mail domains and mailbox addresses for onboarding, and Purelymail's DNS setup read as data.
-// Pure: the mail service calls Purelymail's API and hands the answers here. Imported by the Worker
-// and the mail service as `@omni/mail-core/domains`.
 import { domainToASCII, domainToUnicode } from "node:url";
 
 /** Which provider check a DNS record belongs to. */
@@ -30,15 +27,11 @@ const NOT_A_DOMAIN = "that is not a domain name";
  * internationalized name must decode cleanly and stay in one script (see `labelProblem`).
  */
 export const parseDomain: (input: string) => { domain: string } | { error: string } = (input) => {
-  // A domain is at most 253 characters; anything far longer is not one, whatever follows.
   if (input.length > 2048) return { error: NOT_A_DOMAIN };
   let text = input.trim().replace(/^@/, "");
   text = text.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
-  // Drop a path, query or fragment. `search` with one character class is linear; a `[/?#].*$`
-  // replace is quadratic on input like "####…".
   const end = text.search(/[/?#]/);
   if (end !== -1) text = text.slice(0, end);
-  // `user@host` and `host:port` would parse as a URL's credentials or port; neither is a domain.
   if (!text || /[@:\s\\]/.test(text)) return { error: NOT_A_DOMAIN };
   let host: string;
   try {
@@ -52,7 +45,6 @@ export const parseDomain: (input: string) => { domain: string } | { error: strin
   if (labels.length < 2 || !labels.every((label) => LABEL.test(label))) {
     return { error: NOT_A_DOMAIN };
   }
-  // An all-digit last label is an IP address, not a domain.
   if (/^\d+$/.test(labels.at(-1)!)) return { error: NOT_A_DOMAIN };
   const tld = unicodeLabel(labels.at(-1)!);
   for (const label of labels) {
@@ -68,16 +60,12 @@ export function normalizeDomain(input: string) {
   return "domain" in parsed ? parsed.domain : null;
 }
 
-/** The Unicode form of one punycode label, or null if it does not decode. */
 function unicodeLabel(label: string) {
   if (!label.startsWith("xn--")) return label;
-  // WHATWG's domainToUnicode hands back an undecodable label unchanged.
   const unicode = domainToUnicode(label);
-  // Two encodings of one name would be two rows: only the canonical encoding is a domain.
   return unicode !== label && domainToASCII(unicode) === label ? unicode : null;
 }
 
-// Scripts a label's letters can belong to. A letter outside these counts as its own script.
 const SCRIPTS = [
   "Latin",
   "Cyrillic",
@@ -109,24 +97,14 @@ const SCRIPTS = [
   "Han",
 ].map((name) => ({ name, pattern: new RegExp(`^\\p{Script=${name}}$`, "u") }));
 
-/** Script mixes that are normal writing, not spoofing (Chromium's IDN policy, UTS #39). */
 const ALLOWED_MIXES = [
   new Set(["Latin", "Han", "Hiragana", "Katakana"]),
   new Set(["Latin", "Han", "Bopomofo"]),
   new Set(["Latin", "Han", "Hangul"]),
 ];
 
-/**
- * Cyrillic letters that render like Latin ones. A label made only of these ("аррӏе") reads as an
- * ASCII name, so it is refused unless the domain itself is Cyrillic (an `.рф` name).
- */
 const LATIN_LOOKALIKES = new Set("асԁеһіјӏорԛѕԝхуъьҽпгѵѡ");
 
-/**
- * Why a label cannot be part of a claimable domain, or null. `tld` is the domain's last label in
- * Unicode. Mixed scripts (a Cyrillic "а" inside "pаypal") and whole-script lookalikes are the
- * spoofs that let a second workspace claim a name that reads like another's.
- */
 function labelProblem(label: string, tld: string | null) {
   const unicode = unicodeLabel(label);
   if (unicode === null) return "that domain name is not valid punycode";
@@ -134,7 +112,6 @@ function labelProblem(label: string, tld: string | null) {
   const scripts = new Set<string>();
   for (const char of unicode) {
     if (/^[\p{Script=Common}\p{Script=Inherited}]$/u.test(char)) {
-      // Digits and hyphens are fine; invisible joiners and other format characters are not.
       if (/^\p{Cf}$/u.test(char)) return "that domain name has invisible characters";
       continue;
     }
@@ -172,8 +149,6 @@ export function challengeRecordName(domain: string) {
   return `_omni-challenge.${domain}`;
 }
 
-// Conservative on purpose: `+` is Purelymail's subaddress separator, and quoted or exotic local
-// parts break more mail clients than they help.
 const LOCAL_PART = /^[a-z0-9](?:[a-z0-9_-]|\.(?!\.))*(?<!\.)$/;
 
 /**

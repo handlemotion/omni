@@ -1,4 +1,3 @@
-// Synthetic threads for the opt-in eval. Names and addresses are invented.
 import type { Bucket, TriageInput } from "../src/index.ts";
 
 export const threads: Array<{ name: string; expected: Bucket; input: TriageInput }> = [
@@ -156,7 +155,6 @@ export const threads: Array<{ name: string; expected: Bucket; input: TriageInput
       repliedBefore: false,
     },
   },
-  // The reader wrote last. Only an ask keeps the thread in waiting_on_them.
   ...(
     [
       [

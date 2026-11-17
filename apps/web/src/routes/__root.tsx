@@ -12,8 +12,6 @@ import { Toaster } from "../components/ui/toast.tsx";
 import { SharedTooltip } from "../components/ui/tooltip.tsx";
 import type { RouterContext } from "../router.ts";
 
-// React Aria links (`href` on Intent UI's Link, SidebarItem, Menu items) navigate through the
-// TanStack router instead of reloading the page.
 declare module "react-aria-components" {
   interface RouterConfig {
     routerOptions: Omit<NavigateOptions, keyof ToOptions>;
@@ -22,7 +20,6 @@ declare module "react-aria-components" {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: Root,
-  // The whole window: the shell may be what failed.
   errorComponent: ({ error, reset }) => (
     <FullWindow>
       <ErrorScreen error={error} reset={reset} />
@@ -37,7 +34,6 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function Root() {
   const router = useRouter();
-  // Setup's validation and failures toast in dorks' blue.
   const setup = useLocation({ select: (l) => l.pathname.startsWith("/onboarding") });
   return (
     <RouterProvider navigate={(href, options) => router.navigate({ ...options, href })}>

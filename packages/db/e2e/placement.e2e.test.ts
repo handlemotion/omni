@@ -1,6 +1,3 @@
-// Where a mailbox lives once a company claims its domain (ADR 0024 decision 2): the closest
-// company lock decides, membership in that company is checked after, and a mailbox holding work
-// only Postgres has (a draft, an unsent action) is reported busy so it is not moved yet.
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -23,7 +20,6 @@ beforeAll(async () => {
 });
 afterAll(() => database?.teardown());
 
-/** A mailbox at `address` in a fresh Personal space; its owner's user id comes back with it. */
 async function personalMailbox(address: string) {
   const { db } = database;
   const space = await createOrg(db, `personal-${randomUUID()}`);
@@ -39,7 +35,6 @@ async function personalMailbox(address: string) {
   return { box: box!, userId: owner.userId };
 }
 
-/** A company locking `domain`, with `userIds` as its members. */
 async function company(domain: string, ...userIds: string[]) {
   const { db } = database;
   const org = await createOrg(db, `co-${randomUUID()}`);
@@ -59,14 +54,11 @@ test("the closest company lock decides; a member of a parent's company does not 
   const tag = randomUUID().slice(0, 8);
   const ana = await personalMailbox(`ana@team.${tag}.test`);
   const bo = await personalMailbox(`bo@${tag}.test`);
-  // A locks the subdomain and Ana is not in it; B locks the parent and both are in it.
   await company(`team.${tag}.test`);
   const b = await company(`${tag}.test`, ana.userId, bo.userId);
 
   const misplaced = await listMisplacedMailboxes(database.db);
-  // Ana's address is A's: she stays in her Personal space until she joins A.
   expect(misplaced.map((m) => m.id)).not.toContain(ana.box.id);
-  // Bo's address is B's, and he is B's member.
   expect(misplaced.find((m) => m.id === bo.box.id)).toMatchObject({
     targetOrgId: b.orgId,
     targetMemberId: b.memberIds[1],
@@ -103,8 +95,6 @@ test("a draft or an unfinished action keeps a mailbox busy; a finished action do
   expect(await hasUnsyncedWork(db, box.id)).toBe(true);
 });
 
-// Catches: a move deleting the old copy while the new one is still importing. A folder's first
-// position (UIDNEXT 0) is saved, with `synced_at`, before any message is imported.
 test("a copy has finished its first sync only when every folder completed an import", async () => {
   const { db } = database;
   const { box } = await personalMailbox(`dee-${randomUUID().slice(0, 8)}@gmail.test`);
@@ -127,19 +117,15 @@ test("a copy has finished its first sync only when every folder completed an imp
       .set({ uidvalidity: 1, uidnext, syncedAt: new Date() })
       .where(eq(mailboxFolders.id, id));
 
-  // Both folders started (position saved, `synced_at` set), nothing imported yet.
   await position(inbox!.id, 0);
   await position(archive!.id, 0);
   expect(await firstSyncDone(db, box.id)).toBe(false);
-  // INBOX done, All Mail still importing.
   await position(inbox!.id, 42);
   expect(await firstSyncDone(db, box.id)).toBe(false);
   await position(archive!.id, 900);
   expect(await firstSyncDone(db, box.id)).toBe(true);
 });
 
-// Catches: a company keeping someone's personal Gmail (ADR 0024 step 3), or the backfill pulling
-// out a mailbox that is the company's: on its locked domain, or an IMAP mailbox with no claim.
 test("a company's Gmail on an address no company locked goes to its owner's Personal space", async () => {
   const { db } = database;
   const tag = randomUUID().slice(0, 8);
@@ -179,7 +165,6 @@ test("a company's Gmail on an address no company locked goes to its owner's Pers
     targetOrgId: space.id,
     targetMemberId: personalMember!.id,
   });
-  // Its domain is the company's own, and an IMAP mailbox is left alone.
   expect(misplaced.map((m) => m.id)).not.toContain(work.id);
   expect(misplaced.map((m) => m.id)).not.toContain(cli.id);
 });

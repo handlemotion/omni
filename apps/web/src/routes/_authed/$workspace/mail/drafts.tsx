@@ -8,8 +8,6 @@ import { reopenCompose } from "../../../../hooks/use-compose-pane.ts";
 import { draftsQuery } from "../../../../lib/compose.ts";
 import { draftsSearch } from "../../../../lib/search-params.ts";
 
-// Unsent mail, newest first: replies and forwards in progress (each opens its conversation with
-// the draft in the composer) and new messages (each opens in the compose dialog).
 export const Route = createFileRoute("/_authed/$workspace/mail/drafts")({
   validateSearch: draftsSearch,
   loaderDeps: ({ search }) => ({ mailbox: search.mailbox }),
@@ -18,7 +16,6 @@ export const Route = createFileRoute("/_authed/$workspace/mail/drafts")({
   component: Drafts,
 });
 
-/** A new message's row id: it has no conversation to be named by. */
 const NEW = "new:";
 
 function Drafts() {
@@ -28,7 +25,6 @@ function Drafts() {
   const navigate = Route.useNavigate();
   const { data: drafts, isPending, isError, isSuccess, refetch } = useDrafts(search.mailbox);
 
-  // One row per conversation (its newest draft), and one per new message.
   const rows = useMemo(() => {
     const seen = new Set<string>();
     return (drafts ?? []).flatMap((draft) => {
@@ -51,7 +47,6 @@ function Drafts() {
     });
   }, [drafts]);
 
-  // `?draft=`: a new message's row was opened. It opens in the compose dialog, over the list.
   const opened = search.draft && drafts?.find((d) => d.id === search.draft);
   useEffect(() => {
     if (!opened) return;

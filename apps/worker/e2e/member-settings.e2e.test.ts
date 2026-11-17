@@ -1,4 +1,3 @@
-// A member's settings and phones, and trash/spam/not spam, over the real Worker and Postgres.
 import { addLocation, schema, upsertFolder } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -70,7 +69,6 @@ describe("preferences", () => {
       method: "PATCH",
       body: JSON.stringify({ notifications: { mention: { desktop: false } }, theme: "dark" }),
     });
-    // A second change to another field must not reset the first.
     const after = await (
       await api("/preferences", cookie, {
         method: "PATCH",
@@ -91,7 +89,6 @@ describe("preferences", () => {
     });
     expect(tooLong.status).toBe(400);
 
-    // Settings changed at once from two devices: each lands, none writes back a stale read.
     const patches = [
       { theme: "light" },
       { undoSendSeconds: 20 },
@@ -196,7 +193,6 @@ describe("trash and spam", () => {
     ]);
     expect(await archived()).toBe(true);
 
-    // The mail service moved it: now the only copy is in Junk.
     await db
       .delete(schema.messageLocations)
       .where(eq(schema.messageLocations.messageId, messageId));

@@ -1,8 +1,4 @@
-// Adds a card to the workspace with a SetupIntent the browser confirms (transitive's add-card
-// dialog, on Omni's dialog and tokens). The number is typed into Stripe's own frame and goes to
-// Stripe; Omni only ever learns the saved card's brand, last four and expiry.
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
-// `pure`: Stripe.js loads when the dialog first opens, not on every page of the app.
 import { loadStripe } from "@stripe/stripe-js/pure";
 import type { Appearance, Stripe } from "@stripe/stripe-js";
 import { type FormEvent, useEffect, useState } from "react";
@@ -23,7 +19,6 @@ import { TextField } from "@/components/ui/text-field";
 import { appToast } from "@/components/ui/toast";
 import { useCardAdded, useCardSetup } from "@/hooks/use-billing.ts";
 
-// One Stripe.js per key for the page's lifetime, as Stripe recommends.
 const instances = new Map<string, Promise<Stripe | null>>();
 function stripeFor(publishableKey: string) {
   let instance = instances.get(publishableKey);
@@ -34,7 +29,6 @@ function stripeFor(publishableKey: string) {
   return instance;
 }
 
-/** Stripe's fields drawn in our tokens, read from the page so they follow `styles.css`. */
 const appearance: () => Appearance = () => {
   const token = (name: string) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -120,7 +114,6 @@ export function BillingAddCardDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** The card form's shape, drawn as a skeleton while Stripe's fields are on their way. */
 function SampleForm() {
   return (
     <>
@@ -170,7 +163,6 @@ function AddCardForm({
     if (!stripe || !elements) return;
     setError(null);
     onSavingChange(true);
-    // A card that asks for 3-D Secure opens Stripe's challenge in place; no page redirect.
     const result = await stripe.confirmSetup({
       elements,
       redirect: "if_required",
@@ -196,13 +188,9 @@ function AddCardForm({
       <DialogBody className="gap-3">
         <PaymentElement
           onReady={() => setReady(true)}
-          // Stripe.js could not start (a wrong key, Stripe unreachable): say so instead of an
-          // empty dialog.
           onLoadError={() => setError("A card can't be added right now. Try again in a moment.")}
           options={{
             layout: "tabs",
-            // The app's Permissions-Policy turns off the Payment Request API, and Link (Stripe's
-            // consumer wallet) has no place in a workspace's billing.
             wallets: { applePay: "never", googlePay: "never", link: "never" },
           }}
         />

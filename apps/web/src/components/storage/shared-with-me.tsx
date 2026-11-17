@@ -1,5 +1,3 @@
-// What others shared with the signed-in person (ADR 0034 decision 4), in any workspace, newest
-// first: each row opens its link page.
 import { TableLoadMoreItem } from "react-aria-components/Table";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";

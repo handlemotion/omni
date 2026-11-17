@@ -1,6 +1,3 @@
-// Creating a mailbox from settings: `NewMailboxDialog` makes a shared mailbox, a teammate's
-// personal inbox (People, ADR 0017), or your own; in a Personal space, your own on its domain
-// (ADR 0042), through `useOwnInboxCreation`.
 import { useState } from "react";
 import { Label } from "@/components/ui/field";
 import { Input, InputGroup } from "@/components/ui/input";
@@ -16,7 +13,6 @@ import type { OnboardingDomain } from "@/lib/types.ts";
 import { useMailboxDomains } from "./mailbox-pages";
 import { SettingsFormDialog } from "./kit/settings-stacked-dialog";
 
-/** The local part people get by default: theirs, as they sign in. */
 const localPartOf = (email: string) => email.split("@")[0] ?? "";
 
 /** The person a new personal inbox is for, as People lists them. */
@@ -35,12 +31,10 @@ interface Placement {
   servers?: { imap: MailServer; smtp: MailServer };
 }
 
-/** Which route makes the mailbox `NewMailboxDialog` asks for. */
 function useCreateInbox(person: InboxOwner | undefined) {
   const { member } = useMember();
   const issue = useIssueInbox();
   const createShared = useCreateSharedInbox();
-  // A Personal space has no admin routes: its owner's inboxes come from setup's (ADR 0042).
   const personal = usePersonalWorkspace();
   const createOwn = useCreateMailboxes();
   const run = (
@@ -55,7 +49,6 @@ function useCreateInbox(person: InboxOwner | undefined) {
       );
     }
     if (person) return issue.mutate({ ...placement, memberId: person.id }, done);
-    // A shared one starts with you on it; you choose who else sees it next.
     createShared.mutate({ ...placement, memberIds: [member.id] }, done);
   };
   const pending = (personal ? createOwn : person ? issue : createShared).isPending;

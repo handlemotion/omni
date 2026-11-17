@@ -1,5 +1,3 @@
-// Text and code files edited as text (ADR 0043): CodeMirror, saving exactly what was typed. Its
-// own chunk, loaded when such a file is edited.
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { Compartment, EditorState } from "@codemirror/state";
 import {
@@ -12,7 +10,6 @@ import {
 import { useEffect, useRef } from "react";
 import type { EditorProps } from "./document-editor.tsx";
 
-/** The preview's look: its 13/20 mono text, its gutter, the app's tokens. */
 const theme = EditorView.theme({
   "&": { height: "100%", fontSize: "13px", color: "var(--foreground)" },
   "&.cm-focused": { outline: "none" },
@@ -32,13 +29,11 @@ const theme = EditorView.theme({
   ".cm-activeLine": { backgroundColor: "var(--secondary)" },
 });
 
-/** The editor's accessible name, which follows the file's name. */
 const label = new Compartment();
 
 export default function SourceEditor(props: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const { onReady, onChange, name, text } = props;
-  // The callbacks may change between renders; the view is made once.
   const latest = useRef(onChange);
   useEffect(() => {
     latest.current = onChange;
@@ -72,7 +67,6 @@ export default function SourceEditor(props: EditorProps) {
       view.current = null;
       made.destroy();
     };
-    // Made once per text: a rename relabels it below, and never drops what is typed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, onReady]);
   useEffect(() => {

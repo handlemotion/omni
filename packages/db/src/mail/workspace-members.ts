@@ -1,6 +1,3 @@
-// The people of a company workspace with the inboxes each can open, for its owners and admins
-// (ADR 0026): which personal inboxes are theirs and which shared inboxes they are on. Facts about
-// mailboxes only, never their mail, and nothing here grants access.
 import { and, asc, count, eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, members, users } from "../schema/index.ts";
@@ -8,7 +5,6 @@ import { listWorkspaceMailboxes } from "./workspace-mailboxes.ts";
 
 type WorkspaceMailbox = Awaited<ReturnType<typeof listWorkspaceMailboxes>>[number];
 
-/** A personal inbox as a member's row shows it. */
 function personalInbox({ id, address, provider, status, syncedAt }: WorkspaceMailbox) {
   return { id, address, provider, status, syncedAt };
 }

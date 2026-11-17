@@ -64,7 +64,6 @@ export default function ThreadScreen() {
   );
 }
 
-/** Once per opened thread, if it was unread. The key is fixed per open, so a retry is one intent. */
 function useMarkReadOnOpen(threadId: string, read: boolean | undefined) {
   const markRead = useMarkRead();
   const sent = useRef<string | null>(null);

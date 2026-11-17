@@ -1,16 +1,3 @@
-// A deal's stage rules (ADR 0036 decision 2) in one place, so a route, a bulk move and an agent
-// cannot disagree. Pure: no I/O. Applying a move to its own result changes nothing, so a
-// repeated move writes no event.
-//
-// - Moving sets `stageEnteredAt`.
-// - The first entry into a `won` stage sets `wonAt`. It is never reset: a deal moved back to open
-//   and won again keeps the first date, which is when the project started.
-// - Entering `done` or `lost` sets `closedAt` (to the time of this entry, also from one closed
-//   kind to another).
-// - Entering `open` or `won` clears `closedAt`: a reopened deal is not closed, and a won deal is
-//   a running project, not a closed one.
-// - A move to the stage the deal is in changes nothing.
-
 export type StageKind = "open" | "won" | "done" | "lost";
 
 export interface DealStageState {

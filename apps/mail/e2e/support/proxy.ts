@@ -1,7 +1,3 @@
-// A real TCP relay between the service and GreenMail, for network faults GreenMail cannot make
-// by itself: drop every connection, refuse new ones, go silent without closing (a NAT that
-// forgot the flow), or stall new connections (a slow server). Bytes pass through untouched;
-// nothing about IMAP or SMTP is simulated.
 import { createServer, type Server, type Socket, connect } from "node:net";
 import type { AddressInfo } from "node:net";
 
@@ -9,9 +5,7 @@ interface Pair {
   client: Socket;
   upstream: Socket;
   silent: boolean;
-  /** Bytes held while the link is stalled, flushed in order by `restore()`. */
   held: { to: Socket; chunk: Buffer }[] | null;
-  /** The last bytes the client sent. */
   tail: string;
 }
 

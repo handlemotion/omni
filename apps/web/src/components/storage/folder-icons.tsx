@@ -1,5 +1,3 @@
-// A cluster's (a space's top-level folder's) glyph in Drive's sidebar (ADR 0047): the folder, or
-// one picked from `STORAGE_FOLDER_ICONS`. Nested folders always keep the folder glyph.
 import { useState, type ComponentType } from "react";
 import {
   IconAnalytics,
@@ -82,7 +80,6 @@ export function FolderIconDialog(props: { node: StorageNode; onClose: () => void
   const change = useChangeNode();
   const saved = useFolderIcons(props.node.space);
   const current = saved.icons[props.node.id];
-  // Null until the member picks one: until then the saved glyph shows, once it has loaded.
   const [choice, setChoice] = useState<string | null>(null);
   const picked = choice ?? (known(current) ? current : FOLDER);
   const save = () =>
@@ -123,7 +120,6 @@ export function FolderIconDialog(props: { node: StorageNode; onClose: () => void
       </DialogBody>
       <DialogFooter>
         <DialogClose>Cancel</DialogClose>
-        {/* Saving before the glyph loads would clear it. */}
         <Button
           isPending={change.isPending}
           isDisabled={choice === null && !saved.isLoaded}

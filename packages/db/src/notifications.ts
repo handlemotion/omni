@@ -1,12 +1,7 @@
-// Notifications: marking a member's own read, workspace notifications (a teammate joined), and
-// whose preferences let one out (B4).
-
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { memberPreferences, members, notifications } from "./schema/index.ts";
 import { type Executor, type NotificationKind } from "./mail.ts";
-
-// Notifications: a member's own.
 
 /** Marks the member's notifications read: these ids, or all of them. Returns how many changed. */
 export async function markNotificationsRead(db: Executor, memberId: string, ids: string[] | "all") {
@@ -58,8 +53,6 @@ export const notifyMemberJoined: (
     .returning({ memberId: notifications.memberId });
   return rows.map((r) => r.memberId);
 };
-
-// Realtime (B4): who hears about a conversation, and whose preferences let a notification out.
 
 /**
  * Of these members, those whose preferences let `kind` through `channel`. No preferences row, or

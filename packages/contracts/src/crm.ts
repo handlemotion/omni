@@ -1,13 +1,7 @@
-// The CRM's HTTP API (ADR 0036 decision 7), under `/api/crm` on the Worker: what the web and iOS
-// apps send and get back. The Worker validates requests with these schemas and types its answers
-// with them. Dates travel as ISO 8601 strings, money as a whole number of minor units with its
-// ISO 4217 currency, cursors as opaque strings to pass back unchanged. Error codes are rows in
-// `ERROR_CODES` (`errors.ts`), not here.
 import { z } from "zod";
 
 const isoDate = z.iso.datetime();
 const id = z.string().min(1).max(64);
-/** Checked again by `@omni/db`, which answers `invalid_name` for an empty or too long one. */
 const name = z.string().max(500);
 const address = z.string().min(1).max(320);
 const optionalText = z.string().max(2000).nullable().optional();
@@ -150,19 +144,11 @@ export const crmActivitySchema = z.object({
   subject: z.string().nullable(),
 });
 
-/**
- * When anyone in the workspace last corresponded with the record: the newest thread the viewer
- * can open or the newest shared activity. Computed at read time; null when there is none.
- * Optional only while an older Worker may answer.
- */
 const lastContactedAt = isoDate.nullable().optional();
-
-// Requests -------------------------------------------------------------------------------------
 
 const page = {
   cursor: z.string().min(1).max(2048).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
-  /** `1` lists archived records too. */
   archived: z.literal("1").optional(),
 };
 
@@ -225,14 +211,10 @@ export const crmUpdatePersonBodySchema = z.object({
 
 const dealFields = {
   companyId: id.nullable().optional(),
-  /** Moving to another stage. On create, the first `open` stage when left out. */
   stageId: id.optional(),
-  /** On create, the creating member when left out; null for no owner. */
   ownerMemberId: id.nullable().optional(),
   valueMinor: z.number().int().nullable().optional(),
-  /** ISO 4217. The workspace's default when a value comes without one. */
   currency: z.string().max(3).nullable().optional(),
-  /** The client's people on it: exactly these. */
   personIds: z.array(id).max(100).optional(),
 };
 export const crmCreateDealBodySchema = z.object({ name, ...dealFields });
@@ -329,8 +311,6 @@ export const crmSearchQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 
-// Responses ------------------------------------------------------------------------------------
-
 export const crmCompanyListResponseSchema = z.object({
   companies: z.array(crmCompanySchema),
   nextCursor: z.string().nullable(),
@@ -391,10 +371,6 @@ export const crmFoundResponseSchema = z.object({
   deals: z.array(crmDealSchema),
 });
 
-/**
- * One timeline item. `at` orders the list, newest first (then `id`). New kinds may be added: a
- * client skips a kind it does not know.
- */
 const timelineItem = { id, at: isoDate };
 export const crmTimelineEventItemSchema = z.object({
   kind: z.literal("event"),

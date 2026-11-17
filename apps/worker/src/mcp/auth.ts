@@ -1,9 +1,3 @@
-// Who an MCP request acts for (ADR 0029). The bearer token is a JWT our own OAuth provider signed
-// for the `/mcp` resource: it is checked here against our JWKS (signature, issuer, audience,
-// expiry), with the keys read straight from the database (`tokenSigningKeys`) and no HTTP call to
-// ourselves. Failures answer the way MCP
-// clients expect, so they can start or step up sign-in: 401 with the protected-resource metadata,
-// or 403 `insufficient_scope` naming every scope the call needs.
 import { MAIL_READ_SCOPE, mcpResource, WORKSPACE_CLAIM, type Auth } from "@omni/auth";
 import { tokenSigningKeys, type Db } from "@omni/db";
 import { createLocalJWKSet, errors, jwtVerify, type JSONWebKeySet } from "jose";
@@ -18,7 +12,6 @@ export interface McpCaller {
   expiresAt: number;
 }
 
-/** Keys are reused for this long per isolate; a rotated key is picked up on the first miss. */
 const JWKS_TTL_MS = 5 * 60_000;
 let jwksCache: { keys: JSONWebKeySet; issuer: string; expires: number } | undefined;
 
@@ -85,7 +78,6 @@ export async function verifyAccessToken(token: string, auth: Auth, db: Db, audie
   try {
     return (await verify(false)).payload;
   } catch (error) {
-    // A key we have not cached yet (rotation): reload once.
     if (!(error instanceof errors.JWKSNoMatchingKey)) return null;
     try {
       return (await verify(true)).payload;

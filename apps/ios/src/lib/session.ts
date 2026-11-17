@@ -1,6 +1,3 @@
-// Sign-in state for the app. A magic link opens in Safari, the Worker verifies it and redirects
-// to `<scheme>:///?cookie=<Set-Cookie>` (Better Auth's expo plugin); the app stores that cookie
-// where the auth client reads it, and the session follows.
 import { getSetCookie, storageAdapter } from "@better-auth/expo/client";
 import * as Linking from "expo-linking";
 import * as SecureStore from "expo-secure-store";
@@ -8,7 +5,6 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import { STORAGE_PREFIX, auth } from "./api.ts";
 import { queryClient } from "./query-client.ts";
 
-// The same storage object the auth client wraps, so both share one view of the stored cookie.
 const storage = storageAdapter(SecureStore);
 const COOKIE_KEY = `${STORAGE_PREFIX}_cookie`;
 
@@ -38,7 +34,6 @@ export const acceptSignInLink: (url: string) => Promise<boolean | "error"> = asy
 
 export async function signOut() {
   await auth.signOut();
-  // Nothing of this person's mail outlives their session on this phone.
   await queryClient.cancelQueries();
   queryClient.clear();
 }

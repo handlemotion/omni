@@ -20,8 +20,6 @@ import type { VariantProps } from "tailwind-variants";
 import { tv } from "tailwind-variants";
 import { toSideAlign, type Placement } from "./placement";
 
-// shadcn's tooltip look on UI SDK's tooltip: a small coal chip (background text on `tooltip`),
-// 12px text, a short fade and zoom from its trigger. `inverse={false}` keeps the light overlay.
 const tooltipStyles = tv({
   base: [
     "group w-fit max-w-xs origin-(--transform-origin) rounded-md px-2 py-1.5 text-xs text-balance *:[strong]:font-medium",
@@ -39,12 +37,6 @@ const tooltipStyles = tv({
   },
 });
 
-/**
- * Every hover tooltip in the app is one tooltip, shared through this controller: moving from one
- * trigger to the next slides it across instead of closing one and opening another. Each trigger
- * passes its id as the payload and keeps its current `<Tooltip>` props in `entries`, so content
- * that changes while open ("Copy" → "Copied") stays live.
- */
 const sharedTooltip = createTooltipController<string>();
 const entries = new Map<string, TooltipProps>();
 const listeners = new Set<() => void>();
@@ -58,17 +50,9 @@ const showable = (id: string | undefined) => {
   return Boolean(entry && !entry.hidden);
 };
 
-/** Ms the pointer rests before the shared tooltip opens. */
 const SHARED_DELAY = 400;
-/** Ms it waits after the pointer leaves, so crossing the gap between icons doesn't close it. */
 const SHARED_CLOSE_DELAY = 120;
 
-/**
- * Slides the shared tooltip when another trigger takes it over. The positioner jumps it to the new
- * trigger (`left`/`top`, placed afresh with no transition), so this watches those writes and plays
- * the move back from the old spot. It runs before paint (a mutation observer is a microtask), so
- * the jump never shows. Only while it stays open: a fresh open appears in place.
- */
 function slide(el: HTMLElement | null) {
   if (!el) return;
   let last: { x: number; y: number } | null = null;
@@ -82,8 +66,6 @@ function slide(el: HTMLElement | null) {
     const from = last;
     last = now;
     if (!from || reduce.matches) return;
-    // Start from where it shows now, mid-slide included: a second placement (the new label
-    // resizing it) retargets the slide instead of stacking a second one on it.
     const [tx = 0, ty = 0] = getComputedStyle(el)
       .translate.split(" ")
       .map((v) => parseFloat(v) || 0);
@@ -164,7 +146,6 @@ export function TooltipTrigger({
   const entry =
     own || !tooltip ? undefined : { ...tooltip.props, hidden: isDisabled || tooltip.props.hidden };
 
-  // Kept current on every render, so the open tooltip shows what its trigger shows now.
   useLayoutEffect(() => {
     if (!entry) return;
     entries.set(id, entry);

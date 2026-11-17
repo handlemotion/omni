@@ -1,6 +1,3 @@
-// A shared inbox's activity between the messages (ADR 0021): internal notes, and one quiet line
-// per change ("Ana assigned this to Luis", "Reopened by the customer's reply"). Names come from
-// the inbox's assignees; someone who has since lost access reads as "A teammate".
 import { useState } from "react";
 import { IconLock, IconPencil, IconTrash } from "@/components/icons/central";
 import { MenuItem, MenuLabel } from "@/components/ui/menu";
@@ -35,7 +32,6 @@ const SNOOZE_UNTIL = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 });
 
-/** Names of the inbox's members, with "You" for the person reading. */
 function usePeople(mailboxId: string) {
   const { data: assignees = [] } = useAssignees(mailboxId);
   const email = useSession().data?.user.email;
@@ -46,12 +42,10 @@ function usePeople(mailboxId: string) {
     if (!person) return "A teammate";
     return person.email === email ? "You" : person.name || person.email;
   };
-  // Mid-sentence: "assigned this to you", not "to You".
   const object = (memberId: unknown) => {
     const n = name(memberId);
     return n === "You" ? "you" : n;
   };
-  // As a note's text names them (the composer writes `@` and this), "You" or not.
   const written = (memberId: unknown) => {
     const person = find(memberId);
     return person ? person.name || person.email : null;
@@ -65,7 +59,6 @@ function usePeople(mailboxId: string) {
   };
 }
 
-/** The sentence for one event, or null for the ones the timeline leaves out. */
 function useDescribe(mailboxId: string) {
   const people = usePeople(mailboxId);
   const { data: tags = [] } = useTags(mailboxId);
@@ -77,9 +70,7 @@ function useDescribe(mailboxId: string) {
         const cause = data.cause;
         if (cause === "customer_message") return "Reopened by the customer's reply";
         if (cause === "snooze_expired") return "Back from snooze";
-        // A reply moves it to Pending each time: the reply itself says so.
         if (cause === "agent_reply") return null;
-        // A hand-off resolves it: the hand-off line says so.
         if (cause === "handoff") return null;
         if (cause === "handoff_cancelled") return `${actor ?? "Omni"} cancelled the hand-off`;
         if (data.reason === "discarded_elsewhere")
@@ -97,11 +88,9 @@ function useDescribe(mailboxId: string) {
         return null;
       }
       case "assigned": {
-        // Part of a hand-off or its undo: their own line says so.
         if (data.cause === "handoff" || data.cause === "handoff_cancelled") return null;
         if (data.cause === "auto_assign")
           return `Assigned to ${people.object(data.to)} automatically`;
-        // The first reply claims an unowned conversation.
         if (data.cause === "first_reply") return `${people.name(data.to)} took this by replying`;
         const who = actor ?? "Omni";
         if (!data.to) return `${who} unassigned ${people.object(data.from)}`;
@@ -128,7 +117,6 @@ function useDescribe(mailboxId: string) {
         return "Another conversation was merged into this one";
       case "handoff":
         return `${actor ?? "A teammate"} continued this conversation in their inbox`;
-      // The note shows itself; the first response is the reply above it.
       default:
         return null;
     }
@@ -149,7 +137,6 @@ export function EventLine(props: { event: ConversationEvent; text: string }) {
   const danger = props.event.kind === "sla_breached";
   return (
     <p
-      // 8px more above and below than the timeline's gap, like "Ana added Bob".
       className={`py-2 text-center text-xs ${danger ? "text-danger-subtle-foreground" : "text-subtle-foreground"}`}
     >
       {props.text}
@@ -174,15 +161,11 @@ export function NoteItem(props: { threadId: string; mailboxId: string; note: Not
   const [editing, setEditing] = useState(false);
   const pending = isPendingNote(note);
   const edited = note.updatedAt !== note.createdAt;
-  // A chat reply carries its quote in the body; it shows above the bubble instead.
   const { reply, body } = parseReply(note.body);
   const from = people.written(note.authorMemberId) ?? name;
-  // Edits the words only: a reply's quote stays as it was.
   const edit = useEditNote();
 
   return (
-    // On the right with the replies, since the team wrote it. The dotted outline, the lock and
-    // "Hidden" tell it from a reply the customer got.
     <ChatMessage
       label={`Note from ${name}, ${messageTime(note.createdAt)}`}
       align="end"
@@ -241,10 +224,8 @@ export function NoteItem(props: { threadId: string; mailboxId: string; note: Not
   );
 }
 
-/** The note's text, each `@Name` of a mentioned teammate in the foreground weight. */
 function NoteBody({ body, names }: { body: string; names: string[] }) {
   const mentions = names.map((n) => `@${n}`);
-  // Longest first, so "@Ana Lopez" wins over "@Ana".
   mentions.sort((a, b) => b.length - a.length);
   const parts: { text: string; mention: boolean }[] = [];
   let rest = body;
@@ -278,7 +259,6 @@ function NoteBody({ body, names }: { body: string; names: string[] }) {
   );
 }
 
-/** Your own note's items in its menu: edit and delete. */
 function NoteActions(props: { threadId: string; noteId: string; onEdit: () => void }) {
   const remove = useDeleteNote();
   return (

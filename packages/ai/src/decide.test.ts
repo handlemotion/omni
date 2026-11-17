@@ -98,7 +98,6 @@ describe("reader-sent truth table", () => {
     ["a closer that asks nothing", {}, "fyi"],
     ["a question", { reader_asks_question: 0.95 }, "waiting_on_them"],
     ["a request with no question mark", { reader_requests_action: 0.93 }, "waiting_on_them"],
-    // Asking either way is enough; the other judgment being unsure doesn't matter.
     [
       "a question beside an unsure request",
       { reader_asks_question: 0.9, reader_requests_action: 0.5 },

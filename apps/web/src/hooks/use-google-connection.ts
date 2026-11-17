@@ -1,4 +1,3 @@
-// Connecting a personal Gmail, shared by setup's inbox step and Settings, Connected accounts.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";

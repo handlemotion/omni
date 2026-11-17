@@ -1,6 +1,3 @@
-// Notifications: whether this device shows your helpdesk notifications (assigned to you,
-// mentioned, a customer replied, due soon, overdue) as system notifications while Omni is in the
-// background. Per device: the browser's permission is per device too.
 import { useState } from "react";
 import { appToast } from "@/components/ui/toast";
 import {

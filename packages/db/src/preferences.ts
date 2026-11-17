@@ -1,5 +1,3 @@
-// A member's settings and phones (ADR 0021): notification channels per kind, theme, undo-send
-// window, and Expo push tokens. No preferences row means every default.
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import type { NotificationKind } from "./mail.ts";
@@ -47,7 +45,6 @@ export async function updateMemberSettings(db: Db, memberId: string, patch: Sett
   const changed = Object.entries(patch.notifications ?? {}).filter(
     (entry): entry is [string, Partial<NotificationChannels>] => entry[1] !== undefined,
   );
-  // Stored overrides only; `memberSettings` fills every default on read.
   let notifications = sql`coalesce(${memberPreferences.notifications}, '{}'::jsonb)`;
   for (const [kind, channels] of changed) {
     notifications = sql`(${notifications} || jsonb_build_object(${kind}::text, coalesce(${notifications} -> ${kind}::text, '{}'::jsonb) || ${JSON.stringify(channels)}::jsonb))`;

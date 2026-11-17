@@ -1,7 +1,3 @@
-// One request ID, end to end: a member's click reaches the Worker with `x-request-id`, rides the
-// signed ping to the mail service and the outbox row, and shows in both processes' logs. An action
-// that fails for good shows in the dead-letter listing (the real CLI) with its error and that ID.
-// Real Worker (workerd), real mail service, real GreenMail and Postgres.
 import { execFile } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
@@ -38,7 +34,6 @@ const mailApp = join(import.meta.dirname, "../../mail");
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let worker: Awaited<ReturnType<typeof startWorker>>;
 let mail: { service: MailService; http: ReturnType<typeof serve> };
-/** Every line the mail service logged, parsed: its real logger, writing here instead of stdout. */
 const mailLog: Record<string, unknown>[] = [];
 
 async function freePort() {
@@ -70,7 +65,6 @@ beforeAll(async () => {
       IMAGE_PROXY_URL: "/api/image-proxy",
       ATTACHMENT_URL: "/api/attachments",
       SYNC_INTERVAL_MS: 60 * 60_000,
-      // Only the Worker's ping runs the outbox, so each action is the request's own doing.
       OUTBOX_INTERVAL_MS: 60 * 60_000,
       MAILBOX_CONCURRENCY: 2,
     },
@@ -99,13 +93,11 @@ async function waitUntil<T>(check: () => Promise<T | false | undefined> | T, tim
   }
 }
 
-/** A connected GreenMail mailbox with one received thread, its member, and a session. */
 async function setUpMember() {
   const { db } = database;
   const address = `trace-${randomUUID().slice(0, 8)}@omni.test`;
   const org = await createOrg(db, "trace");
   const member = await createMember(db, org.id, address);
-  // No undo window: this test follows a send end to end, not the wait before it leaves.
   await db
     .insert(schema.memberPreferences)
     .values({ memberId: member.id, orgId: org.id, undoSendSeconds: 0 });
@@ -141,7 +133,6 @@ async function setUpMember() {
     const [row] = await db.select().from(schema.threads).where(eq(schema.threads.mailboxId, id));
     return row;
   });
-  // The first full pass runs behind readiness; let it finish so it cannot undo a test's edits.
   await waitUntil(() => mailLog.some((l) => l.event === "sync.all_done" && l.mailboxId === id));
   return {
     orgId: org.id,
@@ -186,7 +177,6 @@ test("a send's request ID is in the Worker's logs, the outbox row and the mail s
   await waitUntil(async () => (await action(actionId)).status === "done");
   expect((await action(actionId)).requestId).toBe(requestId);
 
-  // Worker: the request itself, by route pattern and org, and the signed ping it sent.
   const [request] = await waitForEvents(
     worker,
     (e) => e.event === "http.request" && e.requestId === requestId,
@@ -205,7 +195,6 @@ test("a send's request ID is in the Worker's logs, the outbox row and the mail s
     (e) => e.event === "mail_service.ping" && e.requestId === requestId && e.status === 202,
   );
 
-  // Mail service: the ping arrived under the same ID, and the outbox ran the send under it.
   expect(mailLog).toContainEqual(
     expect.objectContaining({ event: "outbox.pinged", requestId, component: "http" }),
   );
@@ -221,7 +210,6 @@ test("a send's request ID is in the Worker's logs, the outbox row and the mail s
     }),
   );
 
-  // Nothing either side logged carries the message text.
   const everything = JSON.stringify([...workerEvents(worker), ...mailLog]);
   expect(everything).not.toContain("Tuesday works.");
   expect(everything).not.toContain("Can we meet Tuesday?");
@@ -229,8 +217,6 @@ test("a send's request ID is in the Worker's logs, the outbox row and the mail s
 
 test("an action that fails for good is listed by the dead-letter CLI with its error and request ID", async () => {
   const member = await setUpMember();
-  // The app's view of INBOX is stale (its UIDVALIDITY moved on the server): archiving can never
-  // succeed, so the mail service fails the action without retrying.
   await database.db
     .update(schema.mailboxFolders)
     .set({ uidvalidity: 1 })
@@ -247,7 +233,6 @@ test("an action that fails for good is listed by the dead-letter CLI with its er
   expect(actionIds).toHaveLength(1);
   await waitUntil(async () => (await action(actionIds[0]!)).status === "failed");
 
-  // The Worker hears about it and logs the original request's ID next to the action.
   await waitForEvents(
     worker,
     (e) =>

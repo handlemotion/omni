@@ -517,7 +517,6 @@ export function TableCell({ className, actions = false, ref, ...props }: TableCe
           !bleed && "sm:first:ps-1 sm:last:pe-1",
           allowResize && "truncate overflow-hidden",
           variant === "page" && (rowSize === "lg" ? "h-14 py-0" : "h-11 py-0"),
-          // 10px in from the end, where a page header's own actions sit.
           actions && "px-0 last:pe-2.5",
         ),
         className,
@@ -535,8 +534,6 @@ export function TableCell({ className, actions = false, ref, ...props }: TableCe
             className={
               isTreeColumn ? "flex items-center" : actions ? "flex justify-end" : undefined
             }
-            // A row with a link or an action would take presses on its own controls, and React
-            // carries a menu's presses up from its portal: an action cell's stay in the cell.
             {...(actions ? STOP : {})}
           >
             {hasChildItems && isTreeColumn && (

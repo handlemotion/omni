@@ -1,6 +1,3 @@
-// The CRM's HTTP API over the real Worker (ADR 0036): who it reaches, what it announces and the
-// answers a client acts on. Access itself is proven at the door in `@omni/db`'s CRM suite; these
-// catch the Worker getting it wrong around the door.
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -17,8 +14,6 @@ afterAll(async () => {
   await stack?.stop();
 });
 
-// Catches: a fan-out to every socket the workspace's object holds, which still reaches a member
-// removed after they connected, and so tells them about every record written after they left.
 test("crm.changed reaches a teammate's socket, no socket of another workspace, and no removed member", async () => {
   const acme = await stack.company("acme");
   const beta = await stack.company("beta");
@@ -29,15 +24,12 @@ test("crm.changed reaches a teammate's socket, no socket of another workspace, a
   const beaSocket = await stack.socket(bea.jar);
   const danSocket = await stack.socket(dan.jar);
   const cidSocket = await stack.socket(cid.jar);
-  // Dan is removed from Acme with his socket still open.
   await stack.db.delete(schema.members).where(eq(schema.members.id, dan.id));
 
   const made = await stack.api(ana.jar, "POST", "/companies", { name: "Initech" });
   expect(made.status).toBe(201);
   const event = await beaSocket.waitFor((e) => e.type === "crm.changed");
   expect(event).toEqual({ type: "crm.changed", kind: "company", ids: [made.body.company.id] });
-  // A write in Beta reaches Cid, so by then anything Acme sent him, or Dan, would have arrived
-  // too.
   const theirs = await stack.api(cid.jar, "POST", "/companies", { name: "Hooli" });
   await cidSocket.waitFor((e) => e.type === "crm.changed");
   expect(cidSocket.received.filter((e) => e.type === "crm.changed")).toEqual([
@@ -49,8 +41,6 @@ test("crm.changed reaches a teammate's socket, no socket of another workspace, a
   cidSocket.close();
 });
 
-// Catches: a stage replace that returns before its announcement resolves the audience, so the
-// request's database pool closes under it and teammates never hear the pipeline changed.
 test("replacing the stages tells a teammate's socket", async () => {
   const acme = await stack.company("acme");
   const owner = await stack.member(acme.id, "owner");
@@ -95,7 +85,6 @@ test("lookup finds a person by an address in any letter case, and nothing from a
   expect(found.body.companies.map((c: { id: string }) => c.id)).toEqual([carla.companyId]);
   expect(found.body.deals.map((d: { id: string }) => d.id)).toEqual([deal.id]);
 
-  // Repeated `address` works too, and Beta's lookup of the same addresses finds only Dora.
   const theirs = await stack.api(
     cid.jar,
     "GET",

@@ -1,7 +1,3 @@
-// A file's versions (ADR 0043 decision 1): open an upload that becomes the new version, list
-// what it replaced, download one, restore one. Written against `writeDoor` like the rest of
-// `changes.ts`, so a member and an Editor under a link use the same routes; a viewer and a link
-// alone reach none of them. The upload itself goes up and completes through `uploads.ts`.
 import {
   storageOpenVersionBodySchema,
   STORAGE_MAX_PARTS,
@@ -52,7 +48,6 @@ export const storageVersions = new Hono<AppEnv>()
       if (!started) throw new Error("storage: the upload was gone before it started");
       return answer(started);
     } catch (error) {
-      // Nothing may keep holding room for an upload that cannot receive a part.
       await files.abortUpload(opened.upload.id);
       throw error;
     }
@@ -72,7 +67,6 @@ export const storageVersions = new Hono<AppEnv>()
     } satisfies StorageVersionsResponse);
   })
 
-  /** A kept version's bytes, as a download under the file's name. */
   .get("/files/:id/versions/:versionId/content", async (c) => {
     const { id, versionId } = c.req.param();
     return download(c, await writeDoor(c).files.versionFile(id, versionId));

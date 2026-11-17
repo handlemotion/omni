@@ -1,8 +1,3 @@
-// A mail host Omni operates: the control plane for hosted mailboxes (domains, users, logins).
-// Hosted mail syncs over the same IMAP/SMTP engine as any mailbox; only creating and managing the
-// account at the host differs. Gmail and other bring-your-own providers never implement this.
-// Purelymail is the one implementation today (`purelymail-host.ts`); a self-hoster without a host
-// API runs without one and adds existing IMAP logins only.
 import type { DnsRecordStatus } from "@omni/mail-core/domains";
 import type { PasswordCredentials } from "../credentials.ts";
 

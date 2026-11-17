@@ -1,5 +1,3 @@
-// Writing mail: what the composer needs, as hooks. Sends go through the outbox like every mail
-// action, wait out the member's undo window, and can be cancelled inside it.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDebouncedValue } from "./use-debounced-value.ts";
@@ -145,7 +143,6 @@ export function useComposerFiles(mailboxId: string | undefined) {
     });
   }, []);
 
-  /** Clears the list after a send: the uploads now belong to it, so nothing is discarded. */
   const reset = useCallback((next: ComposerFile[] = []) => setFiles(next), []);
 
   const attachments = useMemo(
@@ -224,7 +221,6 @@ export function useCancelSend() {
   );
 }
 
-/** How long autosave waits after the last keystroke. */
 /** Every draft on the inbox the switcher shows, or on all of yours, newest first. */
 export function useDrafts(mailbox?: string) {
   return useQuery(draftsQuery({ mailboxId: mailbox }));
@@ -252,8 +248,6 @@ export function useDraft(
     ...draftsQuery(where.threadId ? { threadId: where.threadId } : { mailboxId: where.mailboxId }),
     enabled: options.enabled !== false,
   });
-  // A forward of a named message resumes only that message's draft, never another forward's; a
-  // reply to a chosen message, only a reply to that message.
   const matchSource = options.matchSource ?? where.kind === "forward";
   const existing = list.data?.find(
     (d) =>
@@ -276,10 +270,7 @@ export function useDraft(
   const whereRef = useRef(where);
   whereRef.current = where;
 
-  // Saves run one at a time: each needs the version the previous one answered, or two in
-  // flight would conflict with each other and the composer would load its own older text.
   const queue = useRef<Promise<unknown>>(Promise.resolve());
-  // Bumped when a send takes the draft over, so a save still in flight can't revive it.
   const generation = useRef(0);
 
   const saveOnce = useCallback(async () => {
@@ -287,7 +278,6 @@ export function useDraft(
     if (!content) return state.current.id;
     latest.current = null;
     const gen = generation.current;
-    // A failed request keeps its content for the next try, unless newer content came since.
     const keep = () => {
       if (gen === generation.current) latest.current ??= content;
     };
@@ -341,7 +331,6 @@ export function useDraft(
     [flush],
   );
 
-  /** Stops autosave and forgets the draft (a send deletes it on the server). */
   const forget = useCallback(() => {
     clearTimeout(timer.current);
     generation.current++;
@@ -349,16 +338,9 @@ export function useDraft(
     state.current = {};
   }, []);
 
-  /**
-   * Hands the draft over to a send: autosave stops, and the answer resolves to the draft's id
-   * (once it exists) so the caller can delete it after the send is queued.
-   */
   const detach = useCallback(async () => {
     const pending = state.current;
     forget();
-    // Out of the cached lists at once (before the first await), so a composer that mounts next
-    // (Discard on a shared inbox, Reply again) doesn't resume the draft before the refetch.
-    // The cache holds the response (`{ drafts }`); `draftsQuery` selects the list from it.
     const drop = (id: string) =>
       client.setQueriesData<{ drafts: Draft[] }>({ queryKey: keys.draftLists() }, (old) =>
         Array.isArray(old?.drafts)
@@ -371,7 +353,6 @@ export function useDraft(
     return id;
   }, [client, forget]);
 
-  /** Deletes a draft `detach` handed over. */
   const remove = useCallback(
     async (id: string | undefined) => {
       if (id) await deleteDraft(id);
@@ -387,14 +368,12 @@ export function useDraft(
     void client.invalidateQueries({ queryKey: keys.draftLists() });
   }, [client, forget]);
 
-  // Leaving the composer saves what was typed since the last autosave.
   useEffect(() => () => void flush(), [flush]);
 
   return {
     draft: existing,
     isLoading: list.isLoading,
     save,
-    /** Saves now and answers the draft id (for a send from the draft). */
     flush,
     forget,
     detach,

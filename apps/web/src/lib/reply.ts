@@ -13,7 +13,6 @@
 export type Reply = { from: string; text: string };
 
 const HEADER = /^> Replying to (.+):$/;
-/** A quote longer than this is cut: the point is to name the passage, not to resend it. */
 const MAX_QUOTE = 600;
 
 /** Selected or copied text as one tidy quote: no runs of blank lines, no trailing space. */
@@ -29,7 +28,6 @@ export function quoteText(text: string) {
 /** The note as saved: the reply's quote, a blank line, then what was written. */
 export function withReply(reply: Reply | undefined, message: string) {
   if (!reply) return message;
-  // A name with a colon or line break would end the header early.
   const from = reply.from.replace(/[:\n]/g, " ").trim() || "message";
   const quote = [
     `> Replying to ${from}:`,

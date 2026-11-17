@@ -1,7 +1,3 @@
-// Undo from a toast: an action that can be reversed offers its inverse here ("Resolved · Undo").
-// One offer at a time, the latest; it lapses after `ms`. No React here: `hooks/use-undo.ts`
-// subscribes, and the `z` shortcut runs it.
-
 export interface UndoOffer {
   /** Changes with every offer, so a toast can key on it and restart its timer. */
   id: number;

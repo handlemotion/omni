@@ -104,7 +104,6 @@ export const authEnvSchema = z
     trustedOrigins: env.AUTH_TRUSTED_ORIGINS,
     passkeyRpId: env.AUTH_PASSKEY_RP_ID,
     appName: env.APP_NAME ?? "Omni",
-    /** Origin of the web app; invitation links point here. Same origin as the API by default. */
     webAppURL: env.WEB_APP_URL ?? env.BETTER_AUTH_URL,
     google:
       env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
@@ -157,22 +156,12 @@ export async function mayManageBilling(db: Db, userId: string, orgId: string) {
   return member !== undefined;
 }
 
-/**
- * Better Auth's Stripe plugin for one plan billed to the organization (ADR 0015). Checkout is
- * only for paying: free trials start in the Worker (`POST /api/billing/trial`), which grants one
- * per workspace and one per account. The plugin's own trial rule is per workspace only, so it
- * would hand a person's every new workspace another trial through Checkout.
- */
 function billingPlugin(env: AuthEnv, billing: BillingConfig) {
   const stripeClient = createStripeClient(billing.secretKey);
   return stripe({
     stripeClient,
     stripeWebhookSecret: billing.webhookSecret,
-    // Never two paid subscriptions for one workspace. Here rather than in the subscription
-    // callbacks: those are skipped when Checkout's row already exists, and their errors are
-    // swallowed, while a throw here fails the webhook so Stripe retries.
     onEvent: (event) => cancelDuplicateSubscriptions(stripeClient, env.db, event, env.billingLog),
-    // Customers are workspaces, created on first checkout; people never get one.
     createCustomerOnSignUp: false,
     organization: { enabled: true },
     subscription: {
@@ -184,22 +173,16 @@ function billingPlugin(env: AuthEnv, billing: BillingConfig) {
           annualDiscountPriceId: billing.yearlyPriceId,
         },
       ],
-      // Organization subscriptions only (the Worker refuses others): owners and admins.
       authorizeReference: ({ user, referenceId }) => mayManageBilling(env.db, user.id, referenceId),
       getCheckoutSessionParams: () => ({
         params: {
-          // A promotion code box on Checkout (codes are made in Stripe, e.g. a 100%-off one for
-          // friends). With nothing left to pay, no card is asked for.
           allow_promotion_codes: true,
           payment_method_collection: "if_required",
         },
       }),
     },
-    // The option's type intersects the three tables' field maps and rejects any field rename;
-    // this shape is what the plugin reads (and what `auth:generate` turned into our schema).
     schema: {
       subscription: { modelName: "subscriptions", fields: { referenceId: "orgId" } },
-      // It adds `stripeCustomerId` to these; keep the table names the other plugins use.
       organization: { modelName: "organizations" },
       user: { modelName: "users" },
     } as unknown as StripeOptions["schema"],
@@ -268,7 +251,6 @@ export async function mayCreateOrganization(db: Db, userId: string, policy: Sign
       and(
         eq(schema.members.userId, userId),
         eq(schema.members.role, "owner"),
-        // Everyone owns their Personal space (ADR 0024); only owning a company counts.
         isCompany(db, schema.members.organizationId),
       ),
     )
@@ -302,16 +284,12 @@ export function createAuth(env: AuthEnv) {
     secret: env.secret,
     baseURL: env.baseURL,
     trustedOrigins: env.trustedOrigins ?? [],
-    // Any verified sign-in email finds its person, wherever Better Auth looks a user up by email.
     database: resolveSignInEmails(drizzleAdapter(env.db, { provider: "pg", schema }), env.db),
-    // A new Google user goes through the same `user.create` hook as a magic link (ADR 0018).
-    // `select_account` lets one browser add a second Google account (multi-session).
     socialProviders: env.google
       ? {
           google: {
             ...env.google,
             prompt: "select_account",
-            // The Google address this sign-in proved, for the session's scope (ADR 0024).
             mapProfileToUser: (profile) => {
               if (profile.email_verified) noteSignInAddress(profile.email);
               return {};
@@ -322,18 +300,10 @@ export function createAuth(env: AuthEnv) {
     user: { modelName: "users" },
     session: {
       modelName: "sessions",
-      // Every API request reads the session; the signed cookie answers without the two queries
-      // (session, user). The cost: a session revoked elsewhere (sign out a device, sign out
-      // others) keeps working on that device for up to `maxAge`, so keep it short. Membership is
-      // still read from the database per request, so removing a member takes effect at once.
       cookieCache: { enabled: true, maxAge: 60 },
     },
     account: {
       modelName: "accounts",
-      // One person, one user (ADR 0014): a Google sign-in joins the user who has that address,
-      // but only when Google says it verified the address and our user has verified it too (a
-      // magic link or an earlier Google sign-in). No provider is trusted past its own
-      // `email_verified`, and an account is never linked under a different address.
       accountLinking: {
         enabled: true,
         trustedProviders: [],
@@ -343,27 +313,18 @@ export function createAuth(env: AuthEnv) {
     },
     verification: { modelName: "verifications" },
     advanced: { database: { generateId: () => uuidv7() } },
-    // Browser sessions get no JWT: tokens are only for agents' OAuth grants (ADR 0029).
     disabledPaths: ["/token"],
-    // Off: its default store is per-process memory (per isolate on Workers) and it keys on
-    // spoofable forwarding headers. The Worker rate-limits every auth route itself.
     rateLimit: { enabled: false },
     databaseHooks: {
       user: {
         create: {
-          // The one place every sign-up path (magic-link verify, Google callback) creates a user.
-          // With `SIGN_UP=invitation`, a link issued while the invitation was pending stops
-          // working once it is canceled.
           before: async (user) => {
-            // Only a proven address becomes an identity: a magic link proves it; Google must say so.
             if (!user.emailVerified) {
               throw new APIError("FORBIDDEN", {
                 code: "EMAIL_NOT_VERIFIED",
                 message: "sign-up needs a verified email",
               });
             }
-            // Someone's extra sign-in email is theirs, never a new person (the adapter resolves
-            // it first; this holds even if a lookup missed it).
             if (await findEmailOwner(env.db, user.email)) {
               throw new APIError("FORBIDDEN", {
                 code: "EMAIL_BELONGS_TO_ANOTHER_USER",
@@ -377,7 +338,6 @@ export function createAuth(env: AuthEnv) {
               });
             }
           },
-          // Every person has a Personal space from the start (ADR 0024).
           after: async (user) => {
             await ensurePersonalSpaceQuietly(env.db, user.id);
           },
@@ -385,11 +345,6 @@ export function createAuth(env: AuthEnv) {
       },
       session: {
         create: {
-          // A new session starts in the user's oldest org, the same default `requireMember`
-          // uses, so Better Auth's organization endpoints and our API agree from the first call.
-          // A person in no company starts in their Personal space (ADR 0024). Signing in also gives
-          // a person from before ADR 0024 their Personal space.
-          // A session opened with a company's address starts, and stays, in that company.
           before: async (session) => {
             await ensurePersonalSpaceQuietly(env.db, session.userId);
             const scope = await newSessionScope(env.db);
@@ -405,7 +360,6 @@ export function createAuth(env: AuthEnv) {
                 );
               return { data: { ...session, activeOrganizationId: inScope?.orgId ?? null } };
             }
-            // The oldest company first; a person in none starts in their Personal space.
             const [member] = await env.db
               .select({ orgId: schema.members.organizationId })
               .from(schema.members)
@@ -424,14 +378,8 @@ export function createAuth(env: AuthEnv) {
       },
     },
     plugins: [
-      // The iOS app: its requests carry `expo-origin` (native fetch sends no Origin), and a magic
-      // link or Google sign-in that ends on a trusted app scheme (`omni://`, listed in
-      // AUTH_TRUSTED_ORIGINS) gets the session cookie in that redirect, for the app to keep.
       expo(),
       magicLink({
-        // An email that may not sign in (`SIGN_UP=invitation`) gets the same 200 and no mail, so
-        // the endpoint does not reveal who has an account. Either way the Worker limits links
-        // per address and per IP, so nobody can mail-bomb an inbox.
         sendMagicLink: async ({ email, url }) => {
           if (await maySignIn(env.db, email, env.signUp)) await env.sendMagicLink({ email, url });
         },
@@ -442,9 +390,6 @@ export function createAuth(env: AuthEnv) {
         schema: { passkey: { modelName: "passkeys" } },
       }),
       organization({
-        // Per SIGN_UP (ADR 0018): with open sign-up anyone signed in creates one in onboarding
-        // (ADR 0007); with `invitation`, only owners. Members join by invitation either way.
-        // The creator becomes its owner and it becomes their active organization.
         allowUserToCreateOrganization: (user) => mayCreateOrganization(env.db, user.id, env.signUp),
         sendInvitationEmail: ({ id, email, organization, inviter, invitation }) =>
           env.sendInvitation({
@@ -458,31 +403,21 @@ export function createAuth(env: AuthEnv) {
             inviterName: inviter.user.name || inviter.user.email,
             expiresAt: invitation.expiresAt,
           }),
-        // A team is the access list of one shared mailbox (ADR 0008): `saveMailbox` creates it,
-        // and `mailbox_access` is derived from its members. No default team per organization.
         teams: { enabled: true, defaultTeam: { enabled: false } },
         organizationHooks: {
           ...personalSpaceHooks(env.db),
-          // The Personal space's refusal first; then each module's rows, which could otherwise
-          // keep the member rows from being deleted (ADR 0035; Storage's files, ADR 0034).
           beforeDeleteOrganization: async (input) => {
             await personalSpaceHooks(env.db).beforeDeleteOrganization(input);
             await beforeDeleteWorkspace(env.db, env.modules)(input);
           },
-          // What each module keeps for the company (Storage: their My files, ADR 0034).
           beforeRemoveMember: beforeRemoveMember(env.db, env.modules),
-          // The invite step of onboarding, but only once the org has mailboxes: an invitation
-          // sent from settings mid-setup must not skip the domain and mailbox steps.
           afterCreateInvitation: async ({ invitation }) => {
             await advanceOrgSetup(env.db, invitation.organizationId, "invites_sent", {
               onlyFrom: "mailboxes_created",
             });
           },
-          // Better Auth's own team endpoints stay usable; these keep `mailbox_access` in step.
           afterAddTeamMember: ({ team }) => syncTeamMailboxAccess(env.db, team.id),
           afterRemoveTeamMember: ({ team }) => syncTeamMailboxAccess(env.db, team.id),
-          // An invitation can name teams; accepting it adds the user to them without the hook above.
-          // It can also carry a personal inbox, waiting with no owner; it is theirs now (ADR 0026).
           afterAcceptInvitation: async ({ invitation, member }) => {
             const teamIds = (invitation as { teamId?: string | null }).teamId?.split(",") ?? [];
             for (const teamId of teamIds) await syncTeamMailboxAccess(env.db, teamId);
@@ -491,7 +426,6 @@ export function createAuth(env: AuthEnv) {
               invitationId: invitation.id,
               memberId: member.id,
             });
-            // Everyone already there hears they joined (their list shows it on its next fetch).
             await notifyMemberJoined(env.db, {
               orgId: invitation.organizationId,
               userId: member.userId,
@@ -514,17 +448,11 @@ export function createAuth(env: AuthEnv) {
           teamMember: { modelName: "teamMembers" },
         },
       }),
-      // Several accounts signed in on one device; switch with `multiSession.setActive`.
       multiSession(),
-      // Keeps the session cookie cache's active organization in step with the database.
       refreshSessionCacheOnOrgChange(),
-      // Any verified sign-in email signs you in, and an invitation to one is yours (ADR 0014).
       signInEmails(env.db),
-      // A session opened with a company's address stays in that company (ADR 0024).
       sessionScopeGuard(env.db),
-      // A member who leaves runs each module's hooks first (ADR 0035).
       moduleLifecycle(env.db, env.modules),
-      // People's own agents over MCP (ADR 0029).
       ...(env.oauthProvider === false
         ? []
         : mcpPlugins({

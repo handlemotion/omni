@@ -1,4 +1,3 @@
-// Platform (ADR 0035): a workspace's setup progress and the audit trail of its shared setup.
 import { index, jsonb, pgEnum, pgTable, text } from "drizzle-orm/pg-core";
 import { members, organizations } from "./auth.ts";
 import { id, orgId, createdAt, updatedAt } from "./columns.ts";

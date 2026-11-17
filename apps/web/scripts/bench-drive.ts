@@ -1,29 +1,3 @@
-// Measures Drive (Storage, ADR 0034) as a person feels it, in a real Chromium, on the web build
-// served by the real Worker under `wrangler dev`, reading the `perf:seed` database: member-org1-1's
-// My files has 40 folders and 3,000 files at its root, "Folder 02" holds 5,000 files, "Folder 01"
-// a chain of folders 12 deep, Trash 3,000 items and Shared 2,000 files. The CPU is slowed 4x and
-// BENCH_LATENCY / BENCH_H2 work as in `bench.ts`. Each number is the median of BENCH_RUNS (5).
-//
-//   pnpm stack:up && pnpm --filter @omni/db perf:seed      # once
-//   DATABASE_URL=postgres://postgres:postgres@localhost:54329/omni pnpm --filter @omni/web bench:drive
-//
-// - startup: a new browser profile opens /files/my until its first real row or card shows.
-// - startup (cached): the same, with the HTTP cache from the first load.
-// - switch: sidebar link to the next screen's first row (Shared, Trash, My files).
-// - open folder: a folder card on My files to the folder's first file row ("Folder 02"), and a
-//   folder 12 deep opened by its URL.
-// - older: scrolling to the end of "Folder 02" until 1,000, 2,000, then 3,000 files have loaded
-//   (a cost that grows with the loaded list shows as slower later thousands). A stall is 2 s at
-//   the end with nothing loading; the bench then scrolls up a little and back, as a person would.
-// - rows in DOM: how many of the 3,000 loaded files are rendered.
-// - select file: a press on a file row to it being selected, with 3,000 loaded.
-// - scroll: 3 s of steady wheel scrolling through the 3,000 loaded files: frames over 50 ms, the
-//   slowest frame, and frames drawn (against the same 3 s idle).
-// - trash: from its sidebar link, scrolling to the end until 1,000 of its 3,000 items have
-//   loaded, the rows rendered then, and 3 s of steady scrolling through them.
-// - api: each route's time to first byte as the page saw it.
-//
-// BENCH_VERBOSE=1 prints each number as it is taken.
 import { createServer } from "node:net";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
 import {
@@ -111,7 +85,6 @@ async function throttled(context: BrowserContext) {
   return page;
 }
 
-/** Timings taken in the page, from the press (or navigation start) to the frame showing it. */
 const IN_PAGE = () => {
   const w = window as unknown as Record<string, unknown>;
   const visible = (test: () => boolean) =>
@@ -126,8 +99,6 @@ const IN_PAGE = () => {
       observer.observe(document, { subtree: true, childList: true, attributes: true });
     });
   const real = (el: Element) => !el.closest("[aria-busy='true']");
-  // A grid or table whose label starts with `label` (a folder's "… files", Trash's "Trash"),
-  // with a real row in it.
   const rows = (label?: string) => () =>
     [...document.querySelectorAll("[role='grid'], [role='treegrid']")].some(
       (g) =>
@@ -141,7 +112,6 @@ const IN_PAGE = () => {
   w.benchFirstRow = visible(rows());
 };
 
-/** Arms an in-page watcher, runs `act`, and returns ms from the press to it showing. */
 async function timed(page: Page, label: string, act: () => Promise<void>, fromNav = false) {
   await page.evaluate((label) => {
     const w = window as unknown as {
@@ -184,7 +154,6 @@ const record = (name: string, value: number) => {
   results.set(name, [...(results.get(name) ?? []), value]);
 };
 
-// The folder page's one scroll, around both sections.
 const scroller = (page: Page) => page.locator(".overflow-y-auto:has([role='grid'])").first();
 
 for (let run = 0; run < RUNS; run++) {
@@ -201,7 +170,6 @@ for (let run = 0; run < RUNS; run++) {
   );
   await page.waitForLoadState("networkidle");
 
-  // Screens: each sidebar place until its first real row.
   for (const [link, grid] of [
     ["Shared", "Shared"],
     ["Trash", "Trash"],
@@ -214,14 +182,12 @@ for (let run = 0; run < RUNS; run++) {
     await page.waitForLoadState("networkidle");
   }
 
-  // A folder card to its files.
   const open = await timed(page, "Folder 02 files", () =>
     page.getByRole("row", { name: "Folder 02" }).first().click(),
   );
   record("open folder ms", open);
   await page.waitForLoadState("networkidle");
 
-  // Older files: scroll to the end until 1,000, 2,000 and 3,000 files have loaded.
   const box = scroller(page);
   const count = () =>
     page.evaluate(
@@ -237,7 +203,6 @@ for (let run = 0; run < RUNS; run++) {
     }
   };
   page.on("response", onResponse);
-  // The first page is loaded already.
   loaded.files = 100;
   const marks: number[] = [];
   let stalls = 0;
@@ -252,7 +217,6 @@ for (let run = 0; run < RUNS; run++) {
         seen = loaded.files;
         since = performance.now();
       } else if (performance.now() - since > 2000) {
-        // At the end and nothing loading: what a person does, up a little and down again.
         stalls += 1;
         await box.evaluate((el) => el.scrollBy({ top: -3000 }));
         await page.waitForTimeout(100);
@@ -270,7 +234,6 @@ for (let run = 0; run < RUNS; run++) {
   await page.waitForLoadState("networkidle");
   record("rows in DOM (3000 loaded)", await count());
 
-  // Steady scrolling through what is loaded.
   await box.evaluate((el) => el.scrollTo({ top: 0 }));
   await box.hover();
   await page.evaluate(() => {
@@ -298,7 +261,6 @@ for (let run = 0; run < RUNS; run++) {
   record("scroll: worst frame ms", Math.max(...frames));
   record("scroll: frames in 3 s", frames.length);
 
-  // Opening a file from the long list: from the press to its row selected (the preview follows).
   await box.evaluate((el) => el.scrollTo({ top: 0 }));
   await page.evaluate(() => {
     const w = window as unknown as {
@@ -322,7 +284,6 @@ for (let run = 0; run < RUNS; run++) {
   );
   await page.goBack();
 
-  // A folder 12 deep, opened by its URL from inside the app.
   const deepMs = await timed(page, "Level 12", async () => {
     await page.evaluate((path) => {
       (window as unknown as { benchPressedAt: number }).benchPressedAt = performance.now();
@@ -333,8 +294,6 @@ for (let run = 0; run < RUNS; run++) {
   record("open deep folder ms", deepMs);
   await page.waitForLoadState("networkidle");
 
-  // Trash, 3,000 items: from its sidebar link, scrolling to the end until 1,000 have loaded,
-  // how many rows are rendered then, and steady scrolling through them.
   await page.getByRole("link", { name: "Trash", exact: true }).first().click();
   const trashBox = page.locator(".overflow-y-auto:has([aria-label='Trash'])").first();
   await trashBox.waitFor();

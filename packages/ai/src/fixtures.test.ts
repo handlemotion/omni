@@ -1,6 +1,3 @@
-// The triage scenarios in `fixtures/triage/` against Jev answers recorded live (see that
-// folder's README). Each step is the thread up to one real `.eml`, parsed and cleaned the way the
-// mail service stores it. No network: the recorded response comes back through an injected fetch.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { helpdeskRecordingUrl, helpdeskSteps } from "../eval/helpdesk-scenarios.ts";
@@ -16,8 +13,6 @@ describe.each(steps)("$id ($eml)", ({ id, input, lane }) => {
   };
 
   it("still sends the request the answers were recorded for", () => {
-    // A failure here means the questions, the state, or the fixture changed: re-record
-    // (`pnpm --filter @omni/ai record`) and check the new answers still land in the lane.
     expect(jevTriageRequest(input)).toEqual(recording.request);
   });
 
@@ -30,7 +25,6 @@ describe.each(steps)("$id ($eml)", ({ id, input, lane }) => {
   });
 });
 
-// A shared support inbox: the same request also asks priority, tag and teammate questions.
 const helpdesk = await helpdeskSteps();
 
 describe.each(helpdesk)("$id ($eml)", ({ id, input, expect: expected }) => {
@@ -40,7 +34,6 @@ describe.each(helpdesk)("$id ($eml)", ({ id, input, expect: expected }) => {
   };
 
   it("still sends the request the answers were recorded for", () => {
-    // A failure here: re-record with `pnpm --filter @omni/ai record:helpdesk`.
     expect(jevTriageRequest(input)).toEqual(recording.request);
   });
 

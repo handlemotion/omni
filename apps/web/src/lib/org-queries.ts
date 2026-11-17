@@ -1,4 +1,3 @@
-// Organizations, members, invitations and passkeys, all through Better Auth's client.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, auth, call } from "./api.ts";
 import { currentWorkspaceId } from "./current-workspace.ts";
@@ -13,8 +12,6 @@ export const organizationsQuery = () =>
     queryFn: ({ signal }) => authCall(auth.organization.list({ fetchOptions: { signal } })),
   });
 
-// Better Auth's organization calls name this tab's workspace: left out, they act on the
-// session's, which another tab may have switched (ADR 0043).
 const organizationId = () => currentWorkspaceId();
 
 /** Members of this tab's workspace. */
@@ -73,7 +70,6 @@ export const removeMemberMutation = (client: QueryClient) =>
       authCall(
         auth.organization.removeMember({ memberIdOrEmail, organizationId: organizationId() }),
       ),
-    // Their inboxes stay with the workspace, unassigned (ADR 0026): refresh that list too.
     onSettled: () =>
       Promise.all([
         client.invalidateQueries({ queryKey: keys.members() }),

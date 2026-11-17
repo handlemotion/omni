@@ -1,9 +1,3 @@
-// A login opens only the workspace it belongs to (ADR 0024 decision 3). Better Auth does not tell
-// a session hook which address signed in, so each auth request runs in a small per-request store
-// (which also carries who is acting, for organization hooks that are not told):
-// the magic-link verify and the Google profile note the address there, and the session hooks read
-// it to scope a session opened with a company's address to that company. Passkeys note nothing,
-// so their sessions are unscoped.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { companyForAddress, schema, scopeSession, sessionAccess, type Db } from "@omni/db";
 import type { BetterAuthPlugin } from "better-auth";
@@ -11,11 +5,8 @@ import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/a
 import { eq, inArray } from "drizzle-orm";
 
 interface SignIn {
-  /** The address this request signs in with, as the person proved it. */
   address?: string;
-  /** The company that address belongs to, once the session hook has looked. */
   scopeOrgId?: string | null;
-  /** The signed-in user this request acts as, for hooks Better Auth hands no session. */
   actorUserId?: string;
 }
 
@@ -64,11 +55,6 @@ function refuse(message: string): never {
   throw new APIError("FORBIDDEN", { code: "SESSION_SCOPED", message });
 }
 
-/**
- * Sign-in methods a scoped session must not add: each would give whoever holds the company's
- * address a lasting way in that is not scoped (a passkey, a linked Google account, a new primary).
- * Extra sign-in emails are refused by the Worker's `/api/account` routes the same way.
- */
 const NEW_SIGN_IN_METHODS = new Set([
   "/passkey/generate-register-options",
   "/passkey/verify-registration",
@@ -76,10 +62,8 @@ const NEW_SIGN_IN_METHODS = new Set([
   "/change-email",
 ]);
 
-/** Organization endpoints a scoped session may not use at all. */
 const REFUSED_ORGANIZATION_PATHS = new Set(["/organization/create", "/organization/delete"]);
 
-/** Organization endpoints that list across every workspace the user is in. */
 const USER_WIDE_LISTS = new Set([
   "/organization/list",
   "/organization/list-user-invitations",
@@ -94,11 +78,6 @@ type Selectors = {
   id?: unknown;
 };
 
-/**
- * Every organization a Better Auth organization request names, from its body or query: by id,
- * by slug, through an invitation or through a team. One it does not name is the active one, which
- * a scoped session keeps inside its scope.
- */
 async function targetOrganizations(db: Db, path: string, selectors: Selectors) {
   const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
   const targets: string[] = [];
@@ -110,10 +89,8 @@ async function targetOrganizations(db: Db, path: string, selectors: Selectors) {
       .select({ id: schema.organizations.id })
       .from(schema.organizations)
       .where(eq(schema.organizations.slug, slug));
-    // An unknown slug names nothing in scope: refused like any other.
     targets.push(org?.id ?? `slug:${slug}`);
   }
-  // `get-invitation` takes the invitation's id as `id`.
   const invitationId =
     text(selectors.invitationId) ?? (path.endsWith("-invitation") ? text(selectors.id) : undefined);
   if (invitationId) {
@@ -136,10 +113,6 @@ async function targetOrganizations(db: Db, path: string, selectors: Selectors) {
   return targets;
 }
 
-/**
- * The scope of the request's session, or null when it is unscoped or signed out. A session
- * deleted since its cookie was cached is refused outright, as signed out.
- */
 async function requestScope(db: Db, ctx: Parameters<typeof getSessionFromCtx>[0]) {
   const session = await getSessionFromCtx(ctx);
   if (!session) return null;
@@ -148,7 +121,6 @@ async function requestScope(db: Db, ctx: Parameters<typeof getSessionFromCtx>[0]
   return access.scopeOrgId;
 }
 
-/** Keeps only the rows of a user-wide list that belong to `scope`. */
 function onlyInScope(returned: unknown, scope: string) {
   if (!Array.isArray(returned)) return returned;
   return returned.filter((row: { id?: string; organizationId?: string }) =>

@@ -1,5 +1,3 @@
-// A delivery report carries no reply headers. Without reading the returned message's
-// Message-ID, every bounce of an agent's reply would open a new conversation in the queue.
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
@@ -23,7 +21,6 @@ afterAll(async () => {
   await database.teardown();
 });
 
-// Sync runs newest first: batch size 1 stores the bounce before the reply it returns.
 it.each([2, 1])(
   "a bounce joins the conversation of the reply that failed (batch size %i)",
   async (batchSize) => {

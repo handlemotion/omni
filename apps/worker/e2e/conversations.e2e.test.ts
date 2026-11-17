@@ -1,5 +1,3 @@
-// The helpdesk workflow (ADR 0021) against the real Worker and Postgres: explicit actions, the
-// status rule on ingest, resolve filing the mail through the outbox, and the snooze clock.
 import { randomUUID } from "node:crypto";
 import { addLocation, schema, upsertFolder } from "@omni/db";
 import { and, eq, sql } from "drizzle-orm";
@@ -29,7 +27,6 @@ beforeAll(async () => {
   worker = await startWorker({
     databaseUrl: database.url,
     mailServiceUrl: mailService.url,
-    // Every desk signs its teammates in from one IP; security.e2e covers the sign-in limit.
     vars: { RATE_LIMIT_AUTH: "off" },
   });
 });
@@ -84,7 +81,6 @@ async function queued(db: TestDb, mailboxId: string) {
     .orderBy(schema.mailActions.createdAt);
 }
 
-/** A support inbox with two agents who can see it and one teammate who cannot. */
 async function supportDesk(slug: string) {
   const { db } = database;
   const org = await createOrg(db, slug);
@@ -125,7 +121,6 @@ describe("explicit actions", () => {
       fromAddress: "luis@client.test",
       uid: 1,
     });
-    // Our reply's Sent copy is in the same conversation: resolve must leave Sent alone.
     await seedMessage(db, desk.inbox, {
       subject: "Re: Refund",
       fromAddress: desk.inbox.address,
@@ -140,7 +135,6 @@ describe("explicit actions", () => {
       changed: true,
       conversation: { status: "resolved" },
     });
-    // A double click: nothing changes, nothing more is queued.
     const again = await post(`/threads/${asked.threadId}/resolve`, desk.anaCookie);
     expect(await again.json()).toMatchObject({ changed: false });
 
@@ -157,7 +151,6 @@ describe("explicit actions", () => {
     expect(thread!.archived).toBe(true);
     await mailService.waitFor(1);
 
-    // The mail service filed it: the archive ran and the copy now lives in Archive.
     await db
       .update(schema.mailActions)
       .set({ status: "done" })
@@ -202,7 +195,6 @@ describe("explicit actions", () => {
       uid: 1,
     });
 
-    // Both saw it unassigned and pressed Claim together.
     const responses = await Promise.all(
       [desk.anaCookie, beaCookie].map((cookie) =>
         post(`/threads/${threadId}/claim`, cookie, { expectedAssignee: null }),
@@ -215,17 +207,14 @@ describe("explicit actions", () => {
     const refused = responses.find((r) => r.status === 409)!;
     expect(await refused.json()).toMatchObject({ conversation: { assigneeMemberId: owner } });
 
-    // The winner pressing it again (a double click) is no conflict.
     const ownerCookie = owner === desk.ana.id ? desk.anaCookie : beaCookie;
     const again = await post(`/threads/${threadId}/claim`, ownerCookie, { expectedAssignee: null });
     expect(again.status).toBe(200);
     expect(await again.json()).toMatchObject({ changed: false });
 
-    // Exactly one assignment on the timeline.
     const events = (await conversation(threadId, desk.anaCookie)).events;
     expect(events.filter((e) => e.kind === "assigned").map((e) => e.data.to)).toEqual([owner]);
 
-    // A claim with no body (today's web app) still takes it over, as it always did.
     const otherCookie = owner === desk.ana.id ? beaCookie : desk.anaCookie;
     expect((await post(`/threads/${threadId}/claim`, otherCookie)).status).toBe(200);
     expect((await conversation(threadId, desk.anaCookie)).assigneeMemberId).not.toBe(owner);
@@ -240,7 +229,6 @@ describe("explicit actions", () => {
       uid: 1,
     });
 
-    // Carl cannot see the inbox: he can neither act on it nor be given it.
     expect((await post(`/threads/${threadId}/claim`, desk.carlCookie)).status).toBe(404);
     expect((await api(`/threads/${threadId}/conversation`, desk.carlCookie)).status).toBe(404);
     expect(
@@ -258,7 +246,6 @@ describe("explicit actions", () => {
     });
     expect(created.status).toBe(201);
     const { tag } = (await created.json()) as { tag: { id: string } };
-    // Same name, other case: the same tag, not a second one.
     const twice = await post(`/mailboxes/${desk.inbox.id}/tags`, desk.anaCookie, {
       name: "billing",
     });
@@ -268,7 +255,6 @@ describe("explicit actions", () => {
     await post(`/threads/${threadId}/tags`, desk.anaCookie, { tagId: tag.id });
     await post(`/threads/${threadId}/tags`, desk.anaCookie, { tagId: tag.id });
 
-    // A tag from another inbox cannot be put on this conversation.
     const elsewhere = await supportDesk("assign-other");
     const foreign = (await (
       await post(`/mailboxes/${elsewhere.inbox.id}/tags`, elsewhere.anaCookie, { name: "Spam" })
@@ -307,7 +293,6 @@ describe("explicit actions", () => {
       .select({ runAfter: schema.mailActions.runAfter })
       .from(schema.mailActions)
       .where(eq(schema.mailActions.mailboxId, desk.inbox.id));
-    // Not claimable yet: the undo window is still open.
     expect(archive!.runAfter.getTime()).toBeGreaterThan(Date.now());
 
     await post(`/threads/${threadId}/reopen`, desk.anaCookie);
@@ -337,7 +322,6 @@ describe("explicit actions", () => {
       });
     expect(await (await assignToAna()).json()).toMatchObject({ changed: true });
     await put(`/threads/${threadId}/assignee`, beaCookie, { memberId: desk.bea.id });
-    // Ana's client retries after a timeout: Bea keeps it.
     expect(await (await assignToAna()).json()).toMatchObject({ changed: false });
     expect((await conversation(threadId, desk.anaCookie)).assigneeMemberId).toBe(desk.bea.id);
   });
@@ -403,11 +387,9 @@ describe("ingest", () => {
     expect(state.status).toBe("pending");
     expect(state.firstRespondedAt).toBe(new Date(t0 + 10_000).toISOString());
 
-    // The event for the customer's first message arrives again (at-least-once): still pending.
     await created(desk, asked.threadId, asked.messageId);
     expect((await conversation(asked.threadId, desk.anaCookie)).status).toBe("pending");
 
-    // An out-of-office reply is not the customer answering.
     const away = await seedMessage(db, desk.inbox, {
       subject: "Out of office",
       fromAddress: "luis@client.test",
@@ -422,7 +404,6 @@ describe("ingest", () => {
     await created(desk, asked.threadId, away.messageId);
     expect((await conversation(asked.threadId, desk.anaCookie)).status).toBe("pending");
 
-    // Resolved, then the customer writes back: open again, and its archived mail heads back.
     await post(`/threads/${asked.threadId}/resolve`, desk.anaCookie);
     const back = await seedMessage(db, desk.inbox, {
       subject: "Re: Invoice",
@@ -471,7 +452,6 @@ describe("ingest", () => {
     await created(desk, asked.threadId, reply.messageId, "sent");
     const state = await conversation(asked.threadId, desk.anaCookie);
     expect(state.status).toBe("open");
-    // It still answered the first question.
     expect(state.firstRespondedAt).toBe(new Date(t0 + 1_000).toISOString());
   });
 });
@@ -500,7 +480,6 @@ test("the minute cron wakes a snooze that is over, and only that one", async () 
   await post(`/threads/${later.threadId}/snooze`, desk.anaCookie, {
     until: new Date(Date.now() + 3_600_000).toISOString(),
   });
-  // The minute passes: Ana's snooze is now due, as if the clock had moved on.
   await db
     .update(schema.threads)
     .set({ snoozedUntil: new Date(Date.now() - 1000) })
@@ -537,7 +516,6 @@ describe("views and counts", () => {
   async function view(cookie: string, mailboxId: string, query: string) {
     const ids: string[] = [];
     let cursor: string | null = null;
-    // Pages of two, so a keyset bug drops or repeats a row.
     do {
       const response = await api(
         `/conversations?mailboxId=${mailboxId}&limit=2&${query}${cursor ? `&cursor=${cursor}` : ""}`,
@@ -564,7 +542,6 @@ describe("views and counts", () => {
           sentAt: at(100 - n),
         })
       ).threadId;
-    // Newest last: c1 is the oldest.
     const [c1, c2, c3, c4, c5, c6, c7] = await Promise.all([1, 2, 3, 4, 5, 6, 7].map(seed));
 
     await post(`/threads/${c2}/claim`, desk.anaCookie);
@@ -575,8 +552,6 @@ describe("views and counts", () => {
       until: new Date(Date.now() + 3_600_000).toISOString(),
     });
     await post(`/threads/${c6}/resolve`, desk.anaCookie);
-    // SLA: c7 is overdue, c1 due in 10 minutes, c3 due tomorrow (not at risk). Postgres keeps
-    // microseconds that a JS Date drops; a cursor built from a Date repeats the boundary row.
     await db
       .update(schema.threads)
       .set({ firstResponseDueAt: sql`now() - interval '5 minutes 0.000123 seconds'` })
@@ -610,7 +585,6 @@ describe("views and counts", () => {
     }
     expect(await view(desk.anaCookie, box, `view=all&tagId=${tag.id}`)).toEqual([c6, c1]);
     expect(await view(desk.anaCookie, box, `view=open&tagId=${tag.id}`)).toEqual([c1]);
-    // Carl cannot see the inbox: every view is empty for him.
     expect(await view(desk.carlCookie, box, "view=open")).toEqual([]);
 
     const counts = (await (
@@ -646,7 +620,6 @@ describe("notes and notifications", () => {
       sentAt: new Date(Date.now() - 60_000),
     });
 
-    // Carl cannot see the inbox: his mention is dropped, Ana's own mention notifies nobody.
     const created = await post(`/threads/${asked.threadId}/notes`, desk.anaCookie, {
       body: "@Bea can you check the CSV path? cc @Carl",
       mentions: [desk.bea.id, desk.carl.id, desk.ana.id],
@@ -658,11 +631,9 @@ describe("notes and notifications", () => {
       (await post(`/threads/${asked.threadId}/notes`, desk.carlCookie, { body: "x" })).status,
     ).toBe(404);
 
-    // Claiming notifies nobody; handing it to Bea notifies Bea.
     await post(`/threads/${asked.threadId}/claim`, desk.anaCookie);
     await put(`/threads/${asked.threadId}/assignee`, desk.anaCookie, { memberId: desk.bea.id });
 
-    // Luis writes back on Bea's conversation; the event is delivered twice.
     const back = await seedMessage(db, desk.inbox, {
       subject: "Re: Broken export",
       fromAddress: "luis@client.test",
@@ -691,8 +662,6 @@ describe("notes and notifications", () => {
       ["mention", asked.threadId, note.id],
     ]);
     expect(bea.unread).toBe(3);
-    // One per page walks the same list, even for notifications inside one millisecond: the
-    // cursor keeps Postgres's microseconds, where a JS Date would skip the older ones.
     for (const [i, n] of bea.notifications.entries()) {
       await db
         .update(schema.notifications)
@@ -718,7 +687,6 @@ describe("notes and notifications", () => {
     const carl = (await (await api("/notifications", desk.carlCookie)).json()) as Notifications;
     expect(carl.notifications).toEqual([]);
 
-    // Read one, then all.
     await post("/notifications/read", beaCookie, { ids: [bea.notifications[0]!.id] });
     expect(
       ((await (await api("/notifications?unread=true", beaCookie)).json()) as Notifications).unread,
@@ -728,7 +696,6 @@ describe("notes and notifications", () => {
       0,
     );
 
-    // Only the author edits or deletes a note; deleting takes its timeline event with it.
     const patch = await api(`/threads/${asked.threadId}/notes/${note.id}`, beaCookie, {
       method: "PATCH",
       body: JSON.stringify({ body: "hijacked" }),
@@ -748,7 +715,6 @@ describe("notes and notifications", () => {
     state = await conversation(asked.threadId, desk.anaCookie);
     expect(state.events.some((e) => e.kind === "note")).toBe(false);
 
-    // Bea leaves the inbox: its notifications go with her access.
     await db
       .delete(schema.mailboxAccess)
       .where(
@@ -790,7 +756,6 @@ describe("note notifications", () => {
         }
       ).note.id;
 
-    // Bea holds it. Ana's note reaches her as a note; Ana hears nothing of her own.
     await put(`/threads/${asked.threadId}/assignee`, desk.anaCookie, { memberId: desk.bea.id });
     const first = await note(desk.anaCookie, "Customer called about this");
     expect(await kinds(beaCookie)).toEqual([
@@ -799,12 +764,10 @@ describe("note notifications", () => {
     ]);
     expect(await kinds(desk.anaCookie)).toEqual([]);
 
-    // Bea answers: Ana wrote on it before, so she hears. Mentioning Ana gives her one, not two.
     const second = await note(beaCookie, "@Ana on it", [desk.ana.id]);
     expect(await kinds(desk.anaCookie)).toEqual([["mention", second]]);
     expect((await kinds(beaCookie)).length).toBe(2);
 
-    // Deleting the note takes its notifications with it.
     await api(`/threads/${asked.threadId}/notes/${first}`, desk.anaCookie, { method: "DELETE" });
     expect(await kinds(beaCookie)).toEqual([["assigned", null]]);
   });
@@ -813,7 +776,6 @@ describe("note notifications", () => {
 describe("SLAs", () => {
   const minutes = (n: number) => n * 60_000;
 
-  // One desk for every SLA test (sign-ins are rate limited); each test gets its own inbox.
   let team: Awaited<ReturnType<typeof supportDesk>> & { beaCookie: string };
   beforeAll(async () => {
     const { db } = database;
@@ -825,7 +787,6 @@ describe("SLAs", () => {
     team = { ...desk, beaCookie: await signIn(worker, database.db, "bea@sla.test") };
   });
 
-  /** A new inbox of the desk that Ana and Bea see, connected a day ago. Ana is an org admin. */
   async function slaDesk(name: string) {
     const { db } = database;
     const inbox = await createMailbox(db, team.org.id, `${name}@sla.test`);
@@ -909,7 +870,6 @@ describe("SLAs", () => {
       businessHours: hours,
       autoAssign: false,
     });
-    // Carl is in the org but cannot see the inbox: not even its settings.
     expect((await api(`/mailboxes/${desk.inbox.id}/sla`, desk.carlCookie)).status).toBe(404);
   });
 
@@ -930,14 +890,12 @@ describe("SLAs", () => {
       sentAt: new Date(t0),
     });
     await delivered(desk, asked.threadId, asked.messageId);
-    // Due from when the customer wrote, not from when we indexed it.
     expect(await dueOf(asked.threadId, desk.anaCookie)).toEqual({
       firstResponseDueAt: iso(t0 + minutes(60)),
       nextResponseDueAt: null,
       resolutionDueAt: iso(t0 + minutes(600)),
     });
 
-    // Triage (or a teammate) raises the priority: the urgent targets apply to the same clocks.
     await put(`/mailboxes/${desk.inbox.id}/sla/urgent`, desk.anaCookie, {
       firstResponseMinutes: 15,
       nextResponseMinutes: 30,
@@ -976,14 +934,12 @@ describe("SLAs", () => {
       sentAt: new Date(t1),
     });
     await delivered(desk, asked.threadId, again.messageId);
-    // The resolution clock keeps running from the first message.
     expect(await dueOf(asked.threadId, desk.anaCookie)).toEqual({
       firstResponseDueAt: null,
       nextResponseDueAt: iso(t1 + minutes(120)),
       resolutionDueAt: iso(t0 + minutes(600)),
     });
 
-    // A looser target moves open conversations' due times at once.
     await put(`/mailboxes/${desk.inbox.id}/sla/normal`, desk.anaCookie, {
       firstResponseMinutes: 60,
       nextResponseMinutes: 180,
@@ -994,8 +950,6 @@ describe("SLAs", () => {
       iso(t1 + minutes(180)),
     );
 
-    // A Sent copy indexed late answers only what came before it: the customer has waited since
-    // their next message, not since the one it answered.
     const t2 = t0 + minutes(9);
     const more = await seedMessage(db, desk.inbox, {
       subject: "Re: Broken",
@@ -1035,7 +989,6 @@ describe("SLAs", () => {
       resolutionMinutes: null,
       businessHoursOnly: false,
     });
-    // A first sync brings in last year's mail: it must not all breach at once.
     const old = await seedMessage(db, desk.inbox, {
       subject: "Old",
       fromAddress: "a@client.test",
@@ -1063,7 +1016,6 @@ describe("SLAs", () => {
     const desk = await slaDesk("sla-hours");
     await put(`/mailboxes/${desk.inbox.id}/business-hours`, desk.anaCookie, {
       timezone: "UTC",
-      // Open one hour a day, every day.
       windows: [0, 1, 2, 3, 4, 5, 6].map((day) => ({ day, start: "09:00", end: "10:00" })),
     });
     await put(`/mailboxes/${desk.inbox.id}/sla/normal`, desk.anaCookie, {
@@ -1081,7 +1033,6 @@ describe("SLAs", () => {
     });
     await delivered(desk, asked.threadId, asked.messageId);
     const due = new Date((await dueOf(asked.threadId, desk.anaCookie)).firstResponseDueAt!);
-    // 90 staffed minutes at one hour a day always ends at 09:30 UTC, a day or two later.
     expect(due.toISOString().slice(11)).toBe("09:30:00.000Z");
     expect(due.getTime() - sentAt.getTime()).toBeGreaterThan(minutes(24 * 60));
   });
@@ -1103,7 +1054,6 @@ describe("SLAs", () => {
       sentAt: new Date(t0),
     });
     await delivered(desk, late.threadId, late.messageId);
-    // Snoozed: it alerts only once it is open again.
     const fine = await seedMessage(db, desk.inbox, {
       subject: "Fine",
       fromAddress: "b@client.test",
@@ -1159,7 +1109,6 @@ describe("SLAs", () => {
         { memberId: desk.bea.id, kind: "sla_breached" },
       ].sort((a, b) => a.kind.localeCompare(b.kind) || a.memberId.localeCompare(b.memberId)),
     );
-    // It shows in the SLA at risk view.
     const view = await api(
       `/conversations?mailboxId=${desk.inbox.id}&view=sla_at_risk`,
       desk.anaCookie,
@@ -1196,7 +1145,6 @@ describe("bulk actions and auto-assign", () => {
         seedMessage(db, desk.inbox, { subject: `Bulk ${uid}`, fromAddress: "c@client.test", uid }),
       ),
     );
-    // A conversation in an inbox Ana cannot see: that one fails, the others still apply.
     const other = await createMailbox(db, desk.org.id, "billing@bulk.test");
     const hidden = await seedMessage(db, other, {
       subject: "Hidden",
@@ -1215,10 +1163,8 @@ describe("bulk actions and auto-assign", () => {
         { threadId: b!.threadId, ok: true, changed: true },
       ],
     });
-    // Each resolve files its mail once.
     expect((await queued(db, desk.inbox.id)).filter((x) => x.kind === "archive")).toHaveLength(2);
 
-    // Bea reopens one; Ana's client retries the same request: Bea's reopen stands.
     await post(`/threads/${b!.threadId}/reopen`, beaCookie);
     const retry = await bulk({ threadIds: ids, change: { type: "resolve" } }, key);
     expect(((await retry.json()) as { results: { changed?: boolean }[] }).results[2]).toEqual({
@@ -1228,7 +1174,6 @@ describe("bulk actions and auto-assign", () => {
     });
     expect((await conversation(b!.threadId, desk.anaCookie)).status).toBe("open");
 
-    // Claim assigns each to the member asking.
     await bulk({ threadIds: [a!.threadId, b!.threadId], change: { type: "claim" } });
     for (const id of [a!.threadId, b!.threadId]) {
       expect((await conversation(id, desk.anaCookie)).assigneeMemberId).toBe(desk.ana.id);
@@ -1248,7 +1193,6 @@ describe("bulk actions and auto-assign", () => {
         method: "POST",
         body: JSON.stringify({ threadIds, change: { type: "claim", expectedAssignee: null } }),
       });
-    // Both selected everything unassigned; their selections overlap on b.
     const [ana, bea] = await Promise.all([
       claim(desk.anaCookie, [a!.threadId, b!.threadId]),
       claim(beaCookie, [b!.threadId, c!.threadId]),
@@ -1319,11 +1263,9 @@ describe("bulk actions and auto-assign", () => {
 
     const [first, second] = [desk.ana.id, desk.bea.id].sort();
     expect([await deliver(1), await deliver(2), await deliver(3)]).toEqual([first, second, first]);
-    // History from before the inbox was connected, and an out-of-office, stay unassigned.
     expect(await deliver(4, { sentAt: new Date(Date.now() - 2 * 60 * 60_000) })).toBeNull();
     expect(await deliver(5, { automated: true })).toBeNull();
 
-    // The member it went to hears "assigned", not also "your customer replied".
     const kinds = await db
       .select({ kind: schema.notifications.kind })
       .from(schema.notifications)
@@ -1331,7 +1273,6 @@ describe("bulk actions and auto-assign", () => {
       .where(eq(schema.threads.mailboxId, inbox.id));
     expect(kinds.map((k) => k.kind)).toEqual(["assigned", "assigned", "assigned"]);
 
-    // Only owners and admins switch it.
     expect(
       (await put(`/mailboxes/${inbox.id}/auto-assign`, beaCookie, { enabled: false })).status,
     ).toBe(403);
@@ -1372,16 +1313,13 @@ describe("bulk actions and auto-assign", () => {
       });
       return message.threadId;
     };
-    // Answered in 10 minutes, then resolved; answered in 30; never answered, tagged, Bea's.
     const c1 = await deliver("a@client.test", at(0));
     await deliver(inbox.address, at(10), c1, "Sent");
     const c2 = await deliver("b@client.test", at(60));
     await deliver(inbox.address, at(90), c2, "Sent");
     const c3 = await deliver("c@client.test", at(120));
-    // A conversation that started 40 days ago is not new this week, though it has new mail.
     const old = await deliver("d@client.test", new Date(Date.now() - 40 * 86_400_000));
     await deliver("d@client.test", at(180), old);
-    // Its first reply, indexed only now, belongs to 40 days ago, not to this report.
     await deliver(inbox.address, new Date(Date.now() - 40 * 86_400_000 + 300_000), old, "Sent");
 
     const tag = (await (
@@ -1390,7 +1328,6 @@ describe("bulk actions and auto-assign", () => {
     await post(`/threads/${c3}/tags`, desk.anaCookie, { tagId: tag.tag.id });
     await put(`/threads/${c3}/assignee`, desk.anaCookie, { memberId: desk.bea.id });
     await post(`/threads/${c1}/resolve`, desk.anaCookie);
-    // Mail we sent first, from an alias, then resolved: not a new conversation, no timing sample.
     const outbound = await deliver("sales@alias.test", at(200), undefined, "Sent");
     await post(`/threads/${outbound}/resolve`, desk.anaCookie);
 
@@ -1413,11 +1350,9 @@ describe("bulk actions and auto-assign", () => {
       ],
       byTag: [{ tagId: tag.tag.id, count: 1 }],
     });
-    // 600 s and 1800 s: median 1200, p90 interpolated to 1680.
     expect(report.firstResponse).toEqual({ count: 2, median: 1200, p90: 1680 });
     expect(report.resolved.count).toBe(1);
     expect(report.resolved.byMember).toEqual([{ memberId: desk.ana.id, count: 2 }]);
-    // Resolved just now, five hours after the customer wrote.
     expect(Math.abs(report.resolved.median - 5 * 3600)).toBeLessThan(120);
 
     expect(

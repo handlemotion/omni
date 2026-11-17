@@ -1,5 +1,3 @@
-// Deals, under `/api/crm/deals`. A won deal is the project (ADR 0036): `PATCH` with a `stageId`
-// moves it through the one transition function in `@omni/db`.
 import {
   crmCreateDealBodySchema,
   crmDealsQuerySchema,
@@ -60,13 +58,11 @@ export const deals = new Hono<AppEnv>()
     return c.json({
       deal: wireDeal(found.deal),
       people: found.people.map(wirePerson),
-      // Deleted between the two reads: the deal answered, so no contracts.
       contracts: contracts.status === "ok" ? contracts.contracts.map(wireContract) : [],
       lastContactedAt: await lastContactedAt(c, subjectOf(found.people)),
     } satisfies CrmDealDetailResponse);
   })
 
-  /** Only the fields it names: name, company, owner, value, people, and a stage move. */
   .patch("/deals/:id", zValidator("json", crmUpdateDealBodySchema), async (c) => {
     const changed = await memberCrm(c).updateDeal(c.req.param("id"), c.req.valid("json"));
     if (changed.status !== "ok") return refused(c, changed);
@@ -74,7 +70,6 @@ export const deals = new Hono<AppEnv>()
     return c.json({ deal: wireDeal(changed.deal) } satisfies CrmDealResponse);
   })
 
-  /** Archives; `?forever=1` deletes for good (owners and admins), leaving its files in Storage. */
   .delete("/deals/:id", zValidator("query", crmDeleteQuerySchema), async (c) => {
     const id = c.req.param("id");
     const crm = memberCrm(c);

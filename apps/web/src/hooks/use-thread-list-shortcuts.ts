@@ -1,7 +1,3 @@
-// The thread list's keys (`j`/`k`, `o`, `x`, `e`, `h`, `u`, `z`, Esc; on a helpdesk list `e`
-// resolves, `h` snoozes and `i` assigns to you). The cursor is the focused row:
-// moving it moves real focus, so React Aria and screen readers follow it. The same actions are
-// returned for a row's context menu, which names its row instead of using the cursor.
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, type RefObject } from "react";
 import type { Selection } from "react-aria-components";
@@ -26,7 +22,6 @@ import {
 import { announce, useShortcut } from "./use-shortcuts.ts";
 import { useUndo } from "./use-undo.ts";
 
-/** A per-row action as an action on a list of rows. */
 const each =
   <T>(run: (t: T) => void) =>
   (list: T[]) =>
@@ -49,7 +44,6 @@ export interface ThreadListActions {
   trash: (id: string) => void;
 }
 
-/** How long `h` snoozes a helpdesk conversation for the team: a day. */
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
 export function useThreadListShortcuts(options: {
@@ -83,13 +77,10 @@ export function useThreadListShortcuts(options: {
   const moveToLater = useMoveToLater();
   const moveToTrash = useMoveToTrash();
   const prefetch = usePrefetchThread();
-  // Binds `z` to the standing undo offer wherever the list is, toast or not.
   useUndo();
-  // The last row that had focus, so the cursor survives focus moving to the thread pane.
   const cursorRef = useRef<string | null>(null);
   const ids = threads.map((t) => t.id);
 
-  // Arrow keys and clicks move focus through React Aria, not us: follow them.
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -112,8 +103,6 @@ export function useThreadListShortcuts(options: {
     const row = () => listRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(id)}"]`);
     const found = row();
     if (found) return found.focus();
-    // The list is virtualized: only rows near the viewport are in the DOM. Scroll this one's
-    // position into view (rows share one height), then focus it once it has rendered.
     const grid = listRef.current?.querySelector<HTMLElement>('[role="grid"]');
     const height = grid?.querySelector("[data-key]")?.getBoundingClientRect().height;
     const at = ids.indexOf(id);
@@ -124,7 +113,6 @@ export function useThreadListShortcuts(options: {
 
   const open = (id: string) => void navigate({ href: href(id) });
 
-  /** Back to the list: the thread route's parent, same search. */
   const close = () => {
     const path = location.pathname.slice(0, location.pathname.lastIndexOf("/"));
     void navigate({ href: path + location.searchStr });
@@ -136,8 +124,6 @@ export function useThreadListShortcuts(options: {
     if (next >= ids.length) options.loadMore?.();
     const id = ids[Math.max(0, Math.min(ids.length - 1, next))];
     if (!id) return;
-    // Warm the row landed on and the one after it, so opening (or the next j/k with the list
-    // hidden) renders from cache.
     prefetch(id);
     const ahead = ids[next + delta];
     if (ahead) prefetch(ahead);
@@ -145,10 +131,6 @@ export function useThreadListShortcuts(options: {
     else focusRow(id);
   };
 
-  /**
-   * The selected threads, or else the one under the cursor. With `row` (a context menu's row):
-   * the selection when the row is part of it, else that row alone.
-   */
   const targets = (row?: string) => {
     const checked = (id: string) => selected === "all" || selected.has(id);
     if (row && !checked(row)) return threads.filter((t) => t.id === row);
@@ -158,10 +140,6 @@ export function useThreadListShortcuts(options: {
     return threads.filter((t) => t.id === id);
   };
 
-  /**
-   * Runs an action on the targets. Threads it takes out of this view (`leaves`) move the cursor
-   * to the nearest row that stays, and the open thread to that row (or closed).
-   */
   const act = <T extends ThreadSummary | ConversationSummary>(
     list: T[],
     run: (list: T[]) => void,
@@ -171,7 +149,6 @@ export function useThreadListShortcuts(options: {
   ) => {
     if (!list.length) return;
     const gone = new Set(list.filter(leaves).map((t) => t.id));
-    // From the open thread when it is one of them: its neighbour opens in its place.
     const from = threadId && gone.has(threadId) ? threadId : cursor();
     const at = ids.indexOf(from ?? "");
     const stays = (id: string | undefined) => !!id && !gone.has(id);
@@ -193,11 +170,6 @@ export function useThreadListShortcuts(options: {
     }
   };
 
-  /**
-   * Undo: puts each thread back as it was before `applied`, from its own row as it was (a
-   * selection can mix done, Later and plain threads). Done clears Later and Later clears done on
-   * the server, so the earlier state is set again rather than the action reversed.
-   */
   const restore = (applied: "done" | "undone" | "later" | "unlater") => (t: ThreadSummary) => {
     if (t.done) {
       if (applied !== "done") markDone.mutate({ threadId: t.id, through: t.lastMessageAt });
@@ -210,15 +182,9 @@ export function useThreadListShortcuts(options: {
     }
   };
 
-  /** Plain thread rows under the cursor or selected (none on a helpdesk list). */
   const threadTargets = (row?: string) => (helpdesk ? [] : (targets(row) as ThreadSummary[]));
 
   const bulk = useBulkChange();
-  /**
-   * One conversation change on every target in one bulk request, with one undo for the batch that
-   * puts every row back as it was. A row leaves the list when its new state no longer fits the
-   * view (unknown: stays).
-   */
   const change = (made: ConversationChange, said: (n: number) => string) => {
     if (!helpdesk) return;
     const { filter } = helpdesk;
@@ -331,7 +297,6 @@ export function useThreadListShortcuts(options: {
       (n) => `${plural(n)} marked ${toRead ? "read" : "unread"}`,
     );
   };
-  /** No undo: bringing mail back out of Trash is a move the app does not offer yet. */
   const trash = (row: string) =>
     act(
       targets(row),

@@ -1,5 +1,3 @@
-// Finding records: by words for pickers and agents, and by a thread's addresses for the
-// conversation sidebar. Archived records are never found here; they stay readable by id.
 import { domainOf, isWebmailDomain, parseAddress } from "@omni/mail-core/addresses";
 import { and, asc, eq, inArray, isNull, or, sql, type AnyColumn } from "drizzle-orm";
 import {
@@ -32,7 +30,6 @@ export interface CrmSearchResult {
   deals: CrmDeal[];
 }
 
-/** The word starts the name or one of its words. */
 const nameStarts = (name: AnyColumn, word: string) =>
   sql`(lower(${name}) like ${likePrefix(word)} or lower(${name}) like ${`% ${likePrefix(word)}`})`;
 

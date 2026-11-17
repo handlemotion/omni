@@ -86,7 +86,6 @@ describe("upsertMessage", () => {
     expect(
       await db.select().from(attachments).where(eq(attachments.messageId, first.id)),
     ).toHaveLength(1);
-    // An older message never drags the thread's recency backwards.
     const [thread] = await db.select().from(threads).where(eq(threads.id, threadId));
     expect(thread!.lastMessageAt).toEqual(new Date("2026-10-05T00:00:00Z"));
   });
@@ -117,9 +116,6 @@ describe("mail_actions outbox", () => {
     const total = 60;
     for (let i = 0; i < total; i++) await enqueue(`concurrent-${i}`);
 
-    // Separate connection pools, so the claims really race inside Postgres. Each pool connects
-    // before the race: pools connect lazily, and on a loaded machine the first one used to drain
-    // every row before the others had a connection, so only one worker got work.
     const workers = Array.from({ length: 6 }, () => createDb(url, { max: 2 }));
     try {
       await Promise.all(workers.map(({ db: worker }) => worker.execute(sql`select 1`)));
@@ -151,7 +147,7 @@ describe("mail_actions outbox", () => {
     expect(await rescheduleAction(db, action.id, "boom 1", later)).toMatchObject({
       status: "pending",
     });
-    expect(await claimActions(db)).toEqual([]); // not due yet
+    expect(await claimActions(db)).toEqual([]);
     await db
       .update(mailActions)
       .set({ runAfter: sql`now()` })
@@ -172,8 +168,6 @@ describe("mail_actions outbox", () => {
 });
 
 test("setLocationFlags rewrites the named folder's copies and leaves the same UIDs elsewhere alone", async () => {
-  // UIDs are per folder, so UID 1 exists in every folder of every mailbox. A batch update that
-  // matched on UID alone would rewrite the flags of unrelated copies.
   const other = await createMailbox(db, org.id, "other@writers.test");
   const folders = await Promise.all(
     [
@@ -310,7 +304,6 @@ describe("mergeThreads", () => {
     for (const threadId of [oldest, middle, newest]) {
       await db.insert(threadTags).values({ orgId: org.id, threadId, tagId: tag?.id ?? "" });
     }
-    // Two merged threads share a dedupe key the survivor does not have.
     for (const threadId of [middle, newest]) {
       await db.insert(conversationEvents).values({
         orgId: org.id,
@@ -320,7 +313,6 @@ describe("mergeThreads", () => {
         dedupeKey: "first_response",
       });
     }
-    // The member read the survivor and one part, but never opened the newest part.
     for (const threadId of [oldest, middle]) {
       await db
         .insert(threadState)
@@ -348,7 +340,6 @@ describe("mergeThreads", () => {
     expect(events.map((e) => e.kind).toSorted()).toEqual(["first_response", "merged", "merged"]);
     const state = await db.select().from(threadState).where(eq(threadState.threadId, oldest));
     expect(state.map((row) => [row.memberId, row.read])).toEqual([[member.id, false]]);
-    // Run again (a retried ingest): nothing left to merge, nothing changes.
     expect(
       await mergeThreads(db, { mailboxId: mailbox.id, threadIds: [newest, oldest, middle] }),
     ).toEqual({ intoThreadId: oldest, fromThreadIds: [] });
@@ -384,7 +375,6 @@ describe("saveSummary", () => {
         cleanText: `part ${n}`,
       });
     const latest = await message(2);
-    // The job read one message; then an older half of the conversation was merged in.
     await message(1);
 
     const saved = await saveSummary(db, threadId, {
@@ -396,7 +386,6 @@ describe("saveSummary", () => {
     expect(saved).toBe(false);
     const [thread] = await db.select().from(threads).where(eq(threads.id, threadId));
     expect(thread).toMatchObject({ summary: null, summaryMessageId: null });
-    // The job queued for the merge read both and saves.
     expect(
       await saveSummary(db, threadId, { summary: "Both", messageId: latest.id, messageCount: 2 }),
     ).toBe(true);

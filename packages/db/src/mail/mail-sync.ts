@@ -1,6 +1,3 @@
-// Mail service writers for IMAP sync: folders, sync positions, message locations, mailboxes and
-// outbox bookkeeping. Like `writers.ts`, only trusted background code calls these, and each one
-// is idempotent so a repeated sync step converges.
 import { and, desc, eq, gte, inArray, ne, notInArray, sql } from "drizzle-orm";
 import { MAX_PRUNED_THREADS_PER_EVENT } from "@omni/contracts";
 import type { Db } from "../client.ts";
@@ -81,8 +78,6 @@ export async function replaceFolders(
 ) {
   const { orgId, mailboxId, folders } = input;
   await db.transaction(async (tx) => {
-    // Folders that are new or changed role. A role change moves threads in or out of the inbox
-    // (Junk stored as `other`, later detected as `junk`), so their messages are reconciled below.
     const changed: string[] = [];
     for (const folder of folders) {
       const rows = await tx
@@ -338,9 +333,6 @@ export async function addLocation(
       .update(messages)
       .set({ folderId: input.folderId, imapUid: input.uid, updatedAt: new Date() })
       .where(eq(messages.id, input.messageId));
-    // The message's first copy, unread: new mail, which turns its thread unread on a Google
-    // account (ADR 0044). Read from the rows, not from the caller, so a sync that stored the
-    // message, failed, and came back for its location still counts it as new.
     const [first] = input.flags.includes("\\Seen")
       ? []
       : await tx
@@ -361,7 +353,6 @@ export async function setLocationFlags(
   },
 ) {
   if (input.changes.length === 0) return 0;
-  // One statement for the whole batch: a CONDSTORE resync can report thousands of changes.
   const changes = JSON.stringify(
     input.changes.map((c) => ({
       uid: c.uid,
@@ -495,7 +486,6 @@ export const pruneMessages: (
   input: { mailboxId: string; messageIds: string[] },
 ) => Promise<{ messages: number; threads: number; threadIds: string[] }> = async (db, input) => {
   if (input.messageIds.length === 0) return { messages: 0, threads: 0, threadIds: [] };
-  // One jsonb parameter, not one per id: a deleted folder can orphan more ids than Postgres binds.
   const anyOf = (ids: string[]) =>
     sql`any(array(select jsonb_array_elements_text(${JSON.stringify(ids)}::text::jsonb)))`;
   return db.transaction(async (tx) => {
@@ -528,9 +518,7 @@ export const pruneMessages: (
         updatedAt: new Date(),
       })
       .where(sql`${threads.id} = ${anyOf(threadIds)}`);
-    // A thread that keeps messages drops the addresses only the deleted ones had.
     await rederiveParticipants(tx, threadIds);
-    // Queued with the delete, so open apps drop these threads even if the service dies next.
     await queueMailEvents(
       tx,
       chunks(threadIds, MAX_PRUNED_THREADS_PER_EVENT).map((chunk) => ({
@@ -563,7 +551,6 @@ export async function pendingNotifications(db: Db, limit: number) {
     .where(eq(messages.notifyPending, true))
     .orderBy(messages.id)
     .limit(limit);
-  // No folder yet: a reply indexed when SMTP accepted it (its Sent copy is not filed yet).
   return rows.map(({ role, ...row }) => ({ ...row, folderRole: role ?? ("sent" as const) }));
 }
 
@@ -677,7 +664,6 @@ export async function rescheduleAction(db: Db, id: string, error: string, retryA
         status: mailActions.status,
         requestId: mailActions.requestId,
       });
-    // The member who asked learns it failed; queued with the status, so it is never lost.
     if (row?.status === "failed") {
       await queueMailEvents(tx, [
         {
@@ -756,7 +742,6 @@ export async function saveMailbox(
     throw new Error("a shared mailbox needs someone on it");
   }
   return db.transaction(async (tx) => {
-    // Shared mailboxes are a company's (ADR 0024).
     if (input.kind === "shared") await assertCompany(tx, input.orgId, "a shared mailbox");
     const [row] = await tx
       .insert(mailboxes)
@@ -793,8 +778,6 @@ export async function saveMailbox(
           set: { role: "owner" },
         });
     }
-    // A shared mailbox's team is its access list (ADR 0008). A new one is seeded with the owner
-    // grant above; for one that already has a team, the team decides and the sync wins.
     if (input.kind === "shared") {
       await ensureMailboxTeam(tx, row!.id);
       await syncMailboxAccess(tx, row!.id);
@@ -887,7 +870,6 @@ export async function moveMessageToThread(
         })
         .where(eq(threads.id, moved.from));
     }
-    // Its addresses follow it; the thread it left keeps only what its other messages have.
     await rederiveParticipants(tx, [moved.from, input.threadId]);
   });
 }

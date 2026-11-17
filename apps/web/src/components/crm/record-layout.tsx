@@ -1,11 +1,3 @@
-// A record's page (ADR 0039 decision 1), after Attio's record view: the list and the record's
-// name as the header's crumbs, then two panes. The left (320px, its own scroll) is the record:
-// its mark and name, its details edited in place, and its related records. The right is the
-// work: Timeline, then Files and Contracts where the record has them. On a narrow screen the two
-// stack and the page scrolls as one.
-//
-// Geometry: both panes keep the header's 20px gutter; sections in the left pane are 24px apart,
-// a section's title 8px above its rows.
 import type { ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";

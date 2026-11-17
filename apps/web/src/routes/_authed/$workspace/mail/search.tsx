@@ -6,7 +6,6 @@ import { useSearch } from "../../../../hooks/use-mail.ts";
 import { searchQuery } from "../../../../lib/mail-queries.ts";
 import { searchSearch } from "../../../../lib/search-params.ts";
 
-// Smart search results (`?q=`) in the same list as the inbox; the command menu opens it.
 export const Route = createFileRoute("/_authed/$workspace/mail/search")({
   validateSearch: searchSearch,
   loaderDeps: ({ search }) => search,
@@ -22,7 +21,6 @@ function Search() {
   const { workspace } = Route.useParams();
   const { data: hits, isPending, isSuccess } = useSearch(search.q, search.mailbox);
 
-  // One row per thread, best match first, with the passage that matched.
   const rows = useMemo(
     () =>
       (hits ?? []).map((hit) => {
@@ -33,7 +31,6 @@ function Search() {
           subject: hit.subject,
           snippet: hit.snippet,
           unread: hit.unread,
-          // Search doesn't say whether a hit is done or in Later: its menu offers both as new.
           triage: { done: false, later: false, lastMessageAt: hit.lastMessageAt },
         };
         return result;
@@ -46,7 +43,6 @@ function Search() {
       title="Search results"
       caption={`Matching “${search.q}”`}
       rows={rows}
-      // An empty `q` is never fetched (the query is disabled), so it never loads.
       loading={isPending && !!search.q.trim()}
       empty={isSuccess ? <SearchEmpty q={search.q} mailbox={search.mailbox} /> : undefined}
       href={(threadId) =>

@@ -1,5 +1,3 @@
-// The CRM's member door (ADR 0036 decisions 1 to 3): who reaches which records, and what a
-// member's leaving does to the rows they made.
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { forMember, forUser } from "../src/for-member.ts";
@@ -31,7 +29,6 @@ test("a member of another company gets nothing through the member door, by id or
     await ana.createNote({ record: { dealId: deal.id }, body: "Budget is fixed" }),
   ).note;
 
-  // By id: every read and write answers not_found, and nothing changed.
   expect((await eve.company(companyId)).status).toBe("not_found");
   expect((await eve.person(person.id)).status).toBe("not_found");
   expect((await eve.deal(deal.id)).status).toBe("not_found");
@@ -45,14 +42,12 @@ test("a member of another company gets nothing through the member door, by id or
     "not_found",
   );
   expect((await eve.updateNote(note.id, { body: "edited" })).status).toBe("not_found");
-  // A deal of theirs cannot be pointed at our company, people or stages either.
   const ourStage = ok(await ana.stages()).stages[0]!;
   expect((await eve.createDeal({ name: "x", companyId })).status).toBe("not_found");
   expect((await eve.createDeal({ name: "x", personIds: [person.id] })).status).toBe("not_found");
   expect((await eve.createDeal({ name: "x", stageId: ourStage.id })).status).toBe("not_found");
   expect(ok(await ana.deal(deal.id)).deal.name).toBe("Website");
 
-  // By list, search and lookup: nothing of ours, and the same address is free on their side.
   expect(ok(await eve.listCompanies()).companies).toEqual([]);
   expect(ok(await eve.listPeople()).people).toEqual([]);
   expect(ok(await eve.listDeals()).deals).toEqual([]);
@@ -64,7 +59,6 @@ test("a member of another company gets nothing through the member door, by id or
   expect(theirs.created).toBe(true);
   expect(theirs.person.id).not.toBe(person.id);
 
-  // The guest door has nothing in v1.
   const [anaRow] = await db.select().from(members).where(eq(members.organizationId, acme.id));
   expect(forUser(db, anaRow!.userId).crm).toEqual({});
 });
@@ -102,7 +96,6 @@ test("removing a member is not blocked by their deals and notes, which stay with
   expect(noteRow!.authorMemberId).toBeNull();
   const events = await db.select().from(crmEvents).where(eq(crmEvents.dealId, deal.id));
   expect(events.map((event) => event.actorMemberId)).toEqual([null]);
-  // The member who left is gone from the door too.
   expect((await crm.deal(deal.id)).status).toBe("no_crm");
 });
 
@@ -126,7 +119,6 @@ test("deleting for good is for owners and admins, and a member's attempt changes
   expect((await member.deleteCompany(companyId)).status).toBe("forbidden");
   expect(ok(await member.deal(deal.id)).people.map((p) => p.id)).toEqual([person.id]);
 
-  // An archive by anyone hides it from lists and keeps it readable by id.
   ok(await member.archiveDeal(deal.id));
   expect(ok(await member.listDeals()).deals).toEqual([]);
   expect(ok(await member.listDeals({ includeArchived: true })).deals.map((d) => d.id)).toEqual([
@@ -134,7 +126,6 @@ test("deleting for good is for owners and admins, and a member's attempt changes
   ]);
   expect(ok(await member.deal(deal.id)).deal.archivedAt).not.toBeNull();
 
-  // The admin's delete of the company leaves its person and deal, with no company.
   expect((await admin.deleteCompany(companyId)).status).toBe("ok");
   expect(ok(await admin.person(person.id)).person.companyId).toBeNull();
   expect(ok(await admin.deal(deal.id)).deal.companyId).toBeNull();

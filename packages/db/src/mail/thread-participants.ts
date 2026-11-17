@@ -1,7 +1,3 @@
-// Writes to `thread_participants` (ADR 0036 decision 4): who a thread involves, by address and
-// domain, so `threadsWith` can find a person's or a company's mail. Rows are derived from the
-// messages' from, to and cc and nothing else, so a re-sync rebuilds them (ADR 0013). Trusted
-// background code only (the mail service through `writers.ts`, the Worker's backfill job).
 import { domainOf, normalizeAddress } from "@omni/mail-core/addresses";
 import { and, asc, eq, gt, lt, sql } from "drizzle-orm";
 import type { Executor } from "./conversation-core.ts";
@@ -45,7 +41,6 @@ interface ThreadMessage extends ParticipantSource {
   threadId: string;
 }
 
-/** Rows per insert: 5 binds each keeps a statement far below Postgres's 65,535 parameters. */
 const INSERT_CHUNK = 1000;
 
 /**
@@ -73,12 +68,10 @@ export async function addParticipants(db: Executor, rows: readonly ThreadMessage
   return added;
 }
 
-/** One jsonb parameter for any number of ids: a big prune can carry more than Postgres binds. */
 function anyOf(ids: readonly string[]) {
   return sql`any(array(select jsonb_array_elements_text(${JSON.stringify(ids)}::text::jsonb)))`;
 }
 
-/** The columns a message's participants are derived from. */
 const sourceColumns = {
   orgId: messages.orgId,
   mailboxId: messages.mailboxId,
@@ -131,7 +124,6 @@ export const PARTICIPANT_BATCH = 500;
  */
 export const PARTICIPANT_SETTLE_MS = 10 * 60_000;
 
-/** The smallest UUIDv7 of millisecond `ms`: every id made at or after `ms` sorts after it. */
 function uuidv7Floor(ms: number) {
   const hex = Math.max(0, Math.floor(ms)).toString(16).padStart(12, "0");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-0000-0000-000000000000`;
@@ -153,7 +145,6 @@ export async function indexParticipants(
   const limit = options.limit ?? PARTICIPANT_BATCH;
   const bound = uuidv7Floor((options.now ?? new Date()).getTime() - PARTICIPANT_SETTLE_MS);
   return db.transaction(async (tx) => {
-    // One probe of `messages_mailbox_id_id_idx` per mailbox.
     const [next] = await tx
       .select({
         mailboxId: mailboxes.id,
@@ -169,8 +160,6 @@ export async function indexParticipants(
       .orderBy(sql`${threadParticipantsBackfill.updatedAt} asc nulls first`, mailboxes.id)
       .limit(1);
     if (!next) return { messages: 0, participants: 0 };
-    // `for share` holds each message where it is (no merge or delete moves it) until the rows
-    // naming its thread are in.
     const rows = await tx
       .select({ id: messages.id, ...sourceColumns })
       .from(messages)

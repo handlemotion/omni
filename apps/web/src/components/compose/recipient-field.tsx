@@ -13,7 +13,6 @@ import { AriaInput } from "@/components/ui/aria-input";
 import { Tag, TagGroup, TagList } from "@/components/ui/tag-group";
 import { useCustomerSearch, type CustomerMatch } from "@/hooks/use-compose.ts";
 
-/** Loose on purpose: the Worker validates; this only decides when typing becomes a chip. */
 const ADDRESS = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
 /** Every address in pasted or typed text, in order, without repeats. */
@@ -55,8 +54,6 @@ export function RecipientField(props: {
   };
 
   return (
-    // One of the composer's rows: its height set by `ComposerFrame`, its divider the card's full width.
-    // The label (From, To, Cc, Bcc) keeps the 32px column the labels line up in.
     <div className="flex min-h-(--composer-row) items-center gap-2.5 border-b px-3 py-1">
       <span className="flex w-8 shrink-0 text-sm text-muted-foreground">{props.label}</span>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
@@ -92,7 +89,6 @@ export function RecipientField(props: {
             ref={input}
             plain
             size="sm"
-            // With no pills yet, typing starts where a pill's text would (8px in), like From's.
             className={value.length ? "" : "ps-2"}
             autoFocus={props.autoFocus}
             onKeyDown={(event) => {
@@ -127,10 +123,6 @@ export function RecipientField(props: {
   );
 }
 
-/**
- * Suggestions come from the server after the keystroke, when the combo box has already decided
- * there was nothing to open. This opens it once they arrive, while the field still has focus.
- */
 function OpenWhenSuggested({ count }: { count: number }) {
   const state = use(ComboBoxStateContext);
   useEffect(() => {

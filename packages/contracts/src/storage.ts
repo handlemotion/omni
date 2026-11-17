@@ -1,7 +1,3 @@
-// Storage's HTTP API (ADR 0034 decision 6), under `/api/storage` on the Worker: what the web
-// and iOS apps send and get back. The Worker validates requests with these schemas and types
-// its answers with them, so neither side redefines a shape. Dates travel as ISO 8601 strings,
-// sizes as bytes, cursors as opaque strings to pass back unchanged.
 import { z } from "zod";
 
 /** Bytes in every part of an upload but the last (R2 wants them uniform). */
@@ -95,7 +91,6 @@ const page = {
   limit: z.coerce.number().int().min(1).max(200).optional(),
 };
 
-/** Inside a folder (`parentId`) or at the root of a space (`space`): exactly one. */
 const place = { parentId: id.optional(), space: storageSpaceSchema.optional() };
 const onePlace = [
   (value: { parentId?: string; space?: string }) =>
@@ -193,21 +188,6 @@ export const storageUploadSchema = z.object({
 });
 export const storageUploadResponseSchema = z.object({ upload: storageUploadSchema });
 
-// --- Versions (ADR 0043 decision 1) ---
-
-/**
- * `POST /files/:id/versions`: opens an upload of `size` bytes that becomes the file's new
- * version. Answers `{ upload }`; the parts go up and it completes through `/uploads/:id` like
- * any upload, and completing it answers the file. The content it replaces is kept `keepDays`
- * and counts toward the workspace's storage until then. Only someone who may edit the file: a
- * member who reaches it, or an Editor. A locked file answers `409 locked`.
- *
- * A checked save (ADR 0043 decision 3) names `ifContentVersion`, the file's `contentVersion` it
- * was based on, and names it again when completing (`POST /uploads/:id/complete?ifContentVersion=`).
- * When the file has moved on, either answers `409 version_conflict` with the file's
- * `contentVersion` now in `details`, and nothing is stored: fetch that content, merge, and save
- * again on top of it.
- */
 /** `POST /uploads/:id/complete?ifContentVersion=`: a checked save's base, checked again. */
 export const storageCompleteUploadQuerySchema = z.object({
   ifContentVersion: z.coerce.number().int().nonnegative().optional(),
@@ -220,7 +200,6 @@ export const storageOpenVersionBodySchema = z.object({
   ifContentVersion: z.number().int().nonnegative().optional(),
 });
 
-/** Content a file has or had. `writtenByName` is null once its writer has left. */
 const storageContentSchema = z.object({
   size: z.number().int().nonnegative(),
   mimeType: z.string().nullable(),
@@ -261,8 +240,6 @@ export const storageUsageSchema = z.object({
   /** Why an upload would be refused now, or null when it would not. */
   uploadsBlocked: z.enum(["storage_full", "billing_inactive"]).nullable(),
 });
-
-// --- Sharing (ADR 0034 decision 4) ---
 
 export const storagePersonSchema = z.object({
   email: z.string(),
@@ -333,8 +310,6 @@ export const storageSharedResponseSchema = z.object({
   nodes: z.array(storageNodeSchema),
   nextCursor: z.string().nullable(),
 });
-
-// --- Signing (ADR 0043 decision 6, the flow of ADR 0037 decision 4) ---
 
 /**
  * The sentence a signer accepts, with its version. A signer sends the version back; one that is
@@ -448,15 +423,6 @@ export const storageSignBodySchema = z.object({
   typedName: z.string().trim().min(1).max(200),
   consentVersion: z.string(),
 });
-
-// --- Sync (ADR 0043, docs/spec/desktop.md "The sync protocol") ---
-//
-// The desktop sync providers (File Provider on macOS, Cloud Files on Windows) call these with a
-// `storage:sync` bearer token. A token spans every workspace the person is in, so each route
-// below `/api/storage/sync` but `drives` names one: `/api/storage/sync/:orgId/...`. The routes
-// they share with the app (list, folders, rename, move, trash, uploads, download) answer the
-// shapes above, mounted again under that prefix. Swift and Rust types are generated from the
-// schemas in this section (`pnpm --filter @omni/contracts native-types`).
 
 /**
  * A drive the person can sync, and its revision now. A provider compares it with the revision it

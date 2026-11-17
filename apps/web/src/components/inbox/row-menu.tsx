@@ -43,7 +43,6 @@ export function RowMenu(props: {
   const pick = (event: SyntheticEvent, from: Element | null) => {
     const key = from?.closest("[data-key]")?.getAttribute("data-key");
     if (key && props.rows.some((r) => r.id === key)) setTarget(key);
-    // Not on a row: nothing to act on, so the menu stays shut.
     else event.stopPropagation();
   };
 
@@ -60,7 +59,6 @@ export function RowMenu(props: {
       >
         {props.children}
       </div>
-      {/* At the pointer, 2px off it, so the first item is not under the click. */}
       <Menu aria-label="Thread actions" popover={{ offset: 2 }}>
         {row && (
           <>
@@ -118,10 +116,6 @@ export function RowMenu(props: {
   );
 }
 
-/**
- * What each item does: the list's own action when it has them (the checked rows together, the
- * cursor and the open thread moved on, an undo offered), else the change on that row alone.
- */
 function useRowActions(
   href: (threadId: string) => string,
   actions: RefObject<ThreadListActions | null>,
@@ -133,7 +127,6 @@ function useRowActions(
   const moveToLater = useMoveToLater();
   const moveToTrash = useMoveToTrash();
   return {
-    /** Opens the thread with its email composer up. */
     compose: (id: string, kind: "reply" | "forward") => {
       requestCompose({ threadId: id, kind });
       void navigate({ href: href(id) });

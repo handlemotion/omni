@@ -1,10 +1,3 @@
-// Settings pages about the workspace's mailboxes, one question each:
-// - Inboxes: what you can open here, its unread threads, and each inbox's threads by lane. Facts
-//   only.
-// - Shared: every shared mailbox and who sees it; owners and admins add one and choose its people
-//   (ADR 0008).
-// A teammate's personal inbox is on People (owners and admins): whether it exists and syncs,
-// never its mail (ADR 0017). Its create dialog is `NewMailboxDialog`, here.
 import { IconPlus, IconUserMinus } from "@/components/icons/central";
 import { lazy, useState } from "react";
 import { Skeleton, SkeletonSuspense } from "skullet/react";
@@ -47,12 +40,10 @@ import { SettingsValueRow } from "./kit/settings-value-row";
 import { isManager } from "./workspace-pages";
 import { NewMailboxDialog, useOwnInboxCreation } from "./new-mailbox-dialog";
 
-// The chart library is most of a megabyte: it loads when a chart is first drawn, not with the app.
 const SettingsChart = lazy(() =>
   import("./kit/settings-chart").then((module) => ({ default: module.SettingsChart })),
 );
 
-// The sidebar's names for the lanes, plus the rest.
 const LANE_LABELS: Record<Lane, string> = {
   needs_reply: "Needs reply",
   waiting_on_them: "Awaiting reply",
@@ -65,7 +56,6 @@ const LANE_CHART: ChartConfig = Object.fromEntries(
   LANES.map((lane, i) => [lane, { label: LANE_LABELS[lane], color: `chart-${i + 1}` }]),
 );
 
-/** What a mailbox is called in a list: its local part, capitalised. */
 function mailboxName(mailbox: { address: string }) {
   const local = mailbox.address.split("@")[0] ?? mailbox.address;
   return local.charAt(0).toUpperCase() + local.slice(1);
@@ -90,7 +80,6 @@ function MailboxStatusBadge({ mailbox }: { mailbox: Pick<Mailbox, "status"> }) {
 const people = (count: number) => `${count} ${count === 1 ? "person" : "people"}`;
 const threads = (count: number) => `${count} ${count === 1 ? "thread" : "threads"}`;
 
-// Skeleton stand-ins, the shape of what loads, drawn before the first load.
 type AccessList = NonNullable<ReturnType<typeof useMailboxMembers>["data"]>["members"];
 const SAMPLE_ADDRESSES = ["you@example.com", "hello@example.com", "billing@example.com"];
 const SAMPLE_MAILBOXES = SAMPLE_ADDRESSES.map((address, i) => ({
@@ -127,7 +116,6 @@ const SAMPLE_ACCESS = SAMPLE_PEOPLE.map((p) => ({
   image: null,
 })) as unknown as AccessList;
 
-/** The mailboxes the signed-in member can open in the active workspace. */
 function useOwnMailboxes() {
   const { member } = useMember();
   const mailboxes = useMailboxes();
@@ -152,7 +140,6 @@ export function InboxesPage() {
   const mine = useOwnMailboxes();
   const counts = useCounts();
   const own = useOwnInboxCreation();
-  // Each of your mailboxes beside its counts; undefined until both load.
   const rows =
     mine && counts.data
       ? mine.map((mailbox) => ({
@@ -219,9 +206,7 @@ export function InboxesPage() {
                 description="Nothing waits in any inbox right now."
               />
             ) : (
-              // The chart and its lanes in one group: the rows are the chart's legend.
               <SettingsGroup>
-                {/* The rows below carry the numbers: a chart that fails leaves just them. */}
                 <Contain fallback={null}>
                   <SkeletonSuspense skeleton={<div className="h-62" />}>
                     <SettingsChart
@@ -255,10 +240,6 @@ export function InboxesPage() {
   );
 }
 
-/**
- * A mailbox you can open: who else sees it, as a fact (changing that is on Shared), and how many
- * of its inbox's threads are unread, when any are.
- */
 function OwnMailboxRow({ mailbox, unread }: { mailbox: Mailbox; unread: number }) {
   const shared = mailbox.kind === "shared";
   const count = useMailboxMembers(mailbox.id, shared).data?.members.length;
@@ -274,12 +255,10 @@ function OwnMailboxRow({ mailbox, unread }: { mailbox: Mailbox; unread: number }
   );
 }
 
-/** One shared mailbox as this page lists it, from whichever list the viewer may read. */
 interface SharedRow {
   id: string;
   address: string;
   status: Mailbox["status"];
-  /** Known up front for managers (the workspace list); members count it per row. */
   people?: number;
 }
 
@@ -291,7 +270,6 @@ export function SharedMailboxesPage() {
   const domains = useMailboxDomains();
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  // Owners and admins see every shared mailbox; members, the ones they are on.
   const shared: SharedRow[] | undefined = canManage
     ? all.data?.inboxes.filter((mailbox) => mailbox.kind === "shared")
     : mine?.filter((mailbox) => mailbox.kind === "shared");
@@ -349,7 +327,6 @@ export function SharedMailboxesPage() {
   );
 }
 
-/** A shared mailbox: who can see it, as a count. The whole row opens that list over settings. */
 function SharedMailboxRow({ mailbox, onOpen }: { mailbox: SharedRow; onOpen: () => void }) {
   const counted = useMailboxMembers(mailbox.id, mailbox.people === undefined);
   const count = mailbox.people ?? counted.data?.members.length;
@@ -364,7 +341,6 @@ function SharedMailboxRow({ mailbox, onOpen }: { mailbox: SharedRow; onOpen: () 
   );
 }
 
-/** What a stacked dialog over the access list is doing, if anything. */
 type AccessDialog = { kind: "add" } | { kind: "remove"; memberId: string; name: string };
 
 function MailboxAccessDialog(props: {

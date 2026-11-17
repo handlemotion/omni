@@ -89,8 +89,6 @@ export interface ParseResult {
 }
 
 const PARSER_OPTIONS = {
-  // Keep `cid:` links so the sanitizer can map them to attachment ids, and leave `text`
-  // empty for HTML-only mail so reply stripping knows to work on the HTML.
   keepCidLinks: true,
   skipHtmlToText: true,
   skipTextToHtml: true,
@@ -109,8 +107,6 @@ export const parseMessage: (raw: Uint8Array | string) => Promise<ParseResult> = 
   try {
     mail = await simpleParser(source, PARSER_OPTIONS);
   } catch (error) {
-    // mailparser's guards against header and MIME-tree bombs. Keep the message listable
-    // from its main headers rather than failing it on every sync.
     if ((error as { code?: unknown }).code !== "EMAXLEN") throw error;
     mail = await simpleParser(topHeaders(source), PARSER_OPTIONS);
     bodySkipped = true;
@@ -176,14 +172,8 @@ async function describe(mail: ParsedMail, bodySkipped: boolean) {
   return withoutNul(message) satisfies ParsedMessage;
 }
 
-// Returned-message parts are read for bounce threading (`automated`); they are small.
 const KEEP_IN_MEMORY_MAX = 1024 * 1024;
 
-/**
- * mailparser's `simpleParser`, except that attachment content goes to `save` as it is decoded
- * instead of into a Buffer. Returned-message parts (bounces) are also kept, up to 1 MB, for
- * `automated`. Attachment sizes are counted here: the decoder's own is set too late.
- */
 function streamParser(input: Readable, save: (index: number, content: Readable) => Promise<void>) {
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -267,7 +257,6 @@ function streamParser(input: Readable, save: (index: number, content: Readable) 
   }) satisfies Promise<ParsedMail>;
 }
 
-/** The start of a stream, enough to hold the top-level header block. */
 const headBytes: (input: Readable) => Promise<Buffer> = async (input) => {
   const chunks: Buffer[] = [];
   let length = 0;
@@ -280,7 +269,6 @@ const headBytes: (input: Readable) => Promise<Buffer> = async (input) => {
   return Buffer.concat(chunks);
 };
 
-/** Postgres text rejects U+0000, and mail carries it in subjects, bodies and filenames. */
 const withoutNul: <T>(value: T) => T = (value) => {
   if (typeof value === "string") {
     return (value.includes("\0") ? value.replaceAll("\0", "") : value) as typeof value;
@@ -294,7 +282,6 @@ const withoutNul: <T>(value: T) => T = (value) => {
   return value;
 };
 
-// Header fields the rest of the pipeline reads; the fallback parse keeps only these.
 const TOP_HEADERS = new Set([
   "from",
   "to",
@@ -313,11 +300,9 @@ const TOP_HEADERS = new Set([
 ]);
 const MAX_TOP_HEADER = 16 * 1024;
 
-/** The top-level header block cut down to `TOP_HEADERS`, each field capped, with no body. */
 const topHeaders: (source: string | Buffer) => Buffer = (source) => {
   const bytes = typeof source === "string" ? Buffer.from(source) : source;
   const ends = [bytes.indexOf("\r\n\r\n"), bytes.indexOf("\n\n")].filter((i) => i !== -1);
-  // latin1 maps bytes to code units one to one, so 8-bit header bytes survive the round trip.
   const head = bytes.subarray(0, Math.min(bytes.length, ...ends)).toString("latin1");
   const fields = head
     .split(/\r?\n(?![ \t])/)
@@ -326,8 +311,6 @@ const topHeaders: (source: string | Buffer) => Buffer = (source) => {
   return Buffer.from(`${fields.join("\r\n")}\r\n\r\n`, "latin1");
 };
 
-// RFC 5322 3.6.4 lets senders trim References to the first and the most recent ids;
-// threading only needs those, and a hostile header can carry tens of thousands.
 const MAX_REFERENCES = 100;
 
 const capReferences: (ids: string[]) => string[] = (ids) => {
@@ -335,7 +318,6 @@ const capReferences: (ids: string[]) => string[] = (ids) => {
   return [...ids.slice(0, 1), ...ids.slice(-(MAX_REFERENCES - 1))];
 };
 
-// Zero-width, bidi-control and filler characters that render as nothing.
 const INVISIBLE =
   /[\u{AD}\u{61C}\u{115F}\u{1160}\u{180E}\u{200B}-\u{200F}\u{202A}-\u{202E}\u{2060}-\u{2064}\u{2066}-\u{206F}\u{3164}\u{FEFF}\u{FFA0}]|[\u{34F}\u{17B4}\u{17B5}]/gu;
 const ADDRESS_IN_NAME = /[^\s@<>"'(),;:]+@[^\s@<>"'(),;:]+\.[^\s@<>"'(),;:]+/;
@@ -371,7 +353,6 @@ export const displayNameSpoof: (from: Address | null) => DisplayNameSpoof | null
   return null;
 };
 
-/** Lowercased, punycoded domain of an address, or null when it is not a valid host. */
 function domainOf(address: string) {
   const domain = address.slice(address.lastIndexOf("@") + 1);
   try {
@@ -387,7 +368,6 @@ const messageIds: (value: string | string[] | undefined) => string[] = (value) =
   const joined = Array.isArray(value) ? value.join(" ") : (value ?? "");
   const bracketed = joined.match(MESSAGE_ID);
   if (bracketed) return [...new Set(bracketed)];
-  // Some senders omit the angle brackets.
   return [...new Set(joined.split(/\s+/).filter((id) => id.includes("@")))].map((id) => `<${id}>`);
 };
 
@@ -427,7 +407,6 @@ function signals(lines: HeaderLines) {
   } satisfies Omit<TriageSignals, "displayNameSpoof">;
 }
 
-// Parts that carry a returned message's headers, as named by RFC 3462.
 const RETURNED_PARTS = new Set(["text/rfc822-headers", "message/rfc822"]);
 
 const automated: (mail: ParsedMail, from: Address | null) => Automated | null = (mail, from) => {
@@ -440,9 +419,6 @@ const automated: (mail: ParsedMail, from: Address | null) => Automated | null = 
   return { kind, bouncedMessageId: bouncedMessageId([...returned, mail.text ?? ""]) };
 };
 
-// The spec keys messages on (mailbox, Message-ID), so a missing one is replaced by a hash
-// that is stable across re-syncs of the same raw bytes. The body is included so two
-// header-identical automated messages do not collapse into one.
 async function synthesizeMessageId(
   lines: HeaderLines,
   text: string | undefined,

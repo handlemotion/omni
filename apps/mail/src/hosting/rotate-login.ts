@@ -1,13 +1,3 @@
-// A hosted mailbox whose app password stopped working gets a new one (plan H-4). Omni operates
-// the host, so it can mint a login itself instead of leaving the mailbox in `error` until someone
-// notices: a password revoked by hand at Purelymail, or rotated by an admin, heals on its own.
-//
-// Order: issue the new login, swap it in only while the stored one is unchanged, reconnect through
-// the service's own path (so any mailbox lease holds), then revoke the old one. A crash anywhere
-// leaves at most one unused app password on the host, which the next rotation does not need.
-// At most one new login per mailbox per window: a host that refuses every login must not get a new
-// app password on every reconnect attempt. A rotation that fails (host unreachable) is retried on
-// its own, because the connection stops retrying a login that keeps failing.
 import type { Keyring } from "@omni/crypto";
 import { type Db, replaceMailboxCredentials } from "@omni/db";
 import { openCredentials, sealCredentials } from "../credentials.ts";
@@ -39,12 +29,9 @@ export function createLoginRotation(deps: {
   const retries = new Map<string, NodeJS.Timeout>();
   let stopped = false;
 
-  /** True when the mailbox got a new login and was reconnected with it. */
   async function rotateOnce(row: HostedMailboxRow) {
     const old = await openCredentials(keyring, row.id, row.credentialsEnc);
     if ("oauth" in old) return false;
-    // The login's own user, which may differ from the mailbox's address (`mailbox:add --user`).
-    // A user deleted at the host stays deleted: only a lost password is healed.
     const next = await host.issueLogin(old.user, { createUser: false });
     const swapped = await replaceMailboxCredentials(db, {
       mailboxId: row.id,
@@ -52,7 +39,6 @@ export function createLoginRotation(deps: {
       next: await sealCredentials(keyring, row.id, next),
     });
     if (!swapped) {
-      // Someone saved another login meanwhile; theirs wins and ours is never used.
       await host.revokeLogin(old.user, next.pass);
       logger.info("hosting.rotate_superseded", { mailboxId: row.id });
       return false;
@@ -82,7 +68,6 @@ export function createLoginRotation(deps: {
   }
 
   return {
-    /** Never throws: a failure is logged and retried later. */
     rotate(row: HostedMailboxRow) {
       if (stopped || retries.has(row.id)) return Promise.resolve(false) satisfies Promise<boolean>;
       const rotated = lastRotated.get(row.id);

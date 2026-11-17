@@ -1,5 +1,3 @@
-// Video and audio, streamed from the download route by `Range` (ADR 0040): the element fetches
-// only the metadata until it plays. A codec the browser can't play falls back to Download.
 import { useState } from "react";
 import type { FileKind } from "@/lib/file-kind.ts";
 import { FileTile } from "../file-glyph.tsx";
@@ -10,7 +8,6 @@ export function VideoPreview(props: { url: string; name: string; onDownload: () 
   if (broken) return <NoPreview kind="video" onDownload={props.onDownload} />;
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-5">
-      {/* Captions are the file's own, when it has them; we have none to add. */}
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption */}
       <video
         src={props.url}

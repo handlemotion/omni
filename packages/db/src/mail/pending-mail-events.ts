@@ -1,6 +1,3 @@
-// Mail events waiting for the Worker (`pending_mail_events`). Writers add a row in the same
-// transaction as the change it reports; the mail service delivers rows oldest first and deletes
-// each once the Worker accepted it.
 import type { MailEvent } from "@omni/contracts";
 import { MAX_PRUNED_THREADS_PER_EVENT } from "@omni/contracts";
 import { asc, inArray } from "drizzle-orm";

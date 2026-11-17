@@ -1,5 +1,3 @@
-// Mail's participant index (ADR 0036 decision 4): every address a thread's messages were from, to
-// or cc, and how far the backfill of mail stored before it has read.
 import { foreignKey, index, pgTable, primaryKey, text } from "drizzle-orm/pg-core";
 import { orgId, updatedAt } from "../columns.ts";
 import { mailboxes } from "./mailboxes.ts";
@@ -23,16 +21,12 @@ export const threadParticipants = pgTable(
     domain: text("domain").notNull(),
   },
   (t) => [
-    // One row per address per thread: writes are insert-or-nothing, and re-deriving a thread
-    // reads its rows by this key.
     primaryKey({ columns: [t.threadId, t.address] }),
     foreignKey({
       name: "thread_participants_mailbox_org_fk",
       columns: [t.mailboxId, t.orgId],
       foreignColumns: [mailboxes.id, mailboxes.orgId],
     }).onDelete("cascade"),
-    // `threadsWith` reads per granted mailbox, like every mail read: the threads with an address,
-    // or anyone at a domain, answered from the index alone.
     index("thread_participants_mailbox_address_idx").on(t.mailboxId, t.address, t.threadId),
     index("thread_participants_mailbox_domain_idx").on(t.mailboxId, t.domain, t.threadId),
   ],

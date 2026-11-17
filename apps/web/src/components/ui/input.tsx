@@ -17,8 +17,6 @@ export function inputClassName({
   invalid: "data" | "aria";
 }) {
   return cn(
-    // Fields are white wherever they sit (on the canvas or the grey surface), so they read as
-    // places to type; `--control-bg` overrides it.
     "relative block w-full appearance-none rounded-lg bg-(--control-bg,var(--color-background))",
     { sm: "h-7 px-2", md: "h-8 px-2", lg: "h-10 px-3" }[size],
     "text-sm text-foreground placeholder:text-subtle-foreground",
@@ -34,9 +32,6 @@ export function inputClassName({
     "[&::-ms-reveal]:hidden [&::-webkit-search-cancel-button]:hidden",
     "disabled:bg-secondary in-disabled:bg-secondary forced-colors:in-disabled:text-[GrayText]",
     "dark:scheme-dark",
-    // Room for what sits inside an InputGroup's edges. On the input, not `[&_input]` on the group:
-    // a `:has()` rule must style an element with a class, or Chrome restyles the whole page on
-    // every DOM insertion (it made scrolling the mail list drop to ~13 fps).
     IN_GROUP,
   );
 }
@@ -86,8 +81,6 @@ export function Input({ className, size = "md", plain = false, ref, ...props }: 
   const { onValueChange, ...fromField } = field ?? {};
   const own = useRef<HTMLInputElement | null>(null);
   const autoFocus = props.autoFocus ?? fromField.autoFocus;
-  // Focus from an effect, as React Aria did: it runs before a dialog's own focus effect, which
-  // then sees focus already inside and leaves it there.
   useEffect(() => {
     if (autoFocus) own.current?.focus();
   }, [autoFocus]);
@@ -116,28 +109,22 @@ export function InputGroup({
 
 export const inputGroupClassName = cn(
   "group/input-group relative isolate block",
-  // icon: 15px, vertically centered, 8px from the edge; text starts 7px after it
   "*:data-[slot=icon]:pointer-events-none *:data-[slot=icon]:absolute *:data-[slot=icon]:top-1/2 *:data-[slot=icon]:z-10 *:data-[slot=icon]:size-icon *:data-[slot=icon]:-translate-y-1/2",
   "[&>[data-slot=icon]:first-child]:start-2 [&>[data-slot=icon]:last-child]:end-2",
 
-  // loader
   "*:data-[slot=loader]:pointer-events-none *:data-[slot=loader]:absolute *:data-[slot=loader]:top-3 *:data-[slot=loader]:z-10 *:data-[slot=loader]:size-5 sm:*:data-[slot=loader]:top-2.5 sm:*:data-[slot=loader]:size-4",
   "[&>[data-slot=loader]:first-child]:start-3 sm:[&>[data-slot=loader]:first-child]:start-2.5 [&>[data-slot=loader]:last-child]:end-3 sm:[&>[data-slot=loader]:last-child]:end-2.5",
 
-  // text
   "*:data-[slot=text]:absolute *:data-[slot=text]:top-0 *:data-[slot=text]:z-10 *:data-[slot=text]:h-full *:data-[slot=text]:max-w-fit *:data-[slot=text]:grow *:data-[slot=text]:content-center [&>[data-slot='text']:not([class*='pointer-events'])]:pointer-events-none",
   "[&>[data-slot=text]:first-child:not([class*='start-'])]:start-3 sm:[&>[data-slot=text]:first-child:not([class*='start-'])]:start-2.5 [&>[data-slot=text]:last-child:not([class*='end-'])]:end-3 sm:[&>[data-slot=text]:last-child:not([class*='end-'])]:end-2.5",
 
-  // keyboard
   "*:data-[slot=keyboard]:absolute *:data-[slot=keyboard]:top-0 *:data-[slot=keyboard]:z-10 *:data-[slot=keyboard]:h-full *:data-[slot=keyboard]:max-w-fit *:data-[slot=keyboard]:grow *:data-[slot=keyboard]:content-center [&>[data-slot='keyboard']:not([class*='pointer-events'])]:pointer-events-none",
   "[&>[data-slot=keyboard]:first-child:not([class*='start-'])]:start-3 sm:[&>[data-slot=keyboard]:first-child:not([class*='start-'])]:start-2.5 [&>[data-slot=keyboard]:last-child:not([class*='end-'])]:end-3 sm:[&>[data-slot=keyboard]:last-child:not([class*='end-'])]:end-2.5",
 
-  // button: attached to the edge, full height
   "[&>button:not([data-inset]):first-child]:rounded-e-none [&>button:not([data-inset]):last-child]:rounded-s-none",
   "[&>button[data-intent=outline]]:border-input *:[button:not([data-inset])]:absolute *:[button:not([data-inset])]:top-0 *:[button:not([data-inset])]:z-10 *:[button:not([data-inset])]:h-full",
   "[&>button:not([data-inset]):first-child]:start-0 [&>button:not([data-inset]):last-child]:end-0",
 
-  // button: inset (Button size="inset"), centered with an even gap to the field's edge
   "*:data-inset:absolute *:data-inset:top-1/2 *:data-inset:z-10 *:data-inset:-translate-y-1/2 *:data-inset:end-2.5 sm:*:data-inset:end-1.5",
 
   "[&>[data-slot='icon']:not([class*='text-'])]:text-muted-foreground [&>[data-slot='loader']:not([class*='text-'])]:text-muted-foreground [&>[data-slot='text']:not([class*='text-'])]:text-muted-foreground",

@@ -1,5 +1,3 @@
-// Platform (ADR 0035): billing's own rows (ADR 0015): Stripe events applied, trials claimed, and
-// AI triage counted against the plan.
 import { index, pgTable, primaryKey, text } from "drizzle-orm/pg-core";
 import { organizations } from "./auth.ts";
 import { orgId, timestamptz, createdAt } from "./columns.ts";
@@ -54,6 +52,3 @@ export const trialClaims = pgTable("trial_claims", {
   userId: text("user_id").notNull().unique(),
   createdAt: createdAt(),
 });
-
-// Helpdesk (ADR 0021). Postgres holds the workflow; IMAP stays the source of truth for mail, so
-// none of these rows is derived from a mailbox sync, and a full re-sync leaves them alone.

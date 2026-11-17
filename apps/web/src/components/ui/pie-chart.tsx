@@ -58,7 +58,6 @@ export function PieChart({
   label,
   showLabel,
 
-  // Components
   tooltip = true,
   tooltipProps,
 

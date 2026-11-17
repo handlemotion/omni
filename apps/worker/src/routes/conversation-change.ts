@@ -1,5 +1,3 @@
-// One helpdesk change through `applyConversationChange`, answered and announced the same way by
-// every route that makes one, and the claim's optional precondition.
 import { applyConversationChange, type ChangeResult, type ConversationChange } from "@omni/db";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -13,11 +11,6 @@ import { optionalJsonBody } from "../validator.ts";
 export const expectedAssignee = z.string().min(1).nullable().optional();
 
 const claimBody = z.object({
-  /**
-   * Who the conversation was assigned to when the member chose to claim it (`members.id`, or
-   * `null` for unassigned). If a teammate changed that first, the claim answers 409 with the
-   * conversation as it is now instead of taking it from them. Absent claims unconditionally.
-   */
   expectedAssignee,
 });
 
@@ -64,7 +57,6 @@ export async function applyChange(
     c.executionCtx.waitUntil(
       Promise.all([
         fanOut(c.env, c.var.db, c.var.config, new Map([[mailboxId, new Set([id])]])),
-        // Only an assignment notifies from here.
         notifyMembers(c.env, c.var.db, {
           orgId,
           threadId: id,

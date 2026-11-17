@@ -80,7 +80,6 @@ describe("workspace notifications", () => {
     const outsider = await createMember(db, other.id, "outsider");
     const frank = await createMember(db, team.id, "frank");
 
-    // Accepting twice (a retried request, the invitation hook and the route) notifies once.
     const joined = { orgId: team.id, userId: frank.userId };
     expect((await notifyMemberJoined(db, joined)).toSorted()).toEqual([dan.id, eve.id].toSorted());
     expect(await notifyMemberJoined(db, joined)).toEqual([]);
@@ -92,7 +91,6 @@ describe("workspace notifications", () => {
     ).toEqual([["member_joined", null, null, "frank"]]);
     expect((await forMember(db, frank.id).listNotifications()).notifications).toEqual([]);
 
-    // A workspace notification filed under another workspace (a buggy writer) stays hidden.
     await db.insert(notifications).values({
       orgId: team.id,
       memberId: outsider.id,
@@ -105,8 +103,6 @@ describe("workspace notifications", () => {
 });
 
 describe("forMember isolation", () => {
-  // Org A: alice sees hello@, bob sees billing@. Org B: carol sees ops@, and holds a forged
-  // grant on org A's hello@ (a buggy or malicious write must not open another org's mail).
   let alice: string, bob: string, carol: string;
   let carolUser: string, orgAId: string, orgBId: string, opsBoxId: string;
   let hello: { threadId: string; messageId: string };
@@ -157,13 +153,11 @@ describe("forMember isolation", () => {
       (await asAlice.mailboxAssignees(aliceThread!.mailboxId))?.map((m) => m.memberId),
     ).toEqual([alice]);
     expect(await asAlice.mailboxAssignees(billingThread!.mailboxId)).toBeNull();
-    // Presence: only teammates in the inbox's own org hear it (Carol's grant crosses orgs).
     expect(await asAlice.threadAudience(hello.threadId)).toEqual({
       mailboxId: aliceThread!.mailboxId,
       memberIds: [alice],
     });
     expect(await asAlice.threadAudience(billing.threadId)).toBeNull();
-    // SLA settings: the inbox's own, and none of another inbox's or org's.
     expect(await asAlice.slaSettings(aliceThread!.mailboxId)).toEqual({
       policies: [],
       businessHours: null,
@@ -190,12 +184,10 @@ describe("forMember isolation", () => {
     expect(await asAlice.search("flamingo")).toEqual([]);
     expect(await asAlice.search("albatross")).toEqual([]);
 
-    // Bob, same org, other mailbox: the hit exists, so the empty results above are scoping.
     expect((await forMember(db, bob).search("flamingo")).map((h) => h.messageId)).toEqual([
       billing.messageId,
     ]);
 
-    // Agents' reads (ADR 0029): a batch of ids, and filters, never reach past the grants.
     expect(
       (await asAlice.getThreads([billing.threadId, hello.threadId, ops.threadId])).map((t) => t.id),
     ).toEqual([hello.threadId]);
@@ -215,7 +207,6 @@ describe("forMember isolation", () => {
       { orgId: orgAId, mailboxId: helloBox!.mailboxId, name: "Order", description: "Orders" },
       { orgId: orgAId, mailboxId: billingBox!.mailboxId, name: "Refund", description: "Refunds" },
     ]);
-    // Alice is on hello@ only: billing@'s tag and its description stay hidden, owner or not.
     expect(await forMember(db, alice).listSharedInboxTags()).toEqual([
       {
         id: helloBox!.mailboxId,
@@ -223,7 +214,6 @@ describe("forMember isolation", () => {
         tags: [expect.objectContaining({ name: "Order", description: "Orders" })],
       },
     ]);
-    // Carol's grant on hello@ crosses orgs: she sees only her own org's ops@.
     expect((await forMember(db, carol).listSharedInboxTags()).map((i) => i.address)).toEqual([
       "ops@b.test",
     ]);
@@ -257,8 +247,6 @@ describe("forMember isolation", () => {
     const comment = await mine.addComment(file.node.id, { body: "salary is wrong" });
     if (comment.status !== "ok") throw new Error(comment.status);
     const commentId = comment.comment.id;
-    // A contract out for signature in the same private folder: its signers' addresses and audit
-    // trail are the owner's to read, and nobody else's.
     const contractUpload = await mine.openUpload(
       { parentId: folder.node.id },
       { name: "contract.pdf", size: 4, mimeType: "application/pdf", limitBytes: null },
@@ -286,7 +274,6 @@ describe("forMember isolation", () => {
       expect(await theirs.node(file.node.id)).toBeNull();
       expect((await theirs.list({ parentId: folder.node.id })).status).toBe("not_found");
       expect((await theirs.file(file.node.id)).status).toBe("not_found");
-      // Their own My files root is theirs alone: it does not list the owner's folder.
       expect(await theirs.list({ space: "personal" })).toMatchObject({ status: "ok", nodes: [] });
       expect((await theirs.rename(file.node.id, "seen.pdf")).status).toBe("not_found");
       expect((await theirs.move(file.node.id, { space: "personal" })).status).toBe("not_found");
@@ -304,19 +291,15 @@ describe("forMember isolation", () => {
           )
         ).status,
       ).toBe("not_found");
-      // Its comments are as private as the file: none read, added, edited, resolved or deleted.
       expect((await theirs.comments(file.node.id)).status).toBe("not_found");
       expect((await theirs.addComment(file.node.id, { body: "seen" })).status).toBe("not_found");
       expect((await theirs.editComment(file.node.id, commentId, "x")).status).toBe("not_found");
       expect((await theirs.resolveComment(file.node.id, commentId, true)).status).toBe("not_found");
       expect((await theirs.deleteComment(file.node.id, commentId)).status).toBe("not_found");
-      // Someone else's upload cannot be read, fed, finished or dropped.
       expect(await theirs.upload(opened.upload.id)).toBeNull();
       expect((await theirs.completeUpload(opened.upload.id, { limitBytes: null })).status).toBe(
         "not_found",
       );
-      // Its signature requests (signers' addresses, IPs, the trail) are not theirs to read, void
-      // or add to.
       expect((await theirs.signatureRequests(contract.node.id)).status).toBe("not_found");
       expect((await theirs.voidSignature(sent.request.id, origin)).status).toBe("not_found");
       expect(
@@ -334,14 +317,12 @@ describe("forMember isolation", () => {
       requests: [{ id: sent.request.id, status: "sent" }],
     });
 
-    // In Trash it is still only the owner's: an admin's Trash does not show it.
     await mine.trash(file.node.id);
     expect((await forMember(db, admin.id).storage.listTrash()).nodes).toEqual([]);
     expect((await forMember(db, admin.id).storage.restore(file.node.id)).status).toBe("not_found");
     expect((await forMember(db, admin.id).storage.deleteForever(file.node.id)).status).toBe(
       "not_found",
     );
-    // Shared is the company's, so a teammate lists it and another org's member does not.
     expect(await forMember(db, teammate.id).storage.list({ space: "shared" })).toMatchObject({
       nodes: [{ id: shared.node.id }],
     });
@@ -349,10 +330,8 @@ describe("forMember isolation", () => {
     expect(await forMember(db, outsider.id).storage.list({ space: "shared" })).toMatchObject({
       nodes: [],
     });
-    // Being a member of the org opens nothing through the grant door either.
     expect(await forUser(db, admin.userId).storage.node(folder.node.id)).toBeNull();
 
-    // A workspace's monthly peak is its members' to read, and nobody else's.
     const month = new Date("2026-11-01T00:00:00Z");
     await raiseStoragePeak(db, { orgId: team.id, periodStart: month, bytes: 7_000 });
     expect(await forMember(db, teammate.id).storage.peak(month)).toBe(7_000);
@@ -372,7 +351,6 @@ describe("forMember isolation", () => {
     expect(await asCarol.listTags(helloBox)).toBeNull();
     expect(await asCarol.mailboxAssignees(helloBox)).toBeNull();
     expect(await asCarol.listConversations({ mailboxId: helloBox, view: "all" })).toEqual([]);
-    // A notification row for Carol about hello@ (as a buggy writer might leave) stays hidden.
     await db.insert(notifications).values({
       orgId: orgBId,
       memberId: carol,
@@ -381,7 +359,6 @@ describe("forMember isolation", () => {
     });
     expect((await asCarol.listNotifications()).notifications).toEqual([]);
     expect((await asCarol.conversationCounts()).map((c) => c.mailboxId)).toEqual([opsBoxId]);
-    // Nor is she listed as someone hello@ can be assigned to: her grant crosses orgs.
     expect((await forMember(db, alice).mailboxAssignees(helloBox))?.map((m) => m.memberId)).toEqual(
       [alice],
     );
@@ -395,7 +372,6 @@ describe("forMember isolation", () => {
   });
 
   test("the workspace switcher lists only the user's orgs and the mailboxes granted to them there", async () => {
-    // Carol also joins org A, with no grant there of her own: only the forged one from org B.
     await db.insert(members).values({
       id: crypto.randomUUID(),
       organizationId: orgAId,
@@ -407,7 +383,6 @@ describe("forMember isolation", () => {
       [orgBId, [opsBoxId]],
       [orgAId, []],
     ]);
-    // Alice's view is her own org and hello@ only: never billing@ (Bob's) or org B.
     const [aliceRow] = await db.select().from(members).where(eq(members.id, alice));
     expect(
       (await listUserWorkspaces(db, aliceRow!.userId)).map((w) => [
@@ -427,15 +402,12 @@ describe("forMember isolation", () => {
     await asBob.setThreadState(billing.threadId, { read: true });
     await asBob.setThreadState(billing.threadId, { later: true });
     const [thread] = await asBob.listThreads({ view: "later" });
-    // Tabs open from before Later read `deferredUntil`: Later must show there as deferred.
     expect(thread).toMatchObject({
       read: true,
       later: true,
       deferredUntil: new Date("9999-12-31T00:00:00Z"),
     });
 
-    // Done through a time later than the thread's newest message is capped at that message, and
-    // Alice cannot mark Bob's thread done.
     expect(
       await forMember(db, alice).setThreadState(billing.threadId, { doneThrough: new Date() }),
     ).toBeNull();
@@ -453,7 +425,6 @@ describe("forMember isolation", () => {
     expect((await forMember(db, alice).counts()).map((c) => c.mailboxId)).toEqual([
       (await forMember(db, alice).listThreads())[0]!.mailboxId,
     ]);
-    // Carol's forged grant on org A's mailbox counts nothing there.
     const carolCounts = await forMember(db, carol).counts();
     expect(carolCounts).toHaveLength(1);
     expect(carolCounts[0]!.inbox).toBe(1);
@@ -477,9 +448,6 @@ describe("forMember isolation", () => {
 });
 
 describe("forUser across workspaces", () => {
-  // Uma belongs to org X (member ux) and org Y (member uy). X: inbox@ granted to ux, sales@
-  // granted only to Vic. Y: desk@ granted to uy, plus a forged grant for uy on X's sales@. Org Z
-  // has mail and no Uma at all.
   let uma: string, ux: string, uy: string, orgXId: string, orgYId: string;
   let xInbox: string, xSales: string, yDesk: string, zDesk: string;
 
@@ -515,10 +483,9 @@ describe("forUser across workspaces", () => {
     await grant(db, orgX.id, inboxBox.id, ux);
     await grant(db, orgX.id, salesBox.id, vic);
     await grant(db, orgY.id, deskBox.id, uy);
-    await grant(db, orgX.id, salesBox.id, uy); // forged: a Y member on an X mailbox
+    await grant(db, orgX.id, salesBox.id, uy);
     await grant(db, orgZ.id, zBox.id, zed);
 
-    // Interleaved in time across orgs, so newest-first must merge the two workspaces.
     xInbox = await threadAt(orgX.id, inboxBox.id, "kestrel", "2026-10-04T00:00:00Z");
     yDesk = await threadAt(orgY.id, deskBox.id, "osprey", "2026-10-03T00:00:00Z");
     await threadAt(orgX.id, inboxBox.id, "merlin", "2026-10-02T00:00:00Z");
@@ -536,7 +503,6 @@ describe("forUser across workspaces", () => {
       [orgXId, "About merlin"],
       [orgYId, "About harrier"],
     ]);
-    // Page by page with a one-row limit: the same order, each thread once.
     const paged: string[] = [];
     let before: { lastMessageAt: Date; id: string } | undefined;
     for (;;) {
@@ -547,7 +513,6 @@ describe("forUser across workspaces", () => {
     }
     expect(paged).toEqual(all.map((t) => t.id));
 
-    // Neither sales@ (no grant in X; the forged Y grant opens nothing) nor org Z.
     for (const id of [xSales, zDesk]) {
       expect(await asUma.getThread(id)).toBeNull();
       expect(await asUma.memberFor(id)).toBeNull();
@@ -563,7 +528,6 @@ describe("forUser across workspaces", () => {
     expect((await asUma.search("osprey")).map((h) => [h.orgId, h.threadId])).toEqual([
       [orgYId, yDesk],
     ]);
-    // sales@ (forged grant only) and org Z have the words; Uma's search does not reach them.
     expect(await asUma.search("condor")).toEqual([]);
     expect(await asUma.search("vulture")).toEqual([]);
     expect((await forMember(db, ux).search("osprey")).map((h) => h.threadId)).toEqual([]);
@@ -574,7 +538,6 @@ describe("forUser across workspaces", () => {
     expect((await asUma.memberFor(xInbox))?.id).toBe(ux);
     expect((await asUma.memberFor(yDesk))?.id).toBe(uy);
 
-    // Acting as the org Y member shows through the user's list; org X's threads are untouched.
     await forMember(db, uy).setThreadState(yDesk, {
       doneThrough: new Date("2026-10-03T00:00:00Z"),
     });
@@ -612,7 +575,6 @@ test("Later hides the thread from the member's inbox, only theirs, until they mo
   const ids = async (member: string, view: "inbox" | "later") =>
     (await forMember(db, member).listThreads({ view })).map((t) => t.id);
 
-  // Into Later for Dana only, with no time attached: it stays until she moves it back.
   await forMember(db, dana).setThreadState(threadId, { later: true });
   expect(await ids(dana, "inbox")).toEqual([]);
   expect(await ids(dana, "later")).toEqual([threadId]);
@@ -625,8 +587,6 @@ test("Later hides the thread from the member's inbox, only theirs, until they mo
   expect(await ids(dana, "later")).toEqual([]);
 });
 
-// Catches: a shared conversation leaving someone's Inbox because a teammate owns it, answered it,
-// snoozed it or marked it done; and one member's Done changing it for the team (ADR 0032).
 test("a shared conversation stays in each teammate's Inbox until they mark it done", async () => {
   const org = await createOrg(db, "shared-done-org");
   const dana = (await createMember(db, org.id, "dana")).id;
@@ -644,7 +604,6 @@ test("a shared conversation stays in each teammate's Inbox until they mark it do
   const answered = (await seedThread(org.id, team.id, "answered")).threadId;
   const snoozed = (await seedThread(org.id, team.id, "snoozed")).threadId;
   expect(await change(erins, erin, { type: "assign", memberId: erin })).toMatchObject({ ok: true });
-  // Erin's reply makes it hers and pending.
   expect(await applyAgentReply(db, { threadId: answered, memberId: erin })).toMatchObject({
     ok: true,
   });
@@ -658,12 +617,10 @@ test("a shared conversation stays in each teammate's Inbox until they mark it do
     (await forMember(db, member).counts()).find((c) => c.mailboxId === team.id)?.inbox ?? 0;
   const all = [unowned, erins, answered, snoozed].sort();
 
-  // Owner, reply and team status hide nothing: both see all four.
   expect(await inbox(dana)).toEqual(all);
   expect(await inbox(erin)).toEqual(all);
   expect(await inboxCount(dana)).toBe(4);
 
-  // Erin marks her own and the answered one done: they leave her Inbox only.
   for (const id of [erins, answered]) {
     await forMember(db, erin).setThreadState(id, { doneThrough: new Date("2026-10-01T00:00:00Z") });
   }
@@ -672,7 +629,6 @@ test("a shared conversation stays in each teammate's Inbox until they mark it do
   expect(await inboxCount(erin)).toBe(2);
   expect(await inboxCount(dana)).toBe(4);
 
-  // Done changed nothing for the team.
   const rows = await db
     .select({ id: threads.id, status: threads.status, assignee: threads.assigneeMemberId })
     .from(threads)
@@ -680,7 +636,6 @@ test("a shared conversation stays in each teammate's Inbox until they mark it do
   expect(rows.find((r) => r.id === erins)).toMatchObject({ status: "open", assignee: erin });
   expect(rows.find((r) => r.id === answered)).toMatchObject({ status: "pending", assignee: erin });
 
-  // Later is Dana's own too.
   await forMember(db, dana).setThreadState(unowned, { later: true });
   expect(await inbox(dana)).toEqual([answered, erins, snoozed].sort());
   expect(await inbox(erin)).toEqual([unowned, snoozed].sort());
@@ -772,12 +727,10 @@ test("Sent, Trash and Spam list the threads filed in that folder, and the newest
   expect(await ids("trash")).toEqual([filed.trash]);
   expect(await ids("spam")).toEqual([filed.junk]);
 
-  // Candidates for a relevance judge: every thread, with the start of its latest message.
   const recent = await reads.searchRecent({ limit: 10 });
   expect(recent.map((h) => h.threadId).toSorted()).toEqual(Object.values(filed).toSorted());
   expect(recent[0]).toMatchObject({ mailboxAddress: "erin@folders.test", messageCount: 1 });
   expect(recent[0]!.excerpt).toMatch(/^Please look at the \w+ mail details\.$/);
-  // Another org's member sees none of it.
   const other = await createOrg(db, "folders-other");
   const outsider = (await createMember(db, other.id, "eve")).id;
   expect(await forMember(db, outsider).searchRecent({ limit: 10 })).toEqual([]);
@@ -812,8 +765,6 @@ test("lanes split AI triage at the auto-file confidence; person triage always fi
 });
 
 test("thread pages and search merge granted mailboxes newest first, each row once, ties included", async () => {
-  // Lists and search take the newest rows of each granted mailbox and merge them, so a page
-  // boundary that falls on a timestamp shared across mailboxes is where rows get lost or repeated.
   const org = await createOrg(db, "page-org");
   const member = (await createMember(db, org.id, "frank")).id;
   const sales = await createMailbox(db, org.id, "sales@page.test");
@@ -864,7 +815,6 @@ test("thread pages and search merge granted mailboxes newest first, each row onc
   }
   expect(paged).toEqual(visible.map((s) => s.threadId));
 
-  // Thread ids are UUIDv7 in creation order, and so are message ids here: same tie order.
   const hits = await scoped.search("walrus", { limit: 3 });
   expect(hits.map((h) => h.messageId)).toEqual(visible.slice(0, 3).map((s) => s.messageId));
 });
@@ -890,15 +840,12 @@ test("a domain locks to the first org whose challenge verifies, once, and only o
   const a = await claimFor(orgA.id, owner.id);
   const b = await claimFor(orgB.id, outsider.id);
   if (!("claim" in a) || !("claim" in b)) throw new Error("claims refused");
-  // Both may wait on the same domain: a pending claim blocks nobody.
   expect([a.created, b.created]).toEqual([true, true]);
-  // Claiming again keeps the challenge already handed out.
   expect(await claimFor(orgA.id, owner.id)).toMatchObject({
     created: false,
     claim: { id: a.claim.id, challengeHash: a.claim.challengeHash },
   });
 
-  // Both challenges "verify" at once: exactly one org gets the lock, whatever the timing.
   const results = await Promise.all([lockClaim(db, a.claim), lockClaim(db, b.claim)]);
   const winners = results.filter((r) => r.ok && r.locked);
   expect(winners).toHaveLength(1);
@@ -910,17 +857,14 @@ test("a domain locks to the first org whose challenge verifies, once, and only o
   const winner =
     locks[0]!.orgId === orgA.id ? { org: orgA, claim: a.claim } : { org: orgB, claim: b.claim };
   const loser = winner.org === orgA ? orgB : orgA;
-  // A repeat by the winner is a no-op that still reads as success.
   expect(await lockClaim(db, winner.claim)).toMatchObject({ ok: true, locked: false });
 
-  // The lock covers subdomains for everyone else, not for the org that holds it.
   expect(await conflictingLock(db, loser.id, "mail.claimed.test")).toEqual({
     domain: "claimed.test",
     orgId: winner.org.id,
   });
   expect(await conflictingLock(db, winner.org.id, "mail.claimed.test")).toBeNull();
 
-  // Visible to the holding org's owners and admins only.
   const ownerSees = (await listMemberDomains(db, owner.id)).map((d) => d.claim?.domain);
   expect(ownerSees).toEqual(["claimed.test"]);
   expect(await findMemberDomain(db, owner.id, a.claim.id)).toMatchObject({
@@ -930,7 +874,6 @@ test("a domain locks to the first org whose challenge verifies, once, and only o
   expect(await findMemberDomain(db, plain.id, a.claim.id)).toBeNull();
   expect(await findMemberDomain(db, outsider.id, a.claim.id)).toBeNull();
 
-  // Lost DNS is reported once per change, and never removes the lock.
   const state = (ok: boolean) =>
     recordChallengeState(db, { orgId: winner.org.id, domain: "claimed.test", ok });
   expect([await state(false), await state(false), await state(true), await state(true)]).toEqual([
@@ -940,7 +883,6 @@ test("a domain locks to the first org whose challenge verifies, once, and only o
     null,
   ]);
 
-  // Hand-overs: refused while the org has a mailbox on the domain, then move or free it.
   const box = await createMailbox(db, winner.org.id, "hello@claimed.test");
   expect(
     await transferDomain(db, {
@@ -984,7 +926,6 @@ test("pending claims are capped per org and an expired one can no longer lock", 
       dnsRecords: [],
       now,
     });
-  // Opened eight days ago: past its week, so it does not count and cannot verify.
   const stale = await open("stale.test", new Date(Date.now() - 8 * 24 * 60 * 60_000));
   if (!("claim" in stale)) throw new Error("refused");
   expect(await lockClaim(db, stale.claim)).toEqual({ ok: false, reason: "expired" });
@@ -995,16 +936,11 @@ test("pending claims are capped per org and an expired one can no longer lock", 
   const opened = await Promise.all(
     Array.from({ length: MAX_PENDING_CLAIMS + 2 }, (_, i) => open(`cap-${i}.test`)),
   );
-  // Concurrent adds cannot slip past the cap together.
   expect(opened.filter((r) => "claim" in r)).toHaveLength(MAX_PENDING_CLAIMS);
   expect(opened.filter((r) => "error" in r)).toEqual([{ error: "cap" }, { error: "cap" }]);
-  // The expired claim renews with a new expiry, but only once there is room under the cap.
   expect(await open("stale.test")).toEqual({ error: "cap" });
 });
 
-// Catches: Settings listing (or letting someone disconnect) another person's Google account,
-// one shown through a grant that crosses orgs, a shared or non-Gmail mailbox, or one outside a
-// scoped session's company (ADR 0024).
 test("google accounts: only personal Gmail the grantees can see, scoped sessions only in scope", async () => {
   const personal = await createOrg(db, `personal-${Date.now()}`);
   const company = await createOrg(db, `company-${Date.now()}`);
@@ -1038,7 +974,6 @@ test("google accounts: only personal Gmail the grantees can see, scoped sessions
   await grant(db, company.id, work.id, danAtCompany!.id);
   await grant(db, company.id, evesBox.id, eve.id);
   await grant(db, company.id, sharedBox.id, danAtCompany!.id);
-  // A grant on Eve's mailbox to Dan's Personal-space member crosses orgs: it must open nothing.
   await grant(db, company.id, evesBox.id, dan.id);
 
   const ids = (rows: { id: string }[]) => rows.map((row) => row.id).sort();
@@ -1050,7 +985,6 @@ test("google accounts: only personal Gmail the grantees can see, scoped sessions
   expect(ids(await forMember(db, dan.id).googleAccounts())).toEqual([mine.id]);
   expect(ids(await forUser(db, eve.userId).googleAccounts())).toEqual([evesBox.id]);
 
-  // The same boundary for where a user may send from (ADR 0024 step 4).
   expect(ids(await forUser(db, dan.userId).listMailboxes())).toEqual(
     [mine.id, work.id, sharedBox.id].sort(),
   );
@@ -1064,7 +998,6 @@ test("google accounts: only personal Gmail the grantees can see, scoped sessions
   expect(await forUser(db, dan.userId).memberForMailbox(evesBox.id)).toBeNull();
   expect(await forUser(db, dan.userId, company.id).memberForMailbox(mine.id)).toBeNull();
 
-  // A draft names its mailbox: it leads to the grantee who can open that mailbox, or to nobody.
   const draftIn = async (mailboxId: string, orgId: string) => {
     const [row] = await db
       .insert(schemaDrafts)
@@ -1080,9 +1013,6 @@ test("google accounts: only personal Gmail the grantees can see, scoped sessions
   expect(await forUser(db, dan.userId).memberForResource("action", "no-such-action")).toBeNull();
 });
 
-// Catches: an agent's filter that matches the wrong messages (a domain that also matches a
-// lookalike, a participant only checked as sender, dates off by the boundary, a tag on another
-// thread), which would answer "what did Stripe send me" with someone else's mail.
 test("thread filters match by sender, participant, dates, attachments, mine, status and tag", async () => {
   const org = await createOrg(db, "filters");
   const member = (await createMember(db, org.id, "fiona")).id;
@@ -1147,7 +1077,6 @@ test("thread filters match by sender, participant, dates, attachments, mine, sta
   expect(await list({ filters: { fromMe: true } })).toEqual(ids(mine));
   expect(await list({ filters: { status: "resolved" } })).toEqual(ids(cc));
   expect(await list({ filters: { tag: "vip" } })).toEqual(ids(mine));
-  // Search applies the same message filters inside its recall.
   expect(
     (await reads.search("walrus", { filters: { from: "stripe.com" } })).map((h) => h.threadId),
   ).toEqual([stripe.threadId]);

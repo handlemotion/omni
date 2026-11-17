@@ -1,5 +1,3 @@
-// Canned replies over the real Worker and Postgres: who sees and changes an inbox's replies and a
-// member's own, and how a reply fills in for one conversation.
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -43,7 +41,6 @@ function api(path: string, cookie: string, init: RequestInit = {}) {
 
 const json = (method: string, body: unknown) => ({ method, body: JSON.stringify(body) });
 
-/** Two inboxes in one org: Ana and Bea on support@, Cy on sales@ only. */
 async function team(slug: string) {
   const { db } = database;
   const org = await createOrg(db, slug);
@@ -103,7 +100,6 @@ describe("canned replies", () => {
     ).json()) as Reply;
     expect(mine.scope).toBe("personal");
 
-    // Another inbox's tag, or a tag on a personal reply, is refused.
     const wrongTag = await api(
       "/canned-replies",
       ana.cookie,
@@ -130,10 +126,8 @@ describe("canned replies", () => {
       ).replies.map((r) => r.title);
     expect(await list(ana.cookie)).toEqual(["My sign-off", "Refund issued"]);
     expect(await list(bea.cookie)).toEqual(["Refund issued"]);
-    // Cy is not on support@: asking for its replies shows only Cy's own (none).
     expect(await list(cy.cookie)).toEqual([]);
 
-    // A teammate may edit the inbox's reply, but not Ana's own; Cy may touch neither.
     const edited = await api(
       `/canned-replies/${inboxReply.id}`,
       bea.cookie,
@@ -165,7 +159,6 @@ describe("canned replies", () => {
       to: [support.address],
       uid: 1,
     });
-    // The agent's own later reply in the thread must not become "the customer".
     await seedMessage(db, support, {
       subject: "Re: Where is my refund?",
       fromAddress: support.address,
@@ -202,7 +195,6 @@ describe("canned replies", () => {
       addTagIds: [refundTag.id],
     });
 
-    // A support@ reply on a sales@ conversation, or rendered by someone who can't see the thread.
     const salesThread = await seedMessage(db, sales, {
       subject: "Pricing",
       fromAddress: "a@b.test",

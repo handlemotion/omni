@@ -1,4 +1,3 @@
-// Signing (ADR 0043 decision 6): the sender's and the signer's queries and mutations.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   sendForSignatureMutation,

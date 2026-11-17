@@ -1,6 +1,3 @@
-// Client-only state kept in the query cache: sends that have not arrived as messages yet, and
-// actions the outbox gave up on. Living in the cache means hooks subscribe to it like any query,
-// and an organization or account switch clears it with everything else.
 import type { QueryClient } from "@tanstack/react-query";
 import { keys } from "./query-keys.ts";
 

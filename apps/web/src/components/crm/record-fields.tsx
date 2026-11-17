@@ -1,7 +1,3 @@
-// A record's details, after Attio's "Record details": one row per field, its label muted in a
-// 96px column and the value beside it, edited in place. A text value is a borderless field that
-// saves when it loses focus or on Enter (Escape puts it back); a choice is a borderless select
-// that saves when picked. Rows are 32px, the controls' own height, 2px apart.
 import { useState, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Link } from "@/components/ui/link";
@@ -60,7 +56,6 @@ export function TextValue(props: {
             if (event.key === "Enter") event.currentTarget.blur();
             if (event.key === "Escape") {
               setDraft(null);
-              // Blur after the reset, so `commit` sees nothing to save.
               queueMicrotask(() => (event.target as HTMLInputElement).blur());
             }
           }}

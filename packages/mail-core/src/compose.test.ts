@@ -2,19 +2,15 @@ import { describe, expect, test } from "vitest";
 import { forwardBody, forwardSubject, replyRecipients, replySubject } from "./compose";
 
 test("reply and forward subjects never stack a prefix a client already added, in any case or language", () => {
-  // Bug caught: "Re: RE: Invoice" after an Outlook reply, "Fwd: FW: Invoice" after an Outlook forward.
   expect(replySubject("RE: Invoice")).toBe("RE: Invoice");
   expect(replySubject("Aw: Rechnung")).toBe("Aw: Rechnung");
   expect(replySubject("Invoice")).toBe("Re: Invoice");
   expect(forwardSubject("FW: Invoice")).toBe("FW: Invoice");
   expect(forwardSubject("Fwd: Invoice")).toBe("Fwd: Invoice");
-  // A reply being forwarded is still a forward.
   expect(forwardSubject("Re: Invoice")).toBe("Fwd: Re: Invoice");
 });
 
 test("a forward's HTML escapes the original's sender, subject and text", () => {
-  // Bug caught: a display name like `<img src=x onerror=...>` becoming live markup in the
-  // HTML we send to a third party under the inbox's name.
   const { text, html } = forwardBody(
     { text: "FYI, see below.", html: "<p>FYI, see below.</p>" },
     {
@@ -31,7 +27,6 @@ test("a forward's HTML escapes the original's sender, subject and text", () => {
   expect(html).not.toContain("<b>Refund");
   expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt; &lt;luis@client.test&gt;");
   expect(html).toContain("Order #12 &amp; #13 &lt;please&gt;");
-  // The text part carries the same block verbatim, after what the sender wrote.
   expect(text).toBe(
     [
       "FYI, see below.",
@@ -49,7 +44,6 @@ test("a forward's HTML escapes the original's sender, subject and text", () => {
 
 describe("replyRecipients", () => {
   const self = "Help@Acme.test";
-  // Catches: a reply to our own last message going to ourselves instead of the customer.
   test("replying to our own message goes to the people it went to", () => {
     expect(
       replyRecipients(
@@ -59,7 +53,6 @@ describe("replyRecipients", () => {
       ),
     ).toEqual({ to: ["ana@x.test"], cc: [] });
   });
-  // Catches: reply all cc'ing our own address, or the sender twice.
   test("reply all copies everyone else once, never ourselves", () => {
     expect(
       replyRecipients(

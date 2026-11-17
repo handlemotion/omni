@@ -34,8 +34,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-/** Opens the realtime socket the way the apps do and collects what arrives. */
-/** A raw websocket handshake, so the test can read the status a browser would hide. */
 function handshake(cookie: string, origin?: string) {
   const url = new URL("/api/realtime", worker.url);
   return new Promise<number>((resolve, reject) => {
@@ -66,8 +64,6 @@ async function connect(cookie: string, query: Record<string, string> = {}) {
   const url = new URL("/api/realtime", worker.url);
   url.protocol = "ws:";
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
-  // Node's WebSocket (undici) accepts headers: the session cookie, and the Origin a browser on
-  // the web app would send.
   const socket = new WebSocket(url, {
     headers: { cookie, origin: WEB_ORIGIN },
   } as unknown as string[]);
@@ -119,7 +115,6 @@ test("mail events reach only members who can see the mailbox, also after hiberna
     uid: 1,
   });
 
-  // Without a session the upgrade is refused.
   await expect(connect("")).rejects.toThrow("websocket failed to open");
 
   const anaSocket = await connect(await signIn(worker, db, "ana@acme.test"));
@@ -139,7 +134,6 @@ test("mail events reach only members who can see the mailbox, also after hiberna
   });
 
   expect((await postMailEvents(worker, event(anaBox, anaThread))).status).toBe(202);
-  // Sockets sleep between events; routing by tag must survive that.
   await worker.server
     .getWorker()
     .evictDurableObject("Realtime", { name: org.id, webSockets: "hibernate" });
@@ -151,7 +145,6 @@ test("mail events reach only members who can see the mailbox, also after hiberna
   ];
   expect(await beaSocket.next(2)).toEqual(changed(beaBox.id, beaThread.threadId));
   expect(await anaSocket.next(2)).toEqual(changed(anaBox.id, anaThread.threadId));
-  // Ana's event went out before Bea's, so had it leaked Bea would have seen it first.
   expect(beaSocket.received).toHaveLength(2);
   expect(anaSocket.received).toHaveLength(2);
 
@@ -183,15 +176,12 @@ test("a send that failed for good is told to the member who sent it, and nobody 
       },
     ],
   });
-  // System mail (no member) goes nowhere; the member's own send reaches only them.
   expect((await postMailEvents(worker, failed("system-action", null))).status).toBe(202);
   expect((await postMailEvents(worker, failed("ana-send", ana.id))).status).toBe(202);
 
   expect(await anaSocket.next(1)).toEqual([
     { type: "action", actionId: "ana-send", status: "failed", error: "550 mailbox unavailable" },
   ]);
-  // Bea's own failure goes out after Ana's, so had Ana's leaked by mailbox audience Bea would
-  // have seen it first.
   expect((await postMailEvents(worker, failed("bea-send", bea.id))).status).toBe(202);
   expect(await beaSocket.next(1)).toEqual([
     { type: "action", actionId: "bea-send", status: "failed", error: "550 mailbox unavailable" },
@@ -212,8 +202,6 @@ test("mail deleted on the server refreshes its threads for open apps and re-runs
   const kept = await seedMessage(db, box, { subject: "Kept", fromAddress: "x@c.test", uid: 1 });
   const anaSocket = await connect(await signIn(worker, db, "ana@initech.test"));
 
-  // One thread survives with fewer messages; the others were emptied and deleted. A big purge
-  // names more threads than one Queue `sendBatch` takes (100).
   const gone = Array.from({ length: 149 }, (_, i) => `deleted-thread-${i}`);
   const response = await postMailEvents(worker, {
     events: [
@@ -227,8 +215,6 @@ test("mail deleted on the server refreshes its threads for open apps and re-runs
   });
 
   expect(response.status).toBe(202);
-  // A summary of the thread may quote a deleted message: every thread gets an AI job, and the
-  // ones that are gone end as `missing` in the consumer.
   expect(await response.json()).toEqual({ ok: true, jobs: 150 });
   const threadIds = [kept.threadId, ...gone];
   expect(await anaSocket.next(2)).toEqual([
@@ -254,7 +240,6 @@ test("a thread read or archived in another mail app refreshes open apps without 
     ],
   });
 
-  // A flag change carries no new text: re-running triage on it would only spend tokens.
   expect(response.status).toBe(202);
   expect(await response.json()).toEqual({ ok: true, jobs: 0 });
   const threadIds = [thread.threadId];
@@ -288,7 +273,6 @@ test("merged threads refresh both ids, tell readers where to go and re-summarize
   });
 
   expect(response.status).toBe(202);
-  // Only the survivor needs a new summary; the merged id is gone.
   expect(await response.json()).toEqual({ ok: true, jobs: 1 });
   const threadIds = [kept.threadId, "merged-thread"];
   expect(await anaSocket.next(3)).toEqual([
@@ -314,11 +298,9 @@ test("a page on a foreign origin cannot open the member's socket with their cook
   expect(await handshake(cookie, "https://evil.example")).toBe(403);
   expect(await handshake(cookie, "null")).toBe(403);
   expect(await handshake(cookie, WEB_ORIGIN)).toBe(101);
-  // Native clients send no Origin and hold the session themselves.
   expect(await handshake(cookie)).toBe(101);
 });
 
-/** A support inbox Ana and Bea work in, with Carl in the org but not in the inbox. */
 async function supportDesk(slug: string) {
   const { db } = database;
   const org = await createOrg(db, slug);
@@ -353,22 +335,16 @@ test("presence reaches only teammates who can see the conversation, survives hib
 
   ana.presence(desk.threadId, "viewing");
   expect(await bea.next(1)).toEqual([at(desk.ana.id, "viewing")]);
-  // Ana's state is kept on her socket, not in memory: a hibernated object still knows it.
   await worker.server
     .getWorker()
     .evictDurableObject("Realtime", { name: desk.org.id, webSockets: "hibernate" });
   bea.presence(desk.threadId, "replying");
-  // The newcomer hears who is already there; Ana hears Bea.
   expect(await bea.next(2)).toEqual([at(desk.ana.id, "viewing"), at(desk.ana.id, "viewing")]);
   expect(await ana.next(1)).toEqual([at(desk.bea.id, "replying")]);
 
-  // Carl cannot see the inbox: his claim to be there is dropped, and he hears nothing.
   carl.presence(desk.threadId, "viewing");
-  // Oversized and malformed messages are ignored.
   ana.presence(desk.threadId, "x".repeat(2000) as "viewing");
   ana.socket.send("not json");
-  // Ana's socket is read in order, so once her next valid state reaches Bea the two before it
-  // were handled, and had either gone out Bea would have heard it first.
   ana.presence(desk.threadId, "replying");
   expect(await bea.next(3)).toEqual([
     at(desk.ana.id, "viewing"),
@@ -377,7 +353,6 @@ test("presence reaches only teammates who can see the conversation, survives hib
   ]);
   expect(ana.received).toHaveLength(1);
 
-  // Closing the app tells the others Ana left.
   ana.socket.close();
   expect(await bea.next(4)).toEqual([
     at(desk.ana.id, "viewing"),
@@ -407,7 +382,6 @@ test("a repeated heartbeat refreshes teammates, and a second tab viewing never h
 
   replyingTab.presence(desk.threadId, "replying");
   expect(await bea.next(1)).toEqual([ana("replying")]);
-  // The web app repeats its state every 30 s and drops a teammate unheard for 70 s.
   replyingTab.presence(desk.threadId, "replying");
   expect(await bea.next(2)).toEqual([ana("replying"), ana("replying")]);
   viewingTab.presence(desk.threadId, "viewing");
@@ -421,7 +395,6 @@ test("notes and assignments notify teammates live, as their preferences allow", 
   const anaCookie = await signIn(worker, db, "ana@live.test");
   const bea = await connect(await signIn(worker, db, "bea@live.test"));
   const carl = await connect(await signIn(worker, db, "carl@live.test"));
-  // Bea turned off live mention alerts, but not assignment alerts.
   await db.insert(schema.memberPreferences).values({
     orgId: desk.org.id,
     memberId: desk.bea.id,
@@ -448,20 +421,16 @@ test("notes and assignments notify teammates live, as their preferences allow", 
     (await api(`/threads/${desk.threadId}/assignee`, "PUT", { memberId: desk.bea.id })).status,
   ).toBe(200);
 
-  // Editing the note refreshes it for teammates too.
   expect(
     (await api(`/threads/${desk.threadId}/notes/${note.id}`, "PATCH", { body: "@Bea please" }))
       .status,
   ).toBe(200);
 
   await bea.next(8);
-  // Ana opening the conversation reaches Bea through the same object after all of that, so a
-  // stray event from those fan-outs would be in by the time she hears it.
   const anaSocket = await connect(anaCookie);
   anaSocket.presence(desk.threadId, "viewing");
   await bea.next(9);
   expect(bea.received.at(-1)).toMatchObject({ type: "presence", memberId: desk.ana.id });
-  // The two requests' fan-outs run after their responses, so they may interleave.
   const helpdesk = bea.received
     .filter((e) => !["changed", "thread.changed", "presence"].includes(String(e.type)))
     .sort((a, b) => String(a.type).localeCompare(String(b.type)));
@@ -472,7 +441,6 @@ test("notes and assignments notify teammates live, as their preferences allow", 
   expect(bea.received.filter((e) => e.type === "thread.changed")).toHaveLength(3);
   expect(carl.received).toEqual([]);
 
-  // Deleting the note withdraws Bea's mention: gone from her list, and her app hears it live.
   const mentionsOf = () =>
     db
       .select({ id: schema.notifications.id })
@@ -508,7 +476,6 @@ test("a watch socket hears new mail once, never backlog or its own sends, and le
     fromAddress: "bea@client.test",
     uid: 1,
   });
-  // A first sync's backlog, and Ana's own send filed in her inbox: neither is new mail.
   const old = await seedMessage(db, box, {
     subject: "Last week",
     fromAddress: "cal@client.test",
@@ -538,10 +505,8 @@ test("a watch socket hears new mail once, never backlog or its own sends, and le
   expect(await watch.next(1)).toEqual([
     { type: "mail.arrived", mailboxId: box.id, threadIds: [fresh.threadId] },
   ]);
-  // The app socket refreshes as before and never hears `mail.arrived`.
   expect((await app.next(2)).map((e) => e.type)).toEqual(["changed", "thread.changed"]);
 
-  // The mail service retries until answered: a replay refreshes, but is not new mail again.
   expect((await postMailEvents(worker, body)).status).toBe(202);
   await app.next(4);
   expect(watch.received).toHaveLength(1);

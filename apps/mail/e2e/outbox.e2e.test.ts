@@ -76,7 +76,6 @@ describe("OutboxExecutor against GreenMail", () => {
     if (!claimed) throw new Error("nothing claimed");
 
     await executor.execute(claimed);
-    // The process died after the work but before `complete` was saved: the row runs again.
     await executor.execute(await asClaimed(db, row.id));
 
     expect(await actionRow(db, row.id)).toMatchObject({ status: "done", lastError: null });
@@ -97,7 +96,6 @@ describe("OutboxExecutor against GreenMail", () => {
     expect(sentRaw).toContain("References: <root@outside.test> <original@outside.test>");
     expect(sentCopies[0]?.flags?.has("\\Seen")).toBe(true);
 
-    // The recipient got it once.
     const received = await otherClient(recipient, async (client) => {
       const lock = await client.getMailboxLock("INBOX");
       try {
@@ -108,7 +106,6 @@ describe("OutboxExecutor against GreenMail", () => {
     });
     expect(received).toHaveLength(1);
 
-    // The Sent copy is indexed right away, once, without waiting for the periodic sync.
     const sentRows = await stored(db, box.id, "Sent");
     expect(sentRows.map((r) => r.messageIdHeader)).toEqual([messageId]);
     expect(await messageRows(db, box.id)).toHaveLength(1);
@@ -124,7 +121,6 @@ describe("OutboxExecutor against GreenMail", () => {
       idempotencyKey: `idem-send-2-${box.id}`,
       payload: { from: box.address, to: [recipient.address], subject: "once", text: "hi" },
     });
-    // An earlier attempt got SMTP's OK, then crashed before the IMAP append.
     await actions.claim(1);
     await actions.markSmtpAccepted(row.id);
     await executor.execute(await asClaimed(db, row.id));
@@ -165,7 +161,6 @@ describe("OutboxExecutor against GreenMail", () => {
     expect(await stored(db, box.id, "INBOX")).toHaveLength(0);
     const archived = await stored(db, box.id, "Archive");
     expect(archived.map((r) => r.subject)).toEqual(["to archive"]);
-    // Same row, now located in Archive: a move is not a new message.
     expect(archived[0]?.messageId).toBe(message.messageId);
   });
 
@@ -177,7 +172,6 @@ describe("OutboxExecutor against GreenMail", () => {
     const [question] = await stored(db, box.id, "INBOX");
     await connection.stop();
 
-    // The mailbox is reconnecting: SMTP still works, the Sent append has to wait.
     const reply = await enqueue(db, seeded, {
       kind: "send",
       idempotencyKey: `idem-early-${box.id}`,
@@ -195,7 +189,6 @@ describe("OutboxExecutor against GreenMail", () => {
     expect((await actionRow(db, reply.id)).status).toBe("pending");
     const early = (await messageRows(db, box.id)).find((m) => m.subject.startsWith("Re:"));
     expect(early).toMatchObject({ threadId: question?.threadId, folderId: null });
-    // A full sync while the send waits does not take the reply for a deleted message.
     await connection.start();
     await connection.syncAll();
     expect(await messageRows(db, box.id)).toHaveLength(2);
@@ -206,7 +199,6 @@ describe("OutboxExecutor against GreenMail", () => {
       .where(eq(schema.mailActions.id, reply.id));
     await executor.drain();
     expect((await actionRow(db, reply.id)).status).toBe("done");
-    // The Sent copy became the same row's location: one row, one notification.
     const [filed] = await stored(db, box.id, "Sent");
     expect(filed?.messageId).toBe(early?.id);
     expect(await messageRows(db, box.id)).toHaveLength(2);
@@ -231,7 +223,6 @@ describe("OutboxExecutor against GreenMail", () => {
     const [sent] = await stored(db, box.id, "Sent");
     if (!inbound || !sent) throw new Error("not synced");
 
-    // What the Worker's archive route writes: one action per folder holding a copy.
     for (const [folder, uid] of [
       ["INBOX", inbound.uid],
       ["Sent", sent.uid],
@@ -279,7 +270,6 @@ describe("OutboxExecutor against GreenMail", () => {
       .select()
       .from(schema.attachments)
       .where(eq(schema.attachments.messageId, message!.id));
-    // What `POST /api/uploads` leaves behind: the object and its row.
     const uploadKey = `${seeded.orgId}/${box.id}/uploads/screenshot`;
     await objects.put(uploadKey, "PNG screenshot bytes", "image/png");
     const [upload] = await db
@@ -315,7 +305,6 @@ describe("OutboxExecutor against GreenMail", () => {
     });
     const [claimed] = await new PgActionSource({ db }).claim(1);
     await executor.execute(claimed!);
-    // Crashed before `complete`: the retry must not send again.
     await executor.execute(await asClaimed(db, row.id));
     expect((await actionRow(db, row.id)).status).toBe("done");
 
@@ -334,7 +323,6 @@ describe("OutboxExecutor against GreenMail", () => {
     expect(raw).toContain(Buffer.from("%PDF original invoice").toString("base64"));
     expect(raw).toContain("Content-Type: image/png; name=screenshot.png");
     expect(raw).toContain(Buffer.from("PNG screenshot bytes").toString("base64"));
-    // Filed with the conversation it forwards, though a forward carries no reply headers.
     const forward = (await messageRows(db, box.id)).find((m) => m.subject.startsWith("Fwd:"));
     expect(forward?.threadId).toBe(message!.threadId);
   });
@@ -405,7 +393,6 @@ describe("OutboxExecutor against GreenMail", () => {
     await run("trash", "INBOX");
     expect((await stored(db, box.id, "Trash")).map((r) => r.subject)).toEqual(["Win a prize"]);
     expect((await thread()).archived).toBe(true);
-    // One row throughout: moves are never new messages.
     expect(await messageRows(db, box.id)).toHaveLength(1);
   });
 
@@ -424,7 +411,6 @@ describe("OutboxExecutor against GreenMail", () => {
         attachments: [{ kind: "upload", uploadId: "upload-deleted-after-send" }],
       },
     });
-    // SMTP accepted it, the attempt died before filing, and the upload was deleted since.
     await actions.claim(1);
     await actions.markSmtpAccepted(row.id);
     await executor.execute(await asClaimed(db, row.id));

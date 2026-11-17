@@ -1,7 +1,3 @@
-// A sender's picture for avatars: their company's logo, or for a webmail address their Gravatar.
-// Every fetch goes through the image proxy's checks (no private addresses, rasters only, bounded
-// size), and each result, a miss included, is cached by domain or address hash so a list of
-// threads costs one lookup per sender a week.
 import {
   iconLinks,
   imageWidth,
@@ -18,12 +14,9 @@ import {
 
 const FOUND_SECONDS = 7 * 24 * 60 * 60;
 const MISSING_SECONDS = 24 * 60 * 60;
-/** Wide enough to stay sharp in a 40px avatar on a 2x screen, wherever it is drawn smaller. */
 const SHARP_WIDTH = 64;
-/** Candidates tried, and the time they may take, before the best one so far is kept. */
 const MAX_TRIES = 5;
 const BUDGET_MS = 7_000;
-/** The icons are linked from `<head>`, near the top of the page. */
 const PAGE_BYTES = 256 * 1024;
 
 export interface LogoOptions extends ProxyOptions {
@@ -59,7 +52,6 @@ export const senderLogo: (
         headers: { ...imageHeaders(image.type), "content-length": String(image.bytes.byteLength) },
       })
     : new Response(null, { status: 404 });
-  // The Cache API skips `private` responses; the stored copy is public, readers get private.
   const seconds = image ? FOUND_SECONDS : MISSING_SECONDS;
   await cache.put(cacheKey, withCacheControl(response.clone(), seconds, "public"));
   return withCacheControl(response, seconds, "private");
@@ -79,7 +71,6 @@ const gravatar: (hash: string, options: LogoOptions) => Promise<Image | null> = 
   return fetchCandidate(options.gravatar.replaceAll("{hash}", hash), options);
 };
 
-/** The first sharp icon among the candidates, or the widest one found in the time allowed. */
 const domainLogo: (domain: string, options: LogoOptions) => Promise<Image | null> = async (
   domain,
   options,
@@ -110,7 +101,6 @@ const fetchCandidate: (url: string, options: ProxyOptions) => Promise<Image | nu
   return { bytes, type: response.headers.get("content-type")!, width };
 };
 
-/** A site's home page, its first bytes only, after the same per-hop checks as the proxy. */
 async function fetchPage(target: string, options: ProxyOptions) {
   let url = new URL(target);
   const signal = AbortSignal.timeout(4_000);
@@ -134,9 +124,7 @@ async function fetchPage(target: string, options: ProxyOptions) {
       }
       return { html: await readHead(response), url: url.toString() };
     }
-  } catch {
-    // Unreachable, timed out or refused: the conventional paths are still worth trying.
-  }
+  } catch {}
   return null;
 }
 

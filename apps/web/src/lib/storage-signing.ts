@@ -1,6 +1,3 @@
-// Signing (ADR 0043 decision 6): a file's signature requests as its sender sees them, sending and
-// voiding, and the signer's side under `/api/storage/signing` (the request, its document, the
-// mailed code, the signature and the sealed copy).
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import type { Api } from "@omni/client";
 import type { InferResponseType } from "hono/client";
@@ -26,8 +23,6 @@ export const storageSignaturesQuery = (nodeId: string) =>
     queryKey: keys.storageSignatures(nodeId),
     queryFn: ({ signal }) =>
       call(memberDoor().$get({ param: { id: nodeId } }, { init: { signal } })),
-    // Signers sign elsewhere and no realtime event says so: ask again while one is still to
-    // come (every 15 s), then until the signed copy is there (every 2 s).
     refetchInterval: (query) => {
       const requests = query.state.data?.requests ?? [];
       if (requests.some((r) => r.status === "completed" && !r.sealedSha256)) return 2000;
@@ -41,7 +36,6 @@ export const sendForSignatureMutation = (client: QueryClient) =>
   mutationOptions({
     mutationFn: ({ id, signers }: { id: string; signers: { email: string; name: string }[] }) =>
       call(memberDoor().$post({ param: { id }, json: { signers } })),
-    // The lock changes the file's row in its folder too.
     onSuccess: () => storageChanged(client),
   });
 
@@ -60,8 +54,6 @@ export const signingQuery = (requestId: string) =>
     queryKey: keys.signing(requestId),
     queryFn: ({ signal }) =>
       call(signerDoor().$get({ param: { id: requestId } }, { init: { signal } })),
-    // The page has no realtime connection, so it asks again while something is still to come:
-    // others signing after this person did (every 15 s), then the sealed copy (every 2 s).
     refetchInterval: (query) => {
       const item = query.state.data?.item;
       if (item?.status === "completed" && !item.sealed) return 2000;

@@ -57,7 +57,6 @@ describe("sync into Postgres against GreenMail", () => {
       cleanText: "body of hello over idle",
     });
     expect(message?.threadId).toBeTruthy();
-    // The object store holds the exact bytes from the server.
     const rawObject = await objects.get(message?.r2Key ?? "missing");
     expect(Buffer.from(rawObject ?? []).toString()).toContain("Subject: hello over idle");
   });
@@ -73,7 +72,6 @@ describe("sync into Postgres against GreenMail", () => {
     expect(html).toContain("Quarterly numbers");
     expect(html).not.toContain("<script");
     expect(html).not.toContain("onerror");
-    // Remote images are blocked behind the proxy; the cid image points at its attachment.
     expect(html).toContain(
       `data-omni-src="/api/image-proxy?url=${encodeURIComponent("https://tracker.test/p.gif")}"`,
     );
@@ -83,8 +81,6 @@ describe("sync into Postgres against GreenMail", () => {
       .where(eq(schema.attachments.messageId, message?.messageId ?? ""));
     expect(files.map((f) => f.filename).toSorted()).toEqual(["logo.png", "report.csv"]);
     const logo = files.find((f) => f.filename === "logo.png");
-    // The reader shows the cid image in the body and only the CSV as a chip, and offers to load
-    // the one blocked remote image.
     expect(logo).toMatchObject({ inline: true, contentId: "logo@q3" });
     expect(files.find((f) => f.filename === "report.csv")?.inline).toBe(false);
     const [row] = await messageRows(db, box.id);
@@ -97,7 +93,6 @@ describe("sync into Postgres against GreenMail", () => {
   });
 
   it("streams a large message through temp files and stores what the in-memory path stores", async () => {
-    // A 300 KB attachment next to the cid image and HTML of the Q3 report.
     const big = randomBytes(300 * 1024);
     const raw = htmlWithAttachments().replace(
       "--mixed--",
@@ -121,7 +116,6 @@ describe("sync into Postgres against GreenMail", () => {
     const before = await spooled();
 
     await connect(viaMemory.box).start();
-    // The real store, noting which path each message came by.
     const paths: string[] = [];
     const noting = Object.create(store) as PgMailStore;
     noting.storeMessage = (mailboxId, fetched) => {
@@ -140,7 +134,6 @@ describe("sync into Postgres against GreenMail", () => {
       Buffer.from((await objects.get(key ?? "missing")) ?? []);
     const [inMemory] = await stored(db, viaMemory.box.id, "INBOX");
     const [streamed] = await stored(db, viaFile.box.id, "INBOX");
-    // The exact server bytes, and the same objects and rows either way.
     expect((await read(streamed?.r2Key)).toString()).toBe((await read(inMemory?.r2Key)).toString());
     expect(streamed?.r2Key?.split("/").at(-1)).toBe(inMemory?.r2Key?.split("/").at(-1));
     expect((await read(streamed?.htmlR2Key)).toString()).toBe(
@@ -179,7 +172,6 @@ describe("sync into Postgres against GreenMail", () => {
     ).find((f) => f.filename === "scan.pdf");
     expect((await read(pdf?.r2Key)).equals(big)).toBe(true);
     expect(paths).toEqual(["file"]);
-    // Every temp file is gone.
     expect(await spooled()).toEqual(before);
   });
 
@@ -203,10 +195,8 @@ describe("sync into Postgres against GreenMail", () => {
       subject: "Invoice INV-2026-0412 from Northwind Hosting",
       text: expect.stringContaining("is due on November 3, 2026"),
     });
-    // An auto-reply must not reopen a conversation or start an SLA; a person's mail must.
     expect(bySubject("Automatic reply")?.automated).toBe(true);
     expect(bySubject("a person writing")).toMatchObject({ automated: false, forwarded: null });
-    // The reader's Unsubscribe reads these; a person's mail has none.
     expect(rows.find((m) => m.listUnsubscribeOneClick)).toMatchObject({
       listUnsubscribe: [
         expect.stringMatching(/^https:\/\/pixelweekly\.example\.com\/u\//),
@@ -243,7 +233,6 @@ describe("sync into Postgres against GreenMail", () => {
     expect(byId.get("<inv@outside.test>")?.threadId).not.toBe(
       byId.get("<lunch-1@outside.test>")?.threadId,
     );
-    // Quoted history is cut from clean_text; the raw message keeps it.
     expect(byId.get("<lunch-2@outside.test>")?.cleanText).toBe("Sure, noon.");
   });
 
@@ -262,7 +251,6 @@ describe("sync into Postgres against GreenMail", () => {
     const threadOf = async (header: string) =>
       (await stored(db, box.id, "INBOX")).find((m) => m.messageIdHeader === header)?.threadId;
 
-    // A, then C replying to B, which has not arrived (its References skip A): two threads.
     await arrive("Refund", { messageId: "<a@outside.test>" });
     await arrive("Re: Refund", {
       messageId: "<c@outside.test>",
@@ -272,7 +260,6 @@ describe("sync into Postgres against GreenMail", () => {
     const first = await threadOf("<a@outside.test>");
     const second = await threadOf("<c@outside.test>");
     expect(first && second && first !== second).toBe(true);
-    // Helpdesk state on both halves: the first was resolved, the second assigned with a note.
     await db
       .update(schema.threads)
       .set({ status: "resolved", resolvedAt: new Date() })
@@ -289,7 +276,6 @@ describe("sync into Postgres against GreenMail", () => {
       body: "customer called",
     });
 
-    // B links them: it replies to A, and C replies to B.
     await arrive("Re: Refund", { messageId: "<b@outside.test>", inReplyTo: "<a@outside.test>" });
 
     for (const header of ["<a@outside.test>", "<b@outside.test>", "<c@outside.test>"]) {
@@ -318,7 +304,6 @@ describe("sync into Postgres against GreenMail", () => {
     expect(merges).toEqual([
       { orgId, mailboxId: box.id, intoThreadId: first, fromThreadIds: [second] },
     ]);
-    // Queued with the merge, so apps hear about it even if the service dies before delivering.
     const queued = await db
       .select({ event: schema.pendingMailEvents.event })
       .from(schema.pendingMailEvents)
@@ -345,7 +330,6 @@ describe("sync into Postgres against GreenMail", () => {
     const inbox = async (memberId: string) =>
       (await forMember(db, memberId).listThreads()).map((t) => t.id);
 
-    // Date headers have one-second precision: written a minute ago, the reply is visibly newer.
     let arrived = new Promise((resolve) => connection.once("message", resolve));
     await deliver(box.address, "Contract", { date: new Date(Date.now() - 60_000) });
     await arrived;
@@ -377,10 +361,8 @@ describe("sync into Postgres against GreenMail", () => {
     expect(await stored(db, box.id, "INBOX")).toHaveLength(3);
     await first.stop();
 
-    // Mail that arrives while the service is down.
     for (const n of [4, 5]) await deliver(box.address, `while down ${n}`);
 
-    // A new process: a fresh store with nothing cached.
     store = new PgMailStore({ db, objects, links });
     const second = connect(box);
     let fetchedAgain = 0;
@@ -393,14 +375,11 @@ describe("sync into Postgres against GreenMail", () => {
   });
 
   it("picks up an import that was cut off mid-folder, without fetching stored mail again", async () => {
-    // The bug: a deploy during a long first sync starts the folder over, so an account that
-    // never finishes between deploys never becomes ready.
     const { box } = await seedMailbox(db);
     await otherClient(box, async (client) => {
       for (let n = 1; n <= 9; n++) await client.append("INBOX", raw({ subject: `old ${n}` }), []);
     });
 
-    // The process is told to stop (SIGTERM) while the third message is being stored.
     const first = connect(box);
     const firstRun: number[] = [];
     first.on("message", (event) => {
@@ -414,7 +393,6 @@ describe("sync into Postgres against GreenMail", () => {
     expect(before).toBeGreaterThanOrEqual(3);
     expect(before).toBeLessThan(9);
 
-    // A new process. Every message handed to the store was downloaded in full first.
     let downloaded = 0;
     store = new (class extends PgMailStore {
       override storeMessage(...args: Parameters<PgMailStore["storeMessage"]>) {
@@ -441,10 +419,8 @@ describe("sync into Postgres against GreenMail", () => {
 
     await connect(box).start();
 
-    // Rows in insertion order; subjects say which message each one is.
     const order = (await messageRows(db, box.id)).map((m) => Number(m.subject.split(" ")[1]));
     expect(order).toHaveLength(5);
-    // batchSize 2: batches {5,4}, {3,2}, {1}; within a batch the server picks the order.
     expect(Math.min(...order.slice(0, 2))).toBeGreaterThan(Math.max(...order.slice(2)));
     expect(order.at(-1)).toBe(1);
   });
@@ -464,7 +440,6 @@ describe("sync into Postgres against GreenMail", () => {
     await connection.start();
     await connection.syncAll();
 
-    // Before, the whole mailbox imported first, INBOX last: a big archive kept the inbox empty.
     expect(order).toEqual(["INBOX", "ready", ...Array<string>(6).fill("Archive")]);
   });
 
@@ -479,7 +454,6 @@ describe("sync into Postgres against GreenMail", () => {
 
     const connection = connect(box);
     await connection.start();
-    // Ready means INBOX is in; the first full pass, which brings Notes, is still running.
     await connection.syncAll();
     let refetched = 0;
     connection.on("message", () => refetched++);
@@ -535,14 +509,11 @@ describe("sync into Postgres against GreenMail", () => {
     await connection.syncAll();
     expect(await stored(db, box.id, "Receipts")).toHaveLength(2);
     const oldValidity = (await store.getSyncPosition(box.id, "Receipts"))?.uidValidity;
-    // As if indexed before List-Unsubscribe was stored: the re-sync must fill it in.
     await db
       .update(schema.messages)
       .set({ listUnsubscribe: [] })
       .where(eq(schema.messages.messageIdHeader, "<kept-receipt@outside.test>"));
 
-    // Delete and recreate the folder: same path, new UIDVALIDITY, UIDs start over. GreenMail
-    // derives UIDVALIDITY from the clock in seconds, so recreate until it hands out a new one.
     await otherClient(box, async (client) => {
       let validity;
       do {
@@ -559,7 +530,6 @@ describe("sync into Postgres against GreenMail", () => {
     expect(result.reset).toBe(true);
     const subjects = (await stored(db, box.id, "Receipts")).map((r) => r.subject).toSorted();
     expect(subjects).toEqual(["kept receipt", "new receipt"]);
-    // The kept message is the same row; the reset re-linked it instead of re-inserting.
     const rows = await messageRows(db, box.id);
     expect(rows.filter((r) => r.subject === "kept receipt")).toHaveLength(1);
     expect(rows.find((r) => r.subject === "kept receipt")?.listUnsubscribe).toEqual([

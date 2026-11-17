@@ -1,7 +1,3 @@
-// `crm_write`: add or change one CRM record, or add a note (ADR 0036 decision 7). It never
-// deletes and never archives. Writes go through the member door as the token's user in one
-// company workspace, pass the same read-only gate as the app, announce `crm.changed` to the
-// workspace's open apps and leave an audit row naming the agent.
 import type { McpServer } from "@modelcontextprotocol/server";
 import { schema, type CrmCompany, type CrmDeal, type CrmPerson } from "@omni/db";
 import { z } from "zod";
@@ -140,7 +136,6 @@ const writePerson: (
     const added = await crm.addPerson({
       name: input.name,
       address: input.email,
-      // Null is no company; left out, the company comes from the email's domain.
       companyId: input.company_id,
       jobTitle: input.job_title,
       phone: input.phone,
@@ -204,7 +199,6 @@ const writeCompany: (
   };
 };
 
-/** A stage named by id or by name, in any letter case. */
 const stageId: (
   context: ToolContext,
   workspace: CrmWorkspace,
@@ -216,7 +210,6 @@ const stageId: (
     (s) => s.id === wanted || s.name.toLowerCase() === wanted.trim().toLowerCase(),
   );
   if (match) return { id: match.id };
-  // A workspace that has never used its CRM has its starting stages from its first deal.
   if (!stages.stages.length) return { error: "Add the deal first; it starts in the first stage." };
   return {
     error: `No stage "${wanted}". Stages: ${stages.stages.map((s) => s.name).join(", ")}.`,
@@ -290,7 +283,6 @@ const writeNote: (
     kind === "person" ? { personId: id } : kind === "company" ? { companyId: id } : { dealId: id };
   const made = await crmOf(context, workspace).createNote({ record, body: input.text });
   if (made.status !== "ok") return refusal(made);
-  // The record's timeline has the note too.
   await announce(context, workspace, kind, [id]);
   return {
     output: {

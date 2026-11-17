@@ -1,5 +1,3 @@
-// The CRM's changes. Each refetches the CRM when it settles (`crmChanged`); moving a deal between
-// stages patches every cached deals list at once and puts it back if the request fails.
 import { mutationOptions, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import type { Api } from "@omni/client";
 import type { InferRequestType } from "hono/client";

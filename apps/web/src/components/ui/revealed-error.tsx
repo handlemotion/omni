@@ -9,13 +9,11 @@ import { IconCircleAlert } from "@/components/icons/central";
  * seen cut off. Closing runs the other way. Keep it mounted and pass `null` for no error.
  */
 export function RevealedError({ children }: { children: ReactNode }) {
-  // Keep the last message while it closes, so the text doesn't vanish before the line does.
   const [shown, setShown] = useState<ReactNode>(children);
   if (children && children !== shown) setShown(children);
   const open = Boolean(children);
   return (
     <div
-      // Always mounted, so screen readers announce the message when it arrives.
       role="alert"
       className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr] delay-100"}`}
     >
@@ -56,14 +54,12 @@ export function FieldRevealedError({ message }: { message?: string }) {
   );
 }
 
-/** A small alert mark and one short line of small red text. */
 function ErrorLine(props: { open: boolean; className?: string; children: ReactNode }) {
   return (
     <p
       aria-hidden={!props.open}
       className={`flex items-start gap-1 text-xs/4 text-danger-subtle-foreground transition-[opacity,translate] ease-out motion-reduce:transition-none ${props.open ? "translate-y-0 opacity-100 delay-100 duration-200" : "-translate-y-1 opacity-0 duration-100"} ${props.className ?? ""}`}
     >
-      {/* Optical: on the first line's centre, so a wrapped message keeps the mark beside its start. */}
       <IconCircleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
       <span>{props.children}</span>
     </p>

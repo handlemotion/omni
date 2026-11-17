@@ -21,7 +21,6 @@ export function EmptyState(props: {
 }
 
 const styles = StyleSheet.create({
-  // A little above the true middle, where it looks centred.
   empty: {
     flex: 1,
     alignItems: "center",

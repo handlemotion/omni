@@ -1,7 +1,3 @@
-// Mail a machine sent in answer to ours: vacation and out-of-office replies, delivery
-// failures, read receipts, system notices. The helpdesk must not reopen a conversation or
-// start an SLA because of one, so each message is classified from its headers alone.
-
 /**
  * `bounce`: a delivery report (failed or delayed delivery).
  * `auto-reply`: an automatic answer to a message (out of office, vacation, read receipt).
@@ -40,7 +36,6 @@ export const automatedKind: (
     if (reportType === "delivery-status") return "bounce";
     if (reportType === "disposition-notification") return "auto-reply";
   }
-  // Exim names the failed addresses; mailer-daemon is the sender name every MTA uses.
   if (header("x-failed-recipients") !== null) return "bounce";
   if (fromAddress?.toLowerCase().startsWith("mailer-daemon@")) return "bounce";
 
@@ -68,7 +63,6 @@ export const AUTOMATED_HEADERS = [
   "x-autoresponder",
 ] as const;
 
-// A header line in a returned copy: "Message-ID: <id@host>" (any case, any folding).
 const RETURNED_MESSAGE_ID = /^message-id:[ \t]*(?:\r?\n[ \t]+)?(<[^<>\s]+>)/im;
 
 /**

@@ -1,5 +1,3 @@
-// What every CRM operation shares: who is asking and in which workspace, the refusals, the
-// event writer and the cursor helpers. Private to `src/crm.ts`.
 import { eq, sql, type AnyColumn } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
@@ -43,7 +41,6 @@ export const loadCrmMember: (ex: Ex, memberId: string) => Promise<CrmMember | nu
     .from(members)
     .where(eq(members.id, memberId));
   if (!row || row.personal) return null;
-  // Better Auth stores several roles as a comma-separated list.
   const admin = row.role.split(",").some((role) => ADMIN_ROLES.has(role.trim()));
   return { id: row.id, orgId: row.orgId, admin };
 };

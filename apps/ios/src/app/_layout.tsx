@@ -34,7 +34,6 @@ export default function RootLayout() {
   );
 }
 
-/** Keeps the session a magic link hands back, whether it opened the app or found it running. */
 function useSignInLinks() {
   const url = Linking.useLinkingURL();
   useEffect(() => {

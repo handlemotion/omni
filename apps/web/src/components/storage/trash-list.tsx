@@ -1,5 +1,3 @@
-// Storage's Trash (ADR 0034 decision 5): what the member may restore, newest first, with Restore
-// and Delete forever on each row.
 import { useCallback, useState } from "react";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -23,7 +21,6 @@ export function TrashList() {
   const restoreNode = restore.mutate;
   const fetchNextPage = trash.fetchNextPage;
   const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
-  // Stable, so the table's rows render only when they change.
   const menu = useCallback(
     (node: StorageNode) => {
       const result: SettingsRowMenuItem[] = [
@@ -49,7 +46,6 @@ export function TrashList() {
   return (
     <StorageFrame
       title={<Heading className="truncate text-md">Trash</Heading>}
-      // With rows to read it against; the empty state says it itself.
       caption={trash.nodes.length > 0 && "Deleted forever after 30 days"}
     >
       <div className="min-h-0 flex-1 overflow-y-auto">

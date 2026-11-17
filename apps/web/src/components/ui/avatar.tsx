@@ -39,8 +39,6 @@ export function Avatar({
   style,
   ...props
 }: AvatarProps & React.ComponentPropsWithoutRef<"span">) {
-  // A picture that fails to load (gone, blocked, offline) leaves the initials showing instead of
-  // the browser's broken-image glyph over them.
   const [failed, setFailed] = useState<string | null>(null);
   return (
     <span
@@ -66,8 +64,6 @@ export function Avatar({
           ? "rounded-(--avatar-radius) *:rounded-(--avatar-radius)"
           : "rounded-full *:rounded-full",
         className,
-        // The tile is the avatar's own shape and clips the scaled logo's corners to it.
-        // A hairline in the border token keeps a white or pale tile from melting into the page.
         logoTile &&
           "overflow-hidden outline-1 outline-border [&>img]:scale-85 [&>img]:rounded-none [&>img]:object-contain",
         logoTile === "light" && "bg-logo-tile",
@@ -86,8 +82,6 @@ export function Avatar({
             alignmentBaseline="middle"
             dominantBaseline="middle"
             textAnchor="middle"
-            // Optical centre: the ink sits a hair above the disc's middle, where the eye reads
-            // centre (measured: .125em left capitals 0.4px below the middle, reading ~1px low).
             dy=".07em"
           >
             {initials}

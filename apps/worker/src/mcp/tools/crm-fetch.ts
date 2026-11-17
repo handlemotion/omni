@@ -1,10 +1,3 @@
-// `crm_fetch`: read up to 10 CRM records (ADR 0036 decision 7) with what an agent needs next:
-// their people and deals, their latest notes, and the latest threads with their addresses. The
-// threads come from Mail's own door as the token's user, in the grant's scope
-// (`forUser(...).threadsWith`), so they are exactly the threads the person could open; agents read
-// them with the mail `fetch` tool. Beside them, `activity`: what teammates' mailboxes share with
-// the CRM about the same addresses (ADR 0039 decision 2, `forMember(...).sharedActivityWith`),
-// who and when, never a thread an agent could open.
 import type { McpServer } from "@modelcontextprotocol/server";
 import { forMember, forUser, type CrmDeal, type CrmRecordRef } from "@omni/db";
 import { z } from "zod";
@@ -132,7 +125,6 @@ type Ref = z.infer<typeof recordSchema>;
 const addressesOf = (people: { addresses: { address: string }[] }[]) =>
   people.flatMap((p) => p.addresses.map((a) => a.address));
 
-/** The record's latest notes and the person's latest threads with its addresses. */
 async function relatedOf(
   context: ToolContext,
   workspace: CrmWorkspace,
@@ -178,7 +170,6 @@ async function relatedOf(
   };
 }
 
-/** A company's or deal's latest contracts, for the agent to see what is signed. */
 async function contractsOf(
   context: ToolContext,
   workspace: CrmWorkspace,
@@ -198,7 +189,6 @@ async function contractsOf(
   }));
 }
 
-/** Reads one record in one workspace into `out`; false when it is not there. */
 async function readInto(context: ToolContext, workspace: CrmWorkspace, ref: Ref, out: Output) {
   const crm = crmOf(context, workspace);
   if (ref.kind === "person") {

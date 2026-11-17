@@ -26,7 +26,6 @@ import { popupSurface } from "./popover";
 
 type Key = string | number;
 
-/** What the trigger needs from the root: its name and id when there's no visible label. */
 const SelectTriggerContext = createContext<{ "aria-label"?: string; id?: string }>({});
 
 export interface SelectProps {
@@ -88,10 +87,6 @@ export function Select({
   );
 }
 
-/**
- * The items' values and labels, read from the `SelectContent` child, so the trigger can show the
- * chosen label before the list has ever opened.
- */
 function itemsOf(children: ReactNode) {
   const content = Children.toArray(children).find(
     (child): child is ReactElement<SelectContentProps<object>> =>

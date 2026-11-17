@@ -1,6 +1,3 @@
-// The triage scenarios in `fixtures/triage/threads.json`, each step turned into the exact
-// `TriageInput` production builds: parsed and cleaned by `@omni/mail-core` the way the mail
-// service stores a message, then shaped by `triageInputFor` the way the queue consumer does.
 import { readFileSync } from "node:fs";
 import { parseMessage } from "@omni/mail-core";
 import { cleanMessage } from "@omni/mail-core/clean";

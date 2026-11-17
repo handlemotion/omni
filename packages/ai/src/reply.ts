@@ -1,6 +1,3 @@
-// Suggested replies (ADR 0022): an agent asks, Claude drafts, the agent edits and sends. Never sent
-// on its own. Plain text only: the composer adds the inbox signature and renders nothing as HTML.
-
 import type Anthropic from "@anthropic-ai/sdk";
 import { estimateTokens, truncateToTokens } from "./policy.ts";
 import { DATA_TAG, escapeUntrusted } from "./prompt.ts";
@@ -60,7 +57,6 @@ export const suggestReply: (
     model: options.model ?? REPLY_MODEL,
     max_tokens: 4_096,
     output_config: { effort: "medium" },
-    // A declined request is re-run on a fallback model the API picks by refusal category.
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
     system: REPLY_SYSTEM,
@@ -92,7 +88,6 @@ export function replyPrompt(input: SuggestReplyInput, maxInputTokens: number) {
   const total = input.messages.length;
   const parts: string[] = [];
   let budget = maxInputTokens;
-  // Newest first until the budget runs out; the newest message is always included.
   for (let i = total - 1; i >= 0; i--) {
     const message = input.messages[i];
     if (message === undefined) continue;
@@ -132,10 +127,6 @@ function escapeCanned(text: string) {
   );
 }
 
-/**
- * Drops tags until none are left (a removed tag can join `<scr` and `ipt>` into a new one), then
- * any stray angle bracket.
- */
 function withoutTags(text: string) {
   let current = text;
   for (;;) {

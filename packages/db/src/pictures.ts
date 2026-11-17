@@ -1,5 +1,3 @@
-// Profile pictures (`users.image`) and workspace logos (`organizations.logo`). Each setter
-// returns the value it replaced, so the caller can delete the object that value pointed at.
 import { eq } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { organizations, users } from "./schema/index.ts";

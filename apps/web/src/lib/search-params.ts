@@ -1,8 +1,4 @@
-// URL search params per route. Invalid values fall back instead of throwing, so a hand-edited or
-// stale link still opens. `zod/mini` because these load with the app's entry chunk on every
-// route, and full zod is most of that chunk's weight.
 import * as z from "zod/mini";
-// `z.catch`, renamed: a parsing fallback, not a promise handler.
 import { catch as fallback } from "zod/mini";
 import { HELPDESK_VIEWS, LANES } from "./types.ts";
 
@@ -72,6 +68,5 @@ export const composeSearch = z.object({
 /** The confirmation link mailed to a new sign-in email (ADR 0014). */
 export const verifySignInEmailSearch = z.object({ token: optional(z.string()) });
 
-/** A shared link's page: `node`, a folder inside what was shared. */
 /** A shared link: the folder inside it (`node`), and the file open in the preview. */
 export const linkSearch = z.object({ node: optionalId, file: optionalId, comments: optionalId });

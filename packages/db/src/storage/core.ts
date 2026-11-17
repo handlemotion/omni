@@ -1,6 +1,3 @@
-// Storage internals (ADR 0034): the tree walks, the insert that numbers a taken name, and the
-// usage counter. Nothing here decides access; `access.ts` does, and only `../storage.ts` hands
-// these to callers.
 import { and, eq, getTableColumns, sql, type SQL } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
@@ -19,7 +16,6 @@ export const STORAGE_MAX_DEPTH = 32;
  */
 export const MAX_WALK = 256;
 export const STORAGE_NAME_MAX_LENGTH = 255;
-/** A dot this close to the end of a file's name starts its extension, dot included. */
 const MAX_EXTENSION = 32;
 
 export type StorageSpace = (typeof storageNodes.space.enumValues)[number];
@@ -103,7 +99,6 @@ export function cleanName(name: string) {
   const clean = name.trim();
   if (!clean || clean === "." || clean === "..") return null;
   if (clean.length > STORAGE_NAME_MAX_LENGTH) return null;
-  // A slash would read as a path; control characters break headers and listings.
   // oxlint-disable-next-line no-control-regex
   if (/[/\\\u0000-\u001f\u007f]/.test(clean)) return null;
   return clean;
@@ -177,7 +172,6 @@ export interface SubtreeRow {
   depth: number;
 }
 
-/** SQL: the ids of the node and everything inside it, trashed or not, with their depth. */
 const down = (nodeId: string) => sql`
   with recursive down(id, depth) as (
     select n.id, 0 from ${storageNodes} n where n.id = ${nodeId}
@@ -207,7 +201,7 @@ export async function subtreeOf(ex: Db, nodeId: string) {
     size: string | number;
     r2_key: string | null;
     depth: number;
-  }[]; // postgres-js: the rows themselves
+  }[];
   return rows.map((row) => ({
     id: row.id,
     kind: row.kind,
@@ -242,7 +236,6 @@ export async function holdsLocked(ex: Db, nodeId: string) {
   return row !== undefined;
 }
 
-/** Rows that sit side by side: the children of `parentId`, or a drive's root when it is null. */
 function siblings(drive: Drive, parentId: string | null) {
   return and(
     eq(storageNodes.orgId, drive.orgId),
@@ -300,12 +293,9 @@ export function freeName(
   kind: StorageNodeKind,
   exceptId?: string,
 ) {
-  // A file keeps its extension after the number; a folder has none, and neither has a file
-  // whose last dot is too far back to be one.
   const dot = kind === "file" ? name.lastIndexOf(".") : -1;
   const split = dot > 0 && name.length - dot <= MAX_EXTENSION;
   const ext = split ? name.slice(dot) : "";
-  // A numbered name is a name too: the base gives way so it never passes the longest allowed.
   const room = (suffix: number) => STORAGE_NAME_MAX_LENGTH - ext.length - suffix;
   const whole = split ? name.slice(0, dot) : name;
   const base = whole.slice(0, room(" (999)".length)).trimEnd();
@@ -370,7 +360,6 @@ export async function insertNode(tx: Db, input: NewNode) {
       .returning();
     if (row) return row satisfies NodeRow;
   }
-  // Not the name: it is a person's, and this message reaches the logs.
   throw new Error(`storage: no free name for node ${id}`);
 }
 

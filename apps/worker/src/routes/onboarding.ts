@@ -1,8 +1,3 @@
-// Onboarding (ADR 0007): what a new workspace has set up so far, claiming its domain (ADR 0010),
-// and creating its mailboxes. The workspace itself is Better Auth's `organization.create`;
-// invitations are Better Auth's too. Provider work (Purelymail, IMAP logins) and DNS lookups happen
-// only in the mail service, which the Worker asks over the signed channel; the Worker never holds
-// a mailbox credential.
 import { mayCreateOrganization } from "@omni/auth";
 import { newChallenge } from "@omni/crypto";
 import {
@@ -54,7 +49,6 @@ const requireDomainAdmin = createMiddleware<AppEnv>(async (c, next) => {
   await next();
 });
 
-/** Releasing or moving a domain cannot be undone by the same workspace: owners only. */
 const requireOwner = createMiddleware<AppEnv>(async (c, next) => {
   if (c.var.member.role !== "owner") {
     throw new HTTPException(403, { message: "only owners can release or move a domain" });
@@ -73,43 +67,31 @@ function deps(c: Context<AppEnv>) {
   } satisfies DomainDeps;
 }
 
-/**
- * Per org, so one workspace hammering its DNS cannot slow anyone else's. Workers Rate Limiting
- * is approximate per location, which is enough to stop loops and scripts.
- */
 async function limit(c: Context<AppEnv>, limiter: RateLimit, what: string) {
   const { success } = await limiter.limit({ key: c.var.member.orgId });
   if (!success)
     throw new HTTPException(429, { message: `too many ${what}: wait a minute and try again` });
 }
 
-/** The member's org's domain by id, or 404. */
 async function memberDomain(c: Context<AppEnv>) {
   const setup = await findMemberDomain(c.var.db, c.var.member.id, c.req.param("id") ?? "");
   if (!setup) throw new HTTPException(404, { message: "no such domain" });
   return setup;
 }
 
-/** Advances this org's setup step from the domain's view, then answers with that view. */
 async function domainStep<V extends { verified: boolean }>(c: Context<AppEnv>, view: V) {
   await advanceDomainStep(c.var.db, c.var.member.orgId, view);
   return view;
 }
 
 export const onboarding = new Hono<AppEnv>()
-  /**
-   * Where setup stands for the signed-in user. Works before they belong to any organization:
-   * `organization` is null and `canCreateOrganization` says whether they may make one.
-   */
   .get("/", async (c) => {
     const resolved = await resolveSession(c);
     if (!resolved) throw new HTTPException(401, { message: "sign in first" });
     const { db, config } = c.var;
     const { user, member } = resolved;
-    // A session opened with a company's address stays in that company (ADR 0024).
     const canCreateOrganization =
       !user.scopeOrgId && (await mayCreateOrganization(db, user.id, config.auth.signUp));
-    /** Billing is on for this deployment (ADR 0015): setup then has a plan step. */
     const billing = { enabled: config.auth.billing !== undefined };
     if (!member) {
       return c.json({
@@ -134,9 +116,6 @@ export const onboarding = new Hono<AppEnv>()
         status,
       })),
     };
-    // Setup is a company's (ADR 0024): a Personal space has nothing to set up, so with it active
-    // there is no organization to resume and setup creates a company. Its own domains and
-    // mailboxes are still listed, for settings (ADR 0042).
     if ((await workspaceKind(db, member.orgId)) === "personal") {
       return c.json({ canCreateOrganization, billing, organization: null, ...views });
     }
@@ -151,22 +130,12 @@ export const onboarding = new Hono<AppEnv>()
         id: member.orgId,
         name: org?.name ?? "",
         role: member.role,
-        /** How far setup got; `/onboarding` resumes here. */
         setup: await orgSetupStep(db, member.orgId),
-        /**
-         * Billing is on and the workspace has no trial or plan in good standing. Read from the
-         * subscription each time, not saved as a setup step, so it follows Stripe.
-         */
         needsPlan: !(await inGoodStanding(db, config, member.orgId)),
       },
       ...views,
     });
   })
-  /**
-   * Claims a domain for the active org (ADR 0010): returns Omni's challenge record, shown this
-   * once, and the provider's records, so all of them can go in at one visit to the DNS host.
-   * Claiming a domain the org already claimed returns that claim, without a new challenge.
-   */
   .post(
     "/domains",
     requireMember,
@@ -175,7 +144,6 @@ export const onboarding = new Hono<AppEnv>()
       "json",
       z.object({
         domain: z.string().min(1).max(300),
-        // `gmail`: the mail stays at Google; the company's Gmail accounts connect into it.
         host: z.literal("gmail").optional(),
       }),
     ),
@@ -207,20 +175,12 @@ export const onboarding = new Hono<AppEnv>()
       );
     },
   )
-  /**
-   * Checks a domain's DNS: locks it to the org once its challenge is in, then re-checks the
-   * provider's records (and adds it at the provider once its ownership record is in).
-   */
   .post("/domains/:id/check", requireMember, requireDomainAdmin, async (c) => {
     await limit(c, c.env.DOMAIN_CHECK_LIMITER, "checks");
     const setup = await memberDomain(c);
     const result = await checkDomain(deps(c), c.var.member, setup);
     return c.json(await domainStep(c, domainView(result.setup, { addError: result.addError })));
   })
-  /**
-   * A new challenge value, shown this once: for a member who lost the first one. The old value
-   * stops counting, so a domain already verified reads as lost until DNS has the new one.
-   */
   .post("/domains/:id/challenge", requireMember, requireDomainAdmin, async (c) => {
     await limit(c, c.env.DOMAIN_ADD_LIMITER, "new values");
     const setup = await memberDomain(c);
@@ -232,7 +192,6 @@ export const onboarding = new Hono<AppEnv>()
       challengeHash: challenge.hash,
     });
     if (!rotated) throw new HTTPException(404, { message: "no such domain" });
-    // What DNS holds now, judged against the new value (and the host's one-click setup).
     const claim = await withCheck(deps(c), rotated);
     await audit(
       c.var,
@@ -256,11 +215,6 @@ export const onboarding = new Hono<AppEnv>()
       ),
     );
   })
-  /**
-   * Keeps the domain checked while its DNS page is open (ADR 0011): the page calls this when it
-   * opens and about every minute, with `reset` when it comes back into focus. Results arrive as
-   * `{ type: "domain", domainId }` on the realtime socket.
-   */
   .post(
     "/domains/:id/watch",
     requireMember,
@@ -279,7 +233,6 @@ export const onboarding = new Hono<AppEnv>()
       return c.json({ watching: true, nextCheckAt: new Date(nextCheckAt).toISOString() });
     },
   )
-  /** The domain's history: claims, checks that changed something, hand-overs. */
   .get("/domains/:id/events", requireMember, requireDomainAdmin, async (c) => {
     const setup = await memberDomain(c);
     const domain = (setup.claim?.domain ?? setup.lock?.domain)!;
@@ -288,12 +241,6 @@ export const onboarding = new Hono<AppEnv>()
       events: events.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
     });
   })
-  /**
-   * Removes the domain from this workspace (ADR 0016). A claim that never verified is withdrawn
-   * by an owner or admin: nothing was set up on it. A verified domain is released by an owner
-   * only, and refused while this workspace has mailboxes on it; another workspace can then claim
-   * it, and every owner is told. Neither deletes mail or touches the mail host.
-   */
   .post("/domains/:id/release", requireMember, requireDomainAdmin, async (c) => {
     const { db, member, user } = c.var;
     const setup = await memberDomain(c);
@@ -318,10 +265,6 @@ export const onboarding = new Hono<AppEnv>()
     });
     return c.json({ released: true });
   })
-  /**
-   * Moves the domain to another workspace the caller also runs (owner or admin there), keeping
-   * its verified challenge. Refused while this one has mailboxes on it. Owners of both are told.
-   */
   .post(
     "/domains/:id/transfer",
     requireMember,
@@ -356,11 +299,6 @@ export const onboarding = new Hono<AppEnv>()
       return c.json({ transferred: true, organizationId: to });
     },
   )
-  /**
-   * Creates one mailbox on a domain of the active org during setup and starts syncing it. The
-   * creator gets an owner grant. Idempotent per address: a repeat returns the same mailbox. 409
-   * when the address is a mailbox of another kind or owner.
-   */
   .post(
     "/mailboxes",
     requireMember,
@@ -370,18 +308,12 @@ export const onboarding = new Hono<AppEnv>()
     async (c) => {
       const { db, member } = c.var;
       const placement = c.req.valid("json");
-      // The creator's own address is their personal inbox; the rest are shared (ADR 0007). A
-      // teammate's inbox is `POST /api/workspace/members/:id/inboxes` (ADR 0026).
       const target = { kind: "by-address" as const, ownerMemberId: member.id };
       const result = await provisionMailbox(c, placement, target);
       await advanceOrgSetup(db, member.orgId, "mailboxes_created");
       return c.json(result);
     },
   )
-  /**
-   * Finishes setup ("Finish setup" on the invite page, with or without invitations sent). Only
-   * once a mailbox exists; repeating it is harmless.
-   */
   .post("/complete", requireMember, requireDomainAdmin, async (c) => {
     const { db, member } = c.var;
     const step = await orgSetupStep(db, member.orgId);

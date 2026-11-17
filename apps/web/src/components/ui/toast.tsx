@@ -1,7 +1,3 @@
-// Toasts, ported from transitive (`packages/ui/src/components/ui/toast.tsx` and `sonner.tsx`):
-// a brand-blue card (setup's look, see `ToastCard`) with a tone icon,
-// the message and an optional action.
-// Sonner owns placement, stacking, swipe and the close timer; `ToastCard` paints the toast.
 import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -14,7 +10,6 @@ import { Toaster as Sonner, toast, type ToasterProps } from "sonner";
 
 const MAX_TOAST_LENGTH = 160;
 const NOTICE_DURATION_MS = 4_000;
-// Errors carry a fix, so they stay up long enough to read it.
 const ERROR_DURATION_MS = 6_000;
 
 type ToastId = string | number;
@@ -27,10 +22,6 @@ interface ToastAction {
 }
 
 interface ToastTarget {
-  /**
-   * Reuse an id to replace a visible toast in place instead of stacking a new one.
-   * A string, because Sonner reads a falsy id (`0`) as "no id" and dismisses every toast.
-   */
   id?: string;
 }
 
@@ -52,11 +43,6 @@ interface PromptOptions extends ToastTarget {
   secondary?: ToastAction;
 }
 
-/**
- * Hosts the toasts: bottom centre, 356px wide (the full width less a gutter on a phone). Centred,
- * they never land on the floating Reply and Forward at a thread's bottom right, and keep Sonner's
- * own offset everywhere.
- */
 /**
  * Setup's toast (dorks' onboarding): Sonner's own toast, painted brand blue by `.setup-toaster` in
  * styles.css, instead of `ToastCard`. The same message twice replaces itself.
@@ -87,8 +73,6 @@ export function Toaster({
         ...toastOptions,
         classNames: {
           ...toastOptions?.classNames,
-          // No overflow-hidden: Sonner's expanded ::after fills the gap between stacked toasts;
-          // clipping it makes hover flicker in the gaps.
           toast: cn("!w-(--width) !max-w-[calc(100vw-2rem)]", toastOptions?.classNames?.toast),
           content: cn("h-full", toastOptions?.classNames?.content),
           title: cn("h-full", toastOptions?.classNames?.title),
@@ -99,8 +83,6 @@ export function Toaster({
   );
 }
 
-// The glyphs draw a 16px shape in a 20px box. Flex baseline-aligns the box bottom, so shifting
-// it down centres the shape on the capitals of the first line.
 const toneIconClassName = "aspect-square h-[1.56cap] w-auto shrink-0 translate-y-[0.28cap]";
 
 const TONE_ICONS: Record<ToastTone, ReactNode> = {
@@ -173,18 +155,13 @@ export function ToastCard({ tone, message, description, children }: ToastCardPro
       data-slot="toast"
       data-tone={tone}
       className={cn(
-        // h-full + overflow-hidden: a collapsed stack sizes every toast to the front one.
         "relative flex h-full w-full flex-col overflow-hidden rounded-lg bg-primary-button text-primary-foreground transition-colors duration-200",
-        // In a collapsed stack the cards behind the front one fade toward the page, so their
-        // edges stay apart from it without a border.
         "[[data-expanded=false][data-front=false]_&]:bg-[color-mix(in_oklab,var(--color-primary-button)_65%,var(--color-background))]",
       )}
     >
       <div
         className={cn(
-          // Baseline alignment: icon, first message line and action labels share one baseline.
           "flex flex-1 items-baseline gap-2.5 py-2 ps-3 pe-2 text-sm transition-opacity duration-200",
-          // Behind the front toast in a collapsed stack only the card edge shows.
           "[[data-expanded=false][data-front=false]_&]:opacity-0",
         )}
       >

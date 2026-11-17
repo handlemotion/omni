@@ -1,7 +1,3 @@
-// A company's or deal's Files tab (ADR 0036 decision 5): its folder in Shared, listed and filled
-// through Storage's own door and table. The folder is made on the first upload (`POST
-// /crm/.../folder`), not by looking; a file dropped anywhere on the tab uploads there. Folders
-// open in Drive, where the same folder can be shared like any other.
 import { useNavigate } from "@tanstack/react-router";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -106,7 +102,6 @@ function FolderFiles(props: { folderId: string; name: string; onFiles: (files: F
   if (!list.nodes.length) return <Empty onFiles={props.onFiles} />;
   return (
     <>
-      {/* Above the files they act on; an empty folder offers Upload in its empty state. */}
       <div className="flex items-center justify-end gap-1.5">
         <Link
           href={driveHref(props.folderId)}
@@ -117,7 +112,6 @@ function FolderFiles(props: { folderId: string; name: string; onFiles: (files: F
         </Link>
         <UploadButton onFiles={props.onFiles} />
       </div>
-      {/* The table's page gutter, pulled back to this tab's own edges. */}
       <div className="-mx-5">
         <FileTable
           label={`Files of ${props.name}`}

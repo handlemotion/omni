@@ -1,5 +1,3 @@
-// Storage's usage in Settings → Billing (ADR 0034 decision 8), beside AI triage: what the
-// workspace stores against its limit, or else its allowance, or alone when it has neither.
 import { Skeleton } from "skullet/react";
 import { SettingsGroup, SettingsSection } from "@/components/settings/kit/settings-layout";
 import { SettingsMeterRow } from "@/components/settings/kit/settings-meter-row";

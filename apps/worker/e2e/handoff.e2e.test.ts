@@ -1,12 +1,3 @@
-// Hand-off (ADR 0030) over the real Worker and Postgres: a reply to a shared conversation from
-// the member's own personal mailbox is queued on that mailbox, threaded to the customer's
-// message, and in the same transaction the shared conversation is assigned to the sender,
-// resolved and given a `handoff` event. Cancelling the send puts the conversation back.
-//
-// Bugs these catch: the reply going out from the shared address (the customer's answer would
-// land back in the team's inbox), a reply that does not thread for the customer, a member sending
-// from a teammate's mailbox, the conversation left open (or resolved without the send), and an
-// undone send leaving the conversation resolved and handed off for a reply that never went out.
 import { schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -49,10 +40,6 @@ function post(path: string, cookie: string, body?: unknown) {
   });
 }
 
-/**
- * A shared inbox Ana and Bea work, each with a personal mailbox of their own, and a customer's
- * message on it assigned to Bea and open.
- */
 async function setUp(slug: string) {
   const { db } = database;
   const org = await createOrg(db, slug);
@@ -68,7 +55,6 @@ async function setUp(slug: string) {
       { orgId: org.id, mailboxId: inbox.id, memberId: member.id },
       { orgId: org.id, mailboxId: own.id, memberId: member.id, role: "owner" },
     ]);
-    // Long enough that a cancel always lands inside the window.
     await db
       .insert(schema.memberPreferences)
       .values({ memberId: member.id, orgId: org.id, undoSendSeconds: 60 });
@@ -108,7 +94,6 @@ test("a reply from Ana's own mailbox goes out from it, threaded, and hands the c
     text: "I'll take it from here.",
   };
 
-  // Not her mailbox to send from: refused, nothing queued, nothing changed.
   const stolen = await post(`/threads/${threadId}/handoff`, ana.cookie, {
     ...body,
     mailboxId: bea.mailbox.id,
@@ -132,7 +117,6 @@ test("a reply from Ana's own mailbox goes out from it, threaded, and hands the c
     .select()
     .from(schema.mailActions)
     .where(eq(schema.mailActions.id, actionId));
-  // Queued on her personal mailbox, from her address under her own name, threaded to the customer.
   expect(action!.mailboxId).toBe(ana.mailbox.id);
   expect(action!.payload).toMatchObject({
     from: ana.mailbox.address,
@@ -145,7 +129,6 @@ test("a reply from Ana's own mailbox goes out from it, threaded, and hands the c
     handoffThreadId: threadId,
     messageId: messageIdHeader,
   });
-  // Its Sent copy files in her mailbox's own thread, not the shared one.
   expect(action!.payload).not.toHaveProperty("inReplyToMessageId");
   expect(new Date(action!.runAfter).getTime()).toBeGreaterThan(Date.now());
 
@@ -170,7 +153,6 @@ test("a reply from Ana's own mailbox goes out from it, threaded, and hands the c
       previous: { status: "open", assigneeMemberId: bea.member.id },
     },
   });
-  // The timeline API returns it for the conversation's activity line.
   const timeline = await fetch(new URL(`/api/threads/${threadId}/conversation`, worker.url), {
     headers: { cookie: bea.cookie },
   });
@@ -195,7 +177,6 @@ test("cancelling the hand-off's send gives the conversation back to the team", a
   const back = await conversation(threadId);
   expect(back.status).toBe("open");
   expect(back.assigneeMemberId).toBe(bea.member.id);
-  // The resolve's archive (still inside its delay) is dropped: the mail stays in INBOX.
   const archives = await db
     .select()
     .from(schema.mailActions)

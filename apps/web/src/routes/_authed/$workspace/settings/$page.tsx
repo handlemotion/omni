@@ -1,7 +1,3 @@
-// One settings page, in the app shell beside the settings nav. `/settings/billing` is where Stripe
-// sends people back (Checkout and the customer portal) and `/settings/accounts` where Google does
-// after connecting a Gmail (`?google=connected|error`): their loaders have the data ready, so the
-// page shows it as it is now. An unknown page opens the one shown last.
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { SettingsPage } from "../../../../components/settings/settings-page.tsx";
 import {

@@ -1,9 +1,3 @@
-// Storage's member routes (ADR 0034 decision 6), under `/api/storage`: browse the active
-// workspace's My files and Shared, Trash, Search, unlocking a file, download and
-// usage; the changes are in `changes.ts` and sharing in `sharing.ts`. Everything goes through
-// `forMember(member).storage`, which decides access; nothing here queries a storage table.
-// Every change is a write, so a read-only workspace (ADR 0015) answers it `402 billing_inactive`
-// in `requireWritableWorkspace` and keeps listing and downloading.
 import {
   storageListQuerySchema,
   storagePageQuerySchema,
@@ -59,7 +53,6 @@ export const storageReads = new Hono<AppEnv>()
     } satisfies StorageListResponse);
   })
 
-  /** The file's bytes, always as a download (see `fileResponse`). */
   .get("/files/:id/content", async (c) => {
     return download(c, await memberStorage(c).file(c.req.param("id")));
   })
@@ -75,7 +68,6 @@ export const storageReads = new Hono<AppEnv>()
     const reservedBytes = usage?.reservedBytes ?? 0;
     const { limitBytes, allowanceBytes, overagePeriodStart } = limit;
     const full = limitBytes !== null && usedBytes + reservedBytes >= limitBytes;
-    // The month's peak as the daily job last recorded it, or what is stored now if that is more.
     const peak =
       overagePeriodStart && allowanceBytes !== null
         ? Math.max(usedBytes, (await memberStorage(c).peak(overagePeriodStart)) ?? 0)
@@ -92,7 +84,6 @@ export const storageReads = new Hono<AppEnv>()
 
 export const storage = new Hono<AppEnv>()
   .route("/", storageReads)
-  /** One node the member reaches, where it is now: a notification about it opens its folder. */
   .get("/nodes/:id", async (c) => {
     const view = await memberStorage(c).node(c.req.param("id"));
     if (!view || view.inTrash) return refused(c, "not_found");
@@ -106,7 +97,6 @@ export const storage = new Hono<AppEnv>()
     return c.json({ node: wireNode(restored.node) } satisfies StorageNodeResponse);
   })
 
-  /** Unlocks a file (ADR 0036 decision 6). Owners and admins only; anyone else gets `403`. */
   .delete("/nodes/:id/lock", async (c) => {
     const unlocked = await memberStorage(c).unlock(c.req.param("id"));
     if (unlocked.status !== "ok") return refused(c, unlocked.status);
@@ -126,13 +116,11 @@ export const storage = new Hono<AppEnv>()
     } satisfies StorageTrashResponse);
   })
 
-  /** Drive's Search: the member's live files and folders whose name holds `q`. */
   .get("/search", zValidator("query", storageSearchQuerySchema), async (c) => {
     const nodes = await memberStorage(c).search(c.req.valid("query").q);
     return c.json({ nodes: nodes.map(wireNode) } satisfies StorageFindResponse);
   })
 
-  /** The sidebar's cluster glyphs: a drive's top-level folders that have one, by folder id. */
   .get("/icons", zValidator("query", storageFolderIconsQuerySchema), async (c) => {
     const icons = await memberStorage(c).folderIcons(c.req.valid("query").space);
     return c.json({ icons } satisfies StorageFolderIconsResponse);

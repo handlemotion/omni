@@ -1,6 +1,3 @@
-// A login opens only the workspace it belongs to (ADR 0024 decision 3). A session opened with an
-// address on a company's locked domain is scoped to that company: `forUser`, the default member
-// and the workspace list see only it. A session with no `session_scopes` row is unscoped.
 import { desc, eq, or, sql } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { isCompany } from "./personal-space.ts";

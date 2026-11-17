@@ -1,4 +1,3 @@
-// Platform (ADR 0035): queue jobs that will not run again.
 import { index, integer, jsonb, pgTable, text } from "drizzle-orm/pg-core";
 import { id, orgId, createdAt } from "./columns.ts";
 

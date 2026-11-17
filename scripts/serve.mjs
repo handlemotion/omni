@@ -1,20 +1,4 @@
 #!/usr/bin/env node
-// Serves the real stack for UI checks: the Worker under `wrangler dev`, serving the built web app
-// (wrangler.jsonc `build`, rebuilt when apps/web/src changes) against the local Postgres from
-// `pnpm stack:up`. The server is fully detached: its stdin, stdout and stderr are a log file, it
-// leads its own process group, and its pid is on disk. So `start` returns as soon as `/health`
-// answers, even when piped (`pnpm stack:serve | tail`), and the server outlives the caller.
-//
-//   node scripts/serve.mjs start | stop | status     (pnpm stack:serve / stack:serve:stop)
-//
-// PORT (default 8787) picks the port. Sign in with the magic links the Worker logs as
-// `auth.dev_link` (ENVIRONMENT=development, the .dev.vars.example default).
-//
-// PUBLIC_ORIGIN (set by `pnpm share`, scripts/share.mjs) is the origin a browser elsewhere uses,
-// e.g. https://omni-x.tail1234.ts.net:8787. The Worker then takes it as BETTER_AUTH_URL and
-// WEB_APP_URL (so magic links, cookies and passkeys use it) and still trusts the local origins.
-// A running Worker started without that origin is restarted; without PUBLIC_ORIGIN, `start` keeps
-// whatever is running.
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
@@ -39,7 +23,6 @@ const url = `http://127.0.0.1:${port}`;
 const readyTimeoutMs = 180_000;
 const publicOrigin = process.env.PUBLIC_ORIGIN ?? "";
 
-/** The file's text, or `fallback` when it does not exist (read once: no check-then-read race). */
 function readOr(path, fallback) {
   try {
     return readFileSync(path, "utf8");
@@ -48,7 +31,6 @@ function readOr(path, fallback) {
   }
 }
 
-/** One plain `KEY=value` line from a .dev.vars file, or undefined. */
 function devVar(path, key) {
   const line = readOr(path, "")
     .split("\n")
@@ -92,10 +74,7 @@ async function start() {
   }
   const devVars = join(worker, ".dev.vars");
   try {
-    // COPYFILE_EXCL: copy only when missing, in one step (never overwrite a hand-made file).
     copyFileSync(join(worker, ".dev.vars.example"), devVars, constants.COPYFILE_EXCL);
-    // The example leaves the signing secrets empty, and config validation rejects every auth
-    // request without them: give this local copy random ones.
     const filled = readFileSync(devVars, "utf8").replace(
       /^(BETTER_AUTH_SECRET|MAIL_SERVICE_HMAC_SECRET)=$/gm,
       (_, key) => `${key}=${randomBytes(32).toString("hex")}`,
@@ -150,7 +129,6 @@ async function start() {
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   console.log(`Worker ready (pid ${child.pid}): ${url}  log: ${logFile}`);
-  // Exit now: the child holds none of our fds, so nothing keeps the caller's pipe open.
   process.exit(0);
 }
 
@@ -160,7 +138,6 @@ function stop({ quiet = false } = {}) {
     if (!quiet) console.log("Worker not running");
     return;
   }
-  // The whole group: pnpm, wrangler, workerd and the web build share it.
   try {
     process.kill(-pid, "SIGTERM");
   } catch {}

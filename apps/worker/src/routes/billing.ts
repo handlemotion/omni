@@ -1,6 +1,3 @@
-// The workspace's plan (ADR 0015): what it is, this month's AI triage against the allowance,
-// and the two ways out to Stripe. Checkout and the portal go through Better Auth's Stripe plugin,
-// always for the member's active workspace; its own /api/auth/subscription/* POSTs are closed.
 import { createStripeClient, mayManageBilling, PLAN_NAME } from "@omni/auth";
 import {
   claimTrial,
@@ -19,7 +16,6 @@ import { requireBilling, workspaceBilling } from "../billing.ts";
 import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
 
-/** A path in the web app (`/onboarding`), never another origin (`//evil.example`). */
 const appPath = z
   .string()
   .regex(/^\/(?![/\\])[\w\-./]*$/, "use a path in the app, like /onboarding")
@@ -29,7 +25,6 @@ const interval = z.enum(["month", "year"]).default("month");
 
 const checkoutBody = z.object({
   interval,
-  /** Where Stripe sends the person back, paid or not. */
   returnPath: appPath.default("/"),
 });
 
@@ -79,15 +74,9 @@ function appUrl(c: { var: AppEnv["Variables"] }, path: string) {
 type PlanPrice = {
   amount: number;
   currency: string;
-  /** The Stripe product's name: what customers call the plan. */
   name: string | null;
 };
 
-/**
- * The plan's prices as Stripe has them (amounts live only in Stripe, ADR 0015), so the app shows
- * what Checkout will charge. Cached per isolate for a few minutes: a price change shows up soon,
- * and the onboarding page costs no Stripe call each time.
- */
 const priceCache = new Map<string, { price: PlanPrice | null; until: number }>();
 
 const planPrice: (
@@ -111,8 +100,6 @@ const planPrice: (
     priceCache.set(priceId, { price: value, until: Date.now() + 5 * 60_000 });
     return value;
   } catch (error) {
-    // Stripe down or the id wrong: the page offers the plan without its amount (Checkout still
-    // shows it), rather than blocking setup.
     c.var.log.warn("billing.price_unavailable", { priceId, error });
     return null;
   }
@@ -139,11 +126,6 @@ export async function requireBillingManager(
   }
 }
 
-/**
- * Only the newest Checkout stays open, so two tabs (or two admins) cannot both subscribe the
- * workspace. Expired after the new one exists, so a failure here never leaves no session; the
- * customer is the workspace's, created by its first checkout.
- */
 async function expireOtherCheckouts(
   c: { var: AppEnv["Variables"] },
   secretKey: string,
@@ -163,7 +145,6 @@ async function expireOtherCheckouts(
   for (const other of open.data) {
     if (other.id === keepId || other.mode !== "subscription") continue;
     await stripe.checkout.sessions.expire(other.id).catch((error: unknown) => {
-      // Completed since it was listed: the webhook's duplicate check handles that one.
       c.var.log.warn("billing.checkout_expire_failed", { sessionId: other.id, error });
     });
   }
@@ -186,15 +167,9 @@ export const billing = new Hono<AppEnv>()
       readOnly,
       canManage: await mayManageBilling(c.var.db, c.var.user.id, c.var.member.orgId),
       intervals: plans.yearlyPriceId ? (["month", "year"] as const) : (["month"] as const),
-      /** The plan's name as customers see it: its Stripe product's name. */
       planName: month?.name ?? year?.name ?? null,
-      /** In the currency's smallest unit (cents), as Stripe has them. */
       prices: { month: amount(month), year: amount(year) },
       trialDays: plans.trialDays,
-      /**
-       * This person can start a free trial here: one is configured, this workspace never had one,
-       * and they never started one for another workspace. Otherwise the plan is paid on Checkout.
-       */
       trialAvailable:
         plans.trialDays > 0 &&
         (await trialUnavailable(c.var.db, { orgId: c.var.member.orgId, userId: c.var.user.id })) ===
@@ -210,19 +185,11 @@ export const billing = new Hono<AppEnv>()
         used: triage.used,
         allowance: triage.allowance,
         periodEnd: triage.periodEnd.toISOString(),
-        /** Set when the allowance is used up: new mail is not AI-triaged until then. */
         pausedUntil: triage.paused ? triage.periodEnd.toISOString() : null,
       },
     });
   })
 
-  /**
-   * Starts the workspace's one free trial (also the starter's one, across all their workspaces) on
-   * the chosen interval, here and now: no card and no
-   * Stripe page (a card is added before it ends, or it cancels, ADR 0015). The row is written at
-   * once, so setup moves on; Stripe's webhook for it then finds it and changes nothing. Starting
-   * it again, or with a plan already in good standing, changes nothing either.
-   */
   .post("/billing/trial", zValidator("json", trialBody), async (c) => {
     const plans = requireBilling(c.var.config);
     await requireBillingManager(c);
@@ -235,7 +202,6 @@ export const billing = new Hono<AppEnv>()
     if (plans.trialDays === 0) {
       throw new HTTPException(409, { message: "no free trial is offered" });
     }
-    // One trial per workspace and one per account, ever: a person's next workspace pays.
     const who = { orgId, userId: c.var.user.id };
     const taken = (await trialUnavailable(c.var.db, who)) ?? (await claimTrial(c.var.db, who));
     if (taken === "workspace") {
@@ -263,10 +229,6 @@ export const billing = new Hono<AppEnv>()
     return c.json({ started: true as const });
   })
 
-  /**
-   * Starts Stripe Checkout for the one plan, for a workspace whose trial is over (or where none is
-   * offered): paid up front. Promotion codes go in on Stripe's page.
-   */
   .post("/billing/checkout", zValidator("json", checkoutBody), async (c) => {
     const plans = requireBilling(c.var.config);
     await requireBillingManager(c);
@@ -294,12 +256,10 @@ export const billing = new Hono<AppEnv>()
       },
     });
     if (!session.url) throw new HTTPException(502, { message: "Stripe returned no checkout URL" });
-    // The plugin answers with a portal link instead when Stripe already has the subscription.
     await expireOtherCheckouts(c, plans.secretKey, "id" in session ? session.id : null);
     return c.json({ url: session.url });
   })
 
-  /** Opens the Stripe customer portal: payment method, interval, invoices, cancel. */
   .post("/billing/portal", zValidator("json", portalBody), async (c) => {
     requireBilling(c.var.config);
     await requireBillingManager(c, "manage");

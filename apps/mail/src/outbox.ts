@@ -66,11 +66,6 @@ export class OutboxExecutor {
   private draining: Promise<number> | null = null;
   private drainAgain = false;
   private stopped = false;
-  /**
-   * Sends SMTP accepted in this process whose `smtp_accepted_at` write has not landed yet. A retry
-   * in this process skips SMTP for them, which leaves only a crash during a Postgres outage able
-   * to send twice.
-   */
   private readonly accepted = new Set<string>();
 
   constructor(options: OutboxOptions) {
@@ -103,7 +98,6 @@ export class OutboxExecutor {
           const batch = await this.options.actions.claim(this.options.batchSize);
           if (batch.length === 0) break;
           total += batch.length;
-          // `execute` never throws; the bound keeps one batch from holding every SMTP slot.
           await Effect.runPromise(
             Effect.forEach(batch, (action) => Effect.promise(() => this.execute(action)), {
               concurrency: this.options.concurrency,
@@ -144,10 +138,6 @@ export class OutboxExecutor {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (error instanceof MailboxUnavailableError || error instanceof SendingPausedError) {
-        // Not the action's fault: wait for the mailbox (or the domain's DNS) without spending
-        // one of its attempts.
-        // A send that SMTP accepted already has `smtp_accepted_at`, so the retry only files it.
-        // DNS comes back in hours, not seconds: a paused send looks again every few minutes.
         const wait = error instanceof SendingPausedError ? PAUSED_RETRY_MS : this.options.deferMs;
         const retryAt = new Date(Date.now() + wait);
         log.info("outbox.deferred", { retryAt });
@@ -160,7 +150,6 @@ export class OutboxExecutor {
         (action.kind === "send" || action.kind === "forward_copy") &&
         (action.smtpAcceptedAt || this.accepted.has(action.id));
       if (sent && action.attempts >= this.options.maxAttempts) {
-        // The mail went out; only the Sent copy is missing. "failed" would invite a resend.
         log.error("outbox.sent_not_filed", { error: message, attempts: action.attempts });
         await actions.complete(action.id).catch((completeError: unknown) => {
           log.error("outbox.complete_not_recorded", { error: completeError });
@@ -200,9 +189,6 @@ export class OutboxExecutor {
         return this.forwardCopy(connection, action);
       case "archive":
         return connection.run(async (session) => {
-          // Our own replies stay in Sent and junk stays in Junk: archiving a conversation files
-          // what arrived in the inbox, not every copy of it. A copy already in the archive (every
-          // Gmail message has one in All Mail) is where it should be.
           const role = session.folders().find((f) => f.path === action.payload.folder)?.role;
           if (role === "sent" || role === "junk" || role === "archive") return;
           const archive = await session.ensureFolder("archive", "Archive");
@@ -228,16 +214,12 @@ export class OutboxExecutor {
         return connection.run(async (session) => {
           const inbox = session.folder("inbox");
           if (!inbox) throw new Error("mailbox has no INBOX");
-          // Only what sits in Junk goes back; a copy elsewhere is already where it belongs.
           if (session.folder("junk")?.path !== action.payload.folder) return;
           await move(session, action.payload, inbox.path);
         });
       case "mark_read":
       case "mark_unread":
-        // Shared mailboxes: read state is per person and lives only in Postgres.
         if (mailbox.kind === "shared") return Promise.resolve();
-        // A Google account: `\\Seen` means Done (ADR 0044), so only Done may set it. A plain read
-        // or unread comes from a Worker deployed before that rule, and stays in Omni.
         if (mailbox.provider === "gmail" && !action.payload.done) return Promise.resolve();
         return connection.run(async (session) => {
           await selectTarget(session, action.payload, async () => {
@@ -260,7 +242,6 @@ export class OutboxExecutor {
     try {
       return (await this.options.files.resolve(mailboxId, refs)) satisfies SendFile[];
     } catch (error) {
-      // A deleted upload or message will not come back: fail now rather than retry for hours.
       if (error instanceof MissingFileError) throw new PermanentActionError(error.message);
       throw error;
     }
@@ -268,27 +249,20 @@ export class OutboxExecutor {
 
   private async send(connection: MailboxConnection, action: Extract<MailAction, { kind: "send" }>) {
     const mailbox = connection.mailbox;
-    // The Worker picks it when it can, so the app knows it before the mail goes out.
     const messageId =
       action.payload.messageId ?? deterministicMessageId(action.idempotencyKey, mailbox.address);
     const delivered = Boolean(action.smtpAcceptedAt) || this.accepted.has(action.id);
-    // A retry after SMTP accepted only has filing left. If an earlier attempt filed it, stop here,
-    // before reading attachments the user may have deleted since.
     if (delivered && (await this.filedInSent(connection, messageId))) return;
     let files: SendFile[];
     try {
       files = await this.sendFiles(mailbox.id, action.payload);
     } catch (error) {
       if (!delivered || !(error instanceof PermanentActionError)) throw error;
-      // Delivered, but the forwarded original is gone, so the copy for Sent cannot be rebuilt.
-      // The send succeeded: report it done rather than failed.
       this.options.logger.warn("outbox.sent_not_filed", { actionId: action.id, error });
       return;
     }
     const raw = await composeMessage(action.payload, messageId, files);
 
-    // A retry after SMTP accepted never resends. The window left is a crash between SMTP's OK and
-    // this write; appending to Sent first would trade it for "filed but never sent", which is worse.
     if (!action.smtpAcceptedAt) {
       if (!this.accepted.has(action.id)) {
         if (await this.options.actions.sendingPaused(mailbox.address)) {
@@ -297,7 +271,6 @@ export class OutboxExecutor {
           );
         }
         const { to, cc = [], bcc = [] } = action.payload;
-        // The CRM's copy rides the envelope only: no header names it (ADR 0032).
         const crm = await this.options.forwarding?.target(mailbox.id);
         await smtpSend(mailbox, [...to, ...cc, ...bcc, ...(crm ? [crm] : [])], raw);
         this.accepted.add(action.id);
@@ -306,8 +279,6 @@ export class OutboxExecutor {
       this.accepted.delete(action.id);
     }
 
-    // The reply shows in its thread now, not after the Sent append (which waits for the mailbox
-    // to be ready). Best effort: the Sent copy indexes it anyway.
     const threadOf = action.payload.inReplyToMessageId;
     await this.options.store?.storeSent(mailbox.id, raw, { threadOf }).catch((error: unknown) => {
       this.options.logger.warn("outbox.sent_not_indexed", { actionId: action.id, error });
@@ -315,21 +286,16 @@ export class OutboxExecutor {
 
     await connection.run(async (session) => {
       const sent = await session.ensureFolder("sent", "Sent");
-      // Gmail files every SMTP submission in Sent itself (ADR 0023); appending would add a copy.
       if (session.capabilities.gmail) {
         await session.syncFolder(sent.path);
         return;
       }
-      // Already filed by an earlier attempt that died before `complete`, or by a server that files
-      // SMTP submissions itself: the deterministic Message-ID finds it either way.
       if ((await findByMessageId(session, sent.path, messageId)) !== null) return;
       await session.client.append(sent.path, raw, ["\\Seen"], new Date());
-      // Save the Sent copy now so it shows in the thread without waiting for the 5-minute sync.
       await session.syncFolder(sent.path);
     });
   }
 
-  /** A received message, forwarded to the CRM. Never filed in Sent or indexed. */
   private async forwardCopy(
     connection: MailboxConnection,
     action: Extract<MailAction, { kind: "forward_copy" }>,
@@ -337,7 +303,6 @@ export class OutboxExecutor {
     if (action.smtpAcceptedAt || this.accepted.has(action.id)) return;
     const mailbox = connection.mailbox;
     if (!this.options.forwarding) throw new PermanentActionError("this outbox cannot forward");
-    // Gone since, or forwarding turned off: nothing to send.
     const source = await this.options.forwarding.copy(mailbox.id, action.payload.messageId);
     if (!source) return;
     const raw = await composeForwardCopy(source.raw, {
@@ -362,10 +327,6 @@ export class OutboxExecutor {
   }
 }
 
-/**
- * After SMTP's OK, losing the `smtp_accepted_at` write means the retry sends again. A Postgres
- * blip is the likely cause, so try 5 times, 400ms to 3.2s apart, before giving up.
- */
 function persistAccepted(write: () => Promise<void>) {
   return Effect.runPromise(
     Effect.tryPromise({ try: write, catch: (error) => error }).pipe(
@@ -386,7 +347,6 @@ export function deterministicMessageId(idempotencyKey: string, address: string) 
 
 function composeMessage(payload: SendPayload, messageId: string, files: SendFile[] = []) {
   return new MailComposer({
-    // The address is always the mailbox's; the name says which agent wrote it.
     from: payload.fromName ? { name: payload.fromName, address: payload.from } : payload.from,
     attachments: files.map((file) => ({
       filename: file.filename,
@@ -410,7 +370,6 @@ function composeMessage(payload: SendPayload, messageId: string, files: SendFile
 async function smtpSend(mailbox: MailboxConfig, recipients: string[], raw: Buffer) {
   const { auth } = mailbox;
   const login = await loginFor(mailbox).catch((error: unknown) => {
-    // A revoked Google grant will not come back on a retry; the mailbox shows it needs reconnecting.
     if (auth.kind === "oauth2" && auth.token.isRevoked(error)) {
       throw new PermanentActionError("the Google account's access was revoked: reconnect it");
     }
@@ -420,10 +379,7 @@ async function smtpSend(mailbox: MailboxConfig, recipients: string[], raw: Buffe
     host: mailbox.smtp.host,
     port: mailbox.smtp.port,
     secure: mailbox.smtp.secure,
-    // Nodemailer's XOAUTH2 with a token we minted; it never refreshes on its own.
     auth: "accessToken" in login ? { type: "OAuth2", ...login } : login,
-    // Well inside the claim lease (5 min): a send still hanging when the lease ran out could be
-    // claimed and sent again by another process.
     connectionTimeout: 30_000,
     greetingTimeout: 30_000,
     socketTimeout: 120_000,
@@ -437,7 +393,6 @@ async function smtpSend(mailbox: MailboxConfig, recipients: string[], raw: Buffe
       raw,
     });
   } catch (error) {
-    // The token was refused (revoked or expired early): the retry mints a new one.
     if (auth.kind === "oauth2" && (error as { code?: string }).code === "EAUTH") {
       auth.token.invalidate();
     }
@@ -460,7 +415,6 @@ async function findByMessageId(session: ImapSession, folder: string, messageId: 
   }
 }
 
-/** Selects the target folder and checks its UIDVALIDITY before touching any UID. */
 async function selectTarget(
   session: ImapSession,
   target: MessageTarget,

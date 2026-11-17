@@ -1,4 +1,3 @@
-// The drag under way in Drive, for the items and lists that draw it (`drive-drag.tsx` keeps it).
 import { createContext, useContext } from "react";
 import type { DragSource, DropPlace } from "./node-drag.tsx";
 

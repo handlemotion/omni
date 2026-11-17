@@ -1,9 +1,6 @@
 import { cn } from "cn";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 
-// Ported from transitive's `ResizeGrip` (packages/ui resizable.tsx), on our tokens.
-
-/** How far a press may move and still count as a click, which resets the width. */
 const CLICK_TOLERANCE_PX = 2;
 const KEY_STEP_PX = 16;
 
@@ -38,14 +35,12 @@ export function ResizeGrip({
   };
 
   return (
-    // A bare button: the grip is a hit area with a pseudo-element pill, nothing a Button draws.
     <button
       type="button"
       aria-label={label}
       data-resizing={resizing || undefined}
       className={cn(
         "absolute inset-y-0 -left-4 z-10 m-0 h-auto w-5 cursor-ew-resize touch-none border-0 outline-none",
-        // The pill: 4 by 32px, 6px left of the edge, faded in on hover, focus and drag.
         "before:absolute before:top-1/2 before:left-1.5 before:h-8 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-muted-foreground/50 before:opacity-0 before:transition-opacity before:duration-150 before:content-[''] motion-reduce:before:transition-none",
         "hover:before:opacity-100 focus-visible:before:opacity-100 data-resizing:before:bg-muted-foreground data-resizing:before:opacity-100",
         className,
@@ -77,7 +72,6 @@ export function ResizeGrip({
       }}
       onPointerUp={(event) => {
         if (drag.current && !drag.current.moved) onReset();
-        // A press leaves the grip focused, which would keep its pill showing; keys keep focus.
         event.currentTarget.blur();
       }}
     />
@@ -99,7 +93,7 @@ export function useStoredWidth(key: string, initial: number, min: number, max: n
       const value = Number(localStorage.getItem(key));
       return value ? clamp(value) : null;
     } catch {
-      return null; // Storage unavailable (private mode).
+      return null;
     }
   });
   const set = useCallback(
@@ -108,9 +102,7 @@ export function useStoredWidth(key: string, initial: number, min: number, max: n
       setStored(next);
       try {
         localStorage.setItem(key, String(next));
-      } catch {
-        // The width lasts for this page only.
-      }
+      } catch {}
     },
     [clamp, key],
   );
@@ -118,9 +110,7 @@ export function useStoredWidth(key: string, initial: number, min: number, max: n
     setStored(null);
     try {
       localStorage.removeItem(key);
-    } catch {
-      // Nothing stored to forget.
-    }
+    } catch {}
   }, [key]);
   return { width: stored ?? initial, isSet: stored !== null, set, reset };
 }

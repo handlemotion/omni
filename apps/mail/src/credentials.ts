@@ -1,5 +1,3 @@
-// What `mailboxes.credentials_enc` decrypts to: the login and the servers to use it on. Hosts
-// live inside the envelope so any IMAP/SMTP provider works without schema changes.
 import { decryptCredential, encryptCredential, type Keyring } from "@omni/crypto";
 import { z } from "zod";
 import type { MailAuth, ServerEndpoint } from "./mailbox-connection.ts";
@@ -11,7 +9,6 @@ const endpoint = z.object({
   secure: z.boolean(),
 });
 
-/** An app password (Purelymail, any IMAP host). */
 const passwordSchema = z.object({
   user: z.string().min(1),
   pass: z.string().min(1),
@@ -19,14 +16,11 @@ const passwordSchema = z.object({
   smtp: endpoint,
 });
 
-/** A Google account connected with OAuth (ADR 0023): logs in with XOAUTH2. */
 const googleSchema = z.object({
   oauth: z.literal("google"),
   user: z.string().min(1),
   refreshToken: z.string().min(1),
-  /** The access token the code exchange returned, so the first connect needs no refresh. */
   accessToken: z.string().min(1).optional(),
-  /** When `accessToken` expires, in epoch milliseconds. */
   accessTokenExpiresAt: z.number().int().optional(),
   imap: endpoint,
   smtp: endpoint,

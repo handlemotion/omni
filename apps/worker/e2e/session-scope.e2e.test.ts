@@ -1,12 +1,3 @@
-// A login opens only the workspace it belongs to (ADR 0024 decision 3), on the real Worker and
-// Postgres. Ana belongs to Acme (which locks acme-scope.test), to Beta, and has a Personal space
-// with mail; her primary address is at Acme and her extra sign-in address is personal. A magic
-// link to the Acme address opens Acme only, everywhere the API reads across workspaces, and that
-// session cannot widen itself: no other workspace, no new company, no invitation elsewhere, no new
-// sign-in method. A magic link to her personal address opens everything.
-//
-// Google sign-ins note their address through the provider's `mapProfileToUser`, which only a real
-// Google callback runs; that path is not exercised here.
 import { randomUUID } from "node:crypto";
 import { companyForAddress, ensurePersonalSpace, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -45,7 +36,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Loose on purpose: each test reads the few fields it checks.
 type Body = Record<string, unknown> & {
   mailboxes: { id: string; orgId: string }[];
   threads: { orgId: string }[];
@@ -62,7 +52,6 @@ async function api(jar: CookieJar, path: string, init: RequestInit = {}) {
   return { status: response.status, body: (await response.json().catch(() => null)) as Body };
 }
 
-/** A company with one member (`userId`), one mailbox they can read and one thread in it. */
 async function company(name: string, userId: string, domain?: string) {
   const { db } = database;
   const org = await createOrg(db, name);
@@ -88,7 +77,6 @@ async function company(name: string, userId: string, domain?: string) {
   return { orgId: org.id, memberId: member!.id, threadId };
 }
 
-/** Ana: primary at Acme, an extra personal address, in Acme and Beta, Personal space with mail. */
 async function ana() {
   const { db } = database;
   const tag = randomUUID().slice(0, 8);
@@ -153,12 +141,10 @@ test("a magic link to a company address opens that company only, everywhere", as
   expect(listed.body).toMatchObject({ scopedTo: a.acme.orgId });
   expect((listed.body.workspaces as { id: string }[]).map((w) => w.id)).toEqual([a.acme.orgId]);
 
-  // Another workspace's thread, opened directly, is not there; Acme's is.
   expect((await api(jar, `/threads/${a.beta.threadId}`)).status).toBe(404);
   expect((await api(jar, `/threads/${a.personalThread}`)).status).toBe(404);
   expect((await api(jar, `/threads/${a.acme.threadId}`)).status).toBe(200);
 
-  // It cannot switch to another workspace.
   const switched = await authPost(worker, jar, "/organization/set-active", {
     organizationId: a.beta.orgId,
   });
@@ -170,7 +156,6 @@ test("a magic link to a company address opens that company only, everywhere", as
 test("a magic link to a personal address opens every workspace", async () => {
   const a = await ana();
   const jar = await signedIn(a.personal);
-  // Lists stay inside the active workspace (ADR 0014, amended): every one is reached by switching.
   expect(await threadOrgs(jar)).toEqual(new Set([a.acme.orgId]));
   const listed = await api(jar, "/workspaces?include=personal");
   expect(listed.body.scopedTo).toBeNull();
@@ -208,7 +193,6 @@ test("a scoped session cannot add a sign-in method, create a company or join ano
   expect(created.status).toBe(403);
   expect((await api(jar, "/onboarding")).body).toMatchObject({ canCreateOrganization: false });
 
-  // An invitation to another company, addressed to the work address, cannot be accepted here.
   const other = await createOrg(db, "other");
   const [inviter] = await db
     .insert(schema.users)
@@ -272,7 +256,6 @@ test("a scoped session cannot reach another company through Better Auth by id, s
       headers: { cookie: jar.header, origin: WEB_ORIGIN },
     });
 
-  // Ana owns Beta, so without the scope each of these would work.
   const refused = [
     await authPost(worker, jar, "/organization/set-active", { organizationSlug: beta!.slug }),
     await authPost(worker, jar, "/organization/delete", { organizationId: a.beta.orgId }),
@@ -289,7 +272,6 @@ test("a scoped session cannot reach another company through Better Auth by id, s
   ).toEqual([]);
   expect((await api(jar, "/me")).body).toMatchObject({ orgId: a.acme.orgId });
 
-  // Its own company still works, and the list of workspaces shows only it.
   expect((await auth(`/organization/list-members?organizationId=${a.acme.orgId}`)).status).toBe(
     200,
   );
@@ -306,13 +288,11 @@ test("deleting the company a session is scoped to ends that session", async () =
     organizationId: a.acme.orgId,
   });
   expect(deleted.status).toBe(200);
-  // Not reopened as an unscoped session onto Beta and Personal.
   expect((await api(scoped, "/me")).status).toBe(401);
   expect((await api(scoped, "/threads?scope=all")).status).toBe(401);
   expect((await api(full, "/me")).status).toBe(200);
 });
 
-// Step 4 (ADR 0024): write from any address you can open, in its own workspace.
 test("a full session lists and sends from every workspace's mailboxes; a scoped one only its company's", async () => {
   const { db } = database;
   const a = await ana();
@@ -342,7 +322,6 @@ test("a full session lists and sends from every workspace's mailboxes; a scoped 
   expect(new Set((listed.body.mailboxes as { orgId: string }[]).map((m) => m.orgId))).toEqual(
     new Set([a.acme.orgId, a.beta.orgId, a.spaceId]),
   );
-  // Acme is the active workspace; sending from Beta's mailbox runs as her member in Beta.
   expect((await api(full, "/me")).body).toMatchObject({ orgId: a.acme.orgId });
   const sent = await send(full, betaBox, `beta-${randomUUID()}`);
   expect(sent.status).toBe(202);
@@ -352,7 +331,6 @@ test("a full session lists and sends from every workspace's mailboxes; a scoped 
     .where(eq(schema.mailActions.mailboxId, betaBox));
   expect(action).toEqual({ orgId: a.beta.orgId, memberId: a.beta.memberId });
 
-  // A work-address session lists only Acme's, and cannot send from Beta's.
   const scoped = await signedIn(a.work);
   const scopedList = await api(scoped, "/mailboxes?scope=all");
   expect((scopedList.body.mailboxes as { id: string }[]).map((m) => m.id)).toEqual([acmeBox]);
@@ -380,7 +358,6 @@ test("a draft and a send in another workspace can be saved, sent and undone from
     expect(created.status).toBe(201);
     return created.body as unknown as { id: string; version: number };
   };
-  // Started in Beta while Acme is active, then autosaved and sent by its id alone.
   const first = await draft();
   const saved = await api(full, `/drafts/${first.id}`, {
     method: "PUT",
@@ -397,12 +374,10 @@ test("a draft and a send in another workspace can be saved, sent and undone from
     headers: { "idempotency-key": `draft-${randomUUID()}` },
   });
   expect(sent.status).toBe(202);
-  // Undone inside its window, also by its id alone.
   const actionId = (sent.body as unknown as { actionId: string }).actionId;
   const undone = await api(full, `/actions/${actionId}/cancel`, { method: "POST" });
   expect(undone).toMatchObject({ status: 200, body: { cancelled: true } });
 
-  // A session scoped to Acme cannot reach a Beta draft by its id.
   const second = await draft();
   const scoped = await signedIn(a.work);
   const refused = await api(scoped, `/drafts/${second.id}`, {

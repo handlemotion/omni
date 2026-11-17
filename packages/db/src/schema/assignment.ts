@@ -1,6 +1,3 @@
-// What each member handles, in the workspace's own words (ADR 0033). Triage reads it to hand a
-// customer's message to the teammate whose role covers it. One per member; a member with none is
-// never assigned by AI.
 import { index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { members, organizations } from "./auth.ts";
 
@@ -20,6 +17,5 @@ export const memberRoleDescriptions = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  // Writes check the member belongs to `org_id` (`setMemberRoleDescription`).
   (t) => [index("member_role_descriptions_org_idx").on(t.orgId)],
 );

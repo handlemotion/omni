@@ -1,7 +1,3 @@
-// E2E support: a throwaway migrated database per file, the real Worker under workerd via
-// wrangler's test harness, and a real HTTP endpoint standing where the mail service listens.
-// The Worker runs from the bundle global-setup.ts builds once per change; any vitest config that
-// imports this file needs that globalSetup.
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -55,7 +51,6 @@ export type TestDb = Awaited<ReturnType<typeof createTestDatabase>>["db"];
 
 /** Records every request and checks its signature with the real verifier from `@omni/crypto`. */
 export async function startMailServiceEndpoint(
-  /** The answer to a verified request; 202 with no body when absent. */
   respond?: (request: {
     path: string;
     body: string;
@@ -93,7 +88,6 @@ export async function startMailServiceEndpoint(
   return {
     url: `http://127.0.0.1:${port}`,
     requests,
-    /** Resolves once at least `count` requests have arrived. */
     async waitFor(count: number, timeoutMs = 10_000) {
       const deadline = Date.now() + timeoutMs;
       while (requests.length < count) {
@@ -133,7 +127,6 @@ function workerVars(options: WorkerOptions) {
 const workerSecrets = {
   BETTER_AUTH_SECRET: "e2e-auth-secret-e2e-auth-secret-e2e-auth",
   MAIL_SERVICE_HMAC_SECRET: HMAC_SECRET,
-  // No external AI provider in e2e: only the rule path runs.
   ANTHROPIC_API_KEY: "",
   TYPESAFE_API_KEY: "",
 };
@@ -165,7 +158,6 @@ export async function startWorkerWithNetwork(options: WorkerOptions & { port?: n
   process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = options.databaseUrl;
   const worker = await unstable_startWorker({
     config: join(import.meta.dirname, "../wrangler.jsonc"),
-    // The bundle global-setup.ts built; an empty custom command skips wrangler.jsonc's web build.
     entrypoint: join(prebuiltWorkerDir, "index.js"),
     build: { bundle: false, custom: { command: "" } },
     bindings: Object.fromEntries([
@@ -389,7 +381,6 @@ export async function seedMessage(
     sentAt,
     cleanText: message.text ?? message.subject,
   });
-  // Where the copy lives on the server, as the mail service records it.
   await addLocation(db, {
     orgId: mailbox.orgId,
     mailboxId: mailbox.id,

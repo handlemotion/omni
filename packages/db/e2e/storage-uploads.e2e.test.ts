@@ -25,10 +25,6 @@ async function workspace(slug: string) {
 
 const DAY_MS = 24 * 60 * 60_000;
 
-/**
- * Opens a transaction, runs `take` in it and keeps it open until `release` is called, then rolls
- * it back. Resolves once `take` has run, so the caller knows what it holds is held.
- */
 async function hold(take: (tx: typeof db) => Promise<unknown>) {
   const released = Promise.withResolvers<void>();
   const taken = Promise.withResolvers<void>();
@@ -62,7 +58,6 @@ test("completing an upload twice, even at once, makes one file and counts its by
     r2UploadId: "r2-multipart-1",
   });
 
-  // Parts arrive in parallel and out of order, and one is sent again: none is lost or doubled.
   await Promise.all([
     storage.recordUploadPart(id, { partNumber: 3, etag: "c", size: 100 }),
     storage.recordUploadPart(id, { partNumber: 1, etag: "a-first-try", size: 100 }),
@@ -74,7 +69,6 @@ test("completing an upload twice, even at once, makes one file and counts its by
     { partNumber: 2, etag: "b", size: 100 },
     { partNumber: 3, etag: "c", size: 100 },
   ]);
-  // More bytes than declared would dodge the quota that was checked at open.
   expect((await storage.recordUploadPart(id, { partNumber: 4, etag: "d", size: 1 })).status).toBe(
     "too_large",
   );
@@ -92,7 +86,6 @@ test("completing an upload twice, even at once, makes one file and counts its by
     1,
   );
   expect(await storageUsageOf(db, org.id)).toEqual({ bytes: 300, reservedBytes: 0 });
-  // A finished upload is a file now: aborting it must not drop anything.
   expect((await storage.abortUpload(id)).status).toBe("not_found");
 });
 
@@ -121,21 +114,17 @@ test("an open that would pass the limit is refused, and concurrent opens cannot 
     reservedBytes: 0,
     limitBytes: 1000,
   });
-  // A refused open leaves nothing behind that would hold room.
   expect(await storageUsageOf(db, org.id)).toEqual({ bytes: 600, reservedBytes: 0 });
 
-  // Six uploads of 300 race for 400 free bytes: exactly one fits.
   const raced = await Promise.all(
     Array.from({ length: 6 }, () => storage.openUpload({ space: "personal" }, file(300))),
   );
   const won = raced.filter((result) => result.status === "ok");
   expect(won).toHaveLength(1);
   expect(raced.filter((result) => result.status === "full")).toHaveLength(5);
-  // The winner's declared bytes are held before a single byte arrives.
   expect((await storage.usage())?.reservedBytes).toBe(300);
   expect((await storage.openUpload({ space: "personal" }, file(101))).status).toBe("full");
 
-  // Aborting gives the room back; trashing a file does not, until it is purged.
   const winner = won[0]!;
   if (winner.status !== "ok") throw new Error(winner.status);
   expect((await storage.abortUpload(winner.upload.id)).status).toBe("ok");
@@ -179,7 +168,6 @@ test("purging Trash frees the bytes of everything inside, only once it is 30 day
   });
   expect((await storageUsageOf(db, org.id)).bytes).toBe(160);
 
-  // 31 days on for the folder; the file trashed "today" stays.
   await db
     .update(storageNodes)
     .set({ trashedAt: new Date(Date.now() - 31 * DAY_MS) })
@@ -194,10 +182,8 @@ test("purging Trash frees the bytes of everything inside, only once it is 30 day
       .map((node) => node.id)
       .toSorted(),
   ).toEqual([kept.id, recent.id].toSorted());
-  // Run again, as a retried cron would: nothing more goes.
   expect((await purgeStorageTrash(db, { before: cutoff(Date.now()) })).r2Keys).toEqual([]);
 
-  // Delete forever does the same at once, and only from Trash.
   expect((await storage.deleteForever(kept.id)).status).toBe("not_trashed");
   expect(await storage.deleteForever(recent.id)).toEqual({
     status: "ok",
@@ -217,7 +203,6 @@ test("recompute repairs a drifted usage counter and leaves a right one alone", a
   await db.update(storageUsage).set({ bytes: 999_999 }).where(eq(storageUsage.orgId, org.id));
 
   expect(await recomputeStorageUsage(db)).toBe(1);
-  // Trashed files still count until they are purged.
   expect((await storageUsageOf(db, org.id)).bytes).toBe(42);
   expect((await storageUsageOf(db, other.org.id)).bytes).toBe(5);
   expect(await recomputeStorageUsage(db)).toBe(0);
@@ -253,7 +238,6 @@ test("an expired upload is handed to the cron once, cannot complete, and stops h
   ]);
   await removeStorageUpload(db, opened.upload.id);
   expect(await expiredStorageUploads(db)).toEqual([]);
-  // The completed upload's row was forgotten with it; its file is untouched.
   expect(await db.select().from(storageUploads).where(eq(storageUploads.orgId, org.id))).toEqual(
     [],
   );
@@ -275,7 +259,6 @@ test("completing an upload again answers not_found once the file has left what t
   await anaStorage.recordUploadPart(id, { partNumber: 1, etag: "a", size: 10 });
   expect((await anaStorage.completeUpload(id, { limitBytes: null })).status).toBe("ok");
 
-  // The admin takes the file into their own My files and renames it there.
   const adminStorage = forMember(db, admin.id).storage;
   expect((await adminStorage.move(id, { space: "personal" })).status).toBe("ok");
   expect((await adminStorage.rename(id, "private.pdf")).status).toBe("ok");
@@ -297,8 +280,6 @@ test("an upload completing while its folder moves to another drive lands in the 
   const { id } = opened.upload;
   await storage.recordUploadPart(id, { partNumber: 1, etag: "a", size: 10 });
 
-  // An uncommitted sibling of the same name makes the completing insert wait on the unique
-  // index, after it has looked the folder up: the window a move has to land in.
   const release = await hold((tx) =>
     tx.insert(storageNodes).values({
       orgId: org.id,
@@ -314,7 +295,6 @@ test("an upload completing while its folder moves to another drive lands in the 
   const moving = storage.move(folder.id, { space: "personal" }).finally(() => {
     moved = true;
   });
-  // The move either lands now, or waits its turn behind the completing upload.
   await untilLockWaiters(db, 2, () => moved);
   await release();
 
@@ -335,14 +315,11 @@ test("a node restored and trashed again while a purge runs keeps its fresh 30 da
     .set({ trashedAt: new Date(Date.now() - 31 * DAY_MS) })
     .where(eq(storageNodes.id, file.id));
 
-  // The purge has picked the node and waits for the workspace's tree.
   const release = await hold((tx) => lockTree(tx, org.id));
   const purging = purgeStorageTrash(db, {
     before: new Date(Date.now() - STORAGE_TRASH_DAYS * DAY_MS),
   });
   await untilLockWaiters(db, 1);
-  // Restored and trashed again meanwhile: what a restore and a trash leave behind, written
-  // directly because a restore now queues on the same lock.
   await db.update(storageNodes).set({ trashedAt: new Date() }).where(eq(storageNodes.id, file.id));
   await release();
 
@@ -356,7 +333,6 @@ test("a restore racing a permanent delete cannot report success for a file that 
   const file = await addFile(storage, { space: "personal" }, "keep.bin", 25);
   await storage.trash(file.id);
 
-  // The delete has seen the node in Trash and waits for the usage row.
   const release = await hold((tx) => lockUsage(tx, org.id));
   const deleting = storage.deleteForever(file.id);
   await untilLockWaiters(db, 1);
@@ -364,7 +340,6 @@ test("a restore racing a permanent delete cannot report success for a file that 
   const restoring = storage.restore(file.id).finally(() => {
     restored = true;
   });
-  // The restore either lands now (the bug), or waits its turn behind the delete.
   await untilLockWaiters(db, 2, () => restored);
   await release();
 

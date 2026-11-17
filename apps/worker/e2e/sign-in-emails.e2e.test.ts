@@ -1,10 +1,3 @@
-// One person, one identity (ADR 0014): Google and magic links to the same verified address land
-// on one user; extra sign-in emails, verified by a link, sign into that same user and reach the
-// same mailboxes; an invitation to one of them joins that user. Unverified addresses do neither.
-//
-// The Google step runs Better Auth's own OAuth sign-in (`handleOAuthUserInfo`, what the callback
-// calls once Google answers) against this suite's database, with the profile Google's ID token
-// carries. The code exchange with Google itself cannot run locally and is not covered.
 import { createAuth } from "@omni/auth";
 import { createOrgWithOwner, schema } from "@omni/db";
 import { handleOAuthUserInfo } from "better-auth/oauth2";
@@ -37,7 +30,6 @@ beforeAll(async () => {
     mailServiceUrl: mailService.url,
     vars: { WEB_APP_URL: WEB_ORIGIN },
   });
-  // The Worker's own auth options, over the same database, with Google configured.
   googleAuth = createAuth({
     db: database.db,
     secret: "e2e-auth-secret-e2e-auth-secret-e2e-auth",
@@ -56,7 +48,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-/** Google returned this profile (`sub`, `email`, `email_verified`) to our callback. */
 async function googleSignIn(profile: { sub: string; email: string; verified: boolean }) {
   const context = await googleAuth.$context;
   const result = await handleOAuthUserInfo({ context } as never, {
@@ -86,7 +77,6 @@ async function googleAccounts(sub: string) {
     .where(and(eq(schema.accounts.providerId, "google"), eq(schema.accounts.accountId, sub)));
 }
 
-/** Mail the Worker sent to `email` through its EMAIL binding, oldest first. */
 function mailTo(email: string) {
   return sentMail(worker, email);
 }
@@ -106,7 +96,6 @@ async function me(jar: CookieJar) {
     : null;
 }
 
-/** An `org:create` owner with a personal and a shared mailbox, signed in by magic link. */
 async function owner(slug: string) {
   const { db } = database;
   const created = await createOrgWithOwner(db, {
@@ -123,7 +112,6 @@ async function owner(slug: string) {
   return { ...created, email: `${slug}@gmail.test`, jar, sharedInboxIds: [shared.id] };
 }
 
-/** Asks for `email` to be added and returns the token from the mailed link. */
 async function requestAddress(jar: CookieJar, email: string) {
   const response = await api(jar, "/api/account/emails", { method: "POST", body: { email } });
   expect(response.status).toBe(200);
@@ -154,14 +142,12 @@ async function workspaceMailboxes(jar: CookieJar) {
 }
 
 test("Google and a magic link to the same verified address are one user, whichever comes first", async () => {
-  // Magic link first (proves the address), then Google with Google's verified flag: linked.
   const ana = await owner("ana");
   const viaGoogle = await googleSignIn({ sub: "google-ana", email: ana.email, verified: true });
   expect(viaGoogle.userId).toBe(ana.userId);
   expect(await googleAccounts("google-ana")).toEqual([{ userId: ana.userId }]);
   expect(await usersWithEmail(ana.email)).toHaveLength(1);
 
-  // Google first (invited, so sign-up is allowed), then a magic link: the same user.
   const host = await owner("host");
   const invited = await invite(worker, host.jar, {
     email: "bea@gmail.test",
@@ -181,13 +167,11 @@ test("Google and a magic link to the same verified address are one user, whichev
 });
 
 test("an unverified address never links: not Google's, and not a local user who never proved it", async () => {
-  // Google does not vouch for the address: no link to the existing user, no new user.
   const cy = await owner("cy");
   const unvouched = await googleSignIn({ sub: "google-cy", email: cy.email, verified: false });
   expect(unvouched.userId).toBeNull();
   expect(await googleAccounts("google-cy")).toEqual([]);
 
-  // An `org:create` owner who has not opened a magic link yet: Google cannot claim that row.
   const { db } = database;
   const fresh = await createOrgWithOwner(db, {
     name: "dee",
@@ -204,7 +188,6 @@ test("an unverified address never links: not Google's, and not a local user who 
   const [row] = await db.select().from(schema.users).where(eq(schema.users.id, fresh.userId));
   expect(row!.emailVerified).toBe(false);
 
-  // An invited address Google does not vouch for cannot sign up.
   await invite(worker, cy.jar, {
     email: "eve@gmail.test",
     role: "member",
@@ -224,11 +207,9 @@ test("a verified second address signs into the same user and the same mailboxes"
   const before = await workspaceMailboxes(fay.jar);
   expect(before[0]!.mailboxes).toEqual(["fay@fay.test", "hello@fay.test"]);
 
-  // Not verified yet, the address is not Fay's (the next test shows a sign-up with it).
   const token = await requestAddress(fay.jar, "fay.work@outlook.test");
   expect(token).toBeTruthy();
 
-  // Another signed-in person cannot use Fay's link, and trying does not spend it.
   const gil = await owner("gil");
   const stolen = await api(gil.jar, "/api/account/emails/verify", {
     method: "POST",
@@ -241,7 +222,6 @@ test("a verified second address signs into the same user and the same mailboxes"
     body: { token },
   });
   expect(verified.status).toBe(200);
-  // Single-use.
   const again = await api(fay.jar, "/api/account/emails/verify", {
     method: "POST",
     body: { token },
@@ -255,14 +235,12 @@ test("a verified second address signs into the same user and the same mailboxes"
     ],
   });
 
-  // A magic link to the second address: same member, same mailboxes in the switcher.
   const other = new CookieJar();
   await signIn(worker, database.db, "fay.work@outlook.test", other);
   expect((await me(other))?.id).toBe(fay.memberId);
   expect(await workspaceMailboxes(other)).toEqual(before);
   expect(await usersWithEmail("fay.work@outlook.test")).toEqual([]);
 
-  // Google with the second address links to Fay too.
   const viaGoogle = await googleSignIn({
     sub: "google-fay-work",
     email: "fay.work@outlook.test",
@@ -275,8 +253,6 @@ test("an address asked for but never confirmed is not the asker's: a sign-up wit
   const kit = await owner("kit");
   const token = await requestAddress(kit.jar, "kit.work@outlook.test");
 
-  // Whoever proves the address first owns it: here Google vouches for it, so it signs up a new
-  // person (ADR 0018), never Kit.
   const viaGoogle = await googleSignIn({
     sub: "google-kit-work",
     email: "kit.work@outlook.test",
@@ -284,7 +260,6 @@ test("an address asked for but never confirmed is not the asker's: a sign-up wit
   });
   expect(viaGoogle.userId).not.toBeNull();
   expect(viaGoogle.userId).not.toBe(kit.userId);
-  // A magic link to it signs in as that new person too.
   const jar = new CookieJar();
   await signIn(worker, database.db, "kit.work@outlook.test", jar);
   const session = (await (await api(jar, "/api/auth/get-session")).json()) as {
@@ -292,7 +267,6 @@ test("an address asked for but never confirmed is not the asker's: a sign-up wit
   };
   expect(session.user.id).toBe(viaGoogle.userId);
 
-  // Kit's own confirmation link now finds the address taken.
   const verified = await api(kit.jar, "/api/account/emails/verify", {
     method: "POST",
     body: { token },
@@ -313,7 +287,6 @@ test("an address someone else signs in with cannot be claimed, and the answer do
   expect(await response.json()).toEqual({ status: "sent", email: ivy.email });
   expect(await mailTo(ivy.email)).toHaveLength(sent.length);
 
-  // Nor can an address another user already added.
   await addAddress(ivy.jar, "ivy.side@proton.test");
   const toSide = (await mailTo("ivy.side@proton.test")).length;
   const side = await api(hal.jar, "/api/account/emails", {
@@ -323,7 +296,6 @@ test("an address someone else signs in with cannot be claimed, and the answer do
   expect(side.status).toBe(200);
   expect(await mailTo("ivy.side@proton.test")).toHaveLength(toSide);
 
-  // One's own address is answered plainly.
   const own = await api(hal.jar, "/api/account/emails", {
     method: "POST",
     body: { email: hal.email },
@@ -346,7 +318,6 @@ test("an invitation to a second address joins the existing user", async () => {
     invitation: { id: invitationId },
   } = (await invited.json()) as { invitation: { id: string } };
 
-  // Jo opens the invitation mail and signs in with the invited address.
   const jar = new CookieJar();
   await signIn(worker, database.db, "jo.personal@gmail.test", jar);
   const shown = await api(jar, `/api/auth/organization/get-invitation?id=${invitationId}`);
@@ -356,8 +327,6 @@ test("an invitation to a second address joins the existing user", async () => {
   });
   expect(accepted.status).toBe(200);
 
-  // Jo's companies are their own and Kai's; their one other membership is their Personal space
-  // (ADR 0024).
   const memberships = await database.db
     .select({ orgId: schema.members.organizationId, personalOf: schema.personalSpaces.userId })
     .from(schema.members)
@@ -370,13 +339,11 @@ test("an invitation to a second address joins the existing user", async () => {
   ]);
   expect(await usersWithEmail("jo.personal@gmail.test")).toEqual([]);
 
-  // Someone else cannot take an invitation addressed to Jo's second address.
   const again = await invite(worker, kai.jar, {
     email: "jo.personal@gmail.test",
     role: "member",
     sharedInboxIds: kai.sharedInboxIds,
   });
-  // Jo is a member now, through that address.
   expect(again.status).toBe(400);
 });
 
@@ -384,7 +351,6 @@ test("the primary can move to another verified address; the last verified addres
   const lea = await owner("lea");
   await addAddress(lea.jar, "lea@icloud.test");
 
-  // The primary cannot be removed.
   const primary = await api(lea.jar, `/api/account/emails/${encodeURIComponent(lea.email)}`, {
     method: "DELETE",
   });
@@ -402,21 +368,18 @@ test("the primary can move to another verified address; the last verified addres
     ],
   });
 
-  // Both still sign in as Lea.
   for (const email of [lea.email, "lea@icloud.test"]) {
     const jar = new CookieJar();
     await signIn(worker, database.db, email, jar);
     expect((await me(jar))?.id).toBe(lea.memberId);
   }
 
-  // The old one removed: it no longer signs in as Lea. Its link now signs up someone new.
   const removed = await api(lea.jar, `/api/account/emails/${encodeURIComponent(lea.email)}`, {
     method: "DELETE",
   });
   expect(removed.status).toBe(200);
   const jar = new CookieJar();
   await signIn(worker, database.db, lea.email, jar);
-  // A new person, in their own Personal space (ADR 0024), not Lea.
   expect((await me(jar))?.userId).not.toBe(lea.userId);
   const session = (await (await api(jar, "/api/auth/get-session")).json()) as {
     user: { id: string };

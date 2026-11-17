@@ -1,6 +1,3 @@
-// Desktop sync (ADR 0043) through the real Worker: the Omni Desktop client's sign-in (PKCE, no
-// consent screen, an `omni://` redirect) against our own OAuth provider, then the sync API with
-// the bearer token it gets, as the File Provider calls it. Real Postgres, real workerd, real R2.
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -20,17 +17,14 @@ afterAll(async () => {
 });
 
 const at = (path: string) => new URL(path, stack.worker.url);
-/** What a browser sends when it follows a link or a redirect, not a script's fetch. */
 const NAVIGATION = { accept: "text/html", "sec-fetch-mode": "navigate" };
 
-/** Where a step sends the browser: a 302, or the provider's JSON form of it for a script. */
 async function nextStep(response: Response) {
   if (response.status === 302) return new URL(response.headers.get("location")!);
   expect(response.status).toBe(200);
   return new URL(((await response.json()) as { url: string }).url);
 }
 
-/** Everything the desktop app does to turn sync on, as the signed-in `person`. */
 async function connect(person: Person) {
   const verifier = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
@@ -44,7 +38,6 @@ async function connect(person: Person) {
   const back = await nextStep(
     await browser(new URL(authorize.pathname + authorize.search, at("/"))),
   );
-  // Straight back to the app: a first-party client skips the consent screen.
   expect(`${back.protocol}//${back.host}${back.pathname}`).toBe("omni://oauth/callback");
   expect(back.searchParams.get("state")).toBe("s1");
 
@@ -57,7 +50,6 @@ async function connect(person: Person) {
       redirect_uri: "omni://oauth/callback",
       client_id: "omni-desktop",
       code_verifier: verifier,
-      // The server's own URL for the sync API, as the authorize step named it.
       resource: authorize.searchParams.get("resource")!,
     }),
   });
@@ -67,13 +59,11 @@ async function connect(person: Person) {
   return body.access_token;
 }
 
-/** A sync API call with the bearer token. The body is parsed when there is one. */
 async function sync(token: string, method: string, path: string, body?: unknown) {
   const response = await fetch(at(`/api/storage/sync${path}`), {
     method,
     headers: {
       authorization: `Bearer ${token}`,
-      // The error format every current client asks for.
       "omni-error-format": "2",
       ...(body ? { "content-type": "application/json" } : {}),
     },
@@ -84,7 +74,6 @@ async function sync(token: string, method: string, path: string, body?: unknown)
   return { status: response.status, body: (text ? JSON.parse(text) : null) as any };
 }
 
-/** Walks a drive's feed to its end from `cursor`. */
 async function drain(token: string, orgId: string, space: string, cursor?: string) {
   // oxlint-disable-next-line typescript/no-explicit-any -- test reads of JSON answers
   const changes: any[] = [];
@@ -101,10 +90,6 @@ async function drain(token: string, orgId: string, space: string, cursor?: strin
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 
-// Catches: a sync token that reaches a workspace the person is not in, or another member's My
-// files in their own workspace, through the feed, the item lookup, a download or a change; and a
-// token that works where it was not meant to (an agent's at the sync API, a sync token at /mcp);
-// and a workspace pick made for an agent narrowing the desktop's grant.
 test("a sync token reaches the person's own drives and nothing else", async () => {
   const acme = await stack.company(`acme-${randomUUID().slice(0, 6)}`);
   const other = await stack.company(`other-${randomUUID().slice(0, 6)}`);
@@ -115,7 +100,6 @@ test("a sync token reaches the person's own drives and nothing else", async () =
   const shared = await stack.upload(ana.jar, { space: "shared" }, "team.txt", bytes("team"));
   const bos = await stack.upload(bo.jar, { space: "personal" }, "bo.txt", bytes("bo"));
   const theirs = await stack.upload(outsider.jar, { space: "shared" }, "x.txt", bytes("x"));
-  // Earlier in this browser session, she let an agent reach Acme alone. Sync has no such pick.
   const picked = await fetch(at("/api/oauth/workspace"), {
     method: "POST",
     headers: { cookie: ana.jar.header, "content-type": "application/json" },
@@ -126,7 +110,6 @@ test("a sync token reaches the person's own drives and nothing else", async () =
   const token = await connect(ana);
   const drives = await sync(token, "GET", "/drives");
   expect(drives.status).toBe(200);
-  // Acme with both drives, and her Personal space with My files only.
   expect(drives.body.workspaces).toHaveLength(2);
   expect(drives.body.workspaces).toContainEqual({
     orgId: acme.id,
@@ -145,12 +128,10 @@ test("a sync token reaches the person's own drives and nothing else", async () =
   const team = await drain(token, acme.id, "shared");
   expect(team.changes.map((change) => change.node.name)).toEqual(["team.txt"]);
 
-  // Bo's My files, in Ana's own workspace: as if it did not exist.
   expect((await sync(token, "GET", `/${acme.id}/nodes/${bos.id}`)).status).toBe(404);
   expect((await sync(token, "GET", `/${acme.id}/files/${bos.id}/content`)).status).toBe(404);
   const rename = await sync(token, "PATCH", `/${acme.id}/nodes/${bos.id}`, { name: "mine.txt" });
   expect(rename.status).toBe(404);
-  // A workspace she is not in: nothing, whichever node is named.
   const elsewhere = [
     `/${other.id}/changes?space=shared`,
     `/${other.id}/nodes/${theirs.id}`,
@@ -160,13 +141,11 @@ test("a sync token reaches the person's own drives and nothing else", async () =
   const answers = await Promise.all(elsewhere.map((path) => sync(token, "GET", path)));
   expect(answers.map((answer) => answer.status)).toEqual(elsewhere.map(() => 404));
 
-  // Her own file downloads with its bytes.
   const download = await fetch(at(`/api/storage/sync/${acme.id}/files/${anas.id}/content`), {
     headers: { authorization: `Bearer ${token}` },
   });
   expect(await download.text()).toBe("ana");
 
-  // The token is for sync alone, and nothing else is for sync.
   const mcp = await fetch(at("/mcp"), {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
@@ -180,14 +159,11 @@ test("a sync token reaches the person's own drives and nothing else", async () =
   expect(cookie.status).toBe(401);
 });
 
-// Catches: a provider renaming, moving or trashing from a stale copy and undoing what another
-// computer did meanwhile; and a guard that also refuses the client that is up to date.
 test("a change with a stale ifRevision answers 409 and changes nothing", async () => {
   const acme = await stack.company(`guard-${randomUUID().slice(0, 6)}`);
   const ana = await stack.member(acme.id);
   const file = await stack.upload(ana.jar, { space: "personal" }, "draft.txt", bytes("v1"));
   const token = await connect(ana);
-  // Another computer renames it first.
   const first = await sync(token, "PATCH", `/${acme.id}/nodes/${file.id}`, { name: "a.txt" });
   expect(first.status).toBe(200);
 
@@ -205,14 +181,11 @@ test("a change with a stale ifRevision answers 409 and changes nothing", async (
   const fresh = `?ifRevision=${now.body.node.revision}`;
   const done = await sync(token, "DELETE", `/${acme.id}/nodes/${file.id}${fresh}`);
   expect(done.status).toBe(200);
-  // Trashed: the item lookup says it is gone, and the feed reports it in Trash.
   expect((await sync(token, "GET", `/${acme.id}/nodes/${file.id}`)).status).toBe(404);
   const feed = await drain(token, acme.id, "personal");
   expect(feed.changes).toMatchObject([{ id: file.id, inTrash: true }]);
 });
 
-// Catches: a provider far behind that is never told it missed deletions (its folder keeps files
-// that are gone for good), and a feed that drops a file uploaded through the sync API itself.
 test("a cursor behind swept tombstones answers 410; starting over works", async () => {
   const acme = await stack.company(`sweep-${randomUUID().slice(0, 6)}`);
   const ana = await stack.member(acme.id);
@@ -243,7 +216,6 @@ test("a cursor behind swept tombstones answers 410; starting over works", async 
     { id: fileId, revision: expect.any(Number), node: null, inTrash: false },
   ]);
 
-  // 91 days on, the daily job sweeps the tombstone.
   await stack.db
     .update(schema.storageTombstones)
     .set({ createdAt: new Date(Date.now() - 91 * 86_400_000) })
@@ -266,11 +238,9 @@ test("a cursor behind swept tombstones answers 410; starting over works", async 
   expect((await sync(token, "GET", `/${acme.id}/changes?space=personal`)).status).toBe(200);
 });
 
-/** A provider's realtime socket for the workspace, collecting what arrives. */
 async function listen(token: string, orgId: string) {
   const url = at(`/api/storage/sync/${orgId}/realtime`);
   url.protocol = "ws:";
-  // Node's WebSocket (undici) accepts headers: the bearer token, as the desktop shell sends it.
   const socket = new WebSocket(url, {
     headers: { authorization: `Bearer ${token}` },
   } as unknown as string[]);
@@ -287,7 +257,6 @@ async function listen(token: string, orgId: string) {
   return {
     socket,
     received,
-    /** Waits for an event about `space`, and returns everything heard so far. */
     async until(space: string) {
       const heard = Promise.withResolvers<void>();
       const check = () => received.some((event) => event.space === space) && heard.resolve();
@@ -299,9 +268,6 @@ async function listen(token: string, orgId: string) {
   };
 }
 
-// Catches: a write that never tells the provider (it waits for its next poll), a move between
-// drives that names only the drive it entered (the old one keeps the file), and one member's My
-// files changes reaching another member's computer.
 test("a change pings the drives it touched, on the sockets of those who sync them", async () => {
   const acme = await stack.company(`live-${randomUUID().slice(0, 6)}`);
   const ana = await stack.member(acme.id);
@@ -314,7 +280,6 @@ test("a change pings the drives it touched, on the sockets of those who sync the
     listen(boToken, acme.id),
   ]);
 
-  // Ana moves her file into Shared: she hears both drives, Bo hears Shared alone.
   const moved = await sync(anaToken, "PATCH", `/${acme.id}/nodes/${file.id}`, {
     space: "shared",
   });
@@ -326,8 +291,6 @@ test("a change pings the drives it touched, on the sockets of those who sync the
   expect(forAna.every((event) => event.type === "storage.changed")).toBe(true);
   expect(await boHears.until("shared")).toEqual([{ type: "storage.changed", space: "shared" }]);
 
-  // Bo renames in his My files: his socket hears it, and Ana's never does (both go out in the
-  // one call that reached Bo's).
   expect(
     (await sync(boToken, "PATCH", `/${acme.id}/nodes/${bos.id}`, { name: "b.txt" })).status,
   ).toBe(200);
@@ -338,10 +301,6 @@ test("a change pings the drives it touched, on the sockets of those who sync the
   boHears.socket.close();
 });
 
-// Catches: a new version or a restore that changes a file's bytes without a revision (the
-// provider's feed never shows it, so the Mac keeps the old bytes), one without a ping (it waits
-// for its next poll), and a `contentVersion` that stays put (the provider sees a rename, not new
-// bytes, and never downloads them).
 test("a new version and a restore reach the provider as new bytes", async () => {
   const acme = await stack.company(`versions-${randomUUID().slice(0, 6)}`);
   const ana = await stack.member(acme.id);

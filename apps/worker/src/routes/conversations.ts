@@ -1,7 +1,3 @@
-// Helpdesk conversation routes (ADR 0021): status, assignee, priority and tags of a shared
-// inbox's conversations, and each inbox's tag list. Every change goes through
-// `applyConversationChange` in `@omni/db`, which writes the change and its timeline event in one
-// transaction and queues the IMAP filing (archive on resolve, back to INBOX on reopen).
 import {
   applyConversationChange,
   MAX_ROLE_DESCRIPTION,
@@ -74,7 +70,6 @@ const listQuery = z.object({
 
 const noteBody = z.object({
   body: z.string().trim().min(1).max(NOTE_MAX_LENGTH),
-  /** `members.id` of everyone @mentioned; the client resolves names from `/assignees`. */
   mentions: z.array(z.string().min(1)).max(50).default([]),
 });
 const notePatchBody = z.object({ body: z.string().trim().min(1).max(NOTE_MAX_LENGTH) });
@@ -89,12 +84,10 @@ const snoozeBody = z.object({ until: z.iso.datetime({ offset: true }) });
 const assigneeBody = z.object({ memberId: z.string().min(1).nullable() });
 const priorityBody = z.object({ priority: z.enum(PRIORITIES) });
 const tagBody = z.object({ tagId: z.string().min(1) });
-/** A design-system token name (`accent`, `amber`), never a raw color. */
 const tagColor = z
   .string()
   .regex(/^[a-z][a-z0-9-]{0,31}$/)
   .nullable();
-/** What the team files under a tag (ADR 0033); triage reads it. Blank clears it. */
 const tagDescription = z.string().max(MAX_ROLE_DESCRIPTION);
 const newTagBody = z.object({
   name: z.string().trim().min(1).max(64),
@@ -113,7 +106,6 @@ const tagPatchBody = z
     "nothing to change",
   );
 
-/** A target in minutes, up to a year; null leaves it untracked. */
 const targetMinutes = z.number().int().min(1).max(525_600).nullable();
 const slaPolicyBody = z.object({
   firstResponseMinutes: targetMinutes,
@@ -128,7 +120,6 @@ const businessHoursBody = z.object({
     .array(
       z
         .object({
-          /** 0 is Sunday. */
           day: z
             .number()
             .int()
@@ -144,12 +135,10 @@ const businessHoursBody = z.object({
   holidays: z.array(z.iso.date()).max(400).default([]),
 });
 
-/** One change for many conversations; `claim` assigns each to the member asking. */
 const bulkChange = z.discriminatedUnion("type", [
   z.object({ type: z.literal("resolve") }),
   z.object({ type: z.literal("reopen") }),
   z.object({ type: z.literal("snooze"), until: z.iso.datetime({ offset: true }) }),
-  /** With `expectedAssignee`, each is claimed only if still assigned that way (see claim). */
   z.object({ type: z.literal("claim"), expectedAssignee: expectedAssignee }),
   z.object({ type: z.literal("assign"), memberId: z.string().min(1).nullable() }),
   z.object({ type: z.literal("priority"), priority: z.enum(PRIORITIES) }),
@@ -161,7 +150,6 @@ const bulkBody = z.object({
 });
 const autoAssignBody = z.object({ enabled: z.boolean() });
 const DAY = 86_400_000;
-/** A report covers at most this many days. */
 const REPORT_MAX_DAYS = 92;
 const reportQuery = z
   .object({
@@ -194,7 +182,6 @@ const domainChange: (change: z.infer<typeof bulkChange>, memberId: string) => Co
   }
 };
 
-/** Owners and admins change inbox settings. Better Auth stores several roles as a comma list. */
 function requireManager(c: Context<AppEnv>) {
   const { role } = c.var.member;
   if (!role.split(",").some((r) => r.trim() === "owner" || r.trim() === "admin")) {
@@ -209,11 +196,6 @@ function notFound(): never {
 const writeGuards = [limitPerMember("actions"), zValidator("header", idempotencyHeader)] as const;
 
 export const conversations = new Hono<AppEnv>()
-  /**
-   * One shared inbox's conversations in a helpdesk view (`unassigned`, `mine`, `open`, `pending`,
-   * `snoozed`, `resolved`, `sla_at_risk`, `all`), optionally only those tagged `tagId`. Newest
-   * first; `sla_at_risk` soonest due first. `nextCursor` is null on the last page.
-   */
   .get("/conversations", zValidator("query", listQuery), async (c) => {
     const { cursor, ...query } = c.req.valid("query");
     const rows = await forMember(c.var.db, c.var.member.id).listConversations({
@@ -226,7 +208,6 @@ export const conversations = new Hono<AppEnv>()
     return c.json({ conversations: rows.map(({ pageAt: _pageAt, ...row }) => row), nextCursor });
   })
 
-  /** Per shared inbox: each view's count (not `resolved`) and open or pending ones per tag. */
   .get(
     "/conversations/counts",
     zValidator("query", z.object({ mailboxId: z.string().min(1).optional() })),
@@ -236,11 +217,6 @@ export const conversations = new Hono<AppEnv>()
       }),
   )
 
-  /**
-   * Applies one change to up to 100 conversations, each on its own (one failing does not stop the
-   * rest), and answers each one's result in order. A retry under the same Idempotency-Key changes
-   * nothing that the first attempt already changed.
-   */
   .post("/conversations/bulk", ...writeGuards, zValidator("json", bulkBody), async (c) => {
     const { threadIds, change } = c.req.valid("json");
     const key = c.req.header("idempotency-key")!;
@@ -258,7 +234,6 @@ export const conversations = new Hono<AppEnv>()
         actorMemberId: memberId,
         change: domainChange(change, memberId),
         requestId: c.var.requestId,
-        // Per conversation, so a retry skips exactly the ones already done.
         idempotencyKey: `${key}:${threadId}`,
       });
       if (!result.ok) {
@@ -285,7 +260,6 @@ export const conversations = new Hono<AppEnv>()
     return c.json({ results });
   })
 
-  /** Status, assignee, priority, SLA due times, tags and the timeline events, oldest first. */
   .get("/threads/:id/conversation", async (c) => {
     const conversation = await forMember(c.var.db, c.var.member.id).getConversation(
       c.req.param("id"),
@@ -294,17 +268,14 @@ export const conversations = new Hono<AppEnv>()
     return c.json(conversation);
   })
 
-  /** Resolved: filed out of INBOX on the server; a customer reply reopens it. */
   .post("/threads/:id/resolve", ...writeGuards, (c) =>
     applyChange(c, c.req.param("id"), { type: "resolve" }),
   )
 
-  /** Open again, its mail back in INBOX. */
   .post("/threads/:id/reopen", ...writeGuards, (c) =>
     applyChange(c, c.req.param("id"), { type: "reopen" }),
   )
 
-  /** Out of Open until `until`; a customer reply wakes it sooner. */
   .post("/threads/:id/snooze", ...writeGuards, zValidator("json", snoozeBody), (c) =>
     applyChange(c, c.req.param("id"), {
       type: "snooze",
@@ -312,7 +283,6 @@ export const conversations = new Hono<AppEnv>()
     }),
   )
 
-  /** Assign to the member asking; with `expectedAssignee`, only if no one else got there first. */
   .post("/threads/:id/claim", ...writeGuards, async (c) => {
     const { expectedAssignee } = await claimPrecondition(c);
     return applyChange(c, c.req.param("id"), {
@@ -322,7 +292,6 @@ export const conversations = new Hono<AppEnv>()
     });
   })
 
-  /** Assign to any member who can see the inbox, or `null` to unassign. */
   .put("/threads/:id/assignee", ...writeGuards, zValidator("json", assigneeBody), (c) =>
     applyChange(c, c.req.param("id"), { type: "assign", memberId: c.req.valid("json").memberId }),
   )
@@ -339,10 +308,6 @@ export const conversations = new Hono<AppEnv>()
     applyChange(c, c.req.param("id"), { type: "tag", tagId: c.req.param("tagId"), add: false }),
   )
 
-  /**
-   * An internal note in the timeline; never sent. Each @mentioned teammate is notified, and so is
-   * everyone else taking part (the assignee, earlier note authors).
-   */
   .post(
     "/threads/:id/notes",
     limitPerMember("actions"),
@@ -380,10 +345,6 @@ export const conversations = new Hono<AppEnv>()
     },
   )
 
-  /**
-   * The author edits their own note. Under `/threads/:id`, so the member is the thread's
-   * workspace's (a note opened from All mailboxes is in another workspace than the active one).
-   */
   .patch("/threads/:id/notes/:noteId", zValidator("json", notePatchBody), async (c) => {
     const note = await updateNote(c.var.db, {
       threadId: c.req.param("id"),
@@ -398,7 +359,6 @@ export const conversations = new Hono<AppEnv>()
     return c.json({ note });
   })
 
-  /** The author deletes their own note. */
   .delete("/threads/:id/notes/:noteId", async (c) => {
     const note = await deleteNote(c.var.db, {
       threadId: c.req.param("id"),
@@ -414,7 +374,6 @@ export const conversations = new Hono<AppEnv>()
           c.var.config,
           new Map([[note.mailboxId, new Set([note.threadId])]]),
         ),
-        // Its notifications went with it: whoever had one refetches theirs.
         withdrawNotifications(c.env, {
           orgId: note.orgId,
           threadId: note.threadId,
@@ -425,7 +384,6 @@ export const conversations = new Hono<AppEnv>()
     return c.body(null, 204);
   })
 
-  /** The member's notifications, newest first, and how many are unread. */
   .get("/notifications", zValidator("query", notificationsQuery), async (c) => {
     const { unread, cursor, limit } = c.req.valid("query");
     const page = await forMember(c.var.db, c.var.member.id).listNotifications({
@@ -442,14 +400,12 @@ export const conversations = new Hono<AppEnv>()
     });
   })
 
-  /** Marks these notifications read, or every one without `ids`. */
   .post("/notifications/read", zValidator("json", readBody), async (c) => {
     const { ids } = c.req.valid("json");
     const marked = await markNotificationsRead(c.var.db, c.var.member.id, ids ?? "all");
     return c.json({ marked });
   })
 
-  /** Who conversations in this inbox can be assigned to. */
   .get("/mailboxes/:id/assignees", async (c) => {
     const assignees = await forMember(c.var.db, c.var.member.id).mailboxAssignees(
       c.req.param("id"),
@@ -458,17 +414,12 @@ export const conversations = new Hono<AppEnv>()
     return c.json({ assignees });
   })
 
-  /** The inbox's SLA targets per priority and its business hours (null: always open). */
   .get("/mailboxes/:id/sla", async (c) => {
     const settings = await forMember(c.var.db, c.var.member.id).slaSettings(c.req.param("id"));
     if (!settings) notFound();
     return c.json(settings);
   })
 
-  /**
-   * Sets the inbox's targets for one priority. Open conversations' due times move to match; an
-   * alert already sent for the old due time is not sent again for it.
-   */
   .put("/mailboxes/:id/sla/:priority", zValidator("json", slaPolicyBody), async (c) => {
     requireManager(c);
     const priority = z.enum(PRIORITIES).safeParse(c.req.param("priority"));
@@ -484,7 +435,6 @@ export const conversations = new Hono<AppEnv>()
     return c.json({ ok: true as const });
   })
 
-  /** Stops tracking SLAs for one priority. */
   .delete("/mailboxes/:id/sla/:priority", async (c) => {
     requireManager(c);
     const priority = z.enum(PRIORITIES).safeParse(c.req.param("priority"));
@@ -495,7 +445,6 @@ export const conversations = new Hono<AppEnv>()
     return c.body(null, 204);
   })
 
-  /** When the inbox is staffed; SLA targets with `businessHoursOnly` count only these hours. */
   .put("/mailboxes/:id/business-hours", zValidator("json", businessHoursBody), async (c) => {
     requireManager(c);
     const ok = await putBusinessHours(
@@ -508,17 +457,12 @@ export const conversations = new Hono<AppEnv>()
     return c.json({ ok: true as const });
   })
 
-  /** Back to always open. */
   .delete("/mailboxes/:id/business-hours", async (c) => {
     requireManager(c);
     if (!(await deleteBusinessHours(c.var.db, c.var.member.orgId, c.req.param("id")))) notFound();
     return c.body(null, 204);
   })
 
-  /**
-   * Round-robin auto-assign for the inbox: each new conversation from a customer goes to the next
-   * member who can see it, in turn.
-   */
   .put("/mailboxes/:id/auto-assign", zValidator("json", autoAssignBody), async (c) => {
     requireManager(c);
     const ok = await setAutoAssign(
@@ -531,11 +475,6 @@ export const conversations = new Hono<AppEnv>()
     return c.json({ ok: true as const });
   })
 
-  /**
-   * The inbox's report for `[from, to)` (default: the last 30 days): new conversations by
-   * assignee and tag, first response and resolution times (count, median and p90 in seconds),
-   * and who resolved them.
-   */
   .get("/mailboxes/:id/report", zValidator("query", reportQuery), async (c) => {
     const range = c.req.valid("query");
     const report = await forMember(c.var.db, c.var.member.id).inboxReport(c.req.param("id"), range);
@@ -549,7 +488,6 @@ export const conversations = new Hono<AppEnv>()
     return c.json({ tags });
   })
 
-  /** Creates a tag; the same name (ignoring case) answers the existing tag with 200. */
   .post("/mailboxes/:id/tags", zValidator("json", newTagBody), async (c) => {
     const result = await createTag(
       c.var.db,
@@ -576,7 +514,6 @@ export const conversations = new Hono<AppEnv>()
     return c.json({ tag: result.tag });
   })
 
-  /** Deletes the tag and takes it off every conversation. */
   .delete("/mailboxes/:id/tags/:tagId", async (c) => {
     const deleted = await deleteTag(
       c.var.db,

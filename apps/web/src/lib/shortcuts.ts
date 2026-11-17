@@ -1,6 +1,3 @@
-// Keyboard shortcuts: the one definition. The key handler, the `?` list, the command menu and
-// `aria-keyshortcuts` all read this table, so what the app does and what it says can't drift.
-// No React here; `hooks/use-shortcuts.ts` dispatches keys and runs handlers.
 import { desktop } from "./desktop.ts";
 
 /**
@@ -9,10 +6,6 @@ import { desktop } from "./desktop.ts";
  */
 export type KeySequence = readonly string[];
 
-/**
- * Keys only the desktop app binds (docs/spec/desktop.md, "Navigation changes in the web app"): a
- * browser keeps ⌘N, ⌘R and ⌘[ for itself, and has its own back and forward.
- */
 const inDesktop = (...keys: KeySequence[]) =>
   (desktop.isDesktop ? keys : []) satisfies KeySequence[];
 const onWindows = desktop.platform === "windows";
@@ -60,8 +53,6 @@ export const SHORTCUTS = {
     keys: [["Escape"]],
     command: true,
   },
-  // Helpdesk conversations (shared inboxes). Resolve and snooze take the keys of done and later,
-  // which they replace there: a screen binds one or the other, and the key runs whichever is bound.
   reply: { label: "Reply", group: "Threads", place: "mail", keys: [["r"]], command: true },
   note: {
     label: "Add internal note",
@@ -85,7 +76,6 @@ export const SHORTCUTS = {
     command: true,
   },
   snooze: { label: "Snooze", group: "Threads", place: "mail", keys: [["h"]], command: true },
-  // A chord, so it works while typing in the composer, where the picker is used.
   cannedReply: {
     label: "Insert canned reply",
     group: "Threads",
@@ -105,11 +95,9 @@ export const SHORTCUTS = {
     keys: [["c"], ...inDesktop(["Mod+n"])],
     command: true,
   },
-  // Bound by the command menu (`components/search/command-menu.tsx`).
   search: { label: "Search", group: "General", keys: [["/"]] },
   commandMenu: { label: "Search and commands", group: "General", keys: [["Mod+k"]] },
   help: { label: "Keyboard shortcuts", group: "General", keys: [["?"]], command: true },
-  // Opens and closes from anywhere, even while typing or inside another dialog (see the listener).
   settings: { label: "Settings", group: "General", keys: [...inDesktop(["Mod+,"]), ["Mod+."]] },
   back: {
     label: "Back",
@@ -154,7 +142,6 @@ export const COMMAND_IDS = SHORTCUT_IDS.filter((id) => "command" in SHORTCUTS[id
 
 /** The key this event names in `SHORTCUTS`' terms, or null for a chord we never bind. */
 export function eventKey(event: KeyboardEvent) {
-  // Alt+← and Alt+→ are back and forward on Windows; no other Alt chord is bound.
   if (event.altKey) {
     const arrow = event.key === "ArrowLeft" || event.key === "ArrowRight";
     return arrow && !event.metaKey && !event.ctrlKey ? `Alt+${event.key}` : null;
@@ -165,7 +152,6 @@ export function eventKey(event: KeyboardEvent) {
   return event.key;
 }
 
-/** How long the second key of a sequence (`g` then `i`) may take. */
 const SEQUENCE_MS = 1000;
 
 /**
@@ -178,7 +164,6 @@ export function createMatcher() {
   let at = 0;
   return (key: string, now = Date.now()) => {
     const held = now - at <= SEQUENCE_MS ? prefix : [];
-    // A key that ends no sequence may still start one ("g" after a stray "g").
     const found = (held.length ? find([...held, key]) : null) ?? find([key]);
     prefix = found?.pending ?? [];
     at = now;

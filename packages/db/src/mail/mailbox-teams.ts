@@ -1,19 +1,8 @@
-// Shared-mailbox access through Better Auth teams (ADR 0008). Each shared mailbox has one team,
-// and the team's members are who can see the mailbox. `mailbox_access` stays the table every
-// read joins (`forMember`); for a shared mailbox it is derived from the team here, so reads keep
-// their shape and indexes. Personal mailboxes have no team and keep their single owner grant.
-//
-// Every function is idempotent and converges: `syncMailboxAccess` recomputes the grants from the
-// team, whatever ran before it, so a retry or a second run changes nothing.
 import { and, asc, eq, exists, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, members, teamMembers, teams, users } from "../schema/index.ts";
 
-/**
- * Better Auth's `team_members.membership_key`: one row per (team, user). Ours match its rows, so
- * its endpoints and ours never add the same person twice.
- */
 async function membershipKey(teamId: string, userId: string) {
   const bytes = new TextEncoder().encode(JSON.stringify([teamId, userId]));
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
@@ -23,7 +12,6 @@ async function membershipKey(teamId: string, userId: string) {
     .replace(/=+$/, "");
 }
 
-/** Locks the mailbox row so concurrent changes to one mailbox's access run one after another. */
 async function lockMailbox(db: Db, mailboxId: string) {
   const [row] = await db
     .select({
@@ -39,7 +27,6 @@ async function lockMailbox(db: Db, mailboxId: string) {
   return row ?? null;
 }
 
-/** Better Auth's seat counter (`teams.member_count`), recounted rather than incremented. */
 async function recountTeam(db: Db, teamId: string) {
   await db
     .update(teams)
@@ -207,7 +194,6 @@ export interface MailboxMembersActor {
   manage: boolean;
 }
 
-/** The actor's shared mailbox, or null if it is not one or they may not see its members. */
 async function visibleSharedMailbox(db: Db, actor: MailboxMembersActor, mailboxId: string) {
   const [row] = await db
     .select({ id: mailboxes.id })

@@ -1,5 +1,3 @@
-// The app's one API and auth client. The Worker serves this app and `/api` on the same origin
-// (ADR 0006), so the session cookie is first-party and there is nothing to configure.
 import { createApi, createAuth, toApiError, type ApiErrorInfo } from "@omni/client";
 import { DetailedError, parseResponse, type ClientResponse } from "hono/client";
 import { reportAnswer, reportNoAnswer } from "./connectivity.ts";
@@ -12,7 +10,6 @@ const origin = window.location.origin;
 /** Typed Hono RPC calls: `api.threads.$get({ query })`. Prefer `call()` to unwrap them. */
 export const api = createApi({
   baseUrl: origin,
-  // This tab's workspace (its URL's), not the session's, which every tab shares (ADR 0043).
   headers: workspaceHeaders,
   fetch: (input, init) => takeStartupResponse(input, init) ?? tracedFetch(input, init),
 });

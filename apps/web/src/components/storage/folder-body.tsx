@@ -1,6 +1,3 @@
-// What a folder page shows under its header: its folders and files in their sections (or their
-// skeleton, the failed load, the empty folder), all inside one drop target; and the header's
-// actions.
 import { useMemo, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -35,14 +32,10 @@ export function FolderBody(
   const into = useDropInto();
   const room = useRoomDrop("page", drag.here);
   return (
-    // The whole page under the header takes a drop, the empty folder included, and scrolls:
-    // files from the computer upload here, and files and folders lifted from elsewhere in Drive
-    // (the sidebar) move here.
     <DropZone
       bare
       aria-label={`Upload to ${source.label}`}
       isDisabled={!source.canWrite}
-      // A block that scrolls: content starts at the top, not centred by the drop zone's flex.
       className="block min-h-0 min-w-0 flex-1 overflow-y-auto"
       getDropOperation={() => (drag.here ? dropOperation(drag.here) : "cancel")}
       onDrop={(event) => {
@@ -56,13 +49,11 @@ export function FolderBody(
   );
 }
 
-/** The page's door and folder, for its items' drags and the drops it takes. */
 const useFolderDrag: (source: FolderSource) => NodeDrag = (source) => {
   const { place, shareId, canWrite } = source;
   return useMemo(() => {
     const door = { shareId, canWrite };
     return { door, here: { ...door, place } };
-    // The place is a new object each render; its folder or space is what changes.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [shareId, canWrite, "parentId" in place ? place.parentId : place.space]);
 };
@@ -118,7 +109,6 @@ function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {
 }
 
 const nextPage = new WeakMap<object, () => void>();
-/** The list's next-page call, stable per query result so the sections stay memoized. */
 function fetchNext(list: FolderSource["list"]) {
   let next = nextPage.get(list.fetchNextPage);
   if (!next) {
@@ -128,12 +118,10 @@ function fetchNext(list: FolderSource["list"]) {
   return next;
 }
 
-/** Fills the page under the header, so an empty state sits where the mail lists' do. */
 function Centered({ children }: { children: ReactNode }) {
   return <div className="flex flex-1 flex-col">{children}</div>;
 }
 
-/** An empty folder's way on, as the mail lists' empty states offer theirs: Upload first. */
 function EmptyActions(props: Actions) {
   return (
     <>

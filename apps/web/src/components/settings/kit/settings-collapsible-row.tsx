@@ -61,7 +61,6 @@ export function SettingsCollapsibleRow({
         )}
         <IconChevronDown className="size-3.5 shrink-0 text-muted-foreground transition-transform duration-150 ease-out group-expanded/settings-collapsible:rotate-180 motion-reduce:transition-none" />
       </Button>
-      {/* Shown only while open: a collapsed panel's border would double the hairline below. */}
       <DisclosurePanel className="hidden flex-col divide-y divide-border border-t border-border group-expanded/settings-collapsible:flex *:ps-8">
         {children}
       </DisclosurePanel>

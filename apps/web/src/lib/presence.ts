@@ -1,6 +1,3 @@
-// Who else is looking at or replying in a conversation ("Bea is replying"). Realtime `presence`
-// events fill it; nothing is fetched. Each entry expires unless the teammate's app repeats it, so
-// a closed laptop that never said `left` stops showing within `TTL_MS`.
 import type { RealtimeEvent } from "./types.ts";
 
 type PresenceEvent = Extract<RealtimeEvent, { type: "presence" }>;
@@ -19,7 +16,6 @@ export const TTL_MS = 70_000;
 export const REPEAT_MS = 30_000;
 
 const EMPTY: readonly Presence[] = [];
-// threadId → memberId → presence. Snapshots are replaced, never mutated, for useSyncExternalStore.
 let byThread = new Map<string, readonly Presence[]>();
 const listeners = new Set<() => void>();
 let sweep: ReturnType<typeof setTimeout> | undefined;

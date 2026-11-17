@@ -1,11 +1,3 @@
-// A local authoritative DNS server for the e2e suites, the way GreenMail stands in for a mail
-// host: a real UDP server speaking DNS (encoded with `dns-packet`), that the mail service's real
-// resolver finds through NS records and queries over the network. Suites publish and remove
-// records on it the way a member does at their DNS host.
-//
-// Every zone's nameserver is `ns1.<zone>` at 127.0.0.1, so the mail service, told to use this
-// server as its resolver and its port for nameservers, takes the same path it takes in production:
-// NS lookup, nameserver address, then a direct query.
 import dgram from "node:dgram";
 import packet, { type Answer } from "dns-packet";
 
@@ -42,8 +34,8 @@ export const startDnsServer: () => Promise<DnsServer> = async () => {
     type,
   ) => {
     const zone = zoneOf(name);
-    if (!zone) return { rcode: 5, answers: [] }; // REFUSED: not ours.
-    if (!exists(name)) return { rcode: 3, answers: [] }; // NXDOMAIN
+    if (!zone) return { rcode: 5, answers: [] };
+    if (!exists(name)) return { rcode: 3, answers: [] };
     const at = records.get(name);
     const cname = at?.get("CNAME");
     if (cname && type !== "CNAME") {
@@ -90,7 +82,6 @@ export const startDnsServer: () => Promise<DnsServer> = async () => {
     const response = packet.encode({
       id: query.id,
       type: "response",
-      // Authoritative answer, plus the response code in the low bits.
       flags: packet.AUTHORITATIVE_ANSWER | rcode,
       questions: query.questions,
       answers,

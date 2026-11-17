@@ -1,4 +1,3 @@
-// The workspace's CRM settings: today, the default currency.
 import { eq } from "drizzle-orm";
 import { crmSettings } from "../schema/crm.ts";
 import { isCurrency, type CrmMember, type Ex } from "./core.ts";

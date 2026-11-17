@@ -1,6 +1,3 @@
-// Raw mail, sanitized HTML and attachments go to an S3-compatible bucket: R2 in production, any
-// S3 API (the local stack's gateway, MinIO, AWS) elsewhere. Keys are content hashes, so writing
-// the same object twice is harmless and a re-sync converges.
 import { AwsClient } from "aws4fetch";
 import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
@@ -35,7 +32,6 @@ export const createS3Store: (options: S3Options) => ObjectStore = (options) => {
 
   const checked = async (key: string, response: Response) => {
     if (!response.ok) {
-      // The S3 error document can echo the canonical request: keep only its start.
       const detail = (await response.text()).slice(0, 200);
       throw new Error(`object put ${key} failed: ${response.status} ${detail}`);
     }
@@ -51,8 +47,6 @@ export const createS3Store: (options: S3Options) => ObjectStore = (options) => {
       await checked(key, response);
     },
     async putFile(key, file, contentType) {
-      // A signed hash of the body would mean reading the file twice; TLS already protects it,
-      // and the key is the content's own hash.
       const response = await client.fetch(url(key), {
         method: "PUT",
         body: Readable.toWeb(createReadStream(file.path)) as ReadableStream<Uint8Array>,

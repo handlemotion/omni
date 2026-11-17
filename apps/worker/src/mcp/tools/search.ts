@@ -1,9 +1,3 @@
-// `search`: find threads (ADR 0029), in the shape ChatGPT's deep research expects
-// (`results: [{ id, title, url }]`) with what an agent needs to pick which to `fetch`.
-//
-// - With a query: smart search (full-text recall per mailbox, reranked by Jev when configured),
-//   narrowed by the message filters inside recall. Best match first.
-// - Without one: the thread list, newest first, with every filter, paged by cursor.
 import type { McpServer } from "@modelcontextprotocol/server";
 import { LANES, THREAD_VIEWS, type ThreadFilters } from "@omni/db";
 import { z } from "zod";
@@ -12,10 +6,6 @@ import { laneOf, personSchema, result, threadSummary, threadUrl, toolError } fro
 import { findMailbox, readsFor, unknownMailbox, type Reads } from "../scope.ts";
 import { guarded, type ToolContext } from "../server.ts";
 
-/**
- * An address or a domain. The domain part is letters, digits and hyphens only: it becomes a LIKE
- * pattern, where `_` and `%` would be wildcards.
- */
 const who = z
   .string()
   .trim()
@@ -84,7 +74,6 @@ const outputSchema = z.object({
   note: z.string().optional(),
 });
 
-/** Filters that only the thread list applies; a query ignores them, and says so. */
 const LIST_ONLY = ["view", "lane", "unread", "status", "tag", "cursor"] as const;
 
 function encodeCursor(row: { lastMessageAt: Date; id: string }) {
@@ -181,7 +170,6 @@ async function listByFilters(
       unread: input.unread,
       filters: filtersOf(input),
       before,
-      // One more than asked: whether there is a next page.
       limit: input.limit + 1,
     }),
     reads.listMailboxes(),

@@ -1,7 +1,3 @@
-// Inviting someone with their inbox (ADR 0026), on the onboarding stack: real Worker, real mail
-// service, GreenMail and Postgres. The inbox is made at invite time and waits with no owner, so
-// nobody can open it; accepting the invitation makes it the new member's. An invitation must give
-// them an inbox, their own or a shared one.
 import { listServiceMailboxes, schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -40,7 +36,6 @@ const syncing = async () => (await listServiceMailboxes(stack.database.db)).map(
 const visibleIds = async (jar: CookieJar) =>
   ((await api(jar, "GET", "/mailboxes")).body.mailboxes as { id: string }[]).map((m) => m.id);
 
-/** The invitee signs in and accepts; returns their member id here and their jar. */
 async function accept(email: string, invitationId: string, orgId: string) {
   const jar = new CookieJar();
   await signIn(stack.worker, stack.database.db, email, jar);
@@ -69,11 +64,9 @@ test("an inbox made with an invitation waits unowned, and becomes theirs when th
   const inboxId = (invited.body.inbox as { mailboxId: string }).mailboxId;
   const invitationId = (invited.body.invitation as { id: string }).id;
 
-  // Bug caught: the inviter (or anyone) holding a grant on an inbox meant for the invitee.
   expect(await grantsOn(inboxId)).toEqual([]);
   expect(await syncing()).not.toContain(inboxId);
   expect(await visibleIds(owner.jar)).not.toContain(inboxId);
-  // Bug caught: the reserved address handed to someone else before the invitee accepts.
   const other = await createMember(stack.database.db, owner.orgId, `other-${tag()}@x.test`);
   const taken = await api(
     owner.jar,
@@ -98,8 +91,6 @@ test("an inbox made with an invitation waits unowned, and becomes theirs when th
 
 test("an invitation must give an inbox; shared ones are joined on accepting", async () => {
   const owner = await stack.workspaceWithDomain();
-  // On its own mail host, with no shared inbox yet, there is nothing to give with an invitation:
-  // people get theirs after joining. Bug caught: a workspace that can never invite anyone.
   const early = await api(owner.jar, "POST", "/workspace/invitations", {
     email: `early-${tag()}@x.test`,
   });
@@ -111,13 +102,10 @@ test("an invitation must give an inbox; shared ones are joined on accepting", as
   });
   const supportId = support.body.mailboxId as string;
 
-  // With a shared inbox to give, an invitation must give one. Bug caught: a new member who can
-  // open nothing.
   const bare = await api(owner.jar, "POST", "/workspace/invitations", {
     email: `bare-${tag()}@x.test`,
   });
   expect(bare.status).toBe(422);
-  // Bug caught: inviting someone onto another workspace's shared inbox.
   const elsewhere = await stack.workspaceWithDomain();
   const crossed = await api(elsewhere.jar, "POST", "/workspace/invitations", {
     email: `crossed-${tag()}@x.test`,
@@ -136,15 +124,12 @@ test("an invitation must give an inbox; shared ones are joined on accepting", as
   expect((await grantsOn(supportId)).toSorted()).toEqual([ana.id, bo.id].toSorted());
   expect(await visibleIds(bo.jar)).toContain(supportId);
 
-  // Bug caught: an invitation around the inbox rule through Better Auth's own endpoint.
   const direct = await authPost(stack.worker, owner.jar, "/organization/invite-member", {
     email: `direct-${tag()}@x.test`,
     role: "member",
   });
   expect(direct.status).toBe(404);
 
-  // A tab from before still resends through Better Auth, but only an invitation already pending
-  // here; a "resend" to anyone else would be a new invitation around the inbox rule.
   const laterEmail = `later-${tag()}@x.test`;
   await api(owner.jar, "POST", "/workspace/invitations", {
     email: laterEmail,
@@ -163,7 +148,6 @@ test("an invitation must give an inbox; shared ones are joined on accepting", as
   });
   expect(sneaky.status).toBe(404);
 
-  // Resending goes through the Worker too, and keeps the shared inbox.
   const pending = await api(owner.jar, "POST", "/workspace/invitations", {
     email: `later-${tag()}@x.test`,
     sharedInboxIds: [supportId],
@@ -178,7 +162,6 @@ test("an invitation must give an inbox; shared ones are joined on accepting", as
     .where(eq(schema.invitations.id, pendingId));
   expect(resent?.teamId).toBeTruthy();
 
-  // Bug caught: a plain member inviting people.
   const boInvites = await api(bo.jar, "POST", "/workspace/invitations", {
     email: `x-${tag()}@x.test`,
     sharedInboxIds: [supportId],

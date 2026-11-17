@@ -1,6 +1,3 @@
-// An agent asking to connect to Omni (ADR 0029), from Rodrigo's reference: one centered block on
-// an empty page. Who is asking, which workspace the connection reaches (every workspace unless
-// one is picked), what it may do, and Cancel or Confirm.
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
@@ -23,12 +20,10 @@ import { appToast } from "@/components/ui/toast";
 import { useWorkspaces } from "@/hooks/use-workspaces.ts";
 import { answerConsent, oauthClientQuery } from "@/lib/oauth-consent.ts";
 
-/** The value of the picker's first option: the grant reaches every workspace. */
 const ALL = "all";
 
 type Icon = typeof IconMail;
 
-/** What each scope lets the agent do, in the order shown. OIDC scopes share one line. */
 const SCOPE_LINES: { scopes: string[]; icon: Icon; label: string }[] = [
   {
     scopes: ["openid", "profile", "email"],
@@ -58,7 +53,6 @@ export function Consent({ clientId, scope }: { clientId: string; scope: string }
   });
   const requested = new Set(scope.split(" ").filter(Boolean));
   const known = new Set(SCOPE_LINES.flatMap((line) => line.scopes));
-  // A scope with no line is shown by its name, so nothing is approved unseen.
   const lines = [
     ...SCOPE_LINES.filter((line) => line.scopes.some((s) => requested.has(s))),
     ...[...requested]
@@ -72,7 +66,6 @@ export function Consent({ clientId, scope }: { clientId: string; scope: string }
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-4">
-      {/* The bottom padding lifts the block a little above center, where it looks centered. */}
       <div className="flex w-95 flex-col gap-8 pb-12">
         <div className="flex flex-col items-center gap-1 text-center">
           <Heading className="font-semibold">{name} access request</Heading>

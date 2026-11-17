@@ -41,7 +41,6 @@ test("a Personal space has My files and no Shared", async () => {
     (await storage.openUpload({ space: "shared" }, { name: "a.txt", size: 1, limitBytes: null }))
       .status,
   ).toBe("not_found");
-  // A stray Shared row in a Personal space is still unreachable: the door decides, not the data.
   const [stray] = await db
     .insert(storageNodes)
     .values({ orgId, space: "shared", kind: "folder", name: "Stray" })
@@ -71,7 +70,6 @@ test("in Shared every member reads and writes, and only the uploader or an admin
   expect((await benStorage.move(budget.id, { space: "personal" })).status).toBe("forbidden");
   expect((await anaStorage.trash(budget.id)).status).toBe("ok");
 
-  // Trash lists what each member may restore: the uploader and the admin, not a teammate.
   expect((await benStorage.listTrash()).nodes).toEqual([]);
   expect((await benStorage.restore(budget.id)).status).toBe("forbidden");
   expect((await benStorage.deleteForever(budget.id)).status).toBe("forbidden");
@@ -95,7 +93,6 @@ test("a grant on a folder opens a file two levels down for that address only, an
 
   const guest = await createPerson(db, "guest@outside.test");
   const stranger = await createPerson(db, "stranger@outside.test");
-  // An address someone typed at sign-up and never proved is not theirs yet.
   const [unproven] = await db
     .insert(users)
     .values({ id: crypto.randomUUID(), name: "unproven", email: "unproven@outside.test" })
@@ -107,7 +104,6 @@ test("a grant on a folder opens a file two levels down for that address only, an
   const guestStorage = forUser(db, guest.id).storage;
   const opened = await guestStorage.file(file.id);
   expect(opened).toMatchObject({ status: "ok", r2Key: `orgs/${org.id}/${file.id}` });
-  // The path starts at the folder that was shared, not at the owner's root.
   expect((await guestStorage.node(file.id))?.path.map((entry) => entry.name)).toEqual([
     "Client",
     "2026",
@@ -118,7 +114,6 @@ test("a grant on a folder opens a file two levels down for that address only, an
   expect((await forUser(db, unproven!.id).storage.file(file.id)).status).toBe("not_found");
   expect((await guestStorage.sharedWithMe()).items.map((item) => item.node.id)).toEqual([top.id]);
 
-  // A viewer reads and changes nothing.
   expect((await guestStorage.createFolder({ parentId: mid.id }, "x")).status).toBe("forbidden");
   expect((await guestStorage.rename(file.id, "mine.pdf")).status).toBe("forbidden");
   expect((await guestStorage.trash(file.id)).status).toBe("forbidden");
@@ -151,10 +146,8 @@ test("an editor grant writes inside the granted folder and nowhere else, and nev
   expect((await editing.move(notes.id, { parentId: inner.id })).status).toBe("ok");
   expect((await editing.trash(uploaded.id)).status).toBe("ok");
 
-  // The folder they were given is not theirs to rename, move or trash.
   expect((await editing.rename(project.id, "Taken")).status).toBe("forbidden");
   expect((await editing.trash(project.id)).status).toBe("forbidden");
-  // Nothing outside it exists for them, as a source or as a destination.
   expect((await editing.trash(secret.id)).status).toBe("not_found");
   expect((await editing.move(notes.id, { parentId: other.id })).status).toBe("not_found");
   expect((await editing.move(secret.id, { parentId: inner.id })).status).toBe("not_found");
@@ -164,12 +157,10 @@ test("an editor grant writes inside the granted folder and nowhere else, and nev
     (await editing.openUpload({ parentId: other.id }, { name: "x", size: 1, limitBytes: null }))
       .status,
   ).toBe("not_found");
-  // The grant door has no sharing, restore or delete-forever at all.
   expect(Object.keys(editing)).not.toEqual(
     expect.arrayContaining(["putGrant", "setLinkAccess", "restore", "deleteForever", "listTrash"]),
   );
 
-  // Downgraded to viewer, the very next write is refused.
   await storage.putGrant(project.id, "editor@outside.test", "viewer");
   expect((await editing.createFolder({ parentId: inner.id }, "Late")).status).toBe("forbidden");
 });
@@ -221,7 +212,6 @@ test("a session scoped to a company sees only grants addressed to that company's
     "for-pat-personally.txt",
   ]);
 
-  // Whoever controls acme.test's mail can sign in as pat@acme.test, and reaches only this.
   const scoped = forUser(db, person.id, acme.id).storage;
   expect((await scoped.sharedWithMe()).items.map((item) => item.node.name)).toEqual([
     "for-pat-at-acme.txt",
@@ -246,7 +236,6 @@ test("a Restricted link opens nothing without a grant, Anyone opens it, and a re
   const shareId = granted.shareId;
   expect(shareId).toMatch(/^[A-Za-z0-9_-]{22}$/);
 
-  // Restricted: the link alone opens nothing, but the same link opens for the person added.
   expect(await publicStorageNode(db, shareId)).toBeNull();
   expect((await publicStorage(db, shareId).file(logo.id)).status).toBe("not_found");
   expect((await forUser(db, guest.id).storage.nodeByShareId(shareId))?.node.id).toBe(folder.id);
@@ -261,7 +250,6 @@ test("a Restricted link opens nothing without a grant, Anyone opens it, and a re
     status: "ok",
     r2Key: `orgs/${org.id}/${logo.id}`,
   });
-  // The path a visitor sees starts at the shared folder; nothing beside it is reachable.
   expect((await link.node(logo.id))?.path.map((entry) => entry.name)).toEqual([
     "Press kit",
     "Logos",
@@ -277,7 +265,6 @@ test("a Restricted link opens nothing without a grant, Anyone opens it, and a re
   expect((await publicStorage(db, shareId).file(logo.id)).status).toBe("not_found");
   expect((await publicStorage(db, reset.sharing.shareId!).file(logo.id)).status).toBe("ok");
 
-  // Back to Restricted closes it at once.
   await storage.setLinkAccess(folder.id, "restricted");
   expect(await publicStorageNode(db, reset.sharing.shareId!)).toBeNull();
 });
@@ -290,7 +277,6 @@ test("a trashed node, or one inside a trashed folder, is invisible through a gra
   const sub = await addFolder(storage, { parentId: folder.id }, "Sub");
   const file = await addFile(storage, { parentId: sub.id }, "doc.txt");
   const guest = await createPerson(db, "reader@outside.test");
-  // Granted and linked on the file itself, so only the trashed folder above it can hide it.
   const granted = await storage.putGrant(file.id, "reader@outside.test", "viewer");
   if (granted.status !== "ok") throw new Error(granted.status);
   await storage.setLinkAccess(file.id, "anyone");
@@ -304,7 +290,6 @@ test("a trashed node, or one inside a trashed folder, is invisible through a gra
   expect((await reading.sharedWithMe()).items).toEqual([]);
   expect(await publicStorageNode(db, granted.shareId)).toBeNull();
   expect((await publicStorage(db, granted.shareId).file(file.id)).status).toBe("not_found");
-  // Its owner still reaches it, to restore it; it is out of the live listing.
   expect(names(await storage.list({ space: "personal" }))).toEqual([]);
   expect((await storage.listTrash()).nodes.map((node) => node.id)).toEqual([folder.id]);
 
@@ -327,14 +312,12 @@ test("a taken name gets a number, also when many inserts race for it", async () 
     ...Array.from({ length: 7 }, (_, n) => `Report (${n + 1})`),
   ]);
 
-  // A file keeps its extension, and case does not make a name different.
   const first = await addFile(storage, { space: "personal" }, "report.pdf");
   const second = await addFile(storage, { space: "personal" }, "REPORT.pdf");
   expect([first.name, second.name]).toEqual(["report.pdf", "REPORT (1).pdf"]);
   expect((await storage.rename(second.id, "Report.PDF")).status).toBe("name_taken");
   expect((await storage.rename(second.id, "a/b.pdf")).status).toBe("invalid_name");
 
-  // A trashed name is free again; restoring next to its replacement keeps both.
   await storage.trash(first.id);
   const replacement = await addFile(storage, { space: "personal" }, "report.pdf");
   expect(replacement.name).toBe("report.pdf");
@@ -361,13 +344,11 @@ test("a move cannot make a cycle, pass the depth cap or leave the workspace, and
     deepest = await addFolder(storage, { parentId: deepest.id }, `level-${level}`);
   }
   expect((await storage.createFolder({ parentId: deepest.id }, "too far")).status).toBe("too_deep");
-  // A file may sit in the deepest folder; a folder moved there may not, nor a tall one near it.
   expect((await addFile(storage, { parentId: deepest.id }, "leaf.txt")).parentId).toBe(deepest.id);
   expect((await storage.move(c.id, { parentId: deepest.id })).status).toBe("too_deep");
   expect((await storage.move(b.id, { parentId: deepest.parentId! })).status).toBe("too_deep");
   expect((await storage.move(c.id, { parentId: deepest.parentId! })).status).toBe("ok");
 
-  // Another workspace's folder is no destination, even for someone who is a member of both.
   const other = await createOrg(db, "moves-other");
   const [anaThere] = await db
     .insert(members)
@@ -381,7 +362,6 @@ test("a move cannot make a cycle, pass the depth cap or leave the workspace, and
   const there = await addFolder(forMember(db, anaThere!.id).storage, { space: "personal" }, "x");
   expect((await storage.move(b.id, { parentId: there.id })).status).toBe("not_found");
 
-  // Moved to Shared, the folder and what is inside it become the team's.
   const inside = await addFile(storage, { parentId: b.id }, "inside.txt");
   const shared = await addFolder(storage, { space: "shared" }, "b");
   expect(await storage.move(b.id, { space: "shared" })).toMatchObject({
@@ -391,7 +371,6 @@ test("a move cannot make a cycle, pass the depth cap or leave the workspace, and
   expect(shared.name).toBe("b");
   const benStorage = forMember(db, ben.id).storage;
   expect((await benStorage.file(inside.id)).status).toBe("ok");
-  // And back in My files, it is private again.
   expect((await storage.move(b.id, { space: "personal" })).status).toBe("ok");
   expect((await benStorage.file(inside.id)).status).toBe("not_found");
 });
@@ -403,7 +382,6 @@ test("deleting a workspace takes its storage rows; deleting a member who still o
   const file = await addFile(storage, { space: "personal" }, "kept.txt");
   await storage.putGrant(file.id, "someone@outside.test", "viewer");
 
-  // The company keeps its files: they must be moved before the member row can go.
   await expect(db.delete(members).where(eq(members.id, ana.id))).rejects.toMatchObject({
     cause: { constraint_name: "storage_nodes_owner_member_id_members_id_fk" },
   });
@@ -447,7 +425,6 @@ test("paged lists return every row once: a folder (folders first, by name), Tras
     if (!page.nextCursor) break;
     sharedCursor = { limit: 2, cursor: page.nextCursor };
   }
-  // Newest grant first; two in the same millisecond may swap, so only "each once" is asserted.
   expect(shared.toSorted()).toEqual(["A.txt", "b.txt", "c.txt"]);
 
   const all = await storage.list({ space: "personal" });
@@ -464,9 +441,6 @@ test("paged lists return every row once: a folder (folders first, by name), Tras
   expect(trashed.toSorted()).toEqual(["A.txt", "Alpha", "b.txt", "c.txt", "zeta"]);
 });
 
-// Catches: the "uploader, owners and admins" rule in Shared judged on the folder alone. A member
-// moved a colleague's file into a folder they made, then trashed the folder (the colleague saw
-// nothing in Trash and could restore nothing), took it into their own My files, or deleted it.
 test("in Shared a folder holding a colleague's file is not its maker's to trash, take out or delete", async () => {
   const org = await createOrg(db, "shared-folders");
   const ana = await createMember(db, org.id, "ana");
@@ -480,19 +454,16 @@ test("in Shared a folder holding a colleague's file is not its maker's to trash,
   const file = await addFile(anaStorage, { space: "shared" }, "ana.txt");
   const folder = await addFolder(benStorage, { space: "shared" }, "Ben's");
   const inner = await addFolder(benStorage, { parentId: folder.id }, "Inner");
-  // Everyone writes in Shared: moving it is allowed, and gives no right over it.
   expect((await benStorage.move(file.id, { parentId: inner.id })).status).toBe("ok");
 
   expect((await benStorage.trash(folder.id)).status).toBe("forbidden");
   expect((await benStorage.trash(inner.id)).status).toBe("forbidden");
   expect((await benStorage.move(folder.id, { space: "personal" })).status).toBe("forbidden");
   expect((await anaStorage.file(file.id)).status).toBe("ok");
-  // An admin trashes it; Ben still cannot delete for good what holds Ana's file.
   expect((await adminStorage.trash(folder.id)).status).toBe("ok");
   expect((await benStorage.deleteForever(folder.id)).status).toBe("forbidden");
   expect((await adminStorage.restore(folder.id)).status).toBe("ok");
 
-  // Once the file is out, the folders are all Ben's again: his to take out, trash and delete.
   expect((await anaStorage.move(file.id, { space: "shared" })).status).toBe("ok");
   await addFile(benStorage, { parentId: inner.id }, "ben.txt");
   expect((await benStorage.move(inner.id, { space: "personal" })).status).toBe("ok");
@@ -501,8 +472,6 @@ test("in Shared a folder holding a colleague's file is not its maker's to trash,
   expect((await anaStorage.file(file.id)).status).toBe("ok");
 });
 
-// Catches: a member giving their own address an editor grant on a Shared folder and trashing a
-// colleague's file through the grant door, which the member door refuses them.
 test("an editor grant gives a member of the workspace no more right to trash in Shared than membership does", async () => {
   const org = await createOrg(db, "self-grant");
   const ana = await createMember(db, org.id, "ana");
@@ -525,14 +494,10 @@ test("an editor grant gives a member of the workspace no more right to trash in 
   expect((await benGrant.node(file.id))?.role).toBe("editor");
   expect((await benGrant.trash(file.id)).status).toBe("forbidden");
   expect((await benGrant.rename(file.id, "renamed.txt")).status).toBe("ok");
-  // What he uploaded is his to trash through either door.
   expect((await benGrant.trash(own.id)).status).toBe("ok");
-  // An editor from outside keeps what the ADR gives an editor.
   expect((await forUser(db, outsider.id).storage.trash(file.id)).status).toBe("ok");
 });
 
-// Catches: the number a taken name gets pushing it past the longest name allowed, leaving a
-// node nobody can rename to what it is called.
 test("a taken name at the length limit is numbered without passing the limit", async () => {
   const org = await createOrg(db, "long-names");
   const ana = await createMember(db, org.id, "ana");

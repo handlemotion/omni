@@ -1,6 +1,3 @@
-// Helpdesk conversations on shared inboxes (ADR 0021): reading a conversation's state and
-// changing it. Every change is one shared value (status, assignee, priority, a tag) for everyone
-// who sees the inbox; the Worker writes its timeline event and fans the change out over realtime.
 import {
   infiniteQueryOptions,
   mutationOptions,
@@ -67,7 +64,6 @@ export const tagsQuery = (mailboxId: string) =>
     queryFn: ({ signal }) =>
       call(api.mailboxes[":id"].tags.$get({ param: { id: mailboxId } }, { init: { signal } })),
     select: (data) => data.tags,
-    // Tags change in settings, rarely; a change there invalidates this.
     staleTime: 5 * 60_000,
   });
 
@@ -84,11 +80,8 @@ export const assigneesQuery = (mailboxId: string) =>
 export type ConversationChange =
   | { type: "resolve" }
   | { type: "reopen" }
-  /** ISO 8601, in the future. */
   | { type: "snooze"; until: string }
-  /** Assign to yourself. `memberId` (yours, when known) only drives the optimistic update. */
   | { type: "claim"; memberId?: string | undefined }
-  /** `null` unassigns. */
   | { type: "assign"; memberId: string | null }
   | { type: "priority"; priority: Priority }
   | { type: "tag"; tagId: string; add: boolean };
@@ -104,7 +97,6 @@ export interface ChangeVariables {
 const retry = (failureCount: number, error: Error) =>
   error instanceof ApiError && error.status === 0 && failureCount < 10;
 
-/** The same scope as mail actions: everything runs in the order it was made, offline included. */
 const scope = { id: "mail-actions" };
 
 function request({ threadId, change, key }: ChangeVariables) {
@@ -137,7 +129,6 @@ export type ConversationState = Pick<
   "status" | "snoozedUntil" | "resolvedAt" | "assigneeMemberId" | "priority" | "tags"
 >;
 
-/** Matches `SLA_AT_RISK_MINUTES` in `@omni/db`: "at risk" is due within this or past. */
 const SLA_AT_RISK_MS = 30 * 60_000;
 
 /**
@@ -172,7 +163,6 @@ export function inView(
 
 type ConversationPages = InfiniteData<ConversationPage, string | null>;
 
-/** Applies the change to the row in every cached helpdesk list, and drops it where it no longer belongs. */
 function patchLists(
   client: QueryClient,
   { threadId, change, tag, me }: ChangeVariables & { tag?: Conversation["tags"][number] },
@@ -246,7 +236,6 @@ export const inverseOf: (
     case "resolve":
     case "snooze":
     case "reopen": {
-      // Back to the status it had: resolved, the same snooze (while still ahead), or open.
       const unchanged =
         (change.type === "resolve" && before.status === "resolved") ||
         (change.type === "reopen" && (before.status === "open" || before.status === "pending")) ||
@@ -305,7 +294,6 @@ export const conversationChangeMutation = (client: QueryClient) =>
       const before = client.getQueryData<Conversation>(key);
       if (before) client.setQueryData(key, applyChange(before, change, tag));
       patchLists(client, vars);
-      // Resolving archives the thread (ADR 0021 §5): it leaves the mail inbox at once too.
       if (change.type === "resolve") removeFromLists(client, threadId, (f) => f.view === "inbox");
       return { snapshot };
     },
@@ -313,7 +301,6 @@ export const conversationChangeMutation = (client: QueryClient) =>
       for (const [key, data] of context?.snapshot ?? []) client.setQueryData(key, data);
     },
     onSuccess: ({ conversation }, { threadId }) => {
-      // The server's values (due times, resolvedAt) over the guess; tags and events refetch.
       client.setQueryData<Conversation>(keys.conversation(threadId), (current) =>
         current ? { ...current, ...conversation } : current,
       );
@@ -341,10 +328,6 @@ export interface BulkVariables {
 
 type ListSnapshot = [QueryKey, ConversationPages | undefined][];
 
-/**
- * Rows the server refused (gone, not yours to see, a personal mailbox) go back to how they were;
- * the rest keep their change. A refused row the change had dropped from a list comes back in place.
- */
 function restoreRows(
   client: QueryClient,
   failed: Set<string>,
@@ -385,7 +368,6 @@ export const bulkChangeMutation = (client: QueryClient) =>
       call(
         api.conversations.bulk.$post({
           header: { "idempotency-key": key },
-          // The server claims for whoever asks; `memberId` only drives the optimistic update.
           json: { threadIds, change: change.type === "claim" ? { type: "claim" } : change },
         }),
       ),
@@ -456,7 +438,6 @@ export const updateTagMutation = (client: QueryClient) =>
       call(api.mailboxes[":id"].tags[":tagId"].$patch({ param: { id: mailboxId, tagId }, json })),
     onSettled: (_data, _error, { mailboxId }) => {
       void client.invalidateQueries({ queryKey: keys.tags(mailboxId) });
-      // Conversations show the tag's name and color.
       void client.invalidateQueries({ queryKey: keys.mail(), predicate: isConversation });
     },
   });

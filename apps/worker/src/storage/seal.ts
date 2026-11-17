@@ -1,13 +1,3 @@
-// The seal (ADR 0037 decision 4 step 4, ADR 0043 decision 6): when the last signer signs, the
-// Worker appends an audit page to the PDF (each signer, address, time in UTC, IP, the original's
-// hash, the request id), stores the result beside the original as a locked file, records its
-// hash, and mails every party. It runs right after the last signature and again from the minute
-// cron for any request a run left unsealed. Each run writes its own object and `recordStorageSeal`
-// records once per request, so the recorded hash is always that of the object kept, a run that
-// loses deletes its object, and only the run that recorded mails.
-//
-// A PDF pdf-lib cannot open (encrypted, damaged) is not left unsealed forever: its sealed copy is
-// the audit page alone, as its own PDF, which still names the original's hash.
 import { STORAGE_SIGNING_CONSENT } from "@omni/contracts";
 import {
   recordStorageSeal,
@@ -28,12 +18,11 @@ import { loadConfig } from "../env.ts";
 import { retried, runJob, scopedDb } from "../job-effects.ts";
 import { createLogger, type Logger } from "../log.ts";
 
-const PAGE = { width: 595.28, height: 841.89 }; // A4, in points
+const PAGE = { width: 595.28, height: 841.89 };
 const MARGIN = 50;
 const SIZE = 9;
 const LEADING = 13;
 
-/** WinAnsi is what the standard fonts encode: anything outside it prints as `?`. */
 const printable = (text: string) => text.replace(/[^\x20-\x7e\xa0-\xff]/g, "?");
 
 const utc = (date: Date | null) =>
@@ -63,7 +52,6 @@ export function auditLines(input: StorageSealInput) {
     );
   }
   lines.push("", "# Audit trail");
-  // Up to completion: a view after it is not part of the signing.
   const until = request.completedAt?.getTime() ?? Infinity;
   for (const event of request.events.filter((e) => e.createdAt.getTime() <= until)) {
     lines.push(
@@ -79,7 +67,6 @@ export function auditLines(input: StorageSealInput) {
   return lines satisfies string[];
 }
 
-/** Splits a line to fit the page width, breaking anywhere when a word is longer than a line. */
 function wrap(text: string, font: PDFFont, width: number) {
   const out: string[] = [];
   let line = "";
@@ -100,7 +87,6 @@ function wrap(text: string, font: PDFFont, width: number) {
   return out satisfies string[];
 }
 
-/** Writes the audit page(s) at the end of `pdf`. */
 async function addAuditPages(pdf: PDFDocument, input: StorageSealInput) {
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -130,7 +116,6 @@ async function addAuditPages(pdf: PDFDocument, input: StorageSealInput) {
 /** The signed copy: the original with its audit page, or the page alone when it will not open. */
 export async function buildSealedPdf(original: Uint8Array, input: StorageSealInput) {
   try {
-    // A damaged file may load and fail only when a page is added or it is saved.
     const pdf = await PDFDocument.load(original, { updateMetadata: false });
     await addAuditPages(pdf, input);
     return await pdf.save();
@@ -190,11 +175,6 @@ export const sealSignatureRequest: (
   return recorded.node;
 };
 
-/**
- * After a failed record: deletes this run's object unless the record committed after all (a
- * commit whose answer was lost). When even that check fails, the object stays: deleting a copy
- * that may be recorded is worse than leaving an unused one.
- */
 async function dropUnrecorded(deps: SealDeps, requestId: string, r2Key: string) {
   try {
     const kept = await sealedObject(deps.db, requestId);
@@ -204,7 +184,6 @@ async function dropUnrecorded(deps: SealDeps, requestId: string, r2Key: string) 
   }
 }
 
-/** Tells every signer and the sender that the document is signed, and where the copy is. */
 async function mailParties(deps: SealDeps, input: StorageSealInput, node: StorageNode) {
   const { config, log } = deps;
   if (!config.SYSTEM_MAIL_FROM) {
@@ -278,7 +257,6 @@ export function sealAfterResponse(
   c.executionCtx.waitUntil(
     sealSignatureRequest(deps, requestId)
       .then((node) => node && announce(node))
-      // The minute cron seals it instead.
       .catch((error: unknown) => c.var.log.warn("storage.seal_deferred", { requestId, error }))
       .finally(() => close()),
   );

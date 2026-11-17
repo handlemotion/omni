@@ -1,7 +1,3 @@
-// Personal spaces (ADR 0024, rollout step 1) on the real Worker and Postgres: sign-up makes one
-// per person and signing in again never makes a second; a person from before ADR 0024 gets theirs
-// at their next sign-in; it holds no invitations, members, teams or shared mailboxes and
-// cannot be deleted on its own; and today's clients do not see it (no default, not listed).
 import { randomUUID } from "node:crypto";
 import {
   ensurePersonalSpace,
@@ -66,7 +62,6 @@ async function userId(email: string) {
   return user!.id;
 }
 
-/** Signs `email` up and returns their browser, user id and Personal space id. */
 async function signedUp(email: string) {
   const jar = new CookieJar();
   await signIn(worker, database.db, email, jar);
@@ -125,14 +120,12 @@ test("a person from before Personal spaces gets theirs at their next sign-in", a
 
 test("with no company the Personal space is the default; setup still creates a company", async () => {
   const { jar, spaceId } = await signedUp("hidden@personal.test");
-  // No company: they work in their Personal space, and setup offers to create one.
   expect((await get(jar, "/me")).body).toMatchObject({ orgId: spaceId, role: "owner" });
   expect((await get(jar, "/onboarding")).body).toMatchObject({
     canCreateOrganization: true,
     organization: null,
   });
 
-  // Listed only on request (`?include=personal`), as before.
   expect((await get(jar, "/workspaces")).body).toEqual({
     activeOrganizationId: spaceId,
     scopedTo: null,
@@ -143,7 +136,6 @@ test("with no company the Personal space is the default; setup still creates a c
     expect.objectContaining({ id: spaceId, kind: "personal", role: "owner", setup: "complete" }),
   ]);
 
-  // Creating a company makes it the default, as before; the Personal space stays out of the way.
   const created = await authPost(worker, jar, "/organization/create", {
     name: "Hidden Co",
     slug: `hidden-${randomUUID()}`,
@@ -164,7 +156,6 @@ test("a Personal space refuses invitations, members, teams and being deleted", a
   });
   expect(active.status).toBe(200);
 
-  // Invitations go through the Worker (ADR 0026), which has no such thing for a Personal space.
   expect((await invite(worker, jar, { email: "friend@personal.test" })).status).toBe(404);
   const refusals = [
     await authPost(worker, jar, "/organization/create-team", {
@@ -251,7 +242,6 @@ test("a company whose handle looks like a Personal space's does not block anyone
     .insert(schema.users)
     .values({ id: randomUUID(), name: "clash", email: "clash@personal.test", emailVerified: true })
     .returning();
-  // The handle the first version derived from the user id, taken by a company first.
   await db.insert(schema.organizations).values({
     id: randomUUID(),
     name: "Squatter",

@@ -1,9 +1,3 @@
-// Spec, "Sync rules": Purelymail is the source of truth and Postgres is an index a full re-sync
-// rebuilds. This builds an index the way it grows in production (mail arriving one message at a
-// time over IDLE, actions from Omni through the outbox, a change made in Apple Mail), wipes the
-// mailbox's index, re-syncs from scratch, and requires the same index back. The re-sync sees the
-// mail in a different order (history imports newest first, INBOX last), which is what makes this
-// worth testing.
 import { enqueueAction, forMember, schema, setThreadArchived, threadActionTargets } from "@omni/db";
 import { and, asc, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
@@ -37,7 +31,6 @@ afterEach(async () => {
   connections = [];
 });
 
-/** A process with nothing cached: its own store and connection. */
 function startService(box: Awaited<ReturnType<typeof seedMailbox>>["box"]) {
   const store = new PgMailStore({ db, objects, links });
   const connection = new MailboxConnection(box, { store, logger, batchSize: 3 });
@@ -48,7 +41,6 @@ function startService(box: Awaited<ReturnType<typeof seedMailbox>>["box"]) {
     logger,
     connection: (id) => (id === box.id ? connection : undefined),
   });
-  /** Runs every queued action once, as the outbox loop would. */
   const drainOutbox = async () => {
     for (let claimed = await actions.claim(10); claimed.length; claimed = await actions.claim(10)) {
       for (const action of claimed) await executor.execute(action);
@@ -57,11 +49,6 @@ function startService(box: Awaited<ReturnType<typeof seedMailbox>>["box"]) {
   return { connection, drainOutbox };
 }
 
-/**
- * The index as the apps see it, with nothing that differs between two builds of the same mail
- * (row ids): threads as sets of Message-IDs with their read and archive state, every IMAP copy
- * with its flags, and every folder's sync position.
- */
 async function snapshot(mailboxId: string, memberId: string) {
   const rows = await db
     .select({
@@ -131,7 +118,6 @@ it("a full re-sync after losing the index rebuilds the same threads, read and ar
   await live.connection.start();
 
   const id = (name: string) => `<${name}.${box.id}@outside.test>`;
-  // Mail arrives one message at a time, oldest first, each indexed before the next.
   const arrive = async (
     subject: string,
     messageId: string,
@@ -146,7 +132,6 @@ it("a full re-sync after losing the index rebuilds the same threads, read and ar
     inReplyTo: id("lunch-1"),
     references: [id("lunch-1")],
   });
-  // Copied in mid-thread: the first message we have replies to one we never saw.
   await arrive("Re: Budget", id("budget-2"), {
     inReplyTo: id("budget-1"),
     references: [id("budget-1")],
@@ -155,7 +140,6 @@ it("a full re-sync after losing the index rebuilds the same threads, read and ar
     inReplyTo: id("budget-2"),
     references: [id("budget-1"), id("budget-2")],
   });
-  // Two people answer the same message.
   await arrive("Offsite", id("offsite-1"));
   await arrive("Re: Offsite", id("offsite-2"), {
     inReplyTo: id("offsite-1"),
@@ -175,7 +159,6 @@ it("a full re-sync after losing the index rebuilds the same threads, read and ar
     if (!row) throw new Error(`${header} is not indexed`);
     return row.threadId;
   };
-  // What the Worker's routes write: the row first, then one outbox action per folder.
   const enqueueFor = async (threadId: string, kind: "archive" | "mark_read", key: string) => {
     const found = await threadActionTargets(db, ownerId, threadId);
     for (const { role, ...target } of found?.targets ?? []) {
@@ -191,7 +174,6 @@ it("a full re-sync after losing the index rebuilds the same threads, read and ar
     }
   };
 
-  // Omni replies in the lunch thread: SMTP, then a copy appended to Sent.
   const recipient = mailbox();
   await enqueueAction(db, {
     orgId: seeded.orgId,
@@ -209,7 +191,6 @@ it("a full re-sync after losing the index rebuilds the same threads, read and ar
     },
   });
   await live.drainOutbox();
-  // Omni marks the lunch thread read and archives the offsite thread.
   const lunch = await threadOf(id("lunch-1"));
   await forMember(db, ownerId).setThreadState(lunch, { read: true });
   await enqueueFor(lunch, "mark_read", `read-${box.id}`);
@@ -217,7 +198,6 @@ it("a full re-sync after losing the index rebuilds the same threads, read and ar
   await setThreadArchived(db, ownerId, offsite, true);
   await enqueueFor(offsite, "archive", `archive-${box.id}`);
   await live.drainOutbox();
-  // Apple Mail reads the budget thread.
   await otherClient(box, async (client) => {
     const lock = await client.getMailboxLock("INBOX");
     try {
@@ -227,13 +207,11 @@ it("a full re-sync after losing the index rebuilds the same threads, read and ar
       lock.release();
     }
   });
-  // The periodic folder sync.
   await live.connection.syncAll();
 
   const before = await snapshot(box.id, ownerId);
   const sentReply = before.copies.find((c) => c.folder === "Sent")?.header;
   expect(sentReply).toBeDefined();
-  // The live index is right to begin with, per the spec's rules.
   expect(
     before.threads.map(({ messages: headers, read, archived }) => ({
       messages: headers,
@@ -255,8 +233,6 @@ it("a full re-sync after losing the index rebuilds the same threads, read and ar
       .toSorted((a, b) => (a.messages[0] ?? "").localeCompare(b.messages[0] ?? "")),
   );
 
-  // Postgres loses the mailbox's index: threads (with their messages, copies and per-member
-  // state) and folders (with their sync positions). The mailbox, its members and the outbox stay.
   await live.connection.stop();
   await db.delete(threads).where(eq(threads.mailboxId, box.id));
   await db.delete(mailboxFolders).where(eq(mailboxFolders.mailboxId, box.id));
@@ -271,7 +247,6 @@ it("a full re-sync after losing the index rebuilds the same threads, read and ar
   expect(await snapshot(box.id, ownerId)).toEqual(before);
 });
 
-/** Each thread (as its sorted Message-IDs) with its participants (`thread_participants`). */
 async function participantSnapshot(mailboxId: string) {
   const rows = await db
     .select({ header: messages.messageIdHeader, threadId: messages.threadId })
@@ -311,8 +286,6 @@ it("a mailbox wiped and synced again from GreenMail ends with the same participa
     });
     await seen;
   };
-  // Two replies arrive before the message they answer: two threads, merged when it lands. The
-  // Cc is mixed case and only ever in a Cc.
   await arrive("Re: Proposal", id("proposal-2"), {
     inReplyTo: id("proposal-1"),
     from: "bea@client.test",
@@ -346,7 +319,6 @@ it("a mailbox wiped and synced again from GreenMail ends with the same participa
     ].toSorted(byFirst),
   );
 
-  // The mailbox's index is lost, and rebuilt from the server in another order.
   await live.connection.stop();
   await db.delete(threads).where(eq(threads.mailboxId, box.id));
   await db.delete(mailboxFolders).where(eq(mailboxFolders.mailboxId, box.id));

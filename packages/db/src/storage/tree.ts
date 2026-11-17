@@ -1,5 +1,3 @@
-// Browsing and changing the folder tree through a door (ADR 0034 decisions 2 and 3): look up,
-// list, create a folder, rename, move, trash, and the file lookup a download needs.
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageLocks, storageNodes } from "../schema/storage.ts";
@@ -80,7 +78,6 @@ export type RenameResult =
   | VersionConflict
   | { status: "name_taken" };
 export type MoveResult =
-  /** `left`: the drive it moved out of, when it changed drive. */
   | { status: "ok"; node: StorageNode; left: Drive | null }
   | NotFound
   | Forbidden
@@ -129,7 +126,6 @@ export async function resolvePlace(ex: Db, door: Door, place: StoragePlace) {
     return {
       drive: driveOf(found.node),
       parentId: found.node.id as string | null,
-      /** How many folders deep the place is; a root is 0. */
       depth: found.chain.length,
       writable: found.access.inside,
       chain: found.chain,
@@ -152,19 +148,14 @@ export async function retryNameRace<T>(fn: () => Promise<T>) {
   }
 }
 
-/** How many folders tall the subtree is: 1 for an empty folder, 0 for a file. */
 async function folderHeight(ex: Db, nodeId: string) {
   const rows = await subtreeOf(ex, nodeId);
   return Math.max(0, ...rows.filter((row) => row.kind === "folder").map((row) => row.depth + 1));
 }
 
-/** Why a node may not leave its drive through this door, or null when it may. */
 async function leavingRefusal(tx: Db, door: Door, found: { node: NodeRow; access: Access }) {
-  // Taking a node out of Shared is trashing it for everyone else, and a grant never reaches
-  // past the drive it was made in.
   if (door.kind !== "member" || !found.access.remove) return FORBIDDEN;
   if (!(await door.removesWhole(tx, found.node))) return FORBIDDEN;
-  // Out of its drive is out of reach of everyone who could see a locked file inside.
   if (await holdsLocked(tx, found.node.id)) return LOCKED;
   return null;
 }
@@ -187,7 +178,6 @@ const moveInto: (
   if (node.lockedAt) return LOCKED;
   const dest = await resolvePlace(tx, door, to);
   if (!dest) return NOT_FOUND;
-  // A move stays in its workspace (ADR 0034 decision 6).
   if (!dest.writable || dest.drive.orgId !== node.orgId) return FORBIDDEN;
   if (dest.chain.some((row) => row.id === node.id)) return { status: "cycle" };
   const from = driveOf(node);
@@ -207,9 +197,6 @@ const moveInto: (
   }
   const revision = await nextRevision(tx, node.orgId);
   if (crossing) {
-    // The drive it leaves sees it all go; the one it enters sees it all arrive. Everything
-    // inside changes drive with it. The node itself changes in the one update below, so it is
-    // never for a moment a sibling of the destination under its old name.
     await leaveTombstones(tx, isSubtree(node.id), revision);
     await tx
       .update(storageNodes)
@@ -238,13 +225,11 @@ const moveInto: (
 /** What a member and a grantee can both do, each bounded by their door. */
 export function treeOperations(db: Db, door: Door) {
   return {
-    /** A node the door opens. A member also gets one that is in Trash (`node.trashedAt`). */
     async node(nodeId: string) {
       const found = await reach(db, door, nodeId);
       return (found ? view(found.chain, found.access) : null) satisfies StorageNodeView | null;
     },
 
-    /** The node carrying this link, when the door opens it whatever the link's own access is. */
     async nodeByShareId(shareId: string) {
       const [row] = await db
         .select({ id: storageNodes.id })
@@ -257,7 +242,6 @@ export function treeOperations(db: Db, door: Door) {
       ) satisfies StorageNodeView | null;
     },
 
-    /** A folder's live contents: folders first, then by name. */
     async list(
       place: StoragePlace,
       page: { cursor?: StorageListCursor | null; limit?: number } = {},
@@ -269,14 +253,12 @@ export function treeOperations(db: Db, door: Door) {
       return { status: "ok", folder, nodes, nextCursor } satisfies ListResult;
     },
 
-    /** A taken name gets a number instead of an error. */
     async createFolder(place: StoragePlace, name: string) {
       const clean = cleanName(name);
       if (!clean) return { status: "invalid_name" } satisfies CreateFolderResult;
       return db.transaction<CreateFolderResult>(async (tx) => {
         const first = await resolvePlace(tx, door, place);
         if (!first) return NOT_FOUND;
-        // Resolved again under the lock: a move may have pushed the folder deeper meanwhile.
         await lockTree(tx, first.drive.orgId);
         const at = await resolvePlace(tx, door, place);
         if (!at) return NOT_FOUND;
@@ -295,7 +277,6 @@ export function treeOperations(db: Db, door: Door) {
       });
     },
 
-    /** Renaming to a name a sibling has is refused: the person typed it, so they choose again. */
     async rename(nodeId: string, name: string, guard?: StorageGuard) {
       const clean = cleanName(name);
       if (!clean) return { status: "invalid_name" } satisfies RenameResult;
@@ -306,8 +287,6 @@ export function treeOperations(db: Db, door: Door) {
             const result: RenameResult = NOT_FOUND;
             return result;
           }
-          // Under the tree lock, as a lock is taken: the guard below cannot see a lock row
-          // another transaction has not committed yet, so a rename waits for it.
           await lockTree(tx, orgId);
           const found = await reach(tx, door, nodeId);
           if (!found || inTrash(found.chain)) {
@@ -343,25 +322,16 @@ export function treeOperations(db: Db, door: Door) {
       }
     },
 
-    /**
-     * Moves a node into a folder or to a root of the same workspace. A name taken there gets a
-     * number. A member may cross between My files and Shared; a grantee stays in one drive.
-     */
     move(nodeId: string, to: StoragePlace, guard?: StorageGuard) {
       return retryNameRace(() =>
         db.transaction((tx) => moveInto(tx, door, nodeId, to, guard)),
       ) satisfies Promise<MoveResult>;
     },
 
-    /**
-     * Moves a node to Trash, with everything inside it. Trashing it again changes nothing. A
-     * locked file, or a folder holding one at any depth, stays.
-     */
     trash(nodeId: string, guard?: StorageGuard) {
       return db.transaction<TrashResult>(async (tx) => {
         const orgId = await orgOfNode(tx, nodeId);
         if (!orgId) return NOT_FOUND satisfies TrashResult;
-        // Under the tree lock, as a lock is taken: a file locked meanwhile is seen here.
         await lockTree(tx, orgId);
         const found = await reach(tx, door, nodeId);
         if (!found) return NOT_FOUND satisfies TrashResult;
@@ -373,7 +343,6 @@ export function treeOperations(db: Db, door: Door) {
         if (stale(found.node, guard)) return VERSION_CONFLICT satisfies TrashResult;
         if (await holdsLocked(tx, nodeId)) return LOCKED satisfies TrashResult;
         const revision = await nextRevision(tx, orgId);
-        // What is inside goes to Trash with it, so a sync client hears about each of them.
         await tx
           .update(storageNodes)
           .set({ revision, updatedAt: keepUpdatedAt })
@@ -387,7 +356,6 @@ export function treeOperations(db: Db, door: Door) {
       });
     },
 
-    /** A file and where its bytes are, for a download. */
     async file(nodeId: string) {
       const found = await reach(db, door, nodeId);
       if (!found || found.node.kind !== "file" || !found.node.r2Key)

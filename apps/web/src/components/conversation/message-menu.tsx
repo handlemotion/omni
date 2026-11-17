@@ -41,7 +41,6 @@ export function MessageMenu(props: {
     <MenuTrigger>
       <Button
         intent="ghost"
-        // Beside Reply and Forward (a single email), their size; in a chat line, a small one.
         size={props.visible ? "sq-xs" : "sq-2xs"}
         aria-label={props.label}
         className={menuButtonClass(props)}
@@ -58,8 +57,6 @@ export function MessageMenu(props: {
             <MenuLabel>Hidden reply</MenuLabel>
           </MenuItem>
         )}
-        {/* Email reply: always on a personal thread; on a shared inbox, from a mail message,
-            which also reopens a composer a discard closed. To everyone there, as it defaults. */}
         {canMail && (
           <MenuItem
             textValue="Reply"

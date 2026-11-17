@@ -1,4 +1,3 @@
-// A file's preview (ADR 0040): its text, its sheets, its image, its grid thumbnail.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   previewImageQuery,
@@ -37,7 +36,6 @@ export function useThumbnail(
   enabled: boolean,
 ) {
   revokePreviewUrls(useQueryClient());
-  // A PDF's entry is the same cache entry its card reads (`usePdfPages`); its `url` is page 1.
   const options =
     of === "pdf"
       ? (pdfThumbnailQuery(source) as unknown as ReturnType<typeof thumbnailQuery>)

@@ -1,5 +1,3 @@
-// Zod schemas of the Worker's two error shapes (ADR 0038), for code that may load zod: the
-// Worker's helper and the e2e suites. Clients read errors with `toApiError` instead.
 import { z } from "zod";
 import { ERROR_CATEGORIES, errorCodes } from "./errors.ts";
 
@@ -13,12 +11,9 @@ export const rateLimitSchema = z.object({
   total: z.number().int().optional(),
 });
 
-/** The fields beside `code` and `message`, the same in both shapes. */
 const extraFields = {
   requestId: z.string(),
-  /** The first offending field of a validation error, as a dotted path. */
   param: z.string().optional(),
-  /** `issues` for validation errors: `{ path, message, code }` each, never the input. */
   details: z.record(z.string(), z.unknown()).optional(),
   limit: rateLimitSchema.optional(),
 };

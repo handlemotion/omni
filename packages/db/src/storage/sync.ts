@@ -1,6 +1,3 @@
-// Storage sync (ADR 0043): the per-workspace revision every change takes, the tombstones a node
-// leaves when it goes from a drive for good, and the change feed a desktop provider reads.
-// Nothing here decides access: the feed is handed a drive its door already resolved.
 import { and, asc, eq, inArray, lt, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, organizations } from "../schema/auth.ts";
@@ -50,10 +47,8 @@ export type StorageChangesResult =
       more: boolean;
     }
   | { status: "not_found" }
-  /** Tombstones the cursor had not reached are gone: list the drive again from no cursor. */
   | { status: "cursor_expired" };
 
-/** SQL condition on `table`: its row is in `drive`. */
 const inDrive: (
   table: typeof storageNodes | typeof storageTombstones,
   drive: Drive,
@@ -65,7 +60,6 @@ const inDrive: (
   );
 };
 
-/** The ids among `ids` that are in Trash themselves or inside a folder that is. */
 async function trashedOf(ex: Db, ids: string[]) {
   if (ids.length === 0) return new Set<string>();
   const rows = (await ex.execute(sql`
@@ -104,9 +98,6 @@ export async function listChanges(
 ) {
   const cursor = page.cursor ?? null;
   const limit = pageSize(page.limit);
-  // One snapshot: the counter and both tables as of the same instant. Every revision up to the
-  // counter has committed in it, so once its rows are exhausted the cursor may move past the
-  // counter even when nothing in this drive changed.
   return db.transaction<StorageChangesResult>(
     async (tx) => {
       const [state] = await tx
@@ -148,7 +139,6 @@ export async function listChanges(
   );
 }
 
-/** Up to `limit + 1` nodes and tombstones of the drive after `cursor`, in feed order. */
 async function feedPage(tx: Db, drive: Drive, cursor: StorageSyncCursor | null, limit: number) {
   const nodes = await tx
     .select(nodeColumns)
@@ -271,7 +261,6 @@ export async function sweepStorageTombstones(db: Db, options: { before: Date; li
       highest.set(row.orgId, Math.max(highest.get(row.orgId) ?? 0, row.revision));
     }
     for (const [orgId, revision] of highest) {
-      // Raised, never lowered; the counter row exists, since the tombstone took a revision.
       await tx
         .update(storageSyncState)
         .set({ cursorFloor: sql`greatest(${storageSyncState.cursorFloor}, ${revision + 1})` })

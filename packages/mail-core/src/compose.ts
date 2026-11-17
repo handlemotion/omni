@@ -1,6 +1,3 @@
-// Pure helpers for writing mail: reply and forward subjects, and the forwarded-message block.
-// Runs on Node and workerd (no DOM), so the Worker builds sends with it.
-
 /** `Re: <subject>`, without stacking prefixes a mail client already added (`Re:`, `RE:`, `Aw:`). */
 export function replySubject(subject: string) {
   const trimmed = subject.trim();
@@ -62,7 +59,6 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
-/** The header lines of a forwarded message, in the order Gmail and Apple Mail use. */
 function forwardHeaders(original: ForwardedMessage) {
   return [
     ["From", formatAddress({ name: original.fromName, address: original.fromAddress })],

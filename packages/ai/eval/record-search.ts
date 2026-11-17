@@ -1,7 +1,3 @@
-// Records live Jev relevance answers for the search scenarios and reports how often the thread a
-// person was after comes first: `pnpm --filter @omni/ai record:search` (under Doppler, or with
-// TYPESAFE_API_KEY set). Never part of `test` or CI. Sends only the invented threads in
-// `fixtures/search/threads.json`; one request per query, a fraction of a cent per run.
 /* oxlint-disable no-console -- a CLI report */
 import { writeFileSync } from "node:fs";
 import {

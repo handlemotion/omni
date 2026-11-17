@@ -32,7 +32,6 @@ describe("verifyRequest", () => {
     expect(result).toEqual({ ok: true, timestamp: now, nonce: null, requestId: "req-aaaaaaaa" });
   });
 
-  // The request id lands in logs and outbox rows; a forged one would misattribute an action.
   it.each([
     ["swapped", (h: Headers) => h.set(REQUEST_ID_HEADER, "req-bbbbbbbb")],
     ["stripped", (h: Headers) => h.delete(REQUEST_ID_HEADER)],

@@ -16,8 +16,6 @@ export const popupSurface = cn(
   "max-h-[calc(var(--available-height)-16px)] min-w-(--anchor-width) max-w-xs origin-(--transform-origin)",
   "rounded-(--popover-radius) border border-border bg-overlay text-overlay-foreground shadow-(--shadow-overlay) outline-hidden [--popover-radius:var(--radius-lg)] sm:text-sm",
   "dark:ring-border dark:backdrop-saturate-200 forced-colors:bg-[Canvas]",
-  // Grows from its trigger: 150ms in from scale .97 with a fade, out faster (120ms).
-  // Reduced motion keeps only the fade.
   "transition-[opacity,scale] duration-150 ease-out data-ending-style:duration-120",
   "data-starting-style:scale-97 data-starting-style:opacity-0 data-ending-style:scale-97 data-ending-style:opacity-0",
   "motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100",

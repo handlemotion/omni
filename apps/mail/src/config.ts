@@ -11,34 +11,23 @@ const keyring = z.string().transform((value, ctx) => {
 });
 
 const schema = z.object({
-  /** 8788 locally: the Worker's `wrangler dev` owns 8787. */
   PORT: z.coerce.number().int().positive().default(8788),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
-  /** Optional Sentry DSN. Unset or empty keeps error reporting off. */
   SENTRY_DSN: z
     .string()
     .optional()
     .transform((value) => value || undefined)
     .pipe(z.url().optional()),
-  /** Sentry's environment tag. */
   SENTRY_ENVIRONMENT: z.string().min(1).default("production"),
-  /** Shared with the Worker: signs our mail events and verifies its pings. */
   MAIL_SERVICE_HMAC_SECRET: z.string().min(32),
-  /** Base URL of the Worker; new mail is reported to its `/internal/mail-events`. */
   WORKER_URL: z.url(),
-  /**
-   * Keyring for `mailboxes.credentials_enc`: `k1:<base64 32 bytes>`, comma-separated, current key
-   * first. Only this service holds it.
-   */
   MAIL_CREDENTIALS_KEY: keyring,
-  /** S3-compatible bucket for raw mail, sanitized HTML and attachments (R2 in production). */
   S3_ENDPOINT: z.url(),
   S3_BUCKET: z.string().min(1),
   S3_ACCESS_KEY_ID: z.string().min(1),
   S3_SECRET_ACCESS_KEY: z.string().min(1),
   S3_REGION: z.string().min(1).default("auto"),
-  /** Worker routes that sanitized HTML links to; relative paths resolve against the API. */
   IMAGE_PROXY_URL: z.string().min(1).default("/api/image-proxy"),
   ATTACHMENT_URL: z.string().min(1).default("/api/attachments"),
   SYNC_INTERVAL_MS: z.coerce
@@ -47,26 +36,13 @@ const schema = z.object({
     .positive()
     .default(5 * 60_000),
   OUTBOX_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
-  /** How often `message.created` events the Worker never accepted are sent again. */
   NOTIFY_SWEEP_MS: z.coerce.number().int().positive().default(60_000),
   MAILBOX_CONCURRENCY: z.coerce.number().int().positive().default(4),
-  /**
-   * Optional Purelymail admin API token. Set: onboarding adds domains, users and app passwords
-   * on that account. Unset: onboarding adds existing IMAP/SMTP logins only.
-   */
   PURELYMAIL_API_TOKEN: z
     .string()
     .optional()
     .transform((value) => value || undefined),
-  /**
-   * With PURELYMAIL_API_TOKEN: below this prepaid credit (US dollars) the service logs
-   * `hosting.credit_low` and `/health` reports `hostCredit: "low"`. Purelymail stops mail at zero.
-   */
   PURELYMAIL_CREDIT_WARN_USD: z.coerce.number().nonnegative().default(5),
-  /**
-   * Optional Google OAuth client (ADR 0023). Both set: people can connect a Gmail account, and
-   * this service exchanges and refreshes its tokens. The Worker's sign-in client works.
-   */
   GOOGLE_CLIENT_ID: z
     .string()
     .optional()
@@ -75,15 +51,7 @@ const schema = z.object({
     .string()
     .optional()
     .transform((value) => value || undefined),
-  /**
-   * A Google account indexes mail from this many days before it was connected, and everything
-   * after (ADR 0045). 0 indexes the whole account.
-   */
   GMAIL_SYNC_DAYS: z.coerce.number().int().nonnegative().default(7),
-  /**
-   * Recursive resolvers used to find a domain's nameservers, comma-separated `ip` or `ip:port`.
-   * Empty: the system's. Verification then asks those nameservers directly (ADR 0010).
-   */
   DNS_RESOLVERS: z
     .string()
     .optional()
@@ -93,7 +61,6 @@ const schema = z.object({
         .map((s) => s.trim())
         .filter(Boolean),
     ),
-  /** Port a zone's nameservers are asked on. 53; only a local test DNS server needs another. */
   DNS_NAMESERVER_PORT: z.coerce.number().int().positive().max(65_535).default(53),
   DNS_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
 });
@@ -108,7 +75,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     })
     .safeParse(env);
   if (!parsed.success) {
-    // Names only: values may be secrets.
     const problems = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
     throw new Error(`invalid mail service config:\n  ${problems.join("\n  ")}`);
   }

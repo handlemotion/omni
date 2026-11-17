@@ -1,5 +1,3 @@
-// Shared by the workspace admin routes (ADR 0026): who may manage a company's inboxes, and the
-// record each inbox action leaves.
 import { recordInboxEvent, workspaceKind, type InboxAuditAction } from "@omni/db";
 import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";

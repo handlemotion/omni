@@ -1,8 +1,5 @@
 import type { Address, ParsedMessage } from "./parse.ts";
 
-// Reply and forward prefixes across common clients and locales: Re, Fwd, Fw, AW (de),
-// WG (de), SV (sv/da/no), VS (fi), TR (fr), RV/RE (es), Enc (pt), Antw (nl), Odp (pl),
-// Ynt (tr), Res (pt). Optional counters like "Re[2]:" and full-width colons are allowed.
 const PREFIX =
   /^\s*(?:re|fwd?|aw|wg|sv|vs|tr|rv|enc|antw|odp|ynt|res)\s*(?:\[\d+\]|\(\d+\))?\s*[:：]/i;
 
@@ -51,7 +48,6 @@ export const decideThread: (message: ParsedMessage, context: ThreadContext) => T
   message,
   context,
 ) => {
-  // In-Reply-To names the direct parent; References is oldest first, so walk it newest first.
   const replyIds = [message.inReplyTo, ...message.references.toReversed()].filter(
     (id): id is string => id !== null,
   );
@@ -62,8 +58,6 @@ export const decideThread: (message: ParsedMessage, context: ThreadContext) => T
   if (context.relatedThreadId) return { kind: "headers", threadId: context.relatedThreadId };
 
   const subjectKey = normalizeSubject(message.subject);
-  // A reply whose parent we never saw starts a thread; subject matching is only for mail
-  // that carries no reply headers at all. An empty subject would match unrelated mail.
   if (replyIds.length > 0 || subjectKey === "" || message.sentAt === null) {
     return { kind: "new", subjectKey };
   }

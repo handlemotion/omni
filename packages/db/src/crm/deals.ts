@@ -1,5 +1,3 @@
-// Deals: the pipeline's records. A won deal is the project (ADR 0036), so one record goes from
-// lead to delivered. Stage moves go through `moveDealStage`, the one transition function.
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { members } from "../schema/auth.ts";
 import {
@@ -134,7 +132,6 @@ async function isMemberOf(ex: Ex, orgId: string, memberId: string) {
   return Boolean(row);
 }
 
-/** The value and currency a write leaves, or why not. The default fills a missing currency. */
 async function resolveValue(
   ex: Ex,
   orgId: string,
@@ -158,7 +155,6 @@ async function resolveValue(
   return { status: "ok" as const, valueMinor, currency };
 }
 
-/** The last currency a workspace used becomes its default. */
 async function rememberCurrency(ex: Ex, orgId: string, currency: string | null) {
   if (currency === null) return;
   await ex
@@ -172,7 +168,6 @@ async function rememberCurrency(ex: Ex, orgId: string, currency: string | null) 
     );
 }
 
-/** Checks the references a deal write names: company, stage, owner and people. */
 async function checkReferences(ex: Ex, member: CrmMember, input: Partial<DealInput>) {
   if (input.companyId && !(await loadCompany(ex, member.orgId, input.companyId))) return false;
   if (input.ownerMemberId && !(await isMemberOf(ex, member.orgId, input.ownerMemberId))) {
@@ -230,7 +225,6 @@ export const createDeal: (
   return { status: "ok", deal: (await loadDeal(tx, member.orgId, deal!.id))! };
 };
 
-/** Moves one locked deal; writes the change and its event, or nothing when it is a repeat. */
 async function applyMove(
   tx: Ex,
   member: CrmMember,
@@ -269,7 +263,6 @@ async function alreadyWritten(ex: Ex, orgId: string, dedupeKey?: string) {
   return Boolean(row);
 }
 
-/** Sets the deal's people to exactly `personIds`; writes `people_set` when that changed them. */
 async function setPeople(tx: Ex, member: CrmMember, dealId: string, personIds: string[]) {
   const before = await dealPersonIds(tx, dealId);
   const wanted = [...new Set(personIds)].toSorted();
@@ -290,7 +283,6 @@ async function setPeople(tx: Ex, member: CrmMember, dealId: string, personIds: s
   await appendEvent(tx, member, { dealId }, "people_set", { added, removed });
 }
 
-/** Writes name and company, owner, and value changes with one event each. */
 async function applyFields(
   tx: Ex,
   member: CrmMember,
@@ -367,7 +359,6 @@ export const moveDeals: (
 ) => Promise<{ status: "ok"; moved: string[] } | NotFound> = async (tx, member, input) => {
   const target = await stageOf(tx, member.orgId, input.stageId);
   if (!target) return NOT_FOUND;
-  // Every deal is found and locked before any moves, so a missing id changes nothing.
   const deals: CrmDeal[] = [];
   for (const id of [...new Set(input.dealIds)].toSorted()) {
     const deal = await loadDeal(tx, member.orgId, id, true);

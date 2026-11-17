@@ -69,7 +69,6 @@ export function hmacVerifier(
       options.onReject?.("replayed_nonce");
       return false;
     }
-    // Twice the window: a timestamp may be up to maxAge in the future or in the past.
     seen.set(result.nonce, now + 2 * maxAgeSeconds * 1000);
     return true;
   }) satisfies RequestVerifier;
@@ -103,9 +102,6 @@ export interface HttpDeps {
 export function createApp(deps: HttpDeps) {
   const app = new Hono();
 
-  // The Worker's request ID rides `x-omni-request-id`, covered by the HMAC signature: on signed
-  // routes it is trustworthy once `verify` passed (a forged or stripped one fails verification).
-  // Logs carry the route pattern, never bodies.
   app.use(async (c, next) => {
     const started = Date.now();
     await next();
@@ -115,7 +111,6 @@ export function createApp(deps: HttpDeps) {
       route: routePath(c, -1),
       status: c.res.status,
       durationMs: Date.now() - started,
-      // A refused request's ID is unverified: whoever sent it chose it.
       requestId: c.res.status === 401 ? null : requestIdOf(c),
     });
   });
@@ -131,7 +126,6 @@ export function createApp(deps: HttpDeps) {
     return c.json({ ok: true }, 202);
   });
 
-  /** Verifies the signature, then parses the JSON body; null when the response is already set. */
   async function signedBody<S extends z.ZodType>(c: Context, schema: S, available: boolean) {
     if (!(await deps.verify(c.req.raw))) return c.json({ error: "unauthorized" }, 401);
     if (!available) return c.json({ error: "not found" }, 404);
@@ -208,7 +202,6 @@ export function createApp(deps: HttpDeps) {
   return app satisfies Hono;
 }
 
-/** The signed request ID; only meaningful after `verify` passed. */
 function requestIdOf(c: Context) {
   const value = c.req.header(REQUEST_ID_HEADER);
   return value && isValidRequestId(value) ? value : null;

@@ -1,5 +1,3 @@
-// Trash (ADR 0034 decision 5), for members only: a grant or a link opens nothing in it. A node
-// can be restored for 30 days, then the daily purge deletes it; "Delete forever" does so at once.
 import { and, desc, eq, isNotNull, lt, or, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageNodes } from "../schema/storage.ts";
@@ -37,19 +35,13 @@ export interface StorageTrashCursor {
   id: string;
 }
 
-export type RestoreResult =
-  | NodeResult
-  /** The folder it was in is in Trash too: restore that one. */
-  | { status: "parent_trashed" };
+export type RestoreResult = NodeResult | { status: "parent_trashed" };
 
 export type DeleteForeverResult =
-  /** The rows are gone and the bytes subtracted; the caller now deletes these objects. */
-  /** `drive`: the one it was deleted from. */
   | { status: "ok"; r2Keys: string[]; drive: Drive }
   | NotFound
   | Forbidden
   | Locked
-  /** Only what is in Trash is deleted for good. */
   | { status: "not_trashed" };
 
 const NOT_FOUND = { status: "not_found" } as const;
@@ -57,10 +49,6 @@ const FORBIDDEN = { status: "forbidden" } as const;
 
 export function trashOperations(db: Db, door: Door, memberId: string) {
   return {
-    /**
-     * What the member may restore, newest first: their own trashed My files and, in Shared, what
-     * they uploaded, or everything for an owner or admin.
-     */
     async listTrash(page: { cursor?: StorageTrashCursor | null; limit?: number } = {}) {
       const member = await loadMember(db, memberId);
       if (!member) return { nodes: [] as StorageNode[], nextCursor: null };
@@ -102,12 +90,9 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
       return { nodes: nodes.map(toNode), nextCursor };
     },
 
-    /** Puts a trashed node back where it was. A name taken meanwhile gets a number. */
     restore(nodeId: string) {
       return retryNameRace(() =>
         db.transaction(async (tx) => {
-          // Under the tree lock, like a permanent delete: a restore that slipped in after the
-          // delete had seen the node in Trash would report success for a file about to go.
           const orgId = await orgOfNode(tx, nodeId);
           if (!orgId) return NOT_FOUND satisfies RestoreResult;
           await lockTree(tx, orgId);
@@ -119,7 +104,6 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
           }
           const { node } = found;
           const revision = await nextRevision(tx, orgId);
-          // What is inside comes back with it, so a sync client hears about each of them.
           await tx
             .update(storageNodes)
             .set({ revision, updatedAt: keepUpdatedAt })
@@ -138,7 +122,6 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
       ) satisfies Promise<RestoreResult>;
     },
 
-    /** Deletes a trashed node and everything inside it, rows first. */
     deleteForever(nodeId: string) {
       return db.transaction<DeleteForeverResult>(async (tx) => {
         const orgId = await orgOfNode(tx, nodeId);
@@ -146,7 +129,6 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
         await lockTree(tx, orgId);
         const found = await reach(tx, door, nodeId);
         if (!found) return NOT_FOUND satisfies DeleteForeverResult;
-        // A locked file is never in Trash; it says why it cannot go rather than where it is.
         if (await holdsLocked(tx, nodeId)) return LOCKED satisfies DeleteForeverResult;
         if (!found.node.trashedAt) return { status: "not_trashed" } satisfies DeleteForeverResult;
         if (!found.access.remove || !(await door.removesWhole(tx, found.node)))

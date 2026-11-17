@@ -1,6 +1,3 @@
-// Canned reply variables (ADR 0021): `{{customer.first_name}}`, with an optional fallback after a
-// pipe, `{{customer.first_name | there}}`. Pure, so the Worker and any client render the same way.
-
 /** The variables a template may use, by name. Unknown names render empty and are reported. */
 export const TEMPLATE_VARIABLES = [
   "customer.name",
@@ -17,8 +14,6 @@ export const TEMPLATE_VARIABLES = [
 export type TemplateVariable = (typeof TEMPLATE_VARIABLES)[number];
 export type TemplateValues = Partial<Record<TemplateVariable, string | null>>;
 
-// `{{ name }}` or `{{ name | fallback }}`. The classes are disjoint (no braces anywhere, no pipe in
-// the name), so matching stays linear on any input; the name's shape is checked afterwards.
 const PATTERN = /\{\{([^{}|]*)(?:\|([^{}]*))?\}\}/g;
 const NAME = /^[a-z_]+(?:\.[a-z_]+)*$/i;
 
@@ -51,7 +46,6 @@ export function renderTemplate(
     const trimmed = rawName.trim();
     if (!NAME.test(trimmed)) return match;
     const name = trimmed.toLowerCase();
-    // Own string values only: `{{constructor}}` must not reach Object.prototype.
     const own = Object.hasOwn(values, name) ? values[name as TemplateVariable] : undefined;
     const given = typeof own === "string" ? own.trim() : "";
     const fallback = rawFallback?.trim() ?? "";

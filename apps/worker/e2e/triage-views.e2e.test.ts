@@ -1,5 +1,3 @@
-// Inbox, Later, Done and All mail over the real API: per-member state on a shared mailbox, the
-// done watermark, and Later, which holds a thread until the member moves it back (ADR 0007, ADR 0027).
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -69,7 +67,6 @@ async function action(cookie: string, method: string, path: string, json?: unkno
   return { status: response.status, body: (await response.json()) as { state: Row } };
 }
 
-/** A shared hello@ seen by Ana and Bea, with one thread from a customer. */
 async function sharedInbox(slug: string) {
   const { db } = database;
   const org = await createOrg(db, slug);
@@ -102,17 +99,14 @@ test("Later takes a thread out of that member's Inbox with no time attached, unt
 
   const moved = await action(ana, "POST", `/threads/${threadId}/later`);
   expect(moved).toMatchObject({ status: 200, body: { state: { done: false, later: true } } });
-  // Tabs open from before Later read `deferredUntil` and must see the thread as deferred.
   const row = (await (await api("/threads?view=later", ana)).json()) as {
     threads: { deferredUntil: string | null }[];
   };
   expect(row.threads[0]?.deferredUntil).toBe("9999-12-31T00:00:00.000Z");
   expect(await view(ana, "inbox")).toEqual([]);
   expect(await view(ana, "later")).toEqual([threadId]);
-  // A tab open from before the rename still asks for `queue`, and gets Later.
   expect(await view(ana, "queue")).toEqual([threadId]);
   expect(await counts(ana)).toEqual([{ inbox: 0, later: 1 }]);
-  // Bea shares the mailbox, not Ana's Later.
   expect(await view(bea, "inbox")).toEqual([threadId]);
   expect(await view(bea, "later")).toEqual([]);
 
@@ -141,8 +135,6 @@ test("done leaves Inbox and Later but stays in All mail, for the member who mark
   expect(await view(ana, "all")).toEqual([threadId]);
   expect(await counts(ana)).toEqual([{ inbox: 0, later: 0 }]);
 
-  // Bea's view of the same shared thread is untouched, and nothing went to the outbox: done is
-  // not an IMAP move.
   expect(await view(bea, "inbox")).toEqual([threadId]);
   expect(await view(bea, "done")).toEqual([]);
   const outbox = await database.db
@@ -156,7 +148,6 @@ test("done leaves Inbox and Later but stays in All mail, for the member who mark
     .where(eq(schema.threads.id, threadId));
   expect(thread?.archived).toBe(false);
 
-  // Undone: back in the Inbox, out of Done.
   const undone = await action(ana, "DELETE", `/threads/${threadId}/done`);
   expect(undone).toMatchObject({ status: 200, body: { state: { done: false } } });
   expect(await view(ana, "inbox")).toEqual([threadId]);
@@ -168,7 +159,6 @@ test("a new message on a done thread brings it back; done on a stale view does n
   await action(ana, "POST", `/threads/${threadId}/done`, { through: sentAt.toISOString() });
   expect(await view(ana, "inbox")).toEqual([]);
 
-  // A reply lands through the same writer the mail service uses.
   const replyAt = new Date(sentAt.getTime() + 60_000);
   await seedMessage(database.db, box, {
     subject: "Re: Quote",
@@ -180,14 +170,12 @@ test("a new message on a done thread brings it back; done on a stale view does n
   expect(await view(ana, "inbox")).toEqual([threadId]);
   expect(await view(ana, "done")).toEqual([]);
 
-  // Marking done from a screen that still shows the first message leaves the reply unattended.
   const stale = await action(ana, "POST", `/threads/${threadId}/done`, {
     through: sentAt.toISOString(),
   });
   expect(stale).toMatchObject({ status: 200, body: { state: { done: false } } });
   expect(await view(ana, "inbox")).toEqual([threadId]);
 
-  // A retry of the same request writes the same row.
   const current = { through: replyAt.toISOString() };
   const first = await action(ana, "POST", `/threads/${threadId}/done`, current);
   const retried = await action(ana, "POST", `/threads/${threadId}/done`, current);
@@ -219,7 +207,6 @@ test("triage actions need an idempotency key and a thread the member can see", a
       ...(json ? { body: JSON.stringify(json) } : {}),
     });
     expect(unkeyed.status).toBe(400);
-    // The API's one error shape, with a message the app can show (not a raw Zod error object).
     expect(await unkeyed.json()).toEqual({
       error: expect.stringContaining("idempotency-key"),
       code: "BAD_REQUEST",
@@ -277,7 +264,6 @@ test("on a Google account Done marks the mail read in Gmail and never moves it; 
       .where(eq(schema.mailActions.mailboxId, box.id))
       .orderBy(schema.mailActions.createdAt);
 
-  // Opening a thread marks it read in Omni. In Gmail that would mean Done, so nothing is sent.
   const read = await api(`/threads/${first.threadId}/state`, ana, {
     method: "PATCH",
     body: JSON.stringify({ read: true }),
@@ -285,7 +271,6 @@ test("on a Google account Done marks the mail read in Gmail and never moves it; 
   expect(read.status).toBe(200);
   expect(await queued()).toEqual([]);
 
-  // Done: every message read in Gmail. A retry under the same key queues nothing more.
   const done = () =>
     api(`/threads/${first.threadId}/done`, ana, {
       method: "POST",
@@ -298,14 +283,11 @@ test("on a Google account Done marks the mail read in Gmail and never moves it; 
     { kind: "mark_read", payload: { folder: "INBOX", uids: [1, 2], done: true } },
   ]);
 
-  // Not done: only the newest message goes back to unread, which is enough to keep the thread
-  // out of Done when Gmail is synced again.
   const undone = await action(ana, "DELETE", `/threads/${first.threadId}/done`);
   expect(undone).toMatchObject({ status: 200, body: { state: { done: false } } });
   expect((await queued()).slice(1)).toMatchObject([
     { kind: "mark_unread", payload: { folder: "INBOX", uids: [2], done: true } },
   ]);
-  // Nothing was ever asked to archive, move or delete.
   expect((await queued()).every((a) => a.kind === "mark_read" || a.kind === "mark_unread")).toBe(
     true,
   );

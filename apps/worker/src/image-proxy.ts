@@ -1,13 +1,8 @@
-// Fetches remote images for sanitized mail HTML so the sender never sees the reader's IP,
-// cookies or referrer. Email is untrusted: every hop is checked against private networks, and
-// only raster images of bounded size come back.
-
 const MAX_REDIRECTS = 3;
 const MAX_BYTES = 5 * 1024 * 1024;
 const TIMEOUT_MS = 8_000;
 const CACHE_SECONDS = 24 * 60 * 60;
 
-/** Raster formats only. SVG can carry script and external references, so it is never proxied. */
 const IMAGE_TYPES = new Set([
   "image/png",
   "image/jpeg",
@@ -68,7 +63,6 @@ export const proxyImage: (
 
   const fetched = await fetchImage(target, options);
   if (!(fetched instanceof Response)) return fetched;
-  // The Cache API skips `private` responses; the stored copy is public, readers get private.
   await cache.put(cacheKey, withCacheControl(fetched.clone(), `public, max-age=${CACHE_SECONDS}`));
   return fetched;
 };
@@ -100,7 +94,6 @@ export const fetchImage: (
       response = await fetch(url, {
         redirect: "manual",
         signal,
-        // A fresh request: no cookies, credentials or referrer from the reader.
         headers: { accept: [...IMAGE_TYPES].join(", "), "user-agent": "Omni-Image-Proxy/1" },
       });
     } catch (error) {
@@ -182,7 +175,6 @@ export const checkDestination: (
   }
   if (url.username || url.password) return { status: 403, reason: "credentials in url" };
   if (options.testAllowOrigin && url.origin === options.testAllowOrigin) return null;
-  // Standard ports only: nothing reaches an admin or database port by URL.
   if (url.port !== "") return { status: 403, reason: "non-standard port" };
 
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
@@ -204,7 +196,6 @@ export const checkDestination: (
   return null;
 };
 
-/** A and AAAA records over DNS-over-HTTPS (JSON). Null when the lookup itself failed. */
 async function resolve(host: string, dohUrl: string, signal: AbortSignal) {
   try {
     const answers = await Promise.all(
@@ -234,7 +225,6 @@ export function isPublicIp(address: string) {
   if (v4) return isPublicIpv4(v4);
   const v6 = parseIpv6(address);
   if (!v6) return false;
-  // IPv4-mapped (::ffff:a.b.c.d) and NAT64 (64:ff9b::a.b.c.d) carry an IPv4 address.
   const mapped =
     v6.slice(0, 5).every((x) => x === 0) && v6[5] === 0xffff
       ? v6
@@ -244,27 +234,27 @@ export function isPublicIp(address: string) {
   if (mapped)
     return isPublicIpv4([mapped[6]! >> 8, mapped[6]! & 255, mapped[7]! >> 8, mapped[7]! & 255]);
   const first = v6[0]!;
-  if (v6.every((x) => x === 0)) return false; // ::
-  if (v6.slice(0, 7).every((x) => x === 0) && v6[7] === 1) return false; // ::1
-  if ((first & 0xfe00) === 0xfc00) return false; // fc00::/7 unique local
-  if ((first & 0xffc0) === 0xfe80) return false; // fe80::/10 link local
-  if ((first & 0xff00) === 0xff00) return false; // ff00::/8 multicast
-  if (first === 0x2001 && v6[1] === 0x0db8) return false; // documentation
-  return (first & 0xe000) === 0x2000; // 2000::/3 global unicast
+  if (v6.every((x) => x === 0)) return false;
+  if (v6.slice(0, 7).every((x) => x === 0) && v6[7] === 1) return false;
+  if ((first & 0xfe00) === 0xfc00) return false;
+  if ((first & 0xffc0) === 0xfe80) return false;
+  if ((first & 0xff00) === 0xff00) return false;
+  if (first === 0x2001 && v6[1] === 0x0db8) return false;
+  return (first & 0xe000) === 0x2000;
 }
 
 function isPublicIpv4([a, b, c]: number[]) {
   if (a === undefined || b === undefined || c === undefined) return false;
   if (a === 0 || a === 10 || a === 127) return false;
-  if (a === 100 && b >= 64 && b <= 127) return false; // carrier-grade NAT
-  if (a === 169 && b === 254) return false; // link local, cloud metadata
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  if (a === 169 && b === 254) return false;
   if (a === 172 && b >= 16 && b <= 31) return false;
   if (a === 192 && b === 168) return false;
   if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
-  if (a === 198 && (b === 18 || b === 19)) return false; // benchmarking
+  if (a === 198 && (b === 18 || b === 19)) return false;
   if (a === 198 && b === 51 && c === 100) return false;
   if (a === 203 && b === 0 && c === 113) return false;
-  if (a >= 224) return false; // multicast, reserved, broadcast
+  if (a >= 224) return false;
   return true;
 }
 
@@ -277,7 +267,6 @@ const parseIpv4: (address: string) => number[] | null = (address) => {
 
 const parseIpv6: (address: string) => number[] | null = (address) => {
   let text = address.split("%")[0]!;
-  // A trailing dotted IPv4 becomes two hextets.
   const dotted = text.match(/(\d{1,3}(?:\.\d{1,3}){3})$/);
   if (dotted) {
     const v4 = parseIpv4(dotted[1]!);

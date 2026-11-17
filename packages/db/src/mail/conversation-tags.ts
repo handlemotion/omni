@@ -1,5 +1,3 @@
-// Tags (ADR 0021): an inbox's list, managed by anyone who can see the inbox.
-
 import { and, eq, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import { mailboxAccess, mailboxes, members, tags } from "../schema/index.ts";

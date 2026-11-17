@@ -1,5 +1,3 @@
-// Drive's Search and the sidebar's cluster glyphs at the member door: what reaches across a
-// member's drives.
 import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
 import { addFile, addFolder } from "./storage-support.ts";
@@ -10,9 +8,6 @@ afterAll(teardown);
 
 const names = (nodes: { name: string }[]) => nodes.map((node) => node.name);
 
-// Catches: a query over the workspace's rows that forgets My files belong to one member, so
-// Search shows Ben's private files to Ana; another workspace's rows; and a file inside
-// a trashed folder (only the folder carries `trashedAt`) still showing as live.
 test("Search shows the member's own files and Shared, live ones only", async () => {
   const org = await createOrg(db, "find");
   const other = await createOrg(db, "find-other");
@@ -33,7 +28,6 @@ test("Search shows the member's own files and Shared, live ones only", async () 
   expect(names(await mine.search("note"))).toEqual(["Notes"]);
 });
 
-// Catches: the query going into ILIKE unescaped, so "%" or "_" matches every name.
 test("Search matches % and _ as themselves", async () => {
   const org = await createOrg(db, "find-like");
   const ana = await createMember(db, org.id, "ana");
@@ -46,9 +40,6 @@ test("Search matches % and _ as themselves", async () => {
   expect(names(await mine.search("a_b"))).toEqual(["a_b.txt"]);
 });
 
-// Catches: the glyph query keyed on the workspace alone, so Ana's sidebar shows Ben's private
-// cluster glyphs (or Ben's folder ids); a glyph set on a nested folder; and a cluster in Trash
-// keeping its glyph in the list.
 test("Cluster glyphs are the member's own top-level folders only", async () => {
   const org = await createOrg(db, "icons");
   const ana = await createMember(db, org.id, "ana");

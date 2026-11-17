@@ -44,7 +44,6 @@ describe("credential encryption", () => {
   });
 
   it("refuses an envelope relabelled with another key id", async () => {
-    // Both ids hold the same bytes, so only the key id bound into the AAD can catch this.
     const twins: Keyring = { currentKeyId: "k1", keys: { k1: keyA, k2: keyA } };
     const envelope = await encryptCredential(twins, password, "mbx_1");
     const relabelled = envelope.replace(/^v1\.k1\./, "v1.k2.");

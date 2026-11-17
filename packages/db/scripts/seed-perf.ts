@@ -1,13 +1,3 @@
-// Seeds a throwaway database with inbox-scale mail for `EXPLAIN (ANALYZE, BUFFERS)` work and the
-// web benches: 3 orgs, 20 mailboxes, 60k threads, 200k messages, their IMAP copies, attachments,
-// per-member read state, an outbox history and a busy Drive (about 38k files and folders). Rows are generated in Postgres, so a full seed takes about a
-// minute. Never point this at a shared database: it drops and recreates `PERF_DATABASE`.
-//
-//   pnpm db:local:up
-//   pnpm --filter @omni/db perf:seed            # DATABASE_URL is the admin connection
-//
-// Sizes are tunable: PERF_THREADS, PERF_MESSAGES. The data is skewed like real mail: a few busy
-// mailboxes, recent mail denser than old, most old threads archived, a long tail of long threads.
 import { join } from "node:path";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
@@ -43,8 +33,6 @@ const step = async (label: string, query: string) => {
   console.log(`${label.padEnd(24)} ${Math.round(performance.now() - started)} ms`);
 };
 
-// Zipf-ish vocabulary: power(random(), 3) picks low indexes far more often, so early words are
-// common ("meeting", in a large share of messages) and late ones rare, like real text.
 const words = `meeting thanks please update project team review invoice payment schedule call
   week today tomorrow monday friday report draft contract proposal budget design launch customer
   order shipping delivery account access password reset login release deploy server database
@@ -208,10 +196,6 @@ await step(
 `,
 );
 
-// Storage (ADR 0034) at a busy company's scale: member-org1-1's My files holds 40 folders and
-// 3,000 files at its root, a 5,000-file folder, a chain of folders 12 deep and 3,000 items in
-// Trash; Shared holds 30 folders and 2,000 files; every other member has 1,000 files, and org2's
-// Shared 20,000, so the table is large around the drives the bench reads.
 await step(
   "storage",
   `
@@ -343,11 +327,9 @@ await step(
 `,
 );
 
-// Thread participants through the real backfill, as production fills them for existing mail.
 {
   const started = performance.now();
   const { db: seeded, close: closeSeeded } = createDb(url.toString(), { onnotice: () => {} });
-  // The seeded mail is seconds old: read it as if it had settled.
   const now = new Date(Date.now() + 2 * PARTICIPANT_SETTLE_MS);
   while ((await indexParticipants(seeded, { limit: 5000, now })).messages > 0);
   await closeSeeded();

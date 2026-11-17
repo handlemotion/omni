@@ -39,7 +39,6 @@ describe("normalizeSubject", () => {
     ["FW: TR: RV: Enc: WG: Antw: Brand review", "brand review"],
     ["Re：Brand review", "brand review"],
     ["Re: Re:", ""],
-    // Words that only start like a prefix are part of the subject.
     ["Regarding: the plan", "regarding: the plan"],
     ["Resume: Ana Pérez", "resume: ana pérez"],
   ])("%j → %j", (subject, expected) => {
@@ -60,7 +59,6 @@ describe("decideThread", () => {
   });
 
   test("falls back to References when the direct parent was never synced", async () => {
-    // In-Reply-To names a message sent from another device that we have not stored.
     const message = await parse("apple-mail-reply.eml");
     const knownMessageIds = new Map([
       ["<CAGm7xR2pQw9LkV4n+YtE5uB1aD@mail.gmail.example.com>", "t-brand"],

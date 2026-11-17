@@ -1,10 +1,3 @@
-// `/sign/<requestId>` (ADR 0043 decision 6, ADR 0037 decision 4): the document as it was sent,
-// and beside it who signs and where each stands. While the person's own signature is due: their
-// name, the consent sentence to accept, a code mailed to their address, and Sign. Once everyone
-// has signed and the copy is sealed, its download.
-//
-// Geometry: the document fills the stage; the panel is 320px on the right (under the document
-// on a phone), 20px padding, groups 20px apart, rows 8px apart.
 import { lazy, Suspense, useState } from "react";
 import { IconDownload } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
@@ -26,7 +19,6 @@ import { storageErrorToast } from "./storage-errors.ts";
 const PdfPreview = lazy(() => import("./preview/pdf-preview.tsx"));
 
 export function SignPage({ requestId }: { requestId: string }) {
-  // The route's loader filled it: a request this person may not open is the not-found.
   const signing = useSigning(requestId);
   const answer = signing.data;
   if (!answer) return null;
@@ -65,7 +57,6 @@ function Signers({ item }: { item: StorageSigningItem }) {
   );
 }
 
-/** What the person can do now: sign, wait, or download the signed copy. */
 function Action(props: {
   item: StorageSigningItem;
   consent: { version: string; text: string };
@@ -82,7 +73,6 @@ function Action(props: {
     );
   }
   if (item.me.signedAt) return null;
-  // A fresh form for each address the person signs for: the code is that address's.
   return (
     <SignForm
       key={`${requestId}:${item.me.email}`}
@@ -140,7 +130,6 @@ function SignForm(props: {
           </Button>
         </>
       )}
-      {/* Stays once a code is sent: a code expires and allows five tries, so a new one may be needed. */}
       <Button
         intent={codeSent ? "outline" : "primary"}
         isDisabled={!typedName || !agreed}

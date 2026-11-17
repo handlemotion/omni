@@ -1,6 +1,3 @@
-// The streaming parser is a second reader of the same mail. If it drifts from `parseMessage`,
-// a large message would be indexed differently from a small one (wrong thread, lost attachment,
-// missed bounce) and only in production, where large mail takes that path.
 import { readdirSync, readFileSync } from "node:fs";
 import { Readable } from "node:stream";
 import { describe, expect, test } from "vitest";
@@ -12,7 +9,6 @@ const fixtures = readdirSync(dir).filter((name) => name.endsWith(".eml"));
 async function streamed(raw: Buffer) {
   const contents: Buffer[] = [];
   const { message } = await parseMessageStream(
-    // Small chunks, so parts and headers straddle chunk boundaries as they do off the network.
     () =>
       Readable.from(
         Array.from({ length: Math.ceil(raw.length / 97) }, (_, i) =>

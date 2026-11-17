@@ -1,7 +1,3 @@
-// Contracts end on their own (ADR 0039 decision 4): a signed contract whose `expires_on` is
-// before today (UTC) is marked `ended` through `changeContract`, with one
-// `contract_status_changed` event keyed `contract_ended:<id>`. System work for the CRM's daily
-// job, not a member door: there is no actor, and every workspace is swept.
 import { and, asc, eq, lt } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members } from "../schema/auth.ts";
@@ -18,14 +14,8 @@ export interface EndedContract {
   contractId: string;
 }
 
-/** The UTC calendar day of `now`, as Postgres's `date` takes it. */
 const dayOf = (now: Date) => now.toISOString().slice(0, 10);
 
-/**
- * Ends one contract in its own short transaction, taking its records then the contract in the
- * order a change or a delete for good takes them. Null when it changed meanwhile (ended by a
- * member, its dates moved, its record deleted) or a concurrent run ended it first.
- */
 async function endOne(db: Db, candidate: { id: string; orgId: string }, today: string, now: Date) {
   return db.transaction(async (tx) => {
     const [seen] = await tx
@@ -52,7 +42,6 @@ async function endOne(db: Db, candidate: { id: string; orgId: string }, today: s
 }
 
 async function appendEndedEvent(tx: Ex, contract: typeof crmContracts.$inferSelect) {
-  // On the deal when there is one, else the company, as a member's change writes it.
   const record = contract.dealId ? { dealId: contract.dealId } : { companyId: contract.companyId };
   await tx.insert(crmEvents).values({
     orgId: contract.orgId,

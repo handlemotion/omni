@@ -1,5 +1,3 @@
-// Keyboard shortcuts in a real Chromium, on the web app served by the real Worker and a real
-// Postgres: a module's keys work in that module only, and the ⌘K menu offers only those.
 import { createOrgWithOwner } from "@omni/db";
 import { chromium, type Browser } from "playwright-core";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -34,8 +32,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Catches: the shell binding Mail's compose key for every module, so `c` in Drive or settings
-// opens an email composer, and the ⌘K menu offering Compose where its key does nothing.
 test("Mail's compose key works in Mail only, and ⌘K offers it there only", async () => {
   const email = "ana@keys.test";
   const org = await createOrgWithOwner(db, { name: "Acme", slug: "keys", ownerEmail: email });
@@ -60,7 +56,6 @@ test("Mail's compose key works in Mail only, and ⌘K offers it there only", asy
     await page.goto(new URL(path, origin).toString());
     await page.getByRole("main").waitFor();
     await page.keyboard.press("c");
-    // The menu opens after the key, so by the time it shows the key has been handled.
     await page.keyboard.press("Control+k");
     await menu.waitFor();
     expect(await composer.isVisible()).toBe(false);
@@ -69,7 +64,6 @@ test("Mail's compose key works in Mail only, and ⌘K offers it there only", asy
     await menu.waitFor({ state: "hidden" });
   }
 
-  // Go-to keys stay global: `g` then `i` from Drive lands in Mail, where `c` composes.
   await page.goto(new URL("/keys/files/my", origin).toString());
   await page.getByRole("main").waitFor();
   await page.keyboard.press("g");

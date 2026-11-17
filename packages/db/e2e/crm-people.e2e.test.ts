@@ -1,5 +1,3 @@
-// Adding people (ADR 0036 decision 4): add once, the company from the domain, and the unique
-// keys that decide a race.
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
@@ -52,18 +50,15 @@ test("ana@acme.com makes Acme with acme.com, bea@acme.com joins it, x@gmail.com 
   expect(x.companyId).toBeNull();
   expect(ok(await crm.listCompanies()).companies.map((c) => c.name)).toEqual(["Acme"]);
 
-  // Adding Ana again, in any case, returns her unchanged.
   const again = ok(await crm.addPerson({ name: "Someone else", address: "Ana@ACME.com" }));
   expect([again.created, again.person.id, again.person.name]).toEqual([false, ana.id, "Ana"]);
 
-  // A webmail domain or another company's domain is never a company's.
   const other = ok(await crm.createCompany({ name: "Other" })).company;
   expect((await crm.addCompanyDomain(other.id, "gmail.com")).status).toBe("webmail_domain");
   expect(await crm.addCompanyDomain(other.id, "ACME.com.")).toEqual({
     status: "domain_taken",
     companyId: acme.company.id,
   });
-  // A create refused for a taken domain leaves no company behind.
   expect((await crm.createCompany({ name: "Dup", domains: ["new.test", "acme.com"] })).status).toBe(
     "domain_taken",
   );
@@ -90,7 +85,6 @@ test("an address another person holds is refused and the person is left as they 
   expect(unchanged.name).toBe("Bob");
   expect(unchanged.addresses.map((a) => a.address)).toEqual(["bob@initech.test"]);
 
-  // Removing the primary address promotes the remaining one, so a person keeps one primary.
   const moved = ok(
     await crm.updatePerson(bob.id, {
       addresses: { add: ["robert@initech.test"], remove: ["bob@initech.test"] },
@@ -100,7 +94,6 @@ test("an address another person holds is refused and the person is left as they 
   const rows = await db.select().from(crmPersonEmails).where(eq(crmPersonEmails.personId, bob.id));
   expect(rows.map((row) => row.address)).toEqual(["robert@initech.test"]);
 
-  // The address that was freed can go to someone else; lookup finds the right person.
   ok(await crm.addPerson({ name: "New Bob", address: "bob@initech.test" }));
   const looked = ok(await crm.lookup({ addresses: ["Robert@Initech.test"] }));
   expect(looked.people.map((p) => p.name)).toEqual(["Bob"]);

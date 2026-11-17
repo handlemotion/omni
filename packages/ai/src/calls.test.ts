@@ -1,5 +1,3 @@
-// triage() against a canned Messages API response. No network; the point is
-// what the wrapper does with each kind of answer the real API can return.
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
 import { triage, type ModelClient, type TriageInput } from "./index.ts";
@@ -49,7 +47,6 @@ describe("triage", () => {
     expect(schema).not.toContain("needs_reply");
     expect(requests[0]?.messages[0]?.content).toContain("From: the reader");
 
-    // Output outside the narrowed schema is invalid, not a needs_reply.
     const { client: wrong } = reply('{"bucket":"needs_reply","confidence":0.99}');
     expect(await triage(wrong, ours)).toMatchObject({ source: "fallback", confidence: 0 });
   });
@@ -110,7 +107,6 @@ describe("helpdesk triage on Claude", () => {
     expect(result.helpdesk).toEqual({ priority: "high", tagIds: ["t1"], assigneeId: "m-bo" });
     const prompt = String(requests[0]?.messages[0]?.content);
     expect(prompt).toContain("- Bug: Errors, crashes and anything broken in the app");
-    // Teammates go to the model by role only, under a neutral label.
     expect(prompt).toContain("- teammate_2: Technical problems and bug reports");
     expect(prompt).not.toContain("m-bo");
   });

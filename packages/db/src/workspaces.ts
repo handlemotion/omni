@@ -1,5 +1,3 @@
-// Workspace setup progress (resumable onboarding) and the workspace switcher's read: every org a
-// user belongs to, with its setup step and the mailboxes that user's member there can open.
 import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { isCompany } from "./personal-space.ts";
@@ -11,10 +9,6 @@ export type SetupStep = (typeof setupStep.enumValues)[number];
 /** Setup steps in order: `created → domain_added → dns_verified → mailboxes_created → invites_sent → complete`. */
 export const SETUP_STEPS = setupStep.enumValues;
 
-/**
- * The step of an org with no `org_setup` row: one made by the `org:create` CLI or before setup
- * was tracked. With a mailbox it is in use, so `complete`; without one it still needs setup.
- */
 function stepWithoutRow(orgId: SQL | string) {
   return sql`(case when ${orgHasMailbox(orgId)} then 'complete' else 'created' end)::setup_step`;
 }

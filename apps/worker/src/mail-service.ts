@@ -28,7 +28,6 @@ export async function pingMailService(scope: MailServiceScope) {
       body: "",
       requestId,
     });
-    // A nudge, not a delivery: a stalled one is cut short so it never holds up the AI job.
     const response = await fetch(url, {
       method: "POST",
       headers,
@@ -85,7 +84,6 @@ export async function callMailService<S extends z.ZodType>(
       method: "POST",
       headers: { ...headers, "content-type": "application/json" },
       body: text,
-      // Purelymail calls inside can take a few seconds each.
       signal: AbortSignal.timeout(60_000),
     });
   } catch (error) {

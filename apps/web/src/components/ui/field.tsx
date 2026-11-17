@@ -16,7 +16,6 @@ import { cx } from "@/lib/primitive";
 
 export const labelStyles = tv({
   base: [
-    // Required is the default; optional fields say "(Optional)" instead of required ones getting a *.
     "select-none text-sm text-muted-foreground",
     "in-disabled:pointer-events-none in-disabled:opacity-50 group-disabled:opacity-50 data-disabled:opacity-50",
   ],
@@ -34,12 +33,10 @@ export const fieldErrorStyles = tv({
 export const fieldStyles = tv({
   base: [
     "w-full",
-    // UI SDK: label, then control (or description), description, error.
     "[&>[data-slot=field-label]+*]:mt-1.5",
     "[&>[data-slot=field-label]+[data-slot=field-description]]:mt-1",
     "[&>[data-slot=field-description]+*]:mt-2",
     "[&>*+[data-slot=field-description]]:mt-2 [&>*+[data-slot=field-error]]:mt-2",
-    // React Aria hosts (combo box, number field, select) until they move.
     "[&>[data-slot=control]+[data-slot=control]]:mt-2",
     "[&>[data-slot=label]+[data-slot=control]]:mt-1.5",
     "[&>[data-slot=label]+[slot='description']]:mt-1",

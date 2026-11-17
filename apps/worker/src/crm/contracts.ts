@@ -1,7 +1,3 @@
-// A record's files and contracts (ADR 0036 decisions 5 and 6). The folder routes find or make
-// the record's folder in Shared and answer its node id: the apps then list, upload, download and
-// share through `/api/storage` on it, and the CRM adds no file routes. Contracts are rows on a
-// deal or a company; marking one signed locks its file in Storage in the same transaction.
 import {
   crmContractsQuerySchema,
   crmCreateContractBodySchema,
@@ -27,7 +23,6 @@ export const contracts = new Hono<AppEnv>()
     return c.json({ nodeId: folder.nodeId } satisfies CrmFolderResponse);
   })
 
-  /** Inside its company's folder, which is made too when missing. */
   .post("/deals/:id/folder", async (c) => {
     const id = c.req.param("id");
     const folder = await memberCrm(c).dealFolder(id);
@@ -64,7 +59,6 @@ export const contracts = new Hono<AppEnv>()
     return c.json({ contract: wireContract(made.contract) } satisfies CrmContractResponse, 201);
   })
 
-  /** Title, dates, status or document. Marking it signed locks the document file. */
   .patch("/contracts/:id", zValidator("json", crmUpdateContractBodySchema), async (c) => {
     const { signedAt, ...patch } = c.req.valid("json");
     const changed = await memberCrm(c).updateContract(c.req.param("id"), {
@@ -76,7 +70,6 @@ export const contracts = new Hono<AppEnv>()
     return c.json({ contract: wireContract(changed.contract) } satisfies CrmContractResponse);
   })
 
-  /** Never a signed one (`contract_signed`). */
   .delete("/contracts/:id", async (c) => {
     const id = c.req.param("id");
     const deleted = await memberCrm(c).deleteContract(id);

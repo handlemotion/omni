@@ -1,5 +1,3 @@
-// Storage sync (ADR 0043) at the member door: the change feed a desktop provider walks, the
-// tombstones it learns deletions from, and the version guards that keep it from overwriting.
 import { eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
@@ -17,7 +15,6 @@ import { createMember, createOrg, createTestDatabase } from "./support.ts";
 const { db, teardown } = await createTestDatabase();
 afterAll(teardown);
 
-/** Walks a drive's feed to the end from `cursor`, in pages of `limit`. */
 async function drain(
   storage: MemberStorage,
   space: "personal" | "shared",
@@ -42,9 +39,6 @@ const summary = (changes: StorageChange[]) =>
       : { id: change.id, name: change.node.name, inTrash: change.inTrash },
   );
 
-// Catches: a write path that forgets to take a revision (the provider never hears of it), a
-// revision taken outside the write's transaction, and pages that skip or repeat a change when
-// many rows share one revision (a folder trashed with what is inside it).
 test("every write appears once, in order, and a cursor sees only what came after it", async () => {
   const org = await createOrg(db, "sync-feed");
   const ana = await createMember(db, org.id, "ana");
@@ -65,7 +59,6 @@ test("every write appears once, in order, and a cursor sees only what came after
   const revisions = first.changes.map((change) => change.revision);
   expect(revisions).toEqual(revisions.toSorted((x, y) => x - y));
 
-  // Nothing new: the same cursor comes back empty, and stays usable.
   const idle = await drain(storage, "shared", first.cursor);
   expect(idle.changes).toEqual([]);
 
@@ -74,7 +67,6 @@ test("every write appears once, in order, and a cursor sees only what came after
   expect((await storage.unlock(a.id)).status).toBe("ok");
   expect((await storage.trash(docs.id)).status).toBe("ok");
   const second = await drain(storage, "shared", idle.cursor);
-  // Each node once, at its last change; a and b are in Trash with their folder.
   expect(summary(second.changes)).toEqual([
     { id: c.id, name: "c2.txt", inTrash: false },
     ...[docs, a, b]
@@ -91,9 +83,6 @@ test("every write appears once, in order, and a cursor sees only what came after
   );
 });
 
-// Catches: a feed that moves its cursor past a revision another transaction holds but has not
-// committed, so that change is never sent; the provider's copy then differs from the server's
-// for good.
 test("a reader never moves past a change still being written", async () => {
   const org = await createOrg(db, "sync-writers");
   const ana = await createMember(db, org.id, "ana");
@@ -111,7 +100,6 @@ test("a reader never moves past a change still being written", async () => {
     await held;
   });
   await inside;
-  // The rename holds its revision, uncommitted, while the reader walks the feed.
   const during = await drain(storage, "personal", start.cursor);
   expect(during.changes).toEqual([]);
   release();
@@ -120,9 +108,6 @@ test("a reader never moves past a change still being written", async () => {
   expect(summary(after.changes)).toEqual([{ id: file.id, name: "final.txt", inTrash: false }]);
 });
 
-// Catches: a node that leaves a drive without a trace (deleted for good, purged, moved to the
-// other space, handed over), which a provider would keep showing forever; and another member's
-// My files reaching this member's feed.
 test("a node that leaves a drive leaves a tombstone there, and only there", async () => {
   const org = await createOrg(db, "sync-tombstones");
   const ana = await createMember(db, org.id, "ana");
@@ -153,15 +138,12 @@ test("a node that leaves a drive leaves a tombstone there, and only there", asyn
       .map((entry) => entry.id)
       .toSorted(),
   ).toEqual([moving.id, inside.id].toSorted());
-  // Bo's feed holds Bo's file and nothing of Ana's.
   const bos = await drain(forMember(db, bo.id).storage, "personal");
   expect(summary(bos.changes).map((entry) => "name" in entry && entry.name)).toEqual([
     "bo-private.txt",
   ]);
 });
 
-// Catches: a sweep that deletes tombstones without telling clients still behind them, which then
-// never learn of those deletions; and a sweep that expires cursors that were already past them.
 test("a cursor behind swept tombstones expires; one past them does not", async () => {
   const org = await createOrg(db, "sync-sweep");
   const ana = await createMember(db, org.id, "ana");
@@ -185,12 +167,9 @@ test("a cursor behind swept tombstones expires; one past them does not", async (
     status: "cursor_expired",
   });
   expect((await storage.changes("personal", { cursor: past.cursor })).status).toBe("ok");
-  // Starting over always works.
   expect((await storage.changes("personal", {})).status).toBe("ok");
 });
 
-// Catches: a sync client renaming, moving or trashing a node from a stale copy, undoing a change
-// another computer made meanwhile; and a guard that also blocks the client that is up to date.
 test("rename, move and trash with a stale revision change nothing", async () => {
   const org = await createOrg(db, "sync-guard");
   const ana = await createMember(db, org.id, "ana");
@@ -216,7 +195,6 @@ test("rename, move and trash with a stale revision change nothing", async () => 
   expect((await storage.trash(file.id, { ifRevision: moved.node.revision })).status).toBe("ok");
 });
 
-// Catches: the hash a client sent being dropped, so a provider downloads bytes it already has.
 test("a file keeps the SHA-256 its uploader sent", async () => {
   const org = await createOrg(db, "sync-sha");
   const ana = await createMember(db, org.id, "ana");

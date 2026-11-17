@@ -1,8 +1,3 @@
-// The seal (ADR 0037 decision 4 step 4, ADR 0043 decision 6): once every signer has signed, the
-// Worker builds the signed copy (the PDF with an audit page) and this records it as a locked file
-// beside the original. Trusted background work, keyed by the request: two runs may build a copy
-// at once (the one after the last signature and the minute cron), each to an object key of its
-// own, and only the run that records first under the request's row lock keeps its object.
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, organizations, users } from "../schema/auth.ts";
@@ -21,7 +16,6 @@ import {
 } from "./core.ts";
 import { loadRequest, withSigners, type StorageSignatureRequest } from "./signing.ts";
 
-/** Requests one run seals at most. */
 const SEAL_BATCH = 10;
 
 /** Everything the audit page states, and where the original's bytes are. */
@@ -39,9 +33,7 @@ export interface StorageSealInput {
 
 export type RecordSealResult =
   | { status: "sealed"; node: StorageNode }
-  /** Another run recorded it first: this run's object is unused, and the caller deletes it. */
   | { status: "already_sealed" }
-  /** Not completed, or the original is gone or changed: nothing to seal. */
   | { status: "not_sealable" };
 
 /**
@@ -57,7 +49,6 @@ export async function unsealedSignatureRequests(db: Db) {
     .where(
       and(
         eq(storageSignatureRequests.status, "completed"),
-        // The hash, not the node: the copy may be deleted later, and that does not unseal it.
         isNull(storageSignatureRequests.sealedSha256),
         eq(storageNodes.contentVersion, storageSignatureRequests.contentVersion),
         isNull(storageNodes.trashedAt),
@@ -68,7 +59,6 @@ export async function unsealedSignatureRequests(db: Db) {
     .limit(SEAL_BATCH) satisfies Promise<{ id: string }[]>;
 }
 
-/** The original, live and still holding the content that was sent, or null. */
 async function sentOriginal(ex: Db, request: { nodeId: string; contentVersion: number }) {
   const chain = await chainOf(ex, request.nodeId);
   const node = chain?.[0];
@@ -185,8 +175,6 @@ export async function sealedObject(ex: Db, requestId: string) {
     .from(storageSignatureRequests)
     .innerJoin(storageNodes, eq(storageNodes.id, storageSignatureRequests.sealedNodeId))
     .where(eq(storageSignatureRequests.id, requestId));
-  // The object, not a hash: a replacement's hash is the uploader's word, its key is ours, and
-  // only a seal run writes under this request's prefix.
   const prefix = storageObjectKey(row?.node.orgId ?? "", `sealed-${requestId}-`);
   if (!row?.node.r2Key?.startsWith(prefix) || row.node.contentSha256 !== row.sealedSha256) {
     return null;

@@ -1,6 +1,3 @@
-// Hostile and oversized input: every case here hung the worker for seconds, threw, or
-// produced data Postgres rejects before the limits it tests were added. Time budgets are
-// about 20x what each case takes now and far below what it took before.
 import { describe, expect, test } from "vitest";
 import {
   cleanMessage,
@@ -25,9 +22,6 @@ function elapsedMs(run: () => unknown) {
 }
 
 describe("no catastrophic backtracking", () => {
-  // Each line is shaped to make one of the reply-header or signature patterns backtrack:
-  // an opening word that matches, then a long tail that never completes the pattern.
-  // "abc. x skrev x" lines took 19 s for 2,000 lines in email-reply-parser.
   test.each([
     ["Scandinavian header", "abc. x skrev x\n".repeat(4000)],
     ["English header", `On ${"a ".repeat(240)}\n`.repeat(400)],
@@ -55,8 +49,6 @@ describe("no catastrophic backtracking", () => {
 });
 
 describe("HTML limits", () => {
-  // jsdom and html-to-text recursed per nesting level and overflowed the stack at about
-  // 5,000 levels; parse5's work grows with depth, so 100,000 levels took seconds to parse.
   test("hostile nesting is refused quickly, and nothing throws", () => {
     const html = `${"<div>".repeat(100_000)}deep`;
     const ms = elapsedMs(() => {
@@ -105,8 +97,6 @@ describe("parse robustness", () => {
     expect(message.attachments[0]?.filename).toBe("f.txt");
   });
 
-  // mailparser refuses over 1 MB of headers or 1,000 MIME parts by throwing, which would
-  // fail the message on every sync.
   test("a header bomb keeps the message listable from its main headers", async () => {
     const references = Array.from({ length: 60_000 }, (_, i) => `<r${i}@example.com>`).join(" ");
     const raw = `${header}Subject: Still here\r\nReferences: ${references}\r\nX-Junk: ${"a".repeat(1_100_000)}\r\n\r\nbody`;

@@ -1,14 +1,3 @@
-// Omni-hosted mail against Purelymail itself (ADR 0007). GreenMail cannot be Purelymail's API, so
-// this runs only when asked for, never in `pnpm test` or CI. It uses the production Purelymail
-// account, confined to a test domain that is on the account already (its records are in DNS):
-//
-//   doppler run -p omni -c prd_mail --only-secrets PURELYMAIL_API_TOKEN -- \
-//     env PURELYMAIL_E2E=1 PURELYMAIL_E2E_DOMAIN=e2e.omnidirectional.app \
-//     DATABASE_URL=postgres://postgres:postgres@localhost:54329/omni \
-//     pnpm --filter @omni/mail test:e2e purelymail-live
-//
-// Every user it creates is named `omnie2e<random>` and deleted at the end, with its app passwords.
-// It sends one message from a test user to itself.
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -54,7 +43,6 @@ describe.runIf(requested)("Purelymail itself", () => {
   let http: ReturnType<typeof serve>;
   let serviceUrl = "";
   let purelymail: PurelymailClient;
-  /** Users this run created, deleted in `afterAll` whatever happened. */
   const created: string[] = [];
 
   beforeAll(async () => {
@@ -64,7 +52,6 @@ describe.runIf(requested)("Purelymail itself", () => {
     database = await createTestDatabase();
     db = database.db;
     bucket = await createTestBucket();
-    // Accepts the service's mail events; what they say is covered by service.e2e.test.ts.
     worker = createServer((_req, res) => res.writeHead(202).end());
     await new Promise<void>((resolve) => worker.listen(0, "127.0.0.1", resolve));
     service = await startService(
@@ -95,7 +82,6 @@ describe.runIf(requested)("Purelymail itself", () => {
   afterAll(async () => {
     http?.close();
     await service?.stop();
-    // Users go even when a test failed, so a broken run leaves nothing on the account.
     for (const user of created) {
       await purelymail.deleteUser(user).catch((error: unknown) => {
         logger.error("e2e.cleanup_failed", { user, error });
@@ -105,7 +91,6 @@ describe.runIf(requested)("Purelymail itself", () => {
     await database?.teardown();
   });
 
-  /** A signed Worker → mail service call, as `apps/worker/src/mail-service.ts` makes it. */
   async function call<T>(path: string, body: unknown) {
     const text = JSON.stringify(body);
     const headers = await signRequest({
@@ -136,7 +121,6 @@ describe.runIf(requested)("Purelymail itself", () => {
     await fetch(`${serviceUrl}${MAIL_PING_PATH}`, { method: "POST", headers });
   }
 
-  /** The org that holds the test domain as Purelymail accepted it, as after onboarding. */
   let claimed: Awaited<ReturnType<typeof seedOwner>> | undefined;
   async function claimTestDomain() {
     if (claimed) return claimed;
@@ -151,15 +135,10 @@ describe.runIf(requested)("Purelymail itself", () => {
     return owner;
   }
 
-  /**
-   * A fresh test user's address. Letters and digits only: with symbolic subaddressing on (the
-   * default for a new Purelymail domain) a name with `-`, `.`, `_` or `+` is refused.
-   */
   function testAddress() {
     return `omnie2e${randomBytes(4).toString("hex")}@${domain}`;
   }
 
-  /** The stored login of a mailbox, as only this service can read it. */
   async function loginOf(mailboxId: string) {
     const [row] = await db
       .select({ credentialsEnc: schema.mailboxes.credentialsEnc })
@@ -181,12 +160,10 @@ describe.runIf(requested)("Purelymail itself", () => {
     expect(json.records.map((r) => r.check).toSorted()).toEqual(
       ["dkim", "dkim", "dkim", "dmarc", "mx", "ownership", "spf"].toSorted(),
     );
-    // Purelymail's own DNS checks pass, so mail to and from the domain is real mail.
     expect(json.records.filter((r) => !r.verified)).toEqual([]);
   });
 
   it("reports the account's credit state in /health", async () => {
-    // "unknown" means the credit call or its parsing failed; the real account is "ok" or "low".
     const health = await waitFor(async () => {
       const json = (await (await fetch(`${serviceUrl}/health`)).json()) as Record<string, unknown>;
       return json.hostCredit === "unknown" ? undefined : json;
@@ -212,13 +189,11 @@ describe.runIf(requested)("Purelymail itself", () => {
     expect(await purelymail.listUsers()).toContain(address);
     await waitFor(async () => (await mailboxStatus(db, mailboxId)) === "active", 60_000);
 
-    // A retried request returns the same mailbox with the same login.
     const login = await loginOf(mailboxId);
     const again = await call<ProvisionMailboxResult>(PROVISION_MAILBOX_PATH, body);
     expect(again).toMatchObject({ status: 200, json: { mailboxId, created: false } });
     expect((await loginOf(mailboxId)).pass).toBe(login.pass);
 
-    // To itself through Purelymail's SMTP; IDLE brings it back into the inbox.
     const subject = `omni hosted e2e ${randomUUID()}`;
     const send = await enqueueAction(db, {
       orgId: owner.orgId,
@@ -237,8 +212,6 @@ describe.runIf(requested)("Purelymail itself", () => {
     expect(arrived.cleanText).toContain("to myself, on hosted mail");
   }, 240_000);
 
-  // The test domain keeps Purelymail's default (symbolic subaddressing on), like any domain that
-  // was on the account before Omni turned it off for domains it adds.
   it("refuses a name with a symbol on such a domain, with a reason and no user created", async () => {
     const owner = await claimTestDomain();
     const address = `omnie2e.${randomBytes(4).toString("hex")}@${domain}`;
@@ -273,14 +246,12 @@ describe.runIf(requested)("Purelymail itself", () => {
     });
     expect(gone).toMatchObject({ status: 200, json: { mailboxId: json.mailboxId } });
     expect(await mailboxStatus(db, json.mailboxId)).toBeUndefined();
-    // Purelymail refuses to delete an app password it no longer has.
     await expect(purelymail.deleteAppPassword(address, pass)).rejects.toThrow(
       /deleteAppPassword failed/,
     );
     expect(await purelymail.listUsers()).toContain(address);
   }, 120_000);
 
-  /** A new hosted mailbox on the test domain, synced and active. */
   async function activeHostedMailbox() {
     const owner = await claimTestDomain();
     const address = testAddress();
@@ -296,7 +267,6 @@ describe.runIf(requested)("Purelymail itself", () => {
     return { address, mailboxId: json.mailboxId };
   }
 
-  /** Drops the connection and lets the service connect again from the stored login. */
   async function reconnect(mailboxId: string) {
     await service.supervisor.remove(mailboxId);
     await service.reconcileMailboxes();
@@ -308,7 +278,6 @@ describe.runIf(requested)("Purelymail itself", () => {
     await purelymail.deleteAppPassword(address, revoked);
 
     await reconnect(mailboxId);
-    // The login fails, Omni mints a new app password, stores it and reconnects with it.
     await waitFor(async () => (await loginOf(mailboxId)).pass !== revoked, 60_000);
     await waitFor(async () => (await mailboxStatus(db, mailboxId)) === "active", 60_000);
     expect(service.supervisor.connection(mailboxId)?.connected).toBe(true);
@@ -320,7 +289,6 @@ describe.runIf(requested)("Purelymail itself", () => {
 
     await reconnect(mailboxId);
     await waitFor(async () => (await mailboxStatus(db, mailboxId)) === "error", 60_000);
-    // Healing replaces a lost password, never a mailbox someone deleted on purpose.
     expect(await purelymail.listUsers()).not.toContain(address);
   }, 240_000);
 });

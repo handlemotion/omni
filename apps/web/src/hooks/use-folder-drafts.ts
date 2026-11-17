@@ -1,7 +1,3 @@
-// New folders as Finder makes them: New folder shows one at once, at the top of Folders, with its
-// name selected to type over; Enter, a press elsewhere, Tab, Esc or leaving the page creates it
-// (Esc keeps the name it was given), and the folder takes its place in the list once the Worker
-// answers. Each draft steps naming → creating → created, and leaves once the list holds it.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { StorageNode, StoragePlace } from "@/lib/storage.ts";
 import { freeFolderName, nameProblem, type FinishedBy } from "@/lib/storage-names.ts";
@@ -53,7 +49,6 @@ export const stepDrafts: (drafts: FolderDraft[], event: Event) => FolderDraft[] 
   }
 };
 
-/** A created folder that the list has not shown by then leaves anyway (it is past a page). */
 const LAND_WITHIN_MS = 4000;
 
 export function useFolderDrafts(source: {
@@ -67,11 +62,9 @@ export function useFolderDrafts(source: {
   const placeKey = JSON.stringify(place);
   const [drafts, dispatch] = useReducer(stepDrafts, []);
   const create = useCreateFolder().mutateAsync;
-  // Read by callbacks between renders: the drafts, the list, and each draft's text as typed.
   const latest = useRef({ drafts, nodes, placeKey });
   latest.current = { drafts, nodes, placeKey };
   const typed = useRef(new Map<string, string>());
-  // A name is finished once: Enter unmounts the field, which can blur it as well.
   const finished = useRef(new Set<string>());
 
   const siblings = useCallback((draft: FolderDraft) => {
@@ -83,7 +76,6 @@ export function useFolderDrafts(source: {
     ];
   }, []);
 
-  /** Creates the draft's folder. "stay" when Enter met a name that cannot be used. */
   const finish = useCallback(
     (key: string, value: string, by: FinishedBy) => {
       const draft = latest.current.drafts.find((d) => d.key === key);
@@ -95,8 +87,6 @@ export function useFolderDrafts(source: {
         appToast.error(storageErrorText({ code: problem }, "That name can't be used"));
         return "stay" satisfies "stay" | "done";
       }
-      // Esc, or an empty or unusable name, keeps the name it was given. A taken name left by a
-      // click gets a number from the Worker rather than being lost.
       const name = by === "escape" || !given || problem === "invalid_name" ? draft.name : given;
       finished.current.add(key);
       typed.current.delete(key);
@@ -112,14 +102,12 @@ export function useFolderDrafts(source: {
     [create, siblings],
   );
 
-  // New folder pressed while the folder is still loading: it opens once the list is there.
   const [waiting, setWaiting] = useState<string | null>(null);
   const start = useCallback(() => {
     if (!ready) {
       setWaiting(placeKey);
       return;
     }
-    // One name at a time: a draft still being named is created as it stands.
     for (const d of latest.current.drafts) {
       if (d.step === "naming") finish(d.key, typed.current.get(d.key) ?? "", "blur");
     }
@@ -142,8 +130,6 @@ export function useFolderDrafts(source: {
     if (waiting === placeKey) start();
   }, [waiting, ready, placeKey, start]);
 
-  // Off to another folder mid-name (Back, a shortcut: nothing blurred the field), or off the page
-  // altogether: that draft is created where it was started, with what was typed.
   const finishAll = useRef((_onlyElsewhere: boolean) => {});
   finishAll.current = (onlyElsewhere) => {
     for (const d of latest.current.drafts) {
@@ -155,7 +141,6 @@ export function useFolderDrafts(source: {
   useEffect(() => finishAll.current(true), [placeKey]);
   useEffect(() => () => finishAll.current(false), []);
 
-  // A created folder leaves its draft once the list shows it, taking focus if named by keyboard.
   const ids = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -181,10 +166,6 @@ export function useFolderDrafts(source: {
 
 export type FolderDrafts = ReturnType<typeof useFolderDrafts>;
 
-/**
- * Focuses a folder's row or card once it has rendered, unless focus has gone somewhere since
- * the name was finished (the next new folder's name, a link): it never takes focus from anything.
- */
 function focusRow(id: string) {
   requestAnimationFrame(() => {
     const free = !document.activeElement || document.activeElement === document.body;

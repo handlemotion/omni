@@ -1,5 +1,3 @@
-// Live co-editing (ADR 0043 decision 3 step 2) in real Chromium: two tabs on one Markdown file,
-// through the real Worker, its realtime Durable Object and s2-lite from compose.yml.
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
@@ -50,9 +48,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Catches: an edit that never reaches the other editor (a record not relayed, or relayed to
-// sockets not on the file), two editors opening at once each seeding the page (its text twice),
-// and a live page that is never saved back to the file.
 test("two editors on one Markdown file see each other's typing, and the page is saved", async () => {
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, `live-${Date.now()}@gmail.test`);
@@ -81,7 +76,6 @@ test("two editors on one Markdown file see each other's typing, and the page is 
   const bo = await context.newPage();
   await bo.goto(ana.url());
 
-  // Both open the editor at once: one seeds the live page, the other joins it.
   await Promise.all([edit(ana), edit(bo)]);
   for (const page of [ana, bo]) {
     await page.locator("[contenteditable=true]").getByText("Start").waitFor({ timeout: 15_000 });
@@ -95,7 +89,6 @@ test("two editors on one Markdown file see each other's typing, and the page is 
     expect((await pageText(page)).match(/Start/g)).toHaveLength(1);
   }
 
-  // Saved a moment after the last keystroke, by the tab that typed it.
   const id = new URL(ana.url()).searchParams.get("file") ?? "";
   await expect
     .poll(
@@ -112,7 +105,6 @@ async function edit(page: Page) {
 
 const pageText = (page: Page) => page.locator("[contenteditable=true]").innerText();
 
-/** A new paragraph at the end of the page, once ProseMirror has the caret there. */
 async function typeAtEnd(page: Page, text: string) {
   await page.locator("[contenteditable=true]").focus();
   await page.keyboard.press("ControlOrMeta+End");
@@ -127,7 +119,6 @@ async function typeAtEnd(page: Page, text: string) {
             })
           | null;
         const state = dom?.editor?.state;
-        // The end of the last block: the document's size less its closing token.
         return state ? state.doc.content.size - state.selection.from : -1;
       }),
     )

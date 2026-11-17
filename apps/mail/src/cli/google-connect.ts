@@ -1,13 +1,3 @@
-// Connects a Google account from the command line, the way the web app's Connect button will
-// (ADR 0023): `pnpm --filter @omni/mail google:connect -- --org <id> --owner <member email>`.
-// It prints Google's consent URL, catches the redirect on a loopback port, and hands the code,
-// signed, to the running mail service's `/google/connect`, which exchanges it and keeps the tokens.
-//
-// With `--pipe-refresh-token` it exchanges the code itself and writes only the refresh token to
-// stdout, which must be a pipe into a secret store, never a terminal or a file: how the Gmail e2e
-// test account gets its grant (`... | doppler secrets set GMAIL_E2E_REFRESH_TOKEN -c dev_mail`).
-//
-// The OAuth client must list `http://localhost:<port>/callback` as an authorized redirect URI.
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, fstatSync } from "node:fs";
 import { createServer } from "node:http";
@@ -58,7 +48,6 @@ if (values.help) {
 }
 const pipeToken = values["pipe-refresh-token"];
 if (!pipeToken && (!values.org || !values.owner)) fail(`missing arguments\n\n${USAGE}`);
-// The token is a live credential: only a pipe may receive it, never a terminal or a file.
 if (pipeToken && !fstatSync(1).isFIFO()) {
   fail("--pipe-refresh-token writes to a pipe only, e.g. | doppler secrets set NAME");
 }
@@ -90,7 +79,6 @@ const code = await new Promise<string>((resolve) => {
     }
     res.writeHead(200, { "content-type": "text/plain" }).end("Done. Back to the terminal.");
     server.close();
-    // From the redirect URL: quoted, so it cannot forge lines in the output.
     if (error || !got) fail(`Google said: ${JSON.stringify(error)}`);
     resolve(got);
   });

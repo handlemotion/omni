@@ -21,7 +21,6 @@ export function ThreadSwitcher({ threadId }: { threadId: string }) {
       <Button
         intent="plain"
         aria-label={`Switch email, currently ${label}`}
-        // The mailbox switcher's trigger: hover, pressed and open share the accent fill.
         className="h-7 min-w-0 justify-start gap-1.5 rounded-sm px-2 [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]"
       >
         <span className="min-w-0 truncate">{label}</span>

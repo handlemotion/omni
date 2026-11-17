@@ -28,8 +28,6 @@ async function subscribe(orgId: string, status: string, stripeSubscriptionId?: s
   return row!;
 }
 
-// Catches: a peak that follows usage back down (deleting before the invoice would save money),
-// one month's peak carried into the next, and a second run that changes what is billed.
 test("a month's peak only rises, a new month starts from what is stored then, and a rerun changes nothing", async () => {
   const org = await createOrg(db, "peaks");
   const march = new Date("2026-03-05T10:00:00Z");
@@ -40,7 +38,6 @@ test("a month's peak only rises, a new month starts from what is stored then, an
   expect(await storagePeakOf(db, org.id, march)).toBe(0);
   expect(await raise(march, 500)).toBe(500);
   expect(await raise(march, 900)).toBe(900);
-  // Files deleted: the peak stays. The same run again: still one row, the same peak.
   expect(await raise(march, 100)).toBe(900);
   expect(await raise(march, 100)).toBe(900);
   expect(await storagePeakOf(db, org.id, march)).toBe(900);
@@ -51,8 +48,6 @@ test("a month's peak only rises, a new month starts from what is stored then, an
   expect(rows).toHaveLength(2);
 });
 
-// Catches: a workspace that stopped paying losing its trashed files after 30 days, which it
-// could not restore (restoring is a write), and a paying one whose Trash is never emptied.
 test("the purge keeps a read-only workspace's Trash and empties everyone else's", async () => {
   const before = new Date(Date.now() + 60_000);
   async function trashed(orgId: string, memberId: string) {
@@ -69,7 +64,6 @@ test("the purge keeps a read-only workspace's Trash and empties everyone else's"
   await subscribe(paying.id, "past_due");
   const companies = [lapsed, never, paying];
   for (const org of companies) await trashed(org.id, (await createMember(db, org.id, "ana")).id);
-  // A Personal space is free: it is always in good standing.
   const solo = await createMember(db, lapsed.id, "solo");
   const space = await ensurePersonalSpace(db, solo.userId);
   const [own] = await db.select().from(members).where(eq(members.organizationId, space));
@@ -86,17 +80,13 @@ test("the purge keeps a read-only workspace's Trash and empties everyone else's"
     expect(purged.more).toBe(false);
     expect(await bytes()).toEqual([40, 40, 0, 0]);
   }
-  // Paying again: what was due goes with the next purge.
   await subscribe(lapsed.id, "active");
   await purgeStorageTrash(db, { before, keepReadOnly: true });
   expect(await bytes()).toEqual([0, 40, 0, 0]);
-  // Where billing is off nobody is read-only.
   await purgeStorageTrash(db, { before });
   expect(await bytes()).toEqual([0, 0, 0, 0]);
 });
 
-// Catches: a card on one workspace's subscription unlocking another's storage, and the daily
-// job billing a canceled subscription, a Personal space, or the wrong one of two rows.
 test("a payment method is recorded for the customer's workspace only, and the daily job sees each paying company once", async () => {
   const acme = await createOrg(db, "acme");
   const other = await createOrg(db, "other");

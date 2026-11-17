@@ -1,6 +1,3 @@
-// A message in a chat: a header (face, name, a tag, the time, the ⋯ that shows on hover) and the
-// bubble under it, which turns into a field while its author edits it. A shared inbox's hidden
-// notes and a file's comments both draw theirs with these.
 import { useState, type ReactNode } from "react";
 import { IconEllipsis } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
@@ -16,7 +13,6 @@ export function menuButtonClass(props: { visible?: boolean; island?: boolean; st
   return [
     shown ? "text-muted-foreground hover:text-foreground" : "-my-0.5",
     props.start ? "order-first" : "",
-    // On the island, its hit area keeps to its own width (see the island's buttons).
     props.island ? "before:min-w-0" : "",
     shown
       ? ""
@@ -49,7 +45,6 @@ export function ChatFace({ name, src }: { name: string; src?: string | null | un
       size="xs"
       src={src}
       initials={name.slice(0, 1).toUpperCase()}
-      // 18px: a step under the xs avatar, so the face sits with the 14px name, not over it.
       className="bg-accent text-foreground outline-0 [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(4.5)]"
     />
   );

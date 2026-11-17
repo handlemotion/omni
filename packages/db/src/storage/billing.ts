@@ -1,6 +1,3 @@
-// What billing needs of Storage (ADR 0034 decision 7): each usage month's peak, the one fact
-// about a card the quota depends on, and the workspaces the daily job goes through. Trusted
-// code: callers have already resolved the workspace, and no config is read here.
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { PAID_STATUSES } from "../billing.ts";
 import type { Db } from "../client.ts";

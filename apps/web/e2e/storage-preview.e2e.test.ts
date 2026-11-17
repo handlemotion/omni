@@ -1,7 +1,3 @@
-// The Drive preview's tools (the bottom island), in a real Chromium, on the web app built and
-// served by the real Worker under `wrangler dev`, on a real Postgres: a box drawn on a PDF page
-// with the comment tool is stored as that page and box, in fractions of the page, and comes back
-// pinned over the page after a reload.
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { schema } from "@omni/db";
@@ -49,9 +45,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Catches: the comment tool storing the box in pixels, against the wrong page, or offset by the
-// stage's padding (so it lands elsewhere at another zoom), the comment bar opening away from the
-// box, and a sent thread not pinned again at its box once the comments load.
 test("a box drawn on a PDF page is saved as that page's fractions and pinned there after a reload", async () => {
   const page = await signedIn(`preview-${Date.now()}@gmail.test`, "/files/my");
   await page
@@ -70,7 +63,6 @@ test("a box drawn on a PDF page is saved as that page's fractions and pinned the
   await second.scrollIntoViewIfNeeded();
   const box = await second.boundingBox();
   if (!box) throw new Error("page 2 has no box");
-  // From a quarter across and three tenths down to half across and half down.
   await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.3);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.4, { steps: 4 });
@@ -78,8 +70,6 @@ test("a box drawn on a PDF page is saved as that page's fractions and pinned the
   await page.mouse.up();
 
   const field = page.getByRole("textbox", { name: "Comment" });
-  // The bar opens up and to the right of the box (moved left as far as the page needs), not
-  // down on the island.
   const bar = await field.boundingBox();
   if (!bar) throw new Error("no comment bar");
   expect(bar.y + bar.height).toBeLessThan(box.y + box.height * 0.3);
@@ -87,7 +77,6 @@ test("a box drawn on a PDF page is saved as that page's fractions and pinned the
   expect(bar.x).toBeGreaterThan(box.x + box.width * 0.25);
   await field.fill("Move this chart up");
   await page.getByRole("button", { name: "Send" }).click();
-  // Sent: the comment bar closes.
   await field.waitFor({ state: "hidden" });
 
   const [row] = await db.select().from(schema.storageComments);
@@ -102,14 +91,12 @@ test("a box drawn on a PDF page is saved as that page's fractions and pinned the
   };
   expect(anchor.kind).toBe("pdf");
   expect(anchor.page).toBe(2);
-  // Within a pixel or two of the drag, at any page width.
   expect(anchor.x).toBeCloseTo(0.25, 2);
   expect(anchor.y).toBeCloseTo(0.3, 2);
   expect(anchor.width).toBeCloseTo(0.25, 2);
   expect(anchor.height).toBeCloseTo(0.2, 2);
 
   await page.reload();
-  // The thread's pin: its corner on the box's top right one.
   const pin = page.getByLabel("Page 2", { exact: true }).getByTestId("comment-pin");
   await pin.waitFor({ timeout: 20_000 });
   const drawn = await pin.boundingBox();
@@ -119,7 +106,6 @@ test("a box drawn on a PDF page is saved as that page's fractions and pinned the
   expect((drawn.y + drawn.height - again.y) / again.height).toBeCloseTo(0.3, 1);
 });
 
-/** A real two-page PDF (US Letter), with a correct cross-reference table. */
 function twoPagePdf() {
   const text = "BT /F1 24 Tf 72 700 Td (Quarterly plan) Tj ET";
   const objects = [

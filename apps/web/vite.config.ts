@@ -11,25 +11,18 @@ const optional = z
   .optional()
   .transform((value) => value || undefined);
 
-// Build-time config, documented in `.env.example`. All optional: without them the app builds
-// with error reporting off and its source maps stay in the build.
 const envSchema = z.object({
   OMNI_API_ORIGIN: optional.pipe(z.url().optional()),
-  /** Sentry DSN for the browser. Public by design (it ships in the bundle), but kept in env. */
   VITE_SENTRY_DSN: optional.pipe(z.url().optional()),
   VITE_SENTRY_ENVIRONMENT: optional,
-  /** All three set: upload source maps to Sentry at build, then delete them from the output. */
   SENTRY_AUTH_TOKEN: optional,
   SENTRY_ORG: optional,
   SENTRY_PROJECT: optional,
 });
 
-// The app and its API share one origin: in production the Worker serves both, and in dev Vite
-// forwards `/api` (the realtime websocket included) to `wrangler dev`.
 export default defineConfig(({ mode }) => {
   const parsed = envSchema.safeParse(loadEnv(mode, process.cwd(), ""));
   if (!parsed.success) {
-    // Names only: values may be secrets.
     const problems = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
     throw new Error(`invalid web build config:\n  ${problems.join("\n  ")}`);
   }
@@ -38,8 +31,6 @@ export default defineConfig(({ mode }) => {
   const uploadSourceMaps = Boolean(env.SENTRY_AUTH_TOKEN && env.SENTRY_ORG && env.SENTRY_PROJECT);
   return {
     plugins: [
-      // Must run before React: it generates `src/routeTree.gen.ts` and splits each route's
-      // component into its own chunk.
       tanstackRouter({
         target: "react",
         autoCodeSplitting: true,
@@ -48,7 +39,6 @@ export default defineConfig(({ mode }) => {
       }),
       react(),
       tailwindcss(),
-      // Last, so it sees the final chunks. Off without a token: no network at build.
       uploadSourceMaps &&
         sentryVitePlugin({
           authToken: env.SENTRY_AUTH_TOKEN,
@@ -61,14 +51,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: [
         { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
-        // Intent UI imports `cn` and `twJoin` from the `cn` package, and tailwind-variants bundles
-        // the same merge engine under the same names. One copy instead of two (~45 kB unminified).
-        // The `cn` package stays installed for its types and for components added later.
         { find: /^cn$/, replacement: "tailwind-variants" },
-        // pdf.js's legacy build: the modern one calls JS that Safari, and so the macOS desktop
-        // app's WebKit view, lacks (`Map#getOrInsertComputed`, `Math.sumPrecise`), and every PDF
-        // fails to open there. The legacy build carries polyfills for them. `pdf-preview.tsx`
-        // loads the legacy worker to match.
         { find: /^pdfjs-dist$/, replacement: "pdfjs-dist/legacy/build/pdf.mjs" },
       ],
     },

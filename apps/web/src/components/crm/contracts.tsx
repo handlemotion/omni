@@ -1,8 +1,3 @@
-// A company's or deal's contracts (ADR 0036 decision 6): each a row with its title, status and
-// dates, its file locked once signed. A contract starts as a draft, optionally with a file from
-// the record's folder; its menu offers only the moves the API allows from its status (`draft` →
-// `sent` → `signed` → `ended`, `draft` straight to `signed`, `sent` back to `draft`), a file while
-// it is a draft, and Delete unless it was signed.
 import { useState } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -129,11 +124,9 @@ function ContractRow(props: { contract: CrmContract; onAttach: () => void }) {
   const items: SettingsRowMenuItem[] = [
     ...nextStatuses(contract.status).map((status) => ({
       ...MOVE[status],
-      // Signing needs the executed copy.
       disabled: status === "signed" && !contract.documentNodeId,
       onAction: () => change({ status }, "The contract was not changed"),
     })),
-    // A file is replaced only while it is a draft.
     ...(contract.status === "draft"
       ? [{ icon: IconPaperclip, label: "Choose file", onAction: props.onAttach }]
       : []),
@@ -185,7 +178,6 @@ function ContractRow(props: { contract: CrmContract; onAttach: () => void }) {
   );
 }
 
-/** The files in the record's folder, for a contract's document. */
 function useFolderFiles(folderId: string | null) {
   const list = useStorageList({ parentId: folderId ?? "" }, { enabled: !!folderId });
   return list.nodes.filter((node) => node.kind === "file");

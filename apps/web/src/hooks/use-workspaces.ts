@@ -1,4 +1,3 @@
-// The workspace and account switcher: every workspace with its mailboxes, and opening either.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useParams, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect } from "react";

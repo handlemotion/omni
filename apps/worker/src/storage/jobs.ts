@@ -1,7 +1,3 @@
-// Storage's background work (ADR 0034 decisions 1 and 5). Every job is safe to run twice and
-// bounded per run: what one run leaves, the next takes. Each is an Effect program run at the
-// edge (ADR 0038 decision 2): every database and bucket call is retried on a blip, and the run's
-// Postgres client is a scoped resource.
 import {
   deletedStorageWorkspaces,
   expiredStorageUploads,
@@ -23,15 +19,11 @@ import { createLogger, type Logger } from "../log.ts";
 import { abortMultipart, deleteStorageObjects } from "./core.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** Batches of 100 trashed nodes one daily run purges. */
 const PURGE_BATCHES = 20;
-/** Batches of 1000 tombstones one daily run sweeps. */
 const TOMBSTONE_BATCHES = 20;
-/** Pages of 1000 workspace prefixes one sweep reads, and batches of 1000 objects it deletes. */
 const SWEEP_PREFIX_PAGES = 10;
 const SWEEP_DELETE_BATCHES = 20;
 const ORG_PREFIX = "orgs/";
-/** A page with this many workspaces, most of them unknown to the database, stops the sweep. */
 const SWEEP_GUARD_PREFIXES = 20;
 
 /**
@@ -46,7 +38,6 @@ export function abortExpiredStorageUploads(env: Env) {
     Effect.gen(function* () {
       const db = yield* scopedDb(env);
       const expired = yield* retried("expired_uploads", () => expiredStorageUploads(db));
-      // One upload at a time; one that fails is left for the next minute and fails this run.
       const failures = yield* eachIsolated(expired, (upload) =>
         retried("expire_upload", async () => {
           await abortMultipart(env.STORAGE_BUCKET, upload.r2Key, upload.r2UploadId);
@@ -61,17 +52,12 @@ export function abortExpiredStorageUploads(env: Env) {
   );
 }
 
-/** Runs `job` for each item in turn; a failure never stops the rest. Answers the failures. */
 function eachIsolated<T>(items: readonly T[], job: (item: T) => Effect.Effect<unknown, JobError>) {
   return Effect.forEach(items, (item) => Effect.result(job(item)), { concurrency: 1 }).pipe(
     Effect.map((results) => results.filter(Result.isFailure).map((result) => result.failure)),
   );
 }
 
-/**
- * Trash older than 30 days: rows first (which frees the bytes), then the objects. With billing
- * on, a read-only workspace keeps its Trash: nothing is deleted for not paying (ADR 0034).
- */
 function purgeTrash(db: Db, bucket: R2Bucket, log: Logger, now: Date, keepReadOnly: boolean) {
   return Effect.gen(function* () {
     const before = new Date(now.getTime() - STORAGE_TRASH_DAYS * DAY_MS);
@@ -80,7 +66,6 @@ function purgeTrash(db: Db, bucket: R2Bucket, log: Logger, now: Date, keepReadOn
       const { r2Keys, more } = yield* retried("purge_trash", () =>
         purgeStorageTrash(db, { before, keepReadOnly }),
       );
-      // Never fails: objects it could not delete are logged (`storage.objects_left`).
       yield* Effect.promise(() => deleteStorageObjects(bucket, r2Keys, log));
       objects += r2Keys.length;
       if (!more) break;
@@ -89,10 +74,6 @@ function purgeTrash(db: Db, bucket: R2Bucket, log: Logger, now: Date, keepReadOn
   });
 }
 
-/**
- * Tombstones older than 90 days (ADR 0043): a sync client further behind than that lists its
- * drive again, which the sweep tells it by raising the workspace's cursor floor.
- */
 function sweepTombstones(db: Db, now: Date) {
   return Effect.gen(function* () {
     const before = new Date(now.getTime() - STORAGE_TOMBSTONE_DAYS * DAY_MS);
@@ -108,7 +89,6 @@ function sweepTombstones(db: Db, now: Date) {
   });
 }
 
-/** Versions replaced more than 30 days ago (ADR 0043 decision 1): rows first, as for Trash. */
 function purgeVersions(db: Db, bucket: R2Bucket, log: Logger, now: Date, keepReadOnly: boolean) {
   return Effect.gen(function* () {
     const before = new Date(now.getTime() - STORAGE_VERSION_DAYS * DAY_MS);
@@ -128,28 +108,19 @@ function purgeVersions(db: Db, bucket: R2Bucket, log: Logger, now: Date, keepRea
 interface Sweep {
   workspaces: number;
   objects: number;
-  /** What the run has spent of `SWEEP_PREFIX_PAGES` and `SWEEP_DELETE_BATCHES`. */
   pages: number;
   batches: number;
-  /** Set when the database does not look like this bucket's: the run deletes nothing more. */
   refused?: "no_workspaces" | "mostly_unknown";
 }
 
-/** The workspace ids on one page of the bucket's prefixes. */
 const workspaceIds = (listed: R2Objects) =>
   listed.delimitedPrefixes
     .map((prefix) => prefix.slice(ORG_PREFIX.length, -1))
     .filter((id) => id.length > 0);
 
-/**
- * A few deleted workspaces among many are what the sweep is for. Most of a page being unknown
- * is a database that is not this bucket's (a second install on the same bucket, a restore from
- * before these workspaces existed), and deleting would take live files that nothing brings back.
- */
 const looksForeign = (listed: number, gone: number) =>
   listed >= SWEEP_GUARD_PREFIXES && gone * 2 > listed;
 
-/** Deletes everything under a deleted workspace's prefix. False when the run's batches ran out. */
 function deleteWorkspaceObjects(bucket: R2Bucket, orgId: string, sweep: Sweep) {
   return Effect.gen(function* () {
     for (let more = true; more;) {
@@ -166,11 +137,6 @@ function deleteWorkspaceObjects(bucket: R2Bucket, orgId: string, sweep: Sweep) {
   });
 }
 
-/**
- * Sweeps one stretch of the workspace prefixes, in key order: from just after the key `after`
- * (the first prefix when absent) until the listing ends or has passed the key `until`. False
- * when the run's pages or batches ran out first.
- */
 function sweepStretch(
   db: Db,
   bucket: R2Bucket,
@@ -186,7 +152,6 @@ function sweepStretch(
         bucket.list({
           prefix: ORG_PREFIX,
           delimiter: "/",
-          // A cursor already says where to go on from.
           ...(cursor ? { cursor } : after ? { startAfter: after } : {}),
         }),
       );

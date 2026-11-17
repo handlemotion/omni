@@ -29,18 +29,15 @@ export interface SupervisorOptions {
 /** Owns one `MailboxConnection` per mailbox, the periodic folder sync, and the outbox loop. */
 export class Supervisor {
   private readonly connections = new Map<string, MailboxConnection>();
-  /** Mailboxes connecting or syncing at once (`concurrency`). */
   private readonly permits: Semaphore.Semaphore;
   private readonly limit: <T>(task: () => Promise<T>) => Promise<T>;
   private readonly outbox: OutboxExecutor;
   private readonly log: Logger;
   private readonly options: SupervisorOptions;
-  /** The periodic folder sync and outbox poll. */
   private loops: Fiber.Fiber<unknown, unknown>[] = [];
   private running = false;
   private stopping = false;
   private readonly inFlight = new Set<Promise<void>>();
-  /** Wakes the outbox when the next pending action is due (an undo-send window ends). */
   private dueTimer: NodeJS.Timeout | null = null;
 
   constructor(options: SupervisorOptions) {
@@ -104,7 +101,6 @@ export class Supervisor {
       gate: this.permits,
     });
     if (this.options.onMessage) connection.on("message", this.options.onMessage);
-    // Actions that failed while the mailbox was offline become runnable again on reconnect.
     connection.on("connected", () => void this.ping({ mailboxId: mailbox.id }));
     this.connections.set(mailbox.id, connection);
     void connection
@@ -146,11 +142,6 @@ export class Supervisor {
     await this.wakeWhenDue();
   }
 
-  /**
-   * A send queued with an undo window is not due when the Worker pings. Without this it would
-   * wait for the next poll (30 s); with it, it leaves when the window ends. Beyond the poll
-   * interval the poll covers it.
-   */
   private async wakeWhenDue() {
     if (!this.running) return;
     const due = await this.options.actions.nextDueAt().catch((error: unknown) => {

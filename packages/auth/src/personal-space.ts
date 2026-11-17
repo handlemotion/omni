@@ -1,6 +1,3 @@
-// A Personal space (ADR 0024) is one person's: Better Auth's organization endpoints must not
-// invite anyone to it, add a member, make a team in it, or delete it. `@omni/db` refuses domains
-// and shared mailboxes there itself.
 import { type Db, ensurePersonalSpace, workspaceKind } from "@omni/db";
 import { APIError } from "better-auth/api";
 import { endScopedSessions } from "./session-scope.ts";
@@ -30,7 +27,6 @@ export function personalSpaceHooks(db: Db) {
           message: "a Personal space is deleted with its person, not on its own",
         });
       }
-      // Sessions scoped to it end first, or they would outlive their scope unscoped (ADR 0024).
       await endScopedSessions(db, organization.id);
     },
   };

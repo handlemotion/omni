@@ -51,7 +51,6 @@ export function FileTrigger({
         {...(acceptDirectory ? { webkitdirectory: "" } : {})}
         onChange={(event) => {
           onSelect?.(event.target.files);
-          // Picking the same file again still fires `change`.
           event.target.value = "";
         }}
       />

@@ -1,4 +1,3 @@
-// Sync's own bookkeeping, kept out of `mail.ts` (over the file-length cap).
 import { foreignKey, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { uuidv7 } from "uuidv7";
 import { organizations } from "./auth.ts";
@@ -28,7 +27,6 @@ export const pendingMailEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [
-    // A deleted mailbox takes its undelivered events with it: nobody is left to show them to.
     foreignKey({
       name: "pending_mail_events_mailbox_org_fk",
       columns: [t.mailboxId, t.orgId],

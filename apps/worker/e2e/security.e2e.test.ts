@@ -1,6 +1,3 @@
-// Hardening headers on every response the deployment serves, and rate limits on the routes that
-// send mail, call the mail service, or let someone guess at sign-in. Real Worker, real assets,
-// real Durable Objects, real Postgres.
 import { randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -27,15 +24,11 @@ import {
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
-/** Defaults from wrangler.jsonc, as deployed. */
 let worker: Awaited<ReturnType<typeof startWorker>>;
-/** Tight limits, so a test can reach each one in a few calls. */
 let limited: Awaited<ReturnType<typeof startWorker>>;
-/** A remote image host, standing in for a sender's server. */
 let imageHost: Server;
 let imageOrigin: string;
 const imageHits: string[] = [];
-// 1x1 transparent PNG.
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
   "base64",
@@ -56,7 +49,6 @@ beforeAll(async () => {
     ...base,
     vars: {
       WEB_APP_URL: WEB_ORIGIN,
-      // Per-IP auth limit off here (every test call shares one IP); its own test below.
       RATE_LIMIT_AUTH: "off",
       RATE_LIMIT_MAGIC_LINK: "2/60",
       RATE_LIMIT_INVITE: "2/60",
@@ -82,7 +74,6 @@ function get(target: { url: string | URL }, path: string, cookie = "") {
   return fetch(new URL(path, target.url), { headers: cookie ? { cookie } : {} });
 }
 
-/** What every response carries, whoever served it. */
 function expectBaseline(response: Response) {
   expect(response.headers.get("strict-transport-security")).toBe(
     "max-age=63072000; includeSubDomains",
@@ -90,7 +81,6 @@ function expectBaseline(response: Response) {
   expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   const permissions = response.headers.get("permissions-policy") ?? "";
   expect(permissions).toContain("camera=()");
-  // Passkeys must stay usable on our own origin.
   expect(permissions).toContain("publickey-credentials-get=(self)");
   expect(permissions).toContain("publickey-credentials-create=(self)");
 }
@@ -110,7 +100,6 @@ describe("security headers", () => {
     const index = await get(worker, "/");
     expect(index.status).toBe(200);
     const html = await index.text();
-    // A deep link is index.html too (single-page app fallback) and must carry the same policy.
     const deep = await get(worker, "/inbox/some-thread");
     expect(deep.status).toBe(200);
     expect(await deep.text()).toBe(html);
@@ -119,13 +108,10 @@ describe("security headers", () => {
       expectBaseline(page);
       const policy = csp(page);
       expect(policy.get("default-src")).toBe("'self'");
-      // No inline or eval'd script: our origin, plus Stripe.js for adding a card in Billing.
       expect(policy.get("script-src")).toBe("'self' https://js.stripe.com https://*.js.stripe.com");
       expect(policy.get("object-src")).toBe("'none'");
       expect(policy.get("base-uri")).toBe("'none'");
       expect(policy.get("frame-ancestors")).toBe("'none'");
-      // The message iframe is same-origin; the only other frames are Stripe's card fields and
-      // 3-D Secure.
       expect(policy.get("frame-src")).toBe(
         "'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com",
       );
@@ -134,7 +120,6 @@ describe("security headers", () => {
       expect(page.headers.get("cross-origin-opener-policy")).toBe("same-origin");
     }
 
-    // The build references no script outside our origin, which the policy would block.
     const scripts = [...html.matchAll(/<script[^>]*src="([^"]+)"/g)].map((m) => m[1]!);
     expect(scripts.length).toBeGreaterThan(0);
     expect(html).not.toMatch(/<script(?![^>]*\ssrc=)[^>]*>/);
@@ -147,8 +132,6 @@ describe("security headers", () => {
   });
 
   test("a build file the deployed build lacks is a 404, not the app's HTML", async () => {
-    // A tab open across a deploy asks for its old build's chunk; index.html in its place made the
-    // browser refuse it as a script ("'text/html' is not a valid JavaScript MIME type").
     const stale = await get(worker, "/assets/pdf-preview-0ld8uild.js");
     expect(stale.status).toBe(404);
     expect(stale.headers.get("content-type")).not.toMatch(/text\/html/);
@@ -195,7 +178,6 @@ describe("security headers", () => {
     expect(response.status).toBe(200);
     expectBaseline(response);
     const policy = csp(response);
-    // Scripts stay off; same origin, so its images can send the session cookie.
     expect(policy.get("sandbox")).toBe(
       "allow-same-origin allow-popups allow-popups-to-escape-sandbox",
     );
@@ -213,7 +195,6 @@ describe("rate limits", () => {
     return fetch(new URL("/api/auth/sign-in/magic-link", limited.url), {
       method: "POST",
       headers: { "content-type": "application/json", origin: WEB_ORIGIN },
-      // Spelled differently each time: the limit is per address, not per string.
       body: JSON.stringify({ email, callbackURL: "/" }),
     });
   }
@@ -233,7 +214,6 @@ describe("rate limits", () => {
     expectBaseline(refused);
     expect(await outboxTo("victim@bomb.test")).toHaveLength(2);
 
-    // Someone else's address is unaffected.
     expect((await requestMagicLink("other@bomb.test")).status).toBe(200);
     expect(await outboxTo("other@bomb.test")).toHaveLength(1);
   });
@@ -249,7 +229,6 @@ describe("rate limits", () => {
       const statuses = [];
       for (let i = 0; i < 3; i++) statuses.push((await passkeyOptions()).status);
       expect(statuses).toEqual([200, 200, 200]);
-      // Every sign-in method shares the budget: passkey, magic link, Google.
       expect((await passkeyOptions()).status).toBe(429);
       const google = await authPost(tight, new CookieJar(), "/sign-in/social", {
         provider: "google",
@@ -257,7 +236,6 @@ describe("rate limits", () => {
       expect(google.status).toBe(429);
       const verify = await get(tight, "/api/auth/magic-link/verify?token=guess");
       expect(verify.status).toBe(429);
-      // The app polls the session; that never counts.
       for (let i = 0; i < 5; i++) {
         expect((await get(tight, "/api/auth/get-session")).status).toBe(200);
       }
@@ -314,9 +292,7 @@ describe("rate limits", () => {
     expect((await search(anaCookie)).status).toBe(200);
     const refused = await search(anaCookie);
     expect(refused.status).toBe(429);
-    // Another member has their own budget.
     expect((await search(beaCookie)).status).toBe(200);
-    // Once the window passes, the member gets in again (refused tries do not count).
     expect(Number(refused.headers.get("retry-after"))).toBeLessThanOrEqual(5);
     await expect
       .poll(async () => (await search(anaCookie)).status, { timeout: 10_000, interval: 250 })
@@ -361,8 +337,6 @@ describe("rate limits", () => {
         headers: { cookie, "content-type": "application/json" },
         body: JSON.stringify({ domainId: randomUUID(), localPart: "hello" }),
       });
-    // Even a request the route turns down (no such domain) spends the budget: the limit runs
-    // first, so a burst never reaches the database or the mail service.
     expect((await createMailbox()).status).toBe(404);
     const refused = await createMailbox();
     expect(refused.status).toBe(429);
@@ -387,18 +361,15 @@ describe("rate limits", () => {
       );
 
     expect((await image(anaCookie, "a")).status).toBe(200);
-    // Cached: served without a fetch, so it does not spend the budget.
     for (let i = 0; i < 3; i++) expect((await image(anaCookie, "a")).status).toBe(200);
     expect((await image(anaCookie, "b")).status).toBe(200);
     const refused = await image(anaCookie, "c");
     expect(refused.status).toBe(429);
     expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
-    // The refused image never left the Worker.
     expect(imageHits.filter((url) => url.startsWith(`/${run}/`))).toEqual([
       `/${run}/a.png`,
       `/${run}/b.png`,
     ]);
-    // Another member has their own budget.
     expect((await image(beaCookie, "c")).status).toBe(200);
   });
 });

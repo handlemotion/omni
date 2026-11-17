@@ -1,7 +1,3 @@
-// The helpdesk's acceptance journey (H4) on the whole local stack: the real Worker, the real mail
-// service syncing and sending through GreenMail, Postgres and the S3 gateway. A customer writes
-// support@; the team claims, talks in a note, answers with a canned reply and a file, and
-// resolves; the customer's mail drives the status the way the plan says it must.
 import { randomUUID } from "node:crypto";
 import { createS3Store } from "@omni/mail";
 import { schema } from "@omni/db";
@@ -20,7 +16,6 @@ import { createMember, grant, signIn, WEB_ORIGIN } from "./support.ts";
 let stack: OnboardingStack;
 
 beforeAll(async () => {
-  // The outbox runs every 300 ms, so a send or a resolve reaches GreenMail within the test.
   stack = await startOnboardingStack({ outboxIntervalMs: 300 });
 });
 
@@ -28,7 +23,6 @@ afterAll(async () => {
   await stack?.stop();
 });
 
-/** The fields this journey reads from the API's answers. */
 interface Answer {
   id: string;
   status: string;
@@ -43,7 +37,6 @@ interface Answer {
   messageIdHeader: string | null;
 }
 
-/** A same-origin web app call with a fresh Idempotency-Key, as the client sends on writes. */
 async function call(
   cookie: string,
   method: "GET" | "POST" | "PUT" | "PATCH",
@@ -87,7 +80,6 @@ async function deliver(mail: {
   }
 }
 
-/** Another mail app on the same account (GreenMail accepts any password). */
 async function mailApp<T>(user: string, task: (client: ImapFlow) => Promise<T>) {
   const client = new ImapFlow({
     host: greenmail.host,
@@ -104,7 +96,6 @@ async function mailApp<T>(user: string, task: (client: ImapFlow) => Promise<T>) 
   }
 }
 
-/** Subjects of the messages in one IMAP folder (empty when the folder does not exist). */
 async function folderSubjects(user: string, path: string) {
   return mailApp(user, async (client) => {
     const exists = (await client.list()).some((folder) => folder.path === path);
@@ -117,7 +108,7 @@ async function folderSubjects(user: string, path: string) {
       }
       return subjects;
     } catch {
-      return []; // an empty folder has no 1:*
+      return [];
     } finally {
       lock.release();
     }
@@ -127,7 +118,6 @@ async function folderSubjects(user: string, path: string) {
 test("a customer's mail goes from Unassigned to resolved and archived, with notes, a canned reply and a file", async () => {
   const { db } = stack.database;
 
-  // A workspace whose support@ is on GreenMail, set up the way onboarding does it.
   const owner = await stack.workspaceWithDomain();
   const support = `support@${owner.domain}`;
   const created = await stack.api(owner.jar, "POST", "/onboarding/mailboxes", {
@@ -151,15 +141,12 @@ test("a customer's mail goes from Unassigned to resolved and archived, with note
   const ana = owner.jar.header;
   const me = await call(ana, "GET", "/me");
   const anaId = me.body.id as string;
-  // Sends go out at once: the undo window is the composer's, not what this journey proves.
   expect((await call(ana, "PATCH", "/preferences", { undoSendSeconds: 0 })).status).toBe(200);
 
-  // Bea is a teammate on the inbox.
   const bea = await createMember(db, owner.orgId, `bea@${owner.domain}`);
   await grant(db, owner.orgId, mailboxId, bea.id);
   const beaCookie = await signIn(stack.worker, db, `bea@${owner.domain}`);
 
-  // 1. The customer writes support@: it lands in Unassigned, open.
   const customer = `luis-${randomUUID().slice(0, 8)}@client.test`;
   const subject = `Invoice ${randomUUID().slice(0, 6)} is wrong`;
   await deliver({ from: `Luis Ortega <${customer}>`, to: support, subject, text: "Billed twice." });
@@ -186,13 +173,11 @@ test("a customer's mail goes from Unassigned to resolved and archived, with note
       await call(ana, "GET", `/conversations?mailboxId=${mailboxId}&view=${view}`)
     ).body.conversations.some((c: { id: string }) => c.id === threadId);
 
-  // 2. Ana claims it: it leaves Unassigned and is hers.
   expect((await call(ana, "POST", `/threads/${threadId}/claim`)).status).toBe(200);
   expect(await conversation()).toMatchObject({ assigneeMemberId: anaId });
   expect(await inView("unassigned")).toBe(false);
   expect(await inView("mine")).toBe(true);
 
-  // 3. A note mentioning Bea notifies her, and only her; the customer never sees it.
   const note = await call(ana, "POST", `/threads/${threadId}/notes`, {
     body: "@Bea did we double charge Luis?",
     mentions: [bea.id],
@@ -204,7 +189,6 @@ test("a customer's mail goes from Unassigned to resolved and archived, with note
   });
   expect(beaInbox.notifications).toEqual([expect.objectContaining({ kind: "mention", threadId })]);
 
-  // 4. A canned reply, filled in for this customer, goes out with a file.
   const canned = await call(ana, "POST", "/canned-replies", {
     mailboxId,
     title: "Refund issued",
@@ -244,7 +228,6 @@ test("a customer's mail goes from Unassigned to resolved and archived, with note
     return action.body.status === "done";
   });
 
-  // The customer got it, file included, threaded on their mail.
   const delivered = await mailApp(customer, async (client) => {
     const lock = await client.getMailboxLock("INBOX");
     try {
@@ -259,14 +242,12 @@ test("a customer's mail goes from Unassigned to resolved and archived, with note
   expect(delivered).toContain("receipt.txt");
   expect(delivered).toContain("Hi Luis, the duplicate charge is refunded.");
 
-  // 5. Our reply makes it Pending and records the first response, once.
   await waitFor(async () => (await conversation()).status === "pending");
   const afterReply = await conversation();
   expect(afterReply.firstRespondedAt).not.toBeNull();
   expect(afterReply.events.filter((e) => e.kind === "first_response")).toHaveLength(1);
   expect(await inView("pending")).toBe(true);
 
-  // The reply records who sent it: Ana's reads as hers, Bea sees it as the team's (grey, right).
   const replyFor = async (cookie: string) => {
     const thread = await call(cookie, "GET", `/threads/${threadId}`);
     const messages = (thread.body as unknown as { messages: ReplyView[] }).messages;
@@ -283,7 +264,6 @@ test("a customer's mail goes from Unassigned to resolved and archived, with note
     fromTeam: true,
   });
 
-  // 6. The customer answers: it reopens.
   await deliver({
     from: `Luis Ortega <${customer}>`,
     to: support,
@@ -293,7 +273,6 @@ test("a customer's mail goes from Unassigned to resolved and archived, with note
   });
   await waitFor(async () => (await conversation()).status === "open");
 
-  // 7. Resolve files the customer's mail out of INBOX on the server.
   const resolved = await call(ana, "POST", `/threads/${threadId}/resolve`);
   expect(resolved).toMatchObject({ status: 200, body: { changed: true } });
   await waitFor(async () => {
@@ -305,7 +284,6 @@ test("a customer's mail goes from Unassigned to resolved and archived, with note
   );
   expect(await conversation()).toMatchObject({ status: "resolved" });
 
-  // 8. An out-of-office in the same thread does not reopen it.
   await deliver({
     from: customer,
     to: support,
@@ -314,7 +292,6 @@ test("a customer's mail goes from Unassigned to resolved and archived, with note
     inReplyTo: replyMessageId,
     headers: { "Auto-Submitted": "auto-replied" },
   });
-  // Stored is not enough: wait until the Worker applied the status rule to it, in this thread.
   const autoReply = await waitFor(async () => {
     const [row] = await db
       .select({
@@ -333,7 +310,6 @@ test("a customer's mail goes from Unassigned to resolved and archived, with note
   expect(autoReply.threadId).toBe(threadId);
   expect(await conversation()).toMatchObject({ status: "resolved" });
 
-  /** Puts the staged file where the mail service reads it (one R2 bucket in production). */
   async function mirrorUploadToMailServiceBucket(uploadId: string) {
     const [row] = await db
       .select({ r2Key: schema.uploads.r2Key, mimeType: schema.uploads.mimeType })
@@ -378,7 +354,6 @@ test("a conversation deleted in another mail app leaves the helpdesk", async () 
       | undefined;
   });
 
-  // Deleted for good in another app (flagged \Deleted and expunged, as Apple Mail erases).
   await mailApp(support, async (client) => {
     const lock = await client.getMailboxLock("INBOX");
     try {
@@ -389,7 +364,6 @@ test("a conversation deleted in another mail app leaves the helpdesk", async () 
       lock.release();
     }
   });
-  // The first full sync sees the copy gone; the next finds it nowhere and drops the thread.
   await stack.service.supervisor.syncAll();
   await stack.service.supervisor.syncAll();
 
@@ -440,7 +414,6 @@ test("a conversation moved to Trash in another mail app is resolved, and a reope
       events: { kind: string; actorMemberId: string | null; data: Record<string, unknown> }[];
     };
 
-  // Apple Mail's delete: move to Trash (and expunge from INBOX).
   await mailApp(support, async (client) => {
     await client.mailboxCreate("Trash").catch(() => {});
     const lock = await client.getMailboxLock("INBOX");
@@ -455,7 +428,6 @@ test("a conversation moved to Trash in another mail app is resolved, and a reope
   await stack.service.supervisor.syncAll();
   await stack.service.supervisor.syncAll();
 
-  // Resolved by Omni, with a line that says why; it leaves Open and Unassigned.
   await waitFor(async () => (await conversation()).status === "resolved");
   expect((await conversation()).events.filter((e) => e.kind === "status")).toEqual([
     expect.objectContaining({
@@ -466,10 +438,8 @@ test("a conversation moved to Trash in another mail app is resolved, and a reope
   for (const view of ["open", "unassigned"]) {
     expect([view, await ids(view)]).toEqual([view, expect.not.arrayContaining([threadId])]);
   }
-  // Nothing moved on the server: the mail stays in Trash.
   expect(await folderSubjects(support, "Trash")).toContain(subject);
 
-  // A teammate reopens it in Omni: later syncs leave it open (no resolve loop).
   expect((await call(ana, "POST", `/threads/${threadId}/reopen`)).status).toBe(200);
   await stack.service.supervisor.syncAll();
   await stack.service.supervisor.syncAll();
@@ -477,7 +447,6 @@ test("a conversation moved to Trash in another mail app is resolved, and a reope
   expect(await ids("open")).toContain(threadId);
 });
 
-/** A message as `GET /threads/:id` answers, the fields the sender check reads. */
 interface ReplyView {
   messageIdHeader: string;
   sentByMemberId: string | null;

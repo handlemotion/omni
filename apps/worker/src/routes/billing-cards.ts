@@ -1,8 +1,3 @@
-// The workspace's saved cards and invoices (ADR 0015, "Cards and invoices"), read from and
-// changed in Stripe for the active workspace's own customer. Owners and admins only, like
-// checkout and the portal; with billing off every route answers 404. Card numbers never reach
-// Omni: a card is added by a SetupIntent the browser confirms with Stripe.js, and Omni sees only
-// its brand, last four and expiry.
 import { createStripeClient } from "@omni/auth";
 import { schema } from "@omni/db";
 import { eq } from "drizzle-orm";
@@ -17,10 +12,8 @@ import { zValidator } from "../validator.ts";
 
 type Ctx = { var: AppEnv["Variables"] };
 
-/** Subscriptions that will still charge: anything not over. */
 const LIVE = new Set(["active", "trialing", "past_due", "unpaid", "incomplete", "paused"]);
 
-/** Stripe's own pages for an invoice; any other link Stripe hands back is dropped. */
 const INVOICE_ORIGINS = new Set(["https://invoice.stripe.com", "https://pay.stripe.com"]);
 
 const idOf = (value: string | { id: string } | null | undefined) =>
@@ -34,17 +27,12 @@ async function storedCustomer(c: Ctx) {
   return org?.customer ?? null;
 }
 
-/** Billing on and the caller an owner or admin, else 404 / 403 before any Stripe call. */
 async function manage(c: Ctx) {
   const plans = requireBilling(c.var.config);
   await requireBillingManager(c, "manage");
   return { plans, stripe: createStripeClient(plans.secretKey) };
 }
 
-/**
- * The customer's cards, its live subscriptions, and the card Stripe charges next: a
- * subscription's own default wins over the customer's (Checkout sets one on the subscription).
- */
 async function wallet(stripe: Stripe, customerId: string) {
   const [customer, methods, subscriptions] = await Promise.all([
     stripe.customers.retrieve(customerId),
@@ -73,7 +61,6 @@ async function wallet(stripe: Stripe, customerId: string) {
   return { cards, live, defaultId };
 }
 
-/** Charges `paymentMethodId` from now on: the customer's default and each live subscription's. */
 async function makeDefault(
   stripe: Stripe,
   customerId: string,
@@ -89,7 +76,6 @@ async function makeDefault(
   }
 }
 
-/** One of this customer's cards, or 404: another workspace's card, or one already removed. */
 async function ownCard(stripe: Stripe, customerId: string | null, id: string) {
   const notFound = new HTTPException(404, { message: "that card is not saved for this workspace" });
   if (!customerId) throw notFound;
@@ -105,7 +91,6 @@ async function cardsOf(c: Ctx, stripe: Stripe, customerId: string | null) {
   const addCard = c.var.config.auth.billing?.publishableKey !== undefined;
   if (!customerId) return { cards: [], addCard };
   const { cards } = await wallet(stripe, customerId);
-  // The card that will be charged leads; the rest keep Stripe's newest-first order.
   return { cards: cards.toSorted((a, b) => Number(b.isDefault) - Number(a.isDefault)), addCard };
 }
 
@@ -125,16 +110,11 @@ function approvedUrl(raw: string | null | undefined) {
 }
 
 export const billingCards = new Hono<AppEnv>()
-  /** The saved cards, default first, and whether a card can be added here (`addCard`). */
   .get("/billing/cards", async (c) => {
     const { stripe } = await manage(c);
     return c.json(await cardsOf(c, stripe, await storedCustomer(c)));
   })
 
-  /**
-   * A SetupIntent for one new card, for Stripe.js to confirm in the browser. Makes the
-   * workspace's Stripe customer if it has none. 404 when no publishable key is configured.
-   */
   .post("/billing/cards/setup", async (c) => {
     const { plans, stripe } = await manage(c);
     if (!plans.publishableKey) {
@@ -144,7 +124,6 @@ export const billingCards = new Hono<AppEnv>()
     const intent = await stripe.setupIntents.create({
       customer,
       payment_method_types: ["card"],
-      // Saved to pay the plan's renewals while nobody is there.
       usage: "off_session",
       metadata: { organizationId: c.var.member.orgId },
     });
@@ -152,11 +131,6 @@ export const billingCards = new Hono<AppEnv>()
     return c.json({ clientSecret: intent.client_secret, publishableKey: plans.publishableKey });
   })
 
-  /**
-   * After Stripe.js confirmed the SetupIntent: the new card becomes the one charged when the
-   * workspace has none yet (a trial started with no card would otherwise cancel at its end).
-   * Safe to repeat.
-   */
   .post("/billing/cards", zValidator("json", setupIntentBody), async (c) => {
     const { stripe } = await manage(c);
     const customer = await storedCustomer(c);
@@ -179,7 +153,6 @@ export const billingCards = new Hono<AppEnv>()
     return c.json(await cardsOf(c, stripe, customer));
   })
 
-  /** Charges this card from now on: renewals of the plan and any open invoice's retries. */
   .post("/billing/cards/:id/default", zValidator("param", paymentMethodId), async (c) => {
     const { stripe } = await manage(c);
     const customer = await storedCustomer(c);
@@ -189,12 +162,6 @@ export const billingCards = new Hono<AppEnv>()
     return c.json(await cardsOf(c, stripe, customer));
   })
 
-  /**
-   * Removes a card from Stripe. The last card cannot go while a plan will still charge it (409):
-   * add another first, or cancel the plan. Removing the card that is charged makes the newest
-   * other card the one charged, because Stripe would otherwise charge nothing and the renewal
-   * would fail.
-   */
   .delete("/billing/cards/:id", zValidator("param", paymentMethodId), async (c) => {
     const { stripe } = await manage(c);
     const customer = await storedCustomer(c);
@@ -214,7 +181,6 @@ export const billingCards = new Hono<AppEnv>()
     return c.json(await cardsOf(c, stripe, customer));
   })
 
-  /** The workspace's invoices, newest first (drafts left out), with Stripe's page and PDF. */
   .get("/billing/invoices", async (c) => {
     const { stripe } = await manage(c);
     const customer = await storedCustomer(c);
@@ -229,7 +195,6 @@ export const billingCards = new Hono<AppEnv>()
                 id: invoice.id,
                 number: invoice.number,
                 createdAt: new Date(invoice.created * 1000).toISOString(),
-                /** In the currency's smallest unit (cents). */
                 total: invoice.total,
                 currency: invoice.currency,
                 status: invoice.status as "open" | "paid" | "uncollectible" | "void",

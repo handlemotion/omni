@@ -1,7 +1,3 @@
-// Rate limits for abuse-prone routes (sign-in, invitations, search, sending, mail service calls,
-// image proxy fetches, Storage's share mail and link door).
-// One Durable Object instance per (rule, key), so every count is strongly consistent and a busy
-// key never slows another. Fixed windows: simple, and exact enough for abuse control.
 import { DurableObject } from "cloudflare:workers";
 import { sha256Hex } from "@omni/crypto";
 import type { Context } from "hono";
@@ -10,7 +6,6 @@ import type { AppEnv } from "./context.ts";
 import type { Config, RateLimit } from "./env.ts";
 import { apiError } from "./errors.ts";
 
-/** Each rule and the variable that sets it. */
 const RULES = {
   auth: "RATE_LIMIT_AUTH",
   magicLink: "RATE_LIMIT_MAGIC_LINK",
@@ -43,7 +38,6 @@ export class RateLimiter extends DurableObject<Env> {
     }
     state.count += cost;
     await this.ctx.storage.put("window", state);
-    // Nothing outlives its window: the alarm clears this instance's storage.
     await this.ctx.storage.setAlarm(state.start + windowMs);
     return 0;
   }

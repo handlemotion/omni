@@ -1,5 +1,3 @@
-// How the open thread reads: as the conversation (messages, notes and activity, with the team's
-// chat under them) or as its emails, one at a time, paged with the chevrons at the bottom left.
 import { useState, type ReactNode } from "react";
 import { IconChevronDown, IconChevronUp, IconMail } from "@/components/icons/central";
 import { IconBubble } from "@/components/icons/sidebar";
@@ -20,7 +18,6 @@ export function useReaderView(threadId: string, thread: Thread | undefined, sing
   const messages = thread?.messages ?? [];
   const fallback: ReaderView = single ? "email" : "conversation";
   const view = chosen?.threadId === threadId ? chosen.view : fallback;
-  // The one picked with the chevrons while it's still in the thread, else the latest.
   const picked = at?.threadId === threadId ? messages.findIndex((m) => m.id === at.id) : -1;
   const index = picked === -1 ? messages.length - 1 : picked;
   return {
@@ -28,9 +25,7 @@ export function useReaderView(threadId: string, thread: Thread | undefined, sing
     setView: (next: ReaderView) => setChosen({ threadId, view: next }),
     index,
     email: messages[index],
-    /** What the timeline shows: every message, or the one email paged to. */
     shown: view === "email" ? messages.slice(index, index + 1) : messages,
-    /** To the email `step` away: -1 the older one, 1 the newer. */
     move: (step: number) => {
       const next = messages[index + step];
       if (next) setAt({ threadId, id: next.id });
@@ -45,8 +40,6 @@ export function FloatingPager(props: {
   onMove: (step: number) => void;
 }) {
   const composer = useComposerState();
-  // Over a docked email composer they sit closer to it (10px); alone, 20px off the bottom like
-  // Reply and Forward.
   const docked = composer.email && composer.mode === "public";
   if (props.count < 2) return null;
   return (
@@ -75,7 +68,6 @@ function Pager(props: {
 }) {
   return (
     <TooltipTrigger delay={400}>
-      {/* Bordered and raised like Reply and Forward, a size smaller: 28px squares. */}
       <Button
         intent="outline"
         size="sq-sm"
@@ -99,7 +91,6 @@ export function ViewToggle({
   view: ReaderView;
   onChange: (next: ReaderView) => void;
 }) {
-  // One quiet button either way: only its icon and label follow the view, never its fill.
   const email = view === "email";
   return (
     <Button intent="ghost" size="sm" onPress={() => onChange(email ? "conversation" : "email")}>

@@ -1,9 +1,3 @@
-// Uploads (ADR 0034 decision 5): R2 multipart through the Worker's binding, one code path for
-// every size. Open checks the quota and opens the multipart upload; each part streams from the
-// request into R2; complete closes it and inserts the file. The upload's row lists the parts the
-// bucket has, so a part can be sent again, parts can go in parallel, and a dropped connection
-// resumes from `GET /uploads/:id`. Completing twice returns the same file. Written against
-// `writeDoor`, so the same routes serve a member and, under a link, an editor.
 import {
   storageCompleteUploadQuerySchema,
   STORAGE_MAX_PARTS,
@@ -31,12 +25,7 @@ const live = (upload: StorageUpload) => upload.expiresAt > new Date();
 const answer = (upload: StorageUpload) =>
   ({ upload: wireUpload(upload) }) satisfies StorageUploadResponse;
 
-/**
- * Turns the parts into the object. An earlier try may have done so and lost its answer (the
- * bucket then no longer knows the upload): the object being there, whole, is the proof.
- */
 async function finishObject(bucket: R2Bucket, upload: StorageUpload) {
-  // R2 has no multipart upload without a part: an empty file is one plain put.
   if (!upload.r2UploadId) return bucket.put(upload.r2Key, new Uint8Array(0));
   try {
     const parts = upload.parts.map(({ partNumber, etag }) => ({ partNumber, etag }));
@@ -47,14 +36,12 @@ async function finishObject(bucket: R2Bucket, upload: StorageUpload) {
   }
 }
 
-/** The holder's upload, when it is in the workspace this door writes to. */
 async function findUpload(c: Context<AppEnv>, id: string) {
   const { files, orgId } = writeDoor(c);
   const upload = await files.upload(id);
   return upload?.orgId === orgId ? upload : null;
 }
 
-/** Checks a part against its upload, streams it into the bucket and records it. */
 async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
   const n = Number(c.req.param("n"));
   const { files } = writeDoor(c);
@@ -65,7 +52,6 @@ async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
     return apiError(c, "invalid_part", `the upload has ${partCount(upload.size)} parts`);
   }
   const expected = partLength(upload.size, n);
-  // R2 streams a body only when its length is known, and parts must be uniform.
   if (!body || Number(c.req.header("content-length")) !== expected) {
     return apiError(c, "invalid_part", `part ${n} must be exactly ${expected} bytes`);
   }
@@ -74,7 +60,6 @@ async function storePart(c: Context<AppEnv>, body: ReadableStream | null) {
   try {
     ({ etag } = await multipart.uploadPart(n, body));
   } catch (error) {
-    // Aborted or completed while the part was on its way: there is nothing to add it to.
     const now = await files.upload(upload.id);
     if (!now || now.nodeId) return refused(c, "not_found");
     throw error;
@@ -112,31 +97,25 @@ export const storageUploads = new Hono<AppEnv>()
       if (!started) throw new Error("storage: the upload was gone before it started");
       return c.json(answer(started), 201);
     } catch (error) {
-      // Nothing may keep holding room for an upload that cannot receive a part.
       await files.abortUpload(opened.upload.id);
       throw error;
     }
   })
 
-  /** The upload and the parts already stored: what a client reads to resume. */
   .get("/uploads/:id", async (c) => {
     const upload = await findUpload(c, c.req.param("id"));
     if (!upload || (!upload.nodeId && !live(upload))) return refused(c, "not_found");
     return c.json(answer(upload));
   })
 
-  /** One part's raw bytes, streamed into R2. Its length is fixed by its number. */
   .put("/uploads/:id/parts/:n{[0-9]+}", async (c) => {
     const body = c.req.raw.body;
     const stored = await storePart(c, body);
-    // A refused part was not read. Read it out, or the sender, still sending, sees a broken
-    // connection instead of the answer.
     if (body && !body.locked) await body.pipeTo(new WritableStream()).catch(() => {});
     return stored;
   })
 
   .post("/uploads/:id/complete", async (c) => {
-    // Read by hand, not by a validator, so the app's typed client need not send a query.
     const guard = storageCompleteUploadQuerySchema.safeParse({
       ifContentVersion: c.req.query("ifContentVersion"),
     });
@@ -162,10 +141,6 @@ export const storageUploads = new Hono<AppEnv>()
       announceDrives(c, [done.node]);
       return c.json({ node: wireNode(done.node) } satisfies StorageNodeResponse);
     }
-    // No file came of it (no room any more, the folder is gone): nothing stays stored. Only an
-    // upload that never became a file loses its bytes. A completed one is a file, which someone
-    // may hold even when this caller no longer reaches it (it was moved out of Shared), and
-    // `abortUpload` refuses it: the object goes only with the row that was its sole owner.
     const aborted = await files.abortUpload(upload.id);
     if (aborted.status === "ok") {
       await bucket.delete(aborted.r2Key).catch((error: unknown) => {

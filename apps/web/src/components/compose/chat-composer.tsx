@@ -1,8 +1,3 @@
-// The composer's Hidden mode (shared inboxes, ADR 0021): an internal note for the team, never
-// sent, written like a chat message, in the app's chat box (`components/chat/chat-box.tsx`):
-// Mention at its bottom-left corner, and a reply banner on top when answering a passage of the
-// conversation.
-// Typing `@` (or the @ button) offers the inbox's teammates; each one picked is notified.
 import { useEffect, useRef, useState } from "react";
 import { IconAt } from "@/components/icons/central";
 import { ChatBox, ReplyBanner } from "@/components/chat/chat-box";
@@ -19,16 +14,12 @@ import type { Assignee, Thread } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 import { useComposerState } from "./composer-state.tsx";
 
-/** A teammate as the note names them: their name, or their address when they have none. */
 const nameOf = (person: Assignee) => person.name || person.email;
 
-/** At most this many teammates in the picker. */
 const SUGGESTIONS = 6;
 
-/** The `@word` being typed right before the caret, if any: its start and the word. */
 function mentionAt(text: string, caret: number) {
   const before = text.slice(0, caret);
-  // After a space, a line break or the start, so an email address doesn't open the picker.
   const match = /(^|\s)@([^\s@]*)$/.exec(before);
   const word = match?.[2];
   if (word === undefined) return null;
@@ -44,8 +35,6 @@ export function ChatDock({ thread }: { thread: Thread }) {
   const active = chatOpen && mode === "hidden";
   if (!chat) return null;
   return (
-    // Kept mounted while an email is written or the email view shows, so a half-written note
-    // waits here.
     <div hidden={!active} className="relative mx-auto w-full max-w-3xl px-5 pb-4">
       <div className="relative">
         <ChatComposer key={thread.id} thread={thread} active={active} />
@@ -59,18 +48,15 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
   const { data: assignees = [] } = useAssignees(thread.mailboxId);
   const addNote = useAddNote();
   const [text, setText] = useState("");
-  // Teammates picked from the list; only those still named in the text are notified.
   const [picked, setPicked] = useState<Assignee[]>([]);
   const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
   const [highlight, setHighlight] = useState(0);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const box = useRef<HTMLDivElement>(null);
 
-  // Switching to Chat, or a new reply, puts the cursor in the box, ready to write.
   useEffect(() => {
     if (active) textarea.current?.focus();
   }, [active, reply]);
-  // Words typed in a selection's reply box arrive here, after anything already written.
   useEffect(() => {
     if (seed)
       setText((current) => (current.trim() ? `${current.trimEnd()} ${seed.text}` : seed.text));
@@ -111,7 +97,6 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
     });
   };
 
-  /** The @ button: an `@` at the caret (after a space when needed), which opens the picker. */
   const startMention = () => {
     const el = textarea.current;
     const at = el?.selectionStart ?? text.length;
@@ -135,8 +120,6 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
     const body = withReply(replied, written);
     const mentions = picked.filter((p) => written.includes(`@${nameOf(p)}`)).map((p) => p.memberId);
     addNote.mutateAsync({ threadId: thread.id, body, mentions }).catch((error: Error) => {
-      // Back in the box with its reply; if a new message was started meanwhile, keep it and
-      // hand the failed one (quote included) over on the clipboard, so neither is lost.
       if (textarea.current?.value.trim()) {
         void navigator.clipboard?.writeText(body).catch(() => undefined);
         appToast.error(error.message, { description: "The message is on your clipboard." });
@@ -232,7 +215,6 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
         <ListBox
           aria-label="Mention a teammate"
           items={matches}
-          // Re-renders the items when the highlight moves (the collection caches them by key).
           dependencies={[highlight]}
           onAction={(key) => {
             const person = matches.find((a) => a.memberId === key);
@@ -244,7 +226,6 @@ export function ChatComposer({ thread, active }: { thread: Thread; active: boole
             <ListBoxItem
               id={person.memberId}
               textValue={nameOf(person)}
-              // The arrow keys move this highlight while focus stays in the box.
               className={person.memberId === matches[highlight]?.memberId ? "bg-accent" : ""}
             >
               <span className="col-span-full flex min-w-0 items-center gap-2">

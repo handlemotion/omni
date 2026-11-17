@@ -1,15 +1,3 @@
-// AES-256-GCM encryption for mailbox app passwords (`mailboxes.credentials_enc`).
-//
-// Envelope: `v1.<keyId>.<iv>.<ciphertext>`, each binary part base64url without padding. The IV
-// is 96 random bits per encryption. The ciphertext includes GCM's 128-bit tag.
-//
-// Associated data is `v1.<keyId>.<aad>`, where callers pass the mailbox id as `aad`. A ciphertext
-// copied to another mailbox row, or relabelled with another key id, fails to decrypt.
-//
-// Rotation: add a new key to the keyring and make it current. New writes use it; old envelopes
-// still decrypt by their key id. `needsReencryption` finds rows to rewrite before the old key
-// is removed.
-
 import { fromBase64, fromUtf8, toBase64Url, utf8 } from "./encoding.ts";
 
 export interface Keyring {

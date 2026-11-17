@@ -1,8 +1,3 @@
-// An HTTP/2 front for the bench: production serves the app over HTTP/2 (Cloudflare), where the
-// browser fetches every script at once; `wrangler dev` speaks HTTP/1.1, where Chrome opens six
-// connections and queues the rest, so a page of many small chunks loads in a staircase that
-// production never shows. TLS with a throwaway self-signed certificate (Chrome only speaks HTTP/2
-// over TLS); the bench's browser ignores certificate errors. Websockets go through as HTTP/1.1.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { request, type IncomingHttpHeaders } from "node:http";
@@ -71,7 +66,6 @@ export async function startHttp2Proxy(target: URL) {
     req.pipe(upstream);
   });
 
-  // Websocket upgrades arrive over HTTP/1.1: hand the raw connection to the Worker.
   server.on("upgrade", (req, socket, head) => {
     const upstream = connect(Number(target.port), target.hostname, () => {
       const lines = [`${req.method} ${req.url} HTTP/1.1`];

@@ -253,7 +253,6 @@ export function Sidebar({
         className={cn([
           "w-(--sidebar-width) group-data-[collapsible=hidden]:w-0",
           "group-data-[side=right]:-rotate-180",
-          // Opens and closes at once: no width or slide animation.
           "relative h-svh bg-transparent",
           intent === "default" && "group-data-[collapsible=dock]:w-(--sidebar-width-dock)",
           intent === "float" &&
@@ -316,10 +315,6 @@ export function SidebarFooter({ className, ...props }: React.ComponentProps<"div
 
 export function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
   const { state } = useSidebar();
-  // One hover highlight springs between the rows (transitive's fluid hover); rows have no hover
-  // fill of their own. Only the row under the pointer lights: the space between groups does not.
-  // Links carry the slot; a menu trigger's button keeps its own `data-slot="button"`, so it is
-  // marked with `data-sidebar-item` instead and lights the same way.
   const hover = useFluidHoverList({
     itemSelector: "[data-slot='sidebar-item'], [data-sidebar-item]",
   });
@@ -405,7 +400,6 @@ export function SidebarItem({
       ref={ref}
       data-slot="sidebar-item"
       aria-current={isCurrent ? "page" : undefined}
-      // Collapsed, the label is gone and the glyph is hidden: the tooltip's text names the link.
       aria-label={
         props["aria-label"] ?? (isCollapsed && typeof tooltip === "string" ? tooltip : undefined)
       }
@@ -420,8 +414,6 @@ export function SidebarItem({
             isHovered && "[&_svg:not([class*='text-'])]:text-foreground",
             isFocusVisible && "inset-ring inset-ring-sidebar-ring",
             isDisabled && "opacity-50",
-            // Collapsed, the row is its glyph: a 28px square (the title bar's buttons), the label in its tooltip.
-            // Its glyph at full strength: alone, a muted one reads dull.
             isCollapsed &&
               "size-7 justify-center px-0 [&_svg:not([class*='text-'])]:text-foreground",
             className,
@@ -468,7 +460,6 @@ export function SidebarItemTrigger({ className, ...props }: MenuButtonProps) {
       intent="plain"
       data-sidebar-item
       className={cn(
-        // Glyphs at the link rows' 15px (a button draws 16), so labels start on one line.
         "group/sidebar-item h-8 w-full min-w-0 justify-start gap-2.5 rounded-lg px-2 text-start text-sm *:[svg]:size-icon",
         "aria-expanded:[--btn-bg:var(--sidebar-accent)] aria-expanded:[--btn-overlay:var(--sidebar-accent)] aria-expanded:*:[svg]:text-foreground",
         "focus-visible:outline-hidden focus-visible:inset-ring focus-visible:inset-ring-sidebar-ring",
@@ -591,8 +582,6 @@ export function SidebarDisclosureTrigger({
       <PrimitiveButton
         ref={ref}
         slot="trigger"
-        // `text-label` joins after `cn`: it only knows t-shirt sizes, reads this one as a colour
-        // and drops it against `text-subtle-foreground`, leaving the heading's size.
         className={composeRenderProps(
           className,
           (className, { isFocusVisible, isDisabled }) =>
@@ -612,7 +601,6 @@ export function SidebarDisclosureTrigger({
             {state !== "collapsed" && (
               <IconChevronDownSmall
                 data-slot="chevron"
-                // Turns at once, as the group opens and closes at once.
                 className="mt-0.5 group-not-aria-expanded/sidebar-disclosure-trigger:-rotate-90"
               />
             )}
@@ -627,11 +615,7 @@ export function SidebarDisclosurePanel({ className, ...props }: DisclosurePanelP
   return (
     <DisclosurePanel
       data-slot="sidebar-disclosure-panel"
-      className={cx(
-        // Opens and closes at once: no height animation.
-        "h-(--disclosure-panel-height) overflow-clip",
-        className,
-      )}
+      className={cx("h-(--disclosure-panel-height) overflow-clip", className)}
       {...props}
     >
       <div data-slot="sidebar-disclosure-panel-content" className="flex flex-col gap-y-0.5">

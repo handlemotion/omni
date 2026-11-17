@@ -70,8 +70,6 @@ describe("usageMonth", () => {
     return [start.toISOString(), end.toISOString()];
   };
 
-  // Bug caught: a month that resets a few hours late or early hands out a second allowance, or
-  // pauses triage early, around every renewal.
   it("resets at the anchor's day and time, not at midnight", () => {
     expect(month("2026-01-10T15:30:00Z", "2026-03-10T15:29:59Z")).toEqual([
       "2026-02-10T15:30:00.000Z",
@@ -83,8 +81,6 @@ describe("usageMonth", () => {
     ]);
   });
 
-  // Bug caught: naive `setUTCMonth` rolls Jan 31 + 1 month over to Mar 3, skipping February's
-  // reset; and clamping from the previous month would drift a 31st anchor to the 28th for good.
   it("clamps a late anchor day to short months without drifting", () => {
     expect(month("2026-01-31T00:00:00Z", "2026-02-15T00:00:00Z")).toEqual([
       "2026-01-31T00:00:00.000Z",
@@ -100,8 +96,6 @@ describe("usageMonth", () => {
     ]);
   });
 
-  // Bug caught: a yearly plan's period start is the anchor; without stepping by months it would
-  // grant one allowance for the whole year.
   it("splits a year-old anchor into monthly windows across the year boundary", () => {
     expect(month("2025-11-20T08:00:00Z", "2026-01-05T00:00:00Z")).toEqual([
       "2025-12-20T08:00:00.000Z",
@@ -113,8 +107,6 @@ describe("usageMonth", () => {
 describe("usagePeriod", () => {
   const at = (iso: string) => new Date(iso);
 
-  // Bug caught: stepping from a clamped Feb 28 period start would reset on Mar 28 and again on
-  // Stripe's Mar 31 renewal, granting a second allowance in three days.
   it("uses Stripe's own monthly period while now is inside it", () => {
     const period = usagePeriod(
       {

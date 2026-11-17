@@ -1,12 +1,3 @@
-// The uploads in progress, outside React so they outlive the screen that started them: moving to
-// another folder keeps them going. One file goes up at a time, in the order they were added; a
-// failed one stays listed until it is retried (resuming from the parts the server has) or
-// removed. `hooks/use-storage.ts` subscribes.
-//
-// An upload belongs to whoever queued it: the signed-in user and the active workspace, or the user
-// and the link it goes through. Every switch of workspace or account cancels the queue first
-// (`cancelUploads`, while the old session can still free what it reserved), and each request
-// checks the session it would go out with, so a file never lands in another workspace.
 import type { QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
@@ -67,8 +58,6 @@ export function identityChecks(
   return {
     guard,
     confirm: async () => {
-      // Cancellable: a switch or sign-out waits for an upload, so a stalled read must not hold
-      // it. Cancelled, it throws; any other failure falls back to this tab's cached session.
       const me = await call(api.me.$get(undefined, { init: { signal } })).catch(
         (error: unknown) => {
           if (signal.aborted) throw error;
@@ -84,13 +73,10 @@ export function identityChecks(
 
 interface Job extends UploadItem {
   file: File;
-  /** Who queued it (`identityOf`), or null when no one was signed in. */
   identity: string | null;
-  /** Being cancelled by `cancelUploads`, which frees what it opened. */
   cancelled?: boolean;
   running?: Promise<void>;
   place: StoragePlace;
-  /** The file it becomes a new version of, when it is one. */
   replaces: string | undefined;
   shareId: string | undefined;
   client: QueryClient;
@@ -130,10 +116,8 @@ async function run(job: Job) {
       signal: job.controller.signal,
       onOpened: (uploadId) => {
         job.uploadId = uploadId;
-        // Removed while it was opening: `removeUpload` had no id to free yet.
         if (!jobs.includes(job) && !job.cancelled) void abortUpload(uploadId, job.shareId);
       },
-      // Opening a file is what places it, so that asks the server who this is first.
       ...identityChecks(job.client, job.shareId, job.identity, job.controller.signal),
       onProgress: (sent) => {
         job.sent = sent;
@@ -143,7 +127,6 @@ async function run(job: Job) {
     jobs = jobs.filter((j) => j !== job);
     void uploaded(job, node);
   } catch (error) {
-    // Removed while it ran: `removeUpload` already dropped it.
     if (jobs.includes(job)) {
       job.status = "failed";
       job.error = error;
@@ -154,18 +137,12 @@ async function run(job: Job) {
   pump();
 }
 
-/**
- * A new file shows in its folder's cached list at once, and usage grows. A new version of a file
- * changes what hangs off it (its versions, its comments' content version, its signatures), and a
- * link's door has lists of its own: both refetch all of Storage.
- */
 async function uploaded(job: Job, node: StorageNode) {
   if (job.shareId || job.replaces) return storageChanged(job.client);
   await storageNodeChanged(job.client, node);
   void job.client.invalidateQueries({ queryKey: keys.storageUsage() });
 }
 
-/** Starts the next queued file, unless one is on its way. */
 function pump() {
   if (jobs.some((job) => job.status === "uploading")) return;
   const next = jobs.find((job) => job.status === "queued");
@@ -238,7 +215,6 @@ export async function cancelUploads() {
     job.cancelled = true;
     job.controller?.abort();
   }
-  // An upload still opening learns its id when the request answers: wait for each to stop.
   await Promise.allSettled(all.map((job) => job.running));
   await Promise.allSettled(
     all.flatMap((job) => (job.uploadId ? [abortUpload(job.uploadId, job.shareId)] : [])),

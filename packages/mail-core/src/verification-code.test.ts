@@ -38,46 +38,39 @@ test("verificationCode reads the code a sentence or the subject names, and joins
       text: "Tu código de verificación es 9041\nVence en 2026.",
     }),
   ).toBe("9041");
-  // The named code, not the number that stands alone in the footer.
   expect(
     verificationCode({
       subject: "Sign in",
       text: "Your verification code is 482913.\n\nSupport\n12345",
     }),
   ).toBe("482913");
-  // A letter-and-digit code whole, never the digits inside it.
   expect(
     verificationCode({
       subject: "Your verification code: A123456B",
       text: "Your verification code is A123456B.",
     }),
   ).toBe("A123456B");
-  // A device code keeps its hyphen: the form it goes into expects it.
   expect(
     verificationCode({ subject: "Device verification", text: "Enter this code:\n\nWDJB-MJ4T\n" }),
   ).toBe("WDJB-MJ4T");
 });
 
 test("verificationCode returns null rather than guess: no code talk, or two candidates", () => {
-  // A receipt: a number alone on a line, but nothing calls it a code.
   expect(
     verificationCode({ subject: "Your receipt", text: "Order number\n482913\nTotal $1,250.00" }),
   ).toBeNull();
-  // The codes nobody pastes into a sign-in form.
   expect(
     verificationCode({
       subject: "Shipping",
       text: "Ships to zip code 90210. Promo code: 2024SAVE",
     }),
   ).toBeNull();
-  // Two different codes in one mail: either could be the one asked for.
   expect(
     verificationCode({
       subject: "Codes",
       text: "Your code is 111222.\nYour backup code is 333444.",
     }),
   ).toBeNull();
-  // A year, an amount and a time near the word are not codes.
   expect(
     verificationCode({
       subject: "Security alert",

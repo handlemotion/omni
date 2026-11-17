@@ -1,8 +1,3 @@
-// Why a DNS record is not passing yet, in words a person can act on (ADR 0011). Pure: the mail
-// service asks the domain's nameservers, and the answers are read here. Each verdict carries what
-// was found, so a wrong value can be shown next to the right one. Imported as
-// `@omni/mail-core/dns-diagnostics`.
-
 /** One answer from a nameserver, as `@omni/contracts`' `dnsAnswerSchema` carries it. */
 export type DnsAnswer =
   | { status: "found"; values: string[] }
@@ -20,25 +15,15 @@ export interface ExpectedRecord {
 }
 
 export type DiagnosticStatus =
-  /** As expected. */
   | "ok"
-  /** Nothing at that name yet. */
   | "missing"
-  /** A record of the right type, with another value. */
   | "wrong_value"
-  /** An SPF record exists already: add our include to it rather than a second record. */
   | "spf_merge"
-  /** Two or more SPF records: receivers treat that as no SPF at all. Merge them into one. */
   | "spf_multiple"
-  /** MX points elsewhere: mail moves to the new host when it changes. */
   | "mx_elsewhere"
-  /** Ours is there, but other MX hosts are too, and some mail would still go to them. */
   | "mx_extra"
-  /** A CNAME sits at a name that needs another record type; a CNAME can share it with nothing. */
   | "cname_conflict"
-  /** Other records sit at the name that needs a CNAME. */
   | "conflict"
-  /** The nameservers did not answer; nothing is known. */
   | "unknown";
 
 export interface Diagnostic {
@@ -105,8 +90,6 @@ export function diagnose(
   const found = values(own);
   const ok = options.matched ?? found.some((v) => v.trim() === record.value.trim());
   if (ok) return { status: "ok", message: "Found.", found } satisfies Diagnostic;
-  // Unrelated TXT records (site verifications, SPF) can share the name; only ones that look like
-  // an attempt at this record are shown as wrong.
   const prefix = record.value.split("=")[0]!;
   const attempts = found.filter((v) => v.includes("=") && v.split("=")[0] === prefix);
   if (attempts.length > 0) {
@@ -231,12 +214,9 @@ export function mergeSpf(existing: string[], includes: string[]) {
     if (!terms.some((t) => t.toLowerCase() === term.toLowerCase())) terms.push(term);
   }
   const redirect = terms.findIndex((t) => /^redirect=/i.test(t));
-  // `redirect=` only applies without an `all`; keep the record's own choice.
   if (redirect !== -1 && all !== undefined) terms.splice(redirect, 1);
   return ["v=spf1", ...terms, ...(all ? [all] : redirect === -1 ? ["~all"] : [])].join(" ");
 }
-
-// DNS hosts, told apart by their nameservers.
 
 export interface DnsProvider {
   id: string;
@@ -338,10 +318,6 @@ export const detectDnsProvider: (nameservers: readonly string[]) => DnsProvider 
   return null;
 };
 
-// Domain Connect (https://www.domainconnect.org), the open standard for applying a service's
-// records at the DNS host with one click. Discovery: a `_domainconnect` TXT on the zone names the
-// host's API; its `/v2/<domain>/settings` says where the synchronous flow runs.
-
 export interface DomainConnectSettings {
   providerId: string;
   providerName: string;
@@ -354,7 +330,6 @@ export const parseDomainConnectSettings: (json: unknown) => DomainConnectSetting
   json,
 ) => {
   const s = json as Partial<Record<keyof DomainConnectSettings, unknown>> | null;
-  // Both come from the DNS host's own server: bound them before any pattern sees them.
   const https = (v: unknown) =>
     typeof v === "string" && v.length <= MAX_URL && /^https:\/\/[^/\s]+/.test(v);
   if (!s || typeof s.providerId !== "string" || !https(s.urlSyncUX) || !https(s.urlAPI)) {
@@ -376,13 +351,8 @@ export function domainConnectHost(txt: readonly string[]) {
   return value ? trimSlashes(value) : null;
 }
 
-/** Longer than any real Domain Connect URL; past it a value is refused unread. */
 const MAX_URL = 2048;
 
-/**
- * Drops trailing slashes. A loop, not `/\/+$/`: that pattern is quadratic on a long run of
- * slashes that does not end the string, and these values come from someone else's server.
- */
 function trimSlashes(value: string) {
   let end = value.length;
   while (end > 0 && value[end - 1] === "/") end--;

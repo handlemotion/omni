@@ -1,8 +1,3 @@
-// The routes that change files and folders (ADR 0034 decision 6): create a folder, rename, move,
-// trash, upload, and a file's versions and comments. Written once against `writeDoor` and
-// mounted twice: under `/api/storage` for a member in their workspace, and under
-// `/api/storage/shared/:shareId` for a person an item was shared with, where the grant door
-// bounds every one of them to that item.
 import {
   storageChangeNodeBodySchema,
   storageCreateFolderBodySchema,
@@ -21,10 +16,6 @@ import { storageComments } from "./comments.ts";
 import { storageUploads } from "./uploads.ts";
 import { storageVersions } from "./versions.ts";
 
-/**
- * The `?ifRevision=` guard of a change, read by hand rather than by a validator: the app's typed
- * client would then have to send a query it never uses.
- */
 function guardOf(c: Context<AppEnv>) {
   const parsed = storageRevisionGuardQuerySchema.safeParse({
     ifRevision: c.req.query("ifRevision"),
@@ -42,14 +33,11 @@ export const storageChanges = new Hono<AppEnv>()
     return c.json({ node: wireNode(made.node) } satisfies StorageNodeResponse, 201);
   })
 
-  /** A new name, a new place (another folder, or the root of My files or Shared), or a glyph. */
-  /** With `?ifRevision=`, refused `409 version_conflict` when the node has changed since. */
   .patch("/nodes/:id", zValidator("json", storageChangeNodeBodySchema), async (c) => {
     const body = c.req.valid("json");
     const guard = guardOf(c);
     const id = c.req.param("id");
     const { files } = writeDoor(c);
-    // A cluster's glyph belongs to the member's sidebar, so a grantee cannot set one.
     if ("icon" in body) {
       if (c.var.shared) return refused(c, "forbidden");
       const set = await memberStorage(c).setIcon(id, body.icon);
@@ -65,15 +53,10 @@ export const storageChanges = new Hono<AppEnv>()
     }
     const changed = await files.move(id, placeOf(body), guard);
     if (changed.status !== "ok") return refused(c, changed.status);
-    // Out of one drive into another: both hear of it.
     announceDrives(c, [changed.node, changed.left]);
     return c.json({ node: wireNode(changed.node) } satisfies StorageNodeResponse);
   })
 
-  /**
-   * To Trash, guarded like a change by `?ifRevision=`. With `?forever=1`, out of Trash for good:
-   * rows first, then the objects.
-   */
   .delete(
     "/nodes/:id",
     zValidator("query", storageDeleteQuerySchema.extend(storageRevisionGuardQuerySchema.shape)),
@@ -87,7 +70,6 @@ export const storageChanges = new Hono<AppEnv>()
         announceDrives(c, [trashed.node]);
         return c.json({ node: wireNode(trashed.node) } satisfies StorageNodeResponse);
       }
-      // Trash is its space's members' alone: a grant reaches nothing in it.
       if (!("deleteForever" in files)) return refused(c, "not_found");
       const deleted = await files.deleteForever(id);
       if (deleted.status !== "ok") return refused(c, deleted.status);

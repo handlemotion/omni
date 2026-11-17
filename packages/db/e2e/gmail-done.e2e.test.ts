@@ -1,5 +1,3 @@
-// A Google account's read state is Omni's Done (ADR 0044), proven on the sync writers the mail
-// service calls: flags as Gmail reports them in, per-member state out.
 import { and, eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { addLocation, reconcileFolder, setLocationFlags } from "../src/mail/mail-sync.ts";
@@ -15,7 +13,6 @@ afterAll(teardown);
 const org = await createOrg(db, "gmail-done-org");
 const member = await createMember(db, org.id, "ana");
 
-/** A personal mailbox of `provider` with an INBOX, owned by the member. */
 async function account(address: string, provider: "gmail" | "imap") {
   const mailbox = await createMailbox(db, org.id, address);
   await db
@@ -33,10 +30,6 @@ async function account(address: string, provider: "gmail" | "imap") {
     highestModseq: 1n,
   });
   let uid = 0;
-  /**
-   * Indexes a message the way the mail service does: the row, then its INBOX copy. They are
-   * separate writes, so a sync that fails between them and retries looks exactly like this.
-   */
   const deliver = async (threadId: string | null, sentAt: Date, flags: string[]) => {
     uid += 1;
     const thread =
@@ -98,7 +91,6 @@ test("mail read in Gmail is Done in Omni, and marking it unread there reopens it
   const { threadId, uid } = await deliver(null, at, []);
   expect(await inbox()).toContain(threadId);
 
-  // In Later when Gmail reports it read: done wins and the thread leaves Later.
   await forMember(db, member.id).setThreadState(threadId, { later: true });
   await flag([uid], SEEN);
   expect(await stateOf(threadId)).toEqual({ read: true, doneThrough: at, snoozedUntil: null });
@@ -114,12 +106,9 @@ test("opening a thread in Omni stays in Omni: a sync does not undo it, new unrea
   const first = await deliver(null, new Date("2026-11-01T09:00:00Z"), []);
   await forMember(db, member.id).setThreadState(first.threadId, { read: true });
 
-  // Gmail still has it unread. A flag change that says nothing about read (a star) must not
-  // turn the thread unread in Omni again, nor make it done.
   await flag([first.uid], ["\\Flagged"]);
   expect(await stateOf(first.threadId)).toMatchObject({ read: true, doneThrough: null });
 
-  // Done, then a reply arrives unread: back in the Inbox, unread.
   await flag([first.uid], SEEN);
   expect(await inbox()).not.toContain(first.threadId);
   await deliver(first.threadId, new Date("2026-11-02T09:00:00Z"), []);
@@ -132,7 +121,6 @@ test("mail already read in Gmail becomes Done when the folder is reconciled", as
   const at = new Date("2026-11-01T09:00:00Z");
   const read = await deliver(null, at, []);
   const unread = await deliver(null, at, []);
-  // As stored before Omni followed Gmail's read state: the flag is there, the state is not.
   await db
     .update(messageLocations)
     .set({ flags: SEEN })
@@ -156,7 +144,6 @@ test("the copies Done marks read stop at the done watermark: a reply indexed aft
   const { deliver } = await account("eva@gmail-done.test", "gmail");
   const seen = new Date("2026-11-01T09:00:00Z");
   const first = await deliver(null, seen, []);
-  // Arrives between the Done write and the lookup of what to mark read.
   const late = await deliver(first.threadId, new Date("2026-11-01T09:05:00Z"), []);
 
   const upTo = await threadActionTargets(db, member.id, first.threadId, seen);
@@ -170,8 +157,6 @@ test("a copy found again after a folder reset is not new mail: a thread opened i
   const { threadId, uid } = await deliver(null, new Date("2026-11-01T09:00:00Z"), []);
   await forMember(db, member.id).setThreadState(threadId, { read: true });
 
-  // UIDVALIDITY changed: the folder's locations are dropped and its mail is indexed again. The
-  // message row survives, so its copy comes back as its only location, still unread in Gmail.
   const [copy] = await db
     .delete(messageLocations)
     .where(and(eq(messageLocations.mailboxId, mailbox.id), eq(messageLocations.imapUid, uid)))

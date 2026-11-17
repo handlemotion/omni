@@ -1,7 +1,3 @@
-// Creates the first organization and its owner: `pnpm --filter @omni/db org:create -- ...`.
-// Self-serve sign-up is off (members join by invitation), so this is how an install starts.
-// Idempotent: the organization is keyed by slug, the user by email, and a second run with the
-// same arguments prints the same ids and changes nothing.
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
@@ -20,7 +16,6 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-// `pnpm org:create -- --name ...` forwards the `--` itself; drop it.
 const argv = process.argv.slice(2);
 const { values } = parseArgs({
   args: argv[0] === "--" ? argv.slice(1) : argv,

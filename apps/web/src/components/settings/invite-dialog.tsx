@@ -1,4 +1,3 @@
-// Inviting someone to the workspace with an inbox (ADR 0026), from People.
 import { useState } from "react";
 import { Label } from "@/components/ui/field";
 import { Input, InputGroup } from "@/components/ui/input";
@@ -25,7 +24,6 @@ export function InviteDialog({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
   const [domainId, setDomainId] = useState<string | null>(null);
-  // Follows the email until edited.
   const [edited, setEdited] = useState<string | null>(null);
   const [sharedId, setSharedId] = useState(NO_SHARED);
   const address = email.trim();

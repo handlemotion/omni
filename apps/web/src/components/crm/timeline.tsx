@@ -1,10 +1,3 @@
-// A record's timeline (docs/spec/crm.md "The timeline"), after Attio's Activity tab: newest first,
-// one line per item (a 20px mark, who did what, when at the end), and the item's own card under it
-// for a note or a mail thread. A note is added from the composer on top. Paged by the server's
-// cursor; kinds this app does not know were dropped by the query.
-//
-// Geometry: the mark's 20px disc sits on the line's 20px height, and a card starts under the
-// line's text (28px in: the mark and its 8px gap), so the marks run down one axis.
 import { useState, type ComponentType, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import {
@@ -31,7 +24,6 @@ const WHEN = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 });
 
-/** A contract's move to a status, as a verb: "Rosa signed MSA". */
 const CONTRACT_STATUS = {
   draft: "moved back to draft",
   sent: "sent",
@@ -79,7 +71,6 @@ export function Timeline({ kind, id }: { kind: CrmRecordKind; id: string }) {
   );
 }
 
-/** Members by id, for who did what. */
 function useMemberNames() {
   const members = useMembers().data?.members ?? [];
   return new Map(members.map((m) => [m.id, m.user.name || m.user.email]));
@@ -174,7 +165,6 @@ function Item(props: { item: CrmTimelineItem; names: Names; stages: CrmStage[] }
 
 type EventItem = Extract<CrmTimelineItem, { kind: "event" }>["event"];
 
-/** What an event says, or null for a kind this app does not show. */
 function eventText(event: EventItem, stages: CrmStage[]) {
   const data = event.data as Record<string, unknown>;
   const text = (key: string) => (typeof data[key] === "string" ? (data[key] as string) : "");
@@ -221,7 +211,6 @@ function contractVerb(contract: Extract<CrmTimelineItem, { kind: "contract" }>["
   }
 }
 
-/** A thread's `url` is on the web app's origin: open it inside the app. */
 function appPath(url: string) {
   try {
     const parsed = new URL(url, window.location.origin);
@@ -274,8 +263,6 @@ function NoteCard(props: { noteId: string; body: string; author: string | null }
       <div className="flex items-start gap-2">
         <p className="min-w-0 flex-1 text-sm/5 break-words whitespace-pre-wrap">{props.body}</p>
         {props.author === member.id && (
-          // The 26px button rides on the text's first 20px line (3px out above and below), so
-          // the card keeps its own padding round the text instead of growing to the button.
           <span className="-my-[3px] shrink-0">
             <SettingsRowMenu
               label="Actions for this note"
@@ -298,7 +285,6 @@ function NoteCard(props: { noteId: string; body: string; author: string | null }
   );
 }
 
-/** A note on this record: the field, and Add note once there is text. */
 function NoteComposer({ kind, id }: { kind: CrmRecordKind; id: string }) {
   const create = useCreateNote();
   const [body, setBody] = useState("");

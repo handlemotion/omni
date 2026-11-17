@@ -1,7 +1,3 @@
-// Mail activity sharing over the real Worker (ADR 0039 decision 2): the mailbox setting under
-// `/api/mail`, and what it adds to a CRM record (`activity` timeline items, `lastContactedAt`).
-// Who may set a level and what the door returns at each one are proven in `@omni/db`'s
-// `mail-crm-sharing` suite; these catch the Worker getting it wrong around the door.
 import { schema } from "@omni/db";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startCrmStack, type CrmStack, type Person } from "./crm-support.ts";
@@ -17,7 +13,6 @@ afterAll(async () => {
   await stack?.stop();
 });
 
-/** A JSON call to `/api/mail` as `who`'s browser. */
 async function mailApi(who: Person, method: string, path: string, body?: unknown) {
   const response = await fetch(new URL(`/api/mail${path}`, stack.worker.url), {
     method,
@@ -29,7 +24,6 @@ async function mailApi(who: Person, method: string, path: string, body?: unknown
   return { status: response.status, body: (text ? JSON.parse(text) : null) as any };
 }
 
-/** Ana's personal mailbox in `orgId`, with her owner grant as provisioning leaves it. */
 async function personalMailbox(orgId: string, ana: Person, address: string) {
   const box = await createMailbox(stack.db, orgId, address, "personal");
   await stack.db
@@ -38,9 +32,6 @@ async function personalMailbox(orgId: string, ana: Person, address: string) {
   return box;
 }
 
-// Catches: the setting routes reaching past Mail's door (an admin turning on a teammate's
-// personal mailbox, a mailbox of another workspace), a level the enum does not know stored, and
-// a refusal answered as anything but the shared error shape.
 test("the setting: its owner reads and sets it; an admin is refused on a teammate's personal mailbox", async () => {
   const acme = await stack.company("acme-setting");
   const ana = await stack.member(acme.id);
@@ -67,9 +58,6 @@ test("the setting: its owner reads and sets it; an admin is refused on a teammat
   expect((await mailApi(ana, "GET", path)).body).toEqual({ level: "activity" });
 });
 
-// Catches: a teammate's timeline missing the activity, or carrying the thread (its id, url,
-// snippet) or a subject the mailbox does not share; the owner's own thread shown twice; activity
-// surviving the owner turning sharing off; and `lastContactedAt` ignoring shared activity.
 test("a teammate sees shared activity on the timeline, never the thread, and lastContactedAt counts it", async () => {
   const acme = await stack.company("acme-activity");
   const ana = await stack.member(acme.id);
@@ -101,7 +89,6 @@ test("a teammate sees shared activity on the timeline, never the thread, and las
     `/deals/${deal.body.deal.id}`,
   ] as const;
 
-  // Off: Bea sees nothing of it, and nobody contacted Carla as far as she can tell.
   const before = await stack.api(bea.jar, "GET", `/people/${id}/timeline`);
   expect(before.body.items.filter((item: { kind: string }) => item.kind !== "event")).toEqual([]);
   for (const path of reads) {
@@ -140,7 +127,6 @@ test("a teammate sees shared activity on the timeline, never the thread, and las
   );
   expect(JSON.stringify(withSubject.body)).not.toContain(threadId);
 
-  // Ana can open the thread: she gets it as a thread, never also as activity.
   const anas = await stack.api(ana.jar, "GET", `/people/${id}/timeline`);
   const kinds = anas.body.items.map((item: { kind: string }) => item.kind);
   expect(kinds).toContain("thread");
@@ -155,8 +141,6 @@ test("a teammate sees shared activity on the timeline, never the thread, and las
   expect((await stack.api(bea.jar, "GET", `/people/${id}`)).body.lastContactedAt).toBeNull();
 });
 
-// Catches: the timeline's cursor not carrying activity items (repeated or skipped on the next
-// page) when they interleave with threads and events.
 test("activity pages with the rest of the timeline, each item once", async () => {
   const acme = await stack.company("acme-pages");
   const ana = await stack.member(acme.id);

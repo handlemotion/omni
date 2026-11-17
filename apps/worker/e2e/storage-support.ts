@@ -1,5 +1,3 @@
-// What the Storage suites share: a real Worker with its local R2 bucket, people signed in over
-// the real magic-link flow, and files uploaded the way a client uploads them.
 import { createHash, randomUUID } from "node:crypto";
 import type { StorageNode, StorageUpload } from "@omni/contracts";
 import { schema } from "@omni/db";
@@ -17,7 +15,6 @@ import {
 export const MIB = 1024 * 1024;
 export const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
-/** The bucket as the Worker's binding sees it. */
 interface Bucket {
   head(key: string): Promise<{ size: number } | null>;
   put(key: string, body: string): Promise<unknown>;
@@ -48,7 +45,6 @@ export async function startStorageStack(options: {
   const { db } = database;
   const url = (path: string) => new URL(`/api/storage${path}`, worker.url);
 
-  /** A JSON call as `jar`'s browser. The body is parsed when there is one. */
   async function api(jar: CookieJar, method: string, path: string, body?: unknown) {
     const response = await fetch(url(path), {
       method,
@@ -67,10 +63,6 @@ export async function startStorageStack(options: {
       body: new Blob([new Uint8Array(bytes)]),
     });
 
-  /**
-   * Uploads `bytes` whole: open, every part in order, complete. `base` is `/shared/<shareId>`
-   * for someone uploading into what was shared with them.
-   */
   async function upload(
     jar: CookieJar,
     place: { space: "personal" | "shared" } | { parentId: string },
@@ -98,7 +90,6 @@ export async function startStorageStack(options: {
     return done.body.node as StorageNode;
   }
 
-  /** A GET whose answer is read by the caller: bytes, headers. */
   const get = (jar: CookieJar, path: string, headers: Record<string, string> = {}) =>
     fetch(url(path), { headers: { cookie: jar.header, ...headers } });
 
@@ -117,7 +108,6 @@ export async function startStorageStack(options: {
     async company(name: string) {
       return createOrg(db, name);
     },
-    /** A member of `orgId`, signed in with that company active. */
     async member(orgId: string, role: "owner" | "admin" | "member" = "member") {
       const email = `${role}-${randomUUID().slice(0, 8)}@storage.test`;
       const member = await createMember(db, orgId, email);
@@ -130,7 +120,6 @@ export async function startStorageStack(options: {
       const env = await worker.server.getWorker<{ STORAGE_BUCKET: Bucket }>().getEnv();
       return env.STORAGE_BUCKET;
     },
-    /** Runs a cron the way Cloudflare does, and answers how it ended. */
     async cron(cron: "* * * * *" | "47 3 * * *") {
       return (await worker.server.getWorker().scheduled({ cron })).outcome;
     },

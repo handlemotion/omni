@@ -1,11 +1,7 @@
-// Your profile picture and the active workspace's logo: upload (PNG, JPEG, WebP or GIF, at most
-// 2 MB; the Worker answers 413 or 415 otherwise) and remove. The Worker serves each picture at an
-// immutable same-origin URL, so a change is a new URL in the session, member and workspace data.
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
 
-/** Refetch everything that shows a picture: the session user, members, and the workspaces. */
 const settle = (client: QueryClient) =>
   Promise.all([
     client.invalidateQueries({ queryKey: keys.session() }),

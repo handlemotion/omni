@@ -1,6 +1,3 @@
-// Finding things across a member's drives at once, for Drive's Search: their own My
-// files and, in a company, Shared. Only live nodes count: one in Trash, or inside a folder that
-// is, is left out.
 import { and, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { storageLocks, storageNodes } from "../schema/storage.ts";
@@ -10,7 +7,6 @@ import { lockJoin, MAX_WALK, nodeColumns, toNode, type Drive, type StorageNode }
 /** Search shows this many; it does not page. */
 export const STORAGE_FIND_LIMIT = 50;
 
-/** SQL condition: `storage_nodes.id` is live in one of the drives. */
 function liveIn(drives: Drive[]) {
   const roots = drives.map(
     (drive) =>
@@ -27,7 +23,6 @@ function liveIn(drives: Drive[]) {
     ) select id from live)` satisfies SQL;
 }
 
-/** `%`, `_` and `\` match themselves in a LIKE pattern. */
 const likeEscaped = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`);
 
 export function findOperations(db: Db, door: Door) {
@@ -36,7 +31,6 @@ export function findOperations(db: Db, door: Door) {
     return found.filter((drive): drive is Drive => drive !== null);
   };
   return {
-    /** The member's live files and folders whose name holds `query`, ignoring case. */
     async search(query: string) {
       const text = query.trim();
       const reach = await drives();

@@ -1,6 +1,3 @@
-// Retry timing for the whole service. In-process retries run on Effect `Schedule`s built here; the
-// outbox's between-attempt delay is persisted in Postgres (`retryAt`), so it uses the same formula
-// through `backoffDelay` instead of sleeping.
 import { Duration, Effect, type Fiber, Random, Schedule } from "effect";
 
 /** Exponential backoff with full jitter: a random delay in [0, min(max, base * 2^attempt)). */

@@ -1,5 +1,3 @@
-// Read queries for mail, as `queryOptions` so loaders (prefetch) and hooks (subscribe) share one
-// definition. Each passes the query's abort signal, so a cancelled query cancels its request.
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { prunePending } from "./pending.ts";
@@ -18,7 +16,6 @@ export const mailboxesQuery = () =>
     queryKey: keys.mailboxes(),
     queryFn: ({ signal }) => call(api.mailboxes.$get(undefined, { init: { signal } })),
     select: (data) => data.mailboxes,
-    // Mailboxes change only when someone runs `mailbox:add`.
     staleTime: 5 * 60_000,
   });
 
@@ -89,7 +86,6 @@ export const threadQuery = (threadId: string) =>
     },
   });
 
-/** The most the API returns: a query by meaning ("otp") can match a lot of mail. */
 const SEARCH_LIMIT = 50;
 
 /** Search the active workspace's mail (ADR 0014, amended: workspace isolation). */

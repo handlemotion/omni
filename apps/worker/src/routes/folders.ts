@@ -1,6 +1,3 @@
-// Trash, spam and not spam (ADR 0021): outbox actions on every IMAP copy of a conversation, like
-// archive. The thread leaves (or, for not spam, returns to) the inbox at once for every member;
-// the mail service moves the mail and the next sync confirms it.
 import { setThreadArchived, threadActionTargets } from "@omni/db";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
@@ -10,7 +7,6 @@ import { enqueuePerFolder, idempotencyHeader, notFound } from "./mail.ts";
 
 type Kind = "trash" | "spam" | "not_spam";
 
-/** Which copies each action moves: everything not already there, or (not spam) the junk copies. */
 const MOVES: Record<Kind, (role: string) => boolean> = {
   trash: (role) => role !== "trash",
   spam: (role) => role !== "junk" && role !== "sent",

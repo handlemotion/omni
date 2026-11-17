@@ -1,4 +1,3 @@
-// Mail (ADR 0035): what waits to be done on IMAP/SMTP, staged uploads, drafts and signatures.
 import { sql } from "drizzle-orm";
 import { foreignKey, index, integer, jsonb, pgTable, text, unique } from "drizzle-orm/pg-core";
 import { members } from "../auth.ts";
@@ -42,7 +41,6 @@ export const mailActions = pgTable(
     index("mail_actions_claim_idx")
       .on(t.runAfter)
       .where(sql`${t.status} in ('pending', 'running')`),
-    // Indexing a sent message finds the send (and who asked for it) by its Message-ID.
     index("mail_actions_send_message_id_idx")
       .on(t.mailboxId, sql`(${t.payload} ->> 'messageId')`)
       .where(sql`${t.kind} = 'send'`),

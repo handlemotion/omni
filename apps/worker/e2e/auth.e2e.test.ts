@@ -21,7 +21,6 @@ let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
 type Worker = Awaited<ReturnType<typeof startWorker>>;
 let worker: Worker;
-/** The same database behind a private install's Worker (`SIGN_UP=invitation`, ADR 0018). */
 let invitationOnly: Worker;
 
 beforeAll(async () => {
@@ -61,7 +60,6 @@ test("a magic link sent through Email Sending signs the member in, once", async 
   });
   expect(requested.status).toBe(200);
 
-  // The link goes out through the EMAIL binding, from SYSTEM_MAIL_FROM under the app's name.
   const sent = await mailTo("ana@acme.test");
   expect(sent).toHaveLength(1);
   const [payload] = sent;
@@ -83,7 +81,6 @@ test("a magic link sent through Email Sending signs the member in, once", async 
   expect(me.status).toBe(200);
   expect(await me.json()).toMatchObject({ id: member.id, orgId: org.id });
 
-  // A link works once.
   const reused = await fetch(new URL(link.pathname + link.search, worker.url), {
     redirect: "manual",
   });
@@ -95,12 +92,10 @@ async function me(jar: CookieJar, on: Worker = worker) {
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
 
-/** Mail `on` sent to `email` through its EMAIL binding, oldest first. */
 function mailTo(email: string, on: Worker = worker) {
   return sentMail(on, email);
 }
 
-/** An org made the way an operator makes one (`org:create`), its owner signed in. */
 async function signedInOwner(slug: string) {
   const { db } = database;
   const owner = await createOrgWithOwner(db, {
@@ -113,7 +108,6 @@ async function signedInOwner(slug: string) {
   return { ...owner, jar };
 }
 
-/** Invites into the owner's active org, as the web app does (ADR 0026). */
 async function invite(owner: { jar: CookieJar }, email: string, on: Worker = worker) {
   const response = await sendInvite(on, owner.jar, { email, role: "member" });
   expect(response.status).toBe(200);
@@ -141,8 +135,6 @@ test("a brand-new email with no invitation signs up by magic link and has no wor
   expect(opened.headers.get("location")).not.toContain("error=");
   expect(jar.header).toContain("session_token");
 
-  // One user, proven by the link, in no company (only their Personal space, ADR 0024): the app
-  // sends them to create one.
   const users = await database.db
     .select()
     .from(schema.users)
@@ -158,7 +150,6 @@ test("a brand-new email with no invitation signs up by magic link and has no wor
       )
       .where(eq(schema.members.userId, users[0]!.id)),
   ).toEqual([{ role: "owner", personalOf: users[0]!.id }]);
-  // With no company, they work in their Personal space; setup still offers to create a company.
   const [space] = await database.db
     .select({ orgId: schema.personalSpaces.orgId })
     .from(schema.personalSpaces)
@@ -175,7 +166,6 @@ test("a brand-new email with no invitation signs up by magic link and has no wor
     organization: null,
   });
 
-  // A second link to the same address signs in the same user, not a second one.
   await signIn(worker, database.db, "newcomer@open.test", jar);
   expect(
     await database.db
@@ -201,14 +191,12 @@ test("invite, then a brand-new user signs in by magic link, accepts, and is a me
   const owner = await signedInOwner("invite");
   const invitationId = await invite(owner, "New@Invite.test");
 
-  // The invitation goes out through the outbox, linking to the web app's accept page.
   const [mail] = await mailTo("new@invite.test");
   expect(mail!.from).toBe(`"Omni" <${SYSTEM_MAIL_FROM}>`);
   expect(mail!.text).toContain(`${WEB_ORIGIN}/invite/${invitationId}`);
 
   const jar = new CookieJar();
   await signIn(worker, database.db, "new@invite.test", jar);
-  // Before accepting, only their own Personal space (ADR 0024).
   expect((await me(jar)).body).not.toMatchObject({ orgId: owner.orgId });
 
   const accepted = await authPost(worker, jar, "/organization/accept-invitation", { invitationId });
@@ -218,7 +206,6 @@ test("invite, then a brand-new user signs in by magic link, accepts, and is a me
     body: { orgId: owner.orgId, role: "member" },
   });
 
-  // Sign-in links are bearer credentials: only ENVIRONMENT=development prints them.
   expect(workerEvents(worker).filter((e) => e.event === "auth.dev_link")).toEqual([]);
 });
 
@@ -254,7 +241,6 @@ test("with SIGN_UP=invitation, a link sent while invited cannot sign up once the
 });
 
 test("with SIGN_UP=invitation, a signed-in user with no workspace cannot create one", async () => {
-  // Invited, signed up, then removed from the only workspace they had.
   const owner = await signedInOwner("private");
   const invitationId = await invite(owner, "former@private.test", invitationOnly);
   const jar = new CookieJar();
@@ -306,7 +292,6 @@ test("two accounts in one browser: both listed, switchable, and one revocable", 
     slug: "two",
     ownerEmail: "owner@two.test",
   });
-  // Same browser: the second sign-in keeps the first session alongside it.
   const jar = one.jar;
   await signIn(worker, database.db, "owner@two.test", jar);
   expect((await me(jar)).body.id).toBe(two.memberId);

@@ -1,6 +1,3 @@
-// What platform code asks of Mail (ADR 0035 decision 4): whether a workspace has mail, which
-// mailboxes sit on a domain, and which ones a person can open. Platform files call these through
-// `mail.ts` instead of naming mail's tables. Trusted reads: callers have already decided access.
 import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, members } from "../schema/index.ts";

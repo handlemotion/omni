@@ -1,5 +1,3 @@
-// The client as the apps use it, against the real Worker under workerd and a real Postgres:
-// Better Auth's client signs in, the Hono RPC client reads, the realtime client listens.
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import {
   createMailbox,
@@ -40,10 +38,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-/**
- * What a native app does with its session: keep the cookie and send it on every request. Also
- * sends the web app's Origin, as a browser would, which Better Auth requires on POSTs.
- */
 function cookieJar() {
   const cookies = new Map<string, string>();
   const header = () => [...cookies].map(([name, value]) => `${name}=${value}`).join("; ");
@@ -64,7 +58,6 @@ function cookieJar() {
   };
 }
 
-/** Signs in with the auth client's magic link, reading the link from the mail the Worker sent. */
 async function signIn(db: TestDb, email: string) {
   const jar = cookieJar();
   const baseUrl = String(worker.url);
@@ -74,7 +67,6 @@ async function signIn(db: TestDb, email: string) {
 
   const link = (await sentMail(worker, email)).at(-1)?.text.match(/https?:\/\/\S+/)?.[0];
   if (!link) throw new Error(`no magic link sent to ${email}`);
-  // A native app gets the token from the link it opens and verifies it itself.
   const token = new URL(link).searchParams.get("token") ?? "";
   const verified = await auth.magicLink.verify({ query: { token } });
   expect(verified.error).toBeNull();
@@ -82,13 +74,11 @@ async function signIn(db: TestDb, email: string) {
   return { auth, jar, api: createApi({ baseUrl, fetch: jar.fetch }) };
 }
 
-/** Waiters re-read on every event and status the realtime client reports. */
 const waiters = new Set<() => void>();
 const heard = () => {
   for (const waiter of waiters) waiter();
 };
 
-/** Resolves with what `read` finds, re-reading each time the client reports something. */
 async function until<T>(read: () => T | undefined) {
   const found = Promise.withResolvers<T>();
   const check = () => {
@@ -117,7 +107,6 @@ test("a member signs in with the auth client and reads only their own mail over 
   });
   await seedMessage(db, beaBox, { subject: "Not for Ana", fromAddress: "x@client.test", uid: 1 });
 
-  // Signed out, the typed client gets the Worker's 401.
   const anonymous = createApi({ baseUrl: String(worker.url) });
   expect((await anonymous.me.$get()).status).toBe(401);
 
@@ -125,7 +114,6 @@ test("a member signs in with the auth client and reads only their own mail over 
 
   const session = await auth.getSession();
   expect(session.data?.user.email).toBe("ana@acme.test");
-  // The organization plugin is wired on both ends.
   const orgs = await auth.organization.list();
   expect(orgs.data?.map((o) => o.id)).toEqual([org.id]);
 
@@ -144,7 +132,6 @@ test("a member signs in with the auth client and reads only their own mail over 
   if (!detail.ok) throw new Error(`thread read failed: ${detail.status}`);
   const thread = await detail.json();
   expect(thread.messages.map((m) => m.subject)).toEqual(["Quarterly numbers"]);
-  // Dates cross the wire as ISO strings, as the RPC types say.
   expect(Number.isNaN(Date.parse(thread.lastMessageAt))).toBe(false);
 
   await auth.signOut();
@@ -167,7 +154,6 @@ test("realtime hands typed events to the app and reconnects after the server dro
   let socket: WebSocket | undefined;
   const realtime = connectRealtime({
     baseUrl: String(worker.url),
-    // Node's WebSocket takes headers, as React Native's does: the native path.
     openSocket: (url) =>
       (socket = new WebSocket(url, {
         headers: { cookie: jar.header(), origin: WEB_ORIGIN },
@@ -202,14 +188,11 @@ test("realtime hands typed events to the app and reconnects after the server dro
 
     expect((await post(first)).status).toBe(202);
     await until(() => events[1]);
-    // The mail views' event, then the helpdesk views' one for the same change.
     expect(events).toEqual([
       { type: "changed", mailboxId: box.id, threadIds: [first.threadId] },
       { type: "thread.changed", mailboxId: box.id, threadIds: [first.threadId] },
     ]);
 
-    // The Durable Object goes away and takes the socket with it: the client must come back on
-    // its own and say so, since anything sent in between is lost.
     await worker.server
       .getWorker()
       .evictDurableObject("Realtime", { name: org.id, webSockets: "close" });
@@ -226,8 +209,6 @@ test("realtime hands typed events to the app and reconnects after the server dro
       { type: "thread.changed", mailboxId: box.id, threadIds: [second.threadId] },
     ]);
   } finally {
-    // Closed by the app, it stays closed: once the socket's own close event (what a drop
-    // reconnects on) has fired, no reconnect is scheduled, even with the clock run forward.
     vi.useFakeTimers({ toFake: ["setTimeout"] });
     try {
       const closed = new Promise((resolve) => socket?.addEventListener("close", resolve));
@@ -261,7 +242,6 @@ test("wake() reconnects now instead of waiting out the backoff", async () => {
       statuses.push(status);
       heard();
     },
-    // A backoff longer than the test may run, so only `wake()` can explain a reconnect.
     minDelayMs: 600_000,
     maxDelayMs: 600_000,
   });
@@ -274,7 +254,6 @@ test("wake() reconnects now instead of waiting out the backoff", async () => {
       .evictDurableObject("Realtime", { name: org.id, webSockets: "close" });
     await until(() => (statuses.at(-1) === "closed" ? true : undefined));
 
-    // The network is back (an `online` event, the app in front again).
     realtime.wake();
     await until(() => (opens() === 2 ? true : undefined));
     expect(statuses.slice(-2)).toEqual(["connecting", "open"]);

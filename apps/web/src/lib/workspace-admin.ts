@@ -1,6 +1,3 @@
-// The workspace admin surface for inboxes (ADR 0026), for owners and admins: who is here and what
-// each can open, issuing a personal inbox, shared inboxes and their people, inboxes a former member
-// left behind, and inviting someone with their inbox. Facts about mailboxes only, never their mail.
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
@@ -36,7 +33,6 @@ function placementJson({ domainId, localPart, password, servers }: InboxPlacemen
   };
 }
 
-/** What changes when an inbox appears, moves or goes: every list that shows inboxes or people. */
 const settle = (client: QueryClient) =>
   Promise.all([
     client.invalidateQueries({ queryKey: keys.workspaceMembers() }),

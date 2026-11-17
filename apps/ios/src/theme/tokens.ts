@@ -1,7 +1,3 @@
-// Design tokens for iOS. The values mirror `apps/web/src/styles.css` (the source of truth, see
-// DESIGN.md) under the same role names, so a screen reads the same on both apps. Change a value
-// there first, then here. Components use these names only: never a hex value in a screen.
-
 export const colors = {
   /** The app canvas. */
   background: "#ffffff",

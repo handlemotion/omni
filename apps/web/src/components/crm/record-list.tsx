@@ -1,7 +1,3 @@
-// The CRM's lists (Companies, People, Deals), after Attio's record tables: Storage's frame (a
-// 48px header with the title, then search and New 10px from the right edge) over the table's
-// `page` variant, one 44px row per record, paged by the server's cursor as the table scrolls.
-// The name leads each row with its mark; the other columns are muted, in tabular figures.
 import type { ReactNode } from "react";
 import { TableLoadMoreItem } from "react-aria-components/Table";
 import { Skeleton, SkeletonBox } from "skullet/react";
@@ -196,7 +192,6 @@ function Body<T extends { id: string; name: string }>(props: Parameters<typeof R
   );
 }
 
-/** The table while its rows load: skullet's boxes on the rows' own grid. */
 function ListBones() {
   return (
     <div>

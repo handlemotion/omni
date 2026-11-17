@@ -1,8 +1,3 @@
-// How the AI queue consumer settles a job that fails (ADR 0038 decision 2). A permanent failure
-// (a malformed job, a request TypeSafe refuses) is dead-lettered on its first attempt; a
-// retryable one (TypeSafe overloaded) is retried in the same invocation, then handed back to
-// Queues, and is not dead-lettered. Real Worker (workerd) and its real local queue, real
-// Postgres, and a real HTTP endpoint where TypeSafe listens.
 import { randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -25,7 +20,6 @@ let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
 let typesafe: Awaited<ReturnType<typeof startTypesafe>>;
 let worker: Awaited<ReturnType<typeof startWorker>>;
 
-/** Answers every request with `status`; counts what it was asked. */
 async function startTypesafe() {
   const state = { status: 503, requests: 0 };
   const server: Server = createServer(async (req, res) => {
@@ -61,7 +55,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-/** A personal inbox with one customer email, which only a model call can triage. */
 async function threadToTriage(slug: string) {
   const org = await createOrg(database.db, slug);
   const box = await createMailbox(database.db, org.id, `me@${slug}.test`, "personal");
@@ -87,12 +80,10 @@ const deadLetter = async (jobId: string) =>
   )[0];
 
 test("a job no retry can fix is dead-lettered on its first attempt, not retried for 15 minutes", async () => {
-  // TypeSafe refuses the request itself.
   typesafe.state.status = 400;
   typesafe.state.requests = 0;
   const refused = { ...(await threadToTriage("refused")), jobId: randomUUID() };
   await enqueue(refused);
-  // A job with no thread to triage.
   const malformed = { ...(await threadToTriage("malformed")), jobId: randomUUID() };
   await enqueue({ ...malformed, threadId: undefined });
 
@@ -111,7 +102,6 @@ test("a job no retry can fix is dead-lettered on its first attempt, not retried 
       });
   }
   expect((await deadLetter(refused.jobId))?.error).toContain("TypeSafe returned 400");
-  // Asked once: a refusal is not retried in the invocation either.
   expect(typesafe.state.requests).toBe(1);
   expect(
     workerEvents(worker).filter(
@@ -122,7 +112,6 @@ test("a job no retry can fix is dead-lettered on its first attempt, not retried 
 });
 
 test("a job that may pass later is retried in the invocation, then by Queues, and not dead-lettered", async () => {
-  // TypeSafe is overloaded.
   typesafe.state.status = 503;
   typesafe.state.requests = 0;
   const job = { ...(await threadToTriage("overloaded")), jobId: randomUUID() };
@@ -133,13 +122,11 @@ test("a job that may pass later is retried in the invocation, then by Queues, an
     (e) => e.event === "ai.job_failed" && e.jobId === job.jobId,
   );
   expect(failed).toMatchObject({ attempts: 1, permanent: false, step: "triage" });
-  // The first try and two in-invocation retries; the next attempt is Queues' (30 s later).
   expect(typesafe.state.requests).toBe(3);
   expect(await deadLetter(job.jobId)).toBeUndefined();
   expect(
     workerEvents(worker).filter((e) => e.event === "ai.job_dead" && e.jobId === job.jobId),
   ).toEqual([]);
-  // The thread is untouched: no triage was saved, so the next attempt triages it.
   const [thread] = await database.db
     .select({ triage: schema.threads.triage })
     .from(schema.threads)

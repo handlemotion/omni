@@ -1,6 +1,3 @@
-// Leaves a mailing list from the message it sent (List-Unsubscribe). One-click lists (RFC 8058)
-// get their POST from here, without the reader's cookies or IP; a mailto list gets its message
-// through the outbox like any send. A list that only offers a page is opened by the app.
 import { unsubscribeMethod } from "@omni/mail-core/unsubscribe";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -12,15 +9,9 @@ import { zValidator } from "../validator.ts";
 import { enqueueSend, sendResponse, threadMessage } from "./compose.ts";
 import { idempotencyHeader } from "./mail.ts";
 
-/** How long the list's server has to answer the one-click POST, redirects included. */
 const POST_TIMEOUT_MS = 10_000;
 const MAX_REDIRECTS = 3;
 
-/**
- * The RFC 8058 POST. The URL comes from mail, so every hop is checked as the image proxy checks
- * its own (no private networks, standard ports) and redirects are followed by hand. True when the
- * list accepted it.
- */
 async function postOneClick(target: string, options: ProxyOptions) {
   const signal = AbortSignal.timeout(POST_TIMEOUT_MS);
   let url = new URL(target);
@@ -44,7 +35,6 @@ async function postOneClick(target: string, options: ProxyOptions) {
 }
 
 const unsubscribeBody = z.object({
-  /** The list message (`messages.id`); the thread's latest when absent. */
   messageId: z.string().min(1).optional(),
 });
 

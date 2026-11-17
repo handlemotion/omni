@@ -1,5 +1,3 @@
-// Builds the triage input from a thread's stored messages. The queue consumer and the fixture
-// tests both go through here, so recorded Jev answers are keyed to exactly what production sends.
 import type { TriageInput } from "./types.ts";
 
 /** One stored message, as `messages` holds it. */

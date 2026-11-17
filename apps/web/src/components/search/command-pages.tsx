@@ -20,9 +20,6 @@ import {
 } from "@/components/icons/sidebar";
 import type { ShortcutId } from "@/lib/shortcuts.ts";
 
-// The command menu's places, one list per module, with the same names, icons and paths as the
-// module's own sidebar. Paths are workspace-relative (`workspaceHref` adds the slug).
-
 export interface Page {
   id: string;
   title: string;

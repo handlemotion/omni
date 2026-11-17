@@ -1,7 +1,3 @@
-// Drag and drop in Drive (`components/storage/node-drag.tsx`, `drive-drag.tsx`), in a real
-// Chromium, on the web app built and served by the real Worker under `wrangler dev`, on a real
-// Postgres: files and folders move by lifting them onto a folder, on the page and across to the
-// sidebar, and beside a sidebar folder by its edge.
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import {
@@ -51,10 +47,6 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Catches: a drop that does not move what was dragged, or moves it to the wrong place: a folder
-// card's drop (or a file from the computer dropped on it) going to the page's own folder, a sidebar row not taking drags from the page (the
-// two are separate drop targets), or a sidebar row dragging its link's address instead of its
-// folder; and a folder offered a drop into a folder inside it.
 test("files and folders move by dragging them onto folders on the page and in the sidebar", async () => {
   const page = await signedIn(`drag-${Date.now()}@gmail.test`, "/files/my");
   await page
@@ -74,7 +66,6 @@ test("files and folders move by dragging them onto folders on the page and in th
   await page.getByRole("row", { name: /forest\.png/ }).waitFor({ timeout: 30_000 });
   const sidebar = (name: string) => page.getByRole("link", { name, exact: true });
 
-  // A file's row onto a folder's card, both on the page.
   await drag(
     page,
     page.getByRole("row", { name: /sunset\.png/ }),
@@ -82,7 +73,6 @@ test("files and folders move by dragging them onto folders on the page and in th
   );
   await expect.poll(() => names(page, { parent: photos })).toEqual(["sunset.png"]);
 
-  // A file from the computer onto a folder's card: it uploads into that folder, not the page's.
   await page.getByRole("row", { name: /Photos/ }).evaluate((card) => {
     const files = new DataTransfer();
     files.items.add(new File(["dropped"], "dropped.txt", { type: "text/plain" }));
@@ -96,16 +86,13 @@ test("files and folders move by dragging them onto folders on the page and in th
     .poll(() => names(page, { parent: photos }), { timeout: 30_000 })
     .toEqual(["dropped.txt", "sunset.png"]);
 
-  // A file's row onto a folder in the sidebar.
   await drag(page, page.getByRole("row", { name: /forest\.png/ }), sidebar("Projects"));
   await expect.poll(() => names(page, { parent: projects })).toEqual(["Drafts", "forest.png"]);
 
-  // A folder into a folder inside it is no drop: nothing moves.
   await page.getByRole("button", { name: "Expand Projects" }).click();
   await drag(page, page.getByRole("row", { name: /Projects/ }).first(), sidebar("Drafts"));
   expect(await names(page, { parent: drafts })).toEqual([]);
 
-  // A sidebar folder onto another: Photos, with what is in it, into Projects.
   await drag(page, sidebar("Photos"), sidebar("Projects"));
   await expect
     .poll(() => names(page, { parent: projects }))
@@ -113,17 +100,11 @@ test("files and folders move by dragging them onto folders on the page and in th
   expect(await names(page, { space: "personal" })).toEqual(["Projects"]);
   expect(await names(page, { parent: photos })).toEqual(["dropped.txt", "sunset.png"]);
 
-  // Beside a cluster, by the bottom edge of its sidebar row: Photos out of Projects, back to the
-  // top of the space, not into Projects again.
   await drag(page, sidebar("Photos"), sidebar("Projects"), "bottom");
   await expect.poll(() => names(page, { space: "personal" })).toEqual(["Photos", "Projects"]);
   expect(await names(page, { parent: projects })).toEqual(["Drafts", "forest.png"]);
 });
 
-/**
- * Drags with the mouse, as a person does: pressed, moved past the threshold, held, let go; over
- * the target's middle, or its bottom edge.
- */
 async function drag(page: Page, from: Locator, to: Locator, at: "middle" | "bottom" = "middle") {
   const a = await from.boundingBox();
   const b = await to.boundingBox();

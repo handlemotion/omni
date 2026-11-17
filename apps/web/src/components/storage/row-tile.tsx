@@ -1,6 +1,3 @@
-// A list row's 32px tile: the kind's glyph, and for an image its picture over it once drawn
-// (the same cached thumbnail its card shows, read once the row nears the screen). PDFs keep the
-// glyph: a page is unreadable at 32px and not worth running pdf.js for every row.
 import { useRef, useState } from "react";
 import { useThumbnail } from "@/hooks/use-storage-preview.ts";
 import { fileType } from "@/lib/file-kind.ts";

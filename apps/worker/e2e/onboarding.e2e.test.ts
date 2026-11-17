@@ -1,6 +1,3 @@
-// Onboarding end to end on the bring-your-own-IMAP path, on the stack in `onboarding-stack.ts`:
-// real Worker, real mail service, GreenMail, Postgres, S3 gateway and a local authoritative DNS
-// server. The Purelymail path cannot run locally (ADR 0007).
 import { randomUUID } from "node:crypto";
 import { PROVISION_MAILBOX_PATH } from "@omni/contracts";
 import { schema } from "@omni/db";
@@ -36,7 +33,6 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
   });
 
   const { jar, orgId, domain, domainId } = await workspaceWithDomain();
-  // The creator owns the new workspace and it is now the active one.
   const status = await api(jar, "GET", "/onboarding");
   expect(status.body).toMatchObject({
     organization: { id: orgId, name: "Acme", role: "owner" },
@@ -62,7 +58,6 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
   });
   const mailboxId = created.body.mailboxId as string;
 
-  // One mailbox in the new org, its login stored only as ciphertext bound to its id.
   const rows = await db.select().from(schema.mailboxes).where(eq(schema.mailboxes.orgId, orgId));
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
@@ -81,7 +76,6 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
     .where(eq(schema.mailboxAccess.mailboxId, mailboxId));
   expect(access).toEqual([expect.objectContaining({ orgId, memberId: me.body.id, role: "owner" })]);
 
-  // Sync started: the service connects it, and mail delivered over SMTP lands in Postgres.
   await waitFor(async () => {
     const [row] = await db
       .select({ status: schema.mailboxes.status })
@@ -111,7 +105,6 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
     return found.length === 1;
   });
 
-  // A second submit (a retry, a double click) returns the same mailbox and changes nothing.
   const again = await api(jar, "POST", "/onboarding/mailboxes", mailboxBody);
   expect(again.body).toEqual({ mailboxId, address: `hello@${domain}`, created: false });
   expect(
@@ -127,7 +120,6 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
     },
   ]);
 
-  // A new password replaces the stored one, and the service reconnects with it.
   const changed = await api(jar, "POST", "/onboarding/mailboxes", {
     ...mailboxBody,
     login: { ...mailboxBody.login, password: "app-password-2" },
@@ -148,8 +140,6 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
     return row?.status === "active";
   });
 
-  // The invite step, into the new workspace (ADR 0026).
-  // hello@ is shared, so the invitation puts them on it (ADR 0026).
   const invited = await invite(stack.worker, jar, {
     email: `ana@${domain}`,
     role: "member",
@@ -168,7 +158,6 @@ test("an owner creates a workspace, adds a domain and a mailbox that syncs, and 
 test("a domain belongs to the workspace that claimed it, and only its owners and admins set up mail", async () => {
   const a = await workspaceWithDomain();
 
-  // Another workspace cannot claim the same domain, however it is spelled, or use A's domain id.
   const b = await signedInOwner();
   const claim = await api(b.jar, "POST", "/onboarding/domains", { domain: `${a.domain}.` });
   expect(claim.status).toBe(409);
@@ -183,14 +172,12 @@ test("a domain belongs to the workspace that claimed it, and only its owners and
   });
   expect(borrowed.status).toBe(404);
 
-  // A subdomain of A's domain is A's too.
   const sub = await api(b.jar, "POST", "/onboarding/domains", { domain: `mail.${a.domain}` });
   expect(sub).toMatchObject({
     status: 409,
     body: { error: expect.stringContaining(`under ${a.domain}`) },
   });
 
-  // A plain member of A sees no domains and cannot add one.
   const member = await createMember(stack.database.db, a.orgId, `member@${a.domain}`);
   const memberJar = new CookieJar();
   await signIn(stack.worker, stack.database.db, `member@${a.domain}`, memberJar);
@@ -202,7 +189,6 @@ test("a domain belongs to the workspace that claimed it, and only its owners and
     (await api(memberJar, "POST", "/onboarding/domains", { domain: "other.test" })).status,
   ).toBe(403);
 
-  // A mailbox on another domain, passed as a full address, is refused before any provider call.
   const offDomain = await api(a.jar, "POST", "/onboarding/mailboxes", {
     domainId: a.domainId,
     localPart: "rodrigo@elsewhere.test",
@@ -216,11 +202,9 @@ test("a domain belongs to the workspace that claimed it, and only its owners and
 });
 
 test("a brand-new sign-up with no invitation creates its own workspace through onboarding", async () => {
-  // Nobody made this user or invited them: the magic link itself signs them up (ADR 0018).
   const email = `founder-${randomUUID().slice(0, 8)}@solo.test`;
   const jar = new CookieJar();
   await signIn(stack.worker, stack.database.db, email, jar);
-  // They start in their Personal space (ADR 0024); setup is for creating a company.
   expect((await api(jar, "GET", "/me")).status).toBe(200);
   expect(await api(jar, "GET", "/onboarding")).toEqual({
     status: 200,
@@ -233,7 +217,6 @@ test("a brand-new sign-up with no invitation creates its own workspace through o
     },
   });
 
-  // Onboarding's steps, as the web app calls them: workspace, domain, mailbox, finish.
   const created = await authPost(stack.worker, jar, "/organization/create", {
     name: "Solo",
     slug: `solo-${randomUUID().slice(0, 8)}`,
@@ -273,7 +256,6 @@ test("the mail service's provisioning routes refuse unsigned calls", async () =>
   expect(response.status).toBe(401);
 });
 
-/** An existing login on the mail host (GreenMail takes any password). */
 function imapMailbox(domainId: string, localPart: string) {
   return {
     domainId,
@@ -289,7 +271,6 @@ function imapMailbox(domainId: string, localPart: string) {
 async function setupStep(jar: CookieJar) {
   const status = await api(jar, "GET", "/onboarding");
   const me = await api(jar, "GET", "/me");
-  // The route guards read `/me`; onboarding resumes from `/onboarding`. They must agree.
   expect(me.body.setup).toBe((status.body.organization as { setup: string }).setup);
   return me.body.setup;
 }
@@ -302,7 +283,6 @@ test("setup is saved per workspace, resumes at its step, and never goes backward
   });
   const orgId = ((await created.json()) as { id: string }).id;
 
-  // Step 1 made the workspace: it is listed, active, and unfinished.
   const listed = await api(owner.jar, "GET", "/workspaces");
   expect(listed.body.activeOrganizationId).toBe(orgId);
   expect(listed.body.workspaces).toContainEqual(
@@ -316,11 +296,8 @@ test("setup is saved per workspace, resumes at its step, and never goes backward
   );
   expect(await setupStep(owner.jar)).toBe("created");
 
-  // Finishing is refused while there is nothing to read mail with.
   expect((await api(owner.jar, "POST", "/onboarding/complete")).status).toBe(409);
 
-  // The domain on its own mail host still proves ownership (ADR 0010): added first, DNS
-  // verified once its challenge is in.
   const domain = `resume-${randomUUID().slice(0, 8)}.test`;
   stack.dns.addZone(domain);
   const added = await api(owner.jar, "POST", "/onboarding/domains", { domain });
@@ -330,7 +307,6 @@ test("setup is saved per workspace, resumes at its step, and never goes backward
   await api(owner.jar, "POST", `/onboarding/domains/${domainId}/check`);
   expect(await setupStep(owner.jar)).toBe("dns_verified");
 
-  // Coming back later: the status carries what was saved, at the saved step.
   expect((await api(owner.jar, "GET", "/onboarding")).body).toMatchObject({
     organization: { id: orgId, name: "Resume Co", setup: "dns_verified" },
     domains: [{ id: domainId, domain }],
@@ -346,7 +322,6 @@ test("setup is saved per workspace, resumes at its step, and never goes backward
   expect(mailbox.status).toBe(200);
   expect(await setupStep(owner.jar)).toBe("mailboxes_created");
 
-  // Retries of earlier steps (a double submit, a back button, a DNS recheck) keep the step.
   await api(owner.jar, "POST", "/onboarding/domains", { domain });
   await api(owner.jar, "POST", `/onboarding/domains/${domainId}/check`);
   const hello = await api(
@@ -357,8 +332,6 @@ test("setup is saved per workspace, resumes at its step, and never goes backward
   );
   expect(await setupStep(owner.jar)).toBe("mailboxes_created");
 
-  // Inviting someone is the invite step; finishing completes setup, and repeating it is harmless.
-  // hello@ is shared, so the invitation puts them on it (ADR 0026).
   const invited = await invite(stack.worker, owner.jar, {
     email: `ana@${domain}`,
     role: "member",
@@ -399,25 +372,21 @@ test("the switcher lists only the user's workspaces and the mailboxes their memb
     { id: hello.body.mailboxId, address: `hello@${a.domain}`, kind: "shared" },
     { id: team.body.mailboxId, address: `team@${a.domain}`, kind: "shared" },
   ]);
-  // The owner's first workspace (from `org:create`, no mailbox yet) is listed too, unfinished.
   expect(ownerView.body.workspaces).toHaveLength(2);
   expect(ownerView.body.workspaces).toContainEqual(
     expect.objectContaining({ name: a.name, setup: "created", mailboxes: [] }),
   );
 
-  // A plain member of A without a grant sees A, and none of its mailboxes.
   const plainEmail = `plain-${randomUUID().slice(0, 8)}@${a.domain}`;
   await createMember(stack.database.db, a.orgId, plainEmail);
   const plainJar = new CookieJar();
   await signIn(stack.worker, stack.database.db, plainEmail, plainJar);
-  // Signed in with an address on A's locked domain, the session reaches A only (ADR 0024).
   expect((await api(plainJar, "GET", "/workspaces")).body).toEqual({
     activeOrganizationId: a.orgId,
     scopedTo: a.orgId,
     workspaces: [expect.objectContaining({ id: a.orgId, role: "member", mailboxes: [] })],
   });
 
-  // Another workspace's owner never sees A or its mailboxes.
   const b = await workspaceWithDomain();
   const other = await api(b.jar, "GET", "/workspaces");
   const ids = (other.body.workspaces as { id: string }[]).map((w) => w.id);
@@ -425,6 +394,5 @@ test("the switcher lists only the user's workspaces and the mailboxes their memb
   expect(ids).not.toContain(a.orgId);
   expect(JSON.stringify(other.body)).not.toContain(a.domain);
 
-  // Signed out: nothing.
   expect((await api(new CookieJar(), "GET", "/workspaces")).status).toBe(401);
 });

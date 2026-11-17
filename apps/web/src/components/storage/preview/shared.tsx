@@ -1,5 +1,3 @@
-// What every preview shares: the stage's loading state, and the file's tile with Download where
-// there is nothing to show (a type with no preview, a file too large, or one that failed).
 import type { ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { IconDownload } from "@/components/icons/central";

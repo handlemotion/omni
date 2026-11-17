@@ -1,7 +1,3 @@
-// A file's versions (ADR 0043 decision 1). New content replaces a file's current content, which
-// is kept as a row in `storage_versions` for 30 days; restoring one swaps it back. No bytes move:
-// a version is an object of its own. A new version arrives as an upload (`uploads.ts`), which
-// calls `replaceContent` when it completes.
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { members, users } from "../schema/auth.ts";
@@ -55,7 +51,6 @@ export const staleFor = (node: NodeRow, base: number | null | undefined) =>
 const NOT_FOUND = { status: "not_found" } as const;
 const FORBIDDEN = { status: "forbidden" } as const;
 
-/** Who wrote a file's current content, and when: its creator, until a version replaced it. */
 async function currentWriter(ex: Db, node: NodeRow) {
   const [row] = await ex
     .select({
@@ -64,16 +59,9 @@ async function currentWriter(ex: Db, node: NodeRow) {
     })
     .from(storageContents)
     .where(eq(storageContents.nodeId, node.id));
-  // A replaced content whose writer is gone has no writer; it is not the file's creator's.
   return row ?? { writtenByMemberId: node.createdByMemberId, writtenAt: node.createdAt };
 }
 
-/**
- * Points the file at other content, and records who wrote that content and when. The file takes
- * the workspace's next revision and its `contentVersion` goes up, so a sync client reads it as
- * changed bytes (ADR 0043). `sha256` is the new bytes' hash when known; a restored version's is
- * not kept, so it is null.
- */
 async function setContent(
   tx: Db,
   node: NodeRow,
@@ -94,7 +82,6 @@ async function setContent(
       target: storageContents.nodeId,
       set: { writtenByMemberId, writtenAt },
     });
-  // Last, after the tree and usage locks the caller holds: the counter stays locked to commit.
   const revision = await nextRevision(tx, node.orgId);
   const [row] = await tx
     .update(storageNodes)
@@ -121,7 +108,6 @@ async function nameOf(ex: Db, memberId: string | null) {
   return row?.name ?? null;
 }
 
-/** A live file whose content the door's holder may replace, or why not. */
 async function editable(ex: Db, door: Door, nodeId: string) {
   const found = await reach(ex, door, nodeId);
   if (!found || found.node.kind !== "file" || !found.node.r2Key || inTrash(found.chain)) {
@@ -131,7 +117,6 @@ async function editable(ex: Db, door: Door, nodeId: string) {
   return { status: "ok", node: found.node, r2Key: found.node.r2Key } as const;
 }
 
-/** Keeps the node's current content as a version. Call before pointing the node elsewhere. */
 async function keepCurrent(tx: Db, node: NodeRow, r2Key: string) {
   await tx.insert(storageVersions).values({
     orgId: node.orgId,
@@ -139,7 +124,6 @@ async function keepCurrent(tx: Db, node: NodeRow, r2Key: string) {
     size: node.size,
     mimeType: node.mimeType,
     r2Key,
-    // So a comment or signature made on this content finds it once it is replaced.
     contentVersion: node.contentVersion,
     ...(await currentWriter(tx, node)),
   });
@@ -190,7 +174,6 @@ export async function mayReplace(ex: Db, door: Door, nodeId: string) {
 
 export function versionOperations(db: Db, door: Door) {
   return {
-    /** The file's current content and the versions it replaced, newest first. */
     async versions(nodeId: string) {
       const found = await editable(db, door, nodeId);
       if (found.status !== "ok") return found satisfies VersionsResult;
@@ -222,7 +205,6 @@ export function versionOperations(db: Db, door: Door) {
       } satisfies VersionsResult;
     },
 
-    /** A kept version and where its bytes are, for a download under the file's name. */
     async versionFile(nodeId: string, versionId: string) {
       const found = await editable(db, door, nodeId);
       if (found.status !== "ok") return NOT_FOUND satisfies FileResult;
@@ -235,16 +217,10 @@ export function versionOperations(db: Db, door: Door) {
       return { status: "ok", file, r2Key: version.r2Key } satisfies FileResult;
     },
 
-    /**
-     * Makes a kept version the file's content again; the content it displaces becomes a
-     * version, kept 30 days from now. The workspace stores the same bytes before and after.
-     */
     restoreVersion(nodeId: string, versionId: string) {
       return db.transaction<RestoreVersionResult>(async (tx) => {
         const orgId = await orgOfNode(tx, nodeId);
         if (!orgId) return NOT_FOUND satisfies RestoreVersionResult;
-        // Under the tree lock, as a lock is taken and a new version lands; then the usage lock,
-        // so the daily recount never sums the nodes before the swap and the versions after it.
         await lockTree(tx, orgId);
         await lockUsage(tx, orgId);
         const found = await editable(tx, door, nodeId);

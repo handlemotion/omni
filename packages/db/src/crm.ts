@@ -1,16 +1,3 @@
-// CRM (ADR 0036): the one place access to companies, people and deals is decided. Records are
-// reached through a door, and routes never query the `crm_*` tables themselves:
-//
-// 1. Member: `forMember(db, memberId).crm`. Every record of the member's company workspace. A
-//    Personal space has no CRM: every operation answers `no_crm`.
-// 2. Guest: `forUser(db, userId, scope).crm`. Empty in v1; ADR 0037 opens it for clients.
-//
-// A record's files are a folder in Shared, made through Storage's member door; a contract's
-// file is locked through it when the contract is signed (ADR 0036 decisions 5 and 6).
-//
-// Every operation answers a result with a `status` instead of throwing for an expected refusal,
-// and every write appends its `crm_events` rows in its own transaction. The parts live in
-// `./crm/`.
 import type { Db } from "./client.ts";
 import {
   addCompanyDomain,
@@ -86,7 +73,6 @@ export type {
   ListCompaniesInput,
   UpdateCompanyResult,
 } from "./crm/companies.ts";
-// System work for the CRM's daily job (ADR 0039 decision 4): no member, every workspace.
 export {
   CONTRACT_EXPIRY_BATCH,
   crmMembersOf,
@@ -175,7 +161,6 @@ export {
 export function memberCrm(db: Db, memberId: string) {
   const door: CrmDoor = { db, memberId };
   return {
-    // Companies
     listCompanies: (input: ListCompaniesInput = {}) =>
       asMember(door, (m, ex) => listCompanies(ex, m, input)),
     company: (id: string) => asMember(door, (m, ex) => getCompany(ex, m, id)),
@@ -190,7 +175,6 @@ export function memberCrm(db: Db, memberId: string) {
     removeCompanyDomain: (id: string, domain: string) =>
       writeAsMember(door, (m, tx) => removeCompanyDomain(tx, m, id, domain)),
 
-    // People
     listPeople: (input: ListPeopleInput = {}) =>
       asMember(door, (m, ex) => listPeople(ex, m, input)),
     person: (id: string) => asMember(door, (m, ex) => getPerson(ex, m, id)),
@@ -200,7 +184,6 @@ export function memberCrm(db: Db, memberId: string) {
     archivePerson: (id: string) => writeAsMember(door, (m, tx) => archivePerson(tx, m, id)),
     deletePerson: (id: string) => writeAsMember(door, (m, tx) => deletePerson(tx, m, id)),
 
-    // Deals
     listDeals: (input: ListDealsInput = {}) => asMember(door, (m, ex) => listDeals(ex, m, input)),
     deal: (id: string) => asMember(door, (m, ex) => getDeal(ex, m, id)),
     createDeal: (input: DealInput) => writeAsMember(door, (m, tx) => createDeal(tx, m, input)),
@@ -211,11 +194,9 @@ export function memberCrm(db: Db, memberId: string) {
     archiveDeal: (id: string) => writeAsMember(door, (m, tx) => archiveDeal(tx, m, id)),
     deleteDeal: (id: string) => writeAsMember(door, (m, tx) => deleteDeal(tx, m, id)),
 
-    // Files: the record's folder in Shared, found or made
     companyFolder: (id: string) => writeAsMember(door, (m, tx) => companyFolder(tx, m, id)),
     dealFolder: (id: string) => writeAsMember(door, (m, tx) => dealFolder(tx, m, id)),
 
-    // Contracts
     listContracts: (input: ListContractsInput) =>
       asMember(door, (m, ex) => listContracts(ex, m, input)),
     createContract: (input: ContractInput) =>
@@ -224,7 +205,6 @@ export function memberCrm(db: Db, memberId: string) {
       writeAsMember(door, (m, tx) => updateContract(tx, m, id, patch)),
     deleteContract: (id: string) => writeAsMember(door, (m, tx) => deleteContract(tx, m, id)),
 
-    // Stages and settings
     stages: () =>
       asMember(door, async (m, ex) => ({
         status: "ok" as const,
@@ -233,12 +213,10 @@ export function memberCrm(db: Db, memberId: string) {
     replaceStages: (input: StageInput[]) =>
       writeAsMember(door, (m, tx) => replaceStages(tx, m, input)),
     settings: () => asMember(door, (m, ex) => getSettings(ex, m)),
-    /** The members a change is announced to (`crm.changed`): the workspace's members now. */
     audience: () => asMember(door, (m, ex) => crmAudience(ex, m)),
     putSettings: (input: { defaultCurrency: string | null }) =>
       writeAsMember(door, (m, tx) => putSettings(tx, m, input)),
 
-    // Notes and the CRM side of a timeline
     createNote: (input: { record: CrmRecordRef; body: string }) =>
       writeAsMember(door, (m, tx) => createNote(tx, m, input)),
     updateNote: (id: string, input: { body: string }) =>
@@ -249,7 +227,6 @@ export function memberCrm(db: Db, memberId: string) {
     notes: (record: CrmRecordRef, page: TimelinePage = {}) =>
       asMember(door, (m, ex) => notesOf(ex, m, record, page)),
 
-    // Finding
     search: (input: { q: string; limit?: number }) =>
       asMember(door, (m, ex) => searchCrm(ex, m, input)),
     lookup: (input: { addresses: string[] }) => asMember(door, (m, ex) => lookupCrm(ex, m, input)),

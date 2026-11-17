@@ -1,6 +1,3 @@
-// How Storage lays out each section of a folder, rows or cards: folders as cards and files as
-// rows until the person picks otherwise. One choice per section for every folder, remembered in
-// this browser.
 import { useCallback, useSyncExternalStore } from "react";
 
 export type StorageView = "rows" | "cards";
@@ -15,7 +12,7 @@ const read: (section: StorageSection) => StorageView = (section) => {
     const stored = localStorage.getItem(KEY(section));
     return stored === "rows" || stored === "cards" ? stored : DEFAULT[section];
   } catch {
-    return DEFAULT[section]; // Storage unavailable (private mode).
+    return DEFAULT[section];
   }
 };
 
@@ -37,9 +34,7 @@ export function useStorageView(section: StorageSection) {
       current[section] = next;
       try {
         localStorage.setItem(KEY(section), next);
-      } catch {
-        // The choice lasts for this page only.
-      }
+      } catch {}
       for (const listener of listeners) listener();
     },
     [section],

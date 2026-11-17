@@ -1,6 +1,3 @@
-// Your notifications (ADR 0021): assigned to you, @mentioned in a note, a customer replied.
-// The realtime `notification` event marks these stale; marking read edits the cached pages at
-// once and puts them back if the request fails.
 import {
   infiniteQueryOptions,
   mutationOptions,
@@ -54,7 +51,6 @@ export const markNotificationsReadMutation = (client: QueryClient) =>
       });
       const now = new Date().toISOString();
       const marks = (id: string) => !ids || ids.includes(id);
-      // The unread ones this marks, across every cached list (the count is the member's total).
       const marking = new Set<string>();
       for (const [, data] of snapshot) {
         for (const page of (data as NotificationPages | undefined)?.pages ?? []) {

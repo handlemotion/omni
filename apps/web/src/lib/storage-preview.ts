@@ -1,6 +1,3 @@
-// A file's preview bytes (ADR 0040), read through the same download route as Download: the start
-// of a text file, an image re-typed as an allow-listed raster, and grid thumbnails downscaled once
-// in the browser. Object URLs live in the query cache and are revoked when it drops them.
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { THUMBNAIL_MAX_BYTES, TEXT_PREVIEW_BYTES } from "./file-kind.ts";
 import { keys } from "./query-keys.ts";
@@ -27,15 +24,12 @@ async function bytes(url: string, signal: AbortSignal, range?: number) {
   const response = await fetch(url, {
     signal,
     credentials: "same-origin",
-    // The tab's workspace, as every API call names it (ADR 0043).
     headers: { ...workspaceHeaders(), ...(range ? { range: `bytes=0-${range - 1}` } : {}) },
   });
   if (!response.ok) throw new PreviewError(response.status);
   return response;
 }
 
-// Previews are a version's bytes: they never go stale, and a few stay cached after their panel
-// closes, so stepping back to a file is instant.
 const KEEP = { staleTime: Infinity, gcTime: 5 * 60_000, retry: 1 } as const;
 
 export interface TextPreview {
@@ -92,13 +86,10 @@ export interface PreviewSheet {
 
 export type SheetsResult = { sheets: PreviewSheet[] } | { error: true };
 
-/** Rows and columns read from each sheet: a preview, not a spreadsheet. */
 const SHEET_ROWS = 500;
 const SHEET_COLUMNS = 100;
-/** A workbook that takes longer than this to read (a zip bomb, a huge sheet) shows no preview. */
 const SHEET_TIMEOUT = 20_000;
 
-/** Parses off the main thread, in a worker of our own origin; ended when done or abandoned. */
 function readSheets(buffer: ArrayBuffer, signal: AbortSignal) {
   return new Promise<PreviewSheet[]>((done, fail) => {
     const worker = new Worker(new URL("./xlsx-worker.ts", import.meta.url), { type: "module" });
@@ -138,9 +129,7 @@ export const previewSheetsQuery = (source: PreviewSource) =>
     retry: false,
   });
 
-/** The grid's tiles are at most ~300px wide; this covers them on a 2x screen. */
 const THUMBNAIL_WIDTH = 640;
-/** Originals fetched at once for thumbnails, so a folder of photos doesn't flood the Worker. */
 const THUMBNAIL_CONCURRENCY = 4;
 
 let running = 0;
@@ -156,7 +145,6 @@ async function slot<T>(work: () => Promise<T>) {
   }
 }
 
-/** Decodes at the thumbnail's width (never wider than the original) and re-encodes small. */
 async function downscale(blob: Blob, raster: string) {
   const full = await createImageBitmap(new Blob([blob], { type: raster }));
   const scale = Math.min(1, THUMBNAIL_WIDTH / full.width);
@@ -187,7 +175,6 @@ export const thumbnailQuery = (source: PreviewSource, raster: string) =>
         return { url: URL.createObjectURL(await downscale(blob, raster)) };
       }),
     enabled: source.size > 0 && source.size <= THUMBNAIL_MAX_BYTES,
-    // Thumbnails are small: keep a folder's worth for the session.
     staleTime: Infinity,
     gcTime: 30 * 60_000,
     retry: false,

@@ -1,8 +1,3 @@
-// A row of a sidebar tree (Drive's folders and files, the CRM's companies and deals), in the
-// sidebar's own row: its glyph and label, stepped in 16px a level, so a child's glyph sits under
-// its parent's name. A row that opens has a chevron at its end, shown on the row's hover and
-// while open (always for keyboard and touch); the row and its chevron are siblings, since a button
-// can't sit inside a link.
 import type { ReactNode } from "react";
 import { SkeletonBox } from "skullet/react";
 import { IconChevronRight } from "@/components/icons/central";

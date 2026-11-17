@@ -69,7 +69,6 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "user_emails",
       "users",
       "verifications",
-      // Helpdesk (ADR 0021).
       "business_hours",
       "canned_replies",
       "conversation_events",
@@ -83,7 +82,6 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "tags",
       "thread_tags",
       "uploads",
-      // Storage (ADR 0034).
       "storage_comments",
       "storage_contents",
       "storage_folder_icons",
@@ -101,10 +99,8 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "storage_uploads",
       "storage_usage",
       "storage_versions",
-      // Mail's participant index (ADR 0036 decision 4).
       "thread_participants",
       "thread_participants_backfill",
-      // CRM (ADR 0036).
       "crm_companies",
       "crm_company_domains",
       "crm_contracts",

@@ -1,5 +1,3 @@
-// Settings → Forwarding in a real Chromium, on the web app built and served by the real Worker
-// under `wrangler dev`, on a real Postgres (ADR 0032).
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createOrgWithOwner, schema } from "@omni/db";

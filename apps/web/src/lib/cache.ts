@@ -1,5 +1,3 @@
-// Optimistic cache edits for thread actions. Every edit goes through a snapshot so a failed
-// request puts the cache back exactly as it was.
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
 import { filterOf, keys } from "./query-keys.ts";
 import type { ConversationPage, Thread, ThreadFilter, ThreadPage, ThreadSummary } from "./types.ts";
@@ -86,7 +84,6 @@ export function invalidateThread(client: QueryClient, threadId: string) {
   ]);
 }
 
-/** The part of `patch` whose fields `row` has. */
 function shared<T extends object>(row: T, patch: object) {
   return Object.fromEntries(
     Object.entries(patch).filter(([key]) => key in row),

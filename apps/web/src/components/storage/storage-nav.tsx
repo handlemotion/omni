@@ -1,6 +1,3 @@
-// Storage's sidebar (ADR 0034 decision 8), shown alone while Files is open (ADR 0035), after
-// Skiff Drive's: Upload and the places (Search, Shared with me, Trash); then, under Folders (mail's
-// section label), two groups: Team (a company's Shared: a Personal space has none) and Personal (My files).
 import type { ReactNode } from "react";
 import { IconFolderShared, IconUpload, IconUserRound, IconUsers } from "@/components/icons/central";
 import { IconSearch, IconTrash } from "@/components/icons/sidebar";
@@ -25,7 +22,6 @@ export const SPACE_ICON = {
   shared: <IconUsers className="size-icon" />,
 } as const;
 
-/** A place, or (`action`) a row that does something here instead of going somewhere. */
 type Row = { label: string; path: string; icon: ReactNode; company?: boolean; action?: () => void };
 
 const PLACES: Row[] = [
@@ -33,7 +29,6 @@ const PLACES: Row[] = [
     label: "Search",
     path: "search",
     icon: <IconSearch />,
-    // Drive searches in the command menu, on its Drive pill.
     action: () => openSearch({ q: "", scope: "files" }),
   },
   {
@@ -48,7 +43,6 @@ const PLACES: Row[] = [
   },
 ];
 
-/** The groups' own pages, for the closed sidebar's island, where the groups don't show. */
 const SPACES: Row[] = [
   { label: SPACE_LABEL.shared, path: SPACE_PATH.shared, icon: SPACE_ICON.shared, company: true },
   { label: SPACE_LABEL.personal, path: SPACE_PATH.personal, icon: SPACE_ICON.personal },
@@ -64,7 +58,6 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
         <UploadRow />
         <Rows rows={PLACES} mailbox={mailbox} />
       </SidebarSection>
-      {/* A plain label: the groups under it always show. */}
       <SidebarSection label="Folders">
         {hasShared && <SidebarGroup space="shared" search={search} />}
         <SidebarGroup space="personal" search={search} />
@@ -91,7 +84,6 @@ function Rows(props: { rows: Row[]; mailbox: string | undefined }) {
           ? { onPress: row.action }
           : {
               href: href(row.path + search),
-              // A folder's page is under its space's path, so the space stays current inside it.
               isCurrent: pathname === row.path || pathname.startsWith(`${row.path}/`),
             })}
         tooltip={row.label}
@@ -102,7 +94,6 @@ function Rows(props: { rows: Row[]; mailbox: string | undefined }) {
     ));
 }
 
-/** Upload: into the folder on screen, else Personal's top. */
 function UploadRow() {
   const { upload } = useUploads();
   const place = useUploadPlace();
@@ -125,7 +116,6 @@ function UploadRow() {
   );
 }
 
-/** The folder or space the page shows, from its path; Personal's top anywhere else. */
 const useUploadPlace: () => StoragePlace = () => {
   const { place: pathname } = useWorkspacePaths();
   for (const space of ["personal", "shared"] as const) {

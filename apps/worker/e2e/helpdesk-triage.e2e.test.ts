@@ -1,9 +1,3 @@
-// Helpdesk triage end to end (ADR 0022, ADR 0033): a customer's mail to a shared inbox gets its
-// priority, tags and the teammate whose role fits from the triage that already runs per message,
-// noise is resolved and filed out of INBOX, and none of it goes over a person. Real mail goes
-// through GreenMail; the real mail service syncs it and signs events to the real Worker, whose
-// queue triages it. TypeSafe is the one outside service: an HTTP server answers with the Jev
-// responses recorded live in `fixtures/triage/recordings/helpdesk-*`, and nothing else.
 import { randomBytes, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -47,7 +41,6 @@ let jev: Awaited<ReturnType<typeof startJevReplay>>;
 let worker: Awaited<ReturnType<typeof startWorker>>;
 let mail: { service: MailService; http: ReturnType<typeof serve> };
 
-/** Answers each recorded helpdesk request with its recorded response; anything else is a 500. */
 async function startJevReplay() {
   const dir = new URL("triage/recordings/", fixtures);
   const recordings = readdirSync(dir)
@@ -118,7 +111,6 @@ beforeAll(async () => {
       IMAGE_PROXY_URL: "/api/image-proxy",
       ATTACHMENT_URL: "/api/attachments",
       SYNC_INTERVAL_MS: 500,
-      // The noise resolve's archive waits out its undo window, then this picks it up.
       OUTBOX_INTERVAL_MS: 500,
       MAILBOX_CONCURRENCY: 2,
     },
@@ -127,7 +119,6 @@ beforeAll(async () => {
   const http = serve({ fetch: service.app.fetch, port: mailPort, hostname: "127.0.0.1" });
   mail = { service, http };
 
-  // Magic links go out from a disabled mailbox in its own org; sign-in reads them from the outbox.
   const system = await createOrg(database.db, "system");
   const systemBox = await createMailbox(database.db, system.id, SYSTEM_MAIL_FROM);
   await database.db
@@ -156,7 +147,6 @@ async function waitUntil<T>(check: () => Promise<T | false | undefined>, timeout
   }
 }
 
-/** A same-origin call from the web app, with an Idempotency-Key on writes. */
 async function call(cookie: string, method: string, path: string, body?: unknown) {
   const response = await fetch(new URL(`/api${path}`, worker.url), {
     method,
@@ -172,7 +162,6 @@ async function call(cookie: string, method: string, path: string, body?: unknown
   return { status: response.status, body: (text ? JSON.parse(text) : {}) as Answer };
 }
 
-/** The fields these tests read from the API's answers. */
 interface Answer {
   roleDescription: string | null;
   tag: { id: string; description: string | null };
@@ -180,7 +169,6 @@ interface Answer {
   sharedInboxes: unknown[];
 }
 
-/** The customer writes to the inbox: a fixture `.eml`, over SMTP. */
 async function customerSends(name: string, inbox: string) {
   const raw = readFileSync(new URL(`eml/${name}`, fixtures), "utf8");
   const from = raw.match(/^Return-Path: <(.+)>$/m)![1]!;
@@ -197,7 +185,6 @@ async function customerSends(name: string, inbox: string) {
   return raw.match(/^Message-ID: *(.+)$/im)![1]!.trim();
 }
 
-/** Subjects in one IMAP folder of the inbox (empty when the folder does not exist). */
 async function folderSubjects(user: string, path: string) {
   const client = new ImapFlow({
     host: greenmail.host,
@@ -226,7 +213,6 @@ async function folderSubjects(user: string, path: string) {
   }
 }
 
-/** A company with a shared support inbox on GreenMail, its owner signed in, and three teammates. */
 async function setUpSupport() {
   const { db } = database;
   const inbox = `support-${randomUUID().slice(0, 8)}@helpdesk.test`;
@@ -267,7 +253,6 @@ async function setUpSupport() {
     .where(eq(schema.users.id, owner.userId));
   const cookie = await signIn(worker, db, user!.email);
 
-  // The AI settings page: each teammate's role, and what each tag is for.
   for (const { key, role } of manifest.teammates) {
     const set = await call(cookie, "PUT", `/workspace/ai/members/${team[key]}/role`, {
       description: role,
@@ -279,7 +264,6 @@ async function setUpSupport() {
     const created = await call(cookie, "POST", `/mailboxes/${id}/tags`, { name: tag.name });
     expect(created.status).toBeLessThan(300);
     tagIds[tag.name] = created.body.tag.id;
-    // Feature request has none: a blank one stays null.
     const described = await call(cookie, "PATCH", `/mailboxes/${id}/tags/${created.body.tag.id}`, {
       description: tag.description ?? "",
     });
@@ -301,7 +285,6 @@ async function threadOf(messageIdHeader: string) {
   });
 }
 
-/** The queue finished its job for `messageId` (the done marker moved to it). */
 async function triagedFor(threadId: string, messageId: string) {
   await waitUntil(async () => {
     const [row] = await database.db
@@ -345,7 +328,6 @@ test("the settings page lists each teammate's role and each shared inbox's tags"
     },
   ]);
 
-  // A blank role clears it: AI never assigns that teammate.
   const cleared = await call(
     support.cookie,
     "PUT",
@@ -355,7 +337,6 @@ test("the settings page lists each teammate's role and each shared inbox's tags"
     },
   );
   expect(cleared).toMatchObject({ status: 200, body: { roleDescription: null } });
-  // A member of another workspace is not found here.
   const other = await createMember(
     database.db,
     (await createOrg(database.db, "other")).id,
@@ -370,7 +351,6 @@ test("the settings page lists each teammate's role and each shared inbox's tags"
 test("a customer's double charge is triaged high, tagged Billing and handed to billing; a person's changes hold", async () => {
   const support = await setUpSupport();
 
-  // 1. The first message: priority, tag and assignee come from triage, marked as the AI's.
   const first = await threadOf(await customerSends("helpdesk-double-charge.eml", support.inbox));
   await triagedFor(first.threadId, first.id);
   const triaged = await conversation(support.cookie, first.threadId);
@@ -383,7 +363,6 @@ test("a customer's double charge is triaged high, tagged Billing and handed to b
   const aiEvents = triaged.events.filter((e) => e.data.source === "ai");
   expect(aiEvents.map((e) => e.kind).sort()).toEqual(["assigned", "priority", "tag_added"]);
   expect(aiEvents.every((e) => e.actorMemberId === null)).toBe(true);
-  // Ana hears she has it.
   const notified = await database.db
     .select({ kind: schema.notifications.kind })
     .from(schema.notifications)
@@ -395,7 +374,6 @@ test("a customer's double charge is triaged high, tagged Billing and handed to b
     );
   expect(notified).toEqual([{ kind: "assigned" }]);
 
-  // 2. A person overrules all three.
   const { cookie } = support;
   expect(
     (await call(cookie, "PUT", `/threads/${first.threadId}/priority`, { priority: "normal" }))
@@ -409,8 +387,6 @@ test("a customer's double charge is triaged high, tagged Billing and handed to b
     (await call(cookie, "PUT", `/threads/${first.threadId}/assignee`, { memberId: null })).status,
   ).toBe(200);
 
-  // 3. The customer writes again. Triage runs on it (Jev says high, Billing, Ana again) and changes
-  //    none of what the person decided.
   const second = await threadOf(
     await customerSends("helpdesk-double-charge-again.eml", support.inbox),
   );
@@ -443,7 +419,6 @@ test("a newsletter to the support inbox is resolved as noise and archived out of
       data: expect.objectContaining({ to: "resolved", reason: "ai_noise" }),
     }),
   );
-  // The resolve files the mail on the server, after its undo window.
   const subject = "5 tactics to triple your newsletter signups this week";
   await waitUntil(
     async () => !(await folderSubjects(support.inbox, "INBOX")).includes(subject),

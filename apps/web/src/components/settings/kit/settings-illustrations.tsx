@@ -1,14 +1,5 @@
-// Hairline illustrations for settings' empty states: isometric line figures drawn with the
-// hairline-create skill's kernel (`.claude/skills/hairline-create`, Cam(45, 0.5): the 2:1 view;
-// rounded solids as a silhouette and one crease), taken at rest as static paths.
-//
-// The kernel's palette maps onto our tokens, so a figure follows the theme: plates are filled with
-// `background` (the card they sit on) and painted back to front so near ones hide far ones; the
-// silhouette is `muted-foreground`, inner lines `subtle-foreground` and `hairline-line`, and one
-// mark per figure is `foreground`: where the eye starts. Strokes stay 1px at any size.
 import { cn } from "cn";
 
-/** A path's role in the kernel's palette: plate, silhouette, crease, the one bright mark. */
 type Stroke = "plate" | "sil" | "nf" | "lo" | "hi" | "fo" | "sil-plate";
 
 const STROKE: Record<Stroke, string> = {
@@ -27,7 +18,6 @@ interface Figure {
 }
 
 const FIGURES = {
-  /** An empty tray: what holds things, holding nothing. The generic empty state. */
   tray: {
     viewBox: "98 102 204 128",
     paths: [
@@ -61,7 +51,6 @@ const FIGURES = {
       ],
     ],
   },
-  /** A padlock: a section you are not allowed to see. */
   lock: {
     viewBox: "159 95 82 138",
     paths: [
@@ -111,7 +100,6 @@ export function SettingsIllustration({
     >
       {figure.paths.map(([d, stroke], i) => (
         <path
-          // Paths never reorder: paint order is the drawing, so the index is a stable key.
           key={i}
           d={d}
           className={STROKE[stroke]}

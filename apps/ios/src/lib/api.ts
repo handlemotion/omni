@@ -1,5 +1,3 @@
-// The app's one API and auth client, from `@omni/client` like the web app's. Native requests
-// carry the session the auth client keeps in the Keychain (SecureStore) as a `Cookie` header.
 import { expoClient } from "@better-auth/expo/client";
 import { createApi, createAuth, toApiError, type ApiErrorInfo } from "@omni/client";
 import * as SecureStore from "expo-secure-store";
@@ -21,12 +19,10 @@ export const auth = createAuth({
 export const api = createApi({
   baseUrl: config.apiUrl,
   fetch: async (input, init) => {
-    // In a browser (Expo's web target) the session is a first-party cookie, as for the web app.
     if (Platform.OS === "web") return fetch(input, { ...init, credentials: "include" });
     const headers = new Headers(init?.headers);
     const cookie = await auth.getCookie();
     if (cookie) headers.set("cookie", cookie);
-    // The cookie is ours to send; the OS cookie store must not add or keep one.
     return fetch(input, { ...init, headers, credentials: "omit" });
   },
 });

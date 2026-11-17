@@ -29,11 +29,6 @@ import {
 import type { Assignee, ConversationStatus, Priority, Thread } from "@/lib/types.ts";
 import { pictureUrl } from "@/lib/urls.ts";
 
-/**
- * 24px inside the rail, like the Reply/Forward/Note segments, with the rail's inner radius and
- * an 8px inset instead of the button's 10px.
- */
-
 type Glyph = ComponentType<{ className?: string; "data-slot"?: string }>;
 
 const STATUS: Record<ConversationStatus, { label: string; icon: Glyph }> = {
@@ -51,14 +46,12 @@ const PRIORITY: Record<Priority, { label: string; icon: Glyph }> = {
 };
 const PRIORITIES = Object.keys(PRIORITY) as Priority[];
 
-/** 8am local, `days` from today. */
 function morning(days: number) {
   const at = new Date();
   at.setDate(at.getDate() + days);
   at.setHours(8, 0, 0, 0);
   return at;
 }
-/** Days until next Monday (a full week on a Monday). */
 const untilMonday = () => (8 - new Date().getDay()) % 7 || 7;
 
 /** The snooze choices, in the status menu and the reader's Snooze. */
@@ -90,7 +83,6 @@ export function Properties({ thread, children }: { thread: Thread; children?: Re
   const applied = new Set(conversation.tags.map((t) => t.id));
 
   return (
-    // The rail's controls, spread across it: the rail itself is the frame.
     <div className="flex min-w-0 flex-1 items-center justify-between gap-1">
       <MenuTrigger>
         <Button intent="ghost" size="sm" aria-label={`Status: ${status.label}`}>
@@ -98,7 +90,6 @@ export function Properties({ thread, children }: { thread: Thread; children?: Re
           <span>{status.label}</span>
         </Button>
         <Menu placement="bottom start">
-          {/* Snoozed and pending conversations can go straight back to Open. */}
           {conversation.status !== "open" && (
             <Item icon={IconCircle} label="Reopen" onAction={() => reopen.mutate({ threadId })} />
           )}
@@ -210,8 +201,6 @@ export function Properties({ thread, children }: { thread: Thread; children?: Re
           placement="bottom start"
           selectionMode="multiple"
           selectedKeys={[...applied]}
-          // The new selection, compared with what is applied now: a per-item handler would keep
-          // the `applied` set from when React Aria first rendered that item.
           onSelectionChange={(keys) => {
             const next = keys;
             for (const tag of tags) {

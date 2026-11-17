@@ -1,5 +1,3 @@
-// The addresses a person signs in with (ADR 0014). The primary is the account's email; each
-// other one is added by a link mailed to it, opened while signed in (`/settings/emails/verify`).
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";

@@ -42,19 +42,12 @@ export function DropdownSection<T extends object>({
 export const dropdownItemStyles = tv({
   base: [
     "min-w-0 [--me-icon:--spacing(3)] sm:[--me-icon:--spacing(2.5)]",
-    // Rows from transitive's menus: 30px, a small radius, 13px text, the fill fading in place.
-    // 10px before the icon (which pulls 2px back) and 14px after the label: with the list's 4px
-    // padding the icon's box sits 12px from the edge and the longest label ends 18px from it, so
-    // the widest item sets the dropdown's width with room on both sides (measured).
     "col-span-full grid min-h-7.5 grid-cols-[auto_1fr_1.5rem_0.5rem_auto] ps-2.5 pe-8 py-1.5 supports-[grid-template-columns:subgrid]:grid-cols-subgrid",
     "transition-[background-color] duration-150 ease-out motion-reduce:transition-none",
     "not-has-[[slot=description]]:items-center",
     "group relative cursor-default select-none rounded-sm outline-0",
-    // text
     "text-sm tracking-[-0.01em] text-foreground forced-colors:text-[CanvasText]",
-    // avatar
     "*:data-[slot=avatar]:*:me-(--me-icon) *:data-[slot=avatar]:me-(--me-icon) [&>[data-slot=avatar]:has(~[slot=description])]:row-span-2 *:data-[slot=avatar]:[--avatar-size:--spacing(5)] sm:*:data-[slot=avatar]:[--avatar-size:--spacing(4)]",
-    // icon
     "[&_svg:not([class*='text-'])]:text-muted-foreground *:[svg:not([data-slot='check-indicator'])]:col-start-1 *:[svg:not([data-slot='check-indicator'])]:row-start-1 *:[svg:not([data-slot='check-indicator'])]:-ms-0.5 *:[svg:not([data-slot='check-indicator'])]:me-(--me-icon) *:[svg]:shrink-0",
     "[&>svg:not(:has(~[slot=description]))]:size-5 sm:[&>svg:not(:has(~[slot=description]))]:size-3.5",
     "[&>svg:not([class*='w-']):has(~[slot=description])]:w-5 sm:[&>svg:not([class*='w-']):has(~[slot=description])]:w-3.5 [&>svg:has(~[slot=description])]:h-lh",
@@ -62,9 +55,7 @@ export const dropdownItemStyles = tv({
     "selected:[&>svg:not([data-slot='check-indicator']):has(+svg:not([data-slot='check-indicator']))]:absolute selected:[&>svg:not([data-slot='check-indicator']):has(+svg:not([data-slot='check-indicator']))]:inset-e-0 selected:[&>svg:not([data-slot='check-indicator']):has(+svg:not([data-slot='check-indicator']))]:top-1",
     "selected:[&>svg:not([data-slot='check-indicator']):has(+[data-slot=avatar])]:absolute selected:[&>svg:not([data-slot='check-indicator']):has(+[data-slot=avatar])]:inset-e-0 selected:[&>svg:not([data-slot='check-indicator']):has(+[data-slot=avatar])]:top-1",
     "selected:[&>[data-slot=avatar]+[slot=label]]:me-6 selected:[&>[data-slot=avatar]+svg:not([data-slot='check-indicator'])+[slot=label]]:me-6 selected:[&>svg:not([data-slot='check-indicator'])+[data-slot=avatar]+[slot=label]]:me-6 selected:[&>svg:not([data-slot='check-indicator'])+[slot=label]]:me-6",
-    // keyboard
     "*:data-[slot=keyboard]:inset-e-3",
-    // force color adjust
     "forced-color-adjust-none forced-colors:focus:bg-[Highlight] forced-colors:focus:text-[HighlightText] forced-colors:focus:*:[svg]:text-[HighlightText]",
   ],
   variants: {
@@ -179,11 +170,6 @@ export function DropdownKeyboard({ className, ...props }: React.ComponentProps<t
     />
   );
 }
-
-/**
- * Note: This is not exposed component, but it's used in other components to render dropdowns.
- * @internal
- */
 
 /**
  * The row label and description for UI SDK menus and selects: plain spans with the same `slot`

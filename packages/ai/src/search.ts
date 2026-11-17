@@ -1,8 +1,3 @@
-// Search relevance on Jev: full-text recall (in `@omni/db`) hands over its best candidate
-// threads, Jev judges each one against the query, and code orders them by that judgment. One
-// request per search, one Noul per candidate (TypeSafe's re-ranking cookbook), so the questions
-// run in parallel and the shared state is read once. Wording lives in `questions.ts`.
-
 import { ask, JevError, NoulAnswer, type JevClient } from "./jev.ts";
 import { truncateToTokens } from "./policy.ts";
 import {
@@ -68,7 +63,6 @@ export function describeDate(date: Date, now: Date) {
   return `${shortDate.format(date)} (${distance})`;
 }
 
-/** Whole calendar months (then years) from `date` to `now`, the way a person counts them. */
 const calendar: (date: Date, now: Date) => [number, string] = (date, now) => {
   const months =
     (now.getUTCFullYear() - date.getUTCFullYear()) * 12 +
@@ -82,7 +76,6 @@ function questionId(index: number) {
   return `candidate_${index}`;
 }
 
-/** What a person would look at in one search result. Only these fields, so nothing else leaks. */
 function threadFacts(candidate: SearchCandidate, now: Date) {
   const { name, address } = candidate.from;
   return {

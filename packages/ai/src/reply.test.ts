@@ -1,5 +1,3 @@
-// suggestReply() against canned Messages API responses. No network: the point is what the wrapper
-// sends (untrusted text fenced in) and what it does with each kind of answer the API can return.
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
 import { suggestReply, type ReplyClient, type SuggestReplyInput } from "./index.ts";

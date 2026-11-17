@@ -1,6 +1,3 @@
-// Sign-in emails (ADR 0014): every address a person may sign in with. The primary is
-// `users.email`; the others are verified rows in `user_emails`. An address belongs to at most one
-// person, primary or not, so a sign-in, a Google link or an invitation to it always means them.
 import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, eq, sql, TransactionRollbackError } from "drizzle-orm";
 import type { Db } from "./client.ts";
@@ -79,9 +76,7 @@ export const listSignInEmails: (db: Db, userId: string) => Promise<SignInEmail[]
 
 export type StartSignInEmailResult =
   | { status: "sent"; token: string; email: string; expiresAt: Date }
-  /** Already one of this user's addresses. */
   | { status: "yours" }
-  /** Someone else's. The caller answers as if it were sent, so nobody learns who has an account. */
   | { status: "taken" };
 
 /**
@@ -109,11 +104,8 @@ export const startSignInEmail: (
 
 export type VerifySignInEmailResult =
   | { status: "verified"; email: string }
-  /** Unknown, used or expired. */
   | { status: "invalid" }
-  /** Issued to another user: left unused so its owner can still open it. */
   | { status: "wrong_user" }
-  /** Someone else claimed the address after the link was sent. */
   | { status: "taken" };
 
 /** Consumes a token for `userId` and adds its address. Single-use, under a lock on the address. */
@@ -130,7 +122,6 @@ export async function verifySignInEmail(db: Db, input: { userId: string; token: 
     if (userId !== input.userId) return { status: "wrong_user" as const };
     await tx.delete(verifications).where(eq(verifications.id, pending.id));
 
-    // Two people verifying the same address at once queue here; the unique index backs it up.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"sign-in-email:" + email}))`);
     const owner = await findEmailOwner(tx, email);
     if (owner?.userId === userId) return { status: "verified" as const, email };
@@ -143,9 +134,7 @@ export async function verifySignInEmail(db: Db, input: { userId: string; token: 
 export type RemoveSignInEmailResult =
   | { status: "removed" }
   | { status: "not_found" }
-  /** The primary cannot be removed: make another address primary first. */
   | { status: "primary" }
-  /** It is the last verified address. */
   | { status: "last_verified" };
 
 export async function removeSignInEmail(db: Db, input: { userId: string; email: string }) {
@@ -170,7 +159,6 @@ export async function removeSignInEmail(db: Db, input: { userId: string; email: 
           .from(userEmails)
           .where(eq(userEmails.userId, input.userId))
           .limit(1);
-        // Rolls the delete back: someone must always be able to get a sign-in link.
         if (!left) tx.rollback();
       }
       return { status: "removed" as const };
@@ -204,7 +192,6 @@ export async function setPrimarySignInEmail(db: Db, input: { userId: string; ema
       .from(userEmails)
       .where(and(eq(userEmails.userId, input.userId), eq(sql`lower(${userEmails.email})`, email)));
     if (!extra) return { status: "not_found" as const };
-    // Free the address in `user_emails` before `users.email` takes it.
     if (user.verified) {
       await tx
         .update(userEmails)

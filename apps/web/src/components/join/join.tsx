@@ -19,8 +19,6 @@ export function Join() {
   const navigate = useNavigate();
   const status = useJoin();
   const ask = useAskToJoin();
-  // Nothing to join any more (accepted): the session has a member now, so read it again and open
-  // the inbox.
   useEffect(() => {
     if (!status.isError) return;
     client.removeQueries({ queryKey: keys.session() });
@@ -31,7 +29,6 @@ export function Join() {
   const requested = status.data?.requested === true;
   return (
     <main className="flex min-h-dvh items-center justify-center bg-surface">
-      {/* The bottom padding lifts the card a little above center, where it looks centered. */}
       <div className="flex h-137.5 w-100 flex-col pb-12">
         <Card className="flex-1 justify-between gap-0 p-6">
           <div className="flex flex-col gap-5">

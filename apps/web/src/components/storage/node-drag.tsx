@@ -1,13 +1,3 @@
-// Drag and drop in Drive: files and folders move by picking them up and letting go over a folder,
-// wherever either is drawn. A folder page's cards and rows lift, and the sidebar's clusters and
-// their folders; a folder takes a drop into it, the page a drop into the folder it shows, and a
-// sidebar row's top or bottom edge a drop beside it. Files dragged in from the computer upload
-// wherever they are dropped.
-//
-// Our own drags are pointer drags (dnd-kit, `drive-drag.tsx`), not the browser's: the item itself
-// lifts and follows the pointer, in its own colours, with no ghost, and they work the same in the
-// desktop app, whose window takes the browser's drags for files. The computer's files still come
-// as the browser's drags, and React Aria's drop zones take them.
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DropItem, DropOperation } from "react-aria-components";
@@ -165,11 +155,6 @@ export function useSurfaceDrag(node: StorageNode, look: Look, drag: NodeDrag | u
   return { ref, props: { ...lift.props, "data-drive-target": target } };
 }
 
-/**
- * A folder's card or row as a drop target for the computer's files: they upload into it, not into
- * the page's folder around it, and it highlights while they are held over it. Its own listeners:
- * React Aria's items pass no drag events through.
- */
 function useFilesDropOn(to: DropPlace | null) {
   const [element, setElement] = useState<HTMLElement | null>(null);
   const [over, setOver] = useState(false);

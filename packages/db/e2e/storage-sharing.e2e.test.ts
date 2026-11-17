@@ -1,6 +1,3 @@
-// What sharing (ADR 0034 decision 4) asks of the rest of `@omni/db`, on real Postgres: a request
-// made at one link stays inside it, and the sweep of abandoned sign-ups keeps the people
-// something was shared with.
 import { randomUUID } from "node:crypto";
 import { inArray } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
@@ -14,8 +11,6 @@ import { createMember, createOrg, createTestDatabase } from "./support.ts";
 const { db, teardown } = await createTestDatabase();
 afterAll(teardown);
 
-// Catches: an editor in two workspaces writing into one of them through the other's link, which
-// is how a read-only workspace would be written to past its own gate.
 test("the grant door under a link reaches that link's folder and nothing else the person was given", async () => {
   const paid = await createOrg(db, "paid");
   const ana = forMember(db, (await createMember(db, paid.id, "ana")).id).storage;
@@ -36,7 +31,6 @@ test("the grant door under a link reaches that link's folder and nothing else th
   expect((await under.nodeByShareId(first.shareId))?.node.id).toBe(open.id);
   expect((await under.file(inside.id)).status).toBe("ok");
   expect((await under.createFolder({ parentId: open.id }, "New")).status).toBe("ok");
-  // The other grant is real, and this door does not open it.
   expect((await forUser(db, editor.id).storage.file(elsewhere.id)).status).toBe("ok");
   expect(await under.nodeByShareId(second.shareId)).toBeNull();
   expect((await under.file(elsewhere.id)).status).toBe("not_found");
@@ -49,8 +43,6 @@ test("the grant door under a link reaches that link's folder and nothing else th
   ).toBe("not_found");
 });
 
-// Catches: someone who signed up from a share mail, looked once and came back two months later
-// to find their account, and with it the way to what was shared, gone.
 test("an idle account something is shared with is kept; one with no grant, or an unverified address, goes", async () => {
   const org = await createOrg(db, "sharers");
   const ana = forMember(db, (await createMember(db, org.id, "ana")).id).storage;
@@ -72,7 +64,6 @@ test("an idle account something is shared with is kept; one with no grant, or an
     .values({ userId: extra.id, email: extraAddress, verifiedAt: new Date() });
   const unproven = await person("unproven", false);
   const nobody = await person("nobody");
-  // Typed with capitals: a grant is stored lowercase, like the addresses it is matched to.
   await ana.putGrant(file.id, granted.email.toUpperCase(), "viewer");
   await ana.putGrant(file.id, extraAddress, "viewer");
   await ana.putGrant(file.id, unproven.email, "viewer");
@@ -90,7 +81,6 @@ test("an idle account something is shared with is kept; one with no grant, or an
   const left = await db.select({ id: users.id }).from(users).where(inArray(users.id, everyone));
   expect(left.map((user) => user.id).toSorted()).toEqual([granted.id, extra.id].toSorted());
 
-  // The grant removed, nothing holds the account any more.
   await ana.removeGrant(file.id, granted.email);
   const later = await deleteAbandonedSignUps(db, { idleSince: new Date(Date.now() - 86_400_000) });
   expect(later.map((user) => user.id)).toContain(granted.id);

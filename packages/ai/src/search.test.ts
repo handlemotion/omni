@@ -1,5 +1,3 @@
-// Search relevance against Jev answers recorded live (`pnpm --filter @omni/ai record:search`),
-// replayed through an injected fetch. No network.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -32,8 +30,6 @@ describe.each(searchFixture.queries)('"$query"', ({ id, query, best }) => {
   const recording = recorded(id);
 
   it("still sends the request the answers were recorded for", () => {
-    // A failure here means the wording, the state, or the fixture changed: re-record and check
-    // the right thread still comes first.
     expect(jevSearchRequest(query, searchCandidates, { now: searchNow })).toEqual(
       recording.request,
     );

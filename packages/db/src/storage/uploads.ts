@@ -1,5 +1,3 @@
-// Uploads in progress (ADR 0034 decision 5). The quota is checked here against the number the
-// caller passes: this package reads no configuration. An upload's id becomes its file's id.
 import { and, eq, gt, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
@@ -58,25 +56,20 @@ export type OpenVersionUploadResult =
 export type RecordPartResult =
   | { status: "ok"; upload: StorageUpload }
   | NotFound
-  /** With this part the upload would hold more bytes than it declared. */
   | { status: "too_large" };
 
 export type CompleteUploadResult =
-  /** `created` is false when the upload had already completed: the same file comes back. */
   | { status: "ok"; node: StorageNode; r2Key: string; created: boolean }
   | NotFound
   | Forbidden
-  /** The parts do not add up to the declared size. */
   | { status: "incomplete" }
-  /** The file it was a new version of was locked meanwhile. */
   | Locked
-  /** A checked save: the file it was a new version of moved past its base meanwhile. */
   | StaleContent
   | StorageFull;
 
 export type AbortUploadResult =
-  /** The row is gone; the caller aborts the multipart upload in the bucket, if it was opened. */
-  { status: "ok"; r2Key: string; r2UploadId: string | null } | NotFound;
+  | { status: "ok"; r2Key: string; r2UploadId: string | null }
+  | NotFound;
 
 const NOT_FOUND = { status: "not_found" } as const;
 const FORBIDDEN = { status: "forbidden" } as const;
@@ -97,10 +90,6 @@ export async function reservedBytes(ex: Db, orgId: string, exceptUploadId?: stri
   return Number(row?.bytes ?? 0);
 }
 
-/**
- * The target of an upload that is a new version: `{ nodeId }`, null in it once the file was
- * deleted for good. Null when the upload becomes a file of its own.
- */
 async function targetOf(ex: Db, uploadId: string) {
   const [row] = await ex
     .select({
@@ -111,25 +100,16 @@ async function targetOf(ex: Db, uploadId: string) {
   return row ?? null;
 }
 
-/** Still in progress: not completed, not past its time. */
 const live = (upload: StorageUpload) => !upload.nodeId && upload.expiresAt > new Date();
 
 export function uploadOperations(db: Db, door: Door) {
-  /** The holder's own upload, locked when `lock` is set. */
   async function mine(ex: Db, uploadId: string, lock = false) {
     const query = ex.select().from(storageUploads).where(eq(storageUploads.id, uploadId));
     const [upload] = await (lock ? query.for("update") : query);
     if (!upload || !(await door.ownsUpload(ex, upload.memberId))) return null;
-    // An upload in progress through a grant is a write into its folder: the grantee must still be
-    // able to write there through this door. A grant made Viewer, removed, or reached through
-    // another link's door no longer adds parts to it, completes it or aborts it. A member's right
-    // to write into their own drive or Shared lasts as long as their membership (removal deletes
-    // their uploads), and a folder trashed meanwhile is for `completeUpload` to refuse and clean
-    // up. A completed upload is a file, which `completeUpload` resolves through the door itself.
     if (upload.nodeId || door.kind !== "grant") return upload;
     const target = await targetOf(ex, upload.id);
     if (target) {
-      // A new version is a write to the file itself, not into its folder.
       if (!target.nodeId) return null;
       return (await mayReplace(ex, door, target.nodeId)).status === "ok" ? upload : null;
     }
@@ -141,7 +121,6 @@ export function uploadOperations(db: Db, door: Door) {
     return at?.writable ? upload : null;
   }
 
-  /** Call with the usage row locked: the answer when `size` more bytes would not fit. */
   async function fullFor(
     tx: Db,
     orgId: string,
@@ -156,12 +135,6 @@ export function uploadOperations(db: Db, door: Door) {
   }
 
   return {
-    /**
-     * Opens an upload of `size` bytes into a place the holder may write. `limitBytes` is the
-     * workspace's allowance, null for none. The workspace's usage row is locked while the bytes
-     * stored, the uploads in progress and this one are added up, so two opens cannot both take
-     * the last of the room.
-     */
     async openUpload(
       place: StoragePlace,
       file: {
@@ -169,7 +142,6 @@ export function uploadOperations(db: Db, door: Door) {
         size: number;
         mimeType?: string | null;
         limitBytes: number | null;
-        /** Hex SHA-256 the client computed while reading the file; kept on the file. */
         sha256?: string | null;
       },
     ) {
@@ -219,21 +191,13 @@ export function uploadOperations(db: Db, door: Door) {
       });
     },
 
-    /**
-     * Opens an upload that becomes a new version of a file the holder may edit (ADR 0043
-     * decision 1). It goes up and completes as any upload does; completing it replaces the
-     * file's content and keeps the old one. The replaced bytes stay stored, so the whole new
-     * size must fit the allowance.
-     */
     async openVersionUpload(
       nodeId: string,
       file: {
         size: number;
         mimeType?: string | null;
         limitBytes: number | null;
-        /** Hex SHA-256 the client computed while reading the file; kept on the file. */
         sha256?: string | null;
-        /** A checked save: the `contentVersion` it was based on. Complete checks it again. */
         ifContentVersion?: number | null;
       },
     ) {
@@ -272,12 +236,10 @@ export function uploadOperations(db: Db, door: Door) {
       });
     },
 
-    /** The holder's upload, with the parts it already lists (what a resume needs). */
     async upload(uploadId: string) {
       return mine(db, uploadId) satisfies Promise<StorageUpload | null>;
     },
 
-    /** Records the bucket's multipart upload id, once the bucket has opened it. */
     async startUpload(uploadId: string, r2UploadId: string) {
       const upload = await mine(db, uploadId);
       if (!upload || !live(upload)) return null satisfies StorageUpload | null;
@@ -290,10 +252,6 @@ export function uploadOperations(db: Db, door: Door) {
         (upload.r2UploadId === r2UploadId ? upload : null)) satisfies StorageUpload | null;
     },
 
-    /**
-     * Records a part the bucket acknowledged. Sending a part again replaces it, and parts sent
-     * in parallel queue on the upload's row, so none is lost.
-     */
     recordUploadPart(uploadId: string, part: StorageUploadPart) {
       return db.transaction<RecordPartResult>(async (tx) => {
         const upload = await mine(tx, uploadId, true);
@@ -314,31 +272,21 @@ export function uploadOperations(db: Db, door: Door) {
       });
     },
 
-    /**
-     * Turns the upload into a file: inserts the node, adds its size to the workspace's usage and
-     * marks the upload, in one transaction. Completing again returns the same file and counts
-     * nothing, while the holder still reaches it. Access to the folder and the allowance are
-     * checked again, as they may have changed since the upload opened.
-     */
     async completeUpload(
       uploadId: string,
       options: {
         limitBytes: number | null;
-        /** A checked save's base, checked again here: see `openVersionUpload`. */
         ifContentVersion?: number | null;
       },
     ) {
       const seen = await mine(db, uploadId);
       if (!seen) return NOT_FOUND satisfies CompleteUploadResult;
       return db.transaction<CompleteUploadResult>(async (tx) => {
-        // The tree first, so the folder cannot change drive between the lookup below and the
-        // insert. Then the usage row, then the upload row: the order a delete takes them in.
         await lockTree(tx, seen.orgId);
         const usedBytes = await lockUsage(tx, seen.orgId);
         const upload = await mine(tx, uploadId, true);
         if (!upload) return NOT_FOUND satisfies CompleteUploadResult;
         if (upload.nodeId) {
-          // Through the door as it stands now: the file may have left what the holder reaches.
           const found = await reach(tx, door, upload.nodeId);
           return (
             found
@@ -364,7 +312,6 @@ export function uploadOperations(db: Db, door: Door) {
         };
         const target = await targetOf(tx, upload.id);
         if (target) {
-          // The file it was a version of is gone: refused, never completed as a new file.
           if (!target.nodeId) return NOT_FOUND satisfies CompleteUploadResult;
           const replaced =
             (await full()) ??
@@ -417,7 +364,6 @@ export function uploadOperations(db: Db, door: Door) {
       });
     },
 
-    /** Drops an upload in progress. A completed one is a file: trash that instead. */
     async abortUpload(uploadId: string) {
       const upload = await mine(db, uploadId);
       if (!upload || upload.nodeId) return NOT_FOUND satisfies AbortUploadResult;

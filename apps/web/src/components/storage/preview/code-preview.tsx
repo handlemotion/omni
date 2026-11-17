@@ -1,7 +1,3 @@
-// Text and code: the file's first 512 KB as lines with their numbers (ADR 0040). Shown as plain
-// text at once, then coloured by Shiki once its grammar has loaded (one chunk per language, on
-// first use). Everything renders as React text nodes: a file's markup never becomes ours.
-// Lines go in blocks the browser skips laying out while off screen, so 10,000 lines scroll freely.
 import { memo, useEffect, useMemo, useState } from "react";
 import type { HighlighterCore, LanguageInput, ThemedToken } from "shiki/core";
 import { SkeletonBox } from "skullet/react";
@@ -10,11 +6,8 @@ import type { FileKind } from "@/lib/file-kind.ts";
 import type { PreviewSource } from "@/lib/storage-preview.ts";
 import { NoPreview, StageLoading } from "./shared.tsx";
 
-/** Lines past this stay plain: highlighting is linear in the text and runs on the main thread. */
 const HIGHLIGHT_LINES = 4000;
-/** Lines per block that the browser lays out only near the screen. */
 const BLOCK = 200;
-/** The lines' leading, for the off-screen blocks' estimated height. */
 const LINE_PX = 20;
 const THEME = "github-light";
 
@@ -50,7 +43,6 @@ const Code = memo(function Code(props: { text: string; language?: string | undef
     for (let start = 0; start < lines.length; start += BLOCK) out.push(start);
     return out;
   }, [lines]);
-  // The gutter fits the largest line number, plus its 20px start and 16px end padding.
   const gutter = `calc(${String(lines.length).length}ch + 36px)`;
   return (
     <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
@@ -61,7 +53,6 @@ const Code = memo(function Code(props: { text: string; language?: string | undef
         {blocks.map((start) => (
           <div
             key={start}
-            // Off-screen blocks skip layout and paint, holding their estimated height.
             style={{
               contentVisibility: "auto",
               containIntrinsicSize: `auto ${Math.min(BLOCK, lines.length - start) * LINE_PX}px`,
@@ -111,7 +102,6 @@ function Line(props: {
   );
 }
 
-/** The grammars `lib/file-kind.ts` names, each its own chunk, loaded on first use. */
 const GRAMMARS: Record<string, () => Promise<{ default: LanguageInput }>> = {
   javascript: () => import("shiki/langs/javascript.mjs"),
   jsx: () => import("shiki/langs/jsx.mjs"),
@@ -152,7 +142,6 @@ const GRAMMARS: Record<string, () => Promise<{ default: LanguageInput }>> = {
 
 let highlighter: Promise<HighlighterCore> | undefined;
 
-/** One highlighter for the app, with the JavaScript regex engine (no WASM to fetch). */
 async function getHighlighter() {
   highlighter ??= Promise.all([
     import("shiki/core"),
@@ -168,7 +157,6 @@ async function getHighlighter() {
   return highlighter;
 }
 
-/** The first lines' tokens once the grammar is in; undefined until then, or with no grammar. */
 function useTokens(lines: string[], language: string | undefined) {
   const [tokens, setTokens] = useState<ThemedToken[][]>();
   useEffect(() => {
@@ -186,9 +174,7 @@ function useTokens(lines: string[], language: string | undefined) {
       if (!live) return;
       const head = lines.slice(0, HIGHLIGHT_LINES).join("\n");
       setTokens(shiki.codeToTokensBase(head, { lang: language, theme: THEME }));
-    })().catch(() => {
-      // A grammar that fails to load leaves the text plain.
-    });
+    })().catch(() => {});
     return () => {
       live = false;
     };

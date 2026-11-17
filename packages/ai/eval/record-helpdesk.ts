@@ -1,6 +1,3 @@
-// Records live Jev answers for the helpdesk scenarios: `pnpm --filter @omni/ai record:helpdesk`
-// (under Doppler, or with TYPESAFE_API_KEY set). Never part of `test` or CI. Sends only the
-// invented fixture mail in `fixtures/eml/helpdesk-*.eml`; costs a fraction of a cent per run.
 /* oxlint-disable no-console -- a CLI report */
 import { writeFileSync } from "node:fs";
 import { createJevClient, jevTriageRequest, triage } from "../src/index.ts";

@@ -1,6 +1,3 @@
-// `thread_participants` and `threadsWith` (ADR 0036 decision 4, spec crm.md M1): who sees a
-// thread through a participant lookup, how addresses are keyed, and how the index follows the
-// mail as threads merge, lose messages and get backfilled.
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, describe, expect, test } from "vitest";
 import { forMember, forUser } from "../src/for-member.ts";
@@ -27,7 +24,6 @@ const to = (...list: string[]) => {
 };
 
 let clock = Date.parse("2026-10-01T00:00:00Z");
-/** One message in a new thread (or in `threadId`), each later than the last. */
 async function mail(
   orgId: string,
   mailboxId: string,
@@ -71,7 +67,6 @@ describe("threadsWith through the member door", () => {
     const outsider = await createMember(db, other.id, "outsider");
     const box = await createMailbox(db, org.id, `support-${Date.now()}@team.test`);
     await grant(db, org.id, box.id, onInbox.id);
-    // A forged grant from another org opens nothing.
     await grant(db, org.id, box.id, outsider.id);
     const thread = await mail(org.id, box.id, { from: "ana@acme.test", to: [box.address] });
 
@@ -236,7 +231,6 @@ describe("the backfill", () => {
         .where(eq(threadParticipants.mailboxId, mailboxId))
     )[0]!.n;
 
-  /** Runs batches of `limit` until one finds nothing; answers how many messages each read. */
   async function backfill(now: Date, limit = 2) {
     const read: number[] = [];
     for (;;) {
@@ -246,8 +240,6 @@ describe("the backfill", () => {
     }
   }
 
-  // Catches: mail stored before the table, or by an older mail service, never reaching a
-  // timeline; a cursor that stops after one batch; and a rerun that duplicates rows.
   test("fills participants for messages stored without them, and a second run changes nothing", async () => {
     const org = await createOrg(db, `tw-backfill-${Date.now()}`);
     const member = await createMember(db, org.id, "member");
@@ -259,7 +251,6 @@ describe("the backfill", () => {
         (await mail(org.id, box.id, { from: "old@backfill.test", cc: [`c${i}@x.test`] })).threadId,
       );
     }
-    // As the mail stood before this table existed: messages with no participant rows.
     await db.delete(threadParticipants).where(eq(threadParticipants.mailboxId, box.id));
     const door = forMember(db, member.id);
     expect(await door.threadsWith({ addresses: ["old@backfill.test"] })).toEqual([]);
@@ -270,15 +261,11 @@ describe("the backfill", () => {
       threadIds.toSorted(),
     );
     expect(ids(await door.threadsWith({ addresses: ["c3@x.test"] }))).toEqual([threadIds[3]]);
-    // Each thread: the sender and its own Cc.
     expect(await count(box.id)).toBe(10);
     expect(await backfill(later)).toEqual([]);
     expect(await count(box.id)).toBe(10);
   });
 
-  // Catches: a backfill that stops once caught up, so mail an older mail service stores during a
-  // deploy (no participant rows) never reaches a timeline; and a cursor that steps past a message
-  // too young to be sure every message before it has committed.
   test("keeps following a mailbox after catching up, and never reads past young mail", async () => {
     const org = await createOrg(db, `tw-follow-${Date.now()}`);
     const member = await createMember(db, org.id, "member");
@@ -297,10 +284,8 @@ describe("the backfill", () => {
     const caughtUp = await cursor();
     expect(caughtUp).toBeDefined();
 
-    // Stored the old way: the message is there, its participants are not.
     const late = await mail(org.id, box.id, { from: "late@follow.test" });
     await db.delete(threadParticipants).where(eq(threadParticipants.threadId, late.threadId));
-    // Still young: the cursor waits for it rather than passing it.
     await backfill(new Date());
     expect(await cursor()).toBe(caughtUp);
     expect(await forMember(db, member.id).threadsWith({ addresses: ["late@follow.test"] })).toEqual(
@@ -315,9 +300,6 @@ describe("the backfill", () => {
   });
 });
 
-// Catches: one insert carrying every participant row, which Postgres refuses past 65,535 bound
-// parameters (5 a row), so a message sent to a big list never stores and its mailbox's sync
-// stalls on it.
 test("a message to 14,000 addresses stores, with every participant", async () => {
   const org = await createOrg(db, `tw-many-${Date.now()}`);
   const box = await createMailbox(db, org.id, `list-${Date.now()}@team.test`);

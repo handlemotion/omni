@@ -44,45 +44,25 @@ const watchTag = (memberId: string) => `watch:${memberId}`;
 
 export type RealtimeEvent =
   | { type: "changed"; mailboxId: string; threadIds: string[] }
-  /** These threads are now one: a reader showing a `fromThreadIds` thread moves to `intoThreadId`. */
   | { type: "merged"; mailboxId: string; intoThreadId: string; fromThreadIds: string[] }
-  /** An outbox action this member asked for failed for good (e.g. a send). */
   | { type: "action"; actionId: string; status: "failed"; error: string }
-  /** A domain's DNS was checked again (ADR 0011): refetch the onboarding status. */
   | { type: "domain"; domainId: string }
-  /**
-   * This member got a new notification (`GET /api/notifications` has it). `threadId` is null for
-   * a workspace notification (someone joined).
-   */
   | { type: "notification"; threadId: string | null; kind: NotificationKind }
-  /**
-   * Notifications this member had were withdrawn (the note that mentioned them was deleted):
-   * refetch `GET /api/notifications`. Never shown as a new notification.
-   */
   | { type: "notification.removed"; threadId: string }
-  /**
-   * New mail from someone else landed in the mailbox's inbox just now, in these threads. Watch
-   * sockets only: an app socket already hears `changed`.
-   */
   | { type: "mail.arrived"; mailboxId: string; threadIds: string[] };
 
-/** What a watch socket hears. */
 const WATCHED = new Set(["notification", "notification.removed", "mail.arrived"]);
 
 type OutboundEvent = RealtimeEvent | HelpdeskRealtimeEvent | CrmChangedEvent | StorageChangedEvent;
 
-/** What an app sends: this member is viewing or replying in a conversation, or left it. */
 const presenceMessage = z.object({
   type: z.literal("presence"),
   threadId: z.string().min(1).max(64),
   state: z.enum(["viewing", "replying", "left"]),
 });
-/** What an app may send: conversation presence, or the file open in its editor. */
 const clientMessage = z.union([presenceMessage, filePresenceMessage, docAppendMessage]);
-/** Larger client messages are ignored unread. */
 const MAX_CLIENT_MESSAGE = 1024;
 
-/** A socket's presence, kept in its attachment so it survives hibernation. */
 type Presence = { threadId: string; mailboxId: string; state: "viewing" | "replying" };
 
 /**
@@ -92,7 +72,6 @@ type Presence = { threadId: string; mailboxId: string; state: "viewing" | "reply
 export class Realtime extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    // Keepalives are answered without waking the object.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
   }
 
@@ -149,9 +128,7 @@ export class Realtime extends DurableObject<Env> {
     for (const socket of sockets) {
       try {
         socket.send(message);
-      } catch {
-        // Closing; the runtime drops it.
-      }
+      } catch {}
     }
   }
 
@@ -162,7 +139,6 @@ export class Realtime extends DurableObject<Env> {
    */
   override async webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer) {
     if (typeof raw !== "string") return;
-    // Only a live document's record may be large (a seed is the document's whole state).
     const doc = raw.startsWith('{"type":"doc.append"');
     if (raw.length > (doc ? MAX_DOC_MESSAGE : MAX_CLIENT_MESSAGE)) return;
     let message;
@@ -172,7 +148,6 @@ export class Realtime extends DurableObject<Env> {
       return;
     }
     const memberId = this.ctx.getTags(socket)[0];
-    // A sync or watch socket only listens.
     if (!memberId || memberId.startsWith("sync:") || memberId.startsWith("watch:")) return;
     if (message.type === "file.presence") {
       await onFilePresence(this.ctx, this.env, socket, memberId, message);
@@ -205,12 +180,8 @@ export class Realtime extends DurableObject<Env> {
     };
     setConversation(socket, presence);
     const others = audience.memberIds.filter((m) => m !== memberId);
-    // Repeats go out too: they are the heartbeat that keeps the member listed on teammates'
-    // screens, which expire anyone they have not heard from. Teammates hear the member's state
-    // across all their sockets here, so a second tab viewing never hides a first one replying.
     await this.send(others, [presenceEvent(memberId, this.memberState(memberId, presence))]);
     if (current?.threadId !== presence.threadId) {
-      // The newcomer hears who is already here: one entry per member, replying over viewing.
       const here = new Map<string, Presence>();
       for (const other of this.ctx.getWebSockets()) {
         const theirs = presenceOf(other);
@@ -231,8 +202,6 @@ export class Realtime extends DurableObject<Env> {
     const memberId = this.ctx.getTags(socket)[0];
     if (memberId) leaveFile(this.ctx, socket, memberId);
     if (presence && memberId) await this.leave(socket, memberId, presence);
-    // 1005 (no code), 1006 (dropped without a close frame) and 1015 (TLS failure) only describe
-    // a close; sending one throws.
     socket.close(code === 1005 || code === 1006 || code === 1015 ? 1000 : code, "closing");
   }
 
@@ -243,7 +212,6 @@ export class Realtime extends DurableObject<Env> {
     if (presence && memberId) await this.leave(socket, memberId, presence);
   }
 
-  /** The member's state in this conversation over all their sockets: replying wins. */
   private memberState(memberId: string, presence: Presence) {
     if (presence.state === "replying") return presence satisfies Presence;
     for (const other of this.ctx.getWebSockets(memberId)) {
@@ -254,10 +222,6 @@ export class Realtime extends DurableObject<Env> {
     return presence satisfies Presence;
   }
 
-  /**
-   * Takes this socket out of the conversation. Teammates hear `left` unless the member is still
-   * there on another socket (a second tab), in which case they hear that socket's state.
-   */
   private async leave(socket: WebSocket, memberId: string, presence: Presence) {
     setConversation(socket, null);
     let still: Presence | null = null;
@@ -295,14 +259,11 @@ function sendAll(sockets: WebSocket[], messages: string[]) {
     for (const message of messages) {
       try {
         socket.send(message);
-      } catch {
-        // Closing; the runtime drops it.
-      }
+      } catch {}
     }
   }
 }
 
-/** The socket's conversation presence; null when it is in none (it may still edit a file). */
 const presenceOf: (socket: WebSocket) => Presence | null = (socket) => {
   try {
     const presence = (socket.deserializeAttachment() as Partial<Presence> | null) ?? null;
@@ -474,10 +435,6 @@ export async function notifyFailedActions(
   }
 }
 
-/**
- * Expo push seam: off unless `EXPO_PUSH_ENABLED`. Sends no mail content, only which mailbox has
- * news. Receipts and token pruning come with the iOS app.
- */
 async function sendExpoPush(
   db: Db,
   config: Config,

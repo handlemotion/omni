@@ -1,6 +1,3 @@
-// Error reporting and request IDs for the web app. Sentry starts only when the build had
-// VITE_SENTRY_DSN (validated in vite.config.ts); events are scrubbed of mail content, addresses,
-// credentials and query strings first, and the SDK collects no headers, cookies or bodies.
 import * as Sentry from "@sentry/browser";
 import { PRIVATE_DATA_COLLECTION, scrubBreadcrumb, scrubEvent } from "@omni/mail-core/telemetry";
 

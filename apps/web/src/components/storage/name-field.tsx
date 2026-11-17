@@ -1,8 +1,3 @@
-// A file's or folder's name as a field, in the place the name is drawn: a new folder's card or
-// row, and Rename on any card, row or the preview's title. Focused with its name selected (a
-// file's without its extension, as Finder does), Enter or leaving it finishes, Esc cancels. A
-// name Enter cannot take stays in the field, selected again. On a card the name wraps as it
-// grows, as Finder's icon view does; on a row it stays one line and scrolls.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,12 +6,6 @@ import type { StorageNode } from "@/lib/storage.ts";
 import { NAME_MAX, typedName, type FinishedBy } from "@/lib/storage-names.ts";
 
 const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
-/**
- * Keeps the field's presses, keys and focus from the list around it: the row would take focus
- * on a press (ending the name), select it or follow its link; arrows, Home, End and letters
- * would move through the list; and focus arriving from the keyboard would send the list back to
- * the item it last had focused.
- */
 const KEEP_IN_FIELD = {
   onPointerDown: stop,
   onPointerUp: stop,
@@ -50,7 +39,6 @@ export function NameField(props: {
   const [value, setValue] = useState(props.name);
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const done = useRef(false);
-  // Before paint, so the first key typed already replaces the name.
   useLayoutEffect(() => {
     const field = ref.current;
     if (!field) return;
@@ -61,8 +49,6 @@ export function NameField(props: {
     );
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- once, as the field appears
   }, []);
-  // A press anywhere else ends the name, as in Finder. Most presses move focus and blur the
-  // field already, but a list's empty space keeps focus where it is (React Aria's lists hold it).
   useEffect(() => {
     const outside = (event: PointerEvent) => {
       const field = ref.current;
@@ -88,13 +74,11 @@ export function NameField(props: {
     autoComplete: "off",
     spellCheck: false,
     maxLength: NAME_MAX,
-    // Leaving the window is not leaving the name: focus comes back to it on return.
     onBlur: () => {
       if (document.hasFocus()) finish("blur");
     },
     onKeyDown: (event: React.KeyboardEvent) => {
       event.stopPropagation();
-      // An input method's Enter picks a candidate; it does not finish the name.
       if (event.nativeEvent.isComposing || event.keyCode === 229) return;
       if (event.key === "Enter") {
         event.preventDefault();
@@ -112,8 +96,6 @@ export function NameField(props: {
           {...field}
           rows={1}
           onChange={(event) => change(event.target.value)}
-          // A card's caption: one line, growing a line at a time as the name wraps. 16px on a
-          // phone, as the primitive keeps it, so iOS does not zoom in on focus.
           className="min-h-0 resize-none px-1.5 py-0.5 break-words sm:px-1.5 sm:py-0.5 sm:text-sm"
         />
       ) : (

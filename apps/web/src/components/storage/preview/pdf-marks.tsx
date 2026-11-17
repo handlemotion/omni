@@ -1,9 +1,3 @@
-// Box comments on a PDF's pages (ADR 0043 decision 4). While the area tool is on, a layer takes a
-// drag (under the "+" cursor) and hands back the box in fractions of the page, so it holds at any
-// zoom; the comment bar opens up and to the right of the box, or wherever it fits on the page.
-// Once sent, an open thread stays on its page as its author's picture, white-ringed, pinned at the
-// box's top right corner; hovering it shows the box. The panel provides them through
-// `PdfMarksContext`; the PDF renderer only places `<PageMarks>` on each page.
 import {
   createContext,
   use,
@@ -52,7 +46,6 @@ export interface PdfMarks {
 
 export const PdfMarksContext = createContext<PdfMarks | null>(null);
 
-/** A drag shorter than this share of the page on either side is a click, not a box. */
 const MIN = 0.01;
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -88,7 +81,6 @@ export function PageMarks({ page }: { page: number }) {
   );
 }
 
-/** A thread's pin: its author's picture at the box's top right; hovering shows the box. */
 function Pin(props: { pin: PdfPin; selected: boolean; onSelect: (() => void) | undefined }) {
   const { pin, selected } = props;
   const ref = useRef<HTMLButtonElement>(null);
@@ -115,7 +107,6 @@ function Pin(props: { pin: PdfPin; selected: boolean; onSelect: (() => void) | u
           onPress={props.onSelect ?? (() => {})}
           onPointerEnter={() => setHover(true)}
           onPointerLeave={() => setHover(false)}
-          // The picture's bottom left corner on the box's top right one.
           style={{ left: `${(pin.x + pin.width) * 100}%`, bottom: `${(1 - pin.y) * 100}%` }}
           className="pointer-events-auto absolute rounded-full rounded-bl-xs bg-background p-0.5 shadow-(--shadow-overlay)"
         >
@@ -134,16 +125,10 @@ function Pin(props: { pin: PdfPin; selected: boolean; onSelect: (() => void) | u
   );
 }
 
-/**
- * The comment bar beside the box: up and to the right of it, moved left where the stage around
- * the page or image runs out (kept 8px inside it), and under the box when there is not room for
- * it above. Always its full width, so a small image still gets a bar to type in.
- */
 function AtBox(props: { box: PdfBox; children: ReactNode }) {
   const { box } = props;
   const ref = useRef<HTMLDivElement>(null);
   const [below, setBelow] = useState(box.y < 0.12);
-  // Moved sideways, in px, so it stays inside the stage around the page or image.
   const [shift, setShift] = useState(0);
   useLayoutEffect(() => {
     const bar = ref.current;
@@ -151,8 +136,6 @@ function AtBox(props: { box: PdfBox; children: ReactNode }) {
     if (!bar || !page) return;
     const stage = bar.closest<HTMLElement>("[data-preview-stage]") ?? page;
     const place = () => {
-      // Over the box while the bar, as tall as it is now (it grows as the text wraps), fits
-      // above it on the page; under it otherwise.
       setBelow(box.y * page.clientHeight < bar.offsetHeight + 16);
       const room = stage.getBoundingClientRect();
       const at = bar.getBoundingClientRect();
@@ -194,7 +177,6 @@ const place = (box: PdfBox) => ({
   height: `${box.height * 100}%`,
 });
 
-/** Where the pointer is on the layer, in fractions of it. */
 function point(event: PointerEvent<HTMLDivElement>) {
   const rect = event.currentTarget.getBoundingClientRect();
   return {
@@ -203,7 +185,6 @@ function point(event: PointerEvent<HTMLDivElement>) {
   };
 }
 
-/** Takes one drag and reports its box; the box follows the pointer while it is held. */
 function DrawLayer(props: { page: number; onDraw: (box: PdfBox) => void }) {
   const start = useRef<{ x: number; y: number } | null>(null);
   const [box, setBox] = useState<PdfBox | null>(null);

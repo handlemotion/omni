@@ -1,6 +1,3 @@
-// Opt-in eval against the real APIs: `pnpm --filter @omni/ai eval`. Never part of `test` or CI.
-// Runs the synthetic threads through Jev and Claude side by side, for whichever keys are set
-// (TYPESAFE_API_KEY, ANTHROPIC_API_KEY). Costs a few cents per run; sends only `threads.ts`.
 /* oxlint-disable no-console -- a CLI report */
 import Anthropic from "@anthropic-ai/sdk";
 import { createJevClient, laneFor, triage, type TriageClient } from "../src/index.ts";

@@ -1,8 +1,3 @@
-// `MailStore` and `ActionSource` on Postgres through `@omni/db`. The store turns each fetched
-// message into the index: raw bytes, sanitized HTML and attachments to the object store, then
-// parse, thread, clean, upsert. A message is one row per Message-ID in
-// its mailbox; each IMAP copy of it is a location, so re-syncs, moves, UIDVALIDITY resets and
-// restarts converge on the same rows.
 import { actionPayloadSchemas } from "@omni/contracts";
 import {
   addLocation,
@@ -77,7 +72,6 @@ import { MissingFileError } from "./ports.ts";
 type StoredRole = (typeof schema.mailboxFolders.$inferSelect)["role"];
 const storedRole = (role: FolderRole) => role satisfies StoredRole;
 
-/** Subject threading only looks this far back; `decideThread` applies the exact window. */
 const SUBJECT_LOOKBACK_MS = 31 * 24 * 60 * 60 * 1000;
 
 interface MailboxRow {
@@ -140,7 +134,6 @@ export class PgMailStore implements MailStore {
   private readonly onDiscarded: (discarded: PrunedThreads) => void;
   private readonly onChanged: () => void;
   private readonly mailboxes = new Map<string, MailboxRow>();
-  /** The tail of each mailbox's thread-and-insert chain (see `oneAtATime`). */
   private readonly inserting = new Map<string, Promise<void>>();
 
   constructor(options: PgMailStoreOptions) {
@@ -211,8 +204,6 @@ export class PgMailStore implements MailStore {
     parsed: Parsed,
   ) {
     const { message } = parsed;
-    // A copy of a message we already indexed (moved, or filed in two folders): record where it
-    // is and stop. Parsing again is cheap; re-threading and re-notifying would not be.
     let stored = await findMessageByHeader(this.db, mailboxId, message.messageId);
     let inserted = false;
     if (!stored) {
@@ -220,15 +211,11 @@ export class PgMailStore implements MailStore {
       stored = { id: result.id, threadId: result.threadId };
       inserted = result.inserted;
     } else {
-      // Already indexed: a re-sync brings its List-Unsubscribe up to date (rows stored before
-      // the columns existed have none).
       await refreshListUnsubscribe(this.db, stored.id, {
         listUnsubscribe: message.signals.listUnsubscribe,
         listUnsubscribeOneClick: message.signals.listUnsubscribeOneClick,
       });
       if (fetched.providerThreadId) {
-        // Indexed before Gmail's copy arrived (our own send, stored as SMTP accepted it): the
-        // message's thread takes Gmail's id, or the message moves to the thread that has it.
         const providerThreadId = fetched.providerThreadId;
         const found = stored;
         await this.oneAtATime(mailboxId, () =>
@@ -240,7 +227,6 @@ export class PgMailStore implements MailStore {
       }
     }
 
-    // Before the location: a retry after a failure here finds no location and queues again.
     await enqueueForwardCopies(this.db, { mailboxId, messageId: stored.id, role: folder.role });
     const created = await addLocation(this.db, {
       orgId: mailbox.orgId,
@@ -252,7 +238,6 @@ export class PgMailStore implements MailStore {
       modseq: fetched.modseq,
       report: !inserted,
     });
-    // Another copy of a known message: a move in another mail app may have (un)archived it.
     if (created && !inserted) this.onChanged();
     if (inserted) {
       this.onIngested({
@@ -282,7 +267,6 @@ export class PgMailStore implements MailStore {
       parsed,
       threadId,
     );
-    // Missed on a failure, it is queued again when the Sent copy is stored.
     await enqueueForwardCopies(this.db, { mailboxId, messageId: result.id, role: "sent" });
     if (result.inserted) {
       this.onIngested({
@@ -347,7 +331,6 @@ export class PgMailStore implements MailStore {
     knownThreadId: string | null = null,
   ) {
     const { message } = parsed;
-    // Objects first: a row never points at an object that is not there.
     const prefix = `${mailbox.orgId}/${mailboxId}`;
     const rawHash = isSpooled(fetched.raw) ? fetched.raw.sha256 : sha256(fetched.raw);
     const r2Key = `${prefix}/raw/${rawHash}.eml`;
@@ -383,8 +366,6 @@ export class PgMailStore implements MailStore {
 
     const sentAt = message.sentAt ?? fetched.internalDate ?? new Date();
     const { cleanText, forwarded } = cleanMessage(message);
-    // One insert per mailbox at a time: an outbox send and an IMAP sync running together would
-    // otherwise both miss each other's row when matching a thread, and split one conversation.
     return this.oneAtATime(mailboxId, async () => {
       const threadId =
         knownThreadId ??
@@ -411,9 +392,7 @@ export class PgMailStore implements MailStore {
         remoteImageCount,
         listUnsubscribe: message.signals.listUnsubscribe,
         listUnsubscribeOneClick: message.signals.listUnsubscribeOneClick,
-        // Bounces and auto-replies never reopen a conversation or start an SLA (ADR 0021).
         automated: parsed.message.automated !== null,
-        // Cleared once the Worker accepts `message.created`; until then the sweep re-sends it.
         notifyPending: true,
         attachments: files.map((f) => ({
           filename: f.meta.filename ?? "attachment",
@@ -468,7 +447,6 @@ export class PgMailStore implements MailStore {
     sentAt: Date,
     providerThreadId?: string,
   ) {
-    // Gmail's thread wins: the conversation is the one Gmail shows (ADR 0023).
     if (providerThreadId) {
       const known = await findThreadByProviderId(this.db, mailboxId, providerThreadId);
       if (known) return known satisfies string;
@@ -477,7 +455,6 @@ export class PgMailStore implements MailStore {
       (id): id is string => id !== null,
     );
     const knownMessageIds = await threadsByMessageIds(this.db, mailboxId, replyIds);
-    // No known parent: a stored reply to this message (or to its parent) may have come first.
     const relatedThreadId =
       knownMessageIds.size === 0
         ? await threadReferencing(this.db, mailboxId, [message.messageId, ...replyIds])
@@ -496,8 +473,6 @@ export class PgMailStore implements MailStore {
       { knownMessageIds, candidates, selfAddresses: [mailbox.address], relatedThreadId },
     );
     if (decision.kind === "headers" && !providerThreadId) {
-      // A reply stored before this message started its own thread: this message links it to
-      // the thread it joins, so the two are one conversation again.
       const linked = new Set([
         decision.threadId,
         ...knownMessageIds.values(),
@@ -512,8 +487,6 @@ export class PgMailStore implements MailStore {
       }
     }
     if (decision.kind !== "new") {
-      // A thread started before Gmail's id was known (our own send, indexed before its Sent copy)
-      // takes this id; one that already belongs to another Gmail thread is not this conversation.
       if (!providerThreadId) return decision.threadId satisfies string;
       if (await claimProviderThread(this.db, decision.threadId, providerThreadId)) {
         return decision.threadId satisfies string;
@@ -544,13 +517,11 @@ export class PgMailStore implements MailStore {
   }
 }
 
-/** A parsed message and its attachments' content, in memory or spooled to temp files. */
 interface Parsed {
   message: ParsedMessage;
   attachments: (Uint8Array | SpooledFile)[];
 }
 
-/** A spooled message is parsed from its file, and its attachments spool too. */
 const parse: (raw: Uint8Array | SpooledFile) => Promise<Parsed> = async (raw) => {
   if (!isSpooled(raw)) {
     const { message, attachmentContents } = await parseMessage(raw);
@@ -564,7 +535,6 @@ const parse: (raw: Uint8Array | SpooledFile) => Promise<Parsed> = async (raw) =>
         attachments[index] = await spool(content);
       },
     );
-    // The MIME-limit fallback keeps no attachments; drop any spooled before it gave up.
     const kept = attachments.slice(0, message.attachments.length);
     await Promise.all(attachments.slice(kept.length).map((file) => discard(file.path)));
     return { message, attachments: kept };
@@ -606,7 +576,6 @@ export class PgActionSource implements ActionSource {
     for (const row of rows) {
       const payload = actionPayloadSchemas[row.kind].safeParse(row.payload);
       if (!payload.success) {
-        // Retrying cannot fix a malformed payload: show it as failed now.
         await this.fail(row.id, `invalid payload: ${payload.error.message}`, null);
         continue;
       }

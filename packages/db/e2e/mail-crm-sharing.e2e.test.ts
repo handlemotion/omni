@@ -1,5 +1,3 @@
-// Mail activity sharing (ADR 0039 decision 2) at Mail's door: who may set a mailbox's level, and
-// what `sharedActivityWith` shows a teammate who cannot open the mailbox, at each level.
 import { and, eq } from "drizzle-orm";
 import { afterAll, expect, test } from "vitest";
 import { forMember } from "../src/for-member.ts";
@@ -12,7 +10,6 @@ const { db, teardown } = await createTestDatabase();
 afterAll(teardown);
 
 let clock = Date.parse("2026-10-01T00:00:00Z");
-/** One message in a new thread (or in `threadId`), each later than the last. */
 async function mail(
   orgId: string,
   mailboxId: string,
@@ -40,7 +37,6 @@ async function role(memberId: string, value: "owner" | "admin" | "member") {
   await db.update(members).set({ role: value }).where(eq(members.id, memberId));
 }
 
-/** A personal mailbox owned by `ownerId`, as provisioning leaves it. */
 async function personalMailbox(orgId: string, ownerId: string, address: string) {
   const [box] = await db
     .insert(mailboxes)
@@ -57,7 +53,6 @@ const ok = <R extends { status: string }>(result: R) => {
   return result as Extract<R, { status: "ok" }>;
 };
 
-/** A company with Ana (owner of a personal mailbox that wrote to a client), Bea and an admin. */
 async function company(slug: string) {
   const org = await createOrg(db, `${slug}-${Date.now()}`);
   const ana = await createMember(db, org.id, "Ana Lima");
@@ -81,8 +76,6 @@ async function company(slug: string) {
 
 const query = { addresses: ["Cy@Client.test"] };
 
-// Catches: a teammate shown another member's correspondence that was never shared (the default
-// read as on, or the level ignored), and the level not taking effect on the next read.
 test("off by default shows a teammate nothing; activity shows who and when; subjects adds the subject; off hides it again", async () => {
   const { org, ana, bea, box, lastAt } = await company("share-levels");
   const beaMail = forMember(db, bea.id);
@@ -100,7 +93,6 @@ test("off by default shows a teammate nothing; activity shows who and when; subj
       subject: null,
     },
   ]);
-  // The whole company too: a domain finds the same thread.
   expect(await beaMail.sharedActivityWith({ domains: ["client.test"] })).toEqual(seen);
 
   ok(await forMember(db, ana.id).setCrmSharing(box.id, "subjects"));
@@ -117,8 +109,6 @@ test("off by default shows a teammate nothing; activity shows who and when; subj
   expect(row).toMatchObject({ orgId: org.id, level: "off", updatedByMemberId: ana.id });
 });
 
-// Catches: a thread the member can open answered twice (as a thread and as activity), and the
-// owner's own mail reported to them as someone else's activity.
 test("a member who can open the mailbox gets nothing from it here: its threads come from threadsWith", async () => {
   const { org, ana, bea, threadId } = await company("share-own");
   const inbox = await createMailbox(db, org.id, `support-${Date.now()}@team.test`);
@@ -135,8 +125,6 @@ test("a member who can open the mailbox gets nothing from it here: its threads c
   expect((await forMember(db, bea.id).threadsWith(query)).map((t) => t.id)).toEqual([
     shared.threadId,
   ]);
-  // Ana is not on the inbox: she sees it as activity, under the inbox's name, and her own mail
-  // only as threads.
   const anas = await forMember(db, ana.id).sharedActivityWith(query);
   expect(anas).toMatchObject([
     { mailbox: { kind: "shared", name: inbox.address }, direction: "in", subject: "Ticket" },
@@ -144,9 +132,6 @@ test("a member who can open the mailbox gets nothing from it here: its threads c
   expect((await forMember(db, ana.id).threadsWith(query)).map((t) => t.id)).toEqual([threadId]);
 });
 
-// Catches: an admin turning on sharing for a teammate's personal mailbox (ADR 0039: its owner and
-// nobody else), a plain member changing a shared inbox's, and a mailbox of another workspace
-// reached by id.
 test("only a personal mailbox's owner sets it; a shared inbox's owners and admins; nobody from another workspace", async () => {
   const { ana, bea, admin, box, org } = await company("share-who");
   expect(await forMember(db, admin.id).setCrmSharing(box.id, "subjects")).toEqual({
@@ -178,8 +163,6 @@ test("only a personal mailbox's owner sets it; a shared inbox's owners and admin
   expect(ok(await forMember(db, ana.id).setCrmSharing(box.id, "activity")).level).toBe("activity");
 });
 
-// Catches: the read not pinned to the member's workspace, so a company's shared activity reaches
-// members of another company that wrote to the same client.
 test("another workspace never sees a company's shared activity", async () => {
   const { ana, box } = await company("share-cross");
   ok(await forMember(db, ana.id).setCrmSharing(box.id, "subjects"));
@@ -191,8 +174,6 @@ test("another workspace never sees a company's shared activity", async () => {
   );
 });
 
-// Catches: a Personal space's mailbox shared into a company the same person belongs to, and a
-// Personal space that accepts a level it can never use.
 test("a Personal space shares nothing", async () => {
   const { org, ana } = await company("share-personal");
   const personalOrg = await ensurePersonalSpace(db, ana.userId);
@@ -205,7 +186,6 @@ test("a Personal space shares nothing", async () => {
   expect(await forMember(db, inPersonal!.id).setCrmSharing(gmail.id, "subjects")).toEqual({
     status: "no_crm",
   });
-  // Even a row written behind the door's back shares nothing, there or in the company.
   await db
     .insert(mailboxCrmSharing)
     .values({ mailboxId: gmail.id, orgId: personalOrg, level: "subjects" });
@@ -214,8 +194,6 @@ test("a Personal space shares nothing", async () => {
   expect(await forMember(db, inPersonal!.id).sharedActivityWith(query)).toEqual([]);
 });
 
-// Catches: the thread id (or its url, snippet or body) leaking through an item, a key that
-// changes between reads (a cursor that skips or repeats), and a page cut that loses items.
 test("nothing in an item names the thread, and the key pages stably, newest first", async () => {
   const { org, ana, bea, box, threadId } = await company("share-opaque");
   const later = await mail(org.id, box.id, {
