@@ -16,6 +16,11 @@ export const notificationKind = pgEnum("notification_kind", [
   "note",
   /** Someone joined your workspace; no thread. `actor_member_id` is the new member. */
   "member_joined",
+  /**
+   * Someone commented on a file you own or on a comment thread you take part in (ADR 0043
+   * decision 4); no thread. `data` names the file and the comment.
+   */
+  "comment",
 ]);
 
 export const theme = pgEnum("theme", ["system", "light", "dark"]);

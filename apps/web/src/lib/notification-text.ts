@@ -13,6 +13,7 @@ const DONE_BY: Partial<Record<Notification["kind"], string>> = {
   mention: "mentioned you",
   note: "left a note",
   member_joined: "joined the workspace",
+  comment: "commented",
 };
 
 /** What happened when nobody did it, or we no longer know who. */
@@ -24,6 +25,7 @@ const HAPPENED: Record<Notification["kind"], string> = {
   sla_at_risk: "Due soon",
   sla_breached: "Overdue",
   member_joined: "Someone joined the workspace",
+  comment: "New comment",
 };
 
 /** The line's parts: the actor (when someone did it) and what happened. */
@@ -39,8 +41,39 @@ export function notificationTitle(n: Pick<Notification, "kind" | "actor">) {
   return actor ? `${actor} ${action}` : action;
 }
 
-/** What it is about: the conversation's subject, or nothing for a workspace notification. */
-export function notificationSubject(n: Pick<Notification, "threadId" | "subject">) {
+/** Where a comment notification leads: the file and the folder holding it (ADR 0043). */
+export interface CommentTarget {
+  nodeId: string;
+  nodeName: string;
+  space: "personal" | "shared";
+  folderId: string | null;
+  excerpt: string;
+}
+
+/** A comment notification's file, or undefined for any other kind (or a malformed one). */
+export function commentTarget(n: Pick<Notification, "kind" | "data">): CommentTarget | undefined {
+  if (n.kind !== "comment") return undefined;
+  const d = n.data as Partial<CommentTarget>;
+  if (typeof d.nodeId !== "string" || (d.space !== "personal" && d.space !== "shared")) return;
+  return {
+    nodeId: d.nodeId,
+    nodeName: typeof d.nodeName === "string" ? d.nodeName : "",
+    space: d.space,
+    folderId: typeof d.folderId === "string" ? d.folderId : null,
+    excerpt: typeof d.excerpt === "string" ? d.excerpt : "",
+  };
+}
+
+/**
+ * What it is about: the conversation's subject; for a comment, the file and its first words;
+ * nothing for a workspace notification.
+ */
+export function notificationSubject(
+  n: Pick<Notification, "threadId" | "subject" | "kind" | "data">,
+) {
+  const comment = commentTarget(n);
+  if (comment)
+    return comment.excerpt ? `${comment.nodeName}: ${comment.excerpt}` : comment.nodeName;
   if (!n.threadId) return undefined;
   return n.subject || "(no subject)";
 }
