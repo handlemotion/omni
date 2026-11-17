@@ -24,9 +24,6 @@ import { SidebarIsland } from "./sidebar-island";
 import {
   Sidebar,
   SidebarContent,
-  SidebarDisclosure,
-  SidebarDisclosurePanel,
-  SidebarDisclosureTrigger,
   SidebarFooter,
   SidebarItem,
   SidebarLabel,
@@ -182,14 +179,12 @@ function withMailbox(href: string, mailbox: string | undefined) {
   return `${href}${href.includes("?") ? "&" : "?"}mailbox=${encodeURIComponent(mailbox)}`;
 }
 
+/** A titled run of rows. The title is a plain label: the group always shows its rows. */
 function Group(props: { label: string; items: NavItem[]; mailbox: string | undefined }) {
   return (
-    <SidebarDisclosure defaultExpanded>
-      <SidebarDisclosureTrigger>{props.label}</SidebarDisclosureTrigger>
-      <SidebarDisclosurePanel>
-        <Items items={props.items} mailbox={props.mailbox} />
-      </SidebarDisclosurePanel>
-    </SidebarDisclosure>
+    <SidebarSection label={props.label}>
+      <Items items={props.items} mailbox={props.mailbox} />
+    </SidebarSection>
   );
 }
 
