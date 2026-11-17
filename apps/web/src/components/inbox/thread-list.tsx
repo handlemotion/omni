@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/empty/empty-state";
 import { ThreadListEmpty } from "@/components/inbox/list-empty";
 import { FloatingCompose } from "@/components/compose/floating-actions";
 import { IconPencil } from "@/components/icons/central";
-import { SearchPopover } from "@/components/search/search-popover";
+import { SearchTrigger } from "@/components/search/search-trigger";
 import { Button } from "@/components/ui/button";
 import { FluidHoverHighlight } from "@/components/ui/fluid-hover-highlight";
 import { GridList, GridListSection } from "@/components/ui/grid-list";
@@ -268,7 +268,7 @@ export function List(
             )}
             <div className="flex min-w-0 items-center gap-1 *:shrink-0 *:data-[search-field]:shrink">
               {/* Mail's search field (and `/`): the page holds it, not the sidebar. */}
-              <SearchPopover />
+              <SearchTrigger />
               <MarkAllRead rows={threads} />
               <ReloadAction />
               {/* With no thread open, Compose floats at the list's foot instead. */}

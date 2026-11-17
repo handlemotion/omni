@@ -6,7 +6,7 @@ import { useSearch } from "../../../../hooks/use-mail.ts";
 import { searchQuery } from "../../../../lib/mail-queries.ts";
 import { searchSearch } from "../../../../lib/search-params.ts";
 
-// Smart search results (`?q=`) in the same list as the inbox; the search popover opens it.
+// Smart search results (`?q=`) in the same list as the inbox; the command menu opens it.
 export const Route = createFileRoute("/_authed/$workspace/mail/search")({
   validateSearch: searchSearch,
   loaderDeps: ({ search }) => search,

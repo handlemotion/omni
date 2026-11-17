@@ -21,7 +21,7 @@ export interface ShortcutDefinition {
   group: "Threads" | "Go to" | "General";
   /** Alternatives; the first is the one shown. */
   keys: readonly KeySequence[];
-  /** A command row in the search popover's ⌘K list (moving the cursor makes no sense there). */
+  /** A command row in the ⌘K command menu (moving the cursor makes no sense there). */
   command?: boolean;
 }
 
@@ -54,8 +54,7 @@ export const SHORTCUTS = {
     keys: [["c"], ...inDesktop(["Mod+n"])],
     command: true,
   },
-  // Bound by the title-bar search popover, which listens for them itself; listed here so `?`
-  // shows them. Nothing registers a handler, so the shared listener leaves them alone.
+  // Bound by the command menu (`components/search/command-menu.tsx`).
   search: { label: "Search", group: "General", keys: [["/"]] },
   commandMenu: { label: "Search and commands", group: "General", keys: [["Mod+k"]] },
   help: { label: "Keyboard shortcuts", group: "General", keys: [["?"]], command: true },
@@ -82,7 +81,7 @@ export const SHORTCUT_IDS = (Object.keys(SHORTCUTS) as ShortcutId[]).filter(
 );
 
 /**
- * The shortcuts that are also commands, in display order. The search popover renders these as
+ * The shortcuts that are also commands, in display order. The command menu renders these as
  * its command rows: offer the ones in `useAvailableShortcuts()`, run one with `runShortcut(id)`.
  */
 export const COMMAND_IDS = SHORTCUT_IDS.filter((id) => "command" in SHORTCUTS[id]);

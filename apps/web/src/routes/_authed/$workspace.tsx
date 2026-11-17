@@ -6,6 +6,7 @@ import { ListSweepProvider } from "../../components/inbox/list-sweep.tsx";
 import { SettingsNav } from "../../components/settings/settings-nav.tsx";
 import { AppSidebar } from "../../components/shell/app-sidebar.tsx";
 import { TitleBar } from "../../components/shell/title-bar.tsx";
+import { CommandMenu } from "../../components/search/command-menu.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
 import { NotificationsPanel } from "../../components/shell/notifications.tsx";
 import {
@@ -106,6 +107,8 @@ function Shell() {
         {/* Settings is a page: its nav takes the sidebar's place. */}
         {settings ? <SettingsNav /> : <AppSidebar />}
         <NotificationsPanel />
+        {/* `/` and ⌘K. Inside the sweep: its smart search sweeps the list. */}
+        <CommandMenu />
         {/* Starts after the closed sidebar's island, while it shows. */}
         <SidebarInset className="ps-(--sidebar-island-width)">
           <SidebarResizeGrip />

@@ -3,7 +3,7 @@
 // going follows as a tertiary (outline) button.
 import { useNavigate } from "@tanstack/react-router";
 import { EmptyState } from "@/components/empty/empty-state";
-import { openSearch } from "@/components/search/search-popover";
+import { openSearch } from "@/components/search/command-menu";
 import { Button } from "@/components/ui/button";
 import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
 import type { ConversationFilter, HelpdeskView, ThreadFilter, ThreadView } from "@/lib/types.ts";

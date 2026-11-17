@@ -15,7 +15,7 @@ import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
 /**
  * The app-wide keys: compose, go-to and `?`. List keys live on the thread list; `/` and ⌘K
- * belong to the title-bar search popover. Mounted once by the member shell.
+ * belong to the command menu. Mounted once by the member shell.
  */
 export function KeyboardShortcuts() {
   const navigate = useNavigate();
