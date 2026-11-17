@@ -8,14 +8,20 @@ import {
 } from "@/components/ui/description-list";
 import { Dialog, DialogBody, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useOpenCompose } from "@/hooks/use-compose-pane.ts";
-import { useAnnouncement, useShortcut, useShortcutListener } from "@/hooks/use-shortcuts.ts";
+import {
+  useAnnouncement,
+  useAvailableShortcuts,
+  useShortcut,
+  useShortcutListener,
+} from "@/hooks/use-shortcuts.ts";
 import { keyLabel, SHORTCUT_IDS, SHORTCUTS, type KeySequence } from "@/lib/shortcuts.ts";
 import { useOpenModule } from "./module-switcher";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
 /**
- * The app-wide keys: compose, go-to and `?`. List keys live on the thread list; `/` and ⌘K
- * belong to the command menu. Mounted once by the member shell.
+ * The shell's keys: compose (Mail's only, see `place` in `lib/shortcuts.ts`), go-to and `?`. List
+ * keys live on the thread list; `/` and ⌘K belong to the command menu. Mounted once by the
+ * member shell.
  */
 export function KeyboardShortcuts() {
   const navigate = useNavigate();
@@ -46,8 +52,9 @@ export function KeyboardShortcuts() {
 }
 
 // Layout not in Figma yet: the Dialog and DescriptionList primitives as they are, one row per
-// shortcut in definition order.
+// shortcut in definition order. Like the ⌘K menu, it lists only the keys that work here.
 function ShortcutList(props: { isOpen: boolean; onOpenChange: (open: boolean) => void }) {
+  const available = useAvailableShortcuts();
   return (
     <Dialog isOpen={props.isOpen} onOpenChange={props.onOpenChange} size="md">
       <DialogHeader>
@@ -55,7 +62,7 @@ function ShortcutList(props: { isOpen: boolean; onOpenChange: (open: boolean) =>
       </DialogHeader>
       <DialogBody>
         <DescriptionList>
-          {SHORTCUT_IDS.map((id) => (
+          {SHORTCUT_IDS.filter((id) => available.has(id)).map((id) => (
             <Fragment key={id}>
               <DescriptionTerm>{SHORTCUTS[id].label}</DescriptionTerm>
               <DescriptionDetails>

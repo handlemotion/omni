@@ -16,9 +16,17 @@ export type KeySequence = readonly string[];
 const inDesktop = (...keys: KeySequence[]): KeySequence[] => (desktop.isDesktop ? keys : []);
 const onWindows = desktop.platform === "windows";
 
+/**
+ * Where a shortcut works: inside one module (`mail`, `files`, `crm`) or on the settings pages. A
+ * shortcut with no place works everywhere (go-to, ⌘K, `?`). See `useShortcut`.
+ */
+export type ShortcutPlace = "mail" | "files" | "crm" | "settings";
+
 export interface ShortcutDefinition {
   label: string;
   group: "Threads" | "Go to" | "General";
+  /** The one place this key works; anywhere when left out. */
+  place?: ShortcutPlace;
   /** Alternatives; the first is the one shown. */
   keys: readonly KeySequence[];
   /** A command row in the ⌘K command menu (moving the cursor makes no sense there). */
@@ -26,23 +34,64 @@ export interface ShortcutDefinition {
 }
 
 export const SHORTCUTS = {
-  next: { label: "Next thread", group: "Threads", keys: [["j"], ["ArrowDown"]] },
-  previous: { label: "Previous thread", group: "Threads", keys: [["k"], ["ArrowUp"]] },
-  open: { label: "Open thread", group: "Threads", keys: [["o"], ["Enter"]] },
-  select: { label: "Select thread", group: "Threads", keys: [["x"]] },
-  done: { label: "Mark done", group: "Threads", keys: [["e"]], command: true },
-  later: { label: "Move to Later", group: "Threads", keys: [["h"]], command: true },
-  read: { label: "Mark read or unread", group: "Threads", keys: [["u"]], command: true },
-  close: { label: "Close thread", group: "Threads", keys: [["Escape"]], command: true },
+  next: { label: "Next thread", group: "Threads", place: "mail", keys: [["j"], ["ArrowDown"]] },
+  previous: {
+    label: "Previous thread",
+    group: "Threads",
+    place: "mail",
+    keys: [["k"], ["ArrowUp"]],
+  },
+  open: { label: "Open thread", group: "Threads", place: "mail", keys: [["o"], ["Enter"]] },
+  select: { label: "Select thread", group: "Threads", place: "mail", keys: [["x"]] },
+  done: { label: "Mark done", group: "Threads", place: "mail", keys: [["e"]], command: true },
+  later: { label: "Move to Later", group: "Threads", place: "mail", keys: [["h"]], command: true },
+  read: {
+    label: "Mark read or unread",
+    group: "Threads",
+    place: "mail",
+    keys: [["u"]],
+    command: true,
+  },
+  close: {
+    label: "Close thread",
+    group: "Threads",
+    place: "mail",
+    keys: [["Escape"]],
+    command: true,
+  },
   // Helpdesk conversations (shared inboxes). Resolve and snooze take the keys of done and later,
   // which they replace there: a screen binds one or the other, and the key runs whichever is bound.
-  reply: { label: "Reply", group: "Threads", keys: [["r"]], command: true },
-  note: { label: "Add internal note", group: "Threads", keys: [["n"]], command: true },
-  assignToMe: { label: "Assign to me", group: "Threads", keys: [["i"]], command: true },
-  resolve: { label: "Resolve or reopen", group: "Threads", keys: [["e"]], command: true },
-  snooze: { label: "Snooze", group: "Threads", keys: [["h"]], command: true },
+  reply: { label: "Reply", group: "Threads", place: "mail", keys: [["r"]], command: true },
+  note: {
+    label: "Add internal note",
+    group: "Threads",
+    place: "mail",
+    keys: [["n"]],
+    command: true,
+  },
+  assignToMe: {
+    label: "Assign to me",
+    group: "Threads",
+    place: "mail",
+    keys: [["i"]],
+    command: true,
+  },
+  resolve: {
+    label: "Resolve or reopen",
+    group: "Threads",
+    place: "mail",
+    keys: [["e"]],
+    command: true,
+  },
+  snooze: { label: "Snooze", group: "Threads", place: "mail", keys: [["h"]], command: true },
   // A chord, so it works while typing in the composer, where the picker is used.
-  cannedReply: { label: "Insert canned reply", group: "Threads", keys: [["Mod+/"]], command: true },
+  cannedReply: {
+    label: "Insert canned reply",
+    group: "Threads",
+    place: "mail",
+    keys: [["Mod+/"]],
+    command: true,
+  },
   undo: { label: "Undo", group: "General", keys: [["z"]], command: true },
   goInbox: { label: "Inbox", group: "Go to", keys: [["g", "i"]], command: true },
   goLater: { label: "Later", group: "Go to", keys: [["g", "l"]], command: true },
@@ -51,6 +100,7 @@ export const SHORTCUTS = {
   compose: {
     label: "Compose",
     group: "General",
+    place: "mail",
     keys: [["c"], ...inDesktop(["Mod+n"])],
     command: true,
   },
@@ -74,6 +124,19 @@ export const SHORTCUTS = {
 } as const satisfies Record<string, ShortcutDefinition>;
 
 export type ShortcutId = keyof typeof SHORTCUTS;
+
+/**
+ * The place a path is in. Paths are `/<workspace>/<place>/…` (ADR 0043); every shell path that is
+ * not Drive's, the CRM's or settings' is Mail's, as the module switcher reads it (`moduleOf`).
+ */
+export function placeOf(pathname: string): ShortcutPlace {
+  const place = pathname.split("/")[2];
+  return place === "files" || place === "crm" || place === "settings" ? place : "mail";
+}
+
+/** The place shortcut `id` is bound to, or undefined when it works everywhere. */
+export const shortcutPlace = (id: ShortcutId): ShortcutPlace | undefined =>
+  (SHORTCUTS[id] as ShortcutDefinition).place;
 
 /** Every shortcut with a key here: the desktop app's own are left out in a browser. */
 export const SHORTCUT_IDS = (Object.keys(SHORTCUTS) as ShortcutId[]).filter(

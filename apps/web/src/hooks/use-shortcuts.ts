@@ -1,8 +1,15 @@
 // Runs keyboard shortcuts. `lib/shortcuts.ts` says which keys mean what; components say what
 // each one does where they are (`useShortcut`). The shell mounts one key listener
 // (`useShortcutListener`); the ⌘K menu runs the same handlers (`runShortcut`).
+import { useLocation } from "@tanstack/react-router";
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { createMatcher, eventKey, type ShortcutId } from "../lib/shortcuts.ts";
+import {
+  createMatcher,
+  eventKey,
+  placeOf,
+  shortcutPlace,
+  type ShortcutId,
+} from "../lib/shortcuts.ts";
 
 // The most recently mounted handler for an id wins, so a nested screen can take over a key.
 const handlers = new Map<ShortcutId, (() => void)[]>();
@@ -14,14 +21,21 @@ function changed() {
   for (const notify of subscribers) notify();
 }
 
-/** Binds `run` to shortcut `id` while the component is mounted and `enabled`. */
+/**
+ * Binds `run` to shortcut `id` while the component is mounted and `enabled`, and only while the
+ * app is in the shortcut's place (`SHORTCUTS[id].place`): a shell-wide binding of a Mail key does
+ * nothing in Drive, and neither the ⌘K menu nor `?` offers it there.
+ */
 export function useShortcut(id: ShortcutId, run: () => void, enabled = true) {
+  const place = shortcutPlace(id);
+  const here = useLocation({ select: (location) => placeOf(location.pathname) });
+  const on = enabled && (!place || place === here);
   const latest = useRef(run);
   useEffect(() => {
     latest.current = run;
   });
   useEffect(() => {
-    if (!enabled) return;
+    if (!on) return;
     const handler = () => latest.current();
     handlers.set(id, [...(handlers.get(id) ?? []), handler]);
     changed();
@@ -32,7 +46,7 @@ export function useShortcut(id: ShortcutId, run: () => void, enabled = true) {
       );
       changed();
     };
-  }, [id, enabled]);
+  }, [id, on]);
 }
 
 /** Runs the shortcut's current handler. False when nothing on screen handles it. */
