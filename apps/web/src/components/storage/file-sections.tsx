@@ -334,7 +334,7 @@ function FileRow(props: {
 }
 
 /** One hover highlight springs between the rows (mail's `RowHover`). */
-function RowHover({ children }: { children: ReactNode }) {
+export function RowHover({ children }: { children: ReactNode }) {
   const hover = useFluidHoverList({
     itemSelector: "[role='row']",
     highlightedSelector: "[data-focus-visible]",
@@ -362,7 +362,7 @@ function useRevealDraft(naming: string | undefined) {
 }
 
 /** Rows are 48px, as `FileRow` draws them. */
-const ROWS_LAYOUT = { rowSize: 48, loaderSize: 0 };
+export const ROWS_LAYOUT = { rowSize: 48, loaderSize: 0 };
 
 /** Asks for the folder's next page when this nears the screen (two screens ahead). */
 function LoadMore(props: { onLoadMore: () => void }) {

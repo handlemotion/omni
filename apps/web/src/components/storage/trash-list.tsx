@@ -10,14 +10,11 @@ import { Heading } from "@/components/ui/heading";
 import { useRestoreNode, useStorageTrash } from "@/hooks/use-storage.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import { DeleteForeverDialog } from "./file-dialogs.tsx";
-import { FileTableBones } from "./file-table.tsx";
 import { NodeMenu } from "./node-menu.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 import { StorageFrame } from "./storage-frame.tsx";
+import { TrashRows, TrashRowsBones } from "./trash-rows.tsx";
 import { UploadsPanel } from "./uploads-panel.tsx";
-import { VirtualFileTable } from "./virtual-file-table.tsx";
-
-const DELETED = { title: "Deleted", of: (node: StorageNode) => node.trashedAt };
 
 export function TrashList() {
   const trash = useStorageTrash();
@@ -49,7 +46,7 @@ export function TrashList() {
     >
       <div className="min-h-0 flex-1 overflow-y-auto">
         {trash.isPending ? (
-          <Skeleton loading label="Loading Trash" skeleton={<FileTableBones />}>
+          <Skeleton loading label="Loading Trash" skeleton={<TrashRowsBones />}>
             {null}
           </Skeleton>
         ) : trash.isError ? (
@@ -66,10 +63,9 @@ export function TrashList() {
           </div>
         ) : (
           <NodeMenu nodes={trash.nodes} menu={menu}>
-            <VirtualFileTable
+            <TrashRows
               label="Trash"
               nodes={trash.nodes}
-              date={DELETED}
               menu={menu}
               loadMore={trash.hasNextPage ? loadMore : undefined}
               isLoadingMore={trash.isFetchingNextPage}
