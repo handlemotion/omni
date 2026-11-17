@@ -105,3 +105,15 @@ export const deleteCommentMutation = (client: QueryClient) =>
     },
     onSuccess: (_answer, { id }) => refetch(client, id),
   });
+
+/**
+ * Where a file is now, for a notification about it: it may have moved since, so it is always
+ * asked afresh (`staleTime: 0`).
+ */
+export const storageNodeQuery = (id: string) =>
+  queryOptions({
+    queryKey: keys.storageNode(id),
+    queryFn: ({ signal }) =>
+      call(api.storage.nodes[":id"].$get({ param: { id } }, { init: { signal } })),
+    staleTime: 0,
+  });

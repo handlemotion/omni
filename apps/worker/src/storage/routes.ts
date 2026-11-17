@@ -87,6 +87,12 @@ export const storageReads = new Hono<AppEnv>()
 
 export const storage = new Hono<AppEnv>()
   .route("/", storageReads)
+  /** One node the member reaches, where it is now: a notification about it opens its folder. */
+  .get("/nodes/:id", async (c) => {
+    const view = await memberStorage(c).node(c.req.param("id"));
+    if (!view || view.inTrash) return refused(c, "not_found");
+    return c.json({ node: wireNode(view.node) } satisfies StorageNodeResponse);
+  })
 
   .post("/nodes/:id/restore", async (c) => {
     const restored = await memberStorage(c).restore(c.req.param("id"));

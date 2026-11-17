@@ -13,6 +13,7 @@ import {
 import type { StorageComment as CommentRow } from "@omni/db";
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
+import { notifyMembers } from "../realtime.ts";
 import { zValidator } from "../validator.ts";
 import { refused, writeDoor } from "./http.ts";
 
@@ -36,6 +37,8 @@ export const storageComments = new Hono<AppEnv>()
   .post("/files/:id/comments", zValidator("json", storageAddCommentBodySchema), async (c) => {
     const added = await writeDoor(c).files.addComment(c.req.param("id"), c.req.valid("json"));
     if (added.status !== "ok") return refused(c, added.status);
+    // The file's owner and the thread's writers, in the file's workspace (see `notifyComment`).
+    await notifyMembers(c.env, c.var.db, { ...added.notified, threadId: null, kind: "comment" });
     return c.json({ comment: wireComment(added.comment) } satisfies StorageCommentResponse, 201);
   })
 

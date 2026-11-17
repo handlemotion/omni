@@ -209,3 +209,78 @@ test("threads stay one level deep, follow resolve and reply, and keep the conten
     "Line 1 typo",
   ]);
 });
+
+// Catches: a comment that tells nobody (or tells its own author), a reply that skips the people
+// already in the thread, a notification that cannot find its file again, and someone from
+// outside the workspace getting a notification that would open a Storage page they cannot see.
+test("a comment notifies the file's owner and the thread's writers, never its author or an outsider", async () => {
+  const org = await stack.company(`notify-${randomUUID().slice(0, 8)}`);
+  const ana = await stack.member(org.id);
+  const ben = await stack.member(org.id);
+  const cal = await stack.member(org.id);
+  const notes = async (jar: CookieJar) => {
+    const answer = await fetch(new URL("/api/notifications", stack.worker.url), {
+      headers: { cookie: jar.header },
+    });
+    expect(answer.status).toBe(200);
+    const body = (await answer.json()) as {
+      notifications: {
+        kind: string;
+        actorMemberId: string | null;
+        data: Record<string, unknown>;
+      }[];
+    };
+    return body.notifications.filter((n) => n.kind === "comment");
+  };
+  const post = async (jar: CookieJar, body: object, base = "") => {
+    const answer = await stack.api(jar, "POST", `${base}/files/${file.id}/comments`, body);
+    expect(answer.status).toBe(201);
+    return answer.body.comment as StorageComment;
+  };
+
+  // Shared drive: Ana uploaded it, so she hears about Ben's comment; Ben does not hear his own.
+  const file = await stack.upload(ana.jar, { space: "shared" }, "plan.md", bytes("plan"));
+  const root = await post(ben.jar, { body: "Can we   move\nthis to Tuesday?" });
+  expect(await notes(ana.jar)).toEqual([
+    expect.objectContaining({
+      actorMemberId: ben.id,
+      data: {
+        nodeId: file.id,
+        nodeName: "plan.md",
+        space: "shared",
+        folderId: null,
+        commentId: root.id,
+        excerpt: "Can we move this to Tuesday?",
+      },
+    }),
+  ]);
+  expect(await notes(ben.jar)).toEqual([]);
+
+  // Cal replies: Ana (owner) and Ben (wrote in the thread) hear, Cal does not.
+  await post(cal.jar, { body: "Tuesday works", parentId: root.id });
+  expect([(await notes(ana.jar)).length, (await notes(ben.jar)).length]).toEqual([2, 1]);
+  expect(await notes(cal.jar)).toEqual([]);
+
+  // An outside Commenter writes in the thread: they never get one, the workspace still does.
+  const outsider = await grant(ana.jar, file.id, "commenter");
+  await post(outsider.jar, { body: "From outside", parentId: root.id }, outsider.base);
+  expect((await notes(cal.jar)).length).toBe(1);
+  await post(ana.jar, { body: "Thanks all", parentId: root.id });
+  expect(await notes(outsider.jar)).toEqual([]);
+
+  // Moved since: opening the notification asks where the file is now, and gets its new folder.
+  const folder = await stack.api(ana.jar, "POST", "/folders", { name: "Team", space: "shared" });
+  expect(folder.status).toBe(201);
+  const folderId = folder.body.node.id as string;
+  expect(
+    (await stack.api(ana.jar, "PATCH", `/nodes/${file.id}`, { parentId: folderId })).status,
+  ).toBe(200);
+  const now = await stack.api(cal.jar, "GET", `/nodes/${file.id}`);
+  expect([now.status, now.body.node?.parentId, now.body.node?.space]).toEqual([
+    200,
+    folderId,
+    "shared",
+  ]);
+  // Someone the workspace never let in learns nothing about where it is.
+  expect((await stack.api(outsider.jar, "GET", `/nodes/${file.id}`)).status).toBe(404);
+});

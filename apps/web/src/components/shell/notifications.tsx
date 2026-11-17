@@ -36,8 +36,10 @@ import {
   useNotificationsPanel,
 } from "@/hooks/use-notifications-panel.ts";
 import { useOpenSettings } from "@/hooks/use-settings.ts";
+import { useFilePlace } from "@/hooks/use-storage.ts";
 import {
   actorName,
+  commentTarget,
   notificationParts,
   notificationSubject,
   notificationTitle,
@@ -227,6 +229,7 @@ function NotificationList({ unread }: { unread: boolean }) {
   const router = useRouter();
   const workspace = useWorkspaceSlug();
   const openSettings = useOpenSettings();
+  const filePlace = useFilePlace();
   const hover = useFluidHoverList({
     itemSelector: "[role='row']",
     highlightedSelector: "[data-focus-visible]",
@@ -235,6 +238,24 @@ function NotificationList({ unread }: { unread: boolean }) {
   const openOne = (n: Notification) => {
     if (!n.readAt) markRead.mutate({ ids: [n.id] });
     closeNotificationsPanel();
+    const comment = commentTarget(n);
+    if (comment) {
+      // The file's folder, with its comments open beside it; where the file is now, since it may
+      // have moved after the comment (where it was then if it can't be read).
+      void filePlace(comment.nodeId).then((now) => {
+        const { space, folderId } = now ?? comment;
+        const place = space === "personal" ? "my" : "shared";
+        const search = { comments: comment.nodeId };
+        return folderId
+          ? router.navigate({
+              to: `/$workspace/files/${place}/$folderId`,
+              params: { workspace, folderId },
+              search,
+            })
+          : router.navigate({ to: `/$workspace/files/${place}/`, params: { workspace }, search });
+      });
+      return;
+    }
     const threadId = n.threadId;
     if (!threadId) {
       if (n.kind === "member_joined") openSettings("people");

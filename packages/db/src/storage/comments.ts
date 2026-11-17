@@ -11,6 +11,7 @@ import { members, users } from "../schema/auth.ts";
 import { storageComments, type StorageCommentAnchor } from "../schema/storage.ts";
 import { readsComments, type Door } from "./access.ts";
 import { inTrash, type NodeRow } from "./core.ts";
+import { notifyComment } from "./comment-notifications.ts";
 import { reach } from "./tree.ts";
 
 export type { StorageCommentAnchor };
@@ -43,7 +44,10 @@ export type CommentsResult =
   | Forbidden;
 export type CommentResult = { status: "ok"; comment: StorageComment } | NotFound | Forbidden;
 export type AddCommentResult =
-  | CommentResult
+  /** `notified`: the file's workspace and the members told about it, for the realtime nudge. */
+  | { status: "ok"; comment: StorageComment; notified: { orgId: string; memberIds: string[] } }
+  | NotFound
+  | Forbidden
   /** The content version named is one the file has not reached. */
   | { status: "version_conflict" };
 export type DeleteCommentResult = { status: "ok" } | NotFound | Forbidden;
@@ -191,7 +195,16 @@ export function commentOperations(db: Db, door: Door) {
             createdAt: new Date(),
           })
           .returning({ id: storageComments.id });
-        return one(tx, door, found.node, row!.id);
+        const added = await one(tx, door, found.node, row!.id);
+        if (added.status !== "ok") return added;
+        const memberIds = await notifyComment(tx, {
+          node: found.node,
+          commentId: row!.id,
+          rootId,
+          authorMemberId,
+          body: input.body,
+        });
+        return { ...added, notified: { orgId: found.node.orgId, memberIds } };
       });
     },
 

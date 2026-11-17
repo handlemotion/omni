@@ -32,6 +32,7 @@ import {
   changeCommentMutation,
   deleteCommentMutation,
   storageCommentsQuery,
+  storageNodeQuery,
 } from "../lib/storage-comments.ts";
 import { restoreVersionMutation, storageVersionsQuery } from "../lib/storage-versions.ts";
 import { useSession } from "./use-session.ts";
@@ -116,6 +117,22 @@ export function useRestoreVersion() {
 /** A file's comments (a member, an Editor or a Commenter only). */
 export function useStorageComments(nodeId: string, shareId?: string) {
   return useQuery(storageCommentsQuery(nodeId, shareId));
+}
+
+/**
+ * Asks where a file is now (its space and folder), or null when the reader no longer reaches it.
+ * For a notification that leads to a file that may have moved.
+ */
+export function useFilePlace() {
+  const client = useQueryClient();
+  return useCallback(
+    (id: string) =>
+      client
+        .fetchQuery(storageNodeQuery(id))
+        .then(({ node }) => ({ space: node.space, folderId: node.parentId }))
+        .catch(() => null),
+    [client],
+  );
 }
 
 /** `mutate({ id, shareId?, body })` starts a thread, or replies with `parentId`. */
