@@ -11,6 +11,8 @@ import { grantAddresses, grantDoor, linkDoor, loadMember, memberDoor } from "./s
 import type { StorageListCursor, StorageSpace } from "./storage/core.ts";
 import { storagePeakOf } from "./storage/billing.ts";
 import { commentOperations } from "./storage/comments.ts";
+import { findOperations } from "./storage/find.ts";
+import { iconOperations } from "./storage/icons.ts";
 import { lockOperations } from "./storage/lock.ts";
 import { storageUsageOf } from "./storage/maintenance.ts";
 import { listSharedWith, sharingOperations, type SharedWithMeCursor } from "./storage/sharing.ts";
@@ -54,6 +56,7 @@ export {
   type StorageSyncDrive,
   type StorageSyncWorkspace,
 } from "./storage/sync.ts";
+export type { IconResult } from "./storage/icons.ts";
 export type { StorageLockResult } from "./storage/lock.ts";
 export type {
   AddCommentResult,
@@ -160,6 +163,8 @@ export function memberStorage(db: Db, memberId: string) {
     ...uploadOperations(db, door),
     ...versionOperations(db, door),
     ...commentOperations(db, door),
+    ...findOperations(db, door),
+    ...iconOperations(db, door),
     ...trashOperations(db, door, memberId),
     ...sharingOperations(db, door),
     ...lockOperations(db, door, memberId),

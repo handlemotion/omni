@@ -1,89 +1,99 @@
-// Storage's sidebar below its places, after Skiff Drive's: a space's folders as a tree in the
-// sidebar's own rows. A folder links to its page and opens in place as it does (its contents load
-// the first time); its chevron opens and closes it without leaving the page. A file inside links
-// to its folder with the file open in the preview.
-import { useLocation } from "@tanstack/react-router";
+// Storage's folder groups below its places, after Skiff Drive's: a group (Team, Personal) links
+// to its space and opens to its clusters, the space's top-level folders; a cluster opens to the
+// folders inside it, and the sidebar stops there. Deeper folders and files are on the pages.
+// Groups start open; clusters start closed (their contents load the first time).
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarSection } from "@/components/ui/sidebar";
 import { useSidebarExpanded } from "@/hooks/use-sidebar-expanded.ts";
-import { useStorageList } from "@/hooks/use-storage.ts";
-import { fileType } from "@/lib/file-kind.ts";
+import { useFolderIcons, useStorageList } from "@/hooks/use-storage.ts";
 import type { StorageNode, StorageSpace } from "@/lib/storage.ts";
-import { FileGlyph } from "./file-glyph.tsx";
-import { SPACE_PATH } from "./storage-nav.tsx";
+import { FolderIcon } from "./folder-icons.tsx";
+import { SPACE_ICON, SPACE_LABEL, SPACE_PATH } from "./storage-nav.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
-/** A level shows this many items; the folder's page has the rest. */
+/** A level shows this many folders; the folder's page has the rest. */
 const SHOWN = 40;
 
-export function SidebarTree(props: { space: StorageSpace; label: string; search: string }) {
-  const root = useStorageList({ space: props.space });
-  const folders = root.nodes.filter((node) => node.kind === "folder");
-  if (!root.isPending && folders.length === 0) return null;
+export function SidebarGroup(props: { space: StorageSpace; search: string }) {
+  const { space } = props;
+  // Stored as closed, so a group nobody has touched is open.
+  const closed = useSidebarExpanded("drive-groups-closed", space);
+  const open = { value: !closed.value, toggle: closed.toggle };
+  const { place: pathname, href } = useWorkspacePaths();
   return (
-    <SidebarSection label={props.label}>
-      {root.isPending ? (
-        <SidebarTreeBones depth={0} />
-      ) : (
-        folders
-          .slice(0, SHOWN)
-          .map((node) => <Folder key={node.id} node={node} depth={0} search={props.search} />)
-      )}
+    // 4px under a group's last row, so Team and Personal read as two groups.
+    <SidebarSection className="pb-1">
+      <SidebarTreeRow
+        href={href(SPACE_PATH[space] + props.search)}
+        isCurrent={pathname === SPACE_PATH[space]}
+        depth={0}
+        icon={SPACE_ICON[space]}
+        label={SPACE_LABEL[space]}
+        expand={open}
+        onPress={() => !open.value && open.toggle()}
+      />
+      {open.value && <Clusters space={space} search={props.search} />}
     </SidebarSection>
   );
 }
 
-function Folder(props: { node: StorageNode; depth: number; search: string }) {
-  const { node, depth } = props;
-  const open = useSidebarExpanded("drive", node.id);
-  const { place: pathname, href: inWorkspace } = useWorkspacePaths();
-  const href = `${SPACE_PATH[node.space]}/${encodeURIComponent(node.id)}`;
+function Clusters(props: { space: StorageSpace; search: string }) {
+  const root = useStorageList({ space: props.space });
+  const { icons } = useFolderIcons(props.space);
+  if (root.isPending) return <SidebarTreeBones depth={1} />;
+  return folders(root.nodes).map((node) => (
+    <Cluster key={node.id} node={node} icon={icons[node.id]} search={props.search} />
+  ));
+}
+
+function Cluster(props: { node: StorageNode; icon: string | undefined; search: string }) {
+  const open = useSidebarExpanded("drive", props.node.id);
   return (
     <>
-      <SidebarTreeRow
-        href={inWorkspace(href + props.search)}
-        isCurrent={pathname === href}
-        depth={depth}
-        icon={<FileGlyph kind="folder" className="size-icon" />}
-        label={node.name}
+      <FolderRow
+        node={props.node}
+        icon={props.icon}
+        depth={1}
+        search={props.search}
         expand={open}
-        // Going to a folder shows what is in it; closing it is the chevron's job.
-        onPress={() => !open.value && open.toggle()}
       />
-      {open.value && <Contents node={node} depth={depth + 1} search={props.search} />}
+      {open.value && <ClusterFolders node={props.node} search={props.search} />}
     </>
   );
 }
 
-/** An open folder's folders, then its files. */
-function Contents(props: { node: StorageNode; depth: number; search: string }) {
+function ClusterFolders(props: { node: StorageNode; search: string }) {
   const list = useStorageList({ parentId: props.node.id });
-  if (list.isPending) return <SidebarTreeBones depth={props.depth} />;
-  return list.nodes
-    .slice(0, SHOWN)
-    .map((node) =>
-      node.kind === "folder" ? (
-        <Folder key={node.id} node={node} depth={props.depth} search={props.search} />
-      ) : (
-        <File key={node.id} node={node} depth={props.depth} search={props.search} />
-      ),
-    );
+  if (list.isPending) return <SidebarTreeBones depth={2} />;
+  return folders(list.nodes).map((node) => (
+    <FolderRow key={node.id} node={node} depth={2} search={props.search} />
+  ));
 }
 
-function File(props: { node: StorageNode; depth: number; search: string }) {
+function FolderRow(props: {
+  node: StorageNode;
+  /** A cluster's chosen glyph; a folder inside one has none. */
+  icon?: string | undefined;
+  depth: number;
+  search: string;
+  expand?: { value: boolean; toggle: () => void };
+}) {
   const { node } = props;
-  const { searchStr } = useLocation();
   const { place: pathname, href: inWorkspace } = useWorkspacePaths();
-  const folder = `${SPACE_PATH[node.space]}${node.parentId ? `/${encodeURIComponent(node.parentId)}` : ""}`;
-  const query = new URLSearchParams(props.search);
-  query.set("file", node.id);
+  const href = `${SPACE_PATH[node.space]}/${encodeURIComponent(node.id)}`;
   return (
     <SidebarTreeRow
-      href={inWorkspace(`${folder}?${query}`)}
-      isCurrent={pathname === folder && new URLSearchParams(searchStr).get("file") === node.id}
+      href={inWorkspace(href + props.search)}
+      isCurrent={pathname === href}
       depth={props.depth}
-      icon={<FileGlyph kind={fileType(node.name, node.mimeType).kind} className="size-icon" />}
+      icon={<FolderIcon icon={props.icon} className="size-icon" />}
       label={node.name}
+      {...(props.expand ? { expand: props.expand } : {})}
+      // Opening a cluster's page opens it in the tree too; only the chevron closes it.
+      onPress={() => props.expand && !props.expand.value && props.expand.toggle()}
     />
   );
 }
+
+const folders = (nodes: StorageNode[]) =>
+  nodes.filter((node) => node.kind === "folder").slice(0, SHOWN);

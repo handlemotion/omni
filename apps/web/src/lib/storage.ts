@@ -21,6 +21,13 @@ export type StoragePlace = { space: StorageSpace } | { parentId: string };
 // `startup-fetch.ts` asks for a folder's first page at startup with this size too.
 const PAGE_SIZE = "100";
 
+/** A folder's sidebar glyph, as `PATCH /nodes/:id` takes it. */
+export type StorageFolderIcon = Extract<
+  NonNullable<Parameters<Api["storage"]["nodes"][":id"]["$patch"]>[0]["json"]>,
+  { icon: unknown }
+>["icon"] &
+  string;
+
 /** A folder's contents, folders first, then by name. The first page carries the folder itself. */
 export const storageListQuery = (place: StoragePlace) =>
   infiniteQueryOptions({
@@ -94,8 +101,17 @@ export const changeNodeMutation = (client: QueryClient) =>
     mutationFn: ({
       shareId,
       ...change
-    }: { id: string; shareId?: string } & ({ name: string } | { place: StoragePlace })) => {
-      const json = "name" in change ? { name: change.name } : change.place;
+    }: { id: string; shareId?: string } & (
+      | { name: string }
+      | { place: StoragePlace }
+      | { icon: StorageFolderIcon | null }
+    )) => {
+      const json =
+        "name" in change
+          ? { name: change.name }
+          : "icon" in change
+            ? { icon: change.icon }
+            : change.place;
       return shareId
         ? call(sharedDoor().nodes[":id"].$patch({ param: { shareId, id: change.id }, json }))
         : call(api.storage.nodes[":id"].$patch({ param: { id: change.id }, json }));

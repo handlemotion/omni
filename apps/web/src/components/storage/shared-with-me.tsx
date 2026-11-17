@@ -16,6 +16,7 @@ import {
 import { useSharedWithMe } from "@/hooks/use-storage.ts";
 import { COLUMN, DAY, FileTableBones, Muted, NameCell } from "./file-table.tsx";
 import { StorageFrame } from "./storage-frame.tsx";
+import { UploadsPanel } from "./uploads-panel.tsx";
 
 const ROLE = { viewer: "Viewer", commenter: "Commenter", editor: "Editor" } as const;
 
@@ -82,6 +83,7 @@ export function SharedWithMe() {
           </Table>
         )}
       </div>
+      <UploadsPanel />
     </StorageFrame>
   );
 }

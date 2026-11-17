@@ -1,4 +1,4 @@
-// Storage (ADR 0034): a folder's contents, Trash, the changes, and uploads.
+// Storage (ADR 0034): a folder's contents, Trash, Search, the changes, and uploads.
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import {
@@ -11,6 +11,7 @@ import {
   storageUsageQuery,
   trashNodeMutation,
   type StoragePlace,
+  type StorageSpace,
 } from "../lib/storage.ts";
 import {
   putPersonMutation,
@@ -34,6 +35,7 @@ import {
   storageCommentsQuery,
   storageNodeQuery,
 } from "../lib/storage-comments.ts";
+import { storageFolderIconsQuery, storageSearchQuery } from "../lib/storage-find.ts";
 import { restoreVersionMutation, storageVersionsQuery } from "../lib/storage-versions.ts";
 import { useSession } from "./use-session.ts";
 import { useCurrentWorkspace } from "./use-workspaces.ts";
@@ -53,6 +55,18 @@ export function useStorageTrash() {
   const query = useInfiniteQuery(storageTrashQuery());
   const nodes = useMemo(() => query.data?.pages.flatMap((page) => page.nodes) ?? [], [query.data]);
   return { ...query, nodes };
+}
+
+/** Drive's Search: files and folders whose name holds `q`; idle while `q` is blank. */
+export function useStorageSearch(q: string) {
+  const query = useQuery({ ...storageSearchQuery(q), placeholderData: (previous) => previous });
+  return { ...query, nodes: query.data?.nodes ?? [] };
+}
+
+/** A drive's cluster glyphs by folder id; empty until they load, or if they fail to. */
+export function useFolderIcons(space: StorageSpace) {
+  const query = useQuery(storageFolderIconsQuery(space));
+  return { icons: query.data?.icons ?? {}, isLoaded: query.isSuccess };
 }
 
 /** True in a company workspace: only those have Shared (a Personal space has My files alone). */

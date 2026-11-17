@@ -8,7 +8,7 @@
 //   │        · thread(id) ─ conversation · search(q) · action(id) · tags(mailbox)
 //   │        · assignees(mailbox) · conversations(filter) · conversation-counts
 //   │        · notifications ─ { unread } · sla(mailbox)
-//   ├─ storage ─ list(place) · trash · usage · node(id) · sharing(id) · versions(id) · comments(id) · signatures(id) · signing(id) · shared-with-me · link(share, node)
+//   ├─ storage ─ list(place) · trash · search(q) · icons(space) · usage · node(id) · sharing(id) · versions(id) · comments(id) · signatures(id) · signing(id) · shared-with-me · link(share, node)
 //   │                                                                  (ADR 0034)
 //   ├─ crm ─ companies(q) · people(q) · deals(q) · company(id) · person(id) · deal(id) · stages
 //   │        · timeline(kind, id) · contracts(where) · find(q)                  (ADR 0036)
@@ -143,6 +143,9 @@ export const keys = {
   storageList: (place: { space: string } | { parentId: string }) =>
     [...storage(), "list", place] as const,
   storageTrash: () => [...storage(), "trash"] as const,
+  /** Drive's Search for one query. */
+  storageSearch: (q: string) => [...storage(), "search", q] as const,
+  storageIcons: (space: string) => [...storage(), "icons", space] as const,
   storageUsage: () => [...storage(), "usage"] as const,
   /** Where a node is now: its folder and space. */
   storageNode: (nodeId: string) => [...storage(), "node", nodeId] as const,

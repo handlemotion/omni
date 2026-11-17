@@ -130,10 +130,58 @@ pub struct StorageChangeNodeBody {
     pub name: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<Icon>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub space: Option<Space>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Icon {
+    Analytics,
+
+    Archive,
+
+    Book,
+
+    Brush,
+
+    Buildings,
+
+    Code,
+
+    Coins,
+
+    Globe,
+
+    Heart,
+
+    Home,
+
+    #[serde(rename = "light-bulb")]
+    LightBulb,
+
+    Lock,
+
+    Megaphone,
+
+    Package,
+
+    Rocket,
+
+    Sparkle,
+
+    Star,
+
+    Target,
+
+    Trophy,
+
+    Video,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

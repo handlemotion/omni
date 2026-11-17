@@ -1,12 +1,16 @@
 // Storage's member routes (ADR 0034 decision 6), under `/api/storage`: browse the active
-// workspace's My files and Shared, Trash, unlocking a file, download and usage; the changes are in
-// `changes.ts` and sharing in `sharing.ts`. Everything goes through
+// workspace's My files and Shared, Trash, Search, unlocking a file, download and
+// usage; the changes are in `changes.ts` and sharing in `sharing.ts`. Everything goes through
 // `forMember(member).storage`, which decides access; nothing here queries a storage table.
 // Every change is a write, so a read-only workspace (ADR 0015) answers it `402 billing_inactive`
 // in `requireWritableWorkspace` and keeps listing and downloading.
 import {
   storageListQuerySchema,
   storagePageQuerySchema,
+  storageFolderIconsQuerySchema,
+  storageSearchQuerySchema,
+  type StorageFindResponse,
+  type StorageFolderIconsResponse,
   type StorageListResponse,
   type StorageNodeResponse,
   type StorageTrashResponse,
@@ -120,6 +124,18 @@ export const storage = new Hono<AppEnv>()
       nodes: page.nodes.map(wireNode),
       nextCursor: encodeCursor(page.nextCursor),
     } satisfies StorageTrashResponse);
+  })
+
+  /** Drive's Search: the member's live files and folders whose name holds `q`. */
+  .get("/search", zValidator("query", storageSearchQuerySchema), async (c) => {
+    const nodes = await memberStorage(c).search(c.req.valid("query").q);
+    return c.json({ nodes: nodes.map(wireNode) } satisfies StorageFindResponse);
+  })
+
+  /** The sidebar's cluster glyphs: a drive's top-level folders that have one, by folder id. */
+  .get("/icons", zValidator("query", storageFolderIconsQuerySchema), async (c) => {
+    const icons = await memberStorage(c).folderIcons(c.req.valid("query").space);
+    return c.json({ icons } satisfies StorageFolderIconsResponse);
   })
 
   .route("/", storageLive)

@@ -14,6 +14,7 @@ import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { useUploads } from "@/hooks/use-storage.ts";
 import type { StorageNode, StoragePlace } from "@/lib/storage.ts";
 import { MoveDialog, RenameDialog, type MoveScope } from "./file-dialogs.tsx";
+import { FolderIconDialog } from "./folder-icons.tsx";
 import { FolderBody, HeaderActions } from "./folder-body.tsx";
 import { PreviewPanel } from "./preview/preview-panel.tsx";
 import { ShareDialog } from "./share-dialog.tsx";
@@ -25,7 +26,7 @@ import { VersionsDialog } from "./versions-dialog.tsx";
 import { CommentsPanel } from "./comments-panel.tsx";
 
 export type FolderDialog = {
-  dialog: "rename" | "move" | "share" | "versions" | "comments" | "signatures";
+  dialog: "rename" | "move" | "share" | "versions" | "comments" | "signatures" | "icon";
   node: StorageNode;
 } | null;
 
@@ -225,6 +226,8 @@ function FolderDialogs(props: { dialog: FolderDialog; source: FolderSource; onCl
       return <ShareDialog node={node} onClose={onClose} />;
     case "versions":
       return <VersionsDialog node={node} shareId={source.shareId} onClose={onClose} />;
+    case "icon":
+      return <FolderIconDialog node={node} onClose={onClose} />;
     case "comments":
       // A panel beside the folder, not a dialog (see `useCommentsPanel`).
       return null;

@@ -30,6 +30,9 @@ export const inboxSearch = z.object({
 
 export const listSearch = z.object({ mailbox: optionalId });
 
+/** Drive's Search: `q` matches file and folder names on the server. */
+export const fileSearchSearch = z.object({ mailbox: optionalId, q: optional(z.string()) });
+
 /** A CRM list (ADR 0039): `q` searches it on the server. */
 export const crmListSearch = z.object({ mailbox: optionalId, q: optional(z.string()) });
 

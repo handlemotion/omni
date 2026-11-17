@@ -494,17 +494,20 @@ public extension StorageCreateFolderBody {
 // MARK: - StorageChangeNodeBody
 public struct StorageChangeNodeBody: Codable, Equatable {
     public let name: String?
+    public let icon: Icon?
     public let parentId: String?
     public let space: Space?
 
     public enum CodingKeys: String, CodingKey {
         case name = "name"
+        case icon = "icon"
         case parentId = "parentId"
         case space = "space"
     }
 
-    public init(name: String?, parentId: String?, space: Space?) {
+    public init(name: String?, icon: Icon?, parentId: String?, space: Space?) {
         self.name = name
+        self.icon = icon
         self.parentId = parentId
         self.space = space
     }
@@ -530,11 +533,13 @@ public extension StorageChangeNodeBody {
 
     func with(
         name: String?? = nil,
+        icon: Icon?? = nil,
         parentId: String?? = nil,
         space: Space?? = nil
     ) -> StorageChangeNodeBody {
         return StorageChangeNodeBody(
             name: name ?? self.name,
+            icon: icon ?? self.icon,
             parentId: parentId ?? self.parentId,
             space: space ?? self.space
         )
@@ -547,6 +552,29 @@ public extension StorageChangeNodeBody {
     func jsonString(encoding: String.Encoding = .utf8) throws -> String? {
         return String(data: try self.jsonData(), encoding: encoding)
     }
+}
+
+public enum Icon: String, Codable, Equatable {
+    case analytics = "analytics"
+    case archive = "archive"
+    case book = "book"
+    case brush = "brush"
+    case buildings = "buildings"
+    case code = "code"
+    case coins = "coins"
+    case globe = "globe"
+    case heart = "heart"
+    case home = "home"
+    case lightBulb = "light-bulb"
+    case lock = "lock"
+    case megaphone = "megaphone"
+    case package = "package"
+    case rocket = "rocket"
+    case sparkle = "sparkle"
+    case star = "star"
+    case target = "target"
+    case trophy = "trophy"
+    case video = "video"
 }
 
 //

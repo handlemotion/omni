@@ -1,36 +1,56 @@
 // Storage's sidebar (ADR 0034 decision 8), shown alone while Files is open (ADR 0035), after
-// Skiff Drive's: the places, My files, Shared (a
-// company's only: a Personal space has no Shared), Shared with me and Trash; then each space's
-// folders as a tree.
+// Skiff Drive's: Upload and the places (Search, Shared with me, Trash); then, under Folders (mail's
+// section label), two groups: Team (a company's Shared: a Personal space has none) and Personal (My files).
 import type { ReactNode } from "react";
-import { IconFolder, IconFolderShared, IconUserRound } from "@/components/icons/central";
-import { IconTrash } from "@/components/icons/sidebar";
-import { SidebarItem, SidebarLabel, SidebarSection } from "@/components/ui/sidebar";
-import { useHasSharedFiles } from "@/hooks/use-storage.ts";
-import { SidebarTree } from "./sidebar-tree.tsx";
+import { IconFolderShared, IconUpload, IconUserRound, IconUsers } from "@/components/icons/central";
+import { IconSearch, IconTrash } from "@/components/icons/sidebar";
+import { FileTrigger } from "@/components/ui/file-trigger";
+import {
+  SidebarDisclosure,
+  SidebarDisclosurePanel,
+  SidebarDisclosureTrigger,
+  SidebarItem,
+  SidebarItemTrigger,
+  SidebarLabel,
+  SidebarSection,
+} from "@/components/ui/sidebar";
+import { useHasSharedFiles, useUploads } from "@/hooks/use-storage.ts";
+import type { StoragePlace } from "@/lib/storage.ts";
+import { SidebarGroup } from "./sidebar-tree.tsx";
+import { storageErrorToast } from "./storage-errors.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
-export const SPACE_LABEL = { personal: "My files", shared: "Shared" } as const;
+export const SPACE_LABEL = { personal: "Personal", shared: "Team" } as const;
 export const SPACE_PATH = { personal: "/files/my", shared: "/files/shared" } as const;
+export const SPACE_ICON = {
+  personal: <IconUserRound className="size-icon" />,
+  shared: <IconUsers className="size-icon" />,
+} as const;
 
-const ROWS: { label: string; path: string; icon: ReactNode; company?: boolean }[] = [
+type Row = { label: string; path: string; icon: ReactNode; company?: boolean };
+
+const PLACES: Row[] = [
   {
-    label: SPACE_LABEL.personal,
-    path: SPACE_PATH.personal,
-    icon: <IconFolder className="size-icon" />,
-  },
-  {
-    label: SPACE_LABEL.shared,
-    path: SPACE_PATH.shared,
-    icon: <IconFolderShared className="size-icon" />,
-    company: true,
+    label: "Search",
+    path: "/files/search",
+    icon: <IconSearch />,
   },
   {
     label: "Shared with me",
     path: "/files/shared-with-me",
-    icon: <IconUserRound className="size-icon" />,
+    icon: <IconFolderShared className="size-icon" />,
   },
-  { label: "Trash", path: "/files/trash", icon: <IconTrash /> },
+  {
+    label: "Trash",
+    path: "/files/trash",
+    icon: <IconTrash />,
+  },
+];
+
+/** The groups' own pages, for the closed sidebar's island, where the groups don't show. */
+const SPACES: Row[] = [
+  { label: SPACE_LABEL.shared, path: SPACE_PATH.shared, icon: SPACE_ICON.shared, company: true },
+  { label: SPACE_LABEL.personal, path: SPACE_PATH.personal, icon: SPACE_ICON.personal },
 ];
 
 /** A nav link that keeps showing `mailbox`, the switcher's choice, for the way back to mail. */
@@ -40,29 +60,77 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
   return (
     <>
       <SidebarSection>
-        <StoragePlaces mailbox={mailbox} />
+        <UploadRow />
+        <Rows rows={PLACES} mailbox={mailbox} />
       </SidebarSection>
-      <SidebarTree space="personal" label="Folders" search={search} />
-      {hasShared && <SidebarTree space="shared" label="Shared folders" search={search} />}
+      <SidebarDisclosure defaultExpanded>
+        <SidebarDisclosureTrigger>Folders</SidebarDisclosureTrigger>
+        <SidebarDisclosurePanel>
+          {hasShared && <SidebarGroup space="shared" search={search} />}
+          <SidebarGroup space="personal" search={search} />
+        </SidebarDisclosurePanel>
+      </SidebarDisclosure>
     </>
   );
 }
 
-/** The places, one row each; the closed sidebar's island shows them too. */
+/** The places and the groups' pages, one row each: the closed sidebar's island. */
 export function StoragePlaces({ mailbox }: { mailbox: string | undefined }) {
+  return <Rows rows={[...PLACES, ...SPACES]} mailbox={mailbox} />;
+}
+
+function Rows(props: { rows: Row[]; mailbox: string | undefined }) {
   const { place: pathname, href } = useWorkspacePaths();
   const hasShared = useHasSharedFiles();
-  const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
-  return ROWS.filter((row) => !row.company || hasShared).map((row) => (
-    <SidebarItem
-      key={row.path}
-      href={href(row.path + search)}
-      // A folder's page is under its space's path, so the space stays current inside it.
-      isCurrent={pathname === row.path || pathname.startsWith(`${row.path}/`)}
-      tooltip={row.label}
+  const search = props.mailbox ? `?mailbox=${encodeURIComponent(props.mailbox)}` : "";
+  return props.rows
+    .filter((row) => !row.company || hasShared)
+    .map((row) => (
+      <SidebarItem
+        key={row.path}
+        href={href(row.path + search)}
+        // A folder's page is under its space's path, so the space stays current inside it.
+        isCurrent={pathname === row.path || pathname.startsWith(`${row.path}/`)}
+        tooltip={row.label}
+      >
+        {row.icon}
+        <SidebarLabel>{row.label}</SidebarLabel>
+      </SidebarItem>
+    ));
+}
+
+/** Upload: into the folder on screen, else Personal's top. */
+function UploadRow() {
+  const { upload } = useUploads();
+  const place = useUploadPlace();
+  return (
+    <FileTrigger
+      allowsMultiple
+      onSelect={(files) => {
+        const picked = [...(files ?? [])];
+        if (!picked.length) return;
+        upload(picked, { place }, (name, error) =>
+          storageErrorToast(error, `“${name}” was not uploaded`),
+        );
+      }}
     >
-      {row.icon}
-      <SidebarLabel>{row.label}</SidebarLabel>
-    </SidebarItem>
-  ));
+      <SidebarItemTrigger>
+        <IconUpload />
+        <SidebarLabel>Upload</SidebarLabel>
+      </SidebarItemTrigger>
+    </FileTrigger>
+  );
+}
+
+/** The folder or space the page shows, from its path; Personal's top anywhere else. */
+function useUploadPlace(): StoragePlace {
+  const { place: pathname } = useWorkspacePaths();
+  for (const space of ["personal", "shared"] as const) {
+    const root = SPACE_PATH[space];
+    if (pathname === root) return { space };
+    if (pathname.startsWith(`${root}/`)) {
+      return { parentId: decodeURIComponent(pathname.slice(root.length + 1)) };
+    }
+  }
+  return { space: "personal" };
 }

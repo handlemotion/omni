@@ -24,6 +24,31 @@ const isoDate = z.iso.datetime();
 const id = z.string().min(1);
 const name = z.string().min(1).max(255);
 
+/** The glyphs a folder may take in Drive's sidebar instead of the folder (ADR 0047). */
+export const STORAGE_FOLDER_ICONS = [
+  "rocket",
+  "star",
+  "heart",
+  "sparkle",
+  "light-bulb",
+  "target",
+  "trophy",
+  "megaphone",
+  "analytics",
+  "coins",
+  "buildings",
+  "globe",
+  "home",
+  "book",
+  "code",
+  "brush",
+  "video",
+  "archive",
+  "package",
+  "lock",
+] as const;
+export const storageFolderIconSchema = z.enum(STORAGE_FOLDER_ICONS);
+
 export const storageNodeSchema = z.object({
   id,
   orgId: id,
@@ -94,9 +119,13 @@ export const storageListResponseSchema = z.object({
 /** `POST /folders`. A taken name gets a number. Answers `{ node }`. */
 export const storageCreateFolderBodySchema = z.object({ name, ...place }).refine(...onePlace);
 
-/** `PATCH /nodes/:id`: a new name, or a new place in the same workspace. Answers `{ node }`. */
+/**
+ * `PATCH /nodes/:id`: a new name, a new place in the same workspace, or a folder's sidebar glyph
+ * (null clears it). Answers `{ node }`.
+ */
 export const storageChangeNodeBodySchema = z.union([
   z.strictObject({ name }),
+  z.strictObject({ icon: storageFolderIconSchema.nullable() }),
   z.strictObject(place).refine(...onePlace),
 ]);
 
@@ -110,6 +139,23 @@ export const storagePageQuerySchema = z.object(page);
 export const storageTrashResponseSchema = z.object({
   nodes: z.array(storageNodeSchema),
   nextCursor: z.string().nullable(),
+});
+
+/** `GET /search?q=`: what a name holds, ignoring case. */
+export const storageSearchQuerySchema = z.object({ q: z.string().trim().min(1).max(255) });
+/**
+ * Drive's `GET /search`, folders first, then by name: live nodes across the member's My files
+ * and, in a company, Shared. Not paged.
+ */
+export const storageFindResponseSchema = z.object({ nodes: z.array(storageNodeSchema) });
+
+/**
+ * Drive's `GET /icons?space=`: the chosen glyphs of a drive's top-level folders, by folder id. A
+ * folder without one is absent. Strings, not the enum, so an older client still reads a new glyph.
+ */
+export const storageFolderIconsQuerySchema = z.object({ space: storageSpaceSchema });
+export const storageFolderIconsResponseSchema = z.object({
+  icons: z.record(z.string(), z.string()),
 });
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
@@ -667,6 +713,8 @@ export type StorageNodeView = z.infer<typeof storageNodeViewSchema>;
 export type StorageListResponse = z.infer<typeof storageListResponseSchema>;
 export type StorageNodeResponse = z.infer<typeof storageNodeResponseSchema>;
 export type StorageTrashResponse = z.infer<typeof storageTrashResponseSchema>;
+export type StorageFindResponse = z.infer<typeof storageFindResponseSchema>;
+export type StorageFolderIconsResponse = z.infer<typeof storageFolderIconsResponseSchema>;
 export type StorageCreateFolderBody = z.infer<typeof storageCreateFolderBodySchema>;
 export type StorageChangeNodeBody = z.infer<typeof storageChangeNodeBodySchema>;
 export type StorageOpenUploadBody = z.infer<typeof storageOpenUploadBodySchema>;

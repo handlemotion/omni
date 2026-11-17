@@ -296,6 +296,27 @@ export const storageLocks = pgTable(
 );
 
 /**
+ * A cluster's chosen glyph in Drive's sidebar (`STORAGE_FOLDER_ICONS`, ADR 0047); no row is the
+ * folder glyph. Its own table, not a column on `storage_nodes`, so no query that reads or writes
+ * nodes depends on it. Deleting the node takes the glyph with it.
+ */
+export const storageFolderIcons = pgTable(
+  "storage_folder_icons",
+  {
+    nodeId: text("node_id").primaryKey(),
+    orgId: orgId(),
+    icon: text("icon").notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "storage_folder_icons_node_org_fk",
+      columns: [t.nodeId, t.orgId],
+      foreignColumns: [storageNodes.id, storageNodes.orgId],
+    }).onDelete("cascade"),
+  ],
+);
+
+/**
  * A person a node is shared with. The grantee is an address, not a user, so a grant can exist
  * before the person does. A grant on a folder covers everything inside it.
  */

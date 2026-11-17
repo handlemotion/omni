@@ -86,6 +86,7 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       // Storage (ADR 0034).
       "storage_comments",
       "storage_contents",
+      "storage_folder_icons",
       "storage_grants",
       "storage_locks",
       "storage_nodes",

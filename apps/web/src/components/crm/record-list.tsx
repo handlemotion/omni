@@ -2,8 +2,7 @@
 // 48px header with the title, then search and New 10px from the right edge) over the table's
 // `page` variant, one 44px row per record, paged by the server's cursor as the table scrolls.
 // The name leads each row with its mark; the other columns are muted, in tabular figures.
-import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { TableLoadMoreItem } from "react-aria-components/Table";
 import { Skeleton, SkeletonBox } from "skullet/react";
 import { EmptyState } from "@/components/empty/empty-state";
@@ -22,7 +21,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 
 export const DAY = new Intl.DateTimeFormat(undefined, {
@@ -70,26 +68,7 @@ export function Muted({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * The search box's text, written to the URL's `q` once typing pauses, so the list it filters can
- * be linked and survives a reload.
- */
-export function useListSearch(q: string) {
-  const navigate = useNavigate();
-  const [text, setText] = useState(q);
-  const settled = useDebouncedValue(text.trim(), 250);
-  useEffect(() => {
-    if (settled === q) return;
-    void navigate({
-      to: ".",
-      search: (prev: Record<string, unknown>) => ({ ...prev, q: settled || undefined }),
-      replace: true,
-    });
-    // Only a new settled text writes the URL; the URL changing (back, a link) leaves the box.
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [settled]);
-  return { text, setText };
-}
+export { useListSearch } from "@/hooks/use-list-search.ts";
 
 export function RecordList<T extends { id: string; name: string }>(props: {
   title: string;
