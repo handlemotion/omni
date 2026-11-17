@@ -16,6 +16,7 @@ import { Link } from "@/components/ui/link";
 import { Tab, TabList, TabPanel, Tabs } from "@/components/ui/tabs";
 import { ApiError } from "@/lib/api.ts";
 import { CRM_LISTS } from "./crm-nav.tsx";
+import type { SenderLogoFor } from "@/lib/sender-logo";
 import { RecordMark } from "./record-list.tsx";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
@@ -30,6 +31,8 @@ export function RecordLayout(props: {
   name: string;
   /** A company's mark is square. */
   square?: boolean;
+  /** Whose logo or picture the mark shows. */
+  who?: SenderLogoFor | null;
   /** A line under the name: a person's title, a deal's stage. */
   subtitle?: ReactNode;
   actions?: ReactNode;
@@ -44,7 +47,7 @@ export function RecordLayout(props: {
           className="flex shrink-0 flex-col gap-6 px-5 py-5 lg:w-80 lg:overflow-y-auto lg:border-e"
         >
           <div className="flex min-w-0 items-center gap-3">
-            <RecordMark name={props.name} square={props.square} size={32} />
+            <RecordMark name={props.name} square={props.square} who={props.who} size={32} />
             <div className="flex min-w-0 flex-col">
               <h2 className="truncate text-md text-foreground">{props.name}</h2>
               {props.subtitle && (
@@ -119,6 +122,7 @@ export function RelatedRow(props: {
   kind: "companies" | "people" | "deals";
   id: string;
   name: string;
+  who?: SenderLogoFor | null;
   meta?: ReactNode;
 }) {
   const { href: inWorkspace } = useWorkspacePaths();
@@ -127,7 +131,7 @@ export function RelatedRow(props: {
       href={inWorkspace(`/crm/${props.kind}/${encodeURIComponent(props.id)}`)}
       className="-mx-2 flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-sm text-foreground transition-colors duration-150 ease-out hover:bg-hover"
     >
-      <RecordMark name={props.name} square={props.kind === "companies"} size={18} />
+      <RecordMark name={props.name} square={props.kind === "companies"} who={props.who} size={18} />
       <span className="min-w-0 flex-1 truncate">{props.name}</span>
       {props.meta && (
         <span className="shrink-0 truncate text-xs text-muted-foreground tabular-nums">

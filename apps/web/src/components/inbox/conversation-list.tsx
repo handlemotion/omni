@@ -26,7 +26,7 @@ import {
 import { runShortcut } from "@/hooks/use-shortcuts.ts";
 import { useUndo } from "@/hooks/use-undo.ts";
 import { inverseOf, type ConversationChange } from "@/lib/conversations.ts";
-import { senderLabel } from "@/lib/threads.ts";
+import { senderAddress, senderLabel } from "@/lib/threads.ts";
 import type { ConversationFilter, ConversationSummary } from "@/lib/types.ts";
 import { offerUndo } from "@/lib/undo.ts";
 import type { ConversationRowInfo } from "./conversation-meta";
@@ -62,6 +62,7 @@ export function ConversationList(props: {
       return {
         id: c.id,
         sender: senderLabel(c),
+        senderAddress: senderAddress(c),
         subject: c.subject,
         snippet: c.snippet,
         unread: c.unread,

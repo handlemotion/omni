@@ -7,6 +7,11 @@ export interface AvatarProps {
   alt?: string;
   className?: string;
   isSquare?: boolean;
+  /**
+   * Draws `src` as a logo: at 85% on a tile of this colour (the logo's own edge, sampled), or on
+   * the light logo tile for a see-through one. Unset, `src` fills the avatar like a photo.
+   */
+  logoTile?: string | "light" | undefined;
   size?:
     | "xs"
     | "sm"
@@ -29,7 +34,9 @@ export function Avatar({
   size = "md",
   initials,
   alt = "",
+  logoTile,
   className,
+  style,
   ...props
 }: AvatarProps & React.ComponentPropsWithoutRef<"span">) {
   // A picture that fails to load (gone, blocked, offline) leaves the initials showing instead of
@@ -39,6 +46,7 @@ export function Avatar({
     <span
       data-slot="avatar"
       {...props}
+      style={logoTile && logoTile !== "light" ? { ...style, backgroundColor: logoTile } : style}
       className={cn(
         "inline-grid size-(--avatar-size) shrink-0 align-middle outline-1 outline-foreground/(--ring-opacity) -outline-offset-1 [--avatar-radius:20%] [--ring-opacity:20%] *:col-start-1 *:row-start-1 *:size-(--avatar-size)",
         size === "xs" && "[--avatar-size:--spacing(5)]",
@@ -58,6 +66,9 @@ export function Avatar({
           ? "rounded-(--avatar-radius) *:rounded-(--avatar-radius)"
           : "rounded-full *:rounded-full",
         className,
+        // The tile is the avatar's own shape and clips the scaled logo's corners to it.
+        logoTile && "overflow-hidden [&>img]:scale-85 [&>img]:rounded-none [&>img]:object-contain",
+        logoTile === "light" && "bg-logo-tile",
       )}
     >
       {initials && (

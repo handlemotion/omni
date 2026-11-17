@@ -25,6 +25,8 @@ export const crmCompanySchema = z.object({
   archivedAt: isoDate.nullable(),
   createdAt: isoDate,
   updatedAt: isoDate,
+  /** In lists: one of its domains, for its logo. Optional while an older Worker may answer. */
+  domain: z.string().nullable().optional(),
 });
 
 export const crmPersonAddressSchema = z.object({ address: z.string(), isPrimary: z.boolean() });

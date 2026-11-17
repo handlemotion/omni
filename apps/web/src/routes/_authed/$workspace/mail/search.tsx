@@ -28,6 +28,7 @@ function Search() {
       (hits ?? []).map((hit): ListRow => ({
         id: hit.threadId,
         sender: hit.from.name || hit.from.address,
+        senderAddress: hit.from.address,
         subject: hit.subject,
         snippet: hit.snippet,
         unread: hit.unread,

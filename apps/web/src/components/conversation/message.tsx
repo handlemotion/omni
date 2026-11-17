@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { linkSegments } from "@omni/mail-core/links";
-import { Avatar } from "@/components/ui/avatar";
+import { SenderAvatar, byAddress } from "@/components/avatar/sender-avatar";
 import { Button } from "@/components/ui/button";
 import {
   DescriptionDetails,
@@ -261,10 +261,11 @@ function ChatHeader(props: {
   return (
     <header className="flex items-center gap-2">
       {!message.fromMe && (
-        <Avatar
+        <SenderAvatar
           isSquare
           size="xs"
-          initials={sender.slice(0, 1).toUpperCase()}
+          who={byAddress(message.fromAddress)}
+          name={sender}
           // 18px, as on notes: a step under xs, so the face sits with the 14px name.
           className="bg-accent text-foreground outline-0 [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(4.5)]"
         />
@@ -337,10 +338,11 @@ function EmailHeader(props: {
   return (
     <div className="flex w-full flex-col gap-4">
       <header className="flex w-full items-center gap-3">
-        <Avatar
+        <SenderAvatar
           isSquare
           size="md"
-          initials={sender.slice(0, 1).toUpperCase()}
+          who={byAddress(message.fromAddress)}
+          name={sender}
           className="bg-accent text-foreground outline-0"
         />
         <div className="flex min-w-0 flex-1 flex-col items-start gap-1">

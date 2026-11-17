@@ -73,6 +73,17 @@ const configSchema = z
     /** DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse private addresses. */
     IMAGE_PROXY_DOH_URL: z.url().default("https://cloudflare-dns.com/dns-query"),
     /**
+     * Icon service tried for a sender's company logo when the company's site links no large icon,
+     * `{domain}` replaced by the domain. `off` skips it.
+     */
+    SENDER_LOGO_ICON_SERVICE: optionalText.pipe(
+      z.string().default("https://www.google.com/s2/favicons?domain={domain}&sz=128"),
+    ),
+    /** A webmail sender's picture, `{hash}` replaced by the address's SHA-256. `off`: none. */
+    SENDER_LOGO_GRAVATAR: optionalText.pipe(
+      z.string().default("https://gravatar.com/avatar/{hash}?s=160&d=404"),
+    ),
+    /**
      * `production` by default. `test` (e2e suites) unlocks test-only switches; `development`
      * also logs magic-link and invitation URLs to the console for local sign-in.
      */

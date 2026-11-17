@@ -4,6 +4,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { IconBoard, IconList } from "@/components/icons/central";
+import { byAddress } from "@/components/avatar/sender-avatar";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useCrmCompanies, useCrmDeals, useCrmPeople, useCrmStages } from "@/hooks/use-crm.ts";
@@ -123,7 +124,13 @@ export function CompaniesPage({ q }: { q: string }) {
         search={{ ...search, q }}
         source={sourceOf(list, list.companies)}
         columns={COMPANY_COLUMNS}
-        mark={(company) => <RecordMark name={company.name} square />}
+        mark={(company) => (
+          <RecordMark
+            name={company.name}
+            square
+            who={company.domain ? { domain: company.domain } : null}
+          />
+        )}
         href={(company) => inWorkspace(`/crm/companies/${encodeURIComponent(company.id)}`)}
         onNew={() => setAdding(true)}
       />
@@ -145,7 +152,9 @@ export function PeoplePage({ q }: { q: string }) {
         search={{ ...search, q }}
         source={sourceOf(list, list.people)}
         columns={PEOPLE_COLUMNS}
-        mark={(person) => <RecordMark name={person.name} />}
+        mark={(person) => (
+          <RecordMark name={person.name} who={byAddress(person.addresses[0]?.address)} />
+        )}
         href={(person) => inWorkspace(`/crm/people/${encodeURIComponent(person.id)}`)}
         onNew={() => setAdding(true)}
       />

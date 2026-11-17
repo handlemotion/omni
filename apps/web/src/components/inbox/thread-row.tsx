@@ -1,6 +1,6 @@
 import { SkeletonBox } from "skullet/react";
 import { ConversationMeta, rowTime } from "@/components/inbox/conversation-meta";
-import { Avatar } from "@/components/ui/avatar";
+import { SenderAvatar, byAddress } from "@/components/avatar/sender-avatar";
 import { GridListHeader, GridListItem } from "@/components/ui/grid-list";
 import type { ListRow } from "@/components/inbox/thread-list";
 
@@ -32,9 +32,10 @@ export function ThreadRow({
         {thread.unread && <span aria-label="Unread" className="size-1.5 rounded-full bg-primary" />}
       </span>
       <span className={`w-[min(--spacing(36),25%)] shrink-0 truncate ${tone}`}>{sender}</span>
-      <Avatar
+      <SenderAvatar
         isSquare
-        initials={sender.slice(0, 1).toUpperCase()}
+        who={byAddress(thread.senderAddress)}
+        name={sender}
         className="shrink-0 bg-accent text-foreground outline-0 mix-blend-multiply [--avatar-radius:var(--radius-sm)] [--avatar-size:--spacing(5)]"
       />
       {/* The subject column; the count sits at its end, so counts line up down the list. Beside

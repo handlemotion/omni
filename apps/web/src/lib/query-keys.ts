@@ -2,6 +2,7 @@
 //
 //   omni
 //   ├─ session · device-sessions · sessions · sign-in-methods · sign-in-emails · workspaces
+//   │        · sender-logo(address or domain)
 //   ├─ org ─ organizations · members · invitations · invitation(id) · passkeys · onboarding
 //   │        · billing · billing-cards · billing-invoices
 //   ├─ mail ─ mailboxes(·all) · google-accounts · workspace-mailboxes · mailbox-members(id) · counts · threads(filter)
@@ -60,6 +61,8 @@ export const keys = {
   signInEmails: () => [...root, "sign-in-emails"] as const,
   /** The company a scoped sign-in may ask to join (ADR 0024). */
   join: () => [...root, "join"] as const,
+  /** A sender's avatar picture and its edge, by address or company domain. The same everywhere. */
+  senderLogo: (who: string) => [...root, "sender-logo", who] as const,
   /** An agent asking to connect over OAuth (ADR 0029). */
   oauthClients: () => [...root, "oauth-clients"] as const,
 

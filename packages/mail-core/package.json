@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./addresses": "./src/addresses.ts",
+    "./sender-logo": "./src/sender-logo.ts",
     "./clean": "./src/clean.ts",
     "./display": "./src/display.ts",
     "./verification-code": "./src/verification-code.ts",

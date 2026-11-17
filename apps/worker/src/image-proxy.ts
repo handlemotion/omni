@@ -79,7 +79,10 @@ function withCacheControl(response: Response, value: string) {
   return new Response(response.body, { status: response.status, headers });
 }
 
-async function fetchImage(target: string, options: ProxyOptions): Promise<Response | ProxyFailure> {
+export async function fetchImage(
+  target: string,
+  options: ProxyOptions,
+): Promise<Response | ProxyFailure> {
   let url: URL;
   try {
     url = new URL(target);
@@ -142,7 +145,7 @@ async function fetchImage(target: string, options: ProxyOptions): Promise<Respon
   return { status: 403, reason: "too many redirects" };
 }
 
-async function readCapped(response: Response, maxBytes: number) {
+export async function readCapped(response: Response, maxBytes: number) {
   const reader = response.body!.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;

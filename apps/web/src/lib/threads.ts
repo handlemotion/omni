@@ -18,6 +18,11 @@ export function leavesView(action: keyof typeof LEAVES, view: ThreadView | undef
   return (LEAVES[action] as readonly (ThreadView | undefined)[]).includes(view);
 }
 
+/** The address behind the label's first name, whose picture stands for the thread. */
+export function senderAddress(thread: Pick<ThreadSummary, "participants" | "latestFrom">) {
+  return (thread.participants[0] ?? thread.latestFrom)?.address;
+}
+
 /** One sender: their name. Several: first names, in the order they wrote. */
 export function senderLabel(thread: Pick<ThreadSummary, "participants" | "latestFrom">) {
   const people = thread.participants.length

@@ -3,6 +3,7 @@
 // objects are served only when `forMember` (or its member-scoped helpers) can see them.
 import { findMemberAttachmentByHash, findMemberMessageHtml } from "@omni/db";
 import { codeForStatus } from "@omni/contracts";
+import { domainLogoSource, logoSource } from "@omni/mail-core/sender-logo";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -10,6 +11,7 @@ import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { imageHeaders, isProxiableImageType, proxyImage } from "../image-proxy.ts";
 import { checkRateLimit, tooManyRequests } from "../rate-limiter.ts";
+import { senderLogo } from "../sender-logo.ts";
 import { zValidator } from "../validator.ts";
 
 function notFound(): never {
@@ -45,6 +47,39 @@ export const assets = new Hono<AppEnv>()
         dohUrl: config.IMAGE_PROXY_DOH_URL,
         testAllowOrigin: config.IMAGE_PROXY_TEST_ALLOW_ORIGIN,
         // Each miss is an outbound fetch on the member's behalf; cached images are free.
+        beforeFetch: () => checkRateLimit(c.env, config, "imageProxy", member.id),
+      });
+      if (result instanceof Response) return result;
+      if (result.status === 429) return tooManyRequests(c, result.retryAfter, "imageProxy");
+      return apiError(c, codeForStatus(result.status), result.reason);
+    },
+  )
+
+  /**
+   * A sender's avatar picture: `?address=` (their company's logo, or their Gravatar for webmail)
+   * or `?domain=` (a company's logo). 404 when there is none; the caller shows initials.
+   */
+  .get(
+    "/sender-logo",
+    zValidator(
+      "query",
+      z.object({ address: z.string().max(320).optional(), domain: z.string().max(253).optional() }),
+    ),
+    async (c) => {
+      const { config, member } = c.var;
+      const { address, domain } = c.req.valid("query");
+      const source = address ? logoSource(address) : domain ? domainLogoSource(domain) : null;
+      if (!source) {
+        return new Response(null, {
+          status: 404,
+          headers: { "cache-control": "private, max-age=86400" },
+        });
+      }
+      const result = await senderLogo(source, {
+        dohUrl: config.IMAGE_PROXY_DOH_URL,
+        testAllowOrigin: config.IMAGE_PROXY_TEST_ALLOW_ORIGIN,
+        iconService: config.SENDER_LOGO_ICON_SERVICE,
+        gravatar: config.SENDER_LOGO_GRAVATAR,
         beforeFetch: () => checkRateLimit(c.env, config, "imageProxy", member.id),
       });
       if (result instanceof Response) return result;

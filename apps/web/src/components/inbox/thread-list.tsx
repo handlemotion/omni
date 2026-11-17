@@ -32,7 +32,7 @@ import {
   type ThreadListActions,
 } from "@/hooks/use-thread-list-shortcuts.ts";
 import { groupByDate } from "@/lib/date-groups.ts";
-import { senderLabel } from "@/lib/threads.ts";
+import { senderAddress, senderLabel } from "@/lib/threads.ts";
 import type {
   ConversationFilter,
   ConversationSummary,
@@ -53,6 +53,8 @@ const LIST_MIN = 320;
 export interface ListRow {
   id: string;
   sender: string;
+  /** Whose picture the row's avatar shows: the first sender's address. */
+  senderAddress?: string | undefined;
   subject: string;
   snippet: string;
   unread: boolean;
@@ -132,6 +134,7 @@ export function ListFailed(props: { retry: () => void }) {
 const toRow = (thread: ThreadSummary): ListRow => ({
   id: thread.id,
   sender: senderLabel(thread),
+  senderAddress: senderAddress(thread),
   subject: thread.subject,
   snippet: thread.snippet,
   unread: thread.unread,

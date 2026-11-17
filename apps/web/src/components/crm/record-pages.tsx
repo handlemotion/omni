@@ -23,6 +23,7 @@ import { NewDealDialog, NewPersonDialog } from "./new-records.tsx";
 import { AddDomainDialog, AddPersonDialog, ChooseCompanyDialog } from "./record-dialogs.tsx";
 import { ChoiceValue, LinkValue, PlainValue, TextValue } from "./record-fields.tsx";
 import { RecordFiles } from "./record-files.tsx";
+import { byAddress } from "@/components/avatar/sender-avatar";
 import { DetailSection, NoneRow, RecordLayout, RecordState, RelatedRow } from "./record-layout.tsx";
 import { DAY } from "./record-list.tsx";
 import { Timeline } from "./timeline.tsx";
@@ -65,6 +66,7 @@ export function CompanyPage({ id }: { id: string }) {
         list="companies"
         name={company.name}
         square
+        who={domains[0] ? { domain: domains[0] } : null}
         subtitle={domains[0]}
         details={
           <>
@@ -109,6 +111,7 @@ export function CompanyPage({ id }: { id: string }) {
                     kind="people"
                     id={person.id}
                     name={person.name}
+                    who={byAddress(person.addresses[0]?.address)}
                     meta={person.jobTitle}
                   />
                 ))
@@ -196,6 +199,7 @@ export function PersonPage({ id }: { id: string }) {
       <RecordLayout
         list="people"
         name={person.name}
+        who={byAddress(primary)}
         subtitle={person.jobTitle ?? primary}
         details={
           <DetailSection title="Details">
@@ -326,6 +330,7 @@ export function DealPage({ id }: { id: string }) {
                     kind="people"
                     id={person.id}
                     name={person.name}
+                    who={byAddress(person.addresses[0]?.address)}
                     meta={person.jobTitle}
                   />
                 ))

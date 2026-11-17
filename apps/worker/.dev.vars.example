@@ -125,6 +125,10 @@ DOMAIN_CONNECT_PRIVATE_KEY=
 
 # DNS-over-HTTPS (JSON) resolver the image proxy uses to refuse private addresses.
 IMAGE_PROXY_DOH_URL=https://cloudflare-dns.com/dns-query
+# Sender avatars. An icon service for company logos ({domain} is replaced) and Gravatar for
+# webmail senders ({hash} is the address's SHA-256). Empty uses the default; "off" skips one.
+SENDER_LOGO_ICON_SERVICE=
+SENDER_LOGO_GRAVATAR=
 # production (default), development or test. Only "test" allows test-only switches.
 # "development" also prints magic-link and invitation URLs to the wrangler dev console
 # ({"event":"auth.dev_link",...}), so local sign-in needs no trip to GreenMail. Never set it in

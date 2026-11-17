@@ -9,7 +9,8 @@ import { EmptyState } from "@/components/empty/empty-state";
 import { IconPlus } from "@/components/icons/central";
 import { ListFailed } from "@/components/inbox/thread-list";
 import { StorageFrame } from "@/components/storage/storage-frame";
-import { Avatar } from "@/components/ui/avatar";
+import { SenderAvatar } from "@/components/avatar/sender-avatar";
+import type { SenderLogoFor } from "@/lib/sender-logo";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { SearchField, SearchInput } from "@/components/ui/search-field";
@@ -46,13 +47,22 @@ export interface RecordListSource<T> {
   isFetchingNextPage: boolean;
 }
 
-/** A record's mark: its initial on a square (a company) or a disc (a person, a deal). */
-export function RecordMark(props: { name: string; square?: boolean; size?: number }) {
+/**
+ * A record's mark on a square (a company) or a disc (a person, a deal): the company's logo or the
+ * person's picture when `who` finds one, otherwise its initial.
+ */
+export function RecordMark(props: {
+  name: string;
+  square?: boolean;
+  size?: number;
+  who?: SenderLogoFor | null;
+}) {
   const size = props.size ?? 20;
   return (
-    <Avatar
+    <SenderAvatar
+      who={props.who ?? null}
+      name={props.name}
       isSquare={props.square}
-      initials={props.name.trim().slice(0, 1).toUpperCase() || "?"}
       className="bg-secondary text-muted-foreground outline-0"
       style={{ "--avatar-size": `${size}px` } as React.CSSProperties}
     />

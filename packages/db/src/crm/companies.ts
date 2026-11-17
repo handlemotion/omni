@@ -84,7 +84,14 @@ export function nameMatches(name: AnyColumn, q?: string) {
 export async function listCompanies(ex: Ex, member: CrmMember, input: ListCompaniesInput) {
   const limit = pageSize(input.limit);
   const rows = await ex
-    .select(companyColumns)
+    .select({
+      ...companyColumns,
+      // One of its domains (the first by name), for the row's logo.
+      domain: sql<string | null>`(select ${crmCompanyDomains.domain} from ${crmCompanyDomains}
+        where ${crmCompanyDomains.orgId} = ${crmCompanies.orgId}
+          and ${crmCompanyDomains.companyId} = ${crmCompanies.id}
+        order by ${crmCompanyDomains.domain} limit 1)`,
+    })
     .from(crmCompanies)
     .where(
       and(

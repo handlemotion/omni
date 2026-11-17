@@ -16,6 +16,8 @@
   --subtle-foreground: #a6a6a6;
   --border: #e8e8e8;
   --accent: #f3f3f3;
+  /* Behind a see-through sender logo: logos are drawn for a light page. */
+  --logo-tile: #ffffff;
   /* The fluid hover highlight: a faint wash of the foreground, so it reads on any surface and
      stays lighter than the current row's accent fill. */
   --hover: color-mix(in oklab, var(--foreground) 3%, transparent);
@@ -153,6 +155,7 @@
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);
+  --color-logo-tile: var(--logo-tile);
   --color-hover: var(--hover);
   --color-accent-foreground: var(--accent-foreground);
   --color-card: var(--card);
