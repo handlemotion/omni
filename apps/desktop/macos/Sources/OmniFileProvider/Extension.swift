@@ -209,11 +209,11 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             let place = try Sync.place(of: parent)
             // A move between workspaces is refused, as in the app; Finder offers a copy instead.
             guard place.orgId == orgId else { throw NSFileProviderError(.cannotSynchronize) }
-            node = try await sync.client.change(orgId: orgId, id: nodeId, StorageChangeNodeBody(name: nil, parentId: place.parentId, space: place.space), ifRevision: revision)
+            node = try await sync.client.change(orgId: orgId, id: nodeId, StorageChangeNodeBody(name: nil, icon: nil, parentId: place.parentId, space: place.space), ifRevision: revision)
             revision = node.revision
         }
         if fields.contains(.filename), item.filename != node.name {
-            node = try await sync.client.change(orgId: orgId, id: nodeId, StorageChangeNodeBody(name: item.filename, parentId: nil, space: nil), ifRevision: revision)
+            node = try await sync.client.change(orgId: orgId, id: nodeId, StorageChangeNodeBody(name: item.filename, icon: nil, parentId: nil, space: nil), ifRevision: revision)
         }
         // The system reports new contents for a move or a download too; only bytes that differ
         // from the server's are an edit.
