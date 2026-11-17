@@ -4,6 +4,7 @@
 import type { ReactNode } from "react";
 import { IconFolderShared, IconUpload, IconUserRound, IconUsers } from "@/components/icons/central";
 import { IconSearch, IconTrash } from "@/components/icons/sidebar";
+import { openSearch } from "@/components/search/command-menu.tsx";
 import { FileTrigger } from "@/components/ui/file-trigger";
 import {
   SidebarDisclosure,
@@ -27,13 +28,16 @@ export const SPACE_ICON = {
   shared: <IconUsers className="size-icon" />,
 } as const;
 
-type Row = { label: string; path: string; icon: ReactNode; company?: boolean };
+/** A place, or (`action`) a row that does something here instead of going somewhere. */
+type Row = { label: string; path: string; icon: ReactNode; company?: boolean; action?: () => void };
 
 const PLACES: Row[] = [
   {
     label: "Search",
-    path: "/files/search",
+    path: "search",
     icon: <IconSearch />,
+    // Drive searches in the command menu, on its Drive pill.
+    action: () => openSearch({ q: "", scope: "files" }),
   },
   {
     label: "Shared with me",
@@ -88,9 +92,13 @@ function Rows(props: { rows: Row[]; mailbox: string | undefined }) {
     .map((row) => (
       <SidebarItem
         key={row.path}
-        href={href(row.path + search)}
-        // A folder's page is under its space's path, so the space stays current inside it.
-        isCurrent={pathname === row.path || pathname.startsWith(`${row.path}/`)}
+        {...(row.action
+          ? { onPress: row.action }
+          : {
+              href: href(row.path + search),
+              // A folder's page is under its space's path, so the space stays current inside it.
+              isCurrent: pathname === row.path || pathname.startsWith(`${row.path}/`),
+            })}
         tooltip={row.label}
       >
         {row.icon}

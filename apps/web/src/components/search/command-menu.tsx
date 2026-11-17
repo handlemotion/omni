@@ -16,7 +16,7 @@ import {
   IconUserAdd,
   IconX,
 } from "@/components/icons/central";
-import { IconEmail, IconSearch, IconWrite } from "@/components/icons/sidebar";
+import { IconSearch, IconWrite } from "@/components/icons/sidebar";
 import { useListSweep } from "@/components/inbox/list-sweep";
 import {
   type PageDefinition,
@@ -25,7 +25,6 @@ import {
 } from "@/components/settings/settings-pages";
 import {
   Command,
-  CommandDetail,
   CommandDialog,
   CommandEmpty,
   CommandFooter,
@@ -36,27 +35,38 @@ import {
   CommandScopes,
   CommandShortcut,
 } from "@/components/ui/command";
+import { EmptyState } from "@/components/empty/empty-state";
 import { Loader } from "@/components/ui/loader";
+import { useStorageHref } from "@/components/storage/file-list.tsx";
+import { useCommandSearch, useWarmCommandSearch } from "@/hooks/use-command-search.ts";
 import { useHasCrm } from "@/hooks/use-crm.ts";
 import { useThreads } from "@/hooks/use-mail.ts";
 import { runShortcut, useAvailableShortcuts, useShortcut } from "@/hooks/use-shortcuts.ts";
 import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 import { searchQuery } from "@/lib/mail-queries.ts";
 import { COMMAND_IDS, keyLabel, SHORTCUTS, type ShortcutId } from "@/lib/shortcuts.ts";
-import { senderLabel } from "@/lib/threads.ts";
+import type { FileHit } from "@/hooks/use-command-search.ts";
 import { workspaceHref } from "@/lib/workspaces.ts";
 import { CRM_PAGES, drivePages, MAIL_PAGES, type Page } from "./command-pages";
+import { RecordGroups, ResultBones } from "./command-results.tsx";
 
 // The command menu: a centred cmdk modal over the dimmed app (transitive's workspace search as
 // the reference). "/" or ⌘K opens it from anywhere in a workspace; ⌘K closes it again. Its pills
-// scope it to a module (Mail, Drive, CRM) or to Settings, as transitive's do. Typing filters in
-// the browser; "Smart search" asks the server for mail and shows the results in the main list,
-// at `/<workspace>/mail/search?q=`.
+// scope it to a module (Mail, Drive, CRM) or to Settings, as transitive's do. Typing finds Drive's
+// files and folders, the CRM's records and mail by name, from the cache at once and from the
+// server as it answers (`useCommandSearch`); "Smart search" asks the server for mail and shows the
+// results in the main list, at `/<workspace>/mail/search?q=`.
 
-/** What search opens holding: the words already searched, and the mailbox they were scoped to. */
+export type Scope = "all" | "mail" | "files" | "crm" | "settings";
+
+/**
+ * What search opens holding: the words already searched, the mailbox they were scoped to, and
+ * the pill it starts on (Drive's Search opens on Drive).
+ */
 export interface SearchSeed {
   q: string;
   mailbox?: string | undefined;
+  scope?: Scope | undefined;
 }
 /** The mounted menu's opener; set while it is (the workspace shell mounts one). */
 let openMounted: ((seed?: SearchSeed) => void) | undefined;
@@ -84,7 +94,6 @@ const COMMAND_ICONS: Partial<Record<ShortcutId, ReactNode>> = {
 };
 const COMMANDS = COMMAND_IDS.filter((id) => id in COMMAND_ICONS);
 
-type Scope = "all" | "mail" | "files" | "crm" | "settings";
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "all", label: "All" },
   { id: "mail", label: "Mail" },
@@ -103,17 +112,23 @@ const FOOTER = [
 const keysOf = (id: ShortcutId) => (SHORTCUTS[id].keys[0] ?? []).flatMap(keyLabel);
 
 // Rows match on their keywords (title, sender), not on their value, which is just a unique id.
-// Smart search always matches: it searches the server for whatever was typed.
+// Smart search always matches: it searches the server for whatever was typed. Records are
+// already the matches for the text (`useCommandSearch`), some by a field the row doesn't show
+// (a company's domain), so they aren't filtered again.
 const SMART = "smart-search";
+const RECORD = /^(node|company|person|deal|thread):/;
 const filter = (value: string, search: string, keywords?: string[]) =>
-  value === SMART ? 1 : defaultFilter("", search, keywords);
+  value === SMART || RECORD.test(value) ? 1 : defaultFilter("", search, keywords);
 
 /** Mounted once by the workspace shell: binds `/` and ⌘K and renders the menu. */
 export function CommandMenu() {
   const [open, setOpen] = useState(false);
   const [seed, setSeed] = useState<SearchSeed | undefined>();
+  // Each opening mounts a fresh panel, even one made while the last is still animating out.
+  const [opening, setOpening] = useState(0);
   const show = (next?: SearchSeed) => {
     setSeed(next);
+    setOpening((n) => n + 1);
     setOpen(true);
   };
   useShortcut("search", () => show());
@@ -127,13 +142,13 @@ export function CommandMenu() {
 
   return (
     <CommandDialog label="Search and commands" isOpen={open} onOpenChange={setOpen}>
-      <MenuPanel seed={seed} onClose={() => setOpen(false)} />
+      <MenuPanel key={opening} seed={seed} onClose={() => setOpen(false)} />
     </CommandDialog>
   );
 }
 
 /**
- * What each pill shows. All holds every module's places and the commands; inbox mail and
+ * What each pill shows. All holds every module's places and the commands; records, mail and
  * settings join it once there's a query (transitive's All waits for one too). A module's pill
  * holds that module only; Mail's lists its inbox before any query.
  */
@@ -160,11 +175,14 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
   const available = useAvailableShortcuts();
   const company = useHasCrm();
   const settingsPages = [...useAccountPages(), ...useWorkspacePages()];
-  const { threads } = useThreads({ view: "inbox" });
+  const storageHref = useStorageHref();
+  const { threads: inbox } = useThreads({ view: "inbox" });
   const [q, setQ] = useState(seed?.q ?? "");
   const mailbox = seed?.mailbox;
   const [searching, setSearching] = useState(false);
-  const [scope, setScope] = useState<Scope>("all");
+  const [scope, setScope] = useState<Scope>(seed?.scope ?? "all");
+  useWarmCommandSearch(company);
+  const hits = useCommandSearch(q, company);
   const input = useRef<HTMLInputElement>(null);
   const query = q.trim();
   const show = sections(scope, query);
@@ -193,7 +211,25 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
   };
   const openThread = (threadId: string) => {
     onClose();
-    void navigate({ to: "/$workspace/mail/inbox/$threadId", params: { workspace, threadId } });
+    // A found thread may be anywhere: one in the inbox opens there, any other in All mail.
+    const inInbox = inbox.some((thread) => thread.id === threadId);
+    const to = inInbox ? "/$workspace/mail/inbox/$threadId" : "/$workspace/mail/all/$threadId";
+    void navigate({ to, params: { workspace, threadId } });
+  };
+  const openNode = (node: FileHit) => {
+    onClose();
+    // Shared with the member from elsewhere: its link opens it.
+    if (node.shareId) {
+      void router.navigate({ href: `/s/${encodeURIComponent(node.shareId)}` });
+      return;
+    }
+    if (node.kind === "folder") {
+      void router.navigate({ href: storageHref(node.space, node.id) });
+      return;
+    }
+    const folder = storageHref(node.space, node.parentId ?? undefined);
+    const file = `file=${encodeURIComponent(node.id)}`;
+    void router.navigate({ href: `${folder}${folder.includes("?") ? "&" : "?"}${file}` });
   };
 
   // Loads the results first, so the sweep reveals a full list rather than a loading one.
@@ -228,10 +264,26 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
         }}
       />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        {/* Nothing found fills the list, centred, as every empty state in the app is. */}
+        <CommandEmpty className={hits.searching ? undefined : "absolute inset-0 flex py-0"}>
+          {hits.searching ? (
+            <ResultBones />
+          ) : (
+            <EmptyState figure="loupe" title="Nothing matches" className="p-4 pb-10" />
+          )}
+        </CommandEmpty>
         {show.mail && <PageGroup heading="Mail" pages={MAIL_PAGES} onOpen={openPage} />}
         {show.files && <PageGroup heading="Drive" pages={drivePages(company)} onOpen={openPage} />}
         {show.crm && company && <PageGroup heading="CRM" pages={CRM_PAGES} onOpen={openPage} />}
+        <RecordGroups
+          show={show}
+          query={query}
+          hits={hits}
+          inbox={inbox}
+          onNode={openNode}
+          onPath={go}
+          onThread={openThread}
+        />
         {show.commands && (
           <CommandGroup heading="Commands">
             {COMMANDS.filter((id) => available.has(id)).map((id) => (
@@ -248,7 +300,6 @@ function MenuPanel({ seed, onClose }: { seed?: SearchSeed | undefined; onClose: 
             ))}
           </CommandGroup>
         )}
-        {show.messages && <MessageGroup threads={threads} onOpen={openThread} />}
         {show.settings && (
           <SettingsGroup pages={settingsPages} onOpen={(id) => go(`/settings/${id}`)} />
         )}
@@ -305,32 +356,6 @@ function SettingsGroup(props: { pages: PageDefinition[]; onOpen: (id: string) =>
           <span className="min-w-0 truncate">{page.title}</span>
         </CommandItem>
       ))}
-    </CommandGroup>
-  );
-}
-
-/** Inbox mail, matched on subject and sender; each opens in the inbox. */
-function MessageGroup(props: {
-  threads: ReturnType<typeof useThreads>["threads"];
-  onOpen: (threadId: string) => void;
-}) {
-  return (
-    <CommandGroup heading="Inbox">
-      {props.threads.map((thread) => {
-        const sender = senderLabel(thread);
-        return (
-          <CommandItem
-            key={thread.id}
-            value={`thread:${thread.id}`}
-            keywords={[thread.subject, sender]}
-            onSelect={() => props.onOpen(thread.id)}
-          >
-            <IconEmail />
-            <span className="min-w-0 truncate">{thread.subject || "(no subject)"}</span>
-            <CommandDetail>{sender}</CommandDetail>
-          </CommandItem>
-        );
-      })}
     </CommandGroup>
   );
 }

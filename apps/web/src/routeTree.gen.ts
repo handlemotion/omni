@@ -23,7 +23,6 @@ import { Route as AuthedOauthConsentRouteImport } from "./routes/_authed/oauth/c
 import { Route as AuthedSignRequestIdRouteImport } from "./routes/_authed/sign.$requestId";
 import { Route as AuthedWorkspaceCrmIndexRouteImport } from "./routes/_authed/$workspace/crm/index";
 import { Route as AuthedWorkspaceFilesIndexRouteImport } from "./routes/_authed/$workspace/files/index";
-import { Route as AuthedWorkspaceFilesSearchRouteImport } from "./routes/_authed/$workspace/files/search";
 import { Route as AuthedWorkspaceFilesSharedWithMeRouteImport } from "./routes/_authed/$workspace/files/shared-with-me";
 import { Route as AuthedWorkspaceFilesTrashRouteImport } from "./routes/_authed/$workspace/files/trash";
 import { Route as AuthedWorkspaceMailAllRouteImport } from "./routes/_authed/$workspace/mail/all";
@@ -130,12 +129,6 @@ const AuthedWorkspaceFilesIndexRoute =
   AuthedWorkspaceFilesIndexRouteImport.update({
     id: "/files/",
     path: "/files/",
-    getParentRoute: () => AuthedWorkspaceRoute,
-  } as any);
-const AuthedWorkspaceFilesSearchRoute =
-  AuthedWorkspaceFilesSearchRouteImport.update({
-    id: "/files/search",
-    path: "/files/search",
     getParentRoute: () => AuthedWorkspaceRoute,
   } as any);
 const AuthedWorkspaceFilesSharedWithMeRoute =
@@ -363,7 +356,6 @@ export interface FileRoutesByFullPath {
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
   "/sign/$requestId": typeof AuthedSignRequestIdRoute;
-  "/$workspace/files/search": typeof AuthedWorkspaceFilesSearchRoute;
   "/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
   "/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
   "/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
@@ -414,7 +406,6 @@ export interface FileRoutesByTo {
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
   "/sign/$requestId": typeof AuthedSignRequestIdRoute;
-  "/$workspace/files/search": typeof AuthedWorkspaceFilesSearchRoute;
   "/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
   "/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
   "/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
@@ -468,7 +459,6 @@ export interface FileRoutesById {
   "/_authed/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/_authed/oauth/consent": typeof AuthedOauthConsentRoute;
   "/_authed/sign/$requestId": typeof AuthedSignRequestIdRoute;
-  "/_authed/$workspace/files/search": typeof AuthedWorkspaceFilesSearchRoute;
   "/_authed/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
   "/_authed/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
   "/_authed/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
@@ -522,7 +512,6 @@ export interface FileRouteTypes {
     | "/invite/$invitationId"
     | "/oauth/consent"
     | "/sign/$requestId"
-    | "/$workspace/files/search"
     | "/$workspace/files/shared-with-me"
     | "/$workspace/files/trash"
     | "/$workspace/mail/all"
@@ -573,7 +562,6 @@ export interface FileRouteTypes {
     | "/invite/$invitationId"
     | "/oauth/consent"
     | "/sign/$requestId"
-    | "/$workspace/files/search"
     | "/$workspace/files/shared-with-me"
     | "/$workspace/files/trash"
     | "/$workspace/mail/all"
@@ -626,7 +614,6 @@ export interface FileRouteTypes {
     | "/_authed/invite/$invitationId"
     | "/_authed/oauth/consent"
     | "/_authed/sign/$requestId"
-    | "/_authed/$workspace/files/search"
     | "/_authed/$workspace/files/shared-with-me"
     | "/_authed/$workspace/files/trash"
     | "/_authed/$workspace/mail/all"
@@ -772,13 +759,6 @@ declare module "@tanstack/react-router" {
       path: "/files";
       fullPath: "/$workspace/files/";
       preLoaderRoute: typeof AuthedWorkspaceFilesIndexRouteImport;
-      parentRoute: typeof AuthedWorkspaceRoute;
-    };
-    "/_authed/$workspace/files/search": {
-      id: "/_authed/$workspace/files/search";
-      path: "/files/search";
-      fullPath: "/$workspace/files/search";
-      preLoaderRoute: typeof AuthedWorkspaceFilesSearchRouteImport;
       parentRoute: typeof AuthedWorkspaceRoute;
     };
     "/_authed/$workspace/files/shared-with-me": {
@@ -1208,7 +1188,6 @@ const AuthedWorkspaceMailTrashRouteWithChildren =
 interface AuthedWorkspaceRouteChildren {
   AuthedWorkspaceSplatRoute: typeof AuthedWorkspaceSplatRoute;
   AuthedWorkspaceCrmRoute: typeof AuthedWorkspaceCrmRouteWithChildren;
-  AuthedWorkspaceFilesSearchRoute: typeof AuthedWorkspaceFilesSearchRoute;
   AuthedWorkspaceFilesSharedWithMeRoute: typeof AuthedWorkspaceFilesSharedWithMeRoute;
   AuthedWorkspaceFilesTrashRoute: typeof AuthedWorkspaceFilesTrashRoute;
   AuthedWorkspaceMailAllRoute: typeof AuthedWorkspaceMailAllRouteWithChildren;
@@ -1234,7 +1213,6 @@ interface AuthedWorkspaceRouteChildren {
 const AuthedWorkspaceRouteChildren: AuthedWorkspaceRouteChildren = {
   AuthedWorkspaceSplatRoute: AuthedWorkspaceSplatRoute,
   AuthedWorkspaceCrmRoute: AuthedWorkspaceCrmRouteWithChildren,
-  AuthedWorkspaceFilesSearchRoute: AuthedWorkspaceFilesSearchRoute,
   AuthedWorkspaceFilesSharedWithMeRoute: AuthedWorkspaceFilesSharedWithMeRoute,
   AuthedWorkspaceFilesTrashRoute: AuthedWorkspaceFilesTrashRoute,
   AuthedWorkspaceMailAllRoute: AuthedWorkspaceMailAllRouteWithChildren,

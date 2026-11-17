@@ -1,4 +1,4 @@
-// Drive's Search (live files and folders across the member's My files and, in a company, Shared)
+// Drive's name search (live files and folders across the member's My files and, in a company, Shared)
 // and the sidebar's cluster glyphs. Under `keys.storage()`, so every change refetches them.
 import { queryOptions } from "@tanstack/react-query";
 import { api, call } from "./api.ts";

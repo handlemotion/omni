@@ -36,7 +36,8 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Catches: ⌘K bound only where the mail list is mounted (Drive had no menu), a module's page or
+// Catches: ⌘K bound only where the mail list is mounted (Drive had no menu), Drive's Search not
+// opening the menu on Drive, a folder the menu can't find by name until it was listed, a module's page or
 // a settings page the menu can't reach, a scope pill that keeps focus so typing goes nowhere, and
 // a command row that closes the menu without running its shortcut's handler.
 test("⌘K opens the command menu anywhere, finds a thread and marks it done", async () => {
@@ -99,10 +100,37 @@ test("⌘K opens the command menu anywhere, finds a thread and marks it done", a
 
   await page.keyboard.press("Control+k");
   await page.keyboard.type("mark done");
+  // Leaving the page before Done's request is sent would cancel it, so wait for its answer.
+  const done = page.waitForResponse(
+    (res) => res.request().method() === "POST" && /\/threads\/[^/]+\/done$/.test(res.url()),
+  );
   await page.keyboard.press("Enter");
   await menu.waitFor({ state: "hidden" });
+  await done;
   await page.goto(new URL("/menu/mail/inbox", origin).toString());
   await page.getByRole("main").waitFor();
   await expect.poll(() => page.getByText("Quarterly freight rates").count()).toBe(0);
+
+  // Drive's Search opens the menu on its Drive pill, and finds a folder by a word of its name. The
+  // folder sits inside another the page never listed, so only the server's name search has it.
+  await page.goto(new URL("/menu/files/my", origin).toString());
+  await page.getByRole("main").waitFor();
+  const chowId = await page.evaluate(async () => {
+    const post = async (body: object) => {
+      const res = await fetch("/api/storage/folders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return ((await res.json()) as { node: { id: string } }).node.id;
+    };
+    const recipes = await post({ name: "Recipes", space: "personal" });
+    return post({ name: "Chow Mein", parentId: recipes });
+  });
+  await page.getByRole("link", { name: "Search", exact: true }).click();
+  await menu.getByRole("radio", { name: "Drive", checked: true }).waitFor();
+  await page.keyboard.type("chow");
+  await menu.getByRole("option", { name: "Chow Mein" }).click();
+  await page.waitForURL(new RegExp(`/files/my/${chowId}$`));
   await context.close();
 });

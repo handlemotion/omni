@@ -2,6 +2,7 @@
 // a Hairline figure (`@lucasmarkes/hairline`), an isometric line drawing of an object holding
 // nothing, then one or two lines of text and the actions. The figures answer the pointer, follow
 // the theme on their own and rest still under reduced motion.
+import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Cabinet, Drawer, Exploded, Loupe, Padlock, Plug } from "@lucasmarkes/hairline/react";
 import {
@@ -34,11 +35,13 @@ export function EmptyState(props: {
   description?: string;
   meta?: string;
   children?: ReactNode;
+  /** Spacing for a smaller frame than a page (the command menu's list). */
+  className?: string;
 }) {
   const Figure = FIGURES[props.figure];
   return (
     // A little above the true middle, where an empty page reads as centered.
-    <Empty className="gap-6 p-8 pb-24">
+    <Empty className={cn("gap-6 p-8 pb-24", props.className)}>
       <EmptyHeader className="gap-1">
         <EmptyMedia className="mb-5 w-52 [&_svg]:pointer-events-auto">
           <Figure aria-hidden className="w-full" />

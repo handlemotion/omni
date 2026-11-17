@@ -36,7 +36,7 @@ import {
   storageCommentsQuery,
   storageNodeQuery,
 } from "../lib/storage-comments.ts";
-import { storageFolderIconsQuery, storageSearchQuery } from "../lib/storage-find.ts";
+import { storageFolderIconsQuery } from "../lib/storage-find.ts";
 import { restoreVersionMutation, storageVersionsQuery } from "../lib/storage-versions.ts";
 import { useSession } from "./use-session.ts";
 import { useCurrentWorkspace } from "./use-workspaces.ts";
@@ -72,12 +72,6 @@ export function useStorageTrash() {
   const query = useInfiniteQuery(storageTrashQuery());
   const nodes = useMemo(() => query.data?.pages.flatMap((page) => page.nodes) ?? [], [query.data]);
   return { ...query, nodes };
-}
-
-/** Drive's Search: files and folders whose name holds `q`; idle while `q` is blank. */
-export function useStorageSearch(q: string) {
-  const query = useQuery({ ...storageSearchQuery(q), placeholderData: (previous) => previous });
-  return { ...query, nodes: query.data?.nodes ?? [] };
 }
 
 /** A drive's cluster glyphs by folder id; empty until they load, or if they fail to. */
