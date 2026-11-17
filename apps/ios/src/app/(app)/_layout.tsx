@@ -1,7 +1,7 @@
 import { Redirect } from "expo-router";
 import { NativeTabs } from "expo-router/native-tabs";
 import { useSession } from "@/lib/session.ts";
-import { useWorkspace } from "@/lib/workspace.ts";
+import { hasCrm, useWorkspace } from "@/lib/workspace.ts";
 import { colors } from "@/theme/tokens.ts";
 
 /**
@@ -15,11 +15,20 @@ export default function SignedInLayout() {
   if (session.isPending && !session.data) return null;
   if (!session.data) return <Redirect href="/sign-in" />;
   if (!active) return null;
+  const crm = hasCrm(active);
   return (
     <NativeTabs tintColor={colors.foreground} backgroundColor={colors.background}>
       <NativeTabs.Trigger name="mail">
         <NativeTabs.Trigger.Icon sf={{ default: "envelope", selected: "envelope.fill" }} />
         <NativeTabs.Trigger.Label>Mail</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="drive">
+        <NativeTabs.Trigger.Icon sf={{ default: "folder", selected: "folder.fill" }} />
+        <NativeTabs.Trigger.Label>Drive</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="crm" hidden={!crm}>
+        <NativeTabs.Trigger.Icon sf={{ default: "briefcase", selected: "briefcase.fill" }} />
+        <NativeTabs.Trigger.Label>CRM</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

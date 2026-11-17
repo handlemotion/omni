@@ -89,3 +89,8 @@ export const call: <T extends ClientResponse<any>>(
 export function isAuthError(error: unknown) {
   return error instanceof ApiError && (error.status === 401 || error.status === 403);
 }
+
+/** The record is gone (deleted, or never there). */
+export function isNotFound(error: unknown) {
+  return error instanceof ApiError && error.status === 404;
+}
