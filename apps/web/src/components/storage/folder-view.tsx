@@ -17,6 +17,7 @@ import { MoveDialog, RenameDialog, type MoveScope } from "./file-dialogs.tsx";
 import { FolderBody, HeaderActions } from "./folder-body.tsx";
 import { PreviewPanel } from "./preview/preview-panel.tsx";
 import { ShareDialog } from "./share-dialog.tsx";
+import { SignaturesDialog } from "./signatures-dialog.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 import { StorageFrame } from "./storage-frame.tsx";
 import { UploadsPanel } from "./uploads-panel.tsx";
@@ -24,7 +25,7 @@ import { VersionsDialog } from "./versions-dialog.tsx";
 import { CommentsPanel } from "./comments-panel.tsx";
 
 export type FolderDialog = {
-  dialog: "rename" | "move" | "share" | "versions" | "comments";
+  dialog: "rename" | "move" | "share" | "versions" | "comments" | "signatures";
   node: StorageNode;
 } | null;
 
@@ -225,6 +226,8 @@ function FolderDialogs(props: { dialog: FolderDialog; source: FolderSource; onCl
     case "comments":
       // A panel beside the folder, not a dialog (see `useCommentsPanel`).
       return null;
+    case "signatures":
+      return <SignaturesDialog node={node} onClose={onClose} />;
   }
 }
 

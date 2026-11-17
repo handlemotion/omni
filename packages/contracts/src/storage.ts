@@ -384,7 +384,11 @@ export const storageSigningListResponseSchema = z.object({
   items: z.array(storageSigningItemSchema),
 });
 
-export const storageSigningItemResponseSchema = z.object({ item: storageSigningItemSchema });
+/** One request, with the consent sentence a signer accepts (`STORAGE_SIGNING_CONSENT`). */
+export const storageSigningItemResponseSchema = z.object({
+  item: storageSigningItemSchema,
+  consent: z.object({ version: z.string(), text: z.string() }),
+});
 
 /** `POST /signing/:id/code` answers when the code mailed stops working. */
 export const storageSigningCodeResponseSchema = z.object({ expiresAt: isoDate });

@@ -220,7 +220,10 @@ export const storageSigning = new Hono<AppEnv>()
   .get("/:id", async (c) => {
     const item = await signerDoor(c).signingRequest(c.req.param("id"));
     if (!item) return refused(c, "not_found");
-    return c.json({ item: wireItem(item) } satisfies StorageSigningItemResponse);
+    return c.json({
+      item: wireItem(item),
+      consent: STORAGE_SIGNING_CONSENT,
+    } satisfies StorageSigningItemResponse);
   })
 
   /** The signed copy with its audit page, once sealed; `404` until then. */
@@ -279,5 +282,8 @@ export const storageSigning = new Hono<AppEnv>()
     if (signed.completed) {
       sealAfterResponse(c, signed.item.id, (node) => announceDrives(c, [node]));
     }
-    return c.json({ item: wireItem(signed.item) } satisfies StorageSigningItemResponse);
+    return c.json({
+      item: wireItem(signed.item),
+      consent: STORAGE_SIGNING_CONSENT,
+    } satisfies StorageSigningItemResponse);
   });

@@ -20,6 +20,7 @@ import { Route as AuthedWorkspaceSplatRouteImport } from "./routes/_authed/$work
 import { Route as AuthedWorkspaceCrmRouteImport } from "./routes/_authed/$workspace/crm";
 import { Route as AuthedInviteInvitationIdRouteImport } from "./routes/_authed/invite.$invitationId";
 import { Route as AuthedOauthConsentRouteImport } from "./routes/_authed/oauth/consent";
+import { Route as AuthedSignRequestIdRouteImport } from "./routes/_authed/sign.$requestId";
 import { Route as AuthedWorkspaceCrmIndexRouteImport } from "./routes/_authed/$workspace/crm/index";
 import { Route as AuthedWorkspaceFilesIndexRouteImport } from "./routes/_authed/$workspace/files/index";
 import { Route as AuthedWorkspaceFilesSharedWithMeRouteImport } from "./routes/_authed/$workspace/files/shared-with-me";
@@ -112,6 +113,11 @@ const AuthedInviteInvitationIdRoute =
 const AuthedOauthConsentRoute = AuthedOauthConsentRouteImport.update({
   id: "/oauth/consent",
   path: "/oauth/consent",
+  getParentRoute: () => AuthedRoute,
+} as any);
+const AuthedSignRequestIdRoute = AuthedSignRequestIdRouteImport.update({
+  id: "/sign/$requestId",
+  path: "/sign/$requestId",
   getParentRoute: () => AuthedRoute,
 } as any);
 const AuthedWorkspaceCrmIndexRoute = AuthedWorkspaceCrmIndexRouteImport.update({
@@ -349,6 +355,7 @@ export interface FileRoutesByFullPath {
   "/$workspace/crm": typeof AuthedWorkspaceCrmRouteWithChildren;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
+  "/sign/$requestId": typeof AuthedSignRequestIdRoute;
   "/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
   "/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
   "/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
@@ -398,6 +405,7 @@ export interface FileRoutesByTo {
   "/$workspace/$": typeof AuthedWorkspaceSplatRoute;
   "/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/oauth/consent": typeof AuthedOauthConsentRoute;
+  "/sign/$requestId": typeof AuthedSignRequestIdRoute;
   "/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
   "/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
   "/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
@@ -450,6 +458,7 @@ export interface FileRoutesById {
   "/_authed/$workspace/crm": typeof AuthedWorkspaceCrmRouteWithChildren;
   "/_authed/invite/$invitationId": typeof AuthedInviteInvitationIdRoute;
   "/_authed/oauth/consent": typeof AuthedOauthConsentRoute;
+  "/_authed/sign/$requestId": typeof AuthedSignRequestIdRoute;
   "/_authed/$workspace/files/shared-with-me": typeof AuthedWorkspaceFilesSharedWithMeRoute;
   "/_authed/$workspace/files/trash": typeof AuthedWorkspaceFilesTrashRoute;
   "/_authed/$workspace/mail/all": typeof AuthedWorkspaceMailAllRouteWithChildren;
@@ -502,6 +511,7 @@ export interface FileRouteTypes {
     | "/$workspace/crm"
     | "/invite/$invitationId"
     | "/oauth/consent"
+    | "/sign/$requestId"
     | "/$workspace/files/shared-with-me"
     | "/$workspace/files/trash"
     | "/$workspace/mail/all"
@@ -551,6 +561,7 @@ export interface FileRouteTypes {
     | "/$workspace/$"
     | "/invite/$invitationId"
     | "/oauth/consent"
+    | "/sign/$requestId"
     | "/$workspace/files/shared-with-me"
     | "/$workspace/files/trash"
     | "/$workspace/mail/all"
@@ -602,6 +613,7 @@ export interface FileRouteTypes {
     | "/_authed/$workspace/crm"
     | "/_authed/invite/$invitationId"
     | "/_authed/oauth/consent"
+    | "/_authed/sign/$requestId"
     | "/_authed/$workspace/files/shared-with-me"
     | "/_authed/$workspace/files/trash"
     | "/_authed/$workspace/mail/all"
@@ -726,6 +738,13 @@ declare module "@tanstack/react-router" {
       path: "/oauth/consent";
       fullPath: "/oauth/consent";
       preLoaderRoute: typeof AuthedOauthConsentRouteImport;
+      parentRoute: typeof AuthedRoute;
+    };
+    "/_authed/sign/$requestId": {
+      id: "/_authed/sign/$requestId";
+      path: "/sign/$requestId";
+      fullPath: "/sign/$requestId";
+      preLoaderRoute: typeof AuthedSignRequestIdRouteImport;
       parentRoute: typeof AuthedRoute;
     };
     "/_authed/$workspace/crm/": {
@@ -1227,6 +1246,7 @@ interface AuthedRouteChildren {
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute;
   AuthedInviteInvitationIdRoute: typeof AuthedInviteInvitationIdRoute;
   AuthedOauthConsentRoute: typeof AuthedOauthConsentRoute;
+  AuthedSignRequestIdRoute: typeof AuthedSignRequestIdRoute;
   AuthedSettingsEmailsVerifyRoute: typeof AuthedSettingsEmailsVerifyRoute;
 }
 
@@ -1236,6 +1256,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedOnboardingRoute: AuthedOnboardingRoute,
   AuthedInviteInvitationIdRoute: AuthedInviteInvitationIdRoute,
   AuthedOauthConsentRoute: AuthedOauthConsentRoute,
+  AuthedSignRequestIdRoute: AuthedSignRequestIdRoute,
   AuthedSettingsEmailsVerifyRoute: AuthedSettingsEmailsVerifyRoute,
 };
 

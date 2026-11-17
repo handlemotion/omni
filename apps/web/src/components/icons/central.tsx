@@ -35,6 +35,7 @@ export { IconMailbox } from "central-icons-outlined/IconMailbox";
 export { IconPencil } from "central-icons-outlined/IconPencil";
 export { IconPlusMedium as IconPlus } from "central-icons-outlined/IconPlusMedium";
 export { IconPaperPlane as IconSend } from "central-icons-outlined/IconPaperPlane";
+export { IconSignature } from "central-icons-outlined/IconSignature";
 export { IconSettingsGear2 as IconSettings } from "central-icons-outlined/IconSettingsGear2";
 export { IconShield } from "central-icons-outlined/IconShield";
 export { IconPhone as IconSmartphone } from "central-icons-outlined/IconPhone";

@@ -5,6 +5,7 @@ import { useCallback, useMemo } from "react";
 import {
   IconClock3,
   IconComment,
+  IconSignature,
   IconDownload,
   IconFolderMove,
   IconPencil,
@@ -103,6 +104,15 @@ function useRowMenu() {
               icon: IconClock3,
               label: "Versions",
               onAction: () => open({ dialog: "versions", node }),
+            },
+          ]
+        : []),
+      ...(node.mimeType === "application/pdf"
+        ? [
+            {
+              icon: IconSignature,
+              label: "Signatures",
+              onAction: () => open({ dialog: "signatures", node }),
             },
           ]
         : []),
