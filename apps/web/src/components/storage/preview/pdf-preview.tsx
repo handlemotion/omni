@@ -1,6 +1,7 @@
 // A PDF, drawn by pdf.js to canvases (ADR 0040): its own script never runs (no eval, no
 // annotation or form layer), and it reads the file by `Range`, so a 300-page PDF opens on its
-// first pages' bytes. Only pages near the screen are drawn; the rest hold their height.
+// first pages' bytes. Only pages near the screen are drawn; the rest hold their height. Box
+// comments sit over each page (`pdf-marks.tsx`).
 // Loaded on its own chunk with pdf.js, the first time a PDF opens.
 import "react-pdf/dist/Page/TextLayer.css";
 import { useEffect, useRef, useState, type RefObject } from "react";
@@ -10,6 +11,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 // oxlint-disable-next-line import/default
 import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import { SkeletonBox } from "skullet/react";
+import { PageMarks } from "./pdf-marks.tsx";
 import { NoPreview, StageLoading } from "./shared.tsx";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -79,16 +81,19 @@ function LazyPage(props: {
       ref={ref}
       aria-label={`Page ${props.number}`}
       style={{ width: props.width, minHeight: props.height }}
-      className="relative overflow-hidden rounded-sm border bg-background shadow-raised"
+      // Not clipped: a box's comment bar may reach past the page's edge. The page clips itself.
+      className="relative rounded-sm border bg-background shadow-raised"
     >
       {near && (
         <Page
+          className="overflow-hidden rounded-[3px]"
           pageNumber={props.number}
           width={props.width}
           renderAnnotationLayer={false}
           loading={<SkeletonBox width={props.width} height={props.height} radius={0} />}
         />
       )}
+      <PageMarks page={props.number} />
     </div>
   );
 }

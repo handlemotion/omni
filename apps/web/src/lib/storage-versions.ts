@@ -5,6 +5,7 @@ import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react
 import type { Api } from "@omni/client";
 import type { InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
+import { withWorkspace } from "./current-workspace.ts";
 import { keys } from "./query-keys.ts";
 import { storageChanged } from "./storage.ts";
 
@@ -29,10 +30,15 @@ export const storageVersionsQuery = (id: string, shareId?: string) =>
 
 /** A kept version's bytes: always a download, like the file's own. */
 export function storageVersionUrl(id: string, versionId: string, shareId?: string) {
-  const url = shareId
-    ? sharedDoor()[":versionId"].content.$url({ param: { shareId, id, versionId } })
-    : memberDoor()[":versionId"].content.$url({ param: { id, versionId } });
-  return url.toString();
+  if (shareId) {
+    return sharedDoor()
+      [":versionId"].content.$url({ param: { shareId, id, versionId } })
+      .toString();
+  }
+  // Downloads and previews load it themselves, with no header: the URL names the workspace.
+  return withWorkspace(
+    memberDoor()[":versionId"].content.$url({ param: { id, versionId } }).toString(),
+  );
 }
 
 /** `mutate({ id, versionId, shareId? })` makes a kept version the file's content again. */

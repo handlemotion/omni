@@ -43,9 +43,10 @@ export const buttonStyles = tv({
       // press are a quiet 4% wash of the foreground (as on secondary), not a grey fill.
       outline:
         "shadow-(--shadow-button) border-border [--btn-bg:var(--color-background)] [--btn-foreground:var(--color-black)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:color-mix(in_oklab,var(--color-foreground)_4%,var(--color-background))]",
-      // Plain until hovered, then a borderless grey backdrop: toolbars of icon actions.
+      // Plain until hovered, then a borderless grey backdrop: toolbars of icon actions. On
+      // (`aria-pressed`, a tool in use) it keeps the accent fill and a foreground icon.
       ghost:
-        "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)]",
+        "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:var(--color-accent)] aria-expanded:[--btn-bg:var(--color-accent)] aria-pressed:[--btn-bg:var(--color-accent)] aria-pressed:[--btn-icon:var(--color-foreground)]",
       plain:
         "border-0 [--btn-bg:transparent] [--btn-foreground:var(--color-foreground)] [--btn-icon:var(--color-muted-foreground)] [--btn-outline:var(--color-ring)] [--btn-overlay:transparent]",
     },

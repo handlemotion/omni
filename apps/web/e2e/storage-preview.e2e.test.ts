@@ -1,0 +1,168 @@
+// The Drive preview's tools (the bottom island), in a real Chromium, on the web app built and
+// served by the real Worker under `wrangler dev`, on a real Postgres: a box drawn on a PDF page
+// with the area tool is stored as that page and box, in fractions of the page, and comes back
+// over the page after a reload.
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { schema } from "@omni/db";
+import { chromium, type Browser, type BrowserContext } from "playwright-core";
+import { afterAll, beforeAll, expect, test } from "vitest";
+import {
+  createMailbox,
+  createOrg,
+  createTestDatabase,
+  signIn,
+  startMailServiceEndpoint,
+  startWorkerWithNetwork,
+  SYSTEM_MAIL_FROM,
+  type TestDb,
+} from "../../worker/e2e/support.ts";
+
+let database: Awaited<ReturnType<typeof createTestDatabase>>;
+let db: TestDb;
+let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
+let worker: Awaited<ReturnType<typeof startWorkerWithNetwork>>;
+let browser: Browser;
+let context: BrowserContext | undefined;
+
+beforeAll(async () => {
+  database = await createTestDatabase();
+  db = database.db;
+  mailService = await startMailServiceEndpoint();
+  const port = await freePort();
+  worker = await startWorkerWithNetwork({
+    databaseUrl: database.url,
+    mailServiceUrl: mailService.url,
+    port,
+    vars: { BETTER_AUTH_URL: `http://127.0.0.1:${port}` },
+  });
+  const system = await createOrg(db, "system");
+  await createMailbox(db, system.id, SYSTEM_MAIL_FROM);
+  browser = await chromium.launch().catch(() => chromium.launch({ channel: "chrome" }));
+});
+
+afterAll(async () => {
+  await context?.close();
+  await browser?.close();
+  await worker?.close();
+  await mailService?.close();
+  await database?.teardown();
+});
+
+// Catches: the area tool storing the box in pixels, against the wrong page, or offset by the
+// stage's padding (so it lands elsewhere at another zoom), the comment bar opening away from the
+// box, and a thread's box not drawn again over its page once the comments load.
+test("a box drawn on a PDF page is saved as that page's fractions and shows after a reload", async () => {
+  const page = await signedIn(`preview-${Date.now()}@gmail.test`, "/files/my");
+  await page
+    .getByRole("button", { name: "Upload", exact: true })
+    .first()
+    .waitFor({ timeout: 15_000 });
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles({ name: "deck.pdf", mimeType: "application/pdf", buffer: twoPagePdf() });
+  await page.getByRole("row", { name: /deck\.pdf/ }).click({ timeout: 30_000 });
+
+  const second = page.getByLabel("Page 2", { exact: true });
+  await second.locator("canvas").first().waitFor({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Comment on an area" }).click();
+  await second.scrollIntoViewIfNeeded();
+  const box = await second.boundingBox();
+  if (!box) throw new Error("page 2 has no box");
+  // From a quarter across and a tenth down to half across and three tenths down.
+  await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.1);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.2, { steps: 4 });
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.3, { steps: 4 });
+  await page.mouse.up();
+
+  const field = page.getByRole("textbox", { name: "Comment" });
+  // The bar opens at the box, just under it, not down on the island.
+  const bar = await field.boundingBox();
+  if (!bar) throw new Error("no comment bar");
+  expect(bar.y).toBeGreaterThan(box.y + box.height * 0.3);
+  expect(bar.y).toBeLessThan(box.y + box.height * 0.5);
+  await field.fill("Move this chart up");
+  await page.getByRole("button", { name: "Send" }).click();
+  // Sent: the comment bar closes.
+  await field.waitFor({ state: "hidden" });
+
+  const [row] = await db.select().from(schema.storageComments);
+  expect(row?.body).toBe("Move this chart up");
+  const anchor = row?.anchor as {
+    kind: string;
+    page: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  expect(anchor.kind).toBe("pdf");
+  expect(anchor.page).toBe(2);
+  // Within a pixel or two of the drag, at any page width.
+  expect(anchor.x).toBeCloseTo(0.25, 2);
+  expect(anchor.y).toBeCloseTo(0.1, 2);
+  expect(anchor.width).toBeCloseTo(0.25, 2);
+  expect(anchor.height).toBeCloseTo(0.2, 2);
+
+  await page.reload();
+  const mark = page.getByLabel("Page 2", { exact: true }).getByTestId("comment-box");
+  await mark.waitFor({ timeout: 20_000 });
+  const drawn = await mark.boundingBox();
+  const again = await page.getByLabel("Page 2", { exact: true }).boundingBox();
+  if (!drawn || !again) throw new Error("the box was not drawn again");
+  expect((drawn.x - again.x) / again.width).toBeCloseTo(0.25, 1);
+  expect((drawn.y - again.y) / again.height).toBeCloseTo(0.1, 1);
+}, 120_000);
+
+/** A real two-page PDF (US Letter), with a correct cross-reference table. */
+function twoPagePdf() {
+  const text = "BT /F1 24 Tf 72 700 Td (Quarterly plan) Tj ET";
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 6 0 R >> >> >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 6 0 R >> >> >>",
+    `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((object, index) => {
+    offsets.push(body.length);
+    body += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xref = body.length;
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) body += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(body, "latin1");
+}
+
+async function signedIn(email: string, path: string) {
+  const origin = String(worker.url);
+  const cookie = await signIn({ url: new URL(origin) }, db, email);
+  await context?.close();
+  context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await context.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const page = await context.newPage();
+  await page.goto(new URL(path, origin).toString());
+  return page;
+}
+
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address() as AddressInfo;
+      server.close(() => resolve(port));
+    });
+  });
+}
