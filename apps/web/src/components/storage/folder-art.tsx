@@ -4,7 +4,7 @@
 // at most; an empty folder's square itself is dashed. The contents come from the folder's own
 // first page, read once the card nears the screen, so opening the folder finds it cached.
 import { useRef, useState, type CSSProperties } from "react";
-import { IconFolderFilled } from "@/components/icons/central";
+import { IconFolderFilled, IconFolderOpenFilled } from "@/components/icons/central";
 import { useStorageList } from "@/hooks/use-storage.ts";
 import { useThumbnail } from "@/hooks/use-storage-preview.ts";
 import { fileType } from "@/lib/file-kind.ts";
@@ -45,16 +45,17 @@ export function FolderArt(props: {
   const contents = useStorageList({ parentId: node?.id ?? "" }, { enabled });
   const cards = enabled ? pick(contents.nodes) : [];
   const spots = STACK[cards.length - 1] ?? [];
-  // Empty once its listing says so (not while it loads, so a full folder never flashes dashed),
-  // and always for a folder still being named.
+  // Empty once its listing says so (not while it loads, so a full folder never flashes its empty
+  // glyph), and always for a folder still being named.
   const empty = !node || (contents.isSuccess && contents.nodes.length === 0);
   return (
     <div
       aria-hidden
-      // Empty: no fill, and a dashed edge a step stronger than the solid one so the dashes read.
-      className={`relative aspect-square overflow-hidden rounded-lg border ${empty ? "border-dashed border-muted-foreground/40" : "bg-surface shadow-raised"}`}
+      className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised"
     >
       <span ref={anchor} className="absolute inset-0" />
+      {/* Empty: an open folder, filled in the subtle grey, in place of the stack. */}
+      {empty && <IconFolderOpenFilled className="size-12 text-subtle-foreground" />}
       {fileUrl &&
         cards.length > 0 &&
         // Drawn back to front, so the first card lands on top.
