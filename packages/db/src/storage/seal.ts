@@ -57,7 +57,8 @@ export async function unsealedSignatureRequests(db: Db): Promise<{ id: string }[
     .where(
       and(
         eq(storageSignatureRequests.status, "completed"),
-        isNull(storageSignatureRequests.sealedNodeId),
+        // The hash, not the node: the copy may be deleted later, and that does not unseal it.
+        isNull(storageSignatureRequests.sealedSha256),
         eq(storageNodes.contentVersion, storageSignatureRequests.contentVersion),
         isNull(storageNodes.trashedAt),
         isNotNull(storageNodes.r2Key),
@@ -83,10 +84,10 @@ export async function storageSealInput(
   const row = await loadRequest(db, requestId);
   if (!row || row.status !== "completed") return null;
   const [sealed] = await db
-    .select({ sealedNodeId: storageSignatureRequests.sealedNodeId })
+    .select({ sealedSha256: storageSignatureRequests.sealedSha256 })
     .from(storageSignatureRequests)
     .where(eq(storageSignatureRequests.id, requestId));
-  if (sealed?.sealedNodeId) return null;
+  if (sealed?.sealedSha256) return null;
   const original = await sentOriginal(db, row);
   if (!original?.r2Key) return null;
   const [context] = await db
@@ -130,12 +131,12 @@ export function recordStorageSeal(
     if (!request || request.status !== "completed") return { status: "not_sealable" };
     const [current] = await tx
       .select({
-        sealedNodeId: storageSignatureRequests.sealedNodeId,
+        sealedSha256: storageSignatureRequests.sealedSha256,
         createdByMemberId: storageSignatureRequests.createdByMemberId,
       })
       .from(storageSignatureRequests)
       .where(eq(storageSignatureRequests.id, requestId));
-    if (current?.sealedNodeId) return { status: "already_sealed" };
+    if (current?.sealedSha256) return { status: "already_sealed" };
     await lockTree(tx, request.orgId);
     const original = await sentOriginal(tx, request);
     if (!original) return { status: "not_sealable" };
@@ -171,7 +172,7 @@ export function recordStorageSeal(
 
 /**
  * The sealed copy's object, for a signer or the sender to download; null until it is sealed, and
- * null again once the file no longer holds the copy recorded (unlocked and replaced): a signer
+ * null again once the file no longer holds the object a seal run wrote (unlocked and replaced): a signer
  * gets the certificate they signed toward or nothing, never what a member put in its place.
  */
 export async function sealedObject(ex: Db, requestId: string) {
@@ -180,6 +181,11 @@ export async function sealedObject(ex: Db, requestId: string) {
     .from(storageSignatureRequests)
     .innerJoin(storageNodes, eq(storageNodes.id, storageSignatureRequests.sealedNodeId))
     .where(eq(storageSignatureRequests.id, requestId));
-  if (!row?.node.r2Key || row.node.contentSha256 !== row.sealedSha256) return null;
+  // The object, not a hash: a replacement's hash is the uploader's word, its key is ours, and
+  // only a seal run writes under this request's prefix.
+  const prefix = storageObjectKey(row?.node.orgId ?? "", `sealed-${requestId}-`);
+  if (!row?.node.r2Key?.startsWith(prefix) || row.node.contentSha256 !== row.sealedSha256) {
+    return null;
+  }
   return { node: toNode(row.node), r2Key: row.node.r2Key };
 }
