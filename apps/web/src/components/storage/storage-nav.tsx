@@ -7,9 +7,6 @@ import { IconSearch, IconTrash } from "@/components/icons/sidebar";
 import { openSearch } from "@/components/search/command-menu.tsx";
 import { FileTrigger } from "@/components/ui/file-trigger";
 import {
-  SidebarDisclosure,
-  SidebarDisclosurePanel,
-  SidebarDisclosureTrigger,
   SidebarItem,
   SidebarItemTrigger,
   SidebarLabel,
@@ -67,13 +64,11 @@ export function StorageNav({ mailbox }: { mailbox: string | undefined }) {
         <UploadRow />
         <Rows rows={PLACES} mailbox={mailbox} />
       </SidebarSection>
-      <SidebarDisclosure defaultExpanded>
-        <SidebarDisclosureTrigger>Folders</SidebarDisclosureTrigger>
-        <SidebarDisclosurePanel>
-          {hasShared && <SidebarGroup space="shared" search={search} />}
-          <SidebarGroup space="personal" search={search} />
-        </SidebarDisclosurePanel>
-      </SidebarDisclosure>
+      {/* A plain label: the groups under it always show. */}
+      <SidebarSection label="Folders">
+        {hasShared && <SidebarGroup space="shared" search={search} />}
+        <SidebarGroup space="personal" search={search} />
+      </SidebarSection>
     </>
   );
 }
