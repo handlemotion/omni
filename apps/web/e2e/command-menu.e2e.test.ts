@@ -36,8 +36,9 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Catches: ⌘K bound only where the mail list is mounted (Drive had no menu), a thread the menu
-// can't find, a scope pill that keeps focus so typing goes nowhere, and a command row that closes the menu without running its shortcut's handler.
+// Catches: ⌘K bound only where the mail list is mounted (Drive had no menu), a module's page or
+// a settings page the menu can't reach, a scope pill that keeps focus so typing goes nowhere, and
+// a command row that closes the menu without running its shortcut's handler.
 test("⌘K opens the command menu anywhere, finds a thread and marks it done", async () => {
   const email = "ana@menu.test";
   const org = await createOrgWithOwner(db, { name: "Acme", slug: "menu", ownerEmail: email });
@@ -70,13 +71,26 @@ test("⌘K opens the command menu anywhere, finds a thread and marks it done", a
   await page.keyboard.press("Control+k");
   await menu.waitFor({ state: "hidden" });
 
+  // A Drive page from the All pill, then a settings page from the Settings pill, found by a
+  // word on the page rather than its title.
+  await page.keyboard.press("/");
+  await page.keyboard.type("shared with me");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/\/files\/shared-with-me$/);
+  await menu.waitFor({ state: "hidden" });
+  await page.keyboard.press("/");
+  await menu.getByRole("radio", { name: "Settings" }).click();
+  await page.keyboard.type("passkey");
+  await menu.getByRole("option", { name: "Security" }).click();
+  await page.waitForURL(/\/settings\/security$/);
+
   await page.goto(new URL("/menu/mail/inbox", origin).toString());
   const row = page.getByText("Quarterly freight rates").first();
   await row.waitFor();
   await page.keyboard.press("/");
-  // The Threads pill lists inbox threads before any query, and hands the keyboard back to the
-  // field, so typing still filters.
-  await menu.getByRole("radio", { name: "Threads" }).click();
+  // The Mail pill lists the inbox before any query, and hands the keyboard back to the field, so
+  // typing still filters.
+  await menu.getByRole("radio", { name: "Mail" }).click();
   await menu.getByRole("option", { name: /Quarterly freight rates/ }).waitFor();
   await page.keyboard.type("freight");
   await expect.poll(() => menu.getByRole("combobox").inputValue()).toBe("freight");

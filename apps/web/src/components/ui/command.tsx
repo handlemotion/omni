@@ -101,7 +101,7 @@ export function CommandScopes<T extends string>({
         <ToggleButton
           key={scope.id}
           id={scope.id}
-          className="flex h-7 shrink-0 cursor-default items-center rounded-full px-2.5 text-sm text-muted-foreground outline-hidden transition-colors hover:bg-hover hover:text-foreground focus-visible:bg-hover focus-visible:text-foreground selected:bg-hover selected:text-foreground"
+          className="flex h-7 shrink-0 cursor-default items-center rounded-full px-2.5 text-sm text-muted-foreground outline-hidden transition-colors hover:bg-hover hover:text-foreground focus-visible:bg-hover focus-visible:text-foreground selected:bg-secondary selected:text-foreground"
         >
           {scope.label}
         </ToggleButton>
