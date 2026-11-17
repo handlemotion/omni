@@ -1,4 +1,4 @@
-import { IconPaperclip } from "@/components/icons/central";
+import { AttachmentGlyph } from "@/components/storage/file-glyph.tsx";
 import { buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
 import type { Message } from "@/lib/types.ts";
@@ -37,7 +37,7 @@ export function AttachmentChips({
             rel="noreferrer"
             className={buttonStyles({ intent: "outline", size: "sm", className: "max-w-64" })}
           >
-            <IconPaperclip />
+            <AttachmentGlyph name={file.filename} mimeType={file.mimeType} />
             <span className="truncate">{file.filename || "Attachment"}</span>
             <span className="shrink-0 text-subtle-foreground tabular-nums">
               {SIZE.format(file.size)}

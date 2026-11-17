@@ -8,7 +8,6 @@ import {
   IconClock3,
   IconComment,
   IconDownload,
-  IconFile,
   IconFolderMove,
   IconPencil,
   IconTrash,
@@ -17,10 +16,12 @@ import type { SettingsRowMenuItem } from "@/components/settings/kit/settings-row
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useStorageLink, useTrashNode } from "@/hooks/use-storage.ts";
+import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { sharedFileUrl } from "@/lib/urls.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { CommentsPanel } from "./comments-panel.tsx";
+import { FileGlyph } from "./file-glyph.tsx";
 import { FolderCrumbs } from "./folder-crumbs.tsx";
 import { FolderView, type FolderDialog } from "./folder-view.tsx";
 import { LinkFrame } from "./link-frame.tsx";
@@ -164,7 +165,10 @@ function FileCard(props: { shareId: string; node: StorageNode; canComment: boole
           }`}
         >
           <Card className="w-full max-w-90 items-center gap-0 px-6 text-center">
-            <IconFile aria-hidden className="size-5 text-muted-foreground" />
+            <FileGlyph
+              kind={fileType(props.node.name, props.node.mimeType).kind}
+              className="size-5 text-muted-foreground"
+            />
             <h1 className="mt-3 max-w-full truncate text-base text-foreground">
               {props.node.name}
             </h1>

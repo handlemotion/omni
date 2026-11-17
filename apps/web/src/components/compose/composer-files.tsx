@@ -2,6 +2,7 @@ import { FileTrigger } from "@/components/ui/file-trigger";
 import { IconCircleX, IconPaperclip } from "@/components/icons/central";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { AttachmentGlyph } from "@/components/storage/file-glyph.tsx";
 import type { ComposerFile } from "@/hooks/use-compose.ts";
 
 const SIZE = new Intl.NumberFormat(undefined, {
@@ -43,7 +44,7 @@ export function ComposerFiles(props: { files: ComposerFile[]; onRemove: (id: str
             className: "max-w-64 pe-1 hover:bg-transparent active:scale-100",
           })}
         >
-          <IconPaperclip />
+          <AttachmentGlyph name={file.filename} mimeType={file.mimeType} />
           <span className="truncate">{file.filename || "Attachment"}</span>
           <span
             className={
