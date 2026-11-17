@@ -122,6 +122,8 @@ export interface MenuProps<T> {
     collisionPadding?: number;
     /** What the menu lines up with and takes `--anchor-width` from, in place of its trigger. */
     anchor?: ComponentProps<typeof MenuContent>["anchor"];
+    /** Where the menu is placed in the page, in place of beside its trigger (`document.body`). */
+    container?: ComponentProps<typeof MenuContent>["container"];
   };
   className?: string;
   "aria-label"?: string;
@@ -164,6 +166,7 @@ function positionProps(
     sideOffset: popover?.offset ?? 8,
     collisionPadding: popover?.collisionPadding ?? 16,
     ...(popover?.anchor ? { anchor: popover.anchor } : {}),
+    ...(popover?.container ? { container: popover.container } : {}),
   };
 }
 

@@ -11,7 +11,7 @@ const fraction = z.number().min(0).max(1);
 const line = z.number().int().positive();
 
 /**
- * Where a thread points. On a PDF page, a box in fractions of the page, so it holds at any zoom;
+ * Where a thread points. On a PDF page or an image, a box in fractions of it, so it holds at any zoom;
  * lines and cells count from 1; `file` is the whole file.
  */
 export const storageCommentAnchorSchema = z.discriminatedUnion("kind", [
@@ -27,6 +27,18 @@ export const storageCommentAnchorSchema = z.discriminatedUnion("kind", [
     })
     .refine((box) => box.x + box.width <= 1 && box.y + box.height <= 1, {
       message: "the box must fit on the page",
+    }),
+  // A box on an image, in fractions of it.
+  z
+    .object({
+      kind: z.literal("image"),
+      x: fraction,
+      y: fraction,
+      width: fraction,
+      height: fraction,
+    })
+    .refine((box) => box.x + box.width <= 1 && box.y + box.height <= 1, {
+      message: "the box must fit on the image",
     }),
   z
     .object({ kind: z.literal("lines"), start: line, end: line })
@@ -52,6 +64,8 @@ export const storageCommentSchema = z.object({
   body: z.string(),
   /** Null once the author has left. */
   authorName: z.string().nullable(),
+  /** The author's picture; absent from an older Worker. */
+  authorImage: z.string().nullable().optional(),
   /** Written by the reader: only they edit or delete it. */
   mine: z.boolean(),
   createdAt: isoDate,

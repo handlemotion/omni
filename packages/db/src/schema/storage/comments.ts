@@ -6,13 +6,14 @@ import { createdAt, id, orgId, timestamptz } from "../columns.ts";
 import { storageNodes } from "../storage.ts";
 
 /**
- * Where a comment points. Coordinates on a PDF page are fractions of the page (0 to 1), so they
+ * Where a comment points. Coordinates on a PDF page or an image are fractions of it (0 to 1), so they
  * hold at any zoom. Lines and cells count from 1. The contract's zod schema is the truth; this
  * type only shapes the column.
  */
 export type StorageCommentAnchor =
   | { kind: "file" }
   | { kind: "pdf"; page: number; x: number; y: number; width: number; height: number }
+  | { kind: "image"; x: number; y: number; width: number; height: number }
   | { kind: "lines"; start: number; end: number }
   | { kind: "cell"; sheet?: string; row: number; column: number };
 

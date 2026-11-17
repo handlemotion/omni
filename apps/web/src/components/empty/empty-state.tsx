@@ -4,7 +4,7 @@
 // the theme on their own and rest still under reduced motion.
 import { cn } from "cn";
 import type { ReactNode } from "react";
-import { Cabinet, Drawer, Exploded, Loupe, Padlock, Plug } from "@lucasmarkes/hairline/react";
+import { Cabinet, Dish, Drawer, Exploded, Loupe, Padlock, Plug } from "@lucasmarkes/hairline/react";
 import {
   Empty,
   EmptyContent,
@@ -17,6 +17,7 @@ import {
 /** The figures in use. Add one here before using a new one. */
 const FIGURES = {
   cabinet: Cabinet,
+  dish: Dish,
   drawer: Drawer,
   exploded: Exploded,
   loupe: Loupe,

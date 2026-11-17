@@ -9,6 +9,7 @@
 //
 // Geometry: rows 20px from the sides and 16px from their rules; text 12px past the squircle;
 // messages 20px apart.
+import { EmptyState } from "@/components/empty/empty-state";
 import { useLayoutEffect, useRef, useState, type Key, type ReactNode } from "react";
 import { Skeleton } from "skullet/react";
 import {
@@ -141,28 +142,37 @@ export function CommentsPanel(props: {
           <Tab id="resolved">Resolved</Tab>
         </TabList>
       </Tabs>
-      <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
-        <Skeleton
-          id="storage-comments"
-          data={comments.data}
-          sample={SAMPLE}
-          label="Loading comments"
-        >
-          {(state) => (
-            <ul>
-              {threadsOf(state.comments, view === "resolved").map((thread) => (
-                <CommentRow
-                  key={thread.root.id}
-                  door={door}
-                  thread={thread}
-                  replying={replying === thread.root.id}
-                  onReplying={(on) => setReplying(on ? thread.root.id : null)}
-                />
-              ))}
-            </ul>
-          )}
-        </Skeleton>
-      </div>
+      {/* Nothing in this tab: the app's empty state, in the middle of the panel. */}
+      {comments.data && threadsOf(comments.data.comments, view === "resolved").length === 0 ? (
+        <EmptyState
+          figure="dish"
+          title={view === "resolved" ? "No resolved comments" : "No comments"}
+          className="min-h-0 p-5 pb-24"
+        />
+      ) : (
+        <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
+          <Skeleton
+            id="storage-comments"
+            data={comments.data}
+            sample={SAMPLE}
+            label="Loading comments"
+          >
+            {(state) => (
+              <ul>
+                {threadsOf(state.comments, view === "resolved").map((thread) => (
+                  <CommentRow
+                    key={thread.root.id}
+                    door={door}
+                    thread={thread}
+                    replying={replying === thread.root.id}
+                    onReplying={(on) => setReplying(on ? thread.root.id : null)}
+                  />
+                ))}
+              </ul>
+            )}
+          </Skeleton>
+        </div>
+      )}
     </section>
   );
 }

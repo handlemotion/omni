@@ -1,7 +1,8 @@
-// Box comments on a PDF's pages (ADR 0043 decision 4): each open thread's box drawn over its page,
-// and, while the area tool is on, a layer that takes a drag (under the "+" cursor) and hands back
-// the box in fractions of the page, so it holds at any zoom. The comment bar for a drawn box sits
-// at the box: under it, or over it near the page's foot. The panel provides them through
+// Box comments on a PDF's pages (ADR 0043 decision 4). While the area tool is on, a layer takes a
+// drag (under the "+" cursor) and hands back the box in fractions of the page, so it holds at any
+// zoom; the comment bar opens up and to the right of the box, or wherever it fits on the page.
+// Once sent, an open thread stays on its page as its author's picture, white-ringed, pinned at the
+// box's top right corner; hovering it shows the box. The panel provides them through
 // `PdfMarksContext`; the PDF renderer only places `<PageMarks>` on each page.
 import {
   createContext,
@@ -9,9 +10,13 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent,
   type ReactNode,
 } from "react";
+import { Avatar } from "@/components/ui/avatar";
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { pictureUrl } from "@/lib/urls.ts";
 
 export interface PdfBox {
   page: number;
@@ -21,16 +26,23 @@ export interface PdfBox {
   height: number;
 }
 
+/** An open thread on a page: where it points, who wrote it, and what it says. */
+export interface PdfPin extends PdfBox {
+  id: string;
+  authorName: string;
+  authorImage: string | null;
+  body: string;
+}
+
 export interface PdfMarks {
-  /** Open threads' boxes, and the one being written (`id` "draft"). */
-  boxes: (PdfBox & { id: string })[];
+  pins: PdfPin[];
+  /** The box being written about, with its comment bar. */
+  draft: { box: PdfBox; composer: ReactNode } | null;
   selected: string | null;
   /** The area tool is on: a drag on a page draws a box. */
   drawing: boolean;
   onDraw: (box: PdfBox) => void;
-  /** The comment bar for the drawn box, shown at it. */
-  composer?: ReactNode;
-  /** Picking a box; without it the boxes only show. */
+  /** Picking a pin; without it the pins only show. */
   onSelect?: ((id: string) => void) | undefined;
 }
 
@@ -40,67 +52,99 @@ export const PdfMarksContext = createContext<PdfMarks | null>(null);
 const MIN = 0.01;
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
-/** Over one page: its boxes, and the drawing layer while the area tool is on. */
+/** Over one page: its pins, the box being written about, and the drawing layer. */
 export function PageMarks({ page }: { page: number }) {
   const marks = use(PdfMarksContext);
   if (!marks) return null;
-  const boxes = marks.boxes.filter((box) => box.page === page);
-  const draft = marks.composer ? boxes.find((box) => box.id === "draft") : undefined;
+  const draft = marks.draft?.box.page === page ? marks.draft : null;
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
-      {boxes.map((box) => (
-        <Mark
-          key={box.id}
-          box={box}
-          selected={box.id === marks.selected}
-          onSelect={
-            marks.onSelect && box.id !== "draft" ? () => marks.onSelect?.(box.id) : undefined
-          }
-        />
-      ))}
+      {marks.pins
+        .filter((pin) => pin.page === page)
+        .map((pin) => (
+          <Pin
+            key={pin.id}
+            pin={pin}
+            selected={pin.id === marks.selected}
+            onSelect={marks.onSelect ? () => marks.onSelect?.(pin.id) : undefined}
+          />
+        ))}
       {marks.drawing && <DrawLayer page={page} onDraw={marks.onDraw} />}
-      {draft && <AtBox box={draft}>{marks.composer}</AtBox>}
+      {draft && (
+        <>
+          <div
+            data-testid="comment-draft"
+            style={place(draft.box)}
+            className="absolute rounded-xs border border-primary bg-primary/20"
+          />
+          <AtBox box={draft.box}>{draft.composer}</AtBox>
+        </>
+      )}
     </div>
   );
 }
 
-/** One thread's box; brought into view when its thread is picked. */
-function Mark(props: {
-  box: PdfBox & { id: string };
-  selected: boolean;
-  onSelect: (() => void) | undefined;
-}) {
-  const { box, selected } = props;
-  const ref = useRef<HTMLDivElement>(null);
+/** A thread's pin: its author's picture at the box's top right; hovering shows the box. */
+function Pin(props: { pin: PdfPin; selected: boolean; onSelect: (() => void) | undefined }) {
+  const { pin, selected } = props;
+  const ref = useRef<HTMLButtonElement>(null);
+  const [hover, setHover] = useState(false);
   useEffect(() => {
     if (selected) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [selected]);
   return (
-    <div
-      ref={ref}
-      aria-hidden
-      data-testid="comment-box"
-      onClick={props.onSelect}
-      style={place(box)}
-      className={`absolute rounded-xs border border-primary ${props.onSelect ? "pointer-events-auto cursor-pointer" : ""} ${
-        selected || box.id === "draft" ? "bg-primary/20" : "bg-primary/8"
-      }`}
-    />
+    <>
+      {(hover || selected) && (
+        <div
+          aria-hidden
+          style={place(pin)}
+          className="absolute rounded-xs border border-primary bg-primary/8"
+        />
+      )}
+      <TooltipTrigger delay={200}>
+        <button
+          ref={ref}
+          type="button"
+          data-testid="comment-pin"
+          aria-label={`Comment by ${pin.authorName}`}
+          onClick={props.onSelect}
+          onPointerEnter={() => setHover(true)}
+          onPointerLeave={() => setHover(false)}
+          // The picture's bottom left corner on the box's top right one.
+          style={{ left: `${(pin.x + pin.width) * 100}%`, bottom: `${(1 - pin.y) * 100}%` }}
+          className="pointer-events-auto absolute rounded-full rounded-bl-xs bg-white p-0.5 shadow-(--shadow-overlay)"
+        >
+          <Avatar
+            size="sm"
+            src={pictureUrl(pin.authorImage)}
+            initials={pin.authorName.slice(0, 1).toUpperCase()}
+            className="bg-accent text-foreground outline-0 *:rounded-bl-xs rounded-bl-xs"
+          />
+        </button>
+        <Tooltip className="max-w-64">
+          <span className="font-medium">{pin.authorName}</span> {pin.body}
+        </Tooltip>
+      </TooltipTrigger>
+    </>
   );
 }
 
-/** Below the box, or above it when the box is near the page's foot; kept 8px inside the page. */
+/**
+ * The comment bar beside the box: up and to the right of it, moved left where the page runs out
+ * and under the box where it sits near the page's top; kept 8px inside the page.
+ */
 function AtBox(props: { box: PdfBox; children: ReactNode }) {
   const { box } = props;
-  const above = box.y + box.height > 0.75;
+  const below = box.y < 0.12;
+  const style: CSSProperties = {
+    left: `clamp(8px, calc(${(box.x + box.width) * 100}% + 8px), calc(100% - min(20rem, 100% - 16px) - 8px))`,
+    ...(below
+      ? { top: `calc(${(box.y + box.height) * 100}% + 8px)` }
+      : { bottom: `calc(${(1 - box.y) * 100}% + 8px)` }),
+  };
   return (
     <div
-      style={{
-        left: `clamp(8px, ${box.x * 100}%, calc(100% - min(20rem, 100% - 16px) - 8px))`,
-        ...(above
-          ? { bottom: `calc(${(1 - box.y) * 100}% + 8px)` }
-          : { top: `calc(${(box.y + box.height) * 100}% + 8px)` }),
-      }}
+      style={style}
       className="pointer-events-auto absolute z-20 w-80 max-w-[calc(100%-16px)] rounded-[12px] shadow-(--shadow-overlay)"
     >
       {props.children}

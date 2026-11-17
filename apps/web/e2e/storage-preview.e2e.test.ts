@@ -1,7 +1,7 @@
 // The Drive preview's tools (the bottom island), in a real Chromium, on the web app built and
 // served by the real Worker under `wrangler dev`, on a real Postgres: a box drawn on a PDF page
-// with the area tool is stored as that page and box, in fractions of the page, and comes back
-// over the page after a reload.
+// with the comment tool is stored as that page and box, in fractions of the page, and comes back
+// pinned over the page after a reload.
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { schema } from "@omni/db";
@@ -49,10 +49,10 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-// Catches: the area tool storing the box in pixels, against the wrong page, or offset by the
+// Catches: the comment tool storing the box in pixels, against the wrong page, or offset by the
 // stage's padding (so it lands elsewhere at another zoom), the comment bar opening away from the
-// box, and a thread's box not drawn again over its page once the comments load.
-test("a box drawn on a PDF page is saved as that page's fractions and shows after a reload", async () => {
+// box, and a sent thread not pinned again at its box once the comments load.
+test("a box drawn on a PDF page is saved as that page's fractions and pinned there after a reload", async () => {
   const page = await signedIn(`preview-${Date.now()}@gmail.test`, "/files/my");
   await page
     .getByRole("button", { name: "Upload", exact: true })
@@ -66,23 +66,25 @@ test("a box drawn on a PDF page is saved as that page's fractions and shows afte
 
   const second = page.getByLabel("Page 2", { exact: true });
   await second.locator("canvas").first().waitFor({ timeout: 20_000 });
-  await page.getByRole("button", { name: "Comment on an area" }).click();
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
   await second.scrollIntoViewIfNeeded();
   const box = await second.boundingBox();
   if (!box) throw new Error("page 2 has no box");
-  // From a quarter across and a tenth down to half across and three tenths down.
-  await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.1);
+  // From a quarter across and three tenths down to half across and half down.
+  await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.3);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.2, { steps: 4 });
-  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.3, { steps: 4 });
+  await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.4, { steps: 4 });
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5, { steps: 4 });
   await page.mouse.up();
 
   const field = page.getByRole("textbox", { name: "Comment" });
-  // The bar opens at the box, just under it, not down on the island.
+  // The bar opens up and to the right of the box (moved left as far as the page needs), not
+  // down on the island.
   const bar = await field.boundingBox();
   if (!bar) throw new Error("no comment bar");
-  expect(bar.y).toBeGreaterThan(box.y + box.height * 0.3);
-  expect(bar.y).toBeLessThan(box.y + box.height * 0.5);
+  expect(bar.y + bar.height).toBeLessThan(box.y + box.height * 0.3);
+  expect(bar.y).toBeGreaterThan(box.y);
+  expect(bar.x).toBeGreaterThan(box.x + box.width * 0.25);
   await field.fill("Move this chart up");
   await page.getByRole("button", { name: "Send" }).click();
   // Sent: the comment bar closes.
@@ -102,18 +104,19 @@ test("a box drawn on a PDF page is saved as that page's fractions and shows afte
   expect(anchor.page).toBe(2);
   // Within a pixel or two of the drag, at any page width.
   expect(anchor.x).toBeCloseTo(0.25, 2);
-  expect(anchor.y).toBeCloseTo(0.1, 2);
+  expect(anchor.y).toBeCloseTo(0.3, 2);
   expect(anchor.width).toBeCloseTo(0.25, 2);
   expect(anchor.height).toBeCloseTo(0.2, 2);
 
   await page.reload();
-  const mark = page.getByLabel("Page 2", { exact: true }).getByTestId("comment-box");
-  await mark.waitFor({ timeout: 20_000 });
-  const drawn = await mark.boundingBox();
+  // The thread's pin: its corner on the box's top right one.
+  const pin = page.getByLabel("Page 2", { exact: true }).getByTestId("comment-pin");
+  await pin.waitFor({ timeout: 20_000 });
+  const drawn = await pin.boundingBox();
   const again = await page.getByLabel("Page 2", { exact: true }).boundingBox();
-  if (!drawn || !again) throw new Error("the box was not drawn again");
-  expect((drawn.x - again.x) / again.width).toBeCloseTo(0.25, 1);
-  expect((drawn.y - again.y) / again.height).toBeCloseTo(0.1, 1);
+  if (!drawn || !again) throw new Error("the pin was not drawn again");
+  expect((drawn.x - again.x) / again.width).toBeCloseTo(0.5, 1);
+  expect((drawn.y + drawn.height - again.y) / again.height).toBeCloseTo(0.3, 1);
 }, 120_000);
 
 /** A real two-page PDF (US Letter), with a correct cross-reference table. */

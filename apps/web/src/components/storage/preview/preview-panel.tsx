@@ -3,7 +3,7 @@
 // Download, the file's menu, Full screen and Close), the stage with the tools' island under it
 // (Comment, the area tool on a PDF, the versions), and the file's details on one line at the
 // foot. Open threads' boxes show over a PDF's pages; reading the threads is the comments sidebar's.
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   IconCheck,
   IconChevronLeft,
@@ -29,23 +29,20 @@ import { Avatar } from "@/components/ui/avatar";
 import { Heading } from "@/components/ui/heading";
 import { MiddleTruncate } from "@/components/ui/middle-truncate";
 import type { InlineRename } from "@/hooks/use-inline-rename.ts";
-import { useRestoreVersion, useStorageComments, useStorageVersions } from "@/hooks/use-storage.ts";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFileEditors } from "@/hooks/use-file-presence.ts";
 import { useMembers } from "@/hooks/use-organization.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
-import { storageVersionUrl, type StorageVersions } from "@/lib/storage-versions.ts";
 import { TypeBadge } from "../file-glyph.tsx";
 import { DAY } from "../file-table.tsx";
 import { FIELD_OFFSET, NameField } from "../name-field.tsx";
-import { storageErrorToast } from "../storage-errors.ts";
-import { CommentComposer } from "./comment-composer.tsx";
-import { PdfMarksContext, type PdfBox, type PdfMarks } from "./pdf-marks.tsx";
+import { PdfMarksContext } from "./pdf-marks.tsx";
 import { canEditFile, DocumentEditor, useEditSession } from "../editor/document-editor.tsx";
 import { PreviewBody } from "./preview-body.tsx";
-import { PreviewRail, type RailVersion } from "./preview-rail.tsx";
+import { PreviewRail } from "./preview-rail.tsx";
+import { usePreviewTools } from "./preview-tools.tsx";
 
 export function PreviewPanel(props: {
   node: StorageNode;
@@ -166,7 +163,7 @@ function Details(props: { node: StorageNode; border: boolean }) {
   ];
   return (
     <DescriptionList
-      className={`flex h-10 shrink-0 items-center gap-x-5 overflow-hidden border-t px-5 text-sm sm:text-sm ${props.border ? "border-s" : ""}`}
+      className={`flex h-10 shrink-0 items-center justify-between gap-x-5 overflow-hidden border-t px-5 text-sm sm:text-sm ${props.border ? "border-s" : ""}`}
     >
       {rows.map(([term, value]) => (
         <div key={term} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
@@ -238,12 +235,13 @@ function Stage(props: {
   tools: ReturnType<typeof usePreviewTools>;
   onDownload: () => void;
 }) {
-  const { shown, marks, rail } = props.tools;
+  const { shown, marks, rail, contentVersion } = props.tools;
   return (
     <>
       <PdfMarksContext value={marks}>
         <PreviewBody
-          key={shown?.key ?? "current"}
+          // A replaced file loads again, so a box is drawn on the content its comment names.
+          key={shown?.key ?? `current:${contentVersion ?? ""}`}
           node={shown?.node ?? props.node}
           url={shown?.url ?? props.url}
           onDownload={props.onDownload}
@@ -252,152 +250,6 @@ function Stage(props: {
       <PreviewRail {...rail} />
     </>
   );
-}
-
-/** The version on the stage when it is not the current content. */
-interface ShownVersion {
-  key: string;
-  url: string;
-  /** The file as that version had it: its size, type and when it was written. */
-  node: StorageNode;
-}
-
-/** "v3" down to "v1": the current content leads, numbered from the oldest kept version. */
-function railVersions(data: StorageVersions): RailVersion[] {
-  const count = data.versions.length + 1;
-  return [
-    { key: "current", label: `v${count}`, ...data.current },
-    ...data.versions.map((version, index) => ({
-      key: version.id,
-      label: `v${count - 1 - index}`,
-      writtenAt: version.writtenAt,
-      writtenByName: version.writtenByName,
-    })),
-  ];
-}
-
-/**
- * The island's state for one file: the composer and a box drawn for it, the area tool, and the
- * version on the stage. Stepping to another file starts it over.
- */
-function usePreviewTools(node: StorageNode, shareId: string | undefined) {
-  const [fileId, setFileId] = useState(node.id);
-  const [shownKey, setShownKey] = useState("current");
-  const [composing, setComposing] = useState(false);
-  const [drawing, setDrawing] = useState(false);
-  const [draft, setDraft] = useState<PdfBox | null>(null);
-  // The content the box was drawn on, so a replacement before Send can't take the comment.
-  const [draftVersion, setDraftVersion] = useState<number | undefined>(undefined);
-  if (fileId !== node.id) {
-    setFileId(node.id);
-    setShownKey("current");
-    setComposing(false);
-    setDrawing(false);
-    setDraft(null);
-  }
-
-  // Each answers 403 to whoever may not: a Viewer gets neither, a Commenter no versions.
-  const versions = useStorageVersions(node.id, shareId);
-  const comments = useStorageComments(node.id, shareId);
-  const restore = useRestoreVersion();
-  const isPdf = fileType(node.name, node.mimeType).preview === "pdf";
-
-  const list = versions.data ? railVersions(versions.data) : undefined;
-  const kept = versions.data?.versions.find((version) => version.id === shownKey);
-  const shown: ShownVersion | undefined = kept && {
-    key: kept.id,
-    url: storageVersionUrl(node.id, kept.id, shareId),
-    node: {
-      ...node,
-      size: kept.size,
-      mimeType: kept.mimeType ?? node.mimeType,
-      updatedAt: kept.writtenAt,
-    },
-  };
-
-  const close = () => {
-    setComposing(false);
-    setDraft(null);
-  };
-  const composer = (
-    <CommentComposer
-      fileId={node.id}
-      shareId={shareId}
-      draft={draft}
-      contentVersion={draftVersion}
-      onClose={close}
-      onSent={close}
-    />
-  );
-
-  const data = comments.data;
-  // Open threads made on the content on the stage; a box on replaced content points nowhere.
-  const boxes = (data?.comments ?? []).flatMap((comment) =>
-    comment.parentId === null &&
-    !comment.resolvedAt &&
-    comment.anchor?.kind === "pdf" &&
-    comment.contentVersion === data?.contentVersion
-      ? [{ id: comment.id, ...comment.anchor }]
-      : [],
-  );
-  const marks: PdfMarks | null =
-    isPdf && !shown && data
-      ? {
-          boxes: [...boxes, ...(draft ? [{ id: "draft", ...draft }] : [])],
-          selected: null,
-          drawing,
-          // The area tool stays on until Cursor: each drag moves the bar to its box.
-          onDraw: (box) => {
-            setDraft(box);
-            setDraftVersion(data.contentVersion);
-            setComposing(false);
-          },
-          composer: draft && composer,
-        }
-      : null;
-
-  const rail: Parameters<typeof PreviewRail>[0] = {
-    comment: data && {
-      // The whole file's bar, over the island; a box's bar sits at the box instead.
-      open: composing && !draft,
-      // A comment belongs to the current content: none while an older version is on the stage.
-      isDisabled: !!shown,
-      onToggle: () => {
-        setComposing(!composing);
-        setDraft(null);
-      },
-      composer,
-    },
-    area:
-      data && isPdf
-        ? {
-            on: drawing,
-            isDisabled: !!shown,
-            onChange: (on: boolean) => {
-              setDrawing(on);
-              // Cursor is for reading: a box's comment not sent goes with it.
-              if (!on) setDraft(null);
-            },
-          }
-        : undefined,
-    versions: list && {
-      list,
-      shown: shown ? shown.key : "current",
-      onShow: setShownKey,
-      restoring: restore.isPending,
-      onRestore: () =>
-        kept &&
-        restore.mutate(
-          { id: node.id, versionId: kept.id, ...(shareId ? { shareId } : {}) },
-          {
-            onSuccess: () => setShownKey("current"),
-            onError: (error) => storageErrorToast(error, "It was not restored"),
-          },
-        ),
-    },
-  };
-
-  return { shown, marks, rail };
 }
 
 /** The file's name, cut in its middle; a field while Rename from the menu changes it. */

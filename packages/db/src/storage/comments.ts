@@ -27,6 +27,8 @@ export interface StorageComment {
   body: string;
   /** Null once the author is gone. */
   authorName: string | null;
+  /** The author's picture, when they have one. */
+  authorImage: string | null;
   /** Written by the person asking: only they edit or delete it. */
   mine: boolean;
   createdAt: Date;
@@ -78,6 +80,7 @@ async function readComments(ex: Db, door: Door, node: NodeRow, ids?: string[]) {
     .select({
       comment: storageComments,
       authorName: displayName(authorUser),
+      authorImage: authorUser.image,
       resolvedByName: displayName(resolverUser),
     })
     .from(storageComments)
@@ -96,13 +99,14 @@ async function readComments(ex: Db, door: Door, node: NodeRow, ids?: string[]) {
     // `ownsUpload` answers whether a member is the door's holder, which is the question here.
     if (await door.ownsUpload(ex, memberId)) mine.add(memberId);
   }
-  return rows.map(({ comment, authorName, resolvedByName }): StorageComment => ({
+  return rows.map(({ comment, authorName, authorImage, resolvedByName }): StorageComment => ({
     id: comment.id,
     parentId: comment.parentId,
     contentVersion: comment.contentVersion,
     anchor: comment.anchor,
     body: comment.body,
     authorName,
+    authorImage,
     mine: comment.authorMemberId !== null && mine.has(comment.authorMemberId),
     createdAt: comment.createdAt,
     editedAt: comment.editedAt,
