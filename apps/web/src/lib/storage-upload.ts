@@ -16,6 +16,11 @@ export interface UploadRequest {
   place: StoragePlace;
   /** The file this becomes a new version of (ADR 0043); absent, it becomes a file in `place`. */
   replaces?: string | undefined;
+  /**
+   * With `replaces`, a checked save (ADR 0043 decision 3): the file's `contentVersion` this
+   * content was made from. Refused `409 version_conflict` if someone saved since.
+   */
+  ifContentVersion?: number | undefined;
   /** A shared link's door, for an Editor uploading into what was shared; else the member's. */
   shareId?: string | undefined;
   /** An earlier try's upload, to resume. */
@@ -42,7 +47,7 @@ export async function uploadFile(request: UploadRequest): Promise<StorageNode> {
   const upload =
     (await resumable(door, request.resumeId)) ??
     (request.replaces
-      ? await door.openVersion(file, request.replaces)
+      ? await door.openVersion(file, request.replaces, request.ifContentVersion)
       : await door.open(file, request.place));
   request.onOpened(upload.id);
   signal.throwIfAborted();
@@ -83,7 +88,7 @@ export async function uploadFile(request: UploadRequest): Promise<StorageNode> {
   }
   signal.throwIfAborted();
   request.guard();
-  const { node } = await door.complete(upload.id);
+  const { node } = await door.complete(upload.id, request.ifContentVersion);
   return node;
 }
 
@@ -103,7 +108,20 @@ const openBody = (file: File, place: StoragePlace) => ({
 });
 
 /** What opening a new version sends: the file keeps its own name and place. */
-const versionBody = (file: File) => ({ size: file.size, mimeType: file.type || null });
+const versionBody = (file: File, ifContentVersion: number | undefined) => ({
+  size: file.size,
+  mimeType: file.type || null,
+  ...(ifContentVersion === undefined ? {} : { ifContentVersion }),
+});
+
+/**
+ * Complete's `?ifContentVersion=`. The route reads it by hand rather than by a validator, so the
+ * typed client does not know it; it sends any `query` it is given.
+ */
+const guarded = <T extends object>(args: T, ifContentVersion: number | undefined): T =>
+  ifContentVersion === undefined
+    ? args
+    : ({ ...args, query: { ifContentVersion: String(ifContentVersion) } } as T);
 
 /** The upload routes of the member's door, or of a shared link's (the same shapes under it). */
 function uploadDoor(shareId: string | undefined) {
@@ -112,15 +130,19 @@ function uploadDoor(shareId: string | undefined) {
     return {
       open: async (file: File, place: StoragePlace) =>
         (await call(uploads.$post({ json: openBody(file, place) }))).upload,
-      openVersion: async (file: File, id: string) =>
+      openVersion: async (file: File, id: string, ifContentVersion?: number) =>
         (
           await call(
-            api.storage.files[":id"].versions.$post({ param: { id }, json: versionBody(file) }),
+            api.storage.files[":id"].versions.$post({
+              param: { id },
+              json: versionBody(file, ifContentVersion),
+            }),
           )
         ).upload,
       get: async (id: string) => (await call(uploads[":id"].$get({ param: { id } }))).upload,
       partUrl: (id: string, n: number) => `${uploads[":id"].$url({ param: { id } })}/parts/${n}`,
-      complete: (id: string) => call(uploads[":id"].complete.$post({ param: { id } })),
+      complete: (id: string, ifContentVersion?: number) =>
+        call(uploads[":id"].complete.$post(guarded({ param: { id } }, ifContentVersion))),
       abort: (id: string) => call(uploads[":id"].$delete({ param: { id } })),
     };
   }
@@ -128,19 +150,20 @@ function uploadDoor(shareId: string | undefined) {
   return {
     open: async (file: File, place: StoragePlace) =>
       (await call(uploads.$post({ param: { shareId }, json: openBody(file, place) }))).upload,
-    openVersion: async (file: File, id: string) =>
+    openVersion: async (file: File, id: string, ifContentVersion?: number) =>
       (
         await call(
           api.storage.shared[":shareId"].files[":id"].versions.$post({
             param: { shareId, id },
-            json: versionBody(file),
+            json: versionBody(file, ifContentVersion),
           }),
         )
       ).upload,
     get: async (id: string) => (await call(uploads[":id"].$get({ param: { shareId, id } }))).upload,
     partUrl: (id: string, n: number) =>
       `${uploads[":id"].$url({ param: { shareId, id } })}/parts/${n}`,
-    complete: (id: string) => call(uploads[":id"].complete.$post({ param: { shareId, id } })),
+    complete: (id: string, ifContentVersion?: number) =>
+      call(uploads[":id"].complete.$post(guarded({ param: { shareId, id } }, ifContentVersion))),
     abort: (id: string) => call(uploads[":id"].$delete({ param: { shareId, id } })),
   };
 }

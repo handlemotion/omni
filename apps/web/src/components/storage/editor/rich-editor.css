@@ -1,0 +1,60 @@
+/* A Markdown file as a page (ADR 0043): the blocks Tiptap renders, in the app's tokens. */
+@reference "../../../styles.css";
+
+.document-page {
+  @apply mx-auto w-full max-w-3xl px-10 py-10 text-md/6 text-foreground outline-none;
+}
+.document-page > * + * {
+  @apply mt-3;
+}
+.document-page h1 {
+  @apply mt-8 text-2xl/8 font-semibold first:mt-0;
+}
+.document-page h2 {
+  @apply mt-7 text-xl/7 font-semibold first:mt-0;
+}
+.document-page h3,
+.document-page h4,
+.document-page h5,
+.document-page h6 {
+  @apply mt-6 text-lg font-semibold first:mt-0;
+}
+.document-page ul {
+  @apply list-disc ps-6;
+}
+.document-page ol {
+  @apply list-decimal ps-6;
+}
+.document-page li > p {
+  @apply my-0.5;
+}
+.document-page ul[data-type="taskList"] {
+  @apply list-none ps-0;
+}
+.document-page ul[data-type="taskList"] li {
+  @apply flex items-start gap-2;
+}
+.document-page ul[data-type="taskList"] li > label {
+  @apply mt-1 shrink-0;
+}
+.document-page ul[data-type="taskList"] li > div {
+  @apply min-w-0 flex-1;
+}
+.document-page blockquote {
+  @apply border-s-2 border-border ps-4 text-muted-foreground;
+}
+.document-page code {
+  @apply rounded-sm bg-secondary px-1 py-0.5 font-mono text-sm;
+}
+.document-page pre {
+  @apply overflow-x-auto rounded-lg bg-secondary px-4 py-3 font-mono text-sm;
+}
+.document-page pre code {
+  @apply bg-transparent p-0;
+}
+.document-page a {
+  @apply text-primary underline underline-offset-2;
+}
+.document-page hr {
+  @apply my-6 border-border;
+}

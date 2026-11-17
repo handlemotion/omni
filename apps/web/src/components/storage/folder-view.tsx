@@ -187,6 +187,8 @@ export function FolderView(props: {
             fullScreen={hideFolder}
             onFullScreen={toggleFullScreen}
             shell={shell}
+            canWrite={source.canWrite}
+            shareId={source.shareId}
           />
         </div>
       )}
@@ -306,10 +308,12 @@ function useCommentsPanel(list: FolderSource["list"]) {
   return { node, select };
 }
 
-/** Keys inside these belong to them: fields, media controls and open menus. */
+/** Keys inside these belong to them: fields, editors, media controls and open menus. */
 function isControl(target: EventTarget) {
   return (
     target instanceof Element &&
-    !!target.closest("input, textarea, select, video, audio, [role=menu], [role=slider]")
+    !!target.closest(
+      "input, textarea, select, [contenteditable=true], video, audio, [role=menu], [role=slider]",
+    )
   );
 }

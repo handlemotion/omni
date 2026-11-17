@@ -1,13 +1,15 @@
 // The open file beside its folder, as an open thread sits beside the inbox: a 48px top bar (the
-// name, cut in its middle, then Previous, Next, Download, the file's menu, Full screen and
-// Close), the stage, and the file's details under it.
+// name, cut in its middle, then who is editing it, Edit or Save and Done, Previous, Next,
+// Download, the file's menu, Full screen and Close), the stage, and the file's details under it.
 import type { ReactNode } from "react";
 import {
+  IconCheck,
   IconChevronLeft,
   IconChevronRight,
   IconDownload,
   IconMaximize,
   IconMinimize,
+  IconPencil,
   IconX,
 } from "@/components/icons/central";
 import {
@@ -21,13 +23,18 @@ import {
   DescriptionList,
   DescriptionTerm,
 } from "@/components/ui/description-list";
+import { Avatar } from "@/components/ui/avatar";
 import { Heading } from "@/components/ui/heading";
 import { MiddleTruncate } from "@/components/ui/middle-truncate";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { useFileEditors } from "@/hooks/use-file-presence.ts";
+import { useMembers } from "@/hooks/use-organization.ts";
+import { useMember } from "@/hooks/use-session.ts";
 import { fileType } from "@/lib/file-kind.ts";
 import { formatBytes, type StorageNode } from "@/lib/storage.ts";
 import { TypeBadge } from "../file-glyph.tsx";
 import { DAY } from "../file-table.tsx";
+import { canEditFile, DocumentEditor, useEditSession } from "../editor/document-editor.tsx";
 import { PreviewBody } from "./preview-body.tsx";
 
 export function PreviewPanel(props: {
@@ -44,8 +51,14 @@ export function PreviewPanel(props: {
   onFullScreen: () => void;
   /** False outside the app shell (a shared link's page): no sidebar toggle. */
   shell: boolean;
+  /** The person may change the file: Edit, for a text file. */
+  canWrite: boolean;
+  /** Through a shared link's door; else the member's. */
+  shareId?: string | undefined;
 }) {
   const { node } = props;
+  const session = useEditSession(node, props.url, props.shareId);
+  const canEdit = props.canWrite && canEditFile(node);
   return (
     <section aria-label={node.name} className="flex min-w-0 flex-1 flex-col bg-background">
       {/* One row with the folder's header beside it: the same height and bottom line, 10px from
@@ -58,6 +71,29 @@ export function PreviewPanel(props: {
           <MiddleTruncate text={node.name} />
         </Heading>
         <div className="flex shrink-0 items-center gap-1">
+          {props.shell && <FileEditors nodeId={node.id} />}
+          {session.editing ? (
+            <>
+              <Button
+                intent="outline"
+                size="sm"
+                isDisabled={!session.dirty}
+                isPending={session.saving}
+                onPress={() => void session.save()}
+              >
+                Save
+              </Button>
+              <Action label="Done" isDisabled={session.saving} onPress={() => void session.done()}>
+                <IconCheck />
+              </Action>
+            </>
+          ) : (
+            canEdit && (
+              <Action label="Edit" onPress={session.start}>
+                <IconPencil />
+              </Action>
+            )
+          )}
           <Action
             label="Previous"
             isDisabled={!props.previous}
@@ -75,7 +111,10 @@ export function PreviewPanel(props: {
           <Action label="Download" onPress={props.onDownload}>
             <IconDownload />
           </Action>
-          <SettingsRowMenu label={`Actions for ${node.name}`} items={props.menu} />
+          {/* Moving, renaming or trashing the file would drop what is not saved: save first. */}
+          {!session.dirty && (
+            <SettingsRowMenu label={`Actions for ${node.name}`} items={props.menu} />
+          )}
           <Action
             label={props.fullScreen ? "Side by side" : "Full screen"}
             onPress={props.onFullScreen}
@@ -90,7 +129,11 @@ export function PreviewPanel(props: {
       <div
         className={`flex min-h-0 flex-1 flex-col bg-surface ${props.fullScreen ? "" : "border-s"}`}
       >
-        <PreviewBody node={node} url={props.url} onDownload={props.onDownload} />
+        {session.editing ? (
+          <DocumentEditor session={session} onDownload={props.onDownload} />
+        ) : (
+          <PreviewBody node={node} url={props.url} onDownload={props.onDownload} />
+        )}
       </div>
       <Details node={node} border={!props.fullScreen} />
     </section>
@@ -119,6 +162,35 @@ function Details(props: { node: StorageNode; border: boolean }) {
         </div>
       ))}
     </DescriptionList>
+  );
+}
+
+/** The others editing the file: their pictures, each named on hover. */
+function FileEditors(props: { nodeId: string }) {
+  const me = useMember().member.id;
+  const editors = useFileEditors(props.nodeId).filter((editor) => editor.memberId !== me);
+  const members = useMembers().data?.members ?? [];
+  if (editors.length === 0) return null;
+  return (
+    <div className="me-1 flex items-center -space-x-1">
+      {editors.map((editor) => {
+        const member = members.find((m) => m.id === editor.memberId);
+        const name = member?.user.name || member?.user.email || "Someone";
+        return (
+          <TooltipTrigger key={editor.memberId} delay={400}>
+            <Button intent="plain" size="sq-sm" aria-label={`${name} is editing`}>
+              <Avatar
+                size="xs"
+                src={member?.user.image ?? null}
+                initials={name.slice(0, 1).toUpperCase()}
+                className="bg-accent text-foreground outline-2 outline-background"
+              />
+            </Button>
+            <Tooltip>{name} is editing</Tooltip>
+          </TooltipTrigger>
+        );
+      })}
+    </div>
   );
 }
 

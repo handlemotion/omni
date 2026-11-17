@@ -20,6 +20,7 @@ import {
   outstandingSends,
   settleOutstanding,
 } from "./pending.ts";
+import { applyFilePresence, clearFilePresence } from "./file-presence.ts";
 import { applyPresence, clearPresence } from "./presence.ts";
 import { actionQuery } from "./mail-queries.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
@@ -118,6 +119,9 @@ export function startRealtime(client: QueryClient, activeOrgId: string): Realtim
         return changed(event.mailboxId, [event.intoThreadId, ...event.fromThreadIds]);
       case "presence":
         return applyPresence(orgId, event);
+      // Someone has a Drive file open in their editor, or closed it.
+      case "file.presence":
+        return applyFilePresence(orgId, event);
       // You were assigned, mentioned, or a customer replied: refetch your notifications.
       case "notification":
       // One you had was withdrawn (its note was deleted).
@@ -158,7 +162,10 @@ export function startRealtime(client: QueryClient, activeOrgId: string): Realtim
   const onStatus = (orgId: string, next: RealtimeStatus, reconnected: boolean) => {
     if (orgId === activeOrgId) setStatus(next);
     // Teammates' `left` may be lost while the socket is down; they reappear on their next repeat.
-    if (next === "closed") clearPresence(orgId);
+    if (next === "closed") {
+      clearPresence(orgId);
+      clearFilePresence(orgId);
+    }
     if (next !== "open") return;
     for (const listener of openListeners) listener(orgId);
     // A send's result may have come while no socket of its org was open.
@@ -189,6 +196,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string): Realtim
         connection.close();
         connections.delete(id);
         clearPresence(id);
+        clearFilePresence(id);
       }
       for (const id of wanted) if (!connections.has(id)) connections.set(id, connect(id));
     },
@@ -198,6 +206,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string): Realtim
       if (sockets === connections) sockets = new Map();
       for (const connection of connections.values()) connection.close();
       clearPresence();
+      clearFilePresence();
       setStatus("closed");
     },
   };

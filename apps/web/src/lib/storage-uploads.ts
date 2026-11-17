@@ -40,17 +40,45 @@ export class UploadIdentityChanged extends Error {
 }
 
 /** Who an upload goes out as: the user and the workspace, or the user and the shared link. */
-function identityOf(client: QueryClient, shareId: string | undefined) {
+export function identityOf(client: QueryClient, shareId: string | undefined) {
   const session = client.getQueryData<Session | null>(keys.session());
   if (!session) return null;
   const place = shareId ? `link:${shareId}` : `org:${session.member?.orgId ?? ""}`;
   return `${session.user.id}|${place}`;
 }
 
-/** Throws unless the session this tab knows is still the one `job` was queued under. */
-function guard(job: Job) {
-  const now = identityOf(job.client, job.shareId);
-  if (job.identity === null || now !== job.identity) throw new UploadIdentityChanged();
+/**
+ * `uploadFile`'s `guard` and `confirm` for an upload that must go out as `identity`
+ * (`identityOf`): the first checks this tab's session, the second asks the server, since another
+ * tab may have switched the account or workspace without this tab's cache knowing.
+ */
+export function identityChecks(
+  client: QueryClient,
+  shareId: string | undefined,
+  identity: string | null,
+  signal: AbortSignal,
+) {
+  const guard = () => {
+    if (identity === null || identityOf(client, shareId) !== identity) {
+      throw new UploadIdentityChanged();
+    }
+  };
+  return {
+    guard,
+    confirm: async () => {
+      // Cancellable: a switch or sign-out waits for an upload, so a stalled read must not hold
+      // it. Cancelled, it throws; any other failure falls back to this tab's cached session.
+      const me = await call(api.me.$get(undefined, { init: { signal } })).catch(
+        (error: unknown) => {
+          if (signal.aborted) throw error;
+          return null;
+        },
+      );
+      if (!me) return guard();
+      const place = shareId ? `link:${shareId}` : `org:${me.orgId}`;
+      if (`${me.userId}|${place}` !== identity) throw new UploadIdentityChanged();
+    },
+  };
 }
 
 interface Job extends UploadItem {
@@ -104,23 +132,8 @@ async function run(job: Job) {
         // Removed while it was opening: `removeUpload` had no id to free yet.
         if (!jobs.includes(job) && !job.cancelled) void abortUpload(uploadId, job.shareId);
       },
-      guard: () => guard(job),
-      // Another tab may have switched the session's workspace or account: this tab's cache
-      // would not know. Opening a file is what places it, so that asks the server first.
-      confirm: async () => {
-        // Cancellable: a switch or sign-out waits for this job, so a stalled read must not hold
-        // it. Cancelled, it throws; any other failure falls back to this tab's cached session.
-        const signal = job.controller!.signal;
-        const me = await call(api.me.$get(undefined, { init: { signal } })).catch(
-          (error: unknown) => {
-            if (signal.aborted) throw error;
-            return null;
-          },
-        );
-        if (!me) return guard(job);
-        const place = job.shareId ? `link:${job.shareId}` : `org:${me.orgId}`;
-        if (`${me.userId}|${place}` !== job.identity) throw new UploadIdentityChanged();
-      },
+      // Opening a file is what places it, so that asks the server who this is first.
+      ...identityChecks(job.client, job.shareId, job.identity, job.controller.signal),
       onProgress: (sent) => {
         job.sent = sent;
         publish();

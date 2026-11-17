@@ -3,6 +3,7 @@ import type {
   CrmChangedKind,
   HelpdeskRealtimeEvent,
   MailActionKind,
+  StorageFilePresenceEvent,
 } from "@omni/contracts";
 import type { schema } from "@omni/db";
 import type { Realtime as RealtimeObject } from "@omni/worker";
@@ -32,19 +33,19 @@ export type NotificationEvent =
 export type RealtimeEvent =
   | Parameters<RealtimeObject["broadcast"]>[1]
   | HelpdeskRealtimeEvent
-  | NotificationEvent;
+  | NotificationEvent
+  | StorageFilePresenceEvent;
 export type RealtimeStatus = "connecting" | "open" | "closed";
 
 /**
  * What an app sends on the socket. `presence`: this member is viewing or replying in a
  * conversation, or `left` it; the Durable Object adds the member and mailbox and tells the
- * inbox's other members (ADR 0021).
+ * inbox's other members (ADR 0021). `file.presence`: this socket has a Drive file open in its
+ * editor, or closed it; those who see the file hear it (ADR 0043 decision 3).
  */
-export type RealtimeClientMessage = {
-  type: "presence";
-  threadId: string;
-  state: "viewing" | "replying" | "left";
-};
+export type RealtimeClientMessage =
+  | { type: "presence"; threadId: string; state: "viewing" | "replying" | "left" }
+  | { type: "file.presence"; nodeId: string; state: "editing" | "left" };
 
 export interface RealtimeOptions {
   /** The Worker's origin; the socket is `/api/realtime` on it. */
@@ -271,7 +272,7 @@ function parseEvent(data: string): RealtimeEvent | undefined {
       : undefined;
   }
   const record = value as Record<string, unknown>;
-  return parseCrmEvent(record) ?? parseHelpdeskEvent(record);
+  return parseCrmEvent(record) ?? parseHelpdeskEvent(record) ?? parseStorageEvent(record);
 }
 
 // Checked by hand rather than with the contracts' zod schemas: this runs in the web app's entry
@@ -321,6 +322,20 @@ function parseCrmEvent(event: Record<string, unknown>): CrmChangedEvent | undefi
   if (typeof kind !== "string" || !Object.hasOwn(CRM_CHANGED_KINDS, kind)) return undefined;
   if (!Array.isArray(ids) || !ids.every(isId)) return undefined;
   return { type: "crm.changed", kind: kind as CrmChangedKind, ids };
+}
+
+/** Drive (ADR 0043): who is editing a file. */
+function parseStorageEvent(event: Record<string, unknown>): StorageFilePresenceEvent | undefined {
+  const { nodeId } = event;
+  if (!isId(nodeId)) return undefined;
+  switch (event.type) {
+    case "file.presence": {
+      const { memberId, state } = event;
+      if (!isId(memberId) || (state !== "editing" && state !== "left")) return;
+      return { type: "file.presence", nodeId, memberId, state };
+    }
+  }
+  return undefined;
 }
 
 function parseHelpdeskEvent(event: Record<string, unknown>): HelpdeskRealtimeEvent | undefined {
