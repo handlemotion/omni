@@ -201,7 +201,7 @@ function Items(props: {
   };
   if (props.view === "cards") {
     return (
-      // Cards 168px and up, 12px apart, 14px in (`cards-layout.ts`); the cards' own 6px inset
+      // Cards 184px, 12px apart, 14px in (`cards-layout.ts`); the cards' own 6px inset
       // puts their squares 20px from the page's edges, like the rows' tiles.
       <>
         {top}

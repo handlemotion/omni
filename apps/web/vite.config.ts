@@ -65,6 +65,11 @@ export default defineConfig(({ mode }) => {
         // the same merge engine under the same names. One copy instead of two (~45 kB unminified).
         // The `cn` package stays installed for its types and for components added later.
         { find: /^cn$/, replacement: "tailwind-variants" },
+        // pdf.js's legacy build: the modern one calls JS that Safari, and so the macOS desktop
+        // app's WebKit view, lacks (`Map#getOrInsertComputed`, `Math.sumPrecise`), and every PDF
+        // fails to open there. The legacy build carries polyfills for them. `pdf-preview.tsx`
+        // loads the legacy worker to match.
+        { find: /^pdfjs-dist$/, replacement: "pdfjs-dist/legacy/build/pdf.mjs" },
       ],
     },
     server: {

@@ -1,6 +1,7 @@
 // Storage's sidebar below its places, after Skiff Drive's: a space's folders as a tree in the
-// sidebar's own rows. A folder links to its page and its chevron opens it in place (its contents
-// load the first time); a file inside links to its folder with the file open in the preview.
+// sidebar's own rows. A folder links to its page and opens in place as it does (its contents load
+// the first time); its chevron opens and closes it without leaving the page. A file inside links
+// to its folder with the file open in the preview.
 import { useLocation } from "@tanstack/react-router";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarSection } from "@/components/ui/sidebar";
@@ -46,6 +47,8 @@ function Folder(props: { node: StorageNode; depth: number; search: string }) {
         icon={<FileGlyph kind="folder" className="size-icon" />}
         label={node.name}
         expand={open}
+        // Going to a folder shows what is in it; closing it is the chevron's job.
+        onPress={() => !open.value && open.toggle()}
       />
       {open.value && <Contents node={node} depth={depth + 1} search={props.search} />}
     </>

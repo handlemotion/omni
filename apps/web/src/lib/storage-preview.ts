@@ -189,6 +189,23 @@ export const thumbnailQuery = (source: PreviewSource, raster: string) =>
     retry: false,
   });
 
+/** A PDF's first page for a grid tile. pdf.js reads only that page's bytes, so no size cap. */
+export const pdfThumbnailQuery = (source: PreviewSource) =>
+  queryOptions({
+    queryKey: keys.storagePreview("pdf-thumbnail", source.url, source.version),
+    queryFn: ({ signal }) =>
+      slot(async () => {
+        signal.throwIfAborted();
+        const { firstPage } = await import("./pdf-thumbnail.ts");
+        const blob = await firstPage(source.url, THUMBNAIL_WIDTH, workspaceHeaders(), signal);
+        return { url: URL.createObjectURL(blob) };
+      }),
+    enabled: source.size > 0,
+    staleTime: Infinity,
+    gcTime: 30 * 60_000,
+    retry: false,
+  });
+
 const tracked = new WeakSet<QueryClient>();
 
 /** Revokes a preview's object URL when the cache drops it. Once per client. */

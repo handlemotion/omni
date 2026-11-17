@@ -5,9 +5,10 @@
 import "react-pdf/dist/Page/TextLayer.css";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
-// Vite's `?url`: the worker's emitted file. The lint rule reads the module, not the query.
+// Vite's `?url`: the worker's emitted file. The lint rule reads the module, not the query. The
+// legacy build, as `vite.config.ts` aliases the API: Safari lacks JS the modern one calls.
 // oxlint-disable-next-line import/default
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import { SkeletonBox } from "skullet/react";
 import { NoPreview, StageLoading } from "./shared.tsx";
 

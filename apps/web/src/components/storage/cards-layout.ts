@@ -1,11 +1,13 @@
 // The virtualized cards' layout: React Aria's grid, placed exactly as the CSS grid it replaces
-// (`repeat(auto-fill, minmax(10.5rem, 1fr))`, 12px across and 16px down, 14px in from each side,
-// nothing above the first row). React Aria's own `GridLayout` puts its gap outside the grid too
+// (`repeat(auto-fill, 11.5rem)`, 12px across and 16px down, 14px in from each side, nothing above
+// the first row). Cards are one fixed size: stretched to fill the row, they grew and shrank
+// whenever the folder's width changed, as when opening a file opens the preview beside it. React Aria's own `GridLayout` puts its gap outside the grid too
 // and a row's gap above it, so the cards would sit a pixel or two off the rows'.
 import { GridLayout, Size, type GridLayoutOptions } from "react-aria-components/Virtualizer";
 import type { LayoutInfo } from "react-aria-components/Virtualizer";
 
-const MIN = 168;
+/** A card's width, whatever the folder's width: more room is more columns, not bigger cards. */
+const CARD = 184;
 const GAP_X = 12;
 const GAP_Y = 16;
 const INSET = 14;
@@ -13,7 +15,7 @@ const INSET = 14;
 const GUESS_EXTRA = 48;
 
 export const CARDS_LAYOUT: GridLayoutOptions = {
-  minItemSize: new Size(MIN, MIN + GUESS_EXTRA),
+  minItemSize: new Size(CARD, CARD + GUESS_EXTRA),
   minSpace: new Size(GAP_X, GAP_Y),
   loaderHeight: 0,
 };
@@ -38,8 +40,9 @@ export class CardsLayout<T> extends GridLayout<T> {
     super.update(context);
     const full = this.virtualizer?.size.width ?? 0;
     const inner = full - INSET * 2;
-    const columns = Math.max(1, Math.floor((inner + GAP_X) / (MIN + GAP_X)));
-    const width = (inner - GAP_X * (columns - 1)) / columns;
+    const columns = Math.max(1, Math.floor((inner + GAP_X) / (CARD + GAP_X)));
+    // Narrower than one card, the one card fits the folder.
+    const width = Math.min(CARD, inner);
     this.width = width;
     const height = width + (this.extra ?? GUESS_EXTRA);
     const self = this as unknown as {

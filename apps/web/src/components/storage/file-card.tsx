@@ -46,7 +46,9 @@ export function FileCard(props: {
     >
       <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border bg-surface shadow-raised">
         {type?.preview === "image" && type.raster ? (
-          <Thumbnail node={node} url={props.url} raster={type.raster} />
+          <Thumbnail node={node} url={props.url} of={{ raster: type.raster }} />
+        ) : type?.preview === "pdf" ? (
+          <Thumbnail node={node} url={props.url} of="pdf" />
         ) : (
           <FileGlyph kind={type?.kind ?? "folder"} className="size-8 text-muted-foreground" />
         )}
@@ -65,21 +67,26 @@ export function FileCard(props: {
   );
 }
 
-/** An image's thumbnail, faded in over its glyph once it has decoded. */
-function Thumbnail(props: { node: StorageNode; url: string; raster: string }) {
+/** An image's thumbnail or a PDF's first page, faded in over its glyph once it has decoded. */
+function Thumbnail(props: { node: StorageNode; url: string; of: { raster: string } | "pdf" }) {
   // Fetched only once the card nears the screen: a mounted card off screen fetches nothing.
   const anchor = useRef<HTMLSpanElement>(null);
   const near = useSeen(anchor);
   const thumb = useThumbnail(
     { url: props.url, version: props.node.updatedAt, size: props.node.size },
-    props.raster,
+    props.of,
     near,
   );
   const [shown, setShown] = useState(false);
   return (
     <>
       <span ref={anchor} aria-hidden className="absolute inset-0" />
-      {!shown && <FileGlyph kind="image" className="size-8 text-muted-foreground" />}
+      {!shown && (
+        <FileGlyph
+          kind={props.of === "pdf" ? "pdf" : "image"}
+          className="size-8 text-muted-foreground"
+        />
+      )}
       {thumb.data && (
         <img
           src={thumb.data.url}
@@ -87,7 +94,10 @@ function Thumbnail(props: { node: StorageNode; url: string; raster: string }) {
           decoding="async"
           draggable={false}
           onLoad={() => setShown(true)}
-          className={`absolute inset-0 size-full object-cover transition-opacity duration-200 ease-out motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`}
+          // A photo fills the square. A PDF's page is a sheet laid on it: its top-left corner in
+          // from the square's, the rest running off the right and bottom edges. Hovering the card
+          // lifts the sheet toward that corner, a touch larger.
+          className={`absolute ${props.of === "pdf" ? "start-[12%] top-[12%] w-full max-w-none origin-top-left rounded-ss-sm border-s border-t border-foreground/10 group-hover:-translate-x-[4%] group-hover:-translate-y-[4%] group-hover:scale-[1.04]" : "inset-0 size-full object-cover"} transition-[opacity,translate,scale] duration-200 ease-out motion-reduce:transition-none ${shown ? "opacity-100" : "opacity-0"}`}
         />
       )}
     </>
@@ -116,7 +126,7 @@ function useSeen(ref: RefObject<HTMLElement | null>) {
 /** Cards while they load: skullet's squares and captions on the cards' own grid. */
 export function FileCardBones(props: { count: number }) {
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-x-3 gap-y-4 px-3.5">
+    <div className="grid grid-cols-[repeat(auto-fill,11.5rem)] gap-x-3 gap-y-4 px-3.5">
       {Array.from({ length: props.count }, (_, i) => (
         <div key={i} className="flex flex-col gap-2 p-1.5">
           <div className="aspect-square">

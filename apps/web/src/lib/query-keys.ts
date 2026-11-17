@@ -173,8 +173,11 @@ export const keys = {
    * A file's preview (ADR 0040): `image`, `thumbnail`, `text` or `sheets`, by the URL it is read
    * through and the file's `updatedAt`, so a new version is a new key.
    */
-  storagePreview: (kind: "image" | "thumbnail" | "text" | "sheets", url: string, version: string) =>
-    [...preview, kind, url, version] as const,
+  storagePreview: (
+    kind: "image" | "thumbnail" | "pdf-thumbnail" | "text" | "sheets",
+    url: string,
+    version: string,
+  ) => [...preview, kind, url, version] as const,
 
   /** App-only state, never fetched (`query-client.ts` keeps it forever). */
   local: () => local,
