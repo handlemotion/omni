@@ -6,6 +6,7 @@
 
 mod deep_link;
 mod navigation;
+mod recovery;
 mod server;
 mod startup;
 mod sync;
@@ -14,7 +15,11 @@ mod updater;
 mod window;
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // macOS: a page whose content process ended comes back instead of staying blank.
+    #[cfg(target_os = "macos")]
+    let builder = builder.on_web_content_process_terminate(recovery::on_terminate);
+    builder
         // First: a second launch (how Linux and Windows deliver an `omni://` link to a running
         // app) hands its URL to the deep-link plugin below and exits.
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {

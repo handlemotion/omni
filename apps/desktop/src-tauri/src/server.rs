@@ -11,6 +11,8 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_store::StoreExt;
 use url::Url;
 
+use crate::deep_link::{is_app_path, on_server};
+
 const STORE: &str = "shell.json";
 const SERVER_KEY: &str = "server";
 
@@ -92,12 +94,15 @@ pub fn server_origin<R: Runtime>(app: AppHandle<R>) -> Option<String> {
     parse_origin(value.as_str()?).ok().map(String::from)
 }
 
-/// Keep `origin` as the server, let it call the remote capability, and load it in the window.
+/// Keep `origin` as the server, let it call the remote capability, and load it in the window:
+/// at `path` when one is given and stays on the server (a page reopened after it died,
+/// `recovery.rs`), else at its root.
 #[tauri::command]
 pub fn open_server<R: Runtime>(
     app: AppHandle<R>,
     server: State<'_, Server>,
     origin: String,
+    path: Option<String>,
 ) -> Result<(), String> {
     let origin = parse_origin(&origin)?;
     let store = app.store(STORE).map_err(|e| e.to_string())?;
@@ -120,11 +125,15 @@ pub fn open_server<R: Runtime>(
     }
     drop(granted);
 
-    *server.origin.lock().unwrap_or_else(PoisonError::into_inner) = Some(origin.clone());
+    let page = path
+        .filter(|path| is_app_path(path))
+        .and_then(|path| on_server(&origin, &path))
+        .unwrap_or_else(|| origin.clone());
+    *server.origin.lock().unwrap_or_else(PoisonError::into_inner) = Some(origin);
     let window = app
         .get_webview_window("main")
         .ok_or("the main window is gone")?;
-    window.navigate(origin).map_err(|e| e.to_string())
+    window.navigate(page).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

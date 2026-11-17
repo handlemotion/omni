@@ -19,3 +19,11 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
+
+# Release builds (tauri.app/concept/size): one codegen unit and link-time optimization for a
+# smaller, faster shell; symbols stripped. Panics still unwind, so one failed command does not
+# take the app (and sync's status) down with it.
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

@@ -68,13 +68,13 @@ pub fn parse(url: &Url) -> Option<Link> {
 
 /// A path on the server, never a way off it: `//host` and `/\host` are other origins to a
 /// browser.
-fn is_app_path(path: &str) -> bool {
+pub fn is_app_path(path: &str) -> bool {
     path.starts_with('/') && !path.starts_with("//") && !path.contains('\\')
 }
 
 /// `path` resolved against the server, if it stays on the server's origin. `Url::join` drops tabs
 /// and newlines, so `/\n/evil.example` would otherwise become `//evil.example`.
-fn on_server(server: &Url, path: &str) -> Option<Url> {
+pub fn on_server(server: &Url, path: &str) -> Option<Url> {
     let url = server.join(path).ok()?;
     (url.origin() == server.origin()).then_some(url)
 }

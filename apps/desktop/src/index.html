@@ -76,9 +76,51 @@
       button:disabled {
         opacity: 0.5;
       }
+      /* The loading screen: the app's own, the app's background (apps/web/index.html), so
+         the hand-over to the server's page shows no seam. The mark fades in late: a quick start
+         shows nothing. */
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: #ffffff;
+      }
+      #loading[hidden] {
+        display: none;
+      }
+      #loading svg {
+        width: 56px;
+        height: 56px;
+        opacity: 0;
+        animation: loading-in 300ms ease-out 400ms forwards;
+      }
+      @keyframes loading-in {
+        to {
+          opacity: 1;
+        }
+      }
     </style>
   </head>
   <body>
+    <div id="loading" aria-hidden="true">
+      <svg viewBox="0 0 32 32">
+        <rect width="32" height="32" rx="7" fill="#0d3eef" />
+        <g
+          transform="translate(16 16) scale(0.95) translate(-14 -14)"
+          fill="none"
+          stroke="#fff"
+          stroke-width="2.3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M14 23.625V14M14 14V9.1875C14 6.52963 11.8454 4.375 9.1875 4.375C6.52963 4.375 4.375 6.52963 4.375 9.1875C4.375 11.8454 6.52963 14 9.1875 14H14ZM14 14H23.3333"
+          />
+          <path d="M19.5417 9.91667L23.625 14L19.5417 18.0833" />
+        </g>
+      </svg>
+    </div>
     <form id="picker" hidden>
       <h1>Omni Server</h1>
       <input

@@ -45,10 +45,22 @@ for (const route of router.getMatchedRoutes(window.location.pathname)[0]) {
 }
 // By the first screen's arrival its requests have all gone out: preloads left over are for a
 // screen nobody opened (a sign-in page, a redirect) and must not answer later requests.
+// The loading screen (index.html) fades out then too.
 const stopDropping = router.subscribe("onResolved", () => {
   stopDropping();
   dropStartupResponses();
+  hideLoadingScreen();
 });
+
+function hideLoadingScreen() {
+  const screen = document.getElementById("app-loading");
+  if (!screen) return;
+  requestAnimationFrame(() => {
+    screen.dataset.done = "";
+    screen.addEventListener("transitionend", () => screen.remove(), { once: true });
+    setTimeout(() => screen.remove(), 300); // No transition runs in a hidden window.
+  });
+}
 
 const root = document.getElementById("root");
 if (!root) throw new Error("index.html has no #root");
