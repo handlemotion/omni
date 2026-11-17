@@ -2,10 +2,8 @@ import type { ErrorCode, StorageNodeView, StorageSpace } from "@omni/contracts";
 import {
   forMember,
   type FileResult,
-  type ListResult,
   type MemberStorage,
   type SharedStorage,
-  type StorageListCursor,
   type StorageNodeView as NodeViewRow,
   type StoragePlace,
 } from "@omni/db";
@@ -48,23 +46,7 @@ export const staleSave = (c: Context<AppEnv>, contentVersion: number) =>
 export const memberStorage: (c: Context<AppEnv>) => MemberStorage = (c) =>
   forMember(c.var.db, c.var.member.id).storage;
 
-/**
- * A request made at `/shared/:shareId` (`shared.ts`): what the link carries, and the door
- * that opened it. The member door, when the signed-in person reaches the item as a member of
- * its workspace; else a grant, when they have one; else the link itself.
- */
-export interface SharedAccess {
-  /** The node carrying the link. */
-  root: NodeViewRow;
-  node(nodeId: string): Promise<NodeViewRow | null>;
-  list(
-    parentId: string,
-    page: { cursor?: StorageListCursor | null; limit?: number },
-  ): Promise<ListResult>;
-  file(nodeId: string): Promise<FileResult>;
-  /** The member or grant door that opened it, for changes. A link alone never writes. */
-  writer: MemberStorage | SharedStorage | null;
-}
+export type { SharedAccess } from "@omni/db";
 
 /**
  * The door a change goes through and the workspace it lands in: at `/shared/:shareId` the door

@@ -4,7 +4,7 @@ import { orgHasMailbox } from "./mail.ts";
 import { isCompany } from "./personal-space.ts";
 import { invitations, members, organizations, sessions, users } from "./schema/auth.ts";
 import { personalSpaces, userEmails } from "./schema/identity.ts";
-import { storageGrants, storageNodes } from "./schema/storage.ts";
+import { grantsForUserRow, orgHoldsFiles } from "./storage.ts";
 
 /** How long an account with no workspace may sit unused before it is deleted. */
 export const ABANDONED_SIGN_UP_DAYS = 30;
@@ -44,7 +44,7 @@ export async function deleteAbandonedSignUps(
                 or(
                   isCompany(db, members.organizationId),
                   orgHasMailbox(sql`${members.organizationId}`),
-                  sql`exists (select 1 from ${storageNodes} sn where sn.org_id = ${members.organizationId})`,
+                  orgHoldsFiles(sql`${members.organizationId}`),
                 ),
               ),
             ),
@@ -55,26 +55,7 @@ export async function deleteAbandonedSignUps(
             .from(invitations)
             .where(eq(invitations.inviterId, users.id)),
         ),
-        notExists(
-          db
-            .select({ one: sql`1` })
-            .from(storageGrants)
-            .where(
-              or(
-                and(
-                  eq(users.emailVerified, true),
-                  eq(storageGrants.email, sql`lower(${users.email})`),
-                ),
-                inArray(
-                  storageGrants.email,
-                  db
-                    .select({ email: sql`lower(${userEmails.email})` })
-                    .from(userEmails)
-                    .where(eq(userEmails.userId, users.id)),
-                ),
-              ),
-            ),
-        ),
+        notExists(grantsForUserRow(db)),
         notExists(
           db
             .select({ one: sql`1` })

@@ -21,11 +21,7 @@ const REGISTRARS = [
 ];
 
 /** Files that broke a rule before it existed: `file` may break `rule`. Only ever shrinks. */
-export const DEBT = [
-  { file: "packages/db/src/abandoned-sign-ups.ts", rule: "tables" },
-  { file: "apps/worker/src/context.ts", rule: "worker" },
-  { file: "apps/worker/src/routes/stripe-webhook.ts", rule: "worker" },
-];
+export const DEBT = [];
 
 const SOURCE = /^(packages\/[^/]+\/src|apps\/(worker|mail)\/src)\/.*\.(ts|tsx|mts)$/;
 const TEST = /(\.test\.|\/e2e\/)/;

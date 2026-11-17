@@ -1,6 +1,6 @@
 import { createAuth, usesOAuthProvider, type Auth, type InvitationMessage } from "@omni/auth";
 import { WORKSPACE_HEADER, WORKSPACE_PARAM } from "@omni/contracts/headers";
-import { forUser, isCompany, schema, sessionAccess, type Db } from "@omni/db";
+import { forUser, isCompany, schema, sessionAccess, type Db, type SharedAccess } from "@omni/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
@@ -8,8 +8,6 @@ import { openDb } from "./db.ts";
 import { loadConfig, type Config } from "./env.ts";
 import type { Logger } from "./log.ts";
 import { modules } from "./modules.ts";
-import type { SharedAccess } from "./storage/http.ts";
-import type { SyncCaller } from "./storage/sync.ts";
 
 export interface Member {
   /** `members.id`: what `forMember` and every mail table key on. */
@@ -17,6 +15,14 @@ export interface Member {
   orgId: string;
   userId: string;
   role: string;
+}
+
+/** Who a sync token acts for. */
+export interface SyncCaller {
+  userId: string;
+  clientId: string;
+  /** The one workspace the grant reaches, or null for every workspace the person is in. */
+  workspace: string | null;
 }
 
 export interface AppEnv {

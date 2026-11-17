@@ -16,7 +16,7 @@ import { Hono, type Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 import { requireWritableWorkspace } from "../billing.ts";
-import { findMember, type AppEnv } from "../context.ts";
+import { findMember, type AppEnv, type SyncCaller } from "../context.ts";
 import { apiError } from "../errors.ts";
 import { verifyAccessToken } from "../mcp/auth.ts";
 import { checkRateLimit, tooManyRequests } from "../rate-limiter.ts";
@@ -26,14 +26,6 @@ import { wireNode } from "./core.ts";
 import { decodeCursor, encodeCursor, memberStorage, refused } from "./http.ts";
 import { storageReads } from "./routes.ts";
 import { zValidator } from "../validator.ts";
-
-/** Who a sync token acts for. */
-export interface SyncCaller {
-  userId: string;
-  clientId: string;
-  /** The one workspace the grant reaches, or null for every workspace the person is in. */
-  workspace: string | null;
-}
 
 const syncCursor = z.object({ revision: z.number().int(), id: z.string() });
 

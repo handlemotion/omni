@@ -12,7 +12,12 @@ import { signerOperations } from "./storage/signer.ts";
 import { signingOperations } from "./storage/signing.ts";
 import { listChanges, listSyncWorkspaces, type StorageSyncCursor } from "./storage/sync.ts";
 import { trashOperations } from "./storage/trash.ts";
-import { treeOperations } from "./storage/tree.ts";
+import {
+  treeOperations,
+  type FileResult,
+  type ListResult,
+  type StorageNodeView,
+} from "./storage/tree.ts";
 import { uploadOperations } from "./storage/uploads.ts";
 import { versionOperations } from "./storage/versions.ts";
 
@@ -130,6 +135,8 @@ export {
   randomStorageSweepStart,
   recomputeStorageUsage,
   storageUsageOf,
+  orgHoldsFiles,
+  grantsForUserRow,
 } from "./storage/maintenance.ts";
 export {
   noteSubscriptionPaymentMethod,
@@ -231,3 +238,21 @@ export type UserStorage = ReturnType<typeof userStorage>;
 /** The grant door bounded to one link: `forUser(...).storage.under(shareId)`. */
 export type SharedStorage = ReturnType<UserStorage["under"]>;
 export type PublicStorage = ReturnType<typeof publicStorage>;
+
+/**
+ * A request made through a share link (`/api/storage/shared/:shareId`): what the link carries,
+ * and the door that opened it. The member door, when the signed-in person reaches the item as a
+ * member of its workspace; else a grant, when they have one; else the link itself.
+ */
+export interface SharedAccess {
+  /** The node carrying the link. */
+  root: StorageNodeView;
+  node(nodeId: string): Promise<StorageNodeView | null>;
+  list(
+    parentId: string,
+    page: { cursor?: StorageListCursor | null; limit?: number },
+  ): Promise<ListResult>;
+  file(nodeId: string): Promise<FileResult>;
+  /** The member or grant door that opened it, for changes. A link alone never writes. */
+  writer: MemberStorage | SharedStorage | null;
+}

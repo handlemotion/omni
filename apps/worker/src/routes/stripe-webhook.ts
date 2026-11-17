@@ -12,7 +12,7 @@ import { Hono } from "hono";
 import Stripe from "stripe";
 import type { AppEnv } from "../context.ts";
 import { apiError } from "../errors.ts";
-import { notePaymentMethod } from "../storage/billing.ts";
+import { modules } from "../modules.ts";
 
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
 
@@ -159,7 +159,7 @@ export const stripeWebhook = new Hono<AppEnv>().post("/", async (c) => {
       return apiError(c, "internal_server_error", "event not applied; retry");
     }
   }
-  await notePaymentMethod(c.var.db, billing, event);
+  for (const module of modules) await module.stripeEvent?.(c.var.db, billing, event);
   await recordStripeEvent(c.var.db, ref);
   c.var.log.info("stripe.event", fields);
   return c.json({ received: true, applied: true });
