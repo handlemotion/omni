@@ -17,12 +17,15 @@ import { notifyMembers } from "../realtime.ts";
 import { zValidator } from "../validator.ts";
 import { refused, writeDoor } from "./http.ts";
 
-const wireComment = (comment: CommentRow): StorageComment => ({
-  ...comment,
-  createdAt: comment.createdAt.toISOString(),
-  editedAt: comment.editedAt?.toISOString() ?? null,
-  resolvedAt: comment.resolvedAt?.toISOString() ?? null,
-});
+const wireComment = (comment: CommentRow) => {
+  const result: StorageComment = {
+    ...comment,
+    createdAt: comment.createdAt.toISOString(),
+    editedAt: comment.editedAt?.toISOString() ?? null,
+    resolvedAt: comment.resolvedAt?.toISOString() ?? null,
+  };
+  return result;
+};
 
 export const storageComments = new Hono<AppEnv>()
   .get("/files/:id/comments", async (c) => {

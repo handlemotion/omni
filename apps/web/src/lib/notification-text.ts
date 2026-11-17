@@ -51,7 +51,9 @@ export interface CommentTarget {
 }
 
 /** A comment notification's file, or undefined for any other kind (or a malformed one). */
-export function commentTarget(n: Pick<Notification, "kind" | "data">): CommentTarget | undefined {
+export const commentTarget: (
+  n: Pick<Notification, "kind" | "data">,
+) => CommentTarget | undefined = (n) => {
   if (n.kind !== "comment") return undefined;
   const d = n.data as Partial<CommentTarget>;
   if (typeof d.nodeId !== "string" || (d.space !== "personal" && d.space !== "shared")) return;
@@ -62,7 +64,7 @@ export function commentTarget(n: Pick<Notification, "kind" | "data">): CommentTa
     folderId: typeof d.folderId === "string" ? d.folderId : null,
     excerpt: typeof d.excerpt === "string" ? d.excerpt : "",
   };
-}
+};
 
 /**
  * What it is about: the conversation's subject; for a comment, the file and its first words;

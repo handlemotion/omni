@@ -171,7 +171,7 @@ export type Config = z.output<typeof configSchema>;
 const cache = new WeakMap<object, Config>();
 
 /** Validates the Worker's vars and secrets once per isolate; throws naming every bad variable. */
-export function loadConfig(env: Env): Config {
+export function loadConfig(env: Env) {
   let config = cache.get(env);
   if (!config) {
     const parsed = configSchema.safeParse({ ...env, auth: env });
@@ -183,5 +183,5 @@ export function loadConfig(env: Env): Config {
     config = parsed.data;
     cache.set(env, config);
   }
-  return config;
+  return config satisfies Config;
 }

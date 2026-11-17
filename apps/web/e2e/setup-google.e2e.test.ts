@@ -55,7 +55,7 @@ afterEach(async () => {
   context = undefined;
 });
 
-async function signedIn(email: string, path: string): Promise<Page> {
+async function signedIn(email: string, path: string) {
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, email);
   context = await browser.newContext();
@@ -67,7 +67,7 @@ async function signedIn(email: string, path: string): Promise<Page> {
   );
   const page = await context.newPage();
   await page.goto(new URL(path, origin).toString());
-  return page;
+  return page satisfies Page;
 }
 
 const heading = (page: Page, name: string) => page.getByRole("heading", { name }).waitFor();

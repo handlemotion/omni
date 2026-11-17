@@ -103,7 +103,7 @@ function Column({ stage, deals }: { stage: CrmStage; deals: CrmDeal[] }) {
 }
 
 /** A column's cards drag out, and cards from any column drop in (on a card or between them). */
-function useColumnDragAndDrop(stage: CrmStage, deals: CrmDeal[]): DragAndDropHooks<CrmDeal> {
+function useColumnDragAndDrop(stage: CrmStage, deals: CrmDeal[]) {
   const move = useMoveDeal();
   const take = async (items: DropItem[]) => {
     for (const item of items) {
@@ -127,7 +127,7 @@ function useColumnDragAndDrop(stage: CrmStage, deals: CrmDeal[]): DragAndDropHoo
     onInsert: (event) => void take(event.items),
     onItemDrop: (event) => void take(event.items),
   });
-  return dragAndDropHooks;
+  return dragAndDropHooks satisfies DragAndDropHooks<CrmDeal>;
 }
 
 /** The column's total, when its deals with a value share one currency. */

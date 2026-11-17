@@ -21,7 +21,10 @@ const { db, teardown } = await createTestDatabase();
 afterAll(teardown);
 
 type Address = { name: string | null; address: string };
-const to = (...list: string[]): Address[] => list.map((address) => ({ name: null, address }));
+const to = (...list: string[]) => {
+  const result: Address[] = list.map((address) => ({ name: null, address }));
+  return result;
+};
 
 let clock = Date.parse("2026-10-01T00:00:00Z");
 /** One message in a new thread (or in `threadId`), each later than the last. */

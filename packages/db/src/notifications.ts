@@ -28,10 +28,10 @@ export async function markNotificationsRead(db: Executor, memberId: string, ids:
  * Tells everyone else in workspace `orgId` that user `userId`, now its member, joined. Once per
  * member, however often it runs. Answers who got a new notification.
  */
-export async function notifyMemberJoined(
+export const notifyMemberJoined: (
   db: Executor,
   input: { orgId: string; userId: string },
-): Promise<string[]> {
+) => Promise<string[]> = async (db, input) => {
   const [joined] = await db
     .select({ id: members.id })
     .from(members)
@@ -57,7 +57,7 @@ export async function notifyMemberJoined(
     .onConflictDoNothing()
     .returning({ memberId: notifications.memberId });
   return rows.map((r) => r.memberId);
-}
+};
 
 // Realtime (B4): who hears about a conversation, and whose preferences let a notification out.
 

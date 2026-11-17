@@ -103,19 +103,19 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
     },
 
     /** Puts a trashed node back where it was. A name taken meanwhile gets a number. */
-    restore(nodeId: string): Promise<RestoreResult> {
+    restore(nodeId: string) {
       return retryNameRace(() =>
-        db.transaction(async (tx): Promise<RestoreResult> => {
+        db.transaction(async (tx) => {
           // Under the tree lock, like a permanent delete: a restore that slipped in after the
           // delete had seen the node in Trash would report success for a file about to go.
           const orgId = await orgOfNode(tx, nodeId);
-          if (!orgId) return NOT_FOUND;
+          if (!orgId) return NOT_FOUND satisfies RestoreResult;
           await lockTree(tx, orgId);
           const found = await reach(tx, door, nodeId);
-          if (!found || !found.node.trashedAt) return NOT_FOUND;
-          if (!found.access.remove) return FORBIDDEN;
+          if (!found || !found.node.trashedAt) return NOT_FOUND satisfies RestoreResult;
+          if (!found.access.remove) return FORBIDDEN satisfies RestoreResult;
           if (found.chain.slice(1).some((row) => row.trashedAt)) {
-            return { status: "parent_trashed" };
+            return { status: "parent_trashed" } satisfies RestoreResult;
           }
           const { node } = found;
           const revision = await nextRevision(tx, orgId);
@@ -133,25 +133,26 @@ export function trashOperations(db: Db, door: Door, memberId: string) {
             })
             .where(sql`${storageNodes.id} = ${nodeId} and ${storageNodes.trashedAt} is not null`)
             .returning();
-          return row ? { status: "ok", node: toNode(row) } : NOT_FOUND;
+          return (row ? { status: "ok", node: toNode(row) } : NOT_FOUND) satisfies RestoreResult;
         }),
-      );
+      ) satisfies Promise<RestoreResult>;
     },
 
     /** Deletes a trashed node and everything inside it, rows first. */
-    deleteForever(nodeId: string): Promise<DeleteForeverResult> {
-      return db.transaction(async (tx): Promise<DeleteForeverResult> => {
+    deleteForever(nodeId: string) {
+      return db.transaction<DeleteForeverResult>(async (tx) => {
         const orgId = await orgOfNode(tx, nodeId);
-        if (!orgId) return NOT_FOUND;
+        if (!orgId) return NOT_FOUND satisfies DeleteForeverResult;
         await lockTree(tx, orgId);
         const found = await reach(tx, door, nodeId);
-        if (!found) return NOT_FOUND;
+        if (!found) return NOT_FOUND satisfies DeleteForeverResult;
         // A locked file is never in Trash; it says why it cannot go rather than where it is.
-        if (await holdsLocked(tx, nodeId)) return LOCKED;
-        if (!found.node.trashedAt) return { status: "not_trashed" };
-        if (!found.access.remove || !(await door.removesWhole(tx, found.node))) return FORBIDDEN;
+        if (await holdsLocked(tx, nodeId)) return LOCKED satisfies DeleteForeverResult;
+        if (!found.node.trashedAt) return { status: "not_trashed" } satisfies DeleteForeverResult;
+        if (!found.access.remove || !(await door.removesWhole(tx, found.node)))
+          return FORBIDDEN satisfies DeleteForeverResult;
         const { r2Keys } = await deleteSubtree(tx, orgId, nodeId);
-        return { status: "ok", r2Keys, drive: driveOf(found.node) };
+        return { status: "ok", r2Keys, drive: driveOf(found.node) } satisfies DeleteForeverResult;
       });
     },
   };

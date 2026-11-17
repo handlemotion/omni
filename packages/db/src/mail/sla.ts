@@ -82,7 +82,10 @@ function due(clock: Date | null, minutes: number | null, schedule: BusinessSched
 }
 
 /** Due times from the clocks: first response until we first reply, next response after it. */
-export function dueTimes(clocks: SlaClocks, targets: Targets | null): DueTimes {
+export const dueTimes: (clocks: SlaClocks, targets: Targets | null) => DueTimes = (
+  clocks,
+  targets,
+) => {
   if (!targets) return { firstResponseDueAt: null, nextResponseDueAt: null, resolutionDueAt: null };
   const { schedule } = targets;
   return {
@@ -94,7 +97,7 @@ export function dueTimes(clocks: SlaClocks, targets: Targets | null): DueTimes {
       : null,
     resolutionDueAt: due(clocks.resolutionClockAt, targets.resolutionMinutes, schedule),
   };
-}
+};
 
 /**
  * Sets the conversation's clocks (fields left out stay as they are) and recomputes its due
@@ -106,7 +109,7 @@ export async function setSlaClocks<
   tx: Tx,
   row: Row,
   clocks: Partial<Pick<SlaClocks, "responseClockAt" | "resolutionClockAt">> = {},
-): Promise<Row> {
+) {
   const next = { ...row, ...clocks };
   const anyClock = next.responseClockAt || next.resolutionClockAt;
   const times = anyClock
@@ -129,7 +132,7 @@ export async function setSlaClocks<
       })
       .where(eq(threads.id, row.id));
   }
-  return updated;
+  return updated satisfies Row;
 }
 
 function sameTime(a: Date | null, b: Date | null) {
@@ -336,7 +339,11 @@ function owedAlert(target: SlaTarget, column: AnyPgColumn, now: Date, horizon: D
  * already written is skipped, so a late or doubled run alerts once. Only open conversations
  * alert; a pending or snoozed one alerts when it opens again if it is still late.
  */
-export async function emitSlaAlerts(db: Db, now: Date, limit = 1000): Promise<SlaAlert[]> {
+export const emitSlaAlerts: (db: Db, now: Date, limit?: number) => Promise<SlaAlert[]> = async (
+  db,
+  now,
+  limit = 1000,
+) => {
   const horizon = new Date(now.getTime() + SLA_AT_RISK_MINUTES * 60_000);
   // Newest due first: long-breached conversations sit at the end and cannot crowd out new alerts.
   const candidates = await db
@@ -472,4 +479,4 @@ export async function emitSlaAlerts(db: Db, now: Date, limit = 1000): Promise<Sl
     });
   }
   return alerts;
-}
+};

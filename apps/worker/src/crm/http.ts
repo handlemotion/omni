@@ -15,6 +15,7 @@ import {
 } from "@omni/contracts";
 import {
   forMember,
+  type MemberCrm,
   type AddressTaken,
   type ContractSigned,
   type CrmCompany,
@@ -42,7 +43,8 @@ import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { ApiFailure, errorBody } from "../errors.ts";
 
-export const memberCrm = (c: Context<AppEnv>) => forMember(c.var.db, c.var.member.id).crm;
+export const memberCrm: (c: Context<AppEnv>) => MemberCrm = (c) =>
+  forMember(c.var.db, c.var.member.id).crm;
 
 /** Every refusal a CRM door operation can answer. */
 export type CrmRefusal =
@@ -77,7 +79,7 @@ const CONTRACT_MESSAGES: Record<string, string> = {
   expiresOn: "that is not a date on or after the day it takes effect",
 };
 
-function filesAnswerFor(refusal: FilesRefusal): Answer {
+const filesAnswerFor: (refusal: FilesRefusal) => Answer = (refusal) => {
   switch (refusal.status) {
     case "contract_signed":
       return { code: "contract_signed", message: "a signed contract cannot change that" };
@@ -99,7 +101,7 @@ function filesAnswerFor(refusal: FilesRefusal): Answer {
     case "too_deep":
       return { code: "too_deep", message: "the record's folder would be too deep in Shared" };
   }
-}
+};
 
 const FILES_STATUSES = new Set([
   "contract_signed",
@@ -111,57 +113,80 @@ const isFilesRefusal = (refusal: CrmRefusal): refusal is FilesRefusal =>
   FILES_STATUSES.has(refusal.status);
 
 /** The code, sentence and field of each refusal, and the ids a client acts on beside `error`. */
-function answerFor(refusal: CrmRefusal): Answer {
-  if (isFilesRefusal(refusal)) return filesAnswerFor(refusal);
+function answerFor(refusal: CrmRefusal) {
+  if (isFilesRefusal(refusal)) return filesAnswerFor(refusal) satisfies Answer;
   switch (refusal.status) {
     case "no_crm":
-      return { code: "no_crm", message: "a Personal space has no CRM" };
+      return { code: "no_crm", message: "a Personal space has no CRM" } satisfies Answer;
     case "not_found":
-      return { code: "not_found", message: "not found" };
+      return { code: "not_found", message: "not found" } satisfies Answer;
     case "forbidden":
-      return { code: "forbidden", message: "only owners and admins can do this" };
+      return { code: "forbidden", message: "only owners and admins can do this" } satisfies Answer;
     case "invalid_name":
-      return { code: "bad_request", message: "that name cannot be used", param: "name" };
+      return {
+        code: "bad_request",
+        message: "that name cannot be used",
+        param: "name",
+      } satisfies Answer;
     case "invalid_address":
-      return { code: "bad_request", message: "that is not an email address", param: "address" };
+      return {
+        code: "bad_request",
+        message: "that is not an email address",
+        param: "address",
+      } satisfies Answer;
     case "invalid_domain":
-      return { code: "bad_request", message: "that is not a domain", param: "domain" };
+      return {
+        code: "bad_request",
+        message: "that is not a domain",
+        param: "domain",
+      } satisfies Answer;
     case "invalid_value":
       return {
         code: "bad_request",
         message: "the value is not a whole amount",
         param: "valueMinor",
-      };
+      } satisfies Answer;
     case "invalid_body":
-      return { code: "bad_request", message: "a note needs some text", param: "body" };
+      return {
+        code: "bad_request",
+        message: "a note needs some text",
+        param: "body",
+      } satisfies Answer;
     case "invalid_currency":
-      return { code: "invalid_currency", message: "that is not a currency", param: "currency" };
+      return {
+        code: "invalid_currency",
+        message: "that is not a currency",
+        param: "currency",
+      } satisfies Answer;
     case "webmail_domain":
-      return { code: "webmail_domain", message: "a webmail domain is nobody's company" };
+      return {
+        code: "webmail_domain",
+        message: "a webmail domain is nobody's company",
+      } satisfies Answer;
     case "domain_taken":
       return {
         code: "domain_taken",
         message: "another company has that domain",
         data: { companyId: refusal.companyId },
-      };
+      } satisfies Answer;
     case "address_taken":
       return {
         code: "address_taken",
         message: "another person has that address",
         data: { address: refusal.address, personId: refusal.personId },
-      };
+      } satisfies Answer;
     case "stage_in_use":
       return {
         code: "stage_in_use",
         message: "a stage that holds deals cannot be removed",
         data: { stageIds: refusal.stageIds },
-      };
+      } satisfies Answer;
     case "stage_kind_required":
       return {
         code: "stage_kind_required",
         message: "each kind of stage needs at least one stage",
         data: { kinds: refusal.kinds },
-      };
+      } satisfies Answer;
   }
 }
 
@@ -175,47 +200,55 @@ export function refused(c: Context<AppEnv>, refusal: CrmRefusal) {
 const iso = (date: Date) => date.toISOString();
 const isoOrNull = (date: Date | null) => (date ? date.toISOString() : null);
 
-export const wireCompany = (company: CrmCompany): WireCompany => ({
-  ...company,
-  archivedAt: isoOrNull(company.archivedAt),
-  createdAt: iso(company.createdAt),
-  updatedAt: iso(company.updatedAt),
-});
+export const wireCompany = (company: CrmCompany) => {
+  const result: WireCompany = {
+    ...company,
+    archivedAt: isoOrNull(company.archivedAt),
+    createdAt: iso(company.createdAt),
+    updatedAt: iso(company.updatedAt),
+  };
+  return result;
+};
 
-export const wirePerson = (person: CrmPerson): WirePerson => ({
-  ...person,
-  archivedAt: isoOrNull(person.archivedAt),
-  createdAt: iso(person.createdAt),
-  updatedAt: iso(person.updatedAt),
-});
+export const wirePerson = (person: CrmPerson) =>
+  ({
+    ...person,
+    archivedAt: isoOrNull(person.archivedAt),
+    createdAt: iso(person.createdAt),
+    updatedAt: iso(person.updatedAt),
+  }) satisfies WirePerson;
 
-export const wireDeal = (deal: CrmDeal): WireDeal => ({
-  ...deal,
-  stageEnteredAt: iso(deal.stageEnteredAt),
-  wonAt: isoOrNull(deal.wonAt),
-  closedAt: isoOrNull(deal.closedAt),
-  archivedAt: isoOrNull(deal.archivedAt),
-  createdAt: iso(deal.createdAt),
-  updatedAt: iso(deal.updatedAt),
-});
+export const wireDeal = (deal: CrmDeal) =>
+  ({
+    ...deal,
+    stageEnteredAt: iso(deal.stageEnteredAt),
+    wonAt: isoOrNull(deal.wonAt),
+    closedAt: isoOrNull(deal.closedAt),
+    archivedAt: isoOrNull(deal.archivedAt),
+    createdAt: iso(deal.createdAt),
+    updatedAt: iso(deal.updatedAt),
+  }) satisfies WireDeal;
 
-export const wireContract = (contract: CrmContract): WireContract => ({
-  ...contract,
-  signedAt: isoOrNull(contract.signedAt),
-  createdAt: iso(contract.createdAt),
-  updatedAt: iso(contract.updatedAt),
-});
+export const wireContract = (contract: CrmContract) =>
+  ({
+    ...contract,
+    signedAt: isoOrNull(contract.signedAt),
+    createdAt: iso(contract.createdAt),
+    updatedAt: iso(contract.updatedAt),
+  }) satisfies WireContract;
 
-export const wireNote = (note: CrmNote): WireNote => ({
-  ...note,
-  createdAt: iso(note.createdAt),
-  updatedAt: iso(note.updatedAt),
-});
+export const wireNote = (note: CrmNote) =>
+  ({
+    ...note,
+    createdAt: iso(note.createdAt),
+    updatedAt: iso(note.updatedAt),
+  }) satisfies WireNote;
 
-export const wireEvent = (event: CrmEvent): WireEvent => ({
-  ...event,
-  createdAt: iso(event.createdAt),
-});
+export const wireEvent = (event: CrmEvent) =>
+  ({
+    ...event,
+    createdAt: iso(event.createdAt),
+  }) satisfies WireEvent;
 
 /** A cursor travels as base64url JSON: opaque to the client, checked on the way back in. */
 export function encodeCursor(cursor: unknown) {

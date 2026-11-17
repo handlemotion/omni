@@ -102,7 +102,7 @@ function decodeCursor(cursor: string) {
   }
 }
 
-function filtersOf(input: Input): ThreadFilters {
+const filtersOf: (input: Input) => ThreadFilters = (input) => {
   return {
     from: input.from,
     participant: input.participant,
@@ -113,7 +113,7 @@ function filtersOf(input: Input): ThreadFilters {
     status: input.status,
     tag: input.tag,
   };
-}
+};
 
 async function find(context: ToolContext, input: Input) {
   const wait = await context.rateLimit("search");

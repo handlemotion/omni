@@ -121,12 +121,12 @@ function useMoveBrowser(scope: MoveScope, node: StorageNode) {
 }
 
 /** The trail from the top (a company's spaces, a space, or a link's folder) down to `at`. */
-function crumbsFor(props: {
+const crumbsFor: (props: {
   link: Extract<MoveScope, { kind: "link" }> | null;
   at: Browse;
   setAt: (at: Browse) => void;
   hasShared: boolean;
-}): Crumb[] {
+}) => Crumb[] = (props) => {
   const { link, at, setAt } = props;
   const trail = (path: { id: string; name: string }[], space: StorageSpace | null) =>
     path.map((entry, i) => ({ ...entry, go: () => setAt({ space, path: path.slice(0, i + 1) }) }));
@@ -144,20 +144,20 @@ function crumbsFor(props: {
     { id: space, name: SPACE_LABEL[space], go: () => setAt({ space, path: [] }) },
     ...trail(at.path, space),
   ];
-}
+};
 
 /** What to list through a link: its top folder is the link itself, without `node`. */
-function linkArgs(
+const linkArgs: (
   link: Extract<MoveScope, { kind: "link" }> | null,
   folder: { id: string } | undefined,
-): [string, string | undefined, { enabled: boolean }] {
+) => [string, string | undefined, { enabled: boolean }] = (link, folder) => {
   if (!link) return ["", undefined, { enabled: false }];
   return [
     link.shareId,
     folder && folder.id !== link.top.id ? folder.id : undefined,
     { enabled: true },
   ];
-}
+};
 
 /** The rows at `at` (a company's spaces at the top, else the folders) and opening one. */
 function rowsAt(at: Browse, folders: StorageNode[], setAt: (at: Browse) => void) {
@@ -177,11 +177,14 @@ function rowsAt(at: Browse, folders: StorageNode[], setAt: (at: Browse) => void)
 }
 
 /** The place a move to `at` goes: inside its last folder, or a space's root. */
-function placeAt(at: Browse, folder: { id: string } | undefined): StoragePlace | null {
+const placeAt: (at: Browse, folder: { id: string } | undefined) => StoragePlace | null = (
+  at,
+  folder,
+) => {
   if (!at) return null;
   if (folder) return { parentId: folder.id };
   return { space: at.space ?? "personal" };
-}
+};
 
 /** Picks the folder to move `node` into, one level at a time, then Move here. */
 export function MoveDialog(props: { node: StorageNode; scope: MoveScope; onClose: () => void }) {

@@ -52,7 +52,7 @@ const TARGETS = [
  * Each named type as its own JSON Schema, keyed by its name. A schema used inside another (a
  * node in a list) is a `$ref` to its name, so it stays one type in Swift and Rust.
  */
-function jsonSchemas(): Record<string, unknown> {
+function jsonSchemas() {
   const registry = z.registry<{ id: string }>();
   for (const [name, schema] of Object.entries(STORAGE_SYNC_NATIVE_TYPES)) {
     registry.add(schema, { id: name });
@@ -72,7 +72,7 @@ function jsonSchemas(): Record<string, unknown> {
       delete plain.$id;
       return [name, plain];
     }),
-  );
+  ) satisfies Record<string, unknown>;
 }
 
 /**
@@ -80,7 +80,7 @@ function jsonSchemas(): Record<string, unknown> {
  * `.iso8601`, which refuses the fractional seconds the Worker sends; each provider parses the
  * few dates it reads itself.
  */
-function dropDateTimeFormat(key: string, value: unknown): unknown {
+function dropDateTimeFormat(key: string, value: unknown) {
   return key === "format" && value === "date-time" ? undefined : value;
 }
 
@@ -91,12 +91,14 @@ function dropDateTimeFormat(key: string, value: unknown): unknown {
 class NamedSchemaStore extends JSONSchemaStore {
   readonly #schemas = jsonSchemas();
 
-  async fetch(address: string): Promise<JSONSchema | undefined> {
-    return this.#schemas[address.replace(/#.*$/, "")] as JSONSchema | undefined;
+  async fetch(address: string) {
+    return this.#schemas[address.replace(/#.*$/, "")] as JSONSchema | undefined satisfies
+      | JSONSchema
+      | undefined;
   }
 }
 
-async function render(target: (typeof TARGETS)[number]): Promise<string> {
+async function render(target: (typeof TARGETS)[number]) {
   const input = new JSONSchemaInput(new NamedSchemaStore());
   for (const name of Object.keys(STORAGE_SYNC_NATIVE_TYPES)) {
     await input.addSource({ name, uris: [name] });

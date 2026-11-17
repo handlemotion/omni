@@ -15,7 +15,7 @@ export const openNotificationsPanel = () => set(true);
 export const closeNotificationsPanel = () => set(false);
 export const toggleNotificationsPanel = () => set(!open);
 
-export function useNotificationsPanel(): boolean {
+export function useNotificationsPanel() {
   return useSyncExternalStore(
     (notify) => {
       listeners.add(notify);

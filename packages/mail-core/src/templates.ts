@@ -45,7 +45,7 @@ export function renderTemplate(
   template: string,
   values: TemplateValues,
   options: { html?: boolean } = {},
-): { text: string; missing: string[] } {
+) {
   const missing = new Set<string>();
   const text = template.replace(PATTERN, (match, rawName: string, rawFallback?: string) => {
     const trimmed = rawName.trim();
@@ -59,5 +59,5 @@ export function renderTemplate(
     const value = given || fallback;
     return options.html ? escapeHtml(value) : value;
   });
-  return { text, missing: [...missing] };
+  return { text, missing: [...missing] } satisfies { text: string; missing: string[] };
 }

@@ -40,7 +40,7 @@ const utc = (date: Date | null) =>
   date ? `${date.toISOString().replace("T", " ").slice(0, 19)} UTC` : "-";
 
 /** The audit page's lines, top to bottom. A heading line starts with `# `. */
-export function auditLines(input: StorageSealInput): string[] {
+export function auditLines(input: StorageSealInput) {
   const { request } = input;
   const lines = [
     "# Signature certificate",
@@ -76,11 +76,11 @@ export function auditLines(input: StorageSealInput): string[] {
     "A simple electronic signature: each signer controlled their mailbox at signing time, as a",
     "one-time code mailed to it shows, and typed their name after accepting the consent above.",
   );
-  return lines;
+  return lines satisfies string[];
 }
 
 /** Splits a line to fit the page width, breaking anywhere when a word is longer than a line. */
-function wrap(text: string, font: PDFFont, width: number): string[] {
+function wrap(text: string, font: PDFFont, width: number) {
   const out: string[] = [];
   let line = "";
   for (const char of text) {
@@ -97,7 +97,7 @@ function wrap(text: string, font: PDFFont, width: number): string[] {
     line += char;
   }
   out.push(line);
-  return out;
+  return out satisfies string[];
 }
 
 /** Writes the audit page(s) at the end of `pdf`. */
@@ -157,10 +157,10 @@ export interface SealDeps {
  * records it, and on the run that recorded it mails every party; a run that lost deletes its copy. Answers the new file, or null
  * when there was nothing to do.
  */
-export async function sealSignatureRequest(
+export const sealSignatureRequest: (
   deps: SealDeps,
   requestId: string,
-): Promise<StorageNode | null> {
+) => Promise<StorageNode | null> = async (deps, requestId) => {
   const input = await storageSealInput(deps.db, requestId);
   if (!input) return null;
   const object = await deps.bucket.get(input.r2Key);
@@ -188,7 +188,7 @@ export async function sealSignatureRequest(
   deps.log.info("storage.sealed", { requestId, orgId: recorded.node.orgId });
   await mailParties(deps, input, recorded.node);
   return recorded.node;
-}
+};
 
 /**
  * After a failed record: deletes this run's object unless the record committed after all (a

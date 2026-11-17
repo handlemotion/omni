@@ -39,7 +39,7 @@ const SUBJECT_DIGITS = new RegExp(DIGITS_ALONE, "gu");
  * The verification code a message carries, as the reader would type it (digit groups joined:
  * "123 456" is `123456`), or null when it has none or more than one candidate.
  */
-export function verificationCode(message: { subject: string; text: string }): string | null {
+export function verificationCode(message: { subject: string; text: string }) {
   const text = message.text.slice(0, SCAN_CHARS);
   if (!KEYWORD.test(message.subject) && !KEYWORD.test(text)) return null;
 
@@ -59,17 +59,17 @@ export function verificationCode(message: { subject: string; text: string }): st
 }
 
 /** Each match's code, normalized, once. Letter codes need a digit, or every heading is one. */
-function codes(matches: Iterable<RegExpMatchArray>): string[] {
+function codes(matches: Iterable<RegExpMatchArray>) {
   const found = new Set<string>();
   for (const match of matches) {
     const raw = match[1];
     if (!raw || !/\d/.test(raw)) continue;
     found.add(/^[\d -]+$/.test(raw) ? raw.replace(/[ -]/g, "") : raw);
   }
-  return [...found];
+  return [...found] satisfies string[];
 }
 
-function only(found: readonly string[]): string | null {
+function only(found: readonly string[]) {
   return found.length === 1 ? (found[0] ?? null) : null;
 }
 

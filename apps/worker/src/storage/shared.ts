@@ -36,7 +36,10 @@ import {
 } from "./http.ts";
 
 /** A member's or a grantee's door as the link door's routes read through it. */
-function through(root: SharedAccess["root"], door: MemberStorage | SharedStorage): SharedAccess {
+const through: (root: SharedAccess["root"], door: MemberStorage | SharedStorage) => SharedAccess = (
+  root,
+  door,
+) => {
   return {
     root,
     node: door.node,
@@ -44,14 +47,17 @@ function through(root: SharedAccess["root"], door: MemberStorage | SharedStorage
     file: door.file,
     writer: door,
   };
-}
+};
 
 /**
  * What `shareId` opens for this request, by the first door that opens it: the member door of a
  * workspace the session may use (a teammate's link to something in Shared, or one's own file),
  * then a grant, then the link itself when it is open to anyone. Null when none does.
  */
-async function openShared(c: Context<AppEnv>, shareId: string): Promise<SharedAccess | null> {
+const openShared: (c: Context<AppEnv>, shareId: string) => Promise<SharedAccess | null> = async (
+  c,
+  shareId,
+) => {
   const { db } = c.var;
   const session = await resolveSession(c);
   if (session) {
@@ -75,7 +81,7 @@ async function openShared(c: Context<AppEnv>, shareId: string): Promise<SharedAc
     file: link.file,
     writer: null,
   };
-}
+};
 
 const open = createMiddleware<AppEnv>(async (c, next) => {
   const { db, config } = c.var;

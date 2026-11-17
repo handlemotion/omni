@@ -389,7 +389,7 @@ function RemoveDomainDialog(props: { domain: OnboardingDomain | undefined; onClo
 }
 
 /** The domain's records in the records table's shape: Omni's challenge first, then the provider's. */
-function shownRecords(domain: OnboardingDomain): TableRecord[] {
+function shownRecords(domain: OnboardingDomain) {
   const challenge: TableRecord[] = domain.challenge
     ? [
         {
@@ -405,17 +405,20 @@ function shownRecords(domain: OnboardingDomain): TableRecord[] {
     : [];
   return [
     ...challenge,
-    ...domain.records.map((record): TableRecord => ({
-      type: record.type,
-      name: record.name,
-      value:
-        record.diagnostic?.suggestion ??
-        (record.priority !== undefined ? `${record.priority} ${record.value}` : record.value),
-      purpose: record.check === "ownership" ? "ownership" : "routing",
-      required: true,
-      status: recordPasses(record) ? "valid" : "pending",
-    })),
-  ];
+    ...domain.records.map((record) => {
+      const result: TableRecord = {
+        type: record.type,
+        name: record.name,
+        value:
+          record.diagnostic?.suggestion ??
+          (record.priority !== undefined ? `${record.priority} ${record.value}` : record.value),
+        purpose: record.check === "ownership" ? "ownership" : "routing",
+        required: true,
+        status: recordPasses(record) ? "valid" : "pending",
+      };
+      return result;
+    }),
+  ] satisfies TableRecord[];
 }
 
 function DomainRecordsDialog(props: { domain: OnboardingDomain; onClose: () => void }) {

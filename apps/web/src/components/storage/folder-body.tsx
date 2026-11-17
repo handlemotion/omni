@@ -57,7 +57,7 @@ export function FolderBody(
 }
 
 /** The page's door and folder, for its items' drags and the drops it takes. */
-function useFolderDrag(source: FolderSource): NodeDrag {
+const useFolderDrag: (source: FolderSource) => NodeDrag = (source) => {
   const { place, shareId, canWrite } = source;
   return useMemo(() => {
     const door = { shareId, canWrite };
@@ -65,7 +65,7 @@ function useFolderDrag(source: FolderSource): NodeDrag {
     // The place is a new object each render; its folder or space is what changes.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [shareId, canWrite, "parentId" in place ? place.parentId : place.space]);
-}
+};
 
 function Content(props: Parameters<typeof FolderBody>[0] & { drag: NodeDrag }) {
   const { source, open } = props;

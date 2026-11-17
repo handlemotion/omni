@@ -27,7 +27,7 @@ export async function firstPages(
   headers: Record<string, string>,
   signal: AbortSignal,
   max = 3,
-): Promise<PdfPages> {
+) {
   worker ??= new PDFWorker();
   const task = getDocument({
     url,
@@ -52,7 +52,7 @@ export async function firstPages(
       const viewport = page.getViewport({ scale: (n === 1 ? width : width / 2) / box.width });
       pages.push(await draw(page, viewport));
     }
-    return { pages, ratio, count: pdf.numPages };
+    return { pages, ratio, count: pdf.numPages } satisfies PdfPages;
   } finally {
     signal.removeEventListener("abort", abort);
     await task.destroy();
@@ -61,7 +61,7 @@ export async function firstPages(
 
 type Page = Awaited<ReturnType<Awaited<ReturnType<typeof getDocument>["promise"]>["getPage"]>>;
 
-async function draw(page: Page, viewport: ReturnType<Page["getViewport"]>): Promise<Blob> {
+async function draw(page: Page, viewport: ReturnType<Page["getViewport"]>) {
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(viewport.width);
   canvas.height = Math.round(viewport.height);
@@ -72,5 +72,5 @@ async function draw(page: Page, viewport: ReturnType<Page["getViewport"]>): Prom
       "image/webp",
       0.82,
     ),
-  );
+  ) satisfies Promise<Blob>;
 }

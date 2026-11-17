@@ -36,7 +36,7 @@ export async function reconcileThreads(
   messageIds: SQL,
   report = true,
   arrivedUnseen = false,
-): Promise<number> {
+) {
   const summary = sql`
     select m.thread_id,
       bool_or(f.role = 'inbox') as in_inbox,

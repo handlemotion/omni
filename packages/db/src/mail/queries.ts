@@ -118,14 +118,19 @@ export interface Participant {
 }
 
 /** Lane membership, the same rule the list filter and the counts use. */
-function laneFilter(lane: Lane): SQL {
-  return lane === "unsure"
-    ? sql`(${threads.triageSource} = 'ai' and ${threads.triageConfidence} < ${TRIAGE_AUTO_FILE_CONFIDENCE})`
-    : sql`(${threads.triage} = ${lane} and (${threads.triageSource} = 'person' or ${threads.triageConfidence} >= ${TRIAGE_AUTO_FILE_CONFIDENCE}))`;
+function laneFilter(lane: Lane) {
+  return (
+    lane === "unsure"
+      ? sql`(${threads.triageSource} = 'ai' and ${threads.triageConfidence} < ${TRIAGE_AUTO_FILE_CONFIDENCE})`
+      : sql`(${threads.triage} = ${lane} and (${threads.triageSource} = 'person' or ${threads.triageConfidence} >= ${TRIAGE_AUTO_FILE_CONFIDENCE}))`
+  ) satisfies SQL;
 }
 
 /** Membership of a helpdesk view; `me` is the member column `mine` compares with. */
-function conversationViewFilter(view: ConversationView, me: AnyColumn): SQL | undefined {
+const conversationViewFilter: (view: ConversationView, me: AnyColumn) => SQL | undefined = (
+  view,
+  me,
+) => {
   switch (view) {
     case "unassigned":
       return sql`(${threads.status} = 'open' and ${threads.assigneeMemberId} is null)`;
@@ -142,7 +147,7 @@ function conversationViewFilter(view: ConversationView, me: AnyColumn): SQL | un
     case "all":
       return undefined;
   }
-}
+};
 
 export interface ThreadCursor {
   lastMessageAt: Date;
@@ -1024,10 +1029,14 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
           group by e.actor_member_id order by count(*) desc, e.actor_member_id`),
       ]);
       type Timing = { count: number; median: number | null; p90: number | null };
-      const timingOf = (rows: unknown): Timing => {
+      const timingOf = (rows: unknown) => {
         const row = (rows as unknown as Timing[])[0]!;
         const round = (v: number | null) => (v === null ? null : Math.round(Number(v)));
-        return { count: row.count, median: round(row.median), p90: round(row.p90) };
+        return {
+          count: row.count,
+          median: round(row.median),
+          p90: round(row.p90),
+        } satisfies Timing;
       };
       return {
         created: {

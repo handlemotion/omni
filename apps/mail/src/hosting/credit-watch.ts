@@ -9,7 +9,7 @@ export type CreditState = "ok" | "low" | "unknown";
 export function createCreditWatch(deps: { host: MailHost; warnBelowUsd: number; logger: Logger }) {
   let state: CreditState = "unknown";
 
-  async function check(): Promise<void> {
+  async function check() {
     let dollars: number;
     try {
       dollars = await deps.host.credit();

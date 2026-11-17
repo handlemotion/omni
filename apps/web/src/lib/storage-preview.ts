@@ -50,12 +50,16 @@ export interface TextPreview {
 export const previewTextQuery = (source: PreviewSource) =>
   queryOptions({
     queryKey: keys.storagePreview("text", source.url, source.version),
-    queryFn: async ({ signal }): Promise<TextPreview> => {
+    queryFn: async ({ signal }) => {
       const partial = source.size > TEXT_PREVIEW_BYTES;
       const response = await bytes(source.url, signal, partial ? TEXT_PREVIEW_BYTES : undefined);
       const buffer = new Uint8Array(await response.arrayBuffer());
       const binary = buffer.subarray(0, 8000).includes(0);
-      return { text: binary ? "" : new TextDecoder().decode(buffer), partial, binary };
+      return {
+        text: binary ? "" : new TextDecoder().decode(buffer),
+        partial,
+        binary,
+      } satisfies TextPreview;
     },
     ...KEEP,
   });
@@ -141,7 +145,7 @@ const THUMBNAIL_CONCURRENCY = 4;
 
 let running = 0;
 const waiting: (() => void)[] = [];
-async function slot<T>(work: () => Promise<T>): Promise<T> {
+async function slot<T>(work: () => Promise<T>) {
   if (running >= THUMBNAIL_CONCURRENCY) await new Promise<void>((go) => waiting.push(go));
   running += 1;
   try {
@@ -153,7 +157,7 @@ async function slot<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /** Decodes at the thumbnail's width (never wider than the original) and re-encodes small. */
-async function downscale(blob: Blob, raster: string): Promise<Blob> {
+async function downscale(blob: Blob, raster: string) {
   const full = await createImageBitmap(new Blob([blob], { type: raster }));
   const scale = Math.min(1, THUMBNAIL_WIDTH / full.width);
   const width = Math.max(1, Math.round(full.width * scale));
@@ -169,7 +173,7 @@ async function downscale(blob: Blob, raster: string): Promise<Blob> {
       "image/webp",
       0.82,
     ),
-  );
+  ) satisfies Promise<Blob>;
 }
 
 /** A small copy of an image for a grid tile; originals over 20 MB get none. */

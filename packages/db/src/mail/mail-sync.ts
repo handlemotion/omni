@@ -117,11 +117,11 @@ export async function replaceFolders(
 }
 
 /** Null until the folder's first sync recorded its UIDVALIDITY. */
-export async function getFolderPosition(
+export const getFolderPosition: (
   db: Db,
   mailboxId: string,
   path: string,
-): Promise<FolderPosition | null> {
+) => Promise<FolderPosition | null> = async (db, mailboxId, path) => {
   const [row] = await db
     .select({
       uidvalidity: mailboxFolders.uidvalidity,
@@ -136,7 +136,7 @@ export async function getFolderPosition(
     uidnext: row.uidnext ?? 0,
     highestModseq: row.highestModseq,
   };
-}
+};
 
 /** Saves where a folder's sync stopped. The folder row comes from `replaceFolders`. */
 export async function saveFolderPosition(
@@ -462,7 +462,7 @@ export function reconcileFolder(db: Db, input: { mailboxId: string; path: string
  * Messages of the mailbox with no IMAP copy left in any stored folder. A send still in the outbox
  * is not one: it was indexed when SMTP accepted it and its Sent copy is still to be filed.
  */
-export async function orphanedMessages(db: Db, mailboxId: string): Promise<string[]> {
+export async function orphanedMessages(db: Db, mailboxId: string) {
   const rows = await db
     .select({ id: messages.id })
     .from(messages)
@@ -480,7 +480,7 @@ export async function orphanedMessages(db: Db, mailboxId: string): Promise<strin
                 '<' || left(encode(sha256(convert_to('omni-send:' || a.idempotency_key, 'UTF8')), 'hex'), 32) || '@%')))`,
       ),
     );
-  return rows.map((row) => row.id);
+  return rows.map((row) => row.id) satisfies string[];
 }
 
 /**
@@ -490,10 +490,10 @@ export async function orphanedMessages(db: Db, mailboxId: string): Promise<strin
  * thread that lost a message, deleted or not. The caller decides when a
  * missing copy means deleted rather than mid-move (see `MailboxConnection.syncAll`).
  */
-export async function pruneMessages(
+export const pruneMessages: (
   db: Db,
   input: { mailboxId: string; messageIds: string[] },
-): Promise<{ messages: number; threads: number; threadIds: string[] }> {
+) => Promise<{ messages: number; threads: number; threadIds: string[] }> = async (db, input) => {
   if (input.messageIds.length === 0) return { messages: 0, threads: 0, threadIds: [] };
   // One jsonb parameter, not one per id: a deleted folder can orphan more ids than Postgres binds.
   const anyOf = (ids: string[]) =>
@@ -542,7 +542,7 @@ export async function pruneMessages(
     );
     return { messages: removed.length, threads: emptied.length, threadIds };
   });
-}
+};
 
 /**
  * Messages whose `message.created` the Worker has not accepted yet (`notify_pending`), oldest
@@ -628,13 +628,13 @@ export async function messageThread(db: Db, mailboxId: string, messageId: string
 }
 
 /** When the next pending outbox action is due (an undo-send window ends), or null. */
-export async function nextActionDue(db: Db): Promise<Date | null> {
+export const nextActionDue: (db: Db) => Promise<Date | null> = async (db) => {
   const [row] = await db
     .select({ at: sql<Date | null>`min(${mailActions.runAfter})` })
     .from(mailActions)
     .where(eq(mailActions.status, "pending"));
   return row?.at ? new Date(row.at) : null;
-}
+};
 
 /** Marks the folder for a full re-sync: no sync position and no stored copies. */
 export async function resetFolder(db: Db, mailboxId: string, path: string) {
@@ -804,12 +804,12 @@ export async function saveMailbox(
 }
 
 /** Members holding an owner grant on the mailbox. */
-export async function mailboxOwnerIds(db: Db, mailboxId: string): Promise<string[]> {
+export async function mailboxOwnerIds(db: Db, mailboxId: string) {
   const rows = await db
     .select({ memberId: mailboxAccess.memberId })
     .from(mailboxAccess)
     .where(and(eq(mailboxAccess.mailboxId, mailboxId), eq(mailboxAccess.role, "owner")));
-  return rows.map((row) => row.memberId);
+  return rows.map((row) => row.memberId) satisfies string[];
 }
 
 /** Gmail mailboxes at `address` in any workspace: one Google account syncs into one place. */
@@ -892,8 +892,8 @@ export async function moveMessageToThread(
   });
 }
 
-function chunks<T>(items: T[], size: number): T[][] {
+function chunks<T>(items: T[], size: number) {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
+  return out satisfies T[][];
 }

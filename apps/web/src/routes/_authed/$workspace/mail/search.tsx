@@ -25,16 +25,19 @@ function Search() {
   // One row per thread, best match first, with the passage that matched.
   const rows = useMemo(
     () =>
-      (hits ?? []).map((hit): ListRow => ({
-        id: hit.threadId,
-        sender: hit.from.name || hit.from.address,
-        senderAddress: hit.from.address,
-        subject: hit.subject,
-        snippet: hit.snippet,
-        unread: hit.unread,
-        // Search doesn't say whether a hit is done or in Later: its menu offers both as new.
-        triage: { done: false, later: false, lastMessageAt: hit.lastMessageAt },
-      })),
+      (hits ?? []).map((hit) => {
+        const result: ListRow = {
+          id: hit.threadId,
+          sender: hit.from.name || hit.from.address,
+          senderAddress: hit.from.address,
+          subject: hit.subject,
+          snippet: hit.snippet,
+          unread: hit.unread,
+          // Search doesn't say whether a hit is done or in Later: its menu offers both as new.
+          triage: { done: false, later: false, lastMessageAt: hit.lastMessageAt },
+        };
+        return result;
+      }),
     [hits],
   );
 

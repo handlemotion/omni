@@ -112,15 +112,15 @@ export class Realtime extends DurableObject<Env> {
   }
 
   /** Sends the event to these members' sockets; returns the members with none open. */
-  async broadcast(memberIds: string[], event: OutboundEvent): Promise<string[]> {
-    return this.send(memberIds, [event]);
+  async broadcast(memberIds: string[], event: OutboundEvent) {
+    return this.send(memberIds, [event]) satisfies Promise<string[]>;
   }
 
   /**
    * Sends the events, in order, to these members' app sockets (all but `mail.arrived`) and watch
    * sockets (`WATCHED` ones); returns the members with no app socket open.
    */
-  async send(memberIds: string[], events: OutboundEvent[]): Promise<string[]> {
+  async send(memberIds: string[], events: OutboundEvent[]) {
     const forApps = events.filter((e) => e.type !== "mail.arrived").map((e) => JSON.stringify(e));
     const forWatch = events.filter((e) => WATCHED.has(e.type)).map((e) => JSON.stringify(e));
     const offline: string[] = [];
@@ -130,7 +130,7 @@ export class Realtime extends DurableObject<Env> {
       sendAll(sockets, forApps);
       if (forWatch.length) sendAll(this.ctx.getWebSockets(watchTag(memberId)), forWatch);
     }
-    return offline;
+    return offline satisfies string[];
   }
 
   /**
@@ -244,13 +244,14 @@ export class Realtime extends DurableObject<Env> {
   }
 
   /** The member's state in this conversation over all their sockets: replying wins. */
-  private memberState(memberId: string, presence: Presence): Presence {
-    if (presence.state === "replying") return presence;
+  private memberState(memberId: string, presence: Presence) {
+    if (presence.state === "replying") return presence satisfies Presence;
     for (const other of this.ctx.getWebSockets(memberId)) {
       const theirs = presenceOf(other);
-      if (theirs?.threadId === presence.threadId && theirs.state === "replying") return theirs;
+      if (theirs?.threadId === presence.threadId && theirs.state === "replying")
+        return theirs satisfies Presence;
     }
-    return presence;
+    return presence satisfies Presence;
   }
 
   /**
@@ -302,16 +303,19 @@ function sendAll(sockets: WebSocket[], messages: string[]) {
 }
 
 /** The socket's conversation presence; null when it is in none (it may still edit a file). */
-function presenceOf(socket: WebSocket): Presence | null {
+const presenceOf: (socket: WebSocket) => Presence | null = (socket) => {
   try {
     const presence = (socket.deserializeAttachment() as Partial<Presence> | null) ?? null;
     return presence?.threadId ? (presence as Presence) : null;
   } catch {
     return null;
   }
-}
+};
 
-function presenceEvent(memberId: string, presence: Presence): HelpdeskRealtimeEvent {
+const presenceEvent: (memberId: string, presence: Presence) => HelpdeskRealtimeEvent = (
+  memberId,
+  presence,
+) => {
   return {
     type: "presence",
     mailboxId: presence.mailboxId,
@@ -319,7 +323,7 @@ function presenceEvent(memberId: string, presence: Presence): HelpdeskRealtimeEv
     memberId,
     state: presence.state,
   };
-}
+};
 
 /**
  * Tells every member who can see the mailboxes that these threads changed: `changed` for the

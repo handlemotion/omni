@@ -81,17 +81,20 @@ type DomainPhase =
   | { kind: "claimed"; claim: DomainClaim }
   | { kind: "locked"; claim: DomainClaim | null; lock: MailDomain };
 
-function phaseOf(setup: DomainSetup): DomainPhase {
+const phaseOf: (setup: DomainSetup) => DomainPhase = (setup) => {
   if (setup.claim === null) return { kind: "locked", claim: null, lock: setup.lock };
   if (setup.lock) return { kind: "locked", claim: setup.claim, lock: setup.lock };
   return { kind: "claimed", claim: setup.claim };
-}
+};
 
 /** `pending` until the claim is locked, `expired` if it ran out first. */
-function domainStatus(phase: DomainPhase, now: Date): "pending" | "verified" | "expired" {
+const domainStatus: (phase: DomainPhase, now: Date) => "pending" | "verified" | "expired" = (
+  phase,
+  now,
+) => {
   if (phase.kind === "locked") return "verified";
   return phase.claim.expiresAt <= now ? "expired" : "pending";
-}
+};
 
 /** Omni's ownership record. Its value is shown once, when it is made; null for legacy locks. */
 function challengeView(setup: DomainSetup, value: string | undefined) {
@@ -258,7 +261,10 @@ export async function claimDomain(
  * Runs a check of the claim's DNS and stores it on the claim. Best effort: a claim whose DNS
  * cannot be read yet is still a claim, and the next check tries again.
  */
-export async function withCheck(deps: DomainDeps, claim: DomainClaim): Promise<DomainClaim> {
+export const withCheck: (deps: DomainDeps, claim: DomainClaim) => Promise<DomainClaim> = async (
+  deps,
+  claim,
+) => {
   try {
     const { check } = await inspectDomain(deps, {
       domain: claim.domain,
@@ -273,17 +279,17 @@ export async function withCheck(deps: DomainDeps, claim: DomainClaim): Promise<D
     deps.log.warn("domains.inspect_failed", { orgId: claim.orgId, error });
     return claim;
   }
-}
+};
 
 /**
  * Checks a domain: its challenge (locking it on the first pass), then the provider's records.
  * Returns the setup as it now stands and the provider's refusal, if any.
  */
-export async function checkDomain(
+export const checkDomain: (
   deps: DomainDeps,
   member: { id: string; orgId: string },
   setup: DomainSetup,
-): Promise<{ setup: DomainSetup; addError?: string }> {
+) => Promise<{ setup: DomainSetup; addError?: string }> = async (deps, member, setup) => {
   const { db } = deps;
   let { claim, lock } = setup;
   const domain = (claim?.domain ?? lock?.domain)!;
@@ -334,18 +340,19 @@ export async function checkDomain(
   }
 
   return addAtProvider(deps, claim, lock!);
-}
+};
 
 /**
  * Adds a locked domain at the mail host and saves its records. A domain whose mail stays at
  * Google never reaches the mail host: there is nothing to add or check.
  */
-async function addAtProvider(
-  deps: DomainDeps,
-  claim: DomainClaim | null,
-  lock: MailDomain,
-): Promise<{ setup: DomainSetup; addError?: string }> {
-  if (lock.provider === "gmail") return { setup: { claim, lock } as DomainSetup };
+async function addAtProvider(deps: DomainDeps, claim: DomainClaim | null, lock: MailDomain) {
+  if (lock.provider === "gmail") {
+    const result: { setup: DomainSetup; addError?: string } = {
+      setup: { claim, lock } as DomainSetup,
+    };
+    return result;
+  }
   const { db } = deps;
   const domain = lock.domain;
   const provision = await callMailService(
@@ -365,10 +372,11 @@ async function addAtProvider(
       provision.provider === "imap" || (provision.added && records.every((r) => r.verified)),
   });
   if (!saved) throw new DomainError(409, `${domain} is no longer set up by this workspace`);
-  return {
+  const result: { setup: DomainSetup; addError?: string } = {
     setup: { claim, lock: saved } as DomainSetup,
     addError: provision.provider === "purelymail" ? provision.addError : undefined,
   };
+  return result;
 }
 
 /** Records a lost or restored challenge once per change, with an audit event and owner mail. */

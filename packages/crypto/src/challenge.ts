@@ -7,22 +7,22 @@ const PREFIX = "omni-challenge=";
 const TOKEN_BYTES = 32;
 
 /** A fresh challenge: the TXT value to show once, and the hash to store. */
-export async function newChallenge(): Promise<{ value: string; hash: string }> {
+export async function newChallenge() {
   const token = toBase64Url(crypto.getRandomValues(new Uint8Array(TOKEN_BYTES)));
   const value = `${PREFIX}${token}`;
-  return { value, hash: await hashChallenge(value) };
+  return { value, hash: await hashChallenge(value) } satisfies { value: string; hash: string };
 }
 
 /** The stored form of a challenge value: SHA-256, hex. */
-export async function hashChallenge(value: string): Promise<string> {
-  return sha256Hex(value.trim());
+export async function hashChallenge(value: string) {
+  return sha256Hex(value.trim()) satisfies Promise<string>;
 }
 
 /**
  * Whether any TXT value found in DNS is the challenge whose hash is `hash`. Every value is hashed
  * and compared, so the time taken says nothing about how close a guess came.
  */
-export async function challengeMatches(found: readonly string[], hash: string): Promise<boolean> {
+export async function challengeMatches(found: readonly string[], hash: string) {
   let match = false;
   for (const value of found) {
     if (!value.trim().startsWith(PREFIX)) continue;
@@ -32,7 +32,7 @@ export async function challengeMatches(found: readonly string[], hash: string): 
 }
 
 /** Equal strings, compared without an early exit. Lengths are not secret (both are hex digests). */
-function constantTimeEqual(a: string, b: string): boolean {
+function constantTimeEqual(a: string, b: string) {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);

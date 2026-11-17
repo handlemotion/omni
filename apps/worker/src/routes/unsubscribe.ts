@@ -21,7 +21,7 @@ const MAX_REDIRECTS = 3;
  * its own (no private networks, standard ports) and redirects are followed by hand. True when the
  * list accepted it.
  */
-async function postOneClick(target: string, options: ProxyOptions): Promise<boolean> {
+async function postOneClick(target: string, options: ProxyOptions) {
   const signal = AbortSignal.timeout(POST_TIMEOUT_MS);
   let url = new URL(target);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {

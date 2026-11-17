@@ -29,7 +29,10 @@ export interface CrmMember {
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 
 /** The member when their workspace is a company; null in a Personal space or when they are gone. */
-export async function loadCrmMember(ex: Ex, memberId: string): Promise<CrmMember | null> {
+export const loadCrmMember: (ex: Ex, memberId: string) => Promise<CrmMember | null> = async (
+  ex,
+  memberId,
+) => {
   const [row] = await ex
     .select({
       id: members.id,
@@ -43,7 +46,7 @@ export async function loadCrmMember(ex: Ex, memberId: string): Promise<CrmMember
   // Better Auth stores several roles as a comma-separated list.
   const admin = row.role.split(",").some((role) => ADMIN_ROLES.has(role.trim()));
   return { id: row.id, orgId: row.orgId, admin };
-}
+};
 
 /**
  * Who hears a CRM change: the workspace's members now. Every member sees every record
@@ -64,12 +67,10 @@ export interface CrmDoor {
 }
 
 /** Runs `fn` for the member, or answers `no_crm`. Reads run on the database directly. */
-export async function asMember<T>(
-  door: CrmDoor,
-  fn: (member: CrmMember, ex: Ex) => Promise<T>,
-): Promise<T | NoCrm> {
+export async function asMember<T>(door: CrmDoor, fn: (member: CrmMember, ex: Ex) => Promise<T>) {
   const member = await loadCrmMember(door.db, door.memberId);
-  return member ? fn(member, door.db) : NO_CRM;
+  if (!member) return NO_CRM;
+  return fn(member, door.db);
 }
 
 /**
@@ -96,14 +97,14 @@ export function refuse<R extends { status: string }>(result: R): never {
 export async function writeAsMember<T>(
   door: CrmDoor,
   fn: (member: CrmMember, tx: Ex) => Promise<T>,
-): Promise<T | NoCrm> {
+) {
   try {
-    return await door.db.transaction(async (tx) => {
+    return (await door.db.transaction(async (tx) => {
       const member = await loadCrmMember(tx, door.memberId);
       return member ? fn(member, tx) : NO_CRM;
-    });
+    })) satisfies T | NoCrm;
   } catch (error) {
-    if (error instanceof Refusal) return error.result as T;
+    if (error instanceof Refusal) return error.result as T satisfies T | NoCrm;
     throw error;
   }
 }
@@ -204,8 +205,8 @@ function pgCode(error: unknown) {
 }
 
 /** Keys of `patch` whose value differs from `current`, in a stable order. */
-export function changedFields<T extends object>(current: T, patch: Partial<T>): (keyof T)[] {
+export function changedFields<T extends object>(current: T, patch: Partial<T>) {
   return (Object.keys(patch) as (keyof T)[])
     .filter((key) => patch[key] !== undefined && patch[key] !== current[key])
-    .toSorted();
+    .toSorted() satisfies (keyof T)[];
 }

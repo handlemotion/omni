@@ -57,12 +57,15 @@ interface InlineState {
 class InlineBoundary extends Component<InlineProps, InlineState> {
   override state: InlineState = { failed: false, resetKey: this.props.resetKey };
 
-  static getDerivedStateFromProps(props: InlineProps, state: InlineState): Partial<InlineState> {
-    return props.resetKey === state.resetKey ? {} : { failed: false, resetKey: props.resetKey };
+  static getDerivedStateFromProps(props: InlineProps, state: InlineState) {
+    const result: Partial<InlineState> =
+      props.resetKey === state.resetKey ? {} : { failed: false, resetKey: props.resetKey };
+    return result;
   }
 
-  static getDerivedStateFromError(): Partial<InlineState> {
-    return { failed: true };
+  static getDerivedStateFromError() {
+    const result: Partial<InlineState> = { failed: true };
+    return result;
   }
 
   override componentDidCatch(error: unknown, _info: ErrorInfo) {

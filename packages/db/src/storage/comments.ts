@@ -99,26 +99,34 @@ async function readComments(ex: Db, door: Door, node: NodeRow, ids?: string[]) {
     // `ownsUpload` answers whether a member is the door's holder, which is the question here.
     if (await door.ownsUpload(ex, memberId)) mine.add(memberId);
   }
-  return rows.map(({ comment, authorName, authorImage, resolvedByName }): StorageComment => ({
-    id: comment.id,
-    parentId: comment.parentId,
-    contentVersion: comment.contentVersion,
-    anchor: comment.anchor,
-    body: comment.body,
-    authorName,
-    authorImage,
-    mine: comment.authorMemberId !== null && mine.has(comment.authorMemberId),
-    createdAt: comment.createdAt,
-    editedAt: comment.editedAt,
-    resolvedAt: comment.resolvedAt,
-    resolvedByName,
-  }));
+  return rows.map(
+    ({ comment, authorName, authorImage, resolvedByName }) =>
+      ({
+        id: comment.id,
+        parentId: comment.parentId,
+        contentVersion: comment.contentVersion,
+        anchor: comment.anchor,
+        body: comment.body,
+        authorName,
+        authorImage,
+        mine: comment.authorMemberId !== null && mine.has(comment.authorMemberId),
+        createdAt: comment.createdAt,
+        editedAt: comment.editedAt,
+        resolvedAt: comment.resolvedAt,
+        resolvedByName,
+      }) satisfies StorageComment,
+  );
 }
 
-async function one(ex: Db, door: Door, node: NodeRow, id: string): Promise<CommentResult> {
+const one: (ex: Db, door: Door, node: NodeRow, id: string) => Promise<CommentResult> = async (
+  ex,
+  door,
+  node,
+  id,
+) => {
   const [comment] = await readComments(ex, door, node, [id]);
   return comment ? { status: "ok", comment } : NOT_FOUND;
-}
+};
 
 /** A comment on this file, with the id of its thread's root. */
 async function findComment(ex: Db, nodeId: string, id: string) {
@@ -142,14 +150,14 @@ export function commentOperations(db: Db, door: Door) {
 
   return {
     /** The file's comments, oldest first, and the content version the file is at now. */
-    async comments(nodeId: string): Promise<CommentsResult> {
+    async comments(nodeId: string) {
       const found = await commentable(db, door, nodeId);
-      if (found.status !== "ok") return found;
+      if (found.status !== "ok") return found satisfies CommentsResult;
       return {
         status: "ok",
         contentVersion: found.node.contentVersion,
         comments: await readComments(db, door, found.node),
-      };
+      } satisfies CommentsResult;
     },
 
     /**
@@ -166,19 +174,19 @@ export function commentOperations(db: Db, door: Door) {
         contentVersion?: number;
         parentId?: string;
       },
-    ): Promise<AddCommentResult> {
-      return db.transaction(async (tx): Promise<AddCommentResult> => {
+    ) {
+      return db.transaction<AddCommentResult>(async (tx) => {
         const found = await commentable(tx, door, nodeId);
-        if (found.status !== "ok") return found;
+        if (found.status !== "ok") return found satisfies AddCommentResult;
         const current = found.node.contentVersion;
         const viewed = input.parentId ? current : (input.contentVersion ?? current);
-        if (viewed > current) return { status: "version_conflict" };
+        if (viewed > current) return { status: "version_conflict" } satisfies AddCommentResult;
         const authorMemberId = await door.actor(tx, found.node.orgId);
-        if (!authorMemberId) return FORBIDDEN;
+        if (!authorMemberId) return FORBIDDEN satisfies AddCommentResult;
         let rootId: string | null = null;
         if (input.parentId) {
           const parent = await findComment(tx, nodeId, input.parentId);
-          if (!parent) return NOT_FOUND;
+          if (!parent) return NOT_FOUND satisfies AddCommentResult;
           rootId = parent.rootId;
           await tx
             .update(storageComments)
@@ -200,7 +208,7 @@ export function commentOperations(db: Db, door: Door) {
           })
           .returning({ id: storageComments.id });
         const added = await one(tx, door, found.node, row!.id);
-        if (added.status !== "ok") return added;
+        if (added.status !== "ok") return added satisfies AddCommentResult;
         const memberIds = await notifyComment(tx, {
           node: found.node,
           commentId: row!.id,
@@ -208,38 +216,41 @@ export function commentOperations(db: Db, door: Door) {
           authorMemberId,
           body: input.body,
         });
-        return { ...added, notified: { orgId: found.node.orgId, memberIds } };
+        return {
+          ...added,
+          notified: { orgId: found.node.orgId, memberIds },
+        } satisfies AddCommentResult;
       });
     },
 
     /** Changes the body of a comment the holder wrote. */
-    async editComment(nodeId: string, id: string, body: string): Promise<CommentResult> {
+    async editComment(nodeId: string, id: string, body: string) {
       const found = await ownComment(db, nodeId, id);
-      if (found.status !== "ok") return found;
+      if (found.status !== "ok") return found satisfies CommentResult;
       await db
         .update(storageComments)
         .set({ body, editedAt: sql`now()` })
         .where(eq(storageComments.id, id));
-      return one(db, door, found.node, id);
+      return one(db, door, found.node, id) satisfies Promise<CommentResult>;
     },
 
     /** Deletes a comment the holder wrote; a thread's root takes its replies with it. */
-    async deleteComment(nodeId: string, id: string): Promise<DeleteCommentResult> {
+    async deleteComment(nodeId: string, id: string) {
       const found = await ownComment(db, nodeId, id);
-      if (found.status !== "ok") return found;
+      if (found.status !== "ok") return found satisfies DeleteCommentResult;
       await db.delete(storageComments).where(eq(storageComments.id, id));
-      return { status: "ok" };
+      return { status: "ok" } satisfies DeleteCommentResult;
     },
 
     /**
      * Resolves the thread `id` belongs to, or opens it again. Anyone who may comment does it;
      * resolving a resolved thread keeps who resolved it first. Answers the thread's root.
      */
-    async resolveComment(nodeId: string, id: string, resolved: boolean): Promise<CommentResult> {
+    async resolveComment(nodeId: string, id: string, resolved: boolean) {
       const found = await commentable(db, door, nodeId);
-      if (found.status !== "ok") return found;
+      if (found.status !== "ok") return found satisfies CommentResult;
       const comment = await findComment(db, nodeId, id);
-      if (!comment) return NOT_FOUND;
+      if (!comment) return NOT_FOUND satisfies CommentResult;
       if (resolved) {
         const memberId = await door.actor(db, found.node.orgId);
         await db
@@ -252,7 +263,7 @@ export function commentOperations(db: Db, door: Door) {
           .set({ resolvedAt: null, resolvedByMemberId: null })
           .where(eq(storageComments.id, comment.rootId));
       }
-      return one(db, door, found.node, comment.rootId);
+      return one(db, door, found.node, comment.rootId) satisfies Promise<CommentResult>;
     },
   };
 }

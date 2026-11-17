@@ -296,5 +296,5 @@ export function storageDaily(env: Env, now = new Date()) {
 
 const valueOf = <A>(step: Result.Result<A, JobError>) =>
   Result.isSuccess(step) ? step.success : null;
-const failureOf = <A>(step: Result.Result<A, JobError>): JobError | undefined =>
-  Result.isFailure(step) ? step.failure : undefined;
+const failureOf = <A>(step: Result.Result<A, JobError>) =>
+  (Result.isFailure(step) ? step.failure : undefined) satisfies JobError | undefined;

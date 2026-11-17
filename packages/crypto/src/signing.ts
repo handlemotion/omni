@@ -64,7 +64,7 @@ export type VerifyResult =
   | { ok: false; reason: "missing_headers" | "malformed" | "expired" | "bad_signature" };
 
 /** Returns the headers to attach to the request. */
-export async function signRequest(input: SignRequestInput): Promise<Record<string, string>> {
+export async function signRequest(input: SignRequestInput) {
   const timestamp = input.timestamp ?? nowSeconds();
   if (!Number.isSafeInteger(timestamp) || timestamp < 0) {
     throw new TypeError("timestamp must be a non-negative integer of unix seconds");
@@ -93,10 +93,12 @@ export async function signRequest(input: SignRequestInput): Promise<Record<strin
   };
   if (nonce !== null) headers[NONCE_HEADER] = nonce;
   if (requestId !== null) headers[REQUEST_ID_HEADER] = requestId;
-  return headers;
+  return headers satisfies Record<string, string>;
 }
 
-export async function verifyRequest(input: VerifyRequestInput): Promise<VerifyResult> {
+export const verifyRequest: (input: VerifyRequestInput) => Promise<VerifyResult> = async (
+  input,
+) => {
   const signatureHeader = input.headers.get(SIGNATURE_HEADER);
   const timestampHeader = input.headers.get(TIMESTAMP_HEADER);
   if (signatureHeader === null || timestampHeader === null) {
@@ -132,7 +134,7 @@ export async function verifyRequest(input: VerifyRequestInput): Promise<VerifyRe
   // subtle.verify compares in constant time.
   const valid = await crypto.subtle.verify("HMAC", key, mac, utf8(canonical));
   return valid ? { ok: true, timestamp, nonce, requestId } : { ok: false, reason: "bad_signature" };
-}
+};
 
 async function canonicalString(
   method: string,
@@ -141,7 +143,7 @@ async function canonicalString(
   nonce: string | null,
   body: RequestBody,
   requestId: string | null,
-): Promise<string> {
+) {
   if (/[\r\n]/.test(method) || /[\r\n]/.test(path)) {
     throw new TypeError("method and path must not contain line breaks");
   }
@@ -160,7 +162,7 @@ async function importHmacKey(secret: string, usages: ["sign"] | ["verify"]) {
   return crypto.subtle.importKey("raw", raw, { name: "HMAC", hash: "SHA-256" }, false, usages);
 }
 
-function isValidNonce(nonce: string): boolean {
+function isValidNonce(nonce: string) {
   return /^[A-Za-z0-9_-]{16,128}$/.test(nonce);
 }
 
@@ -168,16 +170,16 @@ function isValidNonce(nonce: string): boolean {
  * A request ID safe to put in a header, a log line and a database column: 8-128 URL-safe
  * characters (a UUID fits). Anything else from outside is replaced, never echoed.
  */
-export function isValidRequestId(value: string): boolean {
+export function isValidRequestId(value: string) {
   return /^[A-Za-z0-9_-]{8,128}$/.test(value);
 }
 
-function assertNonce(nonce: string): void {
+function assertNonce(nonce: string) {
   if (!isValidNonce(nonce)) {
     throw new TypeError("nonce must be 16-128 characters of [A-Za-z0-9_-]");
   }
 }
 
-function nowSeconds(): number {
+function nowSeconds() {
   return Math.floor(Date.now() / 1000);
 }

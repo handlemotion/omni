@@ -36,17 +36,18 @@ export function lockOperations(db: Db, door: Door, memberId: string) {
      * locked it first. To lock in the same transaction as another write, call it on the member
      * door opened with that transaction: `forMember(tx, memberId).storage.lock(nodeId)`.
      */
-    lock(nodeId: string): Promise<StorageLockResult> {
-      return db.transaction(async (tx): Promise<StorageLockResult> => {
+    lock(nodeId: string) {
+      return db.transaction<StorageLockResult>(async (tx) => {
         const orgId = await orgOfNode(tx, nodeId);
-        if (!orgId) return NOT_FOUND;
+        if (!orgId) return NOT_FOUND satisfies StorageLockResult;
         // The tree lock orders it with a trash or move that checked for locked files.
         await lockTree(tx, orgId);
         const found = await reach(tx, door, nodeId);
-        if (!found || inTrash(found.chain)) return NOT_FOUND;
-        if (!found.access.change) return FORBIDDEN;
-        if (found.node.kind !== "file") return { status: "not_a_file" };
-        if (found.node.lockedAt) return { status: "ok", node: toNode(found.node) };
+        if (!found || inTrash(found.chain)) return NOT_FOUND satisfies StorageLockResult;
+        if (!found.access.change) return FORBIDDEN satisfies StorageLockResult;
+        if (found.node.kind !== "file") return { status: "not_a_file" } satisfies StorageLockResult;
+        if (found.node.lockedAt)
+          return { status: "ok", node: toNode(found.node) } satisfies StorageLockResult;
         const [row] = await tx
           .insert(storageLocks)
           .values({ nodeId, orgId, lockedAt: new Date(), lockedByMemberId: memberId })
@@ -54,26 +55,32 @@ export function lockOperations(db: Db, door: Door, memberId: string) {
           .returning({ lockedAt: storageLocks.lockedAt });
         const lockedAt = row?.lockedAt ?? found.node.lockedAt ?? new Date();
         const revision = row ? await bump(tx, orgId, nodeId) : found.node.revision;
-        return { status: "ok", node: toNode({ ...found.node, lockedAt, revision }) };
+        return {
+          status: "ok",
+          node: toNode({ ...found.node, lockedAt, revision }),
+        } satisfies StorageLockResult;
       });
     },
 
     /** Makes it an ordinary file again. Owners and admins only; unlocking twice is fine. */
-    unlock(nodeId: string): Promise<NodeResult> {
-      return db.transaction(async (tx): Promise<NodeResult> => {
+    unlock(nodeId: string) {
+      return db.transaction<NodeResult>(async (tx) => {
         const orgId = await orgOfNode(tx, nodeId);
-        if (!orgId) return NOT_FOUND;
+        if (!orgId) return NOT_FOUND satisfies NodeResult;
         await lockTree(tx, orgId);
         const found = await reach(tx, door, nodeId);
-        if (!found || inTrash(found.chain)) return NOT_FOUND;
+        if (!found || inTrash(found.chain)) return NOT_FOUND satisfies NodeResult;
         const member = await loadMember(tx, memberId);
-        if (!member?.admin) return FORBIDDEN;
+        if (!member?.admin) return FORBIDDEN satisfies NodeResult;
         const removed = await tx
           .delete(storageLocks)
           .where(eq(storageLocks.nodeId, nodeId))
           .returning({ nodeId: storageLocks.nodeId });
         const revision = removed.length > 0 ? await bump(tx, orgId, nodeId) : found.node.revision;
-        return { status: "ok", node: toNode({ ...found.node, lockedAt: null, revision }) };
+        return {
+          status: "ok",
+          node: toNode({ ...found.node, lockedAt: null, revision }),
+        } satisfies NodeResult;
       });
     },
   };

@@ -44,28 +44,28 @@ export type TriageClient = JevClient | ModelClient;
  * invalid output falls back to `fyi` at confidence 0, which `laneFor` sends to Unsure; on Jev,
  * judgments the truth table can't settle land below the auto-file threshold.
  */
-export async function triage(
+export const triage: (
   client: TriageClient,
   input: TriageInput,
-  options: CallOptions = {},
-): Promise<TriageResult> {
+  options?: CallOptions,
+) => Promise<TriageResult> = async (client, input, options = {}) => {
   const byRule = triageByRule(input);
   if (byRule) return byRule;
   if ("provider" in client && client.provider === "jev") return triageWithJev(client, input);
   return triageWithClaude(client as ModelClient, input, options);
-}
+};
 
 /**
  * Picks the triage provider from config: `TRIAGE_PROVIDER` when set, otherwise Jev whenever a
  * TypeSafe key is present, otherwise Claude.
  */
-export function chooseTriageClient(config: {
+export const chooseTriageClient: (config: {
   provider?: "jev" | "claude";
   typesafeApiKey?: string;
   jevModel?: string;
   typesafeApiUrl?: string;
   anthropic: ModelClient;
-}): TriageClient {
+}) => TriageClient = (config) => {
   const provider = config.provider ?? (config.typesafeApiKey ? "jev" : "claude");
   if (provider === "claude") return config.anthropic;
   if (!config.typesafeApiKey) throw new Error("TRIAGE_PROVIDER=jev needs TYPESAFE_API_KEY");
@@ -74,13 +74,13 @@ export function chooseTriageClient(config: {
     model: config.jevModel,
     baseUrl: config.typesafeApiUrl,
   });
-}
+};
 
-async function triageWithClaude(
+const triageWithClaude: (
   client: ModelClient,
   input: TriageInput,
   options: CallOptions,
-): Promise<TriageResult> {
+) => Promise<TriageResult> = async (client, input, options) => {
   const model = options.model ?? AI_MODEL;
   const user = triagePrompt(input, options.maxInputTokens ?? DEFAULT_TRIAGE_INPUT_TOKENS);
   if (input.helpdesk && !input.latestFromUs) {
@@ -97,18 +97,18 @@ async function triageWithClaude(
 
   if (!result.ok) return { bucket: "fyi", confidence: 0, source: "fallback", usage: result.usage };
   return { ...result.data, source: "ai", usage: result.usage };
-}
+};
 
 /**
  * A customer's message on a shared inbox: the bucket plus priority and tags in one call. Tags are
  * an enum of the inbox's own names, so the model cannot invent one; each maps back to its id.
  */
-async function triageHelpdeskWithClaude(
+const triageHelpdeskWithClaude: (
   client: ModelClient,
   helpdesk: HelpdeskInput,
   model: string,
   user: string,
-): Promise<TriageResult> {
+) => Promise<TriageResult> = async (client, helpdesk, model, user) => {
   const byLabel = new Map(
     helpdesk.tags.slice(0, MAX_TAG_QUESTIONS).map((t) => [tagLabel(t.name), t.id]),
   );
@@ -144,6 +144,6 @@ async function triageHelpdeskWithClaude(
       assigneeId: bucket === "needs_reply" ? (assignee?.id ?? null) : null,
     },
   };
-}
+};
 
 type HelpdeskInput = NonNullable<TriageInput["helpdesk"]>;

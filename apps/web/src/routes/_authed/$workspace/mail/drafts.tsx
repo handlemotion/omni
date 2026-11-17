@@ -31,11 +31,14 @@ function Drafts() {
   // One row per conversation (its newest draft), and one per new message.
   const rows = useMemo(() => {
     const seen = new Set<string>();
-    return (drafts ?? []).flatMap((draft): ListRow[] => {
+    return (drafts ?? []).flatMap((draft) => {
       const id = draft.threadId ?? `${NEW}${draft.id}`;
-      if (seen.has(id)) return [];
+      if (seen.has(id)) {
+        const result: ListRow[] = [];
+        return result;
+      }
       seen.add(id);
-      return [
+      const result: ListRow[] = [
         {
           id,
           sender: draft.to.map((a) => a.name || a.address).join(", "),
@@ -44,6 +47,7 @@ function Drafts() {
           unread: false,
         },
       ];
+      return result;
     });
   }, [drafts]);
 

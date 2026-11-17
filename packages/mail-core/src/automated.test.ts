@@ -11,10 +11,7 @@ const parse = async (name: string) =>
   (await parseMessage(readFileSync(new URL(`../../../fixtures/eml/${name}`, import.meta.url))))
     .message;
 
-const lookup =
-  (headers: Record<string, string>) =>
-  (name: string): string | null =>
-    headers[name] ?? null;
+const lookup = (headers: Record<string, string>) => (name: string) => headers[name] ?? null;
 
 describe("fixtures", () => {
   test.each([

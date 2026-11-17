@@ -6,12 +6,12 @@ import { Buffer } from "node:buffer";
 
 const CRLF = "\r\n";
 
-function base64Lines(content: string | Buffer): string {
+function base64Lines(content: string | Buffer) {
   const encoded = Buffer.from(content).toString("base64");
   return encoded.match(/.{1,76}/g)?.join(CRLF) ?? "";
 }
 
-function headers(subject: string, extra: string[] = []): string {
+function headers(subject: string, extra: string[] = []) {
   return [
     "From: Pixel Weekly <news@pixelweekly.example.com>",
     "To: sam@example.com",
@@ -23,7 +23,7 @@ function headers(subject: string, extra: string[] = []): string {
   ].join(CRLF);
 }
 
-function alternative(subject: string, text: string, html: string, extra: string[] = []): string {
+function alternative(subject: string, text: string, html: string, extra: string[] = []) {
   const boundary = "=_alt_boundary";
   return [
     headers(subject, extra),
@@ -50,7 +50,7 @@ const STYLE = Array.from(
     `.c${i} { font-family: Helvetica, Arial, sans-serif; color: #33${i % 10}; padding: ${i % 24}px; background: url("https://cdn.pixelweekly.example.com/bg/${i}.png") no-repeat; }`,
 ).join("\n");
 
-function article(i: number): string {
+function article(i: number) {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="c${i % 200}">
 <tr><td style="padding:24px;background-image:url('https://cdn.pixelweekly.example.com/a/${i}.jpg')">
 <img src="https://cdn.pixelweekly.example.com/img/${i}.png" width="600" height="300" alt="Story ${i}" style="display:block;border:0">
@@ -64,7 +64,7 @@ function article(i: number): string {
 }
 
 /** An ESP newsletter of about `bytes` of HTML, with a matching text part. */
-export function newsletter(bytes: number): string {
+export function newsletter(bytes: number) {
   const parts: string[] = [];
   let size = 0;
   for (let i = 0; size < bytes; i++) {
@@ -85,7 +85,7 @@ export function newsletter(bytes: number): string {
 }
 
 /** An Outlook desktop reply chain: each reply quotes the whole history under a header block. */
-export function outlookChain(depth: number): string {
+export function outlookChain(depth: number) {
   const text: string[] = [];
   const html: string[] = [];
   for (let i = depth; i > 0; i--) {
@@ -116,7 +116,7 @@ export function outlookChain(depth: number): string {
 }
 
 /** A Gmail chain: every reply nests the previous one in a blockquote and quotes it with ">". */
-export function gmailChain(depth: number): string {
+export function gmailChain(depth: number) {
   let html = "<div>First message in the thread.</div>";
   let text = "First message in the thread.";
   for (let i = 1; i < depth; i++) {
@@ -131,7 +131,7 @@ export function gmailChain(depth: number): string {
 }
 
 /** A short note with `count` attachments of `size` bytes each. */
-export function manyAttachments(count: number, size: number): string {
+export function manyAttachments(count: number, size: number) {
   const boundary = "=_mixed_boundary";
   const blob = Buffer.alloc(size, 0x5a);
   const parts = [

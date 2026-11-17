@@ -50,7 +50,7 @@ export function newShareId() {
     .replace(/=+$/, "");
 }
 
-async function readSharing(ex: Db, chain: NodeRow[]): Promise<StorageSharing> {
+async function readSharing(ex: Db, chain: NodeRow[]) {
   const node = chain[0]!;
   const names = new Map(chain.map((row) => [row.id, row.name]));
   const grants = await ex
@@ -58,11 +58,12 @@ async function readSharing(ex: Db, chain: NodeRow[]): Promise<StorageSharing> {
     .from(storageGrants)
     .where(inArray(storageGrants.nodeId, [...names.keys()]))
     .orderBy(storageGrants.createdAt, storageGrants.id);
-  const person = (grant: (typeof grants)[number]): StoragePerson => ({
-    email: grant.email,
-    role: grant.role,
-    createdAt: grant.createdAt,
-  });
+  const person = (grant: (typeof grants)[number]) =>
+    ({
+      email: grant.email,
+      role: grant.role,
+      createdAt: grant.createdAt,
+    }) satisfies StoragePerson;
   return {
     nodeId: node.id,
     shareId: node.shareId,
@@ -75,7 +76,7 @@ async function readSharing(ex: Db, chain: NodeRow[]): Promise<StorageSharing> {
         nodeId: grant.nodeId,
         nodeName: names.get(grant.nodeId) ?? "",
       })),
-  };
+  } satisfies StorageSharing;
 }
 
 export function sharingOperations(db: Db, door: Door) {
@@ -91,59 +92,69 @@ export function sharingOperations(db: Db, door: Door) {
   function changeLink(
     nodeId: string,
     change: (node: NodeRow) => { shareId: string; linkAccess?: StorageLinkAccess },
-  ): Promise<SharingResult> {
-    return db.transaction(async (tx): Promise<SharingResult> => {
+  ) {
+    return db.transaction<SharingResult>(async (tx) => {
       const found = await shareable(tx, nodeId);
-      if (found.status !== "ok") return found;
+      if (found.status !== "ok") return found satisfies SharingResult;
       const [node] = await tx
         .select()
         .from(storageNodes)
         .where(eq(storageNodes.id, nodeId))
         .for("update");
-      if (!node) return NOT_FOUND;
+      if (!node) return NOT_FOUND satisfies SharingResult;
       const [row] = await tx
         .update(storageNodes)
         .set(change(node))
         .where(eq(storageNodes.id, nodeId))
         .returning();
-      return { status: "ok", sharing: await readSharing(tx, [row!, ...found.chain.slice(1)]) };
+      return {
+        status: "ok",
+        sharing: await readSharing(tx, [row!, ...found.chain.slice(1)]),
+      } satisfies SharingResult;
     });
   }
 
   return {
     /** Who has access: the people on the node, those on folders above it, and its link. */
-    async sharing(nodeId: string): Promise<SharingResult> {
+    async sharing(nodeId: string) {
       const found = await shareable(db, nodeId);
-      if (found.status !== "ok") return found;
-      return { status: "ok", sharing: await readSharing(db, found.chain) };
+      if (found.status !== "ok") return found satisfies SharingResult;
+      return { status: "ok", sharing: await readSharing(db, found.chain) } satisfies SharingResult;
     },
 
     /** `anyone` opens the link to whoever holds it; `restricted` closes it again at once. */
-    setLinkAccess(nodeId: string, linkAccess: StorageLinkAccess): Promise<SharingResult> {
+    setLinkAccess(nodeId: string, linkAccess: StorageLinkAccess) {
       return changeLink(nodeId, (node) => ({
         shareId: node.shareId ?? newShareId(),
         linkAccess,
-      }));
+      })) satisfies Promise<SharingResult>;
     },
 
     /** Gives the node a new link. The old one opens nothing from now on. */
-    resetLink(nodeId: string): Promise<SharingResult> {
-      return changeLink(nodeId, () => ({ shareId: newShareId() }));
+    resetLink(nodeId: string) {
+      return changeLink(nodeId, () => ({ shareId: newShareId() })) satisfies Promise<SharingResult>;
     },
 
     /** Adds a person by address, or changes their role. */
-    putGrant(nodeId: string, email: string, role: StorageGrantRole): Promise<PutGrantResult> {
+    putGrant(nodeId: string, email: string, role: StorageGrantRole) {
       const address = normalizeAddress(email);
-      if (!/^[^@\s]+@[^@\s]+$/.test(address)) return Promise.resolve({ status: "invalid_email" });
-      return db.transaction(async (tx): Promise<PutGrantResult> => {
+      if (!/^[^@\s]+@[^@\s]+$/.test(address))
+        return Promise.resolve({ status: "invalid_email" }) satisfies Promise<PutGrantResult>;
+      return db.transaction<PutGrantResult>(async (tx) => {
         const found = await shareable(tx, nodeId);
-        if (found.status !== "ok") return found;
+        if (found.status !== "ok") {
+          const result: PutGrantResult = found;
+          return result;
+        }
         const [node] = await tx
           .update(storageNodes)
           .set({ shareId: sql`coalesce(${storageNodes.shareId}, ${newShareId()})` })
           .where(eq(storageNodes.id, nodeId))
           .returning();
-        if (!node?.shareId) return NOT_FOUND;
+        if (!node?.shareId) {
+          const result: PutGrantResult = NOT_FOUND;
+          return result;
+        }
         const [grant] = await tx
           .insert(storageGrants)
           .values({
@@ -166,27 +177,28 @@ export function sharingOperations(db: Db, door: Door) {
             created: sql<boolean>`(xmax = 0)`,
           });
         const { created, ...person } = grant!;
-        return {
+        const result: PutGrantResult = {
           status: "ok",
           created,
           shareId: node.shareId,
           person,
           node: toNode({ ...node, lockedAt: found.node.lockedAt }),
         };
+        return result;
       });
     },
 
     /** Removes a person. Their next request finds nothing. */
-    async removeGrant(nodeId: string, email: string): Promise<RemoveGrantResult> {
+    async removeGrant(nodeId: string, email: string) {
       const found = await shareable(db, nodeId);
-      if (found.status !== "ok") return found;
+      if (found.status !== "ok") return found satisfies RemoveGrantResult;
       const removed = await db
         .delete(storageGrants)
         .where(
           and(eq(storageGrants.nodeId, nodeId), eq(storageGrants.email, normalizeAddress(email))),
         )
         .returning({ id: storageGrants.id });
-      return removed.length > 0 ? { status: "ok" } : NOT_FOUND;
+      return (removed.length > 0 ? { status: "ok" } : NOT_FOUND) satisfies RemoveGrantResult;
     },
   };
 }

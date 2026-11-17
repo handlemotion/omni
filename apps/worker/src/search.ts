@@ -49,12 +49,17 @@ function remember(key: string, p: number, now: number) {
 type Hit = Awaited<ReturnType<MemberQueries["search"]>>[number];
 
 /** The `limit` best threads for `query`, and which ordering produced them. */
-export async function smartSearch(
+export const smartSearch: (
   queries: MemberQueries,
   config: Config,
   query: string,
   options: { mailboxId?: string; limit: number; log: Logger; filters?: MessageFilters },
-): Promise<{ hits: Hit[]; ranking: "jev" | "text" }> {
+) => Promise<{ hits: Hit[]; ranking: "jev" | "text" }> = async (
+  queries,
+  config,
+  query,
+  options,
+) => {
   // Message filters narrow the full-text recall only, so a filtered search stays a word search.
   const [hits, recent] = await Promise.all([
     queries.search(query, {
@@ -125,9 +130,9 @@ export async function smartSearch(
     relevance,
   );
   return { hits: ranked.slice(0, options.limit), ranking: "jev" };
-}
+};
 
-function candidate(hit: Hit): SearchCandidate {
+function candidate(hit: Hit) {
   return {
     id: hit.threadId,
     subject: hit.subject,
@@ -136,5 +141,5 @@ function candidate(hit: Hit): SearchCandidate {
     mailbox: hit.mailboxAddress,
     messageCount: hit.messageCount,
     excerpt: hit.excerpt,
-  };
+  } satisfies SearchCandidate;
 }

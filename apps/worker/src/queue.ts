@@ -94,12 +94,7 @@ export async function consumeDeadLetters(batch: MessageBatch<AiJob>, env: Env) {
   );
 }
 
-function recordFromDeadLetterQueue(
-  db: Db,
-  queue: string,
-  source: string,
-  message: Message<AiJob>,
-): Effect.Effect<void> {
+function recordFromDeadLetterQueue(db: Db, queue: string, source: string, message: Message<AiJob>) {
   const job = message.body;
   const log = jobLogger(queue, job);
   const record = attempt("record_dead_letter", () =>
@@ -127,7 +122,7 @@ function recordFromDeadLetterQueue(
         message.retry({ delaySeconds: 60 });
       },
     }),
-  );
+  ) satisfies Effect.Effect<void>;
 }
 
 /**
@@ -202,7 +197,7 @@ export async function consumeAiQueue(batch: MessageBatch<AiJob>, env: Env) {
   );
 }
 
-function consumeAiMessage(run: AiRun, message: Message<AiJob>): Effect.Effect<void> {
+function consumeAiMessage(run: AiRun, message: Message<AiJob>) {
   const log = jobLogger(run.queue, message.body);
   const started = Date.now();
   return processAiJob(run, message.body, log).pipe(
@@ -212,7 +207,7 @@ function consumeAiMessage(run: AiRun, message: Message<AiJob>): Effect.Effect<vo
       onSuccess: (outcome) => Effect.sync(() => settle(message, outcome, log, started)),
       onFailure: (failure) => settleFailure(run, message, failure, log, started),
     }),
-  );
+  ) satisfies Effect.Effect<void>;
 }
 
 /**
@@ -221,7 +216,7 @@ function consumeAiMessage(run: AiRun, message: Message<AiJob>): Effect.Effect<vo
  * flight. The model calls carry their own cancelling timeouts (`MODEL_TIMEOUT_MS`, TypeSafe's
  * 20 s), so an attempt always ends before the next one starts.
  */
-function processAiJob(run: AiRun, job: AiJob, log: Logger): Effect.Effect<AiJobOutcome, JobError> {
+function processAiJob(run: AiRun, job: AiJob, log: Logger) {
   const { env, db, config, models } = run;
   return Effect.gen(function* () {
     if (typeof job?.threadId !== "string" || typeof job.mailboxId !== "string") {
@@ -244,7 +239,7 @@ function processAiJob(run: AiRun, job: AiJob, log: Logger): Effect.Effect<AiJobO
       yield* attempt("fan_out", () => fanOut(env, db, config, changes)).pipe(retryTransient);
     }
     return outcome;
-  });
+  }) satisfies Effect.Effect<AiJobOutcome, JobError>;
 }
 
 function settle(message: Message<AiJob>, outcome: AiJobOutcome, log: Logger, started: number) {
@@ -258,13 +253,13 @@ function settle(message: Message<AiJob>, outcome: AiJobOutcome, log: Logger, sta
   else message.ack();
 }
 
-function settleFailure(
+const settleFailure: (
   run: AiRun,
   message: Message<AiJob>,
   failure: JobError,
   log: Logger,
   started: number,
-): Effect.Effect<void> {
+) => Effect.Effect<void> = (run, message, failure, log, started) => {
   const permanent = failure instanceof Permanent;
   const fields = {
     threadId: message.body?.threadId,
@@ -301,7 +296,7 @@ function settleFailure(
       },
     }),
   );
-}
+};
 
 /** A dead letter's row for this message, from `queue`; the caller adds the error. */
 function deadLetterOf(queue: string, message: Message<AiJob>) {
@@ -339,13 +334,13 @@ export async function runAiJob(
     outboxChanged?: () => Promise<unknown>;
     assigned?: (orgId: string, memberIds: string[]) => Promise<unknown>;
   } = {},
-): Promise<AiJobOutcome> {
+) {
   const thread = await loadThreadForAi(db, job.threadId);
   const latest = thread?.messages.at(-1);
-  if (!thread || !latest) return "missing";
+  if (!thread || !latest) return "missing" satisfies AiJobOutcome;
   // The done marker (`summary_message_id`, named for the removed summaries) moves only after the
   // whole job ran for this message.
-  if (thread.summaryMessageId === latest.id) return "done_already";
+  if (thread.summaryMessageId === latest.id) return "done_already" satisfies AiJobOutcome;
 
   // Triage runs on Jev or Claude.
   const triageEnabled = Boolean(config.TYPESAFE_API_KEY || config.ANTHROPIC_API_KEY);
@@ -363,7 +358,7 @@ export async function runAiJob(
     const helpdesk = await helpdeskContextForAi(db, thread.mailboxId);
     if (helpdesk) {
       // Its status rule runs first, so what triage sets is not undone by it (nor round-robin beaten).
-      if (await awaitingIngest(db, latest.id)) return "ingesting";
+      if (await awaitingIngest(db, latest.id)) return "ingesting" satisfies AiJobOutcome;
       input.helpdesk = helpdesk;
     }
     const byRule = triageByRule(input);
@@ -373,9 +368,9 @@ export async function runAiJob(
       if (!gate.run) {
         if (gate.reason === "allowance_reached") {
           await markTriagePaused(db, thread.id, gate.until);
-          return "triage_paused";
+          return "triage_paused" satisfies AiJobOutcome;
         }
-        return "billing_inactive";
+        return "billing_inactive" satisfies AiJobOutcome;
       }
     }
     const result = byRule ?? (triageEnabled ? await triage(models.triage, input) : null);
@@ -404,12 +399,12 @@ export async function runAiJob(
         confidence: result.confidence,
         messageId: latest.id,
       });
-      if (!saved) return "superseded";
+      if (!saved) return "superseded" satisfies AiJobOutcome;
       bucket = result.bucket;
       triaged = true;
     }
   }
-  if (!bucket) return "no_model";
+  if (!bucket) return "no_model" satisfies AiJobOutcome;
 
   // The job is complete for this message: the marker makes a redelivery a no-op. Summaries were
   // removed (ADR 0028), so the marker is all that is written.
@@ -418,6 +413,6 @@ export async function runAiJob(
     messageId: latest.id,
     messageCount: thread.messages.length,
   });
-  if (!saved) return "changed";
-  return triaged ? "triaged" : "done_already";
+  if (!saved) return "changed" satisfies AiJobOutcome;
+  return (triaged ? "triaged" : "done_already") satisfies AiJobOutcome;
 }

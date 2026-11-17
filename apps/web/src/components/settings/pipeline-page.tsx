@@ -31,7 +31,10 @@ const KIND_INTENT = { open: "secondary", won: "success", done: "success", lost: 
 const STAGE_MAX = 200;
 
 /** An existing stage as `PUT` takes it: its id keeps its kind. */
-const asInput = (stage: CrmStage): StageInput => ({ id: stage.id, name: stage.name });
+const asInput = (stage: CrmStage) => {
+  const result: StageInput = { id: stage.id, name: stage.name };
+  return result;
+};
 
 type Dialog = { kind: "rename"; stage: CrmStage } | { kind: "add" } | null;
 
@@ -53,21 +56,24 @@ export function PipelinePage() {
     next.splice(index + by, 0, moved);
     replace(next);
   };
-  const menu = (stage: CrmStage, index: number): SettingsRowMenuItem[] => [
-    { icon: IconPencil, label: "Rename", onAction: () => setDialog({ kind: "rename", stage }) },
-    ...(index > 0
-      ? [{ icon: IconArrowUp, label: "Move up", onAction: () => swap(index, -1) }]
-      : []),
-    ...(index < list.length - 1
-      ? [{ icon: IconChevronDown, label: "Move down", onAction: () => swap(index, 1) }]
-      : []),
-    {
-      icon: IconTrash,
-      label: "Remove",
-      danger: true,
-      onAction: () => replace(list.filter((s) => s.id !== stage.id).map(asInput)),
-    },
-  ];
+  const menu = (stage: CrmStage, index: number) => {
+    const result: SettingsRowMenuItem[] = [
+      { icon: IconPencil, label: "Rename", onAction: () => setDialog({ kind: "rename", stage }) },
+      ...(index > 0
+        ? [{ icon: IconArrowUp, label: "Move up", onAction: () => swap(index, -1) }]
+        : []),
+      ...(index < list.length - 1
+        ? [{ icon: IconChevronDown, label: "Move down", onAction: () => swap(index, 1) }]
+        : []),
+      {
+        icon: IconTrash,
+        label: "Remove",
+        danger: true,
+        onAction: () => replace(list.filter((s) => s.id !== stage.id).map(asInput)),
+      },
+    ];
+    return result;
+  };
   return (
     <SettingsSections>
       <SettingsSection title="Stages">

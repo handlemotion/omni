@@ -40,7 +40,7 @@ export interface UploadRequest {
 }
 
 /** Uploads `file` and answers the file it became. Rejects with `ApiError`, or `AbortError`. */
-export async function uploadFile(request: UploadRequest): Promise<StorageNode> {
+export async function uploadFile(request: UploadRequest) {
   const { file, signal } = request;
   const door = uploadDoor(request.shareId);
   await request.confirm();
@@ -62,7 +62,7 @@ export async function uploadFile(request: UploadRequest): Promise<StorageNode> {
     const parts = new AbortController();
     const stop = () => parts.abort();
     signal.addEventListener("abort", stop);
-    const next = async (): Promise<void> => {
+    const next = async () => {
       const n = missing.shift();
       if (n === undefined) return;
       const start = (n - 1) * upload.partSize;
@@ -89,7 +89,7 @@ export async function uploadFile(request: UploadRequest): Promise<StorageNode> {
   signal.throwIfAborted();
   request.guard();
   const { node } = await door.complete(upload.id, request.ifContentVersion);
-  return node;
+  return node satisfies StorageNode;
 }
 
 /** Frees what an unfinished upload holds (its parts, and its room against the limit). */
@@ -118,10 +118,10 @@ const versionBody = (file: File, ifContentVersion: number | undefined) => ({
  * Complete's `?ifContentVersion=`. The route reads it by hand rather than by a validator, so the
  * typed client does not know it; it sends any `query` it is given.
  */
-const guarded = <T extends object>(args: T, ifContentVersion: number | undefined): T =>
-  ifContentVersion === undefined
+const guarded = <T extends object>(args: T, ifContentVersion: number | undefined) =>
+  (ifContentVersion === undefined
     ? args
-    : ({ ...args, query: { ifContentVersion: String(ifContentVersion) } } as T);
+    : ({ ...args, query: { ifContentVersion: String(ifContentVersion) } } as T)) satisfies T;
 
 /** The upload routes of the member's door, or of a shared link's (the same shapes under it). */
 function uploadDoor(shareId: string | undefined) {

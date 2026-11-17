@@ -57,7 +57,7 @@ describe("first sync on the smallest supported machine", () => {
 });
 
 /** An 80 KB marketing mail: nested tables, inline styles, tracked links and remote images. */
-function newsletter(i: number): Buffer {
+const newsletter: (i: number) => Buffer = (i) => {
   const rows: string[] = [];
   for (let size = 0, r = 0; size < 80 * 1024; r++) {
     const row = `<tr><td style="padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:20px;color:#333333" class="text"><table border="0" cellpadding="0" cellspacing="0" width="100%"><tbody><tr><td valign="top"><a href="https://click.brand.test/t/${i}/${r}?utm_source=nl&amp;utm_medium=email" target="_blank" style="color:#0a66c2;text-decoration:none"><img src="https://img.brand.test/${i}/${r}.png" width="560" height="120" alt="Item ${r}" style="display:block;border:0"></a><p style="margin:8px 0">Offer ${r} of issue ${i}: lorem ipsum dolor sit amet, consectetur adipiscing elit.</p></td></tr></tbody></table></td></tr>\r\n`;
@@ -89,4 +89,4 @@ function newsletter(i: number): Buffer {
       "",
     ].join("\r\n"),
   );
-}
+};

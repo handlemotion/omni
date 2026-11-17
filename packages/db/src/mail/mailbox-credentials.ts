@@ -10,7 +10,7 @@ import { mailboxes } from "../schema/index.ts";
 export async function replaceMailboxCredentials(
   db: Db,
   input: { mailboxId: string; expected: string; next: string },
-): Promise<boolean> {
+) {
   const rows = await db
     .update(mailboxes)
     .set({ credentialsEnc: input.next, updatedAt: new Date() })

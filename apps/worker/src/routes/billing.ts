@@ -90,11 +90,11 @@ type PlanPrice = {
  */
 const priceCache = new Map<string, { price: PlanPrice | null; until: number }>();
 
-async function planPrice(
+const planPrice: (
   c: { var: AppEnv["Variables"] },
   secretKey: string,
   priceId: string | undefined,
-): Promise<PlanPrice | null> {
+) => Promise<PlanPrice | null> = async (c, secretKey, priceId) => {
   if (!priceId) return null;
   const cached = priceCache.get(priceId);
   if (cached && cached.until > Date.now()) return cached.price;
@@ -116,7 +116,7 @@ async function planPrice(
     c.var.log.warn("billing.price_unavailable", { priceId, error });
     return null;
   }
-}
+};
 
 /**
  * Owners and admins only. A Personal space is free (ADR 0024): it may never start a plan

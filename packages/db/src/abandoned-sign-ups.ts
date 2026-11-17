@@ -31,7 +31,7 @@ export const ABANDONED_SIGN_UP_BATCH = 500;
 export async function deleteAbandonedSignUps(
   db: Db,
   { idleSince, limit = ABANDONED_SIGN_UP_BATCH }: { idleSince: Date; limit?: number },
-): Promise<{ id: string; image: string | null }[]> {
+) {
   const invitedAddress = sql`lower(${invitations.email})`;
   const abandoned = db
     .select({ id: users.id })
@@ -116,7 +116,7 @@ export async function deleteAbandonedSignUps(
     .limit(limit)
     .for("update", { skipLocked: true });
 
-  return db.transaction(async (tx) => {
+  return db.transaction<{ id: string; image: string | null }[]>(async (tx) => {
     const ids = (
       await tx.select({ id: users.id }).from(users).where(inArray(users.id, abandoned))
     ).map((row) => row.id);

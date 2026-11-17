@@ -22,25 +22,25 @@ type DisconnectDeps = {
 };
 
 /** Removes an Omni-hosted mailbox only; any other kind answers 404. */
-export async function disconnectHostedMailbox(
+export const disconnectHostedMailbox: (
   deps: DisconnectDeps,
   input: HostedDisconnectBody,
-): Promise<{ mailboxId: string }> {
+) => Promise<{ mailboxId: string }> = async (deps, input) => {
   const mailbox = await findOrgMailboxById(deps.db, input.orgId, input.mailboxId);
   if (!mailbox) return { mailboxId: input.mailboxId };
   if (mailbox.provider !== "purelymail") throw new ProvisionError(404, "No such hosted mailbox");
   return disconnectMailbox(deps, input);
-}
+};
 
 /**
  * Removes any mailbox of the org from Omni (ADR 0026), whatever its provider: stops it, revokes
  * what Omni holds (a hosted app password, a Google token; an IMAP login is only forgotten) and
  * deletes Omni's index of it. The mail stays wherever it lives. Idempotent.
  */
-export async function disconnectMailbox(
+export const disconnectMailbox: (
   deps: DisconnectDeps,
   input: HostedDisconnectBody,
-): Promise<{ mailboxId: string }> {
+) => Promise<{ mailboxId: string }> = async (deps, input) => {
   const { db, logger } = deps;
   const mailbox = await findOrgMailboxById(db, input.orgId, input.mailboxId);
   if (!mailbox) return { mailboxId: input.mailboxId };
@@ -65,4 +65,4 @@ export async function disconnectMailbox(
     provider: mailbox.provider,
   });
   return { mailboxId: mailbox.id };
-}
+};

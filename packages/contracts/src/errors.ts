@@ -144,8 +144,8 @@ for (const [code, { status }] of Object.entries(ERROR_CODES) as [ErrorCode, Erro
 }
 
 /** The generic code for a status; an unknown one reads as an internal error. */
-export function codeForStatus(status: number): ErrorCode {
-  return BY_STATUS.get(status) ?? "internal_server_error";
+export function codeForStatus(status: number) {
+  return (BY_STATUS.get(status) ?? "internal_server_error") satisfies ErrorCode;
 }
 
 /** A rate limit's state when the Worker refused: Vercel's `limit` object. */
@@ -176,12 +176,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const FIELDS = { string: ["code", "category", "requestId", "param"], boolean: ["retryable"] };
 
 /** The fields of `source` that have their declared type; anything else is dropped. */
-function pick(source: Record<string, unknown>): Omit<ApiErrorInfo, "message"> {
+function pick(source: Record<string, unknown>) {
   const info: Record<string, unknown> = {};
   for (const key of FIELDS.string) if (typeof source[key] === "string") info[key] = source[key];
   for (const key of FIELDS.boolean) if (typeof source[key] === "boolean") info[key] = source[key];
   for (const key of ["details", "limit"]) if (isRecord(source[key])) info[key] = source[key];
-  return info;
+  const picked: Omit<ApiErrorInfo, "message"> = info;
+  return picked;
 }
 
 /**
@@ -195,7 +196,7 @@ export const legacyCode = (code: ErrorCode) => code.toUpperCase();
  * is neither (a proxy's HTML page, an empty body). The code always comes back in lower case,
  * whichever shape carried it.
  */
-export function toApiError(body: unknown, fallback: string): ApiErrorInfo {
+export const toApiError: (body: unknown, fallback: string) => ApiErrorInfo = (body, fallback) => {
   if (!isRecord(body)) return { message: fallback };
   const { error } = body;
   if (isRecord(error) && typeof error.message === "string") {
@@ -207,4 +208,4 @@ export function toApiError(body: unknown, fallback: string): ApiErrorInfo {
     return { ...info, message: error };
   }
   return { message: fallback };
-}
+};

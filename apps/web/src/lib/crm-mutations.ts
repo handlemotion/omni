@@ -183,7 +183,7 @@ export const putStagesMutation = (client: QueryClient) =>
  * The moves a contract can make from `status` (docs/spec/crm.md "API"): draft → sent → signed →
  * ended; draft may go straight to signed, and sent back to draft. Signing needs a file.
  */
-export function nextStatuses(status: CrmContractStatus): CrmContractStatus[] {
+export const nextStatuses: (status: CrmContractStatus) => CrmContractStatus[] = (status) => {
   switch (status) {
     case "draft":
       return ["sent", "signed"];
@@ -194,4 +194,4 @@ export function nextStatuses(status: CrmContractStatus): CrmContractStatus[] {
     case "ended":
       return [];
   }
-}
+};

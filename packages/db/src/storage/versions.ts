@@ -47,10 +47,10 @@ export type RestoreVersionResult = NodeResult | Locked;
 export type StaleContent = { status: "version_conflict"; contentVersion: number };
 
 /** Refuses a save based on another content than the file's current one. Null: unchecked. */
-export const staleFor = (node: NodeRow, base: number | null | undefined): StaleContent | null =>
-  base !== null && base !== undefined && node.contentVersion !== base
+export const staleFor = (node: NodeRow, base: number | null | undefined) =>
+  (base !== null && base !== undefined && node.contentVersion !== base
     ? { status: "version_conflict", contentVersion: node.contentVersion }
-    : null;
+    : null) satisfies StaleContent | null;
 
 const NOT_FOUND = { status: "not_found" } as const;
 const FORBIDDEN = { status: "forbidden" } as const;
@@ -149,7 +149,7 @@ async function keepCurrent(tx: Db, node: NodeRow, r2Key: string) {
  * Makes an uploaded object the file's content and keeps what it replaces. Call with the tree
  * locked. The caller counts the new bytes: the replaced ones stay stored, as a version.
  */
-export async function replaceContent(
+export const replaceContent: (
   tx: Db,
   door: Door,
   nodeId: string,
@@ -160,8 +160,14 @@ export async function replaceContent(
     sha256: string | null;
     memberId: string;
   },
-  base: number | null = null,
-): Promise<NodeResult | Locked | StaleContent> {
+  base?: number | null,
+) => Promise<NodeResult | Locked | StaleContent> = async (
+  tx,
+  door,
+  nodeId,
+  content,
+  base = null,
+) => {
   const found = await editable(tx, door, nodeId);
   if (found.status !== "ok") return found;
   if (found.node.lockedAt) return LOCKED;
@@ -173,7 +179,7 @@ export async function replaceContent(
     writtenByMemberId: content.memberId,
     writtenAt: new Date(),
   });
-}
+};
 
 /** Whether the door's holder may write a new version of the file: what an upload to it needs. */
 export async function mayReplace(ex: Db, door: Door, nodeId: string) {
@@ -185,9 +191,9 @@ export async function mayReplace(ex: Db, door: Door, nodeId: string) {
 export function versionOperations(db: Db, door: Door) {
   return {
     /** The file's current content and the versions it replaced, newest first. */
-    async versions(nodeId: string): Promise<VersionsResult> {
+    async versions(nodeId: string) {
       const found = await editable(db, door, nodeId);
-      if (found.status !== "ok") return found;
+      if (found.status !== "ok") return found satisfies VersionsResult;
       const rows = await db
         .select({
           id: storageVersions.id,
@@ -213,44 +219,47 @@ export function versionOperations(db: Db, door: Door) {
           writtenByName: await nameOf(db, writer.writtenByMemberId),
         },
         versions: rows,
-      };
+      } satisfies VersionsResult;
     },
 
     /** A kept version and where its bytes are, for a download under the file's name. */
-    async versionFile(nodeId: string, versionId: string): Promise<FileResult> {
+    async versionFile(nodeId: string, versionId: string) {
       const found = await editable(db, door, nodeId);
-      if (found.status !== "ok") return NOT_FOUND;
+      if (found.status !== "ok") return NOT_FOUND satisfies FileResult;
       const [version] = await db
         .select()
         .from(storageVersions)
         .where(and(eq(storageVersions.id, versionId), eq(storageVersions.nodeId, nodeId)));
-      if (!version) return NOT_FOUND;
+      if (!version) return NOT_FOUND satisfies FileResult;
       const file = { ...toNode(found.node), size: version.size, mimeType: version.mimeType };
-      return { status: "ok", file, r2Key: version.r2Key };
+      return { status: "ok", file, r2Key: version.r2Key } satisfies FileResult;
     },
 
     /**
      * Makes a kept version the file's content again; the content it displaces becomes a
      * version, kept 30 days from now. The workspace stores the same bytes before and after.
      */
-    restoreVersion(nodeId: string, versionId: string): Promise<RestoreVersionResult> {
-      return db.transaction(async (tx): Promise<RestoreVersionResult> => {
+    restoreVersion(nodeId: string, versionId: string) {
+      return db.transaction<RestoreVersionResult>(async (tx) => {
         const orgId = await orgOfNode(tx, nodeId);
-        if (!orgId) return NOT_FOUND;
+        if (!orgId) return NOT_FOUND satisfies RestoreVersionResult;
         // Under the tree lock, as a lock is taken and a new version lands; then the usage lock,
         // so the daily recount never sums the nodes before the swap and the versions after it.
         await lockTree(tx, orgId);
         await lockUsage(tx, orgId);
         const found = await editable(tx, door, nodeId);
-        if (found.status !== "ok") return found;
-        if (found.node.lockedAt) return LOCKED;
+        if (found.status !== "ok") return found satisfies RestoreVersionResult;
+        if (found.node.lockedAt) return LOCKED satisfies RestoreVersionResult;
         const [version] = await tx
           .delete(storageVersions)
           .where(and(eq(storageVersions.id, versionId), eq(storageVersions.nodeId, nodeId)))
           .returning();
-        if (!version) return NOT_FOUND;
+        if (!version) return NOT_FOUND satisfies RestoreVersionResult;
         await keepCurrent(tx, found.node, found.r2Key);
-        return setContent(tx, found.node, { ...version, sha256: null });
+        return setContent(tx, found.node, {
+          ...version,
+          sha256: null,
+        }) satisfies Promise<RestoreVersionResult>;
       });
     },
   };

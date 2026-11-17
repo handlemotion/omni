@@ -42,12 +42,12 @@ const local = [...root, "local"] as const;
 const preview = [...root, "preview"] as const;
 
 /** A filter with absent fields dropped, so `{ mailbox: undefined }` and `{}` share a key. */
-function normalize(filter: ThreadFilter): ThreadFilter {
+function normalize(filter: ThreadFilter) {
   return {
     view: filter.view,
     ...(filter.mailbox ? { mailbox: filter.mailbox } : {}),
     ...(filter.lane ? { lane: filter.lane } : {}),
-  };
+  } satisfies ThreadFilter;
 }
 
 export const keys = {
@@ -201,19 +201,23 @@ export const keys = {
 };
 
 /** Reads the filter back out of a `keys.threads(...)` key. */
-export function filterOf(queryKey: readonly unknown[]): ThreadFilter | undefined {
+export const filterOf: (queryKey: readonly unknown[]) => ThreadFilter | undefined = (queryKey) => {
   const filter = queryKey[4];
   return typeof filter === "object" && filter !== null ? (filter as ThreadFilter) : undefined;
-}
+};
 
 /** Reads the filter back out of a `keys.conversations(...)` key. */
-export function conversationFilterOf(queryKey: readonly unknown[]): ConversationFilter | undefined {
+export const conversationFilterOf: (
+  queryKey: readonly unknown[],
+) => ConversationFilter | undefined = (queryKey) => {
   const filter = queryKey[4];
   return typeof filter === "object" && filter !== null ? (filter as ConversationFilter) : undefined;
-}
+};
 
 /** Reads the filter back out of a `keys.notificationList(...)` key. */
-export function notificationFilterOf(queryKey: readonly unknown[]): NotificationFilter | undefined {
+export const notificationFilterOf: (
+  queryKey: readonly unknown[],
+) => NotificationFilter | undefined = (queryKey) => {
   const filter = queryKey[4];
   return typeof filter === "object" && filter !== null ? (filter as NotificationFilter) : undefined;
-}
+};

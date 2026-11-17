@@ -101,7 +101,10 @@ function canHover() {
 
 /** The row's viewport box, clipped by any scroller from it up to and including the container.
  *  `null` when the row has no box or is scrolled out of view. */
-function visibleBounds(element: HTMLElement, container: HTMLElement): Bounds | null {
+const visibleBounds: (element: HTMLElement, container: HTMLElement) => Bounds | null = (
+  element,
+  container,
+) => {
   const rect = element.getBoundingClientRect();
   if (rect.width === 0 && rect.height === 0) return null;
   let { left, top, right, bottom } = rect;
@@ -119,11 +122,11 @@ function visibleBounds(element: HTMLElement, container: HTMLElement): Bounds | n
     bottom = Math.min(bottom, clip.bottom);
   }
   return right > left && bottom > top ? { left, top, right, bottom } : null;
-}
+};
 
 /** Viewport bounds in the container's padding-box coordinates, the space an absolutely
  *  positioned child is laid out in. Factors out an ancestor `scale` (a popover mid zoom-in). */
-function toContainerRect(bounds: Bounds, container: HTMLElement): ItemRect {
+function toContainerRect(bounds: Bounds, container: HTMLElement) {
   const box = container.getBoundingClientRect();
   const scaleX = container.offsetWidth > 0 ? box.width / container.offsetWidth : 1;
   const scaleY = container.offsetHeight > 0 ? box.height / container.offsetHeight : 1;
@@ -132,7 +135,7 @@ function toContainerRect(bounds: Bounds, container: HTMLElement): ItemRect {
     top: (bounds.top - box.top) / scaleY - container.clientTop + container.scrollTop,
     width: (bounds.right - bounds.left) / scaleX,
     height: (bounds.bottom - bounds.top) / scaleY,
-  };
+  } satisfies ItemRect;
 }
 
 /** Whether the point lies strictly inside the container's viewport box. */
@@ -161,25 +164,25 @@ function contains(bounds: Bounds | null, point: { x: number; y: number }) {
 }
 
 /** The skipped row (disabled, opted out) under the pointer, if any. */
-function skippedRowUnder(
+const skippedRowUnder: (
   container: HTMLElement,
   itemSelector: string,
   point: { x: number; y: number },
-): HTMLElement | null {
+) => HTMLElement | null = (container, itemSelector, point) => {
   return (
     rowsOf(container, itemSelector).find(
       (row) => row.matches(SKIP_SELECTOR) && contains(visibleBounds(row, container), point),
     ) ?? null
   );
-}
+};
 
 /** The row under the pointer, else the nearest within `maxDistance`. */
-function pickRow(
+const pickRow: (
   container: HTMLElement,
   itemSelector: string,
   point: { x: number; y: number },
   maxDistance: number,
-): HTMLElement | null {
+) => HTMLElement | null = (container, itemSelector, point, maxDistance) => {
   let best: HTMLElement | null = null;
   let bestDistance = Infinity;
   for (const row of rowsOf(container, itemSelector)) {
@@ -196,7 +199,7 @@ function pickRow(
     }
   }
   return bestDistance <= maxDistance ? best : null;
-}
+};
 
 interface LitRow {
   element: HTMLElement | null;
@@ -219,7 +222,7 @@ export function useFluidHoverList({
   highlightedSelector,
   heldSelector,
   maxDistance = 2,
-}: UseFluidHoverListOptions): UseFluidHoverListReturn {
+}: UseFluidHoverListOptions) {
   const [container, setContainer] = useState<HTMLElement | null>(null);
   const containerRef = useRef<HTMLElement | null>(null);
   const ref = useCallback((element: HTMLElement | null) => {
@@ -421,5 +424,5 @@ export function useFluidHoverList({
       ...(lit.radius ? { style: { borderRadius: lit.radius } } : {}),
     },
     containerProps: { ref, onMouseMoveCapture, onMouseEnter, onMouseLeave, onClick },
-  };
+  } satisfies UseFluidHoverListReturn;
 }

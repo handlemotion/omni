@@ -37,18 +37,18 @@ function folderName(name: string) {
 }
 
 /** Whether `nodeId` is a live folder in Shared that the member reaches. */
-async function isLiveFolder(storage: MemberStorage, nodeId: string | null): Promise<boolean> {
+async function isLiveFolder(storage: MemberStorage, nodeId: string | null) {
   if (!nodeId) return false;
   const listed = await storage.list({ parentId: nodeId }, { limit: 1 });
   return listed.status === "ok" && listed.folder?.node.space === "shared";
 }
 
 /** `Clients`, found or made at the root of Shared. */
-async function rootFolder(
+const rootFolder: (
   tx: Ex,
   member: CrmMember,
   storage: MemberStorage,
-): Promise<FolderResult> {
+) => Promise<FolderResult> = async (tx, member, storage) => {
   await ensureCrm(tx, member.orgId);
   const [settings] = await tx
     .select({ nodeId: crmSettings.rootFolderNodeId })
@@ -66,14 +66,14 @@ async function rootFolder(
     .set({ rootFolderNodeId: made.node.id })
     .where(eq(crmSettings.orgId, member.orgId));
   return { status: "ok", nodeId: made.node.id, created: true };
-}
+};
 
-async function companyFolderIn(
+const companyFolderIn: (
   tx: Ex,
   member: CrmMember,
   storage: MemberStorage,
   id: string,
-): Promise<FolderResult> {
+) => Promise<FolderResult> = async (tx, member, storage, id) => {
   const company = await loadCompany(tx, member.orgId, id, true);
   if (!company) return NOT_FOUND;
   if (company.folderNodeId && (await isLiveFolder(storage, company.folderNodeId))) {
@@ -85,7 +85,7 @@ async function companyFolderIn(
   if (made.status !== "ok") return made;
   await tx.update(crmCompanies).set({ folderNodeId: made.node.id }).where(eq(crmCompanies.id, id));
   return { status: "ok", nodeId: made.node.id, created: true };
-}
+};
 
 /** The company's folder, `Shared / Clients / <company>`, found or made. */
 export function companyFolder(tx: Ex, member: CrmMember, id: string) {
@@ -96,7 +96,11 @@ export function companyFolder(tx: Ex, member: CrmMember, id: string) {
  * The deal's folder, found or made: inside its company's folder (found or made too), or under
  * `Clients` when it has no company.
  */
-export async function dealFolder(tx: Ex, member: CrmMember, id: string): Promise<DealFolderResult> {
+export const dealFolder: (
+  tx: Ex,
+  member: CrmMember,
+  id: string,
+) => Promise<DealFolderResult> = async (tx, member, id) => {
   const storage = memberStorage(tx as Db, member.id);
   // Lock order is company, then deal, as contract writes take them (`contracts.ts`), so a folder
   // request and a signing on the same deal never wait on each other in a cycle.
@@ -117,4 +121,4 @@ export async function dealFolder(tx: Ex, member: CrmMember, id: string): Promise
   if (made.status !== "ok") return made;
   await tx.update(crmDeals).set({ folderNodeId: made.node.id }).where(eq(crmDeals.id, id));
   return { status: "ok", nodeId: made.node.id, created: true, companyId };
-}
+};

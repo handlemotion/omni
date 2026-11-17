@@ -251,5 +251,5 @@ export const uploadsStore = {
     listeners.add(listener);
     return () => listeners.delete(listener);
   },
-  get: (): UploadItem[] => items,
+  get: () => items satisfies UploadItem[],
 };

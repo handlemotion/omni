@@ -35,22 +35,22 @@ export interface DealStageTransition {
 const closes = (kind: StageKind) => kind === "done" || kind === "lost";
 
 /** The state of a deal created in `target` at `now`. */
-export function enterFirstStage(target: StageTarget, now: Date): DealStageState {
+export function enterFirstStage(target: StageTarget, now: Date) {
   return {
     stageId: target.stageId,
     kind: target.kind,
     stageEnteredAt: now,
     wonAt: target.kind === "won" ? now : null,
     closedAt: closes(target.kind) ? now : null,
-  };
+  } satisfies DealStageState;
 }
 
 /** The deal's state after it is moved to `target` at `now`. Never throws. */
-export function moveDealStage(
+export const moveDealStage: (
   state: DealStageState,
   target: StageTarget,
   now: Date,
-): DealStageTransition {
+) => DealStageTransition = (state, target, now) => {
   if (state.stageId === target.stageId) return { state, changed: false };
   return {
     state: {
@@ -62,4 +62,4 @@ export function moveDealStage(
     },
     changed: true,
   };
-}
+};

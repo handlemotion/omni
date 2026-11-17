@@ -32,21 +32,27 @@ function emailLookup(where: Where[] | undefined) {
  * `internalAdapter.findUserByEmail` discards a user whose `email` differs from the one asked for,
  * so `withSignInEmails` below covers that path.
  */
-export function resolveSignInEmails(factory: AdapterFactory, db: Db): AdapterFactory {
-  const withLookup = <A extends DBTransactionAdapter>(adapter: A): A => ({
-    ...adapter,
-    findOne: async (args: Parameters<DBTransactionAdapter["findOne"]>[0]) => {
-      const found = await adapter.findOne(args);
-      const email = args.model === "user" ? emailLookup(args.where) : undefined;
-      if (found || email === undefined) return found;
-      const userId = await findUserIdByExtraEmail(db, email);
-      return userId ? adapter.findOne({ ...args, where: [{ field: "id", value: userId }] }) : null;
-    },
-  });
-  const wrap = (adapter: DBAdapter): DBAdapter => ({
-    ...withLookup(adapter),
-    transaction: (callback) => adapter.transaction((trx) => callback(withLookup(trx))),
-  });
+export function resolveSignInEmails(factory: AdapterFactory, db: Db) {
+  const withLookup = <A extends DBTransactionAdapter>(adapter: A) => {
+    const result: A = {
+      ...adapter,
+      findOne: async (args: Parameters<DBTransactionAdapter["findOne"]>[0]) => {
+        const found = await adapter.findOne(args);
+        const email = args.model === "user" ? emailLookup(args.where) : undefined;
+        if (found || email === undefined) return found;
+        const userId = await findUserIdByExtraEmail(db, email);
+        return userId
+          ? adapter.findOne({ ...args, where: [{ field: "id", value: userId }] })
+          : null;
+      },
+    };
+    return result;
+  };
+  const wrap = (adapter: DBAdapter) =>
+    ({
+      ...withLookup(adapter),
+      transaction: (callback) => adapter.transaction((trx) => callback(withLookup(trx))),
+    }) satisfies DBAdapter;
   return ((options) => wrap(factory(options))) as AdapterFactory;
 }
 
@@ -58,7 +64,7 @@ const WRAPPED = Symbol("omni-sign-in-emails");
  * extra address with its owner, found by asking Better Auth again for that owner's primary. Asking
  * by the primary keeps Better Auth's own result shape (accounts included) and its email check.
  */
-function withSignInEmails(internal: InternalAdapter, db: Db): InternalAdapter {
+const withSignInEmails: (internal: InternalAdapter, db: Db) => InternalAdapter = (internal, db) => {
   if ((internal as { [WRAPPED]?: true })[WRAPPED]) return internal;
   const findUserByEmail: InternalAdapter["findUserByEmail"] = async (email, options) => {
     // The address a magic link (or a new Google account) signs in with (ADR 0024).
@@ -70,7 +76,7 @@ function withSignInEmails(internal: InternalAdapter, db: Db): InternalAdapter {
     return owner ? internal.findUserByEmail(owner.email, options) : null;
   };
   return Object.assign({ ...internal, findUserByEmail }, { [WRAPPED]: true as const });
-}
+};
 
 /**
  * Better Auth rebuilds `context.internalAdapter` after every plugin's `init` runs, so returning a

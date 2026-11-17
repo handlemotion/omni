@@ -76,11 +76,11 @@ function documentRefusal(from: ContractStatus, to: ContractStatus) {
 }
 
 /** The contract's state after `change` at `now`, or why it is refused. Never throws. */
-export function changeContract(
+export const changeContract: (
   state: ContractState,
   change: ContractChange,
   now: Date,
-): ContractTransition {
+) => ContractTransition = (state, change, now) => {
   const from = state.status;
   const to = change.status ?? from;
   const statusChanged = to !== from;
@@ -105,4 +105,4 @@ export function changeContract(
     documentChanged,
     lock: signing ? documentNodeId : null,
   };
-}
+};

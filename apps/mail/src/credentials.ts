@@ -58,20 +58,18 @@ export function sealCredentials(
   keyring: Keyring,
   mailboxId: string,
   credentials: MailboxCredentials,
-): Promise<string> {
+) {
   return encryptCredential(
     keyring,
     JSON.stringify(credentialsSchema.parse(credentials)),
     mailboxId,
-  );
+  ) satisfies Promise<string>;
 }
 
-export async function openCredentials(
-  keyring: Keyring,
-  mailboxId: string,
-  envelope: string,
-): Promise<MailboxCredentials> {
-  return credentialsSchema.parse(JSON.parse(await decryptCredential(keyring, envelope, mailboxId)));
+export async function openCredentials(keyring: Keyring, mailboxId: string, envelope: string) {
+  return credentialsSchema.parse(
+    JSON.parse(await decryptCredential(keyring, envelope, mailboxId)),
+  ) satisfies MailboxCredentials;
 }
 
 /** Google credentials need the OAuth client to refresh; without one they cannot log in. */
@@ -80,7 +78,10 @@ export class OAuthNotConfiguredError extends Error {
 }
 
 /** How a mailbox with these credentials logs in to IMAP and SMTP. */
-export function mailboxAuth(credentials: MailboxCredentials, google?: GoogleOAuth): MailAuth {
+export const mailboxAuth: (credentials: MailboxCredentials, google?: GoogleOAuth) => MailAuth = (
+  credentials,
+  google,
+) => {
   if (!("oauth" in credentials)) return { kind: "password", pass: credentials.pass };
   if (!google) {
     throw new OAuthNotConfiguredError(
@@ -88,4 +89,4 @@ export function mailboxAuth(credentials: MailboxCredentials, google?: GoogleOAut
     );
   }
   return { kind: "oauth2", token: googleTokenSource(google, credentials) };
-}
+};

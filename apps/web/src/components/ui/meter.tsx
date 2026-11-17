@@ -84,7 +84,7 @@ export function MeterHeader({ className, ...props }: React.ComponentProps<"div">
   );
 }
 
-function getMeterColor(value: number): string {
+function getMeterColor(value: number) {
   if (value < 50) return "var(--color-success)";
   if (value < 80) return "var(--color-warning)";
   return "var(--color-danger)";

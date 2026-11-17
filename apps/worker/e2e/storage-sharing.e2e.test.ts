@@ -28,10 +28,10 @@ async function signedIn(email: string) {
   return jar;
 }
 
-async function folder(person: Person, place: object, name: string): Promise<StorageNode> {
+async function folder(person: Person, place: object, name: string) {
   const made = await stack.api(person.jar, "POST", "/folders", { name, ...place });
   if (made.status !== 201) throw new Error(`folder ${name}: ${made.status}`);
-  return made.body.node;
+  return made.body.node as StorageNode;
 }
 
 /** Adds `email` to `nodeId` as `person`, and answers the item's link id. */

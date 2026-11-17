@@ -18,7 +18,7 @@ const loading = document.querySelector<HTMLElement>("#loading")!;
 const params = new URLSearchParams(window.location.search);
 
 /** True when the server answers at all. An opaque response is enough: it is reachable. */
-async function reachable(origin: string): Promise<boolean> {
+async function reachable(origin: string) {
   try {
     // HEAD: an answer is all it needs, not the page.
     await fetch(new URL("/", origin), {
@@ -34,7 +34,7 @@ async function reachable(origin: string): Promise<boolean> {
 }
 
 /** The address as Rust will store it, or null when it is not one (Rust checks again). */
-function toOrigin(value: string): string | null {
+function toOrigin(value: string) {
   const text = value.trim();
   try {
     const url = new URL(text.includes("://") ? text : `https://${text}`);
@@ -59,7 +59,7 @@ function busy(form: HTMLFormElement, on: boolean) {
   }
 }
 
-async function open(origin: string, from: HTMLFormElement, path?: string): Promise<boolean> {
+async function open(origin: string, from: HTMLFormElement, path?: string) {
   busy(from, true);
   const ok =
     (await reachable(origin)) &&

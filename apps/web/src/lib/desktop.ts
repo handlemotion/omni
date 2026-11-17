@@ -11,12 +11,12 @@ export type DesktopPlatform = "mac" | "windows" | "linux";
 // Tauri injects its IPC object into every page its window loads, before any of ours runs.
 const inShell = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-function readPlatform(): DesktopPlatform {
+const readPlatform: () => DesktopPlatform = () => {
   const agent = navigator.userAgent;
   if (/Mac OS X|Macintosh/.test(agent)) return "mac";
   if (/Windows/.test(agent)) return "windows";
   return "linux";
-}
+};
 
 const bridge = () => import("./desktop-bridge.ts");
 
@@ -41,8 +41,8 @@ export const desktop = {
    * link opens in the default browser; the Worker sends the session there, and the shell puts it
    * in this window and reloads (ADR 0043 decision 5). Each call is a new, single-use state.
    */
-  signInCallback(): Promise<string> {
-    return bridge().then((b) => b.signInCallback());
+  signInCallback() {
+    return bridge().then((b) => b.signInCallback()) satisfies Promise<string>;
   },
 
   /**
@@ -96,7 +96,7 @@ const OUTSIDE = new Set(["http:", "https:", "mailto:", "tel:"]);
  * page. Links to another origin, and mail and phone links, open outside the app: the window is
  * the app, with no address bar or back button to return from someone else's site.
  */
-export function outsideLink(event: MouseEvent): string | null {
+export function outsideLink(event: MouseEvent) {
   if (event.defaultPrevented || event.button > 1) return null;
   const target = event.target instanceof Element ? event.target : null;
   const anchor = target?.closest<HTMLAnchorElement | SVGAElement>("a[href]");

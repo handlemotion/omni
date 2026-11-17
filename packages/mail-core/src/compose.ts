@@ -78,10 +78,10 @@ function forwardHeaders(original: ForwardedMessage) {
  * `---------- Forwarded message ---------` divider. With `html`, the HTML part gets the same
  * block, every value from the original escaped (a sender's display name is untrusted text).
  */
-export function forwardBody(
+export const forwardBody: (
   written: { text: string; html?: string },
   original: ForwardedMessage,
-): { text: string; html?: string } {
+) => { text: string; html?: string } = (written, original) => {
   const headers = forwardHeaders(original);
   const text = [
     written.text.trimEnd(),
@@ -100,4 +100,4 @@ export function forwardBody(
     `<div style="white-space:pre-wrap">${escapeHtml(original.text)}</div></div>`,
   ].join("");
   return { text, html };
-}
+};

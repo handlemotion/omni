@@ -25,19 +25,18 @@ export interface DomainIssue {
 
 export type DnsRecordFilter = "required" | "all";
 
-export function filterDnsRecords(
-  records: readonly DnsRecord[],
-  filter: DnsRecordFilter,
-): DnsRecord[] {
-  return filter === "required" ? records.filter((record) => record.required) : [...records];
+export function filterDnsRecords(records: readonly DnsRecord[], filter: DnsRecordFilter) {
+  return (
+    filter === "required" ? records.filter((record) => record.required) : [...records]
+  ) satisfies DnsRecord[];
 }
 
-export function issuesForRecord(issues: readonly DomainIssue[], record: DnsRecord): DomainIssue[] {
+export function issuesForRecord(issues: readonly DomainIssue[], record: DnsRecord) {
   return issues.filter(
     (issue) =>
       issue.record?.type === record.type &&
       issue.record.name === record.name &&
       issue.record.value === record.value &&
       issue.record.purpose === record.purpose,
-  );
+  ) satisfies DomainIssue[];
 }

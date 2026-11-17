@@ -26,7 +26,7 @@ export interface CommentNotificationData {
 const EXCERPT = 140;
 
 /** Notifies who should hear about comment `commentId` on `node`. Returns who got one. */
-export async function notifyComment(
+export const notifyComment: (
   tx: Db,
   input: {
     node: NodeRow;
@@ -35,7 +35,7 @@ export async function notifyComment(
     authorMemberId: string;
     body: string;
   },
-): Promise<string[]> {
+) => Promise<string[]> = async (tx, input) => {
   const { node } = input;
   const owner = node.space === "personal" ? node.ownerMemberId : node.createdByMemberId;
   const writers = input.rootId
@@ -80,4 +80,4 @@ export async function notifyComment(
     .onConflictDoNothing()
     .returning({ memberId: notifications.memberId });
   return rows.map((r) => r.memberId);
-}
+};

@@ -75,7 +75,7 @@ import { MissingFileError } from "./ports.ts";
 
 /** The schema stores every role the engine detects. */
 type StoredRole = (typeof schema.mailboxFolders.$inferSelect)["role"];
-const storedRole = (role: FolderRole): StoredRole => role;
+const storedRole = (role: FolderRole) => role satisfies StoredRole;
 
 /** Subject threading only looks this far back; `decideThread` applies the exact window. */
 const SUBJECT_LOOKBACK_MS = 31 * 24 * 60 * 60 * 1000;
@@ -154,7 +154,7 @@ export class PgMailStore implements MailStore {
     this.onChanged = options.onChanged ?? (() => {});
   }
 
-  async saveFolders(mailboxId: string, folders: FolderInfo[]): Promise<void> {
+  async saveFolders(mailboxId: string, folders: FolderInfo[]) {
     const { orgId } = await this.mailbox(mailboxId);
     await replaceFolders(this.db, {
       orgId,
@@ -163,14 +163,14 @@ export class PgMailStore implements MailStore {
     });
   }
 
-  async getSyncPosition(mailboxId: string, folder: string): Promise<SyncPosition | null> {
+  async getSyncPosition(mailboxId: string, folder: string) {
     const position = await getFolderPosition(this.db, mailboxId, folder);
-    if (!position) return null;
+    if (!position) return null satisfies SyncPosition | null;
     return {
       uidValidity: BigInt(position.uidvalidity),
       highestModseq: position.highestModseq,
       uidNext: position.uidnext,
-    };
+    } satisfies SyncPosition | null;
   }
 
   async saveSyncPosition(mailboxId: string, folder: string, position: SyncPosition) {
@@ -181,13 +181,13 @@ export class PgMailStore implements MailStore {
     });
   }
 
-  folderIndex(mailboxId: string, folder: string): Promise<Map<number, string[]>> {
-    return folderLocations(this.db, mailboxId, folder);
+  folderIndex(mailboxId: string, folder: string) {
+    return folderLocations(this.db, mailboxId, folder) satisfies Promise<Map<number, string[]>>;
   }
 
-  async storeMessage(mailboxId: string, fetched: FetchedMessage): Promise<{ created: boolean }> {
+  async storeMessage(mailboxId: string, fetched: FetchedMessage) {
     if (await hasLocation(this.db, mailboxId, fetched.folder, fetched.uid)) {
-      return { created: false };
+      return { created: false } satisfies { created: boolean };
     }
     const mailbox = await this.mailbox(mailboxId);
     const folder = await findFolder(this.db, mailboxId, fetched.folder);
@@ -195,7 +195,9 @@ export class PgMailStore implements MailStore {
 
     const parsed = await parse(fetched.raw);
     try {
-      return await this.storeParsed(mailboxId, mailbox, folder, fetched, parsed);
+      return (await this.storeParsed(mailboxId, mailbox, folder, fetched, parsed)) satisfies {
+        created: boolean;
+      };
     } finally {
       await Promise.all(parsed.attachments.filter(isSpooled).map((file) => discard(file.path)));
     }
@@ -207,7 +209,7 @@ export class PgMailStore implements MailStore {
     folder: NonNullable<Awaited<ReturnType<typeof findFolder>>>,
     fetched: FetchedMessage,
     parsed: Parsed,
-  ): Promise<{ created: boolean }> {
+  ) {
     const { message } = parsed;
     // A copy of a message we already indexed (moved, or filed in two folders): record where it
     // is and stop. Parsing again is cheap; re-threading and re-notifying would not be.
@@ -262,14 +264,10 @@ export class PgMailStore implements MailStore {
         folderRole: folder.role,
       });
     }
-    return { created };
+    return { created } satisfies { created: boolean };
   }
 
-  async storeSent(
-    mailboxId: string,
-    raw: Uint8Array,
-    options: { threadOf?: string } = {},
-  ): Promise<void> {
+  async storeSent(mailboxId: string, raw: Uint8Array, options: { threadOf?: string } = {}) {
     const mailbox = await this.mailbox(mailboxId);
     const parsed = await parse(raw);
     if (await findMessageByHeader(this.db, mailboxId, parsed.message.messageId)) return;
@@ -298,7 +296,7 @@ export class PgMailStore implements MailStore {
     }
   }
 
-  async reportDiscarded(mailboxId: string): Promise<number> {
+  async reportDiscarded(mailboxId: string) {
     const threadIds = await discardedConversations(this.db, mailboxId);
     if (threadIds.length > 0) {
       const { orgId } = await this.mailbox(mailboxId);
@@ -307,26 +305,26 @@ export class PgMailStore implements MailStore {
     return threadIds.length;
   }
 
-  async applyFlags(mailboxId: string, folder: string, changes: FlagChange[]): Promise<void> {
+  async applyFlags(mailboxId: string, folder: string, changes: FlagChange[]) {
     if ((await setLocationFlags(this.db, { mailboxId, path: folder, changes })) > 0) {
       this.onChanged();
     }
   }
 
-  async reconcileFolder(mailboxId: string, folder: string): Promise<void> {
+  async reconcileFolder(mailboxId: string, folder: string) {
     if ((await reconcileFolder(this.db, { mailboxId, path: folder })) > 0) this.onChanged();
   }
 
-  async removeMessages(mailboxId: string, folder: string, uids: number[]): Promise<void> {
+  async removeMessages(mailboxId: string, folder: string, uids: number[]) {
     if ((await removeLocations(this.db, { mailboxId, path: folder, uids })) > 0) this.onChanged();
   }
 
-  async resetFolder(mailboxId: string, folder: string): Promise<void> {
+  async resetFolder(mailboxId: string, folder: string) {
     await resetFolder(this.db, mailboxId, folder);
   }
 
-  orphanedMessages(mailboxId: string): Promise<string[]> {
-    return orphanedMessages(this.db, mailboxId);
+  orphanedMessages(mailboxId: string) {
+    return orphanedMessages(this.db, mailboxId) satisfies Promise<string[]>;
   }
 
   async pruneMessages(mailboxId: string, messageIds: string[]) {
@@ -450,7 +448,7 @@ export class PgMailStore implements MailStore {
     await moveMessageToThread(this.db, { mailboxId, messageId: stored.id, threadId });
   }
 
-  private oneAtATime<T>(mailboxId: string, task: () => Promise<T>): Promise<T> {
+  private oneAtATime<T>(mailboxId: string, task: () => Promise<T>) {
     const result = (this.inserting.get(mailboxId) ?? Promise.resolve()).then(task);
     const tail = result.then(
       () => {},
@@ -460,7 +458,7 @@ export class PgMailStore implements MailStore {
     void tail.then(() => {
       if (this.inserting.get(mailboxId) === tail) this.inserting.delete(mailboxId);
     });
-    return result;
+    return result satisfies Promise<T>;
   }
 
   private async assignThread(
@@ -469,11 +467,11 @@ export class PgMailStore implements MailStore {
     message: ParsedMessage,
     sentAt: Date,
     providerThreadId?: string,
-  ): Promise<string> {
+  ) {
     // Gmail's thread wins: the conversation is the one Gmail shows (ADR 0023).
     if (providerThreadId) {
       const known = await findThreadByProviderId(this.db, mailboxId, providerThreadId);
-      if (known) return known;
+      if (known) return known satisfies string;
     }
     const replyIds = [message.inReplyTo, ...message.references].filter(
       (id): id is string => id !== null,
@@ -510,15 +508,15 @@ export class PgMailStore implements MailStore {
         if (merged.fromThreadIds.length > 0) {
           this.onMerged({ orgId: mailbox.orgId, mailboxId, ...merged });
         }
-        return merged.intoThreadId;
+        return merged.intoThreadId satisfies string;
       }
     }
     if (decision.kind !== "new") {
       // A thread started before Gmail's id was known (our own send, indexed before its Sent copy)
       // takes this id; one that already belongs to another Gmail thread is not this conversation.
-      if (!providerThreadId) return decision.threadId;
+      if (!providerThreadId) return decision.threadId satisfies string;
       if (await claimProviderThread(this.db, decision.threadId, providerThreadId)) {
-        return decision.threadId;
+        return decision.threadId satisfies string;
       }
     }
     return createThread(this.db, {
@@ -527,7 +525,7 @@ export class PgMailStore implements MailStore {
       subjectKey: decision.kind === "new" ? decision.subjectKey : normalizeSubject(message.subject),
       lastMessageAt: sentAt,
       providerThreadId: providerThreadId ?? null,
-    });
+    }) satisfies Promise<string>;
   }
 
   private put(key: string, body: Uint8Array | SpooledFile, contentType: string) {
@@ -536,13 +534,13 @@ export class PgMailStore implements MailStore {
       : this.objects.put(key, body, contentType);
   }
 
-  private async mailbox(mailboxId: string): Promise<MailboxRow> {
+  private async mailbox(mailboxId: string) {
     const cached = this.mailboxes.get(mailboxId);
-    if (cached) return cached;
+    if (cached) return cached satisfies MailboxRow;
     const row = await findMailbox(this.db, mailboxId);
     if (!row) throw new Error(`mailbox ${mailboxId} is not stored`);
     this.mailboxes.set(mailboxId, row);
-    return row;
+    return row satisfies MailboxRow;
   }
 }
 
@@ -553,7 +551,7 @@ interface Parsed {
 }
 
 /** A spooled message is parsed from its file, and its attachments spool too. */
-async function parse(raw: Uint8Array | SpooledFile): Promise<Parsed> {
+const parse: (raw: Uint8Array | SpooledFile) => Promise<Parsed> = async (raw) => {
   if (!isSpooled(raw)) {
     const { message, attachmentContents } = await parseMessage(raw);
     return { message, attachments: attachmentContents };
@@ -574,7 +572,7 @@ async function parse(raw: Uint8Array | SpooledFile): Promise<Parsed> {
     await Promise.all(attachments.map((file) => file && discard(file.path)));
     throw error;
   }
-}
+};
 
 /** `mail_actions` as the outbox. The executor owns retry timing; the claim is a lease. */
 export interface FailedAction {
@@ -602,7 +600,7 @@ export class PgActionSource implements ActionSource {
     this.onFailed = options.onFailed;
   }
 
-  async claim(limit: number): Promise<MailAction[]> {
+  async claim(limit: number) {
     const rows = await claimActions(this.db, { limit, leaseMs: this.leaseMs });
     const claimed: MailAction[] = [];
     for (const row of rows) {
@@ -624,18 +622,18 @@ export class PgActionSource implements ActionSource {
         smtpAcceptedAt: row.smtpAcceptedAt,
       } as MailAction);
     }
-    return claimed;
+    return claimed satisfies MailAction[];
   }
 
-  async markSmtpAccepted(actionId: string): Promise<void> {
+  async markSmtpAccepted(actionId: string) {
     await markActionSmtpAccepted(this.db, actionId);
   }
 
-  async complete(actionId: string): Promise<void> {
+  async complete(actionId: string) {
     await completeAction(this.db, actionId);
   }
 
-  async fail(actionId: string, error: string, retryAt: Date | null): Promise<void> {
+  async fail(actionId: string, error: string, retryAt: Date | null) {
     const row = await rescheduleAction(this.db, actionId, error, retryAt);
     if (row?.status === "failed") {
       const { id, orgId, mailboxId, memberId, requestId } = row;
@@ -643,16 +641,19 @@ export class PgActionSource implements ActionSource {
     }
   }
 
-  async defer(actionId: string, retryAt: Date): Promise<void> {
+  async defer(actionId: string, retryAt: Date) {
     await deferAction(this.db, actionId, retryAt);
   }
 
-  nextDueAt(): Promise<Date | null> {
-    return nextActionDue(this.db);
+  nextDueAt() {
+    return nextActionDue(this.db) satisfies Promise<Date | null>;
   }
 
-  sendingPaused(address: string): Promise<boolean> {
-    return sendingPaused(this.db, address.slice(address.lastIndexOf("@") + 1).toLowerCase());
+  sendingPaused(address: string) {
+    return sendingPaused(
+      this.db,
+      address.slice(address.lastIndexOf("@") + 1).toLowerCase(),
+    ) satisfies Promise<boolean>;
   }
 }
 
@@ -664,8 +665,8 @@ export class PgSendFiles implements SendFiles {
     this.options = options;
   }
 
-  async resolve(mailboxId: string, refs: SendAttachment[]): Promise<SendFile[]> {
-    if (refs.length === 0) return [];
+  async resolve(mailboxId: string, refs: SendAttachment[]) {
+    if (refs.length === 0) return [] satisfies SendFile[];
     const rows = await sendAttachmentFiles(this.options.db, mailboxId, refs);
     if (rows.length !== refs.length) {
       throw new MissingFileError(`${refs.length - rows.length} attachment(s) not found`);
@@ -676,11 +677,11 @@ export class PgSendFiles implements SendFiles {
         if (!content) throw new MissingFileError(`attachment object ${row.r2Key} is gone`);
         return { filename: row.filename, contentType: row.mimeType, content };
       }),
-    );
+    ) satisfies Promise<SendFile[]>;
   }
 }
 
-function sha256(bytes: Uint8Array): string {
+function sha256(bytes: Uint8Array) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 

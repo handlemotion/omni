@@ -58,7 +58,7 @@ afterEach(async () => {
 });
 
 /** Signed in as `email` (a magic link, so a new address signs up), on `path`. */
-async function signedIn(email: string, path: string): Promise<Page> {
+async function signedIn(email: string, path: string) {
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, email);
   context = await browser.newContext();
@@ -70,7 +70,7 @@ async function signedIn(email: string, path: string): Promise<Page> {
   );
   const page = await context.newPage();
   await page.goto(new URL(path, origin).toString());
-  return page;
+  return page satisfies Page;
 }
 
 /** The settings nav's workspace pages, by title. */

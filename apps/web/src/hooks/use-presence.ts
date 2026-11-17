@@ -8,12 +8,12 @@ import { useAllMailboxes } from "./use-mail.ts";
  * Teammates viewing or replying in this conversation, oldest first. Includes your own member
  * when you have it open in another tab; filter by `member.id` to show only others.
  */
-export function usePresence(threadId: string): readonly Presence[] {
+export function usePresence(threadId: string) {
   return useSyncExternalStore(
     presenceStore.subscribe,
     () => presenceStore.get(threadId),
     () => presenceStore.get(threadId),
-  );
+  ) satisfies readonly Presence[];
 }
 
 /**

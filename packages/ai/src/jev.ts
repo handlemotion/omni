@@ -45,7 +45,7 @@ export function createJevClient(options: {
   model?: string;
   baseUrl?: string;
   fetch?: typeof fetch;
-}): JevClient {
+}) {
   return {
     provider: "jev",
     apiKey: options.apiKey,
@@ -53,7 +53,7 @@ export function createJevClient(options: {
     baseUrl: options.baseUrl ?? TYPESAFE_API_URL,
     // Bound so a Worker's global fetch keeps its `this`.
     fetch: options.fetch ?? ((...args) => fetch(...args)),
-  };
+  } satisfies JevClient;
 }
 
 /** A failed Jev call. Thrown, never turned into an answer, so the queue retries the job. */
@@ -174,7 +174,7 @@ export async function ask(client: JevClient, body: unknown, signal?: AbortSignal
 }
 
 /** Triage through Jev's judgments and the truth table. Errors throw; there is no fallback. */
-export async function triageWithJev(client: JevClient, input: TriageInput): Promise<TriageResult> {
+export async function triageWithJev(client: JevClient, input: TriageInput) {
   const response = await ask(client, jevTriageRequest(input, client.model));
   const nouls = (keys: readonly string[]) => {
     const judgments: Record<string, number> = {};
@@ -213,5 +213,5 @@ export async function triageWithJev(client: JevClient, input: TriageInput): Prom
       ),
     };
   }
-  return result;
+  return result satisfies TriageResult;
 }

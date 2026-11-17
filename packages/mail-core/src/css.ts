@@ -10,7 +10,7 @@ export const CSS_UNSAFE = /\\|image-set\s*\(|\bimage\s*\(|\bsrc\s*\(|expression\
  * whole sheet, and with it the sender's fonts and colours. Whatever is left is checked again
  * whole, so no escape survives to hide a fetch from the scans after this. One linear pass.
  */
-export function dropUnsafeRules(css: string): string {
+export function dropUnsafeRules(css: string) {
   let out = "";
   let copied = 0;
   let segment = 0;
@@ -36,7 +36,7 @@ export function dropUnsafeRules(css: string): string {
 // replace were quadratic on a run of "url(").
 
 /** Removes `@import` rules, each up to its `;` (or the end of the CSS). */
-export function removeImports(css: string): string {
+export function removeImports(css: string) {
   const pattern = /@import/gi;
   let out = "";
   let from = 0;
@@ -53,7 +53,7 @@ export function removeImports(css: string): string {
  * Replaces each `url(…)` with `replace(…)`. Returns null for an unterminated `url(`: browsers
  * close it at the end of the CSS and load it, so the whole CSS has to go.
  */
-export function replaceUrls(css: string, replace: (raw: string) => string): string | null {
+export function replaceUrls(css: string, replace: (raw: string) => string) {
   const pattern = /url\(/gi;
   let out = "";
   let from = 0;

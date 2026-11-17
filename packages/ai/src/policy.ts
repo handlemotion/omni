@@ -17,12 +17,12 @@ const TRUNCATION_MARKER = "\n[truncated]";
  * first message is left to the model, since its subject may carry the ask. Everything else,
  * including every other reader-sent message, needs a judgment.
  */
-export function triageByRule(input: TriageInput): TriageResult | null {
+export const triageByRule: (input: TriageInput) => TriageResult | null = (input) => {
   if (input.latestFromUs && input.messageCount > 1 && !/[\p{L}\p{N}]/u.test(input.latestText)) {
     return { bucket: "fyi", confidence: 1, source: "rule", usage: NO_USAGE };
   }
   return null;
-}
+};
 
 export type Lane = Bucket | "unsure";
 
@@ -30,18 +30,18 @@ export type Lane = Bucket | "unsure";
 export function laneFor(
   result: Pick<TriageResult, "bucket" | "confidence" | "source">,
   threshold = DEFAULT_AUTO_FILE_THRESHOLD,
-): Lane {
-  if (result.source === "rule") return result.bucket;
-  if (result.source === "fallback") return "unsure";
-  return result.confidence >= threshold ? result.bucket : "unsure";
+) {
+  if (result.source === "rule") return result.bucket satisfies Lane;
+  if (result.source === "fallback") return "unsure" satisfies Lane;
+  return (result.confidence >= threshold ? result.bucket : "unsure") satisfies Lane;
 }
 
-export function estimateTokens(text: string): number {
+export function estimateTokens(text: string) {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
 }
 
 /** Cuts text to roughly `maxTokens`, at a word boundary when one is near, and marks the cut. */
-export function truncateToTokens(text: string, maxTokens: number): string {
+export function truncateToTokens(text: string, maxTokens: number) {
   const maxChars = Math.max(0, Math.floor(maxTokens * CHARS_PER_TOKEN));
   if (text.length <= maxChars) return text;
   let cut = text.slice(0, Math.max(0, maxChars - TRUNCATION_MARKER.length));
@@ -58,16 +58,19 @@ export function truncateToTokens(text: string, maxTokens: number): string {
  * time, clamped to the month's last day (a Jan 31 anchor gives Feb 28, then Mar 31). A yearly
  * plan's allowance is monthly too, so it resets twelve times between invoices.
  */
-export function usageMonth(anchor: Date, now: Date): { start: Date; end: Date } {
+export const usageMonth: (anchor: Date, now: Date) => { start: Date; end: Date } = (
+  anchor,
+  now,
+) => {
   let k =
     (now.getUTCFullYear() - anchor.getUTCFullYear()) * 12 +
     (now.getUTCMonth() - anchor.getUTCMonth());
   if (addMonths(anchor, k) > now) k -= 1;
   else if (addMonths(anchor, k + 1) <= now) k += 1;
   return { start: addMonths(anchor, k), end: addMonths(anchor, k + 1) };
-}
+};
 
-function addMonths(anchor: Date, months: number): Date {
+function addMonths(anchor: Date, months: number) {
   const total = anchor.getUTCFullYear() * 12 + anchor.getUTCMonth() + months;
   const year = Math.floor(total / 12);
   const month = total - year * 12;
@@ -82,7 +85,7 @@ function addMonths(anchor: Date, months: number): Date {
       anchor.getUTCSeconds(),
       anchor.getUTCMilliseconds(),
     ),
-  );
+  ) satisfies Date;
 }
 
 /**
@@ -90,13 +93,13 @@ function addMonths(anchor: Date, months: number): Date {
  * period, exactly as Stripe set it. Otherwise (a yearly plan, or a renewal whose webhook has not
  * landed yet) it is the `usageMonth` stepped from the period start.
  */
-export function usagePeriod(
+export const usagePeriod: (
   billing: { periodStart: Date; periodEnd: Date | null; interval: string | null },
   now: Date,
-): { start: Date; end: Date } {
+) => { start: Date; end: Date } = (billing, now) => {
   const { periodStart, periodEnd, interval } = billing;
   if (interval !== "year" && periodEnd && periodStart <= now && now < periodEnd) {
     return { start: periodStart, end: periodEnd };
   }
   return usageMonth(periodStart, now);
-}
+};

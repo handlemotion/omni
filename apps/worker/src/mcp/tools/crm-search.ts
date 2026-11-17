@@ -48,17 +48,15 @@ const outputSchema = z.object({
 type Found = { people: CrmPerson[]; companies: CrmCompany[]; deals: CrmDeal[] };
 
 /** One workspace's matches, or a refusal sentence. */
-async function findIn(
-  context: ToolContext,
-  workspace: CrmWorkspace,
-  input: Input,
-): Promise<Found | { error: string }> {
+async function findIn(context: ToolContext, workspace: CrmWorkspace, input: Input) {
   const crm = crmOf(context, workspace);
   const dealsOnly = input.stage_kind !== undefined || input.owner !== undefined;
   const wants = (kind: Input["kind"]) =>
     (input.kind === undefined || input.kind === kind) && (!dealsOnly || kind === "deal");
   if (dealsOnly && input.kind && input.kind !== "deal") {
-    return { error: "`stage_kind` and `owner` only find deals." };
+    return { error: "`stage_kind` and `owner` only find deals." } satisfies
+      | Found
+      | { error: string };
   }
   const q = input.query.trim();
   const found: Found = { people: [], companies: [], deals: [] };
@@ -66,37 +64,41 @@ async function findIn(
   // Words alone: the search pickers use, matching addresses and domains too.
   if (q && !dealsOnly) {
     const matches = await crm.search({ q, limit: input.limit });
-    if (matches.status !== "ok") return { error: refusalText(matches) };
+    if (matches.status !== "ok")
+      return { error: refusalText(matches) } satisfies Found | { error: string };
     return {
       people: wants("person") ? matches.people : [],
       companies: wants("company") ? matches.companies : [],
       deals: wants("deal") ? matches.deals : [],
-    };
+    } satisfies Found | { error: string };
   }
   if (wants("person")) {
     const people = await crm.listPeople({ q, limit: input.limit });
-    if (people.status !== "ok") return { error: refusalText(people) };
+    if (people.status !== "ok")
+      return { error: refusalText(people) } satisfies Found | { error: string };
     found.people = people.people;
   }
   if (wants("company")) {
     const companies = await crm.listCompanies({ q, limit: input.limit });
-    if (companies.status !== "ok") return { error: refusalText(companies) };
+    if (companies.status !== "ok")
+      return { error: refusalText(companies) } satisfies Found | { error: string };
     found.companies = companies.companies;
   }
   if (wants("deal")) {
     const owner = input.owner ? await teammate(context, workspace, input.owner) : undefined;
     // An owner who is not in this workspace owns nothing here.
-    if (owner === null) return found;
+    if (owner === null) return found satisfies Found | { error: string };
     const deals = await crm.listDeals({
       q,
       kind: input.stage_kind,
       ownerMemberId: owner,
       limit: input.limit,
     });
-    if (deals.status !== "ok") return { error: refusalText(deals) };
+    if (deals.status !== "ok")
+      return { error: refusalText(deals) } satisfies Found | { error: string };
     found.deals = deals.deals;
   }
-  return found;
+  return found satisfies Found | { error: string };
 }
 
 async function search(context: ToolContext, input: Input) {

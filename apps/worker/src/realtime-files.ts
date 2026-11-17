@@ -29,13 +29,13 @@ export interface Editing {
 /** Everything a socket's attachment holds: its conversation presence's fields and its file. */
 type Attachment = Record<string, unknown> & { file?: Editing };
 
-export function attachmentOf(socket: WebSocket): Attachment | null {
+export const attachmentOf: (socket: WebSocket) => Attachment | null = (socket) => {
   try {
     return (socket.deserializeAttachment() as Attachment | null) ?? null;
   } catch {
     return null;
   }
-}
+};
 
 /**
  * Sets the socket's conversation presence (`realtime.ts`), or clears it with null, and keeps the
@@ -120,11 +120,11 @@ function withoutFile(socket: WebSocket) {
 }
 
 /** The file as `memberId` reaches it now, or null when they no longer do (or it is in Trash). */
-export async function checkEditing(
+export const checkEditing: (
   env: Env,
   memberId: string,
   nodeId: string,
-): Promise<Editing | null> {
+) => Promise<Editing | null> = async (env, memberId, nodeId) => {
   const { db, close } = openDb(env, 1);
   let found;
   try {
@@ -140,7 +140,7 @@ export async function checkEditing(
     locked: !!found.file.lockedAt,
     checkedAt: Date.now(),
   };
-}
+};
 
 /** Keeps a fresh check of the file the socket edits (its access, its drive, its lock). */
 export function setEditing(socket: WebSocket, at: Editing) {

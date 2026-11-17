@@ -22,7 +22,7 @@ type Owner = "users" | "orgs";
  * The image type from the file's first bytes, or null. The declared type is the client's word;
  * these are the only types we serve inline on our origin, so they are checked, never trusted.
  */
-function sniffImageType(bytes: Uint8Array): string | null {
+function sniffImageType(bytes: Uint8Array) {
   const starts = (sig: number[], at = 0) => sig.every((b, i) => bytes[at + i] === b);
   if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
   if (starts([0xff, 0xd8, 0xff])) return "image/jpeg";

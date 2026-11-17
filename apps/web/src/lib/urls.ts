@@ -21,7 +21,7 @@ export function messageHtmlUrl(threadId: string, messageId: string) {
  * so a picture on another site (a Google account's photo) goes through the image proxy, which
  * also keeps that site from seeing the reader. `data:` and same-origin pictures pass as they are.
  */
-export function pictureUrl(src: string | null | undefined): string | null {
+export function pictureUrl(src: string | null | undefined) {
   if (!src) return null;
   if (!/^https?:\/\//i.test(src) || new URL(src).origin === window.location.origin) return src;
   return api["image-proxy"].$url({ query: { url: src } }).toString();

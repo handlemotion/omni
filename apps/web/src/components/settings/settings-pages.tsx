@@ -37,7 +37,7 @@ export interface PageDefinition {
 /** A Central icon (round outlined, stroke 1.5) at the nav's 15px icon size. */
 const glyph = (Icon: ComponentType<{ className?: string }>) => <Icon className="size-icon" />;
 
-export function useAccountPages(): PageDefinition[] {
+export const useAccountPages: () => PageDefinition[] = () => {
   const { user } = useMember();
   const name = user.name || user.email;
   return useMemo(
@@ -90,7 +90,7 @@ export function useAccountPages(): PageDefinition[] {
     ],
     [name, user.image],
   );
-}
+};
 
 /** The active workspace's pages, under the workspace switcher in the nav. */
 export const WORKSPACE_PAGES: PageDefinition[] = [

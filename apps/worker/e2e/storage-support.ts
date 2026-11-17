@@ -78,7 +78,7 @@ export async function startStorageStack(options: {
     bytes: Uint8Array,
     mimeType?: string,
     base = "",
-  ): Promise<StorageNode> {
+  ) {
     const opened = await api(jar, "POST", `${base}/uploads`, {
       name,
       size: bytes.length,
@@ -95,7 +95,7 @@ export async function startStorageStack(options: {
     }
     const done = await api(jar, "POST", `${base}/uploads/${id}/complete`);
     if (done.status !== 200) throw new Error(`complete ${name}: ${done.status}`);
-    return done.body.node;
+    return done.body.node as StorageNode;
   }
 
   /** A GET whose answer is read by the caller: bytes, headers. */
@@ -131,7 +131,7 @@ export async function startStorageStack(options: {
       return env.STORAGE_BUCKET;
     },
     /** Runs a cron the way Cloudflare does, and answers how it ended. */
-    async cron(cron: "* * * * *" | "47 3 * * *"): Promise<string> {
+    async cron(cron: "* * * * *" | "47 3 * * *") {
       return (await worker.server.getWorker().scheduled({ cron })).outcome;
     },
     async usedBytes(orgId: string) {

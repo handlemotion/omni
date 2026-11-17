@@ -570,7 +570,7 @@ describe("sync into Postgres against GreenMail", () => {
   });
 });
 
-function htmlWithAttachments(): string {
+function htmlWithAttachments() {
   const b64 = (text: string) => Buffer.from(text).toString("base64");
   return [
     "From: finance@outside.test",
@@ -609,7 +609,7 @@ function htmlWithAttachments(): string {
 
 let counter = 0;
 
-function raw(input: { subject: string; id?: string; inReplyTo?: string; body?: string }): string {
+function raw(input: { subject: string; id?: string; inReplyTo?: string; body?: string }) {
   return [
     "From: someone@outside.test",
     "To: me@omni.test",

@@ -325,11 +325,11 @@ export function useDraft(
     return state.current.id;
   }, [client]);
 
-  const flush = useCallback((): Promise<string | undefined> => {
+  const flush = useCallback(() => {
     clearTimeout(timer.current);
     const next = queue.current.then(saveOnce, saveOnce);
     queue.current = next;
-    return next;
+    return next satisfies Promise<string | undefined>;
   }, [saveOnce]);
 
   const save = useCallback(

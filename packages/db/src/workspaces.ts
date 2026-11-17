@@ -24,12 +24,12 @@ function currentStep(orgId: string) {
 }
 
 /** Where `orgId`'s setup stands. */
-export async function orgSetupStep(db: Db, orgId: string): Promise<SetupStep> {
+export async function orgSetupStep(db: Db, orgId: string) {
   const [row] = await db
     .select({ step: sql<SetupStep>`${currentStep(orgId)}` })
     .from(organizations)
     .where(eq(organizations.id, orgId));
-  return row?.step ?? "created";
+  return (row?.step ?? "created") satisfies SetupStep;
 }
 
 /**
@@ -43,7 +43,7 @@ export async function advanceOrgSetup(
   orgId: string,
   step: SetupStep,
   options: { onlyFrom?: SetupStep } = {},
-): Promise<SetupStep> {
+) {
   const current = currentStep(orgId);
   await db.execute(sql`
     insert into ${orgSetup} (org_id, step)
@@ -51,7 +51,7 @@ export async function advanceOrgSetup(
     ${options.onlyFrom ? sql`where ${current} >= ${options.onlyFrom}::setup_step` : sql``}
     on conflict (org_id) do update
       set step = greatest(${orgSetup.step}, excluded.step), updated_at = now()`);
-  return orgSetupStep(db, orgId);
+  return orgSetupStep(db, orgId) satisfies Promise<SetupStep>;
 }
 
 export interface Workspace {
@@ -78,7 +78,7 @@ export async function listUserWorkspaces(
   db: Db,
   userId: string,
   options: { includePersonal?: boolean } = {},
-): Promise<Workspace[]> {
+) {
   const [orgs, boxes] = await Promise.all([
     db
       .select({
@@ -109,5 +109,5 @@ export async function listUserWorkspaces(
     mailboxes: boxes
       .filter((box) => box.orgId === org.id)
       .map(({ id, address, kind }) => ({ id, address, kind })),
-  }));
+  })) satisfies Workspace[];
 }

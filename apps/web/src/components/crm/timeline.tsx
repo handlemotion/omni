@@ -175,7 +175,7 @@ function Item(props: { item: CrmTimelineItem; names: Names; stages: CrmStage[] }
 type EventItem = Extract<CrmTimelineItem, { kind: "event" }>["event"];
 
 /** What an event says, or null for a kind this app does not show. */
-function eventText(event: EventItem, stages: CrmStage[]): string | null {
+function eventText(event: EventItem, stages: CrmStage[]) {
   const data = event.data as Record<string, unknown>;
   const text = (key: string) => (typeof data[key] === "string" ? (data[key] as string) : "");
   switch (event.kind) {

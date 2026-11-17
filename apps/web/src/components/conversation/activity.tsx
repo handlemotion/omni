@@ -69,7 +69,7 @@ function usePeople(mailboxId: string) {
 function useDescribe(mailboxId: string) {
   const people = usePeople(mailboxId);
   const { data: tags = [] } = useTags(mailboxId);
-  return (event: ConversationEvent): string | null => {
+  return (event: ConversationEvent) => {
     const data = event.data as Record<string, unknown>;
     const actor = event.actorMemberId ? people.name(event.actorMemberId) : null;
     switch (event.kind) {

@@ -16,7 +16,7 @@ export interface QueuedEvent {
 }
 
 /** What makes a queued event durable: its row id, or its message for `message.created`. */
-function durableKey({ event, pendingId }: QueuedEvent): string | null {
+function durableKey({ event, pendingId }: QueuedEvent) {
   if (pendingId) return `pending:${pendingId}`;
   return event.type === "message.created" ? `message:${event.messageId}` : null;
 }
@@ -62,7 +62,7 @@ export class WorkerNotifier {
   }
 
   /** `pendingId`: the event's `pending_mail_events` row, deleted once the Worker accepts it. */
-  push(event: MailEvent, pendingId?: string): void {
+  push(event: MailEvent, pendingId?: string) {
     if (this.stopped) return;
     const key = durableKey({ event, pendingId });
     if (key) {
@@ -77,7 +77,7 @@ export class WorkerNotifier {
   }
 
   /** Sends everything queued so far. Concurrent calls share one flush. */
-  flush(): Promise<void> {
+  flush() {
     this.flushing ??= (async () => {
       while (this.queue.length > 0) {
         const batch = this.queue.splice(0, MAX_EVENTS_PER_REQUEST);
@@ -99,7 +99,7 @@ export class WorkerNotifier {
   }
 
   /** Stops retrying and sends what is queued once. */
-  async stop(): Promise<void> {
+  async stop() {
     this.stopped = true;
     this.wake?.();
     if (this.timer) clearTimeout(this.timer);
@@ -108,7 +108,7 @@ export class WorkerNotifier {
   }
 
   /** True once the Worker accepted the batch; false when it was dropped. */
-  private async deliver(events: MailEvent[]): Promise<boolean> {
+  private async deliver(events: MailEvent[]) {
     const body = JSON.stringify({ events });
     const log = this.options.logger;
     for (let attempt = 1; ; attempt++) {

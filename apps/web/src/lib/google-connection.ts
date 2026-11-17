@@ -45,16 +45,16 @@ export type GoogleOutcome =
   | { kind: "connected"; mailboxId: string | null }
   | { kind: "error"; reason: string };
 
-export function readGoogleOutcome(search: string): GoogleOutcome | null {
+export const readGoogleOutcome: (search: string) => GoogleOutcome | null = (search) => {
   const params = new URLSearchParams(search);
   const google = params.get("google");
   if (google === "connected") return { kind: "connected", mailboxId: params.get("mailboxId") };
   if (google === "error") return { kind: "error", reason: params.get("reason") ?? "failed" };
   return null;
-}
+};
 
 /** What went wrong, in words, for each reason the Worker returns. */
-export function googleErrorText(reason: string): string {
+export function googleErrorText(reason: string) {
   switch (reason) {
     case "denied":
       return "Google wasn't given access. Try again and allow Omni to read and send mail.";

@@ -72,11 +72,11 @@ async function resolveAddress(c: Context<AppEnv>, placement: MailboxPlacement) {
 }
 
 /** The login the mail service provisions with: none on Omni's host, a checked one on `imap`. */
-function loginFor(
+const loginFor: (
   domain: { provider: string; domain: string; addedAt: Date | null },
   address: string,
   placement: MailboxPlacement,
-): ProvisionMailboxBody["login"] {
+) => ProvisionMailboxBody["login"] = (domain, address, placement) => {
   if (domain.provider === "purelymail") {
     if (placement.login)
       throw new HTTPException(400, { message: "This mailbox takes no password." });
@@ -101,7 +101,7 @@ function loginFor(
     };
   }
   throw new HTTPException(409, { message: `${domain.provider} is not supported yet` });
-}
+};
 
 /**
  * Provisions the mailbox, or returns the existing one at that address. `ownerMemberId` gets the

@@ -33,12 +33,7 @@ export class DomainWatch extends DurableObject<Env> {
    * Starts or renews the watch. `reset` (the page came back into focus, so someone may have just
    * saved a record) restarts the backoff from 5 s. Returns when the next check runs.
    */
-  async watch(input: {
-    claimId: string;
-    orgId: string;
-    memberId: string;
-    reset: boolean;
-  }): Promise<{ nextCheckAt: number }> {
+  async watch(input: { claimId: string; orgId: string; memberId: string; reset: boolean }) {
     const now = Date.now();
     const previous = await this.ctx.storage.get<WatchState>("state");
     const fresh = !previous || input.reset || previous.leaseUntil < now;
@@ -53,9 +48,9 @@ export class DomainWatch extends DurableObject<Env> {
     const alarm = await this.ctx.storage.getAlarm();
     if (alarm === null || (fresh && alarm > due)) {
       await this.ctx.storage.setAlarm(due);
-      return { nextCheckAt: due };
+      return { nextCheckAt: due } satisfies { nextCheckAt: number };
     }
-    return { nextCheckAt: alarm };
+    return { nextCheckAt: alarm } satisfies { nextCheckAt: number };
   }
 
   override async alarm() {
@@ -77,7 +72,7 @@ export class DomainWatch extends DurableObject<Env> {
   }
 
   /** One check, then the push. False when there is nothing left to wait for. */
-  private async check(state: WatchState): Promise<boolean> {
+  private async check(state: WatchState) {
     const config = loadConfig(this.env);
     const requestId = crypto.randomUUID();
     const log = createLogger({ component: "domain-watch", orgId: state.orgId, requestId });

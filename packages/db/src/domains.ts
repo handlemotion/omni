@@ -106,9 +106,9 @@ export async function openClaim(
     dnsRecords: MailDomainRecord[];
     now?: Date;
   },
-): Promise<{ claim: DomainClaim; created: boolean } | { error: "cap" }> {
+) {
   const now = input.now ?? new Date();
-  return db.transaction(async (tx) => {
+  return db.transaction<{ claim: DomainClaim; created: boolean } | { error: "cap" }>(async (tx) => {
     // A Personal space may own its person's domain too (ADR 0042).
     await tx.execute(advisoryLock(`claims:${input.orgId}`));
     const [existing] = await tx
@@ -191,12 +191,12 @@ export async function touchClaim(db: Db, claimId: string, check?: DomainCheck, n
 }
 
 /** Member ids of the org's owners and admins: who sees a domain's progress live. */
-export async function orgDomainAdmins(db: Db, orgId: string): Promise<string[]> {
+export async function orgDomainAdmins(db: Db, orgId: string) {
   const rows = await db
     .select({ id: members.id })
     .from(members)
     .where(and(eq(members.organizationId, orgId), inArray(members.role, DOMAIN_ADMIN_ROLES)));
-  return rows.map((r) => r.id);
+  return rows.map((r) => r.id) satisfies string[];
 }
 
 export type LockResult =
@@ -210,13 +210,16 @@ export type LockResult =
  * row wins); move the claim from pending to verified only if it still is pending and unexpired.
  * `locked` is false when the org already held the lock (a repeat is a no-op).
  */
-export async function lockClaim(db: Db, claim: DomainClaim, now = new Date()): Promise<LockResult> {
+export async function lockClaim(db: Db, claim: DomainClaim, now = new Date()) {
   return db
-    .transaction(async (tx): Promise<LockResult> => {
+    .transaction(async (tx) => {
       // Parent and child claims race too (acme.com vs mail.acme.com): one key for both.
       await tx.execute(advisoryLock(`lock:${claim.domain.split(".").slice(-2).join(".")}`));
       const conflict = await conflictingLock(tx as unknown as Db, claim.orgId, claim.domain);
-      if (conflict) return { ok: false, reason: "taken", by: conflict.domain };
+      if (conflict) {
+        const result: LockResult = { ok: false, reason: "taken", by: conflict.domain };
+        return result;
+      }
 
       // The mail host already serves the domain: its own IMAP host (ADR 0007), or Google, where
       // the company's Gmail accounts connect one by one (ADR 0024).
@@ -243,7 +246,10 @@ export async function lockClaim(db: Db, claim: DomainClaim, now = new Date()): P
           .select(lockFields)
           .from(mailDomains)
           .where(and(eq(mailDomains.domain, claim.domain), eq(mailDomains.orgId, claim.orgId)));
-        if (!lock) return { ok: false, reason: "taken", by: claim.domain };
+        if (!lock) {
+          const result: LockResult = { ok: false, reason: "taken", by: claim.domain };
+          return result;
+        }
       }
 
       const [verified] = await tx
@@ -267,12 +273,13 @@ export async function lockClaim(db: Db, claim: DomainClaim, now = new Date()): P
           tx.rollback();
         }
       }
-      return { ok: true, lock, locked: inserted !== undefined };
+      const result: LockResult = { ok: true, lock, locked: inserted !== undefined };
+      return result;
     })
     .catch((error: unknown) => {
       if (isRollback(error)) return { ok: false, reason: "expired" } satisfies LockResult;
       throw error;
-    });
+    }) satisfies Promise<LockResult>;
 }
 
 function isRollback(error: unknown) {
@@ -284,7 +291,7 @@ function isRollback(error: unknown) {
  * Idempotent: `addedAt` keeps its first time while the provider lists the domain, `verifiedAt` the
  * time every record first passed; each clears when that stops being true.
  */
-export async function saveMailDomain(
+export const saveMailDomain: (
   db: Db,
   input: {
     orgId: string;
@@ -294,7 +301,7 @@ export async function saveMailDomain(
     added: boolean;
     verified: boolean;
   },
-): Promise<MailDomain | null> {
+) => Promise<MailDomain | null> = async (db, input) => {
   const now = new Date();
   // A raw Date in a `sql` template is not typed for the driver: pass it as a timestamptz.
   const at = sql`${now.toISOString()}::timestamptz`;
@@ -313,17 +320,17 @@ export async function saveMailDomain(
     .where(and(eq(mailDomains.domain, input.domain), eq(mailDomains.orgId, input.orgId)))
     .returning(lockFields);
   return row ?? null;
-}
+};
 
 /**
  * Records whether a locked domain's challenge still verifies, and says if that changed: `lost`
  * the first time it is gone (sending from it pauses), `restored` when it is back. Each transition
  * is one conditional update, so two checks at once report it once.
  */
-export async function recordChallengeState(
+export const recordChallengeState: (
   db: Db,
   input: { orgId: string; domain: string; ok: boolean; now?: Date },
-): Promise<"lost" | "restored" | null> {
+) => Promise<"lost" | "restored" | null> = async (db, input) => {
   const now = input.now ?? new Date();
   const where = and(eq(mailDomains.domain, input.domain), eq(mailDomains.orgId, input.orgId));
   const [changed] = await db
@@ -333,7 +340,7 @@ export async function recordChallengeState(
     .returning({ id: mailDomains.id });
   if (!changed) return null;
   return input.ok ? "restored" : "lost";
-}
+};
 
 export type HandOverResult =
   | { ok: true }
@@ -343,12 +350,9 @@ export type HandOverResult =
  * Gives up `orgId`'s lock on `domain`: anyone can claim it again. Refused while the org has
  * mailboxes on it, since their mail rows belong to the org.
  */
-export async function releaseDomain(
-  db: Db,
-  input: { orgId: string; domain: string; now?: Date },
-): Promise<HandOverResult> {
+export async function releaseDomain(db: Db, input: { orgId: string; domain: string; now?: Date }) {
   const now = input.now ?? new Date();
-  return db.transaction(async (tx) => {
+  return db.transaction<HandOverResult>(async (tx) => {
     if ((await countMailboxesOnDomain(tx as unknown as Db, input.orgId, input.domain)) > 0) {
       return { ok: false, reason: "has_mailboxes" } as const;
     }
@@ -371,10 +375,7 @@ export async function releaseDomain(
  * lock; adding the domain again opens a new claim with a new value. False when there is no such
  * claim, or it verified meanwhile (that one is released with `releaseDomain`).
  */
-export async function withdrawClaim(
-  db: Db,
-  input: { orgId: string; claimId: string; now?: Date },
-): Promise<boolean> {
+export async function withdrawClaim(db: Db, input: { orgId: string; claimId: string; now?: Date }) {
   const now = input.now ?? new Date();
   const [withdrawn] = await db
     .update(domainClaims)
@@ -398,9 +399,9 @@ export async function withdrawClaim(
 export async function transferDomain(
   db: Db,
   input: { fromOrgId: string; toOrgId: string; domain: string; now?: Date },
-): Promise<HandOverResult> {
+) {
   const now = input.now ?? new Date();
-  return db.transaction(async (tx) => {
+  return db.transaction<HandOverResult>(async (tx) => {
     // Domains belong to companies (ADR 0024).
     if ((await workspaceKind(tx, input.toOrgId)) === "personal") {
       return { ok: false, reason: "personal_space" } as const;
@@ -447,7 +448,7 @@ export async function listVerifiedLocks(db: Db) {
 }
 
 /** True when sending from `domain` is paused because its challenge left DNS. */
-export async function sendingPaused(db: Db, domain: string): Promise<boolean> {
+export async function sendingPaused(db: Db, domain: string) {
   const [row] = await db
     .select({ id: mailDomains.id })
     .from(mailDomains)
@@ -468,7 +469,7 @@ const adminOf = (
   );
 
 /** The member's org's domains, each with its claim and lock, oldest first. */
-export async function listMemberDomains(db: Db, memberId: string): Promise<DomainSetup[]> {
+export async function listMemberDomains(db: Db, memberId: string) {
   const [claims, locks] = await Promise.all([
     db
       .select({ claim: domainClaims })
@@ -489,7 +490,7 @@ export async function listMemberDomains(db: Db, memberId: string): Promise<Domai
   for (const lock of locks) {
     if (!setups.some((s) => s.lock?.domain === lock.domain)) setups.push({ claim: null, lock });
   }
-  return setups;
+  return setups satisfies DomainSetup[];
 }
 
 /** One of the member's org's domains, by claim id or (for a legacy lock) lock id. */
@@ -510,14 +511,14 @@ export async function findOrgDomain(db: Db, orgId: string, domain: string) {
 }
 
 /** Owners' addresses, for telling them their domain changed hands or lost its DNS. */
-export async function orgOwnerEmails(db: Db, orgId: string): Promise<string[]> {
+export async function orgOwnerEmails(db: Db, orgId: string) {
   const rows = await db
     .select({ email: users.email })
     .from(members)
     .innerJoin(users, eq(users.id, members.userId))
     .where(and(eq(members.organizationId, orgId), eq(members.role, "owner")))
     .orderBy(asc(users.email));
-  return rows.map((r) => r.email);
+  return rows.map((r) => r.email) satisfies string[];
 }
 
 /** The member's role in `orgId`, or null when they are not in it (for transfers between orgs). */

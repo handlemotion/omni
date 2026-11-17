@@ -47,7 +47,7 @@ const LABEL = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
  * as a key, where a malformed one (`ana@acme.com,bob`, `<ana@acme.com>`) would be stored and never
  * match.
  */
-export function parseAddress(input: string): string | null {
+export function parseAddress(input: string) {
   const address = normalizeAddress(input);
   const at = address.indexOf("@");
   if (at <= 0 || at !== address.lastIndexOf("@")) return null;

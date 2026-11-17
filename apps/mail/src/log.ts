@@ -29,7 +29,7 @@ export function createLogger(
   level: LogLevel = "info",
   base: Record<string, unknown> = {},
   options: LoggerOptions = {},
-): Logger {
+) {
   const sink = options.write ?? ((line: string) => process.stdout.write(`${line}\n`));
   const write = (at: LogLevel, event: string, fields?: Record<string, unknown>) => {
     if (at === "error") options.report?.(event, { ...base, ...fields });
@@ -37,16 +37,17 @@ export function createLogger(
     const line = { time: new Date().toISOString(), level: at, event, ...base, ...fields };
     sink(JSON.stringify(line, replacer));
   };
-  return {
+  const logger: Logger = {
     debug: (event, fields) => write("debug", event, fields),
     info: (event, fields) => write("info", event, fields),
     warn: (event, fields) => write("warn", event, fields),
     error: (event, fields) => write("error", event, fields),
     child: (fields) => createLogger(level, { ...base, ...fields }, options),
   };
+  return logger;
 }
 
-function replacer(_key: string, value: unknown): unknown {
+const replacer: (_key: string, value: unknown) => unknown = (_key, value) => {
   if (typeof value === "bigint") return value.toString();
   if (value instanceof Error) {
     // `code` (ECONNRESET, ETIMEOUT, ...) tells a network fault from a server refusal at a glance.
@@ -60,4 +61,4 @@ function replacer(_key: string, value: unknown): unknown {
     };
   }
   return value;
-}
+};

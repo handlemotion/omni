@@ -52,16 +52,18 @@ export interface Diagnostic {
 }
 
 /** The lookups a record's diagnosis needs: its own type, and whatever could conflict with it. */
-export function queriesFor(record: ExpectedRecord): { name: string; type: RecordType }[] {
-  return record.type === "CNAME"
-    ? [
-        { name: record.name, type: "CNAME" },
-        { name: record.name, type: "TXT" },
-      ]
-    : [
-        { name: record.name, type: record.type },
-        { name: record.name, type: "CNAME" },
-      ];
+export function queriesFor(record: ExpectedRecord) {
+  return (
+    record.type === "CNAME"
+      ? [
+          { name: record.name, type: "CNAME" },
+          { name: record.name, type: "TXT" },
+        ]
+      : [
+          { name: record.name, type: record.type },
+          { name: record.name, type: "CNAME" },
+        ]
+  ) satisfies { name: string; type: RecordType }[];
 }
 
 export type Answers = Partial<Record<RecordType, DnsAnswer>>;
@@ -78,16 +80,16 @@ export function diagnose(
   record: ExpectedRecord,
   answers: Answers,
   options: { matched?: boolean } = {},
-): Diagnostic {
+) {
   const own = answers[record.type];
   if (own?.status === "error") {
     return {
       status: "unknown",
       message: "The domain's nameservers did not answer. Check again in a moment.",
       found: [],
-    };
+    } satisfies Diagnostic;
   }
-  if (record.type === "CNAME") return diagnoseCname(record, answers);
+  if (record.type === "CNAME") return diagnoseCname(record, answers) satisfies Diagnostic;
 
   const cname = values(answers.CNAME);
   if (cname.length > 0) {
@@ -95,14 +97,14 @@ export function diagnose(
       status: "cname_conflict",
       message: `${record.name} is a CNAME to ${cname[0]}. A CNAME cannot share its name with other records: remove it, then add this ${record.type} record.`,
       found: cname.map(host),
-    };
+    } satisfies Diagnostic;
   }
-  if (record.type === "MX") return diagnoseMx(record, values(own));
-  if (SPF.test(record.value)) return diagnoseSpf(record, values(own));
+  if (record.type === "MX") return diagnoseMx(record, values(own)) satisfies Diagnostic;
+  if (SPF.test(record.value)) return diagnoseSpf(record, values(own)) satisfies Diagnostic;
 
   const found = values(own);
   const ok = options.matched ?? found.some((v) => v.trim() === record.value.trim());
-  if (ok) return { status: "ok", message: "Found.", found };
+  if (ok) return { status: "ok", message: "Found.", found } satisfies Diagnostic;
   // Unrelated TXT records (site verifications, SPF) can share the name; only ones that look like
   // an attempt at this record are shown as wrong.
   const prefix = record.value.split("=")[0]!;
@@ -112,12 +114,15 @@ export function diagnose(
       status: "wrong_value",
       message: "A record is there with another value. Replace it with the value above.",
       found: attempts,
-    };
+    } satisfies Diagnostic;
   }
-  return { status: "missing", message: "Not found yet.", found: [] };
+  return { status: "missing", message: "Not found yet.", found: [] } satisfies Diagnostic;
 }
 
-function diagnoseCname(record: ExpectedRecord, answers: Answers): Diagnostic {
+const diagnoseCname: (record: ExpectedRecord, answers: Answers) => Diagnostic = (
+  record,
+  answers,
+) => {
   const target = values(answers.CNAME).map(host);
   if (target.includes(host(record.value)))
     return { status: "ok", message: "Found.", found: target };
@@ -137,34 +142,39 @@ function diagnoseCname(record: ExpectedRecord, answers: Answers): Diagnostic {
     };
   }
   return { status: "missing", message: "Not found yet.", found: [] };
-}
+};
 
-function diagnoseMx(record: ExpectedRecord, found: string[]): Diagnostic {
+function diagnoseMx(record: ExpectedRecord, found: string[]) {
   const ours = host(record.value);
   const hosts = found.map((v) => host(v.split(/\s+/).at(-1)!));
   const others = found.filter((_, i) => hosts[i] !== ours);
-  if (hosts.includes(ours) && others.length === 0)
-    return { status: "ok", message: "Found.", found };
+  if (hosts.includes(ours) && others.length === 0) {
+    const result: Diagnostic = { status: "ok", message: "Found.", found };
+    return result;
+  }
   if (hosts.includes(ours)) {
-    return {
+    const result: Diagnostic = {
       status: "mx_extra",
       message:
         "Other MX records are still there, so some mail would still go to them. Remove them.",
       found: others,
     };
+    return result;
   }
   if (others.length > 0) {
-    return {
+    const result: Diagnostic = {
       status: "mx_elsewhere",
       message:
         "Mail for this domain goes to another host today. Replace those MX records with this one: new mail arrives in Omni from then on, and mail already delivered stays where it is.",
       found: others,
     };
+    return result;
   }
-  return { status: "missing", message: "Not found yet.", found: [] };
+  const result: Diagnostic = { status: "missing", message: "Not found yet.", found: [] };
+  return result;
 }
 
-function diagnoseSpf(record: ExpectedRecord, found: string[]): Diagnostic {
+function diagnoseSpf(record: ExpectedRecord, found: string[]) {
   const spf = found.filter((v) => SPF.test(v.trim()));
   const includes = record.value
     .split(/\s+/)
@@ -173,31 +183,39 @@ function diagnoseSpf(record: ExpectedRecord, found: string[]): Diagnostic {
     const terms = value.toLowerCase().split(/\s+/);
     return includes.every((term) => terms.includes(term.toLowerCase()));
   };
-  if (spf.length === 0) return { status: "missing", message: "Not found yet.", found: [] };
+  if (spf.length === 0) {
+    const result: Diagnostic = { status: "missing", message: "Not found yet.", found: [] };
+    return result;
+  }
   if (spf.length > 1) {
-    return {
+    const result: Diagnostic = {
       status: "spf_multiple",
       message:
         "There are several SPF records, and receivers then ignore them all. Replace them with this one record:",
       found: spf,
       suggestion: mergeSpf(spf, includes),
     };
+    return result;
   }
-  if (covers(spf[0]!)) return { status: "ok", message: "Found.", found: spf };
-  return {
+  if (covers(spf[0]!)) {
+    const result: Diagnostic = { status: "ok", message: "Found.", found: spf };
+    return result;
+  }
+  const result: Diagnostic = {
     status: "spf_merge",
     message:
       "An SPF record already exists. A domain can have only one, so edit it to this instead of adding a second:",
     found: spf,
     suggestion: mergeSpf(spf, includes),
   };
+  return result;
 }
 
 /**
  * One SPF record holding every mechanism of `existing` plus `includes`, ending in the first
  * record's `all` (or `~all`). Duplicates are dropped; `redirect=` is kept from the first record.
  */
-export function mergeSpf(existing: string[], includes: string[]): string {
+export function mergeSpf(existing: string[], includes: string[]) {
   const terms: string[] = [];
   let all: string | undefined;
   for (const record of existing) {
@@ -307,7 +325,9 @@ const PROVIDERS: (DnsProvider & { nameservers: RegExp })[] = [
 ];
 
 /** The DNS host behind these nameservers, if it is one we have steps for. */
-export function detectDnsProvider(nameservers: readonly string[]): DnsProvider | null {
+export const detectDnsProvider: (nameservers: readonly string[]) => DnsProvider | null = (
+  nameservers,
+) => {
   for (const ns of nameservers.map(host)) {
     const match = PROVIDERS.find((p) => p.nameservers.test(ns));
     if (match) {
@@ -316,7 +336,7 @@ export function detectDnsProvider(nameservers: readonly string[]): DnsProvider |
     }
   }
   return null;
-}
+};
 
 // Domain Connect (https://www.domainconnect.org), the open standard for applying a service's
 // records at the DNS host with one click. Discovery: a `_domainconnect` TXT on the zone names the
@@ -330,7 +350,9 @@ export interface DomainConnectSettings {
 }
 
 /** The settings document, or null when it is not one (missing fields, or not https). */
-export function parseDomainConnectSettings(json: unknown): DomainConnectSettings | null {
+export const parseDomainConnectSettings: (json: unknown) => DomainConnectSettings | null = (
+  json,
+) => {
   const s = json as Partial<Record<keyof DomainConnectSettings, unknown>> | null;
   // Both come from the DNS host's own server: bound them before any pattern sees them.
   const https = (v: unknown) =>
@@ -344,10 +366,10 @@ export function parseDomainConnectSettings(json: unknown): DomainConnectSettings
     urlSyncUX: trimSlashes(s.urlSyncUX as string),
     urlAPI: trimSlashes(s.urlAPI as string),
   };
-}
+};
 
 /** The API host a `_domainconnect` TXT names (`api.example.com/path`), or null. */
-export function domainConnectHost(txt: readonly string[]): string | null {
+export function domainConnectHost(txt: readonly string[]) {
   const value = txt
     .map((v) => v.trim())
     .find((v) => v.length <= MAX_URL && /^[a-z0-9.-]+(\/[\w./-]*)?$/i.test(v));
@@ -361,7 +383,7 @@ const MAX_URL = 2048;
  * Drops trailing slashes. A loop, not `/\/+$/`: that pattern is quadratic on a long run of
  * slashes that does not end the string, and these values come from someone else's server.
  */
-function trimSlashes(value: string): string {
+function trimSlashes(value: string) {
   let end = value.length;
   while (end > 0 && value[end - 1] === "/") end--;
   return value.slice(0, end);
@@ -377,7 +399,7 @@ export function domainConnectQuery(input: {
   params: Record<string, string>;
   redirectUri?: string;
   state?: string;
-}): string {
+}) {
   const query = new URLSearchParams();
   query.set("domain", input.domain);
   if (input.host) query.set("host", input.host);
@@ -394,7 +416,7 @@ export function domainConnectApplyUrl(input: {
   serviceId: string;
   query: string;
   signature?: { sig: string; keyHost: string };
-}): string {
+}) {
   const base = `${input.settings.urlSyncUX}/v2/domainTemplates/providers/${encodeURIComponent(input.providerId)}/services/${encodeURIComponent(input.serviceId)}/apply`;
   const signed = input.signature
     ? `&sig=${encodeURIComponent(input.signature.sig)}&key=${encodeURIComponent(input.signature.keyHost)}`

@@ -31,7 +31,7 @@ export interface RehomeDeps {
 }
 
 /** Moves every misplaced mailbox. One that cannot move is logged and left for the next run. */
-export async function rehomeMailboxes(deps: RehomeDeps): Promise<number> {
+export async function rehomeMailboxes(deps: RehomeDeps) {
   let moved = 0;
   for (const mailbox of await listMisplacedMailboxes(deps.db)) {
     try {
@@ -43,7 +43,7 @@ export async function rehomeMailboxes(deps: RehomeDeps): Promise<number> {
   return moved;
 }
 
-async function rehome(deps: RehomeDeps, mailbox: MisplacedMailbox): Promise<boolean> {
+async function rehome(deps: RehomeDeps, mailbox: MisplacedMailbox) {
   const { db, keyring, logger } = deps;
   // Drafts live only in Postgres, and an unsent action would be lost with the old copy: it moves
   // on a later run, once they are sent or discarded.

@@ -4,10 +4,7 @@
 import { fromBase64 } from "./encoding.ts";
 
 /** Signs the exact query string (everything after `?`, before `&sig=`). Key: PKCS#8 PEM. */
-export async function signDomainConnectQuery(
-  query: string,
-  privateKeyPem: string,
-): Promise<string> {
+export async function signDomainConnectQuery(query: string, privateKeyPem: string) {
   const body = privateKeyPem.replace(/-----(BEGIN|END) PRIVATE KEY-----/g, "").replace(/\s+/g, "");
   const der = fromBase64(body);
   if (!der) throw new Error("DOMAIN_CONNECT_PRIVATE_KEY is not a PKCS#8 PEM key");

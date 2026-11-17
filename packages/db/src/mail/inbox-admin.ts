@@ -103,12 +103,17 @@ async function orgMemberIds(db: Db, orgId: string, memberIds: string[]) {
  * Gives an orphaned inbox to `memberId`: it becomes their personal inbox, old mail included.
  * Idempotent: giving it again to the same member is "ok"; to anyone else it is "not_orphaned".
  */
-export async function giveOrphanedInbox(
+export const giveOrphanedInbox: (
   db: Db,
   orgId: string,
   mailboxId: string,
   memberId: string,
-): Promise<{ result: OrphanResult; address?: string }> {
+) => Promise<{ result: OrphanResult; address?: string }> = async (
+  db,
+  orgId,
+  mailboxId,
+  memberId,
+) => {
   if (!(await orgMemberIds(db, orgId, [memberId]))) return { result: "member_not_found" };
   return db.transaction(async (tx) => {
     const mailbox = await lockOrgMailbox(tx, orgId, mailboxId);
@@ -126,18 +131,23 @@ export async function giveOrphanedInbox(
       .onConflictDoNothing();
     return { result: "ok", address: mailbox.address };
   });
-}
+};
 
 /**
  * Turns an orphaned inbox into a shared inbox seen by `memberIds`, with its team. Idempotent: on
  * an inbox already shared it adds the people named, as adding them one by one would.
  */
-export async function shareOrphanedInbox(
+export const shareOrphanedInbox: (
   db: Db,
   orgId: string,
   mailboxId: string,
   memberIds: string[],
-): Promise<{ result: OrphanResult; address?: string }> {
+) => Promise<{ result: OrphanResult; address?: string }> = async (
+  db,
+  orgId,
+  mailboxId,
+  memberIds,
+) => {
   if (!(await orgMemberIds(db, orgId, memberIds))) return { result: "member_not_found" };
   const converted = await db.transaction(async (tx) => {
     const mailbox = await lockOrgMailbox(tx, orgId, mailboxId);
@@ -161,7 +171,7 @@ export async function shareOrphanedInbox(
   if (teamId) await addTeamMembers(db, teamId, orgId, memberIds);
   await syncMailboxAccess(db, mailboxId);
   return converted;
-}
+};
 
 /** Links an inbox made with an invitation to it, so accepting gives it to the new member. */
 export async function reserveInvitationInbox(

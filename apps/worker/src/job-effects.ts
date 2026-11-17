@@ -23,7 +23,7 @@ const PERMANENT_STATUSES = new Set([400, 402, 404, 405, 410, 413, 415, 422]);
 /** How many `cause` links to follow: Drizzle wraps the driver's error in a `DrizzleQueryError`. */
 const CAUSE_DEPTH = 5;
 
-function isPermanent(cause: unknown): boolean {
+function isPermanent(cause: unknown) {
   let error = cause;
   for (let depth = 0; depth < CAUSE_DEPTH && error && typeof error === "object"; depth++) {
     const { name, code, status, statusCode } = error as Record<string, unknown>;
@@ -39,13 +39,18 @@ function isPermanent(cause: unknown): boolean {
   return false;
 }
 
-export function classify(step: string, cause: unknown): JobError {
-  return isPermanent(cause) ? new Permanent({ step, cause }) : new Retryable({ step, cause });
+export function classify(step: string, cause: unknown) {
+  return (
+    isPermanent(cause) ? new Permanent({ step, cause }) : new Retryable({ step, cause })
+  ) satisfies JobError;
 }
 
 /** One step of a job: a plain async function whose failure is classified. */
-export function attempt<A>(step: string, run: () => Promise<A>): Effect.Effect<A, JobError> {
-  return Effect.tryPromise({ try: run, catch: (cause) => classify(step, cause) });
+export function attempt<A>(step: string, run: () => Promise<A>) {
+  return Effect.tryPromise({
+    try: run,
+    catch: (cause) => classify(step, cause),
+  }) satisfies Effect.Effect<A, JobError>;
 }
 
 /**
@@ -66,30 +71,33 @@ export function retryTransient<A, R>(self: Effect.Effect<A, JobError, R>) {
 }
 
 /** `attempt`, with a retryable failure retried in this invocation (`retryTransient`). */
-export function retried<A>(step: string, run: () => Promise<A>): Effect.Effect<A, JobError> {
-  return retryTransient(attempt(step, run));
+export function retried<A>(step: string, run: () => Promise<A>) {
+  return retryTransient(attempt(step, run)) satisfies Effect.Effect<A, JobError>;
 }
 
 /**
  * Runs a job at the Worker's edge, closing what it acquired. A failure rejects with the error
  * that caused it, as the job's promise did before, so callers and Cloudflare see the same error.
  */
-export function runJob<A>(job: Effect.Effect<A, JobError, Scope.Scope>): Promise<A> {
+export function runJob<A>(job: Effect.Effect<A, JobError, Scope.Scope>) {
   return Effect.runPromise(
     job.pipe(
       Effect.scoped,
       Effect.mapError((failure) => failure.cause),
     ),
-  );
+  ) satisfies Promise<A>;
 }
 
 /**
  * The run's Postgres client (`db.ts`), closed however the run ends: success, failure, defect or
  * interruption. A failed close is ignored: the pool belongs to this invocation alone.
  */
-export function scopedDb(env: Env, max?: number): Effect.Effect<Db, never, Scope.Scope> {
+export const scopedDb: (env: Env, max?: number) => Effect.Effect<Db, never, Scope.Scope> = (
+  env,
+  max,
+) => {
   return Effect.acquireRelease(
     Effect.sync(() => openDb(env, max)),
     ({ close }) => Effect.tryPromise(() => close()).pipe(Effect.ignore),
   ).pipe(Effect.map(({ db }) => db));
-}
+};

@@ -65,12 +65,7 @@ export function extraGb(peakBytes: number, allowanceBytes: number) {
  *   cap unless extra storage can be billed: a paying monthly subscription that Stripe showed
  *   with a payment method. A trial, a yearly plan, no card and no plan are all capped.
  */
-export async function storageLimit(
-  db: Db,
-  config: Config,
-  orgId: string,
-  now = new Date(),
-): Promise<StorageLimit> {
+export async function storageLimit(db: Db, config: Config, orgId: string, now = new Date()) {
   const caps: number[] = [];
   if (config.STORAGE_MAX_GB !== undefined) caps.push(config.STORAGE_MAX_GB);
   const personal = (await workspaceKind(db, orgId)) === "personal";
@@ -91,10 +86,10 @@ export async function storageLimit(
     limitBytes: caps.length ? Math.floor(Math.min(...caps) * GB) : null,
     allowanceBytes: plan ? Math.floor(plan.includedGb * GB) : null,
     overagePeriodStart,
-  };
+  } satisfies StorageLimit;
 }
 
-export function wireNode(node: NodeRow): StorageNode {
+export const wireNode: (node: NodeRow) => StorageNode = (node) => {
   return {
     ...node,
     createdAt: node.createdAt.toISOString(),
@@ -102,7 +97,7 @@ export function wireNode(node: NodeRow): StorageNode {
     trashedAt: node.trashedAt?.toISOString() ?? null,
     lockedAt: node.lockedAt?.toISOString() ?? null,
   };
-}
+};
 
 /** How many parts a file of `size` bytes goes up in. An empty file has none. */
 export const partCount = (size: number) => Math.ceil(size / STORAGE_PART_BYTES);
@@ -113,7 +108,7 @@ export function partLength(size: number, n: number) {
 }
 
 /** An upload as its client sees it: no object key, no bucket ids. */
-export function wireUpload(upload: UploadRow): StorageUpload {
+export function wireUpload(upload: UploadRow) {
   return {
     id: upload.id,
     name: upload.name,
@@ -126,7 +121,7 @@ export function wireUpload(upload: UploadRow): StorageUpload {
     parts: upload.parts.map(({ partNumber, size }) => ({ partNumber, size })),
     expiresAt: upload.expiresAt.toISOString(),
     nodeId: upload.nodeId,
-  };
+  } satisfies StorageUpload;
 }
 
 /**
@@ -161,10 +156,10 @@ type ByteRange = { offset: number; length: number };
  * (416), or null to serve the whole file. Anything but a single byte range is ignored, as
  * RFC 9110 allows.
  */
-export function parseRange(
+export const parseRange: (
   header: string | undefined,
   size: number,
-): ByteRange | "unsatisfiable" | null {
+) => ByteRange | "unsatisfiable" | null = (header, size) => {
   const match = header ? /^bytes=(\d*)-(\d*)$/.exec(header.trim()) : null;
   if (!match || (match[1] === "" && match[2] === "")) return null;
   if (match[1] === "") {
@@ -177,7 +172,7 @@ export function parseRange(
   const end = match[2] === "" ? size - 1 : Math.min(Number(match[2]), size - 1);
   if (end < start) return null;
   return { offset: start, length: end - start + 1 };
-}
+};
 
 /**
  * `attachment` with the file's name: a plain fallback for old clients, and the real name in
@@ -197,11 +192,11 @@ export function attachmentDisposition(name: string) {
  * `application/octet-stream`, as an attachment, with `nosniff`: nothing a person uploaded ever
  * renders on our origin. Null when the object is not in the bucket.
  */
-export async function fileResponse(
+export const fileResponse: (
   bucket: R2Bucket,
   file: { name: string; size: number; r2Key: string },
   request: { range?: string; ifRange?: string },
-): Promise<Response | null> {
+) => Promise<Response | null> = async (bucket, file, request) => {
   const headers = new Headers({
     "content-type": "application/octet-stream",
     "content-disposition": attachmentDisposition(file.name),
@@ -227,4 +222,4 @@ export async function fileResponse(
   const last = range.offset + range.length - 1;
   headers.set("content-range", `bytes ${range.offset}-${last}/${object.size}`);
   return new Response(object.body, { status: 206, headers });
-}
+};

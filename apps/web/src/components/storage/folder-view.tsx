@@ -261,7 +261,7 @@ export interface OpenFile {
  * The URL's open file, the files either side of it, and the way to change it. A file past the
  * folder's loaded pages (a bookmarked or shared `?file=`) loads the next pages until it is found.
  */
-function useOpenFile(list: FolderSource["list"]): OpenFile {
+const useOpenFile: (list: FolderSource["list"]) => OpenFile = (list) => {
   const { nodes } = list;
   const { file } = useSearch({ strict: false }) as { file?: string };
   useLoadUntilFound(list, file);
@@ -290,7 +290,7 @@ function useOpenFile(list: FolderSource["list"]): OpenFile {
       select,
     };
   }, [nodes, file, select]);
-}
+};
 
 /** Loads the folder's next pages until `id` (a bookmarked or shared URL's) is among its nodes. */
 function useLoadUntilFound(list: FolderSource["list"], id: string | undefined) {

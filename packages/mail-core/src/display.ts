@@ -5,13 +5,13 @@
 export const CARD_MIN_WORDS = 121;
 
 /** `bubble` for a short message, `card` for a long one, judged on the stripped text. */
-export function messageDisplay(cleanText: string): "bubble" | "card" {
+export const messageDisplay: (cleanText: string) => "bubble" | "card" = (cleanText) => {
   let words = 0;
   for (const _ of cleanText.matchAll(/\S+/g)) {
     if (++words >= CARD_MIN_WORDS) return "card";
   }
   return "bubble";
-}
+};
 
 /**
  * For each message, oldest first, the To/Cc people no earlier message in the thread included
@@ -19,14 +19,14 @@ export function messageDisplay(cleanText: string): "bubble" | "card" {
  */
 export function addedParticipants<A extends { address: string }>(
   messages: readonly { fromAddress: string; to: readonly A[]; cc: readonly A[] }[],
-): A[][] {
+) {
   const seen: string[] = [];
   return messages.map((message, index) => {
     const from = { address: message.fromAddress };
     const added = index === 0 ? [] : addedRecipients({ ...message, from }, seen);
     seen.push(...[from, ...message.to, ...message.cc].map((a) => a.address));
     return added;
-  });
+  }) satisfies A[][];
 }
 
 /**
@@ -37,7 +37,7 @@ export function addedParticipants<A extends { address: string }>(
 export function addedRecipients<A extends { address: string }>(
   message: { from: { address: string } | null; to: readonly A[]; cc: readonly A[] },
   earlier: Iterable<string>,
-): A[] {
+) {
   const seen = new Set([...earlier].map((a) => a.toLowerCase()));
   if (message.from) seen.add(message.from.address.toLowerCase());
   return [...message.to, ...message.cc].filter((a) => {
@@ -45,7 +45,7 @@ export function addedRecipients<A extends { address: string }>(
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
-  });
+  }) satisfies A[];
 }
 
 /** Links longer than this are tracking redirects in practice: they cost tokens and say nothing. */

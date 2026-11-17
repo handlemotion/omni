@@ -372,14 +372,15 @@ const saveDraftBody = draftContent.partial().extend({
   version: z.number().int().positive(),
 });
 
-function toSendAttachments(list: { uploadId?: string; attachmentId?: string }[]): SendAttachment[] {
-  return list.flatMap((a): SendAttachment[] =>
-    a.uploadId
+function toSendAttachments(list: { uploadId?: string; attachmentId?: string }[]) {
+  return list.flatMap((a) => {
+    const result: SendAttachment[] = a.uploadId
       ? [{ kind: "upload", uploadId: a.uploadId }]
       : a.attachmentId
         ? [{ kind: "attachment", attachmentId: a.attachmentId }]
-        : [],
-  );
+        : [];
+    return result;
+  }) satisfies SendAttachment[];
 }
 
 const addresses = (list: { address: string }[]) => list.map((a) => a.address);

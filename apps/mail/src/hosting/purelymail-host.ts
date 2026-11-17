@@ -16,9 +16,9 @@ import {
 } from "../providers/purelymail.ts";
 import { type HostedDomain, type MailHost, MailHostError } from "./mail-host.ts";
 
-export function createPurelymailHost(client: PurelymailClient, logger: Logger): MailHost {
+export function createPurelymailHost(client: PurelymailClient, logger: Logger) {
   /** Purelymail's answer, or a MailHostError that says why it failed. */
-  async function call<T>(task: () => Promise<T>): Promise<T> {
+  async function call<T>(task: () => Promise<T>) {
     try {
       return await task();
     } catch (error) {
@@ -31,10 +31,14 @@ export function createPurelymailHost(client: PurelymailClient, logger: Logger): 
     }
   }
 
-  async function domain(name: string, options: { add: boolean }): Promise<HostedDomain> {
+  async function domain(name: string, options: { add: boolean }) {
     const records = purelymailDnsRecords(name, await call(() => client.getOwnershipCode()));
     let state = purelymailDomainState(await call(() => client.listDomains()), name);
-    if (!options.add) return { added: state.added, records: withChecks(records, state.checks) };
+    if (!options.add)
+      return {
+        added: state.added,
+        records: withChecks(records, state.checks),
+      } satisfies HostedDomain;
 
     let addError: string | undefined;
     if (!state.added) {
@@ -63,7 +67,7 @@ export function createPurelymailHost(client: PurelymailClient, logger: Logger): 
       added: state.added,
       records: withChecks(records, state.checks),
       ...(addError !== undefined ? { addError } : {}),
-    };
+    } satisfies HostedDomain;
   }
 
   async function issueLogin(address: string, options: { createUser?: boolean } = {}) {
@@ -111,5 +115,5 @@ export function createPurelymailHost(client: PurelymailClient, logger: Logger): 
     issueLogin,
     revokeLogin,
     credit: () => call(() => client.accountCredit()),
-  };
+  } satisfies MailHost;
 }

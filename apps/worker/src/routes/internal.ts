@@ -206,7 +206,7 @@ function mergedThreads(events: Extract<MailEvent, { type: "threads.merged" }>[])
  * One AI job per thread that got a new message or lost one (its latest message may differ now);
  * flag changes need no AI. A job for a thread that is gone ends as `missing`.
  */
-function aiJobsFor(events: MailEvent[], requestId: string): AiJob[] {
+function aiJobsFor(events: MailEvent[], requestId: string) {
   const threads = new Map<string, AiJob>();
   const add = (event: { orgId: string; mailboxId: string }, threadId: string) =>
     threads.set(threadId, {
@@ -223,5 +223,5 @@ function aiJobsFor(events: MailEvent[], requestId: string): AiJob[] {
     // The survivor's summary was cleared; the job writes one for the whole conversation.
     if (event.type === "threads.merged") add(event, event.intoThreadId);
   }
-  return [...threads.values()];
+  return [...threads.values()] satisfies AiJob[];
 }

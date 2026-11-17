@@ -29,7 +29,7 @@ const NOT_A_DOMAIN = "that is not a domain name";
  * no scheme, path, port or trailing dot, so every spelling of a domain claims the same row. An
  * internationalized name must decode cleanly and stay in one script (see `labelProblem`).
  */
-export function parseDomain(input: string): { domain: string } | { error: string } {
+export const parseDomain: (input: string) => { domain: string } | { error: string } = (input) => {
   // A domain is at most 253 characters; anything far longer is not one, whatever follows.
   if (input.length > 2048) return { error: NOT_A_DOMAIN };
   let text = input.trim().replace(/^@/, "");
@@ -60,16 +60,16 @@ export function parseDomain(input: string): { domain: string } | { error: string
     if (problem) return { error: problem };
   }
   return { domain: host };
-}
+};
 
 /** `parseDomain` for callers that only need the canonical form: null when it is not a domain. */
-export function normalizeDomain(input: string): string | null {
+export function normalizeDomain(input: string) {
   const parsed = parseDomain(input);
   return "domain" in parsed ? parsed.domain : null;
 }
 
 /** The Unicode form of one punycode label, or null if it does not decode. */
-function unicodeLabel(label: string): string | null {
+function unicodeLabel(label: string) {
   if (!label.startsWith("xn--")) return label;
   // WHATWG's domainToUnicode hands back an undecodable label unchanged.
   const unicode = domainToUnicode(label);
@@ -127,7 +127,7 @@ const LATIN_LOOKALIKES = new Set("асԁеһіјӏорԛѕԝхуъьҽпгѵѡ")
  * Unicode. Mixed scripts (a Cyrillic "а" inside "pаypal") and whole-script lookalikes are the
  * spoofs that let a second workspace claim a name that reads like another's.
  */
-function labelProblem(label: string, tld: string | null): string | null {
+function labelProblem(label: string, tld: string | null) {
   const unicode = unicodeLabel(label);
   if (unicode === null) return "that domain name is not valid punycode";
   if (unicode === label && !label.startsWith("xn--")) return null;
@@ -160,15 +160,15 @@ function labelProblem(label: string, tld: string | null): string | null {
  * The domains above `domain` that could be claimed on their own, nearest first. Not the last label
  * alone: `com` is never a claim. A lock on any of these covers `domain` too.
  */
-export function parentDomains(domain: string): string[] {
+export function parentDomains(domain: string) {
   const labels = domain.split(".");
   const parents: string[] = [];
   for (let i = 1; i < labels.length - 1; i++) parents.push(labels.slice(i).join("."));
-  return parents;
+  return parents satisfies string[];
 }
 
 /** Where Omni's ownership challenge for `domain` lives: a TXT record only its DNS can publish. */
-export function challengeRecordName(domain: string): string {
+export function challengeRecordName(domain: string) {
   return `_omni-challenge.${domain}`;
 }
 
@@ -180,7 +180,7 @@ const LOCAL_PART = /^[a-z0-9](?:[a-z0-9_-]|\.(?!\.))*(?<!\.)$/;
  * The full address for a mailbox on `domain`, from a local part ("Rodrigo") or a full address on
  * that same domain ("rodrigo@acme.com"). Null if it is not a valid mailbox on that domain.
  */
-export function mailboxAddress(input: string, domain: string): string | null {
+export function mailboxAddress(input: string, domain: string) {
   const text = input.trim().toLowerCase();
   const at = text.lastIndexOf("@");
   const local = at === -1 ? text : text.slice(0, at);
@@ -194,19 +194,22 @@ export function mailboxAddress(input: string, domain: string): string | null {
  * is the account's ownership proof value (API `getOwnershipCode`). Optional autoconfig records
  * are left out: Omni does not need them and Purelymail does not check them.
  */
-export function purelymailDnsRecords(domain: string, ownershipCode: string): DnsRecord[] {
+export function purelymailDnsRecords(domain: string, ownershipCode: string) {
   return [
     { check: "ownership", type: "TXT", name: domain, value: ownershipCode },
     { check: "mx", type: "MX", name: domain, value: "mailserver.purelymail.com", priority: 50 },
     { check: "spf", type: "TXT", name: domain, value: "v=spf1 include:_spf.purelymail.com ~all" },
-    ...[1, 2, 3].map((n): DnsRecord => ({
-      check: "dkim",
-      type: "CNAME",
-      name: `purelymail${n}._domainkey.${domain}`,
-      value: `key${n}.dkimroot.purelymail.com`,
-    })),
+    ...[1, 2, 3].map((n) => {
+      const result: DnsRecord = {
+        check: "dkim",
+        type: "CNAME",
+        name: `purelymail${n}._domainkey.${domain}`,
+        value: `key${n}.dkimroot.purelymail.com`,
+      };
+      return result;
+    }),
     { check: "dmarc", type: "CNAME", name: `_dmarc.${domain}`, value: "dmarcroot.purelymail.com" },
-  ];
+  ] satisfies DnsRecord[];
 }
 
 /** What Purelymail reports about one domain on the account. */
@@ -226,7 +229,10 @@ export interface PurelymailDomainState {
  * not on the account has proven nothing yet. Throws when the answer is not that shape, so a
  * changed API reads as an error rather than as "waiting" forever.
  */
-export function purelymailDomainState(result: unknown, domain: string): PurelymailDomainState {
+export const purelymailDomainState: (result: unknown, domain: string) => PurelymailDomainState = (
+  result,
+  domain,
+) => {
   const domains = (result as { domains?: unknown } | null)?.domains;
   if (!Array.isArray(domains)) throw new TypeError("listDomains: no domains array");
   const entry = domains.find(
@@ -257,17 +263,14 @@ export function purelymailDomainState(result: unknown, domain: string): Purelyma
     throw new TypeError("listDomains: symbolicSubaddressing missing");
   }
   return { added: true, checks, symbolicSubaddressing: symbolic };
-}
+};
 
 /**
  * Why Purelymail would refuse `address` as a new user, or null. With symbolic subaddressing on,
  * it refuses any name with a symbol (verified live 2026-11-13: `.`, `-`, `_` and `+` all answer
  * `invalidUserName`), because mail to `first.last@` would route to `firstlast@`.
  */
-export function purelymailUsernameProblem(
-  address: string,
-  symbolicSubaddressing: boolean,
-): string | null {
+export function purelymailUsernameProblem(address: string, symbolicSubaddressing: boolean) {
   const at = address.lastIndexOf("@");
   const local = address.slice(0, at);
   if (!symbolicSubaddressing || /^[a-z0-9]+$/.test(local)) return null;
@@ -278,9 +281,9 @@ export function purelymailUsernameProblem(
 }
 
 /** Each record with the result of its check. */
-export function withChecks(
-  records: DnsRecord[],
-  checks: Record<DnsCheck, boolean>,
-): DnsRecordStatus[] {
-  return records.map((record) => ({ ...record, verified: checks[record.check] }));
+export function withChecks(records: DnsRecord[], checks: Record<DnsCheck, boolean>) {
+  return records.map((record) => ({
+    ...record,
+    verified: checks[record.check],
+  })) satisfies DnsRecordStatus[];
 }

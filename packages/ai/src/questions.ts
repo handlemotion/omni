@@ -205,9 +205,9 @@ export const MAX_SUGGESTED_TAGS = 3;
  * `tag_1`, ...) are never sent to the model. A tag without a description asks exactly what it
  * asked before descriptions existed.
  */
-export function tagQuestion(name: string, description?: string | null): NoulQuestion {
+export function tagQuestion(name: string, description?: string | null) {
   const about = description?.trim();
-  return {
+  const result: NoulQuestion = {
     type: "noul",
     instructions: `Does the tag "${name}" describe what \`latest_message\` is about?`,
     criteria: {
@@ -217,6 +217,7 @@ export function tagQuestion(name: string, description?: string | null): NoulQues
       false: `The message is about something else, or only mentions "${name}" in passing.`,
     },
   };
+  return result;
 }
 
 /** At most this many teammates are asked about; members past it are left to people. */
@@ -226,7 +227,7 @@ export const MAX_TEAMMATE_QUESTIONS = 10;
  * One Noul per teammate with a described role: does this message fall under it? Code picks the
  * assignee from the answers (`pickAssignee`). Only the role is sent, never a name or address.
  */
-export function teammateQuestion(role: string): NoulQuestion {
+export const teammateQuestion: (role: string) => NoulQuestion = (role) => {
   return {
     type: "noul",
     instructions: `Is \`latest_message\` about work handled by the teammate whose role is: "${role}"?`,
@@ -236,4 +237,4 @@ export function teammateQuestion(role: string): NoulQuestion {
         "The sender asks for something that role does not cover, or mentions that work only in passing.",
     },
   };
-}
+};

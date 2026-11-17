@@ -66,8 +66,8 @@ function SharedFolder(props: {
   );
   const trashNode = trash.mutate;
   const menu = useMemo(
-    () =>
-      (node: StorageNode, open: (dialog: FolderDialog) => void): SettingsRowMenuItem[] => [
+    () => (node: StorageNode, open: (dialog: FolderDialog) => void) => {
+      const result: SettingsRowMenuItem[] = [
         ...(node.kind === "file"
           ? [{ icon: IconDownload, label: "Download", onAction: () => download(node) }]
           : []),
@@ -113,7 +113,9 @@ function SharedFolder(props: {
               },
             ]
           : []),
-      ],
+      ];
+      return result;
+    },
     [canComment, canWrite, download, shareId, trashNode],
   );
   return (

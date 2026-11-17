@@ -20,7 +20,7 @@ export interface Logger {
 export const REQUEST_ID_HEADER = "x-request-id";
 
 /** The caller's request ID when it is well-formed, else a fresh one. Never echoes junk. */
-export function requestIdFrom(value: string | null | undefined): string {
+export function requestIdFrom(value: string | null | undefined) {
   return value && isValidRequestId(value) ? value : crypto.randomUUID();
 }
 
@@ -33,19 +33,20 @@ const sink: Record<LogLevel, (line: string) => void> = {
   error: (line) => console.error(line),
 };
 
-export function createLogger(base: Record<string, unknown> = {}): Logger {
+export function createLogger(base: Record<string, unknown> = {}) {
   const write = (level: LogLevel, event: string, fields?: Record<string, unknown>) => {
     const line = { time: new Date().toISOString(), level, event, ...base, ...fields };
     sink[level](JSON.stringify(line, replacer));
     if (level === "error") report(event, { ...base, ...fields });
   };
-  return {
+  const logger: Logger = {
     debug: (event, fields) => write("debug", event, fields),
     info: (event, fields) => write("info", event, fields),
     warn: (event, fields) => write("warn", event, fields),
     error: (event, fields) => write("error", event, fields),
     child: (fields) => createLogger({ ...base, ...fields }),
   };
+  return logger;
 }
 
 /** No-op unless `withSentry` initialized a client (SENTRY_DSN set). */
@@ -60,9 +61,9 @@ function report(event: string, fields: Record<string, unknown>) {
   else Sentry.captureMessage(event, { level: "error", tags });
 }
 
-function replacer(_key: string, value: unknown): unknown {
+const replacer: (_key: string, value: unknown) => unknown = (_key, value) => {
   if (typeof value === "bigint") return value.toString();
   // Database and SMTP errors can quote bound values and recipients: scrubbed like Sentry events.
   if (value instanceof Error) return { name: value.name, message: scrubString(value.message) };
   return value;
-}
+};

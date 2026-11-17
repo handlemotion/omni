@@ -123,12 +123,12 @@ async function items(ex: Db, rows: ItemRow[], addresses: string[]) {
       ),
     )
     .orderBy(storageSigners.id);
-  return rows.flatMap((row): StorageSigningItem[] => {
+  return rows.flatMap((row) => {
     const all = signers.filter((signer) => signer.requestId === row.id);
     const mine = all.filter((signer) => addresses.includes(signer.email));
     // Someone holding two of the addresses signs once for each; the one still to sign first.
     const me = mine.find((signer) => !signer.signedAt) ?? mine[0];
-    if (!me) return [];
+    if (!me) return [] satisfies StorageSigningItem[];
     return [
       {
         id: row.id,
@@ -143,7 +143,7 @@ async function items(ex: Db, rows: ItemRow[], addresses: string[]) {
         signers: all.map((signer) => ({ name: signer.name, signed: signer.signedAt !== null })),
         me: { email: me.email, name: me.name, signedAt: me.signedAt },
       },
-    ];
+    ] satisfies StorageSigningItem[];
   });
 }
 
@@ -178,9 +178,9 @@ export function signerOperations(db: Db, userId: string, scopeOrgId?: string | n
 
   return {
     /** Every request naming one of the person's addresses, newest first; voided ones too. */
-    async toSign(): Promise<StorageSigningItem[]> {
+    async toSign() {
       const addresses = await grantAddresses(db, userId, scopeOrgId);
-      if (addresses.length === 0) return [];
+      if (addresses.length === 0) return [] satisfies StorageSigningItem[];
       const named = db
         .select({ id: storageSigners.requestId })
         .from(storageSigners)
@@ -189,35 +189,38 @@ export function signerOperations(db: Db, userId: string, scopeOrgId?: string | n
         .where(inArray(storageSignatureRequests.id, named))
         .orderBy(desc(storageSignatureRequests.createdAt), desc(storageSignatureRequests.id))
         .limit(LIST_LIMIT);
-      return items(db, rows, addresses);
+      return items(db, rows, addresses) satisfies Promise<StorageSigningItem[]>;
     },
 
-    async signingRequest(requestId: string): Promise<StorageSigningItem | null> {
+    async signingRequest(requestId: string) {
       const found = await mySigner(db, requestId);
-      return found ? itemOf(db, requestId, found.addresses) : null;
+      if (!found) return null;
+      return itemOf(db, requestId, found.addresses);
     },
 
     /**
      * The document's bytes as sent, and a `viewed` step in the audit trail. Nothing once the
      * request is voided, or when the file no longer holds the content that was sent.
      */
-    async signingFile(requestId: string, origin: StorageSigningOrigin): Promise<FileResult> {
+    async signingFile(requestId: string, origin: StorageSigningOrigin) {
       const found = await mySigner(db, requestId);
-      if (!found || found.request.status === "voided") return NOT_FOUND;
+      if (!found || found.request.status === "voided") return NOT_FOUND satisfies FileResult;
       const sent = await sentContent(db, found.request);
-      if (!sent) return NOT_FOUND;
+      if (!sent) return NOT_FOUND satisfies FileResult;
       await appendSigningEvent(db, found.request, "viewed", {
         ...origin,
         email: found.signer.email,
       });
-      return { status: "ok", file: toNode(sent.node), r2Key: sent.r2Key };
+      return { status: "ok", file: toNode(sent.node), r2Key: sent.r2Key } satisfies FileResult;
     },
 
     /** The signed copy with its audit page, once the request is sealed. */
-    async sealedFile(requestId: string): Promise<FileResult> {
+    async sealedFile(requestId: string) {
       const found = await mySigner(db, requestId);
       const sealed = found && (await sealedObject(db, requestId));
-      return sealed ? { status: "ok", file: sealed.node, r2Key: sealed.r2Key } : NOT_FOUND;
+      return (
+        sealed ? { status: "ok", file: sealed.node, r2Key: sealed.r2Key } : NOT_FOUND
+      ) satisfies FileResult;
     },
 
     /**
@@ -225,15 +228,16 @@ export function signerOperations(db: Db, userId: string, scopeOrgId?: string | n
      * to mail to that address. Stored hashed (in Better Auth's `verifications`, as sign-in
      * emails are), with the tries left.
      */
-    startSigningCode(requestId: string, origin: StorageSigningOrigin): Promise<SigningCodeResult> {
-      return db.transaction(async (tx): Promise<SigningCodeResult> => {
+    startSigningCode(requestId: string, origin: StorageSigningOrigin) {
+      return db.transaction<SigningCodeResult>(async (tx) => {
         const found = await mySigner(tx, requestId, true);
-        if (!found) return NOT_FOUND;
+        if (!found) return NOT_FOUND satisfies SigningCodeResult;
         const { request, signer } = found;
-        if (request.status !== "sent") return { status: "signature_closed" };
-        if (signer.signedAt) return { status: "already_signed" };
+        if (request.status !== "sent")
+          return { status: "signature_closed" } satisfies SigningCodeResult;
+        if (signer.signedAt) return { status: "already_signed" } satisfies SigningCodeResult;
         const item = await itemOf(tx, requestId, found.addresses);
-        if (!item) return NOT_FOUND;
+        if (!item) return NOT_FOUND satisfies SigningCodeResult;
         const code = randomCode();
         const identifier = CODE_PREFIX + signer.id;
         const expiresAt = new Date(Date.now() + STORAGE_SIGNING_CODE_TTL_MS);
@@ -252,7 +256,7 @@ export function signerOperations(db: Db, userId: string, scopeOrgId?: string | n
           fileName: item.fileName,
           workspaceName: item.workspaceName,
           expiresAt,
-        };
+        } satisfies SigningCodeResult;
       });
     },
 
@@ -269,15 +273,17 @@ export function signerOperations(db: Db, userId: string, scopeOrgId?: string | n
         consentVersion: string;
         origin: StorageSigningOrigin;
       },
-    ): Promise<SignResult> {
-      return db.transaction(async (tx): Promise<SignResult> => {
+    ) {
+      return db.transaction<SignResult>(async (tx) => {
         const found = await mySigner(tx, requestId, true);
-        if (!found) return NOT_FOUND;
+        if (!found) return NOT_FOUND satisfies SignResult;
         const { request, signer } = found;
-        if (request.status !== "sent") return { status: "signature_closed" };
-        if (signer.signedAt) return { status: "already_signed" };
-        if (!(await sentContent(tx, request))) return { status: "version_conflict" };
-        if (!(await useCode(tx, signer.id, input.code))) return { status: "invalid_code" };
+        if (request.status !== "sent") return { status: "signature_closed" } satisfies SignResult;
+        if (signer.signedAt) return { status: "already_signed" } satisfies SignResult;
+        if (!(await sentContent(tx, request)))
+          return { status: "version_conflict" } satisfies SignResult;
+        if (!(await useCode(tx, signer.id, input.code)))
+          return { status: "invalid_code" } satisfies SignResult;
 
         const origin = { ...input.origin, email: signer.email };
         await appendSigningEvent(tx, request, "code_verified", origin);
@@ -310,7 +316,7 @@ export function signerOperations(db: Db, userId: string, scopeOrgId?: string | n
         }
         const item = await itemOf(tx, requestId, found.addresses);
         if (!item) throw new Error("storage: a request just signed is gone");
-        return { status: "ok", item, completed };
+        return { status: "ok", item, completed } satisfies SignResult;
       });
     },
   };

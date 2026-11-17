@@ -11,11 +11,11 @@ import {
   getColorValue,
 } from "./chart";
 
-function sumNumericArray(arr: number[]): number {
+function sumNumericArray(arr: number[]) {
   return arr.reduce((sum, num) => sum + num, 0);
 }
 
-function calculateDefaultLabel(data: Record<string, unknown>[], valueKey: string): number {
+function calculateDefaultLabel(data: Record<string, unknown>[], valueKey: string) {
   return sumNumericArray(data.map((dataPoint) => Number(dataPoint[valueKey])));
 }
 
@@ -24,7 +24,7 @@ function parseLabelInput(
   valueFormatter: (value: number) => string,
   data: Record<string, unknown>[],
   valueKey: string,
-): string {
+) {
   return labelInput || valueFormatter(calculateDefaultLabel(data, valueKey));
 }
 

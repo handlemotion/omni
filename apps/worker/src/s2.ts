@@ -29,7 +29,7 @@ export function s2Basin(config: Config) {
     authorization: `Bearer ${config.S2_ACCESS_TOKEN ?? "local"}`,
   };
   const records = (stream: string) => `${base}/streams/${encodeURIComponent(stream)}/records`;
-  const call = async <T>(url: string, init: RequestInit = {}): Promise<T> => {
+  const call = async <T>(url: string, init: RequestInit = {}) => {
     const response = await fetch(url, { ...init, headers: { ...headers, ...init.headers } });
     const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
     if (!response.ok) {
@@ -43,7 +43,7 @@ export function s2Basin(config: Config) {
      * Appends one record. With `matchSeqNum`, only if it would be that record's number (the
      * stream's tail): null when it would not.
      */
-    async append(stream: string, body: string, matchSeqNum?: number): Promise<number | null> {
+    async append(stream: string, body: string, matchSeqNum?: number) {
       try {
         const done = await call<{ start: { seq_num: number } }>(records(stream), {
           method: "POST",
@@ -71,7 +71,7 @@ export function s2Basin(config: Config) {
           `${records(stream)}?seq_num=${from}&count=${count}`,
         );
         return {
-          records: batch.map((r): S2Record => ({ seqNum: r.seq_num, body: r.body ?? "" })),
+          records: batch.map((r) => ({ seqNum: r.seq_num, body: r.body ?? "" }) satisfies S2Record),
           more: batch.length === count,
         };
       } catch (error) {

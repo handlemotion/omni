@@ -47,7 +47,8 @@ export const staleSave = (c: Context<AppEnv>, contentVersion: number) =>
     details: { contentVersion },
   });
 
-export const memberStorage = (c: Context<AppEnv>) => forMember(c.var.db, c.var.member.id).storage;
+export const memberStorage: (c: Context<AppEnv>) => MemberStorage = (c) =>
+  forMember(c.var.db, c.var.member.id).storage;
 
 /**
  * A request made at `/shared/:shareId` (`shared.ts`): what the link carries, and the door
@@ -72,15 +73,15 @@ export interface SharedAccess {
  * that opened the link and the shared node's workspace, anywhere else the member's own. The
  * routes that change files are written once against this and mounted in both places.
  */
-export function writeDoor(c: Context<AppEnv>): {
+export const writeDoor: (c: Context<AppEnv>) => {
   files: MemberStorage | SharedStorage;
   orgId: string;
-} {
+} = (c) => {
   const shared = c.var.shared;
   if (!shared) return { files: memberStorage(c), orgId: c.var.member.orgId };
   if (!shared.writer) throw new HTTPException(403, { message: "you cannot change this" });
   return { files: shared.writer, orgId: shared.root.node.orgId };
-}
+};
 
 /** A cursor travels as base64url JSON: opaque to the client, checked on the way back in. */
 export function encodeCursor(cursor: unknown) {
@@ -109,11 +110,12 @@ export const listCursor = z.object({
   id: z.string().min(1),
 });
 
-export const wireView = ({ node, role, path }: NodeViewRow): StorageNodeView => ({
-  node: wireNode(node),
-  role,
-  path,
-});
+export const wireView = ({ node, role, path }: NodeViewRow) =>
+  ({
+    node: wireNode(node),
+    role,
+    path,
+  }) satisfies StorageNodeView;
 
 /**
  * The file's bytes, always as a download (see `fileResponse`): the one way a file leaves, for a
@@ -133,7 +135,9 @@ export async function download(c: Context<AppEnv>, found: FileResult) {
 }
 
 /** A request's `parentId` or `space` (the schemas require exactly one) as a place. */
-export function placeOf(input: { parentId?: string; space?: StorageSpace }): StoragePlace {
+export const placeOf: (input: { parentId?: string; space?: StorageSpace }) => StoragePlace = (
+  input,
+) => {
   if (input.parentId !== undefined) return { parentId: input.parentId };
   return { space: input.space ?? "personal" };
-}
+};

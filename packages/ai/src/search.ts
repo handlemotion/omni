@@ -69,14 +69,14 @@ export function describeDate(date: Date, now: Date) {
 }
 
 /** Whole calendar months (then years) from `date` to `now`, the way a person counts them. */
-function calendar(date: Date, now: Date): [number, string] {
+const calendar: (date: Date, now: Date) => [number, string] = (date, now) => {
   const months =
     (now.getUTCFullYear() - date.getUTCFullYear()) * 12 +
     now.getUTCMonth() -
     date.getUTCMonth() -
     (now.getUTCDate() < date.getUTCDate() ? 1 : 0);
   return months < 24 ? [months, "month"] : [Math.floor(months / 12), "year"];
-}
+};
 
 function questionId(index: number) {
   return `candidate_${index}`;
@@ -127,12 +127,17 @@ export function jevSearchRequest(
  * Jev's probability, per candidate id, that the candidate is what the query looks for. A failed
  * call or a missing answer throws `JevError`; the caller decides what to show instead.
  */
-export async function judgeRelevance(
+export const judgeRelevance: (
   client: JevClient,
   query: string,
   candidates: readonly SearchCandidate[],
   options: { now: Date; signal?: AbortSignal },
-): Promise<{ relevance: Map<string, number>; model: string; tokensIn: number }> {
+) => Promise<{ relevance: Map<string, number>; model: string; tokensIn: number }> = async (
+  client,
+  query,
+  candidates,
+  options,
+) => {
   if (candidates.length === 0) return { relevance: new Map(), model: client.model, tokensIn: 0 };
   const body = jevSearchRequest(query, candidates, { now: options.now, model: client.model });
   const response = await ask(client, body, options.signal);
@@ -143,7 +148,7 @@ export async function judgeRelevance(
     relevance.set(candidate.id, answer.data.noul);
   });
   return { relevance, model: response.model, tokensIn: response.usage.input_tokens };
-}
+};
 
 /**
  * Most relevant first. Candidates Jev judged come first, by probability, with full-text order
@@ -153,7 +158,7 @@ export async function judgeRelevance(
 export function rankByRelevance<T extends { id: string }>(
   candidates: readonly T[],
   relevance: ReadonlyMap<string, number>,
-): T[] {
+) {
   return candidates
     .map((candidate, order) => ({ candidate, order, p: relevance.get(candidate.id) }))
     .toSorted((a, b) => {
@@ -163,5 +168,5 @@ export function rankByRelevance<T extends { id: string }>(
       }
       return b.p - a.p || a.order - b.order;
     })
-    .map(({ candidate }) => candidate);
+    .map(({ candidate }) => candidate) satisfies T[];
 }

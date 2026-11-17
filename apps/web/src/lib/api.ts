@@ -54,9 +54,9 @@ export class ApiError extends Error {
  * aborts the request.
  */
 // oxlint-disable-next-line typescript/no-explicit-any -- mirrors hono's own `parseResponse` bound
-export async function call<T extends ClientResponse<any>>(
+export const call: <T extends ClientResponse<any>>(
   request: Promise<T>,
-): ReturnType<typeof parseResponse<T>> {
+) => ReturnType<typeof parseResponse<T>> = async (request) => {
   try {
     const body = await parseResponse(request);
     reportAnswer();
@@ -72,7 +72,7 @@ export async function call<T extends ClientResponse<any>>(
     reportNoAnswer();
     throw new ApiError(0, error instanceof Error ? error.message : String(error));
   }
-}
+};
 
 /** True for errors that mean "not signed in" or "not a member": retrying will not help. */
 export function isAuthError(error: unknown) {

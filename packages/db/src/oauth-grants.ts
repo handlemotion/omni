@@ -24,7 +24,7 @@ export const ALL_WORKSPACES = "all";
 export async function chooseOAuthWorkspace(
   db: Db,
   input: { sessionId: string; userId: string; orgId: string | null },
-): Promise<boolean> {
+) {
   const access = await sessionAccess(db, input.sessionId);
   if (!access) return false;
   if (access.scopeOrgId && input.orgId !== access.scopeOrgId) return false;
@@ -48,7 +48,7 @@ export async function chooseOAuthWorkspace(
 export async function oauthWorkspaceReference(
   db: Db,
   input: { sessionId: string; userId: string; ignorePick?: boolean },
-): Promise<string | null> {
+) {
   const access = await sessionAccess(db, input.sessionId);
   if (!access) return null;
   if (access.scopeOrgId) return access.scopeOrgId;

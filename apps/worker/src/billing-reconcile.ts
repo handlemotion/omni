@@ -35,7 +35,7 @@ export async function reconcileSubscriptions(input: {
   stripe: Stripe;
   billing: BillingConfig;
   log: Logger;
-}): Promise<ReconcileResult> {
+}) {
   const { db, stripe, billing, log } = input;
   const result: ReconcileResult = { checked: 0, changed: 0, created: 0, errors: 0 };
   const pace = pacer(STRIPE_REQUEST_INTERVAL_MS);
@@ -112,17 +112,17 @@ export async function reconcileSubscriptions(input: {
     }
   }
 
-  return result;
+  return result satisfies ReconcileResult;
 }
 
 /**
  * What the plugin's `customer.subscription.updated` handler writes from `subscription`, or null
  * when the subscription is not this plan's (a multi-item subscription with none of its prices).
  */
-export function subscriptionFields(
+export const subscriptionFields: (
   subscription: Stripe.Subscription,
   billing: BillingConfig,
-): StripeSubscriptionFields | null {
+) => StripeSubscriptionFields | null = (subscription, billing) => {
   const prices = [billing.monthlyPriceId, billing.yearlyPriceId].filter(Boolean);
   const items = subscription.items.data;
   const matched = items.find((item) => prices.includes(item.price.id));
@@ -149,7 +149,7 @@ export function subscriptionFields(
     stripeScheduleId: subscription.schedule ? idOf(subscription.schedule) : null,
     ...(matched ? { plan: PLAN_NAME } : {}),
   };
-}
+};
 
 const fromSeconds = (seconds: number) => new Date(seconds * 1000);
 const maybeDate = (seconds: number | null) => (seconds ? fromSeconds(seconds) : null);

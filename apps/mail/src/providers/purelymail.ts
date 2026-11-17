@@ -55,8 +55,8 @@ export interface PurelymailClient {
   accountCredit(): Promise<number>;
 }
 
-export function createPurelymailClient(token: string, fetchImpl = fetch): PurelymailClient {
-  async function call<T>(method: string, body: unknown): Promise<T> {
+export function createPurelymailClient(token: string, fetchImpl = fetch) {
+  async function call<T>(method: string, body: unknown) {
     const response = await fetchImpl(`${API_BASE}/${method}`, {
       method: "POST",
       headers: { "Purelymail-Api-Token": token, "content-type": "application/json" },
@@ -78,13 +78,16 @@ export function createPurelymailClient(token: string, fetchImpl = fetch): Purely
         json?.message ?? "",
       );
     }
-    return json.result;
+    const value: T = json.result;
+    return value;
   }
 
-  async function listUsers(): Promise<string[]> {
+  async function listUsers() {
     const { users } = await call<{ users?: unknown }>("listUser", {});
     if (!Array.isArray(users)) throw new PurelymailError("listUser", 200, "shape", "no users");
-    return users.filter((u): u is string => typeof u === "string").map((u) => u.toLowerCase());
+    return users
+      .filter((u): u is string => typeof u === "string")
+      .map((u) => u.toLowerCase()) satisfies string[];
   }
 
   return {
@@ -152,5 +155,5 @@ export function createPurelymailClient(token: string, fetchImpl = fetch): Purely
       }
       return dollars;
     },
-  };
+  } satisfies PurelymailClient;
 }

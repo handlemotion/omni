@@ -118,8 +118,8 @@ export const authEnvSchema = z
 export type AuthConfig = z.output<typeof authEnvSchema>;
 
 /** Validates auth config from the environment at startup; throws listing every bad variable. */
-export function parseAuthEnv(env: Record<string, unknown>): AuthConfig {
-  return authEnvSchema.parse(env);
+export function parseAuthEnv(env: Record<string, unknown>) {
+  return authEnvSchema.parse(env) satisfies AuthConfig;
 }
 
 export type SignUp = AuthConfig["signUp"];

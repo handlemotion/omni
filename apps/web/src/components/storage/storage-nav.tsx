@@ -126,7 +126,7 @@ function UploadRow() {
 }
 
 /** The folder or space the page shows, from its path; Personal's top anywhere else. */
-function useUploadPlace(): StoragePlace {
+const useUploadPlace: () => StoragePlace = () => {
   const { place: pathname } = useWorkspacePaths();
   for (const space of ["personal", "shared"] as const) {
     const root = SPACE_PATH[space];
@@ -136,4 +136,4 @@ function useUploadPlace(): StoragePlace {
     }
   }
   return { space: "personal" };
-}
+};

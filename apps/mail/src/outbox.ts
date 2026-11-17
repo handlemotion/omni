@@ -89,11 +89,11 @@ export class OutboxExecutor {
   }
 
   /** Claims and runs due actions until none are left. Concurrent calls share one drain. */
-  drain(): Promise<number> {
-    if (this.stopped) return Promise.resolve(0);
+  drain() {
+    if (this.stopped) return Promise.resolve(0) satisfies Promise<number>;
     if (this.draining) {
       this.drainAgain = true;
-      return this.draining;
+      return this.draining satisfies Promise<number>;
     }
     this.draining = (async () => {
       let total = 0;
@@ -116,17 +116,17 @@ export class OutboxExecutor {
     })().finally(() => {
       this.draining = null;
     });
-    return this.draining;
+    return this.draining satisfies Promise<number>;
   }
 
   /** Claims nothing more; actions already claimed run to completion. Resolves once they have. */
-  async stop(): Promise<void> {
+  async stop() {
     this.stopped = true;
     await this.draining?.catch(() => {});
   }
 
   /** Runs one claimed action and records the outcome. Never throws. */
-  async execute(action: MailAction): Promise<void> {
+  async execute(action: MailAction) {
     const { actions, logger } = this.options;
     const log = logger.child({
       component: "outbox",
@@ -188,7 +188,7 @@ export class OutboxExecutor {
     }
   }
 
-  private perform(action: MailAction): Promise<void> {
+  private perform(action: MailAction) {
     const connection = this.options.connection(action.mailboxId);
     if (!connection) throw new PermanentActionError(`unknown mailbox ${action.mailboxId}`);
     const mailbox = connection.mailbox;
@@ -253,12 +253,12 @@ export class OutboxExecutor {
     }
   }
 
-  private async sendFiles(mailboxId: string, payload: SendPayload): Promise<SendFile[]> {
+  private async sendFiles(mailboxId: string, payload: SendPayload) {
     const refs = payload.attachments ?? [];
-    if (refs.length === 0) return [];
+    if (refs.length === 0) return [] satisfies SendFile[];
     if (!this.options.files) throw new PermanentActionError("this outbox cannot read attachments");
     try {
-      return await this.options.files.resolve(mailboxId, refs);
+      return (await this.options.files.resolve(mailboxId, refs)) satisfies SendFile[];
     } catch (error) {
       // A deleted upload or message will not come back: fail now rather than retry for hours.
       if (error instanceof MissingFileError) throw new PermanentActionError(error.message);
@@ -266,10 +266,7 @@ export class OutboxExecutor {
     }
   }
 
-  private async send(
-    connection: MailboxConnection,
-    action: Extract<MailAction, { kind: "send" }>,
-  ): Promise<void> {
+  private async send(connection: MailboxConnection, action: Extract<MailAction, { kind: "send" }>) {
     const mailbox = connection.mailbox;
     // The Worker picks it when it can, so the app knows it before the mail goes out.
     const messageId =
@@ -336,7 +333,7 @@ export class OutboxExecutor {
   private async forwardCopy(
     connection: MailboxConnection,
     action: Extract<MailAction, { kind: "forward_copy" }>,
-  ): Promise<void> {
+  ) {
     if (action.smtpAcceptedAt || this.accepted.has(action.id)) return;
     const mailbox = connection.mailbox;
     if (!this.options.forwarding) throw new PermanentActionError("this outbox cannot forward");
@@ -357,11 +354,11 @@ export class OutboxExecutor {
     this.accepted.delete(action.id);
   }
 
-  private filedInSent(connection: MailboxConnection, messageId: string): Promise<boolean> {
+  private filedInSent(connection: MailboxConnection, messageId: string) {
     return connection.run(async (session) => {
       const sent = await session.ensureFolder("sent", "Sent");
       return (await findByMessageId(session, sent.path, messageId)) !== null;
-    });
+    }) satisfies Promise<boolean>;
   }
 }
 
@@ -369,7 +366,7 @@ export class OutboxExecutor {
  * After SMTP's OK, losing the `smtp_accepted_at` write means the retry sends again. A Postgres
  * blip is the likely cause, so try 5 times, 400ms to 3.2s apart, before giving up.
  */
-function persistAccepted(write: () => Promise<void>): Promise<void> {
+function persistAccepted(write: () => Promise<void>) {
   return Effect.runPromise(
     Effect.tryPromise({ try: write, catch: (error) => error }).pipe(
       Effect.retry(Schedule.exponential("400 millis").pipe(Schedule.upTo({ times: 4 }))),
@@ -378,7 +375,7 @@ function persistAccepted(write: () => Promise<void>): Promise<void> {
 }
 
 /** `<sha256(key)@domain>`: the same idempotency key always yields the same Message-ID. */
-export function deterministicMessageId(idempotencyKey: string, address: string): string {
+export function deterministicMessageId(idempotencyKey: string, address: string) {
   const domain = address.slice(address.lastIndexOf("@") + 1);
   if (!address.includes("@") || !domain) {
     throw new PermanentActionError(`mailbox address has no domain: ${address}`);
@@ -387,11 +384,7 @@ export function deterministicMessageId(idempotencyKey: string, address: string):
   return `<${hash.slice(0, 32)}@${domain}>`;
 }
 
-function composeMessage(
-  payload: SendPayload,
-  messageId: string,
-  files: SendFile[] = [],
-): Promise<Buffer> {
+function composeMessage(payload: SendPayload, messageId: string, files: SendFile[] = []) {
   return new MailComposer({
     // The address is always the mailbox's; the name says which agent wrote it.
     from: payload.fromName ? { name: payload.fromName, address: payload.from } : payload.from,
@@ -411,7 +404,7 @@ function composeMessage(
     date: new Date(),
   })
     .compile()
-    .build();
+    .build() satisfies Promise<Buffer>;
 }
 
 async function smtpSend(mailbox: MailboxConfig, recipients: string[], raw: Buffer) {
@@ -454,11 +447,7 @@ async function smtpSend(mailbox: MailboxConfig, recipients: string[], raw: Buffe
   }
 }
 
-async function findByMessageId(
-  session: ImapSession,
-  folder: string,
-  messageId: string,
-): Promise<number | null> {
+async function findByMessageId(session: ImapSession, folder: string, messageId: string) {
   const lock = await session.client.getMailboxLock(folder);
   try {
     const uids = await session.client.search(
@@ -476,7 +465,7 @@ async function selectTarget(
   session: ImapSession,
   target: MessageTarget,
   task: () => Promise<void>,
-): Promise<void> {
+) {
   if (target.uids.length === 0) throw new PermanentActionError("no uids");
   const lock = await session.client.getMailboxLock(target.folder);
   try {

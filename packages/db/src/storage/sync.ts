@@ -54,16 +54,16 @@ export type StorageChangesResult =
   | { status: "cursor_expired" };
 
 /** SQL condition on `table`: its row is in `drive`. */
-function inDrive(
+const inDrive: (
   table: typeof storageNodes | typeof storageTombstones,
   drive: Drive,
-): SQL | undefined {
+) => SQL | undefined = (table, drive) => {
   return and(
     eq(table.orgId, drive.orgId),
     eq(table.space, drive.space),
     sql`coalesce(${table.ownerMemberId}, '') = ${drive.ownerMemberId ?? ""}`,
   );
-}
+};
 
 /** The ids among `ids` that are in Trash themselves or inside a folder that is. */
 async function trashedOf(ex: Db, ids: string[]) {
@@ -101,19 +101,22 @@ export async function listChanges(
   db: Db,
   drive: Drive,
   page: { cursor?: StorageSyncCursor | null; limit?: number },
-): Promise<StorageChangesResult> {
+) {
   const cursor = page.cursor ?? null;
   const limit = pageSize(page.limit);
   // One snapshot: the counter and both tables as of the same instant. Every revision up to the
   // counter has committed in it, so once its rows are exhausted the cursor may move past the
   // counter even when nothing in this drive changed.
-  return db.transaction(
-    async (tx): Promise<StorageChangesResult> => {
+  return db.transaction<StorageChangesResult>(
+    async (tx) => {
       const [state] = await tx
         .select({ revision: storageSyncState.revision, floor: storageSyncState.cursorFloor })
         .from(storageSyncState)
         .where(eq(storageSyncState.orgId, drive.orgId));
-      if (cursor && state && cursor.revision < state.floor) return { status: "cursor_expired" };
+      if (cursor && state && cursor.revision < state.floor) {
+        const result: StorageChangesResult = { status: "cursor_expired" };
+        return result;
+      }
       const taken = await feedPage(tx, drive, cursor, limit);
       const more = taken.length > limit;
       if (more) taken.pop();
@@ -138,7 +141,8 @@ export async function listChanges(
         : (cursor ?? { revision: 0, id: "" });
       const settled = { revision: (state?.revision ?? 0) + 1, id: "" };
       if (!more && before(nextCursor, settled)) nextCursor = settled;
-      return { status: "ok", changes, nextCursor, more };
+      const result: StorageChangesResult = { status: "ok", changes, nextCursor, more };
+      return result;
     },
     { isolationLevel: "repeatable read", accessMode: "read only" },
   );
@@ -203,11 +207,7 @@ export interface StorageSyncWorkspace {
  * Every workspace the person belongs to (only `scopeOrgId` when set), with the drives they
  * sync there: their My files and, in a company, Shared, each with its revision.
  */
-export async function listSyncWorkspaces(
-  db: Db,
-  userId: string,
-  scopeOrgId?: string | null,
-): Promise<StorageSyncWorkspace[]> {
+export async function listSyncWorkspaces(db: Db, userId: string, scopeOrgId?: string | null) {
   const rows = await db
     .select({
       orgId: organizations.id,
@@ -243,7 +243,7 @@ export async function listSyncWorkspaces(
       drives,
     });
   }
-  return workspaces;
+  return workspaces satisfies StorageSyncWorkspace[];
 }
 
 /**

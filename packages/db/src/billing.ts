@@ -47,10 +47,10 @@ export async function workspaceSubscription(db: Db, orgId: string) {
  * trial, and so does an account: `workspace` when this workspace had one (a past subscription
  * with a trial, or a claim), `account` when this person started one for another workspace.
  */
-export async function trialUnavailable(
+export const trialUnavailable: (
   db: Db,
   input: { orgId: string; userId: string },
-): Promise<"workspace" | "account" | null> {
+) => Promise<"workspace" | "account" | null> = async (db, input) => {
   const [trialed] = await db
     .select({ id: subscriptions.id })
     .from(subscriptions)
@@ -67,7 +67,7 @@ export async function trialUnavailable(
     .limit(1);
   if (trialed) return "workspace";
   return otherClaim(db, input);
-}
+};
 
 /**
  * Takes the trial of both the workspace and the account before Stripe is asked for it, so two
@@ -114,8 +114,8 @@ export async function triageUsageCount(db: Db, orgId: string, periodStart: Date)
 export async function claimTriage(
   db: Db,
   input: { orgId: string; periodStart: Date; messageId: string; allowance: number },
-): Promise<"counted" | "already" | "over"> {
-  return db.transaction(async (tx) => {
+) {
+  return db.transaction<"counted" | "already" | "over">(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.orgId}, 0))`);
     const where = and(
       eq(triageUsage.orgId, input.orgId),
@@ -151,10 +151,10 @@ export interface StripeEventRef {
  * this one's snapshot would roll it back. Stripe timestamps are whole seconds, so events from the
  * same second all apply.
  */
-export async function stripeEventDisposition(
+export const stripeEventDisposition: (
   db: Db,
   event: StripeEventRef,
-): Promise<"new" | "duplicate" | "stale"> {
+) => Promise<"new" | "duplicate" | "stale"> = async (db, event) => {
   const [seen] = await db
     .select({ id: stripeEvents.id })
     .from(stripeEvents)
@@ -172,7 +172,7 @@ export async function stripeEventDisposition(
     )
     .limit(1);
   return newer ? "stale" : "new";
-}
+};
 
 /**
  * Stored subscriptions matching one key, the way Better Auth's Stripe plugin finds the row an
@@ -305,7 +305,7 @@ export async function applyStripeSubscription(
   db: Db,
   row: SubscriptionRow,
   fields: StripeSubscriptionFields,
-): Promise<boolean> {
+) {
   const changes: Partial<StripeSubscriptionFields> = {};
   for (const name of SYNCED_FIELDS) {
     const next = fields[name];
@@ -325,8 +325,8 @@ export async function createStripeSubscription(
   db: Db,
   orgId: string,
   fields: StripeSubscriptionFields & { plan: string },
-): Promise<boolean> {
-  return db.transaction(async (tx) => {
+) {
+  return db.transaction<boolean>(async (tx) => {
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${fields.stripeSubscriptionId}, 0))`,
     );

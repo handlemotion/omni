@@ -149,7 +149,7 @@ export function inView(
   row: ConversationState & { slaDueAt: string | null },
   filter: ConversationFilter,
   me: string | undefined,
-): boolean | undefined {
+) {
   if (filter.tag && !row.tags.some((t) => t.id === filter.tag)) return false;
   switch (filter.view) {
     case "unassigned":
@@ -186,10 +186,12 @@ function patchLists(
             ...data,
             pages: data.pages.map((page) => ({
               ...page,
-              conversations: page.conversations.flatMap((row): ConversationSummary[] => {
-                if (row.id !== threadId) return [row];
+              conversations: page.conversations.flatMap((row) => {
+                if (row.id !== threadId) return [row] satisfies ConversationSummary[];
                 const next = applyChange(row, change, tag);
-                return inView(next, filter, me) === false ? [] : [next];
+                return (
+                  inView(next, filter, me) === false ? [] : [next]
+                ) satisfies ConversationSummary[];
               }),
             })),
           }
@@ -203,11 +205,11 @@ function patchLists(
  * need the tag itself (`tag`), which only the caller has: without it an added tag shows on the
  * refetch.
  */
-export function applyChange<T extends ConversationState>(
+export const applyChange: <T extends ConversationState>(
   conversation: T,
   change: ConversationChange,
   tag?: Conversation["tags"][number],
-): T {
+) => T = (conversation, change, tag) => {
   const now = new Date().toISOString();
   switch (change.type) {
     case "resolve":
@@ -230,16 +232,16 @@ export function applyChange<T extends ConversationState>(
       return tag ? { ...conversation, tags: [...others, tag] } : conversation;
     }
   }
-}
+};
 
 /**
  * The change that puts back what `change` replaced, from the conversation as it was. Reopen is
  * the inverse of resolve and snooze, so a pending conversation comes back open.
  */
-export function inverseOf(
+export const inverseOf: (
   before: ConversationState,
   change: ConversationChange,
-): ConversationChange | null {
+) => ConversationChange | null = (before, change) => {
   switch (change.type) {
     case "resolve":
     case "snooze":
@@ -273,7 +275,7 @@ export function inverseOf(
       return had === change.add ? null : { type: "tag", tagId: change.tagId, add: had };
     }
   }
-}
+};
 
 /**
  * Changes a conversation: shows the change at once, puts it back if the request fails, and
@@ -480,10 +482,10 @@ const isConversation = (query: { queryKey: readonly unknown[] }) =>
  * The conversation's shared state as the screen shows it: its detail if loaded, else its row in
  * any cached helpdesk list (acting from the list never loads the detail).
  */
-export function cachedState(
+export const cachedState: (
   client: QueryClient,
   threadId: string,
-): (ConversationState & { mailboxId: string }) | undefined {
+) => (ConversationState & { mailboxId: string }) | undefined = (client, threadId) => {
   const detail = client.getQueryData<Conversation>(keys.conversation(threadId));
   if (detail) return detail;
   for (const [, data] of client.getQueriesData<ConversationPages>({
@@ -495,7 +497,7 @@ export function cachedState(
     }
   }
   return undefined;
-}
+};
 
 /**
  * Your member in the inbox's workspace, from its cached assignee list (lists span workspaces,

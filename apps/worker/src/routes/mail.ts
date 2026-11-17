@@ -138,8 +138,12 @@ export function enqueue(
 }
 
 /** Who a route's thread writes act as: this request's member. */
-export function writerOf(c: Context<AppEnv>): ThreadWriter {
-  return { db: c.var.db, memberId: c.var.member.id, requestId: c.var.requestId };
+export function writerOf(c: Context<AppEnv>) {
+  return {
+    db: c.var.db,
+    memberId: c.var.member.id,
+    requestId: c.var.requestId,
+  } satisfies ThreadWriter;
 }
 
 /**

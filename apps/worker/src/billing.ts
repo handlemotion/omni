@@ -47,12 +47,12 @@ export function period(subscription: WorkspaceSubscription, now: Date) {
   );
 }
 
-export async function workspaceBilling(
+export const workspaceBilling: (
   db: Db,
   config: Config,
   orgId: string,
-  now = new Date(),
-): Promise<WorkspaceBilling> {
+  now?: Date,
+) => Promise<WorkspaceBilling> = async (db, config, orgId, now = new Date()) => {
   const billing = config.auth.billing;
   // A Personal space is free (ADR 0024): billing does not apply to it.
   if (!billing || (await workspaceKind(db, orgId)) === "personal") return { enabled: false };
@@ -74,7 +74,7 @@ export async function workspaceBilling(
         }
       : null,
   };
-}
+};
 
 export type TriageGate =
   | { run: true }
@@ -85,12 +85,12 @@ export type TriageGate =
  * Whether the model may triage `messageId` now, taking one unit of the allowance when it may.
  * Called only when a model would actually run; rule-filed threads cost nothing and never count.
  */
-export async function gateTriage(
+export const gateTriage: (
   db: Db,
   config: Config,
   input: { orgId: string; messageId: string },
-  now = new Date(),
-): Promise<TriageGate> {
+  now?: Date,
+) => Promise<TriageGate> = async (db, config, input, now = new Date()) => {
   const billing = config.auth.billing;
   if (!billing) return { run: true };
   // A Personal space is free and keeps AI triage, with no plan and no allowance (ADR 0024).
@@ -107,7 +107,7 @@ export async function gateTriage(
   return claim === "over"
     ? { run: false, reason: "allowance_reached", until: window.end }
     : { run: true };
-}
+};
 
 /** A subscription in good standing (or billing off): the workspace may write and use AI. */
 export async function inGoodStanding(db: Db, config: Config, orgId: string) {

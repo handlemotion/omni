@@ -177,7 +177,7 @@ export function billStorage(input: {
   billing: BillingConfig;
   log: Logger;
   now?: Date;
-}): Effect.Effect<StorageBillingResult | null, JobError> {
+}) {
   const { db, stripe, billing, log, now = new Date() } = input;
   return Effect.gen(function* () {
     const storage = billing.storage;
@@ -213,14 +213,11 @@ export function billStorage(input: {
       { concurrency: 1, discard: true },
     );
     return result;
-  });
+  }) satisfies Effect.Effect<StorageBillingResult | null, JobError>;
 }
 
 /** One workspace: its peak, then, when extra storage may be billed, its Stripe half. */
-function billOne(
-  run: BillingRun,
-  workspace: StorageBilledWorkspace,
-): Effect.Effect<void, JobError> {
+function billOne(run: BillingRun, workspace: StorageBilledWorkspace) {
   const { db, result, now } = run;
   return Effect.gen(function* () {
     const { periodStart } = workspace;
@@ -250,7 +247,7 @@ function billOne(
     yield* retried("stripe", () =>
       billWorkspace(run, { ...workspace, stripeCustomerId }, { start, peakBytes }, result),
     );
-  });
+  }) satisfies Effect.Effect<void, JobError>;
 }
 
 /**

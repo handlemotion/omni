@@ -36,14 +36,22 @@ function folderName(person: string) {
 export async function handOverMemberStorage(
   db: Db,
   input: { memberId: string; toMemberId?: string | null },
-): Promise<StorageHandOverResult> {
-  return db.transaction(async (tx): Promise<StorageHandOverResult> => {
+) {
+  return db.transaction<StorageHandOverResult>(async (tx) => {
     const [leaving] = await tx
       .select({ orgId: members.organizationId, name: users.name, email: users.email })
       .from(members)
       .innerJoin(users, eq(users.id, members.userId))
       .where(eq(members.id, input.memberId));
-    if (!leaving) return { status: "ok", moved: 0, folderId: null, toMemberId: null };
+    if (!leaving) {
+      const result: StorageHandOverResult = {
+        status: "ok",
+        moved: 0,
+        folderId: null,
+        toMemberId: null,
+      };
+      return result;
+    }
     await lockTree(tx, leaving.orgId);
     const owned = and(
       eq(storageNodes.orgId, leaving.orgId),
@@ -54,7 +62,15 @@ export async function handOverMemberStorage(
       .from(storageNodes)
       .where(owned)
       .limit(1);
-    if (!first) return { status: "ok", moved: 0, folderId: null, toMemberId: null };
+    if (!first) {
+      const result: StorageHandOverResult = {
+        status: "ok",
+        moved: 0,
+        folderId: null,
+        toMemberId: null,
+      };
+      return result;
+    }
 
     const others = and(eq(members.organizationId, leaving.orgId), ne(members.id, input.memberId));
     const [named] = input.toMemberId
@@ -71,7 +87,10 @@ export async function handOverMemberStorage(
           .where(and(others, isOwner))
           .orderBy(asc(members.createdAt), asc(members.id))
           .limit(1);
-    if (!owner) return { status: "no_recipient" };
+    if (!owner) {
+      const result: StorageHandOverResult = { status: "no_recipient" };
+      return result;
+    }
 
     const drive: Drive = { orgId: leaving.orgId, space: "personal", ownerMemberId: owner.id };
     const folder = await insertNode(tx, {
@@ -97,6 +116,12 @@ export async function handOverMemberStorage(
       })
       .where(owned)
       .returning({ id: storageNodes.id });
-    return { status: "ok", moved: moved.length, folderId: folder.id, toMemberId: owner.id };
+    const result: StorageHandOverResult = {
+      status: "ok",
+      moved: moved.length,
+      folderId: folder.id,
+      toMemberId: owner.id,
+    };
+    return result;
   });
 }

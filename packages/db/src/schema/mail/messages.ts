@@ -39,14 +39,26 @@ export const threads = pgTable(
      * that message again skips the model, and a newer message re-triages even a person's re-sort.
      * A re-sort sets it to the latest message it was made on.
      */
-    triageMessageId: text("triage_message_id").references((): AnyPgColumn => messages.id, {
-      onDelete: "set null",
-    }),
+    triageMessageId: text("triage_message_id").references(
+      () => {
+        const result: AnyPgColumn = messages.id;
+        return result;
+      },
+      {
+        onDelete: "set null",
+      },
+    ),
     summary: text("summary"),
     /** Last message the summary covers; a newer message means the summary is stale. */
-    summaryMessageId: text("summary_message_id").references((): AnyPgColumn => messages.id, {
-      onDelete: "set null",
-    }),
+    summaryMessageId: text("summary_message_id").references(
+      () => {
+        const result: AnyPgColumn = messages.id;
+        return result;
+      },
+      {
+        onDelete: "set null",
+      },
+    ),
     /**
      * Set when the latest message was not AI-triaged because the workspace used its monthly
      * allowance (ADR 0015): when the allowance resets. Cleared by the next triage.
@@ -66,9 +78,15 @@ export const threads = pgTable(
     priority: conversationPriority("priority").notNull().default("normal"),
     /** Set while `status` is `snoozed`: when it opens again. */
     snoozedUntil: timestamptz("snoozed_until"),
-    customerId: text("customer_id").references((): AnyPgColumn => customers.id, {
-      onDelete: "set null",
-    }),
+    customerId: text("customer_id").references(
+      () => {
+        const result: AnyPgColumn = customers.id;
+        return result;
+      },
+      {
+        onDelete: "set null",
+      },
+    ),
     firstResponseDueAt: timestamptz("first_response_due_at"),
     nextResponseDueAt: timestamptz("next_response_due_at"),
     resolutionDueAt: timestamptz("resolution_due_at"),
@@ -173,8 +191,8 @@ export function slaDueAt(t: {
   firstResponseDueAt: AnyPgColumn;
   nextResponseDueAt: AnyPgColumn;
   resolutionDueAt: AnyPgColumn;
-}): SQL {
-  return sql`least(${t.firstResponseDueAt}, ${t.nextResponseDueAt}, ${t.resolutionDueAt})`;
+}) {
+  return sql`least(${t.firstResponseDueAt}, ${t.nextResponseDueAt}, ${t.resolutionDueAt})` satisfies SQL;
 }
 
 export const messages = pgTable(
@@ -244,9 +262,10 @@ export const messages = pgTable(
     searchVector: tsvector("search_vector")
       .notNull()
       .generatedAlwaysAs(
-        (): SQL => sql`setweight(to_tsvector('english', coalesce(subject, '')), 'A')
+        () =>
+          sql`setweight(to_tsvector('english', coalesce(subject, '')), 'A')
           || setweight(to_tsvector('english', coalesce(from_name, '') || ' ' || from_address), 'B')
-          || setweight(to_tsvector('english', clean_text), 'C')`,
+          || setweight(to_tsvector('english', clean_text), 'C')` satisfies SQL,
       ),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

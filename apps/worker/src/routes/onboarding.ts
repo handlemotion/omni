@@ -62,7 +62,7 @@ const requireOwner = createMiddleware<AppEnv>(async (c, next) => {
   await next();
 });
 
-function deps(c: Context<AppEnv>): DomainDeps {
+function deps(c: Context<AppEnv>) {
   return {
     db: c.var.db,
     config: c.var.config,
@@ -70,7 +70,7 @@ function deps(c: Context<AppEnv>): DomainDeps {
     log: c.var.log,
     email: c.env.EMAIL,
     waitUntil: (promise) => c.executionCtx.waitUntil(promise),
-  };
+  } satisfies DomainDeps;
 }
 
 /**

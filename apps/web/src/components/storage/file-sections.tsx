@@ -236,8 +236,10 @@ function Items(props: {
   const renaming = props.rename?.renaming;
   const named =
     renaming?.at === "list" && props.nodes.some((n) => n.id === renaming.id) ? renaming : null;
-  const nameOf = (node: StorageNode): ItemName | undefined =>
-    named?.id === node.id && props.rename ? { ...named, finish: props.rename.finish } : undefined;
+  const nameOf = (node: StorageNode) =>
+    (named?.id === node.id && props.rename
+      ? { ...named, finish: props.rename.finish }
+      : undefined) satisfies ItemName | undefined;
   const typing = drafts.some((d) => d.step === "naming") || named?.step === "naming";
   const list = {
     "aria-label": props.label,

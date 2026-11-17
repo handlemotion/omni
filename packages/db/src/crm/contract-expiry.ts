@@ -51,7 +51,7 @@ async function endOne(db: Db, candidate: { id: string; orgId: string }, today: s
   });
 }
 
-async function appendEndedEvent(tx: Ex, contract: typeof crmContracts.$inferSelect): Promise<void> {
+async function appendEndedEvent(tx: Ex, contract: typeof crmContracts.$inferSelect) {
   // On the deal when there is one, else the company, as a member's change writes it.
   const record = contract.dealId ? { dealId: contract.dealId } : { companyId: contract.companyId };
   await tx.insert(crmEvents).values({
@@ -74,10 +74,10 @@ async function appendEndedEvent(tx: Ex, contract: typeof crmContracts.$inferSele
  * Ends up to `limit` expired signed contracts, oldest expiry first. Safe to run twice: a second
  * run finds them `ended` and writes nothing. `now` is for tests.
  */
-export async function endExpiredContracts(
+export const endExpiredContracts: (
   db: Db,
-  input: { now?: Date; limit?: number } = {},
-): Promise<{ ended: EndedContract[]; more: boolean }> {
+  input?: { now?: Date; limit?: number },
+) => Promise<{ ended: EndedContract[]; more: boolean }> = async (db, input = {}) => {
   const now = input.now ?? new Date();
   const today = dayOf(now);
   const limit = input.limit ?? CONTRACT_EXPIRY_BATCH;
@@ -93,13 +93,13 @@ export async function endExpiredContracts(
     if (done) ended.push(done);
   }
   return { ended, more: candidates.length === limit };
-}
+};
 
 /** Who hears a CRM change in `orgId`: its members now (as `crmAudience` for a member's change). */
-export async function crmMembersOf(db: Db, orgId: string): Promise<string[]> {
+export async function crmMembersOf(db: Db, orgId: string) {
   const rows = await db
     .select({ id: members.id })
     .from(members)
     .where(eq(members.organizationId, orgId));
-  return rows.map((row) => row.id);
+  return rows.map((row) => row.id) satisfies string[];
 }

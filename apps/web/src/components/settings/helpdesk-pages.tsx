@@ -365,12 +365,14 @@ function targetsSummary(policy: SlaPolicy) {
 }
 
 /** A target as the dialog edits it: a whole number of the largest unit that fits exactly. */
-function toAmount(minutes: number | null | undefined): { amount: number; unit: Unit } {
+const toAmount: (minutes: number | null | undefined) => { amount: number; unit: Unit } = (
+  minutes,
+) => {
   if (!minutes) return { amount: Number.NaN, unit: "hours" };
   if (minutes % 1440 === 0) return { amount: minutes / 1440, unit: "days" };
   if (minutes % 60 === 0) return { amount: minutes / 60, unit: "hours" };
   return { amount: minutes, unit: "minutes" };
-}
+};
 
 const fromAmount = ({ amount, unit }: { amount: number; unit: Unit }) =>
   Number.isFinite(amount) && amount > 0 ? Math.round(amount * UNIT_MINUTES[unit]) : null;

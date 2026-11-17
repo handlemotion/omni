@@ -22,13 +22,10 @@ const fillNone = <stop stopColor="currentColor" stopOpacity={0} />;
 
 const fillGradientEnd = <stop offset="95%" stopColor="currentColor" stopOpacity={0} />;
 
-function getFillContent({
-  fillType,
-  stopOpacity,
-}: {
+const getFillContent: (arg0: {
   fillType: AreaChartProps["fillType"];
   stopOpacity: number;
-}): React.ReactNode {
+}) => React.ReactNode = ({ fillType, stopOpacity }) => {
   switch (fillType) {
     case "none":
       return fillNone;
@@ -42,7 +39,7 @@ function getFillContent({
     default:
       return <stop stopColor="currentColor" stopOpacity={stopOpacity} />;
   }
-}
+};
 
 export interface AreaChartProps extends BaseChartProps {
   chartProps?: Omit<ComponentProps<typeof AreaChartPrimitive>, "data" | "stackOffset">;

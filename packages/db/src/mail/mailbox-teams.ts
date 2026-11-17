@@ -276,8 +276,14 @@ export async function addMailboxMember(
   actor: MailboxMembersActor,
   mailboxId: string,
   memberId: string,
-): Promise<MailboxMembershipResult> {
-  return changeMailboxMember(db, actor, mailboxId, memberId, "add");
+) {
+  return changeMailboxMember(
+    db,
+    actor,
+    mailboxId,
+    memberId,
+    "add",
+  ) satisfies Promise<MailboxMembershipResult>;
 }
 
 /**
@@ -289,17 +295,23 @@ export async function removeMailboxMember(
   actor: MailboxMembersActor,
   mailboxId: string,
   memberId: string,
-): Promise<MailboxMembershipResult> {
-  return changeMailboxMember(db, actor, mailboxId, memberId, "remove");
+) {
+  return changeMailboxMember(
+    db,
+    actor,
+    mailboxId,
+    memberId,
+    "remove",
+  ) satisfies Promise<MailboxMembershipResult>;
 }
 
-async function changeMailboxMember(
+const changeMailboxMember: (
   db: Db,
   actor: MailboxMembersActor,
   mailboxId: string,
   memberId: string,
   change: "add" | "remove",
-): Promise<MailboxMembershipResult> {
+) => Promise<MailboxMembershipResult> = async (db, actor, mailboxId, memberId, change) => {
   if (!actor.manage) return "mailbox_not_found";
   const mailbox = await visibleSharedMailbox(db, actor, mailboxId);
   if (!mailbox) return "mailbox_not_found";
@@ -324,7 +336,7 @@ async function changeMailboxMember(
     await syncMailboxAccess(tx, mailbox.id);
   });
   return "ok";
-}
+};
 
 /**
  * Gives every shared mailbox without a team its team, seeded from its current grants. Safe to

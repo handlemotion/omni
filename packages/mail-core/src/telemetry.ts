@@ -39,7 +39,7 @@ const URL_QUERY = /(\b[a-z][a-z0-9+.-]*:\/\/[^\s?#"']+|(?<![\w/])\/[^\s?#"']*)[?
 /** Any key that merely contains one of these (`MAIL_SERVICE_HMAC_SECRET`, `x-api-key`). */
 const CREDENTIAL_PART = /(secret|token|password|apikey|credential|cookie|authorization|dsn)/;
 
-function isSensitiveKey(key: string): boolean {
+function isSensitiveKey(key: string) {
   const normalized = key.replaceAll(/[-_]/g, "").toLowerCase();
   return SENSITIVE_KEY.test(normalized) || CREDENTIAL_PART.test(normalized);
 }
@@ -47,14 +47,18 @@ function isSensitiveKey(key: string): boolean {
 /** Drizzle's query errors end with `params: <every bound value>`: search terms, addresses. */
 const QUERY_PARAMS = /\nparams: [\s\S]*$/;
 
-export function scrubString(value: string): string {
+export function scrubString(value: string) {
   return value
     .replace(QUERY_PARAMS, "\nparams: [redacted]")
     .replace(URL_QUERY, "$1")
     .replace(EMAIL, "[email]");
 }
 
-function scrubValue(value: unknown, depth: number, seen: WeakSet<object>): unknown {
+const scrubValue: (value: unknown, depth: number, seen: WeakSet<object>) => unknown = (
+  value,
+  depth,
+  seen,
+) => {
   if (typeof value === "string") return scrubString(value);
   if (value === null || typeof value !== "object") return value;
   if (depth > 12 || seen.has(value)) return "[truncated]";
@@ -65,10 +69,10 @@ function scrubValue(value: unknown, depth: number, seen: WeakSet<object>): unkno
     out[scrubString(key)] = isSensitiveKey(key) ? REDACTED : scrubValue(item, depth + 1, seen);
   }
   return out;
-}
+};
 
 /** Scrubs anything structured (log fields, breadcrumb data). */
-export function scrubFields<T>(value: T): T {
+export function scrubFields<T>(value: T) {
   return scrubValue(value, 0, new WeakSet()) as T;
 }
 
@@ -78,7 +82,7 @@ export function scrubFields<T>(value: T): T {
  * through; local variables (`vars`) are dropped by the key rule only if named like content, so
  * the SDKs must keep `includeLocalVariables` off.
  */
-export function scrubEvent<E extends object>(event: E): E {
+export function scrubEvent<E extends object>(event: E) {
   const { user, request, ...rest } = event as {
     user?: { id?: unknown } | null;
     request?: { method?: unknown; url?: unknown } | null;
@@ -99,7 +103,9 @@ export function scrubEvent<E extends object>(event: E): E {
  * For Sentry's `beforeBreadcrumb`. Console breadcrumbs are dropped: they repeat log lines, and
  * an SDK's own console capture would bypass the log rules. Everything else is scrubbed.
  */
-export function scrubBreadcrumb<B extends { category?: string }>(breadcrumb: B): B | null {
+export const scrubBreadcrumb: <B extends { category?: string }>(breadcrumb: B) => B | null = (
+  breadcrumb,
+) => {
   if (breadcrumb.category === "console") return null;
   return scrubFields(breadcrumb);
-}
+};

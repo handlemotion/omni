@@ -87,61 +87,64 @@ function useRowMenu() {
   const manager = /\b(owner|admin)\b/.test(member.role);
   const trashNode = trash.mutate;
   return useCallback(
-    (node: StorageNode, open: (dialog: FolderDialog) => void): SettingsRowMenuItem[] => [
-      ...(node.kind === "file"
-        ? [{ icon: IconDownload, label: "Download", onAction: () => download(node) }]
-        : []),
-      { icon: IconUserAdd, label: "Share", onAction: () => open({ dialog: "share", node }) },
-      { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },
-      // A cluster (a top-level folder) picks its sidebar glyph; nested folders stay folders.
-      ...(node.kind === "folder" && node.parentId === null
-        ? [
-            {
-              icon: IconSparkle,
-              label: "Change icon",
-              onAction: () => open({ dialog: "icon", node }),
-            },
-          ]
-        : []),
-      { icon: IconFolderMove, label: "Move", onAction: () => open({ dialog: "move", node }) },
-      ...(node.kind === "file"
-        ? [
-            {
-              icon: IconComment,
-              label: "Comments",
-              onAction: () => open({ dialog: "comments", node }),
-            },
-            {
-              icon: IconClock3,
-              label: "Versions",
-              onAction: () => open({ dialog: "versions", node }),
-            },
-          ]
-        : []),
-      ...(node.mimeType === "application/pdf"
-        ? [
-            {
-              icon: IconSignature,
-              label: "Signatures",
-              onAction: () => open({ dialog: "signatures", node }),
-            },
-          ]
-        : []),
-      ...(node.space === "personal" || manager || node.createdByMemberId === member.id
-        ? [
-            {
-              icon: IconTrash,
-              label: "Move to trash",
-              danger: true,
-              onAction: () =>
-                trashNode(
-                  { id: node.id },
-                  { onError: (error) => storageErrorToast(error, "It was not moved to Trash") },
-                ),
-            },
-          ]
-        : []),
-    ],
+    (node: StorageNode, open: (dialog: FolderDialog) => void) => {
+      const result: SettingsRowMenuItem[] = [
+        ...(node.kind === "file"
+          ? [{ icon: IconDownload, label: "Download", onAction: () => download(node) }]
+          : []),
+        { icon: IconUserAdd, label: "Share", onAction: () => open({ dialog: "share", node }) },
+        { icon: IconPencil, label: "Rename", onAction: () => open({ dialog: "rename", node }) },
+        // A cluster (a top-level folder) picks its sidebar glyph; nested folders stay folders.
+        ...(node.kind === "folder" && node.parentId === null
+          ? [
+              {
+                icon: IconSparkle,
+                label: "Change icon",
+                onAction: () => open({ dialog: "icon", node }),
+              },
+            ]
+          : []),
+        { icon: IconFolderMove, label: "Move", onAction: () => open({ dialog: "move", node }) },
+        ...(node.kind === "file"
+          ? [
+              {
+                icon: IconComment,
+                label: "Comments",
+                onAction: () => open({ dialog: "comments", node }),
+              },
+              {
+                icon: IconClock3,
+                label: "Versions",
+                onAction: () => open({ dialog: "versions", node }),
+              },
+            ]
+          : []),
+        ...(node.mimeType === "application/pdf"
+          ? [
+              {
+                icon: IconSignature,
+                label: "Signatures",
+                onAction: () => open({ dialog: "signatures", node }),
+              },
+            ]
+          : []),
+        ...(node.space === "personal" || manager || node.createdByMemberId === member.id
+          ? [
+              {
+                icon: IconTrash,
+                label: "Move to trash",
+                danger: true,
+                onAction: () =>
+                  trashNode(
+                    { id: node.id },
+                    { onError: (error) => storageErrorToast(error, "It was not moved to Trash") },
+                  ),
+              },
+            ]
+          : []),
+      ];
+      return result;
+    },
     [manager, member.id, trashNode],
   );
 }

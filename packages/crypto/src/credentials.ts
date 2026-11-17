@@ -29,11 +29,7 @@ const IV_BYTES = 12;
 const KEY_BYTES = 32;
 const KEY_ID = /^[A-Za-z0-9_-]{1,32}$/;
 
-export async function encryptCredential(
-  keyring: Keyring,
-  plaintext: string,
-  aad: string,
-): Promise<string> {
+export async function encryptCredential(keyring: Keyring, plaintext: string, aad: string) {
   assertAad(aad);
   const keyId = keyring.currentKeyId;
   const key = await importKey(keyring, keyId, "encrypt");
@@ -46,11 +42,7 @@ export async function encryptCredential(
   return [VERSION, keyId, toBase64Url(iv), toBase64Url(new Uint8Array(ciphertext))].join(".");
 }
 
-export async function decryptCredential(
-  keyring: Keyring,
-  envelope: string,
-  aad: string,
-): Promise<string> {
+export async function decryptCredential(keyring: Keyring, envelope: string, aad: string) {
   assertAad(aad);
   const { keyId, iv, ciphertext } = parseEnvelope(envelope);
   if (!(keyId in keyring.keys)) throw new CredentialError("unknown credential key id");
@@ -68,7 +60,7 @@ export async function decryptCredential(
 }
 
 /** True when the envelope was written with a key other than the current one. */
-export function needsReencryption(keyring: Keyring, envelope: string): boolean {
+export function needsReencryption(keyring: Keyring, envelope: string) {
   return parseEnvelope(envelope).keyId !== keyring.currentKeyId;
 }
 
@@ -76,7 +68,7 @@ export function needsReencryption(keyring: Keyring, envelope: string): boolean {
  * Parses a keyring from a secret such as `k2:<base64>,k1:<base64>`. The first entry is current.
  * Throws on malformed ids, duplicate ids, or keys that are not exactly 32 bytes.
  */
-export function parseKeyring(value: string): Keyring {
+export function parseKeyring(value: string) {
   const keys: Record<string, string> = {};
   let currentKeyId: string | undefined;
   for (const entry of value.split(",")) {
@@ -92,7 +84,7 @@ export function parseKeyring(value: string): Keyring {
     currentKeyId ??= id;
   }
   if (currentKeyId === undefined) throw new TypeError("keyring is empty");
-  return { currentKeyId, keys };
+  return { currentKeyId, keys } satisfies Keyring;
 }
 
 function parseEnvelope(envelope: string) {
@@ -120,6 +112,6 @@ function associatedData(keyId: string, aad: string) {
   return utf8(`${VERSION}.${keyId}.${aad}`);
 }
 
-function assertAad(aad: string): void {
+function assertAad(aad: string) {
   if (aad.length === 0) throw new TypeError("aad (the mailbox id) is required");
 }

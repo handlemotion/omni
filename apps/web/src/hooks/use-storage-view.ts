@@ -10,14 +10,14 @@ const DEFAULT: Record<StorageSection, StorageView> = { folders: "cards", files: 
 const KEY = (section: StorageSection) => `omni:storage-view:${section}`;
 const listeners = new Set<() => void>();
 
-function read(section: StorageSection): StorageView {
+const read: (section: StorageSection) => StorageView = (section) => {
   try {
     const stored = localStorage.getItem(KEY(section));
     return stored === "rows" || stored === "cards" ? stored : DEFAULT[section];
   } catch {
     return DEFAULT[section]; // Storage unavailable (private mode).
   }
-}
+};
 
 const current: Record<StorageSection, StorageView> = {
   folders: read("folders"),

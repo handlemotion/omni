@@ -102,15 +102,16 @@ export const keepUpdatedAt = sql<Date>`${storageNodes.updatedAt}`;
 export const stale = (node: NodeRow, guard?: StorageGuard) =>
   guard?.ifRevision !== undefined && node.revision !== guard.ifRevision;
 
-const view = (chain: NodeRow[], access: Access): StorageNodeView => ({
-  node: toNode(chain[0]!),
-  role: access.role,
-  path: chain
-    .slice(0, access.top + 1)
-    .toReversed()
-    .map((row) => ({ id: row.id, name: row.name })),
-  inTrash: inTrash(chain),
-});
+const view = (chain: NodeRow[], access: Access) =>
+  ({
+    node: toNode(chain[0]!),
+    role: access.role,
+    path: chain
+      .slice(0, access.top + 1)
+      .toReversed()
+      .map((row) => ({ id: row.id, name: row.name })),
+    inTrash: inTrash(chain),
+  }) satisfies StorageNodeView;
 
 /** The node's chain and what the door allows on it, or null when the door opens nothing. */
 export async function reach(ex: Db, door: Door, nodeId: string) {
@@ -141,7 +142,7 @@ export async function resolvePlace(ex: Db, door: Door, place: StoragePlace) {
 }
 
 /** Runs `fn` again when two writers picked the same free name and the unique index refused one. */
-export async function retryNameRace<T>(fn: () => Promise<T>): Promise<T> {
+export async function retryNameRace<T>(fn: () => Promise<T>) {
   for (let attempt = 0; ; attempt++) {
     try {
       return await fn();
@@ -168,13 +169,13 @@ async function leavingRefusal(tx: Db, door: Door, found: { node: NodeRow; access
   return null;
 }
 
-async function moveInto(
+const moveInto: (
   tx: Db,
   door: Door,
   nodeId: string,
   to: StoragePlace,
   guard?: StorageGuard,
-): Promise<MoveResult> {
+) => Promise<MoveResult> = async (tx, door, nodeId, to, guard) => {
   const orgId = await orgOfNode(tx, nodeId);
   if (!orgId) return NOT_FOUND;
   await lockTree(tx, orgId);
@@ -232,45 +233,47 @@ async function moveInto(
     .where(eq(storageNodes.id, node.id))
     .returning();
   return moved ? { status: "ok", node: toNode(moved), left: crossing ? from : null } : NOT_FOUND;
-}
+};
 
 /** What a member and a grantee can both do, each bounded by their door. */
 export function treeOperations(db: Db, door: Door) {
   return {
     /** A node the door opens. A member also gets one that is in Trash (`node.trashedAt`). */
-    async node(nodeId: string): Promise<StorageNodeView | null> {
+    async node(nodeId: string) {
       const found = await reach(db, door, nodeId);
-      return found ? view(found.chain, found.access) : null;
+      return (found ? view(found.chain, found.access) : null) satisfies StorageNodeView | null;
     },
 
     /** The node carrying this link, when the door opens it whatever the link's own access is. */
-    async nodeByShareId(shareId: string): Promise<StorageNodeView | null> {
+    async nodeByShareId(shareId: string) {
       const [row] = await db
         .select({ id: storageNodes.id })
         .from(storageNodes)
         .where(eq(storageNodes.shareId, shareId));
-      if (!row) return null;
+      if (!row) return null satisfies StorageNodeView | null;
       const found = await reach(db, door, row.id);
-      return found && !inTrash(found.chain) ? view(found.chain, found.access) : null;
+      return (
+        found && !inTrash(found.chain) ? view(found.chain, found.access) : null
+      ) satisfies StorageNodeView | null;
     },
 
     /** A folder's live contents: folders first, then by name. */
     async list(
       place: StoragePlace,
       page: { cursor?: StorageListCursor | null; limit?: number } = {},
-    ): Promise<ListResult> {
+    ) {
       const at = await resolvePlace(db, door, place);
-      if (!at) return NOT_FOUND;
+      if (!at) return NOT_FOUND satisfies ListResult;
       const { nodes, nextCursor } = await listChildren(db, at.drive, at.parentId, page);
       const folder = at.access ? view(at.chain, at.access) : null;
-      return { status: "ok", folder, nodes, nextCursor };
+      return { status: "ok", folder, nodes, nextCursor } satisfies ListResult;
     },
 
     /** A taken name gets a number instead of an error. */
-    async createFolder(place: StoragePlace, name: string): Promise<CreateFolderResult> {
+    async createFolder(place: StoragePlace, name: string) {
       const clean = cleanName(name);
-      if (!clean) return { status: "invalid_name" };
-      return db.transaction(async (tx) => {
+      if (!clean) return { status: "invalid_name" } satisfies CreateFolderResult;
+      return db.transaction<CreateFolderResult>(async (tx) => {
         const first = await resolvePlace(tx, door, place);
         if (!first) return NOT_FOUND;
         // Resolved again under the lock: a move may have pushed the folder deeper meanwhile.
@@ -293,21 +296,36 @@ export function treeOperations(db: Db, door: Door) {
     },
 
     /** Renaming to a name a sibling has is refused: the person typed it, so they choose again. */
-    async rename(nodeId: string, name: string, guard?: StorageGuard): Promise<RenameResult> {
+    async rename(nodeId: string, name: string, guard?: StorageGuard) {
       const clean = cleanName(name);
-      if (!clean) return { status: "invalid_name" };
+      if (!clean) return { status: "invalid_name" } satisfies RenameResult;
       try {
-        return await db.transaction(async (tx): Promise<RenameResult> => {
+        return (await db.transaction(async (tx) => {
           const orgId = await orgOfNode(tx, nodeId);
-          if (!orgId) return NOT_FOUND;
+          if (!orgId) {
+            const result: RenameResult = NOT_FOUND;
+            return result;
+          }
           // Under the tree lock, as a lock is taken: the guard below cannot see a lock row
           // another transaction has not committed yet, so a rename waits for it.
           await lockTree(tx, orgId);
           const found = await reach(tx, door, nodeId);
-          if (!found || inTrash(found.chain)) return NOT_FOUND;
-          if (!found.access.change) return FORBIDDEN;
-          if (stale(found.node, guard)) return VERSION_CONFLICT;
-          if (found.node.lockedAt) return LOCKED;
+          if (!found || inTrash(found.chain)) {
+            const result: RenameResult = NOT_FOUND;
+            return result;
+          }
+          if (!found.access.change) {
+            const result: RenameResult = FORBIDDEN;
+            return result;
+          }
+          if (stale(found.node, guard)) {
+            const result: RenameResult = VERSION_CONFLICT;
+            return result;
+          }
+          if (found.node.lockedAt) {
+            const result: RenameResult = LOCKED;
+            return result;
+          }
           const revision = await nextRevision(tx, orgId);
           const [row] = await tx
             .update(storageNodes)
@@ -316,10 +334,11 @@ export function treeOperations(db: Db, door: Door) {
               sql`${storageNodes.id} = ${nodeId} and ${storageNodes.trashedAt} is null and not exists (select 1 from ${storageLocks} where ${storageLocks.nodeId} = ${storageNodes.id})`,
             )
             .returning();
-          return row ? { status: "ok", node: toNode(row) } : NOT_FOUND;
-        });
+          const result: RenameResult = row ? { status: "ok", node: toNode(row) } : NOT_FOUND;
+          return result;
+        })) satisfies RenameResult;
       } catch (error) {
-        if (isUniqueViolation(error)) return { status: "name_taken" };
+        if (isUniqueViolation(error)) return { status: "name_taken" } satisfies RenameResult;
         throw error;
       }
     },
@@ -328,27 +347,31 @@ export function treeOperations(db: Db, door: Door) {
      * Moves a node into a folder or to a root of the same workspace. A name taken there gets a
      * number. A member may cross between My files and Shared; a grantee stays in one drive.
      */
-    move(nodeId: string, to: StoragePlace, guard?: StorageGuard): Promise<MoveResult> {
-      return retryNameRace(() => db.transaction((tx) => moveInto(tx, door, nodeId, to, guard)));
+    move(nodeId: string, to: StoragePlace, guard?: StorageGuard) {
+      return retryNameRace(() =>
+        db.transaction((tx) => moveInto(tx, door, nodeId, to, guard)),
+      ) satisfies Promise<MoveResult>;
     },
 
     /**
      * Moves a node to Trash, with everything inside it. Trashing it again changes nothing. A
      * locked file, or a folder holding one at any depth, stays.
      */
-    trash(nodeId: string, guard?: StorageGuard): Promise<TrashResult> {
-      return db.transaction(async (tx): Promise<TrashResult> => {
+    trash(nodeId: string, guard?: StorageGuard) {
+      return db.transaction<TrashResult>(async (tx) => {
         const orgId = await orgOfNode(tx, nodeId);
-        if (!orgId) return NOT_FOUND;
+        if (!orgId) return NOT_FOUND satisfies TrashResult;
         // Under the tree lock, as a lock is taken: a file locked meanwhile is seen here.
         await lockTree(tx, orgId);
         const found = await reach(tx, door, nodeId);
-        if (!found) return NOT_FOUND;
-        if (found.node.trashedAt) return { status: "ok", node: toNode(found.node) };
-        if (inTrash(found.chain)) return NOT_FOUND;
-        if (!found.access.remove || !(await door.removesWhole(tx, found.node))) return FORBIDDEN;
-        if (stale(found.node, guard)) return VERSION_CONFLICT;
-        if (await holdsLocked(tx, nodeId)) return LOCKED;
+        if (!found) return NOT_FOUND satisfies TrashResult;
+        if (found.node.trashedAt)
+          return { status: "ok", node: toNode(found.node) } satisfies TrashResult;
+        if (inTrash(found.chain)) return NOT_FOUND satisfies TrashResult;
+        if (!found.access.remove || !(await door.removesWhole(tx, found.node)))
+          return FORBIDDEN satisfies TrashResult;
+        if (stale(found.node, guard)) return VERSION_CONFLICT satisfies TrashResult;
+        if (await holdsLocked(tx, nodeId)) return LOCKED satisfies TrashResult;
         const revision = await nextRevision(tx, orgId);
         // What is inside goes to Trash with it, so a sync client hears about each of them.
         await tx
@@ -360,15 +383,20 @@ export function treeOperations(db: Db, door: Door) {
           .set({ trashedAt: new Date(), revision })
           .where(sql`${storageNodes.id} = ${nodeId} and ${storageNodes.trashedAt} is null`)
           .returning();
-        return { status: "ok", node: toNode(row ?? found.node) };
+        return { status: "ok", node: toNode(row ?? found.node) } satisfies TrashResult;
       });
     },
 
     /** A file and where its bytes are, for a download. */
-    async file(nodeId: string): Promise<FileResult> {
+    async file(nodeId: string) {
       const found = await reach(db, door, nodeId);
-      if (!found || found.node.kind !== "file" || !found.node.r2Key) return NOT_FOUND;
-      return { status: "ok", file: toNode(found.node), r2Key: found.node.r2Key };
+      if (!found || found.node.kind !== "file" || !found.node.r2Key)
+        return NOT_FOUND satisfies FileResult;
+      return {
+        status: "ok",
+        file: toNode(found.node),
+        r2Key: found.node.r2Key,
+      } satisfies FileResult;
     },
   };
 }

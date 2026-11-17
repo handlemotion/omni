@@ -35,7 +35,7 @@ function stripeFor(publishableKey: string) {
 }
 
 /** Stripe's fields drawn in our tokens, read from the page so they follow `styles.css`. */
-function appearance(): Appearance {
+const appearance: () => Appearance = () => {
   const token = (name: string) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return {
@@ -56,7 +56,7 @@ function appearance(): Appearance {
       ".Label": { color: token("--foreground") },
     },
   };
-}
+};
 
 type Setup =
   | { status: "loading" }

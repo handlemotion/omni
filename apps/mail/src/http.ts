@@ -44,10 +44,10 @@ export const rejectAll: RequestVerifier = async () => false;
 export function hmacVerifier(
   secret: string,
   options: { maxAgeSeconds?: number; onReject?: (reason: string) => void } = {},
-): RequestVerifier {
+) {
   const maxAgeSeconds = options.maxAgeSeconds ?? DEFAULT_MAX_AGE_SECONDS;
   const seen = new Map<string, number>();
-  return async (request) => {
+  return (async (request) => {
     const url = new URL(request.url);
     const body = new Uint8Array(await request.clone().arrayBuffer());
     const result = await verifyRequest({
@@ -72,7 +72,7 @@ export function hmacVerifier(
     // Twice the window: a timestamp may be up to maxAge in the future or in the past.
     seen.set(result.nonce, now + 2 * maxAgeSeconds * 1000);
     return true;
-  };
+  }) satisfies RequestVerifier;
 }
 
 export interface HttpDeps {
@@ -100,7 +100,7 @@ export interface HttpDeps {
   onError?(error: unknown): void;
 }
 
-export function createApp(deps: HttpDeps): Hono {
+export function createApp(deps: HttpDeps) {
   const app = new Hono();
 
   // The Worker's request ID rides `x-omni-request-id`, covered by the HMAC signature: on signed
@@ -205,11 +205,11 @@ export function createApp(deps: HttpDeps): Hono {
     return answer(c, () => deps.dns!(body));
   });
 
-  return app;
+  return app satisfies Hono;
 }
 
 /** The signed request ID; only meaningful after `verify` passed. */
-function requestIdOf(c: Context): string | null {
+function requestIdOf(c: Context) {
   const value = c.req.header(REQUEST_ID_HEADER);
   return value && isValidRequestId(value) ? value : null;
 }

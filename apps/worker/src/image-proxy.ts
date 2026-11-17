@@ -54,10 +54,10 @@ export function isProxiableImageType(contentType: string | null) {
 }
 
 /** Serves `target` through the Cache API, fetching and checking it on a miss. */
-export async function proxyImage(
+export const proxyImage: (
   target: string,
   options: ProxyOptions,
-): Promise<Response | ProxyFailure> {
+) => Promise<Response | ProxyFailure> = async (target, options) => {
   const cacheKey = new Request(`https://image-proxy.invalid/?url=${encodeURIComponent(target)}`);
   const cache = await caches.open("image-proxy");
   const hit = await cache.match(cacheKey);
@@ -71,7 +71,7 @@ export async function proxyImage(
   // The Cache API skips `private` responses; the stored copy is public, readers get private.
   await cache.put(cacheKey, withCacheControl(fetched.clone(), `public, max-age=${CACHE_SECONDS}`));
   return fetched;
-}
+};
 
 function withCacheControl(response: Response, value: string) {
   const headers = new Headers(response.headers);
@@ -79,10 +79,10 @@ function withCacheControl(response: Response, value: string) {
   return new Response(response.body, { status: response.status, headers });
 }
 
-export async function fetchImage(
+export const fetchImage: (
   target: string,
   options: ProxyOptions,
-): Promise<Response | ProxyFailure> {
+) => Promise<Response | ProxyFailure> = async (target, options) => {
   let url: URL;
   try {
     url = new URL(target);
@@ -143,7 +143,7 @@ export async function fetchImage(
     });
   }
   return { status: 403, reason: "too many redirects" };
-}
+};
 
 export async function readCapped(response: Response, maxBytes: number) {
   const reader = response.body!.getReader();
@@ -172,11 +172,11 @@ export async function readCapped(response: Response, maxBytes: number) {
  * Null when the URL may be fetched; otherwise why not. Run it on every redirect hop of any fetch
  * to a URL taken from mail (image proxy, one-click unsubscribe).
  */
-export async function checkDestination(
+export const checkDestination: (
   url: URL,
   options: ProxyOptions,
   signal: AbortSignal,
-): Promise<ProxyFailure | null> {
+) => Promise<ProxyFailure | null> = async (url, options, signal) => {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     return { status: 400, reason: "only http and https" };
   }
@@ -202,7 +202,7 @@ export async function checkDestination(
   if (addresses.length === 0) return { status: 502, reason: "host does not resolve" };
   if (!addresses.every(isPublicIp)) return { status: 403, reason: "private address" };
   return null;
-}
+};
 
 /** A and AAAA records over DNS-over-HTTPS (JSON). Null when the lookup itself failed. */
 async function resolve(host: string, dohUrl: string, signal: AbortSignal) {
@@ -229,7 +229,7 @@ function isIpLiteral(host: string) {
 }
 
 /** Only globally routable unicast addresses pass. Anything unparsable is treated as private. */
-export function isPublicIp(address: string): boolean {
+export function isPublicIp(address: string) {
   const v4 = parseIpv4(address);
   if (v4) return isPublicIpv4(v4);
   const v6 = parseIpv6(address);
@@ -253,7 +253,7 @@ export function isPublicIp(address: string): boolean {
   return (first & 0xe000) === 0x2000; // 2000::/3 global unicast
 }
 
-function isPublicIpv4([a, b, c]: number[]): boolean {
+function isPublicIpv4([a, b, c]: number[]) {
   if (a === undefined || b === undefined || c === undefined) return false;
   if (a === 0 || a === 10 || a === 127) return false;
   if (a === 100 && b >= 64 && b <= 127) return false; // carrier-grade NAT
@@ -268,14 +268,14 @@ function isPublicIpv4([a, b, c]: number[]): boolean {
   return true;
 }
 
-function parseIpv4(address: string): number[] | null {
+const parseIpv4: (address: string) => number[] | null = (address) => {
   const parts = address.split(".");
   if (parts.length !== 4) return null;
   const bytes = parts.map((p) => (/^\d{1,3}$/.test(p) ? Number(p) : NaN));
   return bytes.every((b) => b >= 0 && b <= 255) ? bytes : null;
-}
+};
 
-function parseIpv6(address: string): number[] | null {
+const parseIpv6: (address: string) => number[] | null = (address) => {
   let text = address.split("%")[0]!;
   // A trailing dotted IPv4 becomes two hextets.
   const dotted = text.match(/(\d{1,3}(?:\.\d{1,3}){3})$/);
@@ -293,4 +293,4 @@ function parseIpv6(address: string): number[] | null {
   const groups = [...head, ...Array<string>(halves.length === 2 ? missing : 0).fill("0"), ...tail];
   const values = groups.map((g) => (/^[0-9a-f]{1,4}$/i.test(g) ? parseInt(g, 16) : NaN));
   return values.every((v) => !Number.isNaN(v)) ? values : null;
-}
+};

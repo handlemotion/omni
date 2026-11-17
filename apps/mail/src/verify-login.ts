@@ -5,7 +5,7 @@ import type { PasswordCredentials } from "./credentials.ts";
  * Logs in over IMAP and out again. Resolves to null on success, or the server's reason. Never
  * includes the password.
  */
-export async function verifyImapLogin(credentials: PasswordCredentials): Promise<string | null> {
+export async function verifyImapLogin(credentials: PasswordCredentials) {
   const client = new ImapFlow({
     host: credentials.imap.host,
     port: credentials.imap.port,

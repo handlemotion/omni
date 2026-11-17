@@ -43,7 +43,7 @@ export function createProvisioner(deps: {
   /** Connect the mailbox with its stored credentials, replacing a connection it already has. */
   connect(mailboxId: string): Promise<void>;
   logger: Logger;
-}): Provisioner {
+}) {
   const { db, keyring, logger } = deps;
   const { host } = deps;
   // One provisioning run per address at a time, so a double submit cannot create two app
@@ -51,7 +51,7 @@ export function createProvisioner(deps: {
   const running = new Map<string, Promise<ProvisionMailboxResult>>();
 
   /** The host's answer; a bad request becomes a 422, a host failure or outage a 502. */
-  async function hosted<T>(task: () => Promise<T>): Promise<T> {
+  async function hosted<T>(task: () => Promise<T>) {
     try {
       return await task();
     } catch (error) {
@@ -60,16 +60,18 @@ export function createProvisioner(deps: {
     }
   }
 
-  async function domain(
+  const domain: (
     name: string,
-    options: { add?: boolean } = {},
-  ): Promise<ProvisionDomainResult> {
+    options?: { add?: boolean },
+  ) => Promise<ProvisionDomainResult> = async (name, options = {}) => {
     if (!host) return { provider: "imap" };
     const state = await hosted(() => host.domain(name, { add: options.add !== false }));
     return { provider: host.provider, ...state };
-  }
+  };
 
-  async function createMailbox(input: ProvisionMailboxBody): Promise<ProvisionMailboxResult> {
+  const createMailbox: (input: ProvisionMailboxBody) => Promise<ProvisionMailboxResult> = async (
+    input,
+  ) => {
     const { orgId, address } = input;
     const domainName = address.slice(address.lastIndexOf("@") + 1);
     const existing = await findOrgMailbox(db, orgId, address);
@@ -117,7 +119,7 @@ export function createProvisioner(deps: {
       .connect(mailboxId)
       .catch((error: unknown) => logger.error("mailbox.connect_failed", { mailboxId, error }));
     return { mailboxId, address, created: true };
-  }
+  };
 
   /** The stored login is this one already: nothing to save or reconnect. */
   async function sameLogin(
@@ -142,5 +144,5 @@ export function createProvisioner(deps: {
       running.set(key, run);
       return run;
     },
-  };
+  } satisfies Provisioner;
 }

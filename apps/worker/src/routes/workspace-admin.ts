@@ -23,10 +23,10 @@ import { mailboxPlacement, provisionMailbox } from "../provision-mailbox.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
 
-function manager(c: Context<AppEnv>): MailboxMembersActor {
+const manager: (c: Context<AppEnv>) => MailboxMembersActor = (c) => {
   const { id, orgId } = c.var.member;
   return { memberId: id, orgId, manage: true };
-}
+};
 
 /** The member of the active workspace named in the path, or 404. */
 async function pathMember(c: Context<AppEnv>) {

@@ -36,11 +36,11 @@ export interface ConversationTransition {
 const open: ConversationState = { status: "open", snoozedUntil: null, resolvedAt: null };
 
 /** The conversation's state after `event` happens at `now`. Pure; never throws. */
-export function nextConversationState(
+export const nextConversationState: (
   state: ConversationState,
   event: ConversationEvent,
   now: Date,
-): ConversationTransition {
+) => ConversationTransition = (state, event, now) => {
   switch (event.type) {
     case "customer_message":
       // The customer wrote: whatever we were waiting for, the team owes a reply now.
@@ -68,16 +68,16 @@ export function nextConversationState(
     case "reopen":
       return to(state, open);
   }
-}
+};
 
-function same(state: ConversationState): ConversationTransition {
+const same: (state: ConversationState) => ConversationTransition = (state) => {
   return { state, changed: false };
-}
+};
 
-function to(state: ConversationState, next: ConversationState): ConversationTransition {
+function to(state: ConversationState, next: ConversationState) {
   const changed =
     state.status !== next.status ||
     state.snoozedUntil?.getTime() !== next.snoozedUntil?.getTime() ||
     state.resolvedAt?.getTime() !== next.resolvedAt?.getTime();
-  return changed ? { state: next, changed } : same(state);
+  return (changed ? { state: next, changed } : same(state)) satisfies ConversationTransition;
 }

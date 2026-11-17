@@ -30,21 +30,23 @@ function readEnabled() {
   }
 }
 
-function currentState(): DesktopNotificationState {
+const currentState: () => DesktopNotificationState = () => {
   if (typeof Notification === "undefined") return "unsupported";
   if (Notification.permission === "denied") return "blocked";
   return Notification.permission === "granted" && readEnabled() ? "on" : "off";
-}
+};
 
-export function useDesktopNotificationState(): DesktopNotificationState {
+export function useDesktopNotificationState() {
   return useSyncExternalStore((notify) => {
     listeners.add(notify);
     return () => listeners.delete(notify);
-  }, currentState);
+  }, currentState) satisfies DesktopNotificationState;
 }
 
 /** Turns them on (asking the browser first) or off for this device. Resolves the new state. */
-export async function setDesktopNotifications(on: boolean): Promise<DesktopNotificationState> {
+export const setDesktopNotifications: (on: boolean) => Promise<DesktopNotificationState> = async (
+  on,
+) => {
   if (typeof Notification === "undefined") return "unsupported";
   if (on && Notification.permission === "default") await Notification.requestPermission();
   try {
@@ -55,7 +57,7 @@ export async function setDesktopNotifications(on: boolean): Promise<DesktopNotif
   }
   emit();
   return currentState();
-}
+};
 
 /**
  * Whether Omni is out of sight. A tab is when another tab or app covers it. The desktop app's

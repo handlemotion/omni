@@ -22,8 +22,8 @@ interface SignIn {
 const signIns = new AsyncLocalStorage<SignIn>();
 
 /** Runs one auth request with its own sign-in store. The Worker wraps `auth.handler` in it. */
-export function withSignInRequest<T>(run: () => T): T {
-  return signIns.run({}, run);
+export function withSignInRequest<T>(run: () => T) {
+  return signIns.run({}, run) satisfies T;
 }
 
 /** Notes the address the current auth request signs in with. Outside a request, nothing. */
@@ -36,7 +36,7 @@ export function noteSignInAddress(address: string | undefined | null) {
  * For `session.create.before`: the company this new session is scoped to, or null. Remembered
  * for `recordSessionScope`, which runs once the session has its id.
  */
-export async function newSessionScope(db: Db): Promise<string | null> {
+export async function newSessionScope(db: Db) {
   const store = signIns.getStore();
   if (!store?.address) return null;
   store.scopeOrgId = await companyForAddress(db, store.address);

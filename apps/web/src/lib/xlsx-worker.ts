@@ -11,15 +11,15 @@ const isZip = (buffer: ArrayBuffer) => {
 };
 
 /** The sheet's cells from A1, so a used range that starts at B3 keeps B3 in its place. */
-function cells(sheet: WorkSheet | undefined): string[][] {
+const cells: (sheet: WorkSheet | undefined) => string[][] = (sheet) => {
   const ref = sheet?.["!ref"];
   if (!sheet || !ref) return [];
   const range = utils.decode_range(ref);
   range.s = { r: 0, c: 0 };
   return utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: "", range });
-}
+};
 
-function sheets({ buffer, rows, columns }: SheetsRequest): SheetsResult {
+const sheets: (arg0: SheetsRequest) => SheetsResult = ({ buffer, rows, columns }) => {
   if (!isZip(buffer)) return { error: true };
   const book = read(buffer, {
     type: "array",
@@ -44,7 +44,7 @@ function sheets({ buffer, rows, columns }: SheetsRequest): SheetsResult {
       };
     }),
   };
-}
+};
 
 /** This module runs as a dedicated worker: its `postMessage` answers the page that started it. */
 const reply: (result: SheetsResult) => void = (self as unknown as Worker).postMessage.bind(self);

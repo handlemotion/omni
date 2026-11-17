@@ -75,7 +75,7 @@ export interface MailService {
   stop(): Promise<void>;
 }
 
-export async function startService(config: ServiceConfig, log: Logger): Promise<MailService> {
+export async function startService(config: ServiceConfig, log: Logger) {
   // A fixed share of the database's connection budget, next to Hyperdrive's origin limit
   // (docs/self-hosting.md, "Connection budget"); postgres-js would otherwise open up to 10.
   const { db, close } = createDb(config.DATABASE_URL, { max: 5 });
@@ -274,7 +274,7 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
       });
     }
   }
-  function reconcileMailboxes(): Promise<void> {
+  function reconcileMailboxes() {
     if (reconciling) {
       again = true;
       return reconciling;
@@ -398,7 +398,7 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
     },
   });
 
-  async function databaseAnswers(): Promise<boolean> {
+  async function databaseAnswers() {
     let deadline: NodeJS.Timeout | undefined;
     try {
       return await Promise.race([
@@ -427,5 +427,5 @@ export async function startService(config: ServiceConfig, log: Logger): Promise<
       await notifier.stop();
       await close();
     },
-  };
+  } satisfies MailService;
 }

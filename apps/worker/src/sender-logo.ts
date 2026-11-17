@@ -34,10 +34,10 @@ export interface LogoOptions extends ProxyOptions {
 }
 
 /** The logo for `source` through the Cache API: an image, a 404 when it has none, or why not. */
-export async function senderLogo(
+export const senderLogo: (
   source: LogoSource,
   options: LogoOptions,
-): Promise<Response | ProxyFailure> {
+) => Promise<Response | ProxyFailure> = async (source, options) => {
   const key =
     source.kind === "domain"
       ? `domain/${source.domain}`
@@ -63,7 +63,7 @@ export async function senderLogo(
   const seconds = image ? FOUND_SECONDS : MISSING_SECONDS;
   await cache.put(cacheKey, withCacheControl(response.clone(), seconds, "public"));
   return withCacheControl(response, seconds, "private");
-}
+};
 
 interface Image {
   bytes: Uint8Array;
@@ -71,13 +71,19 @@ interface Image {
   width: number;
 }
 
-async function gravatar(hash: string, options: LogoOptions): Promise<Image | null> {
+const gravatar: (hash: string, options: LogoOptions) => Promise<Image | null> = async (
+  hash,
+  options,
+) => {
   if (options.gravatar === "off") return null;
   return fetchCandidate(options.gravatar.replaceAll("{hash}", hash), options);
-}
+};
 
 /** The first sharp icon among the candidates, or the widest one found in the time allowed. */
-async function domainLogo(domain: string, options: LogoOptions): Promise<Image | null> {
+const domainLogo: (domain: string, options: LogoOptions) => Promise<Image | null> = async (
+  domain,
+  options,
+) => {
   const deadline = Date.now() + BUDGET_MS;
   const page = await fetchPage(`https://${domain}/`, options);
   const links = page ? iconLinks(page.html, page.url) : [];
@@ -90,16 +96,19 @@ async function domainLogo(domain: string, options: LogoOptions): Promise<Image |
     if (image && image.width > (best?.width ?? 0)) best = image;
   }
   return best;
-}
+};
 
-async function fetchCandidate(url: string, options: ProxyOptions): Promise<Image | null> {
+const fetchCandidate: (url: string, options: ProxyOptions) => Promise<Image | null> = async (
+  url,
+  options,
+) => {
   const response = await fetchImage(url, options);
   if (!(response instanceof Response)) return null;
   const bytes = new Uint8Array(await response.arrayBuffer());
   const width = imageWidth(bytes);
   if (!width) return null;
   return { bytes, type: response.headers.get("content-type")!, width };
-}
+};
 
 /** A site's home page, its first bytes only, after the same per-hop checks as the proxy. */
 async function fetchPage(target: string, options: ProxyOptions) {

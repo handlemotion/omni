@@ -18,7 +18,7 @@ const options = {
   cidUrl: () => null,
 };
 
-function elapsedMs(run: () => unknown): number {
+function elapsedMs(run: () => unknown) {
   const start = performance.now();
   run();
   return performance.now() - start;

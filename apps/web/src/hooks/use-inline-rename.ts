@@ -39,24 +39,25 @@ export function useInlineRename(source: { shareId: string | undefined; nodes: St
   }, []);
 
   const finish = useCallback(
-    (node: StorageNode, value: string, by: FinishedBy): "stay" | "done" => {
+    (node: StorageNode, value: string, by: FinishedBy) => {
       const current = latest.current.renaming;
-      if (current?.id !== node.id || current.step !== "naming") return "done";
+      if (current?.id !== node.id || current.step !== "naming")
+        return "done" satisfies "stay" | "done";
       const given = value.trim();
       const refocus = by !== "blur";
       if (by === "escape" || !given || given === node.name) {
         setRenaming(null);
         if (refocus && current.at === "list") focusRow(node.id);
-        return "done";
+        return "done" satisfies "stay" | "done";
       }
       const siblings = latest.current.nodes.filter((n) => n.id !== node.id).map((n) => n.name);
       const problem = nameProblem(given, siblings);
       if (problem) {
         appToast.error(storageErrorText({ code: problem }, "It was not renamed"));
         // Enter keeps the field to try another name; leaving it keeps the name it had.
-        if (by === "enter") return "stay";
+        if (by === "enter") return "stay" satisfies "stay" | "done";
         setRenaming(null);
-        return "done";
+        return "done" satisfies "stay" | "done";
       }
       setRenaming({ ...current, step: "saving", name: given });
       if (refocus && current.at === "list") focusRow(node.id);
@@ -67,7 +68,7 @@ export function useInlineRename(source: { shareId: string | undefined; nodes: St
           appToast.error(storageErrorText(error, "It was not renamed"));
         })
         .finally(saved);
-      return "done";
+      return "done" satisfies "stay" | "done";
     },
     [change, shareId],
   );

@@ -42,11 +42,11 @@ export type KeyedMutation<TData, TVars extends { key: string }, TContext> = Dist
  */
 export function useKeyedMutation<TData, TVars extends { key: string }, TContext>(
   options: UseMutationOptions<TData, Error, TVars, TContext>,
-): KeyedMutation<TData, TVars, TContext> {
+) {
   const mutation = useMutation(options);
   const withKey = (variables: Omit<TVars, "key">) =>
     ({ ...variables, key: idempotencyKey() }) as TVars;
-  return {
+  const wrapped: KeyedMutation<TData, TVars, TContext> = {
     ...(mutation as DistributiveOmit<typeof mutation, "mutate" | "mutateAsync">),
     mutate: (variables, opts) => mutation.mutate(withKey(variables), opts),
     mutateAsync: (variables, opts) => mutation.mutateAsync(withKey(variables), opts),
@@ -58,4 +58,5 @@ export function useKeyedMutation<TData, TVars extends { key: string }, TContext>
       );
     },
   };
+  return wrapped;
 }

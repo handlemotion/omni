@@ -58,9 +58,9 @@ export class ApiError extends Error {
 
 /** Awaits a Hono RPC call and returns its typed body, or throws `ApiError`. */
 // oxlint-disable-next-line typescript/no-explicit-any -- mirrors hono's own `parseResponse` bound
-export async function call<T extends ClientResponse<any>>(
+export const call: <T extends ClientResponse<any>>(
   request: Promise<T>,
-): ReturnType<typeof parseResponse<T>> {
+) => ReturnType<typeof parseResponse<T>> = async (request) => {
   try {
     return await parseResponse(request);
   } catch (error) {
@@ -71,7 +71,7 @@ export async function call<T extends ClientResponse<any>>(
     }
     throw new ApiError(0, error instanceof Error ? error.message : String(error));
   }
-}
+};
 
 /** True for "not signed in" or "not a member": retrying will not help. */
 export function isAuthError(error: unknown) {

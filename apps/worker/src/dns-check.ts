@@ -47,7 +47,7 @@ export async function inspectDomain(
     /** The last check, whose host and Domain Connect findings are reused instead of fetched again. */
     previous?: DomainCheck | null;
   },
-): Promise<{ check: DomainCheck; challengeFound: boolean | null }> {
+) {
   const { domain } = input;
   const challenge = input.challengeHash
     ? { ...CHALLENGE, name: challengeRecordName(domain) }
@@ -62,12 +62,12 @@ export async function inspectDomain(
   if (discover) queries.set(`TXT ${dcName}`, { name: dcName, type: "TXT" });
 
   const result = await lookupDns(deps, { domain, queries: [...queries.values()] });
-  const at = (name: string): Answers => {
+  const at = (name: string) => {
     const answers: Answers = {};
     for (const a of result.answers) {
       if (a.name === name && a.type !== "NS") answers[a.type] = a.answer;
     }
-    return answers;
+    return answers satisfies Answers;
   };
 
   let challengeFound: boolean | null = null;
@@ -85,7 +85,7 @@ export async function inspectDomain(
       ...diagnose(challenge, answers, { matched: challengeFound === true }),
     };
   }
-  const records = input.records.map((record): DomainRecordDiagnostic => ({
+  const records = input.records.map<DomainRecordDiagnostic>((record) => ({
     type: record.type,
     name: record.name,
     ...diagnose(record, at(record.name)),
@@ -112,7 +112,7 @@ export async function inspectDomain(
       challenge: challengeDiagnostic,
       records,
     },
-  };
+  } satisfies { check: DomainCheck; challengeFound: boolean | null };
 }
 
 /**
@@ -120,10 +120,10 @@ export async function inspectDomain(
  * DOMAIN_CONNECT_PROVIDER_ID is set. Any failure (no TXT, a host that does not answer, a template
  * it has not onboarded) reads as "not offered": the member adds the records by hand.
  */
-async function discoverDomainConnect(
+const discoverDomainConnect: (
   deps: DomainDeps,
   input: { domain: string; zone: string; txt: DnsAnswer | undefined; serviceId?: string },
-): Promise<DomainCheck["domainConnect"]> {
+) => Promise<DomainCheck["domainConnect"]> = async (deps, input) => {
   const providerId = deps.config.DOMAIN_CONNECT_PROVIDER_ID;
   if (!providerId || !input.serviceId) return null;
   try {
@@ -159,9 +159,9 @@ async function discoverDomainConnect(
     deps.log.info("domains.domain_connect_unavailable", { error });
     return null;
   }
-}
+};
 
-async function fetchJson(url: string): Promise<unknown> {
+async function fetchJson(url: string) {
   const response = await fetch(url, {
     headers: { accept: "application/json" },
     signal: AbortSignal.timeout(3_000),
@@ -185,7 +185,7 @@ export async function domainConnectUrl(
     challengeValue: string | undefined;
     records: MailDomainRecord[];
   },
-): Promise<string | null> {
+) {
   const dc = input.check?.domainConnect;
   const { config } = deps;
   const serviceId = DOMAIN_CONNECT_SERVICES[input.provider];
@@ -220,7 +220,7 @@ export async function domainConnectUrl(
 }
 
 /** The text after `prefix`, or null when the value does not start with it. */
-function afterPrefix(value: string, prefix: string): string | null {
+function afterPrefix(value: string, prefix: string) {
   const trimmed = value.trim();
   return trimmed.startsWith(prefix) ? trimmed.slice(prefix.length) : null;
 }

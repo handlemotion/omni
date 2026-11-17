@@ -33,7 +33,7 @@ export class RateLimiter extends DurableObject<Env> {
    * for all of them. Returns 0 when allowed, otherwise the seconds until the window resets.
    * Refused hits are not counted, so a client that waits gets in again.
    */
-  async hit(limit: number, windowSeconds: number, cost = 1): Promise<number> {
+  async hit(limit: number, windowSeconds: number, cost = 1) {
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
     let state = await this.ctx.storage.get<{ start: number; count: number }>("window");
@@ -63,7 +63,7 @@ export async function checkRateLimit(
   rule: RateLimitRule,
   key: string,
   cost = 1,
-): Promise<number> {
+) {
   const limit: RateLimit = config[RULES[rule]];
   if (!limit) return 0;
   const name = await sha256Hex(`${rule}:${key}`);

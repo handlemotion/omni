@@ -119,10 +119,10 @@ type Intent = "success" | "info" | "warning" | "danger" | "secondary";
  * Where the plan stands, in the card's own words: a badge only when it is not simply running,
  * and the one date that matters now.
  */
-function planState(subscription: Subscription | null): {
+const planState: (subscription: Subscription | null) => {
   badge?: { label: string; intent: Intent };
   date?: string;
-} {
+} = (subscription) => {
   if (!subscription) return { badge: { label: "No plan", intent: "secondary" } };
   const { status, periodEnd, trialEnd, cancelAtPeriodEnd } = subscription;
   const end = (status === "trialing" ? (trialEnd ?? periodEnd) : periodEnd) ?? null;
@@ -149,7 +149,7 @@ function planState(subscription: Subscription | null): {
     badge: { label: "Ended", intent: "secondary" },
     date: end ? `Ended ${shortDay(end)}` : undefined,
   };
-}
+};
 
 export function BillingPage() {
   const billing = useBilling();

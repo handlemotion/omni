@@ -30,11 +30,11 @@ export const threadSummarySchema = z.object({
 export type ThreadSummary = z.infer<typeof threadSummarySchema>;
 
 /** A thread's lane as the inbox shows it: the AI's bucket only when it was sure. */
-export function laneOf(thread: {
+export const laneOf: (thread: {
   triage: string | null;
   triageSource: string | null;
   triageConfidence: number | null;
-}): Lane | null {
+}) => Lane | null = (thread) => {
   if (!thread.triage) return null;
   if (
     thread.triageSource === "ai" &&
@@ -43,7 +43,7 @@ export function laneOf(thread: {
     return "unsure";
   }
   return thread.triage as Lane;
-}
+};
 
 /** Where a thread opens in the web app. */
 export function threadUrl(webAppURL: string, threadId: string) {
@@ -71,7 +71,7 @@ export function threadSummary(
     triageConfidence: number | null;
   },
   context: { webAppURL: string; mailboxAddress: (id: string) => string },
-): ThreadSummary {
+) {
   return {
     id: row.id,
     subject: row.subject,
@@ -88,7 +88,7 @@ export function threadSummary(
     done: row.done,
     archived: row.archived,
     has_attachments: row.hasAttachments,
-  };
+  } satisfies ThreadSummary;
 }
 
 /** A tool result: the JSON as `structuredContent` and as text. */

@@ -43,10 +43,7 @@ export function zValidator<T extends ZodType, Target extends keyof ValidationTar
  * `zValidator("json")` so the typed client keeps calling it without one: an empty body is `{}`,
  * and older clients that send nothing behave as they always did.
  */
-export async function optionalJsonBody<T extends ZodType>(
-  c: Context,
-  schema: T,
-): Promise<output<T>> {
+export async function optionalJsonBody<T extends ZodType>(c: Context, schema: T) {
   const text = await c.req.text();
   let json: unknown = {};
   if (text.trim()) {
@@ -57,6 +54,6 @@ export async function optionalJsonBody<T extends ZodType>(
     }
   }
   const parsed = schema.safeParse(json);
-  if (parsed.success) return parsed.data;
+  if (parsed.success) return parsed.data satisfies output<T>;
   throw invalid("json", parsed.error.issues);
 }

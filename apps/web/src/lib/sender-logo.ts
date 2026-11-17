@@ -30,7 +30,7 @@ export function senderLogoQuery(who: SenderLogoFor) {
   });
 }
 
-async function loadSenderLogo(who: SenderLogoFor): Promise<SenderLogo | null> {
+const loadSenderLogo: (who: SenderLogoFor) => Promise<SenderLogo | null> = async (who) => {
   const src = api["sender-logo"].$url({ query: who }).toString();
   const image = new Image();
   image.src = src;
@@ -48,4 +48,4 @@ async function loadSenderLogo(who: SenderLogoFor): Promise<SenderLogo | null> {
   if (!context) return { src, edge: { kind: "busy" } };
   context.drawImage(image, 0, 0, SAMPLE, SAMPLE);
   return { src, edge: logoEdge(context.getImageData(0, 0, SAMPLE, SAMPLE).data, SAMPLE, SAMPLE) };
-}
+};

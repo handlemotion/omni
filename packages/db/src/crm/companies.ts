@@ -108,11 +108,11 @@ export async function listCompanies(ex: Ex, member: CrmMember, input: ListCompan
 }
 
 /** A company with its domains, its live people and its live deals. Archived ones are readable. */
-export async function getCompany(
+export const getCompany: (
   ex: Ex,
   member: CrmMember,
   id: string,
-): Promise<CompanyDetailResult> {
+) => Promise<CompanyDetailResult> = async (ex, member, id) => {
   const company = await loadCompany(ex, member.orgId, id);
   if (!company) return NOT_FOUND;
   const people = await ex
@@ -133,15 +133,15 @@ export async function getCompany(
     people: await withAddresses(ex, people),
     deals,
   };
-}
+};
 
 /** A domain as it may be added, or why not. */
-function checkDomain(input: string): { domain: string } | DomainRefusal {
+const checkDomain: (input: string) => { domain: string } | DomainRefusal = (input) => {
   const domain = normalizeDomain(input);
   if (!domain) return { status: "invalid_domain" };
   if (isWebmailDomain(domain)) return { status: "webmail_domain" };
   return { domain };
-}
+};
 
 /**
  * Gives `domain` to the company. The unique key decides a race: a domain another company holds
@@ -162,11 +162,11 @@ async function claimDomain(tx: Ex, member: CrmMember, companyId: string, domain:
   return { status: "domain_taken" as const, companyId: holder.companyId };
 }
 
-export async function createCompany(
+export const createCompany: (
   tx: Ex,
   member: CrmMember,
   input: { name: string; description?: string | null; domains?: string[] },
-): Promise<CreateCompanyResult> {
+) => Promise<CreateCompanyResult> = async (tx, member, input) => {
   const name = cleanName(input.name);
   if (!name) return { status: "invalid_name" };
   const domains: string[] = [];
@@ -190,7 +190,7 @@ export async function createCompany(
   }
   await appendEvent(tx, member, { companyId: company!.id }, "created");
   return { status: "ok", company: company! };
-}
+};
 
 /**
  * The company holding `domain`, or a new one named `name` that holds it. Two first adds at once
@@ -220,12 +220,12 @@ export async function companyForDomain(tx: Ex, member: CrmMember, domain: string
   return claimed.companyId;
 }
 
-export async function updateCompany(
+export const updateCompany: (
   tx: Ex,
   member: CrmMember,
   id: string,
   patch: { name?: string; description?: string | null },
-): Promise<UpdateCompanyResult> {
+) => Promise<UpdateCompanyResult> = async (tx, member, id, patch) => {
   const company = await loadCompany(tx, member.orgId, id, true);
   if (!company) return NOT_FOUND;
   const next: { name?: string; description?: string | null } = {};
@@ -246,13 +246,13 @@ export async function updateCompany(
     .returning(companyColumns);
   await appendEvent(tx, member, { companyId: id }, "updated", { fields });
   return { status: "ok", company: updated! };
-}
+};
 
-export async function archiveCompany(
+export const archiveCompany: (
   tx: Ex,
   member: CrmMember,
   id: string,
-): Promise<CompanyResult> {
+) => Promise<CompanyResult> = async (tx, member, id) => {
   const company = await loadCompany(tx, member.orgId, id, true);
   if (!company) return NOT_FOUND;
   if (company.archivedAt) return { status: "ok", company };
@@ -263,13 +263,17 @@ export async function archiveCompany(
     .returning(companyColumns);
   await appendEvent(tx, member, { companyId: id }, "archived");
   return { status: "ok", company: updated! };
-}
+};
 
 /**
  * Deletes for good: its domains, notes, events and contracts go with it; its people and deals
  * stay, with no company; its folder stays in Storage. Owners and admins only.
  */
-export async function deleteCompany(tx: Ex, member: CrmMember, id: string): Promise<DeleteResult> {
+export const deleteCompany: (
+  tx: Ex,
+  member: CrmMember,
+  id: string,
+) => Promise<DeleteResult> = async (tx, member, id) => {
   if (!member.admin) return FORBIDDEN;
   if (await holdsSignedContract(tx, member.orgId, { companyId: id })) return CONTRACT_SIGNED;
   const deleted = await tx
@@ -277,14 +281,14 @@ export async function deleteCompany(tx: Ex, member: CrmMember, id: string): Prom
     .where(and(eq(crmCompanies.orgId, member.orgId), eq(crmCompanies.id, id)))
     .returning({ id: crmCompanies.id });
   return deleted.length > 0 ? { status: "ok" } : NOT_FOUND;
-}
+};
 
-export async function addCompanyDomain(
+export const addCompanyDomain: (
   tx: Ex,
   member: CrmMember,
   id: string,
   input: string,
-): Promise<DomainResult> {
+) => Promise<DomainResult> = async (tx, member, id, input) => {
   const company = await loadCompany(tx, member.orgId, id, true);
   if (!company) return NOT_FOUND;
   const checked = checkDomain(input);
@@ -295,14 +299,14 @@ export async function addCompanyDomain(
     await appendEvent(tx, member, { companyId: id }, "domain_added", { domain: checked.domain });
   }
   return { status: "ok", domains: await domainsOf(tx, id) };
-}
+};
 
-export async function removeCompanyDomain(
+export const removeCompanyDomain: (
   tx: Ex,
   member: CrmMember,
   id: string,
   input: string,
-): Promise<DomainResult> {
+) => Promise<DomainResult> = async (tx, member, id, input) => {
   const company = await loadCompany(tx, member.orgId, id, true);
   if (!company) return NOT_FOUND;
   const domain = normalizeDomain(input);
@@ -322,4 +326,4 @@ export async function removeCompanyDomain(
     await appendEvent(tx, member, { companyId: id }, "domain_removed", { domain });
   }
   return { status: "ok", domains: await domainsOf(tx, id) };
-}
+};

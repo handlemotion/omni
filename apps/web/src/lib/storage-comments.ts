@@ -37,7 +37,7 @@ export const storageCommentsQuery = (id: string, shareId?: string) =>
   });
 
 /** The comments grouped into threads, oldest first; `resolved` picks one side. */
-export function threadsOf(comments: StorageComment[], resolved: boolean): StorageThread[] {
+export function threadsOf(comments: StorageComment[], resolved: boolean) {
   const sorted = comments.toSorted((a, b) => a.createdAt.localeCompare(b.createdAt));
   const threads = new Map<string, StorageThread>();
   for (const comment of sorted) {
@@ -46,7 +46,9 @@ export function threadsOf(comments: StorageComment[], resolved: boolean): Storag
   for (const comment of sorted) {
     if (comment.parentId !== null) threads.get(comment.parentId)?.replies.push(comment);
   }
-  return [...threads.values()].filter((thread) => !!thread.root.resolvedAt === resolved);
+  return [...threads.values()].filter(
+    (thread) => !!thread.root.resolvedAt === resolved,
+  ) satisfies StorageThread[];
 }
 
 export const commentAuthor = (comment: StorageComment) => comment.authorName ?? "Former member";

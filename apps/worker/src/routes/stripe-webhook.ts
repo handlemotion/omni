@@ -37,11 +37,15 @@ function referencedOrg(object: StripeObject) {
  * lookups the plugin makes, so an event it is meant to ignore is never retried forever. Runs
  * before the plugin, which changes what those lookups see.
  */
-async function expectedEffect(
+const expectedEffect: (
   db: Db,
   billing: BillingConfig,
   event: Stripe.Event,
-): Promise<{ stripeSubscriptionId: string; status?: string } | { ignored: string }> {
+) => Promise<{ stripeSubscriptionId: string; status?: string } | { ignored: string }> = async (
+  db,
+  billing,
+  event,
+) => {
   const object = event.data.object as unknown as StripeObject;
   const metadata = (object.metadata ?? {}) as Record<string, string | undefined>;
   const ourId = metadata.subscriptionId;
@@ -107,7 +111,7 @@ async function expectedEffect(
     return { stripeSubscriptionId: id, status };
   }
   return { ignored: "subscription Omni does not hold" };
-}
+};
 
 export const stripeWebhook = new Hono<AppEnv>().post("/", async (c) => {
   const billing = c.var.config.auth.billing;

@@ -227,7 +227,10 @@ export function useRoomDrop(id: string, to: DropPlace | null) {
 }
 
 /** What a drop of the computer's files at `to` does: copies them there, if it may be written. */
-export const dropOperation = (to: DropPlace): DropOperation => (to.canWrite ? "copy" : "cancel");
+export const dropOperation = (to: DropPlace) => {
+  const result: DropOperation = to.canWrite ? "copy" : "cancel";
+  return result;
+};
 
 /** Drops of the computer's files at a place: they upload there. */
 export function useDropInto() {

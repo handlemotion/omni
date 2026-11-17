@@ -15,10 +15,10 @@ export interface ThreadMessage {
  * `messages` oldest first; the last one is the message being triaged. `isUs` says whether an
  * address belongs to one of the org's own mailboxes (compare case-insensitively).
  */
-export function triageInputFor(
+export const triageInputFor: (
   messages: readonly ThreadMessage[],
   isUs: (address: string) => boolean,
-): TriageInput {
+) => TriageInput = (messages, isUs) => {
   const latest = messages.at(-1);
   if (!latest) throw new Error("triageInputFor needs at least one message");
   const earlier = messages.slice(0, -1);
@@ -35,4 +35,4 @@ export function triageInputFor(
       text: m.cleanText,
     })),
   };
-}
+};

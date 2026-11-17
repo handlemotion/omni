@@ -51,7 +51,7 @@ const loadsFromUs = (url: string) =>
   url.startsWith(PROXY) || url.startsWith(ATTACHMENTS) || /^data:image\//i.test(url);
 
 /** Every problem a browser would act on in `html`; empty means inert. */
-function hazards(html: string): string[] {
+function hazards(html: string) {
   const found: string[] = [];
   const checkCss = (css: string, where: string) => {
     if (/@import|expression\s*\(|\\|image-set|\bimage\s*\(|\bsrc\s*\(/i.test(css)) {
@@ -90,7 +90,7 @@ function hazards(html: string): string[] {
         found.push(`${tag} no noreferrer`);
     }
   }
-  return found;
+  return found satisfies string[];
 }
 
 const T = "https://t.example.com";

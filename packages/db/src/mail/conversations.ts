@@ -180,9 +180,12 @@ export async function applyStatus(
   now: Date,
   actorMemberId: string | null,
   options: { requestId?: string; data?: Record<string, unknown>; dedupeKey?: string } = {},
-): Promise<Applied> {
+) {
   const next = nextConversationState(stateOf(row), event, now);
-  if (!next.changed) return { row, changed: false, queuedActions: 0 };
+  if (!next.changed) {
+    const result: Applied = { row, changed: false, queuedActions: 0 };
+    return result;
+  }
   const updated = {
     ...row,
     status: next.state.status,
@@ -212,7 +215,10 @@ export async function applyStatus(
     },
   ]);
   // A dedupe key that already exists: another run applied this transition.
-  if (!written) return { row, changed: false, queuedActions: 0 };
+  if (!written) {
+    const result: Applied = { row, changed: false, queuedActions: 0 };
+    return result;
+  }
   let queuedActions = 0;
   if (updated.status === "resolved" && row.status !== "resolved") {
     // Resolved: nobody is waiting on us any more (ADR 0023).
@@ -238,7 +244,8 @@ export async function applyStatus(
       options.requestId,
     );
   }
-  return { row: updated, changed: true, queuedActions };
+  const result: Applied = { row: updated, changed: true, queuedActions };
+  return result;
 }
 
 /** Whether `memberId` can see `mailboxId` (and is in its org). */
@@ -258,15 +265,15 @@ async function canSee(tx: Tx, memberId: string, mailboxId: string, orgId: string
 }
 
 /** Sets the assignee and writes the `assigned` event. */
-export async function assign(
+export const assign: (
   tx: Tx,
   row: ConversationRow,
   memberId: string | null,
   actorMemberId: string | null,
   now: Date,
-  data: Record<string, unknown> = {},
+  data?: Record<string, unknown>,
   dedupeKey?: string,
-): Promise<Applied> {
+) => Promise<Applied> = async (tx, row, memberId, actorMemberId, now, data = {}, dedupeKey) => {
   if (row.assigneeMemberId === memberId) return { row, changed: false, queuedActions: 0 };
   await tx
     .update(threads)
@@ -290,7 +297,7 @@ export async function assign(
     queuedActions: 0,
     notified,
   };
-}
+};
 
 /**
  * Applies one change to a shared conversation as `actorMemberId` (who must be able to see it), or
@@ -310,17 +317,23 @@ export async function applyConversationChange(
     idempotencyKey?: string;
     now?: Date;
   },
-): Promise<ChangeResult> {
+) {
   const { threadId, actorMemberId, change } = input;
   const now = input.now ?? new Date();
   const dedupeKey = input.idempotencyKey
     ? `request:${actorMemberId ?? "system"}:${input.idempotencyKey}`
     : undefined;
-  return db.transaction(async (tx): Promise<ChangeResult> => {
+  return db.transaction<ChangeResult>(async (tx) => {
     const locked = await lockConversation(tx, threadId, actorMemberId);
-    if (!locked) return { ok: false, reason: "not_found" };
+    if (!locked) {
+      const result: ChangeResult = { ok: false, reason: "not_found" };
+      return result;
+    }
     const { kind, ...row } = locked;
-    if (kind !== "shared") return { ok: false, reason: "personal_mailbox" };
+    if (kind !== "shared") {
+      const result: ChangeResult = { ok: false, reason: "personal_mailbox" };
+      return result;
+    }
     if (dedupeKey) {
       const [seen] = await tx
         .select({ id: conversationEvents.id })
@@ -329,7 +342,14 @@ export async function applyConversationChange(
           and(eq(conversationEvents.threadId, row.id), eq(conversationEvents.dedupeKey, dedupeKey)),
         );
       if (seen) {
-        return { ok: true, changed: false, conversation: row, queuedActions: 0, notified: [] };
+        const result: ChangeResult = {
+          ok: true,
+          changed: false,
+          conversation: row,
+          queuedActions: 0,
+          notified: [],
+        };
+        return result;
       }
     }
 
@@ -349,7 +369,10 @@ export async function applyConversationChange(
         });
         break;
       case "snooze":
-        if (change.until.getTime() <= now.getTime()) return { ok: false, reason: "invalid_snooze" };
+        if (change.until.getTime() <= now.getTime()) {
+          const result: ChangeResult = { ok: false, reason: "invalid_snooze" };
+          return result;
+        }
         applied = await applyStatus(tx, row, change, now, actorMemberId, {
           requestId: input.requestId,
           dedupeKey,
@@ -364,10 +387,12 @@ export async function applyConversationChange(
           row.assigneeMemberId !== change.expectedAssignee &&
           row.assigneeMemberId !== change.memberId
         ) {
-          return { ok: false, reason: "assignee_changed", conversation: row };
+          const result: ChangeResult = { ok: false, reason: "assignee_changed", conversation: row };
+          return result;
         }
         if (change.memberId && !(await canSee(tx, change.memberId, row.mailboxId, row.orgId))) {
-          return { ok: false, reason: "not_assignable" };
+          const result: ChangeResult = { ok: false, reason: "not_assignable" };
+          return result;
         }
         applied = await assign(
           tx,
@@ -411,7 +436,10 @@ export async function applyConversationChange(
           .select({ id: tags.id })
           .from(tags)
           .where(and(eq(tags.id, change.tagId), eq(tags.mailboxId, row.mailboxId)));
-        if (!tag) return { ok: false, reason: "unknown_tag" };
+        if (!tag) {
+          const result: ChangeResult = { ok: false, reason: "unknown_tag" };
+          return result;
+        }
         const touched = change.add
           ? await tx
               .insert(threadTags)
@@ -441,13 +469,14 @@ export async function applyConversationChange(
         break;
       }
     }
-    return {
+    const result: ChangeResult = {
       ok: true,
       changed: applied.changed,
       conversation: applied.row,
       queuedActions: applied.queuedActions,
       notified: applied.notified ?? [],
     };
+    return result;
   });
 }
 
@@ -459,26 +488,33 @@ export async function applyConversationChange(
 export async function applyAgentReply(
   db: Executor,
   input: { threadId: string; memberId: string; now?: Date; requestId?: string },
-): Promise<ChangeResult> {
+) {
   const now = input.now ?? new Date();
-  return db.transaction(async (tx): Promise<ChangeResult> => {
+  return db.transaction<ChangeResult>(async (tx) => {
     const locked = await lockConversation(tx, input.threadId, input.memberId);
-    if (!locked) return { ok: false, reason: "not_found" };
+    if (!locked) {
+      const result: ChangeResult = { ok: false, reason: "not_found" };
+      return result;
+    }
     const { kind, ...row } = locked;
-    if (kind !== "shared") return { ok: false, reason: "personal_mailbox" };
+    if (kind !== "shared") {
+      const result: ChangeResult = { ok: false, reason: "personal_mailbox" };
+      return result;
+    }
     const status = await applyStatus(tx, row, { type: "agent_reply" }, now, input.memberId);
     const claimed = row.assigneeMemberId
       ? { row: status.row, changed: false }
       : await assign(tx, status.row, input.memberId, input.memberId, now, { cause: "first_reply" });
     const responded = await recordFirstResponse(tx, claimed.row, input.memberId, now);
     const answered = await setSlaClocks(tx, responded.row, { responseClockAt: null });
-    return {
+    const result: ChangeResult = {
       ok: true,
       changed: status.changed || claimed.changed || responded.changed,
       conversation: answered,
       queuedActions: status.queuedActions,
       notified: [],
     };
+    return result;
   });
 }
 
@@ -570,9 +606,9 @@ async function nextInTurn(tx: Tx, row: ConversationRow) {
 export async function applyInboundMessage(
   db: Executor,
   input: { messageId: string; folderRole?: string; now?: Date },
-): Promise<InboundResult> {
+) {
   const now = input.now ?? new Date();
-  return db.transaction(async (tx): Promise<InboundResult> => {
+  return db.transaction<InboundResult>(async (tx) => {
     const [message] = await tx
       .update(messages)
       .set({ workflowAppliedAt: now })
@@ -583,9 +619,15 @@ export async function applyInboundMessage(
         automated: messages.automated,
         sentAt: messages.sentAt,
       });
-    if (!message) return { applied: false, fresh: false };
+    if (!message) {
+      const result: InboundResult = { applied: false, fresh: false };
+      return result;
+    }
     const locked = await lockConversation(tx, message.threadId, null);
-    if (!locked || locked.kind !== "shared") return { applied: false, fresh: true };
+    if (!locked || locked.kind !== "shared") {
+      const result: InboundResult = { applied: false, fresh: true };
+      return result;
+    }
     const [mailbox] = await tx
       .select({ address: mailboxes.address, createdAt: mailboxes.createdAt })
       .from(mailboxes)
@@ -637,7 +679,7 @@ export async function applyInboundMessage(
               data: { messageId: input.messageId },
             })
           : [];
-      return {
+      const result: InboundResult = {
         applied: true,
         direction: "customer",
         changed: applied.changed,
@@ -646,6 +688,7 @@ export async function applyInboundMessage(
         notified,
         autoAssigned,
       };
+      return result;
     }
 
     const [newer] = await tx
@@ -710,7 +753,7 @@ export async function applyInboundMessage(
       responseClockAt?.getTime() === clock?.getTime()
         ? responded.row
         : await setSlaClocks(tx, responded.row, { responseClockAt });
-    return {
+    const result: InboundResult = {
       applied: true,
       direction: "agent",
       changed: status.changed || responded.changed,
@@ -719,6 +762,7 @@ export async function applyInboundMessage(
       notified: [],
       autoAssigned: null,
     };
+    return result;
   });
 }
 
@@ -748,13 +792,13 @@ const discarded = sql`t.status <> 'resolved'
     where m.thread_id = t.id and f.role in ('inbox', 'archive'))`;
 
 /** Shared conversations of the mailbox that were discarded in another mail app (see above). */
-export async function discardedConversations(db: Executor, mailboxId: string): Promise<string[]> {
+export async function discardedConversations(db: Executor, mailboxId: string) {
   const rows = (await db.execute(sql`
     select t.id from ${threads} t
     join ${mailboxes} mb on mb.id = t.mailbox_id and mb.kind = 'shared'
     where t.mailbox_id = ${mailboxId} and ${discarded}
     order by t.id`)) as unknown as { id: string }[]; // postgres-js: the rows themselves
-  return rows.map((r) => r.id);
+  return rows.map((r) => r.id) satisfies string[];
 }
 
 /**
@@ -762,12 +806,9 @@ export async function discardedConversations(db: Executor, mailboxId: string): P
  * teammate may have reopened it since the mail service looked). Nothing moves on IMAP: its mail
  * is already out of INBOX, so the resolve's archive step finds nothing to file. Idempotent.
  */
-export async function resolveDiscarded(
-  db: Executor,
-  input: { threadId: string; now?: Date },
-): Promise<{ changed: boolean; conversation: ConversationRow | null }> {
+export async function resolveDiscarded(db: Executor, input: { threadId: string; now?: Date }) {
   const now = input.now ?? new Date();
-  return db.transaction(async (tx) => {
+  return db.transaction<{ changed: boolean; conversation: ConversationRow | null }>(async (tx) => {
     const locked = await lockConversation(tx, input.threadId, null);
     if (!locked || locked.kind !== "shared") return { changed: false, conversation: null };
     const { kind: _kind, ...row } = locked;

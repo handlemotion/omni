@@ -25,17 +25,25 @@ export function TrashList() {
   const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
   // Stable, so the table's rows render only when they change.
   const menu = useCallback(
-    (node: StorageNode): SettingsRowMenuItem[] => [
-      {
-        icon: IconRestore,
-        label: "Restore",
-        onAction: () =>
-          restoreNode(node.id, {
-            onError: (error) => storageErrorToast(error, "It was not restored"),
-          }),
-      },
-      { icon: IconTrash, label: "Delete forever", danger: true, onAction: () => setDeleting(node) },
-    ],
+    (node: StorageNode) => {
+      const result: SettingsRowMenuItem[] = [
+        {
+          icon: IconRestore,
+          label: "Restore",
+          onAction: () =>
+            restoreNode(node.id, {
+              onError: (error) => storageErrorToast(error, "It was not restored"),
+            }),
+        },
+        {
+          icon: IconTrash,
+          label: "Delete forever",
+          danger: true,
+          onAction: () => setDeleting(node),
+        },
+      ];
+      return result;
+    },
     [restoreNode],
   );
   return (

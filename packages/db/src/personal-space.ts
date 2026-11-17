@@ -24,8 +24,8 @@ export class PersonalSpaceError extends Error {
  * second finds the first one's row. Its slug is random, so no company handle can collide with it.
  * Setup is `complete` from the start: a Personal space has nothing to set up.
  */
-export async function ensurePersonalSpace(db: Db, userId: string): Promise<string> {
-  return db.transaction(async (tx) => {
+export async function ensurePersonalSpace(db: Db, userId: string) {
+  return db.transaction<string>(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`personal-space:${userId}`}))`);
     const [existing] = await tx
       .select({ orgId: personalSpaces.orgId })
@@ -47,12 +47,12 @@ export async function ensurePersonalSpace(db: Db, userId: string): Promise<strin
 }
 
 /** `orgId`'s kind: `personal` when it is someone's Personal space, else `company`. */
-export async function workspaceKind(db: Executor, orgId: string): Promise<WorkspaceKind> {
+export async function workspaceKind(db: Executor, orgId: string) {
   const [row] = await db
     .select({ orgId: personalSpaces.orgId })
     .from(personalSpaces)
     .where(eq(personalSpaces.orgId, orgId));
-  return row ? "personal" : "company";
+  return (row ? "personal" : "company") satisfies WorkspaceKind;
 }
 
 /** Throws `PersonalSpaceError` when `orgId` is a Personal space. */
@@ -61,11 +61,11 @@ export async function assertCompany(db: Executor, orgId: string, what: string) {
 }
 
 /** SQL condition: the organization id in `orgId` is a company, not a Personal space. */
-export function isCompany(db: Executor, orgId: AnyColumn | SQL): SQL {
+export function isCompany(db: Executor, orgId: AnyColumn | SQL) {
   return notExists(
     db
       .select({ one: sql`1` })
       .from(personalSpaces)
       .where(eq(personalSpaces.orgId, orgId)),
-  );
+  ) satisfies SQL;
 }

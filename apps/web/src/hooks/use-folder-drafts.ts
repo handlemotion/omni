@@ -31,7 +31,10 @@ type Event =
   | { type: "leave"; key: string };
 
 /** The drafts after `event`. */
-export function stepDrafts(drafts: FolderDraft[], event: Event): FolderDraft[] {
+export const stepDrafts: (drafts: FolderDraft[], event: Event) => FolderDraft[] = (
+  drafts,
+  event,
+) => {
   switch (event.type) {
     case "start":
       return [event.draft, ...drafts];
@@ -48,7 +51,7 @@ export function stepDrafts(drafts: FolderDraft[], event: Event): FolderDraft[] {
     case "leave":
       return drafts.filter((d) => d.key !== event.key);
   }
-}
+};
 
 /** A created folder that the list has not shown by then leaves anyway (it is past a page). */
 const LAND_WITHIN_MS = 4000;
@@ -82,14 +85,15 @@ export function useFolderDrafts(source: {
 
   /** Creates the draft's folder. "stay" when Enter met a name that cannot be used. */
   const finish = useCallback(
-    (key: string, value: string, by: FinishedBy): "stay" | "done" => {
+    (key: string, value: string, by: FinishedBy) => {
       const draft = latest.current.drafts.find((d) => d.key === key);
-      if (!draft || draft.step !== "naming" || finished.current.has(key)) return "done";
+      if (!draft || draft.step !== "naming" || finished.current.has(key))
+        return "done" satisfies "stay" | "done";
       const given = value.trim();
       const problem = given ? nameProblem(given, siblings(draft)) : null;
       if (problem && by === "enter") {
         appToast.error(storageErrorText({ code: problem }, "That name can't be used"));
-        return "stay";
+        return "stay" satisfies "stay" | "done";
       }
       // Esc, or an empty or unusable name, keeps the name it was given. A taken name left by a
       // click gets a number from the Worker rather than being lost.
@@ -103,7 +107,7 @@ export function useFolderDrafts(source: {
           appToast.error(storageErrorText(error, "The folder was not created"));
           dispatch({ type: "leave", key });
         });
-      return "done";
+      return "done" satisfies "stay" | "done";
     },
     [create, siblings],
   );

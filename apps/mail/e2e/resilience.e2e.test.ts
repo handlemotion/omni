@@ -287,7 +287,7 @@ describe("mail service under faults", () => {
   });
 });
 
-async function freePort(): Promise<number> {
+async function freePort() {
   const server = createServer();
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
@@ -295,10 +295,10 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-async function healthOf(port: number): Promise<{ ready?: number } | undefined> {
+const healthOf: (port: number) => Promise<{ ready?: number } | undefined> = async (port) => {
   const response = await fetch(`http://127.0.0.1:${port}/health`).catch(() => null);
   return response?.json() as Promise<{ ready?: number } | undefined>;
-}
+};
 
 describe("the service process, stopped and killed mid-import", () => {
   const secret = randomBytes(32).toString("hex");

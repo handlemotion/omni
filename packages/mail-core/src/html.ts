@@ -41,7 +41,7 @@ export const MAX_TAG_NESTING = 2_000;
 
 const { window } = new JSDOM("");
 
-function clip(html: string): string {
+function clip(html: string) {
   return html.length > MAX_HTML_LENGTH ? html.slice(0, MAX_HTML_LENGTH) : html;
 }
 
@@ -56,7 +56,7 @@ const NON_NESTING = new Set(
  * Upper-bound estimate of how deep `html` nests, from its tags alone. Implied end tags make
  * it overestimate, never underestimate, so a pass means the parser will not be slow.
  */
-function nestsTooDeep(html: string): boolean {
+function nestsTooDeep(html: string) {
   const open = new Map<string, number>();
   let depth = 0;
   for (const match of html.matchAll(/<(\/?)([a-zA-Z][^\s/>]*)/g)) {
@@ -77,7 +77,7 @@ function nestsTooDeep(html: string): boolean {
 }
 
 /** `true` for mail-client quote containers (and Gmail's signature). */
-function isQuoteContainer(element: Element): boolean {
+function isQuoteContainer(element: Element) {
   if (element.tagName === "blockquote" && attribute(element, "type")?.toLowerCase() === "cite") {
     return true;
   }
@@ -94,7 +94,7 @@ function isQuoteContainer(element: Element): boolean {
 const OUTLOOK_WEB_MARKERS = ["appendonsend", "divRplyFwdMsg"];
 
 /** The body with quoted history and signatures removed. */
-function newContent(html: string): Element | null {
+const newContent: (html: string) => Element | null = (html) => {
   const input = clip(html);
   if (nestsTooDeep(input)) return null;
   const body = parseBody(input);
@@ -108,16 +108,16 @@ function newContent(html: string): Element | null {
   for (const element of [...elements(body)].filter(isQuoteContainer)) remove(element);
   capDepth(body);
   return body;
-}
+};
 
 /** Removes quoted history and signatures from HTML, keeping only the new content. */
-export function stripQuotedHtml(html: string): string {
+export function stripQuotedHtml(html: string) {
   const body = newContent(html);
   return body === null ? clip(html) : innerHtml(body);
 }
 
 /** Removes `node`, everything after it, and everything after each of its ancestors. */
-function removeFrom(node: Element, body: Element): void {
+function removeFrom(node: Element, body: Element) {
   const siblings = node.parentNode?.childNodes ?? [];
   const previous = siblings.slice(0, siblings.indexOf(node)).findLast(isElement);
   if (previous?.tagName === "hr") remove(previous);
@@ -131,7 +131,7 @@ function removeFrom(node: Element, body: Element): void {
 }
 
 /** Readable plain text from HTML: no link targets, no images, blockquotes as "> " lines. */
-export function htmlToPlainText(html: string): string {
+export function htmlToPlainText(html: string) {
   let input = clip(html);
   // The converter's parser also slows down with depth; hostile nesting is read as tagless text.
   if (nestsTooDeep(input)) input = input.replace(/<[^<>]*>/g, " ");
@@ -163,9 +163,9 @@ export function htmlToPlainText(html: string): string {
  * `clean_text` for a message. Uses the text part when there is one; for HTML-only mail it
  * cuts quoted history out of the HTML structure first, which is more reliable than text rules.
  */
-export function cleanMessage(
+export const cleanMessage: (
   message: Pick<ParsedMessage, "text" | "html" | "subject">,
-): StrippedText {
+) => StrippedText = (message) => {
   if (message.text !== null) return stripReply(message.text, message.subject);
   if (message.html === null) return { cleanText: "", forwarded: null };
 
@@ -173,12 +173,12 @@ export function cleanMessage(
   const full = stripReply(htmlToPlainText(message.html), message.subject);
   if (full.forwarded) return full;
   return stripReply(htmlToPlainText(stripQuotedHtml(message.html)), message.subject);
-}
+};
 
 const LONG_FORM_WORDS = 120;
 
 /** Spec rendering rule: long (over ~120 words) or tabular messages render as cards, not bubbles. */
-export function isLongForm(message: { cleanText: string; html: string | null }): boolean {
+export function isLongForm(message: { cleanText: string; html: string | null }) {
   const words = message.cleanText.split(/\s+/).filter(Boolean).length;
   if (words > LONG_FORM_WORDS) return true;
   if (message.html === null) return false;
@@ -313,11 +313,17 @@ function restoreBodyStyle(fragment: ReturnType<typeof parseBodyFragment>, html: 
  * Email-safe HTML: no scripts, forms or handlers; remote images blocked or proxied; cid:
  * mapped; links open outside the frame without a referrer.
  */
-export function sanitizeHtml(html: string, options: SanitizeOptions): SanitizedHtml {
+export function sanitizeHtml(html: string, options: SanitizeOptions) {
   const input = clip(html);
   const limit = input === html ? null : "clipped";
   if (nestsTooDeep(input)) {
-    return { html: "", remoteImageCount: 0, linkMismatches: [], limit: "too-deep" };
+    const result: SanitizedHtml = {
+      html: "",
+      remoteImageCount: 0,
+      linkMismatches: [],
+      limit: "too-deep",
+    };
+    return result;
   }
 
   const fragment = parseBodyFragment(input);
@@ -387,19 +393,20 @@ export function sanitizeHtml(html: string, options: SanitizeOptions): SanitizedH
     // Keep <style> from <head>: newsletters depend on it.
     FORCE_BODY: true,
   });
-  return {
+  const result: SanitizedHtml = {
     html: clean.replaceAll(` ${STYLE_ATTR}="`, ' style="'),
     remoteImageCount,
     linkMismatches,
     limit,
   };
+  return result;
 }
 
 // A domain, optionally with scheme, port and path: "paypal.com", "https://www.paypal.com/x".
 const HOST_TEXT =
   /^(?:https?:\/\/)?((?:[\p{L}\p{N}-]+\.)+\p{L}[\p{L}\p{N}-]{1,62})(?::\d{1,5})?(?:[/?#]\S*)?$/iu;
 
-function hostOf(url: string): string | null {
+function hostOf(url: string) {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
@@ -410,7 +417,7 @@ function hostOf(url: string): string | null {
 }
 
 /** Set when the text reads as a domain and the href opens a host outside it. */
-function linkMismatch(rawText: string, href: string): LinkMismatch | null {
+const linkMismatch: (rawText: string, href: string) => LinkMismatch | null = (rawText, href) => {
   const text = rawText.trim();
   if (text.length > 300) return null;
   const named = HOST_TEXT.exec(text)?.[1];
@@ -421,9 +428,9 @@ function linkMismatch(rawText: string, href: string): LinkMismatch | null {
   const related =
     textHost === hrefHost || hrefHost.endsWith(`.${textHost}`) || textHost.endsWith(`.${hrefHost}`);
   return related ? null : { text, href, textHost, hrefHost };
-}
+};
 
-function contentIdFromUrl(url: string): string {
+function contentIdFromUrl(url: string) {
   const id = url.slice(4).replace(/^<|>$/g, "");
   try {
     return decodeURIComponent(id);
@@ -432,15 +439,15 @@ function contentIdFromUrl(url: string): string {
   }
 }
 
-function classifyUrl(url: string): "data" | "cid" | "remote" | "other" {
+const classifyUrl: (url: string) => "data" | "cid" | "remote" | "other" = (url) => {
   if (/^data:image\//i.test(url)) return "data";
   if (/^cid:/i.test(url)) return "cid";
   if (/^(?:https?:)?\/\//i.test(url)) return "remote";
   return "other";
-}
+};
 
 /** CSS with every fetch removed or pointed at our proxy and attachments; "" to drop it. */
-function rewriteCss(input: string, options: SanitizeOptions, block: boolean): string {
+function rewriteCss(input: string, options: SanitizeOptions, block: boolean) {
   const css = CSS_UNSAFE.test(input) ? dropUnsafeRules(input) : input;
   if (CSS_UNSAFE.test(css)) return "";
   const rewritten = replaceUrls(removeImports(css), (raw) => {

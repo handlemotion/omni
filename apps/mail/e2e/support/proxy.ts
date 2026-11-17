@@ -39,7 +39,9 @@ export interface FaultyLink {
   close(): Promise<void>;
 }
 
-export async function faultyLink(target: { host: string; port: number }): Promise<FaultyLink> {
+export const faultyLink: (target: { host: string; port: number }) => Promise<FaultyLink> = async (
+  target,
+) => {
   const pairs = new Set<Pair>();
   let refusing = false;
   let stalling = false;
@@ -127,4 +129,4 @@ export async function faultyLink(target: { host: string; port: number }): Promis
       await new Promise((resolve) => server.close(resolve));
     },
   };
-}
+};

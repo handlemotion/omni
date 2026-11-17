@@ -39,17 +39,20 @@ function messageOnly({ from, participant, after, before, hasAttachments, fromMe 
 }
 
 /** `address` matches `who`: the same address, or an address at the domain or a subdomain. */
-function addressMatches(address: SQL, who: string): SQL {
+const addressMatches: (address: SQL, who: string) => SQL = (address, who) => {
   const target = who.toLowerCase();
   if (target.includes("@")) return sql`lower(${address}) = ${target}`;
   return sql`(lower(${address}) like ${`%@${target}`} or lower(${address}) like ${`%.${target}`})`;
-}
+};
 
 /**
  * The message conditions on the message row aliased `alias` (a constant in our code, never input),
  * or undefined when there are none.
  */
-export function messageCondition(alias: string, filters: MessageFilters): SQL | undefined {
+export const messageCondition: (alias: string, filters: MessageFilters) => SQL | undefined = (
+  alias,
+  filters,
+) => {
   const m = sql.raw(alias);
   const parts: SQL[] = [];
   if (filters.from) parts.push(addressMatches(sql`${m}.from_address`, filters.from));
@@ -70,13 +73,13 @@ export function messageCondition(alias: string, filters: MessageFilters): SQL | 
     parts.push(filters.fromMe ? mine : sql`not ${mine}`);
   }
   return parts.length ? sql.join(parts, sql` and `) : undefined;
-}
+};
 
 /** The conversation conditions on the thread row aliased `alias`, or undefined. */
-export function conversationCondition(
+export const conversationCondition: (
   alias: string,
   filters: ConversationFilters,
-): SQL | undefined {
+) => SQL | undefined = (alias, filters) => {
   const t = sql.raw(alias);
   const parts: SQL[] = [];
   if (filters.status) parts.push(sql`${t}.status = ${filters.status}`);
@@ -86,4 +89,4 @@ export function conversationCondition(
     );
   }
   return parts.length ? sql.join(parts, sql` and `) : undefined;
-}
+};

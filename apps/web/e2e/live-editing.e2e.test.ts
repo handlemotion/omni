@@ -136,7 +136,7 @@ async function typeAtEnd(page: Page, text: string) {
   await page.keyboard.type(text);
 }
 
-function freePort(): Promise<number> {
+function freePort() {
   return new Promise((resolve, reject) => {
     const server = createServer();
     server.once("error", reject);
@@ -144,5 +144,5 @@ function freePort(): Promise<number> {
       const { port } = server.address() as AddressInfo;
       server.close(() => resolve(port));
     });
-  });
+  }) satisfies Promise<number>;
 }

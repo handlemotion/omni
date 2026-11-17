@@ -149,11 +149,12 @@ export function MailboxSwitcher() {
   const active = workspaces.data?.workspaces.find((workspace) => workspace.id === member.orgId);
   const mailboxes = active?.mailboxes ?? [];
   const you = user.name || user.email;
-  const face = (mailbox: WorkspaceMailbox): Face => ({
-    key: mailbox.id,
-    name: mailboxName(mailbox, you),
-    image: mailbox.kind === "personal" ? pictureUrl(user.image) : null,
-  });
+  const face = (mailbox: WorkspaceMailbox) =>
+    ({
+      key: mailbox.id,
+      name: mailboxName(mailbox, you),
+      image: mailbox.kind === "personal" ? pictureUrl(user.image) : null,
+    }) satisfies Face;
   const shown = mailboxes.find((box) => box.id === current);
   const pending = openWorkspace.isPending || openMailbox.isPending;
   const faces = mailboxes.map(face);

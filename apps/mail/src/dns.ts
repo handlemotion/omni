@@ -25,14 +25,18 @@ export class DnsLookupError extends Error {
 
 const host = (name: string) => name.toLowerCase().replace(/\.$/, "");
 
-export function createDnsLookup(options: DnsOptions): DnsLookup {
+export const createDnsLookup: (options: DnsOptions) => DnsLookup = (options) => {
   const resolver = (servers: string[]) => {
     const r = new dns.Resolver({ timeout: options.timeoutMs, tries: 2 });
     if (servers.length > 0) r.setServers(servers);
     return r;
   };
 
-  async function query(r: dns.Resolver, name: string, type: DnsQueryType): Promise<DnsAnswer> {
+  const query: (r: dns.Resolver, name: string, type: DnsQueryType) => Promise<DnsAnswer> = async (
+    r,
+    name,
+    type,
+  ) => {
     try {
       let values: string[];
       switch (type) {
@@ -57,7 +61,7 @@ export function createDnsLookup(options: DnsOptions): DnsLookup {
       if (code === dns.NOTFOUND) return { status: "nxdomain" };
       return { status: "error", code };
     }
-  }
+  };
 
   /** The closest enclosing zone with NS records, walking up from `domain`. */
   async function findZone(recursive: dns.Resolver, domain: string) {
@@ -115,4 +119,4 @@ export function createDnsLookup(options: DnsOptions): DnsLookup {
     );
     return { zone: zone?.zone ?? null, nameservers: zone?.nameservers ?? [], answers };
   };
-}
+};

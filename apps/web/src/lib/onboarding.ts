@@ -32,15 +32,15 @@ export type OnboardingExit =
   | { kind: "workspace"; workspace: Workspace }
   | { kind: "sign-out" };
 
-export function onboardingExit(
+export const onboardingExit: (
   status: Onboarding | undefined,
   workspaces: readonly Workspace[] | undefined,
-): OnboardingExit {
+) => OnboardingExit = (status, workspaces) => {
   const active = status?.organization;
   if (active && !needsSetup(active)) return { kind: "inbox" };
   const ready = workspaces?.find((w) => w.id !== active?.id && !needsSetup(w));
   return ready ? { kind: "workspace", workspace: ready } : { kind: "sign-out" };
-}
+};
 
 /**
  * Every onboarding step, in one flat order that Back and Continue walk one step at a time: the
@@ -63,7 +63,7 @@ export const PAGE_TITLES: Record<OnboardingPage, string> = {
 };
 
 /** This setup's steps. */
-export function onboardingPages(data: Pick<Onboarding, "billing"> | undefined): OnboardingPage[] {
+export function onboardingPages(data: Pick<Onboarding, "billing"> | undefined) {
   return [
     "Workspace",
     "Domain",
@@ -71,7 +71,7 @@ export function onboardingPages(data: Pick<Onboarding, "billing"> | undefined): 
     "Inbox",
     "Team",
     ...(data?.billing.enabled ? (["Plan"] as const) : []),
-  ];
+  ] satisfies OnboardingPage[];
 }
 
 /**
@@ -84,7 +84,7 @@ export const recordPasses = (
 ) => (r.diagnostic ? r.diagnostic.status === "ok" : r.verified);
 
 /** Omni's ownership record and the provider's ownership records all pass. */
-export function ownershipReady(domain: OnboardingDomain): boolean {
+export function ownershipReady(domain: OnboardingDomain) {
   return (
     challengePasses(domain) &&
     domain.records.filter((r) => r.check === "ownership").every(recordPasses)
@@ -92,7 +92,7 @@ export function ownershipReady(domain: OnboardingDomain): boolean {
 }
 
 /** The provider's mail records (MX, SPF, DKIM, DMARC) all pass. */
-export function mailRecordsReady(domain: OnboardingDomain): boolean {
+export function mailRecordsReady(domain: OnboardingDomain) {
   return domain.records.filter((r) => r.check !== "ownership").every(recordPasses);
 }
 
@@ -101,7 +101,7 @@ export const domainReady = (domain: OnboardingDomain) =>
   ownershipReady(domain) && mailRecordsReady(domain);
 
 /** Whether a step is done, from what is saved, never from the page someone is on. */
-export function pageDone(page: OnboardingPage, data: Onboarding | undefined): boolean {
+export function pageDone(page: OnboardingPage, data: Onboarding | undefined) {
   const org = data?.organization;
   switch (page) {
     case "Workspace":
@@ -126,9 +126,9 @@ export function pageDone(page: OnboardingPage, data: Onboarding | undefined): bo
 }
 
 /** Where setup resumes: the first step that is not done. */
-export function resumePage(data: Onboarding): OnboardingPage {
+export function resumePage(data: Onboarding) {
   const pages = onboardingPages(data);
-  return pages.find((p) => !pageDone(p, data)) ?? pages.at(-1) ?? "Team";
+  return (pages.find((p) => !pageDone(p, data)) ?? pages.at(-1) ?? "Team") satisfies OnboardingPage;
 }
 
 /** Lowercase letters and digits joined by dashes, plus a random tail so slugs never collide. */
@@ -167,7 +167,7 @@ const challengeKey = (domainId: string) => `omni.challenge.${domainId}`;
  * answered at the last check wins over the claim's flag: right after a new value is made the claim
  * still reads verified, but DNS holds the old value until it is replaced.
  */
-export function challengePasses(domain: OnboardingDomain): boolean {
+export function challengePasses(domain: OnboardingDomain) {
   const challenge = domain.challenge;
   if (!challenge) return true;
   return challenge.diagnostic ? challenge.diagnostic.status === "ok" : challenge.verified;
@@ -178,7 +178,7 @@ export function challengePasses(domain: OnboardingDomain): boolean {
  * is stored, ADR 0010), so it is kept here for a reload mid-setup. A convenience: without it the
  * DNS page offers a new value.
  */
-export function rememberedChallenge(domain: OnboardingDomain): string | null {
+export function rememberedChallenge(domain: OnboardingDomain) {
   if (domain.challenge?.value) return domain.challenge.value;
   try {
     return localStorage.getItem(challengeKey(domain.id));
@@ -278,11 +278,14 @@ export interface MailServer {
 }
 
 /** A server as people type it, `host` or `host:port`; null when it isn't one. */
-export function parseServer(value: string, defaultPort: number): MailServer | null {
+export const parseServer: (value: string, defaultPort: number) => MailServer | null = (
+  value,
+  defaultPort,
+) => {
   const match = /^\s*([^\s:]+)(?::(\d{1,5}))?\s*$/.exec(value);
   if (!match) return null;
   return { host: match[1]!, port: match[2] ? Number(match[2]) : defaultPort };
-}
+};
 
 export interface NewMailbox {
   localPart: string;

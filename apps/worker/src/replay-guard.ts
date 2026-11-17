@@ -14,7 +14,7 @@ export class ReplayGuard extends DurableObject<Env> {
   }
 
   /** True the first time a nonce is seen; false for a replay. `expiresAt` is epoch ms. */
-  async claim(nonce: string, expiresAt: number): Promise<boolean> {
+  async claim(nonce: string, expiresAt: number) {
     const inserted = this.ctx.storage.sql.exec(
       "insert into nonces (nonce, expires_at) values (?, ?) on conflict do nothing",
       nonce,

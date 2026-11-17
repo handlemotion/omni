@@ -18,7 +18,7 @@ interface AuthResult<T> {
 }
 
 /** Unwraps a Better Auth client call, throwing `ApiError` on failure. */
-export async function authCall<T>(request: Promise<AuthResult<T>>): Promise<T> {
+export async function authCall<T>(request: Promise<AuthResult<T>>) {
   const { data, error } = await request;
   if (error) throw new ApiError(error.status, error.message || error.statusText || "auth error");
   return data as T;
@@ -37,7 +37,7 @@ export interface Session {
 export const sessionQuery = () =>
   queryOptions({
     queryKey: keys.session(),
-    queryFn: async ({ signal }): Promise<Session | null> => {
+    queryFn: async ({ signal }) => {
       // Both read the session cookie, so they go out together: every route waits on this, and
       // one round trip instead of two is what startup saves. Signed out, `/me` is ignored.
       const me = call(api.me.$get(undefined, { init: { signal } })).then(
@@ -45,16 +45,20 @@ export const sessionQuery = () =>
         (error: unknown) => ({ error }),
       );
       const data = await authCall(auth.getSession({ fetchOptions: { signal } }));
-      if (!data) return null;
+      if (!data) return null satisfies Session | null;
       const result = await me;
       if ("member" in result)
-        return { user: data.user, session: data.session, member: result.member };
+        return {
+          user: data.user,
+          session: data.session,
+          member: result.member,
+        } satisfies Session | null;
       const { error } = result;
       // Signed in but not a member of any organization (yet): an invitation can fix that.
       if (error instanceof ApiError && error.status === 403) {
-        return { user: data.user, session: data.session, member: null };
+        return { user: data.user, session: data.session, member: null } satisfies Session | null;
       }
-      if (error instanceof ApiError && error.status === 401) return null;
+      if (error instanceof ApiError && error.status === 401) return null satisfies Session | null;
       throw error;
     },
     staleTime: 5 * 60_000,
@@ -129,7 +133,7 @@ function rememberSignInRedirect(to: string) {
 }
 
 /** The destination a desktop sign-in started from, once; null when there is none. */
-export function takeSignInRedirect(): string | null {
+export function takeSignInRedirect() {
   try {
     const to = localStorage.getItem(SIGN_IN_REDIRECT);
     localStorage.removeItem(SIGN_IN_REDIRECT);

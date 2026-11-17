@@ -171,7 +171,7 @@ async function signedIn(email: string, path: string) {
   return page;
 }
 
-function freePort(): Promise<number> {
+function freePort() {
   return new Promise((resolve, reject) => {
     const server = createServer();
     server.once("error", reject);
@@ -179,5 +179,5 @@ function freePort(): Promise<number> {
       const { port } = server.address() as AddressInfo;
       server.close(() => resolve(port));
     });
-  });
+  }) satisfies Promise<number>;
 }

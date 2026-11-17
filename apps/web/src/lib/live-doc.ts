@@ -42,7 +42,10 @@ const toBase64 = (bytes: Uint8Array) => {
 const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
 /** Every record of the file's stream from `from` on, or null when the live layer is off. */
-async function readAll(nodeId: string, from = 0): Promise<StorageLiveEntry[] | null> {
+const readAll: (nodeId: string, from?: number) => Promise<StorageLiveEntry[] | null> = async (
+  nodeId,
+  from = 0,
+) => {
   const entries: StorageLiveEntry[] = [];
   for (let at = from; ;) {
     const page = await call(
@@ -54,7 +57,7 @@ async function readAll(nodeId: string, from = 0): Promise<StorageLiveEntry[] | n
     if (!page.more || !last) return entries;
     at = last.seqNum + 1;
   }
-}
+};
 
 export interface LiveDocOptions {
   orgId: string;
@@ -78,23 +81,23 @@ export interface LiveDocOptions {
  * Joins the file's live document: its latest epoch when that epoch is the file's content now,
  * else a new epoch seeded from it. Null when the live layer is off.
  */
-export async function openLiveDoc(options: LiveDocOptions): Promise<LiveDoc | null> {
+export async function openLiveDoc(options: LiveDocOptions) {
   for (let tries = 0; tries < 5; tries++) {
     const entries = await readAll(options.nodeId);
-    if (!entries) return null;
+    if (!entries) return null satisfies LiveDoc | null;
     const live = new LiveDoc(options);
     const joined = live.join(entries);
-    if (joined === true) return live.start();
+    if (joined === true) return live.start() satisfies LiveDoc | null;
     if (joined !== false) {
       // Saved since this tab read the file: open that version rather than seed an older one
       // over everyone's newer page.
       live.close();
       options.onReplaced(joined);
-      return null;
+      return null satisfies LiveDoc | null;
     }
     const tail = (entries.at(-1)?.seqNum ?? -1) + 1;
     // Someone else seeded first: read again and join theirs.
-    if (await live.seed(tail)) return live.start();
+    if (await live.seed(tail)) return live.start() satisfies LiveDoc | null;
     live.close();
   }
   throw new Error("the live document kept changing while it opened");
@@ -144,7 +147,7 @@ export class LiveDoc {
    * to join (none yet, or the file changed outside the live layer), or the content version the
    * epoch was saved as when that is newer than the file this tab read.
    */
-  join(entries: StorageLiveEntry[]): boolean | number {
+  join(entries: StorageLiveEntry[]) {
     const start = entries.findLastIndex((entry) => entry.record.t === "seed");
     const seed = entries[start];
     if (!seed || seed.record.t !== "seed") return false;

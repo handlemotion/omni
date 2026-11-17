@@ -131,17 +131,20 @@ export function ListFailed(props: { retry: () => void }) {
   );
 }
 
-const toRow = (thread: ThreadSummary): ListRow => ({
-  id: thread.id,
-  sender: senderLabel(thread),
-  senderAddress: senderAddress(thread),
-  subject: thread.subject,
-  snippet: thread.snippet,
-  unread: thread.unread,
-  date: thread.lastMessageAt,
-  count: thread.messageCount,
-  triage: { done: thread.done, later: thread.later, lastMessageAt: thread.lastMessageAt },
-});
+const toRow = (thread: ThreadSummary) => {
+  const result: ListRow = {
+    id: thread.id,
+    sender: senderLabel(thread),
+    senderAddress: senderAddress(thread),
+    subject: thread.subject,
+    snippet: thread.snippet,
+    unread: thread.unread,
+    date: thread.lastMessageAt,
+    count: thread.messageCount,
+    triage: { done: thread.done, later: thread.later, lastMessageAt: thread.lastMessageAt },
+  };
+  return result;
+};
 
 // Figma: Omni, inbox list (node 15:2), on our tokens: brand blue for the count, checkboxes and
 // unread dot; foreground for unread text, muted for read, subtle for previews.

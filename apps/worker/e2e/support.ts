@@ -320,7 +320,7 @@ export interface SentMail {
  * the local runtime Email Sending sends nothing: it keeps each message, and wrangler's local
  * explorer API (served by the Worker's own dev server) lists them.
  */
-export async function sentMail(worker: Worker, to?: string): Promise<SentMail[]> {
+export async function sentMail(worker: Worker, to?: string) {
   const api = (query: string) =>
     fetch(new URL(`/cdn-cgi/explorer/api/local/email/sending?${query}`, worker.url)).then(
       (r) => r.json() as Promise<{ result: unknown; result_info?: { cursor?: string } }>,
@@ -336,7 +336,7 @@ export async function sentMail(worker: Worker, to?: string): Promise<SentMail[]>
   const mail = await Promise.all(
     ids.map(async (id) => (await api(`email_id=${encodeURIComponent(id)}`)).result as SentMail),
   );
-  return mail.sort((a, b) => a.sentAt.localeCompare(b.sentAt));
+  return mail.sort((a, b) => a.sentAt.localeCompare(b.sentAt)) satisfies SentMail[];
 }
 
 /** One message in an IMAP folder, threaded on its own, the way the mail service stores it. */

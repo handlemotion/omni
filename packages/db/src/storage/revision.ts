@@ -10,7 +10,7 @@ import { storageNodes, storageSyncState, storageTombstones } from "../schema/sto
  * The next revision of the workspace. The counter row stays locked until the caller's
  * transaction ends, so take it last, after the tree, usage and upload locks.
  */
-export async function nextRevision(tx: Db, orgId: string): Promise<number> {
+export async function nextRevision(tx: Db, orgId: string) {
   const [row] = await tx
     .insert(storageSyncState)
     .values({ orgId, revision: 1 })

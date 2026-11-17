@@ -178,7 +178,10 @@ const reportQuery = z
     return { from: start, to: end };
   });
 
-function domainChange(change: z.infer<typeof bulkChange>, memberId: string): ConversationChange {
+const domainChange: (change: z.infer<typeof bulkChange>, memberId: string) => ConversationChange = (
+  change,
+  memberId,
+) => {
   switch (change.type) {
     case "snooze":
       return { type: "snooze", until: new Date(change.until) };
@@ -189,7 +192,7 @@ function domainChange(change: z.infer<typeof bulkChange>, memberId: string): Con
     default:
       return change;
   }
-}
+};
 
 /** Owners and admins change inbox settings. Better Auth stores several roles as a comma list. */
 function requireManager(c: Context<AppEnv>) {

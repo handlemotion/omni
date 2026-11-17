@@ -18,13 +18,13 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-function since(value: string | undefined): Date | undefined {
+const since: (value: string | undefined) => Date | undefined = (value) => {
   if (value === undefined) return undefined;
   const match = /^(\d+)([mhd])$/.exec(value);
   if (!match) fail(`bad --since "${value}"`);
   const unit = { m: 60_000, h: 3_600_000, d: 86_400_000 }[match[2] as "m" | "h" | "d"];
   return new Date(Date.now() - Number(match[1]) * unit);
-}
+};
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 

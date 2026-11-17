@@ -7,7 +7,7 @@ const PREFIX =
   /^\s*(?:re|fwd?|aw|wg|sv|vs|tr|rv|enc|antw|odp|ynt|res)\s*(?:\[\d+\]|\(\d+\))?\s*[:：]/i;
 
 /** Subject with reply/forward prefixes removed, lowercased and whitespace-collapsed. */
-export function normalizeSubject(subject: string): string {
+export function normalizeSubject(subject: string) {
   let rest = subject.trim();
   for (let match = PREFIX.exec(rest); match; match = PREFIX.exec(rest)) {
     rest = rest.slice(match[0].length).trim();
@@ -47,7 +47,10 @@ export type ThreadDecision =
 const SUBJECT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Spec "Grouping messages into threads": reply headers, then subject + participants, else new. */
-export function decideThread(message: ParsedMessage, context: ThreadContext): ThreadDecision {
+export const decideThread: (message: ParsedMessage, context: ThreadContext) => ThreadDecision = (
+  message,
+  context,
+) => {
   // In-Reply-To names the direct parent; References is oldest first, so walk it newest first.
   const replyIds = [message.inReplyTo, ...message.references.toReversed()].filter(
     (id): id is string => id !== null,
@@ -78,12 +81,14 @@ export function decideThread(message: ParsedMessage, context: ThreadContext): Th
     .toSorted((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime())[0];
 
   return match ? { kind: "subject", threadId: match.threadId } : { kind: "new", subjectKey };
-}
+};
 
 /** Lowercased addresses on From, To, Cc and Reply-To. */
-export function participants(message: ParsedMessage): string[] {
+export function participants(message: ParsedMessage) {
   const all = [message.from, ...message.to, ...message.cc, ...message.replyTo];
-  return [...new Set(all.filter((a): a is Address => a !== null).map((a) => a.address))];
+  return [
+    ...new Set(all.filter((a): a is Address => a !== null).map((a) => a.address)),
+  ] satisfies string[];
 }
 
 export { addedRecipients } from "./display.ts";

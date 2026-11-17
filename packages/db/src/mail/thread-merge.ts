@@ -34,12 +34,9 @@ export interface MergedThreads {
  * definition and are never merged: only the ones that agree with the survivor's provider thread
  * join it. Idempotent: ids that no longer exist are skipped.
  */
-export async function mergeThreads(
-  db: Db,
-  input: { mailboxId: string; threadIds: string[] },
-): Promise<MergedThreads> {
+export async function mergeThreads(db: Db, input: { mailboxId: string; threadIds: string[] }) {
   const ids = [...new Set(input.threadIds)];
-  return db.transaction(async (tx) => {
+  return db.transaction<MergedThreads>(async (tx) => {
     // Locked in id order, so a merge and a Worker change on the same rows cannot deadlock.
     const rows = await tx
       .select()

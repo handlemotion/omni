@@ -21,24 +21,24 @@ interface Sheet {
 const STEP = 6;
 
 /** Portrait: the front sheet's corner 12% in, those behind stepping up and right. */
-function portrait(count: number): Sheet[] {
+function portrait(count: number) {
   const top = 12 + STEP * (count - 1);
   return Array.from({ length: count }, (_, i) => ({
     left: 12 + STEP * i,
     top: top - STEP * i,
     width: 100,
     lift: [-4 + i, -4 - i, 1.04],
-  }));
+  })) satisfies Sheet[];
 }
 
 /** Landscape: the front sheet fits whole, 80% wide; those behind narrow and step up. */
-function landscape(count: number, ratio: number): Sheet[] {
+function landscape(count: number, ratio: number) {
   const height = 80 * ratio;
   const top = (100 - height) / 2 + (STEP * (count - 1)) / 2;
   return Array.from({ length: count }, (_, i) => {
     const width = 80 - 8 * i;
     return { left: (100 - width) / 2, top: top - STEP * i, width, lift: [0, -3 - 2 * i, 1.03] };
-  });
+  }) satisfies Sheet[];
 }
 
 export function PdfStack(props: { node: StorageNode; url: string }) {
@@ -76,7 +76,7 @@ export function PdfStack(props: { node: StorageNode; url: string }) {
   );
 }
 
-function place(sheet: Sheet | undefined, whole: boolean): CSSProperties {
+const place: (sheet: Sheet | undefined, whole: boolean) => CSSProperties = (sheet, whole) => {
   if (!sheet) return {};
   return {
     left: `${sheet.left}%`,
@@ -87,4 +87,4 @@ function place(sheet: Sheet | undefined, whole: boolean): CSSProperties {
     ["--lift-y" as string]: `${sheet.lift[1]}%`,
     ["--lift-s" as string]: String(sheet.lift[2]),
   };
-}
+};

@@ -19,11 +19,11 @@ export type Reading = "yes" | "no" | "unsettled";
 export type Judgments = Record<Judgment, number>;
 export type SentJudgments = Record<SentJudgment, number>;
 
-export function read(noul: number): Reading {
+export const read: (noul: number) => Reading = (noul) => {
   if (noul >= NOUL_YES) return "yes";
   if (noul <= NOUL_NO) return "no";
   return "unsettled";
-}
+};
 
 export interface Row<J extends string = string> {
   /** Every listed judgment must read exactly this way. Unlisted judgments don't matter. */
@@ -76,7 +76,7 @@ export interface Decision {
 
 type Readings<J extends string> = Record<J, Reading>;
 
-function matches<J extends string>(row: Row<J>, readings: Readings<J>): boolean {
+function matches<J extends string>(row: Row<J>, readings: Readings<J>) {
   return Object.entries(row.when).every(([j, want]) => readings[j as J] === want);
 }
 
@@ -85,7 +85,7 @@ function matches<J extends string>(row: Row<J>, readings: Readings<J>): boolean 
  * on, that the judgment really reads the way the row needs it to. Jev's Nouls are calibrated,
  * so "every deciding judgment is at least 85% likely" is what the 0.85 auto-file bar means.
  */
-function weakestLink<J extends string>(row: Row<J>, judgments: Record<J, number>): number {
+function weakestLink<J extends string>(row: Row<J>, judgments: Record<J, number>) {
   return Math.min(
     ...Object.entries(row.when).map(([j, want]) => {
       const p = judgments[j as J];
@@ -98,11 +98,16 @@ function decideWith<J extends string>(
   table: readonly Row<J>[],
   keys: readonly J[],
   judgments: Record<J, number>,
-): Decision {
+) {
   const readings = Object.fromEntries(keys.map((j) => [j, read(judgments[j])])) as Readings<J>;
   const index = table.findIndex((row) => matches(row, readings));
   const row = table[index];
-  if (row) return { bucket: row.bucket, confidence: weakestLink(row, judgments), row: index };
+  if (row)
+    return {
+      bucket: row.bucket,
+      confidence: weakestLink(row, judgments),
+      row: index,
+    } satisfies Decision;
 
   // Unsettled: a judgment some row needed sat between the bands. Guess with each judgment
   // rounded to its likelier side, and cap the confidence so a person sorts it.
@@ -115,15 +120,15 @@ function decideWith<J extends string>(
     bucket: guess.bucket,
     confidence: Math.min(weakestLink(guess, judgments), UNSETTLED_CONFIDENCE_CAP),
     row: "unsettled",
-  };
+  } satisfies Decision;
 }
 
 /** Someone else wrote the latest message. */
-export function decide(judgments: Judgments): Decision {
-  return decideWith(TRIAGE_TABLE, JUDGMENTS, judgments);
+export function decide(judgments: Judgments) {
+  return decideWith(TRIAGE_TABLE, JUDGMENTS, judgments) satisfies Decision;
 }
 
 /** The reader wrote the latest message. */
-export function decideSent(judgments: SentJudgments): Decision {
-  return decideWith(SENT_TABLE, SENT_JUDGMENTS, judgments);
+export function decideSent(judgments: SentJudgments) {
+  return decideWith(SENT_TABLE, SENT_JUDGMENTS, judgments) satisfies Decision;
 }

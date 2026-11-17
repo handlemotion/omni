@@ -58,17 +58,22 @@ function hasWords(text: string, signature: string | null) {
 
 const asDraftAddresses = (list: string[]) => list.map((address) => ({ name: null, address }));
 type DraftFile = { uploadId: string } | { attachmentId: string };
-const draftFiles = (files: ComposerFile[]): DraftFile[] =>
-  files.flatMap((f): DraftFile[] =>
-    f.attachment?.kind === "upload"
-      ? [{ uploadId: f.attachment.uploadId }]
-      : f.attachment?.kind === "attachment"
-        ? [{ attachmentId: f.attachment.attachmentId }]
-        : [],
-  );
+const draftFiles = (files: ComposerFile[]) =>
+  files.flatMap((f) => {
+    const result: DraftFile[] =
+      f.attachment?.kind === "upload"
+        ? [{ uploadId: f.attachment.uploadId }]
+        : f.attachment?.kind === "attachment"
+          ? [{ attachmentId: f.attachment.attachmentId }]
+          : [];
+    return result;
+  }) satisfies DraftFile[];
 
 /** Files a saved draft carries, named from the thread where they came from an original. */
-export function filesFromDraft(draft: Draft, messages: Message[] = []): ComposerFile[] {
+export const filesFromDraft: (draft: Draft, messages?: Message[]) => ComposerFile[] = (
+  draft,
+  messages = [],
+) => {
   const originals = messages.flatMap((m) => m.attachments);
   return draft.attachments.map((a) => {
     if ("attachmentId" in a && a.attachmentId) {
@@ -94,10 +99,10 @@ export function filesFromDraft(draft: Draft, messages: Message[] = []): Composer
       attachment: { kind: "upload" as const, uploadId },
     };
   });
-}
+};
 
 /** The original's own files (not inline images), for a forward to carry. */
-function originalFiles(message: Message | undefined): ComposerFile[] {
+const originalFiles: (message: Message | undefined) => ComposerFile[] = (message) => {
   return (message?.attachments ?? [])
     .filter((a) => !a.inline)
     .map((a) => ({
@@ -109,19 +114,19 @@ function originalFiles(message: Message | undefined): ComposerFile[] {
       progress: 1,
       attachment: { kind: "attachment" as const, attachmentId: a.id },
     }));
-}
+};
 
 /** Who the server replies to by default: the sender, or for our (or a teammate's) last message, whoever we wrote to. */
-function replyRecipients(message: Message | undefined): string[] {
+const replyRecipients: (message: Message | undefined) => string[] = (message) => {
   if (!message) return [];
   return message.fromTeam ? message.to.map((a) => a.address) : [message.fromAddress];
-}
+};
 
 /**
  * Who a reply starts addressed to: everyone outside the team on the thread (each sender, and
  * whoever was in To or Cc), the latest sender first. Teammates add more by hand.
  */
-function customerRecipients(messages: Message[], inbox: string): string[] {
+function customerRecipients(messages: Message[], inbox: string) {
   const ours = new Set([inbox.toLowerCase()]);
   for (const m of messages) if (m.fromTeam) ours.add(m.fromAddress.toLowerCase());
   const seen = new Map<string, string>();
@@ -133,16 +138,18 @@ function customerRecipients(messages: Message[], inbox: string): string[] {
     if (!m.fromTeam) add(m.fromAddress);
     for (const a of [...m.to, ...m.cc]) add(a.address);
   }
-  return [...seen.values()];
+  return [...seen.values()] satisfies string[];
 }
 
 type Mode = "reply" | "forward";
 
 /** Whom a reply starts addressed to, by kind: the latest sender, or everyone outside the team. */
-function recipientsFor(kind: ReplyKind, thread: Thread, source: Message | undefined): string[] {
-  return kind === "replyAll"
-    ? customerRecipients(thread.messages, thread.mailboxAddress)
-    : replyRecipients(source ?? thread.messages.at(-1));
+function recipientsFor(kind: ReplyKind, thread: Thread, source: Message | undefined) {
+  return (
+    kind === "replyAll"
+      ? customerRecipients(thread.messages, thread.mailboxAddress)
+      : replyRecipients(source ?? thread.messages.at(-1))
+  ) satisfies string[];
 }
 
 /**

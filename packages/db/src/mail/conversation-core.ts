@@ -142,8 +142,12 @@ export async function lockConversation(tx: Tx, threadId: string, actorMemberId: 
   return row ?? null;
 }
 
-export function stateOf(row: ConversationRow): ConversationState {
-  return { status: row.status, snoozedUntil: row.snoozedUntil, resolvedAt: row.resolvedAt };
+export function stateOf(row: ConversationRow) {
+  return {
+    status: row.status,
+    snoozedUntil: row.snoozedUntil,
+    resolvedAt: row.resolvedAt,
+  } satisfies ConversationState;
 }
 
 export interface EventInput {

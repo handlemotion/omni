@@ -78,7 +78,7 @@ afterEach(async () => {
 });
 
 /** A member signed in, with the app open on `path`. */
-async function openApp(email: string, path: string): Promise<{ page: Page; tab: BrowserContext }> {
+async function openApp(email: string, path: string) {
   if (!worker) throw new Error("the Worker is not running");
   const cookie = await signIn({ url: new URL(origin) }, db, email);
   const tab = await browser.newContext();
@@ -91,7 +91,7 @@ async function openApp(email: string, path: string): Promise<{ page: Page; tab: 
   );
   const page = await tab.newPage();
   await page.goto(new URL(path, origin).toString());
-  return { page, tab };
+  return { page, tab } satisfies { page: Page; tab: BrowserContext };
 }
 
 test("after the Worker restarts the app reconnects by itself and shows what it missed", async () => {

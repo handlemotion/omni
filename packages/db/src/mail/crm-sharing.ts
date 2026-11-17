@@ -102,12 +102,12 @@ async function mayManage(db: Db, memberId: string, mailboxId: string) {
   return { status: "ok", orgId: member.orgId } as const;
 }
 
-async function levelOf(db: Db, mailboxId: string): Promise<CrmSharingLevel> {
+async function levelOf(db: Db, mailboxId: string) {
   const [row] = await db
     .select({ level: mailboxCrmSharing.level })
     .from(mailboxCrmSharing)
     .where(eq(mailboxCrmSharing.mailboxId, mailboxId));
-  return row?.level ?? "off";
+  return (row?.level ?? "off") satisfies CrmSharingLevel;
 }
 
 /** A thread's `key`: UUID-shaped hex of SHA-256 over a fixed prefix and its id. */
@@ -188,25 +188,25 @@ async function activityRows(
 }
 
 /** `a or b`, skipping nulls; with neither (the caller returns before), nothing matches. */
-function or(a: SQL | null, b: SQL | null): SQL {
+const or: (a: SQL | null, b: SQL | null) => SQL = (a, b) => {
   if (a && b) return sql`(${a} or ${b})`;
   return a ?? b ?? sql`false`;
-}
+};
 
 /** The member door's sharing setting and read (ADR 0039 decision 2). `forMember` spreads it. */
 export function memberCrmSharing(db: Db, memberId: string) {
   return {
     /** The mailbox's level: for its owner (personal) or the workspace's owners and admins. */
-    async crmSharing(mailboxId: string): Promise<CrmSharingResult> {
+    async crmSharing(mailboxId: string) {
       const allowed = await mayManage(db, memberId, mailboxId);
-      if (allowed.status !== "ok") return allowed;
-      return { status: "ok", level: await levelOf(db, mailboxId) };
+      if (allowed.status !== "ok") return allowed satisfies CrmSharingResult;
+      return { status: "ok", level: await levelOf(db, mailboxId) } satisfies CrmSharingResult;
     },
 
     /** Sets the level, under the same rule. `off` hides the mailbox's activity on the next read. */
-    async setCrmSharing(mailboxId: string, level: CrmSharingLevel): Promise<CrmSharingResult> {
+    async setCrmSharing(mailboxId: string, level: CrmSharingLevel) {
       const allowed = await mayManage(db, memberId, mailboxId);
-      if (allowed.status !== "ok") return allowed;
+      if (allowed.status !== "ok") return allowed satisfies CrmSharingResult;
       await db
         .insert(mailboxCrmSharing)
         .values({ mailboxId, orgId: allowed.orgId, level, updatedByMemberId: memberId })
@@ -214,7 +214,7 @@ export function memberCrmSharing(db: Db, memberId: string) {
           target: mailboxCrmSharing.mailboxId,
           set: { level, updatedByMemberId: memberId, updatedAt: new Date() },
         });
-      return { status: "ok", level };
+      return { status: "ok", level } satisfies CrmSharingResult;
     },
 
     /**
@@ -222,13 +222,13 @@ export function memberCrmSharing(db: Db, memberId: string) {
      * member's company workspace that they cannot open, newest first, one keyset page. Nothing in
      * a Personal space, or for a member who is gone.
      */
-    async sharedActivityWith(options: SharedActivityOptions): Promise<SharedActivity[]> {
+    async sharedActivityWith(options: SharedActivityOptions) {
       const addresses = normalized(options.addresses);
       // A domain is stored as `domainOf` gives it: lowercased, after the last `@`.
       const domains = normalized(options.domains);
-      if (addresses.length === 0 && domains.length === 0) return [];
+      if (addresses.length === 0 && domains.length === 0) return [] satisfies SharedActivity[];
       const member = await memberOf(db, memberId);
-      if (!member || member.personal) return [];
+      if (!member || member.personal) return [] satisfies SharedActivity[];
       const limit = Math.min(Math.max(Math.trunc(options.limit ?? 50), 1), SHARED_ACTIVITY_MAX);
       const rows = await activityRows(
         db,
@@ -242,7 +242,7 @@ export function memberCrmSharing(db: Db, memberId: string) {
         lastMessageAt: new Date(row.last_message_at),
         direction: row.direction,
         subject: row.level === "subjects" ? row.subject : null,
-      }));
+      })) satisfies SharedActivity[];
     },
   };
 }

@@ -12,10 +12,10 @@ export type StructuredResult<T> =
  * Output that fails the schema becomes `invalid_output` with usage kept, so the caller still
  * records what it spent. API and network errors throw, so the queue retries the job.
  */
-export async function callStructured<S extends z.ZodType>(
+export const callStructured: <S extends z.ZodType>(
   client: ModelClient,
   request: { model: string; system: string; user: string; schema: S; maxTokens: number },
-): Promise<StructuredResult<z.infer<S>>> {
+) => Promise<StructuredResult<z.infer<S>>> = async (client, request) => {
   const format = zodOutputFormat(request.schema);
   const message = await client.messages.create({
     model: request.model,
@@ -39,13 +39,13 @@ export async function callStructured<S extends z.ZodType>(
   } catch {
     return { ok: false, reason: "invalid_output", usage };
   }
-}
+};
 
-function usageOf(message: Anthropic.Message): Usage {
+function usageOf(message: Anthropic.Message) {
   const u = message.usage;
   return {
     tokensIn:
       u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
     tokensOut: u.output_tokens,
-  };
+  } satisfies Usage;
 }

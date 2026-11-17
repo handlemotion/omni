@@ -12,8 +12,8 @@ import type { StorageListPage, StorageNode, StoragePlace } from "./storage.ts";
 type ListData = InfiniteData<StorageListPage, string | null>;
 
 /** Where a node is listed: inside its folder, or at its space's root. */
-export const placeOf = (node: StorageNode): StoragePlace =>
-  node.parentId ? { parentId: node.parentId } : { space: node.space };
+export const placeOf = (node: StorageNode) =>
+  (node.parentId ? { parentId: node.parentId } : { space: node.space }) satisfies StoragePlace;
 
 const placeIn = (key: QueryKey) => key.at(-1) as StoragePlace;
 
@@ -34,19 +34,19 @@ export function compareNodes(a: StorageNode, b: StorageNode) {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
-function without(data: ListData, id: string): ListData {
+const without: (data: ListData, id: string) => ListData = (data, id) => {
   if (!data.pages.some((page) => page.nodes.some((n) => n.id === id))) return data;
   return {
     ...data,
     pages: data.pages.map((page) => ({ ...page, nodes: page.nodes.filter((n) => n.id !== id) })),
   };
-}
+};
 
 /**
  * `data` with `node` in its place by the Worker's order. Past the loaded pages (more to load) it
  * is left out: its own page brings it.
  */
-function withNode(data: ListData, node: StorageNode): ListData {
+const withNode: (data: ListData, node: StorageNode) => ListData = (data, node) => {
   const rest = without(data, node.id);
   const at = rest.pages.findIndex(
     (page, i) =>
@@ -64,10 +64,10 @@ function withNode(data: ListData, node: StorageNode): ListData {
       return { ...page, nodes };
     }),
   };
-}
+};
 
 /** The folder's own listing and those inside it, renamed: its new name in their paths. */
-function withFolder(data: ListData, node: StorageNode): ListData {
+const withFolder: (data: ListData, node: StorageNode) => ListData = (data, node) => {
   const [first, ...rest] = data.pages;
   const folder = first?.folder;
   if (!first || !folder || !folder.path.some((step) => step.id === node.id)) return data;
@@ -76,7 +76,7 @@ function withFolder(data: ListData, node: StorageNode): ListData {
   );
   const own = folder.node.id === node.id ? { node } : {};
   return { ...data, pages: [{ ...first, folder: { ...folder, ...own, path } }, ...rest] };
-}
+};
 
 const shows = (data: ListData | undefined, id: string) =>
   !!data?.pages.some((page) => page.nodes.some((n) => n.id === id));

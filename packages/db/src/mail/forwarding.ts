@@ -26,7 +26,7 @@ const CLOCK_SLACK_MS = 5 * 60_000;
 const THREAD_BACKFILL_LIMIT = 25;
 
 /** Where a mailbox's sends are BCC'd, or null when forwarding is off. */
-export async function forwardTarget(db: Db, mailboxId: string): Promise<string | null> {
+export async function forwardTarget(db: Db, mailboxId: string) {
   const [row] = await db
     .select({ address: mailboxes.forwardAddress })
     .from(mailboxes)
@@ -59,7 +59,7 @@ export async function forwardCopySource(db: Db, mailboxId: string, messageId: st
 export async function enqueueForwardCopies(
   db: Db,
   input: { mailboxId: string; messageId: string; role: FolderRole },
-): Promise<number> {
+) {
   const [row] = await db
     .select({
       orgId: mailboxes.orgId,

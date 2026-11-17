@@ -80,7 +80,7 @@ interface Retry {
  * Runs the failed loaders and queries again, then clears the boundary. A route boundary clears
  * itself once its match changes; a module boundary keyed on the location needs the reset.
  */
-function useRetry(reset: () => void): Retry {
+function useRetry(reset: () => void) {
   const router = useRouter();
   const queries = useQueryErrorResetBoundary();
   const [pending, setPending] = useState(false);
@@ -94,5 +94,5 @@ function useRetry(reset: () => void): Retry {
         reset();
       });
     },
-  };
+  } satisfies Retry;
 }

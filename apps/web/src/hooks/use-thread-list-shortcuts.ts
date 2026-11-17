@@ -70,7 +70,7 @@ export function useThreadListShortcuts(options: {
   /** List view with a thread open: the list is hidden, so j/k open the neighbour. */
   listHidden: boolean;
   loadMore?: (() => void) | undefined;
-}): ThreadListActions {
+}) {
   const { view, threadId, href, selected, setSelected, listRef, listHidden, helpdesk } = options;
   const threads: (ThreadSummary | ConversationSummary)[] = helpdesk
     ? helpdesk.conversations
@@ -343,5 +343,6 @@ export function useThreadListShortcuts(options: {
   useShortcut("later", () => later(), plain);
   useShortcut("read", () => read(), has);
   useShortcut("close", close, !!threadId);
-  return { open, done, later, read, trash };
+  const result: ThreadListActions = { open, done, later, read, trash };
+  return result;
 }

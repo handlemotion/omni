@@ -208,13 +208,14 @@ function DrawLayer(props: { page: number; onDraw: (box: PdfBox) => void }) {
   const start = useRef<{ x: number; y: number } | null>(null);
   const [box, setBox] = useState<PdfBox | null>(null);
 
-  const between = (a: { x: number; y: number }, b: { x: number; y: number }): PdfBox => ({
-    page: props.page,
-    x: Math.min(a.x, b.x),
-    y: Math.min(a.y, b.y),
-    width: Math.abs(a.x - b.x),
-    height: Math.abs(a.y - b.y),
-  });
+  const between = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    ({
+      page: props.page,
+      x: Math.min(a.x, b.x),
+      y: Math.min(a.y, b.y),
+      width: Math.abs(a.x - b.x),
+      height: Math.abs(a.y - b.y),
+    }) satisfies PdfBox;
 
   return (
     <div

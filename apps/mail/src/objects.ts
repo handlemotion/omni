@@ -23,7 +23,7 @@ export interface S3Options {
 }
 
 /** Path-style S3 client over fetch. */
-export function createS3Store(options: S3Options): ObjectStore {
+export const createS3Store: (options: S3Options) => ObjectStore = (options) => {
   const client = new AwsClient({
     accessKeyId: options.accessKeyId,
     secretAccessKey: options.secretAccessKey,
@@ -72,4 +72,4 @@ export function createS3Store(options: S3Options): ObjectStore {
       return new Uint8Array(await response.arrayBuffer());
     },
   };
-}
+};

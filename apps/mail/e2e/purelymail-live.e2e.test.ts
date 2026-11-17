@@ -106,7 +106,7 @@ describe.runIf(requested)("Purelymail itself", () => {
   });
 
   /** A signed Worker → mail service call, as `apps/worker/src/mail-service.ts` makes it. */
-  async function call<T>(path: string, body: unknown): Promise<{ status: number; json: T }> {
+  async function call<T>(path: string, body: unknown) {
     const text = JSON.stringify(body);
     const headers = await signRequest({
       secret,
@@ -120,7 +120,10 @@ describe.runIf(requested)("Purelymail itself", () => {
       headers: { ...headers, "content-type": "application/json" },
       body: text,
     });
-    return { status: response.status, json: (await response.json()) as T };
+    return { status: response.status, json: (await response.json()) as T } satisfies {
+      status: number;
+      json: T;
+    };
   }
 
   async function ping() {

@@ -99,12 +99,12 @@ export async function verifyAccessToken(token: string, auth: Auth, db: Db, audie
  * The caller, or the response to send instead: 401 without a valid token for this resource, 403
  * when it lacks `mail:read` (every tool reads).
  */
-export async function authenticate(
+export const authenticate: (
   request: Request,
   auth: Auth,
   db: Db,
   baseURL: string,
-): Promise<McpCaller | Response> {
+) => Promise<McpCaller | Response> = async (request, auth, db, baseURL) => {
   const header = request.headers.get("authorization") ?? "";
   const token = /^Bearer (\S+)$/i.exec(header)?.[1];
   if (!token) return challenge(401, baseURL, [MAIL_READ_SCOPE]);
@@ -128,4 +128,4 @@ export async function authenticate(
     token,
     expiresAt: payload.exp ?? 0,
   };
-}
+};

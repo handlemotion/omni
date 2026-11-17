@@ -16,12 +16,12 @@ export type IconResult = { status: "ok"; node: StorageNode } | typeof NOT_FOUND 
 export function iconOperations(db: Db, door: Door) {
   return {
     /** Sets a top-level folder's glyph, or clears it with null. Not a change to the node. */
-    async setIcon(nodeId: string, icon: string | null): Promise<IconResult> {
+    async setIcon(nodeId: string, icon: string | null) {
       const found = await reach(db, door, nodeId);
-      if (!found || inTrash(found.chain)) return NOT_FOUND;
+      if (!found || inTrash(found.chain)) return NOT_FOUND satisfies IconResult;
       const { node } = found;
-      if (node.kind !== "folder" || node.parentId !== null) return NOT_FOUND;
-      if (!found.access.change) return FORBIDDEN;
+      if (node.kind !== "folder" || node.parentId !== null) return NOT_FOUND satisfies IconResult;
+      if (!found.access.change) return FORBIDDEN satisfies IconResult;
       if (icon === null) {
         await db.delete(storageFolderIcons).where(eq(storageFolderIcons.nodeId, nodeId));
       } else {
@@ -30,13 +30,13 @@ export function iconOperations(db: Db, door: Door) {
           .values({ nodeId, orgId: node.orgId, icon })
           .onConflictDoUpdate({ target: storageFolderIcons.nodeId, set: { icon } });
       }
-      return { status: "ok", node: toNode(node) };
+      return { status: "ok", node: toNode(node) } satisfies IconResult;
     },
 
     /** The glyphs of a drive's top-level folders, by folder id. Empty when there is no drive. */
-    async folderIcons(space: StorageSpace): Promise<Record<string, string>> {
+    async folderIcons(space: StorageSpace) {
       const drive = await door.root(db, space);
-      if (!drive) return {};
+      if (!drive) return {} satisfies Record<string, string>;
       const rows = await db
         .select({ nodeId: storageFolderIcons.nodeId, icon: storageFolderIcons.icon })
         .from(storageFolderIcons)
@@ -50,7 +50,10 @@ export function iconOperations(db: Db, door: Door) {
             isNull(storageNodes.trashedAt),
           ),
         );
-      return Object.fromEntries(rows.map((row) => [row.nodeId, row.icon]));
+      return Object.fromEntries(rows.map((row) => [row.nodeId, row.icon])) satisfies Record<
+        string,
+        string
+      >;
     },
   };
 }

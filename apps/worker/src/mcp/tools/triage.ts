@@ -118,7 +118,7 @@ async function conversationChanges(
   member: { id: string },
   mailboxId: string,
   change: Change,
-): Promise<{ changes: ConversationChange[] } | { error: string }> {
+) {
   const changes: ConversationChange[] = [];
   if (change.status) changes.push({ type: change.status === "resolved" ? "resolve" : "reopen" });
   if (change.priority) changes.push({ type: "priority", priority: change.priority });
@@ -128,7 +128,10 @@ async function conversationChanges(
     else {
       const people = (await reads.mailboxAssignees(mailboxId)) ?? [];
       const person = people.find((p) => p.email?.toLowerCase() === change.assignee!.toLowerCase());
-      if (!person) return { error: `${change.assignee} cannot see this inbox` };
+      if (!person)
+        return { error: `${change.assignee} cannot see this inbox` } satisfies
+          | { changes: ConversationChange[] }
+          | { error: string };
       changes.push({ type: "assign", memberId: person.memberId });
     }
   }
@@ -141,14 +144,14 @@ async function conversationChanges(
     if (unknown.length) {
       return {
         error: `no tag ${unknown.join(", ")} in this inbox (${tags.map((t) => t.name).join(", ") || "it has none"})`,
-      };
+      } satisfies { changes: ConversationChange[] } | { error: string };
     }
     for (const name of change.add_tags ?? [])
       changes.push({ type: "tag", tagId: idOf(name)!, add: true });
     for (const name of change.remove_tags ?? [])
       changes.push({ type: "tag", tagId: idOf(name)!, add: false });
   }
-  return { changes };
+  return { changes } satisfies { changes: ConversationChange[] } | { error: string };
 }
 
 /** One thread being changed, as the member whose grant shows it. */
@@ -204,12 +207,12 @@ async function applyPersonal(context: ToolContext, target: Target, change: Chang
 }
 
 /** A shared conversation's status, assignee, priority and tags, through its workflow. */
-async function applyConversation(
+const applyConversation: (
   context: ToolContext,
   reads: Reads,
   target: Target,
   change: Change,
-): Promise<Outcome> {
+) => Promise<Outcome> = async (context, reads, target, change) => {
   const { threadId, member, found, effects } = target;
   const planned = await conversationChanges(reads, member, found.mailboxId, change);
   if ("error" in planned) return { applied: [], error: planned.error };
@@ -234,7 +237,7 @@ async function applyConversation(
     }
   }
   return { applied: CONVERSATION_FIELDS.filter((field) => change[field] !== undefined) };
-}
+};
 
 async function applyOne(
   context: ToolContext,
@@ -243,14 +246,21 @@ async function applyOne(
   found: Found | undefined,
   effects: Effects,
   standing: Map<string, Promise<boolean>>,
-): Promise<Outcome> {
+) {
   const member = found && (await reads.memberFor(change.thread_id));
-  if (!found || !member) return { applied: [], error: "not a thread you can see" };
+  if (!found || !member) {
+    const result: Outcome = { applied: [], error: "not a thread you can see" };
+    return result;
+  }
   const good =
     standing.get(member.orgId) ?? inGoodStanding(context.db, context.config, member.orgId);
   standing.set(member.orgId, good);
   if (!(await good)) {
-    return { applied: [], error: "this workspace is read-only until its plan is paid" };
+    const result: Outcome = {
+      applied: [],
+      error: "this workspace is read-only until its plan is paid",
+    };
+    return result;
   }
   const target: Target = {
     threadId: change.thread_id,
@@ -278,7 +288,8 @@ async function applyOne(
       data: { via: "mcp", clientId: context.caller.clientId, applied },
     });
   }
-  return error ? { applied, error } : { applied };
+  const outcome: Outcome = error ? { applied, error } : { applied };
+  return outcome;
 }
 
 async function triage(context: ToolContext, input: z.infer<typeof inputSchema>) {

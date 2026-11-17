@@ -123,7 +123,10 @@ const requestColumns = {
 type RequestRow = Omit<StorageSignatureRequest, "signers" | "events">;
 
 /** The requests with their signers (in the order they were named) and audit trail, oldest first. */
-export async function withSigners(ex: Db, rows: RequestRow[]): Promise<StorageSignatureRequest[]> {
+export const withSigners: (
+  ex: Db,
+  rows: RequestRow[],
+) => Promise<StorageSignatureRequest[]> = async (ex, rows) => {
   if (rows.length === 0) return [];
   const ids = rows.map((row) => row.id);
   const [signers, events] = await Promise.all([
@@ -159,13 +162,13 @@ export async function withSigners(ex: Db, rows: RequestRow[]): Promise<StorageSi
         createdAt,
       })),
   }));
-}
+};
 
 /** One request just written, with its signers and trail. */
-async function written(ex: Db, row: RequestRow | undefined): Promise<StorageSignatureRequest> {
+async function written(ex: Db, row: RequestRow | undefined) {
   const [full] = row ? await withSigners(ex, [row]) : [];
   if (!full) throw new Error("storage: a signature request just written is gone");
-  return full;
+  return full satisfies StorageSignatureRequest;
 }
 
 export async function loadRequest(ex: Db, requestId: string, forUpdate = false) {
@@ -217,15 +220,21 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
         signers: { email: string; name: string }[];
         origin: StorageSigningOrigin;
       },
-    ): Promise<SendForSignatureResult> {
+    ) {
       return db
-        .transaction(async (tx): Promise<SendForSignatureResult> => {
+        .transaction(async (tx) => {
           const orgId = await orgOfNode(tx, nodeId);
-          if (!orgId) return NOT_FOUND;
+          if (!orgId) {
+            const result: SendForSignatureResult = NOT_FOUND;
+            return result;
+          }
           // Taking the lock first takes the tree lock too, so nothing replaces the content between
           // this check and the request row.
           const locked = await lockOperations(tx, door, memberId).lock(nodeId);
-          if (locked.status !== "ok") return NOT_FOUND;
+          if (locked.status !== "ok") {
+            const result: SendForSignatureResult = NOT_FOUND;
+            return result;
+          }
           const { node } = locked;
           if (node.mimeType !== STORAGE_PDF_MIME) {
             // The lock rolls back with the transaction.
@@ -272,9 +281,15 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
             .select({ name: organizations.name })
             .from(organizations)
             .where(eq(organizations.id, orgId));
-          return { status: "ok", request: full, node, workspaceName: org?.name ?? "" };
+          const result: SendForSignatureResult = {
+            status: "ok",
+            request: full,
+            node,
+            workspaceName: org?.name ?? "",
+          };
+          return result;
         })
-        .catch(refused<SendForSignatureResult>);
+        .catch(refused<SendForSignatureResult>) satisfies Promise<SendForSignatureResult>;
     },
 
     /** Every request made on a file the member reaches, newest first. */
@@ -293,14 +308,13 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
      * Voids a request still out for signature. The file stays locked: it was the file sent, and
      * only an owner or admin makes it an ordinary file again (`unlock`).
      */
-    voidSignature(
-      requestId: string,
-      origin: StorageSigningOrigin,
-    ): Promise<SignatureRequestResult> {
-      return db.transaction(async (tx): Promise<SignatureRequestResult> => {
+    voidSignature(requestId: string, origin: StorageSigningOrigin) {
+      return db.transaction<SignatureRequestResult>(async (tx) => {
         const request = await loadRequest(tx, requestId, true);
-        if (!request || !(await reachFile(tx, request.nodeId))) return NOT_FOUND;
-        if (request.status !== "sent") return { status: "signature_closed" };
+        if (!request || !(await reachFile(tx, request.nodeId)))
+          return NOT_FOUND satisfies SignatureRequestResult;
+        if (request.status !== "sent")
+          return { status: "signature_closed" } satisfies SignatureRequestResult;
         const [row] = await tx
           .update(storageSignatureRequests)
           .set({ status: "voided", voidedAt: new Date() })
@@ -308,7 +322,7 @@ export function signingOperations(db: Db, door: Door, memberId: string) {
           .returning(requestColumns);
         if (!row) throw new Error("storage: the voided request is gone");
         await appendSigningEvent(tx, row, "voided", origin);
-        return { status: "ok", request: await written(tx, row) };
+        return { status: "ok", request: await written(tx, row) } satisfies SignatureRequestResult;
       });
     },
   };
@@ -323,7 +337,7 @@ class Refusal<T> extends Error {
   }
 }
 
-function refused<T>(error: unknown): T {
+function refused<T>(error: unknown) {
   if (error instanceof Refusal) return error.result as T;
   throw error;
 }

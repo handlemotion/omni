@@ -25,7 +25,7 @@ export interface DnsServer {
   close(): Promise<void>;
 }
 
-export async function startDnsServer(): Promise<DnsServer> {
+export const startDnsServer: () => Promise<DnsServer> = async () => {
   const zones = new Set<string>();
   const records = new Map<string, Map<RecordType, Value[]>>();
   const queries: { name: string; type: string }[] = [];
@@ -37,7 +37,10 @@ export async function startDnsServer(): Promise<DnsServer> {
     name === `ns1.${zoneOf(name)}` ||
     [...records.keys()].some((n) => n === name || n.endsWith(`.${name}`));
 
-  function answer(name: string, type: string): { rcode: number; answers: Answer[] } {
+  const answer: (name: string, type: string) => { rcode: number; answers: Answer[] } = (
+    name,
+    type,
+  ) => {
     const zone = zoneOf(name);
     if (!zone) return { rcode: 5, answers: [] }; // REFUSED: not ours.
     if (!exists(name)) return { rcode: 3, answers: [] }; // NXDOMAIN
@@ -55,7 +58,7 @@ export async function startDnsServer(): Promise<DnsServer> {
     const values = at?.get(type as RecordType) ?? [];
     return {
       rcode: 0,
-      answers: values.map((value): Answer => {
+      answers: values.map<Answer>((value) => {
         if (type === "MX") {
           const mx = value as { priority: number; exchange: string };
           return {
@@ -69,7 +72,7 @@ export async function startDnsServer(): Promise<DnsServer> {
         return { type: type as "CNAME" | "A", name, ttl: 300, data: value as string };
       }),
     };
-  }
+  };
 
   const socket = dgram.createSocket("udp4");
   socket.on("message", (message, peer) => {
@@ -111,4 +114,4 @@ export async function startDnsServer(): Promise<DnsServer> {
     },
     close: () => new Promise<void>((resolve) => socket.close(() => resolve())),
   };
-}
+};

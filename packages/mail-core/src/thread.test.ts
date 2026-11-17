@@ -16,13 +16,14 @@ const parse = async (name: string) =>
 const SELF = ["sam@example.com", "hello@example.com"];
 const DAY = 24 * 60 * 60 * 1000;
 
-const deployThread = (overrides: Partial<ThreadCandidate>): ThreadCandidate => ({
-  threadId: "t-deploy",
-  subjectKey: "deploy window",
-  participants: ["hello@example.com", "ops@fundacionsol.example.org"],
-  lastMessageAt: new Date("2026-10-15T07:00:00Z"),
-  ...overrides,
-});
+const deployThread = (overrides: Partial<ThreadCandidate>) =>
+  ({
+    threadId: "t-deploy",
+    subjectKey: "deploy window",
+    participants: ["hello@example.com", "ops@fundacionsol.example.org"],
+    lastMessageAt: new Date("2026-10-15T07:00:00Z"),
+    ...overrides,
+  }) satisfies ThreadCandidate;
 const decide = async (candidates: ThreadCandidate[]) =>
   decideThread(await parse("no-message-id.eml"), {
     knownMessageIds: new Map(),

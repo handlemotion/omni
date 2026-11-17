@@ -256,10 +256,10 @@ function devicePasskeyName() {
 }
 
 /** "Safari on iPhone" and the glyph for its kind of device, from a session's user agent. */
-function describeDevice(agent: string | null | undefined): {
+const describeDevice: (agent: string | null | undefined) => {
   name: string;
   icon: SettingsRowIcon;
-} {
+} = (agent) => {
   const ua = agent ?? "";
   const os = /iPhone/.test(ua)
     ? "iPhone"
@@ -298,7 +298,7 @@ function describeDevice(agent: string | null | undefined): {
       ? `${browser} on ${os}`
       : (browser ?? (os ? `Browser on ${os}` : "Unknown device"));
   return { name, icon };
-}
+};
 
 /** What a stacked dialog over the Security page is doing, if anything. */
 type SecurityDialog =

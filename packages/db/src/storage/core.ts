@@ -56,7 +56,7 @@ export interface StorageNode {
   contentSha256: string | null;
 }
 
-export function toNode(row: NodeRow): StorageNode {
+export function toNode(row: NodeRow) {
   return {
     id: row.id,
     orgId: row.orgId,
@@ -75,7 +75,7 @@ export function toNode(row: NodeRow): StorageNode {
     revision: row.revision,
     contentVersion: row.contentVersion,
     contentSha256: row.contentSha256,
-  };
+  } satisfies StorageNode;
 }
 
 /** A drive: one member's My files, or a company's Shared. */
@@ -85,11 +85,12 @@ export interface Drive {
   ownerMemberId: string | null;
 }
 
-export const driveOf = (row: NodeRow): Drive => ({
-  orgId: row.orgId,
-  space: row.space,
-  ownerMemberId: row.ownerMemberId,
-});
+export const driveOf = (row: NodeRow) =>
+  ({
+    orgId: row.orgId,
+    space: row.space,
+    ownerMemberId: row.ownerMemberId,
+  }) satisfies Drive;
 
 export const sameDrive = (a: Drive, b: Drive) =>
   a.orgId === b.orgId && a.space === b.space && a.ownerMemberId === b.ownerMemberId;
@@ -98,7 +99,7 @@ export const sameDrive = (a: Drive, b: Drive) =>
 export const storageObjectKey = (orgId: string, fileId: string) => `orgs/${orgId}/${fileId}`;
 
 /** The name as stored, or null when it cannot be one. */
-export function cleanName(name: string): string | null {
+export function cleanName(name: string) {
   const clean = name.trim();
   if (!clean || clean === "." || clean === "..") return null;
   if (clean.length > STORAGE_NAME_MAX_LENGTH) return null;
@@ -136,7 +137,10 @@ export async function orgOfNode(ex: Db, nodeId: string) {
  * The node and its ancestors, node first, root last. Null when there is no such node, or its
  * chain does not reach a root within `MAX_WALK`.
  */
-export async function chainOf(ex: Db, nodeId: string): Promise<NodeRow[] | null> {
+export const chainOf: (ex: Db, nodeId: string) => Promise<NodeRow[] | null> = async (
+  ex,
+  nodeId,
+) => {
   const rows = await ex
     .select(nodeColumns)
     .from(storageNodes)
@@ -159,7 +163,7 @@ export async function chainOf(ex: Db, nodeId: string): Promise<NodeRow[] | null>
     next = byId.get(next.parentId);
   }
   return null;
-}
+};
 
 /** True when the node at the bottom of `chain`, or a folder above it, is in Trash. */
 export const inTrash = (chain: NodeRow[]) => chain.some((row) => row.trashedAt !== null);
@@ -194,7 +198,7 @@ export const inSubtree = (column: SQL | AnyPgColumn, nodeId: string) =>
 export const isSubtree = (nodeId: string) => inSubtree(storageNodes.id, nodeId);
 
 /** The node and everything inside it, trashed or not. */
-export async function subtreeOf(ex: Db, nodeId: string): Promise<SubtreeRow[]> {
+export async function subtreeOf(ex: Db, nodeId: string) {
   const rows = (await ex.execute(sql`${down(nodeId)}
     select n.id, n.kind, n.size, n.r2_key, down.depth
     from down join ${storageNodes} n on n.id = down.id`)) as unknown as {
@@ -210,7 +214,7 @@ export async function subtreeOf(ex: Db, nodeId: string): Promise<SubtreeRow[]> {
     size: Number(row.size),
     r2Key: row.r2_key,
     depth: row.depth,
-  }));
+  })) satisfies SubtreeRow[];
 }
 
 /**
@@ -295,7 +299,7 @@ export function freeName(
   name: string,
   kind: StorageNodeKind,
   exceptId?: string,
-): SQL<string> {
+) {
   // A file keeps its extension after the number; a folder has none, and neither has a file
   // whose last dot is too far back to be one.
   const dot = kind === "file" ? name.lastIndexOf(".") : -1;
@@ -321,7 +325,7 @@ export function freeName(
         and lower(s.name) = lower(c.name) and s.trashed_at is null${except}
     )
     order by c.n limit 1
-  ), ${`${last} (${uuidv7()})${ext}`}::text)`;
+  ), ${`${last} (${uuidv7()})${ext}`}::text)` satisfies SQL<string>;
 }
 
 export interface NewNode {
@@ -341,7 +345,7 @@ export interface NewNode {
  * Inserts a node under the first free name. Two inserts that pick the same name collide on the
  * unique index; the loser inserts nothing and picks again.
  */
-export async function insertNode(tx: Db, input: NewNode): Promise<NodeRow> {
+export async function insertNode(tx: Db, input: NewNode) {
   const id = input.id ?? uuidv7();
   const revision = await nextRevision(tx, input.drive.orgId);
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -364,14 +368,14 @@ export async function insertNode(tx: Db, input: NewNode): Promise<NodeRow> {
       })
       .onConflictDoNothing()
       .returning();
-    if (row) return row;
+    if (row) return row satisfies NodeRow;
   }
   // Not the name: it is a person's, and this message reaches the logs.
   throw new Error(`storage: no free name for node ${id}`);
 }
 
 /** Locks the workspace's usage row, creating it at zero, and returns its bytes. */
-export async function lockUsage(tx: Db, orgId: string): Promise<number> {
+export async function lockUsage(tx: Db, orgId: string) {
   await tx.insert(storageUsage).values({ orgId, bytes: 0 }).onConflictDoNothing();
   const [row] = await tx
     .select({ bytes: storageUsage.bytes })

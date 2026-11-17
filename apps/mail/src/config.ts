@@ -1,12 +1,12 @@
 import { type Keyring, parseKeyring } from "@omni/crypto";
 import { z } from "zod";
 
-const keyring = z.string().transform((value, ctx): Keyring => {
+const keyring = z.string().transform((value, ctx) => {
   try {
-    return parseKeyring(value);
+    return parseKeyring(value) satisfies Keyring;
   } catch (error) {
     ctx.addIssue({ code: "custom", message: (error as Error).message });
-    return z.NEVER;
+    return z.NEVER satisfies Keyring;
   }
 });
 
@@ -100,7 +100,7 @@ const schema = z.object({
 
 export type Config = z.infer<typeof schema>;
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const parsed = schema
     .refine((config) => !config.GOOGLE_CLIENT_ID === !config.GOOGLE_CLIENT_SECRET, {
       message: "set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET together, or neither",
@@ -112,5 +112,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const problems = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
     throw new Error(`invalid mail service config:\n  ${problems.join("\n  ")}`);
   }
-  return parsed.data;
+  return parsed.data satisfies Config;
 }

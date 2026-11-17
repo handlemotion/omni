@@ -19,15 +19,15 @@ export type FolderSyncPlan =
   | { mode: "condstore"; listUids: boolean; changedSince: bigint }
   | { mode: "uid-diff"; listUids: true; changedSince: undefined };
 
-export function planFolderSync(
+export const planFolderSync: (
   position: FolderPosition,
   server: { uidNext: number; exists: number; highestModseq: bigint | null },
   storedCount: number,
-): FolderSyncPlan {
+) => FolderSyncPlan = (position, server, storedCount) => {
   if (server.highestModseq === null || position.highestModseq === null) {
     return { mode: "uid-diff", listUids: true, changedSince: undefined };
   }
   const sameMessages = server.uidNext === position.uidNext && server.exists === storedCount;
   if (sameMessages && server.highestModseq === position.highestModseq) return { mode: "unchanged" };
   return { mode: "condstore", listUids: !sameMessages, changedSince: position.highestModseq };
-}
+};

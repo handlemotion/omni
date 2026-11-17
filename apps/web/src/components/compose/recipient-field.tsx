@@ -17,10 +17,10 @@ import { useCustomerSearch, type CustomerMatch } from "@/hooks/use-compose.ts";
 const ADDRESS = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
 /** Every address in pasted or typed text, in order, without repeats. */
-export function parseAddresses(text: string): string[] {
+export function parseAddresses(text: string) {
   return [...new Set(text.split(/[\s,;]+/).map((a) => a.replace(/^<|>$/g, "").trim()))].filter(
     (a) => ADDRESS.test(a),
-  );
+  ) satisfies string[];
 }
 
 /**

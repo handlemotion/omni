@@ -25,5 +25,7 @@ export function SenderAvatar({
 }
 
 /** `who` for an address that may be missing. */
-export const byAddress = (address: string | null | undefined): SenderLogoFor | null =>
-  address ? { address } : null;
+export const byAddress = (address: string | null | undefined) => {
+  const result: SenderLogoFor | null = address ? { address } : null;
+  return result;
+};

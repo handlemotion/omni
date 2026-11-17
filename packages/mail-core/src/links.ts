@@ -23,7 +23,7 @@ const OPENERS: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
  * Drops trailing punctuation, and closing brackets that close none inside the URL. One count of
  * each bracket, then one walk back from the end: a run of `)` costs linear time, not quadratic.
  */
-function trimEnd(url: string): string {
+function trimEnd(url: string) {
   const counts = new Map<string, number>();
   for (const char of url) {
     if (char in OPENERS || Object.values(OPENERS).includes(char)) {
@@ -43,7 +43,7 @@ function trimEnd(url: string): string {
   return url.slice(0, end);
 }
 
-function webAddress(candidate: string): string | null {
+function webAddress(candidate: string) {
   try {
     const url = new URL(candidate);
     return (url.protocol === "http:" || url.protocol === "https:") && url.hostname
@@ -55,7 +55,7 @@ function webAddress(candidate: string): string | null {
 }
 
 /** `text` split into plain runs and web addresses, in order; joined, the runs give back `text`. */
-export function linkSegments(text: string): TextSegment[] {
+export function linkSegments(text: string) {
   const segments: TextSegment[] = [];
   let from = 0;
   for (const match of text.matchAll(URL_START)) {
@@ -67,5 +67,5 @@ export function linkSegments(text: string): TextSegment[] {
     from = match.index + shown.length;
   }
   if (from < text.length) segments.push({ text: text.slice(from) });
-  return segments;
+  return segments satisfies TextSegment[];
 }

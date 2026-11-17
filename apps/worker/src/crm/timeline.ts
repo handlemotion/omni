@@ -42,7 +42,11 @@ type RecordKind = "companies" | "people" | "deals";
 type Subject = ({ status: "ok"; ref: CrmRecordRef } & MailSubject) | CrmRefusal;
 
 /** A person's own addresses; a deal's people's; a company's people's plus its domains. */
-async function recordSubject(c: Context<AppEnv>, kind: RecordKind, id: string): Promise<Subject> {
+const recordSubject: (
+  c: Context<AppEnv>,
+  kind: RecordKind,
+  id: string,
+) => Promise<Subject> = async (c, kind, id) => {
   const crm = memberCrm(c);
   if (kind === "people") {
     const found = await crm.person(id);
@@ -57,7 +61,7 @@ async function recordSubject(c: Context<AppEnv>, kind: RecordKind, id: string): 
   const found = await crm.company(id);
   if (found.status !== "ok") return found;
   return { status: "ok", ref: { companyId: id }, ...subjectOf(found.people, found.domains) };
-}
+};
 
 const CONTRACT_CHANGES = {
   contract_created: "created",
@@ -79,7 +83,7 @@ const contractData = z.object({
 });
 
 /** An event as its timeline item: a contract's own events are `contract` items. */
-function eventItem(event: CrmEvent): CrmTimelineItem {
+const eventItem: (event: CrmEvent) => CrmTimelineItem = (event) => {
   const at = event.createdAt.toISOString();
   const change = contractChange(event.kind);
   const parsed = change && contractData.safeParse(event.data);
@@ -90,7 +94,7 @@ function eventItem(event: CrmEvent): CrmTimelineItem {
     at,
     contract: { ...parsed.data, change: change!, actorMemberId: event.actorMemberId },
   };
-}
+};
 
 const newestFirst = (a: CrmTimelineItem, b: CrmTimelineItem) =>
   a.at === b.at ? (a.id < b.id ? 1 : a.id > b.id ? -1 : 0) : a.at < b.at ? 1 : -1;

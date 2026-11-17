@@ -9,6 +9,10 @@
     {
       "name": "landmines-structure",
       "specifier": "@interfere/landmines/structure"
+    },
+    {
+      "name": "landmines-types",
+      "specifier": "@interfere/landmines/types"
     }
   ],
   "categories": {
@@ -69,7 +73,8 @@
     "landmines-testing/strict-msw": "error",
     "landmines-structure/colocated-tests": "error",
     "landmines-structure/package-exports": "error",
-    "landmines-structure/test-file-names": "error"
+    "landmines-structure/test-file-names": "error",
+    "landmines-types/no-explicit-return-types": "error"
   },
   "overrides": [
     {

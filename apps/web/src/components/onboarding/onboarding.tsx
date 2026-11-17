@@ -663,7 +663,7 @@ interface ShownRecord {
 /** Passing: the domain's own nameservers serve it (or, unchecked yet, the provider saw it). */
 const passes = (r: ShownRecord) => recordPasses(r);
 
-function shownRecords(domain: OnboardingDomain): ShownRecord[] {
+function shownRecords(domain: OnboardingDomain) {
   const challenge: ShownRecord[] = domain.challenge
     ? [
         {
@@ -677,7 +677,8 @@ function shownRecords(domain: OnboardingDomain): ShownRecord[] {
         },
       ]
     : [];
-  return [...challenge, ...domain.records];
+  const shown: ShownRecord[] = [...challenge, ...domain.records];
+  return shown;
 }
 
 /** The domain's records by purpose, in order, and the first group not passing yet (-1: none). */
@@ -838,7 +839,7 @@ function DomainForm(props: {
 }
 
 /** The stage's records and their problems, in the records table's shape (Domain SDK's). */
-function tableData(records: ShownRecord[]): { records: TableRecord[]; issues: DomainIssue[] } {
+function tableData(records: ShownRecord[]) {
   const rows = records.map((record) => {
     const done = passes(record);
     const wrong = !done && !!record.diagnostic && record.diagnostic.status !== "missing";
@@ -871,7 +872,7 @@ function tableData(records: ShownRecord[]): { records: TableRecord[]; issues: Do
   return {
     records: rows.map((r) => r.row),
     issues: rows.flatMap((r) => (r.issue ? [r.issue] : [])),
-  };
+  } satisfies { records: TableRecord[]; issues: DomainIssue[] };
 }
 
 /**

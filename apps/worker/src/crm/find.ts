@@ -8,15 +8,12 @@ import type { AppEnv } from "../context.ts";
 import { zValidator } from "../validator.ts";
 import { memberCrm, refused, wireCompany, wireDeal, wirePerson } from "./http.ts";
 
-const wireFound = (found: {
-  people: CrmPerson[];
-  companies: CrmCompany[];
-  deals: CrmDeal[];
-}): CrmFoundResponse => ({
-  people: found.people.map(wirePerson),
-  companies: found.companies.map(wireCompany),
-  deals: found.deals.map(wireDeal),
-});
+const wireFound = (found: { people: CrmPerson[]; companies: CrmCompany[]; deals: CrmDeal[] }) =>
+  ({
+    people: found.people.map(wirePerson),
+    companies: found.companies.map(wireCompany),
+    deals: found.deals.map(wireDeal),
+  }) satisfies CrmFoundResponse;
 
 export const find = new Hono<AppEnv>()
   /** `?address=` repeated or comma separated, up to 50, in any letter case. */

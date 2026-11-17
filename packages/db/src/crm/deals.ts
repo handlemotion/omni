@@ -116,11 +116,15 @@ async function peopleOfDeal(ex: Ex, dealId: string) {
   return withAddresses(ex, rows);
 }
 
-export async function getDeal(ex: Ex, member: CrmMember, id: string): Promise<DealDetailResult> {
+export const getDeal: (ex: Ex, member: CrmMember, id: string) => Promise<DealDetailResult> = async (
+  ex,
+  member,
+  id,
+) => {
   const deal = await loadDeal(ex, member.orgId, id);
   if (!deal) return NOT_FOUND;
   return { status: "ok", deal, people: await peopleOfDeal(ex, id) };
-}
+};
 
 async function isMemberOf(ex: Ex, orgId: string, memberId: string) {
   const [row] = await ex
@@ -178,11 +182,11 @@ async function checkReferences(ex: Ex, member: CrmMember, input: Partial<DealInp
   return (await existingPeople(ex, member.orgId, personIds)).length === personIds.length;
 }
 
-export async function createDeal(
+export const createDeal: (
   tx: Ex,
   member: CrmMember,
   input: DealInput,
-): Promise<WriteDealResult> {
+) => Promise<WriteDealResult> = async (tx, member, input) => {
   const name = cleanName(input.name);
   if (!name) return { status: "invalid_name" };
   await ensureCrm(tx, member.orgId);
@@ -224,7 +228,7 @@ export async function createDeal(
   await rememberCurrency(tx, member.orgId, value.currency);
   await appendEvent(tx, member, { dealId: deal!.id }, "created", { stageId: stage.id });
   return { status: "ok", deal: (await loadDeal(tx, member.orgId, deal!.id))! };
-}
+};
 
 /** Moves one locked deal; writes the change and its event, or nothing when it is a repeat. */
 async function applyMove(
@@ -333,12 +337,12 @@ async function applyFields(
  * Changes the fields `patch` names: name, company, owner, value, people, and a stage move through
  * the transition function. Each change writes its own event; an unchanged field writes none.
  */
-export async function updateDeal(
+export const updateDeal: (
   tx: Ex,
   member: CrmMember,
   id: string,
   patch: DealPatch,
-): Promise<WriteDealResult> {
+) => Promise<WriteDealResult> = async (tx, member, id, patch) => {
   const deal = await loadDeal(tx, member.orgId, id, true);
   if (!deal) return NOT_FOUND;
   if (await alreadyWritten(tx, member.orgId, patch.dedupeKey)) return { status: "ok", deal };
@@ -353,14 +357,14 @@ export async function updateDeal(
   await applyFields(tx, member, deal, patch, value);
   if (patch.personIds) await setPeople(tx, member, id, patch.personIds);
   return { status: "ok", deal: (await loadDeal(tx, member.orgId, id))! };
-}
+};
 
 /** Moves several deals to one stage, each by the same rules as `updateDeal`. */
-export async function moveDeals(
+export const moveDeals: (
   tx: Ex,
   member: CrmMember,
   input: { dealIds: string[]; stageId: string },
-): Promise<{ status: "ok"; moved: string[] } | NotFound> {
+) => Promise<{ status: "ok"; moved: string[] } | NotFound> = async (tx, member, input) => {
   const target = await stageOf(tx, member.orgId, input.stageId);
   if (!target) return NOT_FOUND;
   // Every deal is found and locked before any moves, so a missing id changes nothing.
@@ -375,19 +379,27 @@ export async function moveDeals(
     if (await applyMove(tx, member, deal, target)) moved.push(deal.id);
   }
   return { status: "ok", moved };
-}
+};
 
-export async function archiveDeal(tx: Ex, member: CrmMember, id: string): Promise<DealResult> {
+export const archiveDeal: (tx: Ex, member: CrmMember, id: string) => Promise<DealResult> = async (
+  tx,
+  member,
+  id,
+) => {
   const deal = await loadDeal(tx, member.orgId, id, true);
   if (!deal) return NOT_FOUND;
   if (deal.archivedAt) return { status: "ok", deal };
   await tx.update(crmDeals).set({ archivedAt: new Date() }).where(eq(crmDeals.id, id));
   await appendEvent(tx, member, { dealId: id }, "archived");
   return { status: "ok", deal: (await loadDeal(tx, member.orgId, id))! };
-}
+};
 
 /** Deletes for good with its people links, notes, events and contracts. Owners and admins only. */
-export async function deleteDeal(tx: Ex, member: CrmMember, id: string): Promise<DeleteResult> {
+export const deleteDeal: (tx: Ex, member: CrmMember, id: string) => Promise<DeleteResult> = async (
+  tx,
+  member,
+  id,
+) => {
   if (!member.admin) return FORBIDDEN;
   if (await holdsSignedContract(tx, member.orgId, { dealId: id })) return CONTRACT_SIGNED;
   const deleted = await tx
@@ -395,4 +407,4 @@ export async function deleteDeal(tx: Ex, member: CrmMember, id: string): Promise
     .where(and(eq(crmDeals.orgId, member.orgId), eq(crmDeals.id, id)))
     .returning({ id: crmDeals.id });
   return deleted.length > 0 ? { status: "ok" } : NOT_FOUND;
-}
+};

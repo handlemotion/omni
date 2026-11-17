@@ -13,7 +13,7 @@ import { mailDomains } from "./schema/domains.ts";
  * (`acme.com` covers `ana@mail.acme.com`), the closest lock winning; free-mail domains are never
  * locked, since nobody can publish a challenge on them (ADR 0010).
  */
-export async function companyForAddress(db: Db, address: string): Promise<string | null> {
+export async function companyForAddress(db: Db, address: string) {
   const at = address.lastIndexOf("@");
   if (at < 0) return null;
   const domain = address
@@ -48,14 +48,14 @@ export async function scopeSession(db: Db, sessionId: string, orgId: string) {
  * whole result when the session no longer exists: Better Auth's signed cookie cache keeps a
  * deleted session readable for a while, and with its scope row gone it would read as unscoped.
  */
-export async function sessionAccess(
+export const sessionAccess: (
   db: Db,
   sessionId: string,
-): Promise<{ scopeOrgId: string | null } | null> {
+) => Promise<{ scopeOrgId: string | null } | null> = async (db, sessionId) => {
   const [row] = await db
     .select({ id: sessions.id, scopeOrgId: sessionScopes.orgId })
     .from(sessions)
     .leftJoin(sessionScopes, eq(sessionScopes.sessionId, sessions.id))
     .where(eq(sessions.id, sessionId));
   return row ? { scopeOrgId: row.scopeOrgId } : null;
-}
+};

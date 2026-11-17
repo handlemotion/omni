@@ -4,7 +4,7 @@ import { senderLogoQuery, type SenderLogo, type SenderLogoFor } from "../lib/sen
 
 const NONE = { address: "" };
 
-export function useSenderLogo(who: SenderLogoFor | null): SenderLogo | null {
+export const useSenderLogo: (who: SenderLogoFor | null) => SenderLogo | null = (who) => {
   const { data } = useQuery({ ...senderLogoQuery(who ?? NONE), enabled: !!who });
   return data ?? null;
-}
+};

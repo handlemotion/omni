@@ -45,13 +45,13 @@ export function participantQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL
      * indexes, so cost follows grants and matches, not the size of the mail. A teammate's
      * personal mailbox is never granted, so it adds nothing, not even a count.
      */
-    async threadsWith(options: ThreadsWithOptions): Promise<ThreadWith[]> {
+    async threadsWith(options: ThreadsWithOptions) {
       const addresses = [...new Set((options.addresses ?? []).map(normalizeAddress))].filter(
         Boolean,
       );
       // A domain is stored as `domainOf` gives it: lowercased, after the last `@`.
       const domains = [...new Set((options.domains ?? []).map(normalizeAddress))].filter(Boolean);
-      if (addresses.length === 0 && domains.length === 0) return [];
+      if (addresses.length === 0 && domains.length === 0) return [] satisfies ThreadWith[];
       const limit = Math.min(Math.max(options.limit ?? 50, 1), THREADS_WITH_MAX);
 
       const involved = db
@@ -110,7 +110,7 @@ export function participantQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL
         subject: latest?.subject ?? "",
         snippet: latest?.snippet ?? "",
         latestFrom: latest ? { name: latest.fromName, address: latest.fromAddress } : null,
-      }));
+      })) satisfies ThreadWith[];
     },
   };
 }

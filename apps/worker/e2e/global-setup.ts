@@ -38,7 +38,7 @@ function fingerprint() {
   return hash.digest("hex");
 }
 
-async function withLock<T>(run: () => T): Promise<T> {
+async function withLock<T>(run: () => T) {
   mkdirSync(join(workerRoot, ".wrangler"), { recursive: true });
   const deadline = Date.now() + 300_000;
   for (;;) {

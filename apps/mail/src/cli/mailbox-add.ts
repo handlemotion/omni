@@ -39,9 +39,9 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-function endpoint(value: string | undefined, fallback?: ServerEndpoint): ServerEndpoint {
+function endpoint(value: string | undefined, fallback?: ServerEndpoint) {
   if (value === undefined) {
-    if (fallback) return fallback;
+    if (fallback) return fallback satisfies ServerEndpoint;
     fail(`--imap and --smtp are required for this provider\n\n${USAGE}`);
   }
   const [host, port, mode, ...rest] = value.split(":");
@@ -52,17 +52,17 @@ function endpoint(value: string | undefined, fallback?: ServerEndpoint): ServerE
   if (mode !== undefined && mode !== "starttls" && mode !== "plain") {
     fail(`bad server mode "${mode}": use starttls`);
   }
-  return { host, port: parsed, secure: mode === undefined };
+  return { host, port: parsed, secure: mode === undefined } satisfies ServerEndpoint;
 }
 
-async function readStdin(): Promise<string> {
+async function readStdin() {
   if (process.stdin.isTTY) console.error("App password (end with Ctrl-D):");
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
   return Buffer.concat(chunks).toString("utf8").trim();
 }
 
-async function verifyLogin(credentials: PasswordCredentials): Promise<void> {
+async function verifyLogin(credentials: PasswordCredentials) {
   const refused = await verifyImapLogin(credentials);
   if (refused) fail(refused);
 }

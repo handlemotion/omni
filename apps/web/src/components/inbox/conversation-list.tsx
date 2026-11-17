@@ -47,7 +47,7 @@ export function ConversationList(props: {
   const assignees = useAssignees(filter.mailbox).data;
   const rows = useMemo(() => {
     const people = new Map(assignees?.map((a) => [a.memberId, a]));
-    return conversations.map((c): ListRow => {
+    return conversations.map((c) => {
       const assignee = c.assigneeMemberId ? people.get(c.assigneeMemberId) : undefined;
       const info: ConversationRowInfo = {
         status: MIXED.has(filter.view) ? c.status : undefined,
@@ -59,7 +59,7 @@ export function ConversationList(props: {
         assignee: assignee ? { name: assignee.name, image: assignee.image } : null,
         lastMessageAt: c.lastMessageAt,
       };
-      return {
+      const result: ListRow = {
         id: c.id,
         sender: senderLabel(c),
         senderAddress: senderAddress(c),
@@ -68,6 +68,7 @@ export function ConversationList(props: {
         unread: c.unread,
         conversation: info,
       };
+      return result;
     });
   }, [conversations, assignees, filter.view]);
   const loadMore = useMemo(

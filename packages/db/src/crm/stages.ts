@@ -53,7 +53,7 @@ export async function ensureCrm(ex: Ex, orgId: string) {
 }
 
 /** The stages in order. */
-export async function stagesOf(ex: Ex, orgId: string): Promise<CrmStage[]> {
+export async function stagesOf(ex: Ex, orgId: string) {
   await ensureCrm(ex, orgId);
   return ex
     .select({
@@ -64,7 +64,7 @@ export async function stagesOf(ex: Ex, orgId: string): Promise<CrmStage[]> {
     })
     .from(crmStages)
     .where(eq(crmStages.orgId, orgId))
-    .orderBy(asc(crmStages.position), asc(crmStages.id));
+    .orderBy(asc(crmStages.position), asc(crmStages.id)) satisfies Promise<CrmStage[]>;
 }
 
 /** One stage of the workspace, or null. */
@@ -101,11 +101,11 @@ export type ReplaceStagesResult =
   | { status: "stage_kind_required"; kinds: StageKind[] };
 
 /** Replaces the pipeline: rename, add, reorder and remove. Owners and admins only. */
-export async function replaceStages(
+export const replaceStages: (
   tx: Ex,
   member: CrmMember,
   input: StageInput[],
-): Promise<ReplaceStagesResult> {
+) => Promise<ReplaceStagesResult> = async (tx, member, input) => {
   if (!member.admin) return FORBIDDEN;
   await ensureCrm(tx, member.orgId);
   // Serializes replaces of one workspace's pipeline.
@@ -155,4 +155,4 @@ export async function replaceStages(
     }
   }
   return { status: "ok", stages: await stagesOf(tx, member.orgId) };
-}
+};

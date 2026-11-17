@@ -112,9 +112,9 @@ async function personDid(
 export async function applyAiHelpdeskTriage(
   db: Db,
   input: { threadId: string; messageId: string; changes: AiHelpdeskChanges; now?: Date },
-): Promise<AiHelpdeskOutcome> {
+) {
   const { threadId, messageId, changes } = input;
-  return db.transaction(async (tx): Promise<AiHelpdeskOutcome> => {
+  return db.transaction<AiHelpdeskOutcome>(async (tx) => {
     const [thread] = await tx
       .select({
         kind: mailboxes.kind,
@@ -127,11 +127,15 @@ export async function applyAiHelpdeskTriage(
       .innerJoin(mailboxes, eq(mailboxes.id, threads.mailboxId))
       .where(eq(threads.id, threadId))
       .for("update", { of: threads });
-    if (thread?.kind !== "shared") return { applied: false };
+    if (thread?.kind !== "shared") {
+      const value: AiHelpdeskOutcome = { applied: false };
+      return value;
+    }
     // A teammate re-sorted this message while the model ran: their call stands, and none of the
     // model's changes follow from a bucket they overruled.
     if (thread.triageSource === "person" && thread.triageMessageId === messageId) {
-      return { applied: false };
+      const value: AiHelpdeskOutcome = { applied: false };
+      return value;
     }
     // Same order as `loadThreadForAi`: nothing in the thread sorts after `messageId`.
     const triaged = alias(messages, "triaged");
@@ -144,7 +148,10 @@ export async function applyAiHelpdeskTriage(
       })
       .from(triaged)
       .where(and(eq(triaged.id, messageId), eq(triaged.threadId, threadId)));
-    if (!latest || latest.newer) return { applied: false };
+    if (!latest || latest.newer) {
+      const value: AiHelpdeskOutcome = { applied: false };
+      return value;
+    }
 
     let changed = false;
     let queuedActions = 0;
@@ -199,6 +206,7 @@ export async function applyAiHelpdeskTriage(
       );
       if (!touched) await apply({ type: "resolve", reason: "ai_noise" });
     }
-    return { applied: true, changed, queuedActions, notified };
+    const value: AiHelpdeskOutcome = { applied: true, changed, queuedActions, notified };
+    return value;
   });
 }

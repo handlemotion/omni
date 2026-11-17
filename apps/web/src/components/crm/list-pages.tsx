@@ -62,23 +62,26 @@ const PEOPLE_COLUMNS: RecordColumn<CrmPerson>[] = [
   { title: "Added", className: "w-32", cell: (person) => <Muted>{day(person.createdAt)}</Muted> },
 ];
 
-const dealColumns = (stages: CrmStage[]): RecordColumn<CrmDeal>[] => [
-  {
-    title: "Stage",
-    className: "w-40",
-    cell: (deal) => <StageBadge stage={stages.find((s) => s.id === deal.stageId)} deal={deal} />,
-  },
-  {
-    title: "Value",
-    className: "w-36 max-sm:hidden",
-    cell: (deal) => <Muted>{formatMoney(deal.valueMinor, deal.valueCurrency)}</Muted>,
-  },
-  {
-    title: "Added",
-    className: "w-32 max-md:hidden",
-    cell: (deal) => <Muted>{day(deal.createdAt)}</Muted>,
-  },
-];
+const dealColumns = (stages: CrmStage[]) => {
+  const result: RecordColumn<CrmDeal>[] = [
+    {
+      title: "Stage",
+      className: "w-40",
+      cell: (deal) => <StageBadge stage={stages.find((s) => s.id === deal.stageId)} deal={deal} />,
+    },
+    {
+      title: "Value",
+      className: "w-36 max-sm:hidden",
+      cell: (deal) => <Muted>{formatMoney(deal.valueMinor, deal.valueCurrency)}</Muted>,
+    },
+    {
+      title: "Added",
+      className: "w-32 max-md:hidden",
+      cell: (deal) => <Muted>{day(deal.createdAt)}</Muted>,
+    },
+  ];
+  return result;
+};
 
 /** A stage's name, coloured by its kind: open neutral, won and done green, lost red. */
 export function StageBadge({ stage, deal }: { stage: CrmStage | undefined; deal: CrmDeal }) {

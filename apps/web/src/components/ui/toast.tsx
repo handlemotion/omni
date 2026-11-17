@@ -122,7 +122,7 @@ const TONE_ICONS: Record<ToastTone, ReactNode> = {
   ),
 };
 
-function shorten(message: string): string {
+function shorten(message: string) {
   const text = message.trim();
   return text.length <= MAX_TOAST_LENGTH ? text : `${text.slice(0, MAX_TOAST_LENGTH - 1)}…`;
 }
@@ -211,7 +211,7 @@ export function ToastCard({ tone, message, description, children }: ToastCardPro
   );
 }
 
-function notice(tone: ToastTone, message: string, options: NoticeOptions = {}): ToastId {
+function notice(tone: ToastTone, message: string, options: NoticeOptions = {}) {
   const duration = options.duration ?? (tone === "error" ? ERROR_DURATION_MS : NOTICE_DURATION_MS);
   return toast.custom(
     (id) => (
@@ -226,7 +226,7 @@ function notice(tone: ToastTone, message: string, options: NoticeOptions = {}): 
       </ToastCard>
     ),
     { id: options.id, duration },
-  );
+  ) satisfies ToastId;
 }
 
 /**
@@ -244,7 +244,7 @@ export const appToast = {
    * A persistent bar that asks for a decision, e.g. "2 unsaved changes · Revert · Save". Its
    * actions do not dismiss it: the caller calls `appToast.dismiss(id)` once the decision lands.
    */
-  prompt(message: string, options: PromptOptions): ToastId {
+  prompt(message: string, options: PromptOptions) {
     return toast.custom(
       () => (
         <ToastCard
@@ -257,7 +257,7 @@ export const appToast = {
         </ToastCard>
       ),
       { id: options.id, duration: Number.POSITIVE_INFINITY, dismissible: false },
-    );
+    ) satisfies ToastId;
   },
 
   dismiss: (id?: ToastId) => void toast.dismiss(id),

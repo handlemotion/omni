@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /** `value`, once it has stopped changing for `ms`. */
-export function useDebouncedValue<T>(value: T, ms: number): T {
+export function useDebouncedValue<T>(value: T, ms: number) {
   const [settled, setSettled] = useState(value);
   useEffect(() => {
     const timer = setTimeout(() => setSettled(value), ms);

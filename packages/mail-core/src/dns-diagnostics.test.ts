@@ -17,7 +17,7 @@ import { purelymailDnsRecords } from "./domains.ts";
 // Recorded answers (fixtures/dns/README.md), read the way the mail service's `node:dns` lookups
 // return them: answers of the asked type only, TXT strings joined, hosts without the dot.
 const TYPES: Record<string, number> = { TXT: 16, MX: 15, CNAME: 5, NS: 2 };
-function recorded(name: string, type: keyof typeof TYPES): DnsAnswer {
+const recorded: (name: string, type: keyof typeof TYPES) => DnsAnswer = (name, type) => {
   const doh = JSON.parse(
     readFileSync(
       join(import.meta.dirname, "../../../fixtures/dns", `${name}.${type}.json`),
@@ -33,7 +33,7 @@ function recorded(name: string, type: keyof typeof TYPES): DnsAnswer {
         : a.data.toLowerCase().replace(/\.$/, ""),
     );
   return values.length > 0 ? { status: "found", values } : { status: "nodata" };
-}
+};
 const settings = JSON.parse(
   readFileSync(
     join(import.meta.dirname, "../../../fixtures/dns/cloudflare.domainconnect-settings.json"),

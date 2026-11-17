@@ -132,7 +132,7 @@ const RULES: {
 ];
 
 /** The extension or, failing it, the MIME type, as a known kind. */
-export function fileType(name: string, mimeType: string | null): FileType {
+export const fileType: (name: string, mimeType: string | null) => FileType = (name, mimeType) => {
   const ext = extensionOf(name);
   const mime = (mimeType ?? "").toLowerCase();
   const label = (ext && ext.length <= 5 ? ext : (mime.split("/")[1] ?? "")).toUpperCase() || "FILE";
@@ -141,7 +141,7 @@ export function fileType(name: string, mimeType: string | null): FileType {
   const rule = RULES.find((r) => r.matches(ext, mime));
   if (!rule) return { kind: "other", preview: "none", label };
   return { kind: rule.kind, preview: rule.preview, label, language: CODE[ext] };
-}
+};
 
 /** Images over this are not fetched to preview; their tile and Download stand in. */
 export const IMAGE_PREVIEW_MAX_BYTES = 40 * 1024 * 1024;

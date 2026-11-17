@@ -119,7 +119,7 @@ export async function actionRow(db: TestDb, id: string) {
 }
 
 /** The row as a fresh claim would hand it to the executor, without claiming it. */
-export async function asClaimed(db: TestDb, id: string): Promise<MailAction> {
+export async function asClaimed(db: TestDb, id: string) {
   const row = await actionRow(db, id);
   return {
     id: row.id,

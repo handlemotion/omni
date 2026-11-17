@@ -86,12 +86,12 @@ const under = (pathname: string, root: string) =>
 
 /** The module a path belongs to: Drive's and the CRM's own paths, else Mail (every other shell
  *  route is mail's). Paths are `/<workspace>/<module>/…` (ADR 0043). */
-export function moduleOf(pathname: string): ModuleId {
+export const moduleOf: (pathname: string) => ModuleId = (pathname) => {
   const place = `/${pathname.split("/").slice(2).join("/")}`;
   if (under(place, "/files")) return "files";
   if (under(place, "/crm")) return "crm";
   return "mail";
-}
+};
 
 /** Where a module's paths start in a workspace: Back from settings lands here after a switch. */
 export function moduleHome(pathname: string, workspace: string) {

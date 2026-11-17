@@ -37,7 +37,7 @@ export function offerUndo(label: string, undo: () => void, ms = UNDO_MS) {
 }
 
 /** Runs the standing offer, once. False when there is none (it lapsed or was used). */
-export function runUndo(): boolean {
+export function runUndo() {
   const offer = current;
   if (!offer) return false;
   set(null);
@@ -55,5 +55,8 @@ export const undoStore = {
     listeners.add(listener);
     return () => listeners.delete(listener);
   },
-  get: (): UndoOffer | null => current,
+  get: () => {
+    const result: UndoOffer | null = current;
+    return result;
+  },
 };

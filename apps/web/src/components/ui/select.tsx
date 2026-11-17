@@ -185,9 +185,9 @@ export function SelectContent<T extends object>({
   );
 }
 
-function keyOf(item: object, index: number): Key {
+function keyOf(item: object, index: number) {
   const record = item as { id?: Key; value?: Key };
-  return record.id ?? record.value ?? index;
+  return (record.id ?? record.value ?? index) satisfies Key;
 }
 
 function ItemKey({ children }: { children: ReactNode }) {

@@ -5,7 +5,7 @@ import { useCallback, useSyncExternalStore } from "react";
 const listeners = new Set<() => void>();
 const trees = new Map<string, ReadonlySet<string>>();
 
-function read(tree: string): ReadonlySet<string> {
+function read(tree: string) {
   let open = trees.get(tree);
   if (!open) {
     try {
@@ -15,7 +15,7 @@ function read(tree: string): ReadonlySet<string> {
     }
     trees.set(tree, open);
   }
-  return open;
+  return open satisfies ReadonlySet<string>;
 }
 
 function subscribe(listener: () => void) {

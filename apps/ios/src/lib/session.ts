@@ -25,7 +25,7 @@ export async function requestSignInLink(email: string) {
  * Takes the session out of a sign-in redirect. Returns `true` when `url` carried one, `"error"`
  * when the link was refused (expired or used), `false` for any other URL.
  */
-export async function acceptSignInLink(url: string): Promise<boolean | "error"> {
+export const acceptSignInLink: (url: string) => Promise<boolean | "error"> = async (url) => {
   const { queryParams } = Linking.parse(url);
   if (typeof queryParams?.error === "string") return "error";
   const setCookie = queryParams?.cookie;
@@ -34,7 +34,7 @@ export async function acceptSignInLink(url: string): Promise<boolean | "error"> 
   await storage.setItemAsync(COOKIE_KEY, getSetCookie(setCookie, previous ?? undefined));
   auth.$store.notify("$sessionSignal");
   return true;
-}
+};
 
 export async function signOut() {
   await auth.signOut();
@@ -46,11 +46,11 @@ export async function signOut() {
 type SessionState = ReturnType<typeof auth.useSession.get>;
 
 /** The signed-in user, `null` when signed out; `isPending` until the first answer. */
-export function useSession(): SessionState {
+export function useSession() {
   return useSyncExternalStore(
     (listener) => auth.useSession.subscribe(listener),
     () => auth.useSession.get(),
-  );
+  ) satisfies SessionState;
 }
 
 /**

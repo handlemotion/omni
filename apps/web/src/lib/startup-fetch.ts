@@ -35,27 +35,25 @@ if (drive) {
 }
 
 /** The preloaded answer for this request, once; `undefined` sends it to the network. */
-export function takeStartupResponse(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> | undefined {
-  if (early.size === 0) return undefined;
+export function takeStartupResponse(input: RequestInfo | URL, init?: RequestInit) {
+  if (early.size === 0) return undefined satisfies Promise<Response> | undefined;
   const request = input instanceof Request ? input : undefined;
-  if ((init?.method ?? request?.method ?? "GET") !== "GET") return undefined;
+  if ((init?.method ?? request?.method ?? "GET") !== "GET")
+    return undefined satisfies Promise<Response> | undefined;
   const url = new URL(request?.url ?? String(input), window.location.href).href;
   const response = early.get(url);
   early.delete(url);
-  if (!response) return undefined;
+  if (!response) return undefined satisfies Promise<Response> | undefined;
   // A preload carries no header, so the Worker answered for the session's workspace. One that
   // says it answered for another workspace than this tab's goes again, naming it (ADR 0043).
   const wanted = new Headers(init?.headers ?? request?.headers).get(WORKSPACE_HEADER);
-  if (!wanted) return response;
+  if (!wanted) return response satisfies Promise<Response> | undefined;
   return response.then((r) => {
     const answered = r.headers.get(WORKSPACE_HEADER);
     if (!answered || answered === wanted) return r;
     void r.body?.cancel();
     return fetch(input, init);
-  });
+  }) satisfies Promise<Response> | undefined;
 }
 
 /**

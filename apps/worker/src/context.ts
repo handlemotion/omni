@@ -99,14 +99,14 @@ export interface SessionUser {
  * (`omni-workspace`, ADR 0043), else in the session's active org (or the user's first org).
  * Both lookups run in one round trip.
  */
-export async function resolveSession(
+export const resolveSession: (
   c: {
     req: { raw: Request };
     var: { auth: Auth; db: Db };
     header: (name: string, value: string, options?: { append?: boolean }) => void;
   },
   threadId?: string,
-): Promise<{ user: SessionUser; member: Member | null } | null> {
+) => Promise<{ user: SessionUser; member: Member | null } | null> = async (c, threadId) => {
   const { headers, response: session } = await c.var.auth.api.getSession({
     headers: c.req.raw.headers,
     returnHeaders: true,
@@ -133,19 +133,19 @@ export async function resolveSession(
     user: { id: session.user.id, email: session.user.email, scopeOrgId },
     member: ofThread ?? active,
   };
-}
+};
 
 /**
  * `userId`'s member in `orgId`, or null. Without `orgId`, their oldest company membership, or their
  * Personal space when they are in no company (ADR 0024). A session scoped to a company
  * (`scopeOrgId`) finds only its member there, whatever `orgId` asks for.
  */
-export async function findMember(
+export const findMember: (
   db: Db,
   userId: string,
   orgId?: string,
   scopeOrgId?: string | null,
-): Promise<Member | null> {
+) => Promise<Member | null> = async (db, userId, orgId, scopeOrgId) => {
   if (scopeOrgId && orgId && orgId !== scopeOrgId) return null;
   if (scopeOrgId) orgId = scopeOrgId;
   const [member] = await db
@@ -169,7 +169,7 @@ export async function findMember(
     )
     .limit(1);
   return member ?? null;
-}
+};
 
 /**
  * Every member the session may act as: the user's member in each workspace they belong to, or

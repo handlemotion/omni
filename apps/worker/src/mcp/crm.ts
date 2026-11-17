@@ -5,6 +5,7 @@
 import type { CrmChangedKind } from "@omni/contracts";
 import {
   forMember,
+  type MemberCrm,
   isCompany,
   schema,
   type CrmCompany,
@@ -30,10 +31,10 @@ const NO_CRM =
  * The company workspaces the call reaches: the grant's one workspace, or the one `workspace`
  * names, or every company the user belongs to. Membership is read live on every call.
  */
-export async function crmWorkspaces(
+export const crmWorkspaces: (
   context: ToolContext,
   workspace: string | undefined,
-): Promise<{ workspaces: CrmWorkspace[] } | { error: string }> {
+) => Promise<{ workspaces: CrmWorkspace[] } | { error: string }> = async (context, workspace) => {
   const granted = context.caller.workspace;
   if (granted !== null && workspace !== undefined && workspace !== granted) {
     return {
@@ -59,13 +60,10 @@ export async function crmWorkspaces(
     )
     .orderBy(schema.members.createdAt, schema.organizations.id);
   return rows.length ? { workspaces: rows } : { error: NO_CRM };
-}
+};
 
 /** The one workspace a write goes to; several reachable workspaces need `workspace` named. */
-export async function crmWorkspace(
-  context: ToolContext,
-  workspace: string | undefined,
-): Promise<CrmWorkspace | { error: string }> {
+export async function crmWorkspace(context: ToolContext, workspace: string | undefined) {
   const found = await crmWorkspaces(context, workspace);
   if ("error" in found) return found;
   const [only, ...others] = found.workspaces;
@@ -74,8 +72,10 @@ export async function crmWorkspace(
   return { error: `Name the workspace to write in with \`workspace\`: one of ${names}.` };
 }
 
-export const crmOf = (context: ToolContext, workspace: CrmWorkspace) =>
-  forMember(context.db, workspace.memberId).crm;
+export const crmOf: (context: ToolContext, workspace: CrmWorkspace) => MemberCrm = (
+  context,
+  workspace,
+) => forMember(context.db, workspace.memberId).crm;
 
 export type RecordKind = "person" | "company" | "deal";
 
@@ -142,7 +142,7 @@ export interface RowContext {
   owners: Map<string, { name: string | null; address: string }>;
 }
 
-export function personRow(person: CrmPerson, row: RowContext): PersonRow {
+export function personRow(person: CrmPerson, row: RowContext) {
   return {
     kind: "person",
     id: person.id,
@@ -155,10 +155,10 @@ export function personRow(person: CrmPerson, row: RowContext): PersonRow {
     job_title: person.jobTitle,
     phone: person.phone,
     company_id: person.companyId,
-  };
+  } satisfies PersonRow;
 }
 
-export function companyRow(company: CrmCompany, row: RowContext): CompanyRow {
+export function companyRow(company: CrmCompany, row: RowContext) {
   return {
     kind: "company",
     id: company.id,
@@ -167,10 +167,10 @@ export function companyRow(company: CrmCompany, row: RowContext): CompanyRow {
     archived: company.archivedAt !== null,
     url: recordUrl(row.webAppURL, "company", company.id),
     description: company.description,
-  };
+  } satisfies CompanyRow;
 }
 
-export function dealRow(deal: CrmDeal, row: RowContext): DealRow {
+export function dealRow(deal: CrmDeal, row: RowContext) {
   const stage = row.stages.find((s) => s.id === deal.stageId);
   return {
     kind: "deal",
@@ -188,7 +188,7 @@ export function dealRow(deal: CrmDeal, row: RowContext): DealRow {
         : { amount_minor: deal.valueMinor, currency: deal.valueCurrency },
     won_at: deal.wonAt?.toISOString() ?? null,
     closed_at: deal.closedAt?.toISOString() ?? null,
-  };
+  } satisfies DealRow;
 }
 
 /** Names and addresses of the members `ids` names (deal owners, note authors). */
@@ -204,11 +204,7 @@ export async function memberPeople(context: ToolContext, ids: (string | null)[])
 }
 
 /** The row context for `deals` in `workspace`: its stages and the owners' names. */
-export async function rowContext(
-  context: ToolContext,
-  workspace: CrmWorkspace,
-  deals: CrmDeal[],
-): Promise<RowContext> {
+export async function rowContext(context: ToolContext, workspace: CrmWorkspace, deals: CrmDeal[]) {
   const [stages, owners] = await Promise.all([
     deals.length ? crmOf(context, workspace).stages() : null,
     memberPeople(
@@ -221,7 +217,7 @@ export async function rowContext(
     webAppURL: context.webAppURL,
     stages: stages?.status === "ok" ? stages.stages : [],
     owners,
-  };
+  } satisfies RowContext;
 }
 
 /** A teammate named as `"me"` or by their email: their member id in the workspace. */

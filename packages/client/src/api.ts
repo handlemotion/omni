@@ -24,7 +24,7 @@ export type Api = Client["api"];
  * `idempotency-key` header: reuse the same key when retrying the same intent. Every call asks
  * for the nested error shape (ADR 0038); read a failure with `toApiError`.
  */
-export function createApi(options: ApiOptions): Api {
+export function createApi(options: ApiOptions) {
   const { headers } = options;
   return typedHc(options.baseUrl, {
     headers: async () => ({
@@ -33,7 +33,7 @@ export function createApi(options: ApiOptions): Api {
     }),
     fetch: options.fetch,
     init: { credentials: "include" },
-  }).api;
+  }).api satisfies Api;
 }
 
 export type Member = InferResponseType<Api["me"]["$get"], 200>;

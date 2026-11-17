@@ -49,7 +49,7 @@ export type RecordSealResult =
  * first. One whose original was unlocked and then changed, trashed or deleted can never be
  * sealed, so it is left out here rather than holding a place in every batch.
  */
-export async function unsealedSignatureRequests(db: Db): Promise<{ id: string }[]> {
+export async function unsealedSignatureRequests(db: Db) {
   return db
     .select({ id: storageSignatureRequests.id })
     .from(storageSignatureRequests)
@@ -65,7 +65,7 @@ export async function unsealedSignatureRequests(db: Db): Promise<{ id: string }[
       ),
     )
     .orderBy(asc(storageSignatureRequests.completedAt), asc(storageSignatureRequests.id))
-    .limit(SEAL_BATCH);
+    .limit(SEAL_BATCH) satisfies Promise<{ id: string }[]>;
 }
 
 /** The original, live and still holding the content that was sent, or null. */
@@ -77,10 +77,10 @@ async function sentOriginal(ex: Db, request: { nodeId: string; contentVersion: n
 }
 
 /** What sealing `requestId` needs, or null when it is not completed or is sealed already. */
-export async function storageSealInput(
+export const storageSealInput: (
   db: Db,
   requestId: string,
-): Promise<StorageSealInput | null> {
+) => Promise<StorageSealInput | null> = async (db, requestId) => {
   const row = await loadRequest(db, requestId);
   if (!row || row.status !== "completed") return null;
   const [sealed] = await db
@@ -107,7 +107,7 @@ export async function storageSealInput(
     r2Key: original.r2Key,
     sealedR2Key: storageObjectKey(row.orgId, `sealed-${row.id}-${crypto.randomUUID()}`),
   };
-}
+};
 
 /** "contract.pdf" → "contract (signed).pdf". */
 export function sealedName(name: string) {
@@ -125,10 +125,11 @@ export function recordStorageSeal(
   db: Db,
   requestId: string,
   sealed: { r2Key: string; size: number; sha256: string },
-): Promise<RecordSealResult> {
-  return db.transaction(async (tx): Promise<RecordSealResult> => {
+) {
+  return db.transaction<RecordSealResult>(async (tx) => {
     const request = await loadRequest(tx, requestId, true);
-    if (!request || request.status !== "completed") return { status: "not_sealable" };
+    if (!request || request.status !== "completed")
+      return { status: "not_sealable" } satisfies RecordSealResult;
     const [current] = await tx
       .select({
         sealedSha256: storageSignatureRequests.sealedSha256,
@@ -136,10 +137,10 @@ export function recordStorageSeal(
       })
       .from(storageSignatureRequests)
       .where(eq(storageSignatureRequests.id, requestId));
-    if (current?.sealedSha256) return { status: "already_sealed" };
+    if (current?.sealedSha256) return { status: "already_sealed" } satisfies RecordSealResult;
     await lockTree(tx, request.orgId);
     const original = await sentOriginal(tx, request);
-    if (!original) return { status: "not_sealable" };
+    if (!original) return { status: "not_sealable" } satisfies RecordSealResult;
 
     await lockUsage(tx, request.orgId);
     const row = await insertNode(tx, {
@@ -166,7 +167,10 @@ export function recordStorageSeal(
       .update(storageSignatureRequests)
       .set({ sealedNodeId: row.id, sealedSha256: sealed.sha256 })
       .where(eq(storageSignatureRequests.id, requestId));
-    return { status: "sealed", node: toNode({ ...row, lockedAt: lock?.lockedAt ?? new Date() }) };
+    return {
+      status: "sealed",
+      node: toNode({ ...row, lockedAt: lock?.lockedAt ?? new Date() }),
+    } satisfies RecordSealResult;
   });
 }
 

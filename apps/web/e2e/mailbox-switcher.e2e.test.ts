@@ -121,10 +121,7 @@ async function ana(slug: string) {
 }
 
 /** Signed in, on the inbox, with the switcher open. */
-async function openSwitcher(
-  email: string,
-  beforeLoad?: (page: Page) => Promise<void>,
-): Promise<Page> {
+async function openSwitcher(email: string, beforeLoad?: (page: Page) => Promise<void>) {
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, email);
   context = await browser.newContext();
@@ -139,7 +136,7 @@ async function openSwitcher(
   await page.goto(new URL("/inbox", origin).toString());
   await page.getByRole("button", { name: /^Switch mailbox/ }).click();
   await page.getByRole("menu").waitFor();
-  return page;
+  return page satisfies Page;
 }
 
 test("your photo from another site shows on your personal mailbox", async () => {

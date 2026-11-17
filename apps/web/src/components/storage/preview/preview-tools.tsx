@@ -26,7 +26,7 @@ interface ShownVersion {
 type Surface = "pdf" | "image";
 
 /** "v3" down to "v1": the current content leads, numbered from the oldest kept version. */
-function railVersions(data: StorageVersions): RailVersion[] {
+function railVersions(data: StorageVersions) {
   const count = data.versions.length + 1;
   return [
     { key: "current", label: `v${count}`, ...data.current },
@@ -36,27 +36,27 @@ function railVersions(data: StorageVersions): RailVersion[] {
       writtenAt: version.writtenAt,
       writtenByName: version.writtenByName,
     })),
-  ];
+  ] satisfies RailVersion[];
 }
 
 /** The anchor a box drawn on `surface` is sent as. */
-function anchorOf(surface: Surface, box: PdfBox): StorageCommentAnchor {
+const anchorOf: (surface: Surface, box: PdfBox) => StorageCommentAnchor = (surface, box) => {
   const { page, ...rest } = box;
   return surface === "pdf" ? { kind: "pdf", page, ...rest } : { kind: "image", ...rest };
-}
+};
 
 /** A thread's box on `surface`, if it has one there; an image's is on its one page. */
-function boxOf(surface: Surface, anchor: StorageCommentAnchor | null): PdfBox | null {
+const boxOf: (surface: Surface, anchor: StorageCommentAnchor | null) => PdfBox | null = (
+  surface,
+  anchor,
+) => {
   if (anchor?.kind === "pdf" && surface === "pdf") return anchor;
   if (anchor?.kind === "image" && surface === "image") return { page: 1, ...anchor };
   return null;
-}
+};
 
 /** Open threads made on the content on the stage; a box on replaced content points nowhere. */
-function pinsOf(
-  surface: Surface,
-  data: { contentVersion: number; comments: StorageComment[] },
-): PdfPin[] {
+function pinsOf(surface: Surface, data: { contentVersion: number; comments: StorageComment[] }) {
   return data.comments.flatMap((comment) => {
     const box = boxOf(surface, comment.anchor);
     if (!box || comment.parentId !== null || comment.resolvedAt) return [];
@@ -70,11 +70,11 @@ function pinsOf(
         body: comment.body,
       },
     ];
-  });
+  }) satisfies PdfPin[];
 }
 
 /** What the stage draws boxes on; a file it shows no preview for keeps the whole-file bar. */
-function surfaceOf(node: StorageNode): Surface | null {
+const surfaceOf: (node: StorageNode) => Surface | null = (node) => {
   const type = fileType(node.name, node.mimeType);
   if (node.size === 0) return null;
   if (type.preview === "pdf") return "pdf";
@@ -83,14 +83,14 @@ function surfaceOf(node: StorageNode): Surface | null {
     return "image";
   }
   return null;
-}
+};
 
 /** An older version on the stage: the file as that version had it. */
 function shownOf(
   node: StorageNode,
   kept: StorageVersions["versions"][number],
   shareId: string | undefined,
-): ShownVersion {
+) {
   return {
     key: kept.id,
     url: storageVersionUrl(node.id, kept.id, shareId),
@@ -100,7 +100,7 @@ function shownOf(
       mimeType: kept.mimeType ?? node.mimeType,
       updatedAt: kept.writtenAt,
     },
-  };
+  } satisfies ShownVersion;
 }
 
 export function usePreviewTools(node: StorageNode, shareId: string | undefined) {

@@ -74,7 +74,7 @@ export interface RealtimeConnections {
  * Opens the active org's socket and keeps the cache in step with it and with every org it is
  * told to `follow`. The status shown is the active org's socket.
  */
-export function startRealtime(client: QueryClient, activeOrgId: string): RealtimeConnections {
+export function startRealtime(client: QueryClient, activeOrgId: string) {
   const changedThreads = new Set<string>();
   const changedMailboxes = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -220,45 +220,47 @@ export function startRealtime(client: QueryClient, activeOrgId: string): Realtim
       clearFilePresence();
       setStatus("closed");
     },
-  };
+  } satisfies RealtimeConnections;
 }
 
 /**
  * Records every send the outbox takes (its answer names the action and its workspace) until its
  * result comes back, so that workspace's socket stays open for it. Returns the unsubscribe.
  */
-export function trackSends(client: QueryClient): () => void {
+export function trackSends(client: QueryClient) {
   return client.getMutationCache().subscribe((event) => {
     if (event.type !== "updated" || event.action.type !== "success") return;
     const data = event.action.data as { actionId?: unknown; orgId?: unknown } | undefined;
     if (typeof data?.actionId === "string" && typeof data.orgId === "string") {
       addOutstanding({ actionId: data.actionId, orgId: data.orgId });
     }
-  });
+  }) satisfies () => void;
 }
 
 /** Sends on the workspace's socket. False when it is not open (the message is dropped). */
-export function sendRealtime(orgId: string, message: RealtimeClientMessage): boolean {
+export function sendRealtime(orgId: string, message: RealtimeClientMessage) {
   return sockets.get(orgId)?.send(message) ?? false;
 }
 
 /** Calls `listener(event)` when threads are merged, before their queries refetch. */
-export function onThreadsMerged(listener: (event: MergedEvent) => void): () => void {
+export const onThreadsMerged: (listener: (event: MergedEvent) => void) => () => void = (
+  listener,
+) => {
   mergeListeners.add(listener);
   return () => mergeListeners.delete(listener);
-}
+};
 
 /** Calls `listener(event)` for every live document event (ADR 0043), from any workspace. */
-export function onDocEvent(listener: (event: DocEvent) => void): () => void {
+export const onDocEvent: (listener: (event: DocEvent) => void) => () => void = (listener) => {
   docListeners.add(listener);
   return () => docListeners.delete(listener);
-}
+};
 
 /** Calls `listener(orgId)` whenever a workspace's socket opens, including after a reconnect. */
-export function onRealtimeOpen(listener: (orgId: string) => void): () => void {
+export const onRealtimeOpen: (listener: (orgId: string) => void) => () => void = (listener) => {
   openListeners.add(listener);
   return () => openListeners.delete(listener);
-}
+};
 
 function onActionFailed(
   client: QueryClient,

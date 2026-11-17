@@ -2,6 +2,8 @@
 // Object: who hears it, that it survives hibernation, and that it clears when the app closes.
 // And the live document those editors share (step 2), on the local stack's s2-lite.
 import { randomUUID } from "node:crypto";
+import { untilLockWaiters } from "@omni/db/testing";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { startStorageStack, type StorageStack } from "./storage-support.ts";
 import { WEB_ORIGIN, type CookieJar } from "./support.ts";
@@ -116,18 +118,49 @@ test("a left sent while the editing check is still running wins", async () => {
   const bo = await stack.member(org.id);
   const doc = await stack.upload(ana.jar, { space: "shared" }, "doc.md", bytes("# Doc"));
   const [anaHears, boHears] = [await connect(ana.jar), await connect(bo.jar)];
-
   const at = (state: string) => ({
     type: "file.presence",
     nodeId: doc.id,
     memberId: ana.id,
     state,
   });
-  anaHears.editing(doc.id, "editing");
-  anaHears.editing(doc.id, "left");
+  const seed = { t: "seed", cv: 1, u: "AA==" };
 
-  // A later heartbeat and close still land as usual, and they are all Bo hears: the first check
-  // started before them, so had it outlived the left it would have reached him first.
+  // The editing check reads the file, so a lock on the table holds it in flight until the left
+  // is in: the doc.append behind the left is refused only once the left has been handled.
+  const held = Promise.withResolvers<void>();
+  const taken = Promise.withResolvers<void>();
+  const locked = stack.db.transaction(async (tx) => {
+    await tx.execute(sql`lock table storage_nodes in access exclusive mode`);
+    taken.resolve();
+    await held.promise;
+  });
+  locked.catch(taken.reject);
+  let check: number;
+  try {
+    await taken.promise;
+    anaHears.editing(doc.id, "editing");
+    check = await stuckCheck();
+    anaHears.editing(doc.id, "left");
+    anaHears.append(doc.id, 1, seed);
+    expect(await anaHears.answer(doc.id, 1)).toMatchObject({
+      type: "doc.refused",
+      reason: "editing",
+    });
+  } finally {
+    held.resolve();
+    await locked;
+  }
+  await expect.poll(() => backendAlive(check)).toBe(false);
+
+  // Had the check outlived the left, Ana would be editing again and this append would land.
+  anaHears.append(doc.id, 2, seed);
+  expect(await anaHears.answer(doc.id, 2)).toMatchObject({
+    type: "doc.refused",
+    reason: "editing",
+  });
+
+  // A later heartbeat and close land as usual, and they are all Bo hears.
   anaHears.editing(doc.id, "editing");
   expect(await boHears.next(1)).toEqual([at("editing")]);
   anaHears.editing(doc.id, "left");
@@ -135,6 +168,25 @@ test("a left sent while the editing check is still running wins", async () => {
   anaHears.socket.close();
   boHears.socket.close();
 });
+
+/** The backend of the one query waiting for a lock, once there is one. */
+async function stuckCheck() {
+  await untilLockWaiters(stack.db, 1);
+  const [row] = (await stack.db.execute(sql`
+    select pid from pg_stat_activity
+    where datname = current_database() and wait_event_type = 'Lock'`)) as unknown as {
+    pid: number;
+  }[];
+  if (!row) throw new Error("the editing check stopped waiting before it was seen");
+  return row.pid;
+}
+
+async function backendAlive(pid: number) {
+  const rows = (await stack.db.execute(
+    sql`select 1 from pg_stat_activity where pid = ${pid}`,
+  )) as unknown as unknown[];
+  return rows.length > 0;
+}
 
 // Catches: a socket that appends to a file's live document without the access check its
 // `editing` made (anyone in the workspace writing into a file they cannot see), a record the

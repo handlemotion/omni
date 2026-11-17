@@ -52,7 +52,7 @@ const STALE_BUILD = [
   /Loading (CSS )?chunk [\w-]+ failed/i,
 ];
 
-export function isStaleBuild(error: unknown): boolean {
+export function isStaleBuild(error: unknown) {
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
   return STALE_BUILD.some((pattern) => pattern.test(message));
 }
@@ -71,7 +71,7 @@ const BY_CATEGORY: Record<string, FailureKind> = {
   internal: "server",
 };
 
-function byStatus(status: number): FailureKind {
+const byStatus: (status: number) => FailureKind = (status) => {
   if (status === 0) return "offline";
   if (status === 401) return "unauthenticated";
   if (status === 403) return "permission";
@@ -80,24 +80,24 @@ function byStatus(status: number): FailureKind {
   if (status === 502 || status === 503 || status === 504) return "unavailable";
   if (status >= 500) return "server";
   return "refused";
-}
+};
 
-function fromApi(error: ApiError): Failure {
+const fromApi: (error: ApiError) => Failure = (error) => {
   const kind = (error.category && BY_CATEGORY[error.category]) || byStatus(error.status);
   const retryable =
     error.retryable ?? (kind === "offline" || kind === "rate_limit" || kind === "unavailable");
   return { kind, retryable, code: error.code, requestId: error.requestId, cause: error };
-}
+};
 
 /** The one place a thrown value becomes a `Failure`. */
-export function classify(error: unknown): Failure {
+export const classify: (error: unknown) => Failure = (error) => {
   if (error instanceof ApiError) return fromApi(error);
   if (isStaleBuild(error)) return { kind: "stale_build", retryable: true, cause: error };
   if (error instanceof TypeError && /fetch|network/i.test(error.message)) {
     return { kind: "offline", retryable: true, cause: error };
   }
   return { kind: "bug", retryable: false, cause: error };
-}
+};
 
 /** The Worker's message as a sentence: it writes them in lower case ("this name is taken"). */
 function sentence(cause: unknown) {
@@ -110,7 +110,7 @@ function sentence(cause: unknown) {
  * short and plain. A refusal says the Worker's own sentence. Null where something else already
  * speaks (the sign-in redirect, the reload).
  */
-export function failureMessage(failure: Failure): string | null {
+export function failureMessage(failure: Failure) {
   switch (failure.kind) {
     case "offline":
       return "You're offline.";
@@ -146,7 +146,7 @@ let reloading = false;
  * the caller shows the error page instead of looping, and when offline, where a reload would
  * land on the browser's own error page.
  */
-export function reloadForUpdate(): boolean {
+export function reloadForUpdate() {
   if (!onlineManager.isOnline()) return false;
   try {
     const last = Number(sessionStorage.getItem(RELOADED_AT) ?? 0);

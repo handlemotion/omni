@@ -14,9 +14,9 @@ import type { Config } from "./config.ts";
 import type { LoggerOptions } from "./log.ts";
 
 /** Starts Sentry when configured; returns the logger hook that reports `error` lines. */
-export function initErrorReporting(
+export const initErrorReporting: (
   config: Pick<Config, "SENTRY_DSN" | "SENTRY_ENVIRONMENT">,
-): LoggerOptions["report"] {
+) => LoggerOptions["report"] = (config) => {
   if (!config.SENTRY_DSN) return undefined;
   Sentry.init({
     dsn: config.SENTRY_DSN,
@@ -36,9 +36,9 @@ export function initErrorReporting(
     if (error instanceof Error) Sentry.captureException(error, context);
     else Sentry.captureMessage(event, { level: "error", ...context });
   };
-}
+};
 
 /** Sends what is queued before the process exits. */
-export async function flushErrorReporting(timeoutMs = 2_000): Promise<void> {
+export async function flushErrorReporting(timeoutMs = 2_000) {
   if (Sentry.getClient()) await Sentry.flush(timeoutMs);
 }

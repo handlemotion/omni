@@ -42,7 +42,7 @@ export interface CommandHits {
 }
 
 /** Every array named `field` in the cached answers under `prefix`, infinite lists included. */
-function cached<T>(client: QueryClient, prefix: readonly unknown[], field: string): T[] {
+function cached<T>(client: QueryClient, prefix: readonly unknown[], field: string) {
   const out: T[] = [];
   // An invalidated answer may hold what has since gone (a folder's files after it went to Trash)
   // until it is fetched again; the server's search covers what it leaves out meanwhile.
@@ -59,7 +59,7 @@ function cached<T>(client: QueryClient, prefix: readonly unknown[], field: strin
       if (Array.isArray(list)) out.push(...(list as T[]));
     }
   }
-  return out;
+  return out satisfies T[];
 }
 
 /**
@@ -72,7 +72,7 @@ function pick<T extends { id: string }>(
   found: readonly T[] | undefined,
   needle: string,
   text: (item: T) => string,
-): T[] {
+) {
   const seen = new Set<string>();
   const out: T[] = [];
   const add = (item: T) => {
@@ -82,7 +82,7 @@ function pick<T extends { id: string }>(
   };
   for (const item of items) if (text(item).toLowerCase().includes(needle)) add(item);
   for (const item of found ?? []) add(item);
-  return out;
+  return out satisfies T[];
 }
 
 /** A number that changes whenever a query in the cache gets new data or goes stale, so hits read it again. */
@@ -168,7 +168,7 @@ function crmHits(
 }
 
 /** Records named like `text`: local ones at once, the server's merged in as they arrive. */
-export function useCommandSearch(text: string, company: boolean): CommandHits {
+export function useCommandSearch(text: string, company: boolean) {
   const client = useQueryClient();
   const version = useCacheVersion(client);
   const needle = text.trim().toLowerCase();
@@ -212,5 +212,5 @@ export function useCommandSearch(text: string, company: boolean): CommandHits {
       ),
       searching: !fresh || files.isFetching || crm.isFetching,
     };
-  }, [version, client, needle, settled, company, files, crm]);
+  }, [version, client, needle, settled, company, files, crm]) satisfies CommandHits;
 }

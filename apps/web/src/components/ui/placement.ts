@@ -8,7 +8,10 @@ export type Placement =
   | `${"left" | "right" | "start" | "end"} ${"top" | "bottom"}`;
 
 /** Splits a placement into UI SDK's `side` and `align`. */
-export function toSideAlign(placement: Placement): { side: Side; align: Align } {
+export function toSideAlign(placement: Placement) {
   const [side, align = "center"] = placement.split(" ") as [Side, string?];
-  return { side, align: align === "top" ? "start" : align === "bottom" ? "end" : (align as Align) };
+  return {
+    side,
+    align: align === "top" ? "start" : align === "bottom" ? "end" : (align as Align),
+  } satisfies { side: Side; align: Align };
 }

@@ -52,13 +52,16 @@ export function errorBody(
   code: ErrorCode,
   message: string,
   extras: ErrorExtras = {},
-): ErrorBodyV2 | LegacyErrorBody {
+) {
   const { category, retryable } = ERROR_CODES[code];
   const fields = { category, retryable, requestId: c.var.requestId, ...extras };
-  if (wantsNestedErrors(c)) return { error: { code, message, ...fields } };
+  if (wantsNestedErrors(c))
+    return { error: { code, message, ...fields } } satisfies ErrorBodyV2 | LegacyErrorBody;
   // Upper case, as shipped: a tab opened before this format matches `STORAGE_FULL`, not
   // `storage_full`, to choose its message and whether to offer Retry.
-  return { error: message, code: legacyCode(code), ...fields };
+  return { error: message, code: legacyCode(code), ...fields } satisfies
+    | ErrorBodyV2
+    | LegacyErrorBody;
 }
 
 /** The error answer for `code`, with its status from the table. */
@@ -72,7 +75,7 @@ export function apiError(
 }
 
 /** Errors that carry only a status: Hono's, and the mail-domain and mail-service refusals. */
-function statusOf(error: unknown): number | undefined {
+function statusOf(error: unknown) {
   if (error instanceof HTTPException) return error.status;
   if (error instanceof DomainError || error instanceof MailServiceError) return error.status;
   return undefined;

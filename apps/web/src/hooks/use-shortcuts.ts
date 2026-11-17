@@ -50,21 +50,21 @@ export function useShortcut(id: ShortcutId, run: () => void, enabled = true) {
 }
 
 /** Runs the shortcut's current handler. False when nothing on screen handles it. */
-export function runShortcut(id: ShortcutId): boolean {
+export function runShortcut(id: ShortcutId) {
   const handler = handlers.get(id)?.at(-1);
   handler?.();
   return !!handler;
 }
 
 /** The shortcuts something on screen handles right now (the ⌘K menu offers only these). */
-export function useAvailableShortcuts(): ReadonlySet<ShortcutId> {
+export function useAvailableShortcuts() {
   return useSyncExternalStore(
     (notify) => {
       subscribers.add(notify);
       return () => subscribers.delete(notify);
     },
     () => available,
-  );
+  ) satisfies ReadonlySet<ShortcutId>;
 }
 
 const EDITABLE = "input, textarea, select, [contenteditable]:not([contenteditable=false])";
@@ -115,7 +115,7 @@ export function announce(text: string) {
   });
 }
 
-export function useAnnouncement(): string {
+export function useAnnouncement() {
   return useSyncExternalStore(
     (notify) => {
       listeners.add(notify);

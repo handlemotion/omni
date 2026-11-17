@@ -125,11 +125,7 @@ function uploadIdsOf(requested: SendAttachment[]) {
  * idempotency key) passes again. Inside a transaction the uploads it accepts stay locked until
  * commit, so a concurrent delete or expiry cleanup waits and then finds them used.
  */
-async function invalidSendAttachments(
-  db: Db,
-  mailboxId: string,
-  requested: SendAttachment[],
-): Promise<SendAttachment[]> {
+async function invalidSendAttachments(db: Db, mailboxId: string, requested: SendAttachment[]) {
   const uploadIds = uploadIdsOf(requested);
   const attachmentIds = requested.flatMap((a) => (a.kind === "attachment" ? [a.attachmentId] : []));
   const okUploads = uploadIds.length
@@ -153,7 +149,9 @@ async function invalidSendAttachments(
         .where(and(inArray(attachments.id, attachmentIds), eq(messages.mailboxId, mailboxId)))
     : [];
   const ok = new Set([...okUploads, ...okAttachments].map((row) => row.id));
-  return requested.filter((a) => !ok.has(a.kind === "upload" ? a.uploadId : a.attachmentId));
+  return requested.filter(
+    (a) => !ok.has(a.kind === "upload" ? a.uploadId : a.attachmentId),
+  ) satisfies SendAttachment[];
 }
 
 /**
@@ -172,11 +170,13 @@ export async function enqueueSendWithAttachments(
   input: NewMailAction & { kind: "send" },
   requested: SendAttachment[],
   options: { delaySeconds?: number; draftId?: string } = {},
-): Promise<
-  { invalid: SendAttachment[] } | { draftGone: true } | { action: typeof mailActions.$inferSelect }
-> {
+) {
   const { delaySeconds = 0, draftId } = options;
-  return db.transaction(async (tx) => {
+  return db.transaction<
+    | { invalid: SendAttachment[] }
+    | { draftGone: true }
+    | { action: typeof mailActions.$inferSelect }
+  >(async (tx) => {
     const [earlier] = await tx
       .select()
       .from(mailActions)

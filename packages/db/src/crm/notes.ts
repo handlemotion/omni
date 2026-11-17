@@ -89,11 +89,11 @@ const target = (record: CrmRecordRef) => ({
   dealId: "dealId" in record ? record.dealId : null,
 });
 
-export async function createNote(
+export const createNote: (
   tx: Ex,
   member: CrmMember,
   input: { record: CrmRecordRef; body: string },
-): Promise<NoteResult> {
+) => Promise<NoteResult> = async (tx, member, input) => {
   const body = cleanBody(input.body);
   if (!body) return { status: "invalid_body" };
   if (!(await recordExists(tx, member.orgId, input.record))) return NOT_FOUND;
@@ -102,7 +102,7 @@ export async function createNote(
     .values({ orgId: member.orgId, ...target(input.record), body, authorMemberId: member.id })
     .returning(noteColumns);
   return { status: "ok", note: note! };
-}
+};
 
 async function ownNote(tx: Ex, member: CrmMember, id: string) {
   const [note] = await tx
@@ -115,12 +115,12 @@ async function ownNote(tx: Ex, member: CrmMember, id: string) {
 }
 
 /** Only its author edits a note. */
-export async function updateNote(
+export const updateNote: (
   tx: Ex,
   member: CrmMember,
   id: string,
   input: { body: string },
-): Promise<NoteResult> {
+) => Promise<NoteResult> = async (tx, member, id, input) => {
   const body = cleanBody(input.body);
   if (!body) return { status: "invalid_body" };
   const note = await ownNote(tx, member, id);
@@ -131,19 +131,19 @@ export async function updateNote(
     .where(eq(crmNotes.id, id))
     .returning(noteColumns);
   return { status: "ok", note: updated! };
-}
+};
 
 /** Only its author deletes a note. */
-export async function deleteNote(
+export const deleteNote: (
   tx: Ex,
   member: CrmMember,
   id: string,
-): Promise<{ status: "ok" } | NotFound | Forbidden> {
+) => Promise<{ status: "ok" } | NotFound | Forbidden> = async (tx, member, id) => {
   const note = await ownNote(tx, member, id);
   if ("status" in note) return note;
   await tx.delete(crmNotes).where(eq(crmNotes.id, id));
   return { status: "ok" };
-}
+};
 
 export interface TimelinePage {
   cursor?: CrmTimelineCursor | null;
@@ -185,12 +185,12 @@ export type TimelineResult<T> =
   | NotFound;
 
 /** The record's events, newest first. */
-export async function eventsOf(
+export const eventsOf: (
   ex: Ex,
   member: CrmMember,
   record: CrmRecordRef,
-  page: TimelinePage = {},
-): Promise<TimelineResult<CrmEvent>> {
+  page?: TimelinePage,
+) => Promise<TimelineResult<CrmEvent>> = async (ex, member, record, page = {}) => {
   if (!(await recordExists(ex, member.orgId, record))) return NOT_FOUND;
   const limit = pageSize(page.limit);
   const rows = await ex
@@ -200,15 +200,15 @@ export async function eventsOf(
     .orderBy(desc(crmEvents.createdAt), desc(crmEvents.id))
     .limit(limit + 1);
   return { status: "ok", ...cut(rows, limit) };
-}
+};
 
 /** The record's notes, newest first. */
-export async function notesOf(
+export const notesOf: (
   ex: Ex,
   member: CrmMember,
   record: CrmRecordRef,
-  page: TimelinePage = {},
-): Promise<TimelineResult<CrmNote>> {
+  page?: TimelinePage,
+) => Promise<TimelineResult<CrmNote>> = async (ex, member, record, page = {}) => {
   if (!(await recordExists(ex, member.orgId, record))) return NOT_FOUND;
   const limit = pageSize(page.limit);
   const rows = await ex
@@ -218,4 +218,4 @@ export async function notesOf(
     .orderBy(desc(crmNotes.createdAt), desc(crmNotes.id))
     .limit(limit + 1);
   return { status: "ok", ...cut(rows, limit) };
-}
+};

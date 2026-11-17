@@ -26,11 +26,11 @@ const MAX_CLOSED_DAYS = 400;
  * The moment `minutes` of staffed time after `start` have passed. With no schedule, or one with no
  * windows, every minute counts. Null when the schedule stays closed for over a year at a stretch.
  */
-export function addBusinessMinutes(
+export const addBusinessMinutes: (
   start: Date,
   minutes: number,
   schedule: BusinessSchedule | null,
-): Date | null {
+) => Date | null = (start, minutes, schedule) => {
   if (!schedule || schedule.windows.length === 0)
     return new Date(start.getTime() + minutes * MINUTE);
   const holidays = new Set(schedule.holidays);
@@ -62,7 +62,7 @@ export function addBusinessMinutes(
     }
   }
   return null;
-}
+};
 
 /** Whether `zone` is an IANA time zone this runtime knows. */
 export function isTimeZone(zone: string) {
@@ -89,9 +89,13 @@ function isoDate({ y, m, d }: LocalDate) {
   return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-function nextDay({ y, m, d }: LocalDate): LocalDate {
+function nextDay({ y, m, d }: LocalDate) {
   const next = new Date(Date.UTC(y, m - 1, d + 1));
-  return { y: next.getUTCFullYear(), m: next.getUTCMonth() + 1, d: next.getUTCDate() };
+  return {
+    y: next.getUTCFullYear(),
+    m: next.getUTCMonth() + 1,
+    d: next.getUTCDate(),
+  } satisfies LocalDate;
 }
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
@@ -125,9 +129,9 @@ function wallClock(at: number, zone: string) {
   };
 }
 
-function localDate(at: Date, zone: string): LocalDate {
+function localDate(at: Date, zone: string) {
   const p = wallClock(at.getTime(), zone);
-  return { y: p.year, m: p.month, d: p.day };
+  return { y: p.year, m: p.month, d: p.day } satisfies LocalDate;
 }
 
 /** The zone's offset from UTC at `at`, in milliseconds. */

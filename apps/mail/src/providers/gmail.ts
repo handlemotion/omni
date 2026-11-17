@@ -110,7 +110,7 @@ const idTokenClaims = z.object({
 export function createGoogleOAuth(
   client: { clientId: string; clientSecret: string },
   fetchImpl: typeof fetch = fetch,
-): GoogleOAuth {
+) {
   async function token(params: Record<string, string>) {
     const response = await fetchImpl(TOKEN_URL, {
       method: "POST",
@@ -178,7 +178,7 @@ export function createGoogleOAuth(
     },
 
     revoke: (value) => revokeGoogleToken(value, fetchImpl),
-  };
+  } satisfies GoogleOAuth;
 }
 
 /**
@@ -202,7 +202,10 @@ export async function revokeGoogleToken(value: string, fetchImpl: typeof fetch =
  * Access tokens for one mailbox: the cached one while it has more than 5 minutes left, else one
  * refresh shared by every caller waiting on it. Lives in memory only; a restart refreshes once.
  */
-export function googleTokenSource(oauth: GoogleOAuth, credentials: GoogleCredentials): TokenSource {
+export const googleTokenSource: (
+  oauth: GoogleOAuth,
+  credentials: GoogleCredentials,
+) => TokenSource = (oauth, credentials) => {
   let cached: AccessToken | null =
     credentials.accessToken && credentials.accessTokenExpiresAt
       ? { value: credentials.accessToken, expiresAt: credentials.accessTokenExpiresAt }
@@ -229,7 +232,7 @@ export function googleTokenSource(oauth: GoogleOAuth, credentials: GoogleCredent
     },
     isRevoked: (error) => error instanceof GoogleGrantRevoked,
   };
-}
+};
 
 /**
  * Exchanges the code and saves the account as a personal mailbox, then connects it. A Gmail
@@ -246,7 +249,7 @@ export async function connectGoogle(
     logger: Logger;
   },
   input: GoogleConnectBody,
-): Promise<GoogleConnectResult> {
+) {
   const { oauth, logger } = deps;
   let grant: GoogleGrant;
   try {
@@ -268,7 +271,7 @@ export async function connectGoogle(
   const run = previous.catch(() => {}).then(() => save(deps, input, grant));
   saving.set(key, run);
   try {
-    return await run;
+    return (await run) satisfies GoogleConnectResult;
   } finally {
     if (saving.get(key) === run) saving.delete(key);
   }
@@ -281,7 +284,7 @@ async function save(
   deps: Parameters<typeof connectGoogle>[0],
   input: GoogleConnectBody,
   grant: GoogleGrant,
-): Promise<GoogleConnectResult> {
+) {
   const { db, keyring, logger } = deps;
   const address = grant.email;
   input = await placeByAddress(db, input, address);
@@ -325,7 +328,13 @@ async function save(
   void deps
     .connect(mailboxId)
     .catch((error: unknown) => logger.error("mailbox.connect_failed", { mailboxId, error }));
-  return { mailboxId, address, created: !existing, orgId: input.orgId };
+  const result: GoogleConnectResult = {
+    mailboxId,
+    address,
+    created: !existing,
+    orgId: input.orgId,
+  };
+  return result;
 }
 
 const PLACEMENT_REFUSALS = {
@@ -338,11 +347,11 @@ const PLACEMENT_REFUSALS = {
  * locked its domain, if the person is a member there, else their Personal space. Without it, the
  * caller's `orgId` and `memberId` stand, as before.
  */
-async function placeByAddress(
+const placeByAddress: (
   db: Db,
   input: GoogleConnectBody,
   address: string,
-): Promise<GoogleConnectBody> {
+) => Promise<GoogleConnectBody> = async (db, input, address) => {
   if (!input.userId) return input;
   const place = await placeForAddress(db, {
     userId: input.userId,
@@ -351,7 +360,7 @@ async function placeByAddress(
   });
   if (!place.ok) throw new ProvisionError(409, `${address} ${PLACEMENT_REFUSALS[place.reason]}`);
   return { ...input, orgId: place.orgId, memberId: place.memberId };
-}
+};
 
 /** The scopes as Google's authorization URL wants them. */
 export const GOOGLE_SCOPE_PARAM = GOOGLE_MAIL_SCOPES.join(" ");
@@ -361,7 +370,7 @@ export const GOOGLE_SCOPE_PARAM = GOOGLE_MAIL_SCOPES.join(" ");
  * deletes the mailbox with everything indexed from it (Gmail still holds the mail). Only the
  * mailbox's owner can, and a mailbox already gone answers as disconnected, so a retry is safe.
  */
-export async function disconnectGoogle(
+export const disconnectGoogle: (
   deps: {
     db: Db;
     keyring: Keyring;
@@ -370,7 +379,7 @@ export async function disconnectGoogle(
     logger: Logger;
   },
   input: GoogleDisconnectBody,
-): Promise<z.infer<typeof googleDisconnectResultSchema>> {
+) => Promise<z.infer<typeof googleDisconnectResultSchema>> = async (deps, input) => {
   const { db, logger } = deps;
   if (input.userId) {
     // The person's own account, in whichever workspace it lives (ADR 0024).
@@ -404,9 +413,9 @@ export async function disconnectGoogle(
   await deleteMailbox(db, mailbox.id);
   logger.info("google.disconnected", { orgId: input.orgId, mailboxId: mailbox.id });
   return { mailboxId: mailbox.id };
-}
+};
 
-function decodeJwtPayload(jwt: string): unknown {
+function decodeJwtPayload(jwt: string) {
   const payload = jwt.split(".")[1];
   if (!payload) return null;
   try {

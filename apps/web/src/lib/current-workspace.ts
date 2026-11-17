@@ -29,6 +29,7 @@ export function leaveWorkspace(preload: boolean) {
 }
 
 /** The header every API call carries: none before a workspace route resolved one. */
-export function workspaceHeaders(): Record<string, string> {
-  return current ? { [WORKSPACE_HEADER]: current } : {};
+export function workspaceHeaders() {
+  const headers: Record<string, string> = current ? { [WORKSPACE_HEADER]: current } : {};
+  return headers;
 }

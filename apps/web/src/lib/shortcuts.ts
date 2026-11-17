@@ -13,7 +13,8 @@ export type KeySequence = readonly string[];
  * Keys only the desktop app binds (docs/spec/desktop.md, "Navigation changes in the web app"): a
  * browser keeps ⌘N, ⌘R and ⌘[ for itself, and has its own back and forward.
  */
-const inDesktop = (...keys: KeySequence[]): KeySequence[] => (desktop.isDesktop ? keys : []);
+const inDesktop = (...keys: KeySequence[]) =>
+  (desktop.isDesktop ? keys : []) satisfies KeySequence[];
 const onWindows = desktop.platform === "windows";
 
 /**
@@ -129,14 +130,16 @@ export type ShortcutId = keyof typeof SHORTCUTS;
  * The place a path is in. Paths are `/<workspace>/<place>/…` (ADR 0043); every shell path that is
  * not Drive's, the CRM's or settings' is Mail's, as the module switcher reads it (`moduleOf`).
  */
-export function placeOf(pathname: string): ShortcutPlace {
+export function placeOf(pathname: string) {
   const place = pathname.split("/")[2];
-  return place === "files" || place === "crm" || place === "settings" ? place : "mail";
+  return (
+    place === "files" || place === "crm" || place === "settings" ? place : "mail"
+  ) satisfies ShortcutPlace;
 }
 
 /** The place shortcut `id` is bound to, or undefined when it works everywhere. */
-export const shortcutPlace = (id: ShortcutId): ShortcutPlace | undefined =>
-  (SHORTCUTS[id] as ShortcutDefinition).place;
+export const shortcutPlace = (id: ShortcutId) =>
+  (SHORTCUTS[id] as ShortcutDefinition).place satisfies ShortcutPlace | undefined;
 
 /** Every shortcut with a key here: the desktop app's own are left out in a browser. */
 export const SHORTCUT_IDS = (Object.keys(SHORTCUTS) as ShortcutId[]).filter(
@@ -150,7 +153,7 @@ export const SHORTCUT_IDS = (Object.keys(SHORTCUTS) as ShortcutId[]).filter(
 export const COMMAND_IDS = SHORTCUT_IDS.filter((id) => "command" in SHORTCUTS[id]);
 
 /** The key this event names in `SHORTCUTS`' terms, or null for a chord we never bind. */
-export function eventKey(event: KeyboardEvent): string | null {
+export function eventKey(event: KeyboardEvent) {
   // Alt+← and Alt+→ are back and forward on Windows; no other Alt chord is bound.
   if (event.altKey) {
     const arrow = event.key === "ArrowLeft" || event.key === "ArrowRight";
@@ -173,17 +176,17 @@ const SEQUENCE_MS = 1000;
 export function createMatcher() {
   let prefix: string[] = [];
   let at = 0;
-  return (key: string, now = Date.now()): ShortcutId[] | "pending" | null => {
+  return (key: string, now = Date.now()) => {
     const held = now - at <= SEQUENCE_MS ? prefix : [];
     // A key that ends no sequence may still start one ("g" after a stray "g").
     const found = (held.length ? find([...held, key]) : null) ?? find([key]);
     prefix = found?.pending ?? [];
     at = now;
-    return found ? (found.ids ?? "pending") : null;
+    return (found ? (found.ids ?? "pending") : null) satisfies ShortcutId[] | "pending" | null;
   };
 }
 
-function find(typed: string[]): { ids?: ShortcutId[]; pending?: string[] } | null {
+const find: (typed: string[]) => { ids?: ShortcutId[]; pending?: string[] } | null = (typed) => {
   const ids: ShortcutId[] = [];
   let pending = false;
   for (const id of SHORTCUT_IDS) {
@@ -195,7 +198,7 @@ function find(typed: string[]): { ids?: ShortcutId[]; pending?: string[] } | nul
   }
   if (ids.length) return { ids };
   return pending ? { pending: typed } : null;
-}
+};
 
 const isMac = () =>
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "");
@@ -210,17 +213,17 @@ const NAMES: Record<string, string> = {
 };
 
 /** One key as people read it: `Mod+k` is `⌘K` on a Mac and `Ctrl K` elsewhere. */
-export function keyLabel(key: string): string[] {
+export const keyLabel: (key: string) => string[] = (key) => {
   if (key.startsWith("Mod+")) {
     const letter = key.slice(4).toUpperCase();
     return isMac() ? ["⌘", letter] : ["Ctrl", letter];
   }
   if (key.startsWith("Alt+")) return ["Alt", NAMES[key.slice(4)] ?? key.slice(4)];
   return [NAMES[key] ?? key.toUpperCase()];
-}
+};
 
 /** The `aria-keyshortcuts` value: every alternative, space-separated (sequences can't be said). */
-export function ariaKeyShortcuts(id: ShortcutId): string {
+export function ariaKeyShortcuts(id: ShortcutId) {
   return SHORTCUTS[id].keys
     .filter((sequence) => sequence.length === 1)
     .map(([key = ""]) =>

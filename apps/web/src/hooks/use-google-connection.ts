@@ -42,7 +42,7 @@ export function useDisconnectGoogle() {
  * load). The `?google=` parameters are cleared and the lists refetched, so a reload doesn't
  * repeat it.
  */
-export function useGoogleReturn(): GoogleOutcome | null {
+export const useGoogleReturn: () => GoogleOutcome | null = () => {
   const client = useQueryClient();
   const router = useRouter();
   const [outcome] = useState(() => readGoogleOutcome(window.location.search));
@@ -52,4 +52,4 @@ export function useGoogleReturn(): GoogleOutcome | null {
     router.history.replace(window.location.pathname);
   }, [outcome, client, router]);
   return outcome;
-}
+};

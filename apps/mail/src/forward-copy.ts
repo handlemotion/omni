@@ -21,8 +21,8 @@ export class PgForwarding implements Forwarding {
     this.options = options;
   }
 
-  target(mailboxId: string): Promise<string | null> {
-    return forwardTarget(this.options.db, mailboxId);
+  target(mailboxId: string) {
+    return forwardTarget(this.options.db, mailboxId) satisfies Promise<string | null>;
   }
 
   async copy(mailboxId: string, messageId: string) {
@@ -40,7 +40,7 @@ export class PgForwarding implements Forwarding {
 export async function composeForwardCopy(
   original: Uint8Array,
   envelope: { from: string; to: string; messageId: string },
-): Promise<Buffer> {
+) {
   const { message, attachmentContents } = await parseMessage(original);
   const body = forwardBody(
     { text: "" },
@@ -76,7 +76,7 @@ export async function composeForwardCopy(
     date: new Date(),
   })
     .compile()
-    .build();
+    .build() satisfies Promise<Buffer>;
 }
 
 function toAddress(address: { name: string; address: string }) {

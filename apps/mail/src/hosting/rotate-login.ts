@@ -40,7 +40,7 @@ export function createLoginRotation(deps: {
   let stopped = false;
 
   /** True when the mailbox got a new login and was reconnected with it. */
-  async function rotateOnce(row: HostedMailboxRow): Promise<boolean> {
+  async function rotateOnce(row: HostedMailboxRow) {
     const old = await openCredentials(keyring, row.id, row.credentialsEnc);
     if ("oauth" in old) return false;
     // The login's own user, which may differ from the mailbox's address (`mailbox:add --user`).
@@ -64,7 +64,7 @@ export function createLoginRotation(deps: {
     return true;
   }
 
-  async function attempt(row: HostedMailboxRow, retriesLeft: number): Promise<boolean> {
+  async function attempt(row: HostedMailboxRow, retriesLeft: number) {
     try {
       return await rotateOnce(row);
     } catch (error) {
@@ -83,13 +83,13 @@ export function createLoginRotation(deps: {
 
   return {
     /** Never throws: a failure is logged and retried later. */
-    rotate(row: HostedMailboxRow): Promise<boolean> {
-      if (stopped || retries.has(row.id)) return Promise.resolve(false);
+    rotate(row: HostedMailboxRow) {
+      if (stopped || retries.has(row.id)) return Promise.resolve(false) satisfies Promise<boolean>;
       const rotated = lastRotated.get(row.id);
       if (rotated !== undefined && now() - rotated < ROTATE_WINDOW_MS) {
-        return Promise.resolve(false);
+        return Promise.resolve(false) satisfies Promise<boolean>;
       }
-      return attempt(row, ROTATE_RETRIES);
+      return attempt(row, ROTATE_RETRIES) satisfies Promise<boolean>;
     },
     stop() {
       stopped = true;

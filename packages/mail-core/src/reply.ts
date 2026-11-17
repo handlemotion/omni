@@ -39,7 +39,10 @@ const FORWARD_HEADER = /^\s*\*?(from|date|sent|subject|to|cc)\s*:\*?\s*(.*)$/i;
 export const MAX_TEXT_LENGTH = 1_000_000;
 
 /** Splits plain text into new content and, for forwards, the forwarded message. */
-export function stripReply(text: string, subject = ""): StrippedText {
+export const stripReply: (text: string, subject?: string) => StrippedText = (
+  text,
+  subject = "",
+) => {
   const head =
     text.length > MAX_TEXT_LENGTH
       ? text.slice(0, text.lastIndexOf("\n", MAX_TEXT_LENGTH) + 1 || MAX_TEXT_LENGTH)
@@ -55,12 +58,12 @@ export function stripReply(text: string, subject = ""): StrippedText {
     };
   }
   return { cleanText: stripQuotes(lines), forwarded: null };
-}
+};
 
-function forwardStart(
+const forwardStart: (
   lines: string[],
   subject: string,
-): { noteEnd: number; headersStart: number } | null {
+) => { noteEnd: number; headersStart: number } | null = (lines, subject) => {
   const marker = lines.findIndex((line) => FORWARD_MARKER.test(line));
   if (marker !== -1) return { noteEnd: marker, headersStart: marker + 1 };
   // Outlook forwards reuse the reply header block; only the subject tells them apart.
@@ -69,9 +72,9 @@ function forwardStart(
     if (block !== null) return { noteEnd: block.cut, headersStart: block.from };
   }
   return null;
-}
+};
 
-function outlookHeaderStart(lines: string[]): { cut: number; from: number } | null {
+const outlookHeaderStart: (lines: string[]) => { cut: number; from: number } | null = (lines) => {
   for (let i = 0; i < lines.length; i++) {
     if (!OUTLOOK_FROM.test(lines[i] ?? "")) continue;
     const window = lines.slice(i + 1, i + 1 + OUTLOOK_LOOKAHEAD);
@@ -86,9 +89,9 @@ function outlookHeaderStart(lines: string[]): { cut: number; from: number } | nu
     return { cut, from: i };
   }
   return null;
-}
+};
 
-function stripQuotes(lines: string[]): string {
+function stripQuotes(lines: string[]) {
   const outlook = outlookHeaderStart(lines);
   return visibleText(outlook === null ? lines : lines.slice(0, outlook.cut))
     .replace(/\n{3,}/g, "\n\n")
@@ -124,7 +127,7 @@ const QUOTE_HEADERS = [
   /^-{1,12} ?(?:original message|oprindelig besked|message d'origine|ursprüngliche nachricht) ?-{0,12}$/i,
 ];
 // "NAME on DATE at TIME wrote:": three free-form gaps, so it is checked with indexOf.
-function isOnAtWrote(line: string): boolean {
+function isOnAtWrote(line: string) {
   if (!line.endsWith(" wrote:")) return false;
   const on = line.indexOf(" on ");
   return on > 0 && line.indexOf(" at ", on) !== -1;
@@ -147,12 +150,12 @@ const SIGNATURES = [
   /^Bonne (?:journ.e|soir.e)!?$/i,
 ];
 
-function isQuoteHeader(line: string): boolean {
+function isQuoteHeader(line: string) {
   if (line.length > MAX_HEADER_LINE) return false;
   return QUOTE_HEADERS.some((pattern) => pattern.test(line)) || isOnAtWrote(line);
 }
 
-function isSignature(line: string): boolean {
+function isSignature(line: string) {
   return line.length <= MAX_HEADER_LINE && SIGNATURES.some((pattern) => pattern.test(line));
 }
 
@@ -164,7 +167,7 @@ interface Fragment {
 }
 
 /** The lines a reader sees: no ">" quotes, no quote header with what follows it, no signature. */
-function visibleText(input: string[]): string {
+function visibleText(input: string[]) {
   const lines = joinWrappedHeaders(input);
   const fragments: Fragment[] = [];
   let fragment: Fragment | null = null;
@@ -208,7 +211,7 @@ function visibleText(input: string[]): string {
 }
 
 /** Clients wrap long quote headers ("On … Ana <ana@…>\nwrote:"); rejoin them to one line. */
-function joinWrappedHeaders(lines: string[]): string[] {
+function joinWrappedHeaders(lines: string[]) {
   const joined: string[] = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
@@ -220,10 +223,10 @@ function joinWrappedHeaders(lines: string[]): string[] {
       joined.push(line);
     }
   }
-  return joined;
+  return joined satisfies string[];
 }
 
-function parseForwarded(lines: string[]): ForwardedMessage {
+function parseForwarded(lines: string[]) {
   const forwarded: ForwardedMessage = { from: null, date: null, subject: null, to: null, text: "" };
   let i = 0;
   while (i < lines.length && (lines[i] ?? "").trim() === "") i++;
@@ -239,5 +242,5 @@ function parseForwarded(lines: string[]): ForwardedMessage {
     else if (key === "to") forwarded.to = value;
   }
   forwarded.text = lines.slice(i).join("\n").trim();
-  return forwarded;
+  return forwarded satisfies ForwardedMessage;
 }

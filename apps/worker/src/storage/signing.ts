@@ -39,35 +39,37 @@ import { download, memberStorage, refused } from "./http.ts";
 
 const iso = (date: Date | null) => date?.toISOString() ?? null;
 
-const wireRequest = (request: StorageSignatureRequest): WireRequest => ({
-  id: request.id,
-  nodeId: request.nodeId,
-  contentVersion: request.contentVersion,
-  documentSha256: request.documentSha256,
-  status: request.status,
-  createdAt: request.createdAt.toISOString(),
-  completedAt: iso(request.completedAt),
-  voidedAt: iso(request.voidedAt),
-  sealedNodeId: request.sealedNodeId,
-  sealedSha256: request.sealedSha256,
-  signers: request.signers.map((signer) => ({
-    email: signer.email,
-    name: signer.name,
-    signedAt: iso(signer.signedAt),
-    typedName: signer.typedName,
-  })),
-  events: request.events.map((event) => ({ ...event, createdAt: event.createdAt.toISOString() })),
-});
+const wireRequest = (request: StorageSignatureRequest) =>
+  ({
+    id: request.id,
+    nodeId: request.nodeId,
+    contentVersion: request.contentVersion,
+    documentSha256: request.documentSha256,
+    status: request.status,
+    createdAt: request.createdAt.toISOString(),
+    completedAt: iso(request.completedAt),
+    voidedAt: iso(request.voidedAt),
+    sealedNodeId: request.sealedNodeId,
+    sealedSha256: request.sealedSha256,
+    signers: request.signers.map((signer) => ({
+      email: signer.email,
+      name: signer.name,
+      signedAt: iso(signer.signedAt),
+      typedName: signer.typedName,
+    })),
+    events: request.events.map((event) => ({ ...event, createdAt: event.createdAt.toISOString() })),
+  }) satisfies WireRequest;
 
-const wireItem = (item: StorageSigningItem): WireItem => ({
-  ...item,
-  createdAt: item.createdAt.toISOString(),
-  me: { ...item.me, signedAt: iso(item.me.signedAt) },
-});
+const wireItem = (item: StorageSigningItem) =>
+  ({
+    ...item,
+    createdAt: item.createdAt.toISOString(),
+    me: { ...item.me, signedAt: iso(item.me.signedAt) },
+  }) satisfies WireItem;
 
-function originOf(c: Context<AppEnv>, email: string): StorageSigningOrigin {
+const originOf: (c: Context<AppEnv>, email: string) => StorageSigningOrigin = (c, email) => {
   return { email, ip: clientIp(c.req.raw), userAgent: c.req.header("user-agent") ?? null };
-}
+};
 
 /** Hex SHA-256 of an object's bytes, streamed, and whether it starts as a PDF does. */
 async function hashObject(bucket: R2Bucket, key: string) {

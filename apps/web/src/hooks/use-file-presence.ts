@@ -5,12 +5,12 @@ import { FILE_REPEAT_MS, filePresenceStore, type FileEditor } from "../lib/file-
 import { onRealtimeOpen, sendRealtime } from "../lib/realtime.ts";
 
 /** Members editing the file, oldest first. Includes you when another of your tabs edits it. */
-export function useFileEditors(nodeId: string): readonly FileEditor[] {
+export function useFileEditors(nodeId: string) {
   return useSyncExternalStore(
     filePresenceStore.subscribe,
     () => filePresenceStore.get(nodeId),
     () => filePresenceStore.get(nodeId),
-  );
+  ) satisfies readonly FileEditor[];
 }
 
 /**

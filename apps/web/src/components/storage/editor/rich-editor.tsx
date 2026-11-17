@@ -28,13 +28,16 @@ const EXTENSIONS = [
 ];
 
 /** The same, on a live document: its history is Yjs's, so the editor keeps none of its own. */
-const liveExtensions = (doc: Y.Doc): Extensions => [
-  StarterKit.configure({ link: { openOnClick: false }, undoRedo: false }),
-  TaskList,
-  TaskItem.configure({ nested: true }),
-  Markdown,
-  Collaboration.configure({ document: doc }),
-];
+const liveExtensions = (doc: Y.Doc) => {
+  const result: Extensions = [
+    StarterKit.configure({ link: { openOnClick: false }, undoRedo: false }),
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    Markdown,
+    Collaboration.configure({ document: doc }),
+  ];
+  return result;
+};
 
 /** Fills an empty live document from the file's Markdown, through an editor nobody sees. */
 function seedFrom(markdown: string) {

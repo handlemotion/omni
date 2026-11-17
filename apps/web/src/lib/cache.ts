@@ -12,7 +12,7 @@ export type Snapshot = [QueryKey, unknown][];
  * Cancels in-flight thread fetches (so they cannot overwrite the edit) and records the lists
  * (mail and helpdesk) and the thread as they are now.
  */
-export async function snapshotThread(client: QueryClient, threadId: string): Promise<Snapshot> {
+export async function snapshotThread(client: QueryClient, threadId: string) {
   await Promise.all([
     client.cancelQueries({ queryKey: keys.threadLists() }),
     client.cancelQueries({ queryKey: keys.conversationLists() }),
@@ -22,7 +22,7 @@ export async function snapshotThread(client: QueryClient, threadId: string): Pro
     ...client.getQueriesData({ queryKey: keys.threadLists() }),
     ...client.getQueriesData({ queryKey: keys.conversationLists() }),
     [keys.thread(threadId), client.getQueryData(keys.thread(threadId))],
-  ];
+  ] satisfies Snapshot;
 }
 
 export function restore(client: QueryClient, snapshot: Snapshot | undefined) {
@@ -87,8 +87,10 @@ export function invalidateThread(client: QueryClient, threadId: string) {
 }
 
 /** The part of `patch` whose fields `row` has. */
-function shared<T extends object>(row: T, patch: object): Partial<T> {
-  return Object.fromEntries(Object.entries(patch).filter(([key]) => key in row)) as Partial<T>;
+function shared<T extends object>(row: T, patch: object) {
+  return Object.fromEntries(
+    Object.entries(patch).filter(([key]) => key in row),
+  ) as Partial<T> satisfies Partial<T>;
 }
 
 function mapPages(data: ThreadPages | undefined, fn: (page: ThreadPage) => ThreadPage) {

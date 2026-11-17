@@ -203,7 +203,7 @@ export function patchDealInLists(
 }
 
 /** When the record was last written to or from, once the API says (ADR 0039 decision 2). */
-export function lastContactedAt(record: object): string | null {
+export function lastContactedAt(record: object) {
   const value = (record as { lastContactedAt?: unknown }).lastContactedAt;
   return typeof value === "string" ? value : null;
 }
@@ -225,7 +225,7 @@ export function formatMoney(minor: number | null, currency: string | null) {
 }
 
 /** "12500.50" or "12,500" typed by a person, as minor units; null when it is not a number. */
-export function parseMoney(text: string): number | null {
+export function parseMoney(text: string) {
   const cleaned = text.replace(/[^\d.,-]/g, "").replace(/,(?=\d{3}(\D|$))/g, "");
   if (!cleaned) return null;
   const value = Number(cleaned.replace(",", "."));

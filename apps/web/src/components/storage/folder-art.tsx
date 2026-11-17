@@ -69,12 +69,15 @@ export function FolderArt(props: {
   );
 }
 
-const place = ([left, top, width, height]: Spot): CSSProperties => ({
-  left: `${left}%`,
-  top: `${top}%`,
-  width: `${width}%`,
-  height: `${height}%`,
-});
+const place = ([left, top, width, height]: Spot) => {
+  const result: CSSProperties = {
+    left: `${left}%`,
+    top: `${top}%`,
+    width: `${width}%`,
+    height: `${height}%`,
+  };
+  return result;
+};
 
 /** The folder's first files, then its subfolders, three at most. */
 function pick(nodes: StorageNode[]) {
