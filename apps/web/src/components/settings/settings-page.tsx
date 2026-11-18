@@ -6,7 +6,7 @@ import { usePersonalWorkspace } from "@/hooks/use-workspaces.ts";
 import { ProfilePage, SecurityPage, ShortcutsPage } from "./account-pages";
 import { AiPage } from "./ai-page";
 import { BillingPage } from "./billing-page";
-import { ConnectedAccountsPage } from "./connected-accounts-page";
+import { AccountsPage } from "./accounts-page";
 import { ForwardingPage } from "./forwarding-page";
 import { HelpdeskPage } from "./helpdesk-pages";
 import { SettingsPageHeader } from "./kit/settings-layout";
@@ -27,7 +27,7 @@ const BODIES: Record<SettingsPageId, () => ReactNode> = {
   security: () => <SecurityPage />,
   shortcuts: () => <ShortcutsPage />,
   notifications: () => <NotificationsPage />,
-  accounts: () => <ConnectedAccountsPage />,
+  accounts: () => <AccountsPage />,
   forwarding: () => <ForwardingPage />,
   sync: () => <DriveSyncPage />,
   general: () => <GeneralPage />,

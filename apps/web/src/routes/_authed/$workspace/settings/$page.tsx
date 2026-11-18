@@ -7,6 +7,7 @@ import {
 } from "../../../../hooks/use-settings.ts";
 import { billingQuery } from "../../../../lib/billing.ts";
 import { googleAccountsQuery } from "../../../../lib/google-connection.ts";
+import { signInEmailsQuery } from "../../../../lib/sign-in-emails.ts";
 
 export const Route = createFileRoute("/_authed/$workspace/settings/$page")({
   beforeLoad: ({ params }) => {
@@ -22,7 +23,10 @@ export const Route = createFileRoute("/_authed/$workspace/settings/$page")({
   loader: ({ context, params }) => {
     if (params.page === "billing") return context.queryClient.ensureQueryData(billingQuery());
     if (params.page === "accounts")
-      return context.queryClient.ensureQueryData(googleAccountsQuery());
+      return Promise.all([
+        context.queryClient.ensureQueryData(googleAccountsQuery()),
+        context.queryClient.ensureQueryData(signInEmailsQuery()),
+      ]);
   },
   component: Page,
 });

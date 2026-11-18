@@ -116,6 +116,8 @@ export const connect = new Hono<AppEnv>()
       code_challenge: await challengeFor(verifier),
       code_challenge_method: "S256",
     }).toString();
+    const hint = c.req.query("hint");
+    if (hint && hint.length <= 320) url.searchParams.set("login_hint", hint);
     return desktop ? c.json({ url: url.toString() }) : c.redirect(url.toString(), 302);
   })
 

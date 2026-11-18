@@ -49,7 +49,7 @@ export const useAccountPages: () => PageDefinition[] = () => {
             style={{ "--avatar-size": "15px" } as CSSProperties}
           />
         ),
-        terms: ["profile", "name", "email", "log out", "sign out", "accounts", "switch account"],
+        terms: ["profile", "name", "picture", "log out", "sign out", "switch account"],
       },
       {
         id: "security",
@@ -65,9 +65,19 @@ export const useAccountPages: () => PageDefinition[] = () => {
       },
       {
         id: "accounts",
-        title: "Connected accounts",
+        title: "Accounts",
         icon: glyph(IconMailOpen),
-        terms: ["google", "gmail", "connect", "disconnect", "oauth", "personal inbox"],
+        terms: [
+          "email",
+          "sign-in emails",
+          "primary",
+          "google",
+          "gmail",
+          "connect",
+          "disconnect",
+          "inbox",
+          "personal inbox",
+        ],
       },
       {
         id: "forwarding",

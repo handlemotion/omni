@@ -18,14 +18,14 @@ export function useGoogleAccounts() {
 }
 
 /**
- * `mutate()` leaves for Google's consent screen and comes back to `from`. Stays pending until the
+ * `mutate(hint?)` leaves for Google's consent screen (on the `hint` account, if given) and comes back to `from`. Stays pending until the
  * page is gone, so the button shows it is on its way. In the desktop app the consent opens in the
  * browser and this page stays, so it settles once the browser has it.
  */
 export function useConnectGoogle(from: GoogleReturn) {
   return useMutation({
-    mutationFn: async () => {
-      await startGoogleConnect(from);
+    mutationFn: async (hint?: string) => {
+      await startGoogleConnect(from, hint);
       if (!desktop.isDesktop) await new Promise<never>(() => {});
     },
   });

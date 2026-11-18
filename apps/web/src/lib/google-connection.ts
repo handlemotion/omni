@@ -17,10 +17,12 @@ export type GoogleReturn = "onboarding" | "settings";
  * Leaves for Google's consent screen. Nothing after this runs: the page is gone. In the desktop
  * app the consent opens in the person's browser instead (Google refuses embedded sign-in), and
  * the Worker sends Google's return back to this window through the shell's `omni://open`.
+ * `hint` is an address Google should open on.
  */
-export async function startGoogleConnect(from: GoogleReturn) {
+export async function startGoogleConnect(from: GoogleReturn, hint?: string) {
   const url = new URL("/api/connect/google/start", window.location.origin);
   if (from === "onboarding") url.searchParams.set("return", "onboarding");
+  if (hint) url.searchParams.set("hint", hint);
   url.searchParams.set("place", "address");
   if (!desktop.isDesktop) {
     window.location.assign(url.toString());
