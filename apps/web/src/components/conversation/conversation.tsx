@@ -187,14 +187,14 @@ function columnClass(single: boolean) {
 
 function ConversationSkeleton() {
   return (
-    <section aria-label="Conversation" className={SECTION}>
+    <section aria-label="Conversation" className={`${SECTION} border-s`}>
       <Skeleton
         loading
         label="Loading conversation"
         className={SECTION}
         skeleton={
           <>
-            <div className="flex h-12 shrink-0 items-center gap-3 border-s border-b ps-5 pe-4">
+            <div className="flex h-12 shrink-0 items-center gap-3 border-b ps-5 pe-4">
               <span className="min-w-0 flex-1">
                 <SkeletonBox width="45%" height={14} />
               </span>
@@ -202,7 +202,7 @@ function ConversationSkeleton() {
                 <SkeletonBox key={i} width={16} height={16} radius={4} />
               ))}
             </div>
-            <div className={`${SCROLLER} overflow-hidden border-s`}>
+            <div className={`${SCROLLER} overflow-hidden`}>
               <div className={COLUMN}>
                 <MessageBones width="55%" />
                 <MessageBones width="25%" ours />
