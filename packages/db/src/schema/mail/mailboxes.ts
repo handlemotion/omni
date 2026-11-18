@@ -59,6 +59,11 @@ export const mailboxes = pgTable(
      */
     picture: text("picture"),
     /**
+     * The From display name for mail sent from a personal inbox ("Rodrigo @ Chow Mein"). Null:
+     * the owner's own name.
+     */
+    senderName: text("sender_name"),
+    /**
      * A shared mailbox's Better Auth team: its members are who can see it, and `mailbox_access`
      * is derived from them (ADR 0008). Null for personal mailboxes, and for a shared mailbox
      * until `ensureMailboxTeam` runs. Same org as the mailbox, enforced where it is read.
