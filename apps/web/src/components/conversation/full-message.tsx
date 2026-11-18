@@ -6,7 +6,7 @@ const MAX_REFITS = 12;
 const BLOCKED_SRC = "data-omni-src";
 
 const FRAME_DEFAULTS =
-  'body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}';
+  'html{padding:16px}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}';
 
 function applyFrameDefaults(frame: HTMLIFrameElement) {
   const doc = frame.contentDocument;
