@@ -707,7 +707,6 @@ function FromRow(props: {
   const yours = useYourMailboxes();
   const labelOf = (id: string) => yours.find((box) => box.id === id)?.label;
   const address = props.mailboxes.find((m) => m.id === props.value)?.address;
-  const shown = labelOf(props.value) ?? address;
   return (
     <div
       data-composer-head
@@ -722,7 +721,7 @@ function FromRow(props: {
             aria-label={`From ${address}`}
             className="-ms-0.5 min-w-0"
           >
-            <span className="truncate">{shown}</span>
+            <span className="truncate">{address}</span>
             <IconChevronDown className="text-muted-foreground" />
           </Button>
           <Menu
@@ -735,16 +734,16 @@ function FromRow(props: {
             }}
           >
             {props.mailboxes.map((m) => (
-              <MenuItem key={m.id} id={m.id} textValue={labelOf(m.id) ?? m.address}>
+              <MenuItem key={m.id} id={m.id} textValue={m.address}>
                 <IconMail data-slot="icon" />
-                <MenuLabel>{labelOf(m.id) ?? m.address}</MenuLabel>
-                {labelOf(m.id) && <MenuDescription>{m.address}</MenuDescription>}
+                <MenuLabel>{m.address}</MenuLabel>
+                {labelOf(m.id) && <MenuDescription>{labelOf(m.id)}</MenuDescription>}
               </MenuItem>
             ))}
           </Menu>
         </MenuTrigger>
       ) : (
-        <span className="min-w-0 truncate ps-2 text-sm">{shown}</span>
+        <span className="min-w-0 truncate ps-2 text-sm">{address}</span>
       )}
     </div>
   );

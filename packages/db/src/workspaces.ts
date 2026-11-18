@@ -67,6 +67,8 @@ export interface Workspace {
     label: string | null;
     /** The account's own picture URL, when its provider gave one. */
     picture: string | null;
+    /** The From display name its owner set; null sends with their own name. */
+    senderName: string | null;
   }[];
 }
 
@@ -110,6 +112,13 @@ export async function listUserWorkspaces(
     ...org,
     mailboxes: boxes
       .filter((box) => box.orgId === org.id)
-      .map(({ id, address, kind, label, picture }) => ({ id, address, kind, label, picture })),
+      .map(({ id, address, kind, label, picture, senderName }) => ({
+        id,
+        address,
+        kind,
+        label,
+        picture,
+        senderName,
+      })),
   })) satisfies Workspace[];
 }

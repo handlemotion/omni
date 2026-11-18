@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { labelMailboxMutation } from "../lib/mailbox-label.ts";
+import { labelMailboxMutation, senderNameMutation } from "../lib/mailbox-label.ts";
 import { useWorkspaces } from "./use-workspaces.ts";
 
 /** Every mailbox you can open, in all your workspaces, with its label and picture. */
@@ -17,4 +17,8 @@ export function useYourMailbox(key: { id?: string; address?: string }) {
 
 export function useLabelMailbox() {
   return useMutation(labelMailboxMutation(useQueryClient()));
+}
+
+export function useSenderName() {
+  return useMutation(senderNameMutation(useQueryClient()));
 }

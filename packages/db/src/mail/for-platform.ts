@@ -45,6 +45,7 @@ export function mailboxesOpenTo(db: Db, userId: string) {
       address: mailboxes.address,
       kind: mailboxes.kind,
       label: mailboxes.label,
+      senderName: mailboxes.senderName,
       picture: mailboxes.picture,
     })
     .from(mailboxes)

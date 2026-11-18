@@ -101,7 +101,37 @@ test("sign-in addresses and inboxes: a Gmail address is an inbox switched off un
   await page.getByText("(Personal)").waitFor();
   await page.getByRole("button", { name: `Inbox actions for ${connected}` }).click();
   await page.getByRole("menuitem", { name: "Reconnect" }).waitFor();
-  await page.keyboard.press("Escape");
+  await page.getByRole("menuitem", { name: "Sender name" }).click();
+  await page.getByRole("textbox", { name: "Name" }).fill("Rodrigo @ Chow Mein");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const [row] = await db
+        .select({ senderName: schema.mailboxes.senderName })
+        .from(schema.mailboxes)
+        .where(eq(schema.mailboxes.id, box.id));
+      return row?.senderName;
+    })
+    .toBe("Rodrigo @ Chow Mein");
+  await page.getByRole("button", { name: `Inbox actions for ${connected}` }).click();
+  await page.getByRole("menuitem", { name: "Remove sender name" }).click();
+  await expect
+    .poll(async () => {
+      const [row] = await db
+        .select({ senderName: schema.mailboxes.senderName })
+        .from(schema.mailboxes)
+        .where(eq(schema.mailboxes.id, box.id));
+      return row?.senderName;
+    })
+    .toBeNull();
+
+  await page.goto(new URL("/compose", origin).toString());
+  await page.getByRole("button", { name: /^From / }).click();
+  await page.getByRole("menuitemradio", { name: new RegExp(connected) }).click();
+  await expect
+    .poll(() => page.getByRole("button", { name: `From ${connected}` }).textContent())
+    .toBe(connected);
+  await page.goto(new URL("/chowmein/settings/accounts", origin).toString());
 
   await page.getByRole("button", { name: `Actions for ${email}` }).click();
   await page.getByRole("menuitem", { name: "Stop signing in with it" }).click();

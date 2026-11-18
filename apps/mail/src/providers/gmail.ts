@@ -38,7 +38,7 @@ const MAIL_SCOPE = "https://mail.google.com/";
  * Scopes to ask Google for. `https://mail.google.com/` is the only scope Gmail's IMAP and SMTP
  * accept (a restricted scope: unverified apps are capped at 100 users). The authorization URL must
  * also carry `access_type=offline` and `prompt=consent`, or Google returns no refresh token.
- * `profile` brings the account's photo (the id token's `picture`), which its inbox shows. The
+ * `profile` brings the account's photo and name (the id token's `picture`, `name`) for its inbox. The
  * Worker's consent redirect asks for the same four.
  */
 export const GOOGLE_MAIL_SCOPES = [MAIL_SCOPE, "openid", "email", "profile"] as const;
@@ -71,6 +71,8 @@ export interface GoogleGrant extends AccessToken {
   email: string;
   /** The account's profile photo, when Google sent one. */
   picture?: string;
+  /** The account's display name, when Google sent one. */
+  name?: string;
 }
 
 export interface GoogleOAuth {
@@ -103,6 +105,7 @@ const idTokenClaims = z.object({
   email: z.string().min(3),
   email_verified: z.boolean(),
   picture: z.url().optional(),
+  name: z.string().trim().min(1).max(80).optional().catch(undefined),
 });
 
 export function createGoogleOAuth(
@@ -164,6 +167,7 @@ export function createGoogleOAuth(
         refreshToken: data.refresh_token,
         email: claims.data.email.toLowerCase(),
         ...(claims.data.picture?.startsWith("https://") ? { picture: claims.data.picture } : {}),
+        ...(claims.data.name ? { name: claims.data.name } : {}),
       };
     },
 
@@ -310,6 +314,7 @@ async function save(
     credentialsEnc: await sealCredentials(keyring, mailboxId, credentials),
     ownerMemberId: input.memberId,
     ...(grant.picture ? { picture: grant.picture } : {}),
+    ...(grant.name ? { senderName: grant.name } : {}),
   });
   logger.info("google.connected", { orgId: input.orgId, mailboxId, reconnect: !!existing });
   void deps

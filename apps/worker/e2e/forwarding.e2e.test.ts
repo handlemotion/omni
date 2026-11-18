@@ -1,5 +1,6 @@
-import { schema } from "@omni/db";
+import { mailboxSenderName, saveMailbox, schema } from "@omni/db";
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
   createMailbox,
@@ -182,4 +183,82 @@ test("an owner labels their personal inbox and every workspace list shows it; a 
 
   expect((await label(cyCookie, work.id, "")).status).toBe(200);
   expect((await labelsSeenBy(cyCookie))["cy@labels.test"]).toBeNull();
+});
+
+test("mail from a personal inbox carries the sender name its owner set, else theirs; Google fills it only when unset; a teammate can't set it", async () => {
+  const { db } = database;
+  const company = await createOrg(db, "sender");
+  const ro = await createMember(db, company.id, "ro@sender.test");
+  await db
+    .update(schema.users)
+    .set({ name: "Rodrigo" })
+    .where(eq(schema.users.email, "ro@sender.test"));
+  const work = await mailboxOf(company.id, ro.id, "ro@sender.test", "personal", "owner");
+  const di = await createMember(db, company.id, "di@sender.test");
+  await db
+    .insert(schema.mailboxAccess)
+    .values({ orgId: company.id, mailboxId: work.id, memberId: di.id });
+  const roCookie = await signIn(worker, db, "ro@sender.test");
+  const diCookie = await signIn(worker, db, "di@sender.test");
+  const name = (cookie: string, senderName: string | null) =>
+    api(`/mailboxes/${work.id}/sender-name`, cookie, {
+      method: "PUT",
+      body: JSON.stringify({ senderName }),
+    });
+  const sentFromName = async () => {
+    const response = await fetch(new URL("/api/send", worker.url), {
+      method: "POST",
+      headers: {
+        cookie: roCookie,
+        "content-type": "application/json",
+        "idempotency-key": randomUUID(),
+      },
+      body: JSON.stringify({
+        mailboxId: work.id,
+        to: ["luis@client.test"],
+        subject: "Hi",
+        text: "Hi",
+      }),
+    });
+    expect(response.status).toBe(202);
+    const { actionId } = (await response.json()) as { actionId: string };
+    const [row] = await db
+      .select({ payload: schema.mailActions.payload })
+      .from(schema.mailActions)
+      .where(eq(schema.mailActions.id, actionId));
+    return (row!.payload as { fromName?: string }).fromName;
+  };
+
+  expect(await sentFromName()).toBe("Rodrigo");
+  expect((await name(roCookie, " Rodrigo @ Chow Mein ")).status).toBe(200);
+  expect(await sentFromName()).toBe("Rodrigo @ Chow Mein");
+  expect((await name(diCookie, "Di")).status).toBe(404);
+  expect(await sentFromName()).toBe("Rodrigo @ Chow Mein");
+  const elsewhere = await createOrg(db, "sender-elsewhere");
+  const outsider = await createMember(db, elsewhere.id, "ex@sender-elsewhere.test");
+  expect(await mailboxSenderName(db, outsider.id, work.id)).toBeNull();
+
+  const connectGoogle = (id: string, address: string) =>
+    saveMailbox(db, {
+      id,
+      orgId: company.id,
+      address,
+      kind: "personal",
+      provider: "gmail",
+      credentialsEnc: "not-a-real-ciphertext",
+      ownerMemberId: ro.id,
+      senderName: "Rodrigo Jiménez",
+    });
+  const senderNameOf = async (id: string) =>
+    (
+      await db
+        .select({ senderName: schema.mailboxes.senderName })
+        .from(schema.mailboxes)
+        .where(eq(schema.mailboxes.id, id))
+    )[0]?.senderName;
+  await connectGoogle(work.id, "ro@sender.test");
+  expect(await senderNameOf(work.id)).toBe("Rodrigo @ Chow Mein");
+  const gmail = randomUUID();
+  await connectGoogle(gmail, "ro@gmail.test");
+  expect(await senderNameOf(gmail)).toBe("Rodrigo Jiménez");
 });

@@ -56,7 +56,7 @@ async function sendHandoff(
       message: `a message carries at most ${MAX_SEND_ATTACHMENTS} attachments`,
     });
   }
-  const name = await fromName(c, "personal");
+  const name = await fromName(c, { id: mailbox.id, kind: "personal" });
   const result = await enqueueHandoff(c.var.db, {
     threadId,
     memberId: c.var.member.id,

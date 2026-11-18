@@ -14,6 +14,7 @@ import {
   forMember,
   enqueueSendWithAttachments,
   memberMailbox,
+  mailboxSenderName,
   memberUpload,
   newUploadId,
   senderIdentity,
@@ -110,11 +111,21 @@ export function sendResponse(action: {
   };
 }
 
-/** The From display name: the agent, and on a shared inbox the team they write for. */
-export async function fromName(c: Context<AppEnv>, mailboxKind: "personal" | "shared") {
+/**
+ * The From display name: on a personal inbox the sender name set for it, else the agent; on a
+ * shared inbox the agent and the team they write for.
+ */
+export async function fromName(
+  c: Context<AppEnv>,
+  mailbox: { id: string; kind: "personal" | "shared" },
+) {
+  if (mailbox.kind === "personal") {
+    const set = await mailboxSenderName(c.var.db, c.var.member.id, mailbox.id);
+    if (set) return set;
+  }
   const identity = await senderIdentity(c.var.db, c.var.member.id);
   if (!identity?.name) return undefined;
-  return mailboxKind === "shared" ? `${identity.name} from ${identity.orgName}` : identity.name;
+  return mailbox.kind === "shared" ? `${identity.name} from ${identity.orgName}` : identity.name;
 }
 
 /**
@@ -136,7 +147,7 @@ export async function enqueueSend(
       message: `a message carries at most ${MAX_SEND_ATTACHMENTS} attachments`,
     });
   }
-  const name = await fromName(c, mailbox.kind);
+  const name = await fromName(c, { id: mailbox.mailboxId, kind: mailbox.kind });
   const result = await enqueueSendWithAttachments(
     c.var.db,
     {

@@ -4,13 +4,14 @@ import { Skeleton } from "skullet/react";
 import {
   IconArrowRotateClockwise,
   IconInbox,
+  IconSignature,
   IconTag,
   IconTrash,
 } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { appToast } from "@/components/ui/toast";
 import { useMailboxes } from "@/hooks/use-mail.ts";
-import { useLabelMailbox, useYourMailboxes } from "@/hooks/use-mailbox-identity.ts";
+import { useLabelMailbox, useSenderName, useYourMailboxes } from "@/hooks/use-mailbox-identity.ts";
 import { useOnboarding } from "@/hooks/use-onboarding.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useSignInEmails } from "@/hooks/use-sign-in-emails.ts";
@@ -97,7 +98,10 @@ export function InboxesSection() {
   const [leaving, setLeaving] = useState<{ mailboxId: string; address: string } | null>(null);
   const [labelling, setLabelling] = useState<{ mailboxId: string; label: string } | null>(null);
   const labelMailbox = useLabelMailbox();
-  const labels = new Map(useYourMailboxes().map((box) => [box.id, box.label]));
+  const [naming, setNaming] = useState<{ mailboxId: string; name: string } | null>(null);
+  const senderName = useSenderName();
+  const yours = new Map(useYourMailboxes().map((box) => [box.id, box]));
+  const labels = new Map([...yours].map(([id, box]) => [id, box.label]));
   const saveLabel = (mailboxId: string, label: string | null) =>
     labelMailbox.mutate(
       { mailboxId, label },
@@ -105,6 +109,15 @@ export function InboxesSection() {
         onSuccess: () => setLabelling(null),
         onError: (error) =>
           appToast.error("Couldn't save the label", { description: error.message }),
+      },
+    );
+  const saveSenderName = (mailboxId: string, name: string | null) =>
+    senderName.mutate(
+      { mailboxId, senderName: name },
+      {
+        onSuccess: () => setNaming(null),
+        onError: (error) =>
+          appToast.error("Couldn't save the sender name", { description: error.message }),
       },
     );
 
@@ -172,6 +185,17 @@ export function InboxesSection() {
                             setLabelling({ mailboxId: row.mailboxId, label: label ?? "" })
                           }
                           onClear={() => row.mailboxId && saveLabel(row.mailboxId, null)}
+                          senderName={yours.get(row.mailboxId)?.senderName ?? null}
+                          onClearSenderName={() =>
+                            row.mailboxId && saveSenderName(row.mailboxId, null)
+                          }
+                          onSenderName={() =>
+                            row.mailboxId &&
+                            setNaming({
+                              mailboxId: row.mailboxId,
+                              name: yours.get(row.mailboxId)?.senderName ?? "",
+                            })
+                          }
                           onReconnect={
                             row.kind === "google" && row.status !== "error"
                               ? () => connect.mutate(row.address)
@@ -212,6 +236,17 @@ export function InboxesSection() {
           onSave={(label) => saveLabel(labelling.mailboxId, label)}
         />
       )}
+      {naming && (
+        <SettingsRenameDialog
+          title="Sender name"
+          label="Name"
+          maxLength={80}
+          name={naming.name}
+          saving={senderName.isPending}
+          onClose={() => setNaming(null)}
+          onSave={(name) => saveSenderName(naming.mailboxId, name)}
+        />
+      )}
       <SettingsConfirmDialog
         isOpen={leaving !== null}
         onOpenChange={(open) => !open && setLeaving(null)}
@@ -237,6 +272,9 @@ function LabelMenu(props: {
   label: string | null;
   onEdit: () => void;
   onClear: () => void;
+  senderName: string | null;
+  onSenderName: () => void;
+  onClearSenderName: () => void;
   onReconnect?: (() => void) | undefined;
 }) {
   return (
@@ -250,6 +288,10 @@ function LabelMenu(props: {
         },
         ...(props.label
           ? [{ icon: IconTrash, label: "Remove label", onAction: props.onClear }]
+          : []),
+        { icon: IconSignature, label: "Sender name", onAction: props.onSenderName },
+        ...(props.senderName
+          ? [{ icon: IconTrash, label: "Remove sender name", onAction: props.onClearSenderName }]
           : []),
         ...(props.onReconnect
           ? [{ icon: IconArrowRotateClockwise, label: "Reconnect", onAction: props.onReconnect }]

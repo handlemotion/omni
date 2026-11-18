@@ -1,4 +1,4 @@
-import { forwardingFor, labelMailbox } from "@omni/db";
+import { forwardingFor, setInboxNames } from "@omni/db";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -11,14 +11,16 @@ const forwardingBody = z.object({
   scope: z.enum(["sent", "conversations", "all"]).default("conversations"),
 });
 
-const labelBody = z.object({
-  label: z
+const optionalName = (max: number) =>
+  z
     .string()
     .trim()
-    .max(40)
+    .max(max)
     .nullable()
-    .transform((label) => label || null),
-});
+    .transform((name) => name || null);
+
+const labelBody = z.object({ label: optionalName(40) });
+const senderNameBody = z.object({ senderName: optionalName(80) });
 
 export const forwarding = new Hono<AppEnv>()
   .get("/forwarding", async (c) => {
@@ -48,12 +50,23 @@ export const forwarding = new Hono<AppEnv>()
   })
 
   .put("/mailboxes/:id/label", zValidator("json", labelBody), async (c) => {
-    const labelled = await labelMailbox(c.var.db, {
+    const labelled = await setInboxNames(c.var.db, {
       userId: c.var.user.id,
       scopeOrgId: c.var.user.scopeOrgId,
       mailboxId: c.req.param("id"),
       label: c.req.valid("json").label,
     });
     if (!labelled) throw new HTTPException(404, { message: "mailbox not found" });
+    return c.json({ ok: true as const });
+  })
+
+  .put("/mailboxes/:id/sender-name", zValidator("json", senderNameBody), async (c) => {
+    const named = await setInboxNames(c.var.db, {
+      userId: c.var.user.id,
+      scopeOrgId: c.var.user.scopeOrgId,
+      mailboxId: c.req.param("id"),
+      senderName: c.req.valid("json").senderName,
+    });
+    if (!named) throw new HTTPException(404, { message: "mailbox not found" });
     return c.json({ ok: true as const });
   });

@@ -738,6 +738,8 @@ export async function saveMailbox(
     ownerMemberId: string | null;
     /** The account's picture from its provider. Absent keeps the one saved. */
     picture?: string | null;
+    /** The account's name from its provider: the From name until the owner sets their own. */
+    senderName?: string;
   },
 ) {
   if (input.ownerMemberId === null && input.kind !== "personal") {
@@ -755,6 +757,7 @@ export async function saveMailbox(
         provider: input.provider,
         credentialsEnc: input.credentialsEnc,
         picture: input.picture ?? null,
+        senderName: input.senderName ?? null,
       })
       .onConflictDoUpdate({
         target: mailboxes.id,
@@ -763,6 +766,9 @@ export async function saveMailbox(
           provider: input.provider,
           credentialsEnc: input.credentialsEnc,
           ...(input.picture !== undefined ? { picture: input.picture } : {}),
+          ...(input.senderName
+            ? { senderName: sql`coalesce(${mailboxes.senderName}, ${input.senderName})` }
+            : {}),
           status: "pending",
           updatedAt: new Date(),
         },
