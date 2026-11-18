@@ -51,7 +51,7 @@ export function useMoveToTrash() {
 
 /** `mutate({ threadId, messageId })`: leaves the mailing list that message came from. */
 export function useUnsubscribe() {
-  return useKeyedMutation(unsubscribeMutation());
+  return useKeyedMutation(unsubscribeMutation(useQueryClient()));
 }
 
 /** `mutate({ threadId, destination })`, where `destination` is an IMAP folder path. */

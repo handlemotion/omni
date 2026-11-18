@@ -158,10 +158,9 @@ async function triage(c: Context<AppEnv>, patch: TriagePatch) {
   return c.json({ state: applied.state });
 }
 
-function threadResponse(
-  thread: NonNullable<Awaited<ReturnType<MemberQueries["getThread"]>>>,
-  memberId: string,
-) {
+type FullThread = NonNullable<Awaited<ReturnType<MemberQueries["getThread"]>>>;
+
+function threadResponse(thread: FullThread, memberId: string) {
   const self = thread.mailboxAddress.toLowerCase();
   const added = addedParticipants(thread.messages);
   return {
@@ -173,6 +172,7 @@ function threadResponse(
         attachments,
         listUnsubscribe,
         listUnsubscribeOneClick,
+        unsubscribed,
         ...message
       } = row;
       const fromTeam = message.fromAddress.toLowerCase() === self;
@@ -184,6 +184,7 @@ function threadResponse(
         unsubscribe: unsubscribe && {
           kind: unsubscribe.kind,
           url: unsubscribe.kind === "link" ? unsubscribe.url : null,
+          unsubscribed,
         },
         fromTeam,
         fromMe:

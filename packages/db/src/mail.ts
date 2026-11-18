@@ -46,6 +46,7 @@ export * from "./mail/forwarding.ts";
 export * from "./mail/mailbox-label.ts";
 export * from "./mail/dead-letters.ts";
 export * from "./mail/for-platform.ts";
+export * from "./mail/unsubscribes.ts";
 export {
   indexParticipants,
   participantsOf,

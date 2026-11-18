@@ -24,6 +24,7 @@ import {
   mailboxes,
   members,
   messageLocations,
+  listUnsubscribes,
   messages,
   notes,
   notifications,
@@ -1043,10 +1044,20 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
           .leftJoin(threadState, myState)
           .where(inArray(threads.id, ids)),
         db
-          .select(messageColumns)
+          .select({
+            ...messageColumns,
+            unsubscribed: sql<boolean>`coalesce(${messages.sentAt} <= ${listUnsubscribes.unsubscribedAt}, false)`,
+          })
           .from(messages)
           .innerJoin(...messageGrant)
           .innerJoin(...messageOrg)
+          .leftJoin(
+            listUnsubscribes,
+            and(
+              eq(listUnsubscribes.mailboxId, messages.mailboxId),
+              eq(listUnsubscribes.sender, sql`lower(${messages.fromAddress})`),
+            ),
+          )
           .where(inArray(messages.threadId, ids))
           .orderBy(messages.sentAt, messages.id),
         db

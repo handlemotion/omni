@@ -1,3 +1,4 @@
+import { recordUnsubscribe } from "@omni/db";
 import { unsubscribeMethod } from "@omni/mail-core/unsubscribe";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -49,6 +50,14 @@ export const unsubscribe = new Hono<AppEnv>().post(
     if (!method || method.kind === "link") {
       return apiError(c, "unprocessable_entity", "this message has no one-step unsubscribe");
     }
+    const left = (kind: "post" | "mail") =>
+      recordUnsubscribe(c.var.db, {
+        orgId: found.orgId,
+        mailboxId: found.mailboxId,
+        sender: message.fromAddress,
+        kind,
+        memberId: c.var.member.id,
+      });
     if (method.kind === "mail") {
       const action = await enqueueSend(
         c,
@@ -62,6 +71,7 @@ export const unsubscribe = new Hono<AppEnv>().post(
         },
         c.req.valid("header")["idempotency-key"],
       );
+      await left("mail");
       return c.json({ kind: "mail" as const, ...sendResponse(action) }, 202);
     }
     const accepted = await postOneClick(method.url, {
@@ -70,6 +80,7 @@ export const unsubscribe = new Hono<AppEnv>().post(
     if (!accepted) {
       return apiError(c, "bad_gateway", "the list did not accept the unsubscribe");
     }
+    await left("post");
     return c.json({ kind: "post" as const }, 200);
   },
 );

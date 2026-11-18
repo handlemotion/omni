@@ -46,6 +46,7 @@ async function newsletter(slug: string, uris: string[], oneClick = false) {
     subject: "This week's news",
     fromAddress: "news@lists.example.com",
     uid: 1,
+    sentAt: new Date(Date.now() - 60_000),
   });
   await db
     .update(schema.messages)
@@ -74,7 +75,7 @@ test("a mailto list is mailed once from the inbox, with the subject it names", a
     "mailto:leave-ab12@lists.example.com?subject=remove%20me",
     "https://lists.example.com/u/ab12",
   ]);
-  expect(await shown(threadId, cookie)).toEqual({ kind: "mail", url: null });
+  expect(await shown(threadId, cookie)).toEqual({ kind: "mail", url: null, unsubscribed: false });
 
   const first = await unsubscribe(threadId, messageId, cookie, "unsubscribe-1");
   expect(first.status).toBe(202);
@@ -102,12 +103,40 @@ test("a page-only list is opened by the app, and a one-click URL on a private ad
   expect(await shown(page.threadId, page.cookie)).toEqual({
     kind: "link",
     url: "https://lists.example.com/u/cd34",
+    unsubscribed: false,
   });
   const refused = await unsubscribe(page.threadId, page.messageId, page.cookie, "unsubscribe-2");
   expect(refused.status).toBe(422);
 
   const dead = await newsletter("unsub-dead", ["https://127.0.0.1/u"], true);
-  expect(await shown(dead.threadId, dead.cookie)).toEqual({ kind: "post", url: null });
+  expect(await shown(dead.threadId, dead.cookie)).toEqual({
+    kind: "post",
+    url: null,
+    unsubscribed: false,
+  });
   const failed = await unsubscribe(dead.threadId, dead.messageId, dead.cookie, "unsubscribe-3");
   expect(failed.status).toBe(502);
+  expect(await shown(dead.threadId, dead.cookie)).toMatchObject({ unsubscribed: false });
+});
+
+test("leaving a list sticks across reads, and the list's next issue offers it again", async () => {
+  const { inbox, threadId, messageId, cookie } = await newsletter("unsub-stick", [
+    "mailto:leave-ef56@lists.example.com",
+  ]);
+  const left = await unsubscribe(threadId, messageId, cookie, "unsubscribe-4");
+  expect(left.status).toBe(202);
+  expect(await shown(threadId, cookie)).toMatchObject({ unsubscribed: true });
+
+  const later = await seedMessage(database.db, inbox, {
+    subject: "Next week's news",
+    fromAddress: "News@Lists.Example.com",
+    uid: 2,
+    sentAt: new Date(Date.now() + 60_000),
+  });
+  await database.db
+    .update(schema.messages)
+    .set({ listUnsubscribe: ["mailto:leave-gh78@lists.example.com"] })
+    .where(eq(schema.messages.id, later.messageId));
+  expect(await shown(threadId, cookie)).toMatchObject({ unsubscribed: true });
+  expect(await shown(later.threadId, cookie)).toMatchObject({ unsubscribed: false });
 });

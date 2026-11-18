@@ -242,7 +242,7 @@ export const sendMutation = (client: QueryClient) =>
  * Leaves the mailing list `messageId` came from: the Worker posts the list's one-click URL or
  * queues its unsubscribe email. A list that only offers a page is opened by the app instead.
  */
-export const unsubscribeMutation = () =>
+export const unsubscribeMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
     mutationKey: [...keys.mail(), "unsubscribe"],
@@ -256,4 +256,5 @@ export const unsubscribeMutation = () =>
           json: { messageId },
         }),
       ),
+    onSuccess: (_data, { threadId }) => void invalidateThread(client, threadId),
   });
