@@ -15,7 +15,11 @@ import { PageNav, usePageNavShown } from "@/components/shell/page-nav";
 import { MiddleTruncate } from "@/components/ui/middle-truncate";
 import { ShowMore } from "@/components/ui/show-more";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { useLeaveOpenThread, useOpenList } from "@/components/inbox/open-list";
+import {
+  useLeaveOpenThread,
+  useOpenList,
+  usePrefetchNeighbours,
+} from "@/components/inbox/open-list";
 import { useConversation } from "@/hooks/use-conversation.ts";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useAllMailboxes, useThread } from "@/hooks/use-mail.ts";
@@ -49,6 +53,7 @@ const KEEP_LAST = 8;
 export function Conversation({ threadId }: { threadId: string }) {
   const { thread, pending, error } = useThread(threadId);
   useMarkReadOnOpen(thread);
+  usePrefetchNeighbours(threadId, !!thread);
   const shared = useAllMailboxes().data?.find((m) => m.id === thread?.mailboxId)?.kind === "shared";
   const { data: helpdesk } = useConversation(threadId, { enabled: shared });
   const navigate = useNavigate();

@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
-import { createContext, use } from "react";
+import { createContext, use, useEffect } from "react";
+import { usePrefetchThread } from "@/hooks/use-mail.ts";
 import type { ThreadView } from "@/lib/types.ts";
 import { leavesView } from "@/lib/threads.ts";
 import type { ListRow } from "./thread-list.tsx";
@@ -36,4 +37,22 @@ export function useLeaveOpenThread() {
     const href = neighbour ? list.href(neighbour) : list.closeHref;
     if (href) void navigate({ href });
   };
+}
+
+const AHEAD = [1, 2, -1];
+
+/**
+ * Once the open thread has loaded, fetches its neighbours in the list, so stepping through or
+ * clearing the list opens each next thread from the cache.
+ */
+export function usePrefetchNeighbours(threadId: string, loaded: boolean) {
+  const list = useOpenList();
+  const prefetch = usePrefetchThread();
+  const ids = list?.rows.map((r) => r.id);
+  const at = ids?.indexOf(threadId) ?? -1;
+  const neighbours = at === -1 ? "" : AHEAD.map((step) => ids?.[at + step] ?? "").join(" ");
+  useEffect(() => {
+    if (!loaded) return;
+    for (const id of neighbours.split(" ")) if (id) prefetch(id);
+  }, [loaded, neighbours, prefetch]);
 }

@@ -14,6 +14,7 @@ import {
   threadQuery,
   threadsQuery,
 } from "../lib/mail-queries.ts";
+import { warmThreadHtml } from "../lib/message-html.ts";
 import type { PendingSend } from "../lib/pending.ts";
 import { keys } from "../lib/query-keys.ts";
 import type { ThreadFilter } from "../lib/types.ts";
@@ -79,14 +80,20 @@ export function useSearch(q: string, mailbox?: string) {
   return useQuery({ ...searchQuery(q, mailbox), placeholderData: keepPreviousData });
 }
 
+const PREFETCH_FRESH = 30_000;
+
 /**
- * Returns a function that warms a thread's cache: call it on hover or focus of a list row so
- * opening the thread renders instantly.
+ * Returns a function that warms a thread before it opens: its messages in the query cache and
+ * the HTML of its newest full messages in the browser's cache, so it renders without waiting.
+ * Called on a row's hover, on j/k, and for the open thread's neighbours.
  */
 export function usePrefetchThread() {
   const client = useQueryClient();
   return useCallback(
-    (threadId: string) => void client.prefetchQuery(threadQuery(threadId)),
+    (threadId: string) =>
+      void client
+        .fetchQuery({ ...threadQuery(threadId), staleTime: PREFETCH_FRESH })
+        .then(warmThreadHtml, () => undefined),
     [client],
   );
 }

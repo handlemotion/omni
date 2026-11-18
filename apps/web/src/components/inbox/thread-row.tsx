@@ -1,8 +1,24 @@
+import { useRef } from "react";
 import { SkeletonBox } from "skullet/react";
 import { ConversationMeta, rowTime } from "@/components/inbox/conversation-meta";
 import { SenderAvatar, byAddress } from "@/components/avatar/sender-avatar";
 import { GridListHeader, GridListItem } from "@/components/ui/grid-list";
 import type { ListRow } from "@/components/inbox/thread-list";
+import { usePrefetchThread } from "@/hooks/use-mail.ts";
+
+const HOVER_INTENT = 80;
+
+function useHoverIntent(threadId: string) {
+  const prefetch = usePrefetchThread();
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  return {
+    start: () => {
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => prefetch(threadId), HOVER_INTENT);
+    },
+    end: () => clearTimeout(timer.current),
+  };
+}
 
 export function ThreadRow({
   thread,
@@ -15,10 +31,13 @@ export function ThreadRow({
 }) {
   const sender = thread.sender;
   const tone = thread.unread ? "text-foreground" : "text-muted-foreground";
+  const hover = useHoverIntent(thread.id);
   return (
     <GridListItem
       id={thread.id}
       href={href}
+      onHoverStart={hover.start}
+      onHoverEnd={hover.end}
       textValue={`${sender} ${thread.subject}`}
       className={`mx-2.5 h-10 gap-3 rounded-lg px-3 selected:bg-primary-subtle **:data-[slot=indicator]:mix-blend-multiply ${isCurrent ? "bg-accent" : ""}`}
     >

@@ -20,6 +20,7 @@ import { Tag, TagGroup, TagList } from "@/components/ui/tag-group";
 import { appToast } from "@/components/ui/toast";
 import { Toolbar } from "@/components/ui/toolbar";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
+import { opensFull } from "@/lib/message-html.ts";
 import type { PendingSend } from "@/lib/pending.ts";
 import type { Message } from "@/lib/types.ts";
 import { AttachmentChips } from "./attachments.tsx";
@@ -428,12 +429,6 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
       <DescriptionDetails>{children}</DescriptionDetails>
     </>
   );
-}
-
-function opensFull(message: Message) {
-  if (!message.hasHtml) return false;
-  if (!message.cleanText.trim()) return true;
-  return !message.fromTeam && (message.remoteImageCount > 0 || /\[image: /.test(message.cleanText));
 }
 
 /** A reply sent from here that has not come back as a message yet. */
