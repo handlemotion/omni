@@ -168,3 +168,41 @@ test("an invitation must give an inbox; shared ones are joined on accepting", as
   });
   expect(boInvites.status).toBe(403);
 });
+
+test("an invitation to an address Omni hosts is refused, since nobody could open it", async () => {
+  const owner = await stack.workspaceWithDomain();
+  const domain = `hosted-${tag()}.test`;
+  await stack.database.db
+    .insert(schema.mailDomains)
+    .values({ orgId: owner.orgId, domain, provider: "purelymail" });
+  const email = `ana@${domain}`;
+  const invited = await api(owner.jar, "POST", "/workspace/invitations", {
+    email,
+    inbox: placement(owner.domainId, `ana${tag()}`),
+  });
+  expect(invited.status).toBe(422);
+  const made = await stack.database.db
+    .select({ id: schema.invitations.id })
+    .from(schema.invitations)
+    .where(eq(schema.invitations.email, email));
+  expect(made).toEqual([]);
+});
+
+test("hosting the only address someone signs in with is refused until they add another", async () => {
+  const owner = await stack.workspaceWithDomain();
+  const { db } = stack.database;
+  await db
+    .update(schema.mailDomains)
+    .set({ provider: "purelymail" })
+    .where(eq(schema.mailDomains.orgId, owner.orgId));
+  const local = `ana${tag()}`;
+  const email = `${local}@${owner.domain}`;
+  const ana = await createMember(db, owner.orgId, email);
+  await db.update(schema.users).set({ emailVerified: true }).where(eq(schema.users.email, email));
+  const issued = await api(owner.jar, "POST", `/workspace/members/${ana.id}/inboxes`, {
+    domainId: owner.domainId,
+    localPart: local,
+  });
+  expect(issued.status).toBe(409);
+  expect(issued.body.error).toContain("outside Omni");
+});

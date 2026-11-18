@@ -3,6 +3,7 @@ import {
   ensureMailboxTeam,
   listMemberDomains,
   listWorkspaceMailboxes,
+  readableOnlyInOmni,
   reserveInvitationInbox,
   schema,
 } from "@omni/db";
@@ -49,6 +50,11 @@ export const workspaceInvitations = new Hono<AppEnv>()
     if (!body.inbox && body.sharedInboxIds.length === 0 && (await canGiveInbox(c, shared))) {
       throw new HTTPException(422, {
         message: "give them an inbox: their own, or a shared one to be on",
+      });
+    }
+    if (await readableOnlyInOmni(db, body.email)) {
+      throw new HTTPException(422, {
+        message: `Omni hosts ${body.email}, so they couldn't open the invitation: invite the email they use today`,
       });
     }
     const teamIds: string[] = [];

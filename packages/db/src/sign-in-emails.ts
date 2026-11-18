@@ -3,6 +3,7 @@ import { and, eq, sql, TransactionRollbackError } from "drizzle-orm";
 import type { Db } from "./client.ts";
 import { omniHostedAddresses } from "./mail.ts";
 import { users, verifications } from "./schema/auth.ts";
+import { mailDomains } from "./schema/domains.ts";
 import { userEmails } from "./schema/identity.ts";
 
 /** A link to add an address works for an hour, once. */
@@ -92,6 +93,40 @@ export async function magicLinkRecipient(db: Db, email: string) {
   return own.find((other) => !hosted.has(other)) ?? address;
 }
 
+/**
+ * Whether mail to `email` can only be read inside Omni by someone already signed in, so a link
+ * mailed to it can't be opened (ADR 0048): Omni hosts the address or its domain, and the address
+ * doesn't belong to someone whose sign-in links go to an outside address.
+ */
+export async function readableOnlyInOmni(db: Db, email: string) {
+  const address = normalizeAddress(email);
+  if ((await magicLinkRecipient(db, address)) !== address) return false;
+  if ((await omniHostedAddresses(db, [address])).has(address)) return true;
+  const domain = address.slice(address.lastIndexOf("@") + 1);
+  const [hosted] = await db
+    .select({ id: mailDomains.id })
+    .from(mailDomains)
+    .where(and(eq(mailDomains.domain, domain), eq(mailDomains.provider, "purelymail")))
+    .limit(1);
+  return hosted !== undefined;
+}
+
+/**
+ * Whether hosting `email` in Omni would leave its owner no address to receive sign-in links at
+ * (ADR 0048): it signs someone in, and every other verified address of theirs is hosted too.
+ */
+export async function hostingStrandsSignIn(db: Db, email: string) {
+  const address = normalizeAddress(email);
+  const owner = await findEmailOwner(db, address);
+  if (!owner?.verified) return false;
+  const own = (await listSignInEmails(db, owner.userId))
+    .filter((row) => row.verified)
+    .map((row) => normalizeAddress(row.email));
+  const hosted = await omniHostedAddresses(db, own);
+  hosted.add(address);
+  return own.every((other) => hosted.has(other));
+}
+
 export type StartSignInEmailResult =
   | { status: "sent"; token: string; email: string; expiresAt: Date }
   | { status: "yours" }
@@ -153,10 +188,24 @@ export type RemoveSignInEmailResult =
   | { status: "removed" }
   | { status: "not_found" }
   | { status: "primary" }
-  | { status: "last_verified" };
+  | { status: "last_verified" }
+  | { status: "last_outside" };
+
+async function isLastOutsideAddress(db: Db, userId: string, email: string) {
+  const own = (await listSignInEmails(db, userId))
+    .filter((row) => row.verified)
+    .map((row) => normalizeAddress(row.email));
+  if (own.length < 2) return false;
+  const hosted = await omniHostedAddresses(db, own);
+  const outside = own.filter((address) => !hosted.has(address));
+  return outside.length === 1 && outside[0] === email;
+}
 
 export async function removeSignInEmail(db: Db, input: { userId: string; email: string }) {
   const email = normalizeAddress(input.email);
+  if (await isLastOutsideAddress(db, input.userId, email)) {
+    return { status: "last_outside" } satisfies RemoveSignInEmailResult;
+  }
   return db
     .transaction(async (tx) => {
       const [user] = await tx

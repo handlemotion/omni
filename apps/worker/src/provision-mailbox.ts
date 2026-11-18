@@ -3,7 +3,7 @@ import {
   provisionMailboxResultSchema,
   type ProvisionMailboxBody,
 } from "@omni/contracts";
-import { findMemberDomain, mailboxAtAddress, workspaceKind } from "@omni/db";
+import { findMemberDomain, hostingStrandsSignIn, mailboxAtAddress, workspaceKind } from "@omni/db";
 import { mailboxAddress } from "@omni/mail-core/domains";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -129,6 +129,14 @@ export async function provisionMailbox(
         existing.kind === "personal"
           ? `${address} is already someone's personal inbox`
           : `${address} is already a shared mailbox`,
+    });
+  }
+  if (!existing && domain.provider === "purelymail" && (await hostingStrandsSignIn(db, address))) {
+    throw new HTTPException(409, {
+      message:
+        address === user.email.toLowerCase()
+          ? `add a sign-in email outside Omni first: once Omni hosts ${address}, its sign-in links go there`
+          : `${address} signs someone in who has no other email; they need to add one outside Omni first`,
     });
   }
   return callMailService(

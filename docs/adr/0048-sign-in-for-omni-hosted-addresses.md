@@ -32,14 +32,31 @@ up with, or a verified extra sign-in email.
 4. **The sign-in endpoint answers alike either way.** It never says where the link went, so it
    does not reveal a person's outside address or whether the typed one is hosted.
 
+### Keeping an outside address (amended 2026-11-18)
+
+5. **The last outside address stays.** Removing a sign-in email is refused (`409`) when it is the
+   person's last verified address Omni does not host and they have other addresses: their hosted
+   ones would have nowhere to send links.
+6. **Omni never starts hosting someone's only address.** Making a new mailbox on Omni's mail host
+   is refused (`409`) when its address is a verified sign-in address whose owner has no other
+   address outside Omni. The owner adds one in Settings first (their session is unscoped in
+   onboarding, before their domain is locked); for a teammate, the admin asks them to.
+7. **An invitation goes to an address its invitee can read.** Inviting an address Omni hosts (its
+   mailbox or its domain on Omni's mail host) is refused (`422`) unless it already belongs to
+   someone whose links go elsewhere. The admin invites the email the person uses today and gives
+   them the hosted inbox with the invitation (ADR 0026); onboarding's invite step shows the
+   refusal.
+
+Accounts already start safely: sign-up needs a confirmed address (a magic link opened, or Google's
+`email_verified`), and nothing but "Make primary" changes the primary.
+
 ## Consequences
 
 - People with a Gmail (or any outside address) in their cluster sign in with their hosted address
   again, from any device, with no new credential to store, reset or phish.
-- A person whose only address is one Omni hosts is still stuck until they are signed in on another
-  device. The follow-up, not built here: a scoped session may add a recovery-only address (it
-  receives links for the hosted address, never signs in by itself, so it cannot widen the scope
-  ADR 0024 guards), and an invitation to a hosted address can be sent to a personal one.
+- Decisions 5 to 7 keep new accounts from ending up with only hosted addresses. Someone already
+  in that state (hosted before this change) still needs another signed-in device; a recovery-only
+  address addable from a scoped session would cover them and is not built.
 - The per-address magic-link rate limit (ADR 0018) still counts the typed address, so a person's
   outside inbox can get up to that limit once for each hosted address they have.
 - `apps/worker/e2e/session-scope.e2e.test.ts` proves the link reaches the outside address and the

@@ -200,6 +200,21 @@ test("a link for an address Omni hosts goes to the person's outside address, sti
   expect(await threadOrgs(jar)).toEqual(new Set([a.acme.orgId]));
 });
 
+test("the last outside address can't be removed while an address Omni hosts relies on it", async () => {
+  const a = await ana();
+  const jar = await signedIn(a.personal);
+  await createMailbox(database.db, a.acme.orgId, a.work, "personal");
+  const removed = await api(jar, `/account/emails/${encodeURIComponent(a.personal)}`, {
+    method: "DELETE",
+  });
+  expect(removed.status).toBe(409);
+  const [kept] = await database.db
+    .select({ email: schema.userEmails.email })
+    .from(schema.userEmails)
+    .where(eq(schema.userEmails.userId, a.userId));
+  expect(kept?.email).toBe(a.personal);
+});
+
 test("a scoped session cannot add a sign-in method, create a company or join another", async () => {
   const { db } = database;
   const a = await ana();

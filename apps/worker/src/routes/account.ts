@@ -134,5 +134,10 @@ export const account = new Hono<AppEnv>()
     if (result.status === "last_verified") {
       throw new HTTPException(409, { message: "keep at least one verified address" });
     }
+    if (result.status === "last_outside") {
+      throw new HTTPException(409, {
+        message: "keep one email outside Omni: sign-in links for your Omni addresses go there",
+      });
+    }
     return c.json({ ok: true as const });
   });
