@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { createOrgWithOwner } from "@omni/db";
+import { createOrgWithOwner, schema } from "@omni/db";
+import { eq } from "drizzle-orm";
 import { chromium, type Browser } from "playwright-core";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import {
@@ -8,7 +9,6 @@ import {
   createOrg,
   createTestDatabase,
   grant,
-  sentMail,
   signIn,
   startMailServiceEndpoint,
   startWorkerWithNetwork,
@@ -44,20 +44,25 @@ afterAll(async () => {
   await database?.teardown();
 });
 
-test("sign-in emails and connected inboxes share one row per address", async () => {
+test("sign-in addresses and inboxes: a Gmail address is an inbox switched off until turned on", async () => {
   const system = await createOrg(db, "system");
   await createMailbox(db, system.id, SYSTEM_MAIL_FROM);
   const email = "rodrigo@chowmein.test";
-  const gmail = "rodrigo.side@gmail.test";
+  const gmail = "rodrigo.side@gmail.com";
+  const connected = "connected@gmail.com";
   const org = await createOrgWithOwner(db, {
     name: "Chow Mein",
     slug: "chowmein",
     ownerEmail: email,
   });
-  for (const address of [email, gmail]) {
-    const box = await createMailbox(db, org.orgId, address, "personal", "gmail");
-    await grant(db, org.orgId, box.id, org.memberId);
-  }
+  const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email));
+  await db
+    .insert(schema.userEmails)
+    .values({ userId: user!.id, email: gmail, verifiedAt: new Date() });
+  const hosted = await createMailbox(db, org.orgId, email, "personal");
+  await grant(db, org.orgId, hosted.id, org.memberId);
+  const box = await createMailbox(db, org.orgId, connected, "personal", "gmail");
+  await grant(db, org.orgId, box.id, org.memberId);
 
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, email);
@@ -71,26 +76,36 @@ test("sign-in emails and connected inboxes share one row per address", async () 
   const page = await context.newPage();
   await page.goto(new URL("/chowmein/settings/accounts", origin).toString());
 
-  await page.getByText("Sign in · Inbox syncing", { exact: true }).waitFor();
-  await expect(page.getByText(email, { exact: true }).count()).resolves.toBe(1);
-  await page.getByText("Inbox syncing", { exact: true }).waitFor();
+  const inbox = (address: string) => page.getByRole("switch", { name: address });
+  await expect.poll(() => inbox(connected).isChecked()).toBe(true);
+  expect(await inbox(gmail).isChecked()).toBe(false);
+  expect(await inbox(email).isChecked()).toBe(true);
+  expect(await inbox(email).isDisabled()).toBe(true);
+  expect(await page.getByText("Primary", { exact: true }).count()).toBe(0);
 
-  await page.getByRole("button", { name: `Actions for ${gmail}` }).click();
-  await page.getByRole("menuitem", { name: "Sign in with it" }).click();
-  await expect.poll(async () => (await sentMail(worker, gmail)).length).toBe(1);
+  await page.getByRole("button", { name: `Actions for ${email}` }).click();
+  await page.getByRole("menuitem", { name: "Stop signing in with it" }).click();
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const [after] = await db
+        .select({ email: schema.users.email })
+        .from(schema.users)
+        .where(eq(schema.users.id, user!.id));
+      const extras = await db
+        .select({ email: schema.userEmails.email })
+        .from(schema.userEmails)
+        .where(eq(schema.userEmails.userId, user!.id));
+      return { primary: after?.email, extras: extras.map((row) => row.email) };
+    })
+    .toEqual({ primary: gmail, extras: [] });
 
   await page.route("https://accounts.google.com/**", (route) => route.abort());
   const consent = page.waitForRequest((request) =>
     request.url().startsWith("https://accounts.google.com/"),
   );
-  await page.getByRole("button", { name: "Add an email" }).click();
-  await page.getByRole("textbox", { name: "Email" }).fill("ana@elsewhere.test");
-  const dialog = page.getByRole("dialog");
-  await dialog.getByText("Sign in", { exact: true }).click();
-  await dialog.getByText("Inbox", { exact: true }).click();
-  await dialog.getByRole("button", { name: "Connect" }).click();
-  expect(new URL((await consent).url()).searchParams.get("login_hint")).toBe("ana@elsewhere.test");
-  expect(await sentMail(worker, "ana@elsewhere.test")).toEqual([]);
+  await page.getByText(gmail, { exact: true }).last().click();
+  expect(new URL((await consent).url()).searchParams.get("login_hint")).toBe(gmail);
   await context.close();
 });
 

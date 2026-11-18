@@ -70,7 +70,8 @@ export const useAccountPages: () => PageDefinition[] = () => {
         terms: [
           "email",
           "sign-in emails",
-          "primary",
+          "sign in",
+          "create inbox",
           "google",
           "gmail",
           "connect",
