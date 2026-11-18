@@ -18,6 +18,7 @@ export type CustomerMatch = InferResponseType<Api["customers"]["$get"], 200>["cu
 export type Draft = InferResponseType<Api["drafts"][":id"]["$get"], 200>;
 export type DraftContent = Omit<InferRequestType<Api["drafts"][":id"]["$put"]>["json"], "version">;
 export type NewDraft = InferRequestType<Api["drafts"]["$post"]>["json"];
+export type DraftList = InferResponseType<Api["drafts"]["$get"], 200>;
 export type SendAttachment = NonNullable<
   InferRequestType<Api["send"]["$post"]>["json"]["attachments"]
 >[number];
