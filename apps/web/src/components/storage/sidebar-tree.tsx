@@ -66,6 +66,8 @@ function Clusters(props: { space: StorageSpace; search: string }) {
 
 function Cluster(props: { node: StorageNode; icon: string | undefined; search: string }) {
   const open = useSidebarExpanded("drive", props.node.id);
+  const list = useStorageList({ parentId: props.node.id });
+  const hasFolders = list.isPending || list.nodes.some((node) => node.kind === "folder");
   return (
     <>
       <FolderRow
@@ -73,9 +75,9 @@ function Cluster(props: { node: StorageNode; icon: string | undefined; search: s
         icon={props.icon}
         depth={1}
         search={props.search}
-        expand={open}
+        expand={hasFolders ? open : undefined}
       />
-      {open.value && <ClusterFolders node={props.node} search={props.search} />}
+      {hasFolders && open.value && <ClusterFolders node={props.node} search={props.search} />}
     </>
   );
 }
@@ -100,7 +102,7 @@ function FolderRow(props: {
   icon?: string | undefined;
   depth: number;
   search: string;
-  expand?: { value: boolean; toggle: () => void };
+  expand?: { value: boolean; toggle: () => void } | undefined;
   cluster?: StorageNode;
 }) {
   const { node, cluster } = props;
