@@ -48,7 +48,7 @@ const KEEP_LAST = 8;
 
 /**
  * The open conversation beside the list: its actions and subject, then the messages
- * oldest first, ending at the newest with the reply box under it.
+ * oldest first, ending at the newest, with the reply box docked at the bottom.
  */
 export function Conversation({ threadId }: { threadId: string }) {
   const { thread, pending, error } = useThread(threadId);
@@ -122,7 +122,6 @@ export function Conversation({ threadId }: { threadId: string }) {
             {pending.map((send) => (
               <PendingItem key={send.key} send={send} />
             ))}
-            {!single && <ReplyComposer thread={thread} />}
           </div>
           <Foot thread={thread} reader={single ? reader : undefined} />
         </div>
@@ -162,7 +161,9 @@ function Foot({
         <FloatingPager index={reader.index} count={thread.messages.length} onMove={reader.move} />
       )}
       <FloatingReply thread={thread} messageId={reader?.email?.id} />
-      {reader && <ReplyComposer thread={thread} docked />}
+      <div className={reader ? undefined : "mx-auto w-full max-w-3xl"}>
+        <ReplyComposer thread={thread} />
+      </div>
       <ChatDock thread={thread} />
     </div>
   );

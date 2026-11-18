@@ -1,6 +1,6 @@
 import type { NewMessageDraft } from "@/hooks/use-compose-pane.ts";
 import { useYourMailboxes } from "@/hooks/use-mailbox-identity.ts";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DropZone } from "react-aria-components/DropZone";
 import {
   IconChevronDown,
@@ -139,40 +139,26 @@ function recipientsFor(kind: ReplyKind, thread: Thread, source: Message | undefi
 }
 
 /**
- * The email being written (a reply, or a forward picked from a message's menu), as the thread's
- * next message: a card at the end of the timeline, once Reply or Forward opens it. A shared
- * inbox's hidden notes have their own composer floating at the pane's bottom (`ChatDock`). Replies go from the inbox's address with your name; they
- * show in the thread at once and can be undone while they wait in the outbox. From one of your own
- * mailboxes instead, a reply hands the conversation off to you (ADR 0030).
+ * The email being written (a reply, or a forward picked from a message's menu), docked at the
+ * bottom of the conversation once Reply or Forward opens it. A shared inbox's hidden notes have
+ * their own composer floating at the pane's bottom (`ChatDock`). Replies go from the inbox's
+ * address with your name; they show in the thread at once and can be undone while they wait in
+ * the outbox. From one of your own mailboxes instead, a reply hands the conversation off to you
+ * (ADR 0030).
  */
-export function ReplyComposer({ thread, docked = false }: { thread: Thread; docked?: boolean }) {
+export function ReplyComposer({ thread }: { thread: Thread }) {
   const state = useComposerState();
   const showing = state.email && state.mode === "public";
-  const box = useRef<HTMLDivElement>(null);
   const key = `${thread.id}:${state.forwardId ? `forward:${state.forwardId}` : `reply:${state.replyToId ?? ""}`}:${state.generation}`;
-  useLayoutEffect(() => {
-    if (showing && !docked) box.current?.scrollIntoView({ block: "nearest" });
-  }, [showing, docked, key]);
   if (!state.email) return null;
   return (
-    <div
-      ref={box}
-      hidden={!showing}
-      className={docked ? "relative px-5 pb-4" : "flex flex-col items-end gap-3"}
-    >
-      {!docked && (
-        <header className="flex items-center gap-2">
-          <span className="text-sm">You</span>
-        </header>
-      )}
-      <div className="relative w-full">
-        <ModeComposer
-          key={key}
-          thread={thread}
-          mode={state.forwardId ? "forward" : "reply"}
-          sourceId={state.forwardId ?? state.replyToId}
-        />
-      </div>
+    <div hidden={!showing} className="relative px-5 pb-4">
+      <ModeComposer
+        key={key}
+        thread={thread}
+        mode={state.forwardId ? "forward" : "reply"}
+        sourceId={state.forwardId ?? state.replyToId}
+      />
     </div>
   );
 }
