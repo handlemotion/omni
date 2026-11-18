@@ -877,7 +877,7 @@ function Body(props: {
         }
       }}
       data-composer-body
-      className={`${props.fill ? "min-h-24 flex-1" : "max-h-[min(24rem,30vh)] min-h-24"} resize-none px-3 pt-3 pb-1 sm:px-3 sm:pt-3 sm:pb-1`}
+      className={`${props.fill ? "min-h-24 flex-1" : "max-h-[min(24rem,30vh)] min-h-24"} resize-none overscroll-contain px-3 pt-3 pb-1 sm:px-3 sm:pt-3 sm:pb-1`}
     />
   );
 }
