@@ -213,6 +213,17 @@ test("the last outside address can't be removed while an address Omni hosts reli
     .from(schema.userEmails)
     .where(eq(schema.userEmails.userId, a.userId));
   expect(kept?.email).toBe(a.personal);
+
+  const second = `ana-${randomUUID().slice(0, 8)}@outlook.test`;
+  await database.db
+    .insert(schema.userEmails)
+    .values({ userId: a.userId, email: second, verifiedAt: new Date() });
+  const both = await Promise.all(
+    [a.personal, second].map((email) =>
+      api(jar, `/account/emails/${encodeURIComponent(email)}`, { method: "DELETE" }),
+    ),
+  );
+  expect(both.map((r) => r.status).toSorted()).toEqual([200, 409]);
 });
 
 test("a scoped session cannot add a sign-in method, create a company or join another", async () => {

@@ -203,9 +203,6 @@ async function isLastOutsideAddress(db: Db, userId: string, email: string) {
 
 export async function removeSignInEmail(db: Db, input: { userId: string; email: string }) {
   const email = normalizeAddress(input.email);
-  if (await isLastOutsideAddress(db, input.userId, email)) {
-    return { status: "last_outside" } satisfies RemoveSignInEmailResult;
-  }
   return db
     .transaction(async (tx) => {
       const [user] = await tx
@@ -215,6 +212,9 @@ export async function removeSignInEmail(db: Db, input: { userId: string; email: 
         .for("update");
       if (!user) return { status: "not_found" as const };
       if (user.email.toLowerCase() === email) return { status: "primary" as const };
+      if (await isLastOutsideAddress(tx, input.userId, email)) {
+        return { status: "last_outside" as const };
+      }
       const removed = await tx
         .delete(userEmails)
         .where(and(eq(userEmails.userId, input.userId), eq(sql`lower(${userEmails.email})`, email)))
