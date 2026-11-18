@@ -1,10 +1,16 @@
 import { Google } from "@ridemountainpig/svgl-react";
 import { useState } from "react";
 import { Skeleton } from "skullet/react";
-import { IconInbox } from "@/components/icons/central";
+import {
+  IconArrowRotateClockwise,
+  IconInbox,
+  IconTag,
+  IconTrash,
+} from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { appToast } from "@/components/ui/toast";
 import { useMailboxes } from "@/hooks/use-mail.ts";
+import { useLabelMailbox, useYourMailboxes } from "@/hooks/use-mailbox-identity.ts";
 import { useOnboarding } from "@/hooks/use-onboarding.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useSignInEmails } from "@/hooks/use-sign-in-emails.ts";
@@ -15,7 +21,8 @@ import {
 } from "@/hooks/use-google-connection";
 import { SettingsAddRow } from "./kit/settings-add-row";
 import { SettingsGroup, SettingsSection } from "./kit/settings-layout";
-import { SettingsConfirmDialog } from "./kit/settings-stacked-dialog";
+import { SettingsRowMenu } from "./kit/settings-row-menu";
+import { SettingsConfirmDialog, SettingsRenameDialog } from "./kit/settings-stacked-dialog";
 import { SettingsToggleRow } from "./kit/settings-toggle-row";
 import { useOwnInboxCreation } from "./new-mailbox-dialog";
 import { isManager } from "./workspace-pages";
@@ -88,10 +95,26 @@ export function InboxesSection() {
   const disconnect = useDisconnectGoogle();
   const own = useOwnInboxCreation();
   const [leaving, setLeaving] = useState<{ mailboxId: string; address: string } | null>(null);
+  const [labelling, setLabelling] = useState<{ mailboxId: string; label: string } | null>(null);
+  const labelMailbox = useLabelMailbox();
+  const labels = new Map(useYourMailboxes().map((box) => [box.id, box.label]));
+  const saveLabel = (mailboxId: string, label: string | null) =>
+    labelMailbox.mutate(
+      { mailboxId, label },
+      {
+        onSuccess: () => setLabelling(null),
+        onError: (error) =>
+          appToast.error("Couldn't save the label", { description: error.message }),
+      },
+    );
 
   const googleReady = google.data?.available !== false;
   const canCreate = own.domains.length > 0 && (own.personal || isManager(member.role));
   const connected = new Set(google.data?.accounts.map((a) => a.mailboxId));
+  const owned = new Set([
+    ...connected,
+    ...(mailboxes.data ?? []).filter((m) => m.role === "owner").map((m) => m.id),
+  ]);
   const rows =
     google.data && emails.data && mailboxes.data
       ? inboxRows({
@@ -116,34 +139,56 @@ export function InboxesSection() {
       >
         {(list) => (
           <SettingsGroup>
-            {list.map((row) => (
-              <SettingsToggleRow
-                key={row.address}
-                id={`inbox-${row.address}`}
-                icon={row.kind === "google" ? GoogleGlyph : IconInbox}
-                label={row.address}
-                description={row.mailboxId ? STATUS[row.status ?? ""] : undefined}
-                checked={row.mailboxId !== undefined}
-                disabled={row.kind === "hosted" || (!row.mailboxId && !googleReady)}
-                trailing={
-                  row.status === "error" && (
-                    <Button
-                      size="sm"
-                      intent="outline"
-                      isPending={connect.isPending && connect.variables === row.address}
-                      onPress={() => connect.mutate(row.address)}
-                    >
-                      Reconnect
-                    </Button>
-                  )
-                }
-                onCheckedChange={(on) => {
-                  if (on) connect.mutate(row.address);
-                  else if (row.mailboxId)
-                    setLeaving({ mailboxId: row.mailboxId, address: row.address });
-                }}
-              />
-            ))}
+            {list.map((row) => {
+              const label = row.mailboxId ? labels.get(row.mailboxId) : undefined;
+              return (
+                <SettingsToggleRow
+                  key={row.address}
+                  id={`inbox-${row.address}`}
+                  icon={row.kind === "google" ? GoogleGlyph : IconInbox}
+                  label={row.address}
+                  hint={label ?? undefined}
+                  description={row.mailboxId ? STATUS[row.status ?? ""] : undefined}
+                  checked={row.mailboxId !== undefined}
+                  disabled={row.kind === "hosted" || (!row.mailboxId && !googleReady)}
+                  trailing={
+                    <>
+                      {row.status === "error" && (
+                        <Button
+                          size="sm"
+                          intent="outline"
+                          isPending={connect.isPending && connect.variables === row.address}
+                          onPress={() => connect.mutate(row.address)}
+                        >
+                          Reconnect
+                        </Button>
+                      )}
+                      {row.mailboxId && owned.has(row.mailboxId) && (
+                        <LabelMenu
+                          address={row.address}
+                          label={label ?? null}
+                          onEdit={() =>
+                            row.mailboxId &&
+                            setLabelling({ mailboxId: row.mailboxId, label: label ?? "" })
+                          }
+                          onClear={() => row.mailboxId && saveLabel(row.mailboxId, null)}
+                          onReconnect={
+                            row.kind === "google" && row.status !== "error"
+                              ? () => connect.mutate(row.address)
+                              : undefined
+                          }
+                        />
+                      )}
+                    </>
+                  }
+                  onCheckedChange={(on) => {
+                    if (on) connect.mutate(row.address);
+                    else if (row.mailboxId)
+                      setLeaving({ mailboxId: row.mailboxId, address: row.address });
+                  }}
+                />
+              );
+            })}
             {canCreate && <SettingsAddRow label="Create an inbox" onPress={own.open} />}
             {googleReady && (
               <SettingsAddRow
@@ -156,6 +201,17 @@ export function InboxesSection() {
         )}
       </Skeleton>
       {own.dialog}
+      {labelling && (
+        <SettingsRenameDialog
+          title="Label this inbox"
+          label="Label"
+          maxLength={40}
+          name={labelling.label}
+          saving={labelMailbox.isPending}
+          onClose={() => setLabelling(null)}
+          onSave={(label) => saveLabel(labelling.mailboxId, label)}
+        />
+      )}
       <SettingsConfirmDialog
         isOpen={leaving !== null}
         onOpenChange={(open) => !open && setLeaving(null)}
@@ -173,6 +229,33 @@ export function InboxesSection() {
         }
       />
     </SettingsSection>
+  );
+}
+
+function LabelMenu(props: {
+  address: string;
+  label: string | null;
+  onEdit: () => void;
+  onClear: () => void;
+  onReconnect?: (() => void) | undefined;
+}) {
+  return (
+    <SettingsRowMenu
+      label={`Inbox actions for ${props.address}`}
+      items={[
+        {
+          icon: IconTag,
+          label: props.label ? "Rename label" : "Add a label",
+          onAction: props.onEdit,
+        },
+        ...(props.label
+          ? [{ icon: IconTrash, label: "Remove label", onAction: props.onClear }]
+          : []),
+        ...(props.onReconnect
+          ? [{ icon: IconArrowRotateClockwise, label: "Reconnect", onAction: props.onReconnect }]
+          : []),
+      ]}
+    />
   );
 }
 

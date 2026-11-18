@@ -140,3 +140,46 @@ test("an owner sets forwarding on each personal mailbox, in a personal space and
     forwardAddress: "chowmein@attio.email",
   });
 });
+
+test("an owner labels their personal inbox and every workspace list shows it; a teammate on it, or a shared inbox, can't be labelled", async () => {
+  const { db } = database;
+  const company = await createOrg(db, "labels");
+  const cy = await createMember(db, company.id, "cy@labels.test");
+  const work = await mailboxOf(company.id, cy.id, "cy@labels.test", "personal", "owner");
+  const team = await mailboxOf(company.id, cy.id, "team@labels.test", "shared", "owner");
+  const di = await createMember(db, company.id, "di@labels.test");
+  await db
+    .insert(schema.mailboxAccess)
+    .values({ orgId: company.id, mailboxId: work.id, memberId: di.id });
+  const cyCookie = await signIn(worker, db, "cy@labels.test");
+  const diCookie = await signIn(worker, db, "di@labels.test");
+  const label = (cookie: string, mailboxId: string, value: string | null) =>
+    api(`/mailboxes/${mailboxId}/label`, cookie, {
+      method: "PUT",
+      body: JSON.stringify({ label: value }),
+    });
+  const labelsSeenBy = async (cookie: string) => {
+    const body = await (await api("/workspaces", cookie)).json();
+    return Object.fromEntries(
+      body.workspaces
+        .flatMap((w: { mailboxes: { address: string; label: string | null }[] }) => w.mailboxes)
+        .map((m: { address: string; label: string | null }) => [m.address, m.label]),
+    );
+  };
+
+  expect((await label(cyCookie, work.id, "  Work ")).status).toBe(200);
+  expect(await labelsSeenBy(cyCookie)).toEqual({
+    "cy@labels.test": "Work",
+    "team@labels.test": null,
+  });
+  const listed = await (await api("/mailboxes?scope=all", cyCookie)).json();
+  expect(listed.mailboxes.find((m: { id: string }) => m.id === work.id).label).toBe("Work");
+
+  expect((await label(diCookie, work.id, "Cy")).status).toBe(404);
+  expect((await label(cyCookie, team.id, "Team")).status).toBe(404);
+  expect((await label(cyCookie, work.id, "x".repeat(41))).status).toBe(400);
+  expect((await labelsSeenBy(cyCookie))["cy@labels.test"]).toBe("Work");
+
+  expect((await label(cyCookie, work.id, "")).status).toBe(200);
+  expect((await labelsSeenBy(cyCookie))["cy@labels.test"]).toBeNull();
+});

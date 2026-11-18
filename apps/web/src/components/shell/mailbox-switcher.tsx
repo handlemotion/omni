@@ -2,6 +2,7 @@ import { CheckIcon } from "@heroicons/react/20/solid";
 import { useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import type { CSSProperties } from "react";
+import { MailboxAvatar } from "@/components/avatar/mailbox-avatar";
 import { Avatar } from "@/components/ui/avatar";
 import { IconChevronsUpDown } from "@/components/icons/central";
 import { Loader } from "@/components/ui/loader";
@@ -11,35 +12,43 @@ import { appToast } from "@/components/ui/toast";
 import { useMember } from "@/hooks/use-session.ts";
 import { useOpenMailbox, useOpenWorkspace, useWorkspaces } from "@/hooks/use-workspaces.ts";
 import type { WorkspaceMailbox } from "@/lib/types.ts";
-import { pictureUrl } from "@/lib/urls.ts";
 
 const ROW = "min-h-12 rounded-sm ps-2.25 pe-4.5 py-2";
 const ROW_CONTENT = "col-span-full flex min-w-0 items-center gap-3";
 
-const BLANK_FACES: Face[] = ["a", "b"].map((key) => ({ key, name: "", image: null }));
+const BLANK_FACES: Face[] = ["a", "b"].map((key) => ({ key, name: "", mailbox: null }));
 
 const failed = () => appToast.error("The mailbox could not be opened. Try again.");
 
 interface Face {
   key: string;
   name: string;
-  image: string | null;
+  mailbox: WorkspaceMailbox | null;
 }
 
-/** What a mailbox is called: you, for your personal one; its local part for a shared one. */
+/**
+ * What a mailbox is called: its label ("Work"), else you for your personal one and its local
+ * part for a shared one.
+ */
 export function mailboxName(mailbox: WorkspaceMailbox, you: string) {
+  if (mailbox.label) return mailbox.label;
   if (mailbox.kind === "personal") return you;
   const local = mailbox.address.split("@")[0] ?? mailbox.address;
   return local.charAt(0).toUpperCase() + local.slice(1);
 }
 
+const FACE_CLASS =
+  "bg-[color-mix(in_oklab,var(--color-muted)_50%,var(--color-accent))] text-foreground outline-0 mix-blend-multiply";
+
 function FaceAvatar(props: { face: Face; size: number }) {
+  const style = { "--avatar-size": `${props.size}px` } as CSSProperties;
+  if (!props.face.mailbox) return <Avatar className={FACE_CLASS} style={style} />;
   return (
-    <Avatar
-      src={props.face.image}
-      initials={props.face.name.slice(0, 1).toUpperCase() || undefined}
-      className="bg-[color-mix(in_oklab,var(--color-muted)_50%,var(--color-accent))] text-foreground outline-0 mix-blend-multiply"
-      style={{ "--avatar-size": `${props.size}px` } as CSSProperties}
+    <MailboxAvatar
+      mailbox={props.face.mailbox}
+      name={props.face.name}
+      className={FACE_CLASS}
+      style={style}
     />
   );
 }
@@ -123,7 +132,7 @@ export function MailboxSwitcher() {
     ({
       key: mailbox.id,
       name: mailboxName(mailbox, you),
-      image: mailbox.kind === "personal" ? pictureUrl(user.image) : null,
+      mailbox,
     }) satisfies Face;
   const shown = mailboxes.find((box) => box.id === current);
   const pending = openWorkspace.isPending || openMailbox.isPending;

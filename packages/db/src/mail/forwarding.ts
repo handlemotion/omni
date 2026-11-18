@@ -160,14 +160,18 @@ async function threadBackfill(db: Db, row: ForwardContext, ownMessageId: string)
  * they belong to (a personal space and company workspaces alike, ADR 0024). With `scopeOrgId`,
  * only that organization's. The owner grant and the org match are the same checks `forUser` runs.
  */
-export function forwardingFor(db: Db, userId: string, scopeOrgId?: string | null) {
-  const owned = and(
+export function ownedPersonalMailbox(userId: string, scopeOrgId?: string | null) {
+  return and(
     eq(mailboxes.kind, "personal"),
     sql`exists (select 1 from ${mailboxAccess} ma join ${members} mm on mm.id = ma.member_id
       where ma.mailbox_id = ${mailboxes.id} and ma.role = 'owner'
         and mm.organization_id = ${mailboxes.orgId} and mm.user_id = ${userId}
         ${scopeOrgId ? sql`and mm.organization_id = ${scopeOrgId}` : sql``})`,
   );
+}
+
+export function forwardingFor(db: Db, userId: string, scopeOrgId?: string | null) {
+  const owned = ownedPersonalMailbox(userId, scopeOrgId);
   return {
     async list() {
       const latest = db

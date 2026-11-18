@@ -1,4 +1,5 @@
 import type { NewMessageDraft } from "@/hooks/use-compose-pane.ts";
+import { useYourMailboxes } from "@/hooks/use-mailbox-identity.ts";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { DropZone } from "react-aria-components/DropZone";
 import {
@@ -14,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { appToast } from "@/components/ui/toast";
-import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
+import { Menu, MenuDescription, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import {
   useCancelSend,
   useComposeReply,
@@ -717,7 +718,10 @@ function FromRow(props: {
   value: string;
   onChange: (id: string) => void;
 }) {
+  const yours = useYourMailboxes();
+  const labelOf = (id: string) => yours.find((box) => box.id === id)?.label;
   const address = props.mailboxes.find((m) => m.id === props.value)?.address;
+  const shown = labelOf(props.value) ?? address;
   return (
     <div
       data-composer-head
@@ -732,7 +736,7 @@ function FromRow(props: {
             aria-label={`From ${address}`}
             className="-ms-0.5 min-w-0"
           >
-            <span className="truncate">{address}</span>
+            <span className="truncate">{shown}</span>
             <IconChevronDown className="text-muted-foreground" />
           </Button>
           <Menu
@@ -745,15 +749,16 @@ function FromRow(props: {
             }}
           >
             {props.mailboxes.map((m) => (
-              <MenuItem key={m.id} id={m.id} textValue={m.address}>
+              <MenuItem key={m.id} id={m.id} textValue={labelOf(m.id) ?? m.address}>
                 <IconMail data-slot="icon" />
-                <MenuLabel>{m.address}</MenuLabel>
+                <MenuLabel>{labelOf(m.id) ?? m.address}</MenuLabel>
+                {labelOf(m.id) && <MenuDescription>{m.address}</MenuDescription>}
               </MenuItem>
             ))}
           </Menu>
         </MenuTrigger>
       ) : (
-        <span className="min-w-0 truncate ps-2 text-sm">{address}</span>
+        <span className="min-w-0 truncate ps-2 text-sm">{shown}</span>
       )}
     </div>
   );

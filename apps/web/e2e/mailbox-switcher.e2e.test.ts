@@ -149,6 +149,27 @@ test("your photo from another site shows on your personal mailbox", async () => 
   }
 });
 
+test("a labelled inbox goes by its label and shows its own picture, not yours", async () => {
+  const { email, acme } = await ana("labels");
+  const work = await createMailbox(db, acme.orgId, "ana@work-labels.test", "personal");
+  await grant(db, acme.orgId, work.id, acme.memberId);
+  await db
+    .update(schema.mailboxes)
+    .set({ label: "Work", picture: `${pictureOrigin}/work.png` })
+    .where(eq(schema.mailboxes.id, work.id));
+  const page = await openSwitcher(email);
+  const picture = (name: RegExp) =>
+    page
+      .getByRole("menuitem", { name })
+      .locator("img")
+      .evaluate((img) => decodeURIComponent((img as unknown as { src: string }).src));
+  await expect.poll(() => picture(/^Work/)).toContain(`${pictureOrigin}/work.png`);
+  await expect.poll(() => picture(/^Ana Lima/)).toContain(`${pictureOrigin}/ana.png`);
+
+  await page.getByRole("menuitem", { name: /^Work/ }).click();
+  await page.getByRole("button", { name: "Switch mailbox, currently Work" }).waitFor();
+});
+
 test("the menu and All show only the active workspace's mailboxes and mail", async () => {
   const { email } = await ana("isolate");
   const page = await openSwitcher(email);

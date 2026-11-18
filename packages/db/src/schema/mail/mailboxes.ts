@@ -49,6 +49,16 @@ export const mailboxes = pgTable(
     credentialsEnc: text("credentials_enc").notNull(),
     status: mailboxStatus("status").notNull().default("pending"),
     /**
+     * What its owner calls a personal inbox ("Work", "Personal"), shown in place of their name
+     * wherever their inboxes are told apart. Null: unlabelled.
+     */
+    label: text("label"),
+    /**
+     * The account's own picture, as its provider gives it (Google's profile photo, saved when
+     * the account is connected). Null: none known; clients fall back to the address's Gravatar.
+     */
+    picture: text("picture"),
+    /**
      * A shared mailbox's Better Auth team: its members are who can see it, and `mailbox_access`
      * is derived from them (ADR 0008). Null for personal mailboxes, and for a shared mailbox
      * until `ensureMailboxTeam` runs. Same org as the mailbox, enforced where it is read.

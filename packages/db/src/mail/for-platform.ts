@@ -44,6 +44,8 @@ export function mailboxesOpenTo(db: Db, userId: string) {
       id: mailboxes.id,
       address: mailboxes.address,
       kind: mailboxes.kind,
+      label: mailboxes.label,
+      picture: mailboxes.picture,
     })
     .from(mailboxes)
     .innerJoin(mailboxAccess, eq(mailboxAccess.mailboxId, mailboxes.id))

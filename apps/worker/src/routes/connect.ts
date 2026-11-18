@@ -15,7 +15,7 @@ import { limitPerMember } from "../rate-limiter.ts";
 import { notFound } from "./mail.ts";
 
 const GOOGLE_AUTHORIZE = "https://accounts.google.com/o/oauth2/v2/auth";
-const SCOPES = ["https://mail.google.com/", "openid", "email"];
+const SCOPES = ["https://mail.google.com/", "openid", "email", "profile"];
 const COOKIE = "omni_google_connect";
 const COOKIE_PATH = "/api/connect/google";
 

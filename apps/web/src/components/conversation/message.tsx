@@ -29,6 +29,7 @@ import { REPLY_SOURCE } from "../compose/selection-reply.tsx";
 import { FullMessage } from "./full-message.tsx";
 import { MessageMenu } from "./message-menu.tsx";
 import { Unsubscribe } from "./unsubscribe.tsx";
+import { useYourMailbox } from "@/hooks/use-mailbox-identity.ts";
 
 const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 const DAY_TIME = new Intl.DateTimeFormat(undefined, {
@@ -297,8 +298,9 @@ function EmailHeader(props: {
 }) {
   const { message, sender } = props;
   const [open, setOpen] = useState(false);
+  const you = useYourMailbox({ address: props.self })?.label ?? "You";
   const name = (a: { name?: string | null; address: string }) =>
-    a.address.toLowerCase() === props.self.toLowerCase() ? "You" : personName(a);
+    a.address.toLowerCase() === props.self.toLowerCase() ? you : personName(a);
   const recipients = [...message.to, ...message.cc].map(name);
   return (
     <div className="flex w-full flex-col gap-4">

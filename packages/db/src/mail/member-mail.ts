@@ -40,6 +40,8 @@ export async function listMemberMailboxes(db: Db, memberId: string) {
       provider: mailboxes.provider,
       status: mailboxes.status,
       role: mailboxAccess.role,
+      label: mailboxes.label,
+      picture: mailboxes.picture,
     })
     .from(mailboxes)
     .innerJoin(

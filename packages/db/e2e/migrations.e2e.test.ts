@@ -31,6 +31,7 @@ test("migrations apply to an empty database and a second run is a no-op", async 
       "invitations",
       "join_requests",
       "jwks",
+      "list_unsubscribes",
       "mail_actions",
       "mail_domains",
       "mailbox_access",

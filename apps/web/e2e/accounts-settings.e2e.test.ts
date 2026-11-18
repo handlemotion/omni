@@ -62,7 +62,9 @@ test("sign-in addresses and inboxes: a Gmail address is an inbox switched off un
   const hosted = await createMailbox(db, org.orgId, email, "personal");
   await grant(db, org.orgId, hosted.id, org.memberId);
   const box = await createMailbox(db, org.orgId, connected, "personal", "gmail");
-  await grant(db, org.orgId, box.id, org.memberId);
+  await db
+    .insert(schema.mailboxAccess)
+    .values({ orgId: org.orgId, mailboxId: box.id, memberId: org.memberId, role: "owner" });
 
   const origin = String(worker.url);
   const cookie = await signIn({ url: new URL(origin) }, db, email);
@@ -82,6 +84,24 @@ test("sign-in addresses and inboxes: a Gmail address is an inbox switched off un
   expect(await inbox(email).isChecked()).toBe(true);
   expect(await inbox(email).isDisabled()).toBe(true);
   expect(await page.getByText("Primary", { exact: true }).count()).toBe(0);
+
+  await page.getByRole("button", { name: `Inbox actions for ${connected}` }).click();
+  await page.getByRole("menuitem", { name: "Add a label" }).click();
+  await page.getByRole("textbox", { name: "Label" }).fill("Personal");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const [row] = await db
+        .select({ label: schema.mailboxes.label })
+        .from(schema.mailboxes)
+        .where(eq(schema.mailboxes.id, box.id));
+      return row?.label;
+    })
+    .toBe("Personal");
+  await page.getByText("(Personal)").waitFor();
+  await page.getByRole("button", { name: `Inbox actions for ${connected}` }).click();
+  await page.getByRole("menuitem", { name: "Reconnect" }).waitFor();
+  await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: `Actions for ${email}` }).click();
   await page.getByRole("menuitem", { name: "Stop signing in with it" }).click();
@@ -105,7 +125,9 @@ test("sign-in addresses and inboxes: a Gmail address is an inbox switched off un
     request.url().startsWith("https://accounts.google.com/"),
   );
   await page.getByText(gmail, { exact: true }).last().click();
-  expect(new URL((await consent).url()).searchParams.get("login_hint")).toBe(gmail);
+  const asked = new URL((await consent).url()).searchParams;
+  expect(asked.get("login_hint")).toBe(gmail);
+  expect(asked.get("scope")?.split(" ")).toContain("profile");
   await context.close();
 });
 

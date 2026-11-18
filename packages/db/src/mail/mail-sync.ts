@@ -736,6 +736,8 @@ export async function saveMailbox(
     credentialsEnc: string;
     /** Null only for a personal inbox waiting for an invitee (ADR 0026): no grant yet. */
     ownerMemberId: string | null;
+    /** The account's picture from its provider. Absent keeps the one saved. */
+    picture?: string | null;
   },
 ) {
   if (input.ownerMemberId === null && input.kind !== "personal") {
@@ -752,6 +754,7 @@ export async function saveMailbox(
         kind: input.kind,
         provider: input.provider,
         credentialsEnc: input.credentialsEnc,
+        picture: input.picture ?? null,
       })
       .onConflictDoUpdate({
         target: mailboxes.id,
@@ -759,6 +762,7 @@ export async function saveMailbox(
           kind: input.kind,
           provider: input.provider,
           credentialsEnc: input.credentialsEnc,
+          ...(input.picture !== undefined ? { picture: input.picture } : {}),
           status: "pending",
           updatedAt: new Date(),
         },

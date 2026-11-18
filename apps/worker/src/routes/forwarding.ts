@@ -1,4 +1,4 @@
-import { forwardingFor } from "@omni/db";
+import { forwardingFor, labelMailbox } from "@omni/db";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -9,6 +9,15 @@ import { zValidator } from "../validator.ts";
 const forwardingBody = z.object({
   address: z.email().max(254),
   scope: z.enum(["sent", "conversations", "all"]).default("conversations"),
+});
+
+const labelBody = z.object({
+  label: z
+    .string()
+    .trim()
+    .max(40)
+    .nullable()
+    .transform((label) => label || null),
 });
 
 export const forwarding = new Hono<AppEnv>()
@@ -35,5 +44,16 @@ export const forwarding = new Hono<AppEnv>()
     if (!(await reader.clear(c.req.param("id")))) {
       throw new HTTPException(404, { message: "mailbox not found" });
     }
+    return c.json({ ok: true as const });
+  })
+
+  .put("/mailboxes/:id/label", zValidator("json", labelBody), async (c) => {
+    const labelled = await labelMailbox(c.var.db, {
+      userId: c.var.user.id,
+      scopeOrgId: c.var.user.scopeOrgId,
+      mailboxId: c.req.param("id"),
+      label: c.req.valid("json").label,
+    });
+    if (!labelled) throw new HTTPException(404, { message: "mailbox not found" });
     return c.json({ ok: true as const });
   });

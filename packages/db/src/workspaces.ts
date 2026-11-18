@@ -59,7 +59,15 @@ export interface Workspace {
   role: string;
   setup: SetupStep;
   /** Only mailboxes this user's member in the workspace has a grant on. */
-  mailboxes: { id: string; address: string; kind: "personal" | "shared" }[];
+  mailboxes: {
+    id: string;
+    address: string;
+    kind: "personal" | "shared";
+    /** What its owner calls a personal inbox; null when unlabelled. */
+    label: string | null;
+    /** The account's own picture URL, when its provider gave one. */
+    picture: string | null;
+  }[];
 }
 
 /**
@@ -102,6 +110,6 @@ export async function listUserWorkspaces(
     ...org,
     mailboxes: boxes
       .filter((box) => box.orgId === org.id)
-      .map(({ id, address, kind }) => ({ id, address, kind })),
+      .map(({ id, address, kind, label, picture }) => ({ id, address, kind, label, picture })),
   })) satisfies Workspace[];
 }

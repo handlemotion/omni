@@ -43,6 +43,7 @@ export * from "./mail/conversation-tags.ts";
 export * from "./mail/conversation-notes.ts";
 export * from "./mail/sla.ts";
 export * from "./mail/forwarding.ts";
+export * from "./mail/mailbox-label.ts";
 export * from "./mail/dead-letters.ts";
 export * from "./mail/for-platform.ts";
 export {

@@ -37,10 +37,11 @@ const MAIL_SCOPE = "https://mail.google.com/";
 /**
  * Scopes to ask Google for. `https://mail.google.com/` is the only scope Gmail's IMAP and SMTP
  * accept (a restricted scope: unverified apps are capped at 100 users). The authorization URL must
- * also carry `access_type=offline` and `prompt=consent`, or Google returns no refresh token. The
- * Worker's consent redirect asks for the same three.
+ * also carry `access_type=offline` and `prompt=consent`, or Google returns no refresh token.
+ * `profile` brings the account's photo (the id token's `picture`), which its inbox shows. The
+ * Worker's consent redirect asks for the same four.
  */
-export const GOOGLE_MAIL_SCOPES = [MAIL_SCOPE, "openid", "email"] as const;
+export const GOOGLE_MAIL_SCOPES = [MAIL_SCOPE, "openid", "email", "profile"] as const;
 const REFRESH_MARGIN_MS = 5 * 60_000;
 
 /** Google refused the refresh token: the person revoked access, or it expired. Only reconnecting fixes it. */
@@ -68,6 +69,8 @@ export interface GoogleGrant extends AccessToken {
   refreshToken: string;
   /** The address Google verified for this account. */
   email: string;
+  /** The account's profile photo, when Google sent one. */
+  picture?: string;
 }
 
 export interface GoogleOAuth {
@@ -99,6 +102,7 @@ const idTokenClaims = z.object({
   aud: z.string(),
   email: z.string().min(3),
   email_verified: z.boolean(),
+  picture: z.url().optional(),
 });
 
 export function createGoogleOAuth(
@@ -159,6 +163,7 @@ export function createGoogleOAuth(
         expiresAt: Date.now() + data.expires_in * 1000,
         refreshToken: data.refresh_token,
         email: claims.data.email.toLowerCase(),
+        ...(claims.data.picture?.startsWith("https://") ? { picture: claims.data.picture } : {}),
       };
     },
 
@@ -304,6 +309,7 @@ async function save(
     provider: "gmail",
     credentialsEnc: await sealCredentials(keyring, mailboxId, credentials),
     ownerMemberId: input.memberId,
+    ...(grant.picture ? { picture: grant.picture } : {}),
   });
   logger.info("google.connected", { orgId: input.orgId, mailboxId, reconnect: !!existing });
   void deps
