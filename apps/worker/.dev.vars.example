@@ -58,7 +58,7 @@ STORAGE_MAX_GB=
 
 # --- Live co-editing (ADR 0043; S2, or s2-lite from compose.yml) ---
 # Optional. The basin's API base, ending in /v1. Empty: documents edit with checked saves only.
-# Local stack: http://localhost:8090/v1
+# Local stack: http://localhost:54380/v1
 S2_BASIN_URL=
 # Optional (required with S2_BASIN_URL). The basin's name. Local stack: omni-docs-dev
 S2_BASIN=

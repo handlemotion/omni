@@ -8,7 +8,7 @@ import { WEB_ORIGIN, type CookieJar } from "./support.ts";
 let stack: StorageStack;
 beforeAll(async () => {
   stack = await startStorageStack({
-    vars: { S2_BASIN_URL: "http://127.0.0.1:8090/v1", S2_BASIN: "omni-docs-dev" },
+    vars: { S2_BASIN_URL: "http://127.0.0.1:54380/v1", S2_BASIN: "omni-docs-dev" },
   });
 });
 afterAll(() => stack?.stop());

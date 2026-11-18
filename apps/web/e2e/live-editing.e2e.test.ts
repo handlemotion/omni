@@ -31,7 +31,7 @@ beforeAll(async () => {
     port,
     vars: {
       BETTER_AUTH_URL: `http://127.0.0.1:${port}`,
-      S2_BASIN_URL: "http://127.0.0.1:8090/v1",
+      S2_BASIN_URL: "http://127.0.0.1:54380/v1",
       S2_BASIN: "omni-docs-dev",
     },
   });
