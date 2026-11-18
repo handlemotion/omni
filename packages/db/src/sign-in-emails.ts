@@ -1,6 +1,7 @@
 import { normalizeAddress } from "@omni/mail-core/addresses";
 import { and, eq, sql, TransactionRollbackError } from "drizzle-orm";
 import type { Db } from "./client.ts";
+import { omniHostedAddresses } from "./mail.ts";
 import { users, verifications } from "./schema/auth.ts";
 import { userEmails } from "./schema/identity.ts";
 
@@ -73,6 +74,23 @@ export const listSignInEmails: (db: Db, userId: string) => Promise<SignInEmail[]
     ...extra.map((row) => ({ email: row.email, primary: false, verified: true })),
   ];
 };
+
+/**
+ * Where a magic link for `email` is mailed (ADR 0048). An address Omni hosts can't be read before
+ * signing in, so its link goes to the owner's first verified sign-in address Omni does not host.
+ * Any other address, or a hosted one whose owner has no outside address, gets its own link.
+ */
+export async function magicLinkRecipient(db: Db, email: string) {
+  const address = normalizeAddress(email);
+  const owner = await findEmailOwner(db, address);
+  if (!owner?.verified) return address;
+  const own = (await listSignInEmails(db, owner.userId))
+    .filter((row) => row.verified)
+    .map((row) => normalizeAddress(row.email));
+  const hosted = await omniHostedAddresses(db, [address, ...own]);
+  if (!hosted.has(address)) return address;
+  return own.find((other) => !hosted.has(other)) ?? address;
+}
 
 export type StartSignInEmailResult =
   | { status: "sent"; token: string; email: string; expiresAt: Date }

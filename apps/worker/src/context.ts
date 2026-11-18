@@ -58,13 +58,14 @@ export const requestScope = createMiddleware<AppEnv>(async (c, next) => {
       billingLog: (event, fields) => c.var.log.error(event, fields),
       modules,
       oauthProvider: usesOAuthProvider(new URL(c.req.url).pathname),
-      sendMagicLink: async ({ email, url }) => {
+      sendMagicLink: async ({ email, signInAs, url }) => {
         devLog(config, { kind: "magic-link", email, url });
         const appName = config.auth.appName;
+        const as = signInAs.toLowerCase() === email ? "" : ` as ${signInAs}`;
         await mail({
           to: email,
-          subject: `Sign in to ${appName}`,
-          text: `Open this link to sign in to ${appName}:\n\n${url}\n\nIf you did not ask for it, ignore this email.`,
+          subject: `Sign in to ${appName}${as}`,
+          text: `Open this link to sign in to ${appName}${as}:\n\n${url}\n\nIf you did not ask for it, ignore this email.`,
         });
       },
       sendInvitation: async (invite) => {

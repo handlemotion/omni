@@ -1,4 +1,4 @@
-import { and, asc, eq, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { mailboxAccess, mailboxes, members } from "../schema/index.ts";
 
@@ -56,4 +56,19 @@ export function mailboxesOpenTo(db: Db, userId: string) {
       ),
     )
     .orderBy(asc(mailboxes.kind), asc(mailboxes.address));
+}
+
+/** Which of `addresses` (lowercase) have a mailbox on Omni's own mail host (ADR 0048). */
+export async function omniHostedAddresses(db: Db, addresses: string[]) {
+  if (addresses.length === 0) return new Set<string>();
+  const rows = await db
+    .selectDistinct({ address: sql<string>`lower(${mailboxes.address})` })
+    .from(mailboxes)
+    .where(
+      and(
+        eq(mailboxes.provider, "purelymail"),
+        inArray(sql`lower(${mailboxes.address})`, addresses),
+      ),
+    );
+  return new Set(rows.map((row) => row.address));
 }

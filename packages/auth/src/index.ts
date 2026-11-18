@@ -6,6 +6,7 @@ import {
   advanceOrgSetup,
   findEmailOwner,
   isCompany,
+  magicLinkRecipient,
   schema,
   claimInvitationInboxes,
   notifyMemberJoined,
@@ -41,7 +42,12 @@ import Stripe from "stripe";
 import { uuidv7 } from "uuidv7";
 import { z } from "zod";
 
-export type MagicLinkSender = (message: { email: string; url: string }) => Promise<void>;
+/** `email`: where the link is mailed. `signInAs`: the address it signs in (ADR 0048). */
+export type MagicLinkSender = (message: {
+  email: string;
+  signInAs: string;
+  url: string;
+}) => Promise<void>;
 
 export interface InvitationMessage {
   invitationId: string;
@@ -381,7 +387,9 @@ export function createAuth(env: AuthEnv) {
       expo(),
       magicLink({
         sendMagicLink: async ({ email, url }) => {
-          if (await maySignIn(env.db, email, env.signUp)) await env.sendMagicLink({ email, url });
+          if (!(await maySignIn(env.db, email, env.signUp))) return;
+          const to = await magicLinkRecipient(env.db, email);
+          await env.sendMagicLink({ email: to, signInAs: email, url });
         },
       }),
       passkey({

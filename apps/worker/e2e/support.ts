@@ -212,10 +212,18 @@ export async function createMailbox(
   orgId: string,
   address: string,
   kind: "personal" | "shared" = "shared",
+  provider: "purelymail" | "gmail" = "purelymail",
 ) {
   const [mailbox] = await db
     .insert(schema.mailboxes)
-    .values({ orgId, address, kind, credentialsEnc: "not-a-real-ciphertext", status: "active" })
+    .values({
+      orgId,
+      address,
+      kind,
+      provider,
+      credentialsEnc: "not-a-real-ciphertext",
+      status: "active",
+    })
     .returning();
   return mailbox!;
 }

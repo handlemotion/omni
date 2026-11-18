@@ -10,6 +10,7 @@ import {
   createTestDatabase,
   grant,
   seedMessage,
+  sentMail,
   signIn,
   startMailServiceEndpoint,
   startWorker,
@@ -97,7 +98,7 @@ async function ana() {
     .select()
     .from(schema.members)
     .where(eq(schema.members.organizationId, spaceId));
-  const box = await createMailbox(db, spaceId, personal, "personal");
+  const box = await createMailbox(db, spaceId, personal, "personal", "gmail");
   await grant(db, spaceId, box.id, owner!.id);
   const mine = await seedMessage(db, box, {
     subject: "Personal news",
@@ -171,6 +172,32 @@ test("a magic link to a personal address opens every workspace", async () => {
     (await authPost(worker, jar, "/organization/set-active", { organizationId: a.spaceId })).status,
   ).toBe(200);
   expect(await threadOrgs(jar)).toEqual(new Set([a.spaceId]));
+});
+
+test("a link for an address Omni hosts goes to the person's outside address, still scoped", async () => {
+  const a = await ana();
+  await createMailbox(database.db, a.acme.orgId, a.work, "personal");
+  const requested = await fetch(new URL("/api/auth/sign-in/magic-link", worker.url), {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: WEB_ORIGIN },
+    body: JSON.stringify({ email: a.work, callbackURL: "/" }),
+  });
+  expect(requested.status).toBe(200);
+
+  expect(await sentMail(worker, a.work)).toEqual([]);
+  const [mail] = await sentMail(worker, a.personal);
+  expect(mail?.subject).toContain(`as ${a.work}`);
+  const link = new URL(mail!.text.match(/https?:\/\/\S+/)![0]);
+  const jar = new CookieJar();
+  jar.store(
+    await fetch(new URL(link.pathname + link.search, worker.url), {
+      redirect: "manual",
+      headers: { cookie: jar.header },
+    }),
+  );
+  const listed = await api(jar, "/workspaces?include=personal");
+  expect(listed.body.scopedTo).toBe(a.acme.orgId);
+  expect(await threadOrgs(jar)).toEqual(new Set([a.acme.orgId]));
 });
 
 test("a scoped session cannot add a sign-in method, create a company or join another", async () => {
