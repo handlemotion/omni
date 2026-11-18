@@ -42,6 +42,7 @@ interface NavItem {
   href?: string;
   current?: { path: string; lane?: string; exact?: boolean };
   unread?: boolean;
+  lane?: "needs_reply" | "waiting_on_them";
 }
 
 const mail: NavItem[] = [
@@ -58,12 +59,14 @@ const mail: NavItem[] = [
     icon: <IconBubble />,
     href: "/mail/inbox?lane=needs_reply",
     current: { path: "/mail/inbox", lane: "needs_reply" },
+    lane: "needs_reply",
   },
   {
     label: "Awaiting reply",
     icon: <IconBubbleAnnotation />,
     href: "/mail/inbox?lane=waiting_on_them",
     current: { path: "/mail/inbox", lane: "waiting_on_them" },
+    lane: "waiting_on_them",
   },
 ];
 
@@ -187,6 +190,7 @@ function Items({ items, mailbox }: { items: NavItem[]; mailbox: string | undefin
           {item.icon}
           <SidebarLabel>{item.label}</SidebarLabel>
           {item.unread && !isCollapsed && <UnreadCount mailbox={mailbox} />}
+          {item.lane && !isCollapsed && <LaneCount lane={item.lane} mailbox={mailbox} />}
         </>
       )}
     </SidebarItem>
@@ -200,6 +204,21 @@ function UnreadCount({ mailbox }: { mailbox: string | undefined }) {
     .reduce((sum, c) => sum + c.unread, 0);
   if (!unread) return null;
   return <CountBadge count={unread} className="ms-auto -me-1" />;
+}
+
+function LaneCount({
+  lane,
+  mailbox,
+}: {
+  lane: NonNullable<NavItem["lane"]>;
+  mailbox: string | undefined;
+}) {
+  const counts = useCounts().data?.counts ?? [];
+  const total = counts
+    .filter((c) => !mailbox || c.mailboxId === mailbox)
+    .reduce((sum, c) => sum + c.lanes[lane], 0);
+  if (!total) return null;
+  return <span className="ms-auto text-xs text-muted-foreground tabular-nums">{total}</span>;
 }
 
 function OfflineBadge() {

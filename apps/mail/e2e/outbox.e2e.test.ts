@@ -1,4 +1,4 @@
-import { schema } from "@omni/db";
+import { forMember, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailboxConnection } from "../src/mailbox-connection.ts";
@@ -109,6 +109,46 @@ describe("OutboxExecutor against GreenMail", () => {
     const sentRows = await stored(db, box.id, "Sent");
     expect(sentRows.map((r) => r.messageIdHeader)).toEqual([messageId]);
     expect(await messageRows(db, box.id)).toHaveLength(1);
+  });
+
+  it("a new email we send stays out of the Inbox until someone replies, but is awaiting reply", async () => {
+    const { seeded, box, connection, executor } = await setup();
+    const recipient = mailbox();
+    await connection.start();
+    const row = await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `idem-send-new-${box.id}`,
+      payload: { from: box.address, to: [recipient.address], subject: "Proposal", text: "Hi" },
+    });
+    await executor.drain();
+    expect((await actionRow(db, row.id)).status).toBe("done");
+    const [sent] = await messageRows(db, box.id);
+    await db
+      .update(schema.threads)
+      .set({ triage: "waiting_on_them", triageSource: "person" })
+      .where(eq(schema.threads.id, sent!.threadId));
+    const me = forMember(db, seeded.ownerId);
+    const inbox = async () => (await me.listThreads({ mailboxId: box.id })).map((t) => t.id);
+    const counts = async () => (await me.counts()).find((c) => c.mailboxId === box.id);
+
+    expect(await inbox()).toEqual([]);
+    expect((await me.listThreads({ mailboxId: box.id, view: "sent" })).map((t) => t.id)).toEqual([
+      sent!.threadId,
+    ]);
+    expect(
+      (await me.listThreads({ mailboxId: box.id, lane: "waiting_on_them" })).map((t) => t.id),
+    ).toEqual([sent!.threadId]);
+    expect(await counts()).toMatchObject({ inbox: 0, lanes: { waiting_on_them: 1 } });
+
+    const messageId = deterministicMessageId(row.idempotencyKey, box.address);
+    await deliver(box.address, "Re: Proposal", {
+      from: recipient.address,
+      inReplyTo: messageId,
+      references: [messageId],
+    });
+    await waitFor(async () => (await messageRows(db, box.id)).length === 2);
+    expect(await inbox()).toEqual([sent!.threadId]);
+    expect(await counts()).toMatchObject({ inbox: 1 });
   });
 
   it("finishes the Sent append without resending when SMTP already accepted", async () => {

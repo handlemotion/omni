@@ -57,7 +57,9 @@ export const LANES = [...triageBucket.enumValues, "unsure"] as const satisfies r
  * On a shared inbox they are the member's own too: a conversation stays in each teammate's Inbox
  * until they mark it done, whoever owns it, whatever its status, whoever replied.
  *
- * - `inbox`: not archived, not done, not in Later. What still needs attention.
+ * - `inbox`: not archived, not done, not in Later. What still needs attention. With no lane, only
+ *   threads holding a message someone else sent: a new email you sent waits in Sent and in its
+ *   lane (Awaiting reply) until someone answers it.
  * - `later`: not archived, in Later, not done. Stays until the member moves it back or done.
  * - `done`: done, archived or not.
  * - `archive`: archived (moved out of INBOX on the server; shared by everyone on the mailbox).
@@ -124,6 +126,8 @@ function laneFilter(lane: Lane) {
       : sql`(${threads.triage} = ${lane} and (${threads.triageSource} = 'person' or ${threads.triageConfidence} >= ${TRIAGE_AUTO_FILE_CONFIDENCE}))`
   ) satisfies SQL;
 }
+
+const heardFrom = sql`exists (select 1 from ${messages} mh join ${mailboxes} mbh on mbh.id = mh.mailbox_id where mh.thread_id = ${threads.id} and lower(mh.from_address) <> lower(mbh.address))`;
 
 const conversationViewFilter: (view: ConversationView, me: AnyColumn) => SQL | undefined = (
   view,
@@ -351,6 +355,7 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         ...viewFilters[view],
       ];
       if (lane) filters.push(laneFilter(lane));
+      else if (view === "inbox") filters.push(heardFrom);
       if (unread) filters.push(sql`not ${state(sql`s.read`)}`);
       const sender = by?.from?.includes("@") ? by.from.toLowerCase() : undefined;
       if (sender) {
@@ -528,7 +533,8 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
       const done = sql`coalesce(${threads.lastMessageAt} <= ${threadState.doneThrough}, false)`;
       const inLater = sql`coalesce(${threadState.snoozedUntil} > now(), false)`;
       const later = sql`(${inLater} and not ${done})`;
-      const inbox = sql`not (${inLater} or ${done})`;
+      const active = sql`not (${inLater} or ${done})`;
+      const inbox = sql`(${active} and ${heardFrom})`;
       const unread = sql`coalesce(${threadState.read}, false) = false`;
       const count = (filter: SQL) => sql<number>`(count(*) filter (where ${filter}))::int`;
       const rows = await db
@@ -539,7 +545,7 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
           unread: count(and(inbox, unread)!),
           later: count(later),
           lanes: sql<Record<Lane, number>>`jsonb_build_object(${sql.join(
-            LANES.map((lane) => sql`${lane}::text, ${count(and(inbox, laneFilter(lane))!)}`),
+            LANES.map((lane) => sql`${lane}::text, ${count(and(active, laneFilter(lane))!)}`),
             sql`, `,
           )})`,
         })
