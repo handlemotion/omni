@@ -68,6 +68,12 @@ export function reportAnswer() {
   wake();
 }
 
+/** Asks the API now instead of waiting out the probe's backoff (the offline notice's Try again). */
+export async function retryNow() {
+  if (!probeNeeded()) return;
+  if (await workerAnswers()) reportAnswer();
+}
+
 async function probe() {
   if (probing) return;
   probing = true;

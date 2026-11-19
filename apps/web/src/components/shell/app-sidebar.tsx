@@ -11,7 +11,6 @@ import {
   IconWarning,
   IconWrite,
 } from "@/components/icons/sidebar";
-import { Badge } from "@/components/ui/badge";
 import { CrmLists, CrmNav } from "@/components/crm/crm-nav";
 import { StorageNav, StoragePlaces } from "@/components/storage/storage-nav";
 import { HelpdeskItems } from "./helpdesk-nav";
@@ -30,7 +29,6 @@ import {
   SidebarSection,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { useConnectivity } from "@/hooks/use-connectivity.ts";
 import { useCounts } from "@/hooks/use-mail.ts";
 import { useMember } from "@/hooks/use-session.ts";
 import { useWorkspaceSlug, useWorkspaces } from "@/hooks/use-workspaces.ts";
@@ -114,7 +112,6 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="flex-col items-stretch">
-        <OfflineBadge />
         <ModuleSwitcher />
       </SidebarFooter>
     </Sidebar>
@@ -219,14 +216,4 @@ function LaneCount({
     .reduce((sum, c) => sum + c.lanes[lane], 0);
   if (!total) return null;
   return <span className="ms-auto text-xs text-muted-foreground tabular-nums">{total}</span>;
-}
-
-function OfflineBadge() {
-  const { online, queued } = useConnectivity();
-  if (online) return null;
-  return (
-    <Badge intent="warning" role="status" className="ms-2 mb-1 self-start tabular-nums">
-      {queued > 0 ? `Offline · ${queued} queued` : "Offline"}
-    </Badge>
-  );
 }

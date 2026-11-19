@@ -1,9 +1,10 @@
 import { useQueryErrorResetBoundary } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { EmptyState } from "@/components/empty/empty-state";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Link } from "@/components/ui/link";
+import { useConnectivity } from "@/hooks/use-connectivity.ts";
 import { classify } from "@/lib/failure.ts";
 
 export function ErrorScreen(props: { error: unknown; reset: () => void }) {
@@ -19,11 +20,7 @@ export function ErrorScreen(props: { error: unknown; reset: () => void }) {
         </EmptyState>
       );
     case "offline":
-      return (
-        <EmptyState figure="plug" title="You're offline">
-          <RetryButton retry={retry} />
-        </EmptyState>
-      );
+      return <OfflineState retry={retry} />;
     default:
       return (
         <EmptyState figure="exploded" title="Something went wrong" meta={failure.requestId}>
@@ -42,6 +39,30 @@ export function NotFoundState() {
       <HomeLink />
     </EmptyState>
   );
+}
+
+/** No answer from the API and nothing cached to show in its place. */
+export function OfflineState(props: { retry: Retry }) {
+  useRetryOnReconnect(props.retry);
+  return (
+    <EmptyState figure="plug" title="You're offline">
+      <RetryButton retry={props.retry} />
+    </EmptyState>
+  );
+}
+
+function useRetryOnReconnect(retry: Retry) {
+  const { online } = useConnectivity();
+  const run = useRef(retry.run);
+  run.current = retry.run;
+  const wasOffline = useRef(!online);
+  useEffect(() => {
+    if (!online) wasOffline.current = true;
+    else if (wasOffline.current) {
+      wasOffline.current = false;
+      run.current();
+    }
+  }, [online]);
 }
 
 /** The whole window, for the root route: works with no shell around it. */
@@ -65,7 +86,7 @@ function RetryButton(props: { retry: Retry }) {
   );
 }
 
-interface Retry {
+export interface Retry {
   pending: boolean;
   run: () => void;
 }

@@ -10,6 +10,7 @@ import { TitleBar } from "../../components/shell/title-bar.tsx";
 import { CommandMenu } from "../../components/search/command-menu.tsx";
 import { KeyboardShortcuts } from "../../components/shell/keyboard-shortcuts.tsx";
 import { NotificationsPanel } from "../../components/shell/notifications.tsx";
+import { OfflineNotice } from "../../components/shell/offline-notice.tsx";
 import {
   ResizableSidebarProvider,
   SidebarResizeGrip,
@@ -111,6 +112,7 @@ function Shell() {
       </ListSweepProvider>
       <TitleBar />
       <KeyboardShortcuts />
+      <OfflineNotice />
       <ComposeDialog />
     </ResizableSidebarProvider>
   );

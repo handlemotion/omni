@@ -1,3 +1,4 @@
+import type { FetchStatus } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
@@ -20,6 +21,8 @@ import {
   useOpenList,
   usePrefetchNeighbours,
 } from "@/components/inbox/open-list";
+import { OfflineState } from "@/components/errors/error-screen";
+import { useRetryNow } from "@/hooks/use-connectivity.ts";
 import { useConversation } from "@/hooks/use-conversation.ts";
 import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useAllMailboxes, useThread } from "@/hooks/use-mail.ts";
@@ -30,6 +33,7 @@ import {
   useMarkUndone,
   useMoveToLater,
 } from "@/hooks/use-mail-actions.ts";
+import { classify } from "@/lib/failure.ts";
 import type { Conversation as HelpdeskState, Message, Thread } from "@/lib/types.ts";
 import { ChatDock } from "../compose/chat-composer.tsx";
 import { ReplyComposer } from "../compose/composer.tsx";
@@ -51,7 +55,7 @@ const KEEP_LAST = 8;
  * oldest first, ending at the newest, with the reply box docked at the bottom.
  */
 export function Conversation({ threadId }: { threadId: string }) {
-  const { thread, pending, error } = useThread(threadId);
+  const { thread, pending, error, fetchStatus } = useThread(threadId);
   useMarkReadOnOpen(thread);
   usePrefetchNeighbours(threadId, !!thread);
   const shared = useAllMailboxes().data?.find((m) => m.id === thread?.mailboxId)?.kind === "shared";
@@ -87,8 +91,7 @@ export function Conversation({ threadId }: { threadId: string }) {
     if (el) atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
-  if (error && !thread) throw error;
-  if (!thread) return <ConversationSkeleton />;
+  if (!thread) return <ConversationPlaceholder fetchStatus={fetchStatus} error={error} />;
   const subject = thread.messages.at(-1)?.subject || thread.messages[0]?.subject || "";
 
   return (
@@ -184,6 +187,23 @@ const PAGE = "flex w-full grow flex-col gap-6 px-5 pt-5 pb-6";
 
 function columnClass(single: boolean) {
   return `${single ? PAGE : COLUMN} pb-20`;
+}
+
+function ConversationPlaceholder(props: { fetchStatus: FetchStatus; error: unknown }) {
+  const waitingForConnection = props.fetchStatus === "paused";
+  const failedOffline = !!props.error && classify(props.error).kind === "offline";
+  if (waitingForConnection || failedOffline) return <ConversationOffline />;
+  if (props.error) throw props.error;
+  return <ConversationSkeleton />;
+}
+
+function ConversationOffline() {
+  const retry = useRetryNow();
+  return (
+    <section aria-label="Conversation" className={`${SECTION} border-s`}>
+      <OfflineState retry={retry} />
+    </section>
+  );
 }
 
 function ConversationSkeleton() {

@@ -56,6 +56,7 @@ export const sessionQuery = () =>
       throw error;
     },
     staleTime: 5 * 60_000,
+    networkMode: "always",
   });
 
 /** Something that can rerun route loaders: the router. */

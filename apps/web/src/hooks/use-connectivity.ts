@@ -1,5 +1,6 @@
 import { onlineManager, useIsMutating } from "@tanstack/react-query";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { retryNow } from "../lib/connectivity.ts";
 
 /**
  * `online`: the API can be reached (see `lib/connectivity.ts`). `queued`: actions and sends made
@@ -13,4 +14,16 @@ export function useConnectivity() {
   );
   const queued = useIsMutating({ predicate: (mutation) => mutation.state.isPaused });
   return { online, queued };
+}
+
+/** Asks the API now, for a Try again button: `pending` while the check runs. */
+export function useRetryNow() {
+  const [pending, setPending] = useState(false);
+  return {
+    pending,
+    run: () => {
+      setPending(true);
+      void retryNow().finally(() => setPending(false));
+    },
+  };
 }

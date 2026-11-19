@@ -226,7 +226,8 @@ test("replies written offline go out once each, in order, when the connection is
   await tab.setOffline(true);
   isOffline = true;
   wentOffline();
-  await page.getByRole("status").filter({ hasText: "Offline" }).waitFor();
+  const notice = page.locator("[data-slot=toast]").filter({ hasText: "You're offline" });
+  await notice.waitFor();
   const reply = async (text: string) => {
     const box = page.getByRole("textbox", { name: "Reply" });
     if (!(await box.isVisible())) {
@@ -237,7 +238,7 @@ test("replies written offline go out once each, in order, when the connection is
   };
   await reply("First, offline.");
   await reply("Second, offline.");
-  await page.getByRole("status").filter({ hasText: "Offline · 2 queued" }).waitFor();
+  await notice.filter({ hasText: "2 queued" }).waitFor();
   await page.locator("article").getByText("First, offline.").waitFor();
   await page.locator("article").getByText("Second, offline.").waitFor();
   expect(replyRequests).toBe(0);
@@ -254,10 +255,7 @@ test("replies written offline go out once each, in order, when the connection is
       .where(and(eq(schema.mailActions.memberId, ana.id), eq(schema.mailActions.kind, "send")))
       .orderBy(asc(schema.mailActions.createdAt), asc(schema.mailActions.id));
   await expect.poll(async () => (await sends()).length, { timeout: 30_000 }).toBe(2);
-  await page
-    .getByRole("status")
-    .filter({ hasText: "Offline" })
-    .waitFor({ state: "detached", timeout: 30_000 });
+  await notice.waitFor({ state: "detached", timeout: 30_000 });
   expect(replyRequests).toBe(3);
   const queued = await sends();
   expect(queued.map((row) => (row.payload as { text: string }).text)).toEqual([
@@ -292,6 +290,56 @@ test("replies written offline go out once each, in order, when the connection is
     }
   });
   expect(received.map((uids) => uids.length)).toEqual([1, 1]);
+});
+
+test("a conversation opened offline says so instead of loading forever, then loads once back", async () => {
+  const org = await createOrg(db, "offline-open");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@offline-open.test");
+  const box = await createMailbox(db, org.id, "ana@offline-open.test", "personal");
+  await grant(db, org.id, box.id, ana.id);
+  await seedMessage(db, box, {
+    subject: "Never opened",
+    fromAddress: "pm@client.test",
+    uid: 1,
+    text: "Only loads once back online.",
+  });
+
+  const { page, tab } = await openApp("ana@offline-open.test", "/inbox");
+  const row = page.getByText("Never opened").first();
+  await row.waitFor();
+  await tab.setOffline(true);
+  await row.click();
+
+  const pane = page.getByRole("region", { name: "Conversation" });
+  await pane.getByText("You're offline").waitFor();
+  expect(await pane.getByRole("button", { name: "Try again" }).isVisible()).toBe(true);
+  await page.locator("[data-slot=toast]").filter({ hasText: "You're offline" }).waitFor();
+
+  await tab.setOffline(false);
+  await page
+    .locator("article")
+    .getByText("Only loads once back online.")
+    .waitFor({ timeout: 30_000 });
+});
+
+test("launched with the API unreachable it shows the offline screen, then the inbox once back", async () => {
+  const org = await createOrg(db, "cold-start");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@cold-start.test");
+  const box = await createMailbox(db, org.id, "ana@cold-start.test", "personal");
+  await grant(db, org.id, box.id, ana.id);
+  await seedMessage(db, box, { subject: "Waiting", fromAddress: "pm@client.test", uid: 1 });
+
+  const { page, tab } = await openApp("ana@cold-start.test", "/settings");
+  await page.waitForLoadState("networkidle");
+  await tab.route("**/api/**", (route) => route.abort("internetdisconnected"));
+  await page.goto(new URL("/inbox", origin).toString());
+  await page.getByText("You're offline").waitFor();
+
+  await tab.unroute("**/api/**");
+  await page.getByText("Waiting").first().waitFor({ timeout: 30_000 });
+  await expect.poll(() => page.getByText("You're offline").count()).toBe(0);
 });
 
 async function freePort() {
