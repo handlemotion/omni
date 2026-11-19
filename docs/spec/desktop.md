@@ -358,8 +358,8 @@ machines and reported in the PR, pass or fail per line:
   The extension is `app.omnidirectional.desktop.fileprovider`; the app group is
   `group.app.omnidirectional.desktop`. All three stay build config.
 - **One "Omni" folder with a folder per workspace** (decision 3), not an entry per workspace.
-- **Sync is off until switched on** in Settings → Drive, per workspace, because it puts a folder
-  in Finder.
+- **Sync turns on for every workspace the first time the Mac app runs** (ADR 0049), then is a
+  switch per workspace in Settings → Drive.
 - The macOS layers are built and run on the founder's Mac by an agent there.
 
 ## Notes for whoever builds it
