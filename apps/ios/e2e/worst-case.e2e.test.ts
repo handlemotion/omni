@@ -386,6 +386,21 @@ test("the inbox row with the longest sender keeps its time inside the row", asyn
   }
 });
 
+test("the menu fits the screen, and closing it lands on the module it shows", async () => {
+  const page = await open("/mail", LONG.sender);
+  try {
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await page.getByText("Folders", { exact: true }).waitFor();
+    const layout = await page.evaluate(sidewaysOverflow, 0.5);
+    expect(layout.offenders, "menu elements past the viewport").toEqual([]);
+    await page.getByRole("button", { name: "Drive", exact: true }).click();
+    await page.getByRole("button", { name: "Close menu" }).click();
+    await page.getByText(LONG.folder, { exact: true }).first().waitFor({ timeout: 30_000 });
+  } finally {
+    await page.close();
+  }
+});
+
 test.for(SCREENS.filter((screen) => screen.inFull))(
   "$name: names and subjects show in full, wrapped",
   async (screen) => {

@@ -9,10 +9,10 @@ Extends the root `AGENTS.md` and `DESIGN.md`. How to run it: `README.md`.
 - TanStack Query for every read, keyed in one place. Every call names the app's workspace
   (`omni-workspace`, `src/lib/workspace.ts`), as a web tab names the one in its URL; switching
   workspace drops every cached answer but the workspace list.
-- **Navigation.** The modules (Mail, Drive, CRM) are a native tab bar (`expo-router/native-tabs`),
-  each tab a native stack. A module page's header (`ModuleToolbar`) holds two native menus: its
-  pages on the left (the web sidebar's rows), the workspace switcher and Log out on the right.
-  Native chrome draws SF Symbols; everything the app draws itself uses Central Icons.
+- **Navigation.** Modules (Mail, Drive, CRM) switch through the shell's top-bar pill and
+  slide-down menu (`src/components/shell/`); there is no native tab bar or `ModuleToolbar`. Each
+  module is a native stack; pushed screens keep their native headers. Native chrome draws SF
+  Symbols; everything the app draws itself uses Central Icons.
 - **Tokens** live in `src/theme/tokens.ts` and mirror `apps/web/src/styles.css` under the same
   role names. Change the web value first. Screens use token names only: no hex values, no raw
   font sizes.

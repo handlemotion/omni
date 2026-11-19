@@ -15,6 +15,24 @@ import { useWorkspace } from "@/lib/workspace.ts";
  * `Stack.Toolbar` as is (a header toolbar drops any other component), so this is a hook.
  */
 export function useAddMenu(place: DrivePlace) {
+  const add = useAddActions(place);
+  return (
+    <Stack.Toolbar.Menu icon="plus" accessibilityLabel="New">
+      <Stack.Toolbar.MenuAction icon="folder.badge.plus" onPress={add.newFolder}>
+        New folder
+      </Stack.Toolbar.MenuAction>
+      <Stack.Toolbar.MenuAction icon="doc.badge.plus" onPress={add.uploadFiles}>
+        Upload file
+      </Stack.Toolbar.MenuAction>
+      <Stack.Toolbar.MenuAction icon="photo.badge.plus" onPress={add.uploadMedia}>
+        Upload photo or video
+      </Stack.Toolbar.MenuAction>
+    </Stack.Toolbar.Menu>
+  );
+}
+
+/** Drive's three ways to add to `place`: New folder (named in a prompt) and the two uploads. */
+export function useAddActions(place: DrivePlace) {
   const create = useCreateFolder().mutate;
   const workspace = useWorkspace().active?.id;
   const newFolder = () =>
@@ -39,17 +57,9 @@ export function useAddMenu(place: DrivePlace) {
     const files = await pick().catch(() => []);
     if (workspace && files.length) addUploads(files, { workspace, place });
   };
-  return (
-    <Stack.Toolbar.Menu icon="plus" accessibilityLabel="New">
-      <Stack.Toolbar.MenuAction icon="folder.badge.plus" onPress={newFolder}>
-        New folder
-      </Stack.Toolbar.MenuAction>
-      <Stack.Toolbar.MenuAction icon="doc.badge.plus" onPress={() => void upload(pickDocuments)}>
-        Upload file
-      </Stack.Toolbar.MenuAction>
-      <Stack.Toolbar.MenuAction icon="photo.badge.plus" onPress={() => void upload(pickMedia)}>
-        Upload photo or video
-      </Stack.Toolbar.MenuAction>
-    </Stack.Toolbar.Menu>
-  );
+  return {
+    newFolder,
+    uploadFiles: () => void upload(pickDocuments),
+    uploadMedia: () => void upload(pickMedia),
+  };
 }

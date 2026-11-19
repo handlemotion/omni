@@ -4,12 +4,6 @@ import { countsQuery, type MailPage } from "./mail.ts";
 const unreadBadge = (count: number) => (count > 99 ? "99+" : countOrNothing(count));
 const countOrNothing = (count: number) => (count ? String(count) : undefined);
 
-/** Unread inbox threads in every mailbox here, for the Mail tab's badge. */
-export function useInboxUnread(enabled: boolean) {
-  const counts = useQuery({ ...countsQuery(), enabled }).data ?? [];
-  return unreadBadge(counts.reduce((sum, c) => sum + c.unread, 0));
-}
-
 /**
  * The counts the web sidebar shows beside Mail's pages, in one mailbox or all: unread for Inbox,
  * the lane's threads for Needs reply and Awaiting reply.

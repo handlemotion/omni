@@ -109,8 +109,15 @@ export const useCounts = () => useQuery(countsQuery());
 export const useThreads = (page: MailPage, mailboxId: string | undefined) =>
   useInfiniteQuery(threadsQuery(page, mailboxId));
 
-/** What a mailbox is called, as on the web: you, for your own; its local part for a shared one. */
-export function mailboxName(mailbox: Pick<Mailbox, "kind" | "address">, you: string) {
+/**
+ * What a mailbox is called, as on the web: its label ("Work"), else you for your own and its
+ * local part for a shared one.
+ */
+export function mailboxName(
+  mailbox: Pick<Mailbox, "kind" | "address"> & { label?: string | null },
+  you: string,
+) {
+  if (mailbox.label) return mailbox.label;
   if (mailbox.kind === "personal") return you;
   const local = mailbox.address.split("@")[0] ?? mailbox.address;
   return local.charAt(0).toUpperCase() + local.slice(1);

@@ -12,8 +12,11 @@ export interface PressableRowProps extends Omit<PressableProps, "children" | "st
   children: ReactNode;
   /** The item you're on (a list's current mailbox): the accent fill, `selected` for VoiceOver. */
   isCurrent?: boolean;
-  /** `list`: edge to edge in a scrolling list. `inset`: a rounded row inside a sheet or menu. */
-  shape?: "list" | "inset";
+  /**
+   * `list`: edge to edge in a scrolling list. `inset`: a rounded row inside a sheet or menu.
+   * `menu`: a shorter inset row, a glyph and a label: the menu page's.
+   */
+  shape?: "list" | "inset" | "menu";
   style?: StyleProp<ViewStyle>;
 }
 
@@ -38,7 +41,7 @@ export function PressableRow({
       accessibilityState={{ selected: isCurrent }}
       style={({ pressed }) => [
         styles.row,
-        shape === "inset" ? styles.inset : styles.list,
+        styles[shape],
         (pressed || isCurrent) && styles.highlighted,
         style,
       ]}
@@ -61,6 +64,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(3),
     paddingVertical: space(2),
     borderRadius: radius.field,
+  },
+  menu: {
+    alignItems: "center",
+    gap: space(3.5),
+    minHeight: space(12.5),
+    paddingHorizontal: space(3.5),
+    borderRadius: radius.row,
   },
   highlighted: { backgroundColor: colors.accent },
 });

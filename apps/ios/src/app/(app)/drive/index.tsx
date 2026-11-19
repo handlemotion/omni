@@ -1,42 +1,30 @@
-import { Stack, router, useLocalSearchParams } from "expo-router";
-import { useAddMenu } from "@/components/drive/add-menu.tsx";
+import { useLocalSearchParams } from "expo-router";
+import { DriveSearch } from "@/components/drive/drive-search.tsx";
 import { NodeItem, TrashItem } from "@/components/drive/node-item.tsx";
 import { NodeRow } from "@/components/drive/node-row.tsx";
 import { UploadsPanel } from "@/components/drive/uploads-panel.tsx";
 import { IconFolder, IconFolderShared, IconTrash } from "@/components/icons.ts";
-import { ModuleToolbar } from "@/components/shell/module-toolbar.tsx";
+import { FLOATING_BAR_SPACE } from "@/components/shell/floating-bar.tsx";
+import { useMenu } from "@/components/shell/menu-context.tsx";
+import { ModuleRoot } from "@/components/shell/module-root.tsx";
 import { InfiniteList } from "@/components/ui/infinite-list.tsx";
-import {
-  DRIVE_PAGES,
-  isDrivePage,
-  useFolder,
-  useSharedWithMe,
-  useTrash,
-  type DrivePage,
-} from "@/lib/drive.ts";
+import { DRIVE_PAGES, drivePageIn, useFolder, useSharedWithMe, useTrash } from "@/lib/drive.ts";
+import { useDebounced } from "@/lib/use-debounced.ts";
 import { hasCrm, useWorkspace } from "@/lib/workspace.ts";
-
-const ALL = Object.entries(DRIVE_PAGES).map(([id, page]) => ({ ...page, id: id as DrivePage }));
 
 /** A Drive page: a space's top, what was shared with you, or Trash. */
 export default function DriveHome() {
   const params = useLocalSearchParams<{ page?: string }>();
   const company = hasCrm(useWorkspace().active);
-  const pages = ALL.filter((page) => company || !("company" in page));
-  const page =
-    isDrivePage(params.page) && pages.some((p) => p.id === params.page) ? params.page : "my";
+  const page = drivePageIn(params.page, company);
   const space = page === "shared" ? "shared" : "personal";
-  const add = useAddMenu({ space });
+  const typed = useMenu().query.trim();
+  const q = useDebounced(typed);
   return (
-    <>
-      <Stack.Screen options={{ title: DRIVE_PAGES[page].label }} />
-      <ModuleToolbar
-        pages={pages}
-        current={page}
-        onPage={(id) => router.setParams({ page: id })}
-        actions={page === "my" || page === "shared" ? add : null}
-      />
-      {page === "sharedWithMe" ? (
+    <ModuleRoot>
+      {typed ? (
+        <DriveSearch q={q} footerSpace={FLOATING_BAR_SPACE} />
+      ) : page === "sharedWithMe" ? (
         <SharedWithMe />
       ) : page === "trash" ? (
         <Trash />
@@ -44,7 +32,7 @@ export default function DriveHome() {
         <Space space={space} />
       )}
       <UploadsPanel />
-    </>
+    </ModuleRoot>
   );
 }
 
@@ -58,6 +46,7 @@ function Space({ space }: { space: "personal" | "shared" }) {
       renderItem={(node) => <NodeItem node={node} />}
       icon={IconFolder}
       empty={DRIVE_PAGES.my.empty}
+      footerSpace={FLOATING_BAR_SPACE}
     />
   );
 }
@@ -71,6 +60,7 @@ function SharedWithMe() {
       renderItem={(item) => <NodeRow node={item.node} detail={item.orgName} />}
       icon={IconFolderShared}
       empty={DRIVE_PAGES.sharedWithMe.empty}
+      footerSpace={FLOATING_BAR_SPACE}
     />
   );
 }
@@ -84,6 +74,7 @@ function Trash() {
       renderItem={(node) => <TrashItem node={node} />}
       icon={IconTrash}
       empty={DRIVE_PAGES.trash.empty}
+      footerSpace={FLOATING_BAR_SPACE}
     />
   );
 }

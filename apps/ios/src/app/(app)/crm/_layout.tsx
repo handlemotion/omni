@@ -12,7 +12,7 @@ const sheet = {
 export default function CrmLayout() {
   return (
     <Stack screenOptions={stackOptions}>
-      <Stack.Screen name="index" options={{ headerLargeTitle: true }} />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="form" options={sheet} />
       <Stack.Screen name="note" options={sheet} />
     </Stack>

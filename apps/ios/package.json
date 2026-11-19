@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@better-auth/expo": "1.7.22",
+    "@central-icons-react-native/round-filled-radius-3-stroke-1.5": "1.2.39",
     "@central-icons-react-native/round-outlined-radius-3-stroke-1.5": "^1.2.27",
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo/metro-runtime": "~58.0.17",

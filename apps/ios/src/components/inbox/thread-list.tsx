@@ -22,6 +22,8 @@ export interface ThreadListProps {
   mailboxId: string | undefined;
   mailboxes: Mailbox[];
   you: string;
+  /** Room past the last row, for what floats over the list's bottom. */
+  footerSpace?: number;
 }
 
 /**
@@ -29,7 +31,7 @@ export interface ThreadListProps {
  * to refresh. A tap opens the conversation, warmed as the finger lands; a long press peeks at it, with Done, Later and Mark
  * unread in its menu.
  */
-export function ThreadList({ page, mailboxId, mailboxes, you }: ThreadListProps) {
+export function ThreadList({ page, mailboxId, mailboxes, you, footerSpace }: ThreadListProps) {
   const threads = useThreads(page, mailboxId);
   const done = useDone();
   const later = useLater();
@@ -54,9 +56,10 @@ export function ThreadList({ page, mailboxId, mailboxes, you }: ThreadListProps)
       icon={IconInbox}
       empty={MAIL_PAGES[page].empty}
       skeleton={<ThreadListSkeleton />}
+      footerSpace={footerSpace}
       renderItem={(row) =>
         row.kind === "heading" ? (
-          <SectionHeading label={row.label} />
+          <SectionHeading variant="group" label={row.label} />
         ) : (
           <Link href={{ pathname: "/mail/thread/[id]", params: { id: row.item.id, page } }} asChild>
             <Link.Trigger>

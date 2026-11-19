@@ -14,7 +14,7 @@ const sheet: NativeStackNavigationOptions = {
 export default function DriveLayout() {
   return (
     <Stack screenOptions={stackOptions}>
-      <Stack.Screen name="index" options={{ headerLargeTitle: true }} />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="share/[id]" options={sheet} />
       <Stack.Screen name="move/[id]" options={sheet} />
       <Stack.Screen name="versions/[id]" options={sheet} />

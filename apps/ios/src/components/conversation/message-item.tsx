@@ -43,7 +43,7 @@ export function MessageItem({ threadId, message, flat, onOpenAttachment }: Messa
       style={[styles.item, ours && styles.ours]}
     >
       <View style={[styles.meta, ours && styles.oursMeta]}>
-        <Avatar name={sender} logo={{ address: message.fromAddress }} size={32} />
+        <Avatar name={sender} logo={{ address: message.fromAddress }} size={32} shape="square" />
         <Text weight="medium" numberOfLines={1} style={styles.shrink}>
           {sender}
         </Text>

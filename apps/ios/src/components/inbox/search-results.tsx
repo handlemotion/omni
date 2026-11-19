@@ -6,13 +6,15 @@ import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { ListSkeleton } from "@/components/ui/list-skeleton.tsx";
 import { LoadingPage } from "@/components/ui/loading-page.tsx";
+import { useScrollEdge } from "@/components/ui/scroll-edge.tsx";
 import { useSearch } from "@/lib/mail.ts";
 import { space } from "@/theme/tokens.ts";
 import { ThreadRow } from "./thread-row.tsx";
 
 /** Threads matching `q` across the workspace's mail, best first; a tap opens one. */
-export function SearchResults({ q }: { q: string }) {
+export function SearchResults({ q, footerSpace = 0 }: { q: string; footerSpace?: number }) {
   const search = useSearch(q);
+  const onScroll = useScrollEdge();
   if (search.isPending) {
     return (
       <LoadingPage>
@@ -40,11 +42,13 @@ export function SearchResults({ q }: { q: string }) {
   return (
     <FlashList
       contentInsetAdjustmentBehavior="automatic"
+      onScroll={onScroll}
+      scrollEventThrottle={16}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       data={search.data}
       keyExtractor={(hit) => hit.threadId}
-      contentContainerStyle={styles.list}
+      contentContainerStyle={{ ...styles.list, paddingBottom: space(8) + footerSpace }}
       renderItem={({ item }) => (
         <ThreadRow
           thread={{

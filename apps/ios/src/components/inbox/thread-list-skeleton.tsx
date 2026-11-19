@@ -13,8 +13,8 @@ export function ThreadListSkeleton() {
         <View key={row} style={styles.row}>
           <Skeleton width={rowLead} height={rowLead} round />
           <View style={styles.body}>
-            <Skeleton width="45%" height={16} />
-            <Skeleton width="75%" height={13} />
+            <Skeleton width="45%" height={15} />
+            <Skeleton width="75%" height={14} />
             <Skeleton width="90%" height={13} />
           </View>
         </View>
@@ -25,12 +25,12 @@ export function ThreadListSkeleton() {
 
 const styles = StyleSheet.create({
   list: { paddingTop: space(1) },
-  heading: { paddingHorizontal: gutter, paddingTop: space(5), paddingBottom: space(2) },
+  heading: { paddingHorizontal: gutter, paddingTop: space(5.5), paddingBottom: space(2) },
   row: {
     flexDirection: "row",
-    gap: space(3.5),
+    gap: space(3),
     paddingHorizontal: gutter,
-    paddingVertical: space(3.5),
+    paddingVertical: space(3),
   },
   body: { flex: 1, gap: space(2), paddingTop: space(0.5) },
 });

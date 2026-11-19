@@ -121,3 +121,13 @@ export function dealValue(deal: Pick<CrmDeal, "valueMinor" | "valueCurrency">) {
     return `${amount} ${currency}`;
   }
 }
+
+/** CRM search: the people, companies and deals a query names. */
+export const useCrmSearch = (q: string) =>
+  useQuery({
+    queryKey: keys.crmSearch(q),
+    queryFn: ({ signal }) =>
+      call(api.crm.search.$get({ query: { q, limit: "20" } }, { init: { signal } })),
+    enabled: q.trim().length > 0,
+    placeholderData: (previous) => previous,
+  });
