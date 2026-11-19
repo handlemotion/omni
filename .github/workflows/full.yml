@@ -6,13 +6,13 @@ name: Full
 #
 # - Nightly on main, skipped when main has no new commit in the last day.
 # - By hand: Actions > Full > Run workflow, on any branch.
-# - On a pull request, by adding the `full-e2e` label (remove and re-add it to run again).
+# - On a pull request, by adding the `full-e2e` label, and again on each push while it has it.
 on:
   schedule:
     - cron: "17 6 * * *"
   workflow_dispatch:
   pull_request:
-    types: [labeled]
+    types: [labeled, synchronize]
 
 concurrency:
   group: full-${{ github.event.pull_request.number || github.ref }}
@@ -28,7 +28,11 @@ env:
 jobs:
   full:
     name: Full
-    if: github.event_name != 'pull_request' || github.event.label.name == 'full-e2e'
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.action == 'labeled' && github.event.label.name == 'full-e2e') ||
+      (github.event.action == 'synchronize' &&
+        contains(github.event.pull_request.labels.*.name, 'full-e2e'))
     # Runner switch (docs/operations/ci-runners.md): repo variable RUNNER_HEAVY, else boat (4 vCPU / 8 GB).
     # The full compose stack + wrangler e2e need more than boat-small's 4 GB.
     runs-on: ${{ fromJSON(vars.RUNNER_HEAVY || '"boat"') }}
@@ -90,11 +94,14 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: pnpm test:all
 
+      # --continue: one red package still lets the others run, so a failure hides nothing.
+      # --concurrency=1: one package at a time. All at once on 4 vCPU starved the mail and web
+      # timing tests (a different one failed each run); one at a time takes about 11 minutes.
       - name: E2E tests
         if: steps.scope.outputs.run == 'true'
         run: |
           docker compose up -d --wait
-          pnpm test:e2e
+          pnpm test:e2e --continue --concurrency=1
 
       - name: Stop the local stack
         if: always() && steps.scope.outputs.run == 'true'

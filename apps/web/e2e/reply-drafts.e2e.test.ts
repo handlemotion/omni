@@ -41,6 +41,7 @@ const savedBody = async (threadId: string) =>
 
 async function typeAndSave(page: Page, threadId: string, words: string) {
   const body = page.getByRole("textbox", { name: "Reply" });
+  await expect.poll(() => body.isEditable(), { timeout: 10_000 }).toBe(true);
   await body.click();
   await page.keyboard.press("ControlOrMeta+End");
   await body.pressSequentially(words);

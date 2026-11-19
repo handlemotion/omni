@@ -34,7 +34,7 @@ beforeAll(async () => {
     vars: { BETTER_AUTH_URL: `http://127.0.0.1:${port}`, GOOGLE_CLIENT_ID: "e2e-google-client" },
     secrets: { GOOGLE_CLIENT_SECRET: "e2e-google-secret" },
   });
-  browser = await chromium.launch();
+  browser = await chromium.launch().catch(() => chromium.launch({ channel: "chrome" }));
 });
 
 afterAll(async () => {
@@ -79,6 +79,7 @@ test("sign-in addresses and inboxes: a Gmail address is an inbox switched off un
   await page.goto(new URL("/chowmein/settings/accounts", origin).toString());
 
   const inbox = (address: string) => page.getByRole("switch", { name: address });
+  await inbox(connected).waitFor();
   await expect.poll(() => inbox(connected).isChecked()).toBe(true);
   expect(await inbox(gmail).isChecked()).toBe(false);
   expect(await inbox(email).isChecked()).toBe(true);

@@ -32,7 +32,7 @@ beforeAll(async () => {
     port,
     vars: { BETTER_AUTH_URL: `http://127.0.0.1:${port}` },
   });
-  browser = await chromium.launch();
+  browser = await chromium.launch().catch(() => chromium.launch({ channel: "chrome" }));
 });
 
 afterAll(async () => {

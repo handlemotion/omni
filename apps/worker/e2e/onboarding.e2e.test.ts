@@ -404,8 +404,22 @@ test("the switcher lists only the user's workspaces and the mailboxes their memb
     (w) => w.id === a.orgId,
   );
   expect(acme?.mailboxes).toEqual([
-    { id: hello.body.mailboxId, address: `hello@${a.domain}`, kind: "shared" },
-    { id: team.body.mailboxId, address: `team@${a.domain}`, kind: "shared" },
+    {
+      id: hello.body.mailboxId,
+      address: `hello@${a.domain}`,
+      kind: "shared",
+      label: null,
+      senderName: null,
+      picture: null,
+    },
+    {
+      id: team.body.mailboxId,
+      address: `team@${a.domain}`,
+      kind: "shared",
+      label: null,
+      senderName: null,
+      picture: null,
+    },
   ]);
   expect(ownerView.body.workspaces).toHaveLength(2);
   expect(ownerView.body.workspaces).toContainEqual(

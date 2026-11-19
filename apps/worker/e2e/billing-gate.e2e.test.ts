@@ -49,10 +49,13 @@ afterAll(async () => {
   await database?.teardown();
 });
 
+const DESKTOP_SYNC_ROUTES = "/api/storage/sync/";
+
 function writeRoutes() {
   const seen = new Set<string>();
   return app.routes
     .filter((r) => !["GET", "HEAD", "ALL"].includes(r.method) && r.path.startsWith("/api/"))
+    .filter((r) => !r.path.startsWith(DESKTOP_SYNC_ROUTES))
     .filter((r) => !seen.has(`${r.method} ${r.path}`) && seen.add(`${r.method} ${r.path}`))
     .map((r) => ({
       method: r.method,

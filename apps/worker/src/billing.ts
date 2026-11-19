@@ -136,6 +136,10 @@ export const READ_ONLY_ALLOWED = [
     reason: "gated in storage/shared.ts by the shared node's workspace, not the visitor's own",
   },
   {
+    path: "/api/storage/signing",
+    reason: "a signer answering a request already sent; sending one is gated",
+  },
+  {
     path: "/api/oauth",
     reason: "an agent's sign-in and its workspace choice: access, not mail (ADR 0029)",
   },

@@ -121,9 +121,12 @@ test("switching settings from a company's People page to the Personal space fall
   const page = await signedIn(email, "/settings/people");
   await page.getByRole("heading", { name: "People" }).first().waitFor();
 
-  await page.getByRole("button", { name: /^Switch workspace, currently Switch Co/ }).click();
+  const settingsNav = page.locator('[data-slot="sidebar"]');
+  await settingsNav.getByRole("button", { name: /^Switch workspace, currently Switch Co/ }).click();
   await page.getByRole("menuitem", { name: /(?:'s|^Personal) Workspace$/ }).click();
-  await page.getByRole("button", { name: /^Switch workspace, currently .*Workspace$/ }).waitFor();
+  await settingsNav
+    .getByRole("button", { name: /^Switch workspace, currently .*Workspace$/ })
+    .waitFor();
   await page.getByRole("heading", { name: "General" }).first().waitFor();
   expect(await page.getByRole("heading", { name: "People" }).count()).toBe(0);
 });

@@ -5,7 +5,7 @@
 | Severity | high                                         |
 | Area     | CI / packages/client                         |
 | Who      | Agent                                        |
-| Status   | open                                         |
+| Status   | in progress                                  |
 | Found    | 2026-11-19, read against `main` at `15ffca9` |
 
 ## Files

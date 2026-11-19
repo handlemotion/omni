@@ -195,9 +195,12 @@ test("switching workspace mid-upload stops the queue and leaves nothing in eithe
 
   await page.getByRole("button", { name: /^Switch workspace/ }).click();
   await page.getByRole("menuitem", { name: "Workspace settings" }).click();
-  await page.getByRole("button", { name: /^Switch workspace, currently Acme Files/ }).click();
+  const settingsNav = page.locator('[data-slot="sidebar"]');
+  await settingsNav
+    .getByRole("button", { name: /^Switch workspace, currently Acme Files/ })
+    .click();
   await page.getByRole("menuitem", { name: /(?:'s|^Personal) Workspace$/ }).click();
-  await page
+  await settingsNav
     .getByRole("button", { name: /^Switch workspace, currently .*Workspace$/ })
     .waitFor({ timeout: 15_000 });
   release();

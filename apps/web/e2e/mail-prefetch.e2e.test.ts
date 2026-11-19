@@ -80,7 +80,7 @@ test("after Done, the next email paints without going back to the network", asyn
   await page.goto(new URL(`/inbox/${first.threadId}`, origin).toString());
   const frame = page.frameLocator('iframe[title="Full message"]');
   await frame.getByText("First sale body").waitFor();
-  await warmed;
+  await (await warmed).finished();
 
   await context.setOffline(true);
   await page.getByRole("button", { name: "Done" }).click();
