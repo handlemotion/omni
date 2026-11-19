@@ -1,5 +1,6 @@
 import { infiniteQueryOptions, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { WORKSPACE_HEADER, type Api } from "@omni/client";
+import { daysAgo, listTime } from "@omni/mail-core/list-dates";
 import type { InferResponseType } from "hono/client";
 import { api, auth, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
@@ -120,6 +121,14 @@ export function fileSize(bytes: number) {
     unit += 1;
   }
   return `${unit === 0 ? value : value.toFixed(value < 10 ? 1 : 0)} ${UNITS[unit]}`;
+}
+
+/** When a file changed, as its row says it: Today, Yesterday, then the list's weekday or date. */
+export function fileDay(iso: string, now = new Date()) {
+  const ago = daysAgo(new Date(iso), now);
+  if (ago <= 0) return "Today";
+  if (ago === 1) return "Yesterday";
+  return listTime(iso, now);
 }
 
 /** Drive search across My files (and Shared, in a company): folders first, then by name. */

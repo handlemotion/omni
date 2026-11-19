@@ -1,19 +1,23 @@
 import { router } from "expo-router";
-import { IconFile, IconFolder } from "@/components/icons.ts";
-import { ItemRow } from "@/components/ui/item-row.tsx";
-import { fileSize, type DriveNode } from "@/lib/drive.ts";
-import { listTime } from "@/lib/mail.ts";
+import { StyleSheet, View } from "react-native";
+import { PressableRow } from "@/components/ui/pressable-row.tsx";
+import { Text } from "@/components/ui/text.tsx";
+import { fileDay, fileSize, type DriveNode } from "@/lib/drive.ts";
+import { colors, space } from "@/theme/tokens.ts";
+import { FileTile } from "./file-glyph.tsx";
 
-/** A file or folder: a folder opens inside Drive's stack, a file in the preview. */
+/**
+ * A file or folder as a row, after the desktop's list: its tile, its name, and when it changed
+ * and how big it is ("Today · 212 KB"). A folder opens inside Drive's stack, a file in the preview.
+ */
 export function NodeRow({ node, detail }: { node: DriveNode; detail?: string }) {
   const folder = node.kind === "folder";
+  const meta = [detail, fileDay(node.updatedAt), folder ? null : fileSize(node.size)]
+    .filter(Boolean)
+    .join(" · ");
   return (
-    <ItemRow
-      icon={folder ? IconFolder : IconFile}
-      title={node.name}
-      ellipsize={folder ? "tail" : "middle"}
-      detail={detail ?? (folder ? null : fileSize(node.size))}
-      trailing={listTime(node.updatedAt)}
+    <PressableRow
+      style={styles.row}
       onPress={
         node.trashedAt
           ? undefined
@@ -24,6 +28,28 @@ export function NodeRow({ node, detail }: { node: DriveNode; detail?: string }) 
                   : { pathname: "/drive/file/[id]", params: { id: node.id, name: node.name } },
               )
       }
-    />
+    >
+      <FileTile node={node} />
+      <View style={styles.text}>
+        <Text size="body" numberOfLines={1} ellipsizeMode={folder ? "tail" : "middle"}>
+          {node.name}
+        </Text>
+        <Text size="caption" tone="mutedForeground" tabular numberOfLines={1}>
+          {meta}
+        </Text>
+      </View>
+    </PressableRow>
   );
 }
+
+const styles = StyleSheet.create({
+  row: { alignItems: "center", gap: space(3), paddingVertical: 0 },
+  text: {
+    flex: 1,
+    minWidth: 0,
+    gap: space(0.5),
+    paddingVertical: space(4),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+});

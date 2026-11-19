@@ -122,3 +122,49 @@ export function previewKindOf(file: { name: string; mimeType: string | null; siz
   if (mime.startsWith("image/")) return "image" satisfies PreviewKind;
   return "none" satisfies PreviewKind;
 }
+
+/** What a file is, as the web's `fileType` names it: which glyph its tile draws. */
+export type FileKind =
+  | "image"
+  | "video"
+  | "audio"
+  | "pdf"
+  | "code"
+  | "text"
+  | "csv"
+  | "spreadsheet"
+  | "document"
+  | "presentation"
+  | "archive"
+  | "other";
+
+const VIDEO = new Set(["mp4", "m4v", "webm", "mov", "ogv"]);
+const AUDIO = new Set(["mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "flac"]);
+const ARCHIVE = new Set(["zip", "gz", "tgz", "tar", "rar", "7z", "bz2", "xz"]);
+const SPREADSHEET = new Set(["xls", "xlsx", "numbers", "ods"]);
+const DOCUMENT = new Set(["doc", "docx", "pages", "odt", "rtf"]);
+const PRESENTATION = new Set(["ppt", "pptx", "key", "odp"]);
+const PLAIN = new Set(["txt", "log", "text", "env"]);
+const CSV = new Set(["csv", "tsv"]);
+
+const KINDS: { kind: FileKind; matches: (ext: string, mime: string) => boolean }[] = [
+  { kind: "image", matches: (e, m) => IMAGE.has(e) || m.startsWith("image/") },
+  { kind: "pdf", matches: (e, m) => e === "pdf" || m === "application/pdf" },
+  { kind: "video", matches: (e, m) => VIDEO.has(e) || m.startsWith("video/") },
+  { kind: "audio", matches: (e, m) => AUDIO.has(e) || m.startsWith("audio/") },
+  { kind: "csv", matches: (e, m) => CSV.has(e) || m === "text/csv" },
+  { kind: "text", matches: (e) => PLAIN.has(e) },
+  { kind: "code", matches: (e) => TEXT.has(e) },
+  { kind: "text", matches: (_, m) => m.startsWith("text/") },
+  { kind: "archive", matches: (e) => ARCHIVE.has(e) },
+  { kind: "spreadsheet", matches: (e) => SPREADSHEET.has(e) },
+  { kind: "document", matches: (e) => DOCUMENT.has(e) },
+  { kind: "presentation", matches: (e) => PRESENTATION.has(e) },
+];
+
+/** The extension or, failing it, the MIME type, as a kind of file. */
+export function fileKindOf(file: { name: string; mimeType: string | null }) {
+  const ext = extensionOf(file.name);
+  const mime = (file.mimeType ?? "").toLowerCase();
+  return KINDS.find((rule) => rule.matches(ext, mime))?.kind ?? "other";
+}

@@ -43,6 +43,14 @@ export { IconHandshake as IconHandshakeFilled } from "@central-icons-react-nativ
 export { IconPlusMedium as IconPlus } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconPlusMedium";
 export { IconImages1 as IconImage } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconImages1";
 export { IconFolderAddRight as IconFolderPlus } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconFolderAddRight";
+export { IconVideo } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconVideo";
+export { IconAudio } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconAudio";
+export { IconCodeBrackets as IconCode } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconCodeBrackets";
+export { IconTable } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconTable";
+export { IconFileZip } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconFileZip";
+export { IconFilePdf } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconFilePdf";
+export { IconSlidesWide as IconPresentation } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconSlidesWide";
+export { IconFolderOpen as IconFolderOpenFilled } from "@central-icons-react-native/round-filled-radius-3-stroke-1.5/IconFolderOpen";
 export { IconArrowUp } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconArrowUp";
 export { IconDotGrid1x3Horizontal as IconEllipsis } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconDotGrid1x3Horizontal";
 export { IconArrowShareRight as IconForward } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconArrowShareRight";
@@ -55,4 +63,3 @@ export { IconSpeedLow as IconSignalLow } from "@central-icons-react-native/round
 export { IconTag } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconTag";
 export { IconEmail2Unread as IconMailUnread } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconEmail2Unread";
 export { IconBellOff } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconBellOff";
-export { IconFileZip } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconFileZip";

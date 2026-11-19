@@ -1,4 +1,5 @@
 import { Link, router, type Href } from "expo-router";
+import { FolderCard } from "@/components/drive/folder-card.tsx";
 import { NodeRow } from "@/components/drive/node-row.tsx";
 import {
   canTrash,
@@ -22,9 +23,10 @@ const hrefOf = (node: DriveNode) =>
 
 /**
  * A file or folder in a space or a folder, with its actions in a native context menu on a long
- * press: the web's row menu, less what a phone has no room for (comments, signatures, icons).
+ * press: the web's row menu, less what a phone has no room for (comments, signatures, icons). A
+ * folder in the grid draws as its card (`card`).
  */
-export function NodeItem({ node }: { node: DriveNode }) {
+export function NodeItem({ node, card = false }: { node: DriveNode; card?: boolean }) {
   const me = useMe().data;
   const rename = useChangeNode().mutate;
   const trash = useTrashNode().mutate;
@@ -33,7 +35,7 @@ export function NodeItem({ node }: { node: DriveNode }) {
   return (
     <Link href={href} asChild>
       <Link.Trigger>
-        <NodeRow node={node} />
+        {card && !file ? <FolderCard node={node} /> : <NodeRow node={node} />}
       </Link.Trigger>
       <Link.Menu>
         <Link.MenuAction
