@@ -51,9 +51,9 @@ const tick = () => void Haptics.selectionAsync();
 const SETTLE = { damping: 22, stiffness: 240 } as const;
 
 const SIDES = {
-  right: { tone: "success", tint: colors.success, from: 0.06, to: 0.36 },
-  left: { tone: "later", tint: colors.foreground, from: 0.04, to: 0.22 },
-} as const satisfies Record<string, { tone: ColorToken; tint: string; from: number; to: number }>;
+  right: "swipeDone",
+  left: "swipeLater",
+} as const satisfies Record<string, ColorToken>;
 
 type Side = keyof typeof SIDES;
 
@@ -61,8 +61,9 @@ const CardScroll = createContext<{ dismiss: PanGesture; atTop: SharedValue<boole
 
 /**
  * A conversation as one card. Dragged sideways from anywhere, the whole page follows the finger
- * and tints (green to the right for Done, grey to the left for Later) under a badge that fills
- * solid once letting go would commit; letting go there carries it off and runs the action, and
+ * and fills solid (green to the right for Done, grey to the left for Later, reaching full colour
+ * at the commit point) under a white badge and label; the badge turns solid white once letting
+ * go would commit; letting go there carries it off and runs the action, and
  * earlier springs it back. Only a drag down (from the top of its scroll) dismisses it: the
  * native back swipe and the zoom's own dismissal are off, so sideways never closes it.
  */
@@ -198,7 +199,7 @@ function Wash({
   x: SharedValue<number>;
   armed: SharedValue<number>;
 }) {
-  const { tone, tint, from, to } = SIDES[side];
+  const fill = colors[SIDES[side]];
   const sign = side === "right" ? 1 : -1;
   const Icon = action.icon;
   const reach = (value: number) => {
@@ -207,7 +208,7 @@ function Wash({
   };
   const wash = useAnimatedStyle(() => {
     const p = reach(x.value);
-    return { opacity: p > 0 ? from + (to - from) * p : 0 };
+    return { opacity: Math.min(1, p / COMMIT) };
   });
   const badge = useAnimatedStyle(() => {
     const p = reach(x.value);
@@ -221,15 +222,15 @@ function Wash({
   }));
   return (
     <>
-      <Animated.View pointerEvents="none" style={[styles.wash, { backgroundColor: tint }, wash]} />
+      <Animated.View pointerEvents="none" style={[styles.wash, { backgroundColor: fill }, wash]} />
       <Animated.View pointerEvents="none" style={[styles.mark, badge]}>
-        <View style={[styles.badge, { borderColor: colors[tone] }]}>
-          <Icon size={iconSize.lg} color={colors[tone]} />
-          <Animated.View style={[styles.fill, { backgroundColor: colors[tone] }, filled]}>
-            <Icon size={iconSize.lg} color={colors.primaryForeground} />
+        <View style={styles.badge}>
+          <Icon size={iconSize.lg} color={colors.swipeForeground} />
+          <Animated.View style={[styles.fill, filled]}>
+            <Icon size={iconSize.lg} color={fill} />
           </Animated.View>
         </View>
-        <Text size="lg" weight="semibold" tone={tone}>
+        <Text size="lg" weight="semibold" tone="swipeForeground">
           {action.label}
         </Text>
       </Animated.View>
@@ -256,13 +257,14 @@ const styles = StyleSheet.create({
     height: BADGE,
     borderRadius: radius.full,
     borderWidth: 2,
-    backgroundColor: colors.background,
+    borderColor: colors.swipeForeground,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
   fill: {
     ...StyleSheet.absoluteFill,
+    backgroundColor: colors.swipeForeground,
     alignItems: "center",
     justifyContent: "center",
   },

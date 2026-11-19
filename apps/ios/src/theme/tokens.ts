@@ -35,8 +35,12 @@ export const colors = {
   /** `--warning`: Later, as a row's swipe shows it. */
   warning: "#ffb900",
   warningForeground: "#461901",
-  /** Later, as a conversation's page tints when swiped left: a grey, not the list's amber. */
-  later: "#525252",
+  /** A conversation's page swiped right for Done: a solid, lighter green under white ink. */
+  swipeDone: "#34c46e",
+  /** A conversation's page swiped left for Later: a solid grey, not the list's amber. */
+  swipeLater: "#8e8e93",
+  /** The label and badge drawn on a swipe's fill. */
+  swipeForeground: "#ffffff",
 } as const;
 
 export type ColorToken = keyof typeof colors;
