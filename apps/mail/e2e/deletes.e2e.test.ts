@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
@@ -119,6 +120,48 @@ it("deleting the latest reply in another app reports its thread, so the Worker r
   expect(queued.map((row) => row.event)).toEqual([
     { type: "messages.pruned", orgId: thread!.orgId, mailboxId: box.id, threadIds: [thread!.id] },
   ]);
+});
+
+it("a Message-ID too long to index still imports, threads its reply, and lets deletes prune", async () => {
+  const { box, connection } = await connected("shared");
+  const huge = `<${randomBytes(1500).toString("hex")}.${box.id}@outside.test>`;
+  await arrive(connection, [
+    [box.address, "Huge id", { messageId: huge }],
+    [box.address, "Re: Huge id", { inReplyTo: huge }],
+    [box.address, "Delete me later"],
+  ]);
+  expect(await subjects(box.id)).toEqual(["Delete me later", "Huge id", "Re: Huge id"]);
+  expect((await threadOf(box.id, "Re: Huge id"))?.id).toBe((await threadOf(box.id, "Huge id"))?.id);
+
+  await inOtherApp(connection, "Delete me later", null);
+  await connection.syncAll();
+  await connection.syncAll();
+
+  expect(await subjects(box.id)).toEqual(["Huge id", "Re: Huge id"]);
+});
+
+it("a long Message-ID stored before ids were bounded is found again, not imported twice", async () => {
+  const { box, connection } = await connected("shared");
+  const long = `<${randomBytes(600).toString("hex")}@outside.test>`;
+  await arrive(connection, [[box.address, "Stored long ago", { messageId: long }]]);
+  const [row] = await messageRows(db, box.id);
+  await db
+    .update(schema.messages)
+    .set({ messageIdHeader: long })
+    .where(eq(schema.messages.id, row!.id));
+
+  await otherClient(connection.mailbox, async (client) => {
+    await client.mailboxCreate("Archive").catch(() => {});
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      await client.messageCopy("1:*", "Archive", { uid: true });
+    } finally {
+      lock.release();
+    }
+  });
+  await connection.syncAll();
+
+  expect((await messageRows(db, box.id)).map((m) => m.messageIdHeader)).toEqual([long]);
 });
 
 it("a thread moved to Trash in another app leaves the inbox and keeps its messages", async () => {

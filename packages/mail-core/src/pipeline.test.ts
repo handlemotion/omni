@@ -39,6 +39,7 @@ const FIXTURES = [
   "outlook-forward.eml",
   "outlook-mobile-reply.eml",
   "outlook-web-reply-html-only.eml",
+  "oversized-message-id.eml",
   "phishing-spoofed-sender.eml",
 ];
 
@@ -189,6 +190,18 @@ describe("parseMessage", () => {
     expect(again.messageId).toBe(first.messageId);
     const other = new TextDecoder().decode(raw).replace("Saturday", "Sunday");
     expect((await parseMessage(other)).message.messageId).not.toBe(first.messageId);
+  });
+
+  test("an id too long for an index row becomes a hash that its replies still match", async () => {
+    const message = await parse("oversized-message-id.eml");
+    const hashed = /^<[0-9a-f]{40}@omni\.invalid>$/;
+    expect(message.messageId).toMatch(hashed);
+    expect(message.messageIdSynthesized).toBe(false);
+    expect(message.longMessageId).toBe(`<${"x".repeat(3000)}@ledger.example.org>`);
+    expect(message.inReplyTo).toMatch(hashed);
+    expect(message.references).toEqual(["<first.4471@ledger.example.org>", message.inReplyTo]);
+    expect(message.inReplyTo).not.toBe(message.messageId);
+    expect((await parse("oversized-message-id.eml")).messageId).toBe(message.messageId);
   });
 
   test("returns attachment metadata with contents, and maps cid images to attachments", async () => {

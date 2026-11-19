@@ -56,6 +56,11 @@ export interface ParsedMessage {
   messageId: string;
   messageIdSynthesized: boolean;
   /**
+   * The header's own Message-ID when it was over 998 bytes and `messageId` is its hash. A row
+   * stored before ids were bounded still carries this form, so look it up by both.
+   */
+  longMessageId?: string;
+  /**
    * The In-Reply-To header. A bounce without one gets the Message-ID of the message it
    * returns, as Gmail's own bounces carry: it is stored, so threading converges whichever
    * of the two syncs first.
@@ -147,7 +152,7 @@ async function describe(mail: ParsedMail, bodySkipped: boolean) {
     messageId: headerId ?? (await synthesizeMessageId(mail.headerLines, mail.text, mail.html)),
     messageIdSynthesized: headerId === null,
     inReplyTo: firstMessageId(mail.inReplyTo),
-    references: capReferences(messageIds(mail.references)),
+    references: capReferences(await boundedIds(messageIds(mail.references))),
     from,
     to: addresses(mail.to),
     cc: addresses(mail.cc),
@@ -167,6 +172,10 @@ async function describe(mail: ParsedMail, bodySkipped: boolean) {
     automated: automated(mail, from),
   };
   message.inReplyTo ??= message.automated?.bouncedMessageId ?? null;
+  const bounded = await boundedId(message.messageId);
+  if (bounded !== message.messageId) message.longMessageId = message.messageId;
+  message.messageId = bounded;
+  if (message.inReplyTo !== null) message.inReplyTo = await boundedId(message.inReplyTo);
   if (bodySkipped) message.bodySkipped = true;
 
   return withoutNul(message) satisfies ParsedMessage;
@@ -427,8 +436,22 @@ async function synthesizeMessageId(
   const keyHeaders = ["from", "to", "cc", "date", "subject"]
     .map((key) => `${key}:${header(lines, key) ?? ""}`)
     .join("\n");
-  const input = `${keyHeaders}\n\n${text ?? ""}\n\n${html || ""}`;
+  return hashedMessageId(`${keyHeaders}\n\n${text ?? ""}\n\n${html || ""}`);
+}
+
+async function hashedMessageId(input: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
   const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
   return `<${hex.slice(0, 40)}@omni.invalid>`;
+}
+
+const RFC_5322_MAX_LINE_BYTES = 998;
+
+async function boundedId(id: string) {
+  if (Buffer.byteLength(id) <= RFC_5322_MAX_LINE_BYTES) return id;
+  return hashedMessageId(id);
+}
+
+async function boundedIds(ids: string[]) {
+  return [...new Set(await Promise.all(ids.map(boundedId)))];
 }
