@@ -1,6 +1,6 @@
 import type { Message } from "@omni/client";
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { ActionSheetIOS, Pressable, StyleSheet, View } from "react-native";
 import { HtmlView } from "@/components/conversation/html-view";
 import { IconPaperclip } from "@/components/icons.ts";
 import { Avatar } from "@/components/ui/avatar.tsx";
@@ -25,15 +25,23 @@ export interface MessageItemProps {
  * One message as the spec draws it: who and when, then only what they newly wrote. Short ones are
  * bubbles (yours and your team's on the right, tinted), long or formal ones cards (`display`,
  * decided by the Worker). Either can show the sender's HTML in place, as on the web; a message
- * with no text of its own, or outside mail its images carry, opens that way.
+ * with no text of its own, or outside mail its images carry, opens that way; a long press
+ * switches between the two, as the web's message menu does.
  */
 export function MessageItem({ threadId, message, flat, onOpenAttachment }: MessageItemProps) {
   const [full, setFull] = useState(() => opensFull(message));
   const sender = message.fromName || message.fromAddress;
   const card = message.display === "card" || full || !!flat;
   const ours = message.fromTeam && !card;
+  const switchable = message.hasHtml && !!message.cleanText.trim();
   return (
-    <View style={[styles.item, ours && styles.ours]}>
+    <Pressable
+      accessibilityHint={
+        switchable ? "Long press to switch between the text and the full message" : undefined
+      }
+      onLongPress={switchable ? () => offerSwitch(full, () => setFull((open) => !open)) : undefined}
+      style={[styles.item, ours && styles.ours]}
+    >
       <View style={[styles.meta, ours && styles.oursMeta]}>
         <Avatar name={sender} logo={{ address: message.fromAddress }} size={32} />
         <Text weight="medium" numberOfLines={1} style={styles.shrink}>
@@ -74,15 +82,14 @@ export function MessageItem({ threadId, message, flat, onOpenAttachment }: Messa
           ))}
         </View>
       ) : null}
-      {message.hasHtml && message.cleanText.trim() ? (
-        <Button
-          intent="quiet"
-          label={full ? "Show text" : "Show full message"}
-          onPress={() => setFull((open) => !open)}
-          style={ours ? styles.oursAction : undefined}
-        />
-      ) : null}
-    </View>
+    </Pressable>
+  );
+}
+
+function offerSwitch(full: boolean, onSwitch: () => void) {
+  ActionSheetIOS.showActionSheetWithOptions(
+    { options: [full ? "Show text" : "Show full message", "Cancel"], cancelButtonIndex: 1 },
+    (index) => index === 0 && onSwitch(),
   );
 }
 
@@ -139,5 +146,4 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  oursAction: { alignSelf: "flex-end" },
 });
