@@ -2,6 +2,7 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { MessageItem } from "@/components/conversation/message-item.tsx";
+import { ThreadActions } from "@/components/conversation/thread-actions.tsx";
 import { ThreadTitle } from "@/components/conversation/thread-header.tsx";
 import { IconInbox } from "@/components/icons.ts";
 import { Button } from "@/components/ui/button.tsx";
@@ -24,6 +25,7 @@ export default function ThreadScreen() {
   return (
     <Screen edges={[]}>
       <Stack.Screen options={{ title: "" }} />
+      <ThreadActions threadId={id} />
       {thread.isPending ? (
         <View style={styles.content}>
           <Skeleton width="80%" height={24} />
@@ -69,9 +71,9 @@ function useMarkReadOnOpen(threadId: string, read: boolean | undefined) {
   const markRead = useMarkRead();
   const sent = useRef<string | null>(null);
   useEffect(() => {
-    if (read !== false || sent.current === threadId) return;
+    if (read === undefined || sent.current === threadId) return;
     sent.current = threadId;
-    markRead.mutate({ threadId, key: idempotencyKey() });
+    if (!read) markRead.mutate({ threadId, key: idempotencyKey() });
   }, [threadId, read, markRead]);
 }
 

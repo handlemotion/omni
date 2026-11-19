@@ -68,6 +68,14 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Request options that name `workspace` on a call, whatever the app is in when it runs: a mutation
+ * captures the workspace when the person acts, so a retry after they switch still lands there.
+ */
+export function inWorkspace(workspace: string | null) {
+  return workspace ? { headers: { [WORKSPACE_HEADER]: workspace } } : {};
+}
+
 /** Awaits a Hono RPC call and returns its typed body, or throws `ApiError`. */
 // oxlint-disable-next-line typescript/no-explicit-any -- mirrors hono's own `parseResponse` bound
 export const call: <T extends ClientResponse<any>>(

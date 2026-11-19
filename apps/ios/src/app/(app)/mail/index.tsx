@@ -47,7 +47,7 @@ export default function MailList() {
         mailboxes={mailboxes.data ?? []}
         you={you}
         onOpenThread={(thread) =>
-          router.push({ pathname: "/mail/thread/[id]", params: { id: thread.id } })
+          router.push({ pathname: "/mail/thread/[id]", params: { id: thread.id, page } })
         }
       />
     </>

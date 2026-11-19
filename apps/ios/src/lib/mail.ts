@@ -6,11 +6,15 @@ import {
   useQuery,
   useQueryClient,
   type InfiniteData,
+  type QueryClient,
+  type QueryKey,
 } from "@tanstack/react-query";
-import type { Mailbox, ThreadPage } from "@omni/client";
+import type { Mailbox, Thread, ThreadPage } from "@omni/client";
+import { useMemo } from "react";
 import type { SymbolName } from "./symbols.ts";
-import { ApiError, api, call, isAuthError } from "./api.ts";
+import { ApiError, api, call, inWorkspace, isAuthError } from "./api.ts";
 import { keys } from "./query-keys.ts";
+import { currentWorkspaceId } from "./workspace-id.ts";
 
 const FIRST_PAGE_SIZE = 30;
 const OLDER_PAGE_SIZE = 100;
@@ -59,6 +63,8 @@ export const MAIL_PAGES = {
     icon: "ellipsis.bubble",
     empty: "Not waiting on anyone",
   },
+  done: { label: "Done", view: "done", icon: "checkmark.circle", empty: "Nothing done yet" },
+  archive: { label: "Archive", view: "archive", icon: "archivebox", empty: "Nothing archived" },
   all: { label: "All mail", view: "all", icon: "envelope", empty: "No mail yet" },
   sent: { label: "Sent", view: "sent", icon: "paperplane", empty: "Nothing sent yet" },
   trash: { label: "Trash", view: "trash", icon: "trash", empty: "Trash is empty" },
@@ -143,25 +149,59 @@ export const useMessageHtml = (threadId: string, messageId: string) =>
     staleTime: Infinity,
   });
 
+/** One queue for every thread action, opening's mark-read included, so they land in order. */
+export const MAIL_ACTIONS_SCOPE = { id: "mail-actions" };
+
+/** Every thread action's `mutationKey`, so a settling one can tell whether others are still queued. */
+export const MAIL_ACTIONS_KEY = ["mail-actions"] as const;
+
+/**
+ * After a thread action: the counts refetch, and the lists and every thread's detail (not its
+ * message HTML) refetch once the last queued action settles, so an earlier refetch never
+ * overwrites a later optimistic edit and no acted-on thread is left stale.
+ */
+export function settleMailAction(client: QueryClient) {
+  void client.invalidateQueries({ queryKey: keys.counts() });
+  if (client.isMutating({ mutationKey: MAIL_ACTIONS_KEY }) > 1) return;
+  void client.invalidateQueries({ queryKey: ["threads"] });
+  void client.invalidateQueries({
+    queryKey: ["thread"],
+    predicate: (query) => query.queryKey.length === 2,
+  });
+}
+
+interface MarkRead {
+  threadId: string;
+  key: string;
+}
+
 /**
  * Marks a thread read, as opening it does on the web: the list row and the counts follow at once,
  * and a retry reuses the same idempotency key.
  */
 export function useMarkRead() {
   const client = useQueryClient();
-  return useMutation({
-    mutationFn: ({ threadId, key }: { threadId: string; key: string }) =>
+  const mutation = useMutation({
+    mutationFn: ({ threadId, key, workspace }: MarkRead & { workspace: string | null }) =>
       call(
-        api.threads[":id"].state.$patch({
-          param: { id: threadId },
-          header: { "idempotency-key": key },
-          json: { read: true },
-        }),
+        api.threads[":id"].state.$patch(
+          { param: { id: threadId }, header: { "idempotency-key": key }, json: { read: true } },
+          inWorkspace(workspace),
+        ),
       ),
     retry: (count, error) => !isAuthError(error) && count < 2,
-    onMutate: async ({ threadId }) => {
+    mutationKey: MAIL_ACTIONS_KEY,
+    scope: MAIL_ACTIONS_SCOPE,
+    onMutate: async ({ threadId, workspace }) => {
       await client.cancelQueries({ queryKey: ["threads"] });
-      const snapshot = client.getQueriesData<InfiniteData<ThreadPage>>({ queryKey: ["threads"] });
+      await client.cancelQueries({ queryKey: keys.thread(threadId), exact: true });
+      const snapshot: [QueryKey, unknown][] = [
+        ...client.getQueriesData<InfiniteData<ThreadPage>>({ queryKey: ["threads"] }),
+        [keys.thread(threadId), client.getQueryData(keys.thread(threadId))],
+      ];
+      client.setQueryData<Thread>(keys.thread(threadId), (thread) =>
+        thread ? { ...thread, read: true } : thread,
+      );
       client.setQueriesData<InfiniteData<ThreadPage>>({ queryKey: ["threads"] }, (data) =>
         data
           ? {
@@ -175,12 +215,18 @@ export function useMarkRead() {
             }
           : data,
       );
-      return { snapshot };
+      return { snapshot, workspace };
     },
     onError: (_error, _vars, context) => {
-      for (const [key, data] of context?.snapshot ?? []) client.setQueryData(key, data);
-      void client.invalidateQueries({ queryKey: ["threads"] });
+      if (context?.workspace === currentWorkspaceId()) {
+        for (const [key, data] of context.snapshot) client.setQueryData(key, data);
+      }
     },
-    onSettled: () => void client.invalidateQueries({ queryKey: keys.counts() }),
+    onSettled: () => settleMailAction(client),
   });
+  const { mutate } = mutation;
+  return useMemo(
+    () => ({ mutate: (vars: MarkRead) => mutate({ ...vars, workspace: currentWorkspaceId() }) }),
+    [mutate],
+  );
 }
