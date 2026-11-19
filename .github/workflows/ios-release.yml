@@ -1,0 +1,87 @@
+name: iOS release
+
+# Builds the iOS app from its tag and uploads it to App Store Connect, where TestFlight picks it up
+# (ADR 0051): apps/ios/scripts/release-testflight.sh, the same script a Mac runs. release.yml calls
+# it when a release pull request raises the iOS version; run it by hand (Actions, iOS release, Run
+# workflow) for another build of a tag. The build number is one above the highest App Store
+# Connect holds. About 20 minutes of macOS, so only for a release.
+#
+# macos-26: App Store Connect takes only builds made with the current iOS SDK (Xcode 26).
+# Settings come from Doppler `prd_github`, which syncs to the GitHub environment `production`
+# (docs/operations/releases.md lists them).
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The ios-vX.Y.Z tag to build"
+        required: true
+
+concurrency:
+  group: ios-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  testflight:
+    name: TestFlight
+    runs-on: macos-26
+    timeout-minutes: 60
+    environment: production
+    steps:
+      - name: Tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$TAG" =~ ^ios-v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::not an iOS tag: $TAG"; exit 1; }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile --filter @omni/ios...
+
+      - name: Signing certificate
+        env:
+          P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+        run: .github/scripts/signing-keychain.sh
+
+      - name: App Store Connect key
+        env:
+          ASC_KEY: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s\n' "$ASC_KEY" >"$RUNNER_TEMP/keys/asc.p8"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/keys/asc.p8" >>"$GITHUB_ENV"
+
+      - name: Build and upload
+        env:
+          EXPO_PUBLIC_OMNI_API_URL: ${{ secrets.EXPO_PUBLIC_OMNI_API_URL }}
+          OMNI_IOS_BUNDLE_ID: ${{ secrets.OMNI_IOS_BUNDLE_ID }}
+          OMNI_IOS_NAME: ${{ secrets.OMNI_IOS_NAME }}
+          OMNI_IOS_SCHEME: ${{ secrets.OMNI_IOS_SCHEME }}
+          OMNI_IOS_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: apps/ios/scripts/release-testflight.sh
+
+      - name: Clean up
+        if: always()
+        run: |
+          .github/scripts/signing-keychain.sh delete
+          rm -rf "$RUNNER_TEMP/keys"

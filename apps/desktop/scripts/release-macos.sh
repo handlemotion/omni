@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Builds, signs, notarizes and publishes a macOS release of Omni (docs/spec/desktop.md, "Build,
-# signing, release"). Runs on a Mac, from a clean checkout of main. Installed apps find it at
+# signing, release"). Runs on a Mac, from a clean checkout of a commit on main: the `Desktop release`
+# workflow's macOS runner (ADR 0051), or a person's Mac. Installed apps find it at
 # <OMNI_DESKTOP_ORIGIN>/desktop/latest.json within six hours and install it on their own.
 #
 #   apps/desktop/scripts/release-macos.sh             build, check and publish
 #   apps/desktop/scripts/release-macos.sh --no-publish build and check only
 #
-# The version is `version` in src-tauri/tauri.conf.json: raise it in a PR, merge, then run this.
+# The version is `version` in src-tauri/tauri.conf.json, which release-please raises in its release
+# PR. Merging that PR tags the commit desktop-v<version>, and the workflow runs this on that tag.
 # Config comes from the environment, or apps/desktop/.env (see .env.example, "Releases"). Every
 # secret is a file on this Mac, named by path; nothing secret is passed on the command line.
 set -euo pipefail
@@ -45,20 +47,25 @@ done
 version="$(node -p "require('$desktop/src-tauri/tauri.conf.json').version")"
 tag="desktop-v$version"
 
-# A release is exactly what main holds, and each version ships once.
+# A release is a commit main holds, and each version ships once: the tag may already exist only on
+# this commit (release-please made it), and is made here otherwise.
+tagged=0
 if [[ $publish == 1 ]]; then
   git -C "$repo" fetch -q origin main --tags
   if [[ -n "$(git -C "$repo" status --porcelain)" ]]; then
     echo "release: the checkout has uncommitted changes" >&2
     exit 1
   fi
-  if [[ "$(git -C "$repo" rev-parse HEAD)" != "$(git -C "$repo" rev-parse origin/main)" ]]; then
-    echo "release: check out origin/main first" >&2
+  if ! git -C "$repo" merge-base --is-ancestor HEAD origin/main; then
+    echo "release: check out a commit on origin/main first" >&2
     exit 1
   fi
   if git -C "$repo" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-    echo "release: $tag already exists; raise the version in src-tauri/tauri.conf.json" >&2
-    exit 1
+    if [[ "$(git -C "$repo" rev-parse "$tag^{commit}")" != "$(git -C "$repo" rev-parse HEAD)" ]]; then
+      echo "release: $tag already names another commit; raise the version" >&2
+      exit 1
+    fi
+    tagged=1
   fi
 fi
 
@@ -139,6 +146,8 @@ if [[ "$live" != "$version" ]]; then
   exit 1
 fi
 
-git -C "$repo" tag "$tag"
-git -C "$repo" push -q origin "$tag"
+if [[ $tagged == 0 ]]; then
+  git -C "$repo" tag "$tag"
+  git -C "$repo" push -q origin "$tag"
+fi
 echo "release: Omni $version is live at $origin/desktop/latest.json ($tag)"

@@ -45,7 +45,9 @@ point the API at production or a `pnpm share` URL.
 
 ## Release to TestFlight
 
-On a Mac with Xcode signed in to the Apple account that owns the team, and the app created in App
+Releases are cut by release-please and built by the `iOS release` workflow (ADR 0051,
+`docs/operations/releases.md`): merge the release pull request and the build reaches TestFlight.
+By hand, on a Mac with Xcode signed in to the Apple account that owns the team, and the app created in App
 Store Connect under the same bundle ID:
 
 ```bash
@@ -57,4 +59,5 @@ OMNI_IOS_BUNDLE_ID=<bundle id> OMNI_IOS_TEAM_ID=<team id> OMNI_IOS_BUILD_NUMBER=
 It prebuilds the native project, archives a Release build, and uploads it (`UPLOAD=0` exports the
 `.ipa` to `apps/ios/ios/build/release` instead). The Worker must list the app's scheme
 (`omni://`) in `AUTH_TRUSTED_ORIGINS`, or sign-in links can't return to the app. CocoaPods must be
-installed (`brew install cocoapods`).
+installed (`brew install cocoapods`). With an App Store Connect key (`ASC_KEY_PATH`, `ASC_KEY_ID`,
+`ASC_ISSUER_ID`) the build number may be left out: it is asked of App Store Connect.

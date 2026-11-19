@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "fec9455bf9fc94addfef80dcf6f7e6f1e574e811",
+  "include-component-in-tag": true,
+  "include-v-in-tag": true,
+  "separate-pull-requests": false,
+  "changelog-sections": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Fixes" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "revert", "section": "Reverts" }
+  ],
+  "packages": {
+    "apps/desktop": {
+      "component": "desktop",
+      "release-type": "node",
+      "package-name": "@omni/desktop",
+      "extra-files": [
+        { "type": "json", "path": "src-tauri/tauri.conf.json", "jsonpath": "$.version" }
+      ]
+    },
+    "apps/ios": {
+      "component": "ios",
+      "release-type": "node",
+      "package-name": "@omni/ios"
+    }
+  }
+}

@@ -5,9 +5,8 @@ name: Desktop
 # unchanged for everyone else.
 #
 # The macOS and Windows builds are the expensive legs (macOS minutes cost about ten Linux ones), so
-# they run only for a release: when a `desktop-v*` tag is pushed (`git tag desktop-v0.1.4 && git
-# push origin desktop-v0.1.4`, or a GitHub release that creates it), or by hand. Signed builds and
-# the updater feed come with the release layer.
+# they run only by hand, and Windows also for a `desktop-v*` tag. A tag's signed macOS build is
+# `Desktop release` (desktop-release.yml), so this workflow does not build macOS a second time.
 on:
   pull_request:
     branches: [main]
@@ -82,7 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, windows-2025]
+        os: ${{ fromJSON(github.ref_type == 'tag' && '["windows-2025"]' || '["macos-15", "windows-2025"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:

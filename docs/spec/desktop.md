@@ -273,13 +273,14 @@ primitives, and add no text.
 - **CI.** A `Desktop` workflow, on pull requests touching `apps/desktop/**`: Rust fmt, clippy
   and tests on Linux; unsigned compiles on macOS and Windows. `Checks` is unchanged for everyone
   else.
-- **Releases.** No CI budget for signed builds, so a release runs on a Mac:
-  `apps/desktop/scripts/release-macos.sh` builds the version in `tauri.conf.json` (universal,
+- **Releases.** Cut by release-please and run on GitHub's macOS runner (ADR 0051,
+  `desktop-release.yml`), or by hand on a Mac: `apps/desktop/scripts/release-macos.sh` builds the version in `tauri.conf.json` (universal,
   Developer ID, both profiles embedded, app and disk image notarized), signs the updater archive
   with the updater key, uploads it to the R2 bucket behind the Worker (`DESKTOP_BUCKET`), writes
   `/desktop/latest.json` last, checks the live feed and tags `desktop-v<version>`. The Worker
   serves `/desktop/latest.json`, `/desktop/download/:platform` and `/desktop/releases/*` from it,
-  so a self-hoster publishes to their own. Every key stays a file on that Mac.
+  so a self-hoster publishes to their own. Every key is a file on that Mac, or a secret of the
+  Doppler `prd_github` secret (synced to the GitHub environment `production`) written to a file for the job.
 - **Config.** `OMNI_DESKTOP_ORIGIN` (optional default server), `OMNI_DESKTOP_BUNDLE_ID`,
   `OMNI_DESKTOP_APP_GROUP`, `APPLE_TEAM_ID`, updater public key and endpoint. Documented in
   `apps/desktop/.env.example` and `docs/self-hosting.md`.

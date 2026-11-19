@@ -7,6 +7,10 @@ updates:
     # Actions run with repository tokens; let a release age before we pin it.
     cooldown:
       default-days: 7
+    # PR titles are Conventional Commits (pr-title.yml): "ci(deps): bump ...".
+    commit-message:
+      prefix: ci
+      include: scope
     groups:
       github-actions:
         patterns: ["*"]
@@ -20,6 +24,10 @@ updates:
     cooldown:
       default-days: 1
     open-pull-requests-limit: 5
+    # "build(deps): bump ...": a dependency bump alone never cuts a release.
+    commit-message:
+      prefix: build
+      include: scope
     groups:
       npm-security:
         applies-to: security-updates

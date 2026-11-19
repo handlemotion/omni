@@ -1,11 +1,13 @@
 import type { ExpoConfig } from "expo/config";
+import { type ConfigPlugin, withXcodeProject } from "expo/config-plugins";
+import pkg from "./package.json";
 
 const scheme = process.env.OMNI_IOS_SCHEME || "omni";
 
 const config: ExpoConfig = {
   name: process.env.OMNI_IOS_NAME || "Omni",
   slug: process.env.OMNI_IOS_SLUG || "omni",
-  version: process.env.OMNI_IOS_VERSION || "0.1.0",
+  version: process.env.OMNI_IOS_VERSION || pkg.version,
   icon: "./assets/icon.png",
   orientation: "portrait",
   scheme,
@@ -29,4 +31,23 @@ const config: ExpoConfig = {
   experiments: { typedRoutes: true, reactCompiler: true },
 };
 
-export default config;
+const withManualAppTargetSigning: ConfigPlugin<{ team: string; profile: string }> = (base, opts) =>
+  withXcodeProject(base, (mod) => {
+    const project = mod.modResults;
+    const { firstTarget } = project.getFirstTarget();
+    const lists = project.pbxXCConfigurationList();
+    const configs = project.pbxXCBuildConfigurationSection();
+    for (const { value } of lists[firstTarget.buildConfigurationList].buildConfigurations) {
+      Object.assign(configs[value].buildSettings, {
+        CODE_SIGN_STYLE: "Manual",
+        CODE_SIGN_IDENTITY: '"Apple Distribution"',
+        DEVELOPMENT_TEAM: opts.team,
+        PROVISIONING_PROFILE_SPECIFIER: `"${opts.profile}"`,
+      });
+    }
+    return mod;
+  });
+
+const profile = process.env.OMNI_IOS_PROFILE;
+const team = process.env.OMNI_IOS_TEAM_ID;
+export default profile && team ? withManualAppTargetSigning(config, { team, profile }) : config;

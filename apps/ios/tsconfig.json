@@ -8,7 +8,7 @@
     "allowImportingTsExtensions": true,
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "app.config.ts", "expo-env.d.ts"],
+  "include": ["src", "app.config.ts", "expo-env.d.ts", "package.json"],
   // The Worker's route types reach the app through `@omni/client`.
   "references": [
     { "path": "../../packages/client/tsconfig.src.json" },

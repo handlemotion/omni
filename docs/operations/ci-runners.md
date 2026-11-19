@@ -11,14 +11,18 @@ Cloud plan's included usage. No job depends on a machine of ours being on, and n
 | `Full` (full.yml)                                          | `ubuntu-latest`            | Nightly if main moved, by hand, `full-e2e`    |
 | `Migrate database`, `Sync Worker secrets` (production.yml) | `ubuntu-latest`            | A merge to main that needs them (ADR 0050)    |
 | `Rust (Linux)` (desktop.yml)                               | `ubuntu-latest`            | Changes to the desktop app or contracts       |
-| Desktop builds (desktop.yml)                               | `macos-15`, `windows-2025` | A `desktop-v*` tag, or by hand                |
+| Desktop builds (desktop.yml)                               | `macos-15`, `windows-2025` | By hand; Windows also on a `desktop-v*` tag   |
+| `Release PR` (release.yml)                                 | `ubuntu-latest`            | Every push to main (seconds)                  |
+| `Desktop release` (desktop-release.yml)                    | `macos-15`                 | A merged release PR that raises desktop       |
+| `iOS release` (ios-release.yml)                            | `macos-26`                 | A merged release PR that raises iOS           |
+| `PR title` (pr-title.yml)                                  | `ubuntu-latest`            | Every pull request into main (seconds)        |
 | `Container scan (mail)`                                    | `ubuntu-latest`            | Weekly, or a pull request changing Dockerfile |
 
 ## Cost
 
 The plan's included usage is billed in dollars: Linux $0.006, Windows $0.010 and macOS $0.062 a
 minute, so a macOS minute costs about ten Linux ones. Builds for macOS and Windows therefore run
-only for a release. Everything else is Linux.
+only for a release (docs/operations/releases.md). Everything else is Linux.
 
 ## Keeping `Checks` fast
 

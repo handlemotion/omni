@@ -187,6 +187,14 @@ Several agents may work in this repository at once.
 
 - PRs target `main` (or the layer below, in a stack). Squash merge. CI (`Checks`) must be green;
   the `main` ruleset enforces both.
+- **PR titles are Conventional Commits**: `type(scope): summary`, lowercase type, e.g.
+  `fix(ios): keep each workspace's mail apart`. Types: `feat` (something users can do or see that
+  is new), `fix` (a bug), `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`, `revert`;
+  `!` before the colon for a breaking change. Scope is the app or module (`ios`, `desktop`, `web`,
+  `worker`, `mail`, `drive`, `crm`, `db`). The squash commit takes the title, and release-please
+  reads it to version and changelog the desktop and iOS apps (ADR 0051,
+  `docs/operations/releases.md`); `PR title` enforces it. Never hand-edit a version or a
+  `CHANGELOG.md`: merge the release pull request instead.
 - **PR descriptions follow the `pr-writing` skill, always** (`.claude/skills/pr-writing`): the
   AI-agent first line, problem first, evidence beside every claim, an ELI5. Load it before
   opening a pull request or writing or updating its description.
