@@ -1,6 +1,7 @@
 import type { MessageTarget } from "@omni/contracts";
 import { and, asc, desc, eq, exists, isNotNull, lte, sql, type AnyColumn } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import type { Executor } from "./conversation-core.ts";
 import {
   attachments,
   mailboxAccess,
@@ -217,18 +218,36 @@ export async function findMemberMessageHtml(
   return row?.htmlR2Key ?? null;
 }
 
+async function resortLanded(tx: Executor, memberId: string, threadId: string, requestKey: string) {
+  const [seen] = await tx
+    .select({ id: triageFeedback.id })
+    .from(triageFeedback)
+    .where(
+      and(
+        eq(triageFeedback.memberId, memberId),
+        eq(triageFeedback.threadId, threadId),
+        eq(triageFeedback.requestKey, requestKey),
+      ),
+    )
+    .limit(1);
+  return Boolean(seen);
+}
+
 /**
  * A person files a thread in `lane` (ADR 0029: an agent's `triage` does it for them): the triage
  * becomes theirs (`triage_source = person`, which always files), describes the thread's latest
  * message so a newer one re-triages it, and the re-sort is kept in `triage_feedback` to tune the
  * model. Reaffirming the person's lane after new mail only moves the marker to that mail. Returns
  * the thread's mailbox and whether the thread was written, or null when the member cannot see it.
+ * A retry under a `requestKey` whose re-sort already landed writes nothing, so it cannot undo a
+ * teammate's re-sort made in between.
  */
 export async function resortThread(
   db: Db,
   memberId: string,
   threadId: string,
   lane: (typeof triageBucket.enumValues)[number],
+  requestKey?: string,
 ) {
   return db.transaction(async (tx) => {
     const [thread] = await tx
@@ -248,6 +267,10 @@ export async function resortThread(
       )
       .for("update");
     if (!thread) return null;
+    const result = { mailboxId: thread.mailboxId, changed: true };
+    if (requestKey && (await resortLanded(tx, memberId, threadId, requestKey))) {
+      return { ...result, changed: false };
+    }
     const [newest] = await tx
       .select({ id: messages.id })
       .from(messages)
@@ -256,7 +279,6 @@ export async function resortThread(
       .limit(1);
     const latest = newest?.id ?? null;
     const sameChoice = thread.triage === lane && thread.triageSource === "person";
-    const result = { mailboxId: thread.mailboxId, changed: true };
     if (sameChoice && thread.triageMessageId === latest) return { ...result, changed: false };
     await tx
       .update(threads)
@@ -275,6 +297,7 @@ export async function resortThread(
       memberId,
       fromBucket: thread.triage,
       toBucket: lane,
+      requestKey,
     });
     return result;
   });

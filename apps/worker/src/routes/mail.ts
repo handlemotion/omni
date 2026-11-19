@@ -334,8 +334,9 @@ export const mail = new Hono<AppEnv>()
     zValidator("json", threadLaneBodySchema),
     async (c) => {
       const { lane } = c.req.valid("json");
+      const key = c.req.valid("header")["idempotency-key"];
       const threadId = c.req.param("id");
-      const filed = await resortThread(c.var.db, c.var.member.id, threadId, lane);
+      const filed = await resortThread(c.var.db, c.var.member.id, threadId, lane, key);
       if (!filed) notFound();
       if (filed.changed) announceThread(c, filed.mailboxId, threadId);
       return c.json({ triage: lane, changed: filed.changed } satisfies ThreadLaneResponse);
