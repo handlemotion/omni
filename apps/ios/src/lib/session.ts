@@ -3,6 +3,7 @@ import * as Linking from "expo-linking";
 import * as SecureStore from "./secure-store";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { STORAGE_PREFIX, auth } from "./api.ts";
+import { cancelUploads } from "./drive-uploads.ts";
 import { queryClient } from "./query-client.ts";
 import { storeWorkspaceId } from "./workspace-id.ts";
 
@@ -34,6 +35,7 @@ export const acceptSignInLink: (url: string) => Promise<boolean | "error"> = asy
 };
 
 export async function signOut() {
+  await cancelUploads();
   await auth.signOut();
   await queryClient.cancelQueries();
   queryClient.clear();
@@ -59,6 +61,7 @@ export function useClearCacheOnUserChange() {
   const last = useRef(userId);
   useEffect(() => {
     if (last.current !== null && last.current !== userId) {
+      void cancelUploads();
       void queryClient.cancelQueries();
       queryClient.clear();
       storeWorkspaceId(null);

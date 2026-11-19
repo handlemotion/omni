@@ -17,7 +17,11 @@ const config: ExpoConfig = {
     supportsTablet: false,
     config: { usesNonExemptEncryption: false },
   },
-  plugins: ["expo-router", "expo-secure-store"],
+  plugins: [
+    "expo-router",
+    "expo-secure-store",
+    ["expo-image-picker", { cameraPermission: false, microphonePermission: false }],
+  ],
   experiments: { typedRoutes: true, reactCompiler: true },
 };
 

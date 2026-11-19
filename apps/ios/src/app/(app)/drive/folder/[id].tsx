@@ -1,5 +1,7 @@
 import { Stack, useLocalSearchParams } from "expo-router";
-import { NodeRow } from "@/components/drive/node-row.tsx";
+import { useAddMenu } from "@/components/drive/add-menu.tsx";
+import { NodeItem } from "@/components/drive/node-item.tsx";
+import { UploadsPanel } from "@/components/drive/uploads-panel.tsx";
 import { IconFolder } from "@/components/icons.ts";
 import { InfiniteList } from "@/components/ui/infinite-list.tsx";
 import { DRIVE_PAGES, useFolder } from "@/lib/drive.ts";
@@ -8,16 +10,19 @@ import { DRIVE_PAGES, useFolder } from "@/lib/drive.ts";
 export default function Folder() {
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const query = useFolder({ parent: id });
+  const add = useAddMenu({ parentId: id });
   return (
     <>
       <Stack.Screen options={{ title: name ?? "" }} />
+      <Stack.Toolbar placement="right">{add}</Stack.Toolbar>
       <InfiniteList
         query={query}
         keyOf={(node) => node.id}
-        renderItem={(node) => <NodeRow node={node} />}
+        renderItem={(node) => <NodeItem node={node} />}
         icon={IconFolder}
         empty={DRIVE_PAGES.my.empty}
       />
+      <UploadsPanel />
     </>
   );
 }

@@ -97,15 +97,20 @@ export const useTrash = () => useInfiniteQuery(trashQuery());
  * a native view that loads it itself (the file preview's WebView).
  */
 export async function fileSource(fileId: string) {
-  const headers: Record<string, string> = {};
-  const cookie = await auth.getCookie();
-  if (cookie) headers.cookie = cookie;
-  const workspace = currentWorkspaceId();
-  if (workspace) headers[WORKSPACE_HEADER] = workspace;
+  const headers = await storageHeaders();
   return {
     uri: `${config.apiUrl}/api/storage/files/${encodeURIComponent(fileId)}/content`,
     headers,
   };
+}
+
+/** The headers a request the app makes outside `call()` needs: the session and the workspace. */
+export async function storageHeaders(workspace = currentWorkspaceId()) {
+  const headers: Record<string, string> = {};
+  const cookie = await auth.getCookie();
+  if (cookie) headers.cookie = cookie;
+  if (workspace) headers[WORKSPACE_HEADER] = workspace;
+  return headers;
 }
 
 const UNITS = ["B", "KB", "MB", "GB", "TB"];

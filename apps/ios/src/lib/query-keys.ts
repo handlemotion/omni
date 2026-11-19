@@ -11,14 +11,19 @@ export const keys = {
   crmList: (page: string) => ["crm", page] as const,
   crmRecord: (kind: string, id: string) => ["crm", kind, id] as const,
   crmStages: () => ["crm", "stages"] as const,
-  senderLogo: (who: string) => ["sender-logo", who] as const,
-  search: (q: string) => ["search", q] as const,
+  me: () => ["me"] as const,
+  /** Everything Drive caches, to ask it all again after a change. */
+  driveAll: () => ["drive"] as const,
+  driveNode: (nodeId: string) => ["drive", "node", nodeId] as const,
+  driveSharing: (nodeId: string) => ["drive", "sharing", nodeId] as const,
+  driveVersions: (nodeId: string) => ["drive", "versions", nodeId] as const,
+  /** Prefixes, for invalidating a whole module at once. */
+  threadLists: () => ["threads"] as const,
+  threadDetails: () => ["thread"] as const,
+  crmAll: () => ["crm"] as const,
   /** Your notifications: every list (all, unread only). */
   notifications: () => ["notifications"] as const,
   notificationList: (unread: boolean) => ["notifications", { unread }] as const,
-  /** Every cached thread list, whatever its page and mailbox (`threads(...)` is under it). */
-  threadLists: () => ["threads"] as const,
-  threadDetails: () => ["thread"] as const,
-  driveAll: () => ["drive"] as const,
-  crmAll: () => ["crm"] as const,
+  senderLogo: (who: string) => ["sender-logo", who] as const,
+  search: (q: string) => ["search", q] as const,
 };
