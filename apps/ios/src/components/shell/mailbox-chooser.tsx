@@ -85,11 +85,12 @@ export function MailboxChooser() {
   );
 }
 
-/** A mailbox (or All mailboxes) in a chooser sheet: its avatar, name and address, a check on the current one. */
+/** A choice in a chooser sheet (a mailbox, a workspace): its avatar, name and any detail, a check on the current one. */
 export function ChoiceRow(props: {
   lead: ReactNode;
   name: string;
-  detail: string;
+  /** A second line under the name (a mailbox's address). */
+  detail?: string;
   chosen: boolean;
   onPress: () => void;
 }) {
@@ -98,16 +99,18 @@ export function ChoiceRow(props: {
       shape="menu"
       style={styles.choice}
       onPress={props.onPress}
-      accessibilityLabel={[props.name, props.detail].join(", ")}
+      accessibilityLabel={[props.name, props.detail].filter(Boolean).join(", ")}
     >
       {props.lead}
       <View style={styles.text}>
         <Text size="md" numberOfLines={1}>
           {props.name}
         </Text>
-        <Text size="sm" tone="mutedForeground" numberOfLines={1}>
-          {props.detail}
-        </Text>
+        {props.detail ? (
+          <Text size="sm" tone="mutedForeground" numberOfLines={1}>
+            {props.detail}
+          </Text>
+        ) : null}
       </View>
       <View style={styles.check}>
         {props.chosen ? <IconCheck size={iconSize.md} color={colors.foreground} /> : null}

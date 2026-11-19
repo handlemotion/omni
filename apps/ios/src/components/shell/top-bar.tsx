@@ -7,7 +7,7 @@ import { PagePill } from "@/components/ui/page-pill.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { colors, iconSize, space } from "@/theme/tokens.ts";
 import { useMenu } from "./menu-context.tsx";
-import { SHELL_CONTROL, useCloseMenu, useMenuPlace, useShellTop } from "./menu-nav.ts";
+import { SHELL_CONTROL, useCloseMenu, useMenuPlace } from "./menu-nav.ts";
 import { WorkspaceButton } from "./menu-workspace.tsx";
 import { useModules } from "./modules.ts";
 import { usePageTitle } from "./use-page-title.ts";
@@ -28,7 +28,6 @@ export function TopBar() {
   const place = useMenuPlace();
   const closeMenu = useCloseMenu();
   const insets = useSafeAreaInsets();
-  const top = useShellTop();
   const modules = useModules();
   const shown = shell.isOpen ? shell.browsing : place.module;
   const index = Math.max(
@@ -92,7 +91,7 @@ export function TopBar() {
         </Animated.View>
       </View>
       <View style={styles.slot}>
-        <WorkspaceButton top={top + space(2)} right={SIDE} />
+        <WorkspaceButton />
       </View>
     </View>
   );

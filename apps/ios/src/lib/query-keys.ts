@@ -23,6 +23,10 @@ export const keys = {
   crmMe: () => ["crm-me"] as const,
   crmMembers: () => ["crm-members"] as const,
   me: () => ["me"] as const,
+  /** The workspace's plan (`{ enabled: false }` without billing). */
+  billing: () => ["billing"] as const,
+  /** Where workspace setup stands, and whether you may start another workspace. */
+  onboarding: () => ["onboarding"] as const,
   /** Everything Drive caches, to ask it all again after a change. */
   driveAll: () => ["drive"] as const,
   driveNode: (nodeId: string) => ["drive", "node", nodeId] as const,

@@ -61,3 +61,6 @@ export { IconSpeedLow as IconSignalLow } from "@central-icons-react-native/round
 export { IconTag } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconTag";
 export { IconEmail2Unread as IconMailUnread } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconEmail2Unread";
 export { IconBellOff } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconBellOff";
+export { IconConnectors1 as IconConnections } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconConnectors1";
+export { IconUserAdd } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconUserAdd";
+export { IconArrowUpCircle as IconUpgrade } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconArrowUpCircle";
