@@ -28,7 +28,7 @@ import { FloatingButton, FloatingGroup } from "@/components/ui/floating.tsx";
 import { canReplyAll } from "@/lib/compose.ts";
 import { snoozePresets } from "@/lib/thread-actions.ts";
 import { space } from "@/theme/tokens.ts";
-import { listMessage, reply, type ThreadActions } from "./use-thread-actions.ts";
+import { forward, listMessage, reply, type ThreadActions } from "./use-thread-actions.ts";
 
 const SIDE = space(4);
 
@@ -162,7 +162,7 @@ export function ThreadBottomBar(props: {
               label: "Reply all",
               onPress: canReplyAll(thread) ? () => reply(id, true) : undefined,
             },
-            { icon: IconForward, label: "Forward" },
+            { icon: IconForward, label: "Forward", onPress: () => forward(id) },
           ]}
         />
         <FloatingGroup

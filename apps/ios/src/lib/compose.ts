@@ -1,5 +1,5 @@
 import type { Thread } from "@omni/client";
-import { replyRecipients, replySubject } from "@omni/mail-core/compose";
+import { forwardSubject, replyRecipients, replySubject } from "@omni/mail-core/compose";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { api, ApiError, call, inWorkspace } from "./api.ts";
@@ -37,6 +37,15 @@ export function replyStart(thread: Thread, replyAll: boolean) {
   };
 }
 
+/**
+ * What a forward starts from: the latest message and the subject the Worker gives it. The To is
+ * empty, and the Worker quotes the original under what the person writes, as on the web.
+ */
+export function forwardStart(thread: Thread) {
+  const latest = thread.messages.at(-1);
+  return { subject: latest ? forwardSubject(latest.subject) : "", message: latest };
+}
+
 /** Each address on a conversation with the name its messages give it, lowercased, for chips. */
 export function participantNames(thread: Thread) {
   const names = new Map<string, string>();
@@ -53,11 +62,10 @@ export function participantNames(thread: Thread) {
 /** True when reply all would add someone a plain reply leaves out. */
 export const canReplyAll = (thread: Thread) => replyStart(thread, true).cc.length > 0;
 
-/** A file the person attached, uploaded and ready to go out with the mail. */
-export interface SendAttachment {
-  kind: "upload";
-  uploadId: string;
-}
+/** A file going out with the mail: one the person uploaded, or an original's a forward keeps. */
+export type SendAttachment =
+  | { kind: "upload"; uploadId: string }
+  | { kind: "attachment"; attachmentId: string };
 
 interface Recipients {
   workspace: string | null;
@@ -75,6 +83,13 @@ export interface ReplyVariables extends Recipients {
   checkLatest: boolean;
   text: string;
   replyAll: boolean;
+}
+
+export interface ForwardVariables extends Recipients {
+  key: string;
+  threadId: string;
+  messageId: string;
+  text: string;
 }
 
 export interface NewMailVariables extends Recipients {
@@ -178,5 +193,48 @@ export function useSendNew() {
     onSuccess: sent.onSuccess,
     onError: sent.onError,
     onSettled: () => sent.settle(),
+  });
+}
+
+/**
+ * Forwards a conversation's message with what the person wrote above it. The original's files go
+ * as `attachments` the person kept, so `includeAttachments` is off, as on the web.
+ */
+export function useSendForward() {
+  const sent = useSent();
+  return useMutation({
+    mutationFn: ({
+      key,
+      threadId,
+      messageId,
+      text,
+      to,
+      cc,
+      bcc,
+      attachments,
+      workspace,
+    }: ForwardVariables) =>
+      call(
+        api.threads[":id"].forward.$post(
+          {
+            param: { id: threadId },
+            header: header(key),
+            json: {
+              messageId,
+              to,
+              cc: optional(cc),
+              bcc: optional(bcc),
+              text,
+              includeAttachments: false,
+              attachments,
+            },
+          },
+          inWorkspace(workspace),
+        ),
+      ),
+    retry,
+    onSuccess: sent.onSuccess,
+    onError: sent.onError,
+    onSettled: (_data, _error, { threadId }) => sent.settle(threadId),
   });
 }

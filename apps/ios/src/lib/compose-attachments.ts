@@ -1,4 +1,4 @@
-import { toApiError } from "@omni/client";
+import { toApiError, type Message } from "@omni/client";
 import { File, UploadType } from "expo-file-system";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
@@ -17,6 +17,8 @@ export interface ComposeAttachment {
   mailboxId: string;
   state: "uploading" | "ready" | "failed";
   uploadId?: string;
+  /** An original's attachment a forward carries over, sent by id instead of uploaded. */
+  attachmentId?: string;
 }
 
 let next = 0;
@@ -43,14 +45,31 @@ async function upload(file: PickedFile, mailboxId: string) {
   throw new ApiError(result.status, message, info);
 }
 
+/** The original's files a forward starts with, as the web's `originalFiles`: inline images stay out. */
+export function originalAttachments(message: Message | undefined, mailboxId: string) {
+  return (message?.attachments ?? [])
+    .filter((a) => !a.inline)
+    .map(
+      (a) =>
+        ({
+          key: `a${++next}`,
+          file: { uri: "", name: a.filename, size: a.size, mimeType: a.mimeType },
+          mailboxId,
+          state: "ready",
+          attachmentId: a.id,
+        }) satisfies ComposeAttachment,
+    );
+}
+
 /**
  * The files on a message being written, uploaded for `mailboxId` as they are picked (the web's
  * upload-then-send). Changing the mailbox uploads them again for the new one. `attachments` is
  * what Send carries; `pending` holds Send while any file is uploading or failed, until it
- * finishes or is taken off, so a message never goes out without a file it shows.
+ * finishes or is taken off, so a message never goes out without a file it shows. `initial` seeds
+ * it (a forward's originals).
  */
-export function useComposeAttachments(mailboxId: string) {
-  const [list, setList] = useState<ComposeAttachment[]>([]);
+export function useComposeAttachments(mailboxId: string, initial: ComposeAttachment[] = []) {
+  const [list, setList] = useState<ComposeAttachment[]>(initial);
   const current = useRef(list);
   current.current = list;
   const alive = useRef(true);
@@ -90,11 +109,13 @@ export function useComposeAttachments(mailboxId: string) {
     for (const one of fresh) start(one.key, one.file, mailboxId);
   };
   useEffect(() => {
-    const stale = current.current.filter((a) => a.mailboxId !== mailboxId);
+    const stale = current.current.filter((a) => a.mailboxId !== mailboxId && !a.attachmentId);
     if (!stale.length) return;
     setList((now) =>
       now.map((a) =>
-        a.mailboxId === mailboxId ? a : { key: a.key, file: a.file, mailboxId, state: "uploading" },
+        a.mailboxId === mailboxId || a.attachmentId
+          ? a
+          : { key: a.key, file: a.file, mailboxId, state: "uploading" },
       ),
     );
     for (const one of stale) start(one.key, one.file, mailboxId);
@@ -106,9 +127,14 @@ export function useComposeAttachments(mailboxId: string) {
       void call(api.uploads[":id"].$delete({ param: { id: gone.uploadId } })).catch(() => {});
     }
   };
-  const attachments: SendAttachment[] = list.flatMap((a) =>
-    a.state === "ready" && a.uploadId ? [{ kind: "upload" as const, uploadId: a.uploadId }] : [],
-  );
+  const attachments: SendAttachment[] = list.flatMap((a) => {
+    const one: SendAttachment | undefined = a.attachmentId
+      ? { kind: "attachment", attachmentId: a.attachmentId }
+      : a.state === "ready" && a.uploadId
+        ? { kind: "upload", uploadId: a.uploadId }
+        : undefined;
+    return one ? [one] : [];
+  });
   return {
     list,
     attachments,

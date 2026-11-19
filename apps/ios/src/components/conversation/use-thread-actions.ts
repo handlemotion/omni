@@ -26,6 +26,10 @@ export function listMessage(thread: Thread) {
 export const reply = (threadId: string, all: boolean) =>
   router.push({ pathname: "/mail/compose", params: { threadId, ...(all ? { all: "1" } : {}) } });
 
+/** Passing the conversation's latest message on, in the composer's forward mode. */
+export const forward = (threadId: string) =>
+  router.push({ pathname: "/mail/compose", params: { threadId, forward: "1" } });
+
 /**
  * The conversation's actions, as the web reader's. One that takes the thread out of the list it
  * was opened from (`page`, the route's param) goes back to that list.

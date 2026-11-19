@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import { NewComposer, ReplyComposer } from "@/components/compose/composer.tsx";
+import { ForwardComposer, NewComposer, ReplyComposer } from "@/components/compose/composer.tsx";
 import { IconInbox } from "@/components/icons.ts";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -8,15 +8,17 @@ import { useMailboxes, useThread } from "@/lib/mail.ts";
 import { gutter, space } from "@/theme/tokens.ts";
 
 /**
- * Writing mail, in a sheet: a reply to `threadId` (to everyone on it with `all=1`), else new mail
- * from `mailbox` or the first one here.
+ * Writing mail, in a sheet: a reply to `threadId` (to everyone on it with `all=1`, or a forward
+ * of it with `forward=1`), else new mail from `mailbox` or the first one here.
  */
 export default function Compose() {
-  const { threadId, all, mailbox } = useLocalSearchParams<{
+  const { threadId, all, forward, mailbox } = useLocalSearchParams<{
     threadId?: string;
     all?: string;
+    forward?: string;
     mailbox?: string;
   }>();
+  if (threadId && forward === "1") return <Forward threadId={threadId} />;
   return threadId ? (
     <Reply threadId={threadId} replyAll={all === "1"} />
   ) : (
@@ -27,6 +29,12 @@ export default function Compose() {
 function Reply({ threadId, replyAll }: { threadId: string; replyAll: boolean }) {
   const thread = useThread(threadId);
   if (thread.data) return <ReplyComposer thread={thread.data} replyAll={replyAll} />;
+  return <Pending failed={thread.isError} />;
+}
+
+function Forward({ threadId }: { threadId: string }) {
+  const thread = useThread(threadId);
+  if (thread.data) return <ForwardComposer thread={thread.data} />;
   return <Pending failed={thread.isError} />;
 }
 

@@ -15,14 +15,16 @@ import { Text } from "@/components/ui/text.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { ApiError } from "@/lib/api.ts";
 import {
+  forwardStart,
   notAddresses,
   parseAddresses,
   participantNames,
   replyStart,
+  useSendForward,
   useSendNew,
   useSendReply,
 } from "@/lib/compose.ts";
-import { useComposeAttachments } from "@/lib/compose-attachments.ts";
+import { originalAttachments, useComposeAttachments } from "@/lib/compose-attachments.ts";
 import { idempotencyKey } from "@/lib/ids.ts";
 import { useMailboxes } from "@/lib/mail.ts";
 import { currentWorkspaceId } from "@/lib/workspace-id.ts";
@@ -310,14 +312,82 @@ export function ReplyComposer(props: { thread: Thread; replyAll: boolean }) {
       }
     >
       <Recipients state={recipients} names={names} />
-      {start.subject ? (
-        <HeaderRow>
-          <Text size="body" numberOfLines={1} style={styles.fill}>
-            {start.subject}
-          </Text>
-        </HeaderRow>
-      ) : null}
+      <Subject subject={start.subject} />
       <Body label="Reply" value={text} onChange={setText} autoFocus />
+      <AttachmentChips list={files.list} onRemove={files.remove} />
+    </ComposeSheet>
+  );
+}
+
+function Subject({ subject }: { subject: string }) {
+  if (!subject) return null;
+  return (
+    <HeaderRow>
+      <Text size="body" numberOfLines={1} style={styles.fill}>
+        {subject}
+      </Text>
+    </HeaderRow>
+  );
+}
+
+/**
+ * The web's forward composer in a sheet: From, an empty To (Cc, Bcc), the "Fwd:" subject, what
+ * the person adds, the original's files (each can come off), Send. The Worker quotes the original.
+ */
+export function ForwardComposer(props: { thread: Thread }) {
+  const [thread] = useState(props.thread);
+  const [start] = useState(() => forwardStart(thread));
+  const recipients = useRecipients({ to: [], cc: [] });
+  const [names] = useState(() => participantNames(thread));
+  const mailboxes = useMailboxes();
+  const [originals] = useState(() => originalAttachments(start.message, thread.mailboxId));
+  const files = useComposeAttachments(thread.mailboxId, originals);
+  const [text, setText] = useState("");
+  const send = useSendForward();
+  const keyFor = useSendKey();
+  const message = start.message;
+  const dirty =
+    text.trim().length > 0 || recipients.changed || files.list.length !== originals.length;
+  const canSend =
+    !!message &&
+    recipients.final.to.length > 0 &&
+    !recipients.unsendable &&
+    !files.pending &&
+    !send.isPending;
+  const close = () => confirmDiscard(dirty, () => router.back());
+  const submit = () => {
+    if (!message) return;
+    const mail = {
+      threadId: thread.id,
+      messageId: message.id,
+      text,
+      attachments: files.attachments,
+      ...recipients.final,
+    };
+    send.mutate(
+      { ...mail, key: keyFor(mail), workspace: currentWorkspaceId() },
+      { onSuccess: () => router.back(), onError: (error) => notSent(error) },
+    );
+  };
+  return (
+    <ComposeSheet
+      dirty={dirty}
+      from={
+        <FromPicker
+          mailboxes={mailboxes.data ?? []}
+          value={thread.mailboxId}
+          address={thread.mailboxAddress}
+        />
+      }
+      canSend={canSend}
+      isSending={send.isPending}
+      onSend={submit}
+      onClose={close}
+      toolbar={<Toolbar files={files} onDiscard={close} />}
+    >
+      <Recipients state={recipients} names={names} autoFocus />
+      <Subject subject={start.subject} />
+      <Body label="Message" value={text} onChange={setText} />
       <AttachmentChips list={files.list} onRemove={files.remove} />
     </ComposeSheet>
   );
