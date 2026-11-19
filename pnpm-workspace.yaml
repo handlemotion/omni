@@ -18,6 +18,7 @@ allowBuilds:
   "@central-icons-react/round-outlined-radius-3-stroke-1.5": false
   "@central-icons-react/round-filled-radius-3-stroke-1.5": false
   "@central-icons-react-native/round-outlined-radius-3-stroke-1.5": false
+  "@central-icons-react-native/round-filled-radius-3-stroke-1.5": false
   bun: true
   esbuild: true
   lefthook: true
