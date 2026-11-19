@@ -56,10 +56,11 @@ export interface ParsedMessage {
   messageId: string;
   messageIdSynthesized: boolean;
   /**
-   * The header's own Message-ID when it was over 998 bytes and `messageId` is its hash. A row
-   * stored before ids were bounded still carries this form, so look it up by both.
+   * Other keys an earlier version may have stored this message under: the raw id when
+   * `messageId` is its hash (a repetitive id compressed enough to index), or the hash when an
+   * id of 999 to 2,600 bytes kept its raw form. Look a message up by `messageId`, then these.
    */
-  longMessageId?: string;
+  messageIdAliases: string[];
   /**
    * The In-Reply-To header. A bounce without one gets the Message-ID of the message it
    * returns, as Gmail's own bounces carry: it is stored, so threading converges whichever
@@ -151,6 +152,7 @@ async function describe(mail: ParsedMail, bodySkipped: boolean) {
   const message: ParsedMessage = {
     messageId: headerId ?? (await synthesizeMessageId(mail.headerLines, mail.text, mail.html)),
     messageIdSynthesized: headerId === null,
+    messageIdAliases: [],
     inReplyTo: firstMessageId(mail.inReplyTo),
     references: capReferences(await boundedIds(messageIds(mail.references))),
     from,
@@ -172,9 +174,8 @@ async function describe(mail: ParsedMail, bodySkipped: boolean) {
     automated: automated(mail, from),
   };
   message.inReplyTo ??= message.automated?.bouncedMessageId ?? null;
-  const bounded = await boundedId(message.messageId);
-  if (bounded !== message.messageId) message.longMessageId = message.messageId;
-  message.messageId = bounded;
+  message.messageIdAliases = await idAliases(message.messageId);
+  message.messageId = await boundedId(message.messageId);
   if (message.inReplyTo !== null) message.inReplyTo = await boundedId(message.inReplyTo);
   if (bodySkipped) message.bodySkipped = true;
 
@@ -445,11 +446,19 @@ async function hashedMessageId(input: string) {
   return `<${hex.slice(0, 40)}@omni.invalid>`;
 }
 
-const RFC_5322_MAX_LINE_BYTES = 998;
+const INDEXABLE_ID_BYTES = 2600;
 
 async function boundedId(id: string) {
-  if (Buffer.byteLength(id) <= RFC_5322_MAX_LINE_BYTES) return id;
+  if (Buffer.byteLength(id) <= INDEXABLE_ID_BYTES) return id;
   return hashedMessageId(id);
+}
+
+const HASHED_BEFORE_BYTES = 998;
+
+async function idAliases(id: string) {
+  const bytes = Buffer.byteLength(id);
+  if (bytes <= HASHED_BEFORE_BYTES) return [];
+  return bytes <= INDEXABLE_ID_BYTES ? [await hashedMessageId(id)] : [id];
 }
 
 async function boundedIds(ids: string[]) {

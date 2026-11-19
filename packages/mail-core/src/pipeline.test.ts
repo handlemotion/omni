@@ -197,7 +197,7 @@ describe("parseMessage", () => {
     const hashed = /^<[0-9a-f]{40}@omni\.invalid>$/;
     expect(message.messageId).toMatch(hashed);
     expect(message.messageIdSynthesized).toBe(false);
-    expect(message.longMessageId).toBe(`<${"x".repeat(3000)}@ledger.example.org>`);
+    expect(message.messageIdAliases).toEqual([`<${"x".repeat(3000)}@ledger.example.org>`]);
     expect(message.inReplyTo).toMatch(hashed);
     expect(message.references).toEqual(["<first.4471@ledger.example.org>", message.inReplyTo]);
     expect(message.inReplyTo).not.toBe(message.messageId);

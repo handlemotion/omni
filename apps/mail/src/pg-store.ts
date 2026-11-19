@@ -197,9 +197,11 @@ export class PgMailStore implements MailStore {
   }
 
   private async findStored(mailboxId: string, message: ParsedMessage) {
-    const stored = await findMessageByHeader(this.db, mailboxId, message.messageId);
-    if (stored || message.longMessageId === undefined) return stored;
-    return findMessageByHeader(this.db, mailboxId, message.longMessageId);
+    for (const key of [message.messageId, ...message.messageIdAliases]) {
+      const stored = await findMessageByHeader(this.db, mailboxId, key);
+      if (stored) return stored;
+    }
+    return null;
   }
 
   private async storeParsed(

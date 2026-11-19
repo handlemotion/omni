@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { schema } from "@omni/db";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
@@ -140,29 +140,37 @@ it("a Message-ID too long to index still imports, threads its reply, and lets de
   expect(await subjects(box.id)).toEqual(["Huge id", "Re: Huge id"]);
 });
 
-it("a long Message-ID stored before ids were bounded is found again, not imported twice", async () => {
-  const { box, connection } = await connected("shared");
-  const long = `<${randomBytes(600).toString("hex")}@outside.test>`;
-  await arrive(connection, [[box.address, "Stored long ago", { messageId: long }]]);
-  const [row] = await messageRows(db, box.id);
-  await db
-    .update(schema.messages)
-    .set({ messageIdHeader: long })
-    .where(eq(schema.messages.id, row!.id));
+const hashedId = (id: string) =>
+  `<${createHash("sha256").update(id).digest("hex").slice(0, 40)}@omni.invalid>`;
 
-  await otherClient(connection.mailbox, async (client) => {
-    await client.mailboxCreate("Archive").catch(() => {});
-    const lock = await client.getMailboxLock("INBOX");
-    try {
-      await client.messageCopy("1:*", "Archive", { uid: true });
-    } finally {
-      lock.release();
-    }
-  });
-  await connection.syncAll();
+it.for([
+  ["raw, compressed into the index", `<${"y".repeat(3000)}@outside.test>`, (id: string) => id],
+  ["hashed, by the 998-byte rule", `<${randomBytes(750).toString("hex")}@outside.test>`, hashedId],
+] as const)(
+  "a long Message-ID an earlier version stored %s is found again, not imported twice",
+  async ([, long, storedAs]) => {
+    const { box, connection } = await connected("shared");
+    await arrive(connection, [[box.address, "Stored long ago", { messageId: long }]]);
+    const [row] = await messageRows(db, box.id);
+    await db
+      .update(schema.messages)
+      .set({ messageIdHeader: storedAs(long) })
+      .where(eq(schema.messages.id, row!.id));
 
-  expect((await messageRows(db, box.id)).map((m) => m.messageIdHeader)).toEqual([long]);
-});
+    await otherClient(connection.mailbox, async (client) => {
+      await client.mailboxCreate("Archive").catch(() => {});
+      const lock = await client.getMailboxLock("INBOX");
+      try {
+        await client.messageCopy("1:*", "Archive", { uid: true });
+      } finally {
+        lock.release();
+      }
+    });
+    await connection.syncAll();
+
+    expect((await messageRows(db, box.id)).map((m) => m.messageIdHeader)).toEqual([storedAs(long)]);
+  },
+);
 
 it("a thread moved to Trash in another app leaves the inbox and keeps its messages", async () => {
   const { box, connection } = await connected("shared");
