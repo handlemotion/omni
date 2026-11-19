@@ -1,136 +1,282 @@
 import type { Mailbox, Thread } from "@omni/client";
 import { Stack, router } from "expo-router";
-import { useState, type ReactNode } from "react";
-import { ActionSheetIOS, Alert, Platform, ScrollView, StyleSheet, View } from "react-native";
-import { Avatar } from "@/components/ui/avatar.tsx";
-import { ItemRow } from "@/components/ui/item-row.tsx";
-import { PressableRow } from "@/components/ui/pressable-row.tsx";
+import { useRef, useState, type ReactNode } from "react";
+import {
+  ActionSheetIOS,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  IconChevronDown,
+  IconReply,
+  IconReplyAll,
+  IconSend,
+  IconTrash,
+} from "@/components/icons.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { IconButton } from "@/components/ui/icon-button.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { ApiError } from "@/lib/api.ts";
 import {
-  allAddresses,
+  notAddresses,
   parseAddresses,
   replyStart,
   useSendNew,
   useSendReply,
 } from "@/lib/compose.ts";
 import { idempotencyKey } from "@/lib/ids.ts";
-import { listTime } from "@/lib/mail.ts";
 import { currentWorkspaceId } from "@/lib/workspace-id.ts";
-import { colors, gutter, space } from "@/theme/tokens.ts";
-import { HeaderField, HeaderRow, addressInput } from "./header-field.tsx";
+import { gutter, space } from "@/theme/tokens.ts";
+import { HeaderRow } from "./header-field.tsx";
+import { RecipientField } from "./recipient-field.tsx";
 
 const BODY_MAX = 1_000_000;
 const SUBJECT_MAX = 998;
 
-type Draft = ReturnType<typeof useDraft>;
+const KINDS = {
+  reply: { icon: IconReply, label: "Reply" },
+  replyAll: { icon: IconReplyAll, label: "Reply all" },
+} as const;
+type Kind = keyof typeof KINDS;
 
-function useDraft(start: { to: string[]; cc: string[] }) {
-  const [to, setTo] = useState(start.to.join(", "));
-  const [cc, setCc] = useState(start.cc.join(", "));
-  const [bcc, setBcc] = useState("");
-  const [body, setBody] = useState("");
+interface Copies {
+  to: string[];
+  cc: string[];
+  bcc: string[];
+}
+
+type Typed = Record<keyof Copies, string>;
+const NOTHING_TYPED: Typed = { to: "", cc: "", bcc: "" };
+
+const withTyped = (list: string[], typed: string) => [
+  ...list,
+  ...parseAddresses(typed).filter((a) => !list.some((v) => v.toLowerCase() === a.toLowerCase())),
+];
+
+function useRecipients(start: { to: string[]; cc: string[] }) {
+  const [list, setList] = useState<Copies>({ to: start.to, cc: start.cc, bcc: [] });
+  const [typed, setTyped] = useState<Typed>(NOTHING_TYPED);
+  const [initial, setInitial] = useState<Copies>(list);
   const [showCopies, setShowCopies] = useState(start.cc.length > 0);
-  const addresses = { to: parseAddresses(to), cc: parseAddresses(cc), bcc: parseAddresses(bcc) };
-  const valid =
-    addresses.to.length > 0 && allAddresses([...addresses.to, ...addresses.cc, ...addresses.bcc]);
+  const final: Copies = {
+    to: withTyped(list.to, typed.to),
+    cc: withTyped(list.cc, typed.cc),
+    bcc: withTyped(list.bcc, typed.bcc),
+  };
   return {
-    fields: { to, setTo, cc, setCc, bcc, setBcc, body, setBody, showCopies, setShowCopies },
-    addresses,
-    valid,
-    written: body.trim().length > 0,
-    dirty:
-      body.trim().length > 0 ||
-      bcc.trim().length > 0 ||
-      to !== start.to.join(", ") ||
-      cc !== start.cc.join(", "),
+    list,
+    typed,
+    type: (field: keyof Copies, text: string) => setTyped((now) => ({ ...now, [field]: text })),
+    final,
+    unsendable: Object.values(typed).some((text) => notAddresses(text).length > 0),
+    showCopies,
+    showAll: () => setShowCopies(true),
+    set: (next: Partial<Copies>) => setList((now) => ({ ...now, ...next })),
+    changed:
+      JSON.stringify(list) !== JSON.stringify(initial) ||
+      Object.values(typed).some((text) => text.trim()),
+    reset: (next: { to: string[]; cc: string[] }) => {
+      const fresh = { to: next.to, cc: next.cc, bcc: [] };
+      setList(fresh);
+      setTyped(NOTHING_TYPED);
+      setInitial(fresh);
+      if (next.cc.length) setShowCopies(true);
+    },
   };
 }
 
-function ComposeHeader(props: {
-  title: string;
-  dirty: boolean;
-  canSend: boolean;
-  onSend: () => void;
-}) {
-  const close = () => {
-    if (!props.dirty) return router.back();
-    Alert.alert("Discard this message?", undefined, [
-      { text: "Keep editing", style: "cancel" },
-      { text: "Discard", style: "destructive", onPress: () => router.back() },
-    ]);
+type RecipientsState = ReturnType<typeof useRecipients>;
+
+function useSendKey() {
+  const last = useRef<{ payload: string; key: string } | null>(null);
+  return (payload: unknown) => {
+    const json = JSON.stringify(payload);
+    if (last.current?.payload !== json) last.current = { payload: json, key: idempotencyKey() };
+    return last.current.key;
   };
+}
+
+function confirmDiscard(dirty: boolean, then: () => void) {
+  if (!dirty) return then();
+  Alert.alert("Discard this message?", undefined, [
+    { text: "Keep editing", style: "cancel" },
+    { text: "Discard", style: "destructive", onPress: then },
+  ]);
+}
+
+function Frame(props: { title: string; dirty: boolean; toolbar: ReactNode; children: ReactNode }) {
+  const insets = useSafeAreaInsets();
   return (
-    <>
+    <KeyboardAvoidingView
+      style={styles.frame}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={insets.top}
+    >
       <Stack.Screen options={{ title: props.title, gestureEnabled: !props.dirty }} />
       <Stack.Toolbar placement="left">
-        <Stack.Toolbar.Button icon="xmark" accessibilityLabel="Cancel" onPress={close} />
-      </Stack.Toolbar>
-      <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button
-          icon="arrow.up"
-          variant="prominent"
-          accessibilityLabel="Send"
-          disabled={!props.canSend}
-          onPress={props.onSend}
+          icon="xmark"
+          accessibilityLabel="Close"
+          onPress={() => confirmDiscard(props.dirty, () => router.back())}
         />
       </Stack.Toolbar>
-    </>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        contentContainerStyle={styles.content}
+        style={styles.frame}
+      >
+        {props.children}
+      </ScrollView>
+      <View style={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, space(3)) }]}>
+        {props.toolbar}
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
-function Recipients({ draft, from }: { draft: Draft; from: ReactNode }) {
-  const f = draft.fields;
+function Recipients({ state, autoFocus }: { state: RecipientsState; autoFocus?: boolean }) {
   return (
     <>
-      <HeaderField label="To" value={f.to} onChangeText={f.setTo} {...addressInput} />
-      {f.showCopies ? (
+      <RecipientField
+        label="To"
+        value={state.list.to}
+        text={state.typed.to}
+        onText={(text) => state.type("to", text)}
+        autoFocus={autoFocus}
+        onChange={(to) => state.set({ to })}
+        end={
+          state.showCopies ? null : (
+            <Button intent="quiet" size="sm" label="Cc Bcc" onPress={state.showAll} />
+          )
+        }
+      />
+      {state.showCopies ? (
         <>
-          <HeaderField label="Cc" value={f.cc} onChangeText={f.setCc} {...addressInput} />
-          <HeaderField label="Bcc" value={f.bcc} onChangeText={f.setBcc} {...addressInput} />
-          {from}
+          <RecipientField
+            label="Cc"
+            value={state.list.cc}
+            text={state.typed.cc}
+            onText={(text) => state.type("cc", text)}
+            onChange={(cc) => state.set({ cc })}
+          />
+          <RecipientField
+            label="Bcc"
+            value={state.list.bcc}
+            text={state.typed.bcc}
+            onText={(text) => state.type("bcc", text)}
+            onChange={(bcc) => state.set({ bcc })}
+          />
         </>
-      ) : (
-        <PressableRow
-          accessibilityLabel="Cc, Bcc and From"
-          onPress={() => f.setShowCopies(true)}
-          style={styles.collapsed}
-        >
-          <Text tone="mutedForeground">Cc/Bcc, From</Text>
-        </PressableRow>
-      )}
+      ) : null}
     </>
   );
 }
 
-function Body({ draft, short }: { draft: Draft; short?: boolean }) {
+function FromRow(props: {
+  mailboxes: { id: string; address: string }[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const { mailboxes, onChange } = props;
+  const address = mailboxes.find((m) => m.id === props.value)?.address ?? "";
+  const pick = () =>
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options: [...mailboxes.map((m) => m.address), "Cancel"],
+        cancelButtonIndex: mailboxes.length,
+      },
+      (index) => {
+        const next = mailboxes[index];
+        if (next) onChange(next.id);
+      },
+    );
+  return (
+    <HeaderRow label="From">
+      {mailboxes.length > 1 && Platform.OS === "ios" ? (
+        <Button
+          intent="quiet"
+          label={address}
+          trailingIcon={IconChevronDown}
+          accessibilityLabel={`From ${address}`}
+          onPress={pick}
+          style={styles.shrink}
+        />
+      ) : (
+        <Text numberOfLines={1} ellipsizeMode="middle" style={styles.shrink}>
+          {address}
+        </Text>
+      )}
+    </HeaderRow>
+  );
+}
+
+function Body(props: {
+  label: string;
+  value: string;
+  onChange: (text: string) => void;
+  autoFocus?: boolean;
+}) {
   return (
     <TextField
       variant="bare"
-      label="Message"
+      label={props.label}
+      placeholder="Write…"
       multiline
       scrollEnabled={false}
-      autoFocus
+      autoFocus={props.autoFocus}
       maxLength={BODY_MAX}
-      value={draft.fields.body}
-      onChangeText={draft.fields.setBody}
-      style={[styles.body, short && styles.shortBody]}
+      value={props.value}
+      onChangeText={props.onChange}
+      containerStyle={styles.fill}
+      style={styles.body}
     />
   );
 }
 
-function Sheet({ children }: { children: ReactNode }) {
+function SendButton(props: { canSend: boolean; isPending: boolean; onSend: () => void }) {
   return (
-    <ScrollView
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="interactive"
-      automaticallyAdjustKeyboardInsets
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.sheet}
-    >
-      {children}
-    </ScrollView>
+    <Button
+      size="sm"
+      icon={IconSend}
+      label="Send"
+      disabled={!props.canSend}
+      isPending={props.isPending}
+      onPress={props.onSend}
+    />
+  );
+}
+
+function KindMenu({ kind, onChange }: { kind: Kind; onChange: (next: Kind) => void }) {
+  const current = KINDS[kind];
+  const ids = Object.keys(KINDS) as Kind[];
+  return (
+    <Button
+      intent="outline"
+      size="sm"
+      icon={current.icon}
+      trailingIcon={IconChevronDown}
+      label={current.label}
+      accessibilityLabel={`${current.label}, change`}
+      onPress={() =>
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: [...ids.map((id) => KINDS[id].label), "Cancel"],
+            cancelButtonIndex: ids.length,
+          },
+          (index) => {
+            const next = ids[index];
+            if (next && next !== kind) onChange(next);
+          },
+        )
+      }
+    />
   );
 }
 
@@ -145,152 +291,139 @@ function notSent(error: Error, sendAnyway?: () => void) {
   Alert.alert("Not sent", error.message);
 }
 
-/** A reply to a conversation's latest message, from the inbox it arrived on. */
-export function ReplyComposer({ thread, replyAll }: { thread: Thread; replyAll: boolean }) {
-  const [start] = useState(() => replyStart(thread, replyAll));
-  const draft = useDraft(start);
+/** The web's reply composer in a sheet: From, To (Cc, Bcc), the reply, then Reply or Reply all, Discard and Send. */
+export function ReplyComposer(props: { thread: Thread; replyAll: boolean }) {
+  const [thread] = useState(props.thread);
+  const [kind, setKind] = useState<Kind>(props.replyAll ? "replyAll" : "reply");
+  const start = replyStart(thread, kind === "replyAll");
+  const recipients = useRecipients(start);
+  const [text, setText] = useState("");
   const send = useSendReply();
-  const [key] = useState(idempotencyKey);
+  const keyFor = useSendKey();
   const message = start.message;
-  const canSend = !!message && draft.valid && draft.written && !send.isPending;
-  const submit = (checkLatest: boolean) =>
-    message &&
+  const written = text.trim().length > 0;
+  const dirty = written || recipients.changed;
+  const canSend =
+    !!message &&
+    recipients.final.to.length > 0 &&
+    !recipients.unsendable &&
+    written &&
+    !send.isPending;
+  const submit = (checkLatest: boolean) => {
+    if (!message) return;
+    const reply = {
+      threadId: thread.id,
+      messageId: message.id,
+      replyAll: kind === "replyAll",
+      text,
+      ...recipients.final,
+    };
     send.mutate(
-      {
-        key,
-        workspace: currentWorkspaceId(),
-        threadId: thread.id,
-        messageId: message.id,
-        checkLatest,
-        replyAll,
-        text: draft.fields.body,
-        ...draft.addresses,
-      },
+      { ...reply, key: keyFor(reply), workspace: currentWorkspaceId(), checkLatest },
       {
         onSuccess: () => router.back(),
         onError: (error) => notSent(error, checkLatest ? () => submit(false) : undefined),
       },
     );
-  const sender = message ? message.fromName || message.fromAddress : "";
+  };
   return (
-    <Sheet>
-      <ComposeHeader
-        title={replyAll ? "Reply all" : "Reply"}
-        dirty={draft.dirty}
-        canSend={canSend}
-        onSend={() => submit(true)}
-      />
-      <Recipients draft={draft} from={<FromRow address={thread.mailboxAddress} />} />
-      <HeaderRow label="Subject">
-        <Text selectable>{start.subject}</Text>
-      </HeaderRow>
-      <Body draft={draft} short />
-      {message ? (
-        <View style={styles.quoted}>
-          <ItemRow
-            lead={<Avatar name={sender} logo={{ address: message.fromAddress }} size={32} />}
-            title={sender}
-            detail={message.cleanText.replace(/\s+/g, " ").trim()}
-            trailing={listTime(message.sentAt)}
+    <Frame
+      title={KINDS[kind].label}
+      dirty={dirty}
+      toolbar={
+        <>
+          <KindMenu
+            kind={kind}
+            onChange={(next) => {
+              setKind(next);
+              recipients.reset(replyStart(thread, next === "replyAll"));
+            }}
           />
-        </View>
-      ) : null}
-    </Sheet>
+          <View style={styles.end}>
+            <IconButton
+              icon={IconTrash}
+              label="Discard"
+              onPress={() => confirmDiscard(dirty, () => router.back())}
+            />
+            <SendButton canSend={canSend} isPending={send.isPending} onSend={() => submit(true)} />
+          </View>
+        </>
+      }
+    >
+      <FromRow
+        mailboxes={[{ id: thread.mailboxId, address: thread.mailboxAddress }]}
+        value={thread.mailboxId}
+        onChange={() => undefined}
+      />
+      <Recipients state={recipients} />
+      <Body label="Reply" value={text} onChange={setText} autoFocus />
+    </Frame>
   );
 }
 
-/** New mail from one of the workspace's mailboxes: `mailboxId` first when given. */
-export function NewComposer({
-  mailboxes,
-  mailboxId,
-}: {
-  mailboxes: Mailbox[];
-  mailboxId?: string;
-}) {
-  const draft = useDraft({ to: [], cc: [] });
-  const send = useSendNew();
-  const [key] = useState(idempotencyKey);
+/** The web's new-message composer in a sheet: From, To (Cc, Bcc), Subject, the message, then Send. */
+export function NewComposer(props: { mailboxes: Mailbox[]; mailboxId?: string }) {
+  const { mailboxes } = props;
+  const recipients = useRecipients({ to: [], cc: [] });
   const [subject, setSubject] = useState("");
+  const [text, setText] = useState("");
+  const send = useSendNew();
+  const keyFor = useSendKey();
   const [fromId, setFromId] = useState(
-    mailboxes.find((m) => m.id === mailboxId)?.id ?? mailboxes[0]?.id,
+    mailboxes.find((m) => m.id === props.mailboxId)?.id ?? mailboxes[0]?.id ?? "",
   );
-  const from = mailboxes.find((m) => m.id === fromId);
-  const canSend = !!from && draft.valid && !send.isPending;
-  const submit = () =>
-    from &&
+  const { to } = recipients.final;
+  const dirty = !!(text.trim() || subject.trim()) || recipients.changed;
+  const canSend = !!fromId && to.length > 0 && !recipients.unsendable && !send.isPending;
+  const submit = () => {
+    const mail = { mailboxId: fromId, subject: subject.trim(), text, ...recipients.final };
     send.mutate(
-      {
-        key,
-        workspace: currentWorkspaceId(),
-        mailboxId: from.id,
-        subject: subject.trim(),
-        text: draft.fields.body,
-        ...draft.addresses,
-      },
+      { ...mail, key: keyFor(mail), workspace: currentWorkspaceId() },
       { onSuccess: () => router.back(), onError: (error) => notSent(error) },
     );
+  };
   return (
-    <Sheet>
-      <ComposeHeader
-        title="New message"
-        dirty={draft.dirty || !!subject.trim()}
-        canSend={canSend}
-        onSend={submit}
-      />
-      <Recipients
-        draft={draft}
-        from={
-          <FromRow
-            address={from?.address ?? ""}
-            choices={mailboxes.map((m) => m.address)}
-            onChoose={(index) => setFromId(mailboxes[index]?.id)}
-          />
-        }
-      />
-      <HeaderField
-        label="Subject"
-        multiline
-        maxLength={SUBJECT_MAX}
-        value={subject}
-        onChangeText={setSubject}
-      />
-      <Body draft={draft} />
-    </Sheet>
+    <Frame
+      title="New message"
+      dirty={dirty}
+      toolbar={
+        <>
+          <View />
+          <SendButton canSend={canSend} isPending={send.isPending} onSend={submit} />
+        </>
+      }
+    >
+      <FromRow mailboxes={mailboxes} value={fromId} onChange={setFromId} />
+      <Recipients state={recipients} autoFocus />
+      <HeaderRow>
+        <TextField
+          variant="bare"
+          label="Subject"
+          placeholder="Subject"
+          maxLength={SUBJECT_MAX}
+          value={subject}
+          onChangeText={setSubject}
+          containerStyle={styles.shrink}
+        />
+      </HeaderRow>
+      <Body label="Message" value={text} onChange={setText} />
+    </Frame>
   );
 }
-
-function FromRow(props: {
-  address: string;
-  choices?: string[];
-  onChoose?: (index: number) => void;
-}) {
-  const { choices, onChoose } = props;
-  const pick =
-    Platform.OS === "ios" && choices && choices.length > 1 && onChoose
-      ? () =>
-          ActionSheetIOS.showActionSheetWithOptions(
-            { title: "From", options: [...choices, "Cancel"], cancelButtonIndex: choices.length },
-            (index) => index < choices.length && onChoose(index),
-          )
-      : undefined;
-  return (
-    <PressableRow accessibilityLabel={`From ${props.address}`} onPress={pick} style={styles.from}>
-      <Text tone="mutedForeground">From</Text>
-      <Text numberOfLines={1} ellipsizeMode="middle" style={styles.fromAddress}>
-        {props.address}
-      </Text>
-    </PressableRow>
-  );
-}
-
-const rule = { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border };
 
 const styles = StyleSheet.create({
-  sheet: { paddingBottom: space(16) },
-  collapsed: { minHeight: 52, ...rule },
-  from: { minHeight: 52, gap: space(2), ...rule },
-  fromAddress: { flex: 1, minWidth: 0 },
-  body: { minHeight: 200, paddingHorizontal: gutter, paddingTop: space(4) },
-  shortBody: { minHeight: 120 },
-  quoted: { marginTop: space(2) },
+  frame: { flex: 1 },
+  content: { flexGrow: 1 },
+  fill: { flex: 1 },
+  shrink: { flex: 1, minWidth: 0 },
+  body: { flex: 1, minHeight: space(24), paddingHorizontal: gutter, paddingTop: space(3) },
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space(2),
+    paddingHorizontal: gutter,
+    paddingTop: space(2),
+  },
+  end: { flexDirection: "row", alignItems: "center", gap: space(3) },
 });

@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { StyleSheet, TextInput, View, type TextInputProps } from "react-native";
+import {
+  StyleSheet,
+  TextInput,
+  View,
+  type StyleProp,
+  type TextInputProps,
+  type ViewStyle,
+} from "react-native";
 import { colors, fonts, radius, space, text } from "@/theme/tokens.ts";
 
 export interface TextFieldProps extends TextInputProps {
@@ -7,12 +14,15 @@ export interface TextFieldProps extends TextInputProps {
   label: string;
   /** `well`: a filled pill. `bare`: no frame, for a row that draws its own (a mail header). */
   variant?: "well" | "bare";
+  /** The field's box in its parent's layout: how it grows in a row of tags, or fills a sheet. */
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
 /** A text field. Focus shows as a ring-coloured border only: no glow, no tint. */
 export function TextField({
   label,
   variant = "well",
+  containerStyle,
   style,
   onFocus,
   onBlur,
@@ -20,7 +30,7 @@ export function TextField({
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
   return (
-    <View>
+    <View style={containerStyle}>
       <TextInput
         {...props}
         accessibilityLabel={label}

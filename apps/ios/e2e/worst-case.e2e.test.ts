@@ -44,8 +44,6 @@ const LONG = {
   file: `${"Q3_2026_partnership_agreement_final_final_v12_".repeat(4)}signed.pdf`,
 };
 
-const LONG_BODY = `Please sign here: ${LONG.url} and send the copies to ${LONG.address} before Friday.`;
-
 const TODAYS_TIME = /^\d{1,2}:\d{2}\s?[AP]M$/;
 
 interface Seeded {
@@ -85,22 +83,18 @@ const SCREENS: {
     inFull: [LONG.subject],
   },
   { name: "Mail trash, empty", path: () => "/mail?page=trash", shows: "Trash is empty" },
-  { name: "Mail compose", path: () => "/mail/compose", shows: "Cc/Bcc, From" },
+  { name: "Mail compose", path: () => "/mail/compose", shows: "Cc Bcc" },
   {
     name: "Mail reply",
     path: (s) => `/mail/compose?threadId=${s.threadId}`,
-    shows: LONG.subject,
-    clamped: [
-      [LONG.sender, 2],
-      [LONG_BODY, 1],
-      [TODAYS_TIME, 1],
-    ],
-    inFull: [LONG.subject],
+    shows: "maximiliana@partners.test",
+    clamped: [["maximiliana@partners.test", 1]],
   },
   {
     name: "Mail reply to an unbreakable address",
     path: (s) => `/mail/compose?threadId=${s.plainThreadId}`,
-    shows: "Re: No name, no spaces",
+    shows: LONG.address,
+    clamped: [[LONG.address, 1]],
   },
   {
     name: "Drive",
@@ -225,7 +219,7 @@ async function seed() {
     fromName: LONG.sender,
     uid: 1,
     sentAt: new Date(),
-    text: LONG_BODY,
+    text: `Please sign here: ${LONG.url} and send the copies to ${LONG.address} before Friday.`,
   });
   await db.insert(schema.attachments).values(
     LONG.attachments.map((filename, n) => ({
