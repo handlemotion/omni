@@ -351,6 +351,13 @@
       "when": 1795034483182,
       "tag": "0049_smiling_nitro",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795069490429,
+      "tag": "0050_normal_sabretooth",
+      "breakpoints": true
     }
   ]
 }

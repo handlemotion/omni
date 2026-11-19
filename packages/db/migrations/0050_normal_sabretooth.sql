@@ -1,0 +1,2 @@
+ALTER TABLE "triage_feedback" ADD COLUMN "request_key" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "triage_feedback_request_key_unique" ON "triage_feedback" USING btree ("member_id","thread_id","request_key") WHERE "triage_feedback"."request_key" is not null;
