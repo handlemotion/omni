@@ -44,14 +44,12 @@ export interface ThreadListActions {
   trash: (id: string) => void;
 }
 
-const SNOOZE_MS = 24 * 60 * 60 * 1000;
-
 export function useThreadListShortcuts(options: {
   view: ThreadView;
   threads: ThreadSummary[];
   /**
-   * A helpdesk list (`useConversations(filter)`): pass its filter and rows here, and `e`, `h`
-   * and `i` resolve, snooze and assign to you instead of done and later. `threads` is ignored.
+   * A helpdesk list (`useConversations(filter)`): pass its filter and rows here, and `e` and `i`
+   * resolve and assign to you instead of done and later. `threads` is ignored.
    */
   helpdesk?: { filter: ConversationFilter; conversations: ConversationSummary[] } | undefined;
   /** The open thread, if any. */
@@ -213,18 +211,6 @@ export function useThreadListShortcuts(options: {
       change(
         back ? { type: "reopen" } : { type: "resolve" },
         (n) => `${conversationsLabel(n)} ${back ? "reopened" : "resolved"}`,
-      );
-    },
-    conversations,
-  );
-  useShortcut(
-    "snooze",
-    () => {
-      const back = (targets() as ConversationSummary[]).every((t) => t.status === "snoozed");
-      const until = new Date(Date.now() + SNOOZE_MS).toISOString();
-      change(
-        back ? { type: "reopen" } : { type: "snooze", until },
-        (n) => `${conversationsLabel(n)} ${back ? "reopened" : "snoozed until tomorrow"}`,
       );
     },
     conversations,

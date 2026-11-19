@@ -1,19 +1,8 @@
-import { useMemo, useRef, type ReactNode } from "react";
-import { getLocalTimeZone, today } from "@internationalized/date";
-import type { DateValue } from "react-aria-components/Calendar";
-import {
-  IconCheck,
-  IconCircleCheck,
-  IconClock3,
-  IconPlus,
-  IconUserCog,
-} from "@/components/icons/central";
-import { IconClock } from "@/components/icons/sidebar";
+import { useMemo, type ReactNode } from "react";
+import { IconCheck, IconCircleCheck, IconPlus, IconUserCog } from "@/components/icons/central";
 import { viewLabel } from "@/components/shell/helpdesk-nav";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
-import { createPopoverController, Popover, PopoverRoot } from "@/components/ui/popover";
+import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import {
   useAssignees,
   useConversationChanges,
@@ -102,23 +91,6 @@ export function ConversationList(props: {
   );
 }
 
-function snoozePresets(now = new Date()) {
-  const at8 = (days: number) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() + days);
-    d.setHours(8, 0, 0, 0);
-    return d;
-  };
-  const toMonday = (8 - now.getDay()) % 7 || 7;
-  return [
-    { id: "later", label: "Later today", until: new Date(now.getTime() + 3 * 3_600_000) },
-    { id: "tomorrow", label: "Tomorrow", until: at8(1) },
-    { id: "week", label: "Next week", until: at8(toMonday) },
-  ];
-}
-
-const plural = (n: number) => (n === 1 ? "Conversation" : `${n} conversations`);
-
 function BulkActions(props: {
   filter: ConversationFilter;
   rows: ConversationSummary[];
@@ -146,14 +118,6 @@ function BulkActions(props: {
       }
     });
   };
-  const snooze = (until: Date) =>
-    apply(() => ({ type: "snooze", until: until.toISOString() }), `${plural(rows.length)} snoozed`);
-  const pickDate = useMemo(() => createPopoverController(), []);
-  const snoozeButton = useRef<HTMLButtonElement>(null);
-  const pickDay = (day: DateValue) => {
-    pickDate.close();
-    snooze(new Date(day.year, day.month - 1, day.day, 8, 0, 0, 0));
-  };
 
   return (
     <div className="flex items-center gap-1">
@@ -168,41 +132,6 @@ function BulkActions(props: {
         <IconCircleCheck />
         {resolved ? "Reopen" : "Resolve"}
       </Button>
-      <MenuTrigger>
-        <Button ref={snoozeButton} intent="plain" size="sm">
-          <IconClock />
-          Snooze
-        </Button>
-        <Menu placement="bottom start">
-          {snoozePresets().map((preset) => (
-            <MenuItem
-              key={preset.id}
-              textValue={preset.label}
-              onAction={() => snooze(preset.until)}
-            >
-              <IconClock3 data-slot="icon" />
-              <MenuLabel>{preset.label}</MenuLabel>
-            </MenuItem>
-          ))}
-          <MenuSeparator />
-          <MenuItem
-            textValue="Pick a date"
-            onAction={() => void pickDate.open({ anchor: snoozeButton.current ?? undefined })}
-          >
-            <IconClock3 data-slot="icon" />
-            <MenuLabel>Pick a date</MenuLabel>
-          </MenuItem>
-        </Menu>
-      </MenuTrigger>
-      <PopoverRoot controller={pickDate}>
-        <Popover placement="bottom start" aria-label="Snooze until" className="p-2">
-          <Calendar
-            aria-label="Snooze until"
-            minValue={today(getLocalTimeZone()).add({ days: 1 })}
-            onChange={pickDay}
-          />
-        </Popover>
-      </PopoverRoot>
       {tags.length > 0 && (
         <MenuTrigger>
           <Button intent="plain" size="sm">

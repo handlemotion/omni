@@ -75,7 +75,6 @@ export const SHORTCUTS = {
     keys: [["e"]],
     command: true,
   },
-  snooze: { label: "Snooze", group: "Threads", place: "mail", keys: [["h"]], command: true },
   cannedReply: {
     label: "Insert canned reply",
     group: "Threads",

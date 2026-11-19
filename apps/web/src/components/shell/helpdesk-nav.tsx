@@ -4,7 +4,6 @@ import { IconCircleCheck, IconUserCog } from "@/components/icons/central";
 import {
   IconBubble,
   IconBubbleAnnotation,
-  IconClock,
   IconInbox,
   IconWarning,
 } from "@/components/icons/sidebar";
@@ -22,7 +21,6 @@ export const VIEW_NAV: { view: NavView; label: string; icon: ReactNode }[] = [
   { view: "mine", label: "Mine", icon: <IconUserCog className="size-icon" /> },
   { view: "open", label: "Open", icon: <IconBubble /> },
   { view: "pending", label: "Pending", icon: <IconBubbleAnnotation /> },
-  { view: "snoozed", label: "Snoozed", icon: <IconClock /> },
   { view: "resolved", label: "Resolved", icon: <IconCircleCheck className="size-icon" /> },
   { view: "sla_at_risk", label: "SLA at risk", icon: <IconWarning /> },
 ];

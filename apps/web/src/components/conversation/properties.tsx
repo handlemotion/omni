@@ -14,7 +14,7 @@ import {
 } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Menu, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
+import { Menu, MenuItem, MenuLabel, MenuTrigger } from "@/components/ui/menu";
 import {
   useAssign,
   useAssignees,
@@ -22,7 +22,6 @@ import {
   useReopen,
   useResolve,
   useSetPriority,
-  useSnooze,
   useTags,
   useToggleTag,
 } from "@/hooks/use-conversation.ts";
@@ -46,20 +45,6 @@ const PRIORITY: Record<Priority, { label: string; icon: Glyph }> = {
 };
 const PRIORITIES = Object.keys(PRIORITY) as Priority[];
 
-function morning(days: number) {
-  const at = new Date();
-  at.setDate(at.getDate() + days);
-  at.setHours(8, 0, 0, 0);
-  return at;
-}
-const untilMonday = () => (8 - new Date().getDay()) % 7 || 7;
-
-/** The snooze choices, in the status menu and the reader's Snooze. */
-export const SNOOZES = [
-  { label: "Snooze until tomorrow", until: () => morning(1) },
-  { label: "Snooze until Monday", until: () => morning(untilMonday()) },
-];
-
 /**
  * A shared inbox's conversation state, at the left of the reader's toolbar: status, assignee,
  * priority and tags, each a menu. Every change shows at once and offers undo.
@@ -70,7 +55,6 @@ export function Properties({ thread, children }: { thread: Thread; children?: Re
   const { data: tags = [] } = useTags(thread.mailboxId);
   const resolve = useResolve();
   const reopen = useReopen();
-  const snooze = useSnooze();
   const assign = useAssign();
   const setPriority = useSetPriority();
   const toggleTag = useToggleTag();
@@ -100,15 +84,6 @@ export function Properties({ thread, children }: { thread: Thread; children?: Re
               onAction={() => resolve.mutate({ threadId })}
             />
           )}
-          <MenuSeparator />
-          {SNOOZES.map(({ label, until }) => (
-            <Item
-              key={label}
-              icon={IconClockSnooze}
-              label={label}
-              onAction={() => snooze.mutate({ threadId, until: until() })}
-            />
-          ))}
         </Menu>
       </MenuTrigger>
 

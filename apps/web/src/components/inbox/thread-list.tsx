@@ -413,7 +413,7 @@ interface ShortcutsSource {
   view: ThreadView;
   threads: ThreadSummary[];
   loadMore?: (() => void) | undefined;
-  /** A helpdesk list: e, h and i resolve, snooze and assign instead of done and defer. */
+  /** A helpdesk list: e and i resolve and assign instead of done and later. */
   helpdesk?: { filter: ConversationFilter; conversations: ConversationSummary[] } | undefined;
 }
 

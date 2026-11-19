@@ -55,15 +55,15 @@ type ConversationListQuery = InferRequestType<Api["conversations"]["$get"]>["que
 /**
  * A shared inbox's helpdesk views (ADR 0021), in navigation order. `mine` is open or pending
  * and assigned to you; `sla_at_risk` is open with a due time near or past, soonest first; `all`
- * is every conversation (for a tag on its own).
+ * is every conversation (for a tag on its own). The API's `snoozed` view is left out: the web
+ * no longer snoozes (Later replaces it), and that view stays only for older clients.
  */
-export type HelpdeskView = NonNullable<ConversationListQuery["view"]>;
+export type HelpdeskView = Exclude<NonNullable<ConversationListQuery["view"]>, "snoozed">;
 export const HELPDESK_VIEWS = [
   "unassigned",
   "mine",
   "open",
   "pending",
-  "snoozed",
   "resolved",
   "sla_at_risk",
   "all",

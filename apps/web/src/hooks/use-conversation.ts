@@ -89,8 +89,6 @@ function describeChange(change: ConversationChange, client: QueryClient, mailbox
       return "Resolved";
     case "reopen":
       return "Reopened";
-    case "snooze":
-      return "Snoozed";
     case "claim":
       return "Assigned to you";
     case "assign":
@@ -140,16 +138,6 @@ export function useReopen() {
   return {
     ...rest,
     mutate: ({ threadId }: { threadId: string }) => run(threadId, { type: "reopen" }),
-  };
-}
-
-/** `mutate({ threadId, until })`: out of Open until `until` (a future `Date`). */
-export function useSnooze() {
-  const { run, ...rest } = useChange();
-  return {
-    ...rest,
-    mutate: ({ threadId, until }: { threadId: string; until: Date }) =>
-      run(threadId, { type: "snooze", until: until.toISOString() }),
   };
 }
 

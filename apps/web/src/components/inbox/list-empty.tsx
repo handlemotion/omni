@@ -8,10 +8,7 @@ import { useWorkspaceSlug } from "@/hooks/use-workspaces.ts";
 
 const VIEW_TEXT: Record<ThreadView, { title: string; description?: string }> = {
   inbox: { title: "Inbox zero", description: "You're all caught up. New mail lands here." },
-  later: {
-    title: "Nothing for later",
-    description: "Snooze a thread to park it here until you're ready for it.",
-  },
+  later: { title: "Nothing for later" },
   done: {
     title: "Nothing done yet",
     description: "Threads you mark done move here, out of your Inbox.",
@@ -113,10 +110,6 @@ const HELPDESK_TEXT: Record<HelpdeskView, { title: string; description: string }
   pending: {
     title: "Nothing waiting on a customer",
     description: "Conversations waiting on the customer's reply show up here.",
-  },
-  snoozed: {
-    title: "Nothing snoozed",
-    description: "Snoozed conversations rest here until they're due.",
   },
   resolved: { title: "Nothing resolved yet", description: "Resolved conversations are kept here." },
   sla_at_risk: {

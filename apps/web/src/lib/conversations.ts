@@ -80,7 +80,6 @@ export const assigneesQuery = (mailboxId: string) =>
 export type ConversationChange =
   | { type: "resolve" }
   | { type: "reopen" }
-  | { type: "snooze"; until: string }
   | { type: "claim"; memberId?: string | undefined }
   | { type: "assign"; memberId: string | null }
   | { type: "priority"; priority: Priority }
@@ -108,8 +107,6 @@ function request({ threadId, change, key }: ChangeVariables) {
       return thread.resolve.$post({ param, header });
     case "reopen":
       return thread.reopen.$post({ param, header });
-    case "snooze":
-      return thread.snooze.$post({ param, header, json: { until: change.until } });
     case "claim":
       return thread.claim.$post({ param, header });
     case "assign":
@@ -150,7 +147,6 @@ export function inView(
       return me === undefined ? undefined : row.assigneeMemberId === me;
     case "open":
     case "pending":
-    case "snoozed":
     case "resolved":
       return row.status === filter.view;
     case "sla_at_risk":
@@ -206,8 +202,6 @@ export const applyChange: <T extends ConversationState>(
       return { ...conversation, status: "resolved", snoozedUntil: null, resolvedAt: now };
     case "reopen":
       return { ...conversation, status: "open", snoozedUntil: null, resolvedAt: null };
-    case "snooze":
-      return { ...conversation, status: "snoozed", snoozedUntil: change.until };
     case "claim":
       return change.memberId
         ? { ...conversation, assigneeMemberId: change.memberId }
@@ -226,7 +220,7 @@ export const applyChange: <T extends ConversationState>(
 
 /**
  * The change that puts back what `change` replaced, from the conversation as it was. Reopen is
- * the inverse of resolve and snooze, so a pending conversation comes back open.
+ * the inverse of resolve, so a pending conversation comes back open.
  */
 export const inverseOf: (
   before: ConversationState,
@@ -234,21 +228,12 @@ export const inverseOf: (
 ) => ConversationChange | null = (before, change) => {
   switch (change.type) {
     case "resolve":
-    case "snooze":
     case "reopen": {
       const unchanged =
         (change.type === "resolve" && before.status === "resolved") ||
-        (change.type === "reopen" && (before.status === "open" || before.status === "pending")) ||
-        (change.type === "snooze" &&
-          before.status === "snoozed" &&
-          before.snoozedUntil === change.until);
+        (change.type === "reopen" && (before.status === "open" || before.status === "pending"));
       if (unchanged) return null;
-      if (before.status === "resolved") return { type: "resolve" };
-      const until = before.snoozedUntil;
-      if (before.status === "snoozed" && until && Date.parse(until) > Date.now()) {
-        return { type: "snooze", until };
-      }
-      return { type: "reopen" };
+      return before.status === "resolved" ? { type: "resolve" } : { type: "reopen" };
     }
     case "claim":
     case "assign":
