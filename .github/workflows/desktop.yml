@@ -1,14 +1,14 @@
 name: Desktop
 
 # The desktop app (ADR 0043, docs/spec/desktop.md "Build, signing, release"): Rust format, Clippy
-# and tests on Linux, and an unsigned build of the shell on macOS and Windows. Runs only when the
-# app or the contracts its types come from change; `Checks` is unchanged for everyone else.
-# Signed builds and the updater feed come with the release layer.
+# and tests on Linux when the app or the contracts its types come from change; `Checks` is
+# unchanged for everyone else.
 #
-# The macOS and Windows builds run only when started by hand: this repository's jobs run on its
-# `boat` runners, and GitHub-hosted macOS and Windows runners are not enabled for it yet (a job
-# on them fails before it starts). Either leg can use a self-hosted runner through the
-# RUNNER_WINDOWS or RUNNER_MACOS variable (docs/operations/ci-runners.md). Run them on push once both work.
+# The macOS and Windows builds are the expensive legs (macOS minutes cost about ten Linux ones), so
+# they run only for a release: when a `desktop-v*` tag is pushed (`git tag desktop-v0.1.4 && git
+# push origin desktop-v0.1.4`, or a GitHub release that creates it), or by hand. Either leg can use
+# a self-hosted runner through the RUNNER_WINDOWS or RUNNER_MACOS variable
+# (docs/operations/ci-runners.md). Signed builds and the updater feed come with the release layer.
 on:
   pull_request:
     branches: [main]
@@ -18,6 +18,7 @@ on:
       - ".github/workflows/desktop.yml"
   push:
     branches: [main]
+    tags: ["desktop-v*"]
     paths:
       - "apps/desktop/**"
       - "packages/contracts/**"
@@ -37,6 +38,7 @@ env:
 jobs:
   rust:
     name: Rust (Linux)
+    if: github.ref_type != 'tag'
     # Runner switch (docs/operations/ci-runners.md): repo variable RUNNER_HEAVY, else boat (4 vCPU / 8 GB).
     # Tauri and WebKitGTK compile slowly on boat-small.
     runs-on: ${{ fromJSON(vars.RUNNER_HEAVY || '"boat"') }}
@@ -79,7 +81,7 @@ jobs:
 
   build:
     name: Build (${{ matrix.os }}, unsigned)
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
     strategy:
       fail-fast: false
       matrix:

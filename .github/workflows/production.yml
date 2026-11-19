@@ -10,12 +10,32 @@ name: Production
 #    every running service. Nothing waits for them, so schema changes are additive-first.
 # 2. Doppler prd_worker -> the Worker's secrets (Doppler has no automatic sync for Workers).
 #
-# `wrangler secret bulk` deploys a new version of the latest one, so on a push it first waits for
-# that commit's Cloudflare build (its GitHub check run) to finish: otherwise a sync that read the
+# `wrangler secret bulk` deploys a new version of the latest one, so it first waits for the
+# commit's Cloudflare build (its GitHub check run) to finish: otherwise a sync that read the
 # version before Cloudflare deployed the new one could put the old code back.
+#
+# Each job runs only when its inputs change (ADR 0050), so most pushes start nothing:
+# - migrations when a push adds or edits `packages/db/migrations/`;
+# - the secret sync when the Worker's documented env (`.dev.vars.example`) or config changes, which
+#   is when new code can need a new secret;
+# - both daily, as the safety net for a Doppler edit (both are idempotent), and by hand: Actions,
+#   Production, Run workflow.
+# A push that changes one job's inputs starts the other too; its `Changed?` step ends it at once.
+# Each job diffs from the commit of the last successful Production run, not the push's `before`:
+# concurrency replaces a pending run with a newer one, and the newer one must still apply the
+# skipped run's migrations or secrets. (The push event carries no per-commit file lists.)
 on:
   push:
     branches: [main]
+    paths:
+      - packages/db/migrations/**
+      - apps/worker/.dev.vars.example
+      - apps/worker/wrangler.jsonc
+      - .github/scripts/doppler.sh
+      - .github/scripts/wait-for-checks.sh
+      - .github/workflows/production.yml
+  schedule:
+    - cron: "23 9 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -25,6 +45,7 @@ concurrency:
 permissions:
   contents: read
   checks: read
+  actions: read
 
 jobs:
   migrate:
@@ -36,18 +57,38 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
+      - name: Changed?
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=true
+          since="$(.github/scripts/last-production-sha.sh)"
+          if [ "$EVENT" = "push" ] && [ -n "$since" ] &&
+            [ -z "$(git diff --name-only "$since" "$GITHUB_SHA" -- packages/db/migrations .github/workflows/production.yml)" ]; then
+            run=false
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "Run: $run"
+
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        if: steps.scope.outputs.run == 'true'
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.scope.outputs.run == 'true'
         with:
           node-version-file: .nvmrc
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile --filter @omni/db...
+      - if: steps.scope.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile --filter @omni/db...
 
       - name: Apply migrations
+        if: steps.scope.outputs.run == 'true'
         env:
           DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
         run: pnpm --filter @omni/db db:migrate
@@ -61,19 +102,39 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
+      - name: Changed?
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=true
+          since="$(.github/scripts/last-production-sha.sh)"
+          if [ "$EVENT" = "push" ] && [ -n "$since" ] &&
+            [ -z "$(git diff --name-only "$since" "$GITHUB_SHA" -- apps/worker/.dev.vars.example apps/worker/wrangler.jsonc .github/scripts .github/workflows/production.yml)" ]; then
+            run=false
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "Run: $run"
+
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        if: steps.scope.outputs.run == 'true'
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.scope.outputs.run == 'true'
         with:
           node-version-file: .nvmrc
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile --filter @omni/worker
+      - if: steps.scope.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile --filter @omni/worker
 
+      # Every event: a daily or hand-started run on a fresh main commit must not race its build.
       - name: Wait for Cloudflare's deploy of this commit
-        if: github.event_name == 'push'
+        if: steps.scope.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: .github/scripts/wait-for-checks.sh "$GITHUB_SHA"
@@ -81,6 +142,7 @@ jobs:
       # prd_github reaches this job through Doppler's GitHub sync (environment `production`).
       # prd_worker is read with its own token: its keys, and only those, become Worker secrets.
       - name: Sync
+        if: steps.scope.outputs.run == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

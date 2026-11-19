@@ -6,11 +6,15 @@ name: CI
 # in `Full` (full.yml): nightly on main, by hand, or on a PR labelled `full-e2e`.
 #
 # Only pull requests into main run. A stacked layer (base is another branch) runs once it is
-# retargeted to main and pushed; `Run workflow` on its branch reports `Checks` too.
+# retargeted to main and pushed; `Run workflow` on its branch reports `Checks` too. `merge_group`
+# reports `Checks` for a merge queue, once main's ruleset turns one on (it needs Enterprise Cloud
+# for a private repository); until then GitHub never sends it.
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
 concurrency:
