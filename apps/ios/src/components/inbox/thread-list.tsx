@@ -5,7 +5,14 @@ import { IconInbox } from "@/components/icons.ts";
 import { InfiniteList } from "@/components/ui/infinite-list.tsx";
 import { SectionHeading } from "@/components/ui/section-heading.tsx";
 import { useDone, useLater, useMarkUnread } from "@/lib/mail-actions.ts";
-import { MAIL_PAGES, bySection, mailboxName, useThreads, type MailPage } from "@/lib/mail.ts";
+import {
+  MAIL_PAGES,
+  bySection,
+  mailboxName,
+  usePrefetchThread,
+  useThreads,
+  type MailPage,
+} from "@/lib/mail.ts";
 import { ThreadListSkeleton } from "./thread-list-skeleton.tsx";
 import { ThreadRow } from "./thread-row.tsx";
 
@@ -19,7 +26,7 @@ export interface ThreadListProps {
 
 /**
  * A mail page's threads, newest first under a heading per day, older ones as you scroll, pull
- * to refresh. A tap opens the conversation; a long press peeks at it, with Done, Later and Mark
+ * to refresh. A tap opens the conversation, warmed as the finger lands; a long press peeks at it, with Done, Later and Mark
  * unread in its menu.
  */
 export function ThreadList({ page, mailboxId, mailboxes, you }: ThreadListProps) {
@@ -27,6 +34,7 @@ export function ThreadList({ page, mailboxId, mailboxes, you }: ThreadListProps)
   const done = useDone();
   const later = useLater();
   const unread = useMarkUnread();
+  const prefetch = usePrefetchThread();
   const shared = useMemo(
     () =>
       new Map(
@@ -59,6 +67,7 @@ export function ThreadList({ page, mailboxId, mailboxes, you }: ThreadListProps)
                   senderAddress: row.item.latestFrom?.address,
                 }}
                 sharedInbox={shared.get(row.item.mailboxId)}
+                onPressIn={() => prefetch(row.item.id)}
               />
             </Link.Trigger>
             <Link.Preview />

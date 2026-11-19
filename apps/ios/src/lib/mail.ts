@@ -10,9 +10,10 @@ import {
   type QueryKey,
 } from "@tanstack/react-query";
 import type { Mailbox, SearchResult, Thread, ThreadPage } from "@omni/client";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { SymbolName } from "./symbols.ts";
 import { ApiError, api, call, inWorkspace, isAuthError } from "./api.ts";
+import { WARM_NEWEST, opensFull } from "./message-html.ts";
 import { keys } from "./query-keys.ts";
 import { currentWorkspaceId } from "./workspace-id.ts";
 
@@ -139,8 +140,8 @@ export const threadQuery = (threadId: string) =>
 export const useThread = (threadId: string) => useQuery(threadQuery(threadId));
 
 /** One message's sanitized HTML, as the Worker serves it for a sandboxed view. */
-export const useMessageHtml = (threadId: string, messageId: string) =>
-  useQuery({
+export const messageHtmlQuery = (threadId: string, messageId: string) =>
+  queryOptions({
     queryKey: [...keys.thread(threadId), "html", messageId],
     queryFn: async ({ signal }) => {
       const response = await api.threads[":id"].messages[":messageId"].html.$get(
@@ -152,6 +153,34 @@ export const useMessageHtml = (threadId: string, messageId: string) =>
     },
     staleTime: Infinity,
   });
+
+export const useMessageHtml = (threadId: string, messageId: string) =>
+  useQuery(messageHtmlQuery(threadId, messageId));
+
+const PREFETCH_FRESH = 30_000;
+
+/**
+ * Warms a thread before it opens, as the web does on hover: its messages, then the HTML of its
+ * newest messages that open full, so the conversation renders whole instead of waiting on a
+ * second round trip once it arrives. Called as a row is pressed.
+ */
+export function usePrefetchThread() {
+  const client = useQueryClient();
+  return useCallback(
+    (threadId: string) =>
+      void client.fetchQuery({ ...threadQuery(threadId), staleTime: PREFETCH_FRESH }).then(
+        (thread) => {
+          for (const message of thread.messages.slice(-WARM_NEWEST)) {
+            if (opensFull(message))
+              void client.prefetchQuery(messageHtmlQuery(threadId, message.id));
+          }
+          return undefined;
+        },
+        () => undefined,
+      ),
+    [client],
+  );
+}
 
 /** One queue for every thread action, opening's mark-read included, so they land in order. */
 export const MAIL_ACTIONS_SCOPE = { id: "mail-actions" };

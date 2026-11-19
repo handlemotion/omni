@@ -53,13 +53,9 @@ export default function ThreadScreen() {
           {thread.data.messages.map((message) => (
             <MessageItem
               key={message.id}
+              threadId={id}
               message={message}
-              onShowFull={() =>
-                router.push({
-                  pathname: "/mail/message/[threadId]/[messageId]",
-                  params: { threadId: id, messageId: message.id },
-                })
-              }
+              flat={thread.data.messages.length === 1}
               onOpenAttachment={(file) =>
                 router.push({
                   pathname: "/mail/attachment/[threadId]/[attachmentId]",

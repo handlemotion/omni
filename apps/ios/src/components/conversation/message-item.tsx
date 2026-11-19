@@ -1,31 +1,40 @@
 import type { Message } from "@omni/client";
+import { useState } from "react";
 import { StyleSheet, View } from "react-native";
+import { HtmlView } from "@/components/conversation/html-view";
 import { IconPaperclip } from "@/components/icons.ts";
 import { Avatar } from "@/components/ui/avatar.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { PressableRow } from "@/components/ui/pressable-row.tsx";
 import { Text } from "@/components/ui/text.tsx";
-import { listTime } from "@/lib/mail.ts";
+import { config } from "@/lib/config.ts";
+import { listTime, useMessageHtml } from "@/lib/mail.ts";
+import { opensFull } from "@/lib/message-html.ts";
 import { colors, iconSize, radius, shadowRaised, space } from "@/theme/tokens.ts";
 
 export interface MessageItemProps {
+  threadId: string;
   message: Message;
-  onShowFull?: () => void;
+  /** The thread's only message, shown as the page: a card without its edge. */
+  flat?: boolean;
   onOpenAttachment?: (file: Message["attachments"][number]) => void;
 }
 
 /**
  * One message as the spec draws it: who and when, then only what they newly wrote. Short ones are
  * bubbles (yours and your team's on the right, tinted), long or formal ones cards (`display`,
- * decided by the Worker). With HTML, "Show full message" opens the original.
+ * decided by the Worker). Either can show the sender's HTML in place, as on the web; a message
+ * with no text of its own, or outside mail its images carry, opens that way.
  */
-export function MessageItem({ message, onShowFull, onOpenAttachment }: MessageItemProps) {
+export function MessageItem({ threadId, message, flat, onOpenAttachment }: MessageItemProps) {
+  const [full, setFull] = useState(() => opensFull(message));
   const sender = message.fromName || message.fromAddress;
-  const ours = message.fromTeam;
-  const card = message.display === "card";
+  const card = message.display === "card" || full || !!flat;
+  const ours = message.fromTeam && !card;
   return (
-    <View style={[styles.item, ours && !card && styles.ours]}>
-      <View style={[styles.meta, ours && !card && styles.oursMeta]}>
+    <View style={[styles.item, ours && styles.ours]}>
+      <View style={[styles.meta, ours && styles.oursMeta]}>
         <Avatar name={sender} logo={{ address: message.fromAddress }} size={32} />
         <Text weight="medium" numberOfLines={1} style={styles.shrink}>
           {sender}
@@ -34,11 +43,23 @@ export function MessageItem({ message, onShowFull, onOpenAttachment }: MessageIt
           {listTime(message.sentAt)}
         </Text>
       </View>
-      <View style={card ? styles.card : [styles.bubble, ours && styles.oursBubble]}>
-        <Text selectable>{message.cleanText}</Text>
-      </View>
+      {full ? (
+        <View style={[styles.card, styles.fullCard, flat && styles.flat]}>
+          <FullMessage threadId={threadId} messageId={message.id} />
+        </View>
+      ) : (
+        <View
+          style={
+            card
+              ? [styles.card, styles.textCard, flat && styles.flat]
+              : [styles.bubble, ours && styles.oursBubble]
+          }
+        >
+          <Text selectable>{message.cleanText}</Text>
+        </View>
+      )}
       {message.attachments.length ? (
-        <View style={[styles.attachments, ours && !card && styles.oursMeta]}>
+        <View style={[styles.attachments, ours && styles.oursMeta]}>
           {message.attachments.map((file) => (
             <PressableRow
               key={file.id}
@@ -53,14 +74,28 @@ export function MessageItem({ message, onShowFull, onOpenAttachment }: MessageIt
           ))}
         </View>
       ) : null}
-      {message.hasHtml && onShowFull ? (
+      {message.hasHtml && message.cleanText.trim() ? (
         <Button
           intent="quiet"
-          label="Show full message"
-          onPress={onShowFull}
-          style={ours && !card ? styles.oursAction : undefined}
+          label={full ? "Show text" : "Show full message"}
+          onPress={() => setFull((open) => !open)}
+          style={ours ? styles.oursAction : undefined}
         />
       ) : null}
+    </View>
+  );
+}
+
+function FullMessage({ threadId, messageId }: { threadId: string; messageId: string }) {
+  const html = useMessageHtml(threadId, messageId);
+  if (html.data !== undefined) return <HtmlView html={html.data} baseUrl={config.apiUrl} />;
+  if (html.isError)
+    return <Button intent="plain" label="Try again" onPress={() => void html.refetch()} />;
+  return (
+    <View style={styles.loading}>
+      <Skeleton width="90%" height={14} />
+      <Skeleton width="70%" height={14} />
+      <Skeleton width="80%" height={14} />
     </View>
   );
 }
@@ -82,13 +117,16 @@ const styles = StyleSheet.create({
   oursBubble: { backgroundColor: colors.primarySubtle },
   card: {
     alignSelf: "stretch",
-    padding: space(5),
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     ...shadowRaised,
   },
+  textCard: { padding: space(5) },
+  fullCard: { overflow: "hidden" },
+  flat: { padding: 0, borderWidth: 0, shadowOpacity: 0, elevation: 0 },
+  loading: { padding: space(4), gap: space(3) },
   attachments: { flexDirection: "row", flexWrap: "wrap", gap: space(2), maxWidth: "100%" },
   chip: {
     flexDirection: "row",
