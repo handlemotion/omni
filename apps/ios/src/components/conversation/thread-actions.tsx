@@ -1,6 +1,7 @@
 import type { Thread } from "@omni/client";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
+import { canReplyAll } from "@/lib/compose.ts";
 import { useThread } from "@/lib/mail.ts";
 import {
   leavesPage,
@@ -17,8 +18,8 @@ import {
 } from "@/lib/thread-actions.ts";
 
 /**
- * The conversation's header actions, as the web reader's: Done (or Not done) as a button, the
- * rest in a native menu. An action that takes the thread out of the list it was opened from goes
+ * The conversation's header actions, as the web reader's: Reply and Done (or Not done) as
+ * buttons, Reply all and the rest in a native menu. An action that takes the thread out of the list it was opened from goes
  * back to that list, which the route names in its `page` param.
  *
  * Native header items are read from the element tree, so every button, menu and action here is a
@@ -35,11 +36,25 @@ export function ThreadActions({ threadId }: { threadId: string }) {
   return (
     <Stack.Toolbar placement="right">
       <Stack.Toolbar.Button
+        icon="arrowshape.turn.up.left"
+        accessibilityLabel="Reply"
+        onPress={() => reply(threadId, false)}
+      />
+      <Stack.Toolbar.Button
         icon={thread.done ? "tray" : "checkmark"}
         accessibilityLabel={thread.done ? "Not done" : "Done"}
         onPress={() => act.toggleDone(thread)}
       />
       <Stack.Toolbar.Menu icon="ellipsis" accessibilityLabel="Thread actions">
+        <Stack.Toolbar.Menu inline>
+          <Stack.Toolbar.MenuAction
+            icon="arrowshape.turn.up.left.2"
+            hidden={!canReplyAll(thread)}
+            onPress={() => reply(threadId, true)}
+          >
+            Reply all
+          </Stack.Toolbar.MenuAction>
+        </Stack.Toolbar.Menu>
         <Stack.Toolbar.Menu inline>
           <Stack.Toolbar.MenuAction
             icon="tray"
@@ -108,6 +123,9 @@ export function ThreadActions({ threadId }: { threadId: string }) {
     </Stack.Toolbar>
   );
 }
+
+const reply = (threadId: string, all: boolean) =>
+  router.push({ pathname: "/mail/compose", params: { threadId, ...(all ? { all: "1" } : {}) } });
 
 type Message = Thread["messages"][number];
 type ListMessage = Message & { unsubscribe: NonNullable<Message["unsubscribe"]> };

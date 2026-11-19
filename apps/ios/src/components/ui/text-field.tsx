@@ -5,10 +5,19 @@ import { colors, fonts, radius, space, text } from "@/theme/tokens.ts";
 export interface TextFieldProps extends TextInputProps {
   /** Read by VoiceOver; the frame shows no visible label, as on the web. */
   label: string;
+  /** `well`: a filled pill. `bare`: no frame, for a row that draws its own (a mail header). */
+  variant?: "well" | "bare";
 }
 
 /** A text field. Focus shows as a ring-coloured border only: no glow, no tint. */
-export function TextField({ label, style, onFocus, onBlur, ...props }: TextFieldProps) {
+export function TextField({
+  label,
+  variant = "well",
+  style,
+  onFocus,
+  onBlur,
+  ...props
+}: TextFieldProps) {
   const [focused, setFocused] = useState(false);
   return (
     <View>
@@ -25,7 +34,10 @@ export function TextField({ label, style, onFocus, onBlur, ...props }: TextField
           setFocused(false);
           onBlur?.(event);
         }}
-        style={[styles.input, focused && styles.focused, style]}
+        style={[
+          variant === "bare" ? styles.bare : [styles.input, focused && styles.focused],
+          style,
+        ]}
       />
     </View>
   );
@@ -44,4 +56,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.well,
   },
   focused: { borderColor: colors.primary },
+  bare: {
+    ...text.md,
+    fontFamily: fonts.regular,
+    color: colors.foreground,
+    padding: 0,
+    minWidth: 0,
+    outlineWidth: 0,
+  },
 });

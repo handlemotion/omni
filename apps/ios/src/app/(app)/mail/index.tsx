@@ -33,7 +33,23 @@ export default function MailList() {
       <Stack.Screen
         options={{ title: mailbox ? `${label} · ${mailboxName(mailbox, you)}` : label }}
       />
-      <ModuleToolbar pages={pages} current={page} onPage={(id) => router.setParams({ page: id })}>
+      <ModuleToolbar
+        pages={pages}
+        current={page}
+        onPage={(id) => router.setParams({ page: id })}
+        actions={
+          <Stack.Toolbar.Button
+            icon="square.and.pencil"
+            accessibilityLabel="New message"
+            onPress={() =>
+              router.push({
+                pathname: "/mail/compose",
+                params: mailbox ? { mailbox: mailbox.id } : {},
+              })
+            }
+          />
+        }
+      >
         <Stack.Toolbar.Menu inline title="Mailboxes">
           <Stack.Toolbar.MenuAction
             icon="tray.2"

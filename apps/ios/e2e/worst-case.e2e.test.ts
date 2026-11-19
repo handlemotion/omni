@@ -44,10 +44,13 @@ const LONG = {
   file: `${"Q3_2026_partnership_agreement_final_final_v12_".repeat(4)}signed.pdf`,
 };
 
+const LONG_BODY = `Please sign here: ${LONG.url} and send the copies to ${LONG.address} before Friday.`;
+
 const TODAYS_TIME = /^\d{1,2}:\d{2}\s?[AP]M$/;
 
 interface Seeded {
   threadId: string;
+  plainThreadId: string;
   companyId: string;
   personId: string;
   dealId: string;
@@ -82,6 +85,23 @@ const SCREENS: {
     inFull: [LONG.subject],
   },
   { name: "Mail trash, empty", path: () => "/mail?page=trash", shows: "Trash is empty" },
+  { name: "Mail compose", path: () => "/mail/compose", shows: "Cc/Bcc, From" },
+  {
+    name: "Mail reply",
+    path: (s) => `/mail/compose?threadId=${s.threadId}`,
+    shows: LONG.subject,
+    clamped: [
+      [LONG.sender, 2],
+      [LONG_BODY, 1],
+      [TODAYS_TIME, 1],
+    ],
+    inFull: [LONG.subject],
+  },
+  {
+    name: "Mail reply to an unbreakable address",
+    path: (s) => `/mail/compose?threadId=${s.plainThreadId}`,
+    shows: "Re: No name, no spaces",
+  },
   {
     name: "Drive",
     path: () => "/drive",
@@ -205,7 +225,7 @@ async function seed() {
     fromName: LONG.sender,
     uid: 1,
     sentAt: new Date(),
-    text: `Please sign here: ${LONG.url} and send the copies to ${LONG.address} before Friday.`,
+    text: LONG_BODY,
   });
   await db.insert(schema.attachments).values(
     LONG.attachments.map((filename, n) => ({
@@ -217,7 +237,7 @@ async function seed() {
       r2Key: `${acme.orgId}/${box.id}/att/${n}`,
     })),
   );
-  await seedMessage(db, box, {
+  const plain = await seedMessage(db, box, {
     subject: "No name, no spaces",
     fromAddress: LONG.address,
     uid: 2,
@@ -292,6 +312,7 @@ async function seed() {
     cookie,
     workspaceId: acme.orgId,
     threadId: long.threadId,
+    plainThreadId: plain.threadId,
     companyId: company.id as string,
     personId: person.id as string,
     dealId: deal.id as string,
