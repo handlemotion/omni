@@ -25,6 +25,7 @@ function refetchAfterMissedEvents(client: QueryClient) {
     { queryKey: keys.threadDetails(), predicate: isThreadNotItsHtml },
     quiet,
   );
+  void client.invalidateQueries({ queryKey: keys.conversations() }, quiet);
   void client.invalidateQueries({ queryKey: ["search"] }, quiet);
   void client.invalidateQueries({ queryKey: keys.counts() }, quiet);
   void client.invalidateQueries({ queryKey: keys.mailboxes() }, quiet);
@@ -45,6 +46,7 @@ function invalidateOnEvents(client: QueryClient) {
     const changed = new Set(mailboxes);
     for (const id of threads) {
       void client.invalidateQueries({ queryKey: keys.thread(id), exact: true });
+      void client.invalidateQueries({ queryKey: keys.conversation(id) });
     }
     threads.clear();
     mailboxes.clear();

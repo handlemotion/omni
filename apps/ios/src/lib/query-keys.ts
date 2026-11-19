@@ -6,6 +6,10 @@ export const keys = {
   threads: (page: string, mailboxId: string | undefined) =>
     ["threads", page, mailboxId ?? "all"] as const,
   thread: (threadId: string) => ["thread", threadId] as const,
+  /** A shared inbox's conversation state (status, assignee, priority, tags) for one thread. */
+  conversation: (threadId: string) => ["conversation", threadId] as const,
+  assignees: (mailboxId: string) => ["assignees", mailboxId] as const,
+  tags: (mailboxId: string) => ["tags", mailboxId] as const,
   drive: (page: string, folderId?: string) => ["drive", page, folderId ?? "root"] as const,
   /** A Drive file's local copy, and its text, per version. */
   fileCopy: (fileId: string, version: string) => ["drive", "file", fileId, version] as const,
@@ -27,6 +31,7 @@ export const keys = {
   /** Prefixes, for invalidating a whole module at once. */
   threadLists: () => ["threads"] as const,
   threadDetails: () => ["thread"] as const,
+  conversations: () => ["conversation"] as const,
   crmAll: () => ["crm"] as const,
   /** Your notifications: every list (all, unread only). */
   notifications: () => ["notifications"] as const,

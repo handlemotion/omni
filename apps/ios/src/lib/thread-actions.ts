@@ -97,7 +97,7 @@ function failureText(error: unknown) {
   return "That didn't go through.";
 }
 
-function alertFailure(error: unknown, title?: string) {
+export function alertFailure(error: unknown, title?: string) {
   if (error instanceof ApiError && error.status === 401) return;
   if (title) Alert.alert(title);
   else Alert.alert(failureText(error));

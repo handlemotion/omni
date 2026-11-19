@@ -1,33 +1,38 @@
-import { Stack, router, useIsPreview, useLocalSearchParams } from "expo-router";
-import { useEffect, useRef } from "react";
+import type { Thread } from "@omni/client";
+import { router, useIsPreview, useLocalSearchParams } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { MessageItem } from "@/components/conversation/message-item.tsx";
-import { ThreadActions } from "@/components/conversation/thread-actions.tsx";
-import { ThreadTitle } from "@/components/conversation/thread-header.tsx";
+import { PropertiesRail } from "@/components/conversation/properties-rail.tsx";
+import { ThreadBottomBar, ThreadTopBar } from "@/components/conversation/thread-bars.tsx";
+import { useThreadActions } from "@/components/conversation/use-thread-actions.ts";
 import { IconInbox } from "@/components/icons.ts";
+import { FLOATING_BAR_SPACE } from "@/components/shell/floating-bar.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { Screen } from "@/components/ui/screen.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { Text } from "@/components/ui/text.tsx";
 import { idempotencyKey } from "@/lib/ids.ts";
-import { mailboxName, useMarkRead, useThread } from "@/lib/mail.ts";
-import { useSession } from "@/lib/session.ts";
-import { gutter, space } from "@/theme/tokens.ts";
+import { useMarkRead, useThread } from "@/lib/mail.ts";
+import { colors, gutter, space } from "@/theme/tokens.ts";
 
-/** A conversation, read top to bottom. Opening it marks it read, as on the web; a long-press peek at it does not. */
+/**
+ * A conversation, read top to bottom under its own bar (back, ⋯) and properties rail, its
+ * actions floating at the bottom. Opening it marks it read, as on the web; a long-press peek at
+ * it does not.
+ */
 export default function ThreadScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, page } = useLocalSearchParams<{ id: string; page?: string }>();
   const thread = useThread(id);
-  const session = useSession();
-  const you = session.data?.user.name || session.data?.user.email || "";
+  const actions = useThreadActions(page);
   useMarkReadOnOpen(id, thread.data?.read);
 
   return (
     <Screen edges={[]}>
-      <Stack.Screen options={{ title: "" }} />
-      <ThreadActions threadId={id} />
+      <ThreadTopBar thread={thread.data} page={page} actions={actions} />
       {thread.isPending ? (
-        <View style={styles.content}>
+        <View style={styles.loading}>
           <Skeleton width="85%" height={28} />
           <Skeleton width="55%" height={28} />
           <Skeleton width="40%" height={16} />
@@ -38,40 +43,55 @@ export default function ThreadScreen() {
           <Button intent="plain" label="Try again" onPress={() => void thread.refetch()} />
         </EmptyState>
       ) : (
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={styles.content}
-        >
-          <ThreadTitle
-            subject={thread.data.messages[0]?.subject ?? ""}
-            sharedInbox={
-              thread.data.mailboxKind === "shared"
-                ? mailboxName({ kind: "shared", address: thread.data.mailboxAddress }, you)
-                : undefined
-            }
-          />
-          {thread.data.messages.map((message) => (
-            <MessageItem
-              key={message.id}
-              threadId={id}
-              message={message}
-              flat={thread.data.messages.length === 1}
-              onOpenAttachment={(file) =>
-                router.push({
-                  pathname: "/mail/attachment/[threadId]/[attachmentId]",
-                  params: {
-                    threadId: id,
-                    attachmentId: file.id,
-                    name: file.filename,
-                    mimeType: file.mimeType,
-                  },
-                })
-              }
-            />
-          ))}
-        </ScrollView>
+        <>
+          <PropertiesRail thread={thread.data} />
+          <Conversation thread={thread.data} />
+          <ThreadBottomBar thread={thread.data} page={page} actions={actions} />
+        </>
       )}
     </Screen>
+  );
+}
+
+function Conversation({ thread }: { thread: Thread }) {
+  const last = thread.messages.at(-1)?.id;
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set(last ? [last] : []));
+  const toggle = (messageId: string) =>
+    setOpen((was) => {
+      const next = new Set(was);
+      if (!next.delete(messageId)) next.add(messageId);
+      return next;
+    });
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      <View style={styles.subject}>
+        <Text size="heading" weight="semibold" accessibilityRole="header" selectable>
+          {thread.messages[0]?.subject ?? ""}
+        </Text>
+      </View>
+      {thread.messages.map((message) => (
+        <MessageItem
+          key={message.id}
+          threadId={thread.id}
+          message={message}
+          expanded={open.has(message.id)}
+          onToggle={() => toggle(message.id)}
+          self={thread.mailboxAddress}
+          divided={message.id !== last}
+          onOpenAttachment={(file) =>
+            router.push({
+              pathname: "/mail/attachment/[threadId]/[attachmentId]",
+              params: {
+                threadId: thread.id,
+                attachmentId: file.id,
+                name: file.filename,
+                mimeType: file.mimeType,
+              },
+            })
+          }
+        />
+      ))}
+    </ScrollView>
   );
 }
 
@@ -87,10 +107,11 @@ function useMarkReadOnOpen(threadId: string, read: boolean | undefined) {
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: gutter,
-    paddingTop: space(2),
-    paddingBottom: space(16),
-    gap: space(8),
+  loading: { padding: gutter, gap: space(8) },
+  content: { paddingBottom: FLOATING_BAR_SPACE },
+  subject: {
+    padding: gutter,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
 });

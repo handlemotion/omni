@@ -99,6 +99,41 @@ export function FloatingField({ icon: Icon, children }: { icon: Glyph; children:
   );
 }
 
+export interface FloatingGroupAction {
+  icon: Glyph;
+  /** What VoiceOver reads: name the action. */
+  label: string;
+  onPress?: () => void;
+}
+
+/**
+ * Related actions in one floating pill (a conversation's Reply, Reply all, Forward): flat, the
+ * surface fill and a hairline edge, each a 44pt glyph. One without `onPress` is dimmed.
+ */
+export function FloatingGroup({ actions }: { actions: FloatingGroupAction[] }) {
+  return (
+    <View style={[styles.surface, styles.group]}>
+      {actions.map(({ icon: Icon, label, onPress }) => (
+        <Pressable
+          key={label}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          accessibilityState={{ disabled: !onPress }}
+          disabled={!onPress}
+          onPress={onPress}
+          style={({ pressed }) => [
+            styles.groupButton,
+            !onPress && styles.dimmed,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Icon size={iconSize.md} color={colors.foreground} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 /** A flat card floating over the page (the module menu): surface, hairline edge, no shadow. */
 export function FloatingCard({ children }: { children: ReactNode }) {
   return <View style={styles.card}>{children}</View>;
@@ -134,6 +169,14 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  group: { flexDirection: "row", alignItems: "center", paddingHorizontal: space(1.5) },
+  groupButton: {
+    width: compactControl,
+    height: compactControl,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dimmed: { opacity: 0.5 },
   pressed: { transform: [{ scale: 0.97 }] },
   shrink: { flexShrink: 1 },
 });

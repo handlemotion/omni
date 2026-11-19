@@ -49,7 +49,11 @@ export const text = {
   body: { fontSize: 16, lineHeight: 21 },
   md: { fontSize: 17, lineHeight: 23 },
   lg: { fontSize: 20, lineHeight: 26 },
-  /** A conversation's subject, a record's name. */
+  /** A message's text in a conversation: the body size, with room between its lines. */
+  reading: { fontSize: 16, lineHeight: 24 },
+  /** A conversation's subject. */
+  heading: { fontSize: 26, lineHeight: 32, letterSpacing: -0.4 },
+  /** A record's name. */
   title: { fontSize: 28, lineHeight: 34, letterSpacing: -0.4 },
   /** The sign-in heading. */
   display: { fontSize: 34, lineHeight: 41, letterSpacing: -0.6 },
@@ -72,6 +76,8 @@ export const radius = {
   lg: 6,
   tile: 7,
   xl: 8,
+  /** A ghost button in a toolbar (a conversation's properties). */
+  control: 10,
   field: 12,
   row: 14,
   card: 16,

@@ -14,9 +14,12 @@ export interface PressableRowProps extends Omit<PressableProps, "children" | "st
   isCurrent?: boolean;
   /**
    * `list`: edge to edge in a scrolling list. `inset`: a rounded row inside a sheet or menu.
-   * `menu`: a shorter inset row, a glyph and a label: the menu page's.
+   * `menu`: a shorter inset row, a glyph and a label: the menu page's. `bare`: no padding and no
+   * fill, its content top-aligned: a header that opens and closes what is under it.
    */
-  shape?: "list" | "inset" | "menu";
+  shape?: "list" | "inset" | "menu" | "bare";
+  /** What it opens is showing: `expanded` for VoiceOver. Left out, it opens nothing. */
+  isExpanded?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -29,6 +32,7 @@ export function PressableRow({
   onPress,
   isCurrent = false,
   shape = "list",
+  isExpanded,
   style,
   ...props
 }: PressableRowProps) {
@@ -38,11 +42,11 @@ export function PressableRow({
       {...props}
       onPress={onPress}
       disabled={!onPress}
-      accessibilityState={{ selected: isCurrent }}
+      accessibilityState={{ selected: isCurrent, expanded: isExpanded }}
       style={({ pressed }) => [
         styles.row,
         styles[shape],
-        (pressed || isCurrent) && styles.highlighted,
+        shape !== "bare" && (pressed || isCurrent) && styles.highlighted,
         style,
       ]}
     >
@@ -72,5 +76,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(3.5),
     borderRadius: radius.row,
   },
+  bare: { alignItems: "flex-start", gap: space(3) },
   highlighted: { backgroundColor: colors.accent },
 });
