@@ -8,7 +8,8 @@
     "dev": "expo start",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build:check": "expo export --platform ios --output-dir dist/ios-check"
+    "build:check": "expo export --platform ios --output-dir dist/ios-check",
+    "test:e2e": "vitest run --config vitest.e2e.mts"
   },
   "dependencies": {
     "@better-auth/expo": "1.7.22",
@@ -16,11 +17,15 @@
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo/metro-runtime": "~58.0.17",
     "@omni/client": "workspace:*",
+    "@omni/mail-core": "workspace:*",
+    "@shopify/flash-list": "2.3.2",
     "@tanstack/react-query": "^5.107.1",
     "expo": "~58.0.25",
     "expo-constants": "~58.0.16",
     "expo-crypto": "~58.0.8",
     "expo-font": "~58.0.12",
+    "expo-haptics": "~58.0.8",
+    "expo-image": "~58.0.18",
     "expo-linking": "~58.0.17",
     "expo-network": "~58.0.5",
     "expo-router": "~58.0.31",
@@ -39,6 +44,9 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@types/react": "~19.3.0"
+    "@omni/db": "workspace:*",
+    "@omni/worker": "workspace:*",
+    "@types/react": "~19.3.0",
+    "playwright-core": "1.63.0"
   }
 }

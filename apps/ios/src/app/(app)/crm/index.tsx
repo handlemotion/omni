@@ -15,7 +15,6 @@ import {
 import { hasCrm, useWorkspace } from "@/lib/workspace.ts";
 
 const PAGES = Object.entries(CRM_PAGES).map(([id, page]) => ({ ...page, id: id as CrmPage }));
-const INSET = 64;
 
 /** A CRM list: Companies, People or Deals. A Personal space has no CRM: it goes to Mail. */
 export default function CrmHome() {
@@ -39,7 +38,6 @@ function Companies() {
       renderItem={(company) => <CompanyRow company={company} />}
       icon={IconBuildings}
       empty={CRM_PAGES.companies.empty}
-      separatorInset={INSET}
     />
   );
 }
@@ -52,7 +50,6 @@ function People() {
       renderItem={(person) => <PersonRow person={person} />}
       icon={IconUsers}
       empty={CRM_PAGES.people.empty}
-      separatorInset={INSET}
     />
   );
 }
@@ -66,7 +63,6 @@ function Deals() {
       renderItem={(deal) => <DealRow deal={deal} stage={stages?.get(deal.stageId)} />}
       icon={IconHandshake}
       empty={CRM_PAGES.deals.empty}
-      separatorInset={INSET}
     />
   );
 }

@@ -11,6 +11,7 @@ export function NodeRow({ node, detail }: { node: DriveNode; detail?: string }) 
     <ItemRow
       icon={folder ? IconFolder : IconFile}
       title={node.name}
+      ellipsize={folder ? "tail" : "middle"}
       detail={detail ?? (folder ? null : fileSize(node.size))}
       trailing={listTime(node.updatedAt)}
       onPress={

@@ -14,7 +14,6 @@ import {
 import { hasCrm, useWorkspace } from "@/lib/workspace.ts";
 
 const ALL = Object.entries(DRIVE_PAGES).map(([id, page]) => ({ ...page, id: id as DrivePage }));
-const INSET = 64;
 
 /** A Drive page: a space's top, what was shared with you, or Trash. */
 export default function DriveHome() {
@@ -48,7 +47,6 @@ function Space({ space }: { space: "personal" | "shared" }) {
       renderItem={(node) => <NodeRow node={node} />}
       icon={IconFolder}
       empty={DRIVE_PAGES.my.empty}
-      separatorInset={INSET}
     />
   );
 }
@@ -62,7 +60,6 @@ function SharedWithMe() {
       renderItem={(item) => <NodeRow node={item.node} detail={item.orgName} />}
       icon={IconFolderShared}
       empty={DRIVE_PAGES.sharedWithMe.empty}
-      separatorInset={INSET}
     />
   );
 }
@@ -76,7 +73,6 @@ function Trash() {
       renderItem={(node) => <NodeRow node={node} />}
       icon={IconTrash}
       empty={DRIVE_PAGES.trash.empty}
-      separatorInset={INSET}
     />
   );
 }

@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "./secure-store";
 
 const KEY = "omni_workspace";
 let current: string | null = SecureStore.getItem(KEY);

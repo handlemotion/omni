@@ -14,6 +14,8 @@ export const colors = {
   primary: "#1d72e8",
   primaryButton: "#1a7ef5",
   primaryForeground: "#ffffff",
+  /** A logo's tile, as `--logo-tile`. */
+  logoTile: "#ffffff",
   /** `primary` at 12% on white, as `--primary-subtle` mixes it. */
   primarySubtle: "#e4eefc",
   danger: "#ef2a51",
@@ -23,16 +25,19 @@ export const colors = {
 export type ColorToken = keyof typeof colors;
 
 /**
- * The web scale (`--text-xs`, `--text-sm`, `--text-lg`) plus `md`, a phone's reading size for
- * list rows and message bodies, between `sm` and `lg`.
+ * The phone's type scale. Larger than the web's (`--text-*`), with air between lines: a list's
+ * row reads at `md` (iOS body size), its detail at `sm`, a screen's own heading at `title`, and
+ * the big left-aligned name at the top of a record or conversation at `display`.
  */
 export const text = {
-  xs: { fontSize: 11, lineHeight: 13 },
-  sm: { fontSize: 13, lineHeight: 16 },
-  md: { fontSize: 15, lineHeight: 20 },
-  lg: { fontSize: 17, lineHeight: 21 },
-  /** A screen's title. */
-  title: { fontSize: 22, lineHeight: 28 },
+  xs: { fontSize: 12, lineHeight: 16 },
+  sm: { fontSize: 14, lineHeight: 19 },
+  md: { fontSize: 17, lineHeight: 23 },
+  lg: { fontSize: 20, lineHeight: 26 },
+  /** A conversation's subject, a record's name. */
+  title: { fontSize: 28, lineHeight: 34, letterSpacing: -0.4 },
+  /** The sign-in heading. */
+  display: { fontSize: 34, lineHeight: 41, letterSpacing: -0.6 },
 } as const;
 
 export type TextSize = keyof typeof text;
@@ -54,6 +59,10 @@ export const space = (steps: number) => steps * 4;
 
 /** `--spacing-icon` and the larger glyph touch targets use. */
 export const iconSize = { sm: 15, md: 20, lg: 24 } as const;
+
+/** A list row's leading avatar or tile, and the gutter every screen keeps from its edges. */
+export const rowLead = 44;
+export const gutter = space(5);
 
 /** `--shadow-raised`: a crisp 1px drop in the foreground's ink. */
 export const shadowRaised = {

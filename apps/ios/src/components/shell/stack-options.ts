@@ -8,7 +8,7 @@ type Options = NonNullable<ComponentProps<typeof Stack>["screenOptions"]>;
 export const stackOptions: Extract<Options, object> = {
   headerTintColor: colors.foreground,
   headerTitleStyle: { fontFamily: fonts.semibold, color: colors.foreground },
-  headerLargeTitleStyle: { fontFamily: fonts.semibold, color: colors.foreground },
+  headerLargeTitleStyle: { fontFamily: fonts.medium, color: colors.foreground },
   headerShadowVisible: false,
   headerLargeTitleShadowVisible: false,
   headerBackButtonDisplayMode: "minimal",

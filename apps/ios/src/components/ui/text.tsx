@@ -8,6 +8,8 @@ import {
   type TextSize,
 } from "@/theme/tokens.ts";
 
+const MAX_SCALE = 1.6;
+
 export interface TextProps extends NativeTextProps {
   size?: TextSize;
   weight?: FontWeight;
@@ -23,11 +25,13 @@ export function Text({
   tone = "foreground",
   tabular,
   style,
+  maxFontSizeMultiplier = MAX_SCALE,
   ...props
 }: TextProps) {
   return (
     <NativeText
       {...props}
+      maxFontSizeMultiplier={maxFontSizeMultiplier}
       style={[
         text[size],
         { fontFamily: fonts[weight], color: colors[tone] },

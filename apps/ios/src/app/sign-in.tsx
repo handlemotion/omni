@@ -8,7 +8,7 @@ import { Text } from "@/components/ui/text.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { config } from "@/lib/config.ts";
 import { requestSignInLink, useSession } from "@/lib/session.ts";
-import { space } from "@/theme/tokens.ts";
+import { gutter, space } from "@/theme/tokens.ts";
 
 export default function SignIn() {
   const session = useSession();
@@ -23,7 +23,7 @@ export default function SignIn() {
     <Screen>
       <KeyboardAvoidingView behavior="padding" style={styles.body}>
         <View style={styles.heading}>
-          <Text size="title" weight="semibold">
+          <Text size="display" weight="medium" accessibilityRole="header">
             Welcome to Omni
           </Text>
           <Text tone="mutedForeground">Use or create your omni email to get started</Text>
@@ -62,7 +62,7 @@ export default function SignIn() {
 }
 
 const styles = StyleSheet.create({
-  body: { flex: 1, gap: space(8), padding: space(6) },
-  heading: { gap: space(2), paddingTop: space(10) },
-  form: { gap: space(2) },
+  body: { flex: 1, gap: space(10), paddingHorizontal: gutter, paddingVertical: space(6) },
+  heading: { gap: space(3), paddingTop: space(12) },
+  form: { gap: space(3) },
 });

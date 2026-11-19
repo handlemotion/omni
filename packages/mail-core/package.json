@@ -10,6 +10,7 @@
     "./sender-logo": "./src/sender-logo.ts",
     "./clean": "./src/clean.ts",
     "./display": "./src/display.ts",
+    "./list-dates": "./src/list-dates.ts",
     "./verification-code": "./src/verification-code.ts",
     "./links": "./src/links.ts",
     "./unsubscribe": "./src/unsubscribe.ts",

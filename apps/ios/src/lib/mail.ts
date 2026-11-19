@@ -9,7 +9,7 @@ import {
   type QueryClient,
   type QueryKey,
 } from "@tanstack/react-query";
-import type { Mailbox, Thread, ThreadPage } from "@omni/client";
+import type { Mailbox, SearchResult, Thread, ThreadPage } from "@omni/client";
 import { useMemo } from "react";
 import type { SymbolName } from "./symbols.ts";
 import { ApiError, api, call, inWorkspace, isAuthError } from "./api.ts";
@@ -115,14 +115,18 @@ export function mailboxName(mailbox: Pick<Mailbox, "kind" | "address">, you: str
   return local.charAt(0).toUpperCase() + local.slice(1);
 }
 
-const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
-const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+export { bySection, listTime, type Sectioned } from "@omni/mail-core/list-dates";
 
-/** A list row's time: the clock today, the date before. */
-export function listTime(iso: string, now = new Date()) {
-  const date = new Date(iso);
-  return date.toDateString() === now.toDateString() ? TIME.format(date) : DAY.format(date);
-}
+/** Mail search across the workspace, best match first. */
+export const useSearch = (q: string) =>
+  useQuery({
+    queryKey: keys.search(q),
+    queryFn: ({ signal }) =>
+      call(api.search.$get({ query: { q, limit: "50" } }, { init: { signal } })),
+    select: (data) => data.results,
+    enabled: q.trim().length > 0,
+    placeholderData: (previous) => previous,
+  });
 
 /** A thread with every message, each with only what its sender newly wrote. */
 export const threadQuery = (threadId: string) =>
@@ -164,6 +168,7 @@ export function settleMailAction(client: QueryClient) {
   void client.invalidateQueries({ queryKey: keys.counts() });
   if (client.isMutating({ mutationKey: MAIL_ACTIONS_KEY }) > 1) return;
   void client.invalidateQueries({ queryKey: ["threads"] });
+  void client.invalidateQueries({ queryKey: ["search"] });
   void client.invalidateQueries({
     queryKey: ["thread"],
     predicate: (query) => query.queryKey.length === 2,
@@ -197,6 +202,7 @@ export function useMarkRead() {
       await client.cancelQueries({ queryKey: keys.thread(threadId), exact: true });
       const snapshot: [QueryKey, unknown][] = [
         ...client.getQueriesData<InfiniteData<ThreadPage>>({ queryKey: ["threads"] }),
+        ...client.getQueriesData({ queryKey: ["search"] }),
         [keys.thread(threadId), client.getQueryData(keys.thread(threadId))],
       ];
       client.setQueryData<Thread>(keys.thread(threadId), (thread) =>
@@ -212,6 +218,16 @@ export function useMarkRead() {
                   t.id === threadId ? { ...t, read: true, unread: false } : t,
                 ),
               })),
+            }
+          : data,
+      );
+      client.setQueriesData<{ results: SearchResult[] }>({ queryKey: ["search"] }, (data) =>
+        data
+          ? {
+              ...data,
+              results: data.results.map((hit) =>
+                hit.threadId === threadId ? { ...hit, unread: false } : hit,
+              ),
             }
           : data,
       );

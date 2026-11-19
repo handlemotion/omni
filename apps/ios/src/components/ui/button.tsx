@@ -42,9 +42,10 @@ export function Button({
           <ActivityIndicator color={primary ? colors.primaryForeground : colors.foreground} />
         ) : null}
         <Text
-          size={size === "lg" ? "lg" : "md"}
           weight="medium"
           tone={primary ? "primaryForeground" : "foreground"}
+          numberOfLines={1}
+          style={styles.label}
         >
           {label}
         </Text>
@@ -54,17 +55,18 @@ export function Button({
 }
 
 const styles = StyleSheet.create({
-  base: { borderRadius: radius.field, alignItems: "center", justifyContent: "center" },
-  md: { height: 44, paddingHorizontal: space(4) },
-  lg: { height: 52, paddingHorizontal: space(5) },
+  base: { borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
+  md: { minHeight: 48, paddingHorizontal: space(5) },
+  lg: { minHeight: 56, paddingHorizontal: space(6) },
   primary: {
     backgroundColor: colors.primaryButton,
     borderWidth: 1,
     borderColor: colors.primary,
   },
   plain: { backgroundColor: colors.well },
-  quiet: { height: 32, paddingHorizontal: space(2), alignSelf: "flex-start" },
+  quiet: { minHeight: 36, paddingHorizontal: 0, alignSelf: "flex-start" },
   dimmed: { opacity: 0.5 },
   pressed: { transform: [{ scale: 0.97 }] },
-  row: { flexDirection: "row", alignItems: "center", gap: space(2) },
+  row: { flexDirection: "row", alignItems: "center", gap: space(2), maxWidth: "100%" },
+  label: { flexShrink: 1 },
 });

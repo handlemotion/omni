@@ -1,26 +1,38 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import type { SvgProps } from "react-native-svg";
-import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
+import { colors, iconSize, radius, rowLead, space } from "@/theme/tokens.ts";
 import { PressableRow } from "./pressable-row.tsx";
 import { Text } from "./text.tsx";
 
-/** A one-line list row: a glyph in a tile, a title, a muted detail under it, a trailing note. */
+/**
+ * A list row: a lead (an avatar, or a glyph on a tile), a title, a muted detail under it, and a
+ * trailing note that never gives up its room. A title truncates at its end, or in its middle
+ * (`middle`) for file names, whose extension is the part people read.
+ */
 export function ItemRow(props: {
-  icon: ComponentType<SvgProps & { size?: number }>;
+  icon?: ComponentType<SvgProps & { size?: number }>;
+  /** Drawn instead of the glyph tile: an avatar. */
+  lead?: ReactNode;
   title: string;
   detail?: string | null;
   trailing?: string | null;
+  ellipsize?: "tail" | "middle";
   onPress?: () => void;
 }) {
   const Icon = props.icon;
   return (
     <PressableRow onPress={props.onPress} style={styles.row}>
-      <View style={styles.tile}>
-        <Icon size={iconSize.md} color={colors.mutedForeground} />
-      </View>
+      {props.lead ??
+        (Icon ? (
+          <View style={styles.tile}>
+            <Icon size={iconSize.lg} color={colors.mutedForeground} />
+          </View>
+        ) : null)}
       <View style={styles.body}>
-        <Text numberOfLines={1}>{props.title}</Text>
+        <Text numberOfLines={props.ellipsize === "middle" ? 1 : 2} ellipsizeMode={props.ellipsize}>
+          {props.title}
+        </Text>
         {props.detail ? (
           <Text size="sm" tone="mutedForeground" numberOfLines={1}>
             {props.detail}
@@ -28,7 +40,7 @@ export function ItemRow(props: {
         ) : null}
       </View>
       {props.trailing ? (
-        <Text size="sm" tone="mutedForeground" tabular>
+        <Text size="sm" tone="mutedForeground" tabular numberOfLines={1} style={styles.trailing}>
           {props.trailing}
         </Text>
       ) : null}
@@ -39,12 +51,13 @@ export function ItemRow(props: {
 const styles = StyleSheet.create({
   row: { alignItems: "center" },
   tile: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.lg,
+    width: rowLead,
+    height: rowLead,
+    borderRadius: radius.field,
     backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
   },
-  body: { flex: 1, gap: space(0.5) },
+  body: { flex: 1, minWidth: 0, gap: space(0.5) },
+  trailing: { flexShrink: 0, maxWidth: "40%" },
 });

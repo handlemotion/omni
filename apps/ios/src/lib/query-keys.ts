@@ -11,6 +11,8 @@ export const keys = {
   crmList: (page: string) => ["crm", page] as const,
   crmRecord: (kind: string, id: string) => ["crm", kind, id] as const,
   crmStages: () => ["crm", "stages"] as const,
+  senderLogo: (who: string) => ["sender-logo", who] as const,
+  search: (q: string) => ["search", q] as const,
   /** Every cached thread list, whatever its page and mailbox (`threads(...)` is under it). */
   threadLists: () => ["threads"] as const,
 };

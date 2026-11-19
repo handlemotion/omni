@@ -17,7 +17,6 @@ export default function Folder() {
         renderItem={(node) => <NodeRow node={node} />}
         icon={IconFolder}
         empty={DRIVE_PAGES.my.empty}
-        separatorInset={64}
       />
     </>
   );

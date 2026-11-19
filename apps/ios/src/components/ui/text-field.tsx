@@ -15,6 +15,7 @@ export function TextField({ label, style, onFocus, onBlur, ...props }: TextField
       <TextInput
         {...props}
         accessibilityLabel={label}
+        maxFontSizeMultiplier={1.4}
         placeholderTextColor={colors.subtleForeground}
         onFocus={(event) => {
           setFocused(true);
@@ -32,15 +33,15 @@ export function TextField({ label, style, onFocus, onBlur, ...props }: TextField
 
 const styles = StyleSheet.create({
   input: {
-    ...text.lg,
+    ...text.md,
     fontFamily: fonts.regular,
     color: colors.foreground,
-    height: 52,
-    paddingHorizontal: space(4),
-    borderRadius: radius.field,
+    height: 56,
+    paddingHorizontal: space(5),
+    borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: colors.well,
+    backgroundColor: colors.well,
   },
   focused: { borderColor: colors.primary },
 });

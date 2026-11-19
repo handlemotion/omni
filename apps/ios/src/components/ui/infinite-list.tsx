@@ -1,6 +1,7 @@
+import { FlashList } from "@shopify/flash-list";
 import type { UseInfiniteQueryResult } from "@tanstack/react-query";
-import type { ComponentType, ReactElement } from "react";
-import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { useMemo, type ComponentType, type ReactElement } from "react";
+import { RefreshControl, ScrollView, StyleSheet } from "react-native";
 import type { SvgProps } from "react-native-svg";
 import { colors, space } from "@/theme/tokens.ts";
 import { Button } from "./button.tsx";
@@ -9,55 +10,74 @@ import { ListSkeleton } from "./list-skeleton.tsx";
 
 type Glyph = ComponentType<SvgProps & { size?: number }>;
 
-/**
- * A paged list under a native header: rows skeletons while the first page loads, a retry when
- * it fails, `empty` when it has nothing, more as you scroll, pull to refresh. The query's
- * `select` must hand back the flat array of rows.
- */
-export function InfiniteList<T>(props: {
+interface Paged<T, R> {
   query: UseInfiniteQueryResult<T[]>;
-  keyOf: (item: T) => string;
-  renderItem: (item: T) => ReactElement;
+  /** The rows to draw from the loaded items (headings between them), when not the items as they are. */
+  rows?: (items: T[]) => R[];
+  keyOf: (row: R) => string;
+  renderItem: (row: R) => ReactElement;
+  /** Tells rows of different shapes apart (a day's heading, a thread), so they recycle apart. */
+  typeOf?: (row: R) => string;
   icon: Glyph;
   empty: string;
-  /** Inset hairlines past a leading glyph, in points. */
-  separatorInset?: number;
-}) {
-  const { query } = props;
-  if (query.isPending) return <ListSkeleton />;
-  if (query.isError && !query.data) {
+  /** Drawn instead of `ListSkeleton` while the first page loads. */
+  skeleton?: ReactElement;
+}
+
+/**
+ * A paged list under a native header, on FlashList (rows recycle, so a long list scrolls at
+ * frame rate): skeleton rows while the first page loads, a retry when it fails, `empty` when it
+ * has nothing, more as you scroll, pull to refresh. The query's `select` must hand back the
+ * flat array of rows.
+ */
+export function InfiniteList<T, R = T>(props: Paged<T, R>) {
+  const { query, rows: toRows } = props;
+  const rows = useMemo(
+    () => (query.data ? (toRows ? toRows(query.data) : (query.data as unknown as R[])) : []),
+    [query.data, toRows],
+  );
+  if (query.isPending) return props.skeleton ?? <ListSkeleton />;
+  const refresh = (
+    <RefreshControl
+      refreshing={query.isRefetching && !query.isFetchingNextPage}
+      onRefresh={() => void query.refetch()}
+      tintColor={colors.mutedForeground}
+    />
+  );
+  if (!rows.length) {
+    const failed = query.isError && !query.data;
     return (
-      <EmptyState icon={props.icon} title="This list didn't load">
-        <Button intent="plain" label="Try again" onPress={() => void query.refetch()} />
-      </EmptyState>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.fill}
+        refreshControl={refresh}
+      >
+        <EmptyState icon={props.icon} title={failed ? "This list didn't load" : props.empty}>
+          {failed ? (
+            <Button intent="plain" label="Try again" onPress={() => void query.refetch()} />
+          ) : null}
+        </EmptyState>
+      </ScrollView>
     );
   }
-  const inset = props.separatorInset ?? space(4);
   return (
-    <FlatList
+    <FlashList
       contentInsetAdjustmentBehavior="automatic"
-      data={query.data}
+      data={rows}
       keyExtractor={props.keyOf}
+      getItemType={props.typeOf}
       renderItem={({ item }) => props.renderItem(item)}
-      ItemSeparatorComponent={() => <View style={[styles.separator, { marginLeft: inset }]} />}
-      contentContainerStyle={query.data.length ? null : styles.fill}
-      ListEmptyComponent={<EmptyState icon={props.icon} title={props.empty} />}
+      contentContainerStyle={styles.list}
       onEndReached={() => {
         if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
       }}
       onEndReachedThreshold={0.5}
-      refreshControl={
-        <RefreshControl
-          refreshing={query.isRefetching && !query.isFetchingNextPage}
-          onRefresh={() => void query.refetch()}
-          tintColor={colors.mutedForeground}
-        />
-      }
+      refreshControl={refresh}
     />
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flexGrow: 1 },
-  separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
+  list: { paddingTop: space(1), paddingBottom: space(8) },
 });

@@ -6,7 +6,7 @@ import {
   toApiError,
   type ApiErrorInfo,
 } from "@omni/client";
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "./secure-store";
 import { Platform } from "react-native";
 import { DetailedError, parseResponse, type ClientResponse } from "hono/client";
 import { config } from "./config.ts";

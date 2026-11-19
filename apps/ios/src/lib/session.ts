@@ -1,6 +1,6 @@
 import { getSetCookie, storageAdapter } from "@better-auth/expo/client";
 import * as Linking from "expo-linking";
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "./secure-store";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { STORAGE_PREFIX, auth } from "./api.ts";
 import { queryClient } from "./query-client.ts";

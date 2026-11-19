@@ -24,11 +24,11 @@ export function MessageItem({ message, onShowFull }: MessageItemProps) {
   return (
     <View style={[styles.item, ours && !card && styles.ours]}>
       <View style={[styles.meta, ours && !card && styles.oursMeta]}>
-        <Avatar name={sender} size={24} />
-        <Text size="sm" weight="medium" numberOfLines={1} style={styles.shrink}>
+        <Avatar name={sender} logo={{ address: message.fromAddress }} size={32} />
+        <Text weight="medium" numberOfLines={1} style={styles.shrink}>
           {sender}
         </Text>
-        <Text size="sm" tone="mutedForeground" tabular>
+        <Text size="sm" tone="mutedForeground" tabular style={styles.keep}>
           {listTime(message.sentAt)}
         </Text>
       </View>
@@ -40,7 +40,7 @@ export function MessageItem({ message, onShowFull }: MessageItemProps) {
           {message.attachments.map((file) => (
             <View key={file.id} style={styles.chip}>
               <IconPaperclip size={iconSize.sm} color={colors.mutedForeground} />
-              <Text size="sm" numberOfLines={1} style={styles.shrink}>
+              <Text size="sm" numberOfLines={1} ellipsizeMode="middle" style={styles.shrink}>
                 {file.filename}
               </Text>
             </View>
@@ -60,22 +60,23 @@ export function MessageItem({ message, onShowFull }: MessageItemProps) {
 }
 
 const styles = StyleSheet.create({
-  item: { gap: space(2), alignItems: "flex-start" },
+  item: { gap: space(2.5), alignItems: "flex-start" },
   ours: { alignItems: "flex-end" },
-  meta: { flexDirection: "row", alignItems: "center", gap: space(2), maxWidth: "100%" },
+  meta: { flexDirection: "row", alignItems: "center", gap: space(2.5), maxWidth: "100%" },
   oursMeta: { justifyContent: "flex-end" },
-  shrink: { flexShrink: 1 },
+  shrink: { flexShrink: 1, minWidth: 0 },
+  keep: { flexShrink: 0 },
   bubble: {
-    maxWidth: "85%",
-    paddingHorizontal: space(3.5),
-    paddingVertical: space(2.5),
+    maxWidth: "88%",
+    paddingHorizontal: space(4),
+    paddingVertical: space(3),
     borderRadius: radius.card,
     backgroundColor: colors.accent,
   },
   oursBubble: { backgroundColor: colors.primarySubtle },
   card: {
     alignSelf: "stretch",
-    padding: space(4),
+    padding: space(5),
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -87,7 +88,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: space(1.5),
-    maxWidth: 220,
+    maxWidth: "100%",
     paddingHorizontal: space(3),
     paddingVertical: space(1.5),
     borderRadius: radius.full,

@@ -13,8 +13,10 @@ export function EmptyState(props: {
   const Icon = props.icon;
   return (
     <View style={styles.empty}>
-      <Icon size={32} color={colors.subtleForeground} />
-      <Text tone="mutedForeground">{props.title}</Text>
+      <Icon size={40} color={colors.subtleForeground} />
+      <Text size="lg" tone="mutedForeground" style={styles.title}>
+        {props.title}
+      </Text>
       {props.children}
     </View>
   );
@@ -25,7 +27,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: space(3),
-    paddingBottom: space(16),
+    gap: space(4),
+    paddingHorizontal: space(10),
+    paddingBottom: space(20),
   },
+  title: { textAlign: "center" },
 });

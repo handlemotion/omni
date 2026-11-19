@@ -10,5 +10,9 @@
   },
   "include": ["src", "app.config.ts", "expo-env.d.ts"],
   // The Worker's route types reach the app through `@omni/client`.
-  "references": [{ "path": "../../packages/client/tsconfig.src.json" }]
+  "references": [
+    { "path": "../../packages/client/tsconfig.src.json" },
+    // The worst-case layout suite (`e2e/`), against Node and the page.
+    { "path": "./tsconfig.e2e.json" }
+  ]
 }
