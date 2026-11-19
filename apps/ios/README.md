@@ -16,6 +16,25 @@ prints. The Worker must trust the app's scheme for sign-in: add `omni://` (and `
 Go) to `AUTH_TRUSTED_ORIGINS`. Continue opens the server's `/login` in a browser sheet; Google
 returns to the app from the sheet, and a magic link opens in Safari and returns to the app.
 
+## Live preview on a Mac
+
+```bash
+pnpm ios:dev             # Simulator, Metro hot reload
+pnpm ios:dev --device    # a plugged-in iPhone, same Metro
+pnpm ios:dev --rebuild   # force a native rebuild
+```
+
+`scripts/dev.sh` builds a Debug development build ("Omni Dev", bundle id
+`app.omnidirectional.ios.dev`, set with `OMNI_IOS_DEV_BUNDLE_ID`), installs it and starts Metro;
+saving a file reloads the app. It rebuilds only when `package.json` or `app.config.ts` change.
+The API is `EXPO_PUBLIC_OMNI_API_URL` from `.env`: `http://localhost:8787` for the local stack,
+`https://omnidirectional.app` for real data. Screenshot the Simulator with
+`xcrun simctl io booted screenshot shot.png`.
+
+On an iPhone: Developer Mode on, the phone on the Mac's Wi-Fi (Metro listens on every interface),
+and `OMNI_IOS_TEAM_ID` set so Xcode signs the dev build. A phone can't reach `localhost`, so
+point the API at production or a `pnpm share` URL.
+
 ## Check it without a Mac
 
 - `pnpm --filter @omni/ios build:check` bundles the app for iOS with Metro (Hermes bytecode): it

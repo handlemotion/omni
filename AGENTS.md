@@ -60,6 +60,14 @@ extends this file and wins where they differ. Explicit user instructions overrid
 - `pnpm share` (the Omni stack) or `pnpm share <port>` prints a private HTTPS URL for a server on
   this machine that opens on the user's own devices; send it whenever they should see or use
   what you built. `pnpm share stop` ends it. Setup: `docs/operations/cloud-sessions.md`.
+- `pnpm ios:dev` runs the iOS app (an Expo development build, "Omni Dev") in the booted
+  Simulator with Metro hot reload; `--device` puts it on a plugged-in iPhone. It rebuilds the
+  native app only when `apps/ios/package.json` or `app.config.ts` changed, so later runs take
+  seconds. Run it in the background, wait for `Logs for your project`, edit, then check the UI
+  with `xcrun simctl io booted screenshot <file>.png`. The API is `EXPO_PUBLIC_OMNI_API_URL`
+  (default the local stack's `http://localhost:8787`). One Metro per port: if another thread's
+  is up, reuse it (the app reloads on save) or set `OMNI_IOS_METRO_PORT`. Details:
+  `apps/ios/README.md`.
 - Node is 26 (`.nvmrc`); the mail service needs it. Cloud sessions put `/opt/node/bin` first.
 - The pre-commit hook runs `lint-staged` (`oxfmt`, `oxlint --fix`, test policy), so staged files
   can change during `git commit`. Re-read a file after committing before you edit it again.

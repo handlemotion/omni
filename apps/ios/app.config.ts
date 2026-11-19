@@ -4,7 +4,7 @@ const scheme = process.env.OMNI_IOS_SCHEME || "omni";
 
 const config: ExpoConfig = {
   name: process.env.OMNI_IOS_NAME || "Omni",
-  slug: "omni",
+  slug: process.env.OMNI_IOS_SLUG || "omni",
   version: process.env.OMNI_IOS_VERSION || "0.1.0",
   icon: "./assets/icon.png",
   orientation: "portrait",
