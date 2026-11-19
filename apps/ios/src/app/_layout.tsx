@@ -10,6 +10,8 @@ import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect } from "react";
+import { StyleSheet } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { queryClient } from "@/lib/query-client.ts";
 import { holdSplash } from "@/lib/splash.ts";
@@ -24,19 +26,21 @@ export default function RootLayout() {
   useClearCacheOnUserChange();
   if (!fontsLoaded) return null;
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.background },
-          }}
-        >
-          <Stack.Screen name="settings" options={{ presentation: "modal" }} />
-        </Stack>
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <StatusBar style="dark" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.background },
+            }}
+          >
+            <Stack.Screen name="settings" options={{ presentation: "modal" }} />
+          </Stack>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -54,3 +58,5 @@ function useSignInLinks() {
     void accept();
   }, [url]);
 }
+
+const styles = StyleSheet.create({ root: { flex: 1 } });

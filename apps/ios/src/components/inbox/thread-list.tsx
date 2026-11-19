@@ -1,9 +1,10 @@
 import type { Mailbox, ThreadSummary } from "@omni/client";
 import { Link } from "expo-router";
 import { useMemo } from "react";
-import { IconInbox } from "@/components/icons.ts";
+import { IconCircleCheck, IconClock, IconInbox } from "@/components/icons.ts";
 import { InfiniteList } from "@/components/ui/infinite-list.tsx";
 import { SectionHeading } from "@/components/ui/section-heading.tsx";
+import { SwipeRow } from "@/components/ui/swipe-row.tsx";
 import { useDone, useLater, useMarkUnread } from "@/lib/mail-actions.ts";
 import {
   MAIL_PAGES,
@@ -28,8 +29,9 @@ export interface ThreadListProps {
 
 /**
  * A mail page's threads, newest first under a heading per day, older ones as you scroll, pull
- * to refresh. A tap opens the conversation, warmed as the finger lands; a long press peeks at it, with Done, Later and Mark
- * unread in its menu.
+ * to refresh. A tap zooms the row open into the conversation, warmed as the finger lands; a long
+ * press peeks at it, with Done, Later and Mark unread in its menu. On the Inbox's lists a row
+ * swipes right for Done and left for Later; on Later, right for Done.
  */
 export function ThreadList({ page, mailboxId, mailboxes, you, footerSpace }: ThreadListProps) {
   const threads = useThreads(page, mailboxId);
@@ -47,6 +49,7 @@ export function ThreadList({ page, mailboxId, mailboxes, you, footerSpace }: Thr
     [mailboxId, mailboxes, you],
   );
   const triaged = page === "inbox" || page === "needsReply" || page === "awaitingReply";
+  const doneable = triaged || page === "later";
   return (
     <InfiniteList
       query={threads}
@@ -61,37 +64,59 @@ export function ThreadList({ page, mailboxId, mailboxes, you, footerSpace }: Thr
         row.kind === "heading" ? (
           <SectionHeading variant="group" label={row.label} />
         ) : (
-          <Link href={{ pathname: "/mail/thread/[id]", params: { id: row.item.id, page } }} asChild>
-            <Link.Trigger>
-              <ThreadRow
-                thread={{
-                  ...row.item,
-                  sender: row.item.latestFrom?.name || row.item.latestFrom?.address || "",
-                  senderAddress: row.item.latestFrom?.address,
-                }}
-                sharedInbox={shared.get(row.item.mailboxId)}
-                onPressIn={() => prefetch(row.item.id)}
-              />
-            </Link.Trigger>
-            <Link.Preview />
-            <Link.Menu>
-              {triaged ? (
-                <Link.MenuAction icon="checkmark.circle" onPress={() => done(row.item)}>
-                  Done
-                </Link.MenuAction>
-              ) : null}
-              {triaged ? (
-                <Link.MenuAction icon="clock" onPress={() => later(row.item)}>
-                  Later
-                </Link.MenuAction>
-              ) : null}
-              {row.item.unread ? null : (
-                <Link.MenuAction icon="envelope.badge" onPress={() => unread(row.item)}>
-                  Mark unread
-                </Link.MenuAction>
-              )}
-            </Link.Menu>
-          </Link>
+          <SwipeRow
+            itemKey={row.item.id}
+            right={
+              doneable
+                ? {
+                    label: "Done",
+                    icon: IconCircleCheck,
+                    tone: "success",
+                    run: () => done(row.item),
+                  }
+                : null
+            }
+            left={
+              triaged
+                ? { label: "Later", icon: IconClock, tone: "warning", run: () => later(row.item) }
+                : null
+            }
+          >
+            <Link
+              href={{ pathname: "/mail/thread/[id]", params: { id: row.item.id, page } }}
+              asChild
+            >
+              <Link.Trigger withAppleZoom>
+                <ThreadRow
+                  thread={{
+                    ...row.item,
+                    sender: row.item.latestFrom?.name || row.item.latestFrom?.address || "",
+                    senderAddress: row.item.latestFrom?.address,
+                  }}
+                  sharedInbox={shared.get(row.item.mailboxId)}
+                  onPressIn={() => prefetch(row.item.id)}
+                />
+              </Link.Trigger>
+              <Link.Preview />
+              <Link.Menu>
+                {triaged ? (
+                  <Link.MenuAction icon="checkmark.circle" onPress={() => done(row.item)}>
+                    Done
+                  </Link.MenuAction>
+                ) : null}
+                {triaged ? (
+                  <Link.MenuAction icon="clock" onPress={() => later(row.item)}>
+                    Later
+                  </Link.MenuAction>
+                ) : null}
+                {row.item.unread ? null : (
+                  <Link.MenuAction icon="envelope.badge" onPress={() => unread(row.item)}>
+                    Mark unread
+                  </Link.MenuAction>
+                )}
+              </Link.Menu>
+            </Link>
+          </SwipeRow>
         )
       }
     />

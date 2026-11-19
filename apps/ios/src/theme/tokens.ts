@@ -29,6 +29,12 @@ export const colors = {
   scrim: "rgba(23, 23, 23, 0.18)",
   danger: "#ef2a51",
   dangerForeground: "#ffffff",
+  /** `--success`: Done, as a row's swipe shows it. */
+  success: "#009966",
+  successForeground: "#ffffff",
+  /** `--warning`: Later, as a row's swipe shows it. */
+  warning: "#ffb900",
+  warningForeground: "#461901",
 } as const;
 
 export type ColorToken = keyof typeof colors;

@@ -58,6 +58,11 @@ export function useThreadActions(page: string | undefined) {
       run(into ? "later" : "unlater", () =>
         later.mutate({ threadId, later: into, ...(until ? { until } : {}) }),
       ),
+    swipeAway: (thread: Thread, into: "done" | "later") => {
+      if (into === "done") done.mutate({ threadId: thread.id, through: thread.lastMessageAt });
+      else later.mutate({ threadId: thread.id, later: true });
+      if (router.canGoBack()) router.back();
+    },
     archive: (threadId: string) => run("archive", () => archive.mutate({ threadId })),
     spam: (threadId: string, into: boolean) =>
       run(into ? "spam" : "notSpam", () => spam.mutate({ threadId, spam: into })),
