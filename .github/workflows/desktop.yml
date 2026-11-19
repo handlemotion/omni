@@ -6,9 +6,8 @@ name: Desktop
 #
 # The macOS and Windows builds are the expensive legs (macOS minutes cost about ten Linux ones), so
 # they run only for a release: when a `desktop-v*` tag is pushed (`git tag desktop-v0.1.4 && git
-# push origin desktop-v0.1.4`, or a GitHub release that creates it), or by hand. Either leg can use
-# a self-hosted runner through the RUNNER_WINDOWS or RUNNER_MACOS variable
-# (docs/operations/ci-runners.md). Signed builds and the updater feed come with the release layer.
+# push origin desktop-v0.1.4`, or a GitHub release that creates it), or by hand. Signed builds and
+# the updater feed come with the release layer.
 on:
   pull_request:
     branches: [main]
@@ -39,9 +38,7 @@ jobs:
   rust:
     name: Rust (Linux)
     if: github.ref_type != 'tag'
-    # Runner switch (docs/operations/ci-runners.md): repo variable RUNNER_HEAVY, else boat (4 vCPU / 8 GB).
-    # Tauri and WebKitGTK compile slowly on boat-small.
-    runs-on: ${{ fromJSON(vars.RUNNER_HEAVY || '"boat"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
       run:
@@ -86,11 +83,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, windows-2025]
-    # RUNNER_WINDOWS / RUNNER_MACOS (docs/operations/ci-runners.md) move a leg to a self-hosted runner.
-    runs-on: >-
-      ${{ matrix.os == 'windows-2025' && vars.RUNNER_WINDOWS && fromJSON(vars.RUNNER_WINDOWS)
-      || matrix.os == 'macos-15' && vars.RUNNER_MACOS && fromJSON(vars.RUNNER_MACOS)
-      || matrix.os }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -8,13 +8,17 @@ name: CI
 # Only pull requests into main run. A stacked layer (base is another branch) runs once it is
 # retargeted to main and pushed; `Run workflow` on its branch reports `Checks` too. `merge_group`
 # reports `Checks` for a merge queue, once main's ruleset turns one on (it needs Enterprise Cloud
-# for a private repository); until then GitHub never sends it.
+# for a private repository); until then GitHub never sends it. A push to main that changes the
+# lockfile only warms the pnpm cache (`warm-cache`).
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
     types: [checks_requested]
+  push:
+    branches: [main]
+    paths: [pnpm-lock.yaml, .github/workflows/ci.yml]
   workflow_dispatch:
 
 concurrency:
@@ -32,9 +36,11 @@ jobs:
   check:
     # `Checks` is the required status in main's branch protection: keep this name.
     name: Checks
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    # Runner switch (docs/operations/ci-runners.md): repo variable RUNNER_LIGHT, else boat-small.
-    runs-on: ${{ fromJSON(vars.RUNNER_LIGHT || '"boat-small"') }}
+    if: >-
+      github.event_name != 'push' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    # GitHub-hosted (docs/operations/ci-runners.md).
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:54329/omni
@@ -63,8 +69,7 @@ jobs:
       # Started now, without waiting, so Postgres boots while dependencies install.
       - name: Start Postgres
         if: steps.scope.outputs.full == 'true'
-        # down first: a self-hosted machine may keep the last job's containers and volumes.
-        run: docker compose down -v --remove-orphans && docker compose up -d postgres
+        run: docker compose up -d postgres
 
       # The official action needs a paid license for organizations; the release binary does not.
       # PRs scan only their own commits; the nightly `Full` run scans all history.
@@ -109,6 +114,24 @@ jobs:
           docker compose up -d --wait postgres
           pnpm --filter @omni/db test:e2e
 
-      - name: Stop the local stack
-        if: always() && steps.scope.outputs.full == 'true'
-        run: docker compose down -v --remove-orphans
+  # Actions caches made on a pull request stay with that pull request; only main's are shared.
+  # `Checks` never runs on main, so without this every new pull request installs from scratch and
+  # spends ~25s saving the pnpm store again. Runs only when the store's key (the lockfile) changes.
+  warm-cache:
+    name: Warm pnpm cache
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile

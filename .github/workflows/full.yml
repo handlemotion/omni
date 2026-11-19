@@ -4,8 +4,8 @@ name: Full
 # stack (Postgres, GreenMail, the S3 stand-in, the built Worker), types, unit tests, and a gitleaks
 # scan of all history. Not a required status.
 #
-# - Daily on main at 13:17 Mexico City (19:17 UTC), when the self-hosted runner's PC is on,
-#   skipped when main has no new commit in the last day.
+# - Daily on main at 13:17 Mexico City (19:17 UTC), skipped when main has no new commit in the
+#   last day.
 # - By hand: Actions > Full > Run workflow, on any branch.
 # - On a pull request, by adding the `full-e2e` label, and again on each push while it has it.
 on:
@@ -34,10 +34,9 @@ jobs:
       (github.event.action == 'labeled' && github.event.label.name == 'full-e2e') ||
       (github.event.action == 'synchronize' &&
         contains(github.event.pull_request.labels.*.name, 'full-e2e'))
-    # Runner switch (docs/operations/ci-runners.md): repo variable RUNNER_HEAVY, else boat (4 vCPU / 8 GB).
-    # The full compose stack + wrangler e2e need more than boat-small's 4 GB.
-    runs-on: ${{ fromJSON(vars.RUNNER_HEAVY || '"boat"') }}
-    timeout-minutes: 25
+    # GitHub-hosted, 2 vCPU / 8 GB for a private repository: about twice the old 4-vCPU time.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:54329/omni
     steps:
@@ -62,8 +61,7 @@ jobs:
       # Started now, without waiting, so the stack boots while dependencies install.
       - name: Start the local stack
         if: steps.scope.outputs.run == 'true'
-        # down first: a self-hosted machine may keep the last job's containers and volumes.
-        run: docker compose down -v --remove-orphans && docker compose up -d
+        run: docker compose up -d
 
       - name: Secret scan of all history (gitleaks)
         if: steps.scope.outputs.run == 'true'
@@ -97,13 +95,9 @@ jobs:
 
       # --continue: one red package still lets the others run, so a failure hides nothing.
       # --concurrency=1: one package at a time. All at once on 4 vCPU starved the mail and web
-      # timing tests (a different one failed each run); one at a time takes about 11 minutes.
+      # timing tests (a different one failed each run); one at a time took about 11 minutes there.
       - name: E2E tests
         if: steps.scope.outputs.run == 'true'
         run: |
           docker compose up -d --wait
           pnpm test:e2e --continue --concurrency=1
-
-      - name: Stop the local stack
-        if: always() && steps.scope.outputs.run == 'true'
-        run: docker compose down -v --remove-orphans
