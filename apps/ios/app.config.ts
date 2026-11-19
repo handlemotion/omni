@@ -20,7 +20,10 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     "expo-secure-store",
-    ["expo-splash-screen", { backgroundColor: "#ffffff" }],
+    [
+      "expo-splash-screen",
+      { backgroundColor: "#ffffff", image: "./assets/splash-icon.png", imageWidth: 88 },
+    ],
     ["expo-image-picker", { cameraPermission: false, microphonePermission: false }],
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
