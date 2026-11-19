@@ -40,7 +40,7 @@ async function seedThread(
   orgId: string,
   mailboxId: string,
   text: string,
-  triage?: { bucket: "needs_reply" | "fyi"; confidence: number; source: "ai" | "person" },
+  triage?: { bucket: "needs_reply" | null; confidence: number; source: "ai" | "person" },
 ) {
   const threadId = await createThread(db, {
     orgId,
@@ -736,7 +736,7 @@ test("Sent, Trash and Spam list the threads filed in that folder, and the newest
   expect(await forMember(db, outsider).searchRecent({ limit: 10 })).toEqual([]);
 });
 
-test("lanes split AI triage at the auto-file confidence; person triage always files", async () => {
+test("lanes split AI triage at the auto-file confidence; person triage always files; no lane stays out", async () => {
   const org = await createOrg(db, "lane-org");
   const member = (await createMember(db, org.id, "eve")).id;
   const box = await createMailbox(db, org.id, "eve@lane.test");
@@ -756,12 +756,18 @@ test("lanes split AI triage at the auto-file confidence; person triage always fi
     confidence: 0.1,
     source: "person",
   });
+  await seedThread(org.id, box.id, "no lane", { bucket: null, confidence: 0.95, source: "ai" });
+  const fallback = await seedThread(org.id, box.id, "fallback", {
+    bucket: null,
+    confidence: 0,
+    source: "ai",
+  });
 
   const scoped = forMember(db, member);
   const ids = async (lane: "needs_reply" | "unsure") =>
     (await scoped.listThreads({ lane })).map((t) => t.id).toSorted();
   expect(await ids("needs_reply")).toEqual([sure.threadId, person.threadId].toSorted());
-  expect(await ids("unsure")).toEqual([unsure.threadId]);
+  expect(await ids("unsure")).toEqual([unsure.threadId, fallback.threadId].toSorted());
 });
 
 test("thread pages and search merge granted mailboxes newest first, each row once, ties included", async () => {

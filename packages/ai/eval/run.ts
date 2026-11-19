@@ -22,7 +22,7 @@ if (providers.length === 0) {
 const totals = new Map(providers.map((p) => [p.name, { correct: 0, filed: 0, tokensIn: 0 }]));
 
 for (const thread of threads) {
-  console.log(`\n${thread.name}  (expected ${thread.expected})`);
+  console.log(`\n${thread.name}  (expected ${thread.expected ?? "no lane"})`);
   for (const { name, client } of providers) {
     const result = await triage(client, thread.input);
     const lane = laneFor(result);
@@ -33,7 +33,7 @@ for (const thread of threads) {
     console.log(
       [
         `  ${result.bucket === thread.expected ? "PASS" : "MISS"} ${name.padEnd(6)}`,
-        `${result.bucket.padEnd(15)} ${result.confidence.toFixed(2)}`,
+        `${(result.bucket ?? "no lane").padEnd(15)} ${result.confidence.toFixed(2)}`,
         `lane=${lane}`.padEnd(22),
         `source=${result.source}`,
         result.model ?? "",

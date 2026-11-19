@@ -39,9 +39,9 @@ function reply(text: string, stop_reason: Anthropic.StopReason = "end_turn") {
 
 describe("triage", () => {
   it("never lets a reader-sent latest message come back as needs_reply", async () => {
-    const { client, requests } = reply('{"bucket":"fyi","confidence":0.95}');
+    const { client, requests } = reply('{"bucket":"none","confidence":0.95}');
     const ours = { ...thread, latestFromUs: true, latestText: "Thanks, that's all I needed!" };
-    expect(await triage(client, ours)).toMatchObject({ bucket: "fyi", source: "ai" });
+    expect(await triage(client, ours)).toMatchObject({ bucket: null, source: "ai" });
     const schema = JSON.stringify(requests[0]?.output_config?.format);
     expect(schema).toContain("waiting_on_them");
     expect(schema).not.toContain("needs_reply");
@@ -70,13 +70,14 @@ describe("triage", () => {
   it.each([
     ["non-JSON text", "needs_reply", "end_turn"],
     ["a bucket outside the enum", '{"bucket":"urgent","confidence":0.99}', "end_turn"],
+    ["the retired fyi bucket", '{"bucket":"fyi","confidence":0.99}', "end_turn"],
     ["confidence above 1", '{"bucket":"noise","confidence":7}', "end_turn"],
     ["a refusal", "", "refusal"],
     ["a truncated answer", '{"bucket":"no', "max_tokens"],
   ] as const)("falls back to Unsure on %s and still reports usage", async (_, text, stop) => {
     const { client } = reply(text, stop);
     expect(await triage(client, thread)).toEqual({
-      bucket: "fyi",
+      bucket: null,
       confidence: 0,
       source: "fallback",
       usage: { tokensIn: 500, tokensOut: 30 },
@@ -113,9 +114,12 @@ describe("helpdesk triage on Claude", () => {
 
   it("hands nobody a message that does not wait on the team", async () => {
     const { client } = reply(
-      '{"bucket":"fyi","confidence":0.9,"priority":"normal","tags":[],"assignee":"teammate_1"}',
+      '{"bucket":"none","confidence":0.9,"priority":"normal","tags":[],"assignee":"teammate_1"}',
     );
-    expect((await triage(client, support)).helpdesk?.assigneeId).toBeNull();
+    expect(await triage(client, support)).toMatchObject({
+      bucket: null,
+      helpdesk: { priority: "low", assigneeId: null },
+    });
   });
 
   it("treats a tag outside the inbox's list as invalid output, not a new tag", async () => {

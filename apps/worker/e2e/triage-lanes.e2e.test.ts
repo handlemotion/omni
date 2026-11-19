@@ -312,8 +312,8 @@ test("a thread moves between Needs reply and Awaiting reply as each side writes,
     reader.mailboxId,
     await readerSends("triage-reader-thanks.eml", reader),
   );
-  expect(closed).toMatchObject({ triage: "fyi", triageSource: "ai" });
-  expect(await lanesOf(reader, first.id)).toEqual(["fyi"]);
+  expect(closed).toMatchObject({ triage: null, triageSource: "ai" });
+  expect(await lanesOf(reader, first.id)).toEqual([]);
 
   expect(jev.unmatched).toEqual([]);
   expect(jev.hits.filter((id) => id.startsWith("kickoff-"))).toEqual([
@@ -324,11 +324,20 @@ test("a thread moves between Needs reply and Awaiting reply as each side writes,
   ]);
 });
 
-test("an FYI and an automated receipt land in neither reply lane", async () => {
+test("an FYI and an automated receipt are triaged into no lane", async () => {
   const reader = await setUpReader();
   for (const fixture of ["triage-inbound-fyi.eml", "triage-automated-receipt.eml"]) {
     const thread = await triagedOn(reader.mailboxId, await arrives(fixture, reader));
-    expect(await lanesOf(reader, thread.id)).toEqual(["fyi"]);
+    expect(thread).toMatchObject({ triage: null, triageSource: "ai" });
+    const done = await waitUntil(async () => {
+      const [row] = await database.db
+        .select({ summaryMessageId: schema.threads.summaryMessageId })
+        .from(schema.threads)
+        .where(eq(schema.threads.id, thread.id));
+      return row?.summaryMessageId === thread.messageId;
+    });
+    expect(done).toBe(true);
+    expect(await lanesOf(reader, thread.id)).toEqual([]);
   }
 });
 
@@ -343,7 +352,7 @@ test("a redelivered job costs no model call and keeps a person's re-sort; the ne
 
   await db
     .update(schema.threads)
-    .set({ triage: "fyi", triageSource: "person" })
+    .set({ triage: "noise", triageSource: "person" })
     .where(eq(schema.threads.id, thread.id));
 
   const event: MailEventsBody = {
@@ -365,7 +374,7 @@ test("a redelivered job costs no model call and keeps a person's re-sort; the ne
   const [redelivered] = (await waitForEvents(worker, forThread, before + 1)).slice(before);
   expect(redelivered?.outcome).toBe("done_already");
   expect(jev.hits.length).toBe(calls);
-  expect(await lanesOf(reader, thread.id)).toEqual(["fyi"]);
+  expect(await lanesOf(reader, thread.id)).toEqual(["noise"]);
 
   await triagedOn(reader.mailboxId, await readerSends("triage-reader-question.eml", reader));
   const [after] = await db.select().from(schema.threads).where(eq(schema.threads.id, thread.id));

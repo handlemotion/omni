@@ -309,7 +309,7 @@ export async function runAiJob(
   const isUs = (address: string) => thread.selfAddresses.has(address.toLowerCase());
   const day = new Date().toISOString().slice(0, 10);
 
-  let bucket = thread.triage;
+  let filed = thread.triage !== null || thread.triageMessageId !== null;
   let triaged = false;
   if (thread.triageMessageId !== latest.id) {
     const input = triageInputFor(thread.messages, isUs);
@@ -353,11 +353,11 @@ export async function runAiJob(
         messageId: latest.id,
       });
       if (!saved) return "superseded" satisfies AiJobOutcome;
-      bucket = result.bucket;
+      filed = true;
       triaged = true;
     }
   }
-  if (!bucket) return "no_model" satisfies AiJobOutcome;
+  if (!filed) return "no_model" satisfies AiJobOutcome;
 
   const saved = await saveSummary(db, thread.id, {
     summary: null,

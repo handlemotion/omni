@@ -14,6 +14,7 @@ import {
   AI_MODEL,
   BUCKETS,
   PRIORITIES,
+  type Bucket,
   type CallOptions,
   type ModelClient,
   type TriageInput,
@@ -22,25 +23,33 @@ import {
 
 export const DEFAULT_TRIAGE_INPUT_TOKENS = 1_500;
 
+const NO_LANE = "none";
+
 const TriageOutput = z.object({
-  bucket: z.enum(BUCKETS),
+  bucket: z.enum([...BUCKETS, NO_LANE]),
   confidence: z.number().min(0).max(1),
 });
 
 const SentOutput = z.object({
-  bucket: z.enum(["waiting_on_them", "fyi"]),
+  bucket: z.enum(["waiting_on_them", NO_LANE]),
   confidence: z.number().min(0).max(1),
 });
+
+const laneOf = (answer: Bucket | typeof NO_LANE) => (answer === NO_LANE ? null : answer);
+
+const fallback = (usage: TriageResult["usage"]) =>
+  ({ bucket: null, confidence: 0, source: "fallback", usage }) satisfies TriageResult;
 
 /** Jev (judgments plus the truth table) or Claude (one structured call). */
 export type TriageClient = JevClient | ModelClient;
 
 /**
- * Sorts a thread into a bucket. A reader reply with no words short-circuits to `fyi`
- * (`triageByRule`); every other thread, including one the reader wrote last, gets a model's
- * judgment. A reader-sent latest message can only become `waiting_on_them` or `fyi`. API errors
- * throw on either provider, so the queue retries. On Claude, a refusal, truncated answer, or
- * invalid output falls back to `fyi` at confidence 0, which `laneFor` sends to Unsure; on Jev,
+ * Sorts a thread into a lane, or into none (`bucket: null`). A reader reply with no words
+ * short-circuits to no lane (`triageByRule`); every other thread, including one the reader wrote
+ * last, gets a model's judgment. A reader-sent latest message can only become `waiting_on_them`
+ * or no lane. API errors throw on either provider, so the queue retries. On Claude, a refusal,
+ * truncated answer, or invalid output falls back to no lane at confidence 0, which `laneFor`
+ * sends to Unsure; on Jev,
  * judgments the truth table can't settle land below the auto-file threshold.
  */
 export const triage: (
@@ -93,8 +102,9 @@ const triageWithClaude: (
     maxTokens: 1_024,
   });
 
-  if (!result.ok) return { bucket: "fyi", confidence: 0, source: "fallback", usage: result.usage };
-  return { ...result.data, source: "ai", usage: result.usage };
+  if (!result.ok) return fallback(result.usage);
+  const { bucket, confidence } = result.data;
+  return { bucket: laneOf(bucket), confidence, source: "ai", usage: result.usage };
 };
 
 const triageHelpdeskWithClaude: (
@@ -122,8 +132,9 @@ const triageHelpdeskWithClaude: (
     schema,
     maxTokens: 1_024,
   });
-  if (!result.ok) return { bucket: "fyi", confidence: 0, source: "fallback", usage: result.usage };
-  const { bucket, confidence, priority } = result.data;
+  if (!result.ok) return fallback(result.usage);
+  const { confidence, priority } = result.data;
+  const bucket = laneOf(result.data.bucket);
   const tagIds = [...new Set(result.data.tags.map((label) => byLabel.get(label)!))];
   const assignee = team.find((t) => t.label === result.data.assignee);
   return {
@@ -132,7 +143,7 @@ const triageHelpdeskWithClaude: (
     source: "ai",
     usage: result.usage,
     helpdesk: {
-      priority: bucket === "fyi" || bucket === "noise" ? "low" : priority,
+      priority: bucket === null || bucket === "noise" ? "low" : priority,
       tagIds,
       assigneeId: bucket === "needs_reply" ? (assignee?.id ?? null) : null,
     },

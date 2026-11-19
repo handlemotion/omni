@@ -7,7 +7,7 @@ import type { Bucket, Priority, TriageInput } from "../src/types.ts";
 const root = new URL("../../../fixtures/", import.meta.url);
 
 export interface HelpdeskExpect {
-  bucket: Bucket;
+  bucket: Bucket | null;
   priority: Priority;
   /** Tag names. */
   tags: string[];

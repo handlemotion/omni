@@ -27,7 +27,7 @@ describe("assignee", () => {
     ["the one whose role reads yes", [0.1, 0.9], "needs_reply", "bo"],
     ["the most likely of two yeses", [0.95, 0.8], "needs_reply", "ana"],
     ["nobody when no role is a settled yes", [0.6, 0.5], "needs_reply", null],
-    ["nobody when the message waits on no one", [0.95, 0.1], "fyi", null],
+    ["nobody when the message waits on no one", [0.95, 0.1], null, null],
     ["nobody for noise", [0.95, 0.1], "noise", null],
   ] as const)("picks %s", (_, nouls, bucket, expected) => {
     expect(pickAssignee(team, nouls, bucket)).toBe(expected);
@@ -51,7 +51,7 @@ describe("priority table", () => {
       "noise",
       "low",
     ],
-    ["a thank-you that asks nothing", { sender_upset: 0.8 }, "fyi", "low"],
+    ["a thank-you that asks nothing", { sender_upset: 0.8 }, null, "low"],
   ] as const)("gives %s %s", (_, overrides, bucket, priority) => {
     expect(decidePriority({ ...calm, ...overrides }, bucket)).toBe(priority);
   });

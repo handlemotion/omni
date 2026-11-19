@@ -2,7 +2,11 @@ import type Anthropic from "@anthropic-ai/sdk";
 
 export const AI_MODEL = "claude-haiku-5-5";
 
-export const BUCKETS = ["needs_reply", "waiting_on_them", "fyi", "noise"] as const;
+/**
+ * The three lanes triage files mail in (ADR 0052). Mail that fits none of them, such as a receipt
+ * that asks nothing or a "thanks!" the reader sent, gets no lane: its bucket is `null`.
+ */
+export const BUCKETS = ["needs_reply", "waiting_on_them", "noise"] as const;
 export type Bucket = (typeof BUCKETS)[number];
 
 /** A shared conversation's priority; the same values as `threads.priority`. */
@@ -83,7 +87,8 @@ export interface HelpdeskTriage {
 export type TriageSource = "rule" | "ai" | "fallback";
 
 export interface TriageResult {
-  bucket: Bucket;
+  /** `null`: triaged, but the thread belongs in no lane. Stored as `threads.triage = null`. */
+  bucket: Bucket | null;
   /** 0..1. Rule results are 1; fallbacks are 0, so they always land in Unsure. */
   confidence: number;
   /**

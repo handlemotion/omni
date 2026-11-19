@@ -14,13 +14,13 @@ const thread: TriageInput = {
 
 describe("laneFor", () => {
   it("files at the threshold and sends anything below to Unsure", () => {
-    expect(laneFor({ bucket: "fyi", confidence: 0.85, source: "ai" })).toBe("fyi");
-    expect(laneFor({ bucket: "fyi", confidence: 0.849, source: "ai" })).toBe("unsure");
-    expect(laneFor({ bucket: "fyi", confidence: 0.7, source: "ai" }, 0.6)).toBe("fyi");
+    expect(laneFor({ bucket: null, confidence: 0.85, source: "ai" })).toBe(null);
+    expect(laneFor({ bucket: null, confidence: 0.849, source: "ai" })).toBe("unsure");
+    expect(laneFor({ bucket: null, confidence: 0.7, source: "ai" }, 0.6)).toBe(null);
   });
 
   it("never auto-files a fallback, even if its confidence were high", () => {
-    expect(laneFor({ bucket: "fyi", confidence: 1, source: "fallback" })).toBe("unsure");
+    expect(laneFor({ bucket: null, confidence: 1, source: "fallback" })).toBe("unsure");
   });
 });
 

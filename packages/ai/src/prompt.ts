@@ -10,19 +10,19 @@ export const TRIAGE_SYSTEM = `You sort email threads for a busy person's inbox.
 
 ${UNTRUSTED_RULES}
 
-Pick exactly one bucket:
+Pick exactly one:
 - needs_reply: a real person expects a response or decision from the reader.
 - waiting_on_them: the reader is waiting on the other side; nothing to do now.
-- fyi: worth reading but no reply needed, such as receipts, confirmations, shipping or account notices, and announcements the reader cares about.
 - noise: bulk or promotional mail, newsletters the reader is unlikely to act on, automated notifications with no value.
+- none: fits no bucket above. It concerns the reader but asks nothing of them, such as receipts, confirmations, shipping or account notices, and announcements the reader cares about.
 
-When the reader wrote the latest message ("From: the reader"), only two buckets fit:
+When the reader wrote the latest message ("From: the reader"), only two answers fit:
 - waiting_on_them: it asks the recipients a question, or asks them to send, sign, approve or do something.
-- fyi: it thanks, confirms, answers or informs and asks for nothing, or an app sent it from the reader's address (a sign-in link, a receipt). An offer such as "let me know if you need anything" asks for nothing.
+- none: it thanks, confirms, answers or informs and asks for nothing, or an app sent it from the reader's address (a sign-in link, a receipt). An offer such as "let me know if you need anything" asks for nothing.
 
 List-Unsubscribe, List-Id, Precedence: bulk and Auto-Submitted suggest automated or bulk mail but do not decide it alone.
 
-confidence is your probability from 0 to 1 that the bucket is right. Use lower values when the thread is ambiguous.`;
+confidence is your probability from 0 to 1 that your answer is right. Use lower values when the thread is ambiguous.`;
 
 /** The triage prompt for a customer's message on a shared support inbox. */
 export const HELPDESK_TRIAGE_SYSTEM = `${TRIAGE_SYSTEM}

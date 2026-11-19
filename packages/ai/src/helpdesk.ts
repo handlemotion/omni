@@ -17,13 +17,13 @@ export type PriorityJudgments = Record<PriorityJudgment, number>;
 /**
  * First match wins. Only a settled yes raises the priority: a judgment between the bands leaves
  * the conversation at `normal`, where an agent sees it in the order it arrived. A message that
- * asks nothing of the team (`fyi`, `noise`) is `low` whatever else it says.
+ * asks nothing of the team (no lane, or `noise`) is `low` whatever else it says.
  */
 export const PRIORITY_TABLE: ReadonlyArray<{
-  when: (yes: (j: PriorityJudgment) => boolean, bucket: Bucket) => boolean;
+  when: (yes: (j: PriorityJudgment) => boolean, bucket: Bucket | null) => boolean;
   priority: Priority;
 }> = [
-  { when: (_, bucket) => bucket === "fyi" || bucket === "noise", priority: "low" },
+  { when: (_, bucket) => bucket === null || bucket === "noise", priority: "low" },
   { when: (yes) => yes("sender_blocked") && yes("time_sensitive"), priority: "urgent" },
   {
     when: (yes) =>
@@ -36,7 +36,7 @@ export const PRIORITY_TABLE: ReadonlyArray<{
   { when: () => true, priority: "normal" },
 ];
 
-export function decidePriority(judgments: PriorityJudgments, bucket: Bucket) {
+export function decidePriority(judgments: PriorityJudgments, bucket: Bucket | null) {
   const yes = (j: PriorityJudgment) => read(judgments[j]) === "yes";
   return (PRIORITY_TABLE.find((row) => row.when(yes, bucket))?.priority ??
     "normal") satisfies Priority;
@@ -80,7 +80,7 @@ export function teammateQuestions(teammates: readonly HelpdeskTeammate[] = []) {
 export function pickAssignee(
   asked: readonly HelpdeskTeammate[],
   nouls: readonly number[],
-  bucket: Bucket,
+  bucket: Bucket | null,
 ) {
   if (bucket !== "needs_reply") return null;
   let best: string | null = null;

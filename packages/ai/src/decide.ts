@@ -24,12 +24,15 @@ export const read: (noul: number) => Reading = (noul) => {
 export interface Row<J extends string = string> {
   /** Every listed judgment must read exactly this way. Unlisted judgments don't matter. */
   when: Partial<Record<J, "yes" | "no">>;
-  bucket: Bucket;
+  /** `null`: no lane. */
+  bucket: Bucket | null;
 }
 
 /**
  * Someone else wrote the latest message. First match wins. Every settled combination matches a
- * row (see decide.test.ts). `needs_reply` lives only here: it means someone else wrote last.
+ * row (see decide.test.ts). `needs_reply` lives only here: it means someone else wrote last. Mail
+that concerns the reader but asks nothing of them (a receipt, a notice) gets no lane (`null`);
+`concerns_reader` is what tells it from `noise`.
  */
 export const TRIAGE_TABLE: readonly Row<Judgment>[] = [
   { when: { expects_reply: "yes", automated: "no", bulk: "no" }, bucket: "needs_reply" },
@@ -39,28 +42,28 @@ export const TRIAGE_TABLE: readonly Row<Judgment>[] = [
   },
   { when: { bulk: "yes", concerns_reader: "no" }, bucket: "noise" },
   { when: { automated: "yes", concerns_reader: "no" }, bucket: "noise" },
-  { when: { bulk: "yes", concerns_reader: "yes" }, bucket: "fyi" },
-  { when: { automated: "yes", concerns_reader: "yes" }, bucket: "fyi" },
+  { when: { bulk: "yes", concerns_reader: "yes" }, bucket: null },
+  { when: { automated: "yes", concerns_reader: "yes" }, bucket: null },
   {
     when: { expects_reply: "no", promises_follow_up: "no", automated: "no", bulk: "no" },
-    bucket: "fyi",
+    bucket: null,
   },
 ];
 
 /**
  * The reader wrote the latest message. They wait on the other side only if a person wrote it and
- * it asks for something; a closer ("thanks!", "sounds good"), an FYI they sent, or mail an app
- * sent from their address (a sign-in link) files as `fyi`.
+ * it asks for something; a closer ("thanks!", "sounds good"), a note that asks nothing, or mail an
+ * app sent from their address (a sign-in link) gets no lane (`null`).
  */
 export const SENT_TABLE: readonly Row<SentJudgment>[] = [
-  { when: { sent_by_system: "yes" }, bucket: "fyi" },
+  { when: { sent_by_system: "yes" }, bucket: null },
   { when: { reader_asks_question: "yes", sent_by_system: "no" }, bucket: "waiting_on_them" },
   { when: { reader_requests_action: "yes", sent_by_system: "no" }, bucket: "waiting_on_them" },
-  { when: { reader_asks_question: "no", reader_requests_action: "no" }, bucket: "fyi" },
+  { when: { reader_asks_question: "no", reader_requests_action: "no" }, bucket: null },
 ];
 
 export interface Decision {
-  bucket: Bucket;
+  bucket: Bucket | null;
   confidence: number;
   /** The row that decided, or `unsettled` when a judgment it needed sat between the bands. */
   row: number | "unsettled";

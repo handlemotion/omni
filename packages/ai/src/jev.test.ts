@@ -108,10 +108,10 @@ describe("triage on Jev", () => {
     expect(JSON.stringify(state)).not.toContain("sam@us.example");
   });
 
-  it("files a wordless reader reply as fyi without calling Jev", async () => {
+  it("gives a wordless reader reply no lane without calling Jev", async () => {
     const { client, bodies } = jev(ok());
     const result = await triage(client, { ...thread, latestFromUs: true, latestText: " 👍\n" });
-    expect(result).toMatchObject({ bucket: "fyi", confidence: 1, source: "rule" });
+    expect(result).toMatchObject({ bucket: null, confidence: 1, source: "rule" });
     expect(bodies).toHaveLength(0);
   });
 

@@ -47,7 +47,8 @@ export async function loadThreadForAi(db: Db, threadId: string) {
 }
 
 /**
- * Files the thread on the triage of `messageId`. Writes nothing (returns false) when that message
+ * Files the thread on the triage of `messageId`. A null bucket means triaged into no lane: the
+ * thread's `triage` is cleared, but `messageId` is still marked as triaged. Writes nothing (returns false) when that message
  * is no longer the thread's latest, so a slow job can't overwrite the triage of a newer message,
  * or when a person re-sorted the thread on this same message: a re-sort holds until new mail.
  */
@@ -55,7 +56,7 @@ export async function saveTriage(
   db: Db,
   threadId: string,
   result: {
-    bucket: NonNullable<typeof threads.$inferSelect.triage>;
+    bucket: typeof threads.$inferSelect.triage;
     confidence: number;
     messageId: string;
   },

@@ -41,8 +41,8 @@ describe("triage truth table", () => {
       { promises_follow_up: 0.95, concerns_reader: 0.9 },
       "waiting_on_them",
     ],
-    ["a person just informing", {}, "fyi"],
-    ["a receipt for the reader", { automated: 0.95, concerns_reader: 0.95 }, "fyi"],
+    ["a person just informing", {}, null],
+    ["a receipt for the reader", { automated: 0.95, concerns_reader: 0.95 }, null],
     ["a promotion", { bulk: 0.95, automated: 0.9, concerns_reader: 0.05 }, "noise"],
     [
       "a promotion that asks for a reply",
@@ -95,7 +95,7 @@ describe("reader-sent truth table", () => {
   });
 
   it.each([
-    ["a closer that asks nothing", {}, "fyi"],
+    ["a closer that asks nothing", {}, null],
     ["a question", { reader_asks_question: 0.95 }, "waiting_on_them"],
     ["a request with no question mark", { reader_requests_action: 0.93 }, "waiting_on_them"],
     [
@@ -104,7 +104,7 @@ describe("reader-sent truth table", () => {
       "waiting_on_them",
     ],
     ["an unsure ask", { reader_asks_question: 0.55 }, "unsure"],
-    ["a sign-in link an app sent", { reader_requests_action: 0.95, sent_by_system: 0.97 }, "fyi"],
+    ["a sign-in link an app sent", { reader_requests_action: 0.95, sent_by_system: 0.97 }, null],
     [
       "an ask that may be app-sent",
       { reader_requests_action: 0.95, sent_by_system: 0.5 },

@@ -1,6 +1,7 @@
 import type { Bucket, TriageInput } from "../src/index.ts";
 
-export const threads: Array<{ name: string; expected: Bucket; input: TriageInput }> = [
+/** `expected: null`: the thread belongs in no lane. */
+export const threads: Array<{ name: string; expected: Bucket | null; input: TriageInput }> = [
   {
     name: "client asks for a decision",
     expected: "needs_reply",
@@ -41,7 +42,7 @@ export const threads: Array<{ name: string; expected: Bucket; input: TriageInput
   },
   {
     name: "payment receipt",
-    expected: "fyi",
+    expected: null,
     input: {
       from: { name: "Railway", address: "billing@railway.example" },
       subject: "Your receipt from Railway #4821-3390",
@@ -103,7 +104,7 @@ export const threads: Array<{ name: string; expected: Bucket; input: TriageInput
   },
   {
     name: "colleague heads-up",
-    expected: "fyi",
+    expected: null,
     input: {
       from: { name: "Sam Lee", address: "sam@handlemotion.example" },
       subject: "Office closed Monday",
@@ -116,7 +117,7 @@ export const threads: Array<{ name: string; expected: Bucket; input: TriageInput
   },
   {
     name: "security alert on our account",
-    expected: "fyi",
+    expected: null,
     input: {
       from: { name: "Cloud Console", address: "no-reply@cloud.example" },
       subject: "New sign-in to your account",
@@ -144,7 +145,7 @@ export const threads: Array<{ name: string; expected: Bucket; input: TriageInput
   },
   {
     name: "sign-in link our system mailbox sent",
-    expected: "fyi",
+    expected: null,
     input: {
       from: { name: "Omni", address: "no-reply@studio.example" },
       subject: "Sign in to Omni",
@@ -159,16 +160,16 @@ export const threads: Array<{ name: string; expected: Bucket; input: TriageInput
     [
       [
         "reader closes with an offer",
-        "fyi",
+        null,
         "Thanks so much, this is perfect! Let me know if you need anything else.",
       ],
-      ["reader confirms a time", "fyi", "Sounds good, see you Thursday at 10."],
+      ["reader confirms a time", null, "Sounds good, see you Thursday at 10."],
       [
         "reader promises to send something",
-        "fyi",
+        null,
         "Got it. I'll send the revised deck over tomorrow morning.",
       ],
-      ["reader sends the file asked for", "fyi", "Here's the signed contract, attached."],
+      ["reader sends the file asked for", null, "Here's the signed contract, attached."],
       [
         "reader asks for a review",
         "waiting_on_them",
