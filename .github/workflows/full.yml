@@ -29,7 +29,9 @@ jobs:
   full:
     name: Full
     if: github.event_name != 'pull_request' || github.event.label.name == 'full-e2e'
-    runs-on: boat # 4 vCPU / 8 GB: the full compose stack + wrangler e2e need more than boat-small's 4 GB
+    # Runner switch (docs/operations/ci-runners.md): repo variable RUNNER_HEAVY, else boat (4 vCPU / 8 GB).
+    # The full compose stack + wrangler e2e need more than boat-small's 4 GB.
+    runs-on: ${{ fromJSON(vars.RUNNER_HEAVY || '"boat"') }}
     timeout-minutes: 25
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:54329/omni
@@ -55,7 +57,8 @@ jobs:
       # Started now, without waiting, so the stack boots while dependencies install.
       - name: Start the local stack
         if: steps.scope.outputs.run == 'true'
-        run: docker compose up -d
+        # down first: a self-hosted machine may keep the last job's containers and volumes.
+        run: docker compose down -v --remove-orphans && docker compose up -d
 
       - name: Secret scan of all history (gitleaks)
         if: steps.scope.outputs.run == 'true'
@@ -92,3 +95,7 @@ jobs:
         run: |
           docker compose up -d --wait
           pnpm test:e2e
+
+      - name: Stop the local stack
+        if: always() && steps.scope.outputs.run == 'true'
+        run: docker compose down -v --remove-orphans

@@ -7,7 +7,8 @@ name: Desktop
 #
 # The macOS and Windows builds run only when started by hand: this repository's jobs run on its
 # `boat` runners, and GitHub-hosted macOS and Windows runners are not enabled for it yet (a job
-# on them fails before it starts). Run them on push once they are.
+# on them fails before it starts). Either leg can use a self-hosted runner through the
+# RUNNER_WINDOWS or RUNNER_MACOS variable (docs/operations/ci-runners.md). Run them on push once both work.
 on:
   pull_request:
     branches: [main]
@@ -36,7 +37,9 @@ env:
 jobs:
   rust:
     name: Rust (Linux)
-    runs-on: boat # 4 vCPU / 8 GB: Tauri and WebKitGTK compile slowly on boat-small
+    # Runner switch (docs/operations/ci-runners.md): repo variable RUNNER_HEAVY, else boat (4 vCPU / 8 GB).
+    # Tauri and WebKitGTK compile slowly on boat-small.
+    runs-on: ${{ fromJSON(vars.RUNNER_HEAVY || '"boat"') }}
     timeout-minutes: 30
     defaults:
       run:
@@ -81,7 +84,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, windows-2025]
-    runs-on: ${{ matrix.os }}
+    # RUNNER_WINDOWS / RUNNER_MACOS (docs/operations/ci-runners.md) move a leg to a self-hosted runner.
+    runs-on: >-
+      ${{ matrix.os == 'windows-2025' && vars.RUNNER_WINDOWS && fromJSON(vars.RUNNER_WINDOWS)
+      || matrix.os == 'macos-15' && vars.RUNNER_MACOS && fromJSON(vars.RUNNER_MACOS)
+      || matrix.os }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

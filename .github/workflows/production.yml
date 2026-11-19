@@ -29,7 +29,8 @@ permissions:
 jobs:
   migrate:
     name: Migrate database
-    runs-on: boat-small
+    # Runner switch (docs/operations/ci-runners.md): repo variable RUNNER_PRODUCTION, else boat-small.
+    runs-on: ${{ fromJSON(vars.RUNNER_PRODUCTION || '"boat-small"') }}
     timeout-minutes: 10
     environment: production
     steps:
@@ -53,7 +54,8 @@ jobs:
 
   worker-secrets:
     name: Sync Worker secrets
-    runs-on: boat-small
+    # Runner switch (docs/operations/ci-runners.md): repo variable RUNNER_PRODUCTION, else boat-small.
+    runs-on: ${{ fromJSON(vars.RUNNER_PRODUCTION || '"boat-small"') }}
     timeout-minutes: 30
     environment: production
     steps:

@@ -29,7 +29,8 @@ jobs:
     # `Checks` is the required status in main's branch protection: keep this name.
     name: Checks
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: boat-small
+    # Runner switch (docs/operations/ci-runners.md): repo variable RUNNER_LIGHT, else boat-small.
+    runs-on: ${{ fromJSON(vars.RUNNER_LIGHT || '"boat-small"') }}
     timeout-minutes: 10
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:54329/omni
@@ -58,7 +59,8 @@ jobs:
       # Started now, without waiting, so Postgres boots while dependencies install.
       - name: Start Postgres
         if: steps.scope.outputs.full == 'true'
-        run: docker compose up -d postgres
+        # down first: a self-hosted machine may keep the last job's containers and volumes.
+        run: docker compose down -v --remove-orphans && docker compose up -d postgres
 
       # The official action needs a paid license for organizations; the release binary does not.
       # PRs scan only their own commits; the nightly `Full` run scans all history.
@@ -102,3 +104,7 @@ jobs:
         run: |
           docker compose up -d --wait postgres
           pnpm --filter @omni/db test:e2e
+
+      - name: Stop the local stack
+        if: always() && steps.scope.outputs.full == 'true'
+        run: docker compose down -v --remove-orphans

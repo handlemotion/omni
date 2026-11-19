@@ -20,7 +20,8 @@ permissions: {}
 jobs:
   mail:
     name: Container scan (mail)
-    runs-on: boat-small
+    # Runner switch (docs/operations/ci-runners.md): repo variable RUNNER_LIGHT, else boat-small.
+    runs-on: ${{ fromJSON(vars.RUNNER_LIGHT || '"boat-small"') }}
     timeout-minutes: 20
     permissions:
       contents: read
