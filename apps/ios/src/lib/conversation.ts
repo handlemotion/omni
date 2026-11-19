@@ -1,4 +1,4 @@
-import type { Api } from "@omni/client";
+import type { Api, Thread } from "@omni/client";
 import {
   queryOptions,
   useMutation,
@@ -160,4 +160,51 @@ export function useConversationChange(threadId: string) {
   });
   return (change: ConversationChange) =>
     mutation.mutate({ change, key: idempotencyKey(), workspace: currentWorkspaceId() });
+}
+
+/** A lane a member can file a thread in: `threads.triage`. */
+export type Lane = NonNullable<Thread["triage"]>;
+
+/**
+ * `mutate(lane)`: files the thread in `lane`, on a personal or a shared mailbox, as the member's
+ * own choice. It shows at once and the lists regroup when it lands; a failure puts it back and
+ * says why, unless the workspace changed since. Queues behind the thread's other changes.
+ */
+export function useLaneChange(threadId: string) {
+  const client = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: (vars: { lane: Lane; key: string; workspace: string | null }) =>
+      call(
+        api.threads[":id"].lane.$put(
+          {
+            param: { id: threadId },
+            header: { "idempotency-key": vars.key },
+            json: { lane: vars.lane },
+          },
+          inWorkspace(vars.workspace),
+        ),
+      ),
+    scope: { id: `conversation:${threadId}` },
+    retry: (count, error) => !isAuthError(error) && count < 2,
+    onMutate: async ({ lane }) => {
+      const key: QueryKey = keys.thread(threadId);
+      await client.cancelQueries({ queryKey: key, exact: true });
+      const before = client.getQueryData<Thread>(key);
+      if (before) client.setQueryData<Thread>(key, { ...before, triage: lane });
+      return { before };
+    },
+    onError: (error, vars, context) => {
+      if (vars.workspace === currentWorkspaceId()) {
+        client.setQueryData(keys.thread(threadId), context?.before);
+      }
+      alertFailure(error);
+    },
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: keys.thread(threadId), exact: true });
+      void client.invalidateQueries({ queryKey: keys.threadLists() });
+      void client.invalidateQueries({ queryKey: keys.counts() });
+    },
+  });
+  return (lane: Lane) =>
+    mutation.mutate({ lane, key: idempotencyKey(), workspace: currentWorkspaceId() });
 }

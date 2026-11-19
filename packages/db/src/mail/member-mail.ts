@@ -221,8 +221,8 @@ export async function findMemberMessageHtml(
  * A person files a thread in `lane` (ADR 0029: an agent's `triage` does it for them): the triage
  * becomes theirs (`triage_source = person`, which always files), describes the thread's latest
  * message so a newer one re-triages it, and the re-sort is kept in `triage_feedback` to tune the
- * model. Reaffirming the person's lane after new mail only moves the marker to that mail. Returns false when the member cannot
- * see the thread.
+ * model. Reaffirming the person's lane after new mail only moves the marker to that mail. Returns
+ * the thread's mailbox and whether the thread was written, or null when the member cannot see it.
  */
 export async function resortThread(
   db: Db,
@@ -234,6 +234,7 @@ export async function resortThread(
     const [thread] = await tx
       .select({
         orgId: threads.orgId,
+        mailboxId: threads.mailboxId,
         triage: threads.triage,
         triageSource: threads.triageSource,
         triageMessageId: threads.triageMessageId,
@@ -246,7 +247,7 @@ export async function resortThread(
         ),
       )
       .for("update");
-    if (!thread) return false;
+    if (!thread) return null;
     const [newest] = await tx
       .select({ id: messages.id })
       .from(messages)
@@ -255,7 +256,8 @@ export async function resortThread(
       .limit(1);
     const latest = newest?.id ?? null;
     const sameChoice = thread.triage === lane && thread.triageSource === "person";
-    if (sameChoice && thread.triageMessageId === latest) return true;
+    const result = { mailboxId: thread.mailboxId, changed: true };
+    if (sameChoice && thread.triageMessageId === latest) return { ...result, changed: false };
     await tx
       .update(threads)
       .set({
@@ -266,7 +268,7 @@ export async function resortThread(
         updatedAt: new Date(),
       })
       .where(eq(threads.id, threadId));
-    if (sameChoice) return true;
+    if (sameChoice) return result;
     await tx.insert(triageFeedback).values({
       orgId: thread.orgId,
       threadId,
@@ -274,6 +276,6 @@ export async function resortThread(
       fromBucket: thread.triage,
       toBucket: lane,
     });
-    return true;
+    return result;
   });
 }

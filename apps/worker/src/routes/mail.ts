@@ -4,11 +4,13 @@ import {
   forUser,
   LANES,
   listMemberMailboxes,
+  resortThread,
   THREAD_VIEWS,
   threadActionTargets,
   type MailActionRequest,
   type MemberQueries,
 } from "@omni/db";
+import { threadLaneBodySchema, type ThreadLaneResponse } from "@omni/contracts";
 import { addedParticipants, messageDisplay } from "@omni/mail-core/display";
 import { unsubscribeMethod } from "@omni/mail-core/unsubscribe";
 import { Hono, type Context } from "hono";
@@ -324,6 +326,21 @@ export const mail = new Hono<AppEnv>()
     if (!state) notFound();
     return c.json({ state });
   })
+
+  .put(
+    "/threads/:id/lane",
+    limitPerMember("actions"),
+    zValidator("header", idempotencyHeader),
+    zValidator("json", threadLaneBodySchema),
+    async (c) => {
+      const { lane } = c.req.valid("json");
+      const threadId = c.req.param("id");
+      const filed = await resortThread(c.var.db, c.var.member.id, threadId, lane);
+      if (!filed) notFound();
+      if (filed.changed) announceThread(c, filed.mailboxId, threadId);
+      return c.json({ triage: lane, changed: filed.changed } satisfies ThreadLaneResponse);
+    },
+  )
 
   .post(
     "/threads/:id/archive",

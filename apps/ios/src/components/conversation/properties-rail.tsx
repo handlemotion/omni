@@ -1,40 +1,26 @@
 import type { Thread } from "@omni/client";
-import { useState, type ComponentType } from "react";
+import { router } from "expo-router";
+import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import type { SvgProps } from "react-native-svg";
-import {
-  IconBubble,
-  IconBubbleDots,
-  IconReply,
-  IconTag,
-  IconUserRound,
-} from "@/components/icons.ts";
+import { IconTag, IconUserRound } from "@/components/icons.ts";
 import { MailboxAvatar } from "@/components/inbox/mailbox-avatar.tsx";
 import { GhostButton } from "@/components/ui/ghost-button.tsx";
 import { useAssignees, useConversation, type Conversation } from "@/lib/conversation.ts";
 import { mailboxName, useMailboxes } from "@/lib/mail.ts";
 import { useSession } from "@/lib/session.ts";
 import { colors, iconSize, space } from "@/theme/tokens.ts";
+import { LANES, LaneSheet } from "./lane-sheet.tsx";
 import { Face, PRIORITY, PropertySheet, STATUS, type Sheet } from "./property-sheets.tsx";
-
-type Glyph = ComponentType<SvgProps & { size?: number }>;
-
-const LANES: Record<string, { label: string; icon: Glyph }> = {
-  needs_reply: { label: "Needs reply", icon: IconReply },
-  waiting_on_them: { label: "Awaiting reply", icon: IconBubbleDots },
-  fyi: { label: "FYI", icon: IconBubble },
-  noise: { label: "Noise", icon: IconBubble },
-};
 
 /**
  * The conversation's properties under the top bar, as the desktop's properties row: its lane in
- * the brand's ink, the mailbox it came to, and its tags; a shared inbox adds status, assignee
+ * the brand's ink, the mailbox it came to (a tap opens that mailbox's inbox), and its tags; a shared inbox adds status, assignee
  * and priority. Each opens a sheet that changes it, as the web's menus do. Scrolls sideways
  * when it overflows.
  */
 export function PropertiesRail({ thread }: { thread: Thread }) {
   const conversation = useConversation(thread.id, thread.mailboxKind === "shared").data;
-  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const [sheet, setSheet] = useState<Sheet | "lane" | null>(null);
   const lane = thread.triage ? LANES[thread.triage] : undefined;
   const tags = conversation?.tags.map((t) => t.name).join(", ");
   return (
@@ -46,7 +32,15 @@ export function PropertiesRail({ thread }: { thread: Thread }) {
         accessibilityLabel="Properties"
         contentContainerStyle={styles.row}
       >
-        {lane ? <GhostButton icon={lane.icon} label={lane.label} tone="primary" /> : null}
+        {lane ? (
+          <GhostButton
+            icon={lane.icon}
+            label={lane.label}
+            tone="primary"
+            accessibilityLabel={`Lane: ${lane.label}`}
+            onPress={() => setSheet("lane")}
+          />
+        ) : null}
         <MailboxButton thread={thread} />
         {conversation ? (
           <SharedButtons thread={thread} conversation={conversation} onOpen={setSheet} />
@@ -59,9 +53,15 @@ export function PropertiesRail({ thread }: { thread: Thread }) {
           onPress={conversation ? () => setSheet("tags") : undefined}
         />
       </ScrollView>
+      <LaneSheet
+        isOpen={sheet === "lane"}
+        onClose={() => setSheet(null)}
+        threadId={thread.id}
+        lane={thread.triage}
+      />
       {conversation ? (
         <PropertySheet
-          sheet={sheet}
+          sheet={sheet === "lane" ? null : sheet}
           onClose={() => setSheet(null)}
           thread={thread}
           conversation={conversation}
@@ -82,6 +82,12 @@ function MailboxButton({ thread }: { thread: Thread }) {
       lead={<MailboxAvatar mailbox={face} name={name} size={iconSize.field} />}
       label={name}
       accessibilityLabel={`Mailbox: ${name}`}
+      onPress={() =>
+        router.dismissTo({
+          pathname: "/mail",
+          params: { page: "inbox", mailbox: thread.mailboxId },
+        })
+      }
     />
   );
 }
