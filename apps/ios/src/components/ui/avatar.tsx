@@ -6,10 +6,11 @@ import { colors, radius, rowLead } from "@/theme/tokens.ts";
 import { Text } from "./text.tsx";
 
 /**
- * A person or company, round. Their picture once one loads, always filling the avatar edge to
- * edge (a company's mark, a Gravatar, an account's photo, a workspace's logo), never inset: a
- * mark's own background is the avatar's colour, and a transparent one sits on a white tile. Their
- * initial on the accent fill until then, and when there is none. A sender is `square` (corners at
+ * A person or company, round. Their picture once one loads: a photo (a Gravatar, an account's
+ * photo, a workspace's logo) fills the avatar edge to edge; a sender's company mark (a favicon)
+ * is drawn at 85% on a white tile, as the web insets it. `fill` makes any picture fill, a mark
+ * too: an account's own avatar always fills. Their initial on the accent fill until then, and
+ * when there is none. A sender is `square` (corners at
  * 20% of its size, as the web's `isSquare`, with a hairline edge). A workspace is `inverse`: its
  * initial in white on the brand's blue.
  */
@@ -21,6 +22,7 @@ export function Avatar({
   size = rowLead,
   inverse = false,
   shape = "round",
+  fill = false,
 }: {
   name: string;
   /** Whose logo to look up; leave out for the initial only. */
@@ -32,6 +34,8 @@ export function Avatar({
   size?: number;
   inverse?: boolean;
   shape?: "round" | "square";
+  /** Fill the avatar with whatever picture loads, a company's mark too (an account's avatar). */
+  fill?: boolean;
 }) {
   const looked = useLogoSource(logo ?? null);
   const source = photo ?? looked;
@@ -42,7 +46,8 @@ export function Avatar({
   const showing = tried && loaded === tried.uri ? tried : null;
   const square = shape === "square";
   const corner = square ? Math.round(size * SQUARE_CORNER) : radius.full;
-  const mark = !!showing && !showing.photo;
+  const mark = isMark(showing, fill);
+  const inset = isMark(tried, fill);
   return (
     <View
       accessible={false}
@@ -62,11 +67,10 @@ export function Avatar({
         <Image
           source={{ uri: tried.uri, headers: tried.headers }}
           cachePolicy="disk"
-          contentFit="cover"
+          {...(inset ? INSET : FILLED)}
           transition={150}
           onLoad={() => setLoaded(tried.uri)}
           onError={() => setFailed(tried.uri)}
-          style={StyleSheet.absoluteFill}
         />
       ) : null}
       {square || mark ? (
@@ -77,6 +81,10 @@ export function Avatar({
 }
 
 const SQUARE_CORNER = 0.2;
+
+const FILLED = { contentFit: "cover", style: StyleSheet.absoluteFill } as const;
+
+const isMark = (source: LogoSource | null, fill: boolean) => !!source && !source.photo && !fill;
 
 const initialOf = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
 
@@ -126,4 +134,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   tile: { backgroundColor: colors.logoTile },
+  inset: { position: "absolute", top: "7.5%", left: "7.5%", width: "85%", height: "85%" },
 });
+
+const INSET = { contentFit: "contain", style: styles.inset } as const;

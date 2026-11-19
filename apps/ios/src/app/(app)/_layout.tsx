@@ -1,7 +1,7 @@
 import { Redirect, Stack } from "expo-router";
 import { IconCircleAlert } from "@/components/icons.ts";
 import { MenuProvider } from "@/components/shell/menu-context.tsx";
-import { ShellChrome } from "@/components/shell/shell.tsx";
+import { ClearSearchOnModuleChange } from "@/components/shell/shell.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { Screen } from "@/components/ui/screen.tsx";
@@ -14,7 +14,8 @@ import { colors } from "@/theme/tokens.ts";
 /**
  * Everything past sign-in: the modules (ADR 0035), each a stack of its own, one on screen at a
  * time, under one shell: a top bar (☰, the module pill, the workspace), a bottom bar (search and
- * the module's main action) and the menu that slides down between them. No tab bar.
+ * the module's main action) and the menu that slides down between them, drawn on each module's
+ * root page (`ModuleRoot`) so pushed pages cover it natively. No tab bar.
  * Signed out, or signed out elsewhere, goes back to sign-in. Calls wait for the workspace list,
  * so the first ones already name the workspace the app is in; until then the launch screen stays
  * up. Opening another workspace resets every answer on screen (`openWorkspace`), so each page
@@ -51,7 +52,7 @@ export default function SignedInLayout() {
         <Stack.Screen name="drive" />
         <Stack.Screen name="crm" />
       </Stack>
-      <ShellChrome />
+      <ClearSearchOnModuleChange />
     </MenuProvider>
   );
 }

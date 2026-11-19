@@ -1,4 +1,5 @@
 import { router, useGlobalSearchParams, usePathname } from "expo-router";
+import { createContext, use } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { isCrmPage, type CrmPage } from "@/lib/crm.ts";
 import { drivePageIn, type DrivePage } from "@/lib/drive.ts";
@@ -27,17 +28,28 @@ function moduleOf(pathname: string) {
   return module;
 }
 
+type PlaceParams = { page?: string; mailbox?: string };
+
+/**
+ * The module root page the shell's chrome is drawn on, with that page's own params. The chrome
+ * reads its place from here, not from the global route, which already names a pushed page while
+ * that page still slides in or out over the root.
+ */
+export const RootPlace = createContext<{ module: Module; params: PlaceParams } | null>(null);
+
 /**
  * Where the app is, as the menu marks it, and how the menu moves: a module replaces the one on
  * screen (the menu is not a history), and a page or mailbox changes a module's root in place
  * when it is already showing.
  */
 export function useMenuPlace() {
+  const root = use(RootPlace);
   const pathname = usePathname();
-  const params = useGlobalSearchParams<{ page?: string; mailbox?: string }>();
+  const global = useGlobalSearchParams<PlaceParams>();
   const company = hasCrm(useWorkspace().active);
-  const module = moduleOf(pathname);
-  const onRoot = pathname === MODULE_HOME[module];
+  const module = root?.module ?? moduleOf(pathname);
+  const onRoot = root ? true : pathname === MODULE_HOME[module];
+  const params = root?.params ?? global;
   const mailPage: MailPage | undefined =
     onRoot && module === "mail" ? (isMailPage(params.page) ? params.page : "inbox") : undefined;
   const drivePage: DrivePage | undefined =

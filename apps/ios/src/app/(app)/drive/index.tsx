@@ -24,7 +24,7 @@ export default function DriveHome() {
   const typed = useMenu().query.trim();
   const q = useDebounced(typed);
   return (
-    <ModuleRoot>
+    <ModuleRoot module="drive">
       {typed ? (
         <DriveSearch q={q} footerSpace={CLEAR_OF_FADE} />
       ) : page === "sharedWithMe" ? (

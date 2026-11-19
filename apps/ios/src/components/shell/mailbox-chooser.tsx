@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { IconCheck, IconChevronsUpDown } from "@/components/icons.ts";
 import { MailboxAvatar } from "@/components/inbox/mailbox-avatar.tsx";
 import { MailboxCluster, type ClusterFace } from "@/components/inbox/mailbox-cluster.tsx";
@@ -99,11 +99,12 @@ export function ChoiceRow(props: {
   detail?: string;
   chosen: boolean;
   onPress: () => void;
+  style?: StyleProp<ViewStyle>;
 }) {
   return (
     <PressableRow
       shape="menu"
-      style={styles.choice}
+      style={[styles.choice, props.style]}
       onPress={props.onPress}
       accessibilityLabel={[props.name, props.detail].filter(Boolean).join(", ")}
     >

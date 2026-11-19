@@ -47,6 +47,7 @@ export function NodeItem({ node, card = false }: { node: DriveNode; card?: boole
         icon: IconShared,
         tone: "primary",
         run: () => openDriveSheet("share", node),
+        removes: false,
       }}
       left={
         trashable
@@ -85,6 +86,7 @@ export function TrashItem({ node }: { node: DriveNode }) {
         icon: IconTrash,
         tone: "danger",
         run: () => confirmDeleteForever(node, remove),
+        removes: false,
       }}
     >
       <Link href={{ pathname: "/drive", params: { page: "trash" } }} asChild>

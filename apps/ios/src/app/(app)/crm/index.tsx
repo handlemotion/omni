@@ -25,7 +25,7 @@ export default function CrmHome() {
   const q = useDebounced(typed);
   if (!hasCrm(useWorkspace().active)) return <Redirect href="/mail" />;
   return (
-    <ModuleRoot>
+    <ModuleRoot module="crm">
       {typed ? (
         <CrmSearch q={q} footerSpace={FLOATING_BAR_SPACE} />
       ) : page === "people" ? (

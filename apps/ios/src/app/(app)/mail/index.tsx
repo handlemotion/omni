@@ -22,7 +22,7 @@ export default function MailList() {
   const q = useDebounced(typed);
   const searching = shell.searchIn === "mail";
   return (
-    <ModuleRoot>
+    <ModuleRoot module="mail">
       {typed ? (
         <SearchResults q={q} footerSpace={FLOATING_BAR_SPACE} />
       ) : searching ? (

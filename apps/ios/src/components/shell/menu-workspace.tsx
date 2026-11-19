@@ -1,5 +1,6 @@
 import type { Workspace } from "@omni/client";
 import { router } from "expo-router";
+import { StyleSheet, View } from "react-native";
 import {
   IconConnections,
   IconLogOut,
@@ -15,7 +16,7 @@ import { usePictureSource } from "@/lib/picture.ts";
 import { signOut, useSession } from "@/lib/session.ts";
 import { openOnWeb, useWorkspaceMenu } from "@/lib/workspace-menu.ts";
 import { openWorkspace, useWorkspace, workspaceLabel } from "@/lib/workspace.ts";
-import { space } from "@/theme/tokens.ts";
+import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
 import { ChoiceRow } from "./mailbox-chooser.tsx";
 import { useMenuPlace } from "./menu-nav.ts";
 import { MenuRow, SheetDivider } from "./menu-row.tsx";
@@ -72,9 +73,12 @@ export function WorkspaceButton() {
         ))}
         {menu.canCreate ? (
           <MenuRow
+            lead={
+              <View style={styles.newLead}>
+                <IconPlus size={iconSize.field} color={colors.mutedForeground} />
+              </View>
+            }
             leadWidth={SHEET_LEAD}
-            icon={IconPlus}
-            muted
             label="New workspace"
             onPress={() => pick(() => openOnWeb("onboarding"))}
           />
@@ -101,6 +105,7 @@ export function WorkspaceButton() {
           label="Connections"
           onPress={() => settings("accounts")}
         />
+        {menu.team || menu.upgrade ? <SheetDivider /> : null}
         {menu.team ? (
           <MenuRow
             leadWidth={SHEET_LEAD}
@@ -110,7 +115,6 @@ export function WorkspaceButton() {
             onPress={() => settings("people")}
           />
         ) : null}
-        <SheetDivider />
         {menu.upgrade ? (
           <MenuRow
             icon={IconUpgrade}
@@ -120,6 +124,7 @@ export function WorkspaceButton() {
             onPress={() => settings("billing")}
           />
         ) : null}
+        <SheetDivider />
         <MenuRow
           leadWidth={SHEET_LEAD}
           icon={IconLogOut}
@@ -146,6 +151,21 @@ function WorkspaceChoice(props: {
       detail={props.workspace.kind === "personal" ? "Personal" : "Company"}
       chosen={props.chosen}
       onPress={props.onPress}
+      style={styles.choice}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  choice: { minHeight: space(15), paddingVertical: 0 },
+  newLead: {
+    width: SHEET_LEAD,
+    height: SHEET_LEAD,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.hairlineLine,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

@@ -12,6 +12,7 @@ export interface MailboxFace {
 /**
  * A mailbox's own avatar, as the web's: a personal inbox shows its account's picture, your
  * profile picture on your sign-in address, else its address's logo; a shared one its initial.
+ * Whatever it shows fills the avatar: only a sender's mark is inset on a tile.
  */
 export function MailboxAvatar({
   mailbox,
@@ -31,6 +32,7 @@ export function MailboxAvatar({
     <Avatar
       name={name}
       size={size}
+      fill
       photo={photo}
       logo={personal && !own ? { address: mailbox.address } : null}
     />
