@@ -201,6 +201,41 @@ test("a domain belongs to the workspace that claimed it, and only its owners and
   expect(offDomain.status).toBe(400);
 });
 
+test("a mailbox login can't point at the mail service's own network, and a refusal reveals nothing about it", async () => {
+  const a = await workspaceWithDomain();
+  const smtp = { host: greenmail.host, port: greenmail.smtpPort };
+  const attempt = (imap: { host: string; port: number }, smtpServer = smtp) =>
+    api(a.jar, "POST", "/onboarding/mailboxes", {
+      domainId: a.domainId,
+      localPart: "probe",
+      login: { password: "x", imap, smtp: smtpServer },
+    });
+  const refused = (host: string) => ({
+    status: 422,
+    body: { error: `${host} isn't a public mail server Omni can connect to` },
+  });
+
+  for (const host of ["127.0.0.1", "::1", "169.254.169.254", "10.0.0.1", "::ffff:127.0.0.1"]) {
+    expect(await attempt({ host, port: 54329 })).toMatchObject(refused(host));
+  }
+  expect(
+    await attempt(
+      { host: greenmail.host, port: greenmail.imapPort },
+      { host: "fdaa::3", port: 25 },
+    ),
+  ).toMatchObject(refused("fdaa::3"));
+
+  expect(await attempt({ host: greenmail.host, port: 1 })).toMatchObject({
+    status: 422,
+    body: { error: `Couldn't reach an IMAP server at ${greenmail.host}:1` },
+  });
+  const saved = await stack.database.db
+    .select({ id: schema.mailboxes.id })
+    .from(schema.mailboxes)
+    .where(eq(schema.mailboxes.address, `probe@${a.domain}`));
+  expect(saved).toEqual([]);
+});
+
 test("a brand-new sign-up with no invitation creates its own workspace through onboarding", async () => {
   const email = `founder-${randomUUID().slice(0, 8)}@solo.test`;
   const jar = new CookieJar();

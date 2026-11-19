@@ -4,6 +4,7 @@ import { createTransport } from "nodemailer";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import { composeForwardCopy, type Forwarding } from "./forward-copy.ts";
 import type { Logger } from "./log.ts";
+import { smtpTls } from "./mail-hosts.ts";
 import {
   type ImapSession,
   loginFor,
@@ -378,7 +379,7 @@ async function smtpSend(mailbox: MailboxConfig, recipients: string[], raw: Buffe
   const transport = createTransport({
     host: mailbox.smtp.host,
     port: mailbox.smtp.port,
-    secure: mailbox.smtp.secure,
+    ...smtpTls(mailbox.smtp),
     auth: "accessToken" in login ? { type: "OAuth2", ...login } : login,
     connectionTimeout: 30_000,
     greetingTimeout: 30_000,

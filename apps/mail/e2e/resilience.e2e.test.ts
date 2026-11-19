@@ -8,7 +8,7 @@ import { schema, setMailboxStatus } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { sealCredentials } from "../src/credentials.ts";
-import { MailboxConnection } from "../src/mailbox-connection.ts";
+import { type MailboxConfig, MailboxConnection } from "../src/mailbox-connection.ts";
 import { deterministicMessageId, OutboxExecutor } from "../src/outbox.ts";
 import { PgActionSource, PgMailStore } from "../src/pg-store.ts";
 import {
@@ -66,7 +66,10 @@ async function seedBehindLink() {
   const seeded = await seedMailbox(db);
   const link = await faultyLink(greenmail);
   relays.push(link);
-  const box = { ...seeded.box, imap: { host: "127.0.0.1", port: link.port, secure: false } };
+  const box: MailboxConfig = {
+    ...seeded.box,
+    imap: { host: "127.0.0.1", port: link.port, secure: false, allowPlaintext: true },
+  };
   return { ...seeded, box, link };
 }
 

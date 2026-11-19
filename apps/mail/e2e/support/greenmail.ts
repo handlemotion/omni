@@ -23,8 +23,8 @@ export const mailbox: (kind?: MailboxConfig["kind"]) => MailboxConfig = (kind = 
     kind,
     user: address,
     auth: { kind: "password", pass: GREENMAIL_PASSWORD },
-    imap: { host, port: imapPort, secure: false },
-    smtp: { host, port: smtpPort, secure: false },
+    imap: { host, port: imapPort, secure: false, allowPlaintext: true },
+    smtp: { host, port: smtpPort, secure: false, allowPlaintext: true },
   };
 };
 

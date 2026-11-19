@@ -87,6 +87,7 @@ export async function startOnboardingStack(options: { outboxIntervalMs?: number 
       DNS_RESOLVERS: [dns.address],
       DNS_NAMESERVER_PORT: dns.port,
       DNS_TIMEOUT_MS: 1_000,
+      MAIL_ALLOW_PRIVATE_HOSTS: [greenmail.host],
     },
     createLogger(process.env.E2E_LOG_LEVEL === "debug" ? "debug" : "error"),
   );

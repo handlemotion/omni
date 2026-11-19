@@ -10,7 +10,10 @@ import { planMailboxProvision } from "@omni/mail-core/mailbox-provisioning";
 import { type PasswordCredentials, openCredentials, sealCredentials } from "./credentials.ts";
 import { type MailHost, MailHostError } from "./hosting/mail-host.ts";
 import type { Logger } from "./log.ts";
+import { checkMailHost, type MailHostPolicy, withPlaintextPolicy } from "./mail-hosts.ts";
 import { verifyImapLogin } from "./verify-login.ts";
+
+const notPublic = (host: string) => `${host} isn't a public mail server Omni can connect to`;
 
 /** A refusal the Worker passes on to the member, with the status to use. */
 export class ProvisionError extends Error {
@@ -35,6 +38,8 @@ export function createProvisioner(deps: {
   host?: MailHost;
   /** Connect the mailbox with its stored credentials, replacing a connection it already has. */
   connect(mailboxId: string): Promise<void>;
+  /** Which hosts a member's own IMAP/SMTP login may use: see `MailHostPolicy`. */
+  hosts: MailHostPolicy;
   logger: Logger;
 }) {
   const { db, keyring, logger } = deps;
@@ -86,7 +91,7 @@ export function createProvisioner(deps: {
       if (existing && plan.sameLoginCheck && (await sameLogin(existing, credentials))) {
         return { mailboxId: existing.id, address, created: false };
       }
-      const refused = await verifyImapLogin(credentials);
+      const refused = await verifyMemberLogin(credentials);
       if (refused) throw new ProvisionError(422, refused);
     }
     const mailboxId = plan.mailboxId ?? randomUUIDv7();
@@ -106,6 +111,19 @@ export function createProvisioner(deps: {
       .catch((error: unknown) => logger.error("mailbox.connect_failed", { mailboxId, error }));
     return { mailboxId, address, created: true };
   };
+
+  async function verifyMemberLogin(credentials: PasswordCredentials) {
+    const [imap, smtp] = await Promise.all([
+      checkMailHost(credentials.imap.host, deps.hosts),
+      checkMailHost(credentials.smtp.host, deps.hosts),
+    ]);
+    if (!imap.ok) return notPublic(credentials.imap.host);
+    if (!smtp.ok) return notPublic(credentials.smtp.host);
+    return verifyImapLogin(
+      { ...credentials, imap: withPlaintextPolicy(credentials.imap, deps.hosts) },
+      imap.addresses,
+    );
+  }
 
   async function sameLogin(
     existing: { id: string; credentialsEnc: string },

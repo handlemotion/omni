@@ -1,5 +1,6 @@
 import { type Keyring, parseKeyring } from "@omni/crypto";
 import { z } from "zod";
+import { hostList } from "./mail-hosts.ts";
 
 const keyring = z.string().transform((value, ctx) => {
   try {
@@ -9,6 +10,11 @@ const keyring = z.string().transform((value, ctx) => {
     return z.NEVER satisfies Keyring;
   }
 });
+
+const hosts = z
+  .string()
+  .optional()
+  .transform((value) => [...hostList(value)]);
 
 const schema = z.object({
   PORT: z.coerce.number().int().positive().default(8788),
@@ -61,6 +67,8 @@ const schema = z.object({
         .map((s) => s.trim())
         .filter(Boolean),
     ),
+  MAIL_ALLOW_PLAINTEXT_HOSTS: hosts,
+  MAIL_ALLOW_PRIVATE_HOSTS: hosts,
   DNS_NAMESERVER_PORT: z.coerce.number().int().positive().max(65_535).default(53),
   DNS_TIMEOUT_MS: z.coerce.number().int().positive().default(2_000),
 });

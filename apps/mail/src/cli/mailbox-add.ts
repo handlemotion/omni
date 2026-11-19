@@ -6,6 +6,7 @@ import { parseKeyring, signRequest } from "@omni/crypto";
 import { createDb, findMailboxByAddress, findMemberByEmail, saveMailbox } from "@omni/db";
 import { z } from "zod";
 import { type PasswordCredentials, sealCredentials } from "../credentials.ts";
+import { hostList, withPlaintextPolicy } from "../mail-hosts.ts";
 import type { ServerEndpoint } from "../mailbox-connection.ts";
 import { createPurelymailClient, PURELYMAIL_SERVERS } from "../providers/purelymail.ts";
 import { verifyImapLogin } from "../verify-login.ts";
@@ -16,7 +17,9 @@ const USAGE = `Usage: mailbox:add --org <org id> --address <email> --owner <memb
   --provider purelymail|imap    default purelymail
   --user <login>                IMAP/SMTP login; default the address
   --imap host:port[:starttls]   required for --provider imap; without :starttls the port
-  --smtp host:port[:starttls]   speaks implicit TLS (993/465). :plain is the same as :starttls
+  --smtp host:port[:starttls]   speaks implicit TLS (993/465). :plain is the same as :starttls:
+                                STARTTLS is required unless the host is loopback or listed in
+                                MAIL_ALLOW_PLAINTEXT_HOSTS
   --create-app-password         purelymail only: create one with PURELYMAIL_API_TOKEN
   --no-verify                   skip the IMAP login check
 Without --create-app-password the app password is read from stdin.`;
@@ -27,6 +30,7 @@ const env = z.object({
   PURELYMAIL_API_TOKEN: z.string().min(1).optional(),
   MAIL_SERVICE_URL: z.url().optional(),
   MAIL_SERVICE_HMAC_SECRET: z.string().min(32).optional(),
+  MAIL_ALLOW_PLAINTEXT_HOSTS: z.string().optional(),
 });
 
 function fail(message: string): never {
@@ -58,7 +62,11 @@ async function readStdin() {
 }
 
 async function verifyLogin(credentials: PasswordCredentials) {
-  const refused = await verifyImapLogin(credentials);
+  const plaintextHosts = hostList(config.data?.MAIL_ALLOW_PLAINTEXT_HOSTS);
+  const refused = await verifyImapLogin({
+    ...credentials,
+    imap: withPlaintextPolicy(credentials.imap, { plaintextHosts }),
+  });
   if (refused) fail(refused);
 }
 

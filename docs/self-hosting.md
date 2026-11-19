@@ -91,6 +91,13 @@ UID-list diffs and polling. On every connect it logs the server's capabilities
 | `DNS_RESOLVERS`              | no       | system resolvers   | `ip` or `ip:port` list used to find a domain's nameservers.                          |
 | `DNS_NAMESERVER_PORT`        | no       | `53`               | Port nameservers are asked on. Change only for a test server.                        |
 | `DNS_TIMEOUT_MS`             | no       | `2000`             | Per-query DNS timeout.                                                               |
+| `MAIL_ALLOW_PLAINTEXT_HOSTS` | no       |                    | Hosts that may skip STARTTLS on 143/587. Loopback always may. Others must upgrade.   |
+| `MAIL_ALLOW_PRIVATE_HOSTS`   | no       |                    | Hosts a member's IMAP/SMTP login may use although they resolve to a private address. |
+
+A member's own IMAP/SMTP login must name a host on a public address, and a connection on a
+non-TLS port (143, 587) must upgrade with STARTTLS. If your mail host is on a private network
+(a LAN, a Docker network), list it in `MAIL_ALLOW_PRIVATE_HOSTS`, and in
+`MAIL_ALLOW_PLAINTEXT_HOSTS` too if it offers no STARTTLS.
 
 Generate the secrets with `openssl rand -hex 32` and `echo "k1:$(openssl rand -base64 32)"`.
 Keep `MAIL_CREDENTIALS_KEY` only on the mail service. To rotate it, put the new key first

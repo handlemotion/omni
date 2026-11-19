@@ -1,7 +1,7 @@
 import { forMember, schema } from "@omni/db";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { MailboxConnection } from "../src/mailbox-connection.ts";
+import { type MailboxConfig, MailboxConnection } from "../src/mailbox-connection.ts";
 import { deterministicMessageId, OutboxExecutor } from "../src/outbox.ts";
 import { PgActionSource, PgMailStore, PgSendFiles } from "../src/pg-store.ts";
 import {
@@ -22,9 +22,12 @@ let db: TestDb;
 let objects: Awaited<ReturnType<typeof createTestBucket>>["objects"];
 let connections: MailboxConnection[] = [];
 
-async function setup(kind: "personal" | "shared" = "personal") {
+async function setup(
+  kind: "personal" | "shared" = "personal",
+  edit: (box: MailboxConfig) => MailboxConfig = (box) => box,
+) {
   const seeded = await seedMailbox(db, { kind });
-  const { box } = seeded;
+  const box = edit(seeded.box);
   const store = new PgMailStore({ db, objects, links });
   const actions = new PgActionSource({ db });
   const connection = new MailboxConnection(box, { store, logger });
@@ -149,6 +152,32 @@ describe("OutboxExecutor against GreenMail", () => {
     await waitFor(async () => (await messageRows(db, box.id)).length === 2);
     expect(await inbox()).toEqual([sent!.threadId]);
     expect(await counts()).toMatchObject({ inbox: 1 });
+  });
+
+  it("won't send in cleartext to an SMTP server that doesn't offer STARTTLS", async () => {
+    const { seeded, box, connection, executor } = await setup("personal", (b) => ({
+      ...b,
+      smtp: { ...b.smtp, allowPlaintext: false },
+    }));
+    const recipient = mailbox();
+    await connection.start();
+    const row = await enqueue(db, seeded, {
+      kind: "send",
+      idempotencyKey: `idem-send-cleartext-${box.id}`,
+      payload: { from: box.address, to: [recipient.address], subject: "secret", text: "hi" },
+    });
+    await executor.drain();
+
+    expect(await actionRow(db, row.id)).toMatchObject({
+      status: "pending",
+      smtpAcceptedAt: null,
+      lastError: expect.stringMatching(/STARTTLS/),
+    });
+    const delivered = await otherClient(recipient, async (client) => {
+      const status = await client.status("INBOX", { messages: true });
+      return status ? status.messages : -1;
+    });
+    expect(delivered).toBe(0);
   });
 
   it("finishes the Sent append without resending when SMTP already accepted", async () => {

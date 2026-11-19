@@ -3,6 +3,7 @@ import { Data, Deferred, Duration, Effect, Fiber, Schedule, Semaphore } from "ef
 import { type FetchMessageObject, ImapFlow, type ListResponse, type MailboxObject } from "imapflow";
 import { type FolderSyncPlan, planFolderSync } from "@omni/mail-core/folder-sync";
 import type { Logger } from "./log.ts";
+import { imapTls } from "./mail-hosts.ts";
 import type {
   FetchedMessage,
   FlagChange,
@@ -19,8 +20,13 @@ const FILED_ROLES = new Set<FolderRole>(["archive", "trash", "junk"]);
 export interface ServerEndpoint {
   host: string;
   port: number;
-  /** Implicit TLS (993 / 465). False means plain, upgraded with STARTTLS when offered. */
+  /** Implicit TLS (993 / 465). False means plain, and the connection must upgrade with STARTTLS. */
   secure: boolean;
+  /**
+   * A `secure: false` endpoint may stay cleartext when STARTTLS isn't offered. Never stored: the
+   * service decides it on load from `MAIL_ALLOW_PLAINTEXT_HOSTS` (see `withPlaintextPolicy`).
+   */
+  allowPlaintext?: boolean;
 }
 
 /** Mints OAuth2 access tokens for one mailbox (XOAUTH2). */
@@ -465,7 +471,7 @@ export class MailboxConnection extends EventEmitter<Events> {
     const client = new ImapFlow({
       host: imap.host,
       port: imap.port,
-      secure: imap.secure,
+      ...imapTls(imap),
       auth,
       logger: false,
       clientInfo: { name: "omni" },

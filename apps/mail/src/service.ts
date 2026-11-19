@@ -26,6 +26,7 @@ import { disconnectHostedMailbox, disconnectMailbox } from "./hosting/disconnect
 import { createPurelymailHost } from "./hosting/purelymail-host.ts";
 import { createLoginRotation } from "./hosting/rotate-login.ts";
 import { createPurelymailClient } from "./providers/purelymail.ts";
+import { type MailHostPolicy, withPlaintextPolicy } from "./mail-hosts.ts";
 import { createProvisioner } from "./provisioning.ts";
 import { Supervisor } from "./supervisor.ts";
 import { rehomeMailboxes } from "./rehome.ts";
@@ -62,6 +63,8 @@ export type ServiceConfig = Pick<
       | "NOTIFY_SWEEP_MS"
       | "GOOGLE_CLIENT_ID"
       | "GOOGLE_CLIENT_SECRET"
+      | "MAIL_ALLOW_PLAINTEXT_HOSTS"
+      | "MAIL_ALLOW_PRIVATE_HOSTS"
     >
   >;
 
@@ -74,6 +77,10 @@ export interface MailService {
 }
 
 export async function startService(config: ServiceConfig, log: Logger) {
+  const hosts: MailHostPolicy = {
+    plaintextHosts: new Set(config.MAIL_ALLOW_PLAINTEXT_HOSTS),
+    privateHosts: new Set(config.MAIL_ALLOW_PRIVATE_HOSTS),
+  };
   const { db, close } = createDb(config.DATABASE_URL, { max: 5 });
   const google =
     config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
@@ -236,8 +243,8 @@ export async function startService(config: ServiceConfig, log: Logger) {
           : {}),
         user: credentials.user,
         auth,
-        imap: credentials.imap,
-        smtp: credentials.smtp,
+        imap: withPlaintextPolicy(credentials.imap, hosts),
+        smtp: withPlaintextPolicy(credentials.smtp, hosts),
       });
       const setStatus = (status: "active" | "error") =>
         setMailboxStatus(db, row.id, status).catch((error: unknown) =>
@@ -300,6 +307,7 @@ export async function startService(config: ServiceConfig, log: Logger) {
     keyring: config.MAIL_CREDENTIALS_KEY,
     ...(host ? { host } : {}),
     connect: reconnect,
+    hosts,
     logger: log,
   });
 
