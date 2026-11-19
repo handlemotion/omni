@@ -188,13 +188,17 @@ describe("mail service under faults", () => {
 
   it("stores the rest of a folder when one message cannot be stored, and comes up ready", async () => {
     const { box } = await seedMailbox(db);
+    const wordsPastTheTsvectorLimit = Array.from(
+      { length: 300_000 },
+      (_, i) => `w${i.toString(36)}x`,
+    ).join(" ");
     const poison = [
       "From: hostile@outside.test",
       `To: ${box.address}`,
       "Subject: poison",
-      `Message-ID: <${randomBytes(4_000).toString("hex")}@outside.test>`,
+      "Content-Type: text/plain; charset=us-ascii",
       "",
-      "body",
+      ...(wordsPastTheTsvectorLimit.match(/.{1,900}(?: |$)/g) ?? []),
       "",
     ].join("\r\n");
     await deliver(box.address, "older");

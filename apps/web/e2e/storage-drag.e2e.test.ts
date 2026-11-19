@@ -89,7 +89,10 @@ test("files and folders move by dragging them onto folders on the page and in th
   await drag(page, page.getByRole("row", { name: /forest\.png/ }), sidebar("Projects"));
   await expect.poll(() => names(page, { parent: projects })).toEqual(["Drafts", "forest.png"]);
 
-  await page.getByRole("button", { name: "Expand Projects" }).click();
+  const projectsToggle = page.getByRole("button", { name: /^(Expand|Collapse) Projects$/ });
+  if ((await projectsToggle.getAttribute("aria-expanded")) === "false")
+    await projectsToggle.click();
+  await sidebar("Drafts").waitFor();
   await drag(page, page.getByRole("row", { name: /Projects/ }).first(), sidebar("Drafts"));
   expect(await names(page, { parent: drafts })).toEqual([]);
 
@@ -99,6 +102,7 @@ test("files and folders move by dragging them onto folders on the page and in th
     .toEqual(["Drafts", "Photos", "forest.png"]);
   expect(await names(page, { space: "personal" })).toEqual(["Projects"]);
   expect(await names(page, { parent: photos })).toEqual(["dropped.txt", "sunset.png"]);
+  await page.getByRole("row", { name: /Photos/ }).waitFor({ state: "detached" });
 
   await drag(page, sidebar("Photos"), sidebar("Projects"), "bottom");
   await expect.poll(() => names(page, { space: "personal" })).toEqual(["Photos", "Projects"]);

@@ -74,6 +74,22 @@ export async function retryNow() {
   if (await workerAnswers()) reportAnswer();
 }
 
+let asking: Promise<boolean> | undefined;
+
+/**
+ * Asks the API whether it answers, now, and reports what it found. Callers at the same time share
+ * one request: a dropped connection fails every chunk being fetched at once.
+ */
+export function askApi() {
+  asking ??= workerAnswers().then((answers) => {
+    asking = undefined;
+    if (answers) reportAnswer();
+    else reportNoAnswer();
+    return answers;
+  });
+  return asking;
+}
+
 async function probe() {
   if (probing) return;
   probing = true;

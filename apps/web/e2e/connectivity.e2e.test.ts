@@ -305,7 +305,12 @@ test("a conversation opened offline says so instead of loading forever, then loa
     text: "Only loads once back online.",
   });
 
-  const { page, tab } = await openApp("ana@offline-open.test", "/inbox");
+  const { page, tab } = await openApp("ana@offline-open.test", "/settings");
+  const threadScreenCode = page.waitForResponse((r) =>
+    r.url().includes("/assets/inbox._threadId-"),
+  );
+  await page.goto(new URL("/inbox", origin).toString());
+  await (await threadScreenCode).finished();
   const row = page.getByText("Never opened").first();
   await row.waitFor();
   await tab.setOffline(true);

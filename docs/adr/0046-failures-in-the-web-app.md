@@ -59,12 +59,15 @@ effect with the layers above.
 ## Decision 3: a stale build reloads once
 
 `main.tsx` listens for Vite's `vite:preloadError`, which Vite 8 dispatches when a lazy chunk or
-its preloads fail, and calls `reloadForUpdate()`. That reloads unless it already reloaded within
+its preloads fail, asks the API whether it answers (`askApi()`), and only if it does calls
+`reloadForUpdate()`. A chunk that failed with no answer is a dropped connection, not a deploy: it
+reports the app offline instead. `reloadForUpdate()` reloads unless it already reloaded within
 60 seconds (a timestamp in `sessionStorage`), or the app is offline (a reload would land on the
-browser's own error page). Only when it reloads does it `preventDefault()`; otherwise the error
-goes on to the route's boundary, which shows it. One stale window costs one reload; a chunk that
-is truly missing costs at most two (TanStack's `lazyRouteComponent` reloads once of its own per
-missing module and session) and then shows the error page, never a loop.
+browser's own error page). The error itself goes on to whoever imported the chunk: the route's
+boundary shows it, and a background preload ignores it. One stale window costs one reload; a chunk
+that is truly missing costs at most two (TanStack's `lazyRouteComponent` reloads once of its own
+per missing module and session, without asking the API) and then shows the error page, never a
+loop.
 
 While a reload is under way nothing is reported: what fails as the page goes away is noise.
 

@@ -282,6 +282,8 @@ export function useDraft(
           : old,
       );
       void client.invalidateQueries({ queryKey: keys.draftLists(), refetchType: "none" });
+      // WARNING: a list read sent before this save lands the older copy as fresh; read it again.
+      void client.refetchQueries({ queryKey: keys.draftLists(), fetchStatus: "fetching" });
     },
     [client],
   );

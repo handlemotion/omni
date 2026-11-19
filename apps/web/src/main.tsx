@@ -3,6 +3,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { appToast } from "./components/ui/toast.tsx";
+import { askApi } from "./lib/connectivity.ts";
 import { routeOutsideLinks, routeTitleBarDrags } from "./lib/desktop.ts";
 import { reloadForUpdate } from "./lib/failure.ts";
 import { createQueryClient } from "./lib/query-client.ts";
@@ -16,8 +17,8 @@ initErrorReporting();
 routeOutsideLinks();
 routeTitleBarDrags();
 
-window.addEventListener("vite:preloadError", (event) => {
-  if (reloadForUpdate()) event.preventDefault();
+window.addEventListener("vite:preloadError", () => {
+  void askApi().then((answers) => answers && reloadForUpdate());
 });
 
 let resetting = false;
