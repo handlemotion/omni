@@ -5,15 +5,14 @@ import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
 import { Text } from "./text.tsx";
 
 const INK = {
-  primary: colors.primary,
   foreground: colors.foreground,
   muted: colors.mutedForeground,
 } as const;
 
 /**
  * The web's ghost button (`intent="ghost" size="sm"`), scaled to the phone: no fill at rest, a
- * glyph (or `lead`, an avatar) and its label; the accent fill while pressed. `primary` ink is the
- * one property that matters most (a conversation's lane), `muted` one not set yet.
+ * glyph (or `lead`, an avatar) and its label; the accent fill while pressed. `muted` ink is a
+ * property not set yet.
  * Without `onPress` it only shows the value.
  */
 export function GhostButton({
@@ -43,10 +42,7 @@ export function GhostButton({
       <View style={styles.label}>
         <Text
           size="subhead"
-          weight={tone === "primary" ? "medium" : "regular"}
-          tone={
-            tone === "primary" ? "primary" : tone === "muted" ? "mutedForeground" : "foreground"
-          }
+          tone={tone === "muted" ? "mutedForeground" : "foreground"}
           numberOfLines={1}
         >
           {label}

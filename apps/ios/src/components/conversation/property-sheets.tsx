@@ -6,7 +6,7 @@ import {
   IconCircle,
   IconCircleCheck,
   IconCircleDashed,
-  IconClockSnooze,
+  IconClock,
   IconSignalHigh,
   IconSignalLow,
   IconSignalMedium,
@@ -32,10 +32,11 @@ type Glyph = ComponentType<SvgProps & { size?: number }>;
 
 export type Sheet = "status" | "assignee" | "priority" | "tags";
 
+/** A conversation snoozed before Snooze was retired still reads as such until it wakes. */
 export const STATUS: Record<ConversationStatus, { label: string; icon: Glyph }> = {
   open: { label: "Open", icon: IconCircle },
   pending: { label: "Pending", icon: IconCircleDashed },
-  snoozed: { label: "Snoozed", icon: IconClockSnooze },
+  snoozed: { label: "Snoozed", icon: IconClock },
   resolved: { label: "Resolved", icon: IconCircleCheck },
 };
 
@@ -47,19 +48,6 @@ export const PRIORITY: Record<Priority, { label: string; icon: Glyph }> = {
 };
 const PRIORITIES = Object.keys(PRIORITY) as Priority[];
 
-function morning(days: number) {
-  const at = new Date();
-  at.setDate(at.getDate() + days);
-  at.setHours(8, 0, 0, 0);
-  return at;
-}
-const untilMonday = () => (8 - new Date().getDay()) % 7 || 7;
-
-const SNOOZES = [
-  { label: "Snooze until tomorrow", until: () => morning(1) },
-  { label: "Snooze until Monday", until: () => morning(untilMonday()) },
-];
-
 const TITLES: Record<Sheet, string> = {
   status: "Status",
   assignee: "Assignee",
@@ -70,8 +58,8 @@ const TITLES: Record<Sheet, string> = {
 const check = <IconCheck size={iconSize.md} color={colors.foreground} />;
 
 /**
- * The sheet a property opens, with the web menu's choices: status (reopen, resolve, snooze),
- * who it's assigned to, its priority, or its tags (each tap adds or removes one; the sheet stays).
+ * The sheet a property opens, with the web menu's choices: its status (reopen or resolve), who
+ * it's assigned to, its priority, or its tags (each tap adds or removes one; the sheet stays).
  */
 export function PropertySheet(props: {
   sheet: Sheet | null;
@@ -108,15 +96,6 @@ export function PropertySheet(props: {
               onPress={then(() => change({ type: "resolve" }))}
             />
           )}
-          {SNOOZES.map(({ label, until }) => (
-            <MenuRow
-              key={label}
-              icon={IconClockSnooze}
-              muted
-              label={label}
-              onPress={then(() => change({ type: "snooze", until: until().toISOString() }))}
-            />
-          ))}
         </>
       ) : null}
       {sheet === "assignee" ? (

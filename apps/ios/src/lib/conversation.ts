@@ -1,4 +1,4 @@
-import type { Api, Thread } from "@omni/client";
+import type { Api } from "@omni/client";
 import {
   queryOptions,
   useMutation,
@@ -27,7 +27,6 @@ export type Assignee = InferResponseType<
 export type ConversationChange =
   | { type: "resolve" }
   | { type: "reopen" }
-  | { type: "snooze"; until: string }
   | { type: "assign"; memberId: string | null }
   | { type: "priority"; priority: Priority }
   | { type: "tag"; tag: Tag; add: boolean };
@@ -82,8 +81,6 @@ function request(
       return call(thread.resolve.$post({ param, header }, options));
     case "reopen":
       return call(thread.reopen.$post({ param, header }, options));
-    case "snooze":
-      return call(thread.snooze.$post({ param, header, json: { until: change.until } }, options));
     case "assign":
       return call(
         thread.assignee.$put({ param, header, json: { memberId: change.memberId } }, options),
@@ -110,8 +107,6 @@ function applied(before: Conversation, change: ConversationChange) {
       return { ...before, status: "resolved", snoozedUntil: null } satisfies Conversation;
     case "reopen":
       return { ...before, status: "open", snoozedUntil: null } satisfies Conversation;
-    case "snooze":
-      return { ...before, status: "snoozed", snoozedUntil: change.until } satisfies Conversation;
     case "assign":
       return { ...before, assigneeMemberId: change.memberId } satisfies Conversation;
     case "priority":
@@ -160,51 +155,4 @@ export function useConversationChange(threadId: string) {
   });
   return (change: ConversationChange) =>
     mutation.mutate({ change, key: idempotencyKey(), workspace: currentWorkspaceId() });
-}
-
-/** A lane a member can file a thread in: `threads.triage`. */
-export type Lane = NonNullable<Thread["triage"]>;
-
-/**
- * `mutate(lane)`: files the thread in `lane`, on a personal or a shared mailbox, as the member's
- * own choice. It shows at once and the lists regroup when it lands; a failure puts it back and
- * says why, unless the workspace changed since. Queues behind the thread's other changes.
- */
-export function useLaneChange(threadId: string) {
-  const client = useQueryClient();
-  const mutation = useMutation({
-    mutationFn: (vars: { lane: Lane; key: string; workspace: string | null }) =>
-      call(
-        api.threads[":id"].lane.$put(
-          {
-            param: { id: threadId },
-            header: { "idempotency-key": vars.key },
-            json: { lane: vars.lane },
-          },
-          inWorkspace(vars.workspace),
-        ),
-      ),
-    scope: { id: `conversation:${threadId}` },
-    retry: (count, error) => !isAuthError(error) && count < 2,
-    onMutate: async ({ lane }) => {
-      const key: QueryKey = keys.thread(threadId);
-      await client.cancelQueries({ queryKey: key, exact: true });
-      const before = client.getQueryData<Thread>(key);
-      if (before) client.setQueryData<Thread>(key, { ...before, triage: lane });
-      return { before };
-    },
-    onError: (error, vars, context) => {
-      if (vars.workspace === currentWorkspaceId()) {
-        client.setQueryData(keys.thread(threadId), context?.before);
-      }
-      alertFailure(error);
-    },
-    onSettled: () => {
-      void client.invalidateQueries({ queryKey: keys.thread(threadId), exact: true });
-      void client.invalidateQueries({ queryKey: keys.threadLists() });
-      void client.invalidateQueries({ queryKey: keys.counts() });
-    },
-  });
-  return (lane: Lane) =>
-    mutation.mutate({ lane, key: idempotencyKey(), workspace: currentWorkspaceId() });
 }

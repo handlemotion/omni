@@ -9,20 +9,17 @@ import { useAssignees, useConversation, type Conversation } from "@/lib/conversa
 import { mailboxName, useMailboxes } from "@/lib/mail.ts";
 import { useSession } from "@/lib/session.ts";
 import { colors, iconSize, space } from "@/theme/tokens.ts";
-import { LANES, LaneSheet } from "./lane-sheet.tsx";
 import { Face, PRIORITY, PropertySheet, STATUS, type Sheet } from "./property-sheets.tsx";
 
 /**
- * The conversation's properties under the top bar, as the desktop's properties row: its lane in
- * the brand's ink, the mailbox it came to (a tap opens that mailbox's inbox), and its tags; a shared inbox adds status, assignee
- * and priority. Each opens a sheet that changes it, as the web's menus do. Scrolls sideways
- * when it overflows.
+ * The conversation's properties under the top bar, as the desktop's properties row: the mailbox
+ * it came to (a tap opens that mailbox's inbox); a shared inbox adds status, assignee, priority and tags,
+ * which only helpdesk mail has. Each opens a sheet that changes it, as the web's menus do.
+ * Scrolls sideways when it overflows.
  */
 export function PropertiesRail({ thread }: { thread: Thread }) {
   const conversation = useConversation(thread.id, thread.mailboxKind === "shared").data;
-  const [sheet, setSheet] = useState<Sheet | "lane" | null>(null);
-  const lane = thread.triage ? LANES[thread.triage] : undefined;
-  const tags = conversation?.tags.map((t) => t.name).join(", ");
+  const [sheet, setSheet] = useState<Sheet | null>(null);
   return (
     <View style={styles.rail}>
       <ScrollView
@@ -32,36 +29,14 @@ export function PropertiesRail({ thread }: { thread: Thread }) {
         accessibilityLabel="Properties"
         contentContainerStyle={styles.row}
       >
-        {lane ? (
-          <GhostButton
-            icon={lane.icon}
-            label={lane.label}
-            tone="primary"
-            accessibilityLabel={`Lane: ${lane.label}`}
-            onPress={() => setSheet("lane")}
-          />
-        ) : null}
         <MailboxButton thread={thread} />
         {conversation ? (
           <SharedButtons thread={thread} conversation={conversation} onOpen={setSheet} />
         ) : null}
-        <GhostButton
-          icon={IconTag}
-          label={tags || "Tags"}
-          tone={tags ? "foreground" : "muted"}
-          accessibilityLabel={tags ? `Tags: ${tags}` : "Tags"}
-          onPress={conversation ? () => setSheet("tags") : undefined}
-        />
       </ScrollView>
-      <LaneSheet
-        isOpen={sheet === "lane"}
-        onClose={() => setSheet(null)}
-        threadId={thread.id}
-        lane={thread.triage}
-      />
       {conversation ? (
         <PropertySheet
-          sheet={sheet === "lane" ? null : sheet}
+          sheet={sheet}
           onClose={() => setSheet(null)}
           thread={thread}
           conversation={conversation}
@@ -103,6 +78,7 @@ function SharedButtons(props: {
   const priority = PRIORITY[conversation.priority];
   const assignee = assignees.find((a) => a.memberId === conversation.assigneeMemberId);
   const who = assignee?.name ?? "Unassigned";
+  const tags = conversation.tags.map((t) => t.name).join(", ");
   return (
     <>
       <GhostButton
@@ -123,6 +99,13 @@ function SharedButtons(props: {
         label={priority.label}
         accessibilityLabel={`Priority: ${priority.label}`}
         onPress={() => onOpen("priority")}
+      />
+      <GhostButton
+        icon={IconTag}
+        label={tags || "Tags"}
+        tone={tags ? "foreground" : "muted"}
+        accessibilityLabel={tags ? `Tags: ${tags}` : "Tags"}
+        onPress={() => onOpen("tags")}
       />
     </>
   );

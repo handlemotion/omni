@@ -176,24 +176,16 @@ export const useUndone = () =>
     leaves: () => "undone",
   });
 
-/**
- * `mutate({ threadId, later: true })` moves it into Later until you bring it back; with `until`,
- * until then (a snooze). `later: false` puts it back in the Inbox, snoozed or not.
- */
+/** `mutate({ threadId, later: true })` moves it into Later; `false` puts it back in the Inbox. */
 export const useLater = () =>
-  useThreadMutation<{ threadId: string; later: boolean; until?: Date }>({
-    request: ({ threadId, later, until }, key, options) => {
+  useThreadMutation<{ threadId: string; later: boolean }>({
+    request: ({ threadId, later }, key, options) => {
       const request = { ...thread(threadId), header: header(key) };
-      if (!later) return call(api.threads[":id"].later.$delete(request, options));
-      if (until) {
-        return call(
-          api.threads[":id"].defer.$post(
-            { ...request, json: { until: until.toISOString() } },
-            options,
-          ),
-        );
-      }
-      return call(api.threads[":id"].later.$post(request, options));
+      return call(
+        later
+          ? api.threads[":id"].later.$post(request, options)
+          : api.threads[":id"].later.$delete(request, options),
+      );
     },
     patch: ({ later }) => ({ later, ...(later ? { done: false } : {}) }),
     leaves: ({ later }) => (later ? "later" : "unlater"),
@@ -279,20 +271,4 @@ export function useUnsubscribe() {
     mutate: (vars: { threadId: string; messageId: string }) =>
       mutation.mutate({ ...vars, key: idempotencyKey(), workspace: currentWorkspaceId() }),
   };
-}
-
-/** The web's snooze presets: three hours from now, tomorrow at 8, next Monday at 8. */
-export function snoozePresets(now = new Date()) {
-  const at8 = (days: number) => {
-    const day = new Date(now);
-    day.setDate(day.getDate() + days);
-    day.setHours(8, 0, 0, 0);
-    return day;
-  };
-  const toMonday = (8 - now.getDay()) % 7 || 7;
-  return [
-    { id: "later", label: "Later today", until: new Date(now.getTime() + 3 * 3_600_000) },
-    { id: "tomorrow", label: "Tomorrow", until: at8(1) },
-    { id: "week", label: "Next week", until: at8(toMonday) },
-  ];
 }

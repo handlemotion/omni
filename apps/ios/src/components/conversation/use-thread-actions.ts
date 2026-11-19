@@ -72,10 +72,8 @@ export function useThreadActions(page: string | undefined, mailbox?: string) {
       thread.done
         ? run("undone", () => undone.mutate({ threadId: thread.id }))
         : run("done", () => done.mutate({ threadId: thread.id, through: thread.lastMessageAt })),
-    later: (threadId: string, into: boolean, until?: Date) =>
-      run(into ? "later" : "unlater", () =>
-        later.mutate({ threadId, later: into, ...(until ? { until } : {}) }),
-      ),
+    later: (threadId: string, into: boolean) =>
+      run(into ? "later" : "unlater", () => later.mutate({ threadId, later: into })),
     swipeAway: (thread: Thread, into: "done" | "later", openNext: (threadId: string) => void) => {
       const next = neighbour(client, page, mailbox, thread.id);
       if (into === "done") done.mutate({ threadId: thread.id, through: thread.lastMessageAt });

@@ -1,6 +1,5 @@
 import type { Thread } from "@omni/client";
 import { router } from "expo-router";
-import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -25,7 +24,6 @@ import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
 import { FloatingButton, FloatingGroup } from "@/components/ui/floating.tsx";
 import { canReplyAll } from "@/lib/compose.ts";
 import { space } from "@/theme/tokens.ts";
-import { LaterSheet } from "./later-sheet.tsx";
 import { forward, listMessage, reply, type ThreadActions } from "./use-thread-actions.ts";
 
 const SIDE = space(4);
@@ -129,16 +127,10 @@ export function ThreadBottomBar(props: {
   actions: ThreadActions;
 }) {
   const insets = useSafeAreaInsets();
-  const [choosing, setChoosing] = useState(false);
   const { thread, actions: act } = props;
   const id = thread.id;
   return (
     <>
-      <LaterSheet
-        isOpen={choosing}
-        onClose={() => setChoosing(false)}
-        onPick={(until) => act.later(id, true, until)}
-      />
       <BottomFade />
       <View
         pointerEvents="box-none"
@@ -160,7 +152,7 @@ export function ThreadBottomBar(props: {
             {
               icon: IconClock,
               label: thread.later ? "Back to inbox" : "Later",
-              onPress: () => (thread.later ? act.later(id, false) : setChoosing(true)),
+              onPress: () => act.later(id, !thread.later),
             },
             {
               icon: IconCircleCheck,
