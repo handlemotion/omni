@@ -64,3 +64,8 @@ export { IconBellOff } from "@central-icons-react-native/round-outlined-radius-3
 export { IconConnectors1 as IconConnections } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconConnectors1";
 export { IconUserAdd } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconUserAdd";
 export { IconArrowUpCircle as IconUpgrade } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconArrowUpCircle";
+export { IconSunrise } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconSunrise";
+export { IconCalendar1 as IconCalendar } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconCalendar1";
+export { IconSquareArrowDown as IconDownload } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconSquareArrowDown";
+export { IconPencilLine as IconRename } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconPencilLine";
+export { IconHistory } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconHistory";

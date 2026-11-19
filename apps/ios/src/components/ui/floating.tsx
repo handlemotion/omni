@@ -142,11 +142,6 @@ export function FloatingGroup({ actions }: { actions: FloatingGroupAction[] }) {
   );
 }
 
-/** A flat card floating over the page (the module menu): surface, hairline edge, no shadow. */
-export function FloatingCard({ children }: { children: ReactNode }) {
-  return <View style={styles.card}>{children}</View>;
-}
-
 const styles = StyleSheet.create({
   surface: {
     height: floatingControl,
@@ -168,14 +163,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space(2.5),
     paddingHorizontal: space(4.5),
-  },
-  card: {
-    gap: space(0.5),
-    padding: space(1.5),
-    borderRadius: radius.card,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
   },
   group: { flexDirection: "row", alignItems: "center", paddingHorizontal: space(1.5) },
   groupButton: {

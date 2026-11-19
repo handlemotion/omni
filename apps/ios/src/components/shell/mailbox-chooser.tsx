@@ -48,6 +48,7 @@ export function MailboxChooser() {
   return (
     <>
       <MenuRow
+        nav
         lead={
           single?.mailbox ? (
             <MailboxAvatar mailbox={single.mailbox} name={single.name} size={iconSize.menu} />

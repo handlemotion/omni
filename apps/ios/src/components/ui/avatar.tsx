@@ -11,7 +11,7 @@ import { Text } from "./text.tsx";
  * mark's own background is the avatar's colour, and a transparent one sits on a white tile. Their
  * initial on the accent fill until then, and when there is none. A sender is `square` (corners at
  * 20% of its size, as the web's `isSquare`, with a hairline edge). A workspace is `inverse`: its
- * initial on the foreground fill.
+ * initial in white on the brand's blue.
  */
 export function Avatar({
   name,
@@ -82,7 +82,7 @@ const initialOf = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
 
 const initialInk = (inverse: boolean) =>
   inverse
-    ? ({ weight: "semibold", tone: "background" } as const)
+    ? ({ weight: "semibold", tone: "primaryForeground" } as const)
     : ({ weight: "medium", tone: "mutedForeground" } as const);
 
 const initialSize = (size: number) => {
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  inverse: { backgroundColor: colors.foreground },
+  inverse: { backgroundColor: colors.primary },
   edge: {
     ...StyleSheet.absoluteFill,
     borderWidth: StyleSheet.hairlineWidth,

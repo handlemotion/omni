@@ -56,6 +56,7 @@ export function BottomSheet({
   onClose,
   onClosed,
   title,
+  header,
   children,
 }: {
   isOpen: boolean;
@@ -63,6 +64,8 @@ export function BottomSheet({
   /** Once the sheet has gone: where to open what a row picked, so it is not under the sheet. */
   onClosed?: () => void;
   title: string;
+  /** Drawn in place of the title (a file's tile, name and size); `title` still names the sheet. */
+  header?: ReactNode;
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
@@ -96,11 +99,13 @@ export function BottomSheet({
       >
         <View {...motion.handle}>
           <View style={styles.grabber} />
-          <View style={styles.title}>
-            <Text weight="semibold" accessibilityRole="header">
-              {title}
-            </Text>
-          </View>
+          {header ?? (
+            <View style={styles.title}>
+              <Text weight="semibold" accessibilityRole="header" numberOfLines={1}>
+                {title}
+              </Text>
+            </View>
+          )}
         </View>
         <ScrollView>{children}</ScrollView>
       </Animated.View>

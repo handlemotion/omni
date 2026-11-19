@@ -1,15 +1,14 @@
-import { Link, router, type Href } from "expo-router";
+import { Link } from "expo-router";
 import { FolderCard } from "@/components/drive/folder-card.tsx";
 import { NodeRow } from "@/components/drive/node-row.tsx";
+import { NodeSheet } from "@/components/drive/node-sheet.tsx";
+import { useSheet } from "@/components/ui/bottom-sheet.tsx";
 import { IconArrowRotateClockwise, IconShared, IconTrash } from "@/components/icons.ts";
 import { SwipeRow } from "@/components/ui/swipe-row.tsx";
 import {
   canTrash,
   confirmDeleteForever,
   driveErrorAlert,
-  promptRename,
-  shareFile,
-  useChangeNode,
   useDeleteForever,
   useMe,
   useRestoreNode,
@@ -18,68 +17,26 @@ import {
 import { openDriveSheet } from "@/lib/drive-sheets.ts";
 import type { DriveNode } from "@/lib/drive.ts";
 
-const hrefOf = (node: DriveNode) =>
-  (node.kind === "folder"
-    ? { pathname: "/drive/folder/[id]", params: { id: node.id, name: node.name } }
-    : { pathname: "/drive/file/[id]", params: { id: node.id, name: node.name } }) satisfies Href;
-
 /**
- * A file or folder in a space or a folder, with its actions in a native context menu on a long
- * press: the web's row menu, less what a phone has no room for (comments, signatures, icons). A
- * folder in the grid draws as its card (`card`). A row swipes right to Share and left to Move to
- * trash.
+ * A file or folder in a space or a folder; a long press opens its actions in a sheet
+ * (`NodeSheet`). A folder in the grid draws as its card (`card`). A row swipes right to Share
+ * and left to Move to trash.
  */
 export function NodeItem({ node, card = false }: { node: DriveNode; card?: boolean }) {
   const me = useMe().data;
-  const rename = useChangeNode().mutate;
   const trash = useTrashNode().mutate;
-  const href = hrefOf(node);
+  const sheet = useSheet();
   const file = node.kind === "file";
   const trashable = canTrash(node, me);
   const item = (
-    <Link href={href} asChild>
-      <Link.Trigger>
-        {card && !file ? <FolderCard node={node} /> : <NodeRow node={node} />}
-      </Link.Trigger>
-      <Link.Menu>
-        <Link.MenuAction
-          icon={file ? "doc" : "folder"}
-          title="Open"
-          onPress={() => router.push(href)}
-        />
-        {file ? (
-          <Link.MenuAction
-            icon="square.and.arrow.up"
-            title="Download"
-            onPress={() => void shareFile(node)}
-          />
-        ) : null}
-        <Link.MenuAction
-          icon="person.badge.plus"
-          title="Share"
-          onPress={() => openDriveSheet("share", node)}
-        />
-        <Link.MenuAction icon="pencil" title="Rename" onPress={() => promptRename(node, rename)} />
-        <Link.MenuAction icon="folder" title="Move" onPress={() => openDriveSheet("move", node)} />
-        {file ? (
-          <Link.MenuAction
-            icon="clock.arrow.circlepath"
-            title="Versions"
-            onPress={() => openDriveSheet("versions", node)}
-          />
-        ) : null}
-        {trashable ? (
-          <Link.MenuAction
-            icon="trash"
-            title="Move to trash"
-            destructive
-            onPress={() =>
-              trash(node.id, { onError: driveErrorAlert("It was not moved to Trash") })
-            }
-          />
-        ) : null}
-      </Link.Menu>
-    </Link>
+    <>
+      {card && !file ? (
+        <FolderCard node={node} onLongPress={sheet.open} />
+      ) : (
+        <NodeRow node={node} onLongPress={sheet.open} />
+      )}
+      <NodeSheet node={node} sheet={sheet} />
+    </>
   );
   if (card && !file) return item;
   return (

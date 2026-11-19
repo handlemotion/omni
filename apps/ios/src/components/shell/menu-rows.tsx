@@ -9,6 +9,7 @@ import {
   IconBuildings,
   IconCircleCheck,
   IconClock,
+  IconFolder,
   IconFolderShared,
   IconHandshake,
   IconInbox,
@@ -21,7 +22,7 @@ import {
   IconWarning,
 } from "@/components/icons.ts";
 import { CRM_PAGES, type CrmPage } from "@/lib/crm.ts";
-import { DRIVE_PAGES, type DrivePage } from "@/lib/drive.ts";
+import { DRIVE_PAGES, useFolder, type DrivePage } from "@/lib/drive.ts";
 import { useCountedPages } from "@/lib/mail-counts.ts";
 import { MAIL_PAGES, type MailPage } from "@/lib/mail.ts";
 import { useUnreadNotifications } from "@/lib/notifications.ts";
@@ -74,6 +75,7 @@ export function MailMenu() {
   const pageRow = (row: { id: MailPage; icon: Glyph; count?: string }, muted = false) => (
     <MenuRow
       key={row.id}
+      nav
       icon={row.icon}
       muted={muted}
       label={MAIL_PAGES[row.id].label}
@@ -91,6 +93,7 @@ export function MailMenu() {
       <MenuSection label="Views">
         {views.map((row) => pageRow(row))}
         <MenuRow
+          nav
           icon={IconBell}
           label="Notifications"
           count={notifications ? String(notifications) : undefined}
@@ -106,26 +109,61 @@ export function MailMenu() {
   );
 }
 
-/** Drive's pages; Shared only in a company workspace. */
+const FOLDER_SHORTCUTS = 8;
+
+/** Drive's pages (Shared only in a company workspace), then My files' folders under Folders. */
 export function DriveMenu() {
   const { close } = useMenu();
   const place = useMenuPlace();
   const company = hasCrm(useWorkspace().active);
+  const folders = (useFolder({ space: "personal" }).data ?? [])
+    .filter((node) => node.kind === "folder")
+    .slice(0, FOLDER_SHORTCUTS);
   const pages = (Object.keys(DRIVE_PAGES) as DrivePage[]).filter(
     (id) => company || !("company" in DRIVE_PAGES[id]),
   );
-  return pages.map((id) => (
-    <MenuRow
-      key={id}
-      icon={DRIVE_ICONS[id]}
-      label={DRIVE_PAGES[id].label}
-      isCurrent={place.drivePage === id}
-      onPress={() => {
-        place.openPage("drive", id);
-        close();
-      }}
-    />
-  ));
+  return (
+    <>
+      {pages.map((id) => (
+        <MenuRow
+          key={id}
+          nav
+          tint="moduleDrive"
+          icon={DRIVE_ICONS[id]}
+          label={DRIVE_PAGES[id].label}
+          isCurrent={place.drivePage === id}
+          onPress={() => {
+            place.openPage("drive", id);
+            close();
+          }}
+        />
+      ))}
+      {folders.length > 0 ? (
+        <>
+          <MenuDivider />
+          <MenuSection label="Folders">
+            {folders.map((folder) => (
+              <MenuRow
+                key={folder.id}
+                nav
+                muted
+                icon={IconFolder}
+                label={folder.name}
+                onPress={() => {
+                  place.openPage("drive", "my");
+                  close();
+                  router.push({
+                    pathname: "/drive/folder/[id]",
+                    params: { id: folder.id, name: folder.name },
+                  });
+                }}
+              />
+            ))}
+          </MenuSection>
+        </>
+      ) : null}
+    </>
+  );
 }
 
 /** The CRM's lists. */
@@ -135,6 +173,8 @@ export function CrmMenu() {
   return (Object.keys(CRM_PAGES) as CrmPage[]).map((id) => (
     <MenuRow
       key={id}
+      nav
+      tint="moduleCrm"
       icon={CRM_ICONS[id]}
       label={CRM_PAGES[id].label}
       isCurrent={place.crmPage === id}

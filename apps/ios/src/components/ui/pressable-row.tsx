@@ -17,7 +17,7 @@ export interface PressableRowProps extends Omit<PressableProps, "children" | "st
    * `menu`: a shorter inset row, a glyph and a label: the menu page's. `bare`: no padding and no
    * fill, its content top-aligned: a header that opens and closes what is under it.
    */
-  shape?: "list" | "inset" | "menu" | "bare";
+  shape?: "list" | "inset" | "menu" | "nav" | "bare";
   /** What it opens is showing: `expanded` for VoiceOver. Left out, it opens nothing. */
   isExpanded?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -74,6 +74,14 @@ const styles = StyleSheet.create({
     gap: space(3.5),
     minHeight: space(12.5),
     paddingHorizontal: space(3.5),
+    borderRadius: radius.row,
+  },
+  nav: {
+    alignItems: "center",
+    gap: space(2),
+    minHeight: space(12.5),
+    paddingLeft: space(1.5),
+    paddingRight: space(3.5),
     borderRadius: radius.row,
   },
   bare: { alignItems: "flex-start", gap: space(3) },

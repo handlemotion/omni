@@ -17,12 +17,13 @@ function countOf(contents: DriveNode[], more: boolean) {
  * its name and how many files (or items, with folders among them) it holds. Its contents load once the card is drawn, which the
  * list does only near the screen, and open the folder from the cache.
  */
-export function FolderCard({ node }: { node: DriveNode }) {
+export function FolderCard({ node, onLongPress }: { node: DriveNode; onLongPress?: () => void }) {
   const contents = useFolder({ parent: node.id });
   return (
     <PressableRow
       style={styles.card}
       accessibilityLabel={node.name}
+      onLongPress={onLongPress}
       onPress={() =>
         router.push({ pathname: "/drive/folder/[id]", params: { id: node.id, name: node.name } })
       }

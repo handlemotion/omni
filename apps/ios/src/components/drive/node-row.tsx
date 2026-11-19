@@ -10,7 +10,16 @@ import { FileTile } from "./file-glyph.tsx";
  * A file or folder as a row, after the desktop's list: its tile, its name, and when it changed
  * and how big it is ("Today · 212 KB"). A folder opens inside Drive's stack, a file in the preview.
  */
-export function NodeRow({ node, detail }: { node: DriveNode; detail?: string }) {
+export function NodeRow({
+  node,
+  detail,
+  onLongPress,
+}: {
+  node: DriveNode;
+  detail?: string;
+  /** A long press: the node's actions (`NodeSheet`). */
+  onLongPress?: () => void;
+}) {
   const folder = node.kind === "folder";
   const meta = [detail, fileDay(node.updatedAt), folder ? null : fileSize(node.size)]
     .filter(Boolean)
@@ -18,6 +27,7 @@ export function NodeRow({ node, detail }: { node: DriveNode; detail?: string }) 
   return (
     <PressableRow
       style={styles.row}
+      onLongPress={onLongPress}
       onPress={
         node.trashedAt
           ? undefined

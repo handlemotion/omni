@@ -1,6 +1,5 @@
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { useFileMenu } from "@/components/drive/file-menu.tsx";
 import {
   NativePreview,
   NoPreview,
@@ -8,8 +7,10 @@ import {
   TextPreview,
 } from "@/components/drive/file-previews.tsx";
 import { ImageViewer } from "@/components/drive/image-viewer.tsx";
+import { NodeSheet } from "@/components/drive/node-sheet.tsx";
 import { UploadsPanel } from "@/components/drive/uploads-panel.tsx";
 import { IconFile } from "@/components/icons.ts";
+import { useSheet } from "@/components/ui/bottom-sheet.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { useNode } from "@/lib/drive-actions.ts";
@@ -29,11 +30,26 @@ export default function FilePreview() {
   const images = useFolderImages(kind === "image" ? node : undefined);
   const [swipedTo, setSwipedTo] = useState<DriveNode | null>(null);
   const shown = images?.find((one) => one.id === swipedTo?.id) ?? node;
-  const menu = useFileMenu(shown);
+  const sheet = useSheet();
   return (
     <>
       <Stack.Screen options={{ title: shown?.name ?? name ?? "" }} />
-      <Stack.Toolbar placement="right">{menu}</Stack.Toolbar>
+      {shown ? (
+        <>
+          <Stack.Toolbar placement="right">
+            <Stack.Toolbar.Button
+              icon="ellipsis"
+              accessibilityLabel={`Actions for ${shown.name}`}
+              onPress={sheet.open}
+            />
+          </Stack.Toolbar>
+          <NodeSheet
+            node={shown}
+            sheet={sheet}
+            onTrashed={() => router.canGoBack() && router.back()}
+          />
+        </>
+      ) : null}
       {node ? (
         <Preview key={versionOf(node)} node={node} images={images} onSwipe={setSwipedTo} />
       ) : nodeQuery.isError ? (
