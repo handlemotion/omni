@@ -4,12 +4,13 @@ name: Full
 # stack (Postgres, GreenMail, the S3 stand-in, the built Worker), types, unit tests, and a gitleaks
 # scan of all history. Not a required status.
 #
-# - Nightly on main, skipped when main has no new commit in the last day.
+# - Daily on main at 13:17 Mexico City (19:17 UTC), when the self-hosted runner's PC is on,
+#   skipped when main has no new commit in the last day.
 # - By hand: Actions > Full > Run workflow, on any branch.
 # - On a pull request, by adding the `full-e2e` label, and again on each push while it has it.
 on:
   schedule:
-    - cron: "17 6 * * *"
+    - cron: "17 19 * * *"
   workflow_dispatch:
   pull_request:
     types: [labeled, synchronize]
