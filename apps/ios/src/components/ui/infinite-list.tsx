@@ -1,7 +1,7 @@
 import { FlashList } from "@shopify/flash-list";
 import type { UseInfiniteQueryResult } from "@tanstack/react-query";
 import { useMemo, type ComponentType, type ReactElement } from "react";
-import { RefreshControl, ScrollView, StyleSheet } from "react-native";
+import { RefreshControl, StyleSheet, View } from "react-native";
 import type { SvgProps } from "react-native-svg";
 import { colors, space } from "@/theme/tokens.ts";
 import { Button } from "./button.tsx";
@@ -27,8 +27,8 @@ interface Paged<T, R> {
 
 /**
  * A paged list under a native header, on FlashList (rows recycle, so a long list scrolls at
- * frame rate): skeleton rows while the first page loads, a retry when it fails, `empty` when it
- * has nothing, more as you scroll, pull to refresh. The query's `select` must hand back the
+ * frame rate): skeleton rows while the first page loads, a retry when it fails, `empty` centered
+ * on the page when it has nothing, more as you scroll, pull to refresh. The query's `select` must hand back the
  * flat array of rows.
  */
 export function InfiniteList<T, R = T>(props: Paged<T, R>) {
@@ -48,17 +48,13 @@ export function InfiniteList<T, R = T>(props: Paged<T, R>) {
   if (!rows.length) {
     const failed = query.isError && !query.data;
     return (
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.fill}
-        refreshControl={refresh}
-      >
+      <View style={styles.fill}>
         <EmptyState icon={props.icon} title={failed ? "This list didn't load" : props.empty}>
           {failed ? (
             <Button intent="plain" label="Try again" onPress={() => void query.refetch()} />
           ) : null}
         </EmptyState>
-      </ScrollView>
+      </View>
     );
   }
   return (
@@ -79,6 +75,6 @@ export function InfiniteList<T, R = T>(props: Paged<T, R>) {
 }
 
 const styles = StyleSheet.create({
-  fill: { flexGrow: 1 },
+  fill: { flex: 1 },
   list: { paddingTop: space(1), paddingBottom: space(8) },
 });

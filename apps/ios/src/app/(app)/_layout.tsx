@@ -40,16 +40,16 @@ export default function SignedInLayout() {
   return (
     <NativeTabs tintColor={colors.foreground} backgroundColor={colors.background}>
       <NativeTabs.Trigger name="mail" accessibilityLabel="Mail">
-        <NativeTabs.Trigger.Icon sf={{ default: "envelope", selected: "envelope.fill" }} />
+        <NativeTabs.Trigger.Icon sf="envelope" />
         <NativeTabs.Trigger.Label hidden>Mail</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Badge hidden={!unread}>{unread}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="drive" accessibilityLabel="Drive">
-        <NativeTabs.Trigger.Icon sf={{ default: "folder", selected: "folder.fill" }} />
+        <NativeTabs.Trigger.Icon sf="folder" />
         <NativeTabs.Trigger.Label hidden>Drive</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="crm" accessibilityLabel="CRM" hidden={!crm}>
-        <NativeTabs.Trigger.Icon sf={{ default: "briefcase", selected: "briefcase.fill" }} />
+        <NativeTabs.Trigger.Icon sf="briefcase" />
         <NativeTabs.Trigger.Label hidden>CRM</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
