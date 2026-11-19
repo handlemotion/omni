@@ -68,6 +68,9 @@ extends this file and wins where they differ. Explicit user instructions overrid
   (default the local stack's `http://localhost:8787`). One Metro per port: if another thread's
   is up, reuse it (the app reloads on save) or set `OMNI_IOS_METRO_PORT`. Details:
   `apps/ios/README.md`.
+- Only one Simulator booted at a time: reuse the booted one (`xcrun simctl list devices booted`)
+  instead of booting another, and shut down any Simulator, Metro, server or container you
+  started once you are done with it.
 - Node is 26 (`.nvmrc`); the mail service needs it. Cloud sessions put `/opt/node/bin` first.
 - The pre-commit hook runs `lint-staged` (`oxfmt`, `oxlint --fix`, test policy), so staged files
   can change during `git commit`. Re-read a file after committing before you edit it again.
