@@ -26,4 +26,5 @@ export const keys = {
   notificationList: (unread: boolean) => ["notifications", { unread }] as const,
   senderLogo: (who: string) => ["sender-logo", who] as const,
   search: (q: string) => ["search", q] as const,
+  attachmentFile: (attachmentId: string) => ["attachment", attachmentId] as const,
 };

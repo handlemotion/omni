@@ -60,6 +60,17 @@ export default function ThreadScreen() {
                   params: { threadId: id, messageId: message.id },
                 })
               }
+              onOpenAttachment={(file) =>
+                router.push({
+                  pathname: "/mail/attachment/[threadId]/[attachmentId]",
+                  params: {
+                    threadId: id,
+                    attachmentId: file.id,
+                    name: file.filename,
+                    mimeType: file.mimeType,
+                  },
+                })
+              }
             />
           ))}
         </ScrollView>
