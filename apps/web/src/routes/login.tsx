@@ -12,6 +12,6 @@ export const Route = createFileRoute("/login")({
 });
 
 function Login() {
-  const { redirect } = Route.useSearch();
-  return <SignIn redirect={redirect} />;
+  const { redirect, callback } = Route.useSearch();
+  return <SignIn redirect={redirect} callback={callback} />;
 }

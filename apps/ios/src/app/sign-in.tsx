@@ -1,70 +1,50 @@
 import { useMutation } from "@tanstack/react-query";
 import { Redirect, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
-import { KeyboardAvoidingView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { OmniMark } from "@/components/brand/omni-mark.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Screen } from "@/components/ui/screen.tsx";
 import { Text } from "@/components/ui/text.tsx";
-import { TextField } from "@/components/ui/text-field.tsx";
-import { config } from "@/lib/config.ts";
-import { requestSignInLink, useSession } from "@/lib/session.ts";
+import { signInInBrowser, useSession } from "@/lib/session.ts";
 import { useSplashDone } from "@/lib/splash.ts";
 import { gutter, space } from "@/theme/tokens.ts";
 
+/** The welcome screen: Continue hands sign-in to the server's page in a browser sheet. */
 export default function SignIn() {
   const session = useSession();
   const { error } = useLocalSearchParams<{ error?: string }>();
-  const [email, setEmail] = useState("");
-  const link = useMutation({ mutationFn: requestSignInLink });
+  const signIn = useMutation({ mutationFn: signInInBrowser });
   useSplashDone(!session.data);
 
   if (session.data) return <Redirect href="/mail" />;
 
-  const sentTo = link.isSuccess ? link.variables : undefined;
+  const failed = signIn.isError || signIn.data === "error" || (!!error && signIn.isIdle);
   return (
     <Screen>
-      <KeyboardAvoidingView behavior="padding" style={styles.body}>
+      <View style={styles.body}>
         <View style={styles.heading}>
-          <Text size="display" weight="medium" accessibilityRole="header">
-            Welcome to Omni
-          </Text>
-          <Text tone="mutedForeground">Use or create your omni email to get started</Text>
+          <OmniMark />
+          <View>
+            <Text size="title" weight="medium" accessibilityRole="header">
+              Welcome to Omni
+            </Text>
+            <Text size="title" tone="mutedForeground">
+              Use or create your omni email to get started
+            </Text>
+          </View>
         </View>
-        <View style={styles.form}>
-          <TextField
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder={`email@${new URL(config.apiUrl).hostname}`}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="email"
-            textContentType="username"
-            returnKeyType="go"
-            onSubmitEditing={() => email && link.mutate(email.trim())}
-          />
-          <Button
-            size="lg"
-            label={
-              sentTo === email.trim()
-                ? `Link sent to ${sentTo}`
-                : link.isError || error
-                  ? "Try again"
-                  : "Continue"
-            }
-            isPending={link.isPending}
-            disabled={!email.trim() || sentTo === email.trim()}
-            onPress={() => link.mutate(email.trim())}
-          />
-        </View>
-      </KeyboardAvoidingView>
+        <Button
+          size="lg"
+          label={failed ? "Try again" : "Continue"}
+          isPending={signIn.isPending}
+          onPress={() => signIn.mutate()}
+        />
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  body: { flex: 1, gap: space(10), paddingHorizontal: gutter, paddingVertical: space(6) },
-  heading: { gap: space(3), paddingTop: space(12) },
-  form: { gap: space(3) },
+  body: { flex: 1, paddingHorizontal: gutter, paddingBottom: space(4) },
+  heading: { flex: 1, justifyContent: "center", gap: space(5) },
 });

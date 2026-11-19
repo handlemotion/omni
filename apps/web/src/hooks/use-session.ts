@@ -41,12 +41,20 @@ export function useCurrentSession() {
   return data.session;
 }
 
-/** `mutate({ email, redirect? })` emails a sign-in link that returns to `redirect`. */
+/**
+ * `mutate({ email, redirect?, callback? })` emails a sign-in link that returns to `redirect`, or
+ * to a native app's `callback`.
+ */
 export function useSignInMagicLink() {
   return useMutation({
-    mutationFn: ({ email, redirect }: { email: string; redirect?: string | undefined }) =>
-      signInWithMagicLink(email, redirect),
+    mutationFn: ({ email, redirect, callback }: SignInTarget & { email: string }) =>
+      signInWithMagicLink(email, redirect, callback),
   });
+}
+
+interface SignInTarget {
+  redirect?: string | undefined;
+  callback?: string | undefined;
 }
 
 /** `{ google }`: which optional sign-in methods this deployment has configured. */
@@ -60,7 +68,7 @@ export function useSignInMethods() {
  */
 export function useSignInGoogle() {
   return useMutation({
-    mutationFn: ({ redirect }: { redirect?: string | undefined }) => signInWithGoogle(redirect),
+    mutationFn: ({ redirect, callback }: SignInTarget) => signInWithGoogle(redirect, callback),
   });
 }
 

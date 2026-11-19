@@ -13,6 +13,11 @@ export const loginSearch = z.object({
    * on an install with `SIGN_UP=invitation`).
    */
   error: optional(z.string()),
+  /**
+   * A native app's sign-in callback (`omni:///?state=…`): the iOS app opens this page in a
+   * browser sheet, and the session returns to the app there instead of staying in the browser.
+   */
+  callback: optional(z.string()),
 });
 
 export const inboxSearch = z.object({

@@ -13,7 +13,8 @@ pnpm --filter @omni/ios dev              # Expo; open in Expo Go or a developmen
 
 A phone can't reach `localhost`: point `EXPO_PUBLIC_OMNI_API_URL` at the HTTPS URL `pnpm share`
 prints. The Worker must trust the app's scheme for sign-in: add `omni://` (and `exp://` for Expo
-Go) to `AUTH_TRUSTED_ORIGINS`. The magic link opens in Safari and returns to the app.
+Go) to `AUTH_TRUSTED_ORIGINS`. Continue opens the server's `/login` in a browser sheet; Google
+returns to the app from the sheet, and a magic link opens in Safari and returns to the app.
 
 ## Check it without a Mac
 

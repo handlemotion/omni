@@ -8,6 +8,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import * as WebBrowser from "expo-web-browser";
 import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { queryClient } from "@/lib/query-client.ts";
@@ -44,7 +45,9 @@ function useSignInLinks() {
   useEffect(() => {
     if (!url) return;
     const accept = async () => {
-      if ((await acceptSignInLink(url)) === "error") {
+      const accepted = await acceptSignInLink(url);
+      if (accepted) WebBrowser.dismissAuthSession();
+      if (accepted === "error") {
         router.replace({ pathname: "/sign-in", params: { error: "link" } });
       }
     };

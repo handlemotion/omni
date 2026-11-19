@@ -25,7 +25,9 @@ Extends the root `AGENTS.md` and `DESIGN.md`. How to run it: `README.md`.
 - **Loading**: `Skeleton` from `components/ui` (the web's `skullet` has no React Native build).
   An action in progress is `<Button isPending>`.
 - **No inline context text** (root rule): titles, labels and controls only.
-- Sign-in is a magic link that ends on the app's scheme; `src/lib/session.ts` keeps the cookie
-  the Worker hands back (`apps/worker/e2e/ios-sign-in.e2e.test.ts` proves the server side).
+- Sign-in happens in the browser, as on the desktop: Continue opens the server's
+  `/login?callback=<scheme>:///?state=…` in an `ASWebAuthenticationSession`, and every method
+  there ends on the app's scheme with the session as `cookie`. `src/lib/session.ts` keeps it only
+  for a state it issued (`apps/worker/e2e/ios-sign-in.e2e.test.ts` proves the server side).
 - No unit tests here (`scripts/check-tests.mjs`). Prove a change by bundling it
   (`pnpm --filter @omni/ios build:check`) and running it against the local stack (`README.md`).

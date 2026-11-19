@@ -93,14 +93,22 @@ export function isServerPath(to: string) {
   return to.startsWith("/api/");
 }
 
+async function nativeCallback(callback: string | undefined) {
+  if (desktop.isDesktop) return desktop.signInCallback();
+  if (!callback || !URL.canParse(callback)) return null;
+  const { protocol } = new URL(callback);
+  return /^(https?|javascript|data|blob|file|about|vbscript):$/i.test(protocol) ? null : callback;
+}
+
 /**
  * Emails a sign-in link that returns to `redirect` (a same-origin path) or the inbox. In the
  * desktop app the link opens in the browser, so it returns to the app through the shell's
- * `omni://` callback instead, success or failure; the window then reloads where it was.
+ * `omni://` callback instead, success or failure; the window then reloads where it was. A phone
+ * app's `callback` works the same way, without the reload.
  */
-export async function signInWithMagicLink(email: string, redirect?: string) {
-  const callback = desktop.isDesktop ? await desktop.signInCallback() : null;
-  if (callback) rememberSignInRedirect(safeRedirect(redirect));
+export async function signInWithMagicLink(email: string, redirect?: string, app?: string) {
+  const callback = await nativeCallback(app);
+  if (callback && desktop.isDesktop) rememberSignInRedirect(safeRedirect(redirect));
   return authCall(
     auth.signIn.magicLink({
       email,
@@ -143,10 +151,16 @@ export const signInMethodsQuery = () =>
  * to `/login?error=<code>`. In the desktop app the consent opens in the browser (Google refuses
  * embedded sign-in) through Better Auth's Expo proxy, which gives that browser the flow's state
  * cookie; the session comes back to the window through the shell's `omni://` callback, as a
- * magic link's does.
+ * magic link's does. A phone app's `callback` page is already in the browser, so Google returns
+ * through the Worker straight to the app.
  */
-export async function signInWithGoogle(redirect?: string) {
-  const callback = desktop.isDesktop ? await desktop.signInCallback() : null;
+export async function signInWithGoogle(redirect?: string, app?: string) {
+  const callback = await nativeCallback(app);
+  if (callback && !desktop.isDesktop) {
+    return authCall(
+      auth.signIn.social({ provider: "google", callbackURL: callback, errorCallbackURL: callback }),
+    );
+  }
   if (callback) {
     rememberSignInRedirect(safeRedirect(redirect));
     const { url } = await authCall(

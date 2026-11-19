@@ -20,7 +20,8 @@ import { isServerPath, safeRedirect } from "@/lib/session.ts";
 
 const RESEND_AFTER_MS = 30_000;
 
-export function SignIn({ redirect }: { redirect?: string }) {
+/** `callback`: a native app opened this page for its sign-in (`/login?callback=`). */
+export function SignIn({ redirect, callback }: { redirect?: string; callback?: string }) {
   const router = useRouter();
   const magicLink = useSignInMagicLink();
   const passkey = useSignInPasskey();
@@ -28,6 +29,7 @@ export function SignIn({ redirect }: { redirect?: string }) {
   const google = useSignInGoogle();
   const [email, setEmail] = useState("");
   const lastSend = useRef<{ email: string; at: number } | null>(null);
+  const hasOtherMethods = !callback || !!methods.data?.google;
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-surface">
@@ -49,7 +51,10 @@ export function SignIn({ redirect }: { redirect?: string }) {
                 const last = lastSend.current;
                 if (last?.email === email && Date.now() - last.at < RESEND_AFTER_MS) return;
                 lastSend.current = { email, at: Date.now() };
-                magicLink.mutate({ email, redirect }, { onError: () => (lastSend.current = null) });
+                magicLink.mutate(
+                  { email, redirect, callback },
+                  { onError: () => (lastSend.current = null) },
+                );
               }}
             >
               <TextField
@@ -67,38 +72,42 @@ export function SignIn({ redirect }: { redirect?: string }) {
               </Button>
             </form>
 
-            <div className="flex items-center gap-2.5">
-              <Separator className="flex-1" />
-              <span className="text-xs text-subtle-foreground">or</span>
-              <Separator className="flex-1" />
-            </div>
+            {hasOtherMethods && (
+              <div className="flex items-center gap-2.5">
+                <Separator className="flex-1" />
+                <span className="text-xs text-subtle-foreground">or</span>
+                <Separator className="flex-1" />
+              </div>
+            )}
 
             <div className="flex flex-col gap-2">
-              <Button
-                intent="outline"
-                size="lg"
-                className="justify-start"
-                isPending={passkey.isPending}
-                onPress={() =>
-                  passkey.mutate(undefined, {
-                    onSuccess: () => {
-                      const to = safeRedirect(redirect);
-                      if (isServerPath(to)) window.location.assign(to);
-                      else router.history.push(to);
-                    },
-                  })
-                }
-              >
-                <IconKey />
-                Using a Passkey
-              </Button>
+              {!callback && (
+                <Button
+                  intent="outline"
+                  size="lg"
+                  className="justify-start"
+                  isPending={passkey.isPending}
+                  onPress={() =>
+                    passkey.mutate(undefined, {
+                      onSuccess: () => {
+                        const to = safeRedirect(redirect);
+                        if (isServerPath(to)) window.location.assign(to);
+                        else router.history.push(to);
+                      },
+                    })
+                  }
+                >
+                  <IconKey />
+                  Using a Passkey
+                </Button>
+              )}
               {methods.data?.google && (
                 <Button
                   intent="outline"
                   size="lg"
                   className="justify-start"
                   isPending={google.isPending}
-                  onPress={() => google.mutate({ redirect })}
+                  onPress={() => google.mutate({ redirect, callback })}
                 >
                   <Google aria-hidden />
                   Using Google
