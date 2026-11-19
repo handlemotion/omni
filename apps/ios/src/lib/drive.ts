@@ -2,7 +2,6 @@ import { infiniteQueryOptions, useInfiniteQuery } from "@tanstack/react-query";
 import { WORKSPACE_HEADER, type Api } from "@omni/client";
 import type { InferResponseType } from "hono/client";
 import { api, auth, call } from "./api.ts";
-import { config } from "./config.ts";
 import { keys } from "./query-keys.ts";
 import type { SymbolName } from "./symbols.ts";
 import { currentWorkspaceId } from "./workspace-id.ts";
@@ -91,18 +90,6 @@ export const useFolder = (place: Parameters<typeof folderQuery>[0]) =>
   useInfiniteQuery(folderQuery(place));
 export const useSharedWithMe = () => useInfiniteQuery(sharedWithMeQuery());
 export const useTrash = () => useInfiniteQuery(trashQuery());
-
-/**
- * Where a file's bytes are, and the headers that open it as this member in this workspace, for
- * a native view that loads it itself (the file preview's WebView).
- */
-export async function fileSource(fileId: string) {
-  const headers = await storageHeaders();
-  return {
-    uri: `${config.apiUrl}/api/storage/files/${encodeURIComponent(fileId)}/content`,
-    headers,
-  };
-}
 
 /** The headers a request the app makes outside `call()` needs: the session and the workspace. */
 export async function storageHeaders(workspace = currentWorkspaceId()) {
