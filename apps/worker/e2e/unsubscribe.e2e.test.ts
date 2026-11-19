@@ -96,6 +96,11 @@ test("a mailto list is mailed once from the inbox, with the subject it names", a
       subject: "remove me",
     },
   });
+  const [left] = await database.db
+    .select()
+    .from(schema.listUnsubscribes)
+    .where(eq(schema.listUnsubscribes.mailboxId, inbox.id));
+  expect(left?.unsubscribedAt.getTime()).toBe(sends[0]!.createdAt.getTime());
 });
 
 test("a page-only list is opened by the app, and a one-click URL on a private address is refused", async () => {

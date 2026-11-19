@@ -11,7 +11,8 @@ Extends the root `AGENTS.md` and `DESIGN.md`. How to run it: `README.md`.
   workspace drops every cached answer but the workspace list.
 - **Navigation.** Modules (Mail, Drive, CRM) switch through the shell's top-bar pill and
   slide-down menu (`src/components/shell/`); there is no native tab bar or `ModuleToolbar`. Each
-  module is a native stack; pushed screens keep their native headers. Native chrome draws SF
+  module is a native stack; pushed screens keep their native headers, except a conversation, which
+  draws its own top bar (`ThreadTopBar`) as the approved board does. Native chrome draws SF
   Symbols; everything the app draws itself uses Central Icons.
 - **Tokens** live in `src/theme/tokens.ts` and mirror `apps/web/src/styles.css` under the same
   role names. Change the web value first. Screens use token names only: no hex values, no raw

@@ -8,6 +8,7 @@ import { config } from "./config.ts";
 import { driveNodeChanged, driveNodeRemoved } from "./drive-cache.ts";
 import { storageHeaders, type DriveNode } from "./drive.ts";
 import { keys } from "./query-keys.ts";
+import { cacheEpoch } from "./workspace-id.ts";
 
 /** Where a new folder or an upload goes: a space's top, or inside a folder. */
 export type DrivePlace = { space: "personal" | "shared" } | { parentId: string };
@@ -78,13 +79,17 @@ export const useNode = (id: string) =>
       call(api.storage.nodes[":id"].$get({ param: { id } }, { init: { signal } })),
   });
 
+const began = () => ({ epoch: cacheEpoch() });
+const current = (start: { epoch: number } | undefined) => start?.epoch === cacheEpoch();
+
 /** `mutate({ name, place })` makes a folder; a taken name gets a number. */
 export function useCreateFolder() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: ({ name, place }: { name: string; place: DrivePlace }) =>
       call(api.storage.folders.$post({ json: { name, ...place } })),
-    onSuccess: ({ node }) => driveNodeChanged(client, node),
+    onMutate: began,
+    onSuccess: ({ node }, _, start) => current(start) && driveNodeChanged(client, node),
   });
 }
 
@@ -99,7 +104,8 @@ export function useChangeNode() {
           json: "name" in change ? { name: change.name } : change.place,
         }),
       ),
-    onSuccess: ({ node }) => driveNodeChanged(client, node),
+    onMutate: began,
+    onSuccess: ({ node }, _, start) => current(start) && driveNodeChanged(client, node),
   });
 }
 
@@ -109,7 +115,8 @@ export function useTrashNode() {
   return useMutation({
     mutationFn: (id: string) =>
       call(api.storage.nodes[":id"].$delete({ param: { id }, query: {} })),
-    onSuccess: (_, id) => driveNodeRemoved(client, id),
+    onMutate: began,
+    onSuccess: (_, id, start) => current(start) && driveNodeRemoved(client, id),
   });
 }
 
@@ -118,7 +125,8 @@ export function useRestoreNode() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => call(api.storage.nodes[":id"].restore.$post({ param: { id } })),
-    onSuccess: ({ node }) => driveNodeChanged(client, node),
+    onMutate: began,
+    onSuccess: ({ node }, _, start) => current(start) && driveNodeChanged(client, node),
   });
 }
 
@@ -128,7 +136,8 @@ export function useDeleteForever() {
   return useMutation({
     mutationFn: (id: string) =>
       call(api.storage.nodes[":id"].$delete({ param: { id }, query: { forever: "1" } })),
-    onSuccess: (_, id) => driveNodeRemoved(client, id),
+    onMutate: began,
+    onSuccess: (_, id, start) => current(start) && driveNodeRemoved(client, id),
   });
 }
 

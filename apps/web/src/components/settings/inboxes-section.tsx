@@ -166,7 +166,7 @@ export function InboxesSection() {
                   disabled={row.kind === "hosted" || (!row.mailboxId && !googleReady)}
                   trailing={
                     <>
-                      {row.status === "error" && (
+                      {row.kind === "google" && row.status === "error" && (
                         <Button
                           size="sm"
                           intent="outline"

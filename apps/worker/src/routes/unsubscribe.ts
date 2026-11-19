@@ -50,13 +50,14 @@ export const unsubscribe = new Hono<AppEnv>().post(
     if (!method || method.kind === "link") {
       return apiError(c, "unprocessable_entity", "this message has no one-step unsubscribe");
     }
-    const left = (kind: "post" | "mail") =>
+    const left = (kind: "post" | "mail", at?: Date) =>
       recordUnsubscribe(c.var.db, {
         orgId: found.orgId,
         mailboxId: found.mailboxId,
         sender: message.fromAddress,
         kind,
         memberId: c.var.member.id,
+        ...(at ? { at } : {}),
       });
     if (method.kind === "mail") {
       const action = await enqueueSend(
@@ -71,7 +72,7 @@ export const unsubscribe = new Hono<AppEnv>().post(
         },
         c.req.valid("header")["idempotency-key"],
       );
-      await left("mail");
+      await left("mail", action.createdAt);
       return c.json({ kind: "mail" as const, ...sendResponse(action) }, 202);
     }
     const accepted = await postOneClick(method.url, {

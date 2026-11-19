@@ -9,6 +9,7 @@ import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
 import type { CrmStage } from "./crm-timeline.ts";
 import { keys } from "./query-keys.ts";
+import { cacheEpoch } from "./workspace-id.ts";
 
 type Crm = Api["crm"];
 type Json<T> = T extends { json: infer J } ? J : never;
@@ -95,10 +96,11 @@ export function useMoveDeal() {
       client.setQueryData<DealDetail>(record, (data) =>
         data ? { ...data, deal: move(data.deal) } : data,
       );
-      return { before };
+      return { before, epoch: cacheEpoch() };
     },
     onError: (_error, _move, context) => {
-      for (const [key, data] of context?.before ?? []) client.setQueryData(key, data);
+      if (context?.epoch !== cacheEpoch()) return;
+      for (const [key, data] of context.before) client.setQueryData(key, data);
     },
     onSettled: () => crmChanged(client),
   });

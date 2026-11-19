@@ -64,15 +64,27 @@ if [ "$rebuild" = 0 ] && [ "$installed" = 1 ] && [ "$(cat "$stamp" 2>/dev/null)"
   exec npx expo start --dev-client --ios --port "$port"
 fi
 
-# Prebuild rewrites package.json scripts; keep the file as it was.
-cp package.json "$TMPDIR/omni-ios-package.json"
+# A build that fails or is stopped leaves no stamp, so the next run builds again.
+rm -f "$stamp"
+# Prebuild rewrites package.json scripts; keep the file as it was, even if prebuild fails.
+saved="$(mktemp)"
+cp package.json "$saved"
+trap 'cp "$saved" package.json; rm -f "$saved"' EXIT
+trap 'exit 130' INT TERM
 CI=1 npx expo prebuild --platform ios --clean
-cp "$TMPDIR/omni-ios-package.json" package.json
+cp "$saved" package.json
+rm -f "$saved"
+trap - EXIT INT TERM
 
 args=(--port "$port" --configuration Debug)
 if [ "$target" = device ]; then
   : "${OMNI_IOS_TEAM_ID:?set OMNI_IOS_TEAM_ID to the Apple team that signs the dev build}"
   args+=(--device)
 fi
+# Build and install first; only an installed build gets the stamp. Then Metro serves it.
+npx expo run:ios "${args[@]}" --no-bundler
 mkdir -p ios && echo "$fingerprint" >"$stamp"
-exec npx expo run:ios "${args[@]}"
+if [ "$target" = device ]; then
+  exec npx expo start --dev-client --port "$port"
+fi
+exec npx expo start --dev-client --ios --port "$port"

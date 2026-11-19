@@ -50,6 +50,7 @@ xcodebuild -workspace ios/*.xcworkspace -scheme "$(basename ios/*.xcworkspace .x
   DEVELOPMENT_TEAM="$OMNI_IOS_TEAM_ID" CODE_SIGN_STYLE=Automatic archive
 
 signing="<key>signingStyle</key><string>automatic</string>"
+provisioning=(-allowProvisioningUpdates)
 if [ -n "${ASC_KEY_PATH:-}" ]; then
   serial="$(security find-certificate -c "Apple Distribution" -p | openssl x509 -noout -serial | cut -d= -f2)"
   profiles="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
@@ -58,6 +59,7 @@ if [ -n "${ASC_KEY_PATH:-}" ]; then
   signing="<key>signingStyle</key><string>manual</string>
   <key>signingCertificate</key><string>Apple Distribution</string>
   <key>provisioningProfiles</key><dict><key>$OMNI_IOS_BUNDLE_ID</key><string>$profile</string></dict>"
+  provisioning=()
 fi
 
 destination=upload
@@ -75,6 +77,7 @@ cat > "$out/export.plist" <<PLIST
 PLIST
 
 xcodebuild -exportArchive -archivePath "$out/app.xcarchive" \
-  -exportOptionsPlist "$out/export.plist" -exportPath "$out" ${auth[@]+"${auth[@]}"}
+  -exportOptionsPlist "$out/export.plist" -exportPath "$out" \
+  ${provisioning[@]+"${provisioning[@]}"} ${auth[@]+"${auth[@]}"}
 
 echo "release-testflight: build $OMNI_IOS_BUILD_NUMBER of $OMNI_IOS_BUNDLE_ID ($destination) done"

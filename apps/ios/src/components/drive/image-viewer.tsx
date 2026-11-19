@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -26,7 +26,7 @@ type Size = Pick<LayoutRectangle, "width" | "height">;
  * Images as Photos shows them: one a page, swiped sideways through the folder's images; pinch or
  * double tap to zoom, and pan a zoomed image up to its edge before the next one takes over. The
  * zoom is UIKit's own (a zooming `UIScrollView` per page), on images decoded at full size so a
- * zoomed photo stays sharp.
+ * zoomed photo stays sharp. The image on screen stays on screen when a rename re-sorts the folder.
  */
 export function ImageViewer(props: {
   images: DriveNode[];
@@ -39,6 +39,12 @@ export function ImageViewer(props: {
     0,
     props.images.findIndex((one) => one.id === props.initialId),
   );
+  const list = useRef<FlatList<DriveNode>>(null);
+  const visible = useRef(props.initialId);
+  const at = props.images.findIndex((one) => one.id === visible.current);
+  useEffect(() => {
+    if (size && at >= 0) list.current?.scrollToOffset({ offset: at * size.width, animated: false });
+  }, [at, size]);
   return (
     <View
       style={styles.fill}
@@ -49,6 +55,7 @@ export function ImageViewer(props: {
     >
       {size && headers ? (
         <FlatList
+          ref={list}
           data={props.images}
           keyExtractor={(node) => node.id}
           horizontal
@@ -62,7 +69,9 @@ export function ImageViewer(props: {
           onMomentumScrollEnd={(event) => {
             const index = Math.round(event.nativeEvent.contentOffset.x / size.width);
             const node = props.images[index];
-            if (node) props.onChange(node);
+            if (!node) return;
+            visible.current = node.id;
+            props.onChange(node);
           }}
           renderItem={({ item }) => <ZoomableImage node={item} headers={headers} size={size} />}
         />

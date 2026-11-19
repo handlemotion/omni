@@ -23,6 +23,7 @@ function usePulse() {
       mounted -= 1;
       if (mounted === 0) {
         loop.stop();
+        loop.reset();
         sharedPulse.setValue(1);
       }
     };

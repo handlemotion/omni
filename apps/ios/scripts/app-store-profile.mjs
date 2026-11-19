@@ -34,9 +34,17 @@ const certs = (
 ).data;
 const cert = certs.find((c) => c.attributes.serialNumber.toUpperCase() === SERIAL.toUpperCase());
 if (!cert) throw new Error(`certificate ${SERIAL} not found among ${certs.length}`);
-const existing = (await api(`/v1/bundleIds/${bundle.id}/profiles?limit=50`)).data.find(
+const active = (await api(`/v1/bundleIds/${bundle.id}/profiles?limit=50`)).data.filter(
   (p) => p.attributes.profileType === "IOS_APP_STORE" && p.attributes.profileState === "ACTIVE",
 );
+let existing;
+for (const p of active) {
+  const holds = (await api(`/v1/profiles/${p.id}/relationships/certificates?limit=50`)).data;
+  if (holds.some((c) => c.id === cert.id)) {
+    existing = p;
+    break;
+  }
+}
 const profile =
   existing ??
   (

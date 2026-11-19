@@ -58,7 +58,8 @@ export function HtmlView({ html, baseUrl }: { html: string; baseUrl: string }) {
   return (
     <WebView
       source={source}
-      style={{ height, backgroundColor: colors.background }}
+      style={{ flex: 0, height, backgroundColor: colors.background }}
+      containerStyle={{ flex: 0, height }}
       injectedJavaScriptBeforeContentLoaded={fitScript(cookie, baseUrl.startsWith("https:"))}
       onMessage={(event) => {
         const next = Number(event.nativeEvent.data);
