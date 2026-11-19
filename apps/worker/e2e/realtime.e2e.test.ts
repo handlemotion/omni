@@ -250,6 +250,41 @@ test("a thread read or archived in another mail app refreshes open apps without 
   anaSocket.socket.close();
 });
 
+test("a thread archived or trashed in Omni refreshes teammates' open apps", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "shelf");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  const ana = await createMember(db, org.id, "ana@shelf.test");
+  const bea = await createMember(db, org.id, "bea@shelf.test");
+  const box = await createMailbox(db, org.id, "help@shelf.test");
+  await grant(db, org.id, box.id, ana.id);
+  await grant(db, org.id, box.id, bea.id);
+  const archived = await seedMessage(db, box, { subject: "Done", fromAddress: "x@c.test", uid: 1 });
+  const trashed = await seedMessage(db, box, { subject: "Junk", fromAddress: "y@c.test", uid: 2 });
+  const anaCookie = await signIn(worker, db, "ana@shelf.test");
+  const beaSocket = await connect(await signIn(worker, db, "bea@shelf.test"));
+  const post = (path: string) =>
+    fetch(new URL(`/api${path}`, worker.url), {
+      method: "POST",
+      headers: { cookie: anaCookie, "idempotency-key": `key-${randomBytes(8).toString("hex")}` },
+    });
+
+  expect((await post(`/threads/${archived.threadId}/archive`)).status).toBe(200);
+  expect((await post(`/threads/${trashed.threadId}/trash`)).status).toBe(200);
+
+  const heard = await beaSocket.next(4);
+  expect(heard).toHaveLength(4);
+  expect(heard).toEqual(
+    expect.arrayContaining([
+      { type: "changed", mailboxId: box.id, threadIds: [archived.threadId] },
+      { type: "thread.changed", mailboxId: box.id, threadIds: [archived.threadId] },
+      { type: "changed", mailboxId: box.id, threadIds: [trashed.threadId] },
+      { type: "thread.changed", mailboxId: box.id, threadIds: [trashed.threadId] },
+    ]),
+  );
+  beaSocket.socket.close();
+});
+
 test("merged threads refresh both ids, tell readers where to go and re-summarize the survivor", async () => {
   const { db } = database;
   const org = await createOrg(db, "hooli");

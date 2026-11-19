@@ -435,6 +435,8 @@ export async function notifyFailedActions(
   }
 }
 
+const EXPO_PUSH_TIMEOUT_MS = 10_000;
+
 async function sendExpoPush(
   db: Db,
   config: Config,
@@ -443,15 +445,21 @@ async function sendExpoPush(
 ) {
   const tokens = await pushTokensFor(db, memberIds);
   if (tokens.length === 0) return;
-  const response = await fetch("https://exp.host/--/api/v2/push/send", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(config.EXPO_ACCESS_TOKEN ? { authorization: `Bearer ${config.EXPO_ACCESS_TOKEN}` } : {}),
-    },
-    body: JSON.stringify(tokens.map((t) => ({ to: t.expoToken, ...message, sound: "default" }))),
-  });
-  if (!response.ok) {
-    createLogger({ component: "realtime" }).warn("expo.push_failed", { status: response.status });
+  const log = createLogger({ component: "realtime" });
+  try {
+    const response = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(config.EXPO_ACCESS_TOKEN
+          ? { authorization: `Bearer ${config.EXPO_ACCESS_TOKEN}` }
+          : {}),
+      },
+      body: JSON.stringify(tokens.map((t) => ({ to: t.expoToken, ...message, sound: "default" }))),
+      signal: AbortSignal.timeout(EXPO_PUSH_TIMEOUT_MS),
+    });
+    if (!response.ok) log.warn("expo.push_failed", { status: response.status });
+  } catch (error) {
+    log.warn("expo.push_failed", { error });
   }
 }

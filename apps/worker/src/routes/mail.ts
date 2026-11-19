@@ -16,6 +16,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
+import { fanOut } from "../realtime.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { smartSearch } from "../search.ts";
 import { attachmentResponse } from "./assets.ts";
@@ -100,6 +101,13 @@ export function notFound(): never {
 
 export function pingLater(c: Context<AppEnv>) {
   c.executionCtx.waitUntil(pingMailService(c.var));
+}
+
+/** Tells everyone who can see the mailbox that the thread changed, after the response. */
+export function announceThread(c: Context<AppEnv>, mailboxId: string, threadId: string) {
+  c.executionCtx.waitUntil(
+    fanOut(c.env, c.var.db, c.var.config, new Map([[mailboxId, new Set([threadId])]])),
+  );
 }
 
 /** Where an action runs: the mailbox it acts on and that mailbox's org. */
@@ -323,10 +331,12 @@ export const mail = new Hono<AppEnv>()
     zValidator("header", idempotencyHeader),
     async (c) => {
       const key = c.req.valid("header")["idempotency-key"];
-      const archived = await archiveThread(writerOf(c), c.req.param("id"), key);
+      const threadId = c.req.param("id");
+      const archived = await archiveThread(writerOf(c), threadId, key);
       if (!archived) notFound();
       const { actionIds } = archived;
       if (actionIds.length) pingLater(c);
+      announceThread(c, archived.mailboxId, threadId);
       return c.json({ actionIds });
     },
   )

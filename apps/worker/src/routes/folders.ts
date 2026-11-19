@@ -3,7 +3,7 @@ import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { zValidator } from "../validator.ts";
-import { enqueuePerFolder, idempotencyHeader, notFound } from "./mail.ts";
+import { announceThread, enqueuePerFolder, idempotencyHeader, notFound } from "./mail.ts";
 
 type Kind = "trash" | "spam" | "not_spam";
 
@@ -25,6 +25,7 @@ async function move(c: Context<AppEnv>, threadId: string, kind: Kind, key: strin
       .filter(({ role }) => MOVES[kind](role))
       .map(({ role: _role, ...target }) => ({ kind, payload: target })),
   );
+  announceThread(c, found.mailboxId, threadId);
   return c.json({ actionIds });
 }
 

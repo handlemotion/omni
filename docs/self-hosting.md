@@ -66,6 +66,7 @@ UID-list diffs and polling. On every connect it logs the server's capabilities
 | ---------------------------- | -------- | ------------------ | ------------------------------------------------------------------------------------ |
 | `MAIL_SERVICE_HMAC_SECRET`   | yes      |                    | Signs Worker → mail service pings; same value in the Worker.                         |
 | `DATABASE_URL`               | yes      |                    | Postgres the service writes the mail index to.                                       |
+| `WORKER_URL`                 | yes      |                    | Base URL of the Worker; new mail is reported to `<WORKER_URL>/internal/mail-events`. |
 | `MAIL_CREDENTIALS_KEY`       | yes      |                    | Keyring `k1:<base64 32 bytes>[,k0:...]`, current key first.                          |
 | `S3_ENDPOINT`                | yes      |                    | S3 API endpoint: R2, MinIO, AWS, or the local gateway.                               |
 | `S3_BUCKET`                  | yes      |                    | Bucket for raw mail, sanitized HTML and attachments.                                 |
@@ -78,6 +79,7 @@ UID-list diffs and polling. On every connect it logs the server's capabilities
 | `LOG_LEVEL`                  | no       | `info`             | `debug`, `info`, `warn`, or `error`. Logs are JSON on stdout.                        |
 | `SYNC_INTERVAL_MS`           | no       | `300000`           | Sync interval for non-inbox folders (INBOX is live via IDLE).                        |
 | `OUTBOX_INTERVAL_MS`         | no       | `30000`            | Outbox poll interval when no ping arrives.                                           |
+| `NOTIFY_SWEEP_MS`            | no       | `60000`            | How often new-mail events the Worker never accepted are sent again.                  |
 | `MAILBOX_CONCURRENCY`        | no       | `4`                | Mailboxes connecting or syncing at once.                                             |
 | `PURELYMAIL_API_TOKEN`       | no       |                    | Purelymail admin API token. Unset: onboarding uses IMAP logins.                      |
 | `PURELYMAIL_CREDIT_WARN_USD` | no       | `5`                | With the token: credit below this logs `hosting.credit_low`.                         |
@@ -349,6 +351,7 @@ to `.dev.vars`.
 | `STORAGE_MAX_FILE_BYTES`     | var    | no       | Largest file Storage accepts, in bytes. Default 5 GB (`5368709120`).                                                                                                                        |
 | `STORAGE_PERSONAL_GB`        | var    | no       | Most a Personal space may store, in GB (1024³ bytes; decimals allowed). Past it uploads answer `402 STORAGE_FULL`. Empty: no cap.                                                           |
 | `STORAGE_MAX_GB`             | var    | no       | Ceiling on what any one workspace may store, in GB. Empty: none.                                                                                                                            |
+| `UPLOAD_MAX_BYTES`           | var    | no       | Largest file one upload may stage for a send, in bytes. Empty: 25 MB (`26214400`).                                                                                                          |
 | `ENVIRONMENT`                | var    | no       | `production` (default). `development` (local only) also logs magic-link and invitation URLs. `test` (e2e suites) is the only value that allows `IMAGE_PROXY_TEST_ALLOW_ORIGIN`.             |
 
 | `S2_BASIN_URL`, `S2_BASIN`, `S2_ACCESS_TOKEN` | both | no | Live co-editing of Markdown files (ADR 0043). See [Live co-editing](#live-co-editing-optional). |
@@ -563,13 +566,14 @@ pnpm --filter @omni/web dev         # http://localhost:5173
 Built by Wrangler with the Worker; it needs no config. Optional build-time variables, documented
 in `apps/web/.env.example` and validated by `vite.config.ts`:
 
-| Variable                  | Required | Notes                                                                                   |
-| ------------------------- | -------- | --------------------------------------------------------------------------------------- |
-| `VITE_SENTRY_DSN`         | no       | Sentry DSN for the browser. Unset keeps error reporting off. Ships in the bundle.       |
-| `VITE_SENTRY_ENVIRONMENT` | no       | Sentry environment tag; defaults to `production`.                                       |
-| `SENTRY_AUTH_TOKEN`       | no       | Secret. With `SENTRY_ORG` and `SENTRY_PROJECT`, the build uploads source maps to Sentry |
-| `SENTRY_ORG`              | no       | and deletes them from `dist/`. Without all three the maps stay in the build and are     |
-| `SENTRY_PROJECT`          | no       | served next to the bundle.                                                              |
+| Variable                  | Required | Notes                                                                                     |
+| ------------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `OMNI_API_ORIGIN`         | no       | Dev only: Worker that `pnpm dev` forwards `/api` to. Defaults to `http://localhost:8787`. |
+| `VITE_SENTRY_DSN`         | no       | Sentry DSN for the browser. Unset keeps error reporting off. Ships in the bundle.         |
+| `VITE_SENTRY_ENVIRONMENT` | no       | Sentry environment tag; defaults to `production`.                                         |
+| `SENTRY_AUTH_TOKEN`       | no       | Secret. With `SENTRY_ORG` and `SENTRY_PROJECT`, the build uploads source maps to Sentry   |
+| `SENTRY_ORG`              | no       | and deletes them from `dist/`. Without all three the maps stay in the build and are       |
+| `SENTRY_PROJECT`          | no       | served next to the bundle.                                                                |
 
 ## Observability
 

@@ -4,6 +4,8 @@ import { signRequest } from "@omni/crypto";
 import type { Logger } from "./log.ts";
 import { backoffDelay } from "./timing.ts";
 
+const DELIVER_TIMEOUT_MS = 60_000;
+
 /** An event on its way, with the `pending_mail_events` row that keeps it when it has one. */
 export interface QueuedEvent {
   event: MailEvent;
@@ -113,6 +115,7 @@ export class WorkerNotifier {
           method: "POST",
           headers: { ...headers, "content-type": "application/json" },
           body,
+          signal: AbortSignal.timeout(DELIVER_TIMEOUT_MS),
         });
         if (response.ok) return true;
         throw new Error(`worker answered ${response.status}`);
