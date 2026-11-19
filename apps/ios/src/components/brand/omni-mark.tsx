@@ -1,22 +1,17 @@
-import Svg, { Path } from "react-native-svg";
-import { colors } from "@/theme/tokens.ts";
+import Svg, { Circle, Path, Rect } from "react-native-svg";
 
-/** Omni's mark, the web sign-in card's `IconRedirectArrow`, at its 28pt size. */
+const BLUE = "#0e2896";
+const CREAM = "#f2e4c8";
+
+/** Omni's mark, the ceramic globe, flat: the web's `IconOmniMark` at its 28pt size. */
 export function OmniMark({ size = 28 }: { size?: number }) {
-  const stroke = { stroke: colors.primary, strokeWidth: 1.6875 } as const;
   return (
-    <Svg width={size} height={size} viewBox="0 0 28 28" fill="none" accessible={false}>
+    <Svg width={size} height={size} viewBox="0 0 28 28" accessible={false}>
+      <Rect width={28} height={28} rx={6.25} fill={BLUE} />
+      <Circle cx={14} cy={14} r={10.08} fill={CREAM} />
       <Path
-        d="M14 23.625V14M14 14V9.1875C14 6.52963 11.8454 4.375 9.1875 4.375C6.52963 4.375 4.375 6.52963 4.375 9.1875C4.375 11.8454 6.52963 14 9.1875 14H14ZM14 14H23.3333"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        {...stroke}
-      />
-      <Path
-        d="M19.5417 9.91667L23.625 14L19.5417 18.0833"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        {...stroke}
+        fill={BLUE}
+        d="M14 3.92A10.728 10.728 0 0 0 14 24.08A12.919 12.919 0 0 1 14 3.92ZM14 3.92A10.728 10.728 0 0 1 14 24.08A12.919 12.919 0 0 0 14 3.92Z"
       />
     </Svg>
   );

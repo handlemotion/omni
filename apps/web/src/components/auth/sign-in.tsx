@@ -1,7 +1,7 @@
 import { Google } from "@ridemountainpig/svgl-react";
 import { useRouter } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import { IconRedirectArrow } from "@/components/icons";
+import { IconOmniMark } from "@/components/icons";
 import { IconKey } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -36,7 +36,7 @@ export function SignIn({ redirect, callback }: { redirect?: string; callback?: s
       <div className="flex h-137.5 w-100 flex-col pb-12">
         <Card className="flex-1 justify-between gap-0 p-6">
           <div className="flex flex-col gap-5">
-            <IconRedirectArrow />
+            <IconOmniMark />
             <div className="flex flex-col gap-2">
               <Heading>Welcome to Omni</Heading>
               <Text>Use or create your omni email to get started</Text>
