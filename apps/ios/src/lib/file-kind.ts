@@ -146,6 +146,7 @@ const DOCUMENT = new Set(["doc", "docx", "pages", "odt", "rtf"]);
 const PRESENTATION = new Set(["ppt", "pptx", "key", "odp"]);
 const PLAIN = new Set(["txt", "log", "text", "env"]);
 const CSV = new Set(["csv", "tsv"]);
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 const KINDS: { kind: FileKind; matches: (ext: string, mime: string) => boolean }[] = [
   { kind: "image", matches: (e, m) => IMAGE.has(e) || m.startsWith("image/") },
@@ -157,7 +158,7 @@ const KINDS: { kind: FileKind; matches: (ext: string, mime: string) => boolean }
   { kind: "code", matches: (e) => TEXT.has(e) },
   { kind: "text", matches: (_, m) => m.startsWith("text/") },
   { kind: "archive", matches: (e) => ARCHIVE.has(e) },
-  { kind: "spreadsheet", matches: (e) => SPREADSHEET.has(e) },
+  { kind: "spreadsheet", matches: (e, m) => SPREADSHEET.has(e) || m === XLSX_MIME },
   { kind: "document", matches: (e) => DOCUMENT.has(e) },
   { kind: "presentation", matches: (e) => PRESENTATION.has(e) },
 ];

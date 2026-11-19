@@ -46,6 +46,7 @@ function Space({ space: where }: { space: "personal" | "shared" }) {
       place={{ space: where }}
       empty={DRIVE_PAGES.my.empty}
       footerSpace={CLEAR_OF_FADE}
+      recent
     />
   );
 }

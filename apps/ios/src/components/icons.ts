@@ -48,8 +48,6 @@ export { IconAudio } from "@central-icons-react-native/round-outlined-radius-3-s
 export { IconCodeBrackets as IconCode } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconCodeBrackets";
 export { IconTable } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconTable";
 export { IconFileZip } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconFileZip";
-export { IconFilePdf } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconFilePdf";
-export { IconSlidesWide as IconPresentation } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconSlidesWide";
 export { IconFolderOpen as IconFolderOpenFilled } from "@central-icons-react-native/round-filled-radius-3-stroke-1.5/IconFolderOpen";
 export { IconArrowUp } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconArrowUp";
 export { IconDotGrid1x3Horizontal as IconEllipsis } from "@central-icons-react-native/round-outlined-radius-3-stroke-1.5/IconDotGrid1x3Horizontal";

@@ -2,16 +2,15 @@ import { Image } from "expo-image";
 import type { ComponentType } from "react";
 import { StyleSheet, View } from "react-native";
 import type { SvgProps } from "react-native-svg";
+import { BRAND_MARKS, isBranded, type BrandedKind } from "@/components/brand/file-marks/index.ts";
 import {
   IconAudio,
   IconCode,
   IconFile,
-  IconFilePdf,
   IconFileText,
   IconFileZip,
   IconFolder,
   IconImage,
-  IconPresentation,
   IconTable,
   IconVideo,
 } from "@/components/icons.ts";
@@ -22,18 +21,14 @@ import { colors, iconSize, radius, space } from "@/theme/tokens.ts";
 
 type Glyph = ComponentType<SvgProps & { size?: number }>;
 
-const GLYPH: Record<FileKind | "folder", Glyph> = {
+const GLYPH: Record<Exclude<FileKind, BrandedKind> | "folder", Glyph> = {
   folder: IconFolder,
   image: IconImage,
   video: IconVideo,
   audio: IconAudio,
-  pdf: IconFilePdf,
   code: IconCode,
   text: IconFileText,
   csv: IconTable,
-  spreadsheet: IconTable,
-  document: IconFileText,
-  presentation: IconPresentation,
   archive: IconFileZip,
   other: IconFile,
 };
@@ -41,8 +36,15 @@ const GLYPH: Record<FileKind | "folder", Glyph> = {
 /** Images over this draw their glyph, as the web's grid does: a thumbnail reads the original. */
 export const THUMBNAIL_MAX_BYTES = 20 * 1024 * 1024;
 
-/** A file's or folder's glyph, muted as every icon is at rest. */
+/**
+ * A file's or folder's glyph, muted as every icon is at rest; a PDF or an Office file shows its
+ * brand's mark in its own colours, as on the web.
+ */
 export function FileGlyph(props: { kind: FileKind | "folder"; size: number }) {
+  if (isBranded(props.kind)) {
+    const Mark = BRAND_MARKS[props.kind];
+    return <Mark size={props.size} />;
+  }
   const Glyph = GLYPH[props.kind];
   return <Glyph size={props.size} color={colors.mutedForeground} />;
 }

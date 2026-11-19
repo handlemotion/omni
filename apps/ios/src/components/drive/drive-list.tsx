@@ -14,34 +14,46 @@ type Row =
   | { type: "folders"; key: string; nodes: DriveNode[] }
   | { type: "file"; key: string; node: DriveNode };
 
-function toRows(nodes: DriveNode[]) {
+const newestFirst = (a: DriveNode, b: DriveNode) =>
+  Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+
+function toRows(nodes: DriveNode[], recent: boolean) {
   const folders = nodes.filter((node) => node.kind === "folder");
   const files = nodes.filter((node) => node.kind !== "folder");
+  if (recent) files.sort(newestFirst);
   const rows: Row[] = [];
   if (folders.length) rows.push({ type: "heading", key: "folders", label: "Folders", rule: false });
   for (let at = 0; at < folders.length; at += COLUMNS) {
     const three = folders.slice(at, at + COLUMNS);
     rows.push({ type: "folders", key: `folders:${three[0]?.id}`, nodes: three });
   }
-  if (files.length) rows.push({ type: "heading", key: "files", label: "Files", rule: true });
+  if (files.length) {
+    rows.push({ type: "heading", key: "files", label: recent ? "Recent" : "Files", rule: true });
+  }
   for (const node of files) rows.push({ type: "file", key: node.id, node });
   return rows;
 }
 
+const folderRows = (nodes: DriveNode[]) => toRows(nodes, false);
+const recentRows = (nodes: DriveNode[]) => toRows(nodes, true);
+
 /**
  * A space's top or a folder's contents, as Drive's board lays them out: its folders in a grid of
- * three cards under "Folders", then its files as rows under "Files".
+ * three cards under "Folders", then its files as rows under "Files", in the API's name order. A
+ * space's top (`recent`) heads them "Recent" instead and puts the latest updated first, among the
+ * pages loaded so far.
  */
 export function DriveList(props: {
   place: Parameters<typeof useFolder>[0];
   empty: string;
   footerSpace?: number;
+  recent?: boolean;
 }) {
   const query = useFolder(props.place);
   return (
     <InfiniteList
       query={query}
-      rows={toRows}
+      rows={props.recent ? recentRows : folderRows}
       keyOf={(row) => row.key}
       typeOf={(row) => row.type}
       renderItem={(row) => <DriveRow row={row} />}
