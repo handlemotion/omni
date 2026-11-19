@@ -37,10 +37,13 @@ export function FloatingBar({
   onStart,
   onStop,
   initial,
+  query,
 }: {
   placeholder: string;
   /** A search already running (coming back from one of its results): the field reopens with it. */
   initial?: { searching: boolean; query: string };
+  /** What the open field shows, when the page under it can fill it (a recent search). */
+  query?: string;
   action: FloatingBarAction;
   onSearch: (q: string) => void;
   /** The field opened (the shell closes its menu and hides its top bar). */
@@ -78,7 +81,7 @@ export function FloatingBar({
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
-              value={q}
+              value={query ?? q}
               onChangeText={(next) => {
                 setQ(next);
                 onSearch(next);

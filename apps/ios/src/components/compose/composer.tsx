@@ -1,24 +1,15 @@
 import type { Mailbox, Thread } from "@omni/client";
-import { Stack, router } from "expo-router";
+import { router } from "expo-router";
 import { useRef, useState, type ReactNode } from "react";
+import { ActionSheetIOS, Alert, StyleSheet, View } from "react-native";
 import {
-  ActionSheetIOS,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  IconChevronDown,
+  IconImage,
+  IconPaperclip,
   IconReply,
   IconReplyAll,
-  IconSend,
   IconTrash,
 } from "@/components/icons.ts";
-import { Button } from "@/components/ui/button.tsx";
+import { ChipButton } from "@/components/ui/chip-button.tsx";
 import { IconButton } from "@/components/ui/icon-button.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
@@ -26,13 +17,19 @@ import { ApiError } from "@/lib/api.ts";
 import {
   notAddresses,
   parseAddresses,
+  participantNames,
   replyStart,
   useSendNew,
   useSendReply,
 } from "@/lib/compose.ts";
+import { useComposeAttachments } from "@/lib/compose-attachments.ts";
 import { idempotencyKey } from "@/lib/ids.ts";
+import { useMailboxes } from "@/lib/mail.ts";
 import { currentWorkspaceId } from "@/lib/workspace-id.ts";
-import { gutter, space } from "@/theme/tokens.ts";
+import { gutter, space, text as type } from "@/theme/tokens.ts";
+import { AttachmentChips } from "./attachment-chips.tsx";
+import { ComposeSheet } from "./compose-sheet.tsx";
+import { FromPicker } from "./from-picker.tsx";
 import { HeaderRow } from "./header-field.tsx";
 import { RecipientField } from "./recipient-field.tsx";
 
@@ -102,6 +99,8 @@ function useSendKey() {
   };
 }
 
+type Files = ReturnType<typeof useComposeAttachments>;
+
 function confirmDiscard(dirty: boolean, then: () => void) {
   if (!dirty) return then();
   Alert.alert("Discard this message?", undefined, [
@@ -110,38 +109,12 @@ function confirmDiscard(dirty: boolean, then: () => void) {
   ]);
 }
 
-function Frame(props: { title: string; dirty: boolean; toolbar: ReactNode; children: ReactNode }) {
-  const insets = useSafeAreaInsets();
-  return (
-    <KeyboardAvoidingView
-      style={styles.frame}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={insets.top}
-    >
-      <Stack.Screen options={{ title: props.title, gestureEnabled: !props.dirty }} />
-      <Stack.Toolbar placement="left">
-        <Stack.Toolbar.Button
-          icon="xmark"
-          accessibilityLabel="Close"
-          onPress={() => confirmDiscard(props.dirty, () => router.back())}
-        />
-      </Stack.Toolbar>
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        contentContainerStyle={styles.content}
-        style={styles.frame}
-      >
-        {props.children}
-      </ScrollView>
-      <View style={[styles.toolbar, { paddingBottom: Math.max(insets.bottom, space(3)) }]}>
-        {props.toolbar}
-      </View>
-    </KeyboardAvoidingView>
-  );
-}
-
-function Recipients({ state, autoFocus }: { state: RecipientsState; autoFocus?: boolean }) {
+function Recipients(props: {
+  state: RecipientsState;
+  autoFocus?: boolean;
+  names?: ReadonlyMap<string, string>;
+}) {
+  const { state, names } = props;
   return (
     <>
       <RecipientField
@@ -149,11 +122,12 @@ function Recipients({ state, autoFocus }: { state: RecipientsState; autoFocus?: 
         value={state.list.to}
         text={state.typed.to}
         onText={(text) => state.type("to", text)}
-        autoFocus={autoFocus}
+        autoFocus={props.autoFocus}
         onChange={(to) => state.set({ to })}
+        names={names}
         end={
           state.showCopies ? null : (
-            <Button intent="quiet" size="sm" label="Cc Bcc" onPress={state.showAll} />
+            <ChipButton label="Cc Bcc" tone="mutedForeground" onPress={state.showAll} />
           )
         }
       />
@@ -165,6 +139,7 @@ function Recipients({ state, autoFocus }: { state: RecipientsState; autoFocus?: 
             text={state.typed.cc}
             onText={(text) => state.type("cc", text)}
             onChange={(cc) => state.set({ cc })}
+            names={names}
           />
           <RecipientField
             label="Bcc"
@@ -172,48 +147,11 @@ function Recipients({ state, autoFocus }: { state: RecipientsState; autoFocus?: 
             text={state.typed.bcc}
             onText={(text) => state.type("bcc", text)}
             onChange={(bcc) => state.set({ bcc })}
+            names={names}
           />
         </>
       ) : null}
     </>
-  );
-}
-
-function FromRow(props: {
-  mailboxes: { id: string; address: string }[];
-  value: string;
-  onChange: (id: string) => void;
-}) {
-  const { mailboxes, onChange } = props;
-  const address = mailboxes.find((m) => m.id === props.value)?.address ?? "";
-  const pick = () =>
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        options: [...mailboxes.map((m) => m.address), "Cancel"],
-        cancelButtonIndex: mailboxes.length,
-      },
-      (index) => {
-        const next = mailboxes[index];
-        if (next) onChange(next.id);
-      },
-    );
-  return (
-    <HeaderRow label="From">
-      {mailboxes.length > 1 && Platform.OS === "ios" ? (
-        <Button
-          intent="quiet"
-          label={address}
-          trailingIcon={IconChevronDown}
-          accessibilityLabel={`From ${address}`}
-          onPress={pick}
-          style={styles.shrink}
-        />
-      ) : (
-        <Text numberOfLines={1} ellipsizeMode="middle" style={styles.shrink}>
-          {address}
-        </Text>
-      )}
-    </HeaderRow>
   );
 }
 
@@ -240,30 +178,15 @@ function Body(props: {
   );
 }
 
-function SendButton(props: { canSend: boolean; isPending: boolean; onSend: () => void }) {
-  return (
-    <Button
-      size="sm"
-      icon={IconSend}
-      label="Send"
-      disabled={!props.canSend}
-      isPending={props.isPending}
-      onPress={props.onSend}
-    />
-  );
-}
-
 function KindMenu({ kind, onChange }: { kind: Kind; onChange: (next: Kind) => void }) {
   const current = KINDS[kind];
   const ids = Object.keys(KINDS) as Kind[];
   return (
-    <Button
-      intent="outline"
-      size="sm"
+    <IconButton
+      size="toolbar"
+      tone="foreground"
       icon={current.icon}
-      trailingIcon={IconChevronDown}
-      label={current.label}
-      accessibilityLabel={`${current.label}, change`}
+      label={`${current.label}, change`}
       onPress={() =>
         ActionSheetIOS.showActionSheetWithOptions(
           {
@@ -280,6 +203,30 @@ function KindMenu({ kind, onChange }: { kind: Kind; onChange: (next: Kind) => vo
   );
 }
 
+function Toolbar(props: { files: Files; kind?: ReactNode; onDiscard: () => void }) {
+  return (
+    <>
+      <IconButton
+        size="toolbar"
+        tone="foreground"
+        icon={IconPaperclip}
+        label="Attach file"
+        onPress={props.files.attachFiles}
+      />
+      <IconButton
+        size="toolbar"
+        tone="foreground"
+        icon={IconImage}
+        label="Attach photo"
+        onPress={props.files.attachMedia}
+      />
+      {props.kind}
+      <View style={styles.fill} />
+      <IconButton size="toolbar" icon={IconTrash} label="Discard" onPress={props.onDiscard} />
+    </>
+  );
+}
+
 function notSent(error: Error, sendAnyway?: () => void) {
   if (sendAnyway && error instanceof ApiError && error.status === 409) {
     Alert.alert("New message in this conversation", undefined, [
@@ -291,24 +238,29 @@ function notSent(error: Error, sendAnyway?: () => void) {
   Alert.alert("Not sent", error.message);
 }
 
-/** The web's reply composer in a sheet: From, To (Cc, Bcc), the reply, then Reply or Reply all, Discard and Send. */
+/** The web's reply composer in a sheet: From, To (Cc, Bcc), the subject, the reply, files, Send. */
 export function ReplyComposer(props: { thread: Thread; replyAll: boolean }) {
   const [thread] = useState(props.thread);
   const [kind, setKind] = useState<Kind>(props.replyAll ? "replyAll" : "reply");
   const start = replyStart(thread, kind === "replyAll");
   const recipients = useRecipients(start);
+  const [names] = useState(() => participantNames(thread));
+  const mailboxes = useMailboxes();
+  const files = useComposeAttachments(thread.mailboxId);
   const [text, setText] = useState("");
   const send = useSendReply();
   const keyFor = useSendKey();
   const message = start.message;
   const written = text.trim().length > 0;
-  const dirty = written || recipients.changed;
+  const dirty = written || recipients.changed || files.list.length > 0;
   const canSend =
     !!message &&
     recipients.final.to.length > 0 &&
     !recipients.unsendable &&
     written &&
+    !files.pending &&
     !send.isPending;
+  const close = () => confirmDiscard(dirty, () => router.back());
   const submit = (checkLatest: boolean) => {
     if (!message) return;
     const reply = {
@@ -316,6 +268,7 @@ export function ReplyComposer(props: { thread: Thread; replyAll: boolean }) {
       messageId: message.id,
       replyAll: kind === "replyAll",
       text,
+      attachments: files.attachments,
       ...recipients.final,
     };
     send.mutate(
@@ -327,41 +280,50 @@ export function ReplyComposer(props: { thread: Thread; replyAll: boolean }) {
     );
   };
   return (
-    <Frame
-      title={KINDS[kind].label}
+    <ComposeSheet
       dirty={dirty}
+      from={
+        <FromPicker
+          mailboxes={mailboxes.data ?? []}
+          value={thread.mailboxId}
+          address={thread.mailboxAddress}
+        />
+      }
+      canSend={canSend}
+      isSending={send.isPending}
+      onSend={() => submit(true)}
+      onClose={close}
       toolbar={
-        <>
-          <KindMenu
-            kind={kind}
-            onChange={(next) => {
-              setKind(next);
-              recipients.reset(replyStart(thread, next === "replyAll"));
-            }}
-          />
-          <View style={styles.end}>
-            <IconButton
-              icon={IconTrash}
-              label="Discard"
-              onPress={() => confirmDiscard(dirty, () => router.back())}
+        <Toolbar
+          files={files}
+          onDiscard={close}
+          kind={
+            <KindMenu
+              kind={kind}
+              onChange={(next) => {
+                setKind(next);
+                recipients.reset(replyStart(thread, next === "replyAll"));
+              }}
             />
-            <SendButton canSend={canSend} isPending={send.isPending} onSend={() => submit(true)} />
-          </View>
-        </>
+          }
+        />
       }
     >
-      <FromRow
-        mailboxes={[{ id: thread.mailboxId, address: thread.mailboxAddress }]}
-        value={thread.mailboxId}
-        onChange={() => undefined}
-      />
-      <Recipients state={recipients} />
+      <Recipients state={recipients} names={names} />
+      {start.subject ? (
+        <HeaderRow>
+          <Text size="body" numberOfLines={1} style={styles.fill}>
+            {start.subject}
+          </Text>
+        </HeaderRow>
+      ) : null}
       <Body label="Reply" value={text} onChange={setText} autoFocus />
-    </Frame>
+      <AttachmentChips list={files.list} onRemove={files.remove} />
+    </ComposeSheet>
   );
 }
 
-/** The web's new-message composer in a sheet: From, To (Cc, Bcc), Subject, the message, then Send. */
+/** The web's new-message composer in a sheet: From, To (Cc, Bcc), Subject, the message, files, Send. */
 export function NewComposer(props: { mailboxes: Mailbox[]; mailboxId?: string }) {
   const { mailboxes } = props;
   const recipients = useRecipients({ to: [], cc: [] });
@@ -372,28 +334,35 @@ export function NewComposer(props: { mailboxes: Mailbox[]; mailboxId?: string })
   const [fromId, setFromId] = useState(
     mailboxes.find((m) => m.id === props.mailboxId)?.id ?? mailboxes[0]?.id ?? "",
   );
+  const files = useComposeAttachments(fromId);
   const { to } = recipients.final;
-  const dirty = !!(text.trim() || subject.trim()) || recipients.changed;
-  const canSend = !!fromId && to.length > 0 && !recipients.unsendable && !send.isPending;
+  const dirty = !!(text.trim() || subject.trim()) || recipients.changed || files.list.length > 0;
+  const canSend =
+    !!fromId && to.length > 0 && !recipients.unsendable && !files.pending && !send.isPending;
+  const close = () => confirmDiscard(dirty, () => router.back());
   const submit = () => {
-    const mail = { mailboxId: fromId, subject: subject.trim(), text, ...recipients.final };
+    const mail = {
+      mailboxId: fromId,
+      subject: subject.trim(),
+      text,
+      attachments: files.attachments,
+      ...recipients.final,
+    };
     send.mutate(
       { ...mail, key: keyFor(mail), workspace: currentWorkspaceId() },
       { onSuccess: () => router.back(), onError: (error) => notSent(error) },
     );
   };
   return (
-    <Frame
-      title="New message"
+    <ComposeSheet
       dirty={dirty}
-      toolbar={
-        <>
-          <View />
-          <SendButton canSend={canSend} isPending={send.isPending} onSend={submit} />
-        </>
-      }
+      from={<FromPicker mailboxes={mailboxes} value={fromId} onChange={setFromId} />}
+      canSend={canSend}
+      isSending={send.isPending}
+      onSend={submit}
+      onClose={close}
+      toolbar={<Toolbar files={files} onDiscard={close} />}
     >
-      <FromRow mailboxes={mailboxes} value={fromId} onChange={setFromId} />
       <Recipients state={recipients} autoFocus />
       <HeaderRow>
         <TextField
@@ -403,27 +372,17 @@ export function NewComposer(props: { mailboxes: Mailbox[]; mailboxId?: string })
           maxLength={SUBJECT_MAX}
           value={subject}
           onChangeText={setSubject}
-          containerStyle={styles.shrink}
+          containerStyle={styles.fill}
+          style={type.body}
         />
       </HeaderRow>
       <Body label="Message" value={text} onChange={setText} />
-    </Frame>
+      <AttachmentChips list={files.list} onRemove={files.remove} />
+    </ComposeSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  frame: { flex: 1 },
-  content: { flexGrow: 1 },
-  fill: { flex: 1 },
-  shrink: { flex: 1, minWidth: 0 },
-  body: { flex: 1, minHeight: space(24), paddingHorizontal: gutter, paddingTop: space(3) },
-  toolbar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: space(2),
-    paddingHorizontal: gutter,
-    paddingTop: space(2),
-  },
-  end: { flexDirection: "row", alignItems: "center", gap: space(3) },
+  fill: { flex: 1, minWidth: 0 },
+  body: { ...type.body, lineHeight: space(6), flex: 1, minHeight: space(24), padding: gutter },
 });

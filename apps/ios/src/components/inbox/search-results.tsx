@@ -8,10 +8,11 @@ import { ListSkeleton } from "@/components/ui/list-skeleton.tsx";
 import { LoadingPage } from "@/components/ui/loading-page.tsx";
 import { useScrollEdge } from "@/components/ui/scroll-edge.tsx";
 import { useSearch } from "@/lib/mail.ts";
+import { rememberSearch } from "@/lib/recent-searches.ts";
 import { space } from "@/theme/tokens.ts";
 import { ThreadRow } from "./thread-row.tsx";
 
-/** Threads matching `q` across the workspace's mail, best first; a tap opens one. */
+/** Threads matching `q` across the workspace's mail, best first; a tap opens one and keeps `q` as a recent search. */
 export function SearchResults({ q, footerSpace = 0 }: { q: string; footerSpace?: number }) {
   const search = useSearch(q);
   const onScroll = useScrollEdge();
@@ -60,9 +61,10 @@ export function SearchResults({ q, footerSpace = 0 }: { q: string; footerSpace?:
             lastMessageAt: item.lastMessageAt,
             messageCount: item.messageCount,
           }}
-          onPress={() =>
-            router.push({ pathname: "/mail/thread/[id]", params: { id: item.threadId } })
-          }
+          onPress={() => {
+            rememberSearch(q);
+            router.push({ pathname: "/mail/thread/[id]", params: { id: item.threadId } });
+          }}
         />
       )}
     />

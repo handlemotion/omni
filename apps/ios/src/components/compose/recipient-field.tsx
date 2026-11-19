@@ -1,13 +1,15 @@
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
-import { Tag } from "@/components/ui/tag.tsx";
+import { Avatar } from "@/components/ui/avatar.tsx";
+import { ChipButton, chipHeight } from "@/components/ui/chip-button.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { notAddresses, parseAddresses } from "@/lib/compose.ts";
-import { space } from "@/theme/tokens.ts";
+import { iconSize, space, text as type } from "@/theme/tokens.ts";
 import { HeaderRow } from "./header-field.tsx";
 
 /**
- * One recipient line, as the web's `RecipientField`: the label, the addresses as removable tags,
+ * One recipient line, as the web's `RecipientField`: the label, the addresses as removable chips
+ * (a hairline pill holding the person's round avatar and their name, or their address),
  * and a field. A comma, semicolon, space or Return turns typed addresses into tags; Delete in an
  * empty field takes the last one off. `end` sits at the end of the line (the Cc Bcc toggle).
  * Typed text the person never turned into a tag still goes out: Send reads it from `text`.
@@ -21,6 +23,8 @@ export function RecipientField(props: {
   onText: (text: string) => void;
   autoFocus?: boolean;
   end?: ReactNode;
+  /** Names to show for addresses (a reply's people), lowercased addresses as keys. */
+  names?: ReadonlyMap<string, string>;
 }) {
   const { value, onChange, text, onText: setText } = props;
   const add = (found: string[]) => {
@@ -37,13 +41,19 @@ export function RecipientField(props: {
   return (
     <HeaderRow label={props.label}>
       <View style={styles.value}>
-        {value.map((address) => (
-          <Tag
-            key={address}
-            label={address}
-            onRemove={() => onChange(value.filter((a) => a !== address))}
-          />
-        ))}
+        {value.map((address) => {
+          const name = props.names?.get(address.toLowerCase()) ?? address;
+          return (
+            <ChipButton
+              key={address}
+              variant="chip"
+              label={name}
+              accessibilityLabel={`Remove ${name}`}
+              lead={<Avatar name={name} logo={{ address }} size={iconSize.lg} />}
+              onPress={() => onChange(value.filter((a) => a !== address))}
+            />
+          );
+        })}
         <TextField
           variant="bare"
           label={props.label}
@@ -80,8 +90,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    gap: space(1),
+    gap: space(2),
   },
   field: { flexGrow: 1, flexBasis: space(16) },
-  input: { minHeight: space(8) },
+  input: { ...type.subhead, minHeight: chipHeight },
 });

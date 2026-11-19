@@ -1,5 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
 import { SearchResults } from "@/components/inbox/search-results.tsx";
+import { SearchStart } from "@/components/inbox/search-start.tsx";
 import { ThreadList } from "@/components/inbox/thread-list.tsx";
 import { FLOATING_BAR_SPACE } from "@/components/shell/floating-bar.tsx";
 import { useMenu } from "@/components/shell/menu-context.tsx";
@@ -16,12 +17,16 @@ export default function MailList() {
   const mailboxes = useMailboxes();
   const you = session.data?.user.name || session.data?.user.email || "";
   const mailbox = mailboxes.data?.find((m) => m.id === params.mailbox);
-  const typed = useMenu().query.trim();
+  const shell = useMenu();
+  const typed = shell.query.trim();
   const q = useDebounced(typed);
+  const searching = shell.searchIn === "mail";
   return (
     <ModuleRoot>
       {typed ? (
         <SearchResults q={q} footerSpace={FLOATING_BAR_SPACE} />
+      ) : searching ? (
+        <SearchStart onSearch={shell.setQuery} />
       ) : (
         <ThreadList
           page={page}

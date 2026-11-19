@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import { Pressable, StyleSheet, View, type PressableProps } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View, type PressableProps } from "react-native";
 import type { SvgProps } from "react-native-svg";
 import { colors, floatingControl, iconSize, radius, searchControl, space } from "@/theme/tokens.ts";
 import { Text } from "./text.tsx";
@@ -20,6 +20,8 @@ export interface FloatingButtonProps extends Omit<PressableProps, "children" | "
   searching?: boolean;
   /** The glyph's size; 20pt unless set. */
   glyph?: number;
+  /** The action is running (Send): dimmed like a disabled button, a spinner in the glyph's place. */
+  isPending?: boolean;
 }
 
 /**
@@ -33,23 +35,29 @@ export function FloatingButton({
   compact = false,
   searching = false,
   glyph = iconSize.md,
+  isPending = false,
+  disabled,
   ...props
 }: FloatingButtonProps) {
+  const ink = primary ? colors.primaryForeground : colors.foreground;
   return (
     <Pressable
       {...props}
+      disabled={disabled || isPending}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled: !!(disabled || isPending), busy: isPending }}
       style={({ pressed }) => [
         styles.surface,
         styles.round,
         primary && styles.primary,
         compact && styles.compactRound,
         searching && styles.searchRound,
+        (disabled || isPending) && styles.dimmed,
         pressed && styles.pressed,
       ]}
     >
-      <Icon size={glyph} color={primary ? colors.primaryForeground : colors.foreground} />
+      {isPending ? <ActivityIndicator color={ink} /> : <Icon size={glyph} color={ink} />}
     </Pressable>
   );
 }

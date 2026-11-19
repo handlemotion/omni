@@ -37,11 +37,31 @@ export function replyStart(thread: Thread, replyAll: boolean) {
   };
 }
 
+/** Each address on a conversation with the name its messages give it, lowercased, for chips. */
+export function participantNames(thread: Thread) {
+  const names = new Map<string, string>();
+  const note = (address: string, name?: string | null) => {
+    if (name && !names.has(address.toLowerCase())) names.set(address.toLowerCase(), name);
+  };
+  for (const message of thread.messages) {
+    note(message.fromAddress, message.fromName);
+    for (const one of [...message.to, ...message.cc]) note(one.address, one.name);
+  }
+  return names;
+}
+
 /** True when reply all would add someone a plain reply leaves out. */
 export const canReplyAll = (thread: Thread) => replyStart(thread, true).cc.length > 0;
 
+/** A file the person attached, uploaded and ready to go out with the mail. */
+export interface SendAttachment {
+  kind: "upload";
+  uploadId: string;
+}
+
 interface Recipients {
   workspace: string | null;
+  attachments: SendAttachment[];
   to: string[];
   cc: string[];
   bcc: string[];
@@ -93,6 +113,7 @@ export function useSendReply() {
       to,
       cc,
       bcc,
+      attachments,
       workspace,
     }: ReplyVariables) =>
       call(
@@ -108,7 +129,7 @@ export function useSendReply() {
               to,
               cc: optional(cc),
               bcc: optional(bcc),
-              attachments: [],
+              attachments,
             },
           },
           inWorkspace(workspace),
@@ -125,7 +146,17 @@ export function useSendReply() {
 export function useSendNew() {
   const sent = useSent();
   return useMutation({
-    mutationFn: ({ key, mailboxId, subject, text, to, cc, bcc, workspace }: NewMailVariables) =>
+    mutationFn: ({
+      key,
+      mailboxId,
+      subject,
+      text,
+      to,
+      cc,
+      bcc,
+      attachments,
+      workspace,
+    }: NewMailVariables) =>
       call(
         api.send.$post(
           {
@@ -137,7 +168,7 @@ export function useSendNew() {
               to,
               cc: optional(cc),
               bcc: optional(bcc),
-              attachments: [],
+              attachments,
             },
           },
           inWorkspace(workspace),

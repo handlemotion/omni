@@ -85,7 +85,8 @@ export function MailboxChooser() {
   );
 }
 
-function ChoiceRow(props: {
+/** A mailbox (or All mailboxes) in a chooser sheet: its avatar, name and address, a check on the current one. */
+export function ChoiceRow(props: {
   lead: ReactNode;
   name: string;
   detail: string;

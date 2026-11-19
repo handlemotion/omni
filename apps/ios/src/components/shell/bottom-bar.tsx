@@ -69,6 +69,7 @@ export function BottomBar() {
         key={module}
         placeholder={PLACEHOLDER[module]}
         initial={{ searching: mine, query: mine ? shell.query : "" }}
+        query={mine ? shell.query : undefined}
         onSearch={setQuery}
         onStart={() => {
           closeMenu();
