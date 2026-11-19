@@ -19,6 +19,10 @@ export function MenuRow(props: {
   muted?: boolean;
   /** Drawn after the label in place of a count: a check. */
   trailing?: ReactNode;
+  /** The glyph's column width, so a sheet's glyphs line up with its avatars. */
+  leadWidth?: number;
+  /** The label and glyph in the brand's ink (an action like Upgrade). */
+  accent?: boolean;
   onPress: () => void;
 }) {
   const Icon = props.icon;
@@ -30,18 +34,19 @@ export function MenuRow(props: {
       onPress={props.onPress}
       accessibilityLabel={[props.label, props.count].filter(Boolean).join(", ")}
     >
-      <View style={styles.lead}>
+      <View style={[styles.lead, props.leadWidth ? { width: props.leadWidth } : null]}>
         {props.lead ??
           (Icon ? (
             <Icon
               size={iconSize.menu}
-              color={props.muted ? colors.mutedForeground : colors.primary}
+              color={props.muted && !props.accent ? colors.mutedForeground : colors.primary}
             />
           ) : null)}
       </View>
       <Text
         size="md"
         weight={current ? "semibold" : "regular"}
+        tone={props.accent ? "primary" : "foreground"}
         numberOfLines={1}
         style={styles.label}
       >

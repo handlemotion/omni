@@ -75,6 +75,7 @@ export function WorkspaceButton() {
         ))}
         {menu.canCreate ? (
           <MenuRow
+            leadWidth={SHEET_LEAD}
             icon={IconPlus}
             muted
             label="New workspace"
@@ -83,37 +84,47 @@ export function WorkspaceButton() {
         ) : null}
         <MenuDivider />
         <MenuRow
+          leadWidth={SHEET_LEAD}
           icon={IconUserRound}
           muted
           label="Account settings"
           onPress={() => pick(() => router.push("/settings"))}
         />
         <MenuRow
+          leadWidth={SHEET_LEAD}
           icon={IconSettings}
           muted
           label="Workspace settings"
           onPress={() => settings("general")}
         />
         <MenuRow
+          leadWidth={SHEET_LEAD}
           icon={IconConnections}
           muted
           label="Connections"
           onPress={() => settings("accounts")}
         />
-        {menu.team || menu.upgrade ? <MenuDivider /> : null}
         {menu.team ? (
           <MenuRow
+            leadWidth={SHEET_LEAD}
             icon={IconUserAdd}
             muted
             label="Invite members"
             onPress={() => settings("people")}
           />
         ) : null}
-        {menu.upgrade ? (
-          <MenuRow icon={IconUpgrade} muted label="Upgrade" onPress={() => settings("billing")} />
-        ) : null}
         <MenuDivider />
+        {menu.upgrade ? (
+          <MenuRow
+            icon={IconUpgrade}
+            leadWidth={SHEET_LEAD}
+            accent
+            label="Upgrade"
+            onPress={() => settings("billing")}
+          />
+        ) : null}
         <MenuRow
+          leadWidth={SHEET_LEAD}
           icon={IconLogOut}
           muted
           label="Log out"
@@ -135,6 +146,7 @@ function WorkspaceChoice(props: {
     <ChoiceRow
       lead={<Avatar name={props.name} size={SHEET_LEAD} photo={logo} inverse />}
       name={props.name}
+      detail={props.workspace.kind === "personal" ? "Personal" : "Company"}
       chosen={props.chosen}
       onPress={props.onPress}
     />
