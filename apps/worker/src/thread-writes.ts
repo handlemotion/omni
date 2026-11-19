@@ -38,20 +38,27 @@ export async function enqueuePerFolder(
   return actionIds;
 }
 
+type StateRow = NonNullable<Awaited<ReturnType<ReturnType<typeof forMember>["setThreadState"]>>>;
+
+function written({ orgId, mailboxId, ...state }: StateRow) {
+  return { state, where: { orgId, mailboxId } };
+}
+
 /**
  * Read or unread for this member. On a personal mailbox it also syncs the IMAP \Seen flag; a
  * shared mailbox never changes it (spec: "Sync rules"), and neither does a Google account, where
  * \Seen means Done (ADR 0044). Null when the member cannot see the thread.
  */
 export async function markRead(writer: ThreadWriter, threadId: string, read: boolean, key: string) {
-  const state = await forMember(writer.db, writer.memberId).setThreadState(threadId, { read });
-  if (!state) return null;
+  const row = await forMember(writer.db, writer.memberId).setThreadState(threadId, { read });
+  if (!row) return null;
+  const { state, where } = written(row);
   const found = await threadActionTargets(writer.db, writer.memberId, threadId);
   const actionIds =
     found?.mailboxKind === "personal" && found.mailboxProvider !== "gmail"
       ? await enqueueFlag(writer, found, read ? "mark_read" : "mark_unread", key)
       : [];
-  return { state, actionIds, mailboxId: found?.mailboxId };
+  return { state, actionIds, where };
 }
 
 type Found = NonNullable<Awaited<ReturnType<typeof threadActionTargets>>>;
@@ -89,10 +96,11 @@ export async function setTriage(
   patch: TriagePatch,
   key: string,
 ) {
-  const state = await forMember(writer.db, writer.memberId).setThreadState(threadId, patch);
-  if (!state) return null;
+  const row = await forMember(writer.db, writer.memberId).setThreadState(threadId, patch);
+  if (!row) return null;
+  const { state, where } = written(row);
   const kind = state.done ? "mark_read" : patch.doneThrough === null ? "mark_unread" : null;
-  if (!kind) return { state, actionIds: [] };
+  if (!kind) return { state, actionIds: [], where };
   const found = await threadActionTargets(
     writer.db,
     writer.memberId,
@@ -101,7 +109,7 @@ export async function setTriage(
   );
   const actionIds =
     found?.mailboxProvider === "gmail" ? await enqueueFlag(writer, found, kind, key, true) : [];
-  return { state, actionIds };
+  return { state, actionIds, where };
 }
 
 /** Where a thread's mail is: each folder's copies, as the outbox targets them. */

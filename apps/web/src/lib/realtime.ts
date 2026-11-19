@@ -22,6 +22,7 @@ import { actionQuery } from "./mail-queries.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
 
 const FLUSH_MS = 150;
+const MAX_HOLD_MS = 3_000;
 
 let status: RealtimeStatus = "closed";
 let sockets = new Map<string, Realtime>();
@@ -70,9 +71,17 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
   const changedThreads = new Set<string>();
   const changedMailboxes = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let heldSince: number | undefined;
 
   const flush = () => {
     timer = undefined;
+    const acting = client.isMutating({ mutationKey: keys.mail() }) > 0;
+    heldSince ??= Date.now();
+    if (acting && Date.now() - heldSince < MAX_HOLD_MS) {
+      timer = setTimeout(flush, FLUSH_MS);
+      return;
+    }
+    heldSince = undefined;
     const threads = [...changedThreads];
     const mailboxes = new Set(changedMailboxes);
     changedThreads.clear();

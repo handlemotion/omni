@@ -1244,6 +1244,8 @@ function mailQueries(db: Db, isGrantee: (memberId: AnyColumn | SQL) => SQL) {
         )
         .onConflictDoUpdate({ target: [threadState.threadId, threadState.memberId], set })
         .returning({
+          orgId: threadState.orgId,
+          mailboxId: sql<string>`(select ${threads.mailboxId} from ${threads} where ${threads.id} = ${threadState.threadId})`,
           read: threadState.read,
           later: sql<boolean>`coalesce(${threadState.snoozedUntil} > now(), false)`,
           deferredUntil: legacyDeferredUntil,

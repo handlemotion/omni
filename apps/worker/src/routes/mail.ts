@@ -18,7 +18,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppEnv } from "../context.ts";
 import { pingMailService } from "../mail-service.ts";
-import { fanOut } from "../realtime.ts";
+import { announceToMember, fanOut } from "../realtime.ts";
 import { limitPerMember } from "../rate-limiter.ts";
 import { smartSearch } from "../search.ts";
 import { attachmentResponse } from "./assets.ts";
@@ -112,6 +112,13 @@ export function announceThread(c: Context<AppEnv>, mailboxId: string, threadId: 
   );
 }
 
+/** Tells this member's other devices that their state on the thread changed, after the response. */
+export function announceOwnState(c: Context<AppEnv>, where: ActionMailbox, threadId: string) {
+  c.executionCtx.waitUntil(
+    announceToMember(c.env, { ...where, memberId: c.var.member.id, threadId }),
+  );
+}
+
 /** Where an action runs: the mailbox it acts on and that mailbox's org. */
 export interface ActionMailbox {
   orgId: string;
@@ -165,6 +172,7 @@ async function triage(c: Context<AppEnv>, patch: TriagePatch) {
   const applied = await setTriage(writerOf(c), id, patch, key);
   if (!applied) notFound();
   if (applied.actionIds.length) pingLater(c);
+  announceOwnState(c, applied.where, id);
   return c.json({ state: applied.state });
 }
 
@@ -279,10 +287,12 @@ export const mail = new Hono<AppEnv>()
     async (c) => {
       const { read } = c.req.valid("json");
       const key = c.req.valid("header")["idempotency-key"];
-      const marked = await markRead(writerOf(c), c.req.param("id"), read, key);
+      const threadId = c.req.param("id");
+      const marked = await markRead(writerOf(c), threadId, read, key);
       if (!marked) notFound();
       const { state, actionIds } = marked;
       if (actionIds.length) pingLater(c);
+      announceOwnState(c, marked.where, threadId);
       return c.json({ state, actionIds });
     },
   )
@@ -320,10 +330,13 @@ export const mail = new Hono<AppEnv>()
   )
 
   .delete("/threads/:id/defer", zValidator("header", idempotencyHeader), async (c) => {
-    const state = await forMember(c.var.db, c.var.member.id).setThreadState(c.req.param("id"), {
+    const threadId = c.req.param("id");
+    const row = await forMember(c.var.db, c.var.member.id).setThreadState(threadId, {
       deferredUntil: null,
     });
-    if (!state) notFound();
+    if (!row) notFound();
+    const { orgId, mailboxId, ...state } = row;
+    announceOwnState(c, { orgId, mailboxId }, threadId);
     return c.json({ state });
   })
 

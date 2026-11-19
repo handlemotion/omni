@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { AppState, Platform } from "react-native";
 import { auth } from "./api.ts";
 import { config } from "./config.ts";
+import { MAIL_ACTIONS_KEY } from "./mail.ts";
 import { keys } from "./query-keys.ts";
 
 const NativeWebSocket = WebSocket as unknown as new (
@@ -13,6 +14,7 @@ const NativeWebSocket = WebSocket as unknown as new (
 ) => WebSocket;
 
 const COALESCE_EVENTS_MS = 150;
+const MAX_HOLD_MS = 3_000;
 
 const threadListMailbox = (query: Query) => query.queryKey[2];
 const isThreadNotItsHtml = (query: Query) => query.queryKey.length === 2;
@@ -40,9 +42,17 @@ function invalidateOnEvents(client: QueryClient) {
   const threads = new Set<string>();
   const mailboxes = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let heldSince: number | undefined;
 
   const flush = () => {
     timer = undefined;
+    const acting = client.isMutating({ mutationKey: MAIL_ACTIONS_KEY }) > 0;
+    heldSince ??= Date.now();
+    if (acting && Date.now() - heldSince < MAX_HOLD_MS) {
+      timer = setTimeout(flush, COALESCE_EVENTS_MS);
+      return;
+    }
+    heldSince = undefined;
     const changed = new Set(mailboxes);
     for (const id of threads) {
       void client.invalidateQueries({ queryKey: keys.thread(id), exact: true });

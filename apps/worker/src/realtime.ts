@@ -329,6 +329,23 @@ export async function fanOut(
   }
 }
 
+/**
+ * Tells this member's own apps, on every device, that their state on a thread changed: read,
+ * Done, Later. That state is theirs alone, so teammates are not told, and nothing else would
+ * tell their other devices (a phone left open kept a read thread unread, and its badge).
+ */
+export async function announceToMember(
+  env: Env,
+  input: { orgId: string; memberId: string; mailboxId: string; threadId: string },
+) {
+  const stub = env.REALTIME.get(env.REALTIME.idFromName(input.orgId));
+  await stub.broadcast([input.memberId], {
+    type: "changed",
+    mailboxId: input.mailboxId,
+    threadIds: [input.threadId],
+  });
+}
+
 /** Tells everyone who can see the mailbox that threads were merged, so readers can follow. */
 export async function announceMerges(
   env: Env,
