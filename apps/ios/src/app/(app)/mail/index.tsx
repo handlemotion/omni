@@ -3,6 +3,7 @@ import { useState } from "react";
 import { SearchResults } from "@/components/inbox/search-results.tsx";
 import { ThreadList } from "@/components/inbox/thread-list.tsx";
 import { ModuleToolbar } from "@/components/shell/module-toolbar.tsx";
+import { useCountedPages } from "@/lib/mail-counts.ts";
 import { MAIL_PAGES, isMailPage, mailboxName, useMailboxes, type MailPage } from "@/lib/mail.ts";
 import { useSession } from "@/lib/session.ts";
 import { useDebounced } from "@/lib/use-debounced.ts";
@@ -18,6 +19,7 @@ export default function MailList() {
   const you = session.data?.user.name || session.data?.user.email || "";
   const mailbox = mailboxes.data?.find((m) => m.id === params.mailbox);
   const label = MAIL_PAGES[page].label;
+  const pages = useCountedPages(PAGES, mailbox?.id);
   const [typed, setTyped] = useState("");
   const q = useDebounced(typed.trim());
   return (
@@ -31,7 +33,7 @@ export default function MailList() {
       <Stack.Screen
         options={{ title: mailbox ? `${label} · ${mailboxName(mailbox, you)}` : label }}
       />
-      <ModuleToolbar pages={PAGES} current={page} onPage={(id) => router.setParams({ page: id })}>
+      <ModuleToolbar pages={pages} current={page} onPage={(id) => router.setParams({ page: id })}>
         <Stack.Toolbar.Menu inline title="Mailboxes">
           <Stack.Toolbar.MenuAction
             icon="tray.2"

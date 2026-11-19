@@ -3,6 +3,7 @@ import type {
   CrmChangedKind,
   HelpdeskRealtimeEvent,
   MailActionKind,
+  StorageChangedEvent,
   StorageDocEvent,
   StorageFilePresenceEvent,
   StorageLiveRecord,
@@ -33,7 +34,8 @@ export type RealtimeEvent =
   | HelpdeskRealtimeEvent
   | NotificationEvent
   | StorageFilePresenceEvent
-  | StorageDocEvent;
+  | StorageDocEvent
+  | StorageChangedEvent;
 export type RealtimeStatus = "connecting" | "open" | "closed";
 
 /**
@@ -334,8 +336,14 @@ const parseLiveRecord: (value: unknown) => StorageLiveRecord | undefined = (valu
 
 const parseStorageEvent: (
   event: Record<string, unknown>,
-) => StorageFilePresenceEvent | StorageDocEvent | undefined = (event) => {
+) => StorageFilePresenceEvent | StorageDocEvent | StorageChangedEvent | undefined = (event) => {
   const { nodeId, ref, seqNum } = event;
+  if (event.type === "storage.changed") {
+    const { space } = event;
+    return space === "personal" || space === "shared"
+      ? { type: "storage.changed", space }
+      : undefined;
+  }
   if (!isId(nodeId)) return undefined;
   switch (event.type) {
     case "file.presence": {

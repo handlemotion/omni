@@ -13,9 +13,12 @@ export const keys = {
   crmStages: () => ["crm", "stages"] as const,
   senderLogo: (who: string) => ["sender-logo", who] as const,
   search: (q: string) => ["search", q] as const,
-  /** Every cached thread list, whatever its page and mailbox (`threads(...)` is under it). */
-  threadLists: () => ["threads"] as const,
   /** Your notifications: every list (all, unread only). */
   notifications: () => ["notifications"] as const,
   notificationList: (unread: boolean) => ["notifications", { unread }] as const,
+  /** Every cached thread list, whatever its page and mailbox (`threads(...)` is under it). */
+  threadLists: () => ["threads"] as const,
+  threadDetails: () => ["thread"] as const,
+  driveAll: () => ["drive"] as const,
+  crmAll: () => ["crm"] as const,
 };

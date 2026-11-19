@@ -261,3 +261,37 @@ test("wake() reconnects now instead of waiting out the backoff", async () => {
     realtime.close();
   }
 });
+
+test("realtime hands the app a Drive change, so an open folder can refetch", async () => {
+  const { db } = database;
+  const org = await createOrg(db, "drive-live");
+  await createMailbox(db, org.id, SYSTEM_MAIL_FROM);
+  await createMember(db, org.id, "ana@drive-live.test");
+  const { jar, api } = await signIn(db, "ana@drive-live.test");
+  const events: RealtimeEvent[] = [];
+  let open = false;
+  const realtime = connectRealtime({
+    baseUrl: String(worker.url),
+    orgId: org.id,
+    openSocket: (url) =>
+      new WebSocket(url, {
+        headers: { cookie: jar.header(), origin: WEB_ORIGIN },
+      } as unknown as string[]),
+    onEvent: (event) => {
+      events.push(event);
+      heard();
+    },
+    onStatus: (status) => {
+      open = status === "open";
+      heard();
+    },
+  });
+  try {
+    await until(() => (open ? true : undefined));
+    const made = await api.storage.folders.$post({ json: { name: "Plans", space: "personal" } });
+    expect(made.status).toBe(201);
+    expect(await until(() => events[0])).toEqual({ type: "storage.changed", space: "personal" });
+  } finally {
+    realtime.close();
+  }
+});

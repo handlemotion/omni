@@ -10,6 +10,8 @@ export interface ModulePage<Id extends string> {
   id: Id;
   label: string;
   icon: SymbolName;
+  /** A count beside it, as the web sidebar shows one (Inbox's unread). */
+  count?: string;
 }
 
 /**
@@ -38,6 +40,7 @@ export function ModuleToolbar<Id extends string>(props: {
                 key={page.id}
                 icon={page.icon}
                 isOn={page.id === props.current}
+                subtitle={page.count}
                 onPress={() => page.id !== props.current && props.onPage(page.id)}
               >
                 {page.label}
