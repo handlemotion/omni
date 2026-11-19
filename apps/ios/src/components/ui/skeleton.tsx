@@ -1,41 +1,59 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { AccessibilityInfo, Animated, StyleSheet, type DimensionValue } from "react-native";
 import { colors, radius } from "@/theme/tokens.ts";
 
+const sharedPulse = new Animated.Value(1);
+const loop = Animated.loop(
+  Animated.sequence([
+    Animated.timing(sharedPulse, { toValue: 0.5, duration: 700, useNativeDriver: true }),
+    Animated.timing(sharedPulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+  ]),
+);
+let mounted = 0;
+
+function usePulse() {
+  useEffect(() => {
+    mounted += 1;
+    if (mounted === 1) {
+      void AccessibilityInfo.isReduceMotionEnabled().then((still) => {
+        if (!still && mounted > 0) loop.start();
+      });
+    }
+    return () => {
+      mounted -= 1;
+      if (mounted === 0) {
+        loop.stop();
+        sharedPulse.setValue(1);
+      }
+    };
+  }, []);
+}
+
 /**
  * A placeholder bar for data on its way, shaped like the text it stands for. The web uses
- * `skullet`, which has no React Native build; this is its stand-in. It breathes slowly, and holds
- * still when Reduce Motion is on. `round` makes it a circle `height` across, for an avatar.
+ * `skullet`, which has no React Native build; this is its stand-in. Every bar breathes in step,
+ * and holds still when Reduce Motion is on. `round` makes it a circle `height` across, for an
+ * avatar; `corner` sets the corner radius for a square lead (a file or folder tile).
  */
 export function Skeleton({
   width,
   height = 12,
   round = false,
+  corner,
 }: {
   width: DimensionValue;
   height?: number;
   round?: boolean;
+  corner?: number;
 }) {
-  const opacity = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.5, duration: 700, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
-      ]),
-    );
-    const start = async () => {
-      if (!(await AccessibilityInfo.isReduceMotionEnabled())) loop.start();
-    };
-    void start();
-    return () => loop.stop();
-  }, [opacity]);
+  usePulse();
   return (
     <Animated.View
       style={[
         styles.bar,
         round && styles.round,
-        { width: round ? height : width, height, opacity },
+        corner !== undefined && { borderRadius: corner },
+        { width: round ? height : width, height, opacity: sharedPulse },
       ]}
     />
   );

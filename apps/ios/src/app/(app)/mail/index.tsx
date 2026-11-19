@@ -26,6 +26,8 @@ export default function MailList() {
     <>
       <Stack.SearchBar
         placeholder="Search mail"
+        placement="stacked"
+        hideWhenScrolling={false}
         autoCapitalize="none"
         onChangeText={(event) => setTyped(event.nativeEvent.text)}
         onCancelButtonPress={() => setTyped("")}

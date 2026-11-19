@@ -11,8 +11,11 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { queryClient } from "@/lib/query-client.ts";
+import { holdSplash } from "@/lib/splash.ts";
 import { acceptSignInLink, useClearCacheOnUserChange } from "@/lib/session.ts";
 import { colors } from "@/theme/tokens.ts";
+
+holdSplash();
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold });

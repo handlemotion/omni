@@ -8,6 +8,7 @@ import { Text } from "@/components/ui/text.tsx";
 import { TextField } from "@/components/ui/text-field.tsx";
 import { config } from "@/lib/config.ts";
 import { requestSignInLink, useSession } from "@/lib/session.ts";
+import { useSplashDone } from "@/lib/splash.ts";
 import { gutter, space } from "@/theme/tokens.ts";
 
 export default function SignIn() {
@@ -15,6 +16,7 @@ export default function SignIn() {
   const { error } = useLocalSearchParams<{ error?: string }>();
   const [email, setEmail] = useState("");
   const link = useMutation({ mutationFn: requestSignInLink });
+  useSplashDone(!session.data);
 
   if (session.data) return <Redirect href="/mail" />;
 

@@ -7,6 +7,7 @@ import { colors, space } from "@/theme/tokens.ts";
 import { Button } from "./button.tsx";
 import { EmptyState } from "./empty-state.tsx";
 import { ListSkeleton } from "./list-skeleton.tsx";
+import { LoadingPage } from "./loading-page.tsx";
 
 type Glyph = ComponentType<SvgProps & { size?: number }>;
 
@@ -36,7 +37,7 @@ export function InfiniteList<T, R = T>(props: Paged<T, R>) {
     () => (query.data ? (toRows ? toRows(query.data) : (query.data as unknown as R[])) : []),
     [query.data, toRows],
   );
-  if (query.isPending) return props.skeleton ?? <ListSkeleton />;
+  if (query.isPending) return <LoadingPage>{props.skeleton ?? <ListSkeleton />}</LoadingPage>;
   const refresh = (
     <RefreshControl
       refreshing={query.isRefetching && !query.isFetchingNextPage}

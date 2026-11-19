@@ -5,6 +5,7 @@ import { IconBuildings } from "@/components/icons.ts";
 import { Avatar } from "@/components/ui/avatar.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
+import { LoadingPage } from "@/components/ui/loading-page.tsx";
 import { SectionHeading } from "@/components/ui/section-heading.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Text } from "@/components/ui/text.tsx";
@@ -31,11 +32,13 @@ export function RecordView<T>(props: {
   const { query } = props;
   if (query.isPending) {
     return (
-      <View style={styles.loading}>
-        <Skeleton width={64} height={64} round />
-        <Skeleton width="70%" height={28} />
-        <Skeleton width="40%" height={16} />
-      </View>
+      <LoadingPage>
+        <View style={styles.head}>
+          <Skeleton width={64} height={64} round />
+          <Skeleton width="70%" height={28} />
+          <Skeleton width="40%" height={16} />
+        </View>
+      </LoadingPage>
     );
   }
   if (query.isError) {
@@ -129,7 +132,6 @@ export function Section<T>(props: { title: string; items: T[]; render: (item: T)
 }
 
 const styles = StyleSheet.create({
-  loading: { paddingHorizontal: gutter, paddingTop: space(4), gap: space(3) },
   scroll: { paddingBottom: space(16), gap: space(6) },
   head: {
     paddingHorizontal: gutter,
