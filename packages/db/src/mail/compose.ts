@@ -1,5 +1,5 @@
 import type { SendAttachment } from "@omni/contracts";
-import { and, eq, exists, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, eq, exists, gt, inArray, isNotNull, isNull, not, or, sql } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 import type { Db } from "../client.ts";
 import { grantFor } from "./member-mail.ts";
@@ -125,7 +125,7 @@ async function invalidSendAttachments(db: Db, mailboxId: string, requested: Send
           and(
             inArray(uploads.id, uploadIds),
             eq(uploads.mailboxId, mailboxId),
-            or(isNotNull(uploads.usedAt), gt(uploads.expiresAt, sql`now()`)),
+            or(isNotNull(uploads.usedAt), gt(uploads.expiresAt, sql`now()`), heldByDraft()),
           ),
         )
         .for("update")
@@ -203,16 +203,19 @@ export async function enqueueSendWithAttachments(
   });
 }
 
+const heldByDraft = () =>
+  sql<boolean>`exists (select 1 from ${drafts} where ${drafts.mailboxId} = ${uploads.mailboxId} and ${drafts.attachments} @> jsonb_build_array(jsonb_build_object('uploadId', ${uploads.id}::text)))`;
+
 /**
- * Up to `limit` uploads no send took whose time ran out, removed from Postgres. Returns their
- * storage keys for the caller to delete; an object left behind by a crash between the two is
- * unreachable, since nothing points at it.
+ * Up to `limit` uploads no send took and no draft holds whose time ran out, removed from Postgres.
+ * Returns their storage keys for the caller to delete; an object left behind by a crash between the
+ * two is unreachable, since nothing points at it.
  */
 export async function takeExpiredUploads(db: Db, limit = 500) {
   const due = db
     .select({ id: uploads.id })
     .from(uploads)
-    .where(and(isNull(uploads.usedAt), sql`${uploads.expiresAt} < now()`))
+    .where(and(isNull(uploads.usedAt), sql`${uploads.expiresAt} < now()`, not(heldByDraft())))
     .limit(limit);
   return db
     .delete(uploads)

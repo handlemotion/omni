@@ -14,6 +14,8 @@ import {
   SYSTEM_MAIL_FROM,
 } from "./support.ts";
 
+const DAILY_CRON = "47 3 * * *";
+
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let mailService: Awaited<ReturnType<typeof startMailServiceEndpoint>>;
 let worker: Awaited<ReturnType<typeof startWorker>>;
@@ -276,6 +278,57 @@ describe("drafts", () => {
     });
     expect(sent.status).toBe(202);
     expect(await sends()).toHaveLength(1);
+  });
+
+  test("a draft's upload outlives its 24 hours and sends; an upload no draft holds is cleaned up", async () => {
+    const { db } = database;
+    const { inbox, ana } = await team("olddraft");
+    const upload = async (filename: string) =>
+      (
+        (await (
+          await fetch(
+            new URL(`/api/uploads?mailboxId=${inbox.id}&filename=${filename}`, worker.url),
+            {
+              method: "POST",
+              headers: { cookie: ana.cookie, "content-type": "text/plain" },
+              body: new Blob(["hello"]),
+            },
+          )
+        ).json()) as { id: string }
+      ).id;
+    const kept = await upload("contract.txt");
+    const dropped = await upload("abandoned.txt");
+    const draft = (await (
+      await api(
+        "/drafts",
+        ana.cookie,
+        json("POST", {
+          mailboxId: inbox.id,
+          kind: "new",
+          to: [{ address: "luis@client.test" }],
+          subject: "Signed contract",
+          attachments: [{ uploadId: kept }],
+        }),
+      )
+    ).json()) as Draft;
+    await db
+      .update(schema.uploads)
+      .set({ expiresAt: new Date(Date.now() - 60_000) })
+      .where(eq(schema.uploads.mailboxId, inbox.id));
+
+    expect((await worker.server.getWorker().scheduled({ cron: DAILY_CRON })).outcome).toBe("ok");
+
+    expect((await api(`/uploads/${kept}`, ana.cookie)).status).toBe(200);
+    expect((await api(`/uploads/${dropped}`, ana.cookie)).status).toBe(404);
+    const sent = await api(`/drafts/${draft.id}/send`, ana.cookie, {
+      method: "POST",
+      key: "old-draft-send",
+    });
+    expect(sent.status).toBe(202);
+    const { actionId } = (await sent.json()) as { actionId: string };
+    expect((await actionRow(actionId))?.payload).toMatchObject({
+      attachments: [{ kind: "upload", uploadId: kept }],
+    });
   });
 
   test("a forward draft starts with the original's files, and sends what the agent kept", async () => {
