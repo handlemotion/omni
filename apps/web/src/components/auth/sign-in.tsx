@@ -1,12 +1,13 @@
-import { Google } from "@ridemountainpig/svgl-react";
+import { Google, Microsoft } from "@ridemountainpig/svgl-react";
 import { useRouter } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import { IconOmniMark } from "@/components/icons";
+import signInTiles from "@/assets/sign-in-tiles.jpg";
+import { IconOmniGlobe } from "@/components/icons";
 import { IconKey } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
+import { Link } from "@/components/ui/link";
 import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
 import { TextField } from "@/components/ui/text-field";
@@ -19,6 +20,8 @@ import {
 import { isServerPath, safeRedirect } from "@/lib/session.ts";
 
 const RESEND_AFTER_MS = 30_000;
+const CONTROL_HEIGHT = "h-9";
+const LEGAL_LINK = "text-foreground underline decoration-border underline-offset-2";
 
 /** `callback`: a native app opened this page for its sign-in (`/login?callback=`). */
 export function SignIn({ redirect, callback }: { redirect?: string; callback?: string }) {
@@ -29,21 +32,63 @@ export function SignIn({ redirect, callback }: { redirect?: string; callback?: s
   const google = useSignInGoogle();
   const [email, setEmail] = useState("");
   const lastSend = useRef<{ email: string; at: number } | null>(null);
-  const hasOtherMethods = !callback || !!methods.data?.google;
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-surface">
-      <div className="flex h-137.5 w-100 flex-col pb-12">
-        <Card className="flex-1 justify-between gap-0 p-6">
-          <div className="flex flex-col gap-5">
-            <IconOmniMark />
-            <div className="flex flex-col gap-2">
-              <Heading>Welcome to Omni</Heading>
-              <Text>Use or create your omni email to get started</Text>
-            </div>
+    <main className="grid min-h-dvh bg-background lg:grid-cols-2">
+      <div className="relative hidden overflow-hidden lg:block">
+        <img src={signInTiles} alt="" className="absolute inset-0 size-full object-cover" />
+      </div>
+
+      <div className="flex items-center justify-center px-6 pb-24">
+        <div className="flex w-full max-w-88 flex-col gap-10">
+          <div className="flex flex-col items-center gap-6">
+            <IconOmniGlobe size={32} className="text-brand-cream" />
+            <Heading className="text-xl">Sign in to Omni</Heading>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+              <Button
+                intent="outline"
+                className={CONTROL_HEIGHT}
+                isDisabled={!methods.data?.google}
+                isPending={google.isPending}
+                onPress={() => google.mutate({ redirect, callback })}
+              >
+                <Google aria-hidden />
+                Continue with Google
+              </Button>
+              <Button intent="outline" className={CONTROL_HEIGHT} isDisabled>
+                <Microsoft aria-hidden />
+                Continue with Microsoft
+              </Button>
+              {!callback && (
+                <Button
+                  intent="outline"
+                  className={CONTROL_HEIGHT}
+                  isPending={passkey.isPending}
+                  onPress={() =>
+                    passkey.mutate(undefined, {
+                      onSuccess: () => {
+                        const to = safeRedirect(redirect);
+                        if (isServerPath(to)) window.location.assign(to);
+                        else router.history.push(to);
+                      },
+                    })
+                  }
+                >
+                  <IconKey />
+                  Continue with a Passkey
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Separator className="flex-1" />
+              <span className="text-xs uppercase tracking-wide text-subtle-foreground">or</span>
+              <Separator className="flex-1" />
+            </div>
+
             <form
               className="flex flex-col gap-2"
               onSubmit={(event) => {
@@ -65,57 +110,23 @@ export function SignIn({ redirect, callback }: { redirect?: string; callback?: s
                 value={email}
                 onChange={setEmail}
               >
-                <Input size="lg" placeholder={`email@${location.hostname}`} />
+                <Input
+                  size="lg"
+                  className={CONTROL_HEIGHT}
+                  placeholder={`email@${location.hostname}`}
+                />
               </TextField>
-              <Button type="submit" size="lg" isPending={magicLink.isPending}>
+              <Button type="submit" className={CONTROL_HEIGHT} isPending={magicLink.isPending}>
                 Continue
               </Button>
             </form>
 
-            {hasOtherMethods && (
-              <div className="flex items-center gap-2.5">
-                <Separator className="flex-1" />
-                <span className="text-xs text-subtle-foreground">or</span>
-                <Separator className="flex-1" />
-              </div>
-            )}
-
-            <div className="flex flex-col gap-2">
-              {!callback && (
-                <Button
-                  intent="outline"
-                  size="lg"
-                  className="justify-start"
-                  isPending={passkey.isPending}
-                  onPress={() =>
-                    passkey.mutate(undefined, {
-                      onSuccess: () => {
-                        const to = safeRedirect(redirect);
-                        if (isServerPath(to)) window.location.assign(to);
-                        else router.history.push(to);
-                      },
-                    })
-                  }
-                >
-                  <IconKey />
-                  Using a Passkey
-                </Button>
-              )}
-              {methods.data?.google && (
-                <Button
-                  intent="outline"
-                  size="lg"
-                  className="justify-start"
-                  isPending={google.isPending}
-                  onPress={() => google.mutate({ redirect, callback })}
-                >
-                  <Google aria-hidden />
-                  Using Google
-                </Button>
-              )}
-            </div>
+            <Text className="text-balance text-center text-xs/5 text-muted-foreground">
+              By signing in, you agree to our <Link className={LEGAL_LINK}>Terms of Service</Link>{" "}
+              and <Link className={LEGAL_LINK}>Privacy Policy</Link>.
+            </Text>
           </div>
-        </Card>
+        </div>
       </div>
     </main>
   );

@@ -23,12 +23,13 @@
   --hover: color-mix(in oklab, var(--foreground) 3%, transparent);
   /* A lighter sky blue; as text on white it still clears 4.5:1. */
   --primary: #1d72e8;
-  /* A primary button's fill: the brand blue at full saturation and a little lighter, so the
-     button's darker edge doesn't make it read heavy. */
-  --primary-button: #1a7ef5;
+  /* A primary button's fill: the orange-red tile of the sign-in wall, a step lighter. */
+  --primary-button: #ec5a34;
   /* What dims the app under a dialog: flat black, no blur (transitive's scrim). */
   --scrim: oklch(0 0 0 / 7%);
   --primary-foreground: #ffffff;
+  /* The ivory of the sign-in tiles, deepened a step so the Omni globe holds on white. */
+  --brand-cream: #dcc7a8;
 
   /* Tactility (`.claude/skills/tactile-design`): depth and press, layered on the Figma look
      without changing it. Crisp, never a big soft blur: a 1px drop, plus one short drop for
@@ -150,6 +151,7 @@
   --color-primary: var(--primary);
   --color-primary-button: var(--primary-button);
   --color-primary-foreground: var(--primary-foreground);
+  --color-brand-cream: var(--brand-cream);
   --color-primary-subtle: var(--primary-subtle);
   --color-primary-subtle-foreground: var(--primary-subtle-foreground);
   --color-secondary: var(--secondary);
