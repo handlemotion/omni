@@ -102,11 +102,22 @@ export const stagesQuery = () =>
 
 export const useStageNames = () => useQuery(stagesQuery());
 
-/** A deal's value in its currency, as people read it; null when it has none. */
+/**
+ * A deal's value as the web shows it (`formatMoney`): `valueMinor` is hundredths of the currency
+ * for every currency, whole units when there are no cents; null when it has none.
+ */
 export function dealValue(deal: Pick<CrmDeal, "valueMinor" | "valueCurrency">) {
   if (deal.valueMinor === null) return null;
-  const currency = deal.valueCurrency ?? "USD";
-  const format = new Intl.NumberFormat(undefined, { style: "currency", currency });
-  const digits = format.resolvedOptions().maximumFractionDigits ?? 2;
-  return format.format(deal.valueMinor / 10 ** digits);
+  const amount = deal.valueMinor / 100;
+  const currency = deal.valueCurrency;
+  if (!currency) return new Intl.NumberFormat(undefined).format(amount);
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    }).format(amount);
+  } catch {
+    return `${amount} ${currency}`;
+  }
 }

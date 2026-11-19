@@ -11,6 +11,10 @@ export const keys = {
   crmList: (page: string) => ["crm", page] as const,
   crmRecord: (kind: string, id: string) => ["crm", kind, id] as const,
   crmStages: () => ["crm", "stages"] as const,
+  crmTimeline: (kind: string, id: string) => ["crm", "timeline", kind, id] as const,
+  crmCompanySearch: (q: string) => ["crm", "company-search", q] as const,
+  crmMe: () => ["crm-me"] as const,
+  crmMembers: () => ["crm-members"] as const,
   me: () => ["me"] as const,
   /** Everything Drive caches, to ask it all again after a change. */
   driveAll: () => ["drive"] as const,

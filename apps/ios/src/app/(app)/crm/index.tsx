@@ -1,4 +1,5 @@
 import { Redirect, Stack, router, useLocalSearchParams } from "expo-router";
+import { newRecordButton } from "@/components/crm/new-record-button.tsx";
 import { CompanyRow, DealRow, PersonRow } from "@/components/crm/record-rows.tsx";
 import { IconBuildings, IconHandshake, IconUsers } from "@/components/icons.ts";
 import { ModuleToolbar } from "@/components/shell/module-toolbar.tsx";
@@ -24,7 +25,12 @@ export default function CrmHome() {
   return (
     <>
       <Stack.Screen options={{ title: CRM_PAGES[page].label }} />
-      <ModuleToolbar pages={PAGES} current={page} onPage={(id) => router.setParams({ page: id })} />
+      <ModuleToolbar
+        pages={PAGES}
+        current={page}
+        onPage={(id) => router.setParams({ page: id })}
+        actions={newRecordButton(page)}
+      />
       {page === "people" ? <People /> : page === "deals" ? <Deals /> : <Companies />}
     </>
   );

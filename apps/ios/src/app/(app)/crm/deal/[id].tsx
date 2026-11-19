@@ -1,6 +1,8 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { PersonRow } from "@/components/crm/record-rows.tsx";
 import { Fields, RecordView, Section } from "@/components/crm/record-view.tsx";
+import { RecordActions } from "@/components/crm/record-actions.tsx";
+import { TimelineSection } from "@/components/crm/timeline-section.tsx";
 import { dealValue, useDeal, useStageNames } from "@/lib/crm.ts";
 import { listTime } from "@/lib/mail.ts";
 
@@ -17,6 +19,7 @@ export default function Deal() {
       >
         {(data) => (
           <>
+            <RecordActions kind="deals" id={id} stageId={data.deal.stageId} />
             <Fields
               fields={[
                 ["Stage", stages?.get(data.deal.stageId)],
@@ -24,6 +27,7 @@ export default function Deal() {
               ]}
             />
             <Section title="People" items={data.people} render={(p) => <PersonRow person={p} />} />
+            <TimelineSection kind="deals" id={id} />
           </>
         )}
       </RecordView>
