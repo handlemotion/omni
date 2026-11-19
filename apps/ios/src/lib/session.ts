@@ -8,6 +8,7 @@ import { STORAGE_PREFIX, auth } from "./api.ts";
 import { config } from "./config.ts";
 import { cancelUploads } from "./drive-uploads.ts";
 import { queryClient } from "./query-client.ts";
+import { resetCache } from "./workspace.ts";
 import { storeWorkspaceId } from "./workspace-id.ts";
 
 const storage = storageAdapter(SecureStore);
@@ -101,7 +102,8 @@ export function useSession() {
 
 /**
  * Drops every cached query when the signed-in user changes or the session ends (signed out
- * here, elsewhere, or expired), so the next person never sees the last one's mail. Mount once.
+ * here, elsewhere, or expired), so the next person never sees the last one's mail: a screen
+ * still showing it is reset and asks again as them (`resetCache`). Mount once.
  */
 export function useClearCacheOnUserChange() {
   const userId = useSession().data?.user.id ?? null;
@@ -109,9 +111,8 @@ export function useClearCacheOnUserChange() {
   useEffect(() => {
     if (last.current !== null && last.current !== userId) {
       void cancelUploads();
-      void queryClient.cancelQueries();
-      queryClient.clear();
-      storeWorkspaceId(null);
+      queryClient.getMutationCache().clear();
+      resetCache(null);
     }
     last.current = userId;
   }, [userId]);

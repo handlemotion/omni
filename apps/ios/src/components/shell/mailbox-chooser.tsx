@@ -1,9 +1,9 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { IconCheck, IconChevronsUpDown } from "@/components/icons.ts";
 import { MailboxAvatar } from "@/components/inbox/mailbox-avatar.tsx";
 import { MailboxCluster, type ClusterFace } from "@/components/inbox/mailbox-cluster.tsx";
-import { BottomSheet } from "@/components/ui/bottom-sheet.tsx";
+import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
 import { PressableRow } from "@/components/ui/pressable-row.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { mailboxName, useMailboxes } from "@/lib/mail.ts";
@@ -23,7 +23,7 @@ const SHEET_LEAD = space(9);
 export function MailboxChooser() {
   const { close } = useMenu();
   const place = useMenuPlace();
-  const [open, setOpen] = useState(false);
+  const sheet = useSheet();
   const user = useSession().data?.user;
   const you = user?.name || user?.email || "";
   const mailboxes = useMailboxes().data ?? [];
@@ -40,11 +40,11 @@ export function MailboxChooser() {
       ? faces[0]
       : null;
   const label = shown ? mailboxName(shown, you) : "All mailboxes";
-  const choose = (mailbox: string | null) => {
-    setOpen(false);
-    place.openMail({ mailbox });
-    close();
-  };
+  const choose = (mailbox: string | null) =>
+    sheet.pick(() => {
+      place.openMail({ mailbox });
+      close();
+    });
   return (
     <>
       <MenuRow
@@ -57,9 +57,14 @@ export function MailboxChooser() {
         }
         label={label}
         trailing={<IconChevronsUpDown size={space(4)} color={colors.mutedForeground} />}
-        onPress={() => setOpen(true)}
+        onPress={sheet.open}
       />
-      <BottomSheet isOpen={open} onClose={() => setOpen(false)} title="Mailboxes">
+      <BottomSheet
+        isOpen={sheet.isOpen}
+        onClose={sheet.close}
+        onClosed={sheet.onClosed}
+        title="Mailboxes"
+      >
         <ChoiceRow
           lead={<MailboxCluster faces={cluster} size={SHEET_LEAD} />}
           name="All mailboxes"

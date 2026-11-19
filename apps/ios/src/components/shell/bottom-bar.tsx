@@ -1,9 +1,9 @@
 import { router } from "expo-router";
-import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAddActions } from "@/components/drive/add-menu.tsx";
 import { IconCompose, IconFile, IconFolderPlus, IconImage, IconPlus } from "@/components/icons.ts";
 import { BottomFade } from "@/components/ui/bottom-fade.tsx";
+import { useSheet } from "@/components/ui/bottom-sheet.tsx";
 import { FloatingCard } from "@/components/ui/floating.tsx";
 import { Popover } from "@/components/ui/popover.tsx";
 import type { CrmPage } from "@/lib/crm.ts";
@@ -35,7 +35,7 @@ export function BottomBar() {
   const place = useMenuPlace();
   const closeMenu = useCloseMenu();
   const insets = useSafeAreaInsets();
-  const [adding, setAdding] = useState(false);
+  const adding = useSheet();
   const module = shell.isOpen ? shell.browsing : place.module;
   const { setQuery, setSearchIn } = shell;
   const mine = shell.searchIn === module;
@@ -51,17 +51,13 @@ export function BottomBar() {
           params: place.mailbox ? { mailbox: place.mailbox } : {},
         }),
     },
-    drive: { icon: IconPlus, label: "New", run: () => setAdding(true) },
+    drive: { icon: IconPlus, label: "New", run: adding.open },
     crm: {
       icon: IconPlus,
       label: record.label,
       run: () => router.push({ pathname: "/crm/form", params: { kind: record.kind } }),
     },
   }[module];
-  const pick = (then: () => void) => {
-    setAdding(false);
-    then();
-  };
   return (
     <>
       <BottomFade />
@@ -87,8 +83,9 @@ export function BottomBar() {
         }}
       />
       <Popover
-        isOpen={adding}
-        onClose={() => setAdding(false)}
+        isOpen={adding.isOpen}
+        onClose={adding.close}
+        onClosed={adding.onClosed}
         label="Close New"
         at={{
           right: space(4),
@@ -96,12 +93,20 @@ export function BottomBar() {
         }}
       >
         <FloatingCard>
-          <MenuRow icon={IconFolderPlus} label="New folder" onPress={() => pick(add.newFolder)} />
-          <MenuRow icon={IconFile} label="Upload file" onPress={() => pick(add.uploadFiles)} />
+          <MenuRow
+            icon={IconFolderPlus}
+            label="New folder"
+            onPress={() => adding.pick(add.newFolder)}
+          />
+          <MenuRow
+            icon={IconFile}
+            label="Upload file"
+            onPress={() => adding.pick(add.uploadFiles)}
+          />
           <MenuRow
             icon={IconImage}
             label="Upload photo or video"
-            onPress={() => pick(add.uploadMedia)}
+            onPress={() => adding.pick(add.uploadMedia)}
           />
         </FloatingCard>
       </Popover>

@@ -17,17 +17,18 @@ import { colors } from "@/theme/tokens.ts";
  * the module's main action) and the menu that slides down between them. No tab bar.
  * Signed out, or signed out elsewhere, goes back to sign-in. Calls wait for the workspace list,
  * so the first ones already name the workspace the app is in; until then the launch screen stays
- * up.
+ * up. Opening another workspace resets every answer on screen (`openWorkspace`), so each page
+ * asks again under the new one rather than going on showing the last one's.
  */
 export default function SignedInLayout() {
   const session = useSession();
-  const { active, workspaces } = useWorkspace();
-  const signedIn = session.data ? active?.id : undefined;
+  const { active, ready, workspaces } = useWorkspace();
+  const signedIn = session.data && ready ? active?.id : undefined;
   useRealtime(signedIn, session.data?.user.id);
-  useSplashDone(!!active || workspaces.isError);
+  useSplashDone(ready || workspaces.isError);
   if (session.isPending && !session.data) return null;
   if (!session.data) return <Redirect href="/sign-in" />;
-  if (!active) {
+  if (!active || !ready) {
     if (!workspaces.isError) return null;
     return (
       <Screen>

@@ -6,10 +6,12 @@ import { colors, radius, rowLead } from "@/theme/tokens.ts";
 import { Text } from "./text.tsx";
 
 /**
- * A person or company, round. Their logo once one loads (a company's mark inset on a white
- * tile, a Gravatar filling the circle); their initial on the accent fill until then, and when
- * there is none. A sender is `square` (corners at 20% of its size, as the web's `isSquare`, with a
- * hairline edge), its logo at 85% of the tile. A workspace is `inverse`: its initial on the foreground fill.
+ * A person or company, round. Their picture once one loads, always filling the avatar edge to
+ * edge (a company's mark, a Gravatar, an account's photo, a workspace's logo), never inset: a
+ * mark's own background is the avatar's colour, and a transparent one sits on a white tile. Their
+ * initial on the accent fill until then, and when there is none. A sender is `square` (corners at
+ * 20% of its size, as the web's `isSquare`, with a hairline edge). A workspace is `inverse`: its
+ * initial on the foreground fill.
  */
 export function Avatar({
   name,
@@ -39,16 +41,16 @@ export function Avatar({
   const tried = source && failed !== source.uri ? source : null;
   const showing = tried && loaded === tried.uri ? tried : null;
   const square = shape === "square";
-  const inset = Math.round(size * (square ? LOGO_INSET.square : LOGO_INSET.round));
+  const corner = square ? Math.round(size * SQUARE_CORNER) : radius.full;
+  const mark = !!showing && !showing.photo;
   return (
     <View
       accessible={false}
       style={[
         styles.avatar,
-        { width: size, height: size },
-        square && [styles.edge, { borderRadius: Math.round(size * SQUARE_CORNER) }],
+        { width: size, height: size, borderRadius: corner },
         inverse && styles.inverse,
-        showing && !showing.photo ? styles.tile : null,
+        mark && styles.tile,
       ]}
     >
       {showing ? null : (
@@ -60,19 +62,21 @@ export function Avatar({
         <Image
           source={{ uri: tried.uri, headers: tried.headers }}
           cachePolicy="disk"
-          contentFit={tried.photo ? "cover" : "contain"}
+          contentFit="cover"
           transition={150}
           onLoad={() => setLoaded(tried.uri)}
           onError={() => setFailed(tried.uri)}
-          style={[StyleSheet.absoluteFill, tried.photo ? null : { margin: inset }]}
+          style={StyleSheet.absoluteFill}
         />
+      ) : null}
+      {square || mark ? (
+        <View pointerEvents="none" style={[styles.edge, { borderRadius: corner }]} />
       ) : null}
     </View>
   );
 }
 
 const SQUARE_CORNER = 0.2;
-const LOGO_INSET = { square: 0.075, round: 0.2 };
 
 const initialOf = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
 
@@ -116,10 +120,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   inverse: { backgroundColor: colors.foreground },
-  edge: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  tile: {
-    backgroundColor: colors.logoTile,
+  edge: {
+    ...StyleSheet.absoluteFill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
+  tile: { backgroundColor: colors.logoTile },
 });

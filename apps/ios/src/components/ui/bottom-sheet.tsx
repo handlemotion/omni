@@ -22,6 +22,32 @@ const DISMISS_SHARE = 0.3;
 const DISMISS_SPEED = 0.8;
 
 /**
+ * A sheet's (or a popover's) open state, and `pick(then)` for its rows: close it and run `then`
+ * once it has gone (`onClosed`). Both are native modals: a row that navigates, closes the menu
+ * holding the sheet, or presents another view controller (a picker, a prompt) while one is still
+ * up or on its way out makes UIKit and the native stack disagree with React about what is on
+ * screen, and the shell vanishes until something later sets it right.
+ */
+export function useSheet() {
+  const [isOpen, setOpen] = useState(false);
+  const after = useRef<(() => void) | null>(null);
+  return {
+    isOpen,
+    open: () => setOpen(true),
+    close: () => setOpen(false),
+    pick: (then: () => void) => {
+      after.current = then;
+      setOpen(false);
+    },
+    onClosed: () => {
+      const then = after.current;
+      after.current = null;
+      then?.();
+    },
+  };
+}
+
+/**
  * A sheet that slides up from the bottom edge while the page behind it dims: a grabber, its
  * title, then its rows. A tap above it, or a drag down on its grabber and title, closes it.
  */

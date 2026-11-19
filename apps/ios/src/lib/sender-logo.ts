@@ -11,7 +11,7 @@ export type LogoFor = { address: string } | { domain: string };
 export interface LogoSource {
   uri: string;
   headers: Record<string, string>;
-  /** A Gravatar fills the avatar; a company's mark sits inset on a white tile. */
+  /** Both fill the avatar; a company's mark (not a photo) adds a hairline edge and a white tile. */
   photo: boolean;
 }
 

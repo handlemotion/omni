@@ -1,6 +1,5 @@
 import type { Workspace } from "@omni/client";
 import { router } from "expo-router";
-import { useRef, useState } from "react";
 import {
   IconConnections,
   IconLogOut,
@@ -11,13 +10,14 @@ import {
   IconUserRound,
 } from "@/components/icons.ts";
 import { Avatar, AvatarButton } from "@/components/ui/avatar.tsx";
-import { BottomSheet } from "@/components/ui/bottom-sheet.tsx";
+import { BottomSheet, useSheet } from "@/components/ui/bottom-sheet.tsx";
 import { usePictureSource } from "@/lib/picture.ts";
 import { signOut, useSession } from "@/lib/session.ts";
 import { openOnWeb, useWorkspaceMenu } from "@/lib/workspace-menu.ts";
 import { openWorkspace, useWorkspace, workspaceLabel } from "@/lib/workspace.ts";
 import { space } from "@/theme/tokens.ts";
 import { ChoiceRow } from "./mailbox-chooser.tsx";
+import { useMenuPlace } from "./menu-nav.ts";
 import { MenuDivider, MenuRow } from "./menu-row.tsx";
 
 const AVATAR = space(11);
@@ -32,15 +32,16 @@ const SHEET_LEAD = space(9);
 export function WorkspaceButton() {
   const { active, all } = useWorkspace();
   const name = useSession().data?.user.name;
-  const [open, setOpen] = useState(false);
-  const after = useRef<(() => void) | null>(null);
+  const sheet = useSheet();
+  const place = useMenuPlace();
   const logo = usePictureSource(active?.logo);
   const menu = useWorkspaceMenu(active);
   if (!active) return null;
   const label = workspaceLabel(active, name);
-  const pick = (then: () => void) => {
-    after.current = then;
-    setOpen(false);
+  const { pick } = sheet;
+  const switchTo = (id: string) => {
+    openWorkspace(id);
+    if (place.mailbox) place.openMail({ mailbox: null });
   };
   const settings = (page: "general" | "accounts" | "people" | "billing") =>
     pick(() => openOnWeb({ settings: page, workspace: active }));
@@ -52,16 +53,12 @@ export function WorkspaceButton() {
         photo={logo}
         inverse
         label={`Workspace, ${label}`}
-        onPress={() => setOpen(true)}
+        onPress={sheet.open}
       />
       <BottomSheet
-        isOpen={open}
-        onClose={() => setOpen(false)}
-        onClosed={() => {
-          const then = after.current;
-          after.current = null;
-          then?.();
-        }}
+        isOpen={sheet.isOpen}
+        onClose={sheet.close}
+        onClosed={sheet.onClosed}
         title="Workspaces"
       >
         {all.map((workspace) => (
@@ -70,7 +67,7 @@ export function WorkspaceButton() {
             workspace={workspace}
             name={workspaceLabel(workspace, name)}
             chosen={workspace.id === active.id}
-            onPress={() => pick(() => workspace.id === active.id || openWorkspace(workspace.id))}
+            onPress={() => pick(() => workspace.id === active.id || switchTo(workspace.id))}
           />
         ))}
         {menu.canCreate ? (
