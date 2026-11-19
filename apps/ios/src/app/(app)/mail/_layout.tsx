@@ -7,7 +7,7 @@ export default function MailLayout() {
   return (
     <Stack screenOptions={stackOptions}>
       <Stack.Screen name="index" options={{ headerShown: false, title: "Mail" }} />
-      <Stack.Screen name="thread/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="thread/[id]" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen
         name="compose"
         options={{

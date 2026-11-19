@@ -35,6 +35,8 @@ export const colors = {
   /** `--warning`: Later, as a row's swipe shows it. */
   warning: "#ffb900",
   warningForeground: "#461901",
+  /** Later, as a conversation's page tints when swiped left: a grey, not the list's amber. */
+  later: "#525252",
 } as const;
 
 export type ColorToken = keyof typeof colors;
@@ -89,6 +91,8 @@ export const radius = {
   card: 16,
   /** A bottom sheet's top corners. */
   sheet: 28,
+  /** The phone's display corner: a whole page lifted off as a card (a conversation's swipe). */
+  screen: 44,
   full: 999,
 } as const;
 

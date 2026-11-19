@@ -1,9 +1,10 @@
 import type { Thread } from "@omni/client";
 import { router, useIsPreview, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { MessageItem } from "@/components/conversation/message-item.tsx";
 import { PropertiesRail } from "@/components/conversation/properties-rail.tsx";
+import { CardScrollView, ThreadCard } from "@/components/conversation/thread-card.tsx";
 import { ThreadBottomBar, ThreadTopBar } from "@/components/conversation/thread-bars.tsx";
 import { useThreadActions } from "@/components/conversation/use-thread-actions.ts";
 import { IconCircleCheck, IconClock, IconInbox } from "@/components/icons.ts";
@@ -12,7 +13,6 @@ import { Button } from "@/components/ui/button.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
 import { Screen } from "@/components/ui/screen.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { SwipeRow } from "@/components/ui/swipe-row.tsx";
 import { Text } from "@/components/ui/text.tsx";
 import { idempotencyKey } from "@/lib/ids.ts";
 import { useMarkRead, useThread } from "@/lib/mail.ts";
@@ -21,66 +21,70 @@ import { colors, gutter, space } from "@/theme/tokens.ts";
 /**
  * A conversation, read top to bottom under its own bar (back, ⋯) and properties rail, its
  * actions floating at the bottom. Opening it marks it read, as on the web; a long-press peek at
- * it does not. It zooms open from its row; swiping it right is Done and left is Later, each
- * closing it back to the list, and pulling it down closes it into its row (the zoom's own
- * dismissal).
+ * it does not. It zooms open from its row. The whole page is a card: dragged right it is Done,
+ * left it is Later, and either one brings in the list's next conversation; only a drag down
+ * closes it back to the list.
  */
 export default function ThreadScreen() {
-  const { id, page } = useLocalSearchParams<{ id: string; page?: string }>();
+  const { id, page, mailbox } = useLocalSearchParams<{
+    id: string;
+    page?: string;
+    mailbox?: string;
+  }>();
   const thread = useThread(id);
-  const actions = useThreadActions(page);
+  const actions = useThreadActions(page, mailbox);
   useMarkReadOnOpen(id, thread.data?.read);
+  const loaded = thread.data?.id === id ? thread.data : undefined;
 
   return (
     <Screen edges={[]}>
-      <ThreadTopBar thread={thread.data} page={page} actions={actions} />
-      {thread.isPending ? (
-        <View style={styles.loading}>
-          <Skeleton width="85%" height={28} />
-          <Skeleton width="55%" height={28} />
-          <Skeleton width="40%" height={16} />
-          <Skeleton width="75%" height={72} />
-        </View>
-      ) : thread.isError ? (
-        <EmptyState icon={IconInbox} title="This conversation didn't load">
-          <Button intent="plain" label="Try again" onPress={() => void thread.refetch()} />
-        </EmptyState>
-      ) : (
-        <>
-          <SwipeRow
-            fill
-            settles={false}
-            itemKey={thread.data.id}
-            right={
-              thread.data.done
-                ? null
-                : {
-                    label: "Done",
-                    icon: IconCircleCheck,
-                    tone: "success",
-                    run: () => actions.swipeAway(thread.data, "done"),
-                  }
-            }
-            left={
-              thread.data.later
-                ? null
-                : {
-                    label: "Later",
-                    icon: IconClock,
-                    tone: "warning",
-                    run: () => actions.swipeAway(thread.data, "later"),
-                  }
-            }
-          >
+      <ThreadCard
+        cardKey={id}
+        onDismiss={() => (router.canGoBack() ? router.back() : router.replace("/mail"))}
+        right={
+          !loaded || loaded.done
+            ? null
+            : {
+                label: "Done",
+                icon: IconCircleCheck,
+                run: () => actions.swipeAway(loaded, "done", openNext),
+              }
+        }
+        left={
+          !loaded || loaded.later
+            ? null
+            : {
+                label: "Later",
+                icon: IconClock,
+                run: () => actions.swipeAway(loaded, "later", openNext),
+              }
+        }
+      >
+        <ThreadTopBar thread={thread.data} page={page} actions={actions} />
+        {thread.isPending ? (
+          <View style={styles.loading}>
+            <Skeleton width="85%" height={28} />
+            <Skeleton width="55%" height={28} />
+            <Skeleton width="40%" height={16} />
+            <Skeleton width="75%" height={72} />
+          </View>
+        ) : thread.isError ? (
+          <EmptyState icon={IconInbox} title="This conversation didn't load">
+            <Button intent="plain" label="Try again" onPress={() => void thread.refetch()} />
+          </EmptyState>
+        ) : (
+          <>
             <PropertiesRail thread={thread.data} />
-            <Conversation thread={thread.data} />
-          </SwipeRow>
-          <ThreadBottomBar thread={thread.data} page={page} actions={actions} />
-        </>
-      )}
+            <Conversation key={thread.data.id} thread={thread.data} />
+            <ThreadBottomBar thread={thread.data} page={page} actions={actions} />
+          </>
+        )}
+      </ThreadCard>
     </Screen>
   );
 }
+
+const openNext = (next: string) => router.setParams({ id: next });
 
 function Conversation({ thread }: { thread: Thread }) {
   const last = thread.messages.at(-1)?.id;
@@ -92,7 +96,7 @@ function Conversation({ thread }: { thread: Thread }) {
       return next;
     });
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <CardScrollView style={styles.body} contentContainerStyle={styles.content}>
       <View style={styles.subject}>
         <Text size="heading" weight="semibold" accessibilityRole="header" selectable>
           {thread.messages[0]?.subject ?? ""}
@@ -120,7 +124,7 @@ function Conversation({ thread }: { thread: Thread }) {
           }
         />
       ))}
-    </ScrollView>
+    </CardScrollView>
   );
 }
 
@@ -137,6 +141,7 @@ function useMarkReadOnOpen(threadId: string, read: boolean | undefined) {
 
 const styles = StyleSheet.create({
   loading: { padding: gutter, gap: space(8) },
+  body: { flex: 1 },
   content: { paddingBottom: FLOATING_BAR_SPACE },
   subject: {
     padding: gutter,

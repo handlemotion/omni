@@ -1,6 +1,9 @@
-import type { Thread } from "@omni/client";
+import type { Thread, ThreadPage } from "@omni/client";
+import { useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
+import { isMailPage } from "@/lib/mail.ts";
+import { keys } from "@/lib/query-keys.ts";
 import {
   leavesPage,
   useArchive,
@@ -30,11 +33,26 @@ export const reply = (threadId: string, all: boolean) =>
 export const forward = (threadId: string) =>
   router.push({ pathname: "/mail/compose", params: { threadId, forward: "1" } });
 
+function neighbour(
+  client: QueryClient,
+  page: string | undefined,
+  mailbox: string | undefined,
+  threadId: string,
+) {
+  if (!isMailPage(page)) return undefined;
+  const list = client.getQueryData<InfiniteData<ThreadPage>>(keys.threads(page, mailbox));
+  const threads = list?.pages.flatMap((one) => one.threads) ?? [];
+  const at = threads.findIndex((t) => t.id === threadId);
+  if (at < 0) return undefined;
+  return (threads[at + 1] ?? threads[at - 1])?.id;
+}
+
 /**
  * The conversation's actions, as the web reader's. One that takes the thread out of the list it
- * was opened from (`page`, the route's param) goes back to that list.
+ * was opened from (`page` and `mailbox`, the route's params) goes back to that list.
  */
-export function useThreadActions(page: string | undefined) {
+export function useThreadActions(page: string | undefined, mailbox?: string) {
+  const client = useQueryClient();
   const done = useDone();
   const undone = useUndone();
   const later = useLater();
@@ -58,10 +76,12 @@ export function useThreadActions(page: string | undefined) {
       run(into ? "later" : "unlater", () =>
         later.mutate({ threadId, later: into, ...(until ? { until } : {}) }),
       ),
-    swipeAway: (thread: Thread, into: "done" | "later") => {
+    swipeAway: (thread: Thread, into: "done" | "later", openNext: (threadId: string) => void) => {
+      const next = neighbour(client, page, mailbox, thread.id);
       if (into === "done") done.mutate({ threadId: thread.id, through: thread.lastMessageAt });
       else later.mutate({ threadId: thread.id, later: true });
-      if (router.canGoBack()) router.back();
+      if (next) openNext(next);
+      else if (router.canGoBack()) router.back();
     },
     archive: (threadId: string) => run("archive", () => archive.mutate({ threadId })),
     spam: (threadId: string, into: boolean) =>

@@ -83,7 +83,10 @@ export function ThreadList({ page, mailboxId, mailboxes, you, footerSpace }: Thr
             }
           >
             <Link
-              href={{ pathname: "/mail/thread/[id]", params: { id: row.item.id, page } }}
+              href={{
+                pathname: "/mail/thread/[id]",
+                params: { id: row.item.id, page, ...(mailboxId ? { mailbox: mailboxId } : {}) },
+              }}
               asChild
             >
               <Link.Trigger withAppleZoom>
