@@ -15,11 +15,13 @@ import { useFullScreen } from "@/hooks/use-full-screen.ts";
 import { useFolderDrafts } from "@/hooks/use-folder-drafts.ts";
 import { useInlineRename, type RenameAt } from "@/hooks/use-inline-rename.ts";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
+import { useNewDoc } from "@/hooks/use-new-doc.ts";
 import { useNodeSelection, type NodeSelection } from "@/hooks/use-node-selection.ts";
 import { useUploads } from "@/hooks/use-storage.ts";
 import { storageNodeQuery } from "@/lib/storage-comments.ts";
 import type { StorageNode, StoragePlace } from "@/lib/storage.ts";
 import type { Picked } from "@/lib/storage-upload-tree.ts";
+import { isDoc } from "./editor/document-editor.tsx";
 import { MoveDialog, type MoveScope } from "./file-dialogs.tsx";
 import { FolderIconDialog } from "./folder-icons.tsx";
 import { FolderBody, HeaderActions } from "./folder-body.tsx";
@@ -129,10 +131,10 @@ export function FolderView(props: {
   );
   const menu = useMemo(() => menuAt("list"), [menuAt]);
 
-  const [fullScreen, toggleFullScreen] = useFullScreen();
+  const docs = useDocs(source, open);
   const phone = useIsMobile();
   const node = open.node;
-  const hideFolder = (!!node && (fullScreen || phone)) || (!!comments.node && phone);
+  const hideFolder = (!!node && (docs.wide || phone)) || (!!comments.node && phone);
   const split = !!node && !hideFolder;
   const preview = useStoredWidth(
     "omni:file-preview-width",
@@ -162,6 +164,8 @@ export function FolderView(props: {
               selection={selection}
               source={source}
               onNewFolder={folders.start}
+              onNewDoc={docs.make}
+              newDocPending={docs.making}
               onFiles={send}
               onMove={() => setMovingSelection(true)}
             />
@@ -216,7 +220,7 @@ export function FolderView(props: {
             menu={menuAt("preview")(node)}
             rename={rename}
             fullScreen={hideFolder}
-            onFullScreen={toggleFullScreen}
+            onFullScreen={docs.toggleWide}
             shell={shell}
             canWrite={source.canWrite}
             shareId={source.shareId}
@@ -245,6 +249,24 @@ export function FolderView(props: {
       />
     </div>
   );
+}
+
+function useDocs(source: FolderSource, open: OpenFile) {
+  const made = useNewDoc(source.place, source.shareId, (node) => open.select(node.id));
+  const [fullScreen, toggleFullScreen] = useFullScreen();
+  const [docBeside, setDocBeside] = useState(false);
+  const page = !!open.node && isDoc(open.node) && source.canWrite;
+  return {
+    make: source.shareId
+      ? undefined
+      : () =>
+          made.mutate(undefined, {
+            onError: (error) => storageErrorToast(error, "The doc was not made"),
+          }),
+    making: made.isPending,
+    wide: page ? !docBeside : fullScreen,
+    toggleWide: page ? () => setDocBeside((beside) => !beside) : toggleFullScreen,
+  };
 }
 
 function FolderDialogs(props: { dialog: FolderDialog; source: FolderSource; onClose: () => void }) {
@@ -397,6 +419,8 @@ function FolderActions(props: {
   selection: NodeSelection;
   source: FolderSource;
   onNewFolder: () => void;
+  onNewDoc: (() => void) | undefined;
+  newDocPending: boolean;
   onFiles: (files: File[] | Picked) => void;
   onMove: () => void;
 }) {
@@ -408,6 +432,8 @@ function FolderActions(props: {
         <HeaderActions
           canWrite={source.canWrite}
           onNewFolder={props.onNewFolder}
+          onNewDoc={props.onNewDoc}
+          newDocPending={props.newDocPending}
           onFiles={props.onFiles}
         />
       </>

@@ -99,7 +99,7 @@ test("a link open to anyone downloads its file, byte for byte, for someone signe
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: "General access" }).click();
   await page.getByRole("option", { name: "Anyone with the link" }).click();
-  const link = await dialog.getByRole("textbox", { name: "Link" }).inputValue();
+  const link = await dialog.getByRole("textbox", { name: "Link", exact: true }).inputValue();
   expect(new URL(link).pathname).toMatch(/^\/s\/[\w-]{22}$/);
 
   const signedOut = await browser.newContext({ acceptDownloads: true });
@@ -314,7 +314,6 @@ test("a Markdown file is edited as a page, saved as Markdown, and a newer save i
       { name: "zz.txt", mimeType: "text/plain", buffer: Buffer.from("next") },
     ]);
   await page.getByRole("row", { name: /plan\.md/ }).click();
-  await page.getByRole("button", { name: "Edit" }).click();
   const editor = page.locator("[contenteditable=true]");
   await editor.getByRole("heading", { name: "Plan" }).waitFor({ timeout: 15_000 });
   const [file] = await db
@@ -408,7 +407,6 @@ test("a Markdown file the page cannot keep whole edits as text, and saves every 
     .first()
     .setInputFiles({ name: "prices.md", mimeType: "text/markdown", buffer: Buffer.from(text) });
   await page.getByRole("row", { name: /prices\.md/ }).click();
-  await page.getByRole("button", { name: "Edit" }).click();
   const source = page.locator(".cm-content");
   await source.getByText("| Pro | 9 |").waitFor({ timeout: 15_000 });
   expect(await page.locator(".ProseMirror").count()).toBe(0);

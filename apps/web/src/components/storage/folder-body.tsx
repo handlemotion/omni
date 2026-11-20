@@ -17,6 +17,9 @@ import { dropOperation, useDropInto, useRoomDrop, type NodeDrag } from "./node-d
 
 interface Actions {
   onNewFolder: () => void;
+  /** Makes a doc here and opens it; absent where docs can't be made. */
+  onNewDoc?: (() => void) | undefined;
+  newDocPending?: boolean | undefined;
   onFiles: (files: File[] | Picked) => void;
 }
 
@@ -140,11 +143,16 @@ function EmptyActions(props: Actions) {
   );
 }
 
-/** New folder and Upload, for whoever may write: labels alone, as the page's text actions. */
+/** New doc, New folder and Upload, for whoever may write: labels alone, as the page's text actions. */
 export function HeaderActions(props: Actions & { canWrite: boolean }) {
   if (!props.canWrite) return null;
   return (
     <>
+      {props.onNewDoc && (
+        <Button intent="outline" size="sm" isPending={props.newDocPending} onPress={props.onNewDoc}>
+          New doc
+        </Button>
+      )}
       <Button intent="outline" size="sm" onPress={props.onNewFolder}>
         New folder
       </Button>

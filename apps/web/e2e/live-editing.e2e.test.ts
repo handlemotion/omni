@@ -76,7 +76,6 @@ test("two editors on one Markdown file see each other's typing, and the page is 
   const bo = await context.newPage();
   await bo.goto(ana.url());
 
-  await Promise.all([edit(ana), edit(bo)]);
   for (const page of [ana, bo]) {
     await page.locator("[contenteditable=true]").getByText("Start").waitFor({ timeout: 15_000 });
   }
@@ -99,11 +98,50 @@ test("two editors on one Markdown file see each other's typing, and the page is 
     .toMatch(/^# Notes\n\nStart\n\nFrom Ana\n\nFrom Bo\n*$/);
 });
 
-async function edit(page: Page) {
-  await page.getByRole("button", { name: "Edit" }).click();
-}
-
 const pageText = (page: Page) => page.locator("[contenteditable=true]").innerText();
+
+test("New doc opens an empty page, and blocks picked from / are saved as Markdown", async () => {
+  const origin = String(worker.url);
+  const cookie = await signIn({ url: new URL(origin) }, db, `doc-${Date.now()}@gmail.test`);
+  const own = await browser.newContext();
+  await own.addCookies(
+    cookie.split("; ").map((pair) => {
+      const at = pair.indexOf("=");
+      return { name: pair.slice(0, at), value: pair.slice(at + 1), url: origin };
+    }),
+  );
+  const page = await own.newPage();
+  await page.goto(new URL("/files/my", origin).toString());
+  await page.getByRole("button", { name: "New doc" }).click();
+  const body = page.locator("[contenteditable=true]");
+  await body.waitFor({ timeout: 15_000 });
+  await expect.poll(() => new URL(page.url()).searchParams.get("file")).toBeTruthy();
+
+  await body.focus();
+  await page.keyboard.type("/head");
+  await page.getByRole("option", { name: "Heading 1" }).waitFor();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Plan");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/todo");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Ship it");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/table");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Who");
+
+  const id = new URL(page.url()).searchParams.get("file") ?? "";
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async (at) => (await fetch(at)).text(), `/api/storage/files/${id}/content`),
+      { timeout: 20_000 },
+    )
+    .toMatch(/^# Plan\n\n- \[ \] Ship it\n+\| Who\s*\|/);
+  await own.close();
+});
 
 async function typeAtEnd(page: Page, text: string) {
   await page.locator("[contenteditable=true]").focus();

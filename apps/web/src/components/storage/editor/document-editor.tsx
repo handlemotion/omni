@@ -68,6 +68,11 @@ const FOLD_WAIT_MS = 5000;
 const isMarkdown = (node: StorageNode) =>
   fileType(node.name, node.mimeType).language === "markdown";
 
+/** Whether a file is a doc: Markdown that opens as a page, ready to write in. */
+export function isDoc(node: StorageNode) {
+  return isMarkdown(node) && canEditFile(node);
+}
+
 /** The open file's editing: on or off, unsaved changes, and saving them. */
 export function useEditSession(node: StorageNode, url: string, shareId: string | undefined) {
   const client = useQueryClient();

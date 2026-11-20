@@ -58,3 +58,36 @@
 .document-page hr {
   @apply my-6 border-border;
 }
+.document-page table {
+  @apply w-full table-fixed border-collapse text-sm;
+}
+.document-page th,
+.document-page td {
+  @apply relative border border-border px-2.5 py-1.5 align-top;
+}
+.document-page th {
+  @apply bg-secondary text-start font-normal text-muted-foreground;
+}
+.document-page th > p,
+.document-page td > p {
+  @apply m-0;
+}
+.document-page .selectedCell::after {
+  @apply pointer-events-none absolute inset-0 bg-accent/60 content-[""];
+}
+.document-page .tableWrapper {
+  @apply overflow-x-auto;
+}
+.document-page .ProseMirror-selectednode {
+  @apply rounded-sm bg-accent/60;
+}
+.document-page .suggestion {
+  @apply text-muted-foreground;
+}
+.document-handle {
+  @apply -ms-1 transition-opacity duration-150 ease-out;
+}
+.ProseMirror-dropcursor,
+.document-page + .ProseMirror-dropcursor {
+  @apply bg-primary;
+}

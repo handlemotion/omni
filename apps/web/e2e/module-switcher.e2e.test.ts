@@ -240,7 +240,6 @@ test("leaving a document with unsaved edits asks at once, and stepping on after 
     .first()
     .setInputFiles({ name: "plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Plan\n") });
   await page.getByRole("row", { name: /plan\.md/ }).click();
-  await page.getByRole("button", { name: "Edit" }).click();
   const editor = page.locator("[contenteditable=true]");
   await editor.getByRole("heading", { name: "Plan" }).click();
   await page.keyboard.press("End");

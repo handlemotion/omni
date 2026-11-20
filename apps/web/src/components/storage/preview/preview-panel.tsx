@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import {
   IconCheck,
   IconChevronLeft,
@@ -34,7 +34,13 @@ import { TypeBadge } from "../file-glyph.tsx";
 import { DAY } from "../file-table.tsx";
 import { FIELD_OFFSET, NameField } from "../name-field.tsx";
 import { PdfMarksContext } from "./pdf-marks.tsx";
-import { canEditFile, DocumentEditor, useEditSession } from "../editor/document-editor.tsx";
+import {
+  canEditFile,
+  DocumentEditor,
+  isDoc,
+  useEditSession,
+  type EditSession,
+} from "../editor/document-editor.tsx";
 import { PreviewBody } from "./preview-body.tsx";
 import { PreviewRail } from "./preview-rail.tsx";
 import { usePreviewTools } from "./preview-tools.tsx";
@@ -67,6 +73,8 @@ export function PreviewPanel(props: {
   const download = shown && props.onDownload ? () => downloadFile(shown.url) : props.onDownload;
   const session = useEditSession(node, props.url, props.shareId);
   const canEdit = props.canWrite && canEditFile(node) && !shown;
+  const doc = canEdit && isDoc(node);
+  useAlwaysEditing(session, doc);
   return (
     <section aria-label={node.name} className="flex min-w-0 flex-1 flex-col bg-background">
       <div
@@ -76,28 +84,7 @@ export function PreviewPanel(props: {
         <Title node={node} rename={props.rename} />
         <div className="flex shrink-0 items-center gap-1">
           {props.shell && <FileEditors nodeId={node.id} />}
-          {session.editing ? (
-            <>
-              <Button
-                intent="outline"
-                size="sm"
-                isDisabled={!session.dirty}
-                isPending={session.saving}
-                onPress={() => void session.save()}
-              >
-                Save
-              </Button>
-              <Action label="Done" isDisabled={session.saving} onPress={() => void session.done()}>
-                <IconCheck />
-              </Action>
-            </>
-          ) : (
-            canEdit && (
-              <Action label="Edit" onPress={session.start}>
-                <IconPencil />
-              </Action>
-            )
-          )}
+          <EditActions session={session} canEdit={canEdit} doc={doc} />
           <Action
             label="Previous"
             isDisabled={!props.previous}
@@ -195,6 +182,44 @@ function FileEditors(props: { nodeId: string }) {
       })}
     </div>
   );
+}
+
+function EditActions(props: { session: EditSession; canEdit: boolean; doc: boolean }) {
+  const { session } = props;
+  if (!session.editing) {
+    return (
+      props.canEdit && (
+        <Action label="Edit" onPress={session.start}>
+          <IconPencil />
+        </Action>
+      )
+    );
+  }
+  return (
+    <>
+      <Button
+        intent="outline"
+        size="sm"
+        isDisabled={!session.dirty}
+        isPending={session.saving}
+        onPress={() => void session.save()}
+      >
+        Save
+      </Button>
+      {!props.doc && (
+        <Action label="Done" isDisabled={session.saving} onPress={() => void session.done()}>
+          <IconCheck />
+        </Action>
+      )}
+    </>
+  );
+}
+
+function useAlwaysEditing(session: EditSession, doc: boolean) {
+  const { editing, start, editor } = session;
+  useEffect(() => {
+    if (doc && !editing) start();
+  }, [doc, editing, start, editor.node.id]);
 }
 
 function Action(props: {

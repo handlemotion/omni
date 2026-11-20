@@ -1,5 +1,6 @@
 import { Collaboration, isChangeOrigin } from "@tiptap/extension-collaboration";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
 import { Editor, EditorContent, useEditor, type Extensions } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
@@ -7,26 +8,29 @@ import { useEffect, useMemo, useState } from "react";
 import type * as Y from "yjs";
 import { openLiveDoc, type LiveDoc } from "@/lib/live-doc.ts";
 import type { EditorProps } from "./document-editor.tsx";
+import { BlockHandle, FormatBar } from "./block-tools.tsx";
+import { SlashMenu } from "./slash-menu.tsx";
 import SourceEditor from "./source-editor.tsx";
 import "./rich-editor.css";
 
-const EXTENSIONS = [
-  StarterKit.configure({ link: { openOnClick: false } }),
-  TaskList,
-  TaskItem.configure({ nested: true }),
-  Markdown,
-];
-
-const liveExtensions = (doc: Y.Doc) => {
+const blocks = (live: boolean) => {
   const result: Extensions = [
-    StarterKit.configure({ link: { openOnClick: false }, undoRedo: false }),
+    StarterKit.configure({ link: { openOnClick: false }, ...(live ? { undoRedo: false } : {}) }),
     TaskList,
     TaskItem.configure({ nested: true }),
+    TableKit.configure({ table: { resizable: false } }),
+    SlashMenu,
     Markdown,
-    Collaboration.configure({ document: doc }),
   ];
   return result;
 };
+
+const EXTENSIONS = blocks(false);
+
+const liveExtensions = (doc: Y.Doc) => [
+  ...blocks(true),
+  Collaboration.configure({ document: doc }),
+];
 
 function seedFrom(markdown: string) {
   return (doc: Y.Doc) => {
@@ -112,6 +116,8 @@ function Page(props: EditorProps & { doc: Y.Doc | null }) {
   return (
     <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
       <EditorContent editor={editor} />
+      <BlockHandle editor={editor} />
+      <FormatBar editor={editor} />
     </div>
   );
 }
