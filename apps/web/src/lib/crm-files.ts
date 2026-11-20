@@ -2,7 +2,7 @@ import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react
 import type { Api } from "@omni/client";
 import type { InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
-import { crmChanged } from "./crm.ts";
+import { settleCrm } from "./crm-cache.ts";
 import { keys } from "./query-keys.ts";
 import { storageChanged } from "./storage.ts";
 
@@ -39,7 +39,7 @@ export const linkFilesMutation = (client: QueryClient) =>
           ? api.crm.companies[":id"].links.$post({ param: { id }, json: { nodeIds } })
           : api.crm.deals[":id"].links.$post({ param: { id }, json: { nodeIds } }),
       ),
-    onSettled: () => Promise.all([crmChanged(client), storageChanged(client)]),
+    ...settleCrm(client, () => void storageChanged(client)),
   });
 
 /** Drops a link; the file stays where it is in Drive. */
@@ -52,5 +52,5 @@ export const unlinkFileMutation = (client: QueryClient) =>
           ? api.crm.companies[":id"].links[":nodeId"].$delete({ param: { id, nodeId } })
           : api.crm.deals[":id"].links[":nodeId"].$delete({ param: { id, nodeId } }),
       ),
-    onSettled: () => crmChanged(client),
+    ...settleCrm(client),
   });

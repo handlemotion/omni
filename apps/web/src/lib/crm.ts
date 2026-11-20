@@ -1,9 +1,4 @@
-import {
-  infiniteQueryOptions,
-  queryOptions,
-  type InfiniteData,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { Api } from "@omni/client";
 import type { InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
@@ -148,29 +143,6 @@ export const crmFindQuery = (q: string) =>
       call(api.crm.search.$get({ query: { q, limit: "20" } }, { init: { signal } })),
     enabled: q.trim().length > 0,
   });
-
-/** Every change can touch lists, records and timelines alike: all of the CRM refetches. */
-export const crmChanged = (client: QueryClient) =>
-  client.invalidateQueries({ queryKey: keys.crm() });
-
-/** The deals in every cached deals list, with `change` applied to the one with `id`. */
-export function patchDealInLists(
-  client: QueryClient,
-  id: string,
-  change: (deal: CrmDeal) => CrmDeal,
-) {
-  client.setQueriesData<InfiniteData<CrmDealPage>>({ queryKey: keys.crmDealLists() }, (data) =>
-    data
-      ? {
-          ...data,
-          pages: data.pages.map((page) => ({
-            ...page,
-            deals: page.deals.map((deal) => (deal.id === id ? change(deal) : deal)),
-          })),
-        }
-      : data,
-  );
-}
 
 /** When the record was last written to or from, once the API says. */
 export function lastContactedAt(record: object) {

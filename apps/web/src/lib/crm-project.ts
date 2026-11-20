@@ -2,7 +2,7 @@ import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react
 import type { Api } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
-import { crmChanged } from "./crm.ts";
+import { dropCrmEntity, optimisticCrm, setCrmFields, settleCrm } from "./crm-cache.ts";
 import { keys } from "./query-keys.ts";
 
 type Crm = Api["crm"];
@@ -56,13 +56,32 @@ export const crmAccessQuery = (dealId: string) =>
     select: (data) => data.access,
   });
 
-const settle = (client: QueryClient) => ({ onSettled: () => crmChanged(client) });
+const settle = (client: QueryClient) => settleCrm(client);
+
+const changesAtOnce = (client: QueryClient) =>
+  optimisticCrm(
+    client,
+    ({ id, position: _position, ...fields }: { id: string; position?: number }) =>
+      setCrmFields(client, id, fields),
+  );
+
+const goneAtOnce = (client: QueryClient) =>
+  optimisticCrm(client, (id: string) => dropCrmEntity(client, id));
 
 export const createMilestoneMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
     mutationFn: ({ dealId, ...json }: NewMilestone & { dealId: string }) =>
       call(api.crm.deals[":id"].milestones.$post({ param: { id: dealId }, json })),
+    onSuccess: ({ milestone }, { dealId }) =>
+      client.setQueryData<CrmPlan>(
+        keys.crmPlan(dealId),
+        (plan) =>
+          plan && {
+            ...plan,
+            milestones: [...plan.milestones.filter((m) => m.id !== milestone.id), milestone],
+          },
+      ),
     ...settle(client),
   });
 
@@ -71,6 +90,7 @@ export const updateMilestoneMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: ({ id, ...json }: MilestoneChange & { id: string }) =>
       call(api.crm.milestones[":id"].$patch({ param: { id }, json })),
+    ...changesAtOnce(client),
     ...settle(client),
   });
 
@@ -78,6 +98,7 @@ export const deleteMilestoneMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
     mutationFn: (id: string) => call(api.crm.milestones[":id"].$delete({ param: { id } })),
+    ...goneAtOnce(client),
     ...settle(client),
   });
 
@@ -86,6 +107,18 @@ export const createDeliverableMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: ({ dealId, ...json }: NewDeliverable & { dealId: string }) =>
       call(api.crm.deals[":id"].deliverables.$post({ param: { id: dealId }, json })),
+    onSuccess: ({ deliverable }, { dealId }) =>
+      client.setQueryData<CrmPlan>(
+        keys.crmPlan(dealId),
+        (plan) =>
+          plan && {
+            ...plan,
+            deliverables: [
+              ...plan.deliverables.filter((d) => d.id !== deliverable.id),
+              deliverable,
+            ],
+          },
+      ),
     ...settle(client),
   });
 
@@ -94,6 +127,7 @@ export const updateDeliverableMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: ({ id, ...json }: DeliverableChange & { id: string }) =>
       call(api.crm.deliverables[":id"].$patch({ param: { id }, json })),
+    ...changesAtOnce(client),
     ...settle(client),
   });
 
@@ -101,6 +135,7 @@ export const deleteDeliverableMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
     mutationFn: (id: string) => call(api.crm.deliverables[":id"].$delete({ param: { id } })),
+    ...goneAtOnce(client),
     ...settle(client),
   });
 

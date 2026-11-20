@@ -8,7 +8,13 @@ import type { Api } from "@omni/client";
 import type { InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
 import { keys } from "./query-keys.ts";
-import { storageFolderMade, storageNodeChanged, storageNodeRemoved } from "./storage-cache.ts";
+import {
+  storageFolderMade,
+  storageListsPut,
+  storageNodeAhead,
+  storageNodeChanged,
+  storageNodeRemoved,
+} from "./storage-cache.ts";
 
 export type StorageListPage = InferResponseType<Api["storage"]["nodes"]["$get"], 200>;
 export type StorageNode = StorageListPage["nodes"][number];
@@ -132,6 +138,9 @@ export const trashNodeMutation = (client: QueryClient) =>
       shareId
         ? call(sharedDoor().nodes[":id"].$delete({ param: { shareId, id }, query: {} }))
         : call(api.storage.nodes[":id"].$delete({ param: { id }, query: {} })),
+    onMutate: async ({ id, shareId }) =>
+      shareId ? undefined : { held: await storageNodeAhead(client, id) },
+    onError: (_error, _trash, context) => storageListsPut(client, context?.held),
     onSuccess: (_, { id, shareId }) =>
       shareId ? storageChanged(client) : storageNodeRemoved(client, id),
   });
@@ -150,6 +159,8 @@ export const deleteForeverMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: (id: string) =>
       call(api.storage.nodes[":id"].$delete({ param: { id }, query: { forever: "1" } })),
+    onMutate: async (id) => ({ held: await storageNodeAhead(client, id) }),
+    onError: (_error, _id, context) => storageListsPut(client, context?.held),
     onSuccess: (_, id) => storageNodeRemoved(client, id),
   });
 

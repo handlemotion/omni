@@ -29,7 +29,11 @@ with the CPU slowed 4x (`scripts/bench.ts`). Run it before and after a performan
 production does (`wrangler dev` alone is HTTP/1.1, which queues the scripts six at a time).
 `pnpm bench:drive` does the same for Drive (`scripts/bench-drive.ts`): startup on My files,
 switching places, opening a folder, loading 3,000 files of a 5,000-file folder, scrolling them,
-and selecting one, against the seed's Drive (`perf:seed` makes it too).
+and selecting one, against the seed's Drive (`perf:seed` makes it too). `pnpm bench:crm` times CRM
+clicks (rename a deal, add a note, complete a task, open a company) until they show, against a
+Worker whose database is `BENCH_DB_LATENCY` ms away per round trip (default 60, a Worker at the edge
+one region from its database; 2 is a Worker placed beside it), and fails when a change shows and
+is then undone by the refetch. `BENCH_CALLS=1` lists every API call it saw by median time.
 
 ## Layout
 
@@ -146,6 +150,14 @@ while offline. Queued actions live in memory: closing the tab while offline drop
 
 **Optimistic updates.** Archive, read/unread, later and done change every cached list and the
 thread at once (`lib/cache.ts`), then roll back if the request fails. Move just refetches.
+
+**CRM writes** (`lib/crm-cache.ts`) show at once wherever the record is cached: its page, every list
+and board, and the records that embed it, matched by id. A note appears at the top of the timeline
+and a deleted task, note, milestone or deliverable leaves at once; any failure puts the cache back.
+The write answers its caller as soon as the Worker does; the CRM then refetches once the last
+write in flight has answered, and a `crm.changed` heard while one is in flight waits for it, so an
+echo of an earlier write never shows a later one undone. Drive's trash and delete take the file
+out of its listings the same way.
 
 **Done and Later** are yours alone, even on a shared mailbox. Later has no
 time: a thread stays there until moved back (`useMoveToLater().mutate({ threadId, later })`). Pass the thread's

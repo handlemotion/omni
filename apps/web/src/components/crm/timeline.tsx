@@ -372,7 +372,7 @@ function NoteCard(props: { noteId: string; body: string; author: string | null }
     <Card>
       <div className="flex items-start gap-2">
         <p className="min-w-0 flex-1 text-sm/5 break-words whitespace-pre-wrap">{props.body}</p>
-        {props.author === member.id && (
+        {props.author === member.id && !props.noteId.startsWith("pending-") && (
           <span className="-my-[3px] shrink-0">
             <SettingsRowMenu
               label="Actions for this note"
@@ -401,13 +401,11 @@ function NoteComposer({ kind, id }: { kind: CrmRecordKind; id: string }) {
   const submit = () => {
     const text = body.trim();
     if (!text) return;
-    create.mutate(
-      { record: kind, id, body: text },
-      {
-        onSuccess: () => setBody(""),
-        onError: (error) => crmErrorToast(error, "The note was not added"),
-      },
-    );
+    setBody("");
+    create.mutateAsync({ record: kind, id, body: text }).catch((error: unknown) => {
+      setBody((typed) => typed || text);
+      crmErrorToast(error, "The note was not added");
+    });
   };
   return (
     <form
@@ -434,13 +432,7 @@ function NoteComposer({ kind, id }: { kind: CrmRecordKind; id: string }) {
           if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) submit();
         }}
       />
-      <Button
-        type="submit"
-        size="sm"
-        className="self-end"
-        isDisabled={!body.trim()}
-        isPending={create.isPending}
-      >
+      <Button type="submit" size="sm" className="self-end" isDisabled={!body.trim()}>
         Add note
       </Button>
     </form>

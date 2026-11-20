@@ -236,3 +236,33 @@ export function storageDrivesChanged(client: QueryClient, changes: StorageDriveC
     }),
   ]);
 }
+
+/**
+ * What trashing or deleting `id` shows before the Worker answers: out of every listing that shows
+ * it. Answers what each of those listings held, for `storageListsPut` when the request fails.
+ */
+export async function storageNodeAhead(client: QueryClient, id: string) {
+  const showing = lists(client).filter(([, data]) => shows(data, id));
+  await settle(
+    client,
+    showing.map(([key]) => key),
+  );
+  for (const [key, data] of showing) {
+    if (data) client.setQueryData<ListData>(key, without(data, id));
+  }
+  return showing;
+}
+
+/**
+ * Puts back the listings `storageNodeAhead` changed, then fetches them again: another trash that
+ * succeeded meanwhile is in what was held, and the fetch takes it back out.
+ */
+export function storageListsPut(
+  client: QueryClient,
+  held: [QueryKey, ListData | undefined][] | undefined,
+) {
+  for (const [key, data] of held ?? []) {
+    client.setQueryData(key, data);
+    void client.invalidateQueries({ queryKey: key, exact: true });
+  }
+}

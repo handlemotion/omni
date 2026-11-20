@@ -9,6 +9,7 @@ import {
   updateTaskMutation,
   type TaskFilter,
 } from "../lib/crm-tasks.ts";
+import { useMember } from "./use-session.ts";
 
 /** Tasks matching `filter`; `tasks` is every loaded page. */
 export function useCrmTasks(filter: TaskFilter) {
@@ -31,7 +32,7 @@ export function useCreateTask() {
 
 /** `mutate({ id, ...change })`; `done` shows at once on the task's page. */
 export function useUpdateTask() {
-  return useMutation(updateTaskMutation(useQueryClient()));
+  return useMutation(updateTaskMutation(useQueryClient(), useMember().member.id));
 }
 
 /** `mutate(id)`. */

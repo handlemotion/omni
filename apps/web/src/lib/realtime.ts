@@ -19,6 +19,7 @@ import {
 import { applyFilePresence, clearFilePresence } from "./file-presence.ts";
 import { applyPresence, clearPresence } from "./presence.ts";
 import { actionQuery } from "./mail-queries.ts";
+import { crmChangedElsewhere } from "./crm-cache.ts";
 import { conversationFilterOf, filterOf, keys } from "./query-keys.ts";
 import { storageDrivesChanged, type StorageDriveChange } from "./storage-cache.ts";
 
@@ -170,7 +171,7 @@ export function startRealtime(client: QueryClient, activeOrgId: string) {
       case "crm.changed":
         if (orgId !== activeOrgId) return;
         if (event.kind === "contract") void client.invalidateQueries({ queryKey: keys.storage() });
-        return void client.invalidateQueries({ queryKey: keys.crm() });
+        return crmChangedElsewhere(client);
     }
   };
 

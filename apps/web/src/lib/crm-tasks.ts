@@ -2,13 +2,13 @@ import {
   infiniteQueryOptions,
   mutationOptions,
   queryOptions,
-  type InfiniteData,
   type QueryClient,
 } from "@tanstack/react-query";
 import type { Api } from "@omni/client";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { api, call } from "./api.ts";
-import { crmChanged, type CrmRecordKind } from "./crm.ts";
+import type { CrmRecordKind } from "./crm.ts";
+import { dropFromPages, holdCrm, restoreCrm, setCrmFields, settleCrm } from "./crm-cache.ts";
 import { keys } from "./query-keys.ts";
 
 type Tasks = Api["crm"]["tasks"];
@@ -76,7 +76,7 @@ export const crmTaskCountsQuery = () =>
     select: (data) => data.counts,
   });
 
-const settle = (client: QueryClient) => ({ onSettled: () => crmChanged(client) });
+const settle = (client: QueryClient) => settleCrm(client);
 
 export const createTaskMutation = (client: QueryClient) =>
   mutationOptions({
@@ -85,50 +85,48 @@ export const createTaskMutation = (client: QueryClient) =>
     ...settle(client),
   });
 
-export const updateTaskMutation = (client: QueryClient) =>
+/**
+ * `mutate({ id, ...change })`: the change shows on the task and in every list at once (a done task
+ * stays where it is, checked, until the lists refetch), and comes off again if the request fails.
+ * `completedBy` is who checks it off.
+ */
+export const updateTaskMutation = (client: QueryClient, completedBy: string | null = null) =>
   mutationOptions({
     meta: { handlesError: true },
     mutationFn: ({ id, ...json }: TaskChange & { id: string }) =>
       call(api.crm.tasks[":id"].$patch({ param: { id }, json })),
-    onMutate: async ({ id, done, dueAt }) => {
-      if (done === undefined && dueAt === undefined) return;
-      await client.cancelQueries({ queryKey: taskKeys.all() });
-      const before = client.getQueriesData<InfiniteData<CrmTaskPage>>({
-        queryKey: taskKeys.lists(),
+    onMutate: async ({ id, done, ...change }) => {
+      const snapshot = await holdCrm(client);
+      setCrmFields(client, id, {
+        title: change.title,
+        body: change.body,
+        subtasks: change.subtasks,
+        assigneeMemberId: change.assigneeMemberId,
+        dueAt: change.dueAt,
+        ...(done === undefined
+          ? {}
+          : {
+              completedAt: done ? new Date().toISOString() : null,
+              completedByMemberId: done ? completedBy : null,
+            }),
       });
-      const patch = (task: CrmTask) => ({
-        ...task,
-        ...(done === undefined ? {} : { completedAt: done ? new Date().toISOString() : null }),
-        ...(dueAt === undefined ? {} : { dueAt }),
-      });
-      client.setQueryData(taskKeys.one(id), (data: { task: CrmTask } | undefined) =>
-        data ? { task: patch(data.task) } : data,
-      );
-      if (dueAt !== undefined) {
-        client.setQueriesData<InfiniteData<CrmTaskPage>>({ queryKey: taskKeys.lists() }, (data) =>
-          data
-            ? {
-                ...data,
-                pages: data.pages.map((page) => ({
-                  ...page,
-                  tasks: page.tasks.map((task) => (task.id === id ? patch(task) : task)),
-                })),
-              }
-            : data,
-        );
-      }
-      return { before };
+      return { snapshot };
     },
-    onError: (_error, _change, context) => {
-      for (const [key, data] of context?.before ?? []) client.setQueryData(key, data);
-    },
+    onError: (_error, _change, context) => restoreCrm(client, context?.snapshot),
     ...settle(client),
   });
 
+/** `mutate(id)`: the task leaves every list at once, and comes back if the request fails. */
 export const deleteTaskMutation = (client: QueryClient) =>
   mutationOptions({
     meta: { handlesError: true },
     mutationFn: (id: string) => call(api.crm.tasks[":id"].$delete({ param: { id } })),
+    onMutate: async (id) => {
+      const snapshot = await holdCrm(client);
+      dropFromPages(client, taskKeys.lists(), "tasks", new Set([id]));
+      return { snapshot };
+    },
+    onError: (_error, _id, context) => restoreCrm(client, context?.snapshot),
     ...settle(client),
   });
 

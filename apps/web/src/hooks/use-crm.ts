@@ -213,8 +213,9 @@ export function useMoveDeal() {
   return useMutation(moveDealMutation(useQueryClient()));
 }
 
+/** `mutate({ record, id, body })`: the note shows on the timeline at once. */
 export function useCreateNote() {
-  return useMutation(createNoteMutation(useQueryClient()));
+  return useMutation(createNoteMutation(useQueryClient(), useMember().member.id));
 }
 
 export function useDeleteNote() {

@@ -98,11 +98,14 @@ test("picking 50 items with the keyboard and trashing them sends one request eac
     .first()
     .waitFor({ state: "detached" });
   expect(trashed).toHaveLength(50);
-  const gone = await db
-    .select({ id: schema.storageNodes.id })
-    .from(schema.storageNodes)
-    .where(and(eq(schema.storageNodes.parentId, folder), isNotNull(schema.storageNodes.trashedAt)));
-  expect(gone).toHaveLength(50);
+  const gone = () =>
+    db
+      .select({ id: schema.storageNodes.id })
+      .from(schema.storageNodes)
+      .where(
+        and(eq(schema.storageNodes.parentId, folder), isNotNull(schema.storageNodes.trashedAt)),
+      );
+  await expect.poll(async () => (await gone()).length, { timeout: 10_000 }).toBe(50);
 });
 
 test("a file added from elsewhere shows in an open folder within 2 s, refetching only that folder", async () => {
