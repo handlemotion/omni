@@ -290,7 +290,7 @@ Four tools on the MCP server, through the same member door:
 | Tool         | Scope       | Does                                                                                     |
 | ------------ | ----------- | ---------------------------------------------------------------------------------------- |
 | `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, owner, archived, stage kind or close date. Compact rows. |
-| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, files, open tasks, a deal's plan, recent notes and thread ids. |
+| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, files, open tasks, a deal's plan and project access, recent notes and thread ids. |
 | `crm_tasks`  | `crm:read`  | Lists tasks by status, assignee, due (overdue, upcoming, none), record or title words.    |
 | `crm_write`  | `crm:write` | Adds or changes a record, task, milestone, deliverable or draft contract, archives or restores, links files, adds a note, or changes many at once. Never deletes or sends. |
 
@@ -314,6 +314,21 @@ instructions keep telling agents to treat it as data.
   `crm_write`'s `contract` adds a draft on a company or deal or changes its title, document
   (a file in Shared) and dates. Sending for signature, voiding, and marking a contract sent or
   signed reach people outside Omni or bind the company, so they stay with a person in the app.
+- Paging: an empty `query` or any filter makes `crm_search` list records by name, and
+  `next_cursor` (opaque: where each kind stopped in each workspace) pages through the rest with
+  the same filters. A bare `query` is a ranked match and does not page. Kinds a member may not
+  list (a freelancer's companies and people) come back empty rather than as an error.
+- Project access: a deal's `crm_fetch` carries `access`, the freelancers and clients outside the
+  team who reach it (email, name once they have an account, scope, when added). Adding or
+  removing them shares the project's Drive folder with people outside the company, so it stays
+  with a person in the app (Rodrigo, Nov 20 2026).
+- Retries: `crm_write` takes an optional `idempotency_key`. Before writing, it claims the key
+  with an `mcp.crm_write.key` audit row (subject: the key); when the write lands the row keeps
+  its answer, and when it is refused the claim is dropped. The same member sending the key
+  again within 24 hours gets the answer back with `replayed: true` and nothing is written. A
+  claim with no answer (a write still running, or one that stopped before Omni knew whether it
+  landed) is refused with a tool error telling the agent to check with `crm_search` first, so a
+  retry never writes twice. Two concurrent first sends can both claim; agents send one at a time.
 - Plans: a deal's `crm_fetch` carries its `plan` (milestones in order, deliverables with their
   `file_id`, status and `client_visible`). `crm_write`'s `milestone` and `deliverable` add one
   (`deal` and `title`) or change one by `id`; nothing is deleted.

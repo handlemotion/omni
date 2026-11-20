@@ -20,13 +20,23 @@ export const dealSchema = z
       .nullable()
       .optional()
       .describe('"me", a teammate\'s email, or null for no owner. Adding: you by default.'),
-    value_minor: z.number().int().nullable().optional().describe("In minor units (cents)."),
+    value_minor: z
+      .number()
+      .int()
+      .nullable()
+      .optional()
+      .describe("In minor units (cents): 52,000.00 is 5200000."),
     expected_close_on: z.iso
       .date()
       .nullable()
       .optional()
       .describe("When it should close, YYYY-MM-DD; null for none."),
-    currency: z.string().length(3).nullable().optional().describe("ISO 4217, like USD."),
+    currency: z
+      .string()
+      .length(3)
+      .nullable()
+      .optional()
+      .describe("ISO 4217, like USD or MXN. Default: the workspace's currency."),
     person_ids: z.array(z.string().min(1)).max(50).optional().describe("Its people, all of them."),
     archived: archivedSchema,
   })

@@ -22,6 +22,10 @@ export const outputSchema = z.object({
   result: z
     .enum(["added", "changed", "already_there"])
     .describe("already_there: a person with that address existed and is returned unchanged."),
+  replayed: z
+    .boolean()
+    .optional()
+    .describe("True: this `idempotency_key` already made this change; nothing was written again."),
   person: personRowSchema.optional(),
   company: companyRowSchema.optional(),
   deal: dealRowSchema.optional(),

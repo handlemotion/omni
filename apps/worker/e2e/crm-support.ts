@@ -75,7 +75,7 @@ export async function startCrmStack(options: { vars?: Record<string, string> } =
     api,
     socket,
     company: (name: string) => createOrg(db, name),
-    async member(orgId: string, role: "owner" | "admin" | "member" = "member") {
+    async member(orgId: string, role: "owner" | "admin" | "member" | "freelancer" = "member") {
       const email = `${role}-${randomUUID().slice(0, 8)}@crm.test`;
       const member = await createMember(db, orgId, email);
       await db.update(schema.members).set({ role }).where(eq(schema.members.id, member.id));

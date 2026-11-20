@@ -273,7 +273,7 @@ export function refusalText(refusal: { status: string }) {
     case "not_found":
       return "No record with that id here. Ids come from `crm_search`.";
     case "forbidden":
-      return "Only the note's author or an owner or admin can do this.";
+      return "You may not do this here: it is for the note's author, or for an owner or admin.";
     case "invalid_name":
       return "That name cannot be used: give 1 to 200 characters.";
     case "invalid_address":
@@ -287,7 +287,7 @@ export function refusalText(refusal: { status: string }) {
     case "address_taken":
       return "Another person already has that address. Find them with `crm_search`.";
     case "invalid_currency":
-      return "That is not a currency: use a three-letter ISO code like USD.";
+      return "Give `currency` as a three-letter ISO code like USD or MXN; a value without one needs the workspace to have a default currency.";
     case "invalid_value":
       return "The value must be a whole number of minor units (cents).";
     case "invalid_body":
@@ -306,7 +306,7 @@ export function refusalText(refusal: { status: string }) {
     case "invalid_action":
       return "That change does not apply to this kind of record.";
     default:
-      return "Omni could not make that change.";
+      return `Omni could not make that change (${refusal.status}).`;
   }
 }
 
