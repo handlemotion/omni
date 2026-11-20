@@ -81,11 +81,8 @@ const crmDealFields = {
   maxValue: amount,
 };
 
-/** The deals: the board unless `view=list`; a stage, a close window, a value range. */
-export const crmDealsSearch = z.object({
-  ...crmDealFields,
-  view: optional(z.enum(["board", "list"])),
-});
+/** The deals board: a close window and a value range. */
+export const crmDealsSearch = z.object(crmDealFields);
 
 /** Projects: won deals. */
 export const crmProjectsSearch = z.object(crmDealFields);

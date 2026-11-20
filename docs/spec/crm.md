@@ -83,8 +83,10 @@ the ones this member can open: their own mailboxes and the shared inboxes they a
 teammates looking at the same client can see different emails, and neither learns about mail in
 a mailbox that is not theirs.
 
-**Work the pipeline.** Deals sit on a board by stage. Dragging a deal to a `won` stage records
-when it was won. That is the only ceremony: the deal carries on as the project.
+**Work the pipeline.** Deals sit on a board by stage, their only view (founder's call, Nov 20,
+2026): search and filters narrow the board, and the Archived filter shows archived deals on it.
+Dragging a deal to a `won` stage records when it was won. That is the only ceremony: the deal
+carries on as the project.
 
 **Keep the files.** A deal's Files are a folder in Shared, under `Clients`. Dropping a file on
 the deal uploads it there, and the same folder is in Storage, where it can be shared like any

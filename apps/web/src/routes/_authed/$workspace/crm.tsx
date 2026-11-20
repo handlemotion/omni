@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import type { DragEvent } from "react";
 import { crmStagesQuery } from "../../../lib/crm.ts";
 
 /**
@@ -13,5 +14,20 @@ export const Route = createFileRoute("/_authed/$workspace/crm")({
     }
   },
   loader: ({ context }) => void context.queryClient.prefetchQuery(crmStagesQuery()),
-  component: Outlet,
+  component: CrmLayout,
 });
+
+function CrmLayout() {
+  return (
+    <div className="contents" onDragStart={stopNativeDrag}>
+      <Outlet />
+    </div>
+  );
+}
+
+function stopNativeDrag(event: DragEvent) {
+  const node = event.target as Node;
+  const target = node instanceof Element ? node : node.parentElement;
+  if (target?.closest('[draggable="true"], [contenteditable="true"]')) return;
+  event.preventDefault();
+}

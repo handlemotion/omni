@@ -104,7 +104,11 @@ export function NewPersonDialog(props: { companyId?: string; onClose: () => void
   );
 }
 
-export function NewDealDialog(props: { companyId?: string; onClose: () => void }) {
+export function NewDealDialog(props: {
+  companyId?: string;
+  stageId?: string;
+  onClose: () => void;
+}) {
   const create = useCreateDeal();
   const navigate = useNavigate();
   const workspace = useWorkspaceSlug();
@@ -128,6 +132,7 @@ export function NewDealDialog(props: { companyId?: string; onClose: () => void }
           {
             name: name.trim(),
             ...(companyId ? { companyId } : {}),
+            ...(props.stageId ? { stageId: props.stageId } : {}),
             ...(minor !== null ? { valueMinor: minor } : {}),
             currency,
           },

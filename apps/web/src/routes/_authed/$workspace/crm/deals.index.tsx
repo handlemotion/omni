@@ -6,7 +6,7 @@ import { crmDealsSearch } from "../../../../lib/search-params.ts";
 
 export const Route = createFileRoute("/_authed/$workspace/crm/deals/")({
   validateSearch: crmDealsSearch,
-  loaderDeps: ({ search }) => dealsFilter(search, !search.q && search.view !== "list"),
+  loaderDeps: ({ search }) => dealsFilter(search),
   loader: ({ context, deps }) =>
     void context.queryClient.prefetchInfiniteQuery(crmDealsQuery(deps)),
   component: Deals,

@@ -1,8 +1,5 @@
-import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { IconBoard, IconList } from "@/components/icons/central";
 import { byAddress } from "@/components/avatar/sender-avatar";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useCrmCompanies, useCrmDeals, useCrmPeople } from "@/hooks/use-crm.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 import {
@@ -52,8 +49,7 @@ const recordHref = (inWorkspace: (path: string) => string, kind: string) => (row
 
 const COMPANY_FILTERS: FilterKind[] = ["owner", "archived"];
 const PEOPLE_FILTERS: FilterKind[] = ["owner", "company", "archived"];
-const BOARD_FILTERS: FilterKind[] = ["owner", "close", "value"];
-const DEAL_FILTERS: FilterKind[] = ["owner", "stage", "close", "value", "archived"];
+const DEAL_FILTERS: FilterKind[] = ["owner", "close", "value", "archived"];
 const PROJECT_FILTERS: FilterKind[] = ["owner", "close", "value", "archived"];
 
 export function CompaniesPage({ search }: { search: CrmCompaniesSearch }) {
@@ -120,20 +116,14 @@ export function PeoplePage({ search }: { search: CrmPeopleSearch }) {
   );
 }
 
-export type DealsView = "board" | "list";
-
-/** The deals: the board by stage, or the list. A search shows the list. */
+/** The deals, on the board by stage: the only view of them. */
 export function DealsPage({ search }: { search: CrmDealsSearch }) {
   const { href: inWorkspace } = useWorkspacePaths();
   const q = search.q ?? "";
   const text = useListSearch(q);
-  const shown: DealsView = q ? "list" : (search.view ?? "board");
-  const board = shown === "board";
-  const list = useCrmDeals(dealsFilter(search, board), { all: board });
+  const list = useCrmDeals(dealsFilter(search), { all: true });
   const view = useListView("deals", search, list.deals);
   const [adding, setAdding] = useState(false);
-  const dealSearch = board ? { ...search, archived: undefined } : search;
-  const dealFilters = board ? BOARD_FILTERS : DEAL_FILTERS;
   return (
     <>
       <RecordList
@@ -142,21 +132,14 @@ export function DealsPage({ search }: { search: CrmDealsSearch }) {
         search={{ ...text, q }}
         source={sourceOf(list, list.deals)}
         columns={DEAL_COLUMNS}
-        toolbar={
-          <ListToolbar
-            search={dealSearch}
-            sorts={board ? BOARD_SORTS : undefined}
-            filters={dealFilters}
-          />
-        }
+        toolbar={<ListToolbar search={search} sorts={BOARD_SORTS} filters={DEAL_FILTERS} />}
         filtered={isFiltered(search)}
         {...view}
         mark={(deal) => <RecordMark name={deal.name} />}
         href={recordHref(inWorkspace, "deals")}
         onNew={() => setAdding(true)}
-        extra={<ViewToggle view={shown} />}
-        filter={<ListFilter search={dealSearch} filters={dealFilters} />}
-        replaceBody={board ? <DealBoard deals={list.deals} list={list} /> : undefined}
+        filter={<ListFilter search={search} filters={DEAL_FILTERS} />}
+        replaceBody={<DealBoard deals={list.deals} list={list} />}
       />
       {adding && <NewDealDialog onClose={() => setAdding(false)} />}
     </>
@@ -184,39 +167,5 @@ export function ProjectsPage({ search }: { search: CrmProjectsSearch }) {
       mark={(deal) => <RecordMark name={deal.name} />}
       href={recordHref(inWorkspace, "deals")}
     />
-  );
-}
-
-function ViewToggle({ view }: { view: DealsView }) {
-  const navigate = useNavigate();
-  return (
-    <ToggleGroup
-      size="sq-xs"
-      aria-label="Show deals as"
-      selectedKeys={[view]}
-      disallowEmptySelection
-      onSelectionChange={(keys) => {
-        const next = [...keys][0];
-        if (next === "board" || next === "list") {
-          void navigate({
-            to: ".",
-            search: (prev: Record<string, unknown>) => ({
-              ...prev,
-              view: next === "list" ? "list" : undefined,
-              q: undefined,
-              archived: undefined,
-            }),
-            replace: true,
-          });
-        }
-      }}
-    >
-      <ToggleGroupItem id="board" aria-label="Board">
-        <IconBoard />
-      </ToggleGroupItem>
-      <ToggleGroupItem id="list" aria-label="List">
-        <IconList />
-      </ToggleGroupItem>
-    </ToggleGroup>
   );
 }

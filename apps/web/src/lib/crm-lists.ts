@@ -73,24 +73,19 @@ export const peopleFilter = (
 /** On the board, deals sort within their column by one of these. */
 export const BOARD_SORTS: CrmSort[] = ["name", "value", "closeOn", "updated"];
 
-const dealSort = (search: DealParams, board: boolean) =>
-  board && search.sort && !BOARD_SORTS.includes(search.sort)
+const dealSort = (search: DealParams) =>
+  search.sort && !BOARD_SORTS.includes(search.sort)
     ? { sort: undefined, dir: undefined }
     : {
         sort: search.sort,
         dir: search.dir ?? (search.sort ? SORT_START_DIR[search.sort] : undefined),
       };
 
-/**
- * The board never shows archived deals, keeps every other filter, and falls back to name order
- * for a sort it doesn't offer, as its sort control shows.
- */
-export const dealsFilter = (search: DealParams, board: boolean) =>
+/** The board keeps every filter but stage, and falls back to name order for a sort it doesn't offer. */
+export const dealsFilter = (search: DealParams) =>
   ({
     ...listParams(search),
-    ...dealSort(search, board),
-    archived: board ? undefined : search.archived,
-    stage: board ? undefined : search.stage,
+    ...dealSort(search),
     closeAfter: search.closeAfter,
     closeBefore: search.closeBefore,
     minValue: search.minValue,
@@ -99,7 +94,16 @@ export const dealsFilter = (search: DealParams, board: boolean) =>
 
 /** Projects are the deals in a won stage. */
 export const projectsFilter = (search: DealParams) =>
-  ({ ...dealsFilter(search, false), kind: "won" }) satisfies CrmDealFilter;
+  ({
+    ...listParams(search),
+    sort: search.sort,
+    stage: search.stage,
+    closeAfter: search.closeAfter,
+    closeBefore: search.closeBefore,
+    minValue: search.minValue,
+    maxValue: search.maxValue,
+    kind: "won",
+  }) satisfies CrmDealFilter;
 
 const PAGE_SIZE = 50;
 const BOARD_PAGE_SIZE = 200;

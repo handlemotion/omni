@@ -1,23 +1,53 @@
 import {
-  useDragAndDrop,
-  type DragAndDropHooks,
-  type DropItem,
-} from "react-aria-components/useDragAndDrop";
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  pointerWithin,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
+  type KeyboardCoordinateGetter,
+} from "@dnd-kit/core";
+import { useState } from "react";
 import { Skeleton, SkeletonBox } from "skullet/react";
+import { IconPlus } from "@/components/icons/central";
 import { ListFailed } from "@/components/inbox/thread-list";
-import { GridList, GridListItem } from "@/components/ui/grid-list";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useCrmStages, useMoveDeal } from "@/hooks/use-crm.ts";
 import { formatMoney, type CrmDeal, type CrmStage } from "@/lib/crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
-import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
+import { DealCard, LiftedDealCard } from "./deal-card.tsx";
+import { NewDealDialog } from "./new-records.tsx";
 
-const DEAL_TYPE = "application/x-omni-deal";
+const COLUMN = "flex w-72 shrink-0 flex-col";
+const COLUMN_STEP = 288 + 12;
+const ARROW_STEPS: Record<string, number> = { ArrowRight: COLUMN_STEP, ArrowLeft: -COLUMN_STEP };
+const SPACE_ONLY = { start: ["Space"], cancel: ["Escape"], end: ["Space"] };
+
+const byPointerOrCenter: CollisionDetection = (args) =>
+  args.pointerCoordinates ? pointerWithin(args) : closestCenter(args);
+
+const stepColumns: KeyboardCoordinateGetter = (event, { currentCoordinates }) => {
+  const step = ARROW_STEPS[event.code];
+  if (!step) return undefined;
+  event.preventDefault();
+  return { ...currentCoordinates, x: currentCoordinates.x + step };
+};
 
 export function DealBoard(props: {
   deals: CrmDeal[];
   list: { isPending: boolean; isError: boolean; refetch: () => unknown };
 }) {
   const stages = useCrmStages();
+  const [adding, setAdding] = useState<string | null>(null);
+  const drag = useBoardDrag(props.deals, stages.data ?? []);
   if (props.list.isPending || stages.isPending) {
     return (
       <Skeleton loading label="Loading deals" skeleton={<BoardBones />}>
@@ -38,85 +68,109 @@ export function DealBoard(props: {
     );
   }
   return (
-    <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto px-5 py-4">
-      {stages.data.map((stage) => (
-        <Column
-          key={stage.id}
-          stage={stage}
-          deals={props.deals.filter((deal) => deal.stageId === stage.id)}
-        />
-      ))}
-    </div>
+    <DndContext
+      sensors={drag.sensors}
+      collisionDetection={byPointerOrCenter}
+      onDragStart={drag.start}
+      onDragEnd={drag.end}
+      onDragCancel={drag.cancel}
+    >
+      <div className="flex min-h-0 flex-1 gap-3 overflow-auto px-5 py-4">
+        {stages.data.map((stage) => (
+          <Column
+            key={stage.id}
+            stage={stage}
+            deals={props.deals.filter((deal) => deal.stageId === stage.id)}
+            lifted={drag.lifted}
+            onAdd={() => setAdding(stage.id)}
+          />
+        ))}
+      </div>
+      <DragOverlay dropAnimation={null}>
+        {drag.lifted && <LiftedDealCard deal={drag.lifted} />}
+      </DragOverlay>
+      {adding && <NewDealDialog stageId={adding} onClose={() => setAdding(null)} />}
+    </DndContext>
   );
 }
 
-function Column({ stage, deals }: { stage: CrmStage; deals: CrmDeal[] }) {
-  const { href: inWorkspace } = useWorkspacePaths();
-  const dragAndDropHooks = useColumnDragAndDrop(stage, deals);
+function useBoardDrag(deals: CrmDeal[], stages: CrmStage[]) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { keyboardCodes: SPACE_ONLY, coordinateGetter: stepColumns }),
+  );
+  const move = useMoveDeal();
+  const [lifted, setLifted] = useState<CrmDeal | null>(null);
+  const start = (event: DragStartEvent) =>
+    setLifted(deals.find((deal) => deal.id === event.active.id) ?? null);
+  const end = (event: DragEndEvent) => {
+    setLifted(null);
+    const deal = deals.find((each) => each.id === event.active.id);
+    const stage = stages.find((each) => each.id === event.over?.id);
+    if (!deal || !stage || deal.stageId === stage.id) return;
+    move.mutate(
+      { dealId: deal.id, stage },
+      { onError: (error) => crmErrorToast(error, "The deal was not moved") },
+    );
+  };
+  return { sensors, lifted, start, end, cancel: () => setLifted(null) };
+}
+
+function Column(props: {
+  stage: CrmStage;
+  deals: CrmDeal[];
+  lifted: CrmDeal | null;
+  onAdd: () => void;
+}) {
+  const { stage, deals } = props;
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const total = sumValues(deals);
+  const taking = isOver && !!props.lifted && props.lifted.stageId !== stage.id;
   return (
     <section
+      ref={setNodeRef}
       aria-label={stage.name}
-      className="flex w-68 shrink-0 flex-col rounded-xl bg-secondary/60"
+      data-taking={taking || undefined}
+      className={`${COLUMN} rounded-xl p-1 transition-colors duration-150 ease-out data-taking:bg-hover`}
     >
-      <header className="flex h-10 shrink-0 items-center gap-2 px-5 text-sm">
+      <header className="mb-2 flex h-9 shrink-0 items-center gap-2 text-sm">
         <span className="truncate">{stage.name}</span>
-        <span className="text-muted-foreground tabular-nums">{deals.length}</span>
+        <Badge
+          intent="secondary"
+          isCircle={false}
+          className="h-5 min-w-5 justify-center px-1.5 py-0 text-xs/none tabular-nums"
+        >
+          {deals.length}
+        </Badge>
         {total && (
           <span className="ms-auto truncate text-muted-foreground tabular-nums">{total}</span>
         )}
       </header>
-      <GridList
-        aria-label={`Deals in ${stage.name}`}
-        items={deals}
-        dragAndDropHooks={dragAndDropHooks}
-        layout="stack"
-        className="min-h-24 flex-1 gap-2 overflow-y-auto rounded-b-xl bg-transparent p-2 pt-0 drop-target:bg-hover"
-        renderEmptyState={() => null}
-      >
-        {(deal) => (
-          <GridListItem
-            id={deal.id}
-            textValue={deal.name}
-            href={inWorkspace(`/crm/deals/${encodeURIComponent(deal.id)}`)}
-            className="flex-col items-stretch gap-0.5 rounded-lg border bg-background px-3 py-2.5 shadow-(--shadow-raised) transition-colors duration-150 ease-out hover:border-muted-foreground/30"
-          >
-            <span className="truncate text-sm">{deal.name}</span>
-            <span className="truncate text-xs/4 text-muted-foreground tabular-nums">
-              {formatMoney(deal.valueMinor, deal.valueCurrency) ?? "–"}
-            </span>
-          </GridListItem>
-        )}
-      </GridList>
+      <ul aria-label={`Deals in ${stage.name}`} className="flex flex-col gap-2">
+        {deals.map((deal) => (
+          <DraggableDeal key={deal.id} deal={deal} />
+        ))}
+      </ul>
+      <Button size="sm" intent="plain" className="mt-3 self-start" onPress={props.onAdd}>
+        <IconPlus data-slot="icon" />
+        Add deal
+      </Button>
     </section>
   );
 }
 
-function useColumnDragAndDrop(stage: CrmStage, deals: CrmDeal[]) {
-  const move = useMoveDeal();
-  const take = async (items: DropItem[]) => {
-    for (const item of items) {
-      if (item.kind !== "text" || !item.types.has(DEAL_TYPE)) continue;
-      const dealId = await item.getText(DEAL_TYPE);
-      if (deals.some((deal) => deal.id === dealId)) continue;
-      move.mutate(
-        { dealId, stage },
-        { onError: (error) => crmErrorToast(error, "The deal was not moved") },
-      );
-    }
-  };
-  const { dragAndDropHooks } = useDragAndDrop<CrmDeal>({
-    getItems: (keys, items) =>
-      items
-        .filter((deal) => keys.has(deal.id))
-        .map((deal) => ({ [DEAL_TYPE]: deal.id, "text/plain": deal.name })),
-    acceptedDragTypes: [DEAL_TYPE],
-    getDropOperation: () => "move",
-    onRootDrop: (event) => void take(event.items),
-    onInsert: (event) => void take(event.items),
-    onItemDrop: (event) => void take(event.items),
-  });
-  return dragAndDropHooks satisfies DragAndDropHooks<CrmDeal>;
+function DraggableDeal({ deal }: { deal: CrmDeal }) {
+  const { setNodeRef, listeners, isDragging } = useDraggable({ id: deal.id });
+  return (
+    <li
+      ref={setNodeRef}
+      onPointerDownCapture={listeners?.onPointerDown as React.PointerEventHandler | undefined}
+      onKeyDownCapture={listeners?.onKeyDown as React.KeyboardEventHandler | undefined}
+      className={`flex flex-col ${isDragging ? "opacity-0" : ""}`}
+    >
+      <DealCard deal={deal} />
+    </li>
+  );
 }
 
 function sumValues(deals: CrmDeal[]) {
@@ -132,14 +186,14 @@ function sumValues(deals: CrmDeal[]) {
 
 function BoardBones() {
   return (
-    <div className="flex gap-2 px-5 py-4">
+    <div className="flex gap-3 px-5 py-4">
       {Array.from({ length: 5 }, (_, column) => (
-        <div key={column} className="flex w-68 shrink-0 flex-col gap-2 rounded-xl p-2">
-          <div className="flex h-8 items-center px-3">
+        <div key={column} className={`${COLUMN} gap-2 p-1`}>
+          <div className="mb-2 flex h-9 items-center">
             <SkeletonBox width={72} height={10} />
           </div>
           {Array.from({ length: 3 - (column % 3) }, (__, card) => (
-            <SkeletonBox key={card} width="100%" height={52} radius="var(--radius-lg)" />
+            <SkeletonBox key={card} width="100%" height={68} radius="var(--radius-xl)" />
           ))}
         </div>
       ))}
