@@ -1,14 +1,6 @@
 import { useLocation, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ComponentType,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useMemo, useRef, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -149,32 +141,70 @@ function Label({ name, current }: { name: string; current: boolean }) {
   );
 }
 
+const SHOWN_POLL_MS = 16;
+const SHOWN_WAIT_MS = 1000;
+
+const canSlide = () =>
+  typeof document.startViewTransition === "function" &&
+  !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function switcherShows(id: ModuleId) {
+  return new Promise<void>((resolve) => {
+    const started = Date.now();
+    const check = () => {
+      const shown = document.querySelector(`[role="group"][data-module="${id}"]`);
+      if (shown || Date.now() - started > SHOWN_WAIT_MS) return resolve();
+      window.setTimeout(check, SHOWN_POLL_MS);
+    };
+    check();
+  });
+}
+
+let slideToken = 0;
+
+function slideNavigation(id: ModuleId, by: 1 | -1, navigate: () => Promise<void>) {
+  const root = document.documentElement;
+  const token = ++slideToken;
+  root.dataset.moduleSlide = by > 0 ? "next" : "previous";
+  const transition = document.startViewTransition(async () => {
+    await navigate();
+    await switcherShows(id);
+  });
+  void transition.finished.finally(() => {
+    if (token === slideToken) delete root.dataset.moduleSlide;
+  });
+}
+
 /**
  * `open(id)` goes to a module's home, keeping the workspace and the mailbox shown in mail: it
- * rides along both ways, so coming back to Mail shows the same one. The module menu and `g f`
- * both open modules through this.
+ * rides along both ways, so coming back to Mail shows the same one. The switcher and `g f` both
+ * open modules through this; the switcher passes `slide`, the direction the sidebar moves. While
+ * a page can block leaving (unsaved edits), it doesn't slide: a view transition freezes rendering
+ * until navigation ends, which would hide the page's Save your changes? dialog.
  */
 export function useOpenModule() {
   const router = useRouter();
   const workspace = useWorkspaceSlug();
   const { mailbox } = useSearch({ strict: false }) as { mailbox?: string };
-  return (id: ModuleId) => {
+  return (id: ModuleId, slide?: 1 | -1) => {
     const module = BY_ID[id];
-    void router.navigate({
-      to: module.home,
-      params: { workspace },
-      search: mailbox ? { mailbox } : {},
-    });
+    const navigate = () =>
+      router.navigate({
+        to: module.home,
+        params: { workspace },
+        search: mailbox ? { mailbox } : {},
+      });
+    const mayBlock = router.history._getBlockers().length > 0;
+    if (slide && !mayBlock && canSlide()) slideNavigation(id, slide, navigate);
+    else void navigate();
   };
 }
-
-let lastShown: ModuleId | undefined;
 
 /**
  * The sidebar's foot, as on iOS: the module on screen in a pill, between a chevron each way to its
  * neighbour (disabled where there is none). A two-finger sideways swipe in the sidebar steps too.
- * The pill's mark and name slide in from the side they came from; with reduced motion they just
- * appear.
+ * Stepping slides the sidebar's nav and the pill's contents across like pages; with reduced motion
+ * they change in place.
  */
 export function ModuleSwitcher() {
   const current = BY_ID[useCurrentModule()];
@@ -182,45 +212,28 @@ export function ModuleSwitcher() {
   const modules = useHasCrm() ? MODULES : MODULES.filter((module) => module.id !== "crm");
   const index = Math.max(0, modules.indexOf(current));
   const row = useRef<HTMLDivElement>(null);
-  const arrival = () => {
-    const from = modules.findIndex((module) => module.id === lastShown);
-    return { id: current.id, came: from < 0 || from === index ? 0 : index > from ? 1 : -1 };
+  const go = (by: 1 | -1) => {
+    const module = modules[index + by];
+    if (module) open(module.id, by);
   };
-  const [shown, setShown] = useState(arrival);
-  if (shown.id !== current.id) setShown(arrival());
-  const { came } = shown.id === current.id ? shown : arrival();
-  useEffect(() => {
-    lastShown = current.id;
-  }, [current.id]);
-  const go = (to: number) => {
-    const module = modules[to];
-    if (module && to !== index) open(module.id);
-  };
-  useSidewaysSwipe(row, (by) => go(index + by));
+  useSidewaysSwipe(row, go);
 
   return (
     <div
       ref={row}
       role="group"
       aria-label="Modules"
+      data-module={current.id}
       className="flex h-8 items-center justify-center gap-1"
     >
-      <Step module={modules[index - 1]} direction="previous" onPress={() => go(index - 1)} />
+      <Step module={modules[index - 1]} direction="previous" onPress={() => go(-1)} />
       <div className="flex h-8 min-w-0 items-center gap-2 overflow-hidden rounded-full border border-border ps-1.5 pe-3">
-        <span
-          key={current.id}
-          className={cn(
-            "flex min-w-0 items-center gap-2 motion-reduce:animate-none",
-            came !== 0 && "animate-in fade-in duration-150 ease-out",
-            came > 0 && "slide-in-from-right-2",
-            came < 0 && "slide-in-from-left-2",
-          )}
-        >
+        <span className="flex min-w-0 items-center gap-2 [view-transition-name:module-pill]">
           <ModuleMark module={current} className="size-5 rounded-[6px]" />
           <span className="truncate text-sm font-medium">{current.label}</span>
         </span>
       </div>
-      <Step module={modules[index + 1]} direction="next" onPress={() => go(index + 1)} />
+      <Step module={modules[index + 1]} direction="next" onPress={() => go(1)} />
     </div>
   );
 }

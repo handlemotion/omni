@@ -67,6 +67,30 @@ async function openInbox(slug: string, options: { reducedMotion?: "reduce" } = {
     }),
   );
   const page = await context.newPage();
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    (window as unknown as { slides: string[] }).slides = seen;
+    const start = document.startViewTransition.bind(document);
+    document.startViewTransition = (update) => {
+      const transition = start(update);
+      const w = window as unknown as { transitioning: number };
+      w.transitioning = (w.transitioning ?? 0) + 1;
+      void transition.finished.finally(() => {
+        w.transitioning -= 1;
+      });
+      const direction = document.documentElement.dataset.moduleSlide ?? "none";
+      void transition.ready.then(() => {
+        for (const animation of document.getAnimations()) {
+          const pseudo = (animation.effect as KeyframeEffect | null)?.pseudoElement ?? "";
+          const name = (animation as CSSAnimation).animationName;
+          const part = /\((module-[a-z]+)\)/.exec(pseudo)?.[1];
+          if (part && name?.startsWith("module-slide")) seen.push(`${direction} ${part} ${name}`);
+        }
+        return seen;
+      });
+      return transition;
+    };
+  });
   await page.goto(new URL("/inbox", origin).toString());
   await shows(page, "Mail");
   return page;
@@ -174,23 +198,67 @@ test("the sidebar keeps sideways swipes from the browser's back and forward", as
   await expect.poll(async () => (await seen()).at(-1)).toBe(false);
 });
 
-test("the pill slides in from the side it came from, and not at all with reduced motion", async () => {
+test("stepping slides the sidebar and the pill across, and not with reduced motion", async () => {
   const motion = await openInbox("motion");
   await motion.getByRole("button", { name: "Go to Drive" }).click();
   await shows(motion, "Drive");
-  expect(await pillAnimation(motion, "Drive")).toBe("enter");
+  await expect
+    .poll(() => slides(motion))
+    .toEqual([
+      "next module-nav module-slide-in",
+      "next module-nav module-slide-out",
+      "next module-pill module-slide-in",
+      "next module-pill module-slide-out",
+    ]);
+
+  await swipe(motion, [[-60, 0]]);
+  await shows(motion, "Mail");
+  await expect
+    .poll(async () => (await slides(motion)).filter((s) => s.startsWith("previous")))
+    .toEqual([
+      "previous module-nav module-slide-in",
+      "previous module-nav module-slide-out",
+      "previous module-pill module-slide-in",
+      "previous module-pill module-slide-out",
+    ]);
   await context?.close();
 
   const still = await openInbox("still", { reducedMotion: "reduce" });
   await still.getByRole("button", { name: "Go to Drive" }).click();
   await shows(still, "Drive");
-  expect(await pillAnimation(still, "Drive")).toBe("none");
+  await still.waitForTimeout(400);
+  expect(await slides(still)).toEqual([]);
 });
 
-function pillAnimation(page: Page, label: string) {
-  return modules(page)
-    .getByText(label, { exact: true })
-    .evaluate((name) => getComputedStyle(name.parentElement as Element).animationName);
+test("leaving a document with unsaved edits asks at once, and stepping on after Don't save still works", async () => {
+  const page = await openInbox("blocked");
+  await page.getByRole("button", { name: "Go to Drive" }).click();
+  await shows(page, "Drive");
+  await page.getByRole("button", { name: "Upload", exact: true }).first().waitFor();
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles({ name: "plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Plan\n") });
+  await page.getByRole("row", { name: /plan\.md/ }).click();
+  await page.getByRole("button", { name: "Edit" }).click();
+  const editor = page.locator("[contenteditable=true]");
+  await editor.getByRole("heading", { name: "Plan" }).click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" B");
+
+  await page.getByRole("button", { name: "Go to CRM" }).click();
+  const leaving = page.getByRole("alertdialog", { name: "Save your changes?" });
+  await leaving.waitFor({ timeout: 1000 });
+  const frozen = () =>
+    page.evaluate(() => (window as unknown as { transitioning?: number }).transitioning ?? 0);
+  expect(await frozen()).toBe(0);
+  await leaving.getByRole("button", { name: "Don’t save" }).click();
+  await page.waitForURL((url) => place(url) === "/crm/companies");
+  await shows(page, "CRM");
+});
+
+function slides(page: Page) {
+  return page.evaluate(() => (window as unknown as { slides: string[] }).slides.toSorted());
 }
 
 async function freePort() {

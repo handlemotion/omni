@@ -271,6 +271,57 @@
   }
 }
 
+/* Changing module from the sidebar's switcher (`slideModules`): the sidebar's nav and the pill's
+   contents slide across like pages, each clipped to its own box; the rest of the page cuts over. */
+html[data-module-slide] {
+  --module-slide: 1;
+}
+html[data-module-slide="previous"] {
+  --module-slide: -1;
+}
+html[data-module-slide]::view-transition-old(root),
+html[data-module-slide]::view-transition-new(root) {
+  animation: none;
+}
+html[data-module-slide]::view-transition-group(module-nav),
+html[data-module-slide]::view-transition-group(module-pill) {
+  animation-duration: 280ms;
+  animation-timing-function: var(--ease-out);
+}
+html[data-module-slide]::view-transition-image-pair(module-nav),
+html[data-module-slide]::view-transition-image-pair(module-pill) {
+  overflow: clip;
+}
+html[data-module-slide]::view-transition-old(module-nav),
+html[data-module-slide]::view-transition-old(module-pill) {
+  animation: module-slide-out 280ms var(--ease-out) both;
+  mix-blend-mode: normal;
+}
+html[data-module-slide]::view-transition-new(module-nav),
+html[data-module-slide]::view-transition-new(module-pill) {
+  animation: module-slide-in 280ms var(--ease-out) both;
+  mix-blend-mode: normal;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-module-slide]::view-transition-group(*),
+  html[data-module-slide]::view-transition-old(*),
+  html[data-module-slide]::view-transition-new(*) {
+    animation: none;
+  }
+}
+
+@keyframes module-slide-out {
+  to {
+    translate: calc(var(--module-slide) * -100%) 0;
+  }
+}
+
+@keyframes module-slide-in {
+  from {
+    translate: calc(var(--module-slide) * 100%) 0;
+  }
+}
+
 @keyframes shimmer {
   from {
     background-position: 100% 0;

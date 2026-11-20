@@ -102,13 +102,15 @@ export function AppSidebar() {
       <SidebarContent className="*:shrink-0">
         <TitleBarRow />
         {!titleBar && <WorkspaceSwitcher end={<NotificationsButton />} />}
-        {module === "files" ? (
-          <StorageNav mailbox={mailbox} />
-        ) : module === "crm" ? (
-          <CrmNav mailbox={mailbox} />
-        ) : (
-          <MailNav mailbox={mailbox} />
-        )}
+        <div className="flex flex-col gap-3 *:shrink-0 [view-transition-name:module-nav]">
+          {module === "files" ? (
+            <StorageNav mailbox={mailbox} />
+          ) : module === "crm" ? (
+            <CrmNav mailbox={mailbox} />
+          ) : (
+            <MailNav mailbox={mailbox} />
+          )}
+        </div>
       </SidebarContent>
 
       <SidebarFooter className="flex-col items-stretch">
