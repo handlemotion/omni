@@ -17,6 +17,8 @@ import type { ToolContext } from "./server.ts";
 export interface CrmWorkspace {
   orgId: string;
   name: string;
+  /** Where its pages live on the web app: `/<slug>/crm/...`. */
+  slug: string;
   memberId: string;
 }
 
@@ -43,6 +45,7 @@ export const crmWorkspaces: (
     .select({
       orgId: schema.organizations.id,
       name: schema.organizations.name,
+      slug: schema.organizations.slug,
       memberId: schema.members.id,
     })
     .from(schema.members)
@@ -65,7 +68,9 @@ export async function crmWorkspace(context: ToolContext, workspace: string | und
   const [only, ...others] = found.workspaces;
   if (only && !others.length) return only;
   const names = found.workspaces.map((w) => `${w.orgId} (${w.name})`).join(", ");
-  return { error: `Name the workspace to write in with \`workspace\`: one of ${names}.` };
+  return {
+    error: `Name the workspace to write in with \`workspace\`: one of ${names}.`,
+  };
 }
 
 export const crmOf: (context: ToolContext, workspace: CrmWorkspace) => MemberCrm = (
@@ -75,7 +80,10 @@ export const crmOf: (context: ToolContext, workspace: CrmWorkspace) => MemberCrm
 
 export type RecordKind = "person" | "company" | "deal";
 
-const personNameSchema = z.object({ name: z.string().nullable(), address: z.string() });
+const personNameSchema = z.object({
+  name: z.string().nullable(),
+  address: z.string(),
+});
 
 const common = {
   id: z.string(),
@@ -83,13 +91,19 @@ const common = {
   workspace: z.string().describe("The workspace id it is in."),
   archived: z.boolean(),
   url: z.string().describe("Where it opens in the web app: cite it."),
+  owner: personNameSchema.nullable().describe("The teammate who owns it."),
 };
 
-const RECORD_PATH = { person: "people", company: "companies", deal: "deals" } as const;
+const RECORD_PATH = {
+  person: "people",
+  company: "companies",
+  deal: "deals",
+} as const;
 
-/** `/crm/people/<id>`, `/crm/companies/<id>` or `/crm/deals/<id>` on the web app. */
-export function recordUrl(webAppURL: string, kind: RecordKind, id: string) {
-  return new URL(`/crm/${RECORD_PATH[kind]}/${encodeURIComponent(id)}`, webAppURL).toString();
+/** `/<slug>/crm/people/<id>`, `…/companies/<id>` or `…/deals/<id>` on the web app. */
+export function recordUrl(row: RowContext, kind: RecordKind, id: string) {
+  const path = `/${encodeURIComponent(row.slug)}/crm/${RECORD_PATH[kind]}/${encodeURIComponent(id)}`;
+  return new URL(path, row.webAppURL).toString();
 }
 
 export const personRowSchema = z.object({
@@ -117,11 +131,11 @@ export const dealRowSchema = z.object({
     name: z.string(),
     kind: z.enum(["open", "won", "done", "lost"]),
   }),
-  owner: personNameSchema.nullable().describe("The teammate who owns it."),
   value: z
     .object({ amount_minor: z.number(), currency: z.string().nullable() })
     .nullable()
     .describe("In minor units (cents)."),
+  expected_close_on: z.string().nullable().describe("When it should close, YYYY-MM-DD."),
   won_at: z.string().nullable(),
   closed_at: z.string().nullable(),
 });
@@ -133,10 +147,14 @@ export type DealRow = z.infer<typeof dealRowSchema>;
 /** What rows need beside the record: the workspace, its stages and its owners' names. */
 export interface RowContext {
   workspace: string;
+  slug: string;
   webAppURL: string;
   stages: CrmStage[];
   owners: Map<string, { name: string | null; address: string }>;
 }
+
+const ownerOf = (record: { ownerMemberId: string | null }, row: RowContext) =>
+  record.ownerMemberId ? (row.owners.get(record.ownerMemberId) ?? null) : null;
 
 export function personRow(person: CrmPerson, row: RowContext) {
   return {
@@ -145,7 +163,8 @@ export function personRow(person: CrmPerson, row: RowContext) {
     name: person.name,
     workspace: row.workspace,
     archived: person.archivedAt !== null,
-    url: recordUrl(row.webAppURL, "person", person.id),
+    url: recordUrl(row, "person", person.id),
+    owner: ownerOf(person, row),
     email: person.addresses.find((a) => a.isPrimary)?.address ?? null,
     emails: person.addresses.map((a) => a.address),
     job_title: person.jobTitle,
@@ -161,7 +180,8 @@ export function companyRow(company: CrmCompany, row: RowContext) {
     name: company.name,
     workspace: row.workspace,
     archived: company.archivedAt !== null,
-    url: recordUrl(row.webAppURL, "company", company.id),
+    url: recordUrl(row, "company", company.id),
+    owner: ownerOf(company, row),
     description: company.description,
   } satisfies CompanyRow;
 }
@@ -174,14 +194,19 @@ export function dealRow(deal: CrmDeal, row: RowContext) {
     name: deal.name,
     workspace: row.workspace,
     archived: deal.archivedAt !== null,
-    url: recordUrl(row.webAppURL, "deal", deal.id),
+    url: recordUrl(row, "deal", deal.id),
+    owner: ownerOf(deal, row),
     company_id: deal.companyId,
-    stage: { id: deal.stageId, name: stage?.name ?? deal.stageKind, kind: deal.stageKind },
-    owner: deal.ownerMemberId ? (row.owners.get(deal.ownerMemberId) ?? null) : null,
+    stage: {
+      id: deal.stageId,
+      name: stage?.name ?? deal.stageKind,
+      kind: deal.stageKind,
+    },
     value:
       deal.valueMinor === null
         ? null
         : { amount_minor: deal.valueMinor, currency: deal.valueCurrency },
+    expected_close_on: deal.expectedCloseOn,
     won_at: deal.wonAt?.toISOString() ?? null,
     closed_at: deal.closedAt?.toISOString() ?? null,
   } satisfies DealRow;
@@ -192,24 +217,32 @@ export async function memberPeople(context: ToolContext, ids: (string | null)[])
   const wanted = [...new Set(ids.filter((id): id is string => Boolean(id)))];
   if (!wanted.length) return new Map<string, { name: string | null; address: string }>();
   const rows = await context.db
-    .select({ id: schema.members.id, name: schema.users.name, email: schema.users.email })
+    .select({
+      id: schema.members.id,
+      name: schema.users.name,
+      email: schema.users.email,
+    })
     .from(schema.members)
     .innerJoin(schema.users, eq(schema.users.id, schema.members.userId))
     .where(inArray(schema.members.id, wanted));
   return new Map(rows.map((r) => [r.id, { name: r.name || null, address: r.email }]));
 }
 
-/** The row context for `deals` in `workspace`: its stages and the owners' names. */
-export async function rowContext(context: ToolContext, workspace: CrmWorkspace, deals: CrmDeal[]) {
+/** The records a row context is for: any of them a deal, the workspace's stages are read. */
+type Owned = CrmPerson | CrmCompany | CrmDeal;
+
+/** The row context for `records` in `workspace`: its stages and the owners' names. */
+export async function rowContext(context: ToolContext, workspace: CrmWorkspace, records: Owned[]) {
   const [stages, owners] = await Promise.all([
-    deals.length ? crmOf(context, workspace).stages() : null,
+    records.some((r) => "stageId" in r) ? crmOf(context, workspace).stages() : null,
     memberPeople(
       context,
-      deals.map((d) => d.ownerMemberId),
+      records.map((r) => r.ownerMemberId),
     ),
   ]);
   return {
     workspace: workspace.orgId,
+    slug: workspace.slug,
     webAppURL: context.webAppURL,
     stages: stages?.status === "ok" ? stages.stages : [],
     owners,
@@ -259,6 +292,8 @@ export function refusalText(refusal: { status: string }) {
       return "The value must be a whole number of minor units (cents).";
     case "invalid_body":
       return "A note needs some text, up to 20,000 characters.";
+    case "invalid_action":
+      return "That change does not apply to this kind of record.";
     default:
       return "Omni could not make that change.";
   }
@@ -282,7 +317,11 @@ export async function announce(
   const stub = context.env.REALTIME.get(context.env.REALTIME.idFromName(workspace.orgId));
   context.waitUntil(
     stub
-      .broadcast(audience.memberIds, { type: "crm.changed", kind, ids: changed })
+      .broadcast(audience.memberIds, {
+        type: "crm.changed",
+        kind,
+        ids: changed,
+      })
       .catch((error: unknown) => context.log.warn("crm.announce_failed", { error })),
   );
 }

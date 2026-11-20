@@ -15,10 +15,14 @@ import {
 export type CrmStack = Awaited<ReturnType<typeof startCrmStack>>;
 export type Person = Awaited<ReturnType<CrmStack["member"]>>;
 
-export async function startCrmStack() {
+export async function startCrmStack(options: { vars?: Record<string, string> } = {}) {
   const database = await createTestDatabase();
   const mailService = await startMailServiceEndpoint();
-  const worker = await startWorker({ databaseUrl: database.url, mailServiceUrl: mailService.url });
+  const worker = await startWorker({
+    databaseUrl: database.url,
+    mailServiceUrl: mailService.url,
+    vars: options.vars,
+  });
   const { db } = database;
 
   async function api(jar: CookieJar, method: string, path: string, body?: unknown) {

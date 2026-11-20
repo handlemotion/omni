@@ -144,7 +144,10 @@ async function relatedOf(
           ...mail,
           limit: THREADS,
         }),
-        forMember(context.db, workspace.memberId).sharedActivityWith({ ...mail, limit: ACTIVITY }),
+        forMember(context.db, workspace.memberId).sharedActivityWith({
+          ...mail,
+          limit: ACTIVITY,
+        }),
       ])
     : [[], []];
   return {
@@ -175,7 +178,10 @@ async function contractsOf(
   workspace: CrmWorkspace,
   ref: { companyId: string } | { dealId: string },
 ) {
-  const found = await crmOf(context, workspace).listContracts({ ...ref, limit: CONTRACTS });
+  const found = await crmOf(context, workspace).listContracts({
+    ...ref,
+    limit: CONTRACTS,
+  });
   if (found.status !== "ok") return [];
   return found.contracts.map((c) => ({
     id: c.id,
@@ -200,7 +206,8 @@ async function readInto(context: ToolContext, workspace: CrmWorkspace, ref: Ref,
       crm.lookup({ addresses: addressesOf([person]) }),
     ]);
     const deals: CrmDeal[] = near.status === "ok" ? near.deals : [];
-    const rows = await rowContext(context, workspace, deals);
+    const companyRecord = company?.status === "ok" ? [company.company] : [];
+    const rows = await rowContext(context, workspace, [person, ...companyRecord, ...deals]);
     out.people.push({
       ...personRow(person, rows),
       company: company?.status === "ok" ? companyRow(company.company, rows) : null,
@@ -220,7 +227,11 @@ async function readInto(context: ToolContext, workspace: CrmWorkspace, ref: Ref,
   if (ref.kind === "company") {
     const found = await crm.company(ref.id);
     if (found.status !== "ok") return false;
-    const rows = await rowContext(context, workspace, found.deals);
+    const rows = await rowContext(context, workspace, [
+      found.company,
+      ...found.people,
+      ...found.deals,
+    ]);
     out.companies.push({
       ...companyRow(found.company, rows),
       domains: found.domains,
@@ -242,7 +253,12 @@ async function readInto(context: ToolContext, workspace: CrmWorkspace, ref: Ref,
   const found = await crm.deal(ref.id);
   if (found.status !== "ok") return false;
   const company = found.deal.companyId ? await crm.company(found.deal.companyId) : null;
-  const rows = await rowContext(context, workspace, [found.deal]);
+  const companyRecord = company?.status === "ok" ? [company.company] : [];
+  const rows = await rowContext(context, workspace, [
+    found.deal,
+    ...companyRecord,
+    ...found.people,
+  ]);
   out.deals.push({
     ...dealRow(found.deal, rows),
     company: company?.status === "ok" ? companyRow(company.company, rows) : null,

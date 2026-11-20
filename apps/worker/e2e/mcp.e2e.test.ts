@@ -1120,7 +1120,7 @@ describe("the CRM", () => {
     expect(written.isError).toBe(false);
     expect(written.data.result).toBe("added");
     const id = written.data.person.id;
-    expect(new URL(written.data.person.url).pathname).toBe(`/crm/people/${id}`);
+    expect(new URL(written.data.person.url).pathname).toBe(`/${org.slug}/crm/people/${id}`);
     const extra = await tool(access_token, "crm_write", {
       person: { name: "Ola Ortiz", email: "ola@bigco.test", add_emails: ["ola@home.test"] },
     });

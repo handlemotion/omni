@@ -223,9 +223,9 @@ Three tools on the MCP server, through the same member door:
 
 | Tool         | Scope       | Does                                                                                     |
 | ------------ | ----------- | ---------------------------------------------------------------------------------------- |
-| `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, stage kind or owner. Compact rows.     |
-| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, recent notes and thread ids. |
-| `crm_write`  | `crm:write` | Adds or changes a person, company or deal, moves a stage, adds a note. Never deletes.    |
+| `crm_search` | `crm:read`  | Finds people, companies and deals by words, kind, owner, archived, stage kind or close date. Compact rows. |
+| `crm_fetch`  | `crm:read`  | Reads up to 10 records with their people, deals, contracts, recent notes and thread ids.                  |
+| `crm_write`  | `crm:write` | Adds or changes a record, archives or restores it, moves a stage, adds a note, or changes many at once. Never deletes. |
 
 Thread ids from `crm_fetch` go to the mail `fetch` tool, which applies mail's own access. Note
 text is written by teammates, and names and titles can come from mail: the server's
@@ -234,14 +234,22 @@ instructions keep telling agents to treat it as data.
 - A token reaches the company workspaces its grant does: its one workspace, or every company
   the person belongs to (`workspace` narrows a read; a write to one of several must name it). A
   Personal space has no CRM, so a token that reaches only one gets a tool error.
-- Every row carries `kind`, `id`, `workspace` and a `url` on the web app (`/crm/people/<id>`,
-  `/crm/companies/<id>`, `/crm/deals/<id>`), which agents cite. The rows gained it with the web
-  screens, so it never pointed at a page that answered "Not found".
+- Every row carries `kind`, `id`, `workspace` and a `url` on the web app
+  (`/<workspace slug>/crm/people/<id>`, `…/companies/<id>`, `…/deals/<id>`), which agents cite.
 - `crm_fetch` takes `records: [{ kind, id }]`. Its thread ids come from
   `forUser(user, grant scope).threadsWith`, so they are threads the person can open.
-- `crm_write` takes exactly one of `person`, `company`, `deal` or `note`; with `id` it changes
-  that record, without it adds one. A deal's `stage` (name or id) moves it. It passes the
-  read-only billing gate, announces `crm.changed` and writes an `mcp.crm_write` audit row.
+- Every row carries its `owner` (name and address, or null); a deal's also carries
+  `expected_close_on`. `crm_search` filters by `owner` (`"me"`, a teammate's email or `"none"`),
+  `archived` (`exclude` by default, `include`, `only`) and, for deals, `close_after` /
+  `close_before`. A won deal is a running project (`stage_kind: won`).
+- `crm_write` takes exactly one of `person`, `company`, `deal`, `note` or `bulk`; with `id` it
+  changes that record, without it adds one. A deal's `stage` (name or id) moves it; `owner` sets
+  who owns any record; `archived: true` archives and `false` restores. A company's domains change
+  with `add_domains` / `remove_domains`. `bulk` is one change (archive, restore, owner, or a deal's
+  stage) to up to 200 records of one kind, through the same door as the app's bulk bar: each
+  record in its own transaction, refusals listed by id. Deleting for good stays in the app. Each
+  write passes the read-only billing gate, announces `crm.changed` and writes one `mcp.crm_write`
+  audit row per record it changed.
 
 ## Plan
 
