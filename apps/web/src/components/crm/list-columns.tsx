@@ -87,14 +87,17 @@ function added<T extends { createdAt: string }>(className: string) {
   return column;
 }
 
+/** A company's name is short, so its column stops at a width and the description takes the rest. */
+export const COMPANY_NAME_WIDTH = "w-48 xl:w-56 2xl:w-72 max-sm:w-auto";
+
 export const COMPANY_COLUMNS: RecordColumn<CrmCompany>[] = [
   {
     title: "Description",
-    className: "w-[32%] max-sm:hidden",
+    className: "max-sm:hidden",
     cell: (company) => <Muted>{company.description}</Muted>,
   },
   owner("w-40 max-md:hidden"),
-  lastContacted("w-36 max-lg:hidden"),
+  lastContacted("w-36 max-xl:hidden"),
   added("w-32"),
 ];
 

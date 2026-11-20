@@ -17,7 +17,12 @@ import type {
   CrmProjectsSearch,
 } from "@/lib/search-params.ts";
 import { DealBoard } from "./deal-board.tsx";
-import { COMPANY_COLUMNS, DEAL_COLUMNS, PEOPLE_COLUMNS } from "./list-columns.tsx";
+import {
+  COMPANY_COLUMNS,
+  COMPANY_NAME_WIDTH,
+  DEAL_COLUMNS,
+  PEOPLE_COLUMNS,
+} from "./list-columns.tsx";
 import type { FilterKind } from "./list-filters.tsx";
 import { BoardSort, ListFilter } from "./list-toolbar.tsx";
 import { isFiltered, useListView } from "./list-view.tsx";
@@ -69,6 +74,7 @@ export function CompaniesPage({ search }: { search: CrmCompaniesSearch }) {
         search={{ ...text, q }}
         source={sourceOf(list, list.companies)}
         columns={COMPANY_COLUMNS}
+        nameClassName={COMPANY_NAME_WIDTH}
         filter={<ListFilter search={search} filters={COMPANY_FILTERS} />}
         filtered={isFiltered(search)}
         {...view}

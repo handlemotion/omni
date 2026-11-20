@@ -110,6 +110,8 @@ interface RecordListProps<T> {
   search: { text: string; setText: (text: string) => void; q: string };
   source: RecordListSource<T>;
   columns: RecordColumn<T>[];
+  /** The Name column's width, when another column should take the rest of the row. */
+  nameClassName?: string;
   mark: (row: T) => ReactNode;
   href: (row: T) => string;
   onNew?: () => void;
@@ -222,7 +224,12 @@ function RecordTable<T extends { id: string; name: string }>(props: RecordListPr
       onSelectionChange={onSelectionChange}
     >
       <TableHeader>
-        <TableColumn id="name" isRowHeader allowsSorting={!!sorting}>
+        <TableColumn
+          id="name"
+          isRowHeader
+          allowsSorting={!!sorting}
+          className={props.nameClassName}
+        >
           Name
         </TableColumn>
         {props.columns.map((column) => (
@@ -239,7 +246,7 @@ function RecordTable<T extends { id: string; name: string }>(props: RecordListPr
       <TableBody>
         {source.rows.map((row) => (
           <TableRow key={row.id} id={row.id} textValue={row.name} href={props.href(row)}>
-            <TableCell>
+            <TableCell className={props.nameClassName}>
               <span className="flex min-w-0 items-center gap-3">
                 {props.mark(row)}
                 <span className="truncate">{row.name}</span>
