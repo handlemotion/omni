@@ -87,14 +87,43 @@ Each test must catch a bug we would plausibly ship; name it before writing the t
   `db`); release-please versions the desktop and iOS apps from them
   (`docs/operations/releases.md`). Never hand-edit a version or `CHANGELOG.md`.
 - Descriptions follow the `pr-writing` skill; load it before writing one.
-- Work that depends on unmerged work is a layer in a `gh stack` rooted on `main` (the `gh-stack`
-  skill); never merge into a branch that is not `main`.
-- Parallel agents each own a stack and name the modules they own; two stacks never edit the same
-  module or platform file. The later layer resolves shared files: `pnpm-lock.yaml` (merge `main`,
-  `pnpm install`), `packages/db/migrations/` (delete your migration, merge `main`,
-  `db:generate`), `schema/index.ts`, `apps/worker/src/app.ts`, `modules.ts`. Don't edit
-  `AGENTS.md`, CI or root config unless that is your task. Uncommitted work you don't recognize
-  belongs to someone else.
+- **Stacked work goes through the `gh stack` CLI and the GitHub API, no exceptions.** Work that
+  depends on unmerged work, or that runs beside another thread on the same module, is a layer in a
+  `gh stack` rooted on `main` (the `gh-stack` skill). Create, push and restack it with `gh stack`;
+  open and link its PRs with `gh stack submit` or the REST calls below. Never hand-open a stacked
+  PR on `main`, never merge into a branch that is not `main`, and never fall back because "gh
+  doesn't work here": it does. In a Claude Code cloud session:
+  - `gh auth status` says the token is invalid; ignore it. REST works (`gh api user`), only
+    GraphQL is blocked. So `gh stack init`, `add`, `rebase`, `push --remote origin` and `view`
+    work; `submit`, `link`, `merge` and `sync`'s PR step need GraphQL and fail there.
+  - Layer branches are `<your session branch>-<layer>`. After `gh stack push --remote origin`,
+    open each PR with `gh api repos/{owner}/{repo}/pulls -f head=<layer> -f base=<branch below>
+    -f title=… -f body=…`, then link them bottom to top:
+    `echo '{"pull_requests":[<bottom>,…,<top>]}' | gh api -X POST repos/{owner}/{repo}/stacks
+    --input -` (a new top layer: `POST …/stacks/<n>/add`). Check with
+    `gh api "repos/{owner}/{repo}/stacks?pull_request=<n>"`.
+  - A PR's base is always the next unmerged layer below it, or `main`; never pick one by hand.
+    An unlinked chain is not a stack: GitHub won't retarget it, so a child of a merged parent
+    merges into a dead branch (#582). When a layer merges, the layers above it must move down:
+    `git fetch origin`, `gh stack rebase`, `gh stack push --remote origin`, and on the laptop
+    `gh stack sync`; in the cloud set each child's base with
+    `gh api -X PATCH repos/{owner}/{repo}/pulls/<n> -f base=<new base>`. Before merging any PR,
+    check `gh api repos/{owner}/{repo}/pulls/<n> --jq .base.ref` is `main`; merge stacks only
+    with `gh stack merge`.
+  - When the layer below changes, `gh stack rebase`, then `gh stack push --remote origin`.
+  - A first `gh stack push` that fails with `stale info` means the session's
+    `origin/<branch>` ref points at a branch that doesn't exist yet: `git push -u origin <branch>`
+    once, then `gh stack push` works.
+- Migrations number in stack order: each layer runs `db:generate` on top of the layer below, so a
+  layer's migration is always one above the one beneath it. Two threads that both add a migration
+  are never parallel: the later one becomes a layer on the earlier one's stack. When a restack
+  conflicts in `packages/db/migrations/`, take the lower layer's folder
+  (`git checkout <branch below> -- packages/db/migrations`), run `db:generate` again and fix the
+  table list in `packages/db/e2e/migrations.e2e.test.ts`.
+- Parallel stacks each name the modules they own; two stacks never edit the same module or
+  platform file. The upper layer resolves shared files: `pnpm-lock.yaml` (`pnpm install`),
+  `schema/index.ts`, `apps/worker/src/app.ts`, `modules.ts`. Don't edit `AGENTS.md`, CI or root
+  config unless that is your task. Uncommitted work you don't recognize belongs to someone else.
 - Lint caps complexity, nesting and file length. Never add a file to the `.oxlintrc.json` debt
   overrides; remove one when you bring it under the cap.
 - Before each push run `pnpm check`, `pnpm check-types`, the affected unit suites and the e2e
