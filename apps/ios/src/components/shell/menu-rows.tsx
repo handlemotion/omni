@@ -22,7 +22,8 @@ import {
   IconUsers,
   IconWarning,
 } from "@/components/icons.ts";
-import { CRM_PAGES, type CrmPage } from "@/lib/crm.ts";
+import { Avatar } from "@/components/ui/avatar.tsx";
+import { CRM_PAGES, useActiveProjects, type CrmPage } from "@/lib/crm.ts";
 import { DRIVE_PAGES, useFolder, type DrivePage } from "@/lib/drive.ts";
 import { useCountedPages } from "@/lib/mail-counts.ts";
 import { MAIL_PAGES, type MailPage } from "@/lib/mail.ts";
@@ -168,22 +169,58 @@ export function DriveMenu() {
   );
 }
 
-/** The CRM's lists. */
+/** The CRM's lists, then its active projects with their client's logo, as on the web. */
 export function CrmMenu() {
   const { close } = useMenu();
   const place = useMenuPlace();
-  return (Object.keys(CRM_PAGES) as CrmPage[]).map((id) => (
-    <MenuRow
-      key={id}
-      nav
-      tint="moduleCrm"
-      icon={CRM_ICONS[id]}
-      label={CRM_PAGES[id].label}
-      isCurrent={place.crmPage === id}
-      onPress={() => {
-        place.openPage("crm", id);
-        close();
-      }}
-    />
-  ));
+  const projects = useActiveProjects();
+  return (
+    <>
+      {(Object.keys(CRM_PAGES) as CrmPage[]).map((id) => (
+        <MenuRow
+          key={id}
+          nav
+          tint="moduleCrm"
+          icon={CRM_ICONS[id]}
+          label={CRM_PAGES[id].label}
+          isCurrent={place.crmPage === id}
+          onPress={() => {
+            place.openPage("crm", id);
+            close();
+          }}
+        />
+      ))}
+      {projects.length > 0 ? (
+        <>
+          <MenuDivider />
+          <MenuSection label="Active projects">
+            {projects.map(({ deal, client }) => (
+              <MenuRow
+                key={deal.id}
+                nav
+                muted
+                icon={IconProjects}
+                label={deal.name}
+                trailing={
+                  client ? (
+                    <Avatar
+                      name={client.name}
+                      shape="square"
+                      size={20}
+                      logo={client.domain ? { domain: client.domain } : null}
+                    />
+                  ) : undefined
+                }
+                onPress={() => {
+                  place.openPage("crm", "projects");
+                  close();
+                  router.push({ pathname: "/crm/deal/[id]", params: { id: deal.id } });
+                }}
+              />
+            ))}
+          </MenuSection>
+        </>
+      ) : null}
+    </>
+  );
 }

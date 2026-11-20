@@ -2,18 +2,15 @@ import { useMemo, type ReactNode } from "react";
 import {
   IconBuildings,
   IconChecklist,
-  IconCircle,
-  IconCircleCheck,
-  IconCircleX,
   IconHandshake,
   IconProjects,
   IconUsers,
 } from "@/components/icons/central";
+import { RecordMark } from "./record-list.tsx";
 import { SidebarTreeBones, SidebarTreeRow } from "@/components/shell/sidebar-tree-row";
 import { SidebarItem, SidebarLabel, SidebarSection } from "@/components/ui/sidebar";
-import { useCrmCompanies, useCrmDeals, useCrmStages } from "@/hooks/use-crm.ts";
-import { useSidebarExpanded } from "@/hooks/use-sidebar-expanded.ts";
-import type { CrmCompany, CrmDeal, CrmStageKind } from "@/lib/crm.ts";
+import { useCrmCompanyIndex, useCrmDeals } from "@/hooks/use-crm.ts";
+import type { CrmCompany, CrmDeal } from "@/lib/crm.ts";
 import { useWorkspacePaths } from "@/hooks/use-workspaces.ts";
 
 export const CRM_LISTS = {
@@ -32,34 +29,17 @@ const ROWS: { list: keyof typeof CRM_LISTS; icon: ReactNode }[] = [
   { list: "tasks", icon: <IconChecklist className="size-icon" /> },
 ];
 
-const STAGE_GLYPH: Record<CrmStageKind, ReactNode> = {
-  open: <IconCircle className="size-icon" />,
-  won: <IconCircleCheck className="size-icon" />,
-  done: <IconCircleCheck className="size-icon" />,
-  lost: <IconCircleX className="size-icon" />,
-};
-
-const COMPANIES_SHOWN = 12;
+const ACTIVE_PROJECTS = { kind: "won" } as const;
 
 /** A nav link that keeps showing `mailbox`, the switcher's choice, for the way back to mail. */
 export function CrmNav({ mailbox }: { mailbox: string | undefined }) {
   const search = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : "";
-  const { deals, isPending } = useCrmDeals("", { all: true });
-  const byCompany = useMemo(() => {
-    const map = new Map<string, CrmDeal[]>();
-    for (const deal of deals) {
-      if (!deal.companyId) continue;
-      map.set(deal.companyId, [...(map.get(deal.companyId) ?? []), deal]);
-    }
-    return map;
-  }, [deals]);
   return (
     <>
       <SidebarSection>
         <CrmLists mailbox={mailbox} />
       </SidebarSection>
-      <Pipeline deals={deals} pending={isPending} search={search} />
-      <Companies byCompany={byCompany} search={search} />
+      <ActiveProjects search={search} />
     </>
   );
 }
@@ -84,84 +64,56 @@ export function CrmLists({ mailbox }: { mailbox: string | undefined }) {
   });
 }
 
-function Pipeline(props: { deals: CrmDeal[]; pending: boolean; search: string }) {
-  const { href } = useWorkspacePaths();
-  const stages = useCrmStages().data ?? [];
-  const counts = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const deal of props.deals) map.set(deal.stageId, (map.get(deal.stageId) ?? 0) + 1);
-    return map;
-  }, [props.deals]);
-  if (stages.length === 0) return null;
-  return (
-    <SidebarSection label="Pipeline">
-      {stages.map((stage) => (
-        <SidebarTreeRow
-          key={stage.id}
-          href={href(CRM_LISTS.deals.path + props.search)}
-          isCurrent={false}
-          depth={0}
-          icon={STAGE_GLYPH[stage.kind]}
-          label={stage.name}
-          detail={props.pending ? undefined : (counts.get(stage.id) ?? 0)}
-        />
-      ))}
-    </SidebarSection>
+function ActiveProjects({ search }: { search: string }) {
+  const { deals, isPending } = useCrmDeals(ACTIVE_PROJECTS, { all: true });
+  const companies = useCrmCompanyIndex();
+  const projects = useMemo(
+    () =>
+      deals.toSorted((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+    [deals],
   );
-}
-
-function Companies(props: { byCompany: Map<string, CrmDeal[]>; search: string }) {
-  const { companies, isPending } = useCrmCompanies();
-  if (!isPending && companies.length === 0) return null;
+  if (!isPending && projects.length === 0) return null;
   return (
-    <SidebarSection label="Companies">
+    <SidebarSection label="Active projects">
       {isPending ? (
         <SidebarTreeBones depth={0} />
       ) : (
-        companies
-          .slice(0, COMPANIES_SHOWN)
-          .map((company) => (
-            <Company
-              key={company.id}
-              company={company}
-              deals={props.byCompany.get(company.id) ?? []}
-              search={props.search}
-            />
-          ))
+        projects.map((deal) => (
+          <ProjectRow
+            key={deal.id}
+            deal={deal}
+            client={deal.companyId ? companies.get(deal.companyId) : undefined}
+            search={search}
+          />
+        ))
       )}
     </SidebarSection>
   );
 }
 
-function Company(props: { company: CrmCompany; deals: CrmDeal[]; search: string }) {
-  const { company, deals } = props;
+function ProjectRow(props: { deal: CrmDeal; client: CrmCompany | undefined; search: string }) {
+  const { client } = props;
   const { place: pathname, href: inWorkspace } = useWorkspacePaths();
-  const open = useSidebarExpanded("crm", company.id);
-  const href = `${CRM_LISTS.companies.path}/${encodeURIComponent(company.id)}`;
+  const href = `${CRM_LISTS.deals.path}/${encodeURIComponent(props.deal.id)}`;
   return (
-    <>
-      <SidebarTreeRow
-        href={inWorkspace(href + props.search)}
-        isCurrent={pathname === href}
-        depth={0}
-        icon={<IconBuildings className="size-icon" />}
-        label={company.name}
-        expand={deals.length > 0 ? open : undefined}
-      />
-      {open.value &&
-        deals.map((deal) => {
-          const dealHref = `${CRM_LISTS.deals.path}/${encodeURIComponent(deal.id)}`;
-          return (
-            <SidebarTreeRow
-              key={deal.id}
-              href={inWorkspace(dealHref + props.search)}
-              isCurrent={pathname === dealHref}
-              depth={1}
-              icon={STAGE_GLYPH[deal.stageKind]}
-              label={deal.name}
+    <SidebarTreeRow
+      href={inWorkspace(href + props.search)}
+      isCurrent={pathname === href}
+      depth={0}
+      icon={<IconProjects className="size-icon" />}
+      label={props.deal.name}
+      detail={
+        client ? (
+          <span title={client.name} className="flex">
+            <RecordMark
+              name={client.name}
+              square
+              size={16}
+              who={client.domain ? { domain: client.domain } : null}
             />
-          );
-        })}
-    </>
+          </span>
+        ) : undefined
+      }
+    />
   );
 }

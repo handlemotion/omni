@@ -6,6 +6,7 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import type { InferResponseType } from "hono/client";
+import { useEffect } from "react";
 import { api, call } from "./api.ts";
 import {
   DEFAULT_VIEW,
@@ -101,6 +102,29 @@ export const useCompany = (id: string) =>
     queryFn: ({ signal }) =>
       call(api.crm.companies[":id"].$get({ param: { id } }, { init: { signal } })),
   });
+
+function useDrained<
+  T extends { hasNextPage: boolean; isFetchingNextPage: boolean; fetchNextPage: () => unknown },
+>(query: T) {
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  return query;
+}
+
+/**
+ * The active projects (deals in a `won` stage), by name, each with its client from the company
+ * list (its name and a domain for the logo).
+ */
+export function useActiveProjects() {
+  const projects = useDrained(useDeals(DEFAULT_VIEW, { projects: true, whole: true })).data ?? [];
+  const companies = useDrained(useCompanies()).data ?? [];
+  const clients = new Map(companies.map((company) => [company.id, company]));
+  return projects
+    .map((deal) => ({ deal, client: deal.companyId ? clients.get(deal.companyId) : undefined }))
+    .toSorted((a, b) => a.deal.name.localeCompare(b.deal.name, undefined, { sensitivity: "base" }));
+}
 
 export const usePerson = (id: string) =>
   useQuery({

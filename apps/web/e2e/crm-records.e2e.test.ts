@@ -221,6 +221,31 @@ test("a won deal is listed under Projects, and its page sits under Projects", as
   expect(new URL(page.url()).pathname).toContain(`/crm/deals/${deal.id}`);
 });
 
+test("the sidebar lists the active projects only, each marked with its client", async () => {
+  const team = await workspace("active");
+  const { stages } = await team.api("GET", "/stages");
+  const stage = (kind: string) => stages.find((one: { kind: string }) => one.kind === kind).id;
+  const project = async (client: string, name: string, kind: string) => {
+    const { company } = await team.api("POST", "/companies", { name: client });
+    const { deal } = await team.api("POST", "/deals", { name, companyId: company.id });
+    if (kind !== "open") await team.api("PATCH", `/deals/${deal.id}`, { stageId: stage(kind) });
+    return deal.id as string;
+  };
+  const launch = await project("Globex", "Launch site", "won");
+  await project("Initech", "Still talking", "open");
+  await project("Umbrella", "Old rebrand", "done");
+
+  const page = await team.page("/crm/tasks");
+  const row = page.getByRole("link", { name: "Launch site" });
+  await row.getByTitle("Globex").waitFor();
+  expect(await page.getByRole("link", { name: "Still talking" }).count()).toBe(0);
+  expect(await page.getByRole("link", { name: "Old rebrand" }).count()).toBe(0);
+  expect(await page.getByRole("link", { name: "Lead" }).count()).toBe(0);
+
+  await row.click();
+  await expect.poll(() => new URL(page.url()).pathname).toContain(`/crm/deals/${launch}`);
+});
+
 test("deleting a company forever from its page removes it once the owner confirms", async () => {
   const team = await workspace("delete");
   const { company } = await team.api("POST", "/companies", { name: "Gone Ltd" });
