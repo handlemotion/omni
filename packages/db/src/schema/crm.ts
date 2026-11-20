@@ -315,6 +315,8 @@ export const crmContracts = pgTable(
     signatureRequestId: text("signature_request_id"),
     /** The sealed copy Storage wrote beside the document once everyone signed. */
     signedNodeId: folderRef("signed_node_id"),
+    /** Who signed, entered by hand when the contract was signed outside Omni. */
+    signedBy: jsonb("signed_by").$type<{ name: string; email: string | null }[]>(),
     effectiveOn: date("effective_on", { mode: "string" }),
     expiresOn: date("expires_on", { mode: "string" }),
     createdByMemberId: memberRef("created_by_member_id"),

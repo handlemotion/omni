@@ -30,6 +30,7 @@ import {
   createPersonMutation,
   deleteContractMutation,
   sendContractMutation,
+  signedCopyMutation,
   voidContractMutation,
   deleteNoteMutation,
   moveDealMutation,
@@ -225,6 +226,10 @@ export function useUpdateContract() {
 
 export function useSendContract() {
   return useMutation(sendContractMutation(useQueryClient()));
+}
+
+export function useSignedCopy() {
+  return useMutation(signedCopyMutation(useQueryClient()));
 }
 
 export function useVoidContract() {

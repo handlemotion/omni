@@ -147,8 +147,13 @@ export const crmContractSchema = z.object({
   createdByMemberId: id.nullable(),
   createdAt: isoDate,
   updatedAt: isoDate,
-  /** The sealed copy with its signature certificate, beside the document, once all signed. */
+  /** The signed copy: sealed by Omni with its certificate, or uploaded when signed elsewhere. */
   signedNodeId: id.nullable().optional(),
+  /** Who signed, entered by hand when it was signed elsewhere (`POST /contracts/:id/signed-copy`). */
+  signedBy: z
+    .array(z.object({ name: z.string(), email: z.string().nullable() }))
+    .nullable()
+    .optional(),
   /** Where it is with its signers when it went out from Omni; null when sent by hand. */
   signing: crmContractSigningSchema.nullable().optional(),
 });
@@ -364,6 +369,27 @@ export const crmUpdateContractBodySchema = z.object({
 });
 
 /**
+ * `POST /contracts/:id/signed-copy`: signed outside Omni (a client's portal, paper, another
+ * service). The executed PDF becomes the signed copy, locked, with who signed and when; a draft or
+ * a contract sent by hand becomes `signed`, and one marked signed without its copy takes it. A
+ * contract out for signature from Omni answers `signature_open`; one with its copy, `contract_signed`.
+ */
+export const crmSignedCopyBodySchema = z.object({
+  /** The executed copy, a PDF in Shared (upload it into the record's folder first). */
+  nodeId: id,
+  /** When it was signed; now when left out. */
+  signedAt: isoDate.optional(),
+  signers: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(200),
+        email: z.email().max(320).nullable().optional(),
+      }),
+    )
+    .max(20),
+});
+
+/**
  * `POST /contracts/:id/send`: a draft whose document is a PDF goes out for signature. Each signer
  * gets a link, signs with a code mailed to them, and once all signed the contract is `signed`
  * with a sealed copy beside the document. `POST /contracts/:id/void` takes it back to `draft`.
@@ -554,6 +580,7 @@ export type CrmContract = z.infer<typeof crmContractSchema>;
 export type CrmCreateContractBody = z.infer<typeof crmCreateContractBodySchema>;
 export type CrmUpdateContractBody = z.infer<typeof crmUpdateContractBodySchema>;
 export type CrmSendContractBody = z.infer<typeof crmSendContractBodySchema>;
+export type CrmSignedCopyBody = z.infer<typeof crmSignedCopyBodySchema>;
 export type CrmContractSigner = z.infer<typeof crmContractSignerSchema>;
 export type CrmContractSigning = z.infer<typeof crmContractSigningSchema>;
 export type CrmContractResponse = z.infer<typeof crmContractResponseSchema>;

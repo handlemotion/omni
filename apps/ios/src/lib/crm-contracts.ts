@@ -11,6 +11,8 @@ export type ContractSigners = InferRequestType<
   Crm["contracts"][":id"]["send"]["$post"]
 >["json"]["signers"];
 
+export type SignedCopy = InferRequestType<Crm["contracts"][":id"]["signed-copy"]["$post"]>["json"];
+
 /** The record a contract list is on: a deal's, or a company's (its deals' included). */
 export type ContractOwner = { kind: "deals" | "companies"; id: string };
 
@@ -59,6 +61,20 @@ export function useSendContract() {
     onSettled: () => crmChanged(client),
   });
 }
+
+/** Records a contract signed elsewhere with its executed copy (`POST /contracts/:id/signed-copy`). */
+export function useSignedCopy() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...json }: SignedCopy & { id: string }) =>
+      call(api.crm.contracts[":id"]["signed-copy"].$post({ param: { id }, json })),
+    onSettled: () => crmChanged(client),
+  });
+}
+
+/** Signed outside Omni and still without its signed copy, or about to be. */
+export const takesSignedCopy = (contract: CrmContract) =>
+  !contract.signedNodeId && !(contract.status === "sent" && contract.signing);
 
 export function useVoidContract() {
   const client = useQueryClient();

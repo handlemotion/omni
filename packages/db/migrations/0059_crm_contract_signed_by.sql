@@ -1,0 +1,1 @@
+ALTER TABLE "crm_contracts" ADD COLUMN "signed_by" jsonb;

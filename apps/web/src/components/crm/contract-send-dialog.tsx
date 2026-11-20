@@ -21,7 +21,8 @@ interface Draft {
   email: string;
 }
 
-function useStartingSigners(dealId: string | null) {
+/** The deal's people with an address, or one blank row; `loading` until the deal is read. */
+export function useStartingSigners(dealId: string | null) {
   const deal = useQuery({ ...crmDealQuery(dealId ?? ""), enabled: Boolean(dealId) });
   const people = deal.data?.people ?? [];
   const found = people.flatMap((person) => {

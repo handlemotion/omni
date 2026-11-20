@@ -81,7 +81,9 @@ const CONTRACT_MESSAGES: Record<string, string> = {
   title: "a contract needs a title",
   dealId: "a contract is on a company, a deal or both",
   documentNodeId: "the document must be a file in Shared you can open; a signed contract needs one",
-  signedAt: "only a signed contract has a signing date",
+  signedAt: "only a signed contract has a signing date, and it is not in the future",
+  nodeId: "the signed copy must be a PDF in Shared you can open",
+  signers: "each signer needs a name",
   effectiveOn: "that is not a date",
   expiresOn: "that is not a date on or after the day it takes effect",
 };

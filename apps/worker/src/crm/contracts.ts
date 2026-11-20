@@ -2,6 +2,7 @@ import {
   crmContractsQuerySchema,
   crmCreateContractBodySchema,
   crmSendContractBodySchema,
+  crmSignedCopyBodySchema,
   crmUpdateContractBodySchema,
   type CrmContractListResponse,
   type CrmContractResponse,
@@ -87,6 +88,18 @@ export const contracts = new Hono<AppEnv>()
     }
     announce(c, "contract", [id]);
     return c.json({ contract: wireContract(marked.contract) } satisfies CrmContractResponse);
+  })
+
+  .post("/contracts/:id/signed-copy", zValidator("json", crmSignedCopyBodySchema), async (c) => {
+    const { signedAt, signers, nodeId } = c.req.valid("json");
+    const recorded = await memberCrm(c).recordSignedCopy(c.req.param("id"), {
+      nodeId,
+      signedAt: signedAt === undefined ? undefined : new Date(signedAt),
+      signers: signers.map((signer) => ({ name: signer.name, email: signer.email ?? null })),
+    });
+    if (recorded.status !== "ok") return refused(c, recorded);
+    announce(c, "contract", [recorded.contract.id]);
+    return c.json({ contract: wireContract(recorded.contract) } satisfies CrmContractResponse);
   })
 
   .post("/contracts/:id/void", async (c) => {

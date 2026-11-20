@@ -14,6 +14,7 @@ import {
   contractStatus,
   signedCopyOf,
   signerStatus,
+  takesSignedCopy,
   useContracts,
   useVoidContract,
   type CrmContract,
@@ -50,6 +51,8 @@ function ContractView(props: { contract: CrmContract; kind: string; owner: strin
   const signedCopy = signedCopyOf(contract);
   const canSend = contract.status === "draft" && !!contract.documentNodeId;
   const out = contract.status === "sent" && signing?.status === "sent";
+  const signedBy = contract.signedBy ?? [];
+  const params = { id: contract.id, kind: props.kind, owner: props.owner };
   const confirmVoid = () =>
     Alert.alert("Void this request?", undefined, [
       { text: "Cancel", style: "cancel" },
@@ -91,6 +94,25 @@ function ContractView(props: { contract: CrmContract; kind: string; owner: strin
             ))}
           </View>
         ) : null}
+        {signedBy.length ? (
+          <View>
+            <SectionHeading label="Signed by" />
+            {signedBy.map((signer, index) => (
+              <ItemRow
+                key={index}
+                lead={
+                  <Avatar
+                    name={signer.name}
+                    logo={signer.email ? { address: signer.email } : undefined}
+                  />
+                }
+                title={signer.name}
+                detail={signer.email ?? undefined}
+                trailing="Signed"
+              />
+            ))}
+          </View>
+        ) : null}
         <View>
           <SectionHeading label="Files" />
           {contract.documentNodeId ? (
@@ -108,12 +130,14 @@ function ContractView(props: { contract: CrmContract; kind: string; owner: strin
           {canSend ? (
             <Button
               label="Send for signature"
-              onPress={() =>
-                router.push({
-                  pathname: "/crm/send-contract",
-                  params: { id: contract.id, kind: props.kind, owner: props.owner },
-                })
-              }
+              onPress={() => router.push({ pathname: "/crm/send-contract", params })}
+            />
+          ) : null}
+          {takesSignedCopy(contract) ? (
+            <Button
+              intent={canSend ? "outline" : "primary"}
+              label="Upload signed copy"
+              onPress={() => router.push({ pathname: "/crm/signed-copy", params })}
             />
           ) : null}
           {out ? (

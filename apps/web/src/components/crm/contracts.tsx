@@ -1,4 +1,3 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button as Pressable } from "react-aria-components/Button";
 import { Skeleton, SkeletonBox } from "skullet/react";
@@ -23,28 +22,23 @@ import {
   type SettingsRowMenuItem,
 } from "@/components/settings/kit/settings-row-menu";
 import { Badge } from "@/components/ui/badge";
-import { FileTrigger } from "@/components/ui/file-trigger";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
 import {
   useCreateContract,
   useCrmContracts,
   useDeleteContract,
-  useRecordFolder,
   useUpdateContract,
   useVoidContract,
 } from "@/hooks/use-crm.ts";
-import { useStorageList } from "@/hooks/use-storage.ts";
 import { nextStatuses, type ContractChange } from "@/lib/crm-mutations.ts";
 import type { CrmContract, CrmContractStatus } from "@/lib/crm.ts";
-import { storageChanged } from "@/lib/storage.ts";
-import { uploadFile } from "@/lib/storage-upload.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
-import { storageErrorToast } from "@/components/storage/storage-errors";
 import { ContractDetailsDialog } from "./contract-details.tsx";
+import { FilePicker, type Owner } from "./contract-file-picker.tsx";
+import { SignedCopyDialog, takesSignedCopy } from "./contract-signed-copy-dialog.tsx";
 import { SendContractDialog } from "./contract-send-dialog.tsx";
 import { contractBadge, contractLine } from "./contract-status.ts";
 import { crmErrorToast } from "./crm-errors.ts";
@@ -57,8 +51,10 @@ const MOVE: Record<CrmContractStatus, { label: string; icon: SettingsRowMenuItem
   ended: { label: "Mark ended", icon: IconCircleX },
 };
 
-type Owner = { companyId: string } | { dealId: string };
-type Dialog = { kind: "new" } | { kind: "file" | "send" | "details"; contract: CrmContract } | null;
+type Dialog =
+  | { kind: "new" }
+  | { kind: "file" | "send" | "details" | "signed"; contract: CrmContract }
+  | null;
 
 export function Contracts(props: { owner: Owner; folderId: string | null }) {
   const where =
@@ -97,6 +93,7 @@ export function Contracts(props: { owner: Owner; folderId: string | null }) {
               contract={contract}
               onAttach={() => setDialog({ kind: "file", contract })}
               onSend={() => setDialog({ kind: "send", contract })}
+              onSigned={() => setDialog({ kind: "signed", contract })}
               onOpen={() => setDialog({ kind: "details", contract })}
             />
           ))}
@@ -106,10 +103,19 @@ export function Contracts(props: { owner: Owner; folderId: string | null }) {
         <NewContractDialog owner={props.owner} folderId={props.folderId} onClose={close} />
       )}
       {dialog?.kind === "send" && <SendContractDialog contract={dialog.contract} onClose={close} />}
+      {dialog?.kind === "signed" && (
+        <SignedCopyDialog
+          owner={props.owner}
+          contract={dialog.contract}
+          folderId={props.folderId}
+          onClose={close}
+        />
+      )}
       {dialog?.kind === "details" && (
         <ContractDetailsDialog
           contract={list.contracts.find((c) => c.id === dialog.contract.id) ?? dialog.contract}
           onSend={() => setDialog({ kind: "send", contract: dialog.contract })}
+          onSigned={() => setDialog({ kind: "signed", contract: dialog.contract })}
           onClose={close}
         />
       )}
@@ -129,6 +135,7 @@ function ContractRow(props: {
   contract: CrmContract;
   onAttach: () => void;
   onSend: () => void;
+  onSigned: () => void;
   onOpen: () => void;
 }) {
   const { contract } = props;
@@ -144,7 +151,9 @@ function ContractRow(props: {
       { id: contract.id, ...patch },
       { onError: (error) => crmErrorToast(error, fallback) },
     );
-  const moves = contract.status === "sent" && contract.signing ? [] : nextStatuses(contract.status);
+  const moves = (
+    contract.status === "sent" && contract.signing ? [] : nextStatuses(contract.status)
+  ).filter((status) => status !== "signed");
   const items: SettingsRowMenuItem[] = [
     ...(contract.status === "draft" && fileId
       ? [{ icon: IconSignature, label: "Send for signature", onAction: props.onSend }]
@@ -161,9 +170,11 @@ function ContractRow(props: {
           },
         ]
       : []),
+    ...(takesSignedCopy(contract)
+      ? [{ icon: IconUpload, label: "Upload signed copy", onAction: props.onSigned }]
+      : []),
     ...moves.map((status) => ({
       ...MOVE[status],
-      disabled: status === "signed" && !contract.documentNodeId,
       onAction: () => change({ status }, "The contract was not changed"),
     })),
     ...(contract.status === "draft"
@@ -224,97 +235,6 @@ function ContractRow(props: {
       <Badge intent={badge.intent}>{badge.label}</Badge>
       <SettingsRowMenu label={`Actions for ${contract.title}`} items={items} />
     </li>
-  );
-}
-
-function useFolderFiles(folderId: string | null) {
-  const list = useStorageList({ parentId: folderId ?? "" }, { enabled: !!folderId });
-  return list.nodes.filter((node) => node.kind === "file");
-}
-
-function useContractUpload(owner: Owner) {
-  const folder = useRecordFolder();
-  const client = useQueryClient();
-  const [pending, setPending] = useState(false);
-  const run = async (file: File, folderId: string | null) => {
-    setPending(true);
-    try {
-      const parentId =
-        folderId ??
-        (
-          await folder.mutateAsync(
-            "dealId" in owner
-              ? { kind: "deals", id: owner.dealId }
-              : { kind: "companies", id: owner.companyId },
-          )
-        ).nodeId;
-      const node = await uploadFile({
-        file,
-        place: { parentId },
-        signal: new AbortController().signal,
-        onOpened: () => {},
-        onProgress: () => {},
-        guard: () => {},
-        confirm: async () => {},
-      });
-      await storageChanged(client);
-      return { folderId: parentId, nodeId: node.id };
-    } catch (error) {
-      storageErrorToast(error, `“${file.name}” was not uploaded`);
-      return null;
-    } finally {
-      setPending(false);
-    }
-  };
-  return { pending, run };
-}
-
-function FilePicker(props: {
-  owner: Owner;
-  folderId: string | null;
-  value: string | null;
-  onChange: (id: string | null) => void;
-}) {
-  const [folderId, setFolderId] = useState(props.folderId);
-  const files = useFolderFiles(folderId);
-  const upload = useContractUpload(props.owner);
-  return (
-    <div className="flex items-end gap-2">
-      <Select
-        className="min-w-0 flex-1"
-        value={props.value}
-        onChange={(id) => props.onChange(id)}
-        placeholder="None"
-        isDisabled={!files.length}
-      >
-        <Label>File</Label>
-        <SelectTrigger />
-        <SelectContent items={files}>
-          {(file) => (
-            <SelectItem id={file.id} textValue={file.name}>
-              {file.name}
-            </SelectItem>
-          )}
-        </SelectContent>
-      </Select>
-      <FileTrigger
-        acceptedFileTypes={["application/pdf"]}
-        onSelect={(list) => {
-          const file = list?.[0];
-          if (!file) return;
-          void upload.run(file, folderId).then((done) => {
-            if (!done) return;
-            setFolderId(done.folderId);
-            props.onChange(done.nodeId);
-          });
-        }}
-      >
-        <Button intent="outline" isPending={upload.pending}>
-          <IconUpload data-slot="icon" />
-          Upload PDF
-        </Button>
-      </FileTrigger>
-    </div>
   );
 }
 

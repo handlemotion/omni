@@ -92,9 +92,9 @@ export function ValueField(props: {
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const toDay = (date: Date) =>
+export const toDay = (date: Date) =>
   `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-const fromDay = (day: string | null) => {
+export const fromDay = (day: string | null) => {
   if (!day) return new Date();
   const [year = 0, month = 1, date = 1] = day.split("-").map(Number);
   return new Date(year, month - 1, date);

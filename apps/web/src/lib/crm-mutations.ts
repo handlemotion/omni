@@ -26,6 +26,7 @@ export type ContractChange = Json<InferRequestType<Crm["contracts"][":id"]["$pat
 export type ContractSigners = Json<
   InferRequestType<Crm["contracts"][":id"]["send"]["$post"]>
 >["signers"];
+export type SignedCopy = Json<InferRequestType<Crm["contracts"][":id"]["signed-copy"]["$post"]>>;
 export type StageInput = Json<InferRequestType<Crm["stages"]["$put"]>>["stages"][number];
 
 const settle = (client: QueryClient) => ({ onSettled: () => crmChanged(client) });
@@ -255,6 +256,15 @@ export const sendContractMutation = (client: QueryClient) =>
     meta: { handlesError: true },
     mutationFn: ({ id, signers }: { id: string; signers: ContractSigners }) =>
       call(api.crm.contracts[":id"].send.$post({ param: { id }, json: { signers } })),
+    onSettled: () => Promise.all([crmChanged(client), storageChanged(client)]),
+  });
+
+/** Records a contract signed elsewhere with its executed copy; both files lock. */
+export const signedCopyMutation = (client: QueryClient) =>
+  mutationOptions({
+    meta: { handlesError: true },
+    mutationFn: ({ id, ...json }: SignedCopy & { id: string }) =>
+      call(api.crm.contracts[":id"]["signed-copy"].$post({ param: { id }, json })),
     onSettled: () => Promise.all([crmChanged(client), storageChanged(client)]),
   });
 

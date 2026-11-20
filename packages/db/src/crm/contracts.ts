@@ -37,8 +37,10 @@ export interface CrmContract {
   signedAt: Date | null;
   /** The Storage signature request it went out with from Omni; null when sent by hand. */
   signatureRequestId: string | null;
-  /** The sealed copy, with its signature certificate, beside the document. */
+  /** The signed copy: sealed by Omni with its certificate, or uploaded when signed elsewhere. */
   signedNodeId: string | null;
+  /** Who signed, entered by hand when it was signed elsewhere; null otherwise. */
+  signedBy: ContractSignedBy[] | null;
   /** `YYYY-MM-DD`. */
   effectiveOn: string | null;
   expiresOn: string | null;
@@ -46,6 +48,12 @@ export interface CrmContract {
   createdAt: Date;
   updatedAt: Date;
   signing: CrmContractSigning | null;
+}
+
+/** One signer of a contract signed outside Omni, as a member entered them. */
+export interface ContractSignedBy {
+  name: string;
+  email: string | null;
 }
 
 /** A contract row, before its signing progress is read from Storage. */
@@ -100,6 +108,7 @@ export const contractColumns = {
   signedAt: crmContracts.signedAt,
   signatureRequestId: crmContracts.signatureRequestId,
   signedNodeId: crmContracts.signedNodeId,
+  signedBy: crmContracts.signedBy,
   effectiveOn: crmContracts.effectiveOn,
   expiresOn: crmContracts.expiresOn,
   createdByMemberId: crmContracts.createdByMemberId,
@@ -120,7 +129,7 @@ function datesRefusal(effectiveOn: string | null, expiresOn: string | null) {
   return null;
 }
 
-async function usableDocument(tx: Ex, member: CrmMember, nodeId: string) {
+export async function usableDocument(tx: Ex, member: CrmMember, nodeId: string) {
   const found = await memberStorage(tx as Db, member.id).node(nodeId);
   return Boolean(
     found && found.node.kind === "file" && found.node.space === "shared" && !found.node.trashedAt,

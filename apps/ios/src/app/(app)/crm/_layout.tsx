@@ -17,6 +17,7 @@ export default function CrmLayout() {
       <Stack.Screen name="note" options={sheet} />
       <Stack.Screen name="task-new" options={sheet} />
       <Stack.Screen name="send-contract" options={sheet} />
+      <Stack.Screen name="signed-copy" options={sheet} />
     </Stack>
   );
 }

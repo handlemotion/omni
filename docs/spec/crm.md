@@ -90,9 +90,16 @@ Each member sees the links whose file they can open in Drive (not in Trash, not 
 files); deleting the file for good, or the record, removes the link. The first link makes the
 record's folder, as the first upload does.
 
-**Store the contract.** A contract starts as a draft with its file. A member marks it sent,
-then attaches the executed copy and marks it signed. From then the file is locked: it cannot be
-renamed, moved or deleted by anyone but an owner or admin unlocking it first.
+**Store the contract.** A contract starts as a draft with its file. When the client signs on
+their own side (their supplier portal, another e-signature service, paper), a member may mark it
+sent, then uploads the executed PDF as its signed copy (`POST /contracts/:id/signed-copy`): it
+lands in the record's folder, and the member enters the day it was signed and who signed (names,
+addresses optional; the deal's people are suggested). The contract becomes `signed` with that
+copy as `signedNodeId` and the signers as `signedBy`, the draft stays as its document, and both
+files are locked: they cannot be renamed, moved or deleted by anyone but an owner or admin
+unlocking them first. A contract marked signed without its copy takes one later and keeps its
+date. A contract out for signature from Omni refuses one (void it first), and so does one that
+already has its signed copy. From there it is tracked like any signed contract, through expiry.
 
 **Sign the contract in Omni.** A draft whose file is a PDF is sent for signature from the deal:
 the member names the signers (the deal's people are suggested), and the contract goes out
@@ -127,6 +134,7 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 | `GET /companies/:id/links` · `POST` · `DELETE …/links/:nodeId` (and deals) | Drive files linked where they live. `POST` takes `nodeIds` the member can open now; linking twice is a no-op. |
 | `GET /contracts` · `POST /contracts` · `PATCH /contracts/:id` · `DELETE` | List by `?company=` or `?deal=`. Create. Change status, dates or file. Delete (never a signed one).     |
 | `POST /contracts/:id/send` · `POST /contracts/:id/void`             | Send a draft's PDF to its signers; void the open request (back to draft). `SIGNATURE_OPEN` while it is out.  |
+| `POST /contracts/:id/signed-copy`                                   | Signed elsewhere: the executed PDF, when, and who signed. The contract is `signed` with it; both files lock.  |
 | `POST /companies/:id/restore` · same for people and deals          | Brings an archived record back.                                                                   |
 | `POST /companies/bulk` · same for people and deals                 | One action (`archive`, `restore`, `delete`, `owner`; deals `stage`) on up to 200 ids, each by its own rules. |
 | `GET /lookup?address=`                                              | Up to 50 addresses. The people, companies and open deals that match, for the conversation sidebar.           |

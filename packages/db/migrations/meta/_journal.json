@@ -414,6 +414,13 @@
       "when": 1795187156406,
       "tag": "0058_storage_texts",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795187850025,
+      "tag": "0059_crm_contract_signed_by",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { IconDownload, IconSignature } from "@/components/icons/central";
+import { IconDownload, IconSignature, IconUpload } from "@/components/icons/central";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { useVoidContract } from "@/hooks/use-crm.ts";
 import type { CrmContract } from "@/lib/crm.ts";
 import { downloadFile } from "@/lib/download.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
+import { takesSignedCopy } from "./contract-signed-copy-dialog.tsx";
 import { contractBadge, contractDates } from "./contract-status.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 
@@ -35,6 +36,7 @@ function signerBadge(signer: Signer) {
 export function ContractDetailsDialog(props: {
   contract: CrmContract;
   onSend: () => void;
+  onSigned: () => void;
   onClose: () => void;
 }) {
   const { contract } = props;
@@ -45,6 +47,8 @@ export function ContractDetailsDialog(props: {
   const signedId = contract.signedNodeId ?? signing?.sealedNodeId;
   const canSend = contract.status === "draft" && Boolean(contract.documentNodeId);
   const out = contract.status === "sent" && signing?.status === "sent";
+  const signedBy = contract.signedBy ?? [];
+  const canUpload = takesSignedCopy(contract);
   return (
     <Dialog size="md" isOpen onOpenChange={(isOpen) => !isOpen && props.onClose()}>
       <DialogHeader>
@@ -70,6 +74,22 @@ export function ContractDetailsDialog(props: {
                   </span>
                 )}
                 {signerBadge(signer)}
+              </li>
+            ))}
+          </ul>
+        )}
+        {signedBy.length > 0 && (
+          <ul className="flex flex-col gap-2" aria-label="Signed by">
+            {signedBy.map((signer, index) => (
+              <li key={index} className="flex min-h-10 items-center gap-2.5">
+                <Avatar size="sm" initials={signer.name.slice(0, 1).toUpperCase()} />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm">{signer.name}</span>
+                  {signer.email && (
+                    <span className="truncate text-xs text-muted-foreground">{signer.email}</span>
+                  )}
+                </span>
+                <Badge intent="success">Signed</Badge>
               </li>
             ))}
           </ul>
@@ -102,6 +122,12 @@ export function ContractDetailsDialog(props: {
             }
           >
             Void
+          </Button>
+        )}
+        {canUpload && (
+          <Button intent={canSend ? "outline" : "primary"} onPress={props.onSigned}>
+            <IconUpload data-slot="icon" />
+            Upload signed copy
           </Button>
         )}
         {canSend && (
