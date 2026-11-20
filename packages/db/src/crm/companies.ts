@@ -1,29 +1,36 @@
 import { isWebmailDomain } from "@omni/mail-core/addresses";
-import { and, asc, eq, sql, type AnyColumn } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, sql, type AnyColumn } from "drizzle-orm";
 import { crmCompanies, crmCompanyDomains, crmDeals, crmPeople, crmStages } from "../schema/crm.ts";
 import { CONTRACT_SIGNED, type ContractSigned } from "./contract-status.ts";
 import { holdsSignedContract } from "./contracts.ts";
 import {
-  afterName,
   appendEvent,
   FORBIDDEN,
   likePrefix,
-  namePage,
   NOT_FOUND,
   pageSize,
   refuse,
   wordsOf,
   type CrmMember,
-  type CrmNameCursor,
   type Ex,
   type Forbidden,
   type NotFound,
 } from "./core.ts";
 import {
+  listOrder,
+  NAME_ASC,
+  sortedPage,
+  type CrmListCursor,
+  type CrmSort,
+  type CrmSortKey,
+  type SortColumn,
+} from "./list-order.ts";
+import {
   cleanName,
   companyColumns,
   dealColumns,
   domainsOf,
+  isMemberOf,
   live,
   loadCompany,
   normalizeDomain,
@@ -40,12 +47,30 @@ export type DomainRefusal =
   | { status: "webmail_domain" }
   | { status: "domain_taken"; companyId: string };
 
-export interface ListCompaniesInput {
+/** When rows were created: on or after `createdAfter`, before `createdBefore`. */
+export interface CreatedRange {
+  createdAfter?: Date;
+  createdBefore?: Date;
+}
+
+/** What every record list takes. */
+export interface ListRecordsInput extends CreatedRange {
   /** Words the name, or one of its words, starts with. */
   q?: string;
-  cursor?: CrmNameCursor | null;
+  sort?: CrmSort;
+  cursor?: CrmListCursor | null;
   limit?: number;
+  /** Archived records too. */
   includeArchived?: boolean;
+  /** Only archived records. */
+  archivedOnly?: boolean;
+  /** One member's, or nobody's when `null`. */
+  ownerMemberId?: string | null;
+}
+
+export interface ListCompaniesInput extends ListRecordsInput {
+  /** Holding a domain that starts with this. */
+  domain?: string;
 }
 
 export type CompanyResult = { status: "ok"; company: CrmCompany } | NotFound;
@@ -60,6 +85,7 @@ export type CompanyDetailResult =
   | NotFound;
 export type CreateCompanyResult =
   | { status: "ok"; company: CrmCompany }
+  | NotFound
   | InvalidName
   | DomainRefusal;
 export type UpdateCompanyResult = CompanyResult | InvalidName;
@@ -79,8 +105,47 @@ export function nameMatches(name: AnyColumn, q?: string) {
   );
 }
 
+const companySort = (key: CrmSortKey) => {
+  switch (key) {
+    case "created":
+      return { column: crmCompanies.id, cast: "text", nullable: false } satisfies SortColumn;
+    case "updated":
+      return {
+        column: crmCompanies.updatedAt,
+        cast: "timestamptz",
+        nullable: false,
+      } satisfies SortColumn;
+    default:
+      return {
+        column: sql`lower(${crmCompanies.name})`,
+        cast: "lower",
+        nullable: false,
+      } satisfies SortColumn;
+  }
+};
+
+const companySortValue = (key: CrmSortKey) => (row: CrmCompany) =>
+  key === "created" ? row.id : key === "updated" ? row.updatedAt : row.name;
+
+/** Rows created in `[createdAfter, createdBefore)`. */
+export function createdBetween(createdAt: AnyColumn, range: CreatedRange) {
+  return and(
+    range.createdAfter ? sql`${createdAt} >= ${range.createdAfter}` : undefined,
+    range.createdBefore ? sql`${createdAt} < ${range.createdBefore}` : undefined,
+  );
+}
+
+/** Owned by one member, or by nobody when `null`. */
+export function ownedBy(owner: AnyColumn, ownerMemberId: string | null | undefined) {
+  if (ownerMemberId === undefined) return undefined;
+  return ownerMemberId === null ? isNull(owner) : eq(owner, ownerMemberId);
+}
+
 export async function listCompanies(ex: Ex, member: CrmMember, input: ListCompaniesInput) {
   const limit = pageSize(input.limit);
+  const sort = input.sort ?? NAME_ASC;
+  const order = listOrder(sort, companySort(sort.key), crmCompanies.id, input.cursor);
+  const domain = input.domain ? normalizeDomain(input.domain) : null;
   const rows = await ex
     .select({
       ...companyColumns,
@@ -93,14 +158,23 @@ export async function listCompanies(ex: Ex, member: CrmMember, input: ListCompan
     .where(
       and(
         eq(crmCompanies.orgId, member.orgId),
-        live(crmCompanies.archivedAt, input.includeArchived),
+        live(crmCompanies.archivedAt, input.includeArchived || input.archivedOnly),
+        input.archivedOnly ? isNotNull(crmCompanies.archivedAt) : undefined,
         nameMatches(crmCompanies.name, input.q),
-        afterName(crmCompanies.name, crmCompanies.id, input.cursor),
+        ownedBy(crmCompanies.ownerMemberId, input.ownerMemberId),
+        createdBetween(crmCompanies.createdAt, input),
+        input.domain
+          ? sql`exists (select 1 from ${crmCompanyDomains}
+              where ${crmCompanyDomains.orgId} = ${crmCompanies.orgId}
+                and ${crmCompanyDomains.companyId} = ${crmCompanies.id}
+                and ${crmCompanyDomains.domain} like ${likePrefix(domain ?? input.domain.toLowerCase())})`
+          : undefined,
+        order.after,
       ),
     )
-    .orderBy(sql`lower(${crmCompanies.name})`, asc(crmCompanies.id))
+    .orderBy(...order.orderBy)
     .limit(limit + 1);
-  const page = namePage(rows, limit);
+  const page = sortedPage(rows, limit, sort, companySortValue(sort.key));
   return { status: "ok" as const, companies: page.items, nextCursor: page.nextCursor };
 }
 
@@ -157,10 +231,18 @@ async function claimDomain(tx: Ex, member: CrmMember, companyId: string, domain:
 export const createCompany: (
   tx: Ex,
   member: CrmMember,
-  input: { name: string; description?: string | null; domains?: string[] },
+  input: {
+    name: string;
+    description?: string | null;
+    domains?: string[];
+    /** The creating member when left out; null for no owner. */
+    ownerMemberId?: string | null;
+  },
 ) => Promise<CreateCompanyResult> = async (tx, member, input) => {
   const name = cleanName(input.name);
   if (!name) return { status: "invalid_name" };
+  const owner = input.ownerMemberId === undefined ? member.id : input.ownerMemberId;
+  if (owner && !(await isMemberOf(tx, member.orgId, owner))) return NOT_FOUND;
   const domains: string[] = [];
   for (const raw of input.domains ?? []) {
     const checked = checkDomain(raw);
@@ -173,6 +255,7 @@ export const createCompany: (
       orgId: member.orgId,
       name,
       description: input.description ?? null,
+      ownerMemberId: owner,
       createdByMemberId: member.id,
     })
     .returning(companyColumns);
@@ -212,11 +295,18 @@ export async function companyForDomain(tx: Ex, member: CrmMember, domain: string
   return claimed.companyId;
 }
 
+export interface CompanyPatch {
+  name?: string;
+  description?: string | null;
+  /** Null for no owner. */
+  ownerMemberId?: string | null;
+}
+
 export const updateCompany: (
   tx: Ex,
   member: CrmMember,
   id: string,
-  patch: { name?: string; description?: string | null },
+  patch: CompanyPatch,
 ) => Promise<UpdateCompanyResult> = async (tx, member, id, patch) => {
   const company = await loadCompany(tx, member.orgId, id, true);
   if (!company) return NOT_FOUND;
@@ -229,14 +319,23 @@ export const updateCompany: (
   if (patch.description !== undefined && patch.description !== company.description) {
     next.description = patch.description;
   }
+  const owner = patch.ownerMemberId;
+  const ownerChanged = owner !== undefined && owner !== company.ownerMemberId;
+  if (ownerChanged && owner && !(await isMemberOf(tx, member.orgId, owner))) return NOT_FOUND;
   const fields = Object.keys(next).toSorted();
-  if (fields.length === 0) return { status: "ok", company };
+  if (fields.length === 0 && !ownerChanged) return { status: "ok", company };
   const [updated] = await tx
     .update(crmCompanies)
-    .set(next)
+    .set(ownerChanged ? { ...next, ownerMemberId: owner } : next)
     .where(eq(crmCompanies.id, id))
     .returning(companyColumns);
-  await appendEvent(tx, member, { companyId: id }, "updated", { fields });
+  if (fields.length > 0) await appendEvent(tx, member, { companyId: id }, "updated", { fields });
+  if (ownerChanged) {
+    await appendEvent(tx, member, { companyId: id }, "owner_changed", {
+      from: company.ownerMemberId,
+      to: owner,
+    });
+  }
   return { status: "ok", company: updated! };
 };
 
@@ -254,6 +353,24 @@ export const archiveCompany: (
     .where(eq(crmCompanies.id, id))
     .returning(companyColumns);
   await appendEvent(tx, member, { companyId: id }, "archived");
+  return { status: "ok", company: updated! };
+};
+
+/** Brings an archived company back into every list. */
+export const restoreCompany: (
+  tx: Ex,
+  member: CrmMember,
+  id: string,
+) => Promise<CompanyResult> = async (tx, member, id) => {
+  const company = await loadCompany(tx, member.orgId, id, true);
+  if (!company) return NOT_FOUND;
+  if (!company.archivedAt) return { status: "ok", company };
+  const [updated] = await tx
+    .update(crmCompanies)
+    .set({ archivedAt: null })
+    .where(eq(crmCompanies.id, id))
+    .returning(companyColumns);
+  await appendEvent(tx, member, { companyId: id }, "restored");
   return { status: "ok", company: updated! };
 };
 

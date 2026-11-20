@@ -13,6 +13,8 @@ export const crmCompanySchema = z.object({
   id,
   name: z.string(),
   description: z.string().nullable(),
+  /** Who on the team looks after it. Optional while an older Worker may answer. */
+  ownerMemberId: id.nullable().optional(),
   /** The company's folder in Shared once a file was added; use `/api/storage` on it. */
   folderNodeId: id.nullable(),
   createdByMemberId: id.nullable(),
@@ -31,6 +33,8 @@ export const crmPersonSchema = z.object({
   companyId: id.nullable(),
   jobTitle: z.string().nullable(),
   phone: z.string().nullable(),
+  /** Who on the team looks after them. Optional while an older Worker may answer. */
+  ownerMemberId: id.nullable().optional(),
   createdByMemberId: id.nullable(),
   archivedAt: isoDate.nullable(),
   createdAt: isoDate,
@@ -55,6 +59,8 @@ export const crmDealSchema = z.object({
   wonAt: isoDate.nullable(),
   /** When it entered a `done` or `lost` stage. */
   closedAt: isoDate.nullable(),
+  /** `YYYY-MM-DD`: when the team expects it to close. Optional while an older Worker may answer. */
+  expectedCloseOn: z.iso.date().nullable().optional(),
   folderNodeId: id.nullable(),
   createdByMemberId: id.nullable(),
   archivedAt: isoDate.nullable(),
@@ -146,42 +152,79 @@ export const crmActivitySchema = z.object({
 
 const lastContactedAt = isoDate.nullable().optional();
 
+/** How a list is ordered. Deals also take `value`, `closeOn` and `stageEntered`. */
+export const crmRecordSortSchema = z.enum(["name", "created", "updated"]);
+export const crmDealSortSchema = z.enum([
+  "name",
+  "created",
+  "updated",
+  "value",
+  "closeOn",
+  "stageEntered",
+]);
+export const crmSortDirSchema = z.enum(["asc", "desc"]);
+
 const page = {
   cursor: z.string().min(1).max(2048).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
-  archived: z.literal("1").optional(),
+  archived: z.enum(["1", "only"]).optional(),
+  dir: crmSortDirSchema.optional(),
+  owner: z.union([z.literal("none"), id]).optional(),
+  createdAfter: isoDate.optional(),
+  createdBefore: isoDate.optional(),
 };
+const q = z.string().max(200).optional();
 
-/** `GET /companies?q=`: by name; `q` matches the start of the name or one of its words. */
-export const crmCompaniesQuerySchema = z.object({ q: z.string().max(200).optional(), ...page });
-/** `GET /people?q=&company=`: `q` also matches the start of an address. */
-export const crmPeopleQuerySchema = z.object({
-  q: z.string().max(200).optional(),
-  company: id.optional(),
+/** `GET /companies`: `q` matches the start of the name or one of its words. */
+export const crmCompaniesQuerySchema = z.object({
+  q,
+  sort: crmRecordSortSchema.optional(),
+  /** Holding a domain that starts with this. */
+  domain: z.string().max(253).optional(),
   ...page,
 });
-/** `GET /deals?stage=&kind=&owner=&company=`. */
+/** `GET /people`: `q` also matches the start of an address. */
+export const crmPeopleQuerySchema = z.object({
+  q,
+  sort: crmRecordSortSchema.optional(),
+  company: id.optional(),
+  /** `1`: only people with a company; `0`: only people without one. */
+  hasCompany: z.enum(["0", "1"]).optional(),
+  ...page,
+});
+/** `GET /deals`: `stage`, `kind`, `company`, and ranges on the close date and value. */
 export const crmDealsQuerySchema = z.object({
-  q: z.string().max(200).optional(),
+  q,
+  sort: crmDealSortSchema.optional(),
   stage: id.optional(),
   kind: crmStageKindSchema.optional(),
-  owner: id.optional(),
   company: id.optional(),
+  /** `YYYY-MM-DD`, inclusive. */
+  closeAfter: z.iso.date().optional(),
+  closeBefore: z.iso.date().optional(),
+  /** In minor units, inclusive. */
+  minValue: z.coerce.number().int().optional(),
+  maxValue: z.coerce.number().int().optional(),
   ...page,
 });
 
 /** `DELETE` archives; `?forever=1` deletes for good (owners and admins). */
 export const crmDeleteQuerySchema = z.object({ forever: z.literal("1").optional() });
 
+const ownerMemberId = id.nullable().optional();
+
 export const crmCreateCompanyBodySchema = z.object({
   name,
   description: optionalText,
   domains: z.array(z.string().min(1).max(253)).max(20).optional(),
+  /** The creating member when left out; null for no owner. */
+  ownerMemberId,
 });
 /** Only the fields it names change. */
 export const crmUpdateCompanyBodySchema = z.object({
   name: name.optional(),
   description: optionalText,
+  ownerMemberId,
 });
 
 /** "Add once": an address that already has a person answers that person (`created: false`). */
@@ -192,6 +235,8 @@ export const crmAddPersonBodySchema = z.object({
   companyId: id.optional(),
   jobTitle: optionalText,
   phone: optionalText,
+  /** Null or left out for no owner. */
+  ownerMemberId,
 });
 export const crmUpdatePersonBodySchema = z.object({
   name: name.optional(),
@@ -199,6 +244,7 @@ export const crmUpdatePersonBodySchema = z.object({
   companyId: id.nullable().optional(),
   jobTitle: optionalText,
   phone: optionalText,
+  ownerMemberId,
   addresses: z
     .object({
       add: z.array(address).max(20).optional(),
@@ -216,6 +262,7 @@ const dealFields = {
   valueMinor: z.number().int().nullable().optional(),
   currency: z.string().max(3).nullable().optional(),
   personIds: z.array(id).max(100).optional(),
+  expectedCloseOn: z.iso.date().nullable().optional(),
 };
 export const crmCreateDealBodySchema = z.object({ name, ...dealFields });
 export const crmUpdateDealBodySchema = z.object({ name: name.optional(), ...dealFields });
@@ -331,8 +378,29 @@ export const crmPersonListResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 export const crmPersonResponseSchema = z.object({ person: crmPersonSchema });
-/** `GET /people/:id`. */
-export const crmPersonDetailResponseSchema = crmPersonResponseSchema.extend({ lastContactedAt });
+/** `GET /people/:id`: with the live deals they are part of. */
+export const crmPersonDetailResponseSchema = crmPersonResponseSchema.extend({
+  lastContactedAt,
+  /** Optional while an older Worker may answer. */
+  deals: z.array(crmDealSchema).optional(),
+});
+
+/** `POST /companies/bulk`, `/people/bulk`, `/deals/bulk`: one action on up to 200 records. */
+export const crmBulkBodySchema = z.object({
+  ids: z.array(id).min(1).max(200),
+  action: z.discriminatedUnion("action", [
+    z.object({ action: z.literal("archive") }),
+    z.object({ action: z.literal("restore") }),
+    z.object({ action: z.literal("delete") }),
+    z.object({ action: z.literal("owner"), ownerMemberId: id.nullable() }),
+    z.object({ action: z.literal("stage"), stageId: id }),
+  ]),
+});
+/** What changed, and what was refused with the code the single route would answer. */
+export const crmBulkResponseSchema = z.object({
+  done: z.array(id),
+  refused: z.array(z.object({ id, code: z.string() })),
+});
 /** `POST /people`: 201 when made, 200 with `created: false` when the address had a person. */
 export const crmAddPersonResponseSchema = z.object({
   person: crmPersonSchema,
@@ -482,3 +550,8 @@ export type CrmTimelineItem = z.infer<typeof crmTimelineItemSchema>;
 export type CrmTimelineResponse = z.infer<typeof crmTimelineResponseSchema>;
 export type CrmChangedKind = z.infer<typeof crmChangedKindSchema>;
 export type CrmChangedEvent = z.infer<typeof crmChangedEventSchema>;
+export type CrmRecordSort = z.infer<typeof crmRecordSortSchema>;
+export type CrmDealSort = z.infer<typeof crmDealSortSchema>;
+export type CrmSortDir = z.infer<typeof crmSortDirSchema>;
+export type CrmBulkBody = z.infer<typeof crmBulkBodySchema>;
+export type CrmBulkResponse = z.infer<typeof crmBulkResponseSchema>;

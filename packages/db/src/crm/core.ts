@@ -113,6 +113,7 @@ export type CrmEventKind =
   | "created"
   | "updated"
   | "archived"
+  | "restored"
   | "stage_moved"
   | "owner_changed"
   | "value_changed"

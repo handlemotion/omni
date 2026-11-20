@@ -67,7 +67,7 @@ export const crmCompanies = pgTable(
     orgId: orgId(),
     name: text("name").notNull(),
     description: text("description"),
-    /** Who on the team looks after it (ADR 0054). */
+    /** Who on the team looks after it. */
     ownerMemberId: memberRef("owner_member_id"),
     folderNodeId: folderRef("folder_node_id"),
     createdByMemberId: memberRef("created_by_member_id"),
@@ -113,7 +113,7 @@ export const crmPeople = pgTable(
     companyId: text("company_id").references(() => crmCompanies.id, { onDelete: "set null" }),
     jobTitle: text("job_title"),
     phone: text("phone"),
-    /** Who on the team looks after them (ADR 0054). */
+    /** Who on the team looks after them. */
     ownerMemberId: memberRef("owner_member_id"),
     createdByMemberId: memberRef("created_by_member_id"),
     archivedAt: timestamptz("archived_at"),
@@ -187,7 +187,7 @@ export const crmDeals = pgTable(
     wonAt: timestamptz("won_at"),
     /** Set while the deal sits in a `done` or `lost` stage. */
     closedAt: timestamptz("closed_at"),
-    /** When the team expects it to close (ADR 0054). */
+    /** When the team expects it to close. */
     expectedCloseOn: date("expected_close_on", { mode: "string" }),
     folderNodeId: folderRef("folder_node_id"),
     createdByMemberId: memberRef("created_by_member_id"),

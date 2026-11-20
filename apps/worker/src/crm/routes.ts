@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../context.ts";
+import { bulk } from "./bulk.ts";
 import { companies } from "./companies.ts";
 import { contracts } from "./contracts.ts";
 import { deals } from "./deals.ts";
@@ -10,6 +11,7 @@ import { pipeline } from "./pipeline.ts";
 import { timelines } from "./timeline.ts";
 
 export const crm = new Hono<AppEnv>()
+  .route("/", bulk)
   .route("/", companies)
   .route("/", people)
   .route("/", deals)

@@ -1,5 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { members } from "../schema/auth.ts";
+import { and, asc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import {
   crmDealPeople,
   crmDeals,
@@ -8,17 +7,22 @@ import {
   crmSettings,
   crmStages,
 } from "../schema/crm.ts";
-import { nameMatches, type DeleteResult, type InvalidName } from "./companies.ts";
 import {
-  afterName,
+  createdBetween,
+  nameMatches,
+  ownedBy,
+  type DeleteResult,
+  type InvalidName,
+  type ListRecordsInput,
+} from "./companies.ts";
+import { listOrder, NAME_ASC, sortedPage, type CrmSortKey, type SortColumn } from "./list-order.ts";
+import {
   appendEvent,
   FORBIDDEN,
   isCurrency,
-  namePage,
   NOT_FOUND,
   pageSize,
   type CrmMember,
-  type CrmNameCursor,
   type Ex,
   type NotFound,
 } from "./core.ts";
@@ -27,6 +31,7 @@ import {
   dealColumns,
   dealPersonIds,
   existingPeople,
+  isMemberOf,
   live,
   loadCompany,
   loadDeal,
@@ -44,15 +49,16 @@ export type InvalidCurrency = { status: "invalid_currency" };
 /** `valueMinor` is not a whole number of minor units. */
 export type InvalidValue = { status: "invalid_value" };
 
-export interface ListDealsInput {
-  q?: string;
+export interface ListDealsInput extends ListRecordsInput {
   stageId?: string;
   kind?: StageKind;
-  ownerMemberId?: string;
   companyId?: string;
-  cursor?: CrmNameCursor | null;
-  limit?: number;
-  includeArchived?: boolean;
+  /** `YYYY-MM-DD`, inclusive. */
+  closeAfter?: string;
+  closeBefore?: string;
+  /** In minor units, inclusive. */
+  minValue?: number;
+  maxValue?: number;
 }
 
 export interface DealInput {
@@ -66,6 +72,8 @@ export interface DealInput {
   /** ISO 4217. The workspace's default currency when a value is given without one. */
   currency?: string | null;
   personIds?: string[];
+  /** `YYYY-MM-DD`; null for none. */
+  expectedCloseOn?: string | null;
 }
 
 export type DealPatch = Partial<DealInput> & {
@@ -80,8 +88,69 @@ export type DealResult = { status: "ok"; deal: CrmDeal } | NotFound;
 export type DealDetailResult = { status: "ok"; deal: CrmDeal; people: CrmPerson[] } | NotFound;
 export type WriteDealResult = DealResult | InvalidName | InvalidCurrency | InvalidValue;
 
+const dealSort = (key: CrmSortKey) => {
+  switch (key) {
+    case "created":
+      return { column: crmDeals.id, cast: "text", nullable: false } satisfies SortColumn;
+    case "updated":
+      return {
+        column: crmDeals.updatedAt,
+        cast: "timestamptz",
+        nullable: false,
+      } satisfies SortColumn;
+    case "stageEntered":
+      return {
+        column: crmDeals.stageEnteredAt,
+        cast: "timestamptz",
+        nullable: false,
+      } satisfies SortColumn;
+    case "value":
+      return { column: crmDeals.valueMinor, cast: "bigint", nullable: true } satisfies SortColumn;
+    case "closeOn":
+      return {
+        column: crmDeals.expectedCloseOn,
+        cast: "date",
+        nullable: true,
+      } satisfies SortColumn;
+    default:
+      return {
+        column: sql`lower(${crmDeals.name})`,
+        cast: "lower",
+        nullable: false,
+      } satisfies SortColumn;
+  }
+};
+
+const dealSortValue = (key: CrmSortKey) => (row: CrmDeal) => {
+  switch (key) {
+    case "created":
+      return row.id;
+    case "updated":
+      return row.updatedAt;
+    case "stageEntered":
+      return row.stageEnteredAt;
+    case "value":
+      return row.valueMinor;
+    case "closeOn":
+      return row.expectedCloseOn;
+    default:
+      return row.name;
+  }
+};
+
+function dealRanges(input: ListDealsInput) {
+  return and(
+    input.closeAfter ? gte(crmDeals.expectedCloseOn, input.closeAfter) : undefined,
+    input.closeBefore ? lte(crmDeals.expectedCloseOn, input.closeBefore) : undefined,
+    input.minValue === undefined ? undefined : gte(crmDeals.valueMinor, input.minValue),
+    input.maxValue === undefined ? undefined : lte(crmDeals.valueMinor, input.maxValue),
+  );
+}
+
 export async function listDeals(ex: Ex, member: CrmMember, input: ListDealsInput) {
   const limit = pageSize(input.limit);
+  const sort = input.sort ?? NAME_ASC;
+  const order = listOrder(sort, dealSort(sort.key), crmDeals.id, input.cursor);
   const rows = await ex
     .select(dealColumns)
     .from(crmDeals)
@@ -89,18 +158,21 @@ export async function listDeals(ex: Ex, member: CrmMember, input: ListDealsInput
     .where(
       and(
         eq(crmDeals.orgId, member.orgId),
-        live(crmDeals.archivedAt, input.includeArchived),
+        live(crmDeals.archivedAt, input.includeArchived || input.archivedOnly),
+        input.archivedOnly ? isNotNull(crmDeals.archivedAt) : undefined,
         input.stageId ? eq(crmDeals.stageId, input.stageId) : undefined,
         input.kind ? eq(crmStages.kind, input.kind) : undefined,
-        input.ownerMemberId ? eq(crmDeals.ownerMemberId, input.ownerMemberId) : undefined,
+        ownedBy(crmDeals.ownerMemberId, input.ownerMemberId),
         input.companyId ? eq(crmDeals.companyId, input.companyId) : undefined,
+        createdBetween(crmDeals.createdAt, input),
+        dealRanges(input),
         nameMatches(crmDeals.name, input.q),
-        afterName(crmDeals.name, crmDeals.id, input.cursor),
+        order.after,
       ),
     )
-    .orderBy(sql`lower(${crmDeals.name})`, asc(crmDeals.id))
+    .orderBy(...order.orderBy)
     .limit(limit + 1);
-  const page = namePage(rows, limit);
+  const page = sortedPage(rows, limit, sort, dealSortValue(sort.key));
   return { status: "ok" as const, deals: page.items, nextCursor: page.nextCursor };
 }
 
@@ -123,14 +195,6 @@ export const getDeal: (ex: Ex, member: CrmMember, id: string) => Promise<DealDet
   if (!deal) return NOT_FOUND;
   return { status: "ok", deal, people: await peopleOfDeal(ex, id) };
 };
-
-async function isMemberOf(ex: Ex, orgId: string, memberId: string) {
-  const [row] = await ex
-    .select({ id: members.id })
-    .from(members)
-    .where(and(eq(members.id, memberId), eq(members.organizationId, orgId)));
-  return Boolean(row);
-}
 
 async function resolveValue(
   ex: Ex,
@@ -211,6 +275,7 @@ export const createDeal: (
       ownerMemberId: input.ownerMemberId === undefined ? member.id : input.ownerMemberId,
       valueMinor: value.valueMinor,
       valueCurrency: value.currency,
+      expectedCloseOn: input.expectedCloseOn ?? null,
       createdByMemberId: member.id,
     })
     .returning({ id: crmDeals.id });
@@ -300,6 +365,10 @@ async function applyFields(
     set.companyId = patch.companyId;
     fields.push("companyId");
   }
+  if (patch.expectedCloseOn !== undefined && patch.expectedCloseOn !== deal.expectedCloseOn) {
+    set.expectedCloseOn = patch.expectedCloseOn;
+    fields.push("expectedCloseOn");
+  }
   const owner = patch.ownerMemberId;
   const ownerChanged = owner !== undefined && owner !== deal.ownerMemberId;
   if (ownerChanged) set.ownerMemberId = owner;
@@ -382,6 +451,20 @@ export const archiveDeal: (tx: Ex, member: CrmMember, id: string) => Promise<Dea
   if (deal.archivedAt) return { status: "ok", deal };
   await tx.update(crmDeals).set({ archivedAt: new Date() }).where(eq(crmDeals.id, id));
   await appendEvent(tx, member, { dealId: id }, "archived");
+  return { status: "ok", deal: (await loadDeal(tx, member.orgId, id))! };
+};
+
+/** Brings an archived deal back onto the board and into every list. */
+export const restoreDeal: (tx: Ex, member: CrmMember, id: string) => Promise<DealResult> = async (
+  tx,
+  member,
+  id,
+) => {
+  const deal = await loadDeal(tx, member.orgId, id, true);
+  if (!deal) return NOT_FOUND;
+  if (!deal.archivedAt) return { status: "ok", deal };
+  await tx.update(crmDeals).set({ archivedAt: null }).where(eq(crmDeals.id, id));
+  await appendEvent(tx, member, { dealId: id }, "restored");
   return { status: "ok", deal: (await loadDeal(tx, member.orgId, id))! };
 };
 

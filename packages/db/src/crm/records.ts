@@ -9,6 +9,7 @@ import {
   crmPersonEmails,
   crmStages,
 } from "../schema/crm.ts";
+import { members } from "../schema/auth.ts";
 import type { Ex } from "./core.ts";
 import type { StageKind } from "./stage-transition.ts";
 
@@ -16,6 +17,8 @@ export interface CrmCompany {
   id: string;
   name: string;
   description: string | null;
+  /** Who on the team looks after it. */
+  ownerMemberId: string | null;
   folderNodeId: string | null;
   createdByMemberId: string | null;
   archivedAt: Date | null;
@@ -34,6 +37,8 @@ export interface CrmPerson {
   companyId: string | null;
   jobTitle: string | null;
   phone: string | null;
+  /** Who on the team looks after them. */
+  ownerMemberId: string | null;
   createdByMemberId: string | null;
   archivedAt: Date | null;
   createdAt: Date;
@@ -55,6 +60,8 @@ export interface CrmDeal {
   valueCurrency: string | null;
   wonAt: Date | null;
   closedAt: Date | null;
+  /** `YYYY-MM-DD`: when the team expects it to close. */
+  expectedCloseOn: string | null;
   folderNodeId: string | null;
   createdByMemberId: string | null;
   archivedAt: Date | null;
@@ -66,6 +73,7 @@ export const companyColumns = {
   id: crmCompanies.id,
   name: crmCompanies.name,
   description: crmCompanies.description,
+  ownerMemberId: crmCompanies.ownerMemberId,
   folderNodeId: crmCompanies.folderNodeId,
   createdByMemberId: crmCompanies.createdByMemberId,
   archivedAt: crmCompanies.archivedAt,
@@ -79,6 +87,7 @@ export const personColumns = {
   companyId: crmPeople.companyId,
   jobTitle: crmPeople.jobTitle,
   phone: crmPeople.phone,
+  ownerMemberId: crmPeople.ownerMemberId,
   createdByMemberId: crmPeople.createdByMemberId,
   archivedAt: crmPeople.archivedAt,
   createdAt: crmPeople.createdAt,
@@ -98,6 +107,7 @@ export const dealColumns = {
   valueCurrency: crmDeals.valueCurrency,
   wonAt: crmDeals.wonAt,
   closedAt: crmDeals.closedAt,
+  expectedCloseOn: crmDeals.expectedCloseOn,
   folderNodeId: crmDeals.folderNodeId,
   createdByMemberId: crmDeals.createdByMemberId,
   archivedAt: crmDeals.archivedAt,
@@ -210,4 +220,13 @@ export function normalizeDomain(input: string) {
 export function cleanName(input: string) {
   const name = input.trim();
   return name.length > 0 && name.length <= 200 ? name : null;
+}
+
+/** Whether `memberId` is a member of the workspace: owners must be. */
+export async function isMemberOf(ex: Ex, orgId: string, memberId: string) {
+  const [row] = await ex
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.id, memberId), eq(members.organizationId, orgId)));
+  return Boolean(row);
 }

@@ -14,10 +14,9 @@ import { zValidator } from "../validator.ts";
 import { lastContactedAt, subjectOf } from "./mail.ts";
 import {
   announce,
-  decodeCursor,
   encodeCursor,
+  listInput,
   memberCrm,
-  nameCursor,
   refused,
   wireCompany,
   wireDeal,
@@ -26,12 +25,10 @@ import {
 
 export const companies = new Hono<AppEnv>()
   .get("/companies", zValidator("query", crmCompaniesQuerySchema), async (c) => {
-    const { q, cursor, limit, archived } = c.req.valid("query");
+    const query = c.req.valid("query");
     const listed = await memberCrm(c).listCompanies({
-      q,
-      cursor: decodeCursor(cursor, nameCursor),
-      limit,
-      includeArchived: archived === "1",
+      ...listInput(query),
+      domain: query.domain,
     });
     if (listed.status !== "ok") return refused(c, listed);
     return c.json({
@@ -79,6 +76,13 @@ export const companies = new Hono<AppEnv>()
     if (archived.status !== "ok") return refused(c, archived);
     await announce(c, "company", [id]);
     return c.json({ company: wireCompany(archived.company) } satisfies CrmCompanyResponse);
+  })
+
+  .post("/companies/:id/restore", async (c) => {
+    const restored = await memberCrm(c).restoreCompany(c.req.param("id"));
+    if (restored.status !== "ok") return refused(c, restored);
+    await announce(c, "company", [restored.company.id]);
+    return c.json({ company: wireCompany(restored.company) } satisfies CrmCompanyResponse);
   })
 
   .put("/companies/:id/domains/:domain", async (c) => {

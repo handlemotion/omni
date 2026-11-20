@@ -1,40 +1,47 @@
 import { companyFromAddress, parseAddress } from "@omni/mail-core/addresses";
-import { and, asc, eq, exists, inArray, sql } from "drizzle-orm";
-import { crmPeople, crmPersonEmails } from "../schema/crm.ts";
-import { companyForDomain, nameMatches, type DeleteResult, type InvalidName } from "./companies.ts";
+import { and, asc, eq, exists, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { crmDealPeople, crmDeals, crmPeople, crmPersonEmails, crmStages } from "../schema/crm.ts";
 import {
-  afterName,
+  companyForDomain,
+  createdBetween,
+  nameMatches,
+  ownedBy,
+  type DeleteResult,
+  type InvalidName,
+  type ListRecordsInput,
+} from "./companies.ts";
+import { listOrder, NAME_ASC, sortedPage, type CrmSortKey, type SortColumn } from "./list-order.ts";
+import {
   appendEvent,
   FORBIDDEN,
   likePrefix,
-  namePage,
   NOT_FOUND,
   pageSize,
   refuse,
   type CrmMember,
-  type CrmNameCursor,
   type Ex,
   type NotFound,
 } from "./core.ts";
 import {
   cleanName,
+  dealColumns,
+  isMemberOf,
   live,
   loadCompany,
   loadPerson,
   personColumns,
   withAddresses,
+  type CrmDeal,
   type CrmPerson,
 } from "./records.ts";
 
 export type InvalidAddress = { status: "invalid_address" };
 export type AddressTaken = { status: "address_taken"; address: string; personId: string };
 
-export interface ListPeopleInput {
-  q?: string;
+export interface ListPeopleInput extends ListRecordsInput {
   companyId?: string;
-  cursor?: CrmNameCursor | null;
-  limit?: number;
-  includeArchived?: boolean;
+  /** Only people with a company (`true`) or without one (`false`). */
+  hasCompany?: boolean;
 }
 
 export interface AddPersonInput {
@@ -47,6 +54,8 @@ export interface AddPersonInput {
   companyId?: string | null;
   jobTitle?: string | null;
   phone?: string | null;
+  /** Null or left out for no owner. */
+  ownerMemberId?: string | null;
 }
 
 export type PersonResult = { status: "ok"; person: CrmPerson } | NotFound;
@@ -67,6 +76,8 @@ export interface UpdatePersonInput {
   companyId?: string | null;
   jobTitle?: string | null;
   phone?: string | null;
+  /** Null for no owner. */
+  ownerMemberId?: string | null;
   addresses?: {
     add?: string[];
     remove?: string[];
@@ -82,8 +93,32 @@ export type UpdatePersonResult =
   | InvalidAddress
   | AddressTaken;
 
+const personSort = (key: CrmSortKey) => {
+  switch (key) {
+    case "created":
+      return { column: crmPeople.id, cast: "text", nullable: false } satisfies SortColumn;
+    case "updated":
+      return {
+        column: crmPeople.updatedAt,
+        cast: "timestamptz",
+        nullable: false,
+      } satisfies SortColumn;
+    default:
+      return {
+        column: sql`lower(${crmPeople.name})`,
+        cast: "lower",
+        nullable: false,
+      } satisfies SortColumn;
+  }
+};
+
+const personSortValue = (key: CrmSortKey) => (row: Omit<CrmPerson, "addresses">) =>
+  key === "created" ? row.id : key === "updated" ? row.updatedAt : row.name;
+
 export async function listPeople(ex: Ex, member: CrmMember, input: ListPeopleInput) {
   const limit = pageSize(input.limit);
+  const sort = input.sort ?? NAME_ASC;
+  const order = listOrder(sort, personSort(sort.key), crmPeople.id, input.cursor);
   const words = input.q?.trim() ? input.q : undefined;
   const byAddress = words
     ? exists(
@@ -99,21 +134,31 @@ export async function listPeople(ex: Ex, member: CrmMember, input: ListPeopleInp
       )
     : undefined;
   const matches = words ? sql`(${nameMatches(crmPeople.name, words)} or ${byAddress})` : undefined;
+  const hasCompany =
+    input.hasCompany === undefined
+      ? undefined
+      : input.hasCompany
+        ? isNotNull(crmPeople.companyId)
+        : isNull(crmPeople.companyId);
   const rows = await ex
     .select(personColumns)
     .from(crmPeople)
     .where(
       and(
         eq(crmPeople.orgId, member.orgId),
-        live(crmPeople.archivedAt, input.includeArchived),
+        live(crmPeople.archivedAt, input.includeArchived || input.archivedOnly),
+        input.archivedOnly ? isNotNull(crmPeople.archivedAt) : undefined,
         input.companyId ? eq(crmPeople.companyId, input.companyId) : undefined,
+        hasCompany,
+        ownedBy(crmPeople.ownerMemberId, input.ownerMemberId),
+        createdBetween(crmPeople.createdAt, input),
         matches,
-        afterName(crmPeople.name, crmPeople.id, input.cursor),
+        order.after,
       ),
     )
-    .orderBy(sql`lower(${crmPeople.name})`, asc(crmPeople.id))
+    .orderBy(...order.orderBy)
     .limit(limit + 1);
-  const page = namePage(rows, limit);
+  const page = sortedPage(rows, limit, sort, personSortValue(sort.key));
   return {
     status: "ok" as const,
     people: await withAddresses(ex, page.items),
@@ -124,6 +169,20 @@ export async function listPeople(ex: Ex, member: CrmMember, input: ListPeopleInp
 export async function getPerson(ex: Ex, member: CrmMember, id: string) {
   const person = await loadPerson(ex, member.orgId, id);
   return (person ? { status: "ok", person } : NOT_FOUND) satisfies PersonResult;
+}
+
+/** A person with the live deals they are part of. */
+export async function getPersonDetail(ex: Ex, member: CrmMember, id: string) {
+  const person = await loadPerson(ex, member.orgId, id);
+  if (!person) return NOT_FOUND;
+  const deals = await ex
+    .select(dealColumns)
+    .from(crmDealPeople)
+    .innerJoin(crmDeals, eq(crmDeals.id, crmDealPeople.dealId))
+    .innerJoin(crmStages, eq(crmStages.id, crmDeals.stageId))
+    .where(and(eq(crmDealPeople.personId, id), live(crmDeals.archivedAt)))
+    .orderBy(sql`lower(${crmDeals.name})`, asc(crmDeals.id));
+  return { status: "ok" as const, person, deals: deals satisfies CrmDeal[] };
 }
 
 async function personWithAddress(ex: Ex, orgId: string, address: string) {
@@ -153,6 +212,9 @@ export const addPerson: (
   const existing = await personWithAddress(tx, member.orgId, address);
   if (existing) return { status: "ok", person: existing, created: false };
 
+  if (input.ownerMemberId && !(await isMemberOf(tx, member.orgId, input.ownerMemberId))) {
+    return NOT_FOUND;
+  }
   let companyId: string | null = null;
   if (input.companyId) {
     if (!(await loadCompany(tx, member.orgId, input.companyId))) return NOT_FOUND;
@@ -171,6 +233,7 @@ export const addPerson: (
       companyId,
       jobTitle: input.jobTitle ?? null,
       phone: input.phone ?? null,
+      ownerMemberId: input.ownerMemberId ?? null,
       createdByMemberId: member.id,
     })
     .returning({ id: crmPeople.id });
@@ -261,7 +324,7 @@ async function setPrimary(tx: Ex, personId: string, address?: string) {
   return { status: "ok" as const, primaryChanged: true };
 }
 
-type PersonFields = Pick<CrmPerson, "name" | "companyId" | "jobTitle" | "phone">;
+type PersonFields = Pick<CrmPerson, "name" | "companyId" | "jobTitle" | "phone" | "ownerMemberId">;
 
 export const updatePerson: (
   tx: Ex,
@@ -280,7 +343,11 @@ export const updatePerson: (
   if (patch.companyId) {
     if (!(await loadCompany(tx, member.orgId, patch.companyId))) return NOT_FOUND;
   }
+  if (patch.ownerMemberId && !(await isMemberOf(tx, member.orgId, patch.ownerMemberId))) {
+    return NOT_FOUND;
+  }
   if (patch.companyId !== undefined) next.companyId = patch.companyId;
+  if (patch.ownerMemberId !== undefined) next.ownerMemberId = patch.ownerMemberId;
   if (patch.jobTitle !== undefined) next.jobTitle = patch.jobTitle;
   if (patch.phone !== undefined) next.phone = patch.phone;
   const fields = (Object.keys(next) as (keyof PersonFields)[])
@@ -298,7 +365,16 @@ export const updatePerson: (
       .update(crmPeople)
       .set(Object.fromEntries(fields.map((key) => [key, next[key]])))
       .where(eq(crmPeople.id, id));
-    await appendEvent(tx, member, { personId: id }, "updated", { fields });
+    const plain = fields.filter((key) => key !== "ownerMemberId");
+    if (plain.length > 0) {
+      await appendEvent(tx, member, { personId: id }, "updated", { fields: plain });
+    }
+    if (fields.includes("ownerMemberId")) {
+      await appendEvent(tx, member, { personId: id }, "owner_changed", {
+        from: person.ownerMemberId,
+        to: next.ownerMemberId,
+      });
+    }
   }
   return { status: "ok", person: (await loadPerson(tx, member.orgId, id))! };
 };
@@ -313,6 +389,20 @@ export const archivePerson: (
   if (person.archivedAt) return { status: "ok", person };
   await tx.update(crmPeople).set({ archivedAt: new Date() }).where(eq(crmPeople.id, id));
   await appendEvent(tx, member, { personId: id }, "archived");
+  return { status: "ok", person: (await loadPerson(tx, member.orgId, id))! };
+};
+
+/** Brings an archived person back into every list. */
+export const restorePerson: (
+  tx: Ex,
+  member: CrmMember,
+  id: string,
+) => Promise<PersonResult> = async (tx, member, id) => {
+  const person = await loadPerson(tx, member.orgId, id, true);
+  if (!person) return NOT_FOUND;
+  if (!person.archivedAt) return { status: "ok", person };
+  await tx.update(crmPeople).set({ archivedAt: null }).where(eq(crmPeople.id, id));
+  await appendEvent(tx, member, { personId: id }, "restored");
   return { status: "ok", person: (await loadPerson(tx, member.orgId, id))! };
 };
 

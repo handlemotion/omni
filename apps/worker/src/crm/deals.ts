@@ -13,10 +13,9 @@ import { zValidator } from "../validator.ts";
 import { lastContactedAt, subjectOf } from "./mail.ts";
 import {
   announce,
-  decodeCursor,
   encodeCursor,
+  listInput,
   memberCrm,
-  nameCursor,
   refused,
   wireContract,
   wireDeal,
@@ -25,16 +24,16 @@ import {
 
 export const deals = new Hono<AppEnv>()
   .get("/deals", zValidator("query", crmDealsQuerySchema), async (c) => {
-    const { q, stage, kind, owner, company, cursor, limit, archived } = c.req.valid("query");
+    const query = c.req.valid("query");
     const listed = await memberCrm(c).listDeals({
-      q,
-      stageId: stage,
-      kind,
-      ownerMemberId: owner,
-      companyId: company,
-      cursor: decodeCursor(cursor, nameCursor),
-      limit,
-      includeArchived: archived === "1",
+      ...listInput(query),
+      stageId: query.stage,
+      kind: query.kind,
+      companyId: query.company,
+      closeAfter: query.closeAfter,
+      closeBefore: query.closeBefore,
+      minValue: query.minValue,
+      maxValue: query.maxValue,
     });
     if (listed.status !== "ok") return refused(c, listed);
     return c.json({
@@ -68,6 +67,13 @@ export const deals = new Hono<AppEnv>()
     if (changed.status !== "ok") return refused(c, changed);
     await announce(c, "deal", [changed.deal.id]);
     return c.json({ deal: wireDeal(changed.deal) } satisfies CrmDealResponse);
+  })
+
+  .post("/deals/:id/restore", async (c) => {
+    const restored = await memberCrm(c).restoreDeal(c.req.param("id"));
+    if (restored.status !== "ok") return refused(c, restored);
+    await announce(c, "deal", [restored.deal.id]);
+    return c.json({ deal: wireDeal(restored.deal) } satisfies CrmDealResponse);
   })
 
   .delete("/deals/:id", zValidator("query", crmDeleteQuerySchema), async (c) => {

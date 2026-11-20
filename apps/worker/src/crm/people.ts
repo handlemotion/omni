@@ -14,23 +14,21 @@ import { zValidator } from "../validator.ts";
 import { lastContactedAt, subjectOf } from "./mail.ts";
 import {
   announce,
-  decodeCursor,
   encodeCursor,
+  listInput,
   memberCrm,
-  nameCursor,
   refused,
+  wireDeal,
   wirePerson,
 } from "./http.ts";
 
 export const people = new Hono<AppEnv>()
   .get("/people", zValidator("query", crmPeopleQuerySchema), async (c) => {
-    const { q, company, cursor, limit, archived } = c.req.valid("query");
+    const query = c.req.valid("query");
     const listed = await memberCrm(c).listPeople({
-      q,
-      companyId: company,
-      cursor: decodeCursor(cursor, nameCursor),
-      limit,
-      includeArchived: archived === "1",
+      ...listInput(query),
+      companyId: query.company,
+      hasCompany: query.hasCompany === undefined ? undefined : query.hasCompany === "1",
     });
     if (listed.status !== "ok") return refused(c, listed);
     return c.json({
@@ -54,10 +52,11 @@ export const people = new Hono<AppEnv>()
   })
 
   .get("/people/:id", async (c) => {
-    const found = await memberCrm(c).person(c.req.param("id"));
+    const found = await memberCrm(c).personDetail(c.req.param("id"));
     if (found.status !== "ok") return refused(c, found);
     return c.json({
       person: wirePerson(found.person),
+      deals: found.deals.map(wireDeal),
       lastContactedAt: await lastContactedAt(c, subjectOf([found.person])),
     } satisfies CrmPersonDetailResponse);
   })
@@ -73,6 +72,13 @@ export const people = new Hono<AppEnv>()
     if (was !== changed.person.companyId)
       await announce(c, "company", [was, changed.person.companyId]);
     return c.json({ person: wirePerson(changed.person) } satisfies CrmPersonResponse);
+  })
+
+  .post("/people/:id/restore", async (c) => {
+    const restored = await memberCrm(c).restorePerson(c.req.param("id"));
+    if (restored.status !== "ok") return refused(c, restored);
+    await announce(c, "person", [restored.person.id]);
+    return c.json({ person: wirePerson(restored.person) } satisfies CrmPersonResponse);
   })
 
   .delete("/people/:id", zValidator("query", crmDeleteQuerySchema), async (c) => {

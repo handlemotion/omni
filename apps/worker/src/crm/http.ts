@@ -19,8 +19,11 @@ import {
   type CrmDeal,
   type CrmEvent,
   type CrmNote,
+  type CrmListCursor,
   type CrmPerson,
+  type CrmSortKey,
   type DomainRefusal,
+  type ListRecordsInput,
   type FolderResult,
   type Forbidden,
   type InvalidAddress,
@@ -268,6 +271,54 @@ export function decodeCursor<T extends z.ZodType>(value: string | undefined, sch
 
 /** A list by name: the last row's name and id. */
 export const nameCursor = z.object({ name: z.string(), id: z.string().min(1) });
+
+const sortKey = z.enum(["name", "created", "updated", "value", "closeOn", "stageEntered"]);
+
+/**
+ * Where a list page ended: its sort, the last row's sort value and id. A cursor an
+ * older Worker gave (by name) reads as a name cursor, so an open tab keeps paging.
+ */
+export const listCursor = z.union([
+  z.object({
+    key: sortKey,
+    dir: z.enum(["asc", "desc"]),
+    value: z.string().nullable(),
+    id: z.string().min(1),
+  }),
+  nameCursor.transform(
+    ({ name, id }) => ({ key: "name", dir: "asc", value: name, id }) satisfies CrmListCursor,
+  ),
+]);
+
+/** What every list query shares, as the CRM door takes it. */
+export function listInput(query: {
+  q?: string;
+  sort?: CrmSortKey;
+  dir?: "asc" | "desc";
+  cursor?: string;
+  limit?: number;
+  archived?: "1" | "only";
+  owner?: string;
+  createdAfter?: string;
+  createdBefore?: string;
+}) {
+  return {
+    q: query.q,
+    sort: { key: query.sort ?? "name", dir: query.dir ?? "asc" },
+    cursor: decodeCursor(query.cursor, listCursor),
+    limit: query.limit,
+    includeArchived: query.archived === "1",
+    archivedOnly: query.archived === "only",
+    ownerMemberId: query.owner === "none" ? null : query.owner,
+    createdAfter: query.createdAfter ? new Date(query.createdAfter) : undefined,
+    createdBefore: query.createdBefore ? new Date(query.createdBefore) : undefined,
+  } satisfies ListRecordsInput;
+}
+
+/** The error code the single route would answer for a refusal, for a bulk answer. */
+export const refusalCode = (status: string) =>
+  ((answerFor({ status } as CrmRefusal) as Answer | undefined)?.code ??
+    "conflict") satisfies ErrorCode;
 
 /**
  * Tells the workspace's members what changed (`crm.changed`, ids only): every member sees every

@@ -7,9 +7,12 @@ import {
   getCompany,
   listCompanies,
   removeCompanyDomain,
+  restoreCompany,
   updateCompany,
+  type CompanyPatch,
   type ListCompaniesInput,
 } from "./crm/companies.ts";
+import { bulkCrm, type CrmBulkAction, type CrmBulkRecords } from "./crm/bulk.ts";
 import {
   createContract,
   deleteContract,
@@ -33,6 +36,7 @@ import {
   getDeal,
   listDeals,
   moveDeals,
+  restoreDeal,
   updateDeal,
   type DealInput,
   type DealPatch,
@@ -52,7 +56,9 @@ import {
   archivePerson,
   deletePerson,
   getPerson,
+  getPersonDetail,
   listPeople,
+  restorePerson,
   updatePerson,
   type AddPersonInput,
   type ListPeopleInput,
@@ -62,7 +68,17 @@ import { lookupCrm, searchCrm } from "./crm/search.ts";
 import { getSettings, putSettings } from "./crm/settings.ts";
 import { replaceStages, stagesOf, type StageInput } from "./crm/stages.ts";
 
+export {
+  BULK_MAX,
+  type CrmBulkAction,
+  type CrmBulkRecords,
+  type CrmBulkResult,
+} from "./crm/bulk.ts";
+export type { CrmListCursor, CrmSort, CrmSortDir, CrmSortKey } from "./crm/list-order.ts";
 export type {
+  CompanyPatch,
+  CreatedRange,
+  ListRecordsInput,
   CompanyDetailResult,
   CompanyResult,
   CreateCompanyResult,
@@ -166,9 +182,10 @@ export function memberCrm(db: Db, memberId: string) {
     company: (id: string) => asMember(door, (m, ex) => getCompany(ex, m, id)),
     createCompany: (input: Parameters<typeof createCompany>[2]) =>
       writeAsMember(door, (m, tx) => createCompany(tx, m, input)),
-    updateCompany: (id: string, patch: Parameters<typeof updateCompany>[3]) =>
+    updateCompany: (id: string, patch: CompanyPatch) =>
       writeAsMember(door, (m, tx) => updateCompany(tx, m, id, patch)),
     archiveCompany: (id: string) => writeAsMember(door, (m, tx) => archiveCompany(tx, m, id)),
+    restoreCompany: (id: string) => writeAsMember(door, (m, tx) => restoreCompany(tx, m, id)),
     deleteCompany: (id: string) => writeAsMember(door, (m, tx) => deleteCompany(tx, m, id)),
     addCompanyDomain: (id: string, domain: string) =>
       writeAsMember(door, (m, tx) => addCompanyDomain(tx, m, id, domain)),
@@ -178,10 +195,12 @@ export function memberCrm(db: Db, memberId: string) {
     listPeople: (input: ListPeopleInput = {}) =>
       asMember(door, (m, ex) => listPeople(ex, m, input)),
     person: (id: string) => asMember(door, (m, ex) => getPerson(ex, m, id)),
+    personDetail: (id: string) => asMember(door, (m, ex) => getPersonDetail(ex, m, id)),
     addPerson: (input: AddPersonInput) => writeAsMember(door, (m, tx) => addPerson(tx, m, input)),
     updatePerson: (id: string, patch: UpdatePersonInput) =>
       writeAsMember(door, (m, tx) => updatePerson(tx, m, id, patch)),
     archivePerson: (id: string) => writeAsMember(door, (m, tx) => archivePerson(tx, m, id)),
+    restorePerson: (id: string) => writeAsMember(door, (m, tx) => restorePerson(tx, m, id)),
     deletePerson: (id: string) => writeAsMember(door, (m, tx) => deletePerson(tx, m, id)),
 
     listDeals: (input: ListDealsInput = {}) => asMember(door, (m, ex) => listDeals(ex, m, input)),
@@ -192,6 +211,9 @@ export function memberCrm(db: Db, memberId: string) {
     moveDeals: (input: { dealIds: string[]; stageId: string }) =>
       writeAsMember(door, (m, tx) => moveDeals(tx, m, input)),
     archiveDeal: (id: string) => writeAsMember(door, (m, tx) => archiveDeal(tx, m, id)),
+    restoreDeal: (id: string) => writeAsMember(door, (m, tx) => restoreDeal(tx, m, id)),
+    bulk: (records: CrmBulkRecords, ids: string[], action: CrmBulkAction) =>
+      bulkCrm(door, records, ids, action),
     deleteDeal: (id: string) => writeAsMember(door, (m, tx) => deleteDeal(tx, m, id)),
 
     companyFolder: (id: string) => writeAsMember(door, (m, tx) => companyFolder(tx, m, id)),

@@ -106,10 +106,16 @@ All under `/api/crm` on the Worker, for the active workspace. Shapes live in
 | `GET /companies/:id/timeline` · same for people and deals           | The merged timeline, newest first.                                                                           |
 | `POST /companies/:id/folder` · `POST /deals/:id/folder`             | Finds or makes the record's folder and returns its node id. The apps then use `/api/storage` on it.          |
 | `GET /contracts` · `POST /contracts` · `PATCH /contracts/:id` · `DELETE` | List by `?company=` or `?deal=`. Create. Change status, dates or file. Delete (never a signed one).     |
+| `POST /companies/:id/restore` · same for people and deals          | Brings an archived record back.                                                                   |
+| `POST /companies/bulk` · same for people and deals                 | One action (`archive`, `restore`, `delete`, `owner`; deals `stage`) on up to 200 ids, each by its own rules. |
 | `GET /lookup?address=`                                              | Up to 50 addresses. The people, companies and open deals that match, for the conversation sidebar.           |
 | `GET /search?q=`                                                    | People, companies and deals whose name, address or domain starts with the words. For pickers.                |
 | `GET /settings` · `PUT /settings`                                   | The default currency.                                                                                        |
 
+- Every list takes `sort` (`name`, `created`, `updated`; deals also `value`, `closeOn`,
+  `stageEntered`), `dir`, `owner` (an id or `none`), `createdAfter`, `createdBefore` and
+  `archived` (`1` with archived, `only` archived alone). Companies take `domain`; people
+  `hasCompany`; deals `closeAfter`, `closeBefore`, `minValue`, `maxValue`.
 - Error codes beside `error`: `NOT_FOUND`, `NO_CRM`, `ADDRESS_TAKEN`, `DOMAIN_TAKEN`,
   `WEBMAIL_DOMAIN`, `STAGE_IN_USE`, `STAGE_KIND_REQUIRED` (each kind keeps at least one stage),
   `INVALID_CURRENCY`, `CONTRACT_SIGNED`, and the platform's `BILLING_INACTIVE`.
@@ -138,6 +144,35 @@ One list, newest first, of four kinds of item:
   Personal space included. It is their own mail, shown only to them.
 - Each source is asked for one page older than the cursor; the pages are merged and cut to the
   limit. The cursor is the last item's time and id.
+
+## Records parity
+
+Nov 20, 2026. Companies, people and deals at the level of Attio, HubSpot, Folk and Pipedrive for
+the everyday flows: create, edit, find, archive and delete; lists with sort, filter and search; a
+board by stage; a won deal is the project.
+
+- **Owners and a close date.** Companies and people have an owner like deals do
+  (`owner_member_id`, `on delete set null`). Deals have `expected_close_on`. A company made by
+  hand is its creator's; one made from an address, and every person, starts with none.
+- **Sort.** Every list sorts by name, created or updated, and deals also by value, close date
+  and stage entered, either way. The cursor carries the sort, the last row's value and its id, so
+  pages hold still; unvalued and undated deals come last both ways. A cursor from before this
+  (by name) still pages. `lastContactedAt` does not sort: it is computed per viewer at read time.
+- **Filter.** Owner (a member or nobody) and creation time on every list; companies by domain;
+  people by company or having none; deals by stage, kind, company, close date and value ranges.
+  Filters combine. Saved views stay out.
+- **Restore.** An archived record comes back with `POST /:records/:id/restore`, which writes a
+  `restored` event.
+- **Bulk.** One action (`archive`, `restore`, `delete`, `owner`, and `stage` for deals) on up to
+  200 ids. Each id goes through the single route's door function in its own transaction, so every
+  rule holds (only owners and admins delete, a signed contract outlives its record, stage moves
+  set `won_at` once), and the answer says by id what changed and what was refused.
+- **A person's deals** come with `GET /people/:id`.
+- **Currency.** The apps always send a currency with a value: the deal's own, else the
+  workspace default, else the device's. The API still refuses a value with no currency at all.
+- **Projects** are deals in a `won` stage (`kind=won`); the apps list them on their own.
+
+Still out: custom fields, saved views, several pipelines, merging duplicates, imports.
 
 ## Agents
 
