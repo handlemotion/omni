@@ -19,7 +19,7 @@ import { crmErrorToast } from "./crm-errors.ts";
 import { StageBadge } from "./list-pages.tsx";
 import { CompanyValue, NewDealDialog, NewPersonDialog } from "./new-records.tsx";
 import { ArchivedBadge, RecordActions } from "./record-actions.tsx";
-import { AddAddressDialog, AddDomainDialog, AddPersonDialog } from "./record-dialogs.tsx";
+import { AddAddressDialog, AddDomainDialog } from "./record-dialogs.tsx";
 import { ChoiceValue, DayValue, MoneyValue, PlainValue, TextValue } from "./record-fields.tsx";
 import { RecordFiles } from "./record-files.tsx";
 import { byAddress } from "@/components/avatar/sender-avatar";
@@ -229,7 +229,6 @@ export function DealPage({ id }: { id: string }) {
   const move = useMoveDeal();
   const stages = useCrmStages().data ?? [];
   const workspaceCurrency = useCrmDefaultCurrency();
-  const [open, setOpen] = useState<"person" | null>(null);
   const company = useCompanyName(query.data?.deal.companyId ?? null);
   if (!query.data) return <RecordState list="deals" query={query} />;
   const { deal, people } = query.data;
@@ -244,7 +243,7 @@ export function DealPage({ id }: { id: string }) {
         list={deal.stageKind === "won" ? "projects" : "deals"}
         here={{ kind: "deals", id }}
         name={deal.name}
-        mark={<DealMark deal={deal} client={company} size={40} />}
+        mark={<DealMark deal={deal} client={company} size={company ? 40 : 28} />}
         subtitle={company?.name}
         badge={
           <>
@@ -294,7 +293,8 @@ export function DealPage({ id }: { id: string }) {
             </DetailSection>
             <PeopleSection
               people={people}
-              onAdd={() => setOpen("person")}
+              picking={update.isPending}
+              onPick={(personId) => save({ id, personIds: [...people.map((p) => p.id), personId] })}
               onRemove={(personId) =>
                 save({ id, personIds: people.map((p) => p.id).filter((p) => p !== personId) })
               }
@@ -320,17 +320,6 @@ export function DealPage({ id }: { id: string }) {
           },
         ]}
       />
-      {open === "person" && (
-        <AddPersonDialog
-          title="Add person"
-          exclude={people.map((p) => p.id)}
-          saving={update.isPending}
-          onAdd={(personId) =>
-            save({ id, personIds: [...people.map((p) => p.id), personId] }, () => setOpen(null))
-          }
-          onClose={() => setOpen(null)}
-        />
-      )}
     </>
   );
 }

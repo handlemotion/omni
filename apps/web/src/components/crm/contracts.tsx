@@ -37,6 +37,7 @@ import { nextStatuses, type ContractChange } from "@/lib/crm-mutations.ts";
 import type { CrmContract, CrmContractStatus } from "@/lib/crm.ts";
 import { storageFileUrl } from "@/lib/urls.ts";
 import { ContractDetailsDialog } from "./contract-details.tsx";
+import { DayField } from "./day-field.tsx";
 import { FilePicker, type Owner } from "./contract-file-picker.tsx";
 import { SignedCopyDialog, takesSignedCopy } from "./contract-signed-copy-dialog.tsx";
 import { SendContractDialog } from "./contract-send-dialog.tsx";
@@ -63,7 +64,7 @@ export function Contracts(props: { owner: Owner; folderId: string | null }) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const close = () => setDialog(null);
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-1 flex-col gap-3">
       <div className="flex justify-end">
         <Button size="sm" onPress={() => setDialog({ kind: "new" })}>
           <IconPlus />
@@ -238,19 +239,36 @@ function ContractRow(props: {
   );
 }
 
+const titleFrom = (name: string) =>
+  name
+    .replace(/\.[^.]+$/, "")
+    .trim()
+    .slice(0, NAME_MAX);
+
 function NewContractDialog(props: { owner: Owner; folderId: string | null; onClose: () => void }) {
   const create = useCreateContract();
-  const [title, setTitle] = useState("");
+  const [named, setNamed] = useState({ title: "", fromFile: "" });
+  const { title } = named;
   const [file, setFile] = useState<string | null>(null);
-  const [effectiveOn, setEffectiveOn] = useState("");
-  const [expiresOn, setExpiresOn] = useState("");
+  const [effectiveOn, setEffectiveOn] = useState<string | null>(null);
+  const [expiresOn, setExpiresOn] = useState<string | null>(null);
+  const backwards = !!effectiveOn && !!expiresOn && effectiveOn > expiresOn;
+  const pick = (id: string | null, name: string | null) => {
+    setFile(id);
+    if (!name) return;
+    const next = titleFrom(name);
+    setNamed((now) =>
+      now.title.trim() && now.title !== now.fromFile ? now : { title: next, fromFile: next },
+    );
+  };
+
   return (
     <SettingsFormDialog
       isOpen
       onOpenChange={(open) => !open && props.onClose()}
       title="New contract"
       action="Create draft"
-      disabled={!title.trim()}
+      disabled={!title.trim() || backwards}
       saving={create.isPending}
       onSubmit={() =>
         create.mutate(
@@ -258,8 +276,8 @@ function NewContractDialog(props: { owner: Owner; folderId: string | null; onClo
             ...props.owner,
             title: title.trim(),
             documentNodeId: file,
-            effectiveOn: effectiveOn || null,
-            expiresOn: expiresOn || null,
+            effectiveOn,
+            expiresOn,
           },
           {
             onSuccess: props.onClose,
@@ -268,20 +286,19 @@ function NewContractDialog(props: { owner: Owner; folderId: string | null; onClo
         )
       }
     >
-      <TextField isRequired autoFocus maxLength={NAME_MAX} value={title} onChange={setTitle}>
+      <FilePicker owner={props.owner} folderId={props.folderId} value={file} onChange={pick} />
+      <TextField
+        isRequired
+        maxLength={NAME_MAX}
+        value={title}
+        onChange={(text) => setNamed((now) => ({ ...now, title: text }))}
+      >
         <Label>Title</Label>
         <Input autoComplete="off" />
       </TextField>
-      <FilePicker owner={props.owner} folderId={props.folderId} value={file} onChange={setFile} />
       <div className="grid grid-cols-2 gap-3">
-        <TextField type="date" value={effectiveOn} onChange={setEffectiveOn}>
-          <Label>Starts</Label>
-          <Input />
-        </TextField>
-        <TextField type="date" value={expiresOn} onChange={setExpiresOn}>
-          <Label>Ends</Label>
-          <Input />
-        </TextField>
+        <DayField label="Starts" value={effectiveOn} onChange={setEffectiveOn} />
+        <DayField label="Ends" value={expiresOn} onChange={setExpiresOn} isInvalid={backwards} />
       </div>
     </SettingsFormDialog>
   );

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { byAddress } from "@/components/avatar/sender-avatar";
+import { AddPersonPicker } from "./person-picker.tsx";
 import { IconEllipsis, IconMail, IconPlus, IconStar, IconTrash } from "@/components/icons/central";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -147,15 +148,31 @@ export function AddressesSection(props: { person: CrmPerson; onAdd: () => void }
   );
 }
 
-/** People on a company or a deal; on a deal each can be taken off. */
+/**
+ * People on a company or a deal. A company adds a new person (`onAdd`); a deal picks one already in
+ * the workspace (`onPick`), and each can be taken off.
+ */
 export function PeopleSection(props: {
   people: CrmPerson[];
-  onAdd: () => void;
+  onAdd?: () => void;
+  onPick?: (personId: string) => void;
+  /** While a pick saves. */
+  picking?: boolean;
   onRemove?: (personId: string) => void;
 }) {
-  const { onRemove } = props;
+  const { onRemove, onPick, onAdd } = props;
+  const action = onPick ? (
+    <AddPersonPicker
+      label="Add person"
+      exclude={props.people.map((person) => person.id)}
+      onAdd={onPick}
+      isDisabled={props.picking}
+    />
+  ) : onAdd ? (
+    <AddButton label="Add person" onPress={onAdd} />
+  ) : undefined;
   return (
-    <DetailSection title="People" action={<AddButton label="Add person" onPress={props.onAdd} />}>
+    <DetailSection title="People" action={action}>
       {props.people.length ? (
         props.people.map((person) => {
           const row = (

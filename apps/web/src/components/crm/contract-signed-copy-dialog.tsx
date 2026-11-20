@@ -8,13 +8,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
 import { useSignedCopy } from "@/hooks/use-crm.ts";
 import type { CrmContract } from "@/lib/crm.ts";
 import { FilePicker, type Owner } from "./contract-file-picker.tsx";
 import { useStartingSigners } from "./contract-send-dialog.tsx";
+import { DayField } from "./day-field.tsx";
 import { crmErrorToast } from "./crm-errors.ts";
 
 interface Draft {
@@ -99,10 +99,13 @@ function SignedCopyForm(props: {
             value={file}
             onChange={setFile}
           />
-          <TextField type="date" isRequired value={day} onChange={setDay}>
-            <Label>Signed on</Label>
-            <Input max={today()} />
-          </TextField>
+          <DayField
+            label="Signed on"
+            isRequired
+            max={today()}
+            value={day}
+            onChange={(next) => next && setDay(next)}
+          />
           <ul className="flex flex-col gap-2" aria-label="Signed by">
             {drafts.map((draft, index) => (
               <li key={draft.key} className="flex flex-wrap items-center gap-2">

@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { SettingsFormDialog } from "@/components/settings/kit/settings-stacked-dialog";
-import { ComboBox, ComboBoxContent, ComboBoxInput, ComboBoxItem } from "@/components/ui/combo-box";
 import { Label } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { TextField } from "@/components/ui/text-field";
-import { useAddDomain, useCrmPeople, useUpdatePerson } from "@/hooks/use-crm.ts";
-import { useDebouncedValue } from "@/hooks/use-debounced-value.ts";
+import { useAddDomain, useUpdatePerson } from "@/hooks/use-crm.ts";
 import { crmErrorToast } from "./crm-errors.ts";
 
 export function AddDomainDialog(props: { companyId: string; onClose: () => void }) {
@@ -69,53 +67,6 @@ export function AddAddressDialog(props: { personId: string; onClose: () => void 
         <Label>Email</Label>
         <Input autoComplete="off" />
       </TextField>
-    </SettingsFormDialog>
-  );
-}
-
-/** Picks a person by name or address, searched on the server as it is typed. */
-export function AddPersonDialog(props: {
-  title: string;
-  /** Already there: left out of the choices. */
-  exclude: string[];
-  saving: boolean;
-  onAdd: (personId: string) => void;
-  onClose: () => void;
-}) {
-  const [text, setText] = useState("");
-  const [personId, setPersonId] = useState<string | null>(null);
-  const q = useDebouncedValue(text.trim(), 200);
-  const people = useCrmPeople(q).people.filter((person) => !props.exclude.includes(person.id));
-  return (
-    <SettingsFormDialog
-      isOpen
-      onOpenChange={(open) => !open && props.onClose()}
-      title={props.title}
-      action="Add"
-      disabled={!personId}
-      saving={props.saving}
-      onSubmit={() => personId && props.onAdd(personId)}
-    >
-      <ComboBox
-        selectedKey={personId}
-        onSelectionChange={(key) => setPersonId(key === null ? null : String(key))}
-        inputValue={text}
-        onInputChange={setText}
-        items={people}
-        allowsEmptyCollection
-        menuTrigger="focus"
-        autoFocus
-      >
-        <Label>Person</Label>
-        <ComboBoxInput />
-        <ComboBoxContent items={people}>
-          {(person) => (
-            <ComboBoxItem id={person.id} textValue={person.name}>
-              {person.name}
-            </ComboBoxItem>
-          )}
-        </ComboBoxContent>
-      </ComboBox>
     </SettingsFormDialog>
   );
 }

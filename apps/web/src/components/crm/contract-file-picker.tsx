@@ -58,7 +58,10 @@ function useContractUpload(owner: Owner) {
   return { pending, run };
 }
 
-/** A file from the record's folder, or a PDF uploaded into it (making the folder first). */
+/**
+ * A file from the record's folder, or a PDF uploaded into it (making the folder first). With no
+ * file in the folder yet, only the upload button shows.
+ */
 export function FilePicker(props: {
   label?: string;
   /** Only PDFs from the folder, as for a signed copy. */
@@ -66,19 +69,43 @@ export function FilePicker(props: {
   owner: Owner;
   folderId: string | null;
   value: string | null;
-  onChange: (id: string | null) => void;
+  /** The chosen file's id, and its name when one is chosen. */
+  onChange: (id: string | null, name: string | null) => void;
 }) {
   const [folderId, setFolderId] = useState(props.folderId);
   const files = useFolderFiles(folderId, !!props.pdfOnly);
   const upload = useContractUpload(props.owner);
+  const button = (
+    <FileTrigger
+      acceptedFileTypes={["application/pdf"]}
+      onSelect={(list) => {
+        const file = list?.[0];
+        if (!file) return;
+        void upload.run(file, folderId).then((done) => {
+          if (!done) return;
+          setFolderId(done.folderId);
+          props.onChange(done.nodeId, file.name);
+        });
+      }}
+    >
+      <Button
+        intent="outline"
+        isPending={upload.pending}
+        className={files.length ? "" : "self-start"}
+      >
+        <IconUpload data-slot="icon" />
+        Upload PDF
+      </Button>
+    </FileTrigger>
+  );
+  if (!files.length) return button;
   return (
     <div className="flex items-end gap-2">
       <Select
         className="min-w-0 flex-1"
         value={props.value}
-        onChange={(id) => props.onChange(id)}
+        onChange={(id) => props.onChange(id, files.find((file) => file.id === id)?.name ?? null)}
         placeholder="None"
-        isDisabled={!files.length}
       >
         <Label>{props.label ?? "File"}</Label>
         <SelectTrigger />
@@ -90,23 +117,7 @@ export function FilePicker(props: {
           )}
         </SelectContent>
       </Select>
-      <FileTrigger
-        acceptedFileTypes={["application/pdf"]}
-        onSelect={(list) => {
-          const file = list?.[0];
-          if (!file) return;
-          void upload.run(file, folderId).then((done) => {
-            if (!done) return;
-            setFolderId(done.folderId);
-            props.onChange(done.nodeId);
-          });
-        }}
-      >
-        <Button intent="outline" isPending={upload.pending}>
-          <IconUpload data-slot="icon" />
-          Upload PDF
-        </Button>
-      </FileTrigger>
+      {button}
     </div>
   );
 }
