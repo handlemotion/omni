@@ -26,6 +26,7 @@ import {
   useDeleteComment,
   useStorageComments,
 } from "@/hooks/use-storage.ts";
+import type { DocComments } from "@/hooks/use-doc-comments.ts";
 import { useSession } from "@/hooks/use-session.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import {
@@ -35,6 +36,7 @@ import {
   type StorageComments,
   type StorageThread,
 } from "@/lib/storage-comments.ts";
+import { CommentComposer } from "./preview/comment-composer.tsx";
 import { storageErrorToast } from "./storage-errors.ts";
 
 const SAMPLE: StorageComments = {
@@ -83,8 +85,10 @@ export function CommentsPanel(props: {
   node: StorageNode;
   shareId?: string | undefined;
   onClose: () => void;
+  /** Beside a doc: threads show the passage they are on, and pick it out in the doc. */
+  doc?: DocComments | undefined;
 }) {
-  const { node, shareId } = props;
+  const { node, shareId, doc } = props;
   const door = { id: node.id, shareId };
   const comments = useStorageComments(node.id, shareId);
   const [view, setView] = useState<View>("open");
@@ -127,6 +131,19 @@ export function CommentsPanel(props: {
           <Tab id="resolved">Resolved</Tab>
         </TabList>
       </Tabs>
+      {doc?.pending && (
+        <div className="flex shrink-0 flex-col gap-2.5 border-b px-5 pt-3 pb-4">
+          <Quote text={doc.pending.quote} active />
+          <CommentComposer
+            key={JSON.stringify(doc.pending)}
+            fileId={node.id}
+            shareId={shareId}
+            anchor={doc.pending}
+            onClose={doc.cancel}
+            onSent={doc.cancel}
+          />
+        </div>
+      )}
       {comments.data && threadsOf(comments.data.comments, view === "resolved").length === 0 ? (
         <EmptyState
           figure="dish"
@@ -150,6 +167,7 @@ export function CommentsPanel(props: {
                     thread={thread}
                     replying={replying === thread.root.id}
                     onReplying={(on) => setReplying(on ? thread.root.id : null)}
+                    doc={doc}
                   />
                 ))}
               </ul>
@@ -164,14 +182,36 @@ export function CommentsPanel(props: {
 const AVATAR =
   "shrink-0 bg-accent text-foreground outline-0 [--avatar-radius:var(--radius-md)] [--avatar-size:--spacing(6)]";
 
+function Quote(props: { text: string; active: boolean; onPress?: () => void }) {
+  const edge = `border-s-2 ps-2.5 text-sm text-muted-foreground ${props.active ? "border-warning" : "border-border"}`;
+  if (!props.onPress) return <p className={`line-clamp-2 ${edge}`}>{props.text}</p>;
+  return (
+    <Button
+      intent="plain"
+      size="text"
+      className={`w-full justify-start rounded-none text-start ${edge}`}
+      onPress={props.onPress}
+    >
+      <span className="line-clamp-2">{props.text}</span>
+    </Button>
+  );
+}
+
 function CommentRow(props: {
   door: Door;
   thread: StorageThread;
   replying: boolean;
   onReplying: (on: boolean) => void;
+  doc?: DocComments | undefined;
 }) {
-  const { door, thread } = props;
+  const { door, thread, doc } = props;
   const { root } = thread;
+  const quote = doc && root.anchor?.kind === "text" ? root.anchor.quote : null;
+  const active = !!doc && doc.active === root.id;
+  const row = useRef<HTMLLIElement>(null);
+  useLayoutEffect(() => {
+    if (active) row.current?.scrollIntoView({ block: "nearest" });
+  }, [active]);
   const messages = [root, ...thread.replies];
   const me = useSession().data?.user.name ?? "";
   const change = useChangeComment();
@@ -183,7 +223,17 @@ function CommentRow(props: {
   const resolved = !!root.resolvedAt;
   const onReply = () => props.onReplying(true);
   return (
-    <li className="border-b px-5 py-4" aria-label={`Comment from ${commentAuthor(root)}`}>
+    <li
+      ref={row}
+      className={`border-b px-5 py-4 ${active ? "bg-secondary/60" : ""}`}
+      aria-label={`Comment from ${commentAuthor(root)}`}
+      aria-current={active || undefined}
+    >
+      {quote !== null && (
+        <div className="mb-3 flex">
+          <Quote text={quote} active={active} onPress={() => doc?.pick(root.id)} />
+        </div>
+      )}
       <ol>
         {messages.map((comment, index) => (
           <Message

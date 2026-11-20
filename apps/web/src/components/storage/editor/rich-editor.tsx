@@ -4,6 +4,7 @@ import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
 import { Editor, EditorContent, useEditor } from "@tiptap/react";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useDocComments, useLiveComments } from "@/hooks/use-doc-comments.ts";
 import { useDocFiles } from "@/hooks/use-doc-files.ts";
 import { useFilePlace } from "@/hooks/use-storage.ts";
 import type * as Y from "yjs";
@@ -12,6 +13,7 @@ import { sessionQuery } from "@/lib/session.ts";
 import type { StorageNode } from "@/lib/storage.ts";
 import type { EditorProps } from "./document-editor.tsx";
 import { BlockHandle, FormatBar } from "./block-tools.tsx";
+import { commentOnSelection, useCommentMarks, useCommentsExtension } from "./comment-marks.ts";
 import { useStorageHref } from "../file-list.tsx";
 import { storageErrorToast } from "../storage-errors.ts";
 import { docExtensions } from "./doc-schema.ts";
@@ -190,13 +192,16 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
   const { onReady, onChange, name, doc } = props;
   const me = useCollaborator();
   const drive = useDriveOptions(props);
+  const comments = useDocComments();
+  const commenting = useCommentsExtension(comments);
+  useLiveComments(doc, props.nodeId);
   const editorProps = useMemo(
     () => ({ attributes: { class: "document-page", "aria-label": name } }),
     [name],
   );
   const extensions = useMemo(
-    () => [...(doc ? withCarets(doc, me) : EXTENSIONS), DriveFiles.configure(drive)],
-    [doc, me, drive],
+    () => [...(doc ? withCarets(doc, me) : EXTENSIONS), DriveFiles.configure(drive), ...commenting],
+    [doc, me, drive, commenting],
   );
   const editor = useEditor({
     extensions,
@@ -212,12 +217,16 @@ function Page(props: EditorProps & { doc: LiveDoc | null }) {
   useEffect(() => {
     onReady(() => editor.getMarkdown());
   }, [editor, onReady]);
+  useCommentMarks(editor, comments);
 
   return (
     <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
       <EditorContent editor={editor} />
       <BlockHandle editor={editor} />
-      <FormatBar editor={editor} />
+      <FormatBar
+        editor={editor}
+        onComment={comments ? () => commentOnSelection(editor, comments) : undefined}
+      />
     </div>
   );
 }

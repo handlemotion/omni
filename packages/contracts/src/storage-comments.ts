@@ -7,7 +7,9 @@ const line = z.number().int().positive();
 
 /**
  * Where a thread points. On a PDF page or an image, a box in fractions of it, so it holds at any zoom;
- * lines and cells count from 1; `file` is the whole file.
+ * lines and cells count from 1; `text` is a passage of a doc, found again by its words and the
+ * few characters around them, so it follows the passage as the doc changes; `file` is the whole
+ * file.
  */
 export const storageCommentAnchorSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("file") }),
@@ -37,6 +39,12 @@ export const storageCommentAnchorSchema = z.discriminatedUnion("kind", [
   z
     .object({ kind: z.literal("lines"), start: line, end: line })
     .refine((lines) => lines.end >= lines.start, { message: "end must not come before start" }),
+  z.object({
+    kind: z.literal("text"),
+    quote: z.string().min(1).max(2_000),
+    prefix: z.string().max(64),
+    suffix: z.string().max(64),
+  }),
   z.object({
     kind: z.literal("cell"),
     sheet: z.string().min(1).max(255).optional(),

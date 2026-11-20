@@ -61,15 +61,16 @@ export function addImages(editor: Editor, files: File[], at?: number) {
   }
 }
 
-/** Asks for image files from the computer and adds them at the cursor. */
+/** Asks for image files from the computer and adds them where the cursor was when asked. */
 export function pickImages(editor: Editor) {
+  const at = editor.state.selection.from;
   const input = document.createElement("input");
   input.type = "file";
   input.accept = IMAGE_TYPES.join(",");
   input.multiple = true;
   input.hidden = true;
   input.addEventListener("change", () => {
-    addImages(editor, [...(input.files ?? [])]);
+    addImages(editor, [...(input.files ?? [])], at);
     input.remove();
   });
   input.addEventListener("cancel", () => input.remove());

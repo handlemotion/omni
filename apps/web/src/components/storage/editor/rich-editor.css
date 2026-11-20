@@ -116,3 +116,9 @@
 .collaboration-carets__avatar {
   @apply flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-collaborator-foreground/25 object-cover text-[10px]/4;
 }
+.document-page .doc-comment {
+  @apply cursor-pointer border-b-2 border-warning/60 bg-warning/15;
+}
+.document-page .doc-comment-active {
+  @apply border-warning bg-warning/35;
+}

@@ -6,6 +6,7 @@ import { useRef } from "react";
 import {
   IconBold,
   IconCode,
+  IconCommentPlain,
   IconGrip,
   IconItalic,
   IconPlus,
@@ -13,6 +14,7 @@ import {
 } from "@/components/icons/central";
 import { Button } from "@/components/ui/button";
 import { popupSurface } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { openSlashMenu } from "./slash-menu.tsx";
 
@@ -89,8 +91,8 @@ const MARKS: Mark[] = [
   },
 ];
 
-/** Over selected text: bold, italic, strikethrough and code. */
-export function FormatBar(props: { editor: Editor }) {
+/** Over selected text: bold, italic, strikethrough and code, and a comment on it. */
+export function FormatBar(props: { editor: Editor; onComment?: (() => void) | undefined }) {
   const { editor } = props;
   const active = useEditorState({
     editor,
@@ -100,8 +102,12 @@ export function FormatBar(props: { editor: Editor }) {
     <BubbleMenu
       editor={editor}
       options={{ placement: "top", offset: 8 }}
-      shouldShow={({ editor: e, from, to }) =>
-        from !== to && e.isEditable && !e.isActive("codeBlock") && !e.isActive("image")
+      shouldShow={({ editor: e, view, element, from, to }) =>
+        from !== to &&
+        e.isEditable &&
+        (view.hasFocus() || element.contains(document.activeElement)) &&
+        !e.isActive("codeBlock") &&
+        !e.isActive("image")
       }
       className={cn(popupSurface, "flex min-w-0 items-center gap-0.5 p-1")}
     >
@@ -119,6 +125,17 @@ export function FormatBar(props: { editor: Editor }) {
           <Tooltip>{mark.label}</Tooltip>
         </TooltipTrigger>
       ))}
+      {props.onComment && (
+        <>
+          <Separator orientation="vertical" className="mx-0.5 h-4 self-center" />
+          <TooltipTrigger delay={400}>
+            <Button intent="plain" size="sq-xs" aria-label="Comment" onPress={props.onComment}>
+              <IconCommentPlain />
+            </Button>
+            <Tooltip>Comment</Tooltip>
+          </TooltipTrigger>
+        </>
+      )}
     </BubbleMenu>
   );
 }

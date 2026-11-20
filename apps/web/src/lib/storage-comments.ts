@@ -10,6 +10,15 @@ export type StorageComments = InferResponseType<
 >;
 export type StorageComment = StorageComments["comments"][number];
 export type StorageCommentAnchor = NonNullable<StorageComment["anchor"]>;
+/** A passage of a doc by its words and the characters just around them. */
+export type TextAnchor = Extract<StorageCommentAnchor, { kind: "text" }>;
+
+/** A thread to mark in a doc: id "pending" is the one being written. */
+export interface MarkedThread {
+  id: string;
+  anchor: TextAnchor;
+}
+
 type AddBody = InferRequestType<Api["storage"]["files"][":id"]["comments"]["$post"]>["json"];
 type ChangeBody = InferRequestType<
   Api["storage"]["files"][":id"]["comments"][":commentId"]["$patch"]
@@ -50,12 +59,16 @@ export function threadsOf(comments: StorageComment[], resolved: boolean) {
 
 export const commentAuthor = (comment: StorageComment) => comment.authorName ?? "Former member";
 
+/** The key every comment change carries, so a live doc can tell its co-editors to look again. */
+export const COMMENT_MUTATION = ["storage-comment"] as const;
+
 const refetch = (client: QueryClient, id: string) =>
   client.invalidateQueries({ queryKey: keys.storageComments(id) });
 
 /** `mutate({ id, shareId?, body })`: a new thread, or with `parentId` in `body` a reply. */
 export const addCommentMutation = (client: QueryClient) =>
   mutationOptions({
+    mutationKey: COMMENT_MUTATION,
     mutationFn: ({ id, shareId, body }: { id: string; shareId?: string; body: AddBody }) =>
       shareId
         ? call(sharedDoor().$post({ param: { shareId, id }, json: body }))
@@ -66,6 +79,7 @@ export const addCommentMutation = (client: QueryClient) =>
 /** `mutate({ id, commentId, shareId?, change })`: `{ body }` edits, `{ resolved }` resolves. */
 export const changeCommentMutation = (client: QueryClient) =>
   mutationOptions({
+    mutationKey: COMMENT_MUTATION,
     mutationFn: ({
       id,
       commentId,
@@ -88,6 +102,7 @@ export const changeCommentMutation = (client: QueryClient) =>
 /** `mutate({ id, commentId, shareId? })` deletes a comment of one's own, a root with its replies. */
 export const deleteCommentMutation = (client: QueryClient) =>
   mutationOptions({
+    mutationKey: COMMENT_MUTATION,
     mutationFn: async ({
       id,
       commentId,

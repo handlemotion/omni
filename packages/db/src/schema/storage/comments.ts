@@ -5,7 +5,8 @@ import { storageNodes } from "../storage.ts";
 
 /**
  * Where a comment points. Coordinates on a PDF page or an image are fractions of it (0 to 1), so they
- * hold at any zoom. Lines and cells count from 1. The contract's zod schema is the truth; this
+ * hold at any zoom. Lines and cells count from 1. Text is a doc's passage, by its words and the
+ * characters just before and after them. The contract's zod schema is the truth; this
  * type only shapes the column.
  */
 export type StorageCommentAnchor =
@@ -13,6 +14,7 @@ export type StorageCommentAnchor =
   | { kind: "pdf"; page: number; x: number; y: number; width: number; height: number }
   | { kind: "image"; x: number; y: number; width: number; height: number }
   | { kind: "lines"; start: number; end: number }
+  | { kind: "text"; quote: string; prefix: string; suffix: string }
   | { kind: "cell"; sheet?: string; row: number; column: number };
 
 /**
